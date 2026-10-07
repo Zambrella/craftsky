@@ -94,7 +94,7 @@ func newAccountDeletionDependencies(
 	worker, err := accountdeletion.NewWorker(accountdeletion.WorkerOptions{
 		Store: owners.deletionStore, Processor: lifecycle, Finalizer: service,
 		WorkerID: "appview", Now: time.Now, LeaseDuration: 2 * time.Minute,
-		RetryPolicy: accountdeletion.DefaultRetryPolicy(), Logger: logger,
+		RetryPolicy: accountdeletion.DefaultRetryPolicy(), Logger: logger, Observer: observer,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("account deletion worker: %w", err)

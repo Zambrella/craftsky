@@ -60,7 +60,7 @@ func (h *HTTPHandlers) HandoffExchangeHandler() http.Handler {
 				return
 			}
 			if h.Logger != nil {
-				h.Logger.Error("OAuth handoff exchange unavailable", authLogErrorAttrs(runID, "oauth.handoff.exchange", "infrastructure")...)
+				h.Logger.Error("OAuth handoff exchange unavailable", authLogErrorAttrs(r.Context(), runID, "oauth.handoff.exchange", "infrastructure", err)...)
 			}
 			writeHandoffUnavailable(w, runID)
 			return
@@ -103,7 +103,7 @@ func (h *HTTPHandlers) HandoffConfirmHandler() http.Handler {
 				return
 			}
 			if h.Logger != nil {
-				h.Logger.Error("OAuth handoff confirmation unavailable", authLogErrorAttrs(runID, "oauth.handoff.confirm", "infrastructure")...)
+				h.Logger.Error("OAuth handoff confirmation unavailable", authLogErrorAttrs(r.Context(), runID, "oauth.handoff.confirm", "infrastructure", err)...)
 			}
 			writeHandoffUnavailable(w, runID)
 			return

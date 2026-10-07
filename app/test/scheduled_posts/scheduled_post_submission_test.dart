@@ -729,7 +729,8 @@ void main() {
     expect(scheduled.stagedIDs[2], isNot(scheduled.stagedIDs[1]));
     expect(scheduled.stagedByteHistory[2], secondBytes);
     expect(
-      (scheduled.createdPayload?['external'] as Map)['thumbMediaId'],
+      (scheduled.createdPayload?['external']
+          as Map<String, dynamic>)['thumbMediaId'],
       scheduled.stagedIDs[2],
     );
   });
@@ -952,6 +953,12 @@ final class _RecordingErrorReporter implements ErrorReporter {
     captured.add(error);
     return 'event';
   }
+
+  @override
+  Future<void> emitLog(
+    String message, {
+    required ReportContext context,
+  }) async {}
 
   @override
   Future<void> captureMessage(

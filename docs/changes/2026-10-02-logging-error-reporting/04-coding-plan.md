@@ -1,5 +1,17 @@
 # Coding Plan: Useful Logging and Error Reporting
 
+## Refined coding plan approved 2026-10-07
+
+Implement in order SIM-T01 → SIM-T02 → SIM-T03 → SIM-T04 → SIM-T05 → SIM-T06. Each behavior receives a meaningful red before its implementation, then affected regression checks.
+
+1. Remove client message/route catalogues and resource-path classification. Slim ApiFailureDetails/AppError diagnostics to stable codes/status/method/requestId.
+2. Remove automatic log-to-issue promotion and ownership properties; keep explicit provider/unhandled capture owners and audit consumed storage failures.
+3. Replace the aggregate/chunk console pipeline with a fixed brief-record selector; remove generic Flutter retry limiter, preserve original business retries and Go targeted limiter.
+4. Use SDK captureException with original throwable/stack, simplify beforeSend/Log/Breadcrumb callbacks and safe context selection; remove selected-event/log Expandos and event reconstruction.
+5. Remove Go message catalogue and log nonce registry; preserve typed selection, private worker provenance, vetted storage causes and independent local filtering.
+6. Update canonical guide/traceability; verify final serialized sinks, focused/full suites, analyzer, diff. No commit or production action enabled.
+
+
 ## 1. Inputs
 
 - Requirements: `01-requirements.md`, Reviewed; user-confirmed public/private boundary and grilling decisions.

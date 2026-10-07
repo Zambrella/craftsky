@@ -99,6 +99,8 @@ type TerminalResult struct {
 }
 
 type CommandResult struct {
+	// DiagnosticCause exists only for this dispatch; never persist or serialize it.
+	DiagnosticCause error `json:"-"`
 	TerminalResult
 	RetryAfterSeconds int
 }

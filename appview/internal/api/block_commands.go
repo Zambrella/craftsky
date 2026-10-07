@@ -86,12 +86,12 @@ func commandBlockProfileHandler(
 				State     relationships.State `json:"state"`
 			}
 			if json.Unmarshal(replay.Intent, &intent) != nil || intent.TargetDID == "" {
-				WriteCommandError(writer, runID, pdscommands.ErrIdempotencyConflict)
+				WriteCommandError(writer, runID, pdscommands.ErrIdempotencyConflict, request.Context())
 				return
 			}
 			result, err := executeBlockCommand(request, commands, owner, generation, intent.TargetDID, operationKey, replay.SelectedRkey, desiredActive, intent.State, runID)
 			if err != nil {
-				WriteCommandError(writer, runID, err)
+				WriteCommandError(writer, runID, err, request.Context())
 				return
 			}
 			if !desiredActive && result.State == pdscommands.CommandAccepted && restoration != nil {
@@ -135,7 +135,7 @@ func commandBlockProfileHandler(
 				}
 				logger.Warn(operation+" command failed", slog.Any("error", err))
 			}
-			WriteCommandError(writer, runID, err)
+			WriteCommandError(writer, runID, err, request.Context())
 			return
 		}
 		if !desiredActive && result.State == pdscommands.CommandAccepted && restoration != nil {

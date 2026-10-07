@@ -7,6 +7,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"social.craftsky/appview/internal/observability"
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -160,6 +161,7 @@ func DeleteInstagramVerificationHandler(service InstagramVerificationService, lo
 				logger.Error("Instagram verification cancellation failed",
 					slog.String("run_id", middleware.GetRunID(r.Context())),
 					slog.String("error_category", "store"))
+				observability.ReportRequestFailure(r.Context(), err, "api.DeleteInstagramVerificationHandler", "handler")
 				envelope.WriteError(w, http.StatusServiceUnavailable, "instagram_unavailable", "Instagram migration unavailable", middleware.GetRunID(r.Context()), nil)
 				return
 			}

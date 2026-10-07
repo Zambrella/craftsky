@@ -1,9 +1,14 @@
 package index_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/jackc/pgx/v5/pgconn"
+	"log/slog"
+	"social.craftsky/appview/internal/observability"
+	"strings"
 	"testing"
 	"time"
 
@@ -373,4 +378,29 @@ func TestMembershipAndBlockBackfillConvergeAcrossRestartWithoutReadinessState(t 
 	if readinessTables != 0 {
 		t.Fatalf("found %d forbidden readiness/activation tables", readinessTables)
 	}
+}
+
+func TestProfileBackfillDiagnosticRetainsCauseAndPublicEvent(t *testing.T) {
+	pool := testdb.WithSchema(t, craftskyProfilesDDL)
+	var local bytes.Buffer
+	logger := slog.New(observability.NewDiagnosticHandler(slog.NewJSONHandler(&local, nil)))
+	idx := index.NewCraftskyProfile(pool, diagnosticBackfiller{}, logger)
+	event := tap.Event{ID: 101, URI: "at://did:plc:backfill/social.craftsky.actor.profile/self", DID: "did:plc:backfill", Collection: "social.craftsky.actor.profile", Rkey: "self", CID: "bafy-profile", Action: "create", Record: json.RawMessage(`{"crafts":["sewing"]}`)}
+	if err := idx.Handle(context.Background(), event); err != nil {
+		t.Fatal("backfill error changed successful projection")
+	}
+	for _, want := range []string{"pgconn.PgError", "40001", "did:plc:backfill", "bafy-profile", "profile.backfill"} {
+		if !strings.Contains(local.String(), want) {
+			t.Fatalf("missing %s: %s", want, local.String())
+		}
+	}
+	if strings.Contains(local.String(), "opaque private cause") {
+		t.Fatal("private cause leaked")
+	}
+}
+
+type diagnosticBackfiller struct{}
+
+func (diagnosticBackfiller) Backfill(context.Context, syntax.DID) error {
+	return &pgconn.PgError{Code: "40001", Message: "opaque private cause"}
 }

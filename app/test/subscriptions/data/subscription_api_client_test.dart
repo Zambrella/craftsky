@@ -222,17 +222,11 @@ void main() {
             ? client.assign(licenseId, 'did:plc:bob')
             : client.unassign(licenseId),
         throwsA(
-          isA<ApiServerError>()
-              .having(
-                (error) => error.details.requestId,
-                'requestId',
-                'request-$operation-500',
-              )
-              .having(
-                (error) => error.details.appViewMessage,
-                'appViewMessage',
-                isNull,
-              ),
+          isA<ApiServerError>().having(
+            (error) => error.details.requestId,
+            'requestId',
+            'request-$operation-500',
+          ),
         ),
       );
     });
@@ -277,17 +271,11 @@ void main() {
     await expectLater(
       SubscriptionApiClient(dio).getBillingAccount(),
       throwsA(
-        isA<ApiServerError>()
-            .having(
-              (error) => error.details.requestId,
-              'requestId',
-              'request-500',
-            )
-            .having(
-              (error) => error.details.appViewMessage,
-              'appViewMessage',
-              isNull,
-            ),
+        isA<ApiServerError>().having(
+          (error) => error.details.requestId,
+          'requestId',
+          'request-500',
+        ),
       ),
     );
   });

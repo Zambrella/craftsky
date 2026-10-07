@@ -9,13 +9,16 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 
+	"social.craftsky/appview/internal/observability"
 	"social.craftsky/appview/internal/tap"
 )
 
 const maxWorkerBatchSize = 1000
 
 type ProjectionWorkerConfig struct {
+	Observer      *observability.Observer
 	Store         *Store
 	Projector     Projector
 	WorkerID      string
@@ -70,7 +73,35 @@ func (worker *ProjectionWorker) RunOnce(ctx context.Context) (int, error) {
 	var batchErr error
 	for _, claim := range claims {
 		delay := exponentialBackoff(claim.Attempts, worker.config.BackoffMin, worker.config.BackoffMax)
-		if err := worker.config.Store.project(ctx, claim, worker.config.Projector, delay); err != nil {
+		occurrenceCtx := observability.WithCaptureMarker(ctx)
+		if worker.config.Observer != nil {
+			occurrenceCtx = observability.WithRequestObserver(occurrenceCtx, worker.config.Observer)
+		}
+		var source SourceRecord
+		var outcome tap.Outcome
+		err := worker.config.Store.project(occurrenceCtx, claim, func(ctx context.Context, tx pgx.Tx, current SourceRecord) (tap.Outcome, error) {
+			source = current
+			var cause error
+			outcome, cause = worker.config.Projector(ctx, tx, current)
+			return outcome, cause
+		}, delay)
+		if err != nil || outcome.Kind == tap.OutcomePermanentInvalid {
+			event := tap.Event{URI: claim.SourceURI, DID: claim.SourceURI.Authority().DID(), ID: claim.SourceEventID}
+			if source.URI != "" {
+				event = tap.Event{URI: source.URI, DID: source.DID, CID: source.CID, Collection: source.Collection, Rkey: source.Rkey, Record: source.Record, ID: source.SourceEventID}
+			}
+			if err != nil {
+				outcome = tap.Retryable(tap.ReasonProjectionFailure)
+			}
+			input := tap.RecordFailureDiagnostic(event, outcome, err)
+			input.Context["operation"] = "tap.projection"
+			input.Context["attempt"] = claim.Attempts
+			observability.LogDiagnostic(occurrenceCtx, worker.logger, input)
+			if worker.config.Observer != nil {
+				worker.config.Observer.CaptureDiagnostic(occurrenceCtx, input)
+			}
+		}
+		if err != nil {
 			batchErr = errors.Join(batchErr, err)
 		}
 	}

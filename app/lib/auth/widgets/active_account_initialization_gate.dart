@@ -43,8 +43,18 @@ class _ActiveAccountInitializationGateState
   @override
   Widget build(BuildContext context) {
     ref.listen(activeAccountInitializationProvider, (previous, next) {
-      if (next case AsyncError()) {
-        logActiveAccountInitializationFailure();
+      if (next case AsyncError(:final error, :final stackTrace)) {
+        logActiveAccountInitializationFailure(
+          error,
+          stackTrace,
+          accountDid: ref
+              .read(sessionRegistryProvider)
+              .value
+              ?.activeLease
+              ?.session
+              .account
+              .did,
+        );
       }
     });
 

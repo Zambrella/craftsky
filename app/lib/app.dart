@@ -2,6 +2,7 @@ import 'package:craftsky_app/app_dependencies.dart';
 import 'package:craftsky_app/auth/models/active_account_initialization.dart';
 import 'package:craftsky_app/auth/providers/active_account_initialization_provider.dart';
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
+import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/auth/widgets/active_account_initialization_gate.dart';
 import 'package:craftsky_app/initialization_error_screen.dart';
 import 'package:craftsky_app/initialization_loading_screen.dart';
@@ -58,8 +59,18 @@ class _AppState extends ConsumerState<App> {
   ) {
     if (_coldStartComplete || next is AsyncLoading) return;
 
-    if (next case AsyncError()) {
-      logActiveAccountInitializationFailure();
+    if (next case AsyncError(:final error, :final stackTrace)) {
+      logActiveAccountInitializationFailure(
+        error,
+        stackTrace,
+        accountDid: ref
+            .read(sessionRegistryProvider)
+            .value
+            ?.activeLease
+            ?.session
+            .account
+            .did,
+      );
     }
     _coldStartComplete = true;
     _coldStartAccountInitialization?.close();

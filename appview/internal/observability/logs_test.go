@@ -3,6 +3,7 @@ package observability
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -134,7 +135,69 @@ func TestObserverLogWritesSafeContextToStdoutAndSentry(t *testing.T) {
 			t.Fatalf("Sentry log missing %q: %#v", want, attrs)
 		}
 	}
-	if _, ok := attrs["sentry_trace_id"]; ok {
-		t.Fatalf("Sentry log included local-only trace id: %#v", attrs)
+	if got := attrs["sentry_trace_id"].AsString(); got != "trace-123" {
+		t.Fatalf("shared safe trace correlation lost: %#v", attrs)
+	}
+}
+
+// IT-013 / FR-015: process direct slog uses the same independent export path.
+func TestDiagnosticConfiguredDirectSlogExport(t *testing.T) {
+	for _, enabled := range []bool{false, true} {
+		t.Run(fmt.Sprint(enabled), func(t *testing.T) {
+			var local bytes.Buffer
+			transport := &sentry.MockTransport{}
+			logger := slog.New(NewDiagnosticHandler(slog.NewJSONHandler(&local, nil)))
+			observer := New(Config{Env: "test", SentryDSN: "https://public@example.invalid/1", SentryTransport: transport, LogsEnabled: enabled, TracingEnabled: false, Logger: logger})
+			logger.With(slog.String("operation", "post.read")).Warn("operation failed", slog.Any("error", errors.New("opaque private prose")))
+			observer.Log(context.Background(), slog.LevelError, "HTTP request failed", EventContext{"operation": "http.server"})
+			observer.Log(context.Background(), slog.LevelInfo, "post create: response ready", EventContext{"operation": "post.create"})
+			if !observer.Flush(time.Second) {
+				t.Fatal("flush failed")
+			}
+			var logs []sentry.Log
+			for _, event := range transport.Events() {
+				if len(event.Exception) > 0 || event.Type == "transaction" {
+					t.Fatal("log created issue/trace")
+				}
+				logs = append(logs, event.Logs...)
+			}
+			if enabled && len(logs) != 3 {
+				t.Fatalf("exported logs=%d want 3 without duplicates: %#v", len(logs), logs)
+			}
+			if !enabled && len(logs) != 0 {
+				t.Fatal("disabled export emitted")
+			}
+			if strings.Count(local.String(), "\n") != 3 {
+				t.Fatalf("local records: %s", local.String())
+			}
+			if enabled {
+				for _, log := range logs {
+					if !strings.Contains(local.String(), log.Body) {
+						t.Fatal("export differs from local selected record")
+					}
+				}
+			}
+			if strings.Contains(local.String(), "opaque private prose") {
+				t.Fatal("private cause leaked")
+			}
+		})
+	}
+}
+
+func TestSIMT05SDKLogRetainsTypedOperationalScalars(t *testing.T) {
+	transport := &sentry.MockTransport{}
+	observer := New(Config{Env: "test", SentryDSN: "https://public@example.invalid/1", SentryTransport: transport, LogsEnabled: true})
+	observer.Log(context.Background(), slog.LevelWarn, "Worker retry scheduled", EventContext{"operation": "post.read", "retryable": true, "attempt": 2})
+	observer.Flush(time.Second)
+	events := transport.Events()
+	if len(events) != 1 || len(events[0].Logs) != 1 {
+		t.Fatalf("missing log: %#v", events)
+	}
+	attrs := events[0].Logs[0].Attributes
+	if value, ok := attrs["retryable"].AsInterface().(bool); !ok || !value {
+		t.Fatalf("retryable changed: %#v", attrs["retryable"])
+	}
+	if value := attrs["attempt"].AsInterface(); value != int64(2) {
+		t.Fatalf("attempt lost numeric type: %#v", value)
 	}
 }

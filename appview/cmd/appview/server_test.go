@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -22,6 +23,7 @@ import (
 	"social.craftsky/appview/internal/middleware"
 	"social.craftsky/appview/internal/observability"
 	"social.craftsky/appview/internal/tap"
+	"social.craftsky/appview/internal/testdb"
 	"social.craftsky/appview/internal/testlog"
 )
 
@@ -138,7 +140,7 @@ func TestNewServerAllowsReadinessProbeFromInfrastructureHost(t *testing.T) {
 	}
 }
 
-func TestNewServerHealthRoutesSkipRequestObservability(t *testing.T) {
+func TestNewServerHealthRoutesSkipMetricsAndTraceButLogFailures(t *testing.T) {
 	pool, err := pgxpool.New(context.Background(), "postgres://127.0.0.1:1/unreachable?connect_timeout=1")
 	if err != nil {
 		t.Fatal(err)
@@ -186,11 +188,21 @@ func TestNewServerHealthRoutesSkipRequestObservability(t *testing.T) {
 	if events := transport.Events(); len(events) != 0 {
 		t.Fatalf("health routes emitted %d Sentry events, want 0", len(events))
 	}
-	for _, message := range []string{"Request received", "Request details", "Request completed"} {
+	for _, message := range []string{"Request received", "Request details"} {
 		if got := logs.String(); strings.Contains(got, message) {
 			t.Fatalf("health routes emitted request log %q: %s", message, got)
 		}
 	}
+	for _, path := range []string{"/health"} {
+		want := `"incoming_path":"` + path + `"`
+		if !strings.Contains(logs.String(), want) || !strings.Contains(logs.String(), `"level":"ERROR"`) || !strings.Contains(logs.String(), `"msg":"Request completed"`) {
+			t.Fatalf("failed probe missing ERROR completion at INFO for %s: %s", path, logs.String())
+		}
+	}
+	if strings.Contains(logs.String(), `"incoming_path":"/healthz"`) {
+		t.Fatalf("HTTP 200 degraded healthz completion should remain DEBUG: %s", logs.String())
+	}
+
 }
 
 func TestNewServerAdmissionRunsBeforeUnexpectedHost(t *testing.T) {
@@ -481,4 +493,69 @@ func (p *scriptedInstagramReconciliationProcessor) ProcessBatch(_ context.Contex
 		result.cancel()
 	}
 	return result.processed, result.err
+}
+
+type heldDiagnosticResolver struct {
+	entered chan struct{}
+	release chan struct{}
+}
+
+func (r heldDiagnosticResolver) ResolveDID(context.Context, syntax.Handle) (syntax.DID, error) {
+	close(r.entered)
+	<-r.release
+	return "", fmt.Errorf("opaque private prose")
+}
+func (r heldDiagnosticResolver) ResolveHandle(context.Context, syntax.DID) (syntax.Handle, error) {
+	return "", fmt.Errorf("opaque private prose")
+}
+
+// IT-001 / FR-004, RULE-004 / AC-004, AC-020 verifies the actual server chain
+// resolves the public path before a dependency/handler can hang.
+func TestNewServerArrivalHasCataloguePathWhileHandlerHeld(t *testing.T) {
+	pool := testdb.WithSchema(t, `CREATE TABLE craftsky_profiles(did TEXT PRIMARY KEY); INSERT INTO craftsky_profiles(did) VALUES ('did:plc:test');`)
+	var logs bytes.Buffer
+	entered := make(chan struct{})
+	release := make(chan struct{})
+	done := make(chan struct{})
+	deps := &app.Deps{DB: pool, Config: app.Config{Env: app.EnvDev, AllowedOrigins: []string{"*"}, DevDID: "did:plc:test"}, Logger: slog.New(slog.NewJSONHandler(&logs, nil)), AuthService: &auth.MockAuthService{DefaultDID: "did:plc:test"}, HandleResolver: heldDiagnosticResolver{entered, release}, Observability: observability.New(observability.Config{Env: "test"})}
+	handler := NewServer(context.Background(), deps)
+	logs.Reset()
+	response := httptest.NewRecorder()
+	go func() {
+		request := httptest.NewRequest("GET", "/v1/profiles/@target.example.invalid?cursor=credential", nil)
+		request.Header.Set("Authorization", "Bearer synthetic-session")
+		request.Header.Set("X-Craftsky-Device-Id", "00000000-0000-4000-8000-000000000001")
+		handler.ServeHTTP(response, request)
+		close(done)
+	}()
+	released := false
+	defer func() {
+		if !released {
+			close(release)
+		}
+		<-done
+	}()
+	select {
+	case <-entered:
+	case <-done:
+		t.Fatalf("handler returned before resolver: status=%d logs=%s", response.Code, logs.String())
+	case <-time.After(5 * time.Second):
+		t.Fatal("handler never reached resolver")
+	}
+	var arrival map[string]any
+	if err := json.Unmarshal(bytes.TrimSpace(logs.Bytes()), &arrival); err != nil {
+		t.Fatal(err)
+	}
+	if arrival["msg"] != "Request received" || arrival["incoming_path"] != "/v1/profiles/@target.example.invalid" || arrival["run_id"] == "" {
+		t.Fatalf("arrival missing catalogue path: %#v", arrival)
+	}
+	close(release)
+	released = true
+	<-done
+	if response.Code != 502 {
+		t.Fatalf("status=%d", response.Code)
+	}
+	if strings.Contains(logs.String(), "credential") || strings.Contains(logs.String(), "opaque private prose") {
+		t.Fatal("protected input leaked")
+	}
 }

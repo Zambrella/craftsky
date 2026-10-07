@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
+	"social.craftsky/appview/internal/observability"
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -60,6 +61,7 @@ func VideoUploadAuthorizationHandler(issuer VideoUploadAuthorizationIssuer, _ *s
 		authorization, err := issuer.IssueUpload(r.Context(), owner, sessionID)
 		if err != nil {
 			result, reason = "unavailable", "upstream"
+			observability.ReportRequestFailure(r.Context(), err, "api.VideoUploadAuthorizationHandler", "handler")
 			envelope.WriteError(w, http.StatusBadGateway,
 				"video_service_unavailable", "could not authorize video upload", runID, nil)
 			return

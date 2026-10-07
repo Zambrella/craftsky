@@ -423,7 +423,7 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (
 	}
 
 	instagramRuntime, err := newInstagramRuntimeDependencies(
-		ctx, pool, instagramStorage, owners, pdsEffects, cfg, logger,
+		ctx, pool, instagramStorage, owners, pdsEffects, cfg, logger, observer,
 	)
 	if err != nil {
 		return nil, nil, err

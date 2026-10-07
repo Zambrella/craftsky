@@ -3,6 +3,7 @@ package middleware
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"time"
@@ -24,7 +25,7 @@ func HTTPMetrics(observer *observability.Observer) func(http.Handler) http.Handl
 				// The marker lets lower layers record that they already captured
 				// or deliberately handled an error, so this middleware does not
 				// emit a duplicate generic 5xx Sentry event after the handler returns.
-				req = r.WithContext(observability.WithCaptureMarker(r.Context()))
+				req = r.WithContext(observability.WithRequestObserver(observability.WithCaptureMarker(r.Context()), observer))
 				spanCtx, span := observer.StartSpan(req.Context(), observability.SpanContext{
 					Operation: "http.server",
 					Component: "http",
@@ -112,7 +113,8 @@ func HTTPMetrics(observer *observability.Observer) func(http.Handler) http.Handl
 				// If a request ends as a 5xx and no deeper layer captured a more
 				// specific error, emit one generic HTTP error event as a fallback.
 				if observedStatus >= http.StatusInternalServerError && !observability.CaptureRecorded(req.Context()) {
-					observer.CaptureError(req.Context(), observability.EventContext{
+					fallback := observability.EventContext{
+						"operation":         "http.server",
 						"component":         "http",
 						"route_pattern":     routePattern,
 						"http_method":       req.Method,
@@ -121,7 +123,9 @@ func HTTPMetrics(observer *observability.Observer) func(http.Handler) http.Handl
 						"error_category":    "server",
 						"duration":          duration.String(),
 						"run_id":            GetRunID(req.Context()),
-					}, errors.New("http server error response"))
+					}
+					observer.Log(req.Context(), slog.LevelError, "HTTP request failed", fallback)
+					observer.CaptureError(req.Context(), fallback, errors.New("http server error response"))
 				}
 				if handlerSpan != nil {
 					handlerSpan.Finish(result)

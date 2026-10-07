@@ -7,6 +7,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"social.craftsky/appview/internal/observability"
 	"strings"
 	"time"
 
@@ -137,7 +138,7 @@ func listAuthorPostsHandler(
 					"invalid_identifier", "not a valid handle or DID", runID, nil)
 			default:
 				logger.Warn(logLabel+": ResolveDID failed",
-					apiLogErrorAttrs(runID, operation, "identity")...)
+					apiLogErrorAttrs(r.Context(), runID, operation, "identity", err)...)
 				envelope.WriteError(w, http.StatusBadGateway,
 					"identity_unavailable", "could not resolve identity", runID, nil)
 			}
@@ -151,6 +152,7 @@ func listAuthorPostsHandler(
 			return
 		}
 		if err != nil {
+			observability.ReportRequestFailure(r.Context(), err, "api.listAuthorPostsHandler", "handler")
 			envelope.WriteError(w, http.StatusInternalServerError,
 				"internal_error", "relationship lookup failed", runID, nil)
 			return
@@ -174,7 +176,7 @@ func listAuthorPostsHandler(
 			contentLanguages, preferenceErr = authoritativeContentLanguages(r.Context(), viewerDID, preferenceReaders)
 			if preferenceErr != nil {
 				logger.Error(logLabel+": language preferences failed",
-					apiLogErrorAttrs(runID, operation, "language_preferences")...)
+					apiLogErrorAttrs(r.Context(), runID, operation, "language_preferences", preferenceErr)...)
 				envelope.WriteError(w, http.StatusInternalServerError,
 					"internal_error", "language preferences lookup failed", runID, nil)
 				return
@@ -192,7 +194,7 @@ func listAuthorPostsHandler(
 			)
 			if err != nil {
 				logger.Error(logLabel+": profile pin lookup failed",
-					apiLogErrorAttrs(runID, operation, "profile_pin")...)
+					apiLogErrorAttrs(r.Context(), runID, operation, "profile_pin", err)...)
 				envelope.WriteError(w, http.StatusInternalServerError,
 					"internal_error", "profile pin lookup failed", runID, nil)
 				return
@@ -223,7 +225,7 @@ func listAuthorPostsHandler(
 		} else {
 			if filteredList == nil {
 				logger.Error(logLabel+": language filtering unavailable",
-					apiLogErrorAttrs(runID, operation, "language_filter")...)
+					apiLogErrorAttrs(r.Context(), runID, operation, "language_filter", errors.New("language filter unavailable"))...)
 				envelope.WriteError(w, http.StatusInternalServerError,
 					"internal_error", "post language filtering unavailable", runID, nil)
 				return
@@ -244,7 +246,7 @@ func listAuthorPostsHandler(
 				return
 			}
 			logger.Error(logLabel+": list failed",
-				apiLogErrorAttrs(runID, operation, "store")...)
+				apiLogErrorAttrs(r.Context(), runID, operation, "store", err)...)
 			envelope.WriteError(w, http.StatusInternalServerError,
 				"internal_error", "post list failed", runID, nil)
 			return
@@ -254,7 +256,7 @@ func listAuthorPostsHandler(
 			rows, nextCursor, err = promoteProfilePinFirstPage(rows, profilePin.Row, limit, nextCursor)
 			if err != nil {
 				logger.Error(logLabel+": profile pin cursor failed",
-					apiLogErrorAttrs(runID, operation, "profile_pin_cursor")...)
+					apiLogErrorAttrs(r.Context(), runID, operation, "profile_pin_cursor", err)...)
 				envelope.WriteError(w, http.StatusInternalServerError,
 					"internal_error", "profile pin cursor failed", runID, nil)
 				return
@@ -265,7 +267,7 @@ func listAuthorPostsHandler(
 			rows, nextCursor, err = excludeProfilePinFromLaterPage(rows, profilePin.Row, limit, storeLimit, nextCursor)
 			if err != nil {
 				logger.Error(logLabel+": profile pin cursor failed",
-					apiLogErrorAttrs(runID, operation, "profile_pin_cursor")...)
+					apiLogErrorAttrs(r.Context(), runID, operation, "profile_pin_cursor", err)...)
 				envelope.WriteError(w, http.StatusInternalServerError,
 					"internal_error", "profile pin cursor failed", runID, nil)
 				return
@@ -275,7 +277,7 @@ func listAuthorPostsHandler(
 			nextCursor, err = wrapProfileListCursor(nextCursor, pinSlot, pinStateToken)
 			if err != nil {
 				logger.Error(logLabel+": profile pin cursor failed",
-					apiLogErrorAttrs(runID, operation, "profile_pin_cursor")...)
+					apiLogErrorAttrs(r.Context(), runID, operation, "profile_pin_cursor", err)...)
 				envelope.WriteError(w, http.StatusInternalServerError,
 					"internal_error", "profile pin cursor failed", runID, nil)
 				return
@@ -291,7 +293,7 @@ func listAuthorPostsHandler(
 			summaries, serr := store.EngagementSummaries(r.Context(), viewerDID.String(), contentLanguages, postURIs)
 			if serr != nil {
 				logger.Error(logLabel+": EngagementSummaries failed",
-					apiLogErrorAttrs(runID, operation, "engagement")...)
+					apiLogErrorAttrs(r.Context(), runID, operation, "engagement", serr)...)
 				envelope.WriteError(w, http.StatusInternalServerError,
 					"internal_error", "post engagement lookup failed", runID, nil)
 				return
@@ -308,7 +310,7 @@ func listAuthorPostsHandler(
 			}
 			if herr != nil {
 				logger.Warn(logLabel+": ResolveHandle failed",
-					apiLogErrorAttrs(runID, operation, "identity")...)
+					apiLogErrorAttrs(r.Context(), runID, operation, "identity", herr)...)
 				envelope.WriteError(w, http.StatusBadGateway,
 					"identity_unavailable", "could not resolve handle", runID, nil)
 				return
@@ -320,7 +322,7 @@ func listAuthorPostsHandler(
 			}
 			if err := attachQuoteViews(r.Context(), store, resolver, items); err != nil {
 				logger.Error(logLabel+": QuoteViewRows failed",
-					apiLogErrorAttrs(runID, operation, "quote_view")...)
+					apiLogErrorAttrs(r.Context(), runID, operation, "quote_view", err)...)
 				envelope.WriteError(w, http.StatusInternalServerError,
 					"internal_error", "post quote lookup failed", runID, nil)
 				return

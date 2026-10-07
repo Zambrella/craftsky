@@ -3,12 +3,13 @@
 // mode. That is the one legitimate place in the codebase where `print` is
 // used; everywhere else, use `Logger`.
 import 'dart:async';
-import 'dart:developer' as developer;
 
 import 'package:craftsky_app/bootstrap.dart';
+import 'package:craftsky_app/shared/observability/diagnostic_emitter.dart';
 import 'package:craftsky_app/shared/observability/error_reporter.dart';
 import 'package:craftsky_app/shared/observability/log_forwarder.dart';
 import 'package:craftsky_app/shared/observability/observability_bootstrap.dart';
+import 'package:craftsky_app/shared/observability/platform_log.dart';
 import 'package:craftsky_app/shared/observability/sentry_config.dart';
 import 'package:craftsky_app/shared/observability/sentry_error_reporter.dart';
 import 'package:flutter/foundation.dart';
@@ -30,25 +31,15 @@ Future<void> main() async {
       // Configure logging before anything else so error handlers and
       // bootstrap can both log through the root logger.
       Logger.root.level = Level.FINE;
-      Logger.root.onRecord.listen((record) {
-        if (kDebugMode) {
-          print(
-            '${record.level.name} | ${record.loggerName}: ${record.message}',
-          );
-          if (record.error != null) {
-            print('  error: ${record.error}');
-          }
-          if (record.stackTrace != null) {
-            print('  stack: ${record.stackTrace}');
-          }
-        }
-      });
+      configureRootLogForwarding(
+        reporter: reporter,
+        currentReporter: () => reporter,
+      );
 
       reporter = await ObservabilityBootstrap.initialize(
         config: SentryConfig.fromEnvironment(),
         adapter: const SentryFlutterBootstrapAdapter(),
       );
-      configureRootLogForwarding(reporter: reporter);
 
       registerErrorHandlers(reporter: reporter);
 
@@ -56,16 +47,18 @@ Future<void> main() async {
     },
     (error, stack) {
       FlutterNativeSplash.remove();
-      // Last-resort sink: use dart:developer log because logging may not be
-      // fully wired yet depending on where the crash originates.
-      developer.log(
-        'runZonedGuarded: $error',
-        name: 'main',
-        error: error,
-        stackTrace: stack,
-        level: 1000,
+      _log.severe(
+        const DiagnosticMessage(
+          'runZonedGuarded caught error',
+          context: ReportContext(
+            feature: 'main',
+            operation: 'runZonedGuarded',
+            classification: 'dart.root_zone',
+          ),
+        ),
+        error,
+        stack,
       );
-      _log.severe('runZonedGuarded caught error', error, stack);
       unawaited(
         reporter.captureException(
           error,
@@ -83,10 +76,21 @@ Future<void> main() async {
 
 StreamSubscription<LogRecord> configureRootLogForwarding({
   required ErrorReporter reporter,
+  PlatformLogSink? platformSink,
+  ErrorReporter Function()? currentReporter,
 }) {
-  final forwarder = LogForwarder(reporter);
+  final emitter = DiagnosticEmitter(platformSink: platformSink);
   return Logger.root.onRecord.listen((record) {
-    unawaited(forwarder.handle(record));
+    emitter.emitLocal(record);
+    final forwarder = LogForwarder(
+      GuardedErrorReporter(
+        currentReporter?.call() ?? reporter,
+        fallbackSink: platformSink,
+      ),
+    );
+    unawaited(
+      forwarder.handle(record),
+    );
   });
 }
 
@@ -94,9 +98,22 @@ void registerErrorHandlers({required ErrorReporter reporter}) {
   final log = Logger('ErrorHandlers');
 
   FlutterError.onError = (details) {
-    FlutterError.presentError(details);
+    FlutterError.presentError(
+      FlutterErrorDetails(
+        exception: FlutterError(
+          'Framework failure (${details.exception.runtimeType})',
+        ),
+      ),
+    );
     log.severe(
-      'FlutterError: ${details.exception}',
+      const DiagnosticMessage(
+        'FlutterError: Framework failure',
+        context: ReportContext(
+          feature: 'flutter',
+          operation: 'framework_error',
+          classification: 'flutter.framework',
+        ),
+      ),
       details.exception,
       details.stack,
     );
@@ -114,7 +131,18 @@ void registerErrorHandlers({required ErrorReporter reporter}) {
   };
 
   PlatformDispatcher.instance.onError = (error, stack) {
-    log.severe('Platform error', error, stack);
+    log.severe(
+      const DiagnosticMessage(
+        'Platform error',
+        context: ReportContext(
+          feature: 'flutter',
+          operation: 'platform_error',
+          classification: 'flutter.platform',
+        ),
+      ),
+      error,
+      stack,
+    );
     unawaited(
       reporter.captureException(
         error,
@@ -131,12 +159,14 @@ void registerErrorHandlers({required ErrorReporter reporter}) {
 
   ErrorWidget.builder = (details) {
     log.warning(
-      'Error building widget: ${details.exception}',
+      'FlutterError: Framework failure',
       details.exception,
       details.stack,
     );
     if (kDebugMode) {
-      return ErrorWidget(details.exception);
+      return ErrorWidget(
+        'Rendering failure (${details.exception.runtimeType})',
+      );
     }
     // Release fallback. `ErrorWidget.builder` is called in situations where
     // there may be no ambient Directionality (e.g. an error above MaterialApp),

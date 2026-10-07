@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -78,6 +79,14 @@ func TestAppendCommandServiceFreezesIdentityAndReconcilesLostResponse(t *testing
 	if first.State != CommandAmbiguous || pds.applyCalls != 1 {
 		t.Fatalf("first result=%+v applyCalls=%d", first, pds.applyCalls)
 	}
+	if first.DiagnosticCause == nil {
+		t.Fatal("IT-007 fresh ambiguous dispatch lost its concrete transport cause")
+	}
+	encoded, _ := json.Marshal(first)
+	if strings.Contains(string(encoded), "DiagnosticCause") {
+		t.Fatal("diagnostic cause entered command serialization")
+	}
+
 	second, err := service.Execute(ctx, request)
 	if err != nil {
 		t.Fatal(err)

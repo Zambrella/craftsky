@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:craftsky_app/feed/data/video_service_client.dart';
+import 'package:craftsky_app/shared/observability/diagnostic_details.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -57,6 +58,37 @@ void main() {
     expect(client.toString(), isNot(contains('service-secret')));
     expect(status.retryAfter, const Duration(seconds: 12));
   });
+
+  test(
+    'IT-010 video transport retains HTTP status and original cause without JWT/body',
+    () async {
+      final client = VideoServiceClient.forTesting(
+        uploadEndpoint: Uri.parse(
+          'https://video.bsky.app/xrpc/app.bsky.video.uploadVideo',
+        ),
+        dio: Dio()..httpClientAdapter = _UnavailableDiagnosticAdapter(),
+      );
+      Object? failure;
+      try {
+        await client.upload(
+          source: VideoUploadSource(
+            length: 1,
+            openRead: () => Stream.value([1]),
+          ),
+          ownerDid: 'did:plc:alice',
+          authorizationHeader: 'Bearer jwt-canary',
+        );
+      } on Object catch (error) {
+        failure = error;
+      }
+      expect(failure, isA<VideoTransportException>());
+      final selected = selectedCause(failure!).toString();
+      expect(selected, contains('DioException'));
+      expect(selected, contains('HTTP 502'));
+      expect(selected, isNot(contains('jwt-canary')));
+      expect(selected, isNot(contains('private provider body')));
+    },
+  );
 
   test('IT-010 rejects any non-approved upload destination', () {
     for (final uri in [
@@ -298,4 +330,21 @@ final class _UploadNameAdapter implements HttpClientAdapter {
 
   @override
   void close({bool force = false}) {}
+}
+
+final class _UnavailableDiagnosticAdapter implements HttpClientAdapter {
+  @override
+  void close({bool force = false}) {}
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<void>? cancelFuture,
+  ) async => ResponseBody.fromString(
+    '{"error":"private provider body"}',
+    502,
+    headers: {
+      Headers.contentTypeHeader: [Headers.jsonContentType],
+    },
+  );
 }

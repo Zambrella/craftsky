@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:ui';
 
 import 'package:craftsky_app/main.dart';
+import 'package:craftsky_app/shared/observability/diagnostic_emitter.dart';
 import 'package:craftsky_app/shared/observability/error_reporter.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -30,6 +31,29 @@ void main() {
       ErrorWidget.builder = oldErrorWidgetBuilder;
       await logSub.cancel();
     });
+
+    test(
+      'UT-010 supporting root logs do not recapture callback occurrences',
+      () async {
+        final reporter = _RecordingReporter();
+        final subscription = configureRootLogForwarding(
+          reporter: reporter,
+          platformSink: (_) {},
+        );
+        addTearDown(subscription.cancel);
+        registerErrorHandlers(reporter: reporter);
+        final error = StateError('same opaque failure');
+        final stack = StackTrace.current;
+        PlatformDispatcher.instance.onError!(error, stack);
+        PlatformDispatcher.instance.onError!(error, stack);
+        await Future<void>.delayed(Duration.zero);
+        expect(reporter.errors.length, 2);
+        expect(
+          records.where((record) => record.object is DiagnosticMessage),
+          hasLength(2),
+        );
+      },
+    );
 
     test('captures Flutter framework errors and keeps local severe logs', () {
       final reporter = _RecordingReporter();
@@ -92,6 +116,12 @@ final class _RecordingReporter implements ErrorReporter {
     contexts.add(context);
     return '0123456789abcdef0123456789abcdef';
   }
+
+  @override
+  Future<void> emitLog(
+    String message, {
+    required ReportContext context,
+  }) async {}
 
   @override
   Future<void> captureMessage(

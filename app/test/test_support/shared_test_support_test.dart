@@ -33,7 +33,10 @@ void main() {
     expect(post.cid.toString(), wire['cid']);
     expect(post.rkey.toString(), wire['rkey']);
     expect(post.text, wire['text']);
-    expect(post.author.did.toString(), (wire['author'] as Map)['did']);
+    expect(
+      post.author.did.toString(),
+      (wire['author'] as Map<String, dynamic>)['did'],
+    );
   });
 
   test('test container composes common provider overrides', () {

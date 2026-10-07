@@ -19,11 +19,18 @@ import 'package:craftsky_app/projects/models/project.dart';
 import 'package:craftsky_app/projects/providers/user_projects_provider.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/api/pds_mutation_contract.dart';
+import 'package:craftsky_app/shared/errors/app_error_mapper.dart';
 import 'package:craftsky_app/shared/mutations/pds_record_operation_controller.dart';
 import 'package:craftsky_app/shared/mutations/pds_record_reconciliation.dart';
+import 'package:craftsky_app/shared/observability/diagnostic_emitter.dart';
+import 'package:craftsky_app/shared/observability/error_reporter.dart';
+import 'package:craftsky_app/shared/observability/error_reporter_provider.dart';
+import 'package:logging/logging.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'create_post_provider.g.dart';
+
+final _diagnosticLog = Logger('CreatePostMutation');
 
 /// Standalone create-a-post mutation notifier. Idle until [create] runs,
 /// then transitions `AsyncLoading` -> `AsyncData(post)` on success, or
@@ -51,6 +58,7 @@ class CreatePost extends _$CreatePost {
     ActiveAccountLease? ownership,
     bool allowVideoBlobRecovery = false,
   }) async {
+    final reporter = GuardedErrorReporter(ref.read(errorReporterProvider));
     final operationOwnership = ownership ?? captureActiveAccountOperation(ref);
     if (!isActiveAccountOperationCurrent(ref, operationOwnership)) return null;
     final frozenLangs = List<String>.unmodifiable(langs);
@@ -150,7 +158,50 @@ class CreatePost extends _$CreatePost {
         }
         continue;
       } on Object catch (error, stackTrace) {
-        if (!isActiveAccountOperationCurrent(ref, operationOwnership)) {
+        final current = isActiveAccountOperationCurrent(
+          ref,
+          operationOwnership,
+        );
+        final mapped = AppErrorMapper.map(
+          error,
+          source: 'post_mutation',
+          fallbackClassification: 'post.create.failed',
+        );
+        final diagnostic = ReportContext(
+          feature: 'CreatePostMutation',
+          operation: 'post.create',
+          classification: mapped.sentryClassification,
+          safeDiagnostics: {
+            ...mapped.safeDiagnostics,
+            'failureStage': 'pds_write',
+            'attempt': retryIndex + 1,
+          },
+          workflow: operationOwnership == null
+              ? null
+              : PublicRecordContext(
+                  actorDid: operationOwnership.session.account.did.value,
+                ),
+        );
+        final message = DiagnosticMessage(
+          'post mutation failed',
+          context: diagnostic,
+        );
+        if (current) {
+          _diagnosticLog.warning(message, error, stackTrace);
+        } else {
+          _diagnosticLog.severe(message, error, stackTrace);
+        }
+        if (!current) {
+          // No provider state is published for this consumed late failure.
+          if (mapped.reportable) {
+            unawaited(
+              reporter.captureException(
+                error,
+                stackTrace: stackTrace,
+                context: diagnostic,
+              ),
+            );
+          }
           return null;
         }
         controller.markFailed(token);
@@ -159,7 +210,11 @@ class CreatePost extends _$CreatePost {
             error.details.appViewError == 'video_blob_missing') {
           Error.throwWithStackTrace(error, stackTrace);
         }
-        state = AsyncError<Post?>(error, stackTrace);
+        withFailureDiagnosticContext(
+          error,
+          diagnostic,
+          () => state = AsyncError<Post?>(error, stackTrace),
+        );
         return null;
       }
 

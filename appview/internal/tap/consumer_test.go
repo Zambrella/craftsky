@@ -1,11 +1,14 @@
 package tap_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"reflect"
 	"strings"
 	"sync"
@@ -16,6 +19,7 @@ import (
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
 	"github.com/getsentry/sentry-go"
+	"github.com/jackc/pgx/v5/pgconn"
 
 	"social.craftsky/appview/internal/observability"
 	"social.craftsky/appview/internal/tap"
@@ -54,6 +58,7 @@ type durableIngestorSpy struct {
 	recordErr       error
 	identityErr     error
 	quarantineErr   error
+	quarantineFunc  func(context.Context, tap.InvalidEvent) (tap.Outcome, error)
 	recordOutcome   tap.Outcome
 	identityOutcome tap.Outcome
 	recordObserved  chan tap.Event
@@ -162,10 +167,13 @@ func TestWSConsumer_IdentityOverProcessingDeadlineIsNeverAcked(t *testing.T) {
 	}
 }
 
-func (s *durableIngestorSpy) Quarantine(_ context.Context, event tap.InvalidEvent) (tap.Outcome, error) {
+func (s *durableIngestorSpy) Quarantine(ctx context.Context, event tap.InvalidEvent) (tap.Outcome, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.invalid = append(s.invalid, event)
+	if s.quarantineFunc != nil {
+		return s.quarantineFunc(ctx, event)
+	}
 	if s.quarantineErr != nil {
 		return tap.Retryable(tap.ReasonStorageUnavailable), s.quarantineErr
 	}
@@ -581,16 +589,19 @@ func TestWSConsumer_EmitsTapMetricsAndCapturesIndexerErrors(t *testing.T) {
 
 	transport := &sentry.MockTransport{}
 	recorder := observability.NewInMemoryMetricRecorder()
+	var local bytes.Buffer
+	logger := slog.New(observability.NewDiagnosticHandler(slog.NewJSONHandler(&local, nil)))
 	observer := observability.New(observability.Config{
 		Env:             "test",
 		SentryDSN:       "https://public@example.invalid/1",
 		SentryTransport: transport,
 		MetricRecorder:  recorder,
+		Logger:          logger,
 	})
 	ingestor := &durableIngestorSpy{
 		recordFunc: func(_ context.Context, event tap.Event) (tap.Outcome, error) {
 			if event.ID == 2 {
-				return tap.Retryable(tap.ReasonProjectionFailure), errTest
+				return tap.Retryable(tap.ReasonProjectionFailure), &pgconn.PgError{Code: "40001", Message: "opaque private row canary"}
 			}
 			return tap.Applied(), nil
 		},
@@ -601,11 +612,13 @@ func TestWSConsumer_EmitsTapMetricsAndCapturesIndexerErrors(t *testing.T) {
 		AckTimeout:   1 * time.Second,
 		ReconnectMax: 500 * time.Millisecond,
 		Observer:     observer,
+		Logger:       logger,
 	})
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	go c.Run(ctx)
+	done := make(chan error, 1)
+	go func() { done <- c.Run(ctx) }()
 
 	seenAcks := map[uint64]bool{}
 	deadline := time.After(1500 * time.Millisecond)
@@ -626,6 +639,12 @@ func TestWSConsumer_EmitsTapMetricsAndCapturesIndexerErrors(t *testing.T) {
 		t.Fatal("indexer-error event id=2 was acked; want retry")
 	}
 
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("consumer did not stop")
+	}
 	calls := recorder.Calls()
 	for _, want := range []string{
 		"craftsky_appview_tap_connected",
@@ -647,11 +666,21 @@ func TestWSConsumer_EmitsTapMetricsAndCapturesIndexerErrors(t *testing.T) {
 		t.Fatal("observer Flush returned false")
 	}
 	events := transport.Events()
-	if len(events) != 1 {
-		t.Fatalf("captured %d Sentry events, want 1", len(events))
+	if len(events) != 2 {
+		t.Fatalf("terminal input quarantine issues=%d, want2", len(events))
 	}
-	if events[0].Tags["component"] != "tap_indexer" || events[0].Tags["nsid"] != "social.craftsky.feed.like" || events[0].Tags["result"] != "error" {
-		t.Fatalf("indexer Sentry event missing safe tags: %#v", events[0].Tags)
+	for _, event := range events {
+		if event.Contexts["diagnostic"]["event_id"] == "2" {
+			t.Fatal("expected record retry created an issue")
+		}
+	}
+	for _, want := range []string{"pgconn.PgError", "40001", "at://did:plc:a/social.craftsky.feed.like/k2", "bafy2", "retry", "not_acknowledged"} {
+		if !strings.Contains(local.String(), want) {
+			t.Fatalf("missing %s: %s", want, local.String())
+		}
+	}
+	if strings.Contains(local.String(), "opaque private row canary") {
+		t.Fatal("row leaked")
 	}
 }
 
@@ -822,9 +851,14 @@ func TestWSConsumer_MalformedIdentifierQuarantinesBeforeAck(t *testing.T) {
 
 	wsURL := strings.Replace(srv.URL, "http://", "ws://", 1)
 
+	var local bytes.Buffer
+	transport := &sentry.MockTransport{}
+	observer := observability.New(observability.Config{Env: "test", Logger: slog.New(slog.NewJSONHandler(&local, nil)), SentryDSN: "https://public@example.invalid/1", SentryTransport: transport})
 	ingestor := &durableIngestorSpy{}
 	c := tap.NewWSConsumer(tap.WSConsumerConfig{
 		URL:          wsURL,
+		Observer:     observer,
+		Logger:       slog.New(observability.NewDiagnosticHandler(slog.NewJSONHandler(&local, nil))),
 		Ingestor:     ingestor,
 		AckTimeout:   1 * time.Second,
 		ReconnectMax: 500 * time.Millisecond,
@@ -832,7 +866,8 @@ func TestWSConsumer_MalformedIdentifierQuarantinesBeforeAck(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
-	go c.Run(ctx)
+	done := make(chan struct{})
+	go func() { c.Run(ctx); close(done) }()
 
 	// Expect an ack only after durable quarantine; source ingestion is skipped.
 	select {
@@ -846,6 +881,19 @@ func TestWSConsumer_MalformedIdentifierQuarantinesBeforeAck(t *testing.T) {
 	if got := len(ingestor.recordEvents()); got != 0 {
 		t.Errorf("source ingestor received %d events for malformed envelope; want 0", got)
 	}
+	cancel()
+	<-done
+	observer.Flush(time.Second)
+	data, _ := json.Marshal(transport.Events())
+	for _, want := range []string{"quarantine", "durably_committed", "invalid_collection", "did:plc:a"} {
+		if !strings.Contains(string(data), want) || !strings.Contains(local.String(), want) {
+			t.Fatalf("missing %s: %s %s", want, local.String(), data)
+		}
+	}
+	if len(transport.Events()) != 1 {
+		t.Fatalf("terminal events=%d", len(transport.Events()))
+	}
+
 }
 
 func TestWSConsumer_MalformedIdentifierRequiresDurableQuarantineBeforeAck(t *testing.T) {
@@ -1025,5 +1073,303 @@ func TestWSConsumer_QuarantinesRecordAboveDurableSourceLimit(t *testing.T) {
 	}
 	if len(ingestor.recordEvents()) != 0 {
 		t.Fatal("oversized record reached durable source ingestion")
+	}
+}
+
+// AT-002 / BR-001, FR-001 / AC-002: real WS ingestion recovery emits
+// useful local details without acknowledging a retryable panicking event.
+func TestWSConsumerPanicHasLocalCauseAndRecoveryFrame(t *testing.T) {
+	ft := newFakeTap([]string{`{"id":123,"type":"record","record":{"live":true,"rev":"3aaaaaaaaaaa2","did":"did:plc:a","collection":"app.bsky.feed.post","rkey":"k","action":"create","cid":"bafy","record":{"text":"x"}}}`})
+	server := httptest.NewServer(ft.handler(t))
+	defer server.Close()
+	entered := make(chan struct{})
+	ingestor := &durableIngestorSpy{recordFunc: func(context.Context, tap.Event) (tap.Outcome, error) {
+		defer close(entered)
+		panicAtTapDiagnosticBoundary()
+		return tap.Outcome{}, nil
+	}}
+	var logs bytes.Buffer
+	transport := &sentry.MockTransport{}
+	observer := observability.New(observability.Config{Env: "test", SentryDSN: "https://public@example.invalid/1", SentryTransport: transport})
+	consumer := tap.NewWSConsumer(tap.WSConsumerConfig{URL: strings.Replace(server.URL, "http://", "ws://", 1), Ingestor: ingestor, Logger: slog.New(slog.NewJSONHandler(&logs, nil)), Observer: observer})
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	done := make(chan struct{})
+	go func() { consumer.Run(ctx); close(done) }()
+	select {
+	case <-entered:
+		cancel()
+	case <-ctx.Done():
+		t.Fatal("ingestion never reached panic")
+	}
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("consumer failed to stop")
+	}
+	observer.Flush(time.Second)
+	for _, want := range []string{"runtime.TypeAssertionError", "int, not string", "panicAtTapDiagnosticBoundary"} {
+		if !strings.Contains(logs.String(), want) {
+			t.Fatalf("local Tap panic missing %s", want)
+		}
+	}
+	events := transport.Events()
+	if len(events) != 1 || events[0].Exception[0].Stacktrace == nil {
+		t.Fatalf("panic issue/stack missing: %#v", events)
+	}
+	select {
+	case id := <-ft.acks:
+		t.Fatalf("panicking event acknowledged: %d", id)
+	default:
+	}
+	if strings.Contains(logs.String(), "/Users/") {
+		t.Fatal("local user path leaked")
+	}
+}
+
+func panicAtTapDiagnosticBoundary() { var value any = 1; _ = value.(string) }
+
+// IT-006: durable terminal record rejection retains selected published context;
+// retry/ACK behavior belongs to the existing durable boundary.
+func TestTapTerminalRejectionRetainsPublishedFailureExcerpt(t *testing.T) {
+	frame := `{"id":1,"type":"record","record":{"live":true,"rev":"3aaaaaaaaaaa2","did":"did:plc:public","collection":"social.craftsky.feed.post","rkey":"post1","action":"create","cid":"bafyPublic","record":{"text":"published knit explanation access_token=credential-canary"}}}`
+	ft := newFakeTap([]string{frame})
+	server := httptest.NewServer(ft.handler(t))
+	defer server.Close()
+	var local bytes.Buffer
+	logger := slog.New(observability.NewDiagnosticHandler(slog.NewJSONHandler(&local, nil)))
+	transport := &sentry.MockTransport{}
+	observer := observability.New(observability.Config{Env: "test", Logger: logger, SentryDSN: "https://public@example.invalid/1", SentryTransport: transport})
+	ingestor := &durableIngestorSpy{recordFunc: func(context.Context, tap.Event) (tap.Outcome, error) {
+		return tap.PermanentInvalid(tap.ReasonMalformedRecord), nil
+	}}
+	consumer := tap.NewWSConsumer(tap.WSConsumerConfig{URL: strings.Replace(server.URL, "http://", "ws://", 1), Ingestor: ingestor, Observer: observer, Logger: logger})
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	done := make(chan error, 1)
+	go func() { done <- consumer.Run(ctx) }()
+	select {
+	case id := <-ft.acks:
+		if id != 1 {
+			t.Fatal("wrong ack")
+		}
+	case <-time.After(time.Second):
+		t.Fatal("missing durable ack")
+	}
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("consumer did not stop")
+	}
+	observer.Flush(time.Second)
+	if len(transport.Events()) != 1 {
+		t.Fatalf("terminal issues=%d", len(transport.Events()))
+	}
+	data, _ := json.Marshal(transport.Events())
+	for _, want := range []string{"published knit explanation", "did:plc:public", "bafyPublic", "post1", "quarantine", "durably_committed"} {
+		if !strings.Contains(string(data), want) {
+			t.Fatalf("missing %s: %s", want, data)
+		}
+	}
+	if strings.Contains(string(data)+local.String(), "credential-canary") {
+		t.Fatal("credential leaked")
+	}
+	if os.Getenv("CRAFTSKY_DIAGNOSTIC_EVIDENCE") == "1" {
+		t.Logf("Tap terminal local diagnostics:\n%s\nmock issue envelope:\n%s", local.String(), data)
+	}
+}
+
+func TestWSConsumerIdentityPanicHasLocalCauseAndRecoveryFrame(t *testing.T) {
+	ft := newFakeTap([]string{`{"id":123,"type":"identity","identity":{"did":"did:plc:a","status":"active"}}`})
+	server := httptest.NewServer(ft.handler(t))
+	defer server.Close()
+	entered := make(chan struct{})
+	ingestor := &durableIngestorSpy{identityFunc: func(context.Context, tap.IdentityEvent) (tap.Outcome, error) {
+		defer close(entered)
+		panicAtTapDiagnosticBoundary()
+		return tap.Outcome{}, nil
+	}}
+	var logs bytes.Buffer
+	transport := &sentry.MockTransport{}
+	observer := observability.New(observability.Config{Env: "test", SentryDSN: "https://public@example.invalid/1", SentryTransport: transport})
+	consumer := tap.NewWSConsumer(tap.WSConsumerConfig{URL: strings.Replace(server.URL, "http://", "ws://", 1), Ingestor: ingestor, Logger: slog.New(slog.NewJSONHandler(&logs, nil)), Observer: observer})
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	done := make(chan struct{})
+	go func() { consumer.Run(ctx); close(done) }()
+	select {
+	case <-entered:
+		cancel()
+	case <-ctx.Done():
+		t.Fatal("ingestion never reached panic")
+	}
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("consumer failed to stop")
+	}
+	observer.Flush(time.Second)
+	for _, want := range []string{"runtime.TypeAssertionError", "int, not string", "panicAtTapDiagnosticBoundary"} {
+		if !strings.Contains(logs.String(), want) {
+			t.Fatalf("local Tap panic missing %s", want)
+		}
+	}
+	events := transport.Events()
+	if len(events) != 1 || events[0].Exception[0].Stacktrace == nil {
+		t.Fatalf("panic issue/stack missing: %#v", events)
+	}
+	select {
+	case id := <-ft.acks:
+		t.Fatalf("panicking event acknowledged: %d", id)
+	default:
+	}
+	if strings.Contains(logs.String(), "/Users/") {
+		t.Fatal("local user path leaked")
+	}
+}
+
+func TestIT016TapRetryBurstKeepsEveryAttemptAndTerminalSummary(t *testing.T) {
+	frame := `{"id":1,"type":"record","record":{"live":true,"rev":"3aaaaaaaaaaa2","did":"did:plc:public","collection":"social.craftsky.feed.post","rkey":"post1","action":"create","cid":"bafyPublic","record":{"text":"published explanation"}}}`
+	frames := make([]string, 10)
+	for i := range frames {
+		frames[i] = frame
+	}
+	ft := newFakeTap(frames)
+	server := httptest.NewServer(ft.handler(t))
+	defer server.Close()
+	var local bytes.Buffer
+	logger := slog.New(observability.NewDiagnosticHandler(slog.NewJSONHandler(&local, nil)))
+	transport := &sentry.MockTransport{}
+	metrics := observability.NewInMemoryMetricRecorder()
+	observer := observability.New(observability.Config{Logger: logger, SentryDSN: "https://public@example.invalid/1", SentryTransport: transport, LogsEnabled: true, MetricRecorder: metrics})
+	attempts := 0
+	ingestor := &durableIngestorSpy{recordFunc: func(context.Context, tap.Event) (tap.Outcome, error) {
+		attempts++
+		if attempts < 10 {
+			return tap.Retryable(tap.ReasonProjectionFailure), &pgconn.PgError{Code: "40001", Detail: "PRIVATE_ROW"}
+		}
+		return tap.PermanentInvalid(tap.ReasonMalformedRecord), nil
+	}}
+	consumer := tap.NewWSConsumer(tap.WSConsumerConfig{URL: strings.Replace(server.URL, "http://", "ws://", 1), Ingestor: ingestor, Observer: observer, Logger: logger})
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	done := make(chan error, 1)
+	go func() { done <- consumer.Run(ctx) }()
+	select {
+	case id := <-ft.acks:
+		if id != 1 {
+			t.Fatal("wrong terminal ACK")
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("missing terminal ACK")
+	}
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("consumer did not stop")
+	}
+	observer.Flush(time.Second)
+	if attempts != 10 {
+		t.Fatalf("attempts=%d", attempts)
+	}
+	failures := []map[string]any{}
+	for _, line := range strings.Split(strings.TrimSpace(local.String()), "\n") {
+		var record map[string]any
+		if err := json.Unmarshal([]byte(line), &record); err != nil {
+			t.Fatal(err)
+		}
+		if record["operation"] == "tap.indexer.handle" && record["causes"] != nil {
+			failures = append(failures, record)
+		}
+	}
+	if len(failures) != 2 {
+		t.Fatalf("selected failures=%d", len(failures))
+	}
+	if failures[1]["suppressed_count"] != float64(8) {
+		t.Fatalf("terminal summary=%#v", failures[1])
+	}
+	issues := 0
+	remote := 0
+	for _, event := range transport.Events() {
+		if len(event.Exception) > 0 {
+			issues++
+			payload, _ := json.Marshal(event)
+			if !strings.Contains(string(payload), "published explanation") || !strings.Contains(string(payload), "quarantine") {
+				t.Fatal("terminal cause lost")
+			}
+		}
+		for _, log := range event.Logs {
+			if log.Body == "indexer handle failed" {
+				t.Error("expected retry retained duplicate ERROR noise")
+			}
+			if log.Attributes["operation"].AsString() == "tap.indexer.handle" {
+				remote++
+			}
+		}
+	}
+	if issues != 1 || remote != 2 {
+		t.Fatalf("issues=%d remote=%d", issues, remote)
+	}
+	if strings.Contains(local.String(), "PRIVATE_ROW") {
+		t.Fatal("private row leaked")
+	}
+	total := 0.0
+	for _, call := range metrics.Calls() {
+		if call.Name == "craftsky_appview_tap_indexer_records_total" {
+			total += call.Value
+		}
+	}
+	if total != 10 {
+		t.Fatalf("metric attempts=%v", total)
+	}
+}
+func TestWSConsumerQuarantinePanicHasLocalCauseAndRecoveryFrame(t *testing.T) {
+	ft := newFakeTap([]string{`{"id":123,"type":"record","record":{"live":true,"rev":"3aaaaaaaaaaa2","did":"did:plc:a","collection":"not-an-nsid!","rkey":"k","action":"create","cid":"bafy","record":{}}}`})
+	server := httptest.NewServer(ft.handler(t))
+	defer server.Close()
+	entered := make(chan struct{})
+	ingestor := &durableIngestorSpy{quarantineFunc: func(context.Context, tap.InvalidEvent) (tap.Outcome, error) {
+		defer close(entered)
+		panicAtTapDiagnosticBoundary()
+		return tap.Outcome{}, nil
+	}}
+	var logs bytes.Buffer
+	transport := &sentry.MockTransport{}
+	observer := observability.New(observability.Config{Env: "test", SentryDSN: "https://public@example.invalid/1", SentryTransport: transport})
+	consumer := tap.NewWSConsumer(tap.WSConsumerConfig{URL: strings.Replace(server.URL, "http://", "ws://", 1), Ingestor: ingestor, Logger: slog.New(slog.NewJSONHandler(&logs, nil)), Observer: observer})
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	done := make(chan struct{})
+	go func() { consumer.Run(ctx); close(done) }()
+	select {
+	case <-entered:
+		cancel()
+	case <-ctx.Done():
+		t.Fatal("ingestion never reached panic")
+	}
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("consumer failed to stop")
+	}
+	observer.Flush(time.Second)
+	for _, want := range []string{"runtime.TypeAssertionError", "int, not string", "panicAtTapDiagnosticBoundary"} {
+		if !strings.Contains(logs.String(), want) {
+			t.Fatalf("local Tap panic missing %s", want)
+		}
+	}
+	events := transport.Events()
+	if len(events) != 1 || events[0].Exception[0].Stacktrace == nil {
+		t.Fatalf("panic issue/stack missing: %#v", events)
+	}
+	select {
+	case id := <-ft.acks:
+		t.Fatalf("panicking event acknowledged: %d", id)
+	default:
+	}
+	if strings.Contains(logs.String(), "/Users/") {
+		t.Fatal("local user path leaked")
 	}
 }

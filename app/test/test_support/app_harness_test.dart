@@ -75,6 +75,12 @@ final class _EnabledReporter implements ErrorReporter {
   }
 
   @override
+  Future<void> emitLog(
+    String message, {
+    required ReportContext context,
+  }) async {}
+
+  @override
   Future<void> captureMessage(
     String message, {
     required ReportContext context,

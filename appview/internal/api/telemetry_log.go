@@ -43,7 +43,8 @@ func pdsLogSuccessAttrs(runID string, operation observability.PDSOperation, stag
 func pdsLogErrorAttrs(runID string, operation observability.PDSOperation, stage observability.PDSStage, err error) []any {
 	return append(pdsLogAttrs(runID, operation, stage),
 		slog.String("result", "error"),
-		slog.String("error_category", string(observability.ClassifyPDSError(err))))
+		slog.String("error_category", string(observability.ClassifyPDSError(err))),
+		slog.Any("causes", observability.DescribeError(err, observability.EventContext{"component": "pds", "operation": string(operation), "failure_stage": string(stage)})))
 }
 
 func firstErr(errs ...error) error {
@@ -70,10 +71,15 @@ func apiLogSuccessAttrs(runID, operation string) []any {
 	return append(apiLogAttrs(runID, operation), slog.String("result", "success"))
 }
 
-func apiLogErrorAttrs(runID, operation, category string) []any {
-	return append(apiLogAttrs(runID, operation),
-		slog.String("result", "error"),
-		slog.String("error_category", category))
+func apiLogErrorAttrs(ctx context.Context, runID, operation, category string, err error) []any {
+	fields := observability.EventContext{"component": "api", "operation": operation, "error_category": category, "failure_stage": category, "run_id": runID, "result": "error"}
+	workflow := observability.RequestPublicWorkflow(ctx)
+	observability.CaptureRequestDiagnostic(ctx, observability.DiagnosticInput{Error: err, Context: fields, Workflow: workflow})
+	attrs := append(apiLogAttrs(runID, operation), slog.String("result", "error"), slog.String("error_category", category), slog.String("failure_stage", category), slog.Any("causes", observability.DescribeError(err, fields)))
+	if workflow != nil {
+		attrs = append(attrs, observability.DiagnosticWorkflowAttr(ctx, workflow))
+	}
+	return attrs
 }
 
 func requestCanceled(ctx context.Context, err error) bool {

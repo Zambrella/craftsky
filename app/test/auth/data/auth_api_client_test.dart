@@ -79,7 +79,9 @@ void main() {
         dio.interceptors.add(
           InterceptorsWrapper(
             onRequest: (options, handler) {
-              capturedBody = Map<String, dynamic>.from(options.data as Map);
+              capturedBody = Map<String, dynamic>.from(
+                options.data as Map<String, dynamic>,
+              );
               handler.next(options);
             },
           ),

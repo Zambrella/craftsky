@@ -110,12 +110,12 @@ func NewServerWithAdmission(ctx context.Context, deps *app.Deps, cfg HandlerAdmi
 	h = outerRate(h)
 	h = concurrency(h)
 	h = middleware.Recovery(deps.Logger, deps.Observability)(h)
-	unobserved := h
-	observed := middleware.Logging(deps.Logger)(middleware.HTTPMetrics(deps.Observability)(h))
+	probe := middleware.Logging(deps.Logger, catalogue)(h)
+	observed := middleware.Logging(deps.Logger, catalogue)(middleware.HTTPMetrics(deps.Observability)(h))
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/health", "/healthz":
-			unobserved.ServeHTTP(w, r)
+			probe.ServeHTTP(w, r)
 		default:
 			observed.ServeHTTP(w, r)
 		}

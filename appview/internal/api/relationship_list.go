@@ -6,6 +6,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"social.craftsky/appview/internal/observability"
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -94,6 +95,7 @@ func relationshipListHandler(
 					slog.String("run_id", runID),
 					slog.String("stage", "store"))
 			}
+			observability.ReportRequestFailure(r.Context(), err, "api.relationshipListHandler", "handler")
 			envelope.WriteError(w, http.StatusInternalServerError,
 				"internal_error", "relationship list failed", runID, nil)
 			return
@@ -103,6 +105,7 @@ func relationshipListHandler(
 		for _, item := range items {
 			handle, err := resolver.ResolveHandle(r.Context(), item.SubjectDID)
 			if err != nil {
+				observability.ReportRequestFailure(r.Context(), err, "api.relationshipListHandler", "handler")
 				envelope.WriteError(w, http.StatusBadGateway,
 					"identity_unavailable", "could not resolve identity", runID, nil)
 				return
@@ -132,6 +135,7 @@ func relationshipListHandler(
 			last := items[len(items)-1]
 			cursor, err = EncodeRelationshipCursor(last.CreatedAt, last.SubjectDID)
 			if err != nil {
+				observability.ReportRequestFailure(r.Context(), err, "api.relationshipListHandler", "handler")
 				envelope.WriteError(w, http.StatusInternalServerError,
 					"internal_error", "relationship list cursor failed", runID, nil)
 				return

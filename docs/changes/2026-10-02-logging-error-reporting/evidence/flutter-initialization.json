@@ -1,0 +1,6 @@
+{
+  "local": [
+    "{\"occurrence\":1,\"chunk\":1,\"chunks\":1,\"diagnostic\":\"{\\\"severity\\\":\\\"WARNING\\\",\\\"feature\\\":\\\"Telemetry\\\",\\\"operation\\\":\\\"initialize\\\",\\\"message\\\":\\\"Telemetry reporting failed\\\",\\\"cause\\\":{\\\"type\\\":\\\"StateError\\\",\\\"message\\\":\\\"Operation failed\\\"},\\\"stack\\\":[{\\\"function\\\":\\\"_FakeSentryBootstrapAdapter.initialize\\\",\\\"file\\\":\\\"sentry_bootstrap_test.dart\\\",\\\"line\\\":78},{\\\"function\\\":\\\"ObservabilityBootstrap.initialize\\\",\\\"file\\\":\\\"observability_bootstrap.dart\\\",\\\"line\\\":24}],\\\"environment\\\":\\\"development\\\"}\"}"
+  ],
+  "exported": []
+}

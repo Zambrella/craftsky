@@ -75,10 +75,15 @@ func NewHTTPHandlers(
 // client.
 func (h *HTTPHandlers) ClientMetadataHandler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if h.OAuth == nil || h.OAuth.Config == nil || h.ClientMetadata.ClientID == "" ||
-			h.ClientMetadata.Validate(h.OAuth.Config.ClientID) != nil {
+		var validationErr error
+		if h.OAuth == nil || h.OAuth.Config == nil || h.ClientMetadata.ClientID == "" {
+			validationErr = errors.New("client metadata unavailable")
+		} else {
+			validationErr = h.ClientMetadata.Validate(h.OAuth.Config.ClientID)
+		}
+		if validationErr != nil {
 			h.Logger.Error("client metadata validation failed",
-				authLogErrorAttrs(ctxkeys.GetRunID(r.Context()), "oauth.client_metadata", "validation")...)
+				authLogErrorAttrs(r.Context(), ctxkeys.GetRunID(r.Context()), "oauth.client_metadata", "validation", validationErr)...)
 			http.Error(w, "internal error", http.StatusInternalServerError)
 			return
 		}
@@ -188,7 +193,7 @@ func (h *HTTPHandlers) CallbackHandler() http.Handler {
 				if renderErr == nil {
 					if h.Logger != nil {
 						h.Logger.Warn("registration callback failed",
-							append(authLogErrorAttrs(runID, "registration.callback", string(trustedFailure.Code)),
+							append(authLogErrorAttrs(r.Context(), runID, "registration.callback", string(trustedFailure.Code), err),
 								slog.String("failure_stage", failureStage), slog.String("failure_reason", callbackFailureReason(err)))...)
 					}
 					return
@@ -196,7 +201,7 @@ func (h *HTTPHandlers) CallbackHandler() http.Handler {
 			}
 			if h.Logger != nil {
 				h.Logger.Warn("OAuth callback finalization failed",
-					append(authLogErrorAttrs(runID, "oauth.callback", "finalization"),
+					append(authLogErrorAttrs(r.Context(), runID, "oauth.callback", "finalization", err),
 						slog.String("failure_stage", failureStage), slog.String("failure_reason", callbackFailureReason(err)))...)
 			}
 			renderErrorHTML(w, http.StatusBadRequest, "Sign-in could not be completed. Please try again.")
@@ -235,7 +240,7 @@ func (h *HTTPHandlers) CallbackHandler() http.Handler {
 			return
 		}
 		if err := renderCallbackHTML(w, data); err != nil && h.Logger != nil {
-			h.Logger.Error("callback template", authLogErrorAttrs(runID, "oauth.callback", "template")...)
+			h.Logger.Error("callback template", authLogErrorAttrs(r.Context(), runID, "oauth.callback", "template", err)...)
 		}
 	})
 }

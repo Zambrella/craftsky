@@ -220,7 +220,29 @@ func TestPushPrivacySentinelsAcrossRegistrationEnqueueDispatchAndTelemetry(t *te
 	// Registration responses and provider payloads intentionally contain the
 	// account binding and category-required public routing facts. Telemetry must
 	// not copy any of those boundary values.
-	observable := stdout.String() + "\n" + providerClass
+	observable := ""
+	selectedLocal := 0
+	for _, line := range strings.Split(strings.TrimSpace(stdout.String()), "\n") {
+		var record map[string]any
+		if err := json.Unmarshal([]byte(line), &record); err != nil {
+			t.Fatal(err)
+		}
+		if selected, ok := record["diagnostic"].(map[string]any); ok {
+			if selected["operation_account_did"] != nil {
+				if record["operation"] != "push.send" || record["result"] != "retry" || selected["operation_account_did"] != recipientDID || len(selected) != 2 {
+					t.Fatalf("unexpected failure selection %#v", record)
+				}
+				delete(selected, "operation_account_did")
+				selectedLocal++
+			}
+		}
+		body, _ := json.Marshal(record)
+		observable += string(body) + "\n"
+	}
+	if selectedLocal != 1 {
+		t.Fatalf("selected local failure owners=%d", selectedLocal)
+	}
+	observable += providerClass
 	for _, call := range recorder.Calls() {
 		observable += fmt.Sprintf("\n%+v", call)
 	}
@@ -228,8 +250,38 @@ func TestPushPrivacySentinelsAcrossRegistrationEnqueueDispatchAndTelemetry(t *te
 	if len(events) == 0 {
 		t.Fatal("real retry/success flow emitted no safe Sentry log evidence")
 	}
+	selectedRemote := 0
 	for _, event := range events {
-		observable += fmt.Sprintf("\n%+v", event.Logs)
+		for _, log := range event.Logs {
+			fields := map[string]any{}
+			for key, value := range log.Attributes {
+				fields[key] = value.AsInterface()
+			}
+			if value, ok := fields["diagnostic"].(string); ok {
+				var selected map[string]any
+				if err := json.Unmarshal([]byte(value), &selected); err != nil {
+					t.Fatal(err)
+				}
+				if selected["operation_account_did"] != nil {
+					if fields["operation"] != "push.send" || fields["result"] != "retry" || selected["operation_account_did"] != recipientDID || len(selected) != 2 {
+						t.Fatalf("unexpected remote failure selection %#v", fields)
+					}
+					delete(selected, "operation_account_did")
+					selectedRemote++
+				}
+				body, _ := json.Marshal(selected)
+				fields["diagnostic"] = string(body)
+			}
+			body, _ := json.Marshal(fields)
+			observable += log.Body + string(body)
+		}
+		// Expected provider retries must not become unexpected issues.
+		if len(event.Exception) > 0 {
+			t.Fatal("retry acquired unexpected issue")
+		}
+	}
+	if selectedRemote != 1 {
+		t.Fatalf("selected exported failure owners=%d", selectedRemote)
 	}
 	for _, value := range forbidden {
 		if strings.Contains(observable, value) {

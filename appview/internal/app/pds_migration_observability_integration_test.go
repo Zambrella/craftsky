@@ -375,8 +375,8 @@ func TestPDSMigrationProductionPathsAreCrossSinkSecretFree(t *testing.T) {
 			}
 			transactionCount++
 		}
-		if event.Level == sentry.LevelError && event.Tags["sentry_trace_id"] == effects[1].traceID &&
-			event.Tags["sentry_span_id"] == effects[1].spanID {
+		if event.Level == sentry.LevelError && event.Contexts["correlation"]["sentry_trace_id"] == effects[1].traceID &&
+			event.Contexts["correlation"]["sentry_span_id"] == effects[1].spanID {
 			correlatedErrorFound = true
 		}
 	}

@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"social.craftsky/appview/internal/observability"
 	"strings"
 	"time"
 
@@ -45,6 +46,7 @@ func (h *folderResponseRedactor) Handler(next http.Handler) http.Handler {
 			}
 			access, err := h.access.SelfAccess(r.Context(), did, time.Now())
 			if err != nil {
+				observability.ReportRequestFailure(r.Context(), err, "api.Handler", "handler")
 				envelope.WriteError(w, http.StatusServiceUnavailable, "subscription_unavailable", "subscription access unavailable", middleware.GetRunID(r.Context()), nil)
 				return
 			}
@@ -53,12 +55,14 @@ func (h *folderResponseRedactor) Handler(next http.Handler) http.Handler {
 				decoder.UseNumber()
 				var root any
 				if err := decoder.Decode(&root); err != nil {
+					observability.ReportRequestFailure(r.Context(), err, "api.Handler", "handler")
 					envelope.WriteError(w, http.StatusInternalServerError, "internal_error", "post response unavailable", middleware.GetRunID(r.Context()), nil)
 					return
 				}
 				redactViewerSavedFolderIDs(root)
 				body, err = json.Marshal(root)
 				if err != nil {
+					observability.ReportRequestFailure(r.Context(), err, "api.Handler", "handler")
 					envelope.WriteError(w, http.StatusInternalServerError, "internal_error", "post response unavailable", middleware.GetRunID(r.Context()), nil)
 					return
 				}

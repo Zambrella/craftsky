@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"social.craftsky/appview/internal/observability"
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -77,6 +78,7 @@ func GetSubscriptionAccessHandler(store SubscriptionAccessStore, now func() time
 		}
 		access, err := store.SelfAccess(r.Context(), did, now())
 		if err != nil {
+			observability.ReportRequestFailure(r.Context(), err, "api.GetSubscriptionAccessHandler", "handler")
 			envelope.WriteError(w, http.StatusInternalServerError, "internal_error", "subscription access unavailable", middleware.GetRunID(r.Context()), nil)
 			return
 		}

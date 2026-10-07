@@ -5,6 +5,10 @@ import 'package:craftsky_app/feed/models/video_service_result.dart';
 import 'package:craftsky_app/feed/models/video_upload_limits.dart';
 import 'package:craftsky_app/observability/video_diagnostics.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
+import 'package:craftsky_app/shared/errors/app_error.dart';
+import 'package:craftsky_app/shared/errors/app_error_mapper.dart';
+import 'package:craftsky_app/shared/observability/diagnostic_emitter.dart';
+import 'package:craftsky_app/shared/observability/error_reporter.dart';
 import 'package:dio/dio.dart';
 import 'package:logging/logging.dart';
 
@@ -73,6 +77,7 @@ final class VideoPublicationCoordinator {
     required VideoPublishOperation publish,
     required void Function(VideoPublicationProgress progress) onProgress,
     DateTime Function()? clock,
+    String? operationAccountDid,
   }) => VideoPublicationCoordinator._(
     checkEligibility,
     authorize,
@@ -82,6 +87,7 @@ final class VideoPublicationCoordinator {
     publish,
     onProgress,
     clock ?? DateTime.now,
+    operationAccountDid,
   );
 
   VideoPublicationCoordinator._(
@@ -93,6 +99,7 @@ final class VideoPublicationCoordinator {
     this._publish,
     this._onProgress,
     this._clock,
+    this._operationAccountDid,
   );
 
   final Future<VideoUploadLimits> Function() _checkEligibility;
@@ -103,6 +110,7 @@ final class VideoPublicationCoordinator {
   final VideoPublishOperation _publish;
   final void Function(VideoPublicationProgress) _onProgress;
   final DateTime Function() _clock;
+  final String? _operationAccountDid;
 
   VideoUploadAuthorization? _authorization;
   String? _jobId;
@@ -173,9 +181,13 @@ final class VideoPublicationCoordinator {
           try {
             result = await _poll(_jobId!, cancelToken);
             _diagnose(VideoOperationOutcome.succeeded);
-          } on VideoTransportException catch (error) {
+          } on VideoTransportException catch (error, stackTrace) {
             if (error.kind != VideoTransportFailure.unavailable) rethrow;
-            _diagnose(VideoOperationOutcome.retrying);
+            _diagnose(
+              VideoOperationOutcome.retrying,
+              error: error,
+              stackTrace: stackTrace,
+            );
           }
           completedPolls++;
         }
@@ -206,9 +218,13 @@ final class VideoPublicationCoordinator {
           );
           _diagnose(VideoOperationOutcome.succeeded);
           break;
-        } on Object catch (error) {
+        } on Object catch (error, stackTrace) {
           if (bypassDeduplication || !_isMissingVideoBlob(error)) rethrow;
-          _diagnose(VideoOperationOutcome.retrying);
+          _diagnose(
+            VideoOperationOutcome.retrying,
+            error: error,
+            stackTrace: stackTrace,
+          );
           bypassDeduplication = true;
           _jobId = null;
         }
@@ -220,6 +236,7 @@ final class VideoPublicationCoordinator {
         canceled
             ? VideoOperationOutcome.canceled
             : VideoOperationOutcome.failed,
+        error: error,
         stackTrace: stackTrace,
       );
       _emit(
@@ -228,11 +245,12 @@ final class VideoPublicationCoordinator {
             : VideoPublicationStage.failed,
       );
       rethrow;
-    } on Object catch (_, stackTrace) {
+    } on Object catch (error, stackTrace) {
       _diagnose(
         cancelToken.isCancelled
             ? VideoOperationOutcome.canceled
             : VideoOperationOutcome.failed,
+        error: error,
         stackTrace: stackTrace,
       );
       _emit(
@@ -278,18 +296,68 @@ final class VideoPublicationCoordinator {
 
   void _diagnose(
     VideoOperationOutcome outcome, {
+    Object? error,
     StackTrace? stackTrace,
   }) {
-    final event = VideoDiagnosticEvent(operation: _operation, outcome: outcome);
+    final expected =
+        outcome == VideoOperationOutcome.canceled ||
+        outcome == VideoOperationOutcome.rejected ||
+        (error is VideoPublicationException &&
+            (error.ineligibilityReason != null ||
+                const {
+                  VideoServiceOutcome.emailUnverified,
+                  VideoServiceOutcome.quotaExhausted,
+                  VideoServiceOutcome.providerUnsupported,
+                  VideoServiceOutcome.validationFailed,
+                }.contains(error.outcome)));
+    final appError = error == null
+        ? null
+        : AppErrorMapper.map(
+            error,
+            fallbackKind: AppErrorKind.actionFailed,
+            source: 'video',
+            fallbackClassification: 'video.failed',
+          );
+    final context = ReportContext(
+      feature: 'VideoPublication',
+      operation: 'video.${_operation.name}',
+      classification: appError?.sentryClassification ?? 'video.${outcome.name}',
+      outcome: expected
+          ? DiagnosticOutcome.expected
+          : outcome == VideoOperationOutcome.retrying
+          ? DiagnosticOutcome.retry
+          : DiagnosticOutcome.automatic,
+      workflow: error != null && !expected && _operationAccountDid != null
+          ? PublicRecordContext(actorDid: _operationAccountDid)
+          : null,
+      safeDiagnostics: {
+        ...?(appError?.safeDiagnostics),
+        'failureStage': _operation.name,
+        'outcome': outcome.name,
+        'retryable': outcome == VideoOperationOutcome.retrying,
+        if (error is VideoTransportException) 'providerCode': error.kind.name,
+        if (error is VideoTransportException &&
+            error.httpStatus != null &&
+            error.httpStatus! >= 100 &&
+            error.httpStatus! <= 599)
+          'providerStatus': error.httpStatus,
+        if (error is VideoPublicationException && error.outcome != null)
+          'providerCode': error.outcome!.name,
+      },
+    );
+    final message = DiagnosticMessage(
+      'video operation outcome',
+      context: context,
+    );
     switch (outcome) {
       case VideoOperationOutcome.failed:
-        _log.severe(event.toString(), null, stackTrace);
+        _log.severe(message, error, stackTrace);
       case VideoOperationOutcome.rejected ||
           VideoOperationOutcome.canceled ||
           VideoOperationOutcome.retrying:
-        _log.warning(event.toString());
+        _log.warning(message, error, stackTrace);
       case VideoOperationOutcome.succeeded:
-        _log.fine(event.toString());
+        _log.fine(message);
     }
   }
 

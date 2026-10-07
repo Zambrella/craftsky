@@ -58,6 +58,11 @@ func (o *Observer) ObserveDB(ctx context.Context, op DBOperation, fn func(contex
 		})
 		span.Finish(result)
 	}
+	if err != nil {
+		input := DiagnosticInput{Error: err, Context: EventContext{"component": "db", "operation": operation, "route_pattern": routePattern, "failure_stage": "query", "result": result, "duration": duration.String()}, Workflow: RequestPublicWorkflow(ctx)}
+		LogDiagnostic(spanCtx, o.logger, input)
+		o.CaptureDiagnostic(spanCtx, input)
+	}
 	o.metricRecorder.DBOperation(spanCtx, operation, routePattern, result, duration)
 	return err
 }

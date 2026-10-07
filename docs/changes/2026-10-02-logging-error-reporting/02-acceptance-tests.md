@@ -1,5 +1,19 @@
 # Acceptance Test Specification: Useful Logging and Error Reporting
 
+## Refined acceptance coverage approved 2026-10-07
+
+The refined SIM-001–SIM-006 contract supersedes tests of server prose/path mirroring, implicit log capture, ownership flags, exact multi-chunk sink parity, generic Flutter retry windows and global message registration. Retain credential/private exception/value canaries and original business-policy regressions.
+
+| Test | Requirements | Observable result |
+|---|---|---|
+| SIM-T01 | SIM-001 / FR-006 | New server code/status/method/request ID retained through both mappers; server prose/fields/path absent; existing localized classification unchanged. |
+| SIM-T02 | SIM-002 / FR-008 | Severe supporting logs export but never capture; provider/unhandled owners capture once; consumed failures explicitly reported where appropriate. |
+| SIM-T03 | SIM-003 / FR-016, NFR-002 | Brief console record is parseable and bounded, type/useful frame/request/job reference survive, private prose/oversized identifiers omitted. No chunk reconstruction or generic retry coalescing contract. |
+| SIM-T04 | SIM-004, SIM-005 / FR-001, FR-010 | Actual serialized SDK event/log retains type/stack/operational context and normal metadata, strips secrets/private payload/unknown exception values; ordinary static messages work without registry. |
+| SIM-T05 | SIM-005 / FR-010 | Actual Go local/exported diagnostics admit ordinary scrubbed messages without registration/nonce, retain selected causes/private failure refs, omit credential/private canaries. |
+| SIM-T06 | SIM-006 / FR-014, NFR-003 | Guide examples agree; full Go/Flutter suites and analysis pass; no business outcome/production changes. |
+
+
 ## 1. Test Strategy
 
 Status: Draft for document review. Risk level: High, carried forward from requirements. This is test design only: the cases below are proposed, not implemented or passing. No application tests, live telemetry checks or production changes were performed in this stage.

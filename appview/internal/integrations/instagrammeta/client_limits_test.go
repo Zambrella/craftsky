@@ -186,3 +186,23 @@ func TestProviderStructuredErrorsClassifyWithoutRetainingMessages(t *testing.T) 
 		})
 	}
 }
+
+func TestIT007ProviderFailureRetainsSafeHTTPStatus(t *testing.T) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusTooManyRequests)
+		_, _ = io.WriteString(w, `{"error":{"code":613,"message":"PRIVATE_TOKEN_AND_USERNAME"}}`)
+	}))
+	defer server.Close()
+	client, err := NewHTTPClient(HTTPClientConfig{HTTPClient: server.Client(), BaseURL: server.URL, APIVersion: "v99.0", AccessToken: "PRIVATE_TOKEN", OfficialAccountID: "PRIVATE_ACCOUNT"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = client.LookupUsername(context.Background(), "PRIVATE_RECIPIENT")
+	status, ok := err.(interface{ StatusCode() int })
+	if !ok || status.StatusCode() != 429 {
+		t.Fatalf("lost safe HTTP status: %T", err)
+	}
+	if strings.Contains(err.Error(), "PRIVATE") {
+		t.Fatal("provider explanation leaked private input")
+	}
+}

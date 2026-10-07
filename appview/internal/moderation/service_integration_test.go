@@ -234,7 +234,7 @@ func TestModerationProductionOperationsEmitBoundedSafeTelemetry(t *testing.T) {
 			continue
 		}
 		operationLogs++
-		if len(event.attrs) != 7 || event.attrs["component"] != "moderation" ||
+		if event.attrs["service"] != "craftsky_appview" || event.attrs["component"] != "moderation" ||
 			event.attrs["result"] != "success" || event.attrs["occurred_at"] == "" ||
 			event.attrs["actor_type"] == "" || event.attrs["request_id"] == "" || event.attrs["case_reference"] == "" {
 			t.Fatalf("operation log attrs = %#v", event.attrs)

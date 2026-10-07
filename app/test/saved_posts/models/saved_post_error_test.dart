@@ -16,7 +16,6 @@ void main() {
       sentinels.join(' '),
       details: const ApiFailureDetails(
         appViewError: 'internal_error',
-        endpointCategory: 'appview.saved_posts',
       ),
     );
     final failure = SavedPostFailure.from(

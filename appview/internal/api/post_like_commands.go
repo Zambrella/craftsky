@@ -63,12 +63,12 @@ func CommandLikePostHandler(store likeCommandStore, commands SetCommandExecutor,
 		if replay != nil {
 			target, valid := replayPostTarget(replay.Intent)
 			if !valid {
-				WriteCommandError(writer, runID, pdscommands.ErrIdempotencyConflict)
+				WriteCommandError(writer, runID, pdscommands.ErrIdempotencyConflict, request.Context())
 				return
 			}
 			result, err := executeLikeCommand(request, commands, caller, generation, targetDID, target, operationKey, replay.SelectedRkey, true, runID)
 			if err != nil {
-				WriteCommandError(writer, runID, err)
+				WriteCommandError(writer, runID, err, request.Context())
 				return
 			}
 			WriteCommandResponse(writer, CommandResultFromStored(result))
@@ -89,7 +89,7 @@ func CommandLikePostHandler(store likeCommandStore, commands SetCommandExecutor,
 		result, err := executeLikeCommand(request, commands, caller, generation, targetDID, target, operationKey, rkey, true, runID)
 		if err != nil {
 			logger.Warn("like command failed", slog.Any("error", err))
-			WriteCommandError(writer, runID, err)
+			WriteCommandError(writer, runID, err, request.Context())
 			return
 		}
 		WriteCommandResponse(writer, CommandResultFromStored(result))
@@ -123,12 +123,12 @@ func CommandUnlikePostHandler(store unlikeCommandStore, commands SetCommandExecu
 		if replay != nil {
 			target, valid := replayPostTarget(replay.Intent)
 			if !valid {
-				WriteCommandError(writer, runID, pdscommands.ErrIdempotencyConflict)
+				WriteCommandError(writer, runID, pdscommands.ErrIdempotencyConflict, request.Context())
 				return
 			}
 			result, err := executeLikeCommand(request, commands, caller, generation, targetDID, target, operationKey, "", false, runID)
 			if err != nil {
-				WriteCommandError(writer, runID, err)
+				WriteCommandError(writer, runID, err, request.Context())
 				return
 			}
 			WriteCommandResponse(writer, CommandResultFromStored(result))
@@ -141,7 +141,7 @@ func CommandUnlikePostHandler(store unlikeCommandStore, commands SetCommandExecu
 		result, err := executeLikeCommand(request, commands, caller, generation, targetDID, target, operationKey, "", false, runID)
 		if err != nil {
 			logger.Warn("unlike command failed", slog.Any("error", err))
-			WriteCommandError(writer, runID, err)
+			WriteCommandError(writer, runID, err, request.Context())
 			return
 		}
 		WriteCommandResponse(writer, CommandResultFromStored(result))

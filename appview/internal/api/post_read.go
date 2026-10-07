@@ -11,6 +11,7 @@ import (
 
 	"social.craftsky/appview/internal/api/envelope"
 	"social.craftsky/appview/internal/middleware"
+	"social.craftsky/appview/internal/observability"
 	"social.craftsky/appview/internal/relationships"
 )
 
@@ -47,8 +48,19 @@ func GetPostHandler(
 			return
 		}
 		if err != nil {
-			logger.Error("post: ReadOne failed",
-				apiLogErrorAttrs(runID, "post.get", "store")...)
+			// Select only the public resource identified by this read route;
+			// publication/draft bodies never establish published provenance.
+			workflow := observability.PublicRecordContext{ActorDID: viewerDID, TargetDID: did}
+			if key, parseErr := syntax.ParseRecordKey(rkey); parseErr == nil {
+				workflow.RecordKey = key
+				workflow.NSID = syntax.NSID("social.craftsky.feed.post")
+				workflow.URI = syntax.ATURI("at://" + did.String() + "/social.craftsky.feed.post/" + key.String())
+			}
+			diagnostic := observability.DiagnosticInput{Error: err, Workflow: workflow, Context: observability.EventContext{
+				"component": "api", "operation": "post.get", "failure_stage": "query", "run_id": runID,
+			}}
+			observability.LogDiagnostic(r.Context(), logger, diagnostic)
+			observability.CaptureRequestDiagnostic(r.Context(), diagnostic)
 			envelope.WriteError(w, http.StatusInternalServerError,
 				"internal_error", "post read failed", runID, nil)
 			return
@@ -60,6 +72,7 @@ func GetPostHandler(
 			return
 		}
 		if err != nil {
+			observability.ReportRequestFailure(r.Context(), err, "api.GetPostHandler", "handler")
 			envelope.WriteError(w, http.StatusInternalServerError,
 				"internal_error", "post relationship lookup failed", runID, nil)
 			return
@@ -72,6 +85,7 @@ func GetPostHandler(
 		}
 		contentLanguages, err := authoritativeContentLanguages(r.Context(), viewerDID, preferenceReaders)
 		if err != nil {
+			observability.ReportRequestFailure(r.Context(), err, "api.GetPostHandler", "handler")
 			envelope.WriteError(w, http.StatusInternalServerError,
 				"internal_error", "language preference lookup failed", runID, nil)
 			return
@@ -79,7 +93,7 @@ func GetPostHandler(
 		summaries, err := store.EngagementSummaries(r.Context(), viewerDID.String(), contentLanguages, []string{row.URI})
 		if err != nil {
 			logger.Error("post: EngagementSummaries failed",
-				apiLogErrorAttrs(runID, "post.get", "engagement")...)
+				apiLogErrorAttrs(r.Context(), runID, "post.get", "engagement", err)...)
 			envelope.WriteError(w, http.StatusInternalServerError,
 				"internal_error", "post engagement lookup failed", runID, nil)
 			return
@@ -87,7 +101,7 @@ func GetPostHandler(
 		handle, err := resolver.ResolveHandle(r.Context(), did)
 		if err != nil {
 			logger.Warn("post: ResolveHandle failed",
-				apiLogErrorAttrs(runID, "post.get", "identity")...)
+				apiLogErrorAttrs(r.Context(), runID, "post.get", "identity", err)...)
 			envelope.WriteError(w, http.StatusBadGateway,
 				"identity_unavailable", "could not resolve handle", runID, nil)
 			return
@@ -97,7 +111,7 @@ func GetPostHandler(
 		applyEngagementSummary(resp, summaries[row.URI])
 		if err := attachQuoteView(r.Context(), store, resolver, resp); err != nil {
 			logger.Error("post: QuoteViewRows failed",
-				apiLogErrorAttrs(runID, "post.get", "quote_view")...)
+				apiLogErrorAttrs(r.Context(), runID, "post.get", "quote_view", err)...)
 			envelope.WriteError(w, http.StatusInternalServerError,
 				"internal_error", "post quote lookup failed", runID, nil)
 			return

@@ -1,10 +1,17 @@
 import 'package:craftsky_app/shared/device/device_id_provider.dart';
+import 'package:craftsky_app/shared/observability/diagnostic_emitter.dart';
+import 'package:craftsky_app/shared/observability/error_reporter_provider.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:logging/logging.dart';
+
+import '../../test_support/recording_error_reporter.dart';
 
 class _FakeSecureStorage implements FlutterSecureStorage {
   _FakeSecureStorage();
+  bool failRead = false;
   final Map<String, String> _map = <String, String>{};
 
   @override
@@ -16,7 +23,16 @@ class _FakeSecureStorage implements FlutterSecureStorage {
     WindowsOptions? wOptions,
     WebOptions? webOptions,
     AppleOptions? mOptions,
-  }) async => _map[key];
+  }) async {
+    if (failRead) {
+      throw PlatformException(
+        code: 'read_error',
+        message: 'private device-id canary',
+        details: {'token': 'platform-secret'},
+      );
+    }
+    return _map[key];
+  }
 
   @override
   Future<void> write({
@@ -42,6 +58,38 @@ class _FakeSecureStorage implements FlutterSecureStorage {
 }
 
 void main() {
+  test(
+    'IT-010 device storage failure retains code/stage without device value',
+    () async {
+      final records = <LogRecord>[];
+      final sub = Logger.root.onRecord.listen(records.add);
+      addTearDown(sub.cancel);
+      final storage = _FakeSecureStorage()..failRead = true;
+      final reporter = RecordingErrorReporter();
+      final container = ProviderContainer.test(
+        overrides: [
+          deviceIdSecureStorageProvider.overrideWithValue(storage),
+          errorReporterProvider.overrideWithValue(reporter),
+        ],
+      );
+      final id = await container.read(deviceIdProvider.future);
+      expect(id, isNotEmpty);
+      final selected = selectDiagnosticRecord(
+        records.singleWhere(
+          (record) => record.loggerName == 'DeviceIdProvider',
+        ),
+      );
+      expect(reporter.errors, hasLength(1));
+      expect(selected['operation'], 'device.storage.read');
+      expect(selected['failureStage'], 'storage_read');
+      expect(selected.toString(), contains('PlatformException'));
+      expect(selected.toString(), contains('read_error'));
+      expect(selected.toString(), isNot(contains(id)));
+      expect(selected.toString(), isNot(contains('private device-id canary')));
+      expect(selected.toString(), isNot(contains('platform-secret')));
+    },
+  );
+
   test('generates and persists a UUID when storage is empty', () async {
     final storage = _FakeSecureStorage();
     final container = ProviderContainer.test(

@@ -1,5 +1,21 @@
 # Requirements: Useful Logging and Error Reporting
 
+## Refined contract approved 2026-10-07
+
+The maintainer approved the smaller-contract recommendation and explicitly requested implementation. This section takes precedence over conflicting earlier text, test expectations and review findings. Earlier sections remain discovery/execution history; old exact-budget and cross-runtime equivalence requirements are superseded, not silently left unmet.
+
+| ID | Current requirement | Supersedes / refines |
+|---|---|---|
+| SIM-001 | Flutter retains HTTP status, bounded stable error code, method, requestId and original client cause/stack. It owns localized UI messages and feature operations. Never ingest server message/validation prose or classify resource paths for telemetry. AppView keeps rich local diagnostics and sanitized paths; the API envelope stays unchanged. Remove mirrored Flutter message/code/route catalogues. | FR-006 / AC-007; client portions of FR-004, RULE-004, AC-020 |
+| SIM-002 | Logs do not implicitly capture issues. Provider/framework/platform/unhandled boundaries own propagated failures; catch sites capture actionable consumed failures explicitly. Remove diagnosticIssueOwned/issueOwned propagation. Preserve expected-failure classification and operation outcomes. | FR-008 / AC-009; previous runtime ownership markers |
+| SIM-003 | Release console fallback is one bounded, parseable brief record with useful original cause type, limited useful frames and available correlation. SDK reports retain richer details. Use small fixed field/count limits and whole-field omission; remove complete multi-chunk reconstruction and generic Flutter retry suppression machinery. Keep targeted existing Go worker suppression. | FR-016, NFR-002 / AC-013, AC-017, AC-023; exact sink parity/chunk/retry-count guarantees |
+| SIM-004 | Sentry final callbacks are the main SDK filtering boundary. Retain native SDK exception/stack structure and useful standard metadata, strip request/user/private extras/attachments and unknown exception prose, admit only small operational/custom context. No Expando/nonce provenance tracking or rebuilding complete SDK events. | FR-001, FR-010, RULE-003 / AC-001, AC-012, AC-021; strict runtime provenance of every SDK attribute |
+| SIM-005 | Ordinary developer-written diagnostic messages need no central registry. Messages are bounded and scrubbed for recognized credentials, email/local paths and capability URLs. Never interpolate private payloads; never log unknown object/error strings. Keep compact typed private/public contexts and vetted provider codes/causes. Use a small local boundary filter independent of Sentry. Remove Go/Flutter global message registries and log nonce machinery. | FR-010, RULE-001–RULE-003 / AC-012, AC-021; every-message registration |
+| SIM-006 | Contributor guide describes the simplified boundaries; demonstrate retained type/stack/correlation and credential/private-payload exclusion in actual local and mock SDK output. Run affected and broad suites. No production operation, configuration/access/retention change, API/lexicon/schema change or business-policy change. | FR-014, FR-017, NFR-003 / AC-018, AC-019 |
+
+Retained protections: credentials, private drafts/schedules/moderation/media/recipient data remain excluded; private operational attribution is failure-only. Unknown exception prose remains untrusted. Scrubbing is defense in depth, not a claim to identify arbitrary private sentences. Standard SDK metadata may remain; static developer messages are trusted by code review rather than a runtime permission registry. Native device/production checks remain separately tracked. Existing source-selected AppView private-PDS propagation and original media causes are retained.
+
+
 ## 1. Initial Request
 
 Audit AppView and Flutter logging and error reporting to recover diagnostic value currently lost through excessive redaction or omission. Authentication tokens, credentials and secrets must remain excluded. Public Atmosphere data can be included when it helps diagnose an issue.

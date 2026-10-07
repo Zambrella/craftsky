@@ -80,7 +80,7 @@ func CommandDeletePostHandler(commands AddressedDeleteCommandExecutor, logger *s
 			if logger != nil {
 				logger.Warn("post delete command failed", slog.Any("error", err))
 			}
-			WriteCommandError(writer, runID, err)
+			WriteCommandError(writer, runID, err, request.Context())
 			return
 		}
 		WriteCommandResponse(writer, CommandResultFromStored(result))

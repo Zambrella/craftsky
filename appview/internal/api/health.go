@@ -29,7 +29,7 @@ func HealthHandler(pool *pgxpool.Pool, logger *slog.Logger) http.Handler {
 
 		if err := pool.Ping(ctx); err != nil {
 			logger.Error("health: db ping failed",
-				apiLogErrorAttrs("", "health.db", "db")...)
+				apiLogErrorAttrs(r.Context(), "", "health.db", "db", err)...)
 			// http.Error sets Content-Type: text/plain; charset=utf-8 itself.
 			http.Error(w, "db unreachable", http.StatusServiceUnavailable)
 			return

@@ -2120,6 +2120,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
     final api = ref.read(postApiClientProvider);
     final service = ref.read(videoServiceClientProvider);
     final coordinator = VideoPublicationCoordinator(
+      operationAccountDid: owner.session.account.did.value,
       checkEligibility: api.getVideoUploadLimits,
       authorize: api.authorizeVideoUpload,
       upload:

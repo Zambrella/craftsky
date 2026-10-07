@@ -10,6 +10,7 @@ import (
 
 	"social.craftsky/appview/internal/auth"
 	"social.craftsky/appview/internal/db"
+	"social.craftsky/appview/internal/observability"
 )
 
 // foundationDependencies owns deployment validation and the process resources
@@ -38,7 +39,7 @@ func newFoundationDependencies(
 	if err != nil {
 		return nil, err
 	}
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: level}))
+	logger := slog.New(observability.NewDiagnosticHandler(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: level})))
 	// Third-party libraries that reach for slog.Default use the same bounded
 	// process logger as AppView-owned capabilities.
 	slog.SetDefault(logger)

@@ -14,6 +14,7 @@ import (
 	"social.craftsky/appview/internal/instagram"
 	"social.craftsky/appview/internal/integrations/instagrammeta"
 	"social.craftsky/appview/internal/middleware"
+	"social.craftsky/appview/internal/observability"
 )
 
 type instagramRuntimeDependencies struct {
@@ -37,6 +38,7 @@ func newInstagramRuntimeDependencies(
 	pdsEffects *pdsEffectDependencies,
 	cfg Config,
 	logger *slog.Logger,
+	observer *observability.Observer,
 ) (*instagramRuntimeDependencies, error) {
 	runtime := &instagramRuntimeDependencies{
 		retention: instagram.NewRetentionService(
@@ -145,6 +147,7 @@ func newInstagramRuntimeDependencies(
 			storage.membership,
 			metaClient,
 			instagram.WebhookWorkerOptions{
+				Observer:  observer,
 				BatchSize: 1, Now: time.Now, ReplyText: replyText,
 				ReplyWindow:                cfg.InstagramLimits.DMReplyWindow,
 				RateLimiter:                storage.rateLimiter,

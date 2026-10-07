@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"social.craftsky/appview/internal/observability"
 	"strconv"
 	"time"
 
@@ -185,6 +186,7 @@ func DeleteInstagramImportHandler(service InstagramImportService, logger *slog.L
 		if err == nil {
 			if err := service.DeleteImport(r.Context(), owner, id); err != nil {
 				logger.Error("Instagram import deletion failed", slog.String("run_id", middleware.GetRunID(r.Context())), slog.String("error_category", "store"))
+				observability.ReportRequestFailure(r.Context(), err, "api.DeleteInstagramImportHandler", "handler")
 				envelope.WriteError(w, http.StatusServiceUnavailable, "instagram_unavailable", "Instagram migration unavailable", middleware.GetRunID(r.Context()), nil)
 				return
 			}

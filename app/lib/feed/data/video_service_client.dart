@@ -4,6 +4,7 @@ import 'dart:typed_data';
 
 import 'package:craftsky_app/feed/media/video_source_validator.dart';
 import 'package:craftsky_app/feed/models/video_service_result.dart';
+import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
 import 'package:dio/dio.dart';
 
 const _uploadPath = '/xrpc/app.bsky.video.uploadVideo';
@@ -21,8 +22,19 @@ final class VideoUploadSource {
   String toString() => 'VideoUploadSource(length: $length)';
 }
 
-final class VideoTransportException implements Exception {
-  const VideoTransportException(this.kind);
+final class VideoTransportException
+    implements Exception, DiagnosticFailureCause {
+  const VideoTransportException(
+    this.kind, {
+    this.diagnosticCause,
+    this.diagnosticStack,
+    this.httpStatus,
+  });
+  @override
+  final Object? diagnosticCause;
+  @override
+  final StackTrace? diagnosticStack;
+  final int? httpStatus;
 
   final VideoTransportFailure kind;
 
@@ -151,9 +163,14 @@ final class VideoServiceClient {
       return result;
     } on VideoTransportException {
       rethrow;
-    } on DioException catch (error) {
+    } on DioException catch (error, stackTrace) {
       if (CancelToken.isCancel(error)) rethrow;
-      throw const VideoTransportException(VideoTransportFailure.unavailable);
+      throw VideoTransportException(
+        VideoTransportFailure.unavailable,
+        diagnosticCause: error,
+        diagnosticStack: stackTrace,
+        httpStatus: error.response?.statusCode,
+      );
     }
   }
 
@@ -185,9 +202,14 @@ final class VideoServiceClient {
       return VideoServiceResult.fromJson(
         _jobStatus(responseData),
       ).withRetryAfter(_parseRetryAfter(response));
-    } on DioException catch (error) {
+    } on DioException catch (error, stackTrace) {
       if (CancelToken.isCancel(error)) rethrow;
-      throw const VideoTransportException(VideoTransportFailure.unavailable);
+      throw VideoTransportException(
+        VideoTransportFailure.unavailable,
+        diagnosticCause: error,
+        diagnosticStack: stackTrace,
+        httpStatus: error.response?.statusCode,
+      );
     }
   }
 

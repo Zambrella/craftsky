@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"social.craftsky/appview/internal/observability"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 
@@ -201,6 +202,7 @@ func PutProfileCustomisationHandler(store ProfileCustomisationWriter) http.Handl
 		}
 		stored, err := store.Put(r.Context(), owner, value)
 		if err != nil {
+			observability.ReportRequestFailure(r.Context(), err, "api.PutProfileCustomisationHandler", "handler")
 			envelope.WriteError(w, http.StatusInternalServerError, "internal_error", "profile customisation update failed", runID, nil)
 			return
 		}

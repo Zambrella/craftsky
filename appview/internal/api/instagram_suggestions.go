@@ -6,6 +6,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"social.craftsky/appview/internal/observability"
 	"strconv"
 	"time"
 
@@ -84,6 +85,7 @@ func ListInstagramSuggestionsHandler(
 			}
 			handle, err := resolver.ResolveHandle(r.Context(), item.TargetDID)
 			if err != nil {
+				observability.ReportRequestFailure(r.Context(), err, "api.ListInstagramSuggestionsHandler", "handler")
 				envelope.WriteError(w, http.StatusBadGateway, "identity_unavailable", "could not resolve suggestion identity", middleware.GetRunID(r.Context()), nil)
 				return
 			}
@@ -145,7 +147,7 @@ func AcceptInstagramSuggestionHandler(
 			if errors.Is(err, pdscommands.ErrIdempotencyConflict) ||
 				errors.Is(err, pdscommands.ErrDispatchUnavailable) ||
 				errors.Is(err, pdscommands.ErrMalformedCommand) {
-				WriteCommandError(w, middleware.GetRunID(r.Context()), err)
+				WriteCommandError(w, middleware.GetRunID(r.Context()), err, r.Context())
 				return
 			}
 			writeInstagramSuggestionError(w, r, logger, err)

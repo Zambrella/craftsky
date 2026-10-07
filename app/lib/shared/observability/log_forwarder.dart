@@ -1,52 +1,65 @@
+import 'package:craftsky_app/shared/observability/diagnostic_emitter.dart';
+import 'package:craftsky_app/shared/observability/diagnostic_text.dart';
 import 'package:craftsky_app/shared/observability/error_reporter.dart';
 import 'package:logging/logging.dart';
 
 final class LogForwarder {
-  const LogForwarder(this._reporter);
-
+  const LogForwarder(
+    this._reporter, {
+    this.logsEnabled = true,
+    this.debugLogsEnabled = false,
+  });
   final ErrorReporter _reporter;
+  final bool logsEnabled;
+  final bool debugLogsEnabled;
 
-  Future<void> handle(
-    LogRecord record, {
-    bool promotedWarning = false,
-  }) async {
-    final shouldForward =
-        record.level.value >= Level.SEVERE.value ||
-        (record.level == Level.WARNING && promotedWarning);
-    if (!shouldForward) return;
-
+  Future<void> handle(LogRecord record) async {
+    final diagnostic = record.object is DiagnosticMessage
+        ? record.object! as DiagnosticMessage
+        : null;
+    final selected = selectDiagnosticRecord(record);
+    final message = boundDiagnosticText(record.message, 512);
+    final source = diagnostic?.context;
     final context = ReportContext(
-      feature: record.loggerName,
-      operation: 'log',
-      classification: promotedWarning
-          ? 'log.warning.promoted'
-          : 'log.${record.level.name.toLowerCase()}',
-      severity: record.level.value >= Level.SHOUT.value
+      feature: selected['feature']! as String,
+      operation: source?.operation ?? 'log',
+      classification:
+          source?.classification ?? 'log.${record.level.name.toLowerCase()}',
+      severity: record.level >= Level.SHOUT
           ? 'fatal'
-          : record.level.value >= Level.SEVERE.value
+          : record.level >= Level.SEVERE
           ? 'error'
-          : 'warning',
+          : record.level >= Level.WARNING
+          ? 'warning'
+          : record.level >= Level.INFO
+          ? 'info'
+          : 'debug',
+      safeDiagnostics: {
+        ...?source?.safeDiagnostics,
+      },
+      workflow: source?.workflow,
+      cause: record.error,
+      stackTrace: record.stackTrace,
+      outcome: source?.outcome ?? DiagnosticOutcome.automatic,
     );
-
-    if (record.level.value >= Level.SEVERE.value &&
-        (record.error != null || record.stackTrace != null)) {
-      await _reporter.captureException(
-        record.error ?? _LogRecordException(record.message),
-        stackTrace: record.stackTrace,
-        context: context,
-      );
-      return;
+    final tasks = <Future<void>>[];
+    final selectedInfo =
+        record.level == Level.INFO && (diagnostic?.significant ?? false);
+    if (logsEnabled &&
+        (record.level >= Level.WARNING ||
+            selectedInfo ||
+            (debugLogsEnabled && record.level < Level.INFO))) {
+      tasks.add(_reporter.emitLog(message, context: context));
     }
-
-    await _reporter.captureMessage('App log', context: context);
+    if (selectedInfo) {
+      _reporter.addBreadcrumb(
+        SafeBreadcrumb(
+          category: 'lifecycle',
+          message: message,
+          data: {'feature': context.feature},
+        ),
+      );
+    }
+    await Future.wait(tasks);
   }
-}
-
-final class _LogRecordException implements Exception {
-  const _LogRecordException(this.message);
-
-  final String message;
-
-  @override
-  String toString() => 'LogRecordException: $message';
 }

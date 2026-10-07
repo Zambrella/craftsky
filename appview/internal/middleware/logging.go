@@ -37,14 +37,26 @@ func GetRunID(ctx context.Context) string {
 //
 // It uses the supplied logger (typically deps.Logger), NOT slog.Default,
 // so tests can capture output with a buffered handler.
-func Logging(logger *slog.Logger) func(http.Handler) http.Handler {
+func Logging(logger *slog.Logger, resolvers ...observability.RequestDiagnosticResolver) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			started := time.Now()
 			runID := uuid.New().String()
 			ctx := ctxkeys.WithRunID(r.Context(), runID)
+			ctx = observability.WithCaptureMarker(ctx)
 			ctx = observability.WithRoutePatternRecorder(ctx)
-			logger.Info("Request received",
+			requestDiagnostic := observability.ConservativeRequestDiagnostic(r.URL)
+			if len(resolvers) > 0 && resolvers[0] != nil {
+				requestDiagnostic = resolvers[0].Resolve(r.Method, r.URL)
+			}
+			ctx = observability.WithRequestDiagnosticContext(ctx, requestDiagnostic)
+			probe := r.URL.Path == "/health" || r.URL.Path == "/healthz"
+			arrivalLevel := slog.LevelInfo
+			if probe {
+				arrivalLevel = slog.LevelDebug
+			}
+			logger.Log(ctx, arrivalLevel, "Request received",
+				slog.String("incoming_path", requestDiagnostic.Path),
 				slog.String("method", r.Method),
 				slog.String("run_id", runID),
 			)
@@ -64,6 +76,7 @@ func Logging(logger *slog.Logger) func(http.Handler) http.Handler {
 				status = statusClientClosedRequest
 			}
 			responseAttrs := []any{
+				slog.String("incoming_path", requestDiagnostic.Path),
 				slog.String("method", r.Method),
 				slog.String("route_pattern", routePattern),
 				slog.Int("status", status),
@@ -71,7 +84,20 @@ func Logging(logger *slog.Logger) func(http.Handler) http.Handler {
 				slog.Duration("duration", time.Since(started)),
 				slog.String("run_id", runID),
 			}
-			logger.Debug("Request completed", responseAttrs...)
+			completionLevel := slog.LevelInfo
+			if probe {
+				switch {
+				case observability.PanicRecovered(ctx):
+					completionLevel = slog.LevelError
+				case status >= 200 && status < 300:
+					completionLevel = slog.LevelDebug
+				case status >= 400 && status < 500:
+					completionLevel = slog.LevelWarn
+				default:
+					completionLevel = slog.LevelError
+				}
+			}
+			logger.Log(ctx, completionLevel, "Request completed", responseAttrs...)
 		})
 	}
 }

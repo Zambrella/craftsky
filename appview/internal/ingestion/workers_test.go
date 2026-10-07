@@ -1,8 +1,12 @@
 package ingestion_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"log/slog"
+	"social.craftsky/appview/internal/observability"
+	"strings"
 	"testing"
 	"time"
 
@@ -129,5 +133,39 @@ func TestQuarantineReplayWorkerRejectsUnsafeConfiguration(t *testing.T) {
 				t.Fatal("expected configuration error")
 			}
 		})
+	}
+}
+
+func TestProjectionWorkerDiagnosticRetainsSourceAndTerminalOutcome(t *testing.T) {
+	pool := testdb.WithSchema(t, ingestionProjectionFixtureDDL)
+	applyTapDurabilityMigration(t, pool)
+	store, err := ingestion.NewStore(pool, time.Now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	source := tap.Event{ID: 101, URI: "at://did:plc:worker/social.craftsky.actor.profile/self", DID: "did:plc:worker", Collection: "social.craftsky.actor.profile", Rkey: "self", Rev: "3aaaaaaaaaaa2", CID: "bafy-public", Action: "create", Record: json.RawMessage(`{"crafts":["sewing"]}`)}
+	if _, err := store.IngestRecord(context.Background(), source); err != nil {
+		t.Fatal(err)
+	}
+	var local bytes.Buffer
+	logger := slog.New(observability.NewDiagnosticHandler(slog.NewJSONHandler(&local, nil)))
+	worker, err := ingestion.NewProjectionWorker(ingestion.ProjectionWorkerConfig{Store: store, WorkerID: "test-projection", PollInterval: time.Second, LeaseDuration: 30 * time.Second, BatchSize: 1, BackoffMin: time.Second, BackoffMax: time.Minute, Logger: logger, Projector: func(context.Context, pgx.Tx, ingestion.SourceRecord) (tap.Outcome, error) {
+		return tap.PermanentInvalid(tap.ReasonMalformedRecord), nil
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	count, err := worker.RunOnce(context.Background())
+	if err != nil || count != 1 {
+		t.Fatalf("count=%d err=%v", count, err)
+	}
+	job, err := store.ProjectionJob(context.Background(), source.URI)
+	if err != nil || job.State != "permanent_denied" {
+		t.Fatalf("job=%+v err=%v", job, err)
+	}
+	for _, want := range []string{"did:plc:worker", "bafy-public", "quarantine", "durably_committed", "101"} {
+		if !strings.Contains(local.String(), want) {
+			t.Fatalf("missing%s: %s", want, local.String())
+		}
 	}
 }

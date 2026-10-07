@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"social.craftsky/appview/internal/observability"
 	"sort"
 	"strings"
 	"time"
@@ -96,12 +97,12 @@ func commandFollowProfileHandler(
 				Response  json.RawMessage `json:"response"`
 			}
 			if json.Unmarshal(replay.Intent, &intent) != nil || intent.TargetDID == "" || len(intent.Response) == 0 {
-				WriteCommandError(w, runID, pdscommands.ErrIdempotencyConflict)
+				WriteCommandError(w, runID, pdscommands.ErrIdempotencyConflict, r.Context())
 				return
 			}
 			result, err := executeFollowCommand(r, commands, caller, generation, intent.TargetDID, operationKey, replay.SelectedRkey, desiredActive, intent.Response, runID)
 			if err != nil {
-				WriteCommandError(w, runID, err)
+				WriteCommandError(w, runID, err, r.Context())
 				return
 			}
 			WriteCommandResponse(w, CommandResultFromStored(result))
@@ -138,6 +139,7 @@ func commandFollowProfileHandler(
 
 		responseBody, err := followProfileResponseBody(r.Context(), resolver, target, targetProfile, desiredActive)
 		if err != nil {
+			observability.ReportRequestFailure(r.Context(), err, "api.commandFollowProfileHandler", "handler")
 			envelope.WriteError(w, http.StatusBadGateway, "identity_unavailable", "could not resolve handle", runID, nil)
 			return
 		}
@@ -145,6 +147,7 @@ func commandFollowProfileHandler(
 		if desiredActive {
 			selectedRkey, err = newImmediateRecordKey()
 			if err != nil {
+				observability.ReportRequestFailure(r.Context(), err, "api.commandFollowProfileHandler", "handler")
 				envelope.WriteError(w, http.StatusInternalServerError, "internal_error", "could not prepare follow", runID, nil)
 				return
 			}
@@ -156,7 +159,7 @@ func commandFollowProfileHandler(
 				operation = "unfollow"
 			}
 			logger.Warn(operation+" command failed", slog.Any("error", err))
-			WriteCommandError(w, runID, err)
+			WriteCommandError(w, runID, err, r.Context())
 			return
 		}
 		WriteCommandResponse(w, CommandResultFromStored(result))
@@ -288,6 +291,7 @@ func FollowProfileHandler(
 				envelope.WriteError(w, http.StatusBadRequest,
 					"invalid_identifier", "not a valid handle or DID", runID, nil)
 			default:
+				observability.ReportRequestFailure(r.Context(), err, "api.FollowProfileHandler", "handler")
 				envelope.WriteError(w, http.StatusBadGateway,
 					"identity_unavailable", "could not resolve identity", runID, nil)
 			}
@@ -315,7 +319,7 @@ func FollowProfileHandler(
 		active, err := graph.FindActiveFollow(r.Context(), caller.String(), target.String())
 		if err != nil {
 			logger.Error("follow: active lookup failed",
-				apiLogErrorAttrs(runID, "follow.create", "store")...)
+				apiLogErrorAttrs(r.Context(), runID, "follow.create", "store", err)...)
 			envelope.WriteError(w, http.StatusInternalServerError,
 				"internal_error", "follow graph lookup failed", runID, nil)
 			return
@@ -333,6 +337,7 @@ func FollowProfileHandler(
 			}
 			rkey, err := deterministicFollowRecordKey(caller, target)
 			if err != nil {
+				observability.ReportRequestFailure(r.Context(), err, "api.FollowProfileHandler", "handler")
 				envelope.WriteError(w, http.StatusInternalServerError,
 					"internal_error", "could not allocate follow record", runID, nil)
 				return
@@ -401,6 +406,7 @@ func UnfollowProfileHandler(
 				envelope.WriteError(w, http.StatusBadRequest,
 					"invalid_identifier", "not a valid handle or DID", runID, nil)
 			default:
+				observability.ReportRequestFailure(r.Context(), err, "api.UnfollowProfileHandler", "handler")
 				envelope.WriteError(w, http.StatusBadGateway,
 					"identity_unavailable", "could not resolve identity", runID, nil)
 			}
@@ -419,7 +425,7 @@ func UnfollowProfileHandler(
 		active, err := graph.FindActiveFollow(r.Context(), caller.String(), target.String())
 		if err != nil {
 			logger.Error("unfollow: active lookup failed",
-				apiLogErrorAttrs(runID, "follow.delete", "store")...)
+				apiLogErrorAttrs(r.Context(), runID, "follow.delete", "store", err)...)
 			envelope.WriteError(w, http.StatusInternalServerError,
 				"internal_error", "follow graph lookup failed", runID, nil)
 			return
@@ -437,6 +443,7 @@ func UnfollowProfileHandler(
 		known := make(map[syntax.RecordKey]syntax.CID, 2)
 		stableRkey, err := deterministicFollowRecordKey(caller, target)
 		if err != nil {
+			observability.ReportRequestFailure(r.Context(), err, "api.UnfollowProfileHandler", "handler")
 			envelope.WriteError(w, http.StatusInternalServerError,
 				"internal_error", "could not allocate follow record", runID, nil)
 			return
@@ -445,6 +452,7 @@ func UnfollowProfileHandler(
 		if active != nil {
 			rkey, parseErr := syntax.ParseRecordKey(active.Rkey)
 			if parseErr != nil {
+				observability.ReportRequestFailure(r.Context(), parseErr, "api.UnfollowProfileHandler", "handler")
 				envelope.WriteError(w, http.StatusInternalServerError,
 					"internal_error", "indexed follow record is invalid", runID, nil)
 				return
@@ -551,10 +559,12 @@ func writeFollowProfileResponse(
 			return
 		}
 		if errors.Is(err, ErrProfileCountsUnavailable) {
+			observability.ReportRequestFailure(r.Context(), err, "api.writeFollowProfileResponse", "handler")
 			envelope.WriteError(w, http.StatusInternalServerError,
 				"profile_counts_unavailable", "required profile counts unavailable", runID, nil)
 			return
 		}
+		observability.ReportRequestFailure(r.Context(), err, "api.writeFollowProfileResponse", "handler")
 		envelope.WriteError(w, http.StatusInternalServerError,
 			"internal_error", "profile read failed", runID, nil)
 		return
@@ -564,6 +574,7 @@ func writeFollowProfileResponse(
 	}
 	handle, err := resolver.ResolveHandle(r.Context(), did)
 	if err != nil {
+		observability.ReportRequestFailure(r.Context(), err, "api.writeFollowProfileResponse", "handler")
 		envelope.WriteError(w, http.StatusBadGateway,
 			"identity_unavailable", "could not resolve handle", runID, nil)
 		return

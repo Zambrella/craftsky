@@ -1,5 +1,10 @@
 # Document Review: Useful Logging and Error Reporting
 
+## Refined direction confirmation 2026-10-07
+
+Status: Approved with notes. The maintainer explicitly approved the smaller diagnostic contract and implementation. Earlier DR/IR exact-budget and sink-equivalence findings are superseded where listed by SIM-001–SIM-006. Privacy protections and production controls remain. No additional approval gate is required for this authorized correction.
+
+
 ## Verdict
 
 Status: Approved with notes  

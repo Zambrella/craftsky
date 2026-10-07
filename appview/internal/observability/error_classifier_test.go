@@ -60,6 +60,7 @@ func TestCaptureErrorUsesClassifiedSentinelWithoutRawErrorDetails(t *testing.T) 
 		"failure_stage":  "handler",
 		"route_pattern":  "/v1/search/posts",
 		"error_category": "validation",
+		"result":         "terminal",
 	}, errors.New("raw error included did:plc:raw secret-token request body"))
 	if !observer.Flush(50 * time.Millisecond) {
 		t.Fatal("Flush returned false")
@@ -70,8 +71,8 @@ func TestCaptureErrorUsesClassifiedSentinelWithoutRawErrorDetails(t *testing.T) 
 		t.Fatalf("captured %d events, want 1", len(events))
 	}
 	event := events[0]
-	if event.Exception[0].Value != "appview.validation" {
-		t.Fatalf("exception value = %q, want appview.validation", event.Exception[0].Value)
+	if event.Exception[0].Value != "validation failed" {
+		t.Fatalf("exception value = %q, want vetted validation explanation", event.Exception[0].Value)
 	}
 	if event.Tags["error_code"] != "appview.validation" || event.Tags["error_category"] != "validation" || event.Tags["failure_stage"] != "handler" {
 		t.Fatalf("event tags missing classifier fields: %#v", event.Tags)
@@ -107,5 +108,37 @@ func TestCaptureErrorDoesNotReportClientCancellation(t *testing.T) {
 	}
 	if !CaptureRecorded(ctx) {
 		t.Fatal("client cancellation was not marked handled for outer fallback capture")
+	}
+}
+
+func TestDiagnosticExpectedVersusTerminalFailure(t *testing.T) {
+	transport := &sentry.MockTransport{}
+	observer := New(Config{Env: "test", SentryDSN: "https://public@example.invalid/1", SentryTransport: transport})
+	expected := []struct {
+		err    error
+		fields EventContext
+	}{
+		{context.Canceled, nil}, {auth.ErrPDSSessionExpired, nil}, {auth.ErrRecordNotFound, nil}, {pgx.ErrNoRows, nil},
+		{&net.OpError{Op: "dial", Err: errors.New("opaque offline")}, nil},
+		{errors.New("opaque validation"), EventContext{"error_category": "validation"}},
+		{errors.New("opaque retry"), EventContext{"result": "retry"}},
+	}
+	for _, test := range expected {
+		ctx := WithCaptureMarker(context.Background())
+		observer.CaptureDiagnostic(ctx, DiagnosticInput{Error: test.err, Context: test.fields})
+		if !CaptureRecorded(ctx) {
+			t.Fatal("expected occurrence not handled")
+		}
+	}
+	observer.Flush(time.Second)
+	if len(transport.Events()) != 0 {
+		t.Fatalf("expected failures created %d issues", len(transport.Events()))
+	}
+	for _, fields := range []EventContext{{"result": "exhausted"}, {"error_category": "parse"}, {"component": "db"}} {
+		observer.CaptureDiagnostic(WithCaptureMarker(context.Background()), DiagnosticInput{Error: errors.New("opaque terminal"), Context: fields})
+	}
+	observer.Flush(time.Second)
+	if len(transport.Events()) != 3 {
+		t.Fatalf("terminal failures created %d issues", len(transport.Events()))
 	}
 }

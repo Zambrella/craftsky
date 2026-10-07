@@ -42,6 +42,9 @@ func TestSanitizeEventContextKeepsOnlyAllowedTechnicalFields(t *testing.T) {
 	}
 
 	got := SanitizeEventContext(ctx)
+	if got["run_id"] != "[OMITTED: invalid request ID]" {
+		t.Fatalf("invalid run ID should be explicitly omitted: %#v", got)
+	}
 	for _, key := range []string{
 		"service", "environment", "release", "component", "operation", "route_pattern",
 		"http_method", "http_status", "http_status_class", "error_category", "failure_stage",
@@ -52,7 +55,7 @@ func TestSanitizeEventContextKeepsOnlyAllowedTechnicalFields(t *testing.T) {
 			t.Fatalf("SanitizeEventContext missing allowed key %q in %#v", key, got)
 		}
 	}
-	for _, key := range []string{"did", "handle", "token", "request_body", "raw_path", "run_id"} {
+	for _, key := range []string{"did", "handle", "token", "request_body", "raw_path"} {
 		if _, ok := got[key]; ok {
 			t.Fatalf("SanitizeEventContext retained disallowed key %q in %#v", key, got)
 		}
@@ -69,7 +72,7 @@ func TestStartSpanAddsTraceIDsOnlyWhenTracingEnabled(t *testing.T) {
 		t.Fatalf("disabled TraceIDs = (%q, %q), want empty", traceID, spanID)
 	}
 
-	enabled := New(Config{Env: "test", TracingEnabled: true})
+	enabled := New(Config{Env: "test", TracingEnabled: true, SentryDSN: "https://public@example.invalid/1", SentryTransport: &sentry.MockTransport{}})
 	enabledCtx, span := enabled.StartSpan(context.Background(), SpanContext{Operation: "post.create", Component: "pds"})
 	if !span.Enabled() {
 		t.Fatal("enabled span Enabled = false, want true")
@@ -403,8 +406,8 @@ func TestCaptureErrorUsesActiveSpanTraceContext(t *testing.T) {
 	if got := fmt.Sprint(traceCtx["span_id"]); got != child.sentrySpan.SpanID.String() {
 		t.Fatalf("span_id = %q, want %q; trace context=%#v", got, child.sentrySpan.SpanID.String(), traceCtx)
 	}
-	if errorEvent.Tags["sentry_trace_id"] != child.sentrySpan.TraceID.String() || errorEvent.Tags["sentry_span_id"] != child.sentrySpan.SpanID.String() {
-		t.Fatalf("trace tags missing active span IDs: %#v", errorEvent.Tags)
+	if errorEvent.Contexts["correlation"]["sentry_trace_id"] != child.sentrySpan.TraceID.String() || errorEvent.Contexts["correlation"]["sentry_span_id"] != child.sentrySpan.SpanID.String() {
+		t.Fatalf("trace correlation missing active span IDs: %#v", errorEvent.Contexts["correlation"])
 	}
 }
 
@@ -430,11 +433,11 @@ func TestCapturePanicIncludesRecoveredTypeWithoutRecoveredValue(t *testing.T) {
 		t.Fatalf("captured %d events, want 1", len(events))
 	}
 	event := events[0]
-	if event.Exception[0].Type != "AppViewPanic" {
-		t.Fatalf("exception type = %q, want AppViewPanic", event.Exception[0].Type)
+	if event.Exception[0].Type != "string" {
+		t.Fatalf("exception type = %q, want recovered string type", event.Exception[0].Type)
 	}
-	if event.Exception[0].Value != "redacted" {
-		t.Fatalf("exception value = %q, want redacted", event.Exception[0].Value)
+	if event.Exception[0].Value != "panic recovered" {
+		t.Fatalf("exception value = %q, want vetted panic explanation", event.Exception[0].Value)
 	}
 	if event.Tags["recovered_type"] != "string" {
 		t.Fatalf("recovered_type tag = %q, want string; tags=%#v", event.Tags["recovered_type"], event.Tags)

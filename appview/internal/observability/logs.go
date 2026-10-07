@@ -2,6 +2,7 @@ package observability
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"sort"
@@ -37,8 +38,30 @@ func (s sentryLogSink) Emit(ctx context.Context, level slog.Level, message strin
 	}
 	ctx = sentry.SetHubOnContext(ctx, s.hub)
 	entry := sentryLogEntry(sentry.NewLogger(ctx), level).WithCtx(ctx)
-	for key, value := range SanitizeEventContext(attrs) {
-		entry = entry.String(key, fmt.Sprint(value))
+	selected := SanitizeEventContext(attrs)
+	message = boundDiagnosticText(message, 512)
+	for _, key := range []string{"causes", "diagnostic", "panic", "incoming_path", "method", "status", "bytes", "content_length", "count", "suppressed_count"} {
+		if value, ok := attrs[key]; ok {
+			selected[key] = value
+		}
+	}
+	for key, value := range selected {
+		switch v := value.(type) {
+		case bool:
+			entry = entry.Bool(key, v)
+		case int:
+			entry = entry.Int(key, v)
+		case int64:
+			entry = entry.Int64(key, v)
+		case float64:
+			entry = entry.Float64(key, v)
+		case []DiagnosticCause, EventContext, []sentry.Exception:
+			if data, err := json.Marshal(value); err == nil {
+				entry = entry.String(key, string(data))
+			}
+		default:
+			entry = entry.String(key, fmt.Sprint(value))
+		}
 	}
 	entry.Emit(message)
 }
@@ -64,11 +87,12 @@ func (o *Observer) Log(ctx context.Context, level slog.Level, message string, se
 	if o == nil {
 		return
 	}
-	safeCtx := SanitizeEventContext(sentryCtx)
+	safeCtx := SanitizeEventContext(withDiagnosticCorrelation(ctx, sentryCtx))
 	if o.logger != nil {
 		attrs := eventContextSlogAttrs(safeCtx)
 		attrs = append(attrs, localOnlyAttrs...)
 		o.logger.Log(ctx, level, message, attrs...)
+		return
 	}
 	if o.logSink == nil {
 		return

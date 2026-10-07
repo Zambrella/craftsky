@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"slices"
+	"social.craftsky/appview/internal/observability"
 	"strings"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -105,6 +106,7 @@ func PutBusinessProfileHandler(
 			sessionID, _ := middleware.GetOAuthSessionID(r.Context())
 			intent, err := json.Marshal(replacement)
 			if err != nil {
+				observability.ReportRequestFailure(r.Context(), err, "api.PutBusinessProfileHandler", "handler")
 				envelope.WriteError(w, http.StatusInternalServerError, "internal_error", "could not prepare business profile", runID, nil)
 				return
 			}
@@ -131,7 +133,7 @@ func PutBusinessProfileHandler(
 				},
 			})
 			if err != nil {
-				WriteCommandError(w, runID, err)
+				WriteCommandError(w, runID, err, r.Context())
 				return
 			}
 			WriteCommandResponse(w, CommandResultFromStored(result))
@@ -158,11 +160,13 @@ func PutBusinessProfileHandler(
 		if exists {
 			replacementRaw, replacementErr := json.Marshal(replacement)
 			if replacementErr != nil {
+				observability.ReportRequestFailure(r.Context(), replacementErr, "api.PutBusinessProfileHandler", "handler")
 				envelope.WriteError(w, http.StatusInternalServerError, "internal_error", "could not prepare business profile", runID, nil)
 				return
 			}
 			merged, mergeErr := business.MergeProfileReplacement(current, replacementRaw)
 			if mergeErr != nil {
+				observability.ReportRequestFailure(r.Context(), mergeErr, "api.PutBusinessProfileHandler", "handler")
 				envelope.WriteError(w, http.StatusBadGateway, "pds_read_failed", "could not read business profile", runID, nil)
 				return
 			}
@@ -281,6 +285,7 @@ func DeleteBusinessProfileHandler(
 				ExpectedCID syntax.CID   `json:"expectedCid"`
 			}{URI: uri, ExpectedCID: expectedCID})
 			if err != nil {
+				observability.ReportRequestFailure(r.Context(), err, "api.DeleteBusinessProfileHandler", "handler")
 				envelope.WriteError(w, http.StatusInternalServerError, "internal_error", "could not prepare business profile delete", runID, nil)
 				return
 			}
@@ -297,7 +302,7 @@ func DeleteBusinessProfileHandler(
 				},
 			})
 			if err != nil {
-				WriteCommandError(w, runID, err)
+				WriteCommandError(w, runID, err, r.Context())
 				return
 			}
 			WriteCommandResponse(w, CommandResultFromStored(result))

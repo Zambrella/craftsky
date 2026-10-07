@@ -1,5 +1,3 @@
-import 'dart:typed_data';
-
 import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/drafts/composer/draft_composer_hydrator.dart';
 import 'package:craftsky_app/drafts/models/draft_media_descriptor.dart';
@@ -11,12 +9,18 @@ import 'package:craftsky_app/feed/models/post_image_blob.dart';
 import 'package:craftsky_app/feed/providers/composer_image_state.dart';
 import 'package:craftsky_app/feed/providers/composer_images_provider.dart';
 import 'package:craftsky_app/feed/providers/post_api_client_provider.dart';
+import 'package:craftsky_app/shared/observability/diagnostic_emitter.dart';
+import 'package:craftsky_app/shared/observability/error_reporter.dart';
+import 'package:craftsky_app/shared/observability/error_reporter_provider.dart';
 import 'package:dio/dio.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
 import 'package:image_picker/image_picker.dart';
 import 'package:logging/logging.dart';
+
+import '../../test_support/recording_error_reporter.dart';
 
 void main() {
   test('seeds locally saved ready and unavailable draft images', () async {
@@ -210,21 +214,72 @@ void main() {
       expect(picker.lastSource, ImageSource.camera);
     });
 
-    test('surfaces camera failures without changing the draft', () async {
-      final picker = _FakeImagePicker(
-        () async => const [],
-        pickSingle: () async => throw Exception('permission denied'),
-      );
-      final container = _containerWithPicker(picker);
-      addTearDown(container.dispose);
+    test(
+      'IT-010 camera failure retains cause and stage without '
+      'changing the draft',
+      () async {
+        final records = <LogRecord>[];
+        final logs = Logger.root.onRecord.listen(records.add);
+        addTearDown(logs.cancel);
+        final failure = StateError('private camera path canary');
+        final picker = _FakeImagePicker(
+          () async => const [],
+          pickSingle: () async => throw failure,
+        );
+        final reporter = RecordingErrorReporter();
+        final container = _containerWithPicker(picker, reporter: reporter);
+        addTearDown(container.dispose);
 
+        await container
+            .read(composerImagesProvider('composer').notifier)
+            .takePhoto();
+
+        final state = container.read(composerImagesProvider('composer'));
+        expect(state.images, isEmpty);
+        expect(state.notice, isA<ImagePickerFailedNotice>());
+        final record = records.singleWhere((r) => r.error == failure);
+        final diagnostic = selectDiagnosticRecord(record);
+        expect(reporter.errors, [failure]);
+        expect(diagnostic['failureStage'], 'camera');
+        expect(diagnostic['operation'], 'media.image.camera');
+        expect(diagnostic['cause'].toString(), contains('StateError'));
+        expect(diagnostic['stack'], isNotEmpty);
+        expect(
+          diagnostic.toString(),
+          isNot(contains('private camera path canary')),
+        );
+      },
+    );
+
+    test('IT-010 denied camera permission is an expected diagnostic', () async {
+      final records = <LogRecord>[];
+      final logs = Logger.root.onRecord.listen(records.add);
+      addTearDown(logs.cancel);
+      final failure = PlatformException(
+        code: 'camera_access_denied',
+        message: 'private native prose',
+      );
+      final container = _containerWithPicker(
+        _FakeImagePicker(
+          () async => const [],
+          pickSingle: () async => throw failure,
+        ),
+      );
+      addTearDown(container.dispose);
       await container
           .read(composerImagesProvider('composer').notifier)
           .takePhoto();
-
-      final state = container.read(composerImagesProvider('composer'));
-      expect(state.images, isEmpty);
-      expect(state.notice, isA<ImagePickerFailedNotice>());
+      final record = records.singleWhere((r) => r.error == failure);
+      expect(record.level, Level.WARNING);
+      expect(selectDiagnosticRecord(record)['outcome'], 'expected');
+      expect(
+        selectDiagnosticRecord(record).toString(),
+        isNot(contains('private native prose')),
+      );
+      expect(
+        container.read(composerImagesProvider('composer')).images,
+        isEmpty,
+      );
     });
 
     test('surfaces picker failures without changing the draft', () async {
@@ -492,7 +547,12 @@ void main() {
       expect((phase as ImageFailed).failure, isA<ImagePreparationFailed>());
       expect(phase.failure.canRetry, isFalse);
       final messages = logRecords.map((record) => record.message).join('\n');
-      expect(messages, contains('step=read, errorType='));
+      final diagnostic = selectDiagnosticRecord(logRecords.last);
+      expect(diagnostic['failureStage'], 'read');
+      expect(diagnostic['cause'], isNotNull);
+      expect(diagnostic['stack'], isNotEmpty);
+      expect(diagnostic.toString(), isNot(contains('corrupt.jpg')));
+      expect(messages, contains('composer image pipeline failed'));
       expect(messages, isNot(contains('corrupt.jpg')));
     });
 
@@ -642,10 +702,12 @@ ProviderContainer _containerWithPicker(
   ImagePicker picker, {
   PostApiClient? api,
   ComposerImageMediaService? media,
+  ErrorReporter reporter = const NoopErrorReporter(),
 }) {
   return ProviderContainer.test(
     overrides: [
       imagePickerProvider.overrideWithValue(picker),
+      errorReporterProvider.overrideWithValue(reporter),
       composerImageMediaServiceProvider.overrideWithValue(
         media ?? const ComposerImageMediaService(),
       ),

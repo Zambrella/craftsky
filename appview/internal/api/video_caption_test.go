@@ -1,11 +1,14 @@
 package api_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -68,13 +71,20 @@ func TestVideoCaptionHandlerFailsClosedOnInvalidFetchedBody(t *testing.T) {
 	row := baseRow()
 	row.RawEmbed = json.RawMessage(`{"$type":"app.bsky.embed.video","video":{"ref":{"$link":"bafkreie3w2xq7u6rs5szu6vllsq5xh7y7uv3f6blql6uz4ep6txv6m4o6a"},"mimeType":"video/mp4","size":1},"captions":[{"lang":"en","file":{"ref":{"$link":"` + memberCID + `"},"mimeType":"text/vtt","size":20}}]}`)
 	for _, fetcher := range []*captionBlobFetcher{{body: []byte("not captions")}, {err: errors.New("private PDS URL")}} {
-		handler := api.VideoCaptionHandler(captionPostReader{row: row}, fetcher, nil)
+		var local bytes.Buffer
+		handler := api.VideoCaptionHandler(captionPostReader{row: row}, fetcher, slog.New(slog.NewJSONHandler(&local, nil)))
 		request := httptest.NewRequest(http.MethodGet, "/caption", nil)
 		request.SetPathValue("did", "did:plc:alice")
 		request.SetPathValue("rkey", "rk1")
 		request.SetPathValue("captionCid", memberCID)
 		recorder := httptest.NewRecorder()
 		handler.ServeHTTP(recorder, request)
+		if !strings.Contains(local.String(), "video.caption.fetch") || !strings.Contains(local.String(), "causes") {
+			t.Fatalf("caption cause/stage missing: %s", local.String())
+		}
+		if strings.Contains(local.String(), "private PDS URL") || strings.Contains(local.String(), "not captions") {
+			t.Fatal("upstream text leaked")
+		}
 		if recorder.Code != http.StatusBadGateway || recorder.Body.String() == "" {
 			t.Fatalf("response = %d %q", recorder.Code, recorder.Body.String())
 		}
