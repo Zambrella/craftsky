@@ -104,6 +104,11 @@ func sanitizeEventContextValue(key string, value any) any {
 		switch v := value.(type) {
 		case int:
 			return safeHTTPStatus(v)
+		case int64:
+			if v < 100 || v > 599 {
+				return "000"
+			}
+			return safeHTTPStatus(int(v))
 		case string:
 			n, err := strconv.Atoi(v)
 			if err != nil {
@@ -198,6 +203,9 @@ func (o *Observer) captureExceptions(ctx context.Context, message string, except
 	defer func() {
 		if recover() != nil {
 			causes := make([]DiagnosticCause, 0, len(exceptions))
+			if original != nil && len(exceptions) == 0 {
+				causes = DescribeError(original, eventCtx)
+			}
 			for _, exception := range exceptions {
 				causes = append(causes, DiagnosticCause{Type: exception.Type, Message: exception.Value})
 			}
@@ -219,6 +227,30 @@ func (o *Observer) captureExceptions(ctx context.Context, message string, except
 		Level:     sentry.LevelError,
 		Tags:      tags,
 		Exception: exceptions,
+	}
+	if original != nil && len(exceptions) == 0 {
+		nodes, omitted := boundedErrorNodes(original)
+		if !omitted {
+			event.SetException(original, 8)
+			// The SDK adds the capture-time stack to a stackless outer error.
+			// Preserve real attached origin stacks, without inventing one.
+			if len(event.Exception) > 0 && sentry.ExtractStacktrace(original) == nil {
+				event.Exception[len(event.Exception)-1].Stacktrace = nil
+			}
+		} else {
+			event.Exception = diagnosticExceptions(DescribeError(original, eventCtx))
+			// Limit adversarial wide/deep graphs before SDK traversal. Preserve
+			// supported attached stacks on each admitted concrete cause.
+			if len(nodes) >= 8 {
+				nodes = nodes[:7]
+			}
+			for i, node := range nodes {
+				target := len(event.Exception) - 1 - i
+				if target >= 0 && target < len(event.Exception) {
+					event.Exception[target].Stacktrace = sentry.ExtractStacktrace(node)
+				}
+			}
+		}
 	}
 	if len(workflowContexts) > 0 && len(workflowContexts[0]) > 0 {
 		event.Contexts = map[string]sentry.Context{"diagnostic": sentry.Context(workflowContexts[0])}
@@ -372,7 +404,9 @@ func (o *Observer) StartSpan(ctx context.Context, spanCtx SpanContext) (context.
 	spanCtx.Operation = safeMetricOperation(spanCtx.Operation)
 	spanCtx.Component = safeMetricOperation(spanCtx.Component)
 	if o.sentryHub != nil {
-		ctx = sentry.SetHubOnContext(ctx, o.sentryHub)
+		if sentry.GetHubFromContext(ctx) == nil {
+			ctx = sentry.SetHubOnContext(ctx, o.sentryHub.Clone())
+		}
 		options := []sentry.SpanOption{}
 		if sentry.SpanFromContext(ctx) == nil {
 			options = append(options, sentry.WithTransactionName(spanCtx.Operation))

@@ -117,6 +117,7 @@ func newObserver(cfg Config) (*Observer, error) {
 			},
 			Transport:             transport,
 			BeforeSend:            protectSDKEvent,
+			BeforeBreadcrumb:      protectSDKBreadcrumb,
 			BeforeSendTransaction: protectSDKTransaction,
 			BeforeSendLog: func(log *sentry.Log) *sentry.Log {
 				if !cfg.LogsEnabled {
@@ -143,7 +144,7 @@ func newObserver(cfg Config) (*Observer, error) {
 	}
 	if observer.logSink == nil {
 		if observer.logsEnabled {
-			observer.logSink = sentryLogSink{hub: sentryHub}
+			observer.logSink = newSentryLogSink(sentryHub)
 		} else {
 			observer.logSink = noopLogSink{}
 		}

@@ -13,6 +13,7 @@ import 'package:craftsky_app/profile/providers/profile_repository_provider.dart'
 import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
 import 'package:craftsky_app/search/providers/blank_search_provider.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
+import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -144,7 +145,7 @@ class ProfileRelationshipController extends _$ProfileRelationshipController {
     ProfileRelationshipAction.unmute => repository.unmute(did),
     ProfileRelationshipAction.block ||
     ProfileRelationshipAction.unblock => Future<ProfileRelationship>.error(
-      StateError('Block mutations use ToggleBlockProfile'),
+      DiagnosticStateError('Block mutations use ToggleBlockProfile'),
     ),
   };
 

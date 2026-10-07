@@ -59,6 +59,7 @@ import 'package:craftsky_app/scheduled_posts/widgets/scheduled_post_capacity_war
 import 'package:craftsky_app/scheduled_posts/widgets/scheduled_staging_progress.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/shared/messaging/message_action.dart';
+import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
 import 'package:craftsky_app/shared/rich_text/facet_autocomplete_controller.dart';
 import 'package:craftsky_app/shared/rich_text/providers/facet_suggestion_providers.dart';
 import 'package:craftsky_app/shared/rich_text/widgets/facet_autocomplete_editor.dart';
@@ -2100,7 +2101,9 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
     required Project project,
     required List<Map<String, dynamic>>? facets,
   }) async {
-    if (owner == null) throw StateError('Video publication requires an owner');
+    if (owner == null) {
+      throw DiagnosticStateError('Video publication requires an owner');
+    }
     if (widget.prepareVideoProof case final prepare?) {
       final video = await prepare(selectedVideo);
       final created = await ref
@@ -2189,7 +2192,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
     await _submissionCoordinator.run(
       presentOverlay: () async {
         await WidgetsBinding.instance.endOfFrame;
-        if (!mounted) throw StateError('composer disposed');
+        if (!mounted) throw DiagnosticStateError('composer disposed');
       },
       ownershipIsCurrent: () => _submissionOwnershipIsCurrent(submissionOwner),
       saveOriginSnapshot: _saveOriginSnapshot,
@@ -2244,7 +2247,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
     if (active == null ||
         active != widget.draftOwner ||
         active.session.account != origin.owner) {
-      throw StateError('local-draft account changed');
+      throw DiagnosticStateError('local-draft account changed');
     }
     _formKey.currentState?.save();
     final saved = await ref
@@ -2255,7 +2258,9 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
             ref.read(composerImagesProvider(_composerId)),
           ),
         );
-    if (saved == null) throw StateError('local-draft account changed');
+    if (saved == null) {
+      throw DiagnosticStateError('local-draft account changed');
+    }
     _origin.acceptSnapshot(saved);
   }
 
@@ -2518,7 +2523,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
         if (!mounted) return;
         owner = _captureScheduledOperationOwner();
       }
-      if (owner == null) throw StateError('account unavailable');
+      if (owner == null) throw DiagnosticStateError('account unavailable');
       final account = owner.session.account;
       final repository = await ref.read(
         accountScheduledPostRepositoryProvider(account).future,

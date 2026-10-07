@@ -65,3 +65,19 @@ func boundDiagnosticText(value string, limit int) string {
 	}
 	return value[:end] + marker
 }
+
+// DiagnosticError carries a reviewed static explanation, never interpolated
+// user input or dependency prose. Unwrap keeps the original business cause.
+type DiagnosticError struct {
+	Message string
+	Cause   error
+}
+
+func (e *DiagnosticError) Error() string { return e.Message }
+func (e *DiagnosticError) Unwrap() error { return e.Cause }
+func WrapError(message string, cause error) error {
+	if cause == nil {
+		return nil
+	}
+	return &DiagnosticError{Message: message, Cause: cause}
+}

@@ -8,6 +8,7 @@ import (
 	"strconv"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/getsentry/sentry-go"
 )
 
 // WorkflowContext controls identity/activity selection independently of error
@@ -74,7 +75,7 @@ func (o *Observer) CaptureDiagnostic(ctx context.Context, input DiagnosticInput)
 	if selected := workflowForRequest(ctx, input.Workflow); selected != nil {
 		workflow = selected.diagnosticFields()
 	}
-	o.captureExceptions(ctx, classified.Message, diagnosticExceptions(DescribeError(input.Error, fields)), fields, input.Error, workflow)
+	o.captureExceptions(ctx, classified.Message, nil, fields, input.Error, workflow)
 }
 
 // AttemptedPublicDIDContext is only for a public DID validation boundary;
@@ -111,6 +112,13 @@ type requestObserverKey struct{}
 // WithRequestObserver provides the HTTP operation's existing issue owner to
 // cause-bearing handlers, without coupling handlers to SDK implementation.
 func WithRequestObserver(ctx context.Context, observer *Observer) context.Context {
+	if observer != nil && observer.sentryHub != nil {
+		hub := sentry.GetHubFromContext(ctx)
+		if hub == nil {
+			hub = observer.sentryHub
+		}
+		ctx = sentry.SetHubOnContext(ctx, hub.Clone())
+	}
 	ctx = context.WithValue(ctx, requestObserverKey{}, observer)
 	return ctxkeys.WithDiagnosticBoundary(ctx, func(ctx context.Context, err error, fields map[string]any) []slog.Attr {
 		observer.CaptureDiagnostic(ctx, DiagnosticInput{Error: err, Context: EventContext(fields)})

@@ -191,8 +191,8 @@ void main() {
       ),
     );
     expect(emitted!.exceptions!.last.type, 'ApiUnauthorized');
-    expect(emitted!.exceptions!.last.value, 'Operation failed');
-    expect(emitted!.contexts['failure'].toString(), contains(error.toString()));
+    expect(emitted!.exceptions!.last.value, error.toString());
+    expect(emitted!.contexts.containsKey('failure'), isFalse);
   });
 
   test('UT-002 supplied frames exclude local user path', () async {

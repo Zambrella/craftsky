@@ -1,4 +1,5 @@
 import 'package:craftsky_app/drafts/models/local_post_draft.dart';
+import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
 
 /// Tracks the authoritative revision of an already-saved composer origin.
 final class DraftSubmissionOrigin {
@@ -14,7 +15,7 @@ final class DraftSubmissionOrigin {
         saved.id != current.id ||
         saved.owner != current.owner ||
         saved.revision <= current.revision) {
-      throw StateError('invalid local-draft recovery snapshot');
+      throw DiagnosticStateError('invalid local-draft recovery snapshot');
     }
     _draft = saved;
   }

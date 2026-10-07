@@ -6,11 +6,10 @@ import 'package:logging/logging.dart';
 
 void main() {
   test(
-    'IT-012 root forwarding survives a throwing injected reporter',
+    'IT-012 root console output remains independent of reporting',
     () async {
       final records = <String>[];
       final subscription = configureRootLogForwarding(
-        reporter: _ThrowingReporter(),
         platformSink: records.add,
       );
       addTearDown(subscription.cancel);
@@ -27,7 +26,7 @@ void main() {
         const FormatException('PRIVATE_ROOT'),
       );
       await Future<void>.delayed(Duration.zero);
-      expect(records.length, greaterThanOrEqualTo(2));
+      expect(records.length, equals(1));
       expect(records.join(), contains('FormatException'));
       expect(records.join(), isNot(contains('PRIVATE_ROOT')));
     },
@@ -85,40 +84,6 @@ void main() {
     },
   );
 
-  test(
-    'IT-012 log and breadcrumb failures use bounded direct fallback',
-    () async {
-      final records = <String>[];
-      final reporter = GuardedErrorReporter(
-        _ThrowingReporter(),
-        fallbackSink: records.add,
-      );
-      final context = ReportContext(
-        feature: 'Post',
-        operation: 'read',
-        classification: 'post.read',
-        cause: const FormatException('PRIVATE_ORIGINAL'),
-        stackTrace: StackTrace.fromString(
-          '#0 decodePost (package:craftsky_app/post.dart:12:3)',
-        ),
-      );
-      await reporter.emitLog('Operation failed', context: context);
-      await reporter.captureMessage('Operation failed', context: context);
-      reporter.addBreadcrumb(
-        const SafeBreadcrumb(
-          category: 'lifecycle',
-          message: 'PRIVATE_BREADCRUMB',
-          data: {'private': 'PRIVATE_BODY'},
-        ),
-      );
-      expect(records, hasLength(3));
-      expect(records.take(2), everyElement(contains('FormatException')));
-      expect(records.take(2), everyElement(contains('decodePost')));
-      expect(records.last, contains('StateError'));
-      expect(records.join(), isNot(contains('PRIVATE_')));
-    },
-  );
-
   group('NoopErrorReporter', () {
     test('is disabled and returns a disabled capture result', () async {
       const reporter = NoopErrorReporter();
@@ -135,27 +100,6 @@ void main() {
 
       expect(reporter.enabled, isFalse);
       expect(eventId, isNull);
-    });
-
-    test('does not throw for logs or breadcrumbs', () async {
-      const reporter = NoopErrorReporter();
-
-      await reporter.captureMessage(
-        'App log',
-        context: const ReportContext(
-          feature: 'test',
-          operation: 'log',
-          classification: 'log.severe',
-        ),
-      );
-
-      reporter.addBreadcrumb(
-        const SafeBreadcrumb(
-          category: 'ui.action',
-          message: 'retry',
-          data: {'feature': 'startup'},
-        ),
-      );
     });
   });
 
@@ -175,22 +119,6 @@ void main() {
 
       expect(eventId, isNull);
     });
-
-    test('swallows log and breadcrumb reporter exceptions', () async {
-      final reporter = GuardedErrorReporter(_ThrowingReporter());
-
-      await reporter.captureMessage(
-        'App log',
-        context: const ReportContext(
-          feature: 'test',
-          operation: 'log',
-          classification: 'log.severe',
-        ),
-      );
-      reporter.addBreadcrumb(
-        const SafeBreadcrumb(category: 'ui.action', message: 'retry'),
-      );
-    });
   });
 }
 
@@ -204,29 +132,11 @@ final class _ThrowingReporter implements ErrorReporter {
   }
 
   @override
-  void addBreadcrumb(SafeBreadcrumb breadcrumb) {
-    throw StateError('breadcrumb failed');
-  }
-
-  @override
   Future<String?> captureException(
     Object error, {
     required ReportContext context,
     StackTrace? stackTrace,
   }) async {
     throw StateError('capture failed');
-  }
-
-  @override
-  Future<void> emitLog(String message, {required ReportContext context}) async {
-    throw StateError('PRIVATE_LOG_FAILURE');
-  }
-
-  @override
-  Future<void> captureMessage(
-    String message, {
-    required ReportContext context,
-  }) async {
-    throw StateError('log failed');
   }
 }

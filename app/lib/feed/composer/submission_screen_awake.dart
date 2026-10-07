@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
 abstract interface class SubmissionScreenAwake {
@@ -33,15 +34,17 @@ final class ComposerSubmissionLifecycle {
   bool get isRunning => _running;
 
   Future<T> run<T>(Future<T> Function() operation) async {
-    if (_disposed) throw StateError('submission lifecycle is disposed');
-    if (_running) throw StateError('submission already running');
+    if (_disposed) {
+      throw DiagnosticStateError('submission lifecycle is disposed');
+    }
+    if (_running) throw DiagnosticStateError('submission already running');
     _running = true;
     try {
       await _screenAwake.enable();
       _enabled = true;
       if (_disposed) {
         await _release();
-        throw StateError('submission lifecycle is disposed');
+        throw DiagnosticStateError('submission lifecycle is disposed');
       }
       return await operation();
     } finally {

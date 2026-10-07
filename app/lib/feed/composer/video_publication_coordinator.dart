@@ -8,6 +8,7 @@ import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/errors/app_error.dart';
 import 'package:craftsky_app/shared/errors/app_error_mapper.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_emitter.dart';
+import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
 import 'package:craftsky_app/shared/observability/error_reporter.dart';
 import 'package:dio/dio.dart';
 import 'package:logging/logging.dart';
@@ -123,7 +124,9 @@ final class VideoPublicationCoordinator {
     required String altText,
     required (int, int)? aspectRatio,
   }) async {
-    if (_cancelToken != null) throw StateError('Video publication is running');
+    if (_cancelToken != null) {
+      throw DiagnosticStateError('Video publication is running');
+    }
     final cancelToken = CancelToken();
     _cancelToken = cancelToken;
     _emit(VideoPublicationStage.validating);

@@ -1,5 +1,44 @@
 # Logging and Error Reporting Validation Evidence
 
+## IR-007 automatic expected-failure correction, 2026-10-07
+
+User authorized the required review correction. The actual SDK platform regression initially exported eight issues instead of two (`/private/tmp/ir007-red.log`). The final event hook now classifies the original typed throwable when the SDK wraps it with native ThrowableMechanism metadata. Explicit owners still classify with their own operation outcome before capture; no custom ownership flag or forwarding layer was added.
+
+- Actual framework/platform/zone tests suppress cancellation, offline, session expiry, not-found, validation and explicit non-reportability; reportability overrides and unexpected native cause/stack chains export. Protected local output retains all eight occurrences. Privacy canaries remain absent from serialized local/remote output.
+- Explicit terminal offline/expiry failures export with request correlation and supplied frames. Direct/wrapped cancellation remains suppressed even with terminal/reportability overrides.
+- Focused SDK-T04 automatic tests: 4 passed (`/private/tmp/ir007-green.log`).
+- Observability/provider/error suites: 99 passed, 1 skipped (`/private/tmp/ir007-focused.log`).
+- Full `cd app && flutter test --no-pub`: 2,711 passed, 38 skipped (`/private/tmp/ir007-full.log`).
+- `cd app && flutter analyze --no-pub`: No issues found (`/private/tmp/ir007-analyze.log`).
+- `git diff --check`: passed.
+
+Go source is unchanged by this correction, so its previous full PostgreSQL/MinIO race evidence remains applicable. Optional IR-008 breadcrumb severity is not implemented. The prior review remains historical evidence of the pre-correction defect; implementation review of this correction is pending. No commit, push, deployment or production mutation. Device/live symbolication checks remain separately pending; synthetic Dart SDK transports do not prove native/device behavior.
+
+## SDK-led refinement validation, 2026-10-07
+
+This section supersedes conflicting earlier evidence about custom forwarding, flattened exception summaries and SDK integration ownership. The approved SDK-001–SDK-006 amendment is the contract for this pass. Results below are local synthetic SDK serialization/regressions, not live collector/device proof.
+
+- Native Flutter AppError → API → parsing chains retain concrete types, caught decode frames and returned request correlation, with no custom failure context or cause JSON in Logs.
+- Actual Flutter SDK framework/platform integrations capture each occurrence once, preserving mechanism and stacks while local callbacks remain protected and independent.
+- Go normal native chains retain attached origin stacks/mechanisms; stackless ordinary errors acquire no invented origin stack. Recovered panic stacks remain intact. Cyclic/wide graphs use a bounded fallback with an explicit omission marker.
+- Reviewed static application explanations survive both sinks through DiagnosticStateError/WrapError. Unknown payload-bearing dependency prose stays generic; no per-message registry. StateError and Go Unwrap catch/classification semantics are preserved.
+- Matching SDK-version official logging integrations emit Logs without issues. Flutter operation/request/workflow references remain on native issues and supporting breadcrumbs. Go retry Logs keep a scalar concrete error type and vetted HTTP status/SQLSTATE; native issues carry full chains/stacks. No duplicate chain/stack log JSON.
+- Native navigation observer tests retain static route patterns and hyphenated screen names while removing route arguments (including private draft and auth proof canaries). Root, authenticated-shell and tab observers are configured with transactions disabled. Selected lifecycle/connectivity and operation/HTTP breadcrumbs survive final filtering. Go request histories remain isolated without tracing.
+- Privacy positives and negative canaries cover credentials, dependency prose/private payloads, private route arguments, request/header/body enrichment, frame locals/source, attachments and native symbolication metadata. Image/symbol addresses, native/package/platform fields and stack snapshot/language survive stripping; release symbolication itself remains a separate live check.
+
+Final command results:
+
+- `cd app && flutter test --no-pub`: Passed, **2,707 passed / 38 skipped** (`/private/tmp/sdk-flutter-full-final.log`). The final two-field stack metadata correction subsequently passed all **19 SDK capture/sanitizer tests** (`sdk-flutter-last-focused.log`).
+- Flutter observability + router + legacy breadcrumb regression suite: **243 passed / 8 skipped** (`sdk-flutter-final-focused.log`).
+- `cd app && flutter analyze --no-pub`: Passed, **No issues found** (`sdk-analyze-complete.log`); final source analysis also passed with **No issues found** in `sdk-analyze-last.log`.
+- Go final focused race suite for observability/middleware: Passed (`sdk-go-complete-focused.log`). The final complete PostgreSQL/MinIO `just test` rerun **passed all packages with the race detector** (`/private/tmp/sdk-go-all-green.log`), including final scalar normalization and scheduled retry regressions.
+- `git diff --check`: Passed. No unrelated generated changes retained; affected provider hashes and router observer generation are included.
+
+Earlier failed broad runs exposed one legacy navigation-message expectation, the loss of brief retry cause fields after duplicate chain JSON removal, and SDK-native int64 HTTP status normalization; all have permanent regression corrections. A filtered generator run temporarily omitted other generated parts; complete generation restored them, and unrelated generated drift was removed. No unresolved setup workaround is being committed.
+
+No API/envelope, schema, lexicon, auth/purchase policy, retry/disposition, production gates/access/retention or infrastructure change. Dependencies add only matching-version official Dart logging and Go slog packages. No commit, push, deployment, native/device retrieval or production synthetic failure performed.
+
+
 ## IR-005–IR-006 correction verification (2026-10-07)
 
 Authoritative results for the final correction pass; earlier refined results and prior execution below remain history.

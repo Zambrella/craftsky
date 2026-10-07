@@ -1,5 +1,10 @@
 # Coding Plan: Useful Logging and Error Reporting
 
+## Sentry-led implementation amendment approved 2026-10-07
+
+Use the existing worktree and implement SDK-T01–SDK-T06 in order. Flutter: register supported SDK cause extractors for app/API wrappers; reviewed static StateError subtype retains its message without permitting arbitrary StateError prose; native exceptions carry chain/stack instead of JSON summaries. Configure official logging integration with issue threshold off and a small context enrichment bridge. Local root console emitter remains independent. Install local-only error callbacks before Sentry integration setup; leave SDK handlers installed afterwards and preserve UI fallback. Go: use SDK SetException conversion with original cause hint and existing bounded cycle detection; preserve extracted stacks, omit synthetic capture-time stacks for stackless errors; reviewed static wrapper explanations and safe runtime adapters remain source controlled. Use official slog handler for remote export after source selection, keep local sanitizing handler and targeted worker suppression. Both final filters preserve selected breadcrumbs and standard metadata, continue rejecting attachments/private enrichment. Simplify ErrorReporter to explicit exception capture; feature code continues to avoid Sentry imports. Add dependencies only for official integrations. Do not enable tracing or alter production/business/API behavior.
+
+
 ## Refined coding plan approved 2026-10-07
 
 Implement in order SIM-T01 → SIM-T02 → SIM-T03 → SIM-T04 → SIM-T05 → SIM-T06. Each behavior receives a meaningful red before its implementation, then affected regression checks.

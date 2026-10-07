@@ -145,7 +145,6 @@ void main() {
     () async {
       final records = <String>[];
       final subscription = configureRootLogForwarding(
-        reporter: const NoopErrorReporter(),
         platformSink: records.add,
       );
       addTearDown(subscription.cancel);
@@ -158,7 +157,7 @@ void main() {
         PlatformDispatcher.instance.onError = oldPlatform;
         ErrorWidget.builder = oldBuilder;
       });
-      registerErrorHandlers(reporter: const NoopErrorReporter());
+      registerErrorHandlers();
       final safeStack = StackTrace.fromString(
         '#0 loadPublicRecord (file:///Users/path-canary/work/file.dart:12:3)',
       );

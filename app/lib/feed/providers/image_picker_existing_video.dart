@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:craftsky_app/feed/providers/composer_video_controller.dart';
+import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
@@ -90,7 +91,7 @@ Future<VideoProbeResult> _probeWithMediaKit(XFile file) async {
     );
     final poster = await player.screenshot();
     if (poster == null || poster.isEmpty) {
-      throw StateError('Video poster unavailable');
+      throw DiagnosticStateError('Video poster unavailable');
     }
     return VideoProbeResult(
       duration: duration,

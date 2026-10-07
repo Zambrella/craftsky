@@ -30,18 +30,7 @@ class _StorageReporter implements ErrorReporter {
   final errors = <Object>[];
   @override
   bool get enabled => true;
-  @override
-  void addBreadcrumb(SafeBreadcrumb breadcrumb) {}
-  @override
-  Future<void> emitLog(
-    String message, {
-    required ReportContext context,
-  }) async {}
-  @override
-  Future<void> captureMessage(
-    String message, {
-    required ReportContext context,
-  }) async {}
+
   @override
   Future<String?> captureException(
     Object error, {

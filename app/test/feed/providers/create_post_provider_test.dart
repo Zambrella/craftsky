@@ -26,7 +26,6 @@ import 'package:craftsky_app/shared/mutations/pds_record_operation_controller.da
 import 'package:craftsky_app/shared/observability/diagnostic_emitter.dart';
 import 'package:craftsky_app/shared/observability/error_reporter.dart';
 import 'package:craftsky_app/shared/observability/error_reporter_provider.dart';
-import 'package:craftsky_app/shared/observability/log_forwarder.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:logging/logging.dart';
@@ -739,12 +738,7 @@ void main() {
         for (final switchAccount in [false, true]) {
           final reporter = _MutationDiagnosticReporter();
           final records = <LogRecord>[];
-          final forwarder = LogForwarder(reporter);
-          final forwarding = <Future<void>>[];
-          final subscription = Logger.root.onRecord.listen((record) {
-            records.add(record);
-            forwarding.add(forwarder.handle(record));
-          });
+          final subscription = Logger.root.onRecord.listen(records.add);
           addTearDown(subscription.cancel);
           final failed = Completer<Post>();
           final entered = Completer<void>();
@@ -799,7 +793,6 @@ void main() {
           }
           failed.completeError(StateError('private operation canary'));
           expect(await pending, isNull);
-          await Future.wait(forwarding);
           expect(reporter.contexts, hasLength(1));
           expect(
             reporter.contexts.single.workflow?.selectedFields,
@@ -1059,18 +1052,7 @@ final class _MutationDiagnosticReporter implements ErrorReporter {
   final contexts = <ReportContext>[];
   @override
   bool get enabled => true;
-  @override
-  void addBreadcrumb(SafeBreadcrumb breadcrumb) {}
-  @override
-  Future<void> emitLog(
-    String message, {
-    required ReportContext context,
-  }) async {}
-  @override
-  Future<void> captureMessage(
-    String message, {
-    required ReportContext context,
-  }) async {}
+
   @override
   Future<String?> captureException(
     Object error, {

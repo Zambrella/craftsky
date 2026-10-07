@@ -3,11 +3,13 @@ package observability
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"log/slog"
 	"sort"
+	"strconv"
+	"time"
 
 	"github.com/getsentry/sentry-go"
+	sentryslog "github.com/getsentry/sentry-go/slog"
 )
 
 type LogSink interface {
@@ -18,65 +20,63 @@ type noopLogSink struct{}
 
 func (noopLogSink) Emit(context.Context, slog.Level, string, EventContext) {}
 
-type sentryLogSink struct {
-	hub *sentry.Hub
-}
+type sentryLogSink struct{ handler slog.Handler }
 
 func newSentryLogSink(hub *sentry.Hub) LogSink {
 	if hub == nil {
 		return noopLogSink{}
 	}
-	return sentryLogSink{hub: hub}
+	ctx := sentry.SetHubOnContext(context.Background(), hub)
+	return sentryLogSink{handler: sentryslog.Option{}.NewSentryHandler(ctx)}
 }
-
 func (s sentryLogSink) Emit(ctx context.Context, level slog.Level, message string, attrs EventContext) {
-	if message == "" {
-		return
-	}
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	ctx = sentry.SetHubOnContext(ctx, s.hub)
-	entry := sentryLogEntry(sentry.NewLogger(ctx), level).WithCtx(ctx)
+	if message == "" {
+		return
+	}
 	selected := SanitizeEventContext(attrs)
-	message = boundDiagnosticText(message, 512)
-	for _, key := range []string{"causes", "diagnostic", "panic", "incoming_path", "method", "status", "bytes", "content_length", "count", "suppressed_count"} {
+	for _, key := range []string{"diagnostic", "incoming_path", "method", "status", "bytes", "content_length", "count", "suppressed_count"} {
 		if value, ok := attrs[key]; ok {
 			selected[key] = value
 		}
 	}
-	for key, value := range selected {
-		switch v := value.(type) {
-		case bool:
-			entry = entry.Bool(key, v)
-		case int:
-			entry = entry.Int(key, v)
-		case int64:
-			entry = entry.Int64(key, v)
-		case float64:
-			entry = entry.Float64(key, v)
-		case []DiagnosticCause, EventContext, []sentry.Exception:
-			if data, err := json.Marshal(value); err == nil {
-				entry = entry.String(key, string(data))
+	// Logs need one brief cause when a retry deliberately creates no issue.
+	// Full chains and origin stacks remain exclusively on native exceptions.
+	if causes, ok := attrs["causes"].([]DiagnosticCause); ok && len(causes) > 0 {
+		cause := causes[0]
+		for _, candidate := range causes {
+			if candidate.Code != "" {
+				cause = candidate
+				break
 			}
-		default:
-			entry = entry.String(key, fmt.Sprint(value))
+		}
+		selected["error.type"] = safeDiagnosticType(cause.Type)
+		if sqlStatePattern.MatchString(cause.Code) {
+			selected["error.code"] = cause.Code
+		} else if code, err := strconv.Atoi(cause.Code); err == nil && code >= 100 && code <= 599 {
+			selected["http_status"] = code
 		}
 	}
-	entry.Emit(message)
-}
 
-func sentryLogEntry(logger sentry.Logger, level slog.Level) sentry.LogEntry {
-	switch {
-	case level >= slog.LevelError:
-		return logger.Error()
-	case level >= slog.LevelWarn:
-		return logger.Warn()
-	case level <= slog.LevelDebug:
-		return logger.Debug()
-	default:
-		return logger.Info()
+	record := slog.NewRecord(time.Now(), level, boundDiagnosticText(message, 512), 0)
+	for key, value := range selected {
+		switch value.(type) {
+		case EventContext:
+			if data, err := json.Marshal(value); err == nil {
+				record.AddAttrs(slog.String(key, string(data)))
+			}
+		default:
+			record.AddAttrs(slog.Any(key, value))
+		}
 	}
+	// Breadcrumbs belong to a request/operation hub, never shared process history.
+	if hub := sentry.GetHubFromContext(ctx); hub != nil {
+		hub.AddBreadcrumb(&sentry.Breadcrumb{Category: "log", Message: record.Message, Level: sentry.LevelInfo, Data: map[string]any(SanitizeEventContext(attrs))}, nil)
+	}
+	// The official handler emits Logs only; issue ownership remains explicit.
+	_ = s.handler.Handle(ctx, record)
 }
 
 func (o *Observer) EmitLog(ctx context.Context, level slog.Level, message string, attrs EventContext) {

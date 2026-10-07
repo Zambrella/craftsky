@@ -1,5 +1,6 @@
 import 'package:craftsky_app/auth/providers/active_account_initialization_provider.dart';
 import 'package:craftsky_app/languages/models/language_preferences.dart';
+import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
 import 'package:flutter/foundation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -13,7 +14,7 @@ LanguagePreferences activeLanguagePreferences(Ref ref) {
       .watch(activeAccountInitializationProvider)
       .requireValue;
   if (initialized == null) {
-    throw StateError(
+    throw DiagnosticStateError(
       'Active language preferences require an initialized active account',
     );
   }

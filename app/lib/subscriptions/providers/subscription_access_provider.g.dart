@@ -67,7 +67,7 @@ final class SubscriptionAccessProvider
 }
 
 String _$subscriptionAccessHash() =>
-    r'04ff4ca306d7e8f4d08e42136da43eca39345605';
+    r'2f24cf20833b859fbed1312364d5afa215de6bcd';
 
 final class SubscriptionAccessFamily extends $Family
     with

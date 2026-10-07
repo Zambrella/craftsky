@@ -18,7 +18,6 @@ void main() {
       expect(guide, contains('beforeSend'));
       final records = <String>[];
       final subscription = configureRootLogForwarding(
-        reporter: const NoopErrorReporter(),
         platformSink: records.add,
       );
       addTearDown(subscription.cancel);
@@ -54,21 +53,19 @@ void main() {
         stackTrace: stack,
         context: context,
       );
-      final privateContext = ReportContext(
+      const privateContext = ReportContext(
         feature: 'Schedule',
         operation: 'publish',
         classification: 'schedule.failed',
         outcome: DiagnosticOutcome.retry,
-        workflow: const PrivateOperationalFailureContext(
+        workflow: PrivateOperationalFailureContext(
           accountDid: 'did:plc:actor',
           workflowRef: '40000000-0000-4000-8000-000000000002',
         ),
-        cause: error,
-        stackTrace: stack,
       );
       log
         ..warning(
-          DiagnosticMessage('Operation failed', context: privateContext),
+          const DiagnosticMessage('Operation failed', context: privateContext),
           error,
           stack,
         )

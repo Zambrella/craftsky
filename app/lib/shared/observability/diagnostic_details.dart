@@ -20,6 +20,10 @@ List<Map<String, Object?>> selectedCauses(Object error) {
     causes.add({
       'type': boundDiagnosticText(current.runtimeType.toString(), 256),
       'message': switch (current) {
+        DiagnosticStateError(:final message) => boundDiagnosticText(
+          message,
+          512,
+        ),
         ApiUnauthorized() || ApiCanceled() => current.toString(),
         DioException(:final response)
             when response?.statusCode != null &&

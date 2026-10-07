@@ -10,6 +10,7 @@ import 'package:craftsky_app/shared/api/providers/error_mapping_interceptor.dart
 import 'package:craftsky_app/shared/api/providers/session_auth_interceptor.dart';
 import 'package:craftsky_app/shared/api/providers/sign_out_on_401_interceptor.dart';
 import 'package:craftsky_app/shared/device/device_id_provider.dart';
+import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -47,7 +48,7 @@ const _debugApiDelayMs = int.fromEnvironment('CRAFTSKY_API_DELAY_MS');
 /// in sync.
 BaseOptions baseDioOptions() {
   if (_baseUrl.isEmpty) {
-    throw StateError(
+    throw DiagnosticStateError(
       'CRAFTSKY_API_BASE_URL must be set for non-debug builds. '
       'Pass it via --dart-define.',
     );
@@ -89,9 +90,11 @@ Future<Dio> accountDio(Ref ref, AccountKey account) async {
     );
   }
   final deviceId = await ref.watch(deviceIdProvider.future);
-  if (!ref.mounted) throw StateError('Account client disposed during build');
+  if (!ref.mounted) {
+    throw DiagnosticStateError('Account client disposed during build');
+  }
   final target = selection.target;
-  if (target == null) throw StateError('Account session unavailable');
+  if (target == null) throw DiagnosticStateError('Account session unavailable');
   final lease = AccountSessionLease(
     account: account,
     sessionGeneration: target.generation,

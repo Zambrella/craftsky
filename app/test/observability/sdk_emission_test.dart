@@ -3,13 +3,16 @@ import 'dart:typed_data';
 
 import 'package:craftsky_app/auth/models/auth_state.dart';
 import 'package:craftsky_app/bootstrap.dart';
+import 'package:craftsky_app/feed/composer/video_submission_state.dart';
 import 'package:craftsky_app/main.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
+import 'package:craftsky_app/shared/errors/app_error.dart';
 import 'package:craftsky_app/shared/errors/app_error_mapper.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_emitter.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_summary.dart';
 import 'package:craftsky_app/shared/observability/error_reporter.dart';
 import 'package:craftsky_app/shared/observability/sentry_error_reporter.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:logging/logging.dart';
@@ -19,6 +22,353 @@ import '../test_support/diagnostic_evidence.dart';
 import '../test_support/serialized_sentry_transport.dart';
 
 void main() {
+  test(
+    'SDK-T04 explicit terminal captures survive automatic filtering',
+    () async {
+      final transport = SerializedTransport();
+      await Sentry.init((options) {
+        options
+          ..dsn = 'https://public@example.invalid/1'
+          ..transport = transport;
+        configureDiagnosticOptions(options);
+      });
+      addTearDown(Sentry.close);
+      const context = ReportContext(
+        feature: 'Upload',
+        operation: 'publish',
+        classification: 'upload.failed',
+        outcome: DiagnosticOutcome.terminal,
+        safeDiagnostics: {
+          'appViewRequestId': '00000000-0000-4000-8000-000000000401',
+        },
+      );
+      final stack = StackTrace.fromString(
+        '#0 publish (package:craftsky_app/upload.dart:12:3)',
+      );
+      const reporter = SentryErrorReporter();
+      for (final error in [
+        const ApiCanceled(),
+        const AppError(
+          AppErrorKind.unexpected,
+          diagnosticCause: ApiCanceled(),
+          reportableOverride: true,
+        ),
+      ]) {
+        expect(
+          await reporter.captureException(
+            error,
+            context: context,
+            stackTrace: stack,
+          ),
+          isNull,
+        );
+      }
+      expect(transport.payloads, isEmpty);
+      for (final error in [
+        const ApiNetworkError('private-terminal-canary'),
+        const ApiUnauthorized(),
+      ]) {
+        expect(
+          await reporter.captureException(
+            error,
+            context: context,
+            stackTrace: stack,
+          ),
+          isNotNull,
+        );
+      }
+      await Sentry.close();
+      final events = transport.payloads
+          .map(jsonDecode)
+          .where((event) => (event as Map).containsKey('exception'))
+          .toList();
+      expect(events, hasLength(2));
+      expect(events.toString(), contains('ApiNetworkError'));
+      expect(events.toString(), contains('ApiUnauthorized'));
+      expect(events.toString(), contains('publish'));
+      expect(
+        events.toString(),
+        contains('00000000-0000-4000-8000-000000000401'),
+      );
+      expect(events.toString(), isNot(contains('private-terminal-canary')));
+    },
+  );
+
+  test(
+    'SDK-T03 native navigation keeps route patterns without arguments',
+    () async {
+      final transport = SerializedTransport();
+      await Sentry.init((options) {
+        options
+          ..dsn = 'https://public@example.invalid/1'
+          ..transport = transport;
+        configureDiagnosticOptions(options);
+      });
+      addTearDown(Sentry.close);
+      diagnosticNavigationObserver()
+        ..didPush(
+          MaterialPageRoute<void>(
+            settings: const RouteSettings(
+              name: '/post/:uri',
+              arguments: {'draft': 'PRIVATE_NAVIGATION'},
+            ),
+            builder: (_) => const SizedBox(),
+          ),
+          null,
+        )
+        ..didPush(
+          MaterialPageRoute<void>(
+            settings: const RouteSettings(
+              name: 'account-deletion-reauth-complete',
+              arguments: {'proof': 'PRIVATE_AUTH_PROOF'},
+            ),
+            builder: (_) => const SizedBox(),
+          ),
+          null,
+        );
+      await const SentryErrorReporter().captureException(
+        StateError('PRIVATE_FAILURE'),
+        context: const ReportContext(
+          feature: 'Router',
+          operation: 'route.open',
+          classification: 'unexpected',
+        ),
+      );
+      await Sentry.close();
+      final event = transport.payloads
+          .map(jsonDecode)
+          .cast<Map<String, dynamic>>()
+          .firstWhere((p) => p.containsKey('exception'));
+      expect(event['breadcrumbs'].toString(), contains('/post/:uri'));
+      expect(
+        event['breadcrumbs'].toString(),
+        contains('account-deletion-reauth-complete'),
+      );
+      expect(transport.payloads.join(), isNot(contains('PRIVATE_')));
+    },
+  );
+
+  test(
+    'SDK-T05 official logging adds timeline and logs without issues',
+    () async {
+      final transport = SerializedTransport();
+      await Sentry.init((options) {
+        options
+          ..dsn = 'https://public@example.invalid/1'
+          ..transport = transport
+          ..enableLogs = true;
+        configureDiagnosticOptions(options);
+      });
+      addTearDown(Sentry.close);
+      final local = <String>[];
+      final subscription = configureRootLogForwarding(platformSink: local.add);
+      addTearDown(subscription.cancel);
+      Logger.root.level = Level.ALL;
+      Logger('Post').severe(
+        const DiagnosticMessage(
+          'Post read failed',
+          context: ReportContext(
+            feature: 'Post',
+            operation: 'post.read',
+            classification: 'post.failed',
+            safeDiagnostics: {'appViewRequestId': 'request-123'},
+            workflow: PublicRecordContext(targetDid: 'did:plc:target'),
+          ),
+        ),
+        StateError('private-draft-canary'),
+        StackTrace.current,
+      );
+      await Future<void>.delayed(Duration.zero);
+      await const SentryErrorReporter().captureException(
+        StateError('private-captured-prose'),
+        context: const ReportContext(
+          feature: 'Post',
+          operation: 'post.read',
+          classification: 'post.failed',
+        ),
+      );
+      await Sentry.close();
+      final payloads = transport.payloads
+          .map(jsonDecode)
+          .cast<Map<String, dynamic>>()
+          .toList();
+      final events = payloads.where((p) => p.containsKey('exception')).toList();
+      final logs = payloads.expand((p) => (p['items'] as List?) ?? []).toList();
+      expect(events, hasLength(1));
+      expect(logs, hasLength(1));
+      expect(logs.single.toString(), contains('auto.log.logging'));
+      expect(
+        events.single['breadcrumbs'].toString(),
+        contains('Post read failed'),
+      );
+      expect(events.single['breadcrumbs'].toString(), contains('request-123'));
+      expect(
+        events.single['breadcrumbs'].toString(),
+        contains('did:plc:target'),
+      );
+      expect(
+        transport.payloads.join(),
+        isNot(contains('private-draft-canary')),
+      );
+      expect(
+        transport.payloads.join(),
+        isNot(contains('private-captured-prose')),
+      );
+      expect(logs.single.toString(), isNot(contains('causes')));
+      expect(local.single, contains('StateError'));
+    },
+  );
+
+  test(
+    'SDK-T03 safe SDK breadcrumb timeline survives private enrichment',
+    () async {
+      final transport = SerializedTransport();
+      await Sentry.init((options) {
+        options
+          ..dsn = 'https://public@example.invalid/1'
+          ..transport = transport;
+        configureDiagnosticOptions(options);
+      });
+      addTearDown(Sentry.close);
+      await Sentry.addBreadcrumb(
+        Breadcrumb(
+          category: 'device.connectivity',
+          type: 'system',
+          message: 'Connectivity changed',
+          data: {'connectivity': 'wifi', 'draft': 'private-connectivity-draft'},
+        ),
+      );
+      await Sentry.addBreadcrumb(
+        Breadcrumb(
+          category: 'navigation',
+          type: 'navigation',
+          data: {
+            'routeName': 'postDetail',
+            'url': 'https://private.test/?token=private-url-token',
+          },
+        ),
+      );
+      await const SentryErrorReporter().captureException(
+        StateError('private-error'),
+        context: const ReportContext(
+          feature: 'Post',
+          operation: 'post.read',
+          classification: 'post.failed',
+        ),
+      );
+      await Sentry.close();
+      final payload = transport.payloads.join();
+      expect(payload, contains('device.connectivity'));
+      expect(payload, contains('wifi'));
+      expect(payload, contains('postDetail'));
+      for (final private in [
+        'private-connectivity-draft',
+        'private-url-token',
+        'private-error',
+      ]) {
+        expect(payload, isNot(contains(private)));
+      }
+    },
+  );
+
+  test(
+    'SDK-T01 reviewed application state failure keeps its explanation',
+    () async {
+      final transport = SerializedTransport();
+      await Sentry.init((options) {
+        options
+          ..dsn = 'https://public@example.invalid/1'
+          ..transport = transport;
+        configureDiagnosticOptions(options);
+      });
+      addTearDown(Sentry.close);
+      final local = <String>[];
+      final subscription = configureRootLogForwarding(platformSink: local.add);
+      addTearDown(subscription.cancel);
+      try {
+        VideoSubmissionMachine().transitionTo(VideoSubmissionStage.complete);
+        fail('invalid transition should throw');
+      } on Object catch (error, stack) {
+        expect(error, isA<StateError>());
+        Logger('Video').severe('Video transition failed', error, stack);
+        await const SentryErrorReporter().captureException(
+          error,
+          stackTrace: stack,
+          context: const ReportContext(
+            feature: 'Video',
+            operation: 'video.transition',
+            classification: 'video.failed',
+          ),
+        );
+      }
+      await Sentry.close();
+      expect(
+        transport.payloads.join(),
+        contains('Invalid video submission transition'),
+      );
+      expect(local.join(), contains('Invalid video submission transition'));
+    },
+  );
+
+  test(
+    'SDK-T01 original causes and stacks use native SDK exceptions',
+    () async {
+      final transport = SerializedTransport();
+      await Sentry.init((options) {
+        options
+          ..dsn = 'https://public@example.invalid/1'
+          ..transport = transport;
+        configureDiagnosticOptions(options);
+      });
+      addTearDown(Sentry.close);
+      final stack = StackTrace.fromString(
+        '#0 decodeRecord (package:craftsky_app/api.dart:12:3)',
+      );
+      final error = AppError(
+        AppErrorKind.unexpected,
+        diagnosticCause: ApiServerError(
+          'private-server-prose',
+          details: ApiFailureDetails(
+            cause: const FormatException(
+              'private-body-prose',
+              'private-json-body',
+            ),
+            stackTrace: stack,
+          ),
+        ),
+        diagnosticStack: stack,
+      );
+      await const SentryErrorReporter().captureException(
+        error,
+        stackTrace: stack,
+        context: const ReportContext(
+          feature: 'Post',
+          operation: 'post.read',
+          classification: 'post.failed',
+          safeDiagnostics: {'appViewRequestId': 'request-123'},
+        ),
+      );
+      await Sentry.close();
+      final event =
+          jsonDecode(transport.payloads.single) as Map<String, dynamic>;
+      final exceptions = (event['exception'] as Map)['values'] as List;
+      expect(
+        exceptions.map((e) => (e as Map)['type']),
+        containsAll(['AppError', 'ApiServerError', 'FormatException']),
+      );
+      expect(exceptions.toString(), contains('decodeRecord'));
+      expect((event['contexts'] as Map).containsKey('failure'), isFalse);
+      expect(event.toString(), contains('request-123'));
+      for (final private in [
+        'private-server-prose',
+        'private-body-prose',
+        'private-json-body',
+      ]) {
+        expect(transport.payloads.join(), isNot(contains(private)));
+      }
+    },
+  );
+
   test(
     'SIM-T04 IR-006 scope and hint attachments never reach SDK envelopes',
     () async {
@@ -152,7 +502,6 @@ void main() {
           configureDiagnosticOptions(options);
         });
         final subscription = configureRootLogForwarding(
-          reporter: const SentryErrorReporter(),
           platformSink: local.add,
         );
         Logger.root.level = Level.ALL;
@@ -345,7 +694,6 @@ void main() {
       addTearDown(Sentry.close);
       final local = <String>[];
       final subscription = configureRootLogForwarding(
-        reporter: const SentryErrorReporter(),
         platformSink: local.add,
       );
       addTearDown(subscription.cancel);
@@ -536,7 +884,6 @@ void main() {
     addTearDown(Sentry.close);
     final local = <String>[];
     final subscription = configureRootLogForwarding(
-      reporter: const SentryErrorReporter(),
       platformSink: local.add,
     );
     addTearDown(subscription.cancel);
@@ -564,7 +911,6 @@ void main() {
       });
       addTearDown(Sentry.close);
       final subscription = configureRootLogForwarding(
-        reporter: const SentryErrorReporter(),
         platformSink: (_) {},
       );
       addTearDown(subscription.cancel);
@@ -658,14 +1004,7 @@ void main() {
         'SDK log token=private-log-canary',
         attributes: {'password': SentryAttribute.string('password-canary')},
       );
-      await const SentryErrorReporter().captureMessage(
-        'pds write completed',
-        context: const ReportContext(
-          feature: 'Post',
-          operation: 'read',
-          classification: 'post.failed',
-        ),
-      );
+      Logger('Post').info('pds write completed');
       final transaction = Sentry.startTransaction('post.read', 'post.read')
         ..setData('private', {'draft': 'draft-canary'})
         ..setMeasurement('private-measurement-canary', 1)

@@ -2,6 +2,7 @@ import 'package:craftsky_app/shared/observability/error_reporter.dart';
 import 'package:craftsky_app/shared/observability/observability_bootstrap.dart';
 import 'package:craftsky_app/shared/observability/sentry_config.dart';
 import 'package:flutter_test/flutter_test.dart';
+
 import '../test_support/diagnostic_evidence.dart';
 
 void main() {
@@ -85,9 +86,6 @@ final class _EnabledReporter implements ErrorReporter {
   bool get enabled => true;
 
   @override
-  void addBreadcrumb(SafeBreadcrumb breadcrumb) {}
-
-  @override
   Future<String?> captureException(
     Object error, {
     required ReportContext context,
@@ -95,16 +93,4 @@ final class _EnabledReporter implements ErrorReporter {
   }) async {
     return '0123456789abcdef0123456789abcdef';
   }
-
-  @override
-  Future<void> emitLog(
-    String message, {
-    required ReportContext context,
-  }) async {}
-
-  @override
-  Future<void> captureMessage(
-    String message, {
-    required ReportContext context,
-  }) async {}
 }

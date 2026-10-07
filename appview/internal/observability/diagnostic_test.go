@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -663,5 +664,111 @@ func TestDiagnosticFinalSDKOmitsThreadPrivateData(t *testing.T) {
 		if strings.Contains(string(data), v) {
 			t.Errorf("serialized SDK retained %s", v)
 		}
+	}
+}
+
+// SDK-T02: use the SDK's native chained mechanisms and supported origin stacks.
+func TestSDKNativeCauseChainAndOriginStack(t *testing.T) {
+	transport := &sentry.MockTransport{}
+	observer := New(Config{Env: "test", SentryDSN: "https://public@example.invalid/1", SentryTransport: transport})
+	pcs := make([]uintptr, 8)
+	n := runtime.Callers(1, pcs)
+	root := &sdkStackError{pcs: pcs[:n]}
+	observer.CaptureDiagnostic(ctxkeys.WithRunID(context.Background(), "b1b5a67d-0480-40b3-a9dc-201354ef91ed"), DiagnosticInput{Error: fmt.Errorf("private-wrapper: %w", root), Context: EventContext{"operation": "post.read", "request_id": "b1b5a67d-0480-40b3-a9dc-201354ef91ed"}})
+	observer.Flush(time.Second)
+	event := transport.Events()[0]
+	data, _ := json.Marshal(event)
+	if len(event.Exception) != 2 || event.Exception[0].Stacktrace == nil || event.Exception[0].Mechanism == nil {
+		t.Fatalf("native chain/origin stack missing: %#v", event.Exception)
+	}
+	if event.Exception[1].Stacktrace != nil {
+		t.Fatal("stackless wrapper acquired a fabricated origin stack")
+	}
+	if !strings.Contains(string(data), "TestSDKNativeCauseChainAndOriginStack") || !strings.Contains(string(data), "b1b5a67d") {
+		t.Fatalf("context lost: %s", data)
+	}
+	if strings.Contains(string(data), "private-wrapper") || strings.Contains(string(data), "private-root") {
+		t.Fatalf("private prose leaked: %s", data)
+	}
+}
+
+type sdkStackError struct{ pcs []uintptr }
+
+func (*sdkStackError) Error() string           { return "private-root" }
+func (e *sdkStackError) StackTrace() []uintptr { return e.pcs }
+
+func TestSDKReviewedExplanationSurvivesBothSinks(t *testing.T) {
+	transport := &sentry.MockTransport{}
+	var local bytes.Buffer
+	logger := slog.New(NewDiagnosticHandler(slog.NewJSONHandler(&local, nil)))
+	observer := New(Config{Env: "test", Logger: logger, SentryDSN: "https://public@example.invalid/1", SentryTransport: transport})
+	input := DiagnosticInput{Error: WrapError("claim scheduled posts: token=credential-canary", errors.New("private-scheduled-content")), Context: EventContext{"operation": "schedule.claim"}}
+	LogDiagnostic(context.Background(), logger, input)
+	observer.CaptureDiagnostic(context.Background(), input)
+	observer.Flush(time.Second)
+	data, _ := json.Marshal(transport.Events()[0])
+	for name, payload := range map[string]string{"local": local.String(), "event": string(data)} {
+		if !strings.Contains(payload, "claim scheduled posts") {
+			t.Errorf("%s explanation missing: %s", name, payload)
+		}
+		for _, secret := range []string{"credential-canary", "private-scheduled-content"} {
+			if strings.Contains(payload, secret) {
+				t.Errorf("%s private value leaked: %s", name, payload)
+			}
+		}
+	}
+}
+
+func TestSDKSafeBreadcrumbTimeline(t *testing.T) {
+	transport := &sentry.MockTransport{}
+	observer := New(Config{Env: "test", SentryDSN: "https://public@example.invalid/1", SentryTransport: transport})
+	hub := observer.sentryHub.Clone()
+	hub.AddBreadcrumb(&sentry.Breadcrumb{Category: "operation", Message: "post read started", Data: map[string]any{"operation": "post.read", "draft": "private-breadcrumb-draft"}}, nil)
+	hub.AddBreadcrumb(&sentry.Breadcrumb{Category: "http", Message: "private-http-body", Data: map[string]any{"method": "GET", "status_code": 503, "url": "https://private.test/?token=private-url-token"}}, nil)
+	hub.AddBreadcrumb(&sentry.Breadcrumb{Category: "unknown", Message: "private-unknown-prose"}, nil)
+	observer.CaptureDiagnostic(sentry.SetHubOnContext(context.Background(), hub), DiagnosticInput{Error: errors.New("private-error"), Context: EventContext{"operation": "post.read"}})
+	observer.Flush(time.Second)
+	data, _ := json.Marshal(transport.Events()[0])
+	if !strings.Contains(string(data), "post read started") || !strings.Contains(string(data), "503") {
+		t.Fatalf("timeline lost: %s", data)
+	}
+	for _, private := range []string{"private-breadcrumb-draft", "private-http-body", "private-url-token", "private-unknown-prose", "private-error"} {
+		if strings.Contains(string(data), private) {
+			t.Fatalf("private timeline leaked: %s", data)
+		}
+	}
+}
+
+func TestSDKFormattingFailureRetainsTypedLocalFallback(t *testing.T) {
+	var local bytes.Buffer
+	observer := New(Config{Env: "test", Logger: slog.New(slog.NewJSONHandler(&local, nil)), SentryDSN: "https://public@example.invalid/1", SentryTransport: &sentry.MockTransport{}})
+	observer.CaptureDiagnostic(context.Background(), DiagnosticInput{Error: &sdkBrokenError{}, Context: EventContext{"operation": "post.read"}})
+	if !strings.Contains(local.String(), "sdkBrokenError") || !strings.Contains(local.String(), "post.read") {
+		t.Fatalf("typed fallback lost: %s", local.String())
+	}
+	if strings.Contains(local.String(), "private-formatting-panic") {
+		t.Fatal("formatting panic prose leaked")
+	}
+}
+
+type sdkBrokenError struct{}
+
+func (*sdkBrokenError) Error() string { panic("private-formatting-panic") }
+
+// SDK-T06: hostile graphs still produce a bounded, typed issue.
+func TestSDKCyclicCauseStillCapturesIssue(t *testing.T) {
+	transport := &sentry.MockTransport{}
+	observer := New(Config{Env: "test", SentryDSN: "https://public@example.invalid/1", SentryTransport: transport})
+	observer.CaptureDiagnostic(context.Background(), DiagnosticInput{Error: &cyclicDiagnosticError{}, Context: EventContext{"operation": "post.read"}})
+	observer.Flush(time.Second)
+	if len(transport.Events()) != 1 {
+		t.Fatalf("issue lost for cyclic cause: %d events", len(transport.Events()))
+	}
+	data, _ := json.Marshal(transport.Events()[0])
+	if !strings.Contains(string(data), "cyclicDiagnosticError") || !strings.Contains(string(data), "DiagnosticOmission") {
+		t.Fatalf("bounded typed chain missing: %s", data)
+	}
+	if strings.Contains(string(data), "opaque cyclic prose") {
+		t.Fatal("private prose leaked")
 	}
 }

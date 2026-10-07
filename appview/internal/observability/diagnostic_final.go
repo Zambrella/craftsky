@@ -3,14 +3,13 @@ package observability
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/getsentry/sentry-go"
-	"github.com/getsentry/sentry-go/attribute"
 	"path/filepath"
 	"regexp"
 	"strings"
-)
 
-var diagnosticHTTPStatusPattern = regexp.MustCompile(`^[1-5][0-9]{2}$`)
+	"github.com/getsentry/sentry-go"
+	"github.com/getsentry/sentry-go/attribute"
+)
 
 var diagnosticTechnicalPattern = regexp.MustCompile(`^[A-Za-z0-9_.:-]{1,160}$`)
 
@@ -24,7 +23,13 @@ func protectSDKEvent(event *sentry.Event, hint *sentry.EventHint) *sentry.Event 
 	// Exception stacks retain useful frames; thread payloads can include locals
 	// and source outside that protected exception path.
 	event.Threads = nil
-	event.Breadcrumbs = nil
+	breadcrumbs := event.Breadcrumbs[:0]
+	for _, breadcrumb := range event.Breadcrumbs {
+		if safe := protectSDKBreadcrumb(breadcrumb, nil); safe != nil {
+			breadcrumbs = append(breadcrumbs, safe)
+		}
+	}
+	event.Breadcrumbs = breadcrumbs
 	event.Message = ""
 	tags := map[string]string{}
 	for key, value := range SanitizeEventContext(eventContextFromTags(event.Tags)) {
@@ -130,6 +135,16 @@ func protectSDKLog(log *sentry.Log) *sentry.Log {
 			continue
 		}
 		switch key {
+		case "error.type":
+			selected[key] = attribute.StringValue(safeDiagnosticType(value.AsString()))
+		case "error.code":
+			if sqlStatePattern.MatchString(value.AsString()) {
+				selected[key] = value
+			}
+		case "sentry.origin", "sentry.trace_id", "sentry.span_id":
+			if diagnosticTechnicalPattern.MatchString(value.AsString()) {
+				selected[key] = value
+			}
 		case "diagnostic":
 			var fields EventContext
 			if json.Unmarshal([]byte(value.AsString()), &fields) == nil {
@@ -137,47 +152,13 @@ func protectSDKLog(log *sentry.Log) *sentry.Log {
 					selected[key] = attribute.StringValue(string(data))
 				}
 			}
-		case "causes":
-			var causes []DiagnosticCause
-			if json.Unmarshal([]byte(value.AsString()), &causes) != nil {
-				continue
-			}
-			if len(causes) > 8 {
-				causes = causes[:8]
-			}
-			for i := range causes {
-				cause := &causes[i]
-				cause.Type = safeDiagnosticType(cause.Type)
-				cause.Message = "operation failed"
-				switch {
-				case diagnosticHTTPStatusPattern.MatchString(cause.Code):
-					prefix := "Upstream"
-					switch cause.Type {
-					case "*http.ResponseError":
-						prefix = "Storage"
-					case "*atclient.APIError":
-						prefix = "PDS"
-					}
-					cause.Message = prefix + " request failed (HTTP " + cause.Code + ")"
-				case sqlStatePattern.MatchString(cause.Code):
-					cause.Message = "database error (SQLSTATE " + cause.Code + ")"
-				default:
-					cause.Code = ""
-				}
-			}
-			if data, err := json.Marshal(causes); err == nil {
-				selected[key] = attribute.StringValue(string(data))
-			}
-		case "panic":
-			var exceptions []sentry.Exception
-			if json.Unmarshal([]byte(value.AsString()), &exceptions) == nil {
-				safe := protectSDKEvent(&sentry.Event{Exception: exceptions}, nil)
-				if data, err := json.Marshal(safe.Exception); err == nil && len(data) <= 10000 {
-					selected[key] = attribute.StringValue(string(data))
-				}
-			}
 		case "incoming_path", "method", "status", "bytes", "content_length", "count", "suppressed_count":
-			selected[key] = attribute.StringValue(boundDiagnosticText(value.AsString(), 2048))
+			switch scalar := value.AsInterface().(type) {
+			case int, int64, float64, bool:
+				selected[key] = value
+			case string:
+				selected[key] = attribute.StringValue(boundDiagnosticText(scalar, 2048))
+			}
 		}
 	}
 	log.Attributes = selected
@@ -239,4 +220,31 @@ func protectExceptionFrames(exception *sentry.Exception) {
 		frame.AbsPath = ""
 		frame.Function = boundDiagnosticText(frame.Function, 256)
 	}
+}
+
+func protectSDKBreadcrumb(b *sentry.Breadcrumb, _ *sentry.BreadcrumbHint) *sentry.Breadcrumb {
+	if b == nil {
+		return nil
+	}
+	switch b.Category {
+	case "operation", "log", "lifecycle":
+		b.Message = boundDiagnosticText(b.Message, 256)
+		b.Data = SanitizeEventContext(b.Data)
+	case "http":
+		b.Message = "HTTP request"
+		fields := EventContext{}
+		if method, ok := b.Data["method"].(string); ok {
+			switch method {
+			case "GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS":
+				fields["method"] = method
+			}
+		}
+		if status, ok := b.Data["status_code"].(int); ok && status >= 100 && status <= 599 {
+			fields["status_code"] = status
+		}
+		b.Data = fields
+	default:
+		return nil
+	}
+	return b
 }

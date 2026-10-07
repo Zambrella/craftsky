@@ -209,9 +209,6 @@ final class _RecordingReporter implements ErrorReporter {
   bool get enabled => true;
 
   @override
-  void addBreadcrumb(SafeBreadcrumb breadcrumb) {}
-
-  @override
   Future<String?> captureException(
     Object error, {
     required ReportContext context,
@@ -221,16 +218,4 @@ final class _RecordingReporter implements ErrorReporter {
     contexts.add(context);
     return '0123456789abcdef0123456789abcdef';
   }
-
-  @override
-  Future<void> emitLog(
-    String message, {
-    required ReportContext context,
-  }) async {}
-
-  @override
-  Future<void> captureMessage(
-    String message, {
-    required ReportContext context,
-  }) async {}
 }

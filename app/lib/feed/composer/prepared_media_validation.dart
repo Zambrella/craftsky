@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:craftsky_app/feed/media/composer_image_media_service.dart';
+import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
 import 'package:crypto/crypto.dart';
 
 String verifyPreparedMediaBytes({
@@ -25,11 +26,11 @@ String verifyPreparedMediaBytes({
       width <= 0 ||
       height <= 0 ||
       altText.trim().length > mediaService.config.maxAltTextCharacters) {
-    throw StateError('prepared image is no longer valid');
+    throw DiagnosticStateError('prepared image is no longer valid');
   }
   final digest = sha256.convert(bytes).toString();
   if (expectedSha256 != null && digest != expectedSha256) {
-    throw StateError('prepared image bytes changed');
+    throw DiagnosticStateError('prepared image bytes changed');
   }
   return digest;
 }

@@ -8,6 +8,7 @@ import 'package:craftsky_app/auth/models/pending_handoff.dart';
 import 'package:craftsky_app/auth/models/stored_session.dart';
 import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
+import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
 
 class AccountLimitReached implements Exception {
   const AccountLimitReached();
@@ -300,10 +301,12 @@ class SessionRegistry {
     final current = pendingAccountDeletion;
     if (current != null) {
       if (current.sameAs(pending)) return this;
-      throw StateError('Another account deletion is pending');
+      throw DiagnosticStateError('Another account deletion is pending');
     }
     if (!pending.isCurrent(activeLease)) {
-      throw StateError('Active account changed before deletion staging');
+      throw DiagnosticStateError(
+        'Active account changed before deletion staging',
+      );
     }
     return _copyWith(pendingAccountDeletion: pending);
   }
@@ -317,7 +320,7 @@ class SessionRegistry {
   SessionRegistry reserveBillingOwner(String did) {
     final parsedDid = Did.parse(did);
     if (activeDid != parsedDid || !sessions.containsKey(parsedDid)) {
-      throw StateError('Billing owner must be the active account');
+      throw DiagnosticStateError('Billing owner must be the active account');
     }
     final current = billingOwner;
     if (current == null) {
@@ -326,7 +329,7 @@ class SessionRegistry {
       );
     }
     if (current.did != parsedDid) {
-      throw StateError('Another billing owner is already reserved');
+      throw DiagnosticStateError('Another billing owner is already reserved');
     }
     return this;
   }
@@ -335,11 +338,11 @@ class SessionRegistry {
     final parsedDid = Did.parse(did);
     final current = billingOwner;
     if (current == null || current.did != parsedDid) {
-      throw StateError('Billing owner reservation unavailable');
+      throw DiagnosticStateError('Billing owner reservation unavailable');
     }
     if (current.revenueCatAppUserId == revenueCatAppUserId) return this;
     if (current.revenueCatAppUserId != null) {
-      throw StateError('Billing owner is already complete');
+      throw DiagnosticStateError('Billing owner is already complete');
     }
     return _copyWith(
       billingOwner: BillingOwnerBinding(
@@ -356,7 +359,7 @@ class SessionRegistry {
     final current = pendingHandoff;
     if (current != null) {
       if (_sameHandoff(current, handoff)) return this;
-      throw StateError('Another handoff is pending confirmation');
+      throw DiagnosticStateError('Another handoff is pending confirmation');
     }
     if (!sessions.containsKey(handoff.did) &&
         sessions.length >= maxRetainedAccounts) {
@@ -370,7 +373,7 @@ class SessionRegistry {
   SessionRegistry confirmHandoff(String receiptId) {
     final pending = pendingHandoff;
     if (pending == null || pending.receiptId != receiptId) {
-      throw StateError('Pending handoff unavailable');
+      throw DiagnosticStateError('Pending handoff unavailable');
     }
     return upsertAndActivate(
       token: pending.token,
@@ -389,7 +392,7 @@ class SessionRegistry {
     final current = sessions[target.account.did];
     if (current == null ||
         current.sessionGeneration != target.sessionGeneration) {
-      throw StateError('Account session unavailable');
+      throw DiagnosticStateError('Account session unavailable');
     }
     if (activeDid == target.account.did) return this;
 
@@ -438,7 +441,7 @@ class SessionRegistry {
     String binding,
   ) {
     if (leaseFor(lease.account) != lease) {
-      throw StateError('Account session unavailable');
+      throw DiagnosticStateError('Account session unavailable');
     }
     return _copyWith(
       routingBindings: {...routingBindings, lease.account.did: binding},

@@ -55,7 +55,7 @@ final class ActiveLanguagePreferencesProvider
 }
 
 String _$activeLanguagePreferencesHash() =>
-    r'f27a506baccd4e50fc20ba23f7e1dd4f88cc2516';
+    r'3baf8e469249ca8693f0105f0e4191bda28f20c4';
 
 @ProviderFor(ActiveContentLanguagePolicy)
 final activeContentLanguagePolicyProvider =

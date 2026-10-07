@@ -33,6 +33,9 @@ final class SentrySanitizer {
     'feature',
     'lifecycle',
     'ui.action',
+    'log',
+    'device.connectivity',
+    'app.lifecycle',
   };
 
   static const _allowedBreadcrumbDataKeys = {
@@ -40,6 +43,9 @@ final class SentrySanitizer {
     'feature',
     'lifecycleState',
     'action',
+    'connectivity',
+    'state',
+    'logger',
   };
 
   static final RegExp _sensitivePattern = RegExp(
@@ -89,9 +95,29 @@ final class SentrySanitizer {
           entry.key: entry.value,
     };
 
+    // Native observer names originate from GoRouter's static route patterns.
+    // Concrete locations, query strings and route arguments are never selected.
+    if (breadcrumb.category == 'navigation') {
+      for (final key in ['from', 'to']) {
+        final name = breadcrumb.data[key];
+        if (name is String &&
+            RegExp(
+              r'^(?:/[A-Za-z0-9_:/.-]*|[A-Za-z0-9_.-]+)$',
+            ).hasMatch(name) &&
+            name.length <= 160 &&
+            !name.contains('://')) {
+          data[key] = name;
+        }
+      }
+    }
     return SafeBreadcrumb(
       category: breadcrumb.category,
-      message: boundDiagnosticText(breadcrumb.message, 256),
+      message: switch (breadcrumb.category) {
+        'device.connectivity' => 'Connectivity changed',
+        'app.lifecycle' => 'Application lifecycle changed',
+        'navigation' => 'Navigation',
+        _ => boundDiagnosticText(breadcrumb.message, 256),
+      },
       data: data,
     );
   }

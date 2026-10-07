@@ -51,6 +51,7 @@ import 'package:craftsky_app/settings/pages/profile_customisation_page.dart';
 import 'package:craftsky_app/settings/pages/relationship_list_page.dart';
 import 'package:craftsky_app/settings/pages/settings_page.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
+import 'package:craftsky_app/shared/observability/sentry_error_reporter.dart';
 import 'package:craftsky_app/subscriptions/pages/subscription_page.dart';
 import 'package:craftsky_app/subscriptions/providers/subscription_access_provider.dart';
 import 'package:craftsky_app/subscriptions/subscription_build_config.dart';
@@ -118,6 +119,7 @@ GoRouter goRouter(Ref ref) {
   return GoRouter(
     initialLocation: RouteLocations.welcome,
     navigatorKey: _NavigatorKeys.rootNavigatorKey,
+    observers: [diagnosticNavigationObserver()],
     refreshListenable: refresh,
     redirect: (context, state) {
       final loc = state.matchedLocation;
@@ -368,6 +370,9 @@ class AccountDeletionReauthCompleteRoute extends GoRouteData
 )
 class AuthenticatedShellRoute extends ShellRouteData {
   const AuthenticatedShellRoute();
+  static List<NavigatorObserver> get $observers => [
+    diagnosticNavigationObserver(),
+  ];
 
   static final GlobalKey<NavigatorState> $navigatorKey =
       _NavigatorKeys.authenticatedShellNavigatorKey;
@@ -393,30 +398,45 @@ class AppShellRoute extends StatefulShellRouteData {
 
 class FeedBranch extends StatefulShellBranchData {
   const FeedBranch();
+  static List<NavigatorObserver> get $observers => [
+    diagnosticNavigationObserver(),
+  ];
   static final GlobalKey<NavigatorState> $navigatorKey =
       _NavigatorKeys.feedNavigatorKey;
 }
 
 class SearchBranch extends StatefulShellBranchData {
   const SearchBranch();
+  static List<NavigatorObserver> get $observers => [
+    diagnosticNavigationObserver(),
+  ];
   static final GlobalKey<NavigatorState> $navigatorKey =
       _NavigatorKeys.searchNavigatorKey;
 }
 
 class ProjectsBranch extends StatefulShellBranchData {
   const ProjectsBranch();
+  static List<NavigatorObserver> get $observers => [
+    diagnosticNavigationObserver(),
+  ];
   static final GlobalKey<NavigatorState> $navigatorKey =
       _NavigatorKeys.projectsNavigatorKey;
 }
 
 class NotificationsBranch extends StatefulShellBranchData {
   const NotificationsBranch();
+  static List<NavigatorObserver> get $observers => [
+    diagnosticNavigationObserver(),
+  ];
   static final GlobalKey<NavigatorState> $navigatorKey =
       _NavigatorKeys.notificationsNavigatorKey;
 }
 
 class ProfileBranch extends StatefulShellBranchData {
   const ProfileBranch();
+  static List<NavigatorObserver> get $observers => [
+    diagnosticNavigationObserver(),
+  ];
   static final GlobalKey<NavigatorState> $navigatorKey =
       _NavigatorKeys.profileNavigatorKey;
 }

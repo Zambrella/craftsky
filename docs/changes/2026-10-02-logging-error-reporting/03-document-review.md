@@ -1,5 +1,10 @@
 # Document Review: Useful Logging and Error Reporting
 
+## Sentry-led amendment approval 2026-10-07
+
+The maintainer approved the Sentry-led recommendation and explicitly requested its implementation. SDK-001–SDK-006 and SDK-T01–SDK-T06 record that accepted scope. Earlier review findings are history where superseded. There is no new independent document-review claim. SDK-side filtering remains mandatory, with conservative unknown prose and source-selected public/private fields. Tracing and production settings stay unchanged.
+
+
 ## Refined direction confirmation 2026-10-07
 
 Status: Approved with notes. The maintainer explicitly approved the smaller diagnostic contract and implementation. Earlier DR/IR exact-budget and sink-equivalence findings are superseded where listed by SIM-001–SIM-006. Privacy protections and production controls remain. No additional approval gate is required for this authorized correction.

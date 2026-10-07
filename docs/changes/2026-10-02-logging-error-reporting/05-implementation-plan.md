@@ -1,5 +1,65 @@
 # TDD Implementation Plan: Useful Logging and Error Reporting
 
+## IR-007 correction 2026-10-07
+
+User selected the required-correction stage. Scope: SDK-T04 / SDK-001, SDK-005, SIM-002, FR-008 / AC-009; preserve SDK ownership and explicit terminal/reportability policy. Optional IR-008 is outside this correction. No commit authorized.
+
+| Step | Test / requirements | Status |
+|---|---|---|
+| C1 | SDK-T04 / AC-009: actual SDK framework/platform/zone expected-outcome matrix | completed |
+| C2 | SDK-T04 / AC-009: explicit terminal and cancellation compatibility | completed |
+| C3 | SDK-T06: Flutter regression suite, analysis, evidence and plan readback | completed |
+
+Confirmed red: `/private/tmp/ir007-red.log` exports eight issues instead of two. Green: all four SDK-T04 handler tests pass (`/private/tmp/ir007-green.log`), including framework/platform/zone expected outcomes, both reportability overrides, original cause/stack, protected canary and local output. Implemented the existing classifier at the SDK automatic boundary using the original typed throwable; native SDK ThrowableMechanism metadata distinguishes automatic from explicit capture without app ownership flags. Cause/stack selection and local callbacks are unchanged. C2 verifies explicit terminal network/expiry export with request correlation, plus direct/wrapped cancellation suppression even with terminal/reportable overrides. Focused diagnostics/provider/error suites: 99 passed, 1 skipped (`/private/tmp/ir007-focused.log`). Analyzer: No issues found (`/private/tmp/ir007-analyze.log`). Full Flutter verification: 2,711 passed, 38 skipped (`/private/tmp/ir007-full.log`). `git diff --check` passed. Go source/tests are unchanged in this correction; the previous full Go evidence still applies. Guide, acceptance-test detail and validation evidence updated; implementation plan read back. IR-007 implementation is complete, with implementation review pending the stage choice. Device/live symbolication remains separately pending. No commit, push or deployment.
+
+## Sentry-led execution 2026-10-07
+
+Inputs: approved SDK amendment in 01–04. User authorized implementation including described privacy refinement; no stage commit authorized for this new pass.
+
+| Step | Test / requirements | Status |
+|---|---|---|
+| 1 | SDK-T01 / SDK-002, SDK-003 | completed |
+| 2 | SDK-T02 / SDK-002, SDK-003 | completed |
+| 3 | SDK-T03 / SDK-004 | completed |
+| 4 | SDK-T04 / SDK-001 | completed |
+| 5 | SDK-T05 / SDK-005 | completed |
+| 6 | SDK-T06 / SDK-006 | completed |
+
+Strict loop: one behavioral failing test, confirm meaningful red, minimum code, same test green, then refactor/nearby coverage. Finish with full suites/analyzer, diff review, guide/evidence update and plan readback. Native/device/production retrieval remains pending; no deployment or push.
+
+
+### Executed SDK loops
+
+Each red below was a behavioral failure, followed by the same focused test passing. Temporary transcripts are under `/private/tmp`; the permanent source tests are the durable evidence.
+
+| ID | Confirmed red | Minimum implementation and green evidence |
+|---|---|---|
+| SDK-T01 | Flutter wrappers emitted one flattened exception; reviewed video transition explanation was generic | Supported AppError/API/Dio cause extractors; native throwable/stack privacy selection; `DiagnosticStateError` preserves StateError catches. `sdk-t01-red.log`, `sdk-t01-message-red.log` → `sdk-t01-all-green.log`. |
+| SDK-T02 | Go discarded attached origin stacks/native mechanisms and reviewed wrapper explanation | SDK SetException for bounded normal graphs; preserve attached origin stacks, remove fabricated capture-time stacks; reviewed static WrapError. `sdk-t02-red.log`, `sdk-t02-message-red.log` → `sdk-t02-all-green.log`. Panic recovery exceptions remain separate after a focused regression caught replacement of their stack. |
+| SDK-T03 | Safe connectivity/navigation and Go operation/HTTP history were removed | Final hooks retain selected SDK categories/scalars; navigation observers wired to root, authenticated shell and all five branches, arguments removed before formatting, transactions disabled. `sdk-t03-flutter-red.log`, `sdk-t03-go-red.log` → corresponding green logs. Actual native observer route-pattern and hyphenated-name tests also confirmed red (`sdk-navigation-red.log`, `sdk-navigation-names-red.log`) before selection was added. |
+| SDK-T04 | Local callbacks still replaced SDK callbacks/owned duplicate explicit capture | Local-only callbacks installed before Sentry initialization; SDK appRunner owns enabled automatic capture, consumed startup errors explicit; local zone fallback only without available SDK. Actual SentryFlutter integrations serialize exactly two distinct framework/platform issues with mechanisms/stacks. `sdk-t04-red.log` → `sdk-t04-green.log`. |
+| SDK-T05 | Official logging produced no native SDK Logs/history; request timelines were missing without tracing | Matching-version sentry_logging and sentry-go/slog integrations; Dart log issue threshold OFF, console independent; exception-only reporter and removal of custom LogForwarder/duplicate context cause fields. Request hub clones isolate history without tracing. `sdk-t05-flutter-red.log`, `sdk-t05-go-red.log`, `sdk-t05-isolation-red.log` → corresponding green logs. |
+| SDK-T06 | Frame sanitization removed symbolication metadata; SDK formatter failure lost typed local fallback; cyclic Go graphs lost the issue | Retain native image/symbol/package/platform addresses while stripping locals/source; typed protected fallback; bounded fallback exceptions plus available attached stacks. `sdk-t06-frames-red.log`, `sdk-t06-fallback-red.log`, `sdk-cycle-red.log` → passing focused regressions. Full verification recorded in 06-validation-evidence. |
+
+Refactor while green: migrate reviewed literal-only StateError constructions across feature boundaries to the subtype (no input/interpolation, same catch semantics); remove obsolete reporter fake APIs and JSON-summary assertions; regenerate affected providers and router observer wiring, restore unrelated generation drift. No authorization, purchase, account lifecycle, retry, ACK, API or lexicon policy changes.
+
+Broad-run corrections: the previous manual navigation-message expectation now verifies the fixed safe native message. A scheduled object-open retry intentionally creates no issue; its log now retains scalar error.type and vetted HTTP status/SQLSTATE, with no duplicate chain/stack JSON. The existing permanent media test retains positive type/status, private canaries and unchanged retry/attention policy assertions.
+
+Finalization: full Go PostgreSQL/MinIO race suite, full Flutter suite, analyzer, diff review and contributor guide/evidence update. Independent implementation review is pending this stage's exit gate. Final SDK-T06 refinements: native Go status/byte scalar test confirmed meaningful red (`sdk-native-scalars-red.log`) before retaining numeric attributes at the final hook; HTTP int64 status normalization preserves the existing safe status contract. Flutter stack snapshot/language retention confirmed red (`sdk-stack-snapshot-red.log`) and green with the final 19-test SDK suite (`sdk-flutter-last-focused.log`). Native/device/live release symbolication remains pending; no commit, push or deployment.
+
+
+### SDK completion checklist
+
+- [x] SDK-T01–SDK-T06 implemented with confirmed behavioral red/green loops and permanent regressions.
+- [x] Full Flutter suite: 2,707 passed, 38 skipped; final stack metadata focused suite: 19 passed.
+- [x] Full Go `just test`: PostgreSQL/MinIO, race detector, all packages passed (`/private/tmp/sdk-go-all-green.log`). Includes final retry cause/type/status and numeric log scalar corrections.
+- [x] Flutter analyzer: No issues found (`/private/tmp/sdk-analyze-last.log`).
+- [x] Source/diff/privacy check and `git diff --check`; all changes map to SDK amendment, static explanation selection, SDK wiring or affected test/fake/generation cleanup.
+- [x] Guide and validation evidence updated; implementation plan read back.
+- [x] Independent implementation review explicitly pending; physical device/live symbolication validation deferred, not claimed.
+- [x] No new commit/push/deploy authorized or performed.
+
+
 ## Inputs
 - Requirements: `01-requirements.md`
 - Tests: `02-acceptance-tests.md`

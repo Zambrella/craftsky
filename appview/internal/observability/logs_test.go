@@ -3,6 +3,7 @@ package observability
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -199,5 +200,79 @@ func TestSIMT05SDKLogRetainsTypedOperationalScalars(t *testing.T) {
 	}
 	if value := attrs["attempt"].AsInterface(); value != int64(2) {
 		t.Fatalf("attempt lost numeric type: %#v", value)
+	}
+}
+
+func TestSDKOfficialSlogWithRequestTimeline(t *testing.T) {
+	transport := &sentry.MockTransport{}
+	var local bytes.Buffer
+	observer := New(Config{Env: "test", Logger: slog.New(slog.NewJSONHandler(&local, nil)), SentryDSN: "https://public@example.invalid/1", SentryTransport: transport, LogsEnabled: true})
+	ctx := sentry.SetHubOnContext(context.Background(), observer.sentryHub.Clone())
+	observer.Log(ctx, slog.LevelWarn, "PDS read failed token=private-log-token", EventContext{"operation": "post.read", "http_status": 503})
+	observer.CaptureDiagnostic(ctx, DiagnosticInput{Error: errors.New("private-error"), Context: EventContext{"operation": "post.read"}})
+	observer.Flush(time.Second)
+	data, _ := json.Marshal(transport.Events())
+	for _, positive := range []string{"auto.log.slog", "PDS read failed", "503", "breadcrumbs"} {
+		if !strings.Contains(string(data), positive) {
+			t.Fatalf("missing %s: %s", positive, data)
+		}
+	}
+	for _, private := range []string{"private-log-token", "private-error"} {
+		if strings.Contains(string(data)+local.String(), private) {
+			t.Fatalf("private value leaked: %s", data)
+		}
+	}
+	events := 0
+	for _, event := range transport.Events() {
+		if len(event.Exception) > 0 {
+			events++
+		}
+	}
+	if events != 1 {
+		t.Fatalf("logs implicitly created issues: %d", events)
+	}
+}
+
+func TestSDKRequestBreadcrumbsAreIsolatedWithoutTracing(t *testing.T) {
+	transport := &sentry.MockTransport{}
+	observer := New(Config{Env: "test", SentryDSN: "https://public@example.invalid/1", SentryTransport: transport, LogsEnabled: true})
+	first := WithRequestObserver(context.Background(), observer)
+	observer.Log(first, slog.LevelInfo, "first request started", EventContext{"operation": "post.read"})
+	observer.CaptureDiagnostic(first, DiagnosticInput{Error: errors.New("private-first"), Context: EventContext{"operation": "post.read"}})
+	second := WithRequestObserver(context.Background(), observer)
+	observer.Log(second, slog.LevelInfo, "second request started", EventContext{"operation": "profile.read"})
+	observer.CaptureDiagnostic(second, DiagnosticInput{Error: errors.New("private-second"), Context: EventContext{"operation": "profile.read"}})
+	observer.Flush(time.Second)
+	var issues []*sentry.Event
+	for _, event := range transport.Events() {
+		if len(event.Exception) > 0 {
+			issues = append(issues, event)
+		}
+	}
+	if len(issues) != 2 {
+		t.Fatalf("issues = %d", len(issues))
+	}
+	for i, event := range issues {
+		data, _ := json.Marshal(event)
+		own, other := "first request started", "second request started"
+		if i == 1 {
+			own, other = other, own
+		}
+		if !strings.Contains(string(data), own) || strings.Contains(string(data), other) {
+			t.Fatalf("request timeline mixed or missing: %s", data)
+		}
+	}
+}
+
+// SDK-T06: official typed log attributes survive the final hook.
+func TestSDKNativeHTTPLogScalars(t *testing.T) {
+	transport := &sentry.MockTransport{}
+	var local bytes.Buffer
+	observer := New(Config{Env: "test", Logger: slog.New(slog.NewJSONHandler(&local, nil)), SentryDSN: "https://public@example.invalid/1", SentryTransport: transport, LogsEnabled: true})
+	observer.Log(context.Background(), slog.LevelWarn, "HTTP request failed", EventContext{"operation": "http.request"}, slog.Int("status", 503), slog.Int64("bytes", 250))
+	observer.Flush(time.Second)
+	attrs := transport.Events()[0].Logs[0].Attributes
+	if attrs["status"].AsInterface() != int64(503) || attrs["bytes"].AsInterface() != int64(250) {
+		t.Fatalf("HTTP numeric fields lost: %#v", attrs)
 	}
 }

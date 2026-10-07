@@ -9,6 +9,7 @@ import 'package:craftsky_app/notifications/providers/notification_preferences_pr
 import 'package:craftsky_app/notifications/providers/notification_service_provider.dart';
 import 'package:craftsky_app/notifications/widgets/notification_category_icon.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
+import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
 import 'package:craftsky_app/theme/craftsky_card.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/craftsky_select_inputs.dart';
@@ -223,7 +224,9 @@ class _PreferenceSection extends ConsumerWidget {
                   l10n.notificationInstagramMatchPreferenceDescription,
                 NotificationCategory.moderation =>
                   l10n.notificationModerationPreferenceDescription,
-                _ => throw StateError('Unexpected fixed-scope category'),
+                _ => throw DiagnosticStateError(
+                  'Unexpected fixed-scope category',
+                ),
               },
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,

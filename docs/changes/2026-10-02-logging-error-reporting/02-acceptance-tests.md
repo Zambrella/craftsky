@@ -1,5 +1,19 @@
 # Acceptance Test Specification: Useful Logging and Error Reporting
 
+## Sentry-led acceptance amendment approved 2026-10-07
+
+| Test | Requirement / criterion | Observable behavior / order |
+|---|---|---|
+| SDK-T01 | SDK-002, SDK-003 / AC-001, AC-012 | Serialized Flutter native cause chain retains reviewed static explanation and caught frame; no parallel failure context; unknown/HTTP/private causes stay protected. |
+| SDK-T02 | SDK-002, SDK-003 / AC-001, AC-002 | Go native exception chain retains attached stack and safe explanation with request correlation; stackless ordinary errors do not gain fabricated origin stacks; joined/cyclic guards remain bounded. |
+| SDK-T03 | SDK-004 / AC-005, AC-012 | Serialized Flutter/Go issues include safe logging/connectivity/navigation timeline with private fields/capability URLs omitted. |
+| SDK-T04 | SDK-001 / AC-002, AC-009 | Installed SDK framework/platform/zone integrations capture reportable original failures once with native mechanism and supplied frames; cancellation/offline/expiry/not-found/validation and explicitly non-reportable errors produce no issues. Reportability overrides and unexpected cause chains remain reportable. Explicit terminal network/expiry captures survive final filtering; direct/wrapped cancellation remains suppressed even with terminal/reportability overrides. Local callbacks do not recapture or replace SDK handlers and retain protected output for expected failures. Disabled path retains protected local output and UI fallback. |
+| SDK-T05 | SDK-005 / AC-005, AC-015 | Official integrations export structured logs and breadcrumbs with event capture disabled; original operation/workflow/correlation selected; expected failures still produce no issues. |
+| SDK-T06 | SDK-006 / AC-018, AC-019 | Full suites/analyzer and guide examples pass; final diff maps to this amendment; device/live checks explicit. |
+
+Tests execute sequentially SDK-T01–SDK-T06 with one red-green-refactor behavior per loop. Earlier generic-message and custom-handler expectations are superseded only for explicitly reviewed static errors and SDK capture ownership, not arbitrary private prose.
+
+
 ## Refined acceptance coverage approved 2026-10-07
 
 The refined SIM-001–SIM-006 contract supersedes tests of server prose/path mirroring, implicit log capture, ownership flags, exact multi-chunk sink parity, generic Flutter retry windows and global message registration. Retain credential/private exception/value canaries and original business-policy regressions.

@@ -14,6 +14,7 @@ import 'package:craftsky_app/drafts/models/draft_manifest_codec.dart';
 import 'package:craftsky_app/drafts/models/draft_media_descriptor.dart';
 import 'package:craftsky_app/drafts/models/local_post_draft.dart';
 import 'package:craftsky_app/drafts/models/video_draft_descriptor.dart';
+import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
 import 'package:crypto/crypto.dart';
 import 'package:path/path.dart' as p;
 import 'package:uuid/uuid.dart';
@@ -676,7 +677,8 @@ final class FileLocalPostDraftRepository
 final class _DraftDigestSink implements Sink<Digest> {
   Digest? _digest;
 
-  Digest get value => _digest ?? (throw StateError('Digest is not complete'));
+  Digest get value =>
+      _digest ?? (throw DiagnosticStateError('Digest is not complete'));
 
   @override
   void add(Digest data) => _digest = data;

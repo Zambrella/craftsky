@@ -1,5 +1,19 @@
 # Requirements: Useful Logging and Error Reporting
 
+## Sentry-led refinement approved 2026-10-07
+
+The maintainer explicitly approved and requested implementation of the second simplification. This amendment overrides conflicting SIM/legacy requirements. Privacy changes below are within that explicit approval; no additional approval is pending.
+
+| ID | Approved requirement |
+|---|---|
+| SDK-001 | Sentry owns Flutter framework/platform/unhandled capture when enabled. Local handlers supply protected console output only, and release rendering fallback remains. When Sentry is disabled/unavailable, local diagnostics still work. Riverpod and consumed actionable failures keep explicit capture. |
+| SDK-002 | Native SDK exception chains and supplied/attached stacks are authoritative. Remove parallel SDK cause/stack JSON. Use supported Dart cause extractors and Go native exception conversion; keep bounded traversal where needed to protect cyclic graphs. Do not invent an origin stack for ordinary Go errors. |
+| SDK-003 | Retain scrubbed, bounded developer-controlled static failure explanations and safe runtime diagnostics. No message registry. Reviewed application errors declare that their message is static; HTTP/database/platform errors use selected status/code/explanations. Unknown dependency prose remains generic. Private bodies, inputs, credentials and capabilities remain excluded in all sinks. |
+| SDK-004 | Preserve safe logging, lifecycle, connectivity, navigation and operation breadcrumbs as an error timeline. Filter their structured fields and URLs; unknown categories/prose remain conservative. Go no longer drops every breadcrumb. |
+| SDK-005 | Use official Dart logging and Go slog integrations wherever they replace adapters cleanly. Logs/breadcrumbs never implicitly create issues; log event thresholds remain off. Keep one small error reporter plus selected context and independently protected console output. Remove redundant message/log reporter methods and unnecessary duplicate attributes. |
+| SDK-006 | Update guide and workflow evidence; verify actual serialized issues/logs/breadcrumbs with useful fields and protected canaries, SDK automatic ownership, expected failures, and existing business regressions. Full Go/Flutter tests and analysis. No tracing enablement, production operation, API/lexicon/schema/business-policy change, or commit/push without a new request. Symbolication and device/live checks remain separately pending. |
+
+
 ## Refined contract approved 2026-10-07
 
 The maintainer approved the smaller-contract recommendation and explicitly requested implementation. This section takes precedence over conflicting earlier text, test expectations and review findings. Earlier sections remain discovery/execution history; old exact-budget and cross-runtime equivalence requirements are superseded, not silently left unmet.

@@ -12,12 +12,6 @@ abstract interface class ErrorReporter {
     required ReportContext context,
     StackTrace? stackTrace,
   });
-
-  Future<void> emitLog(String message, {required ReportContext context});
-
-  Future<void> captureMessage(String message, {required ReportContext context});
-
-  void addBreadcrumb(SafeBreadcrumb breadcrumb);
 }
 
 final class NoopErrorReporter implements ErrorReporter {
@@ -27,9 +21,6 @@ final class NoopErrorReporter implements ErrorReporter {
   bool get enabled => false;
 
   @override
-  void addBreadcrumb(SafeBreadcrumb breadcrumb) {}
-
-  @override
   Future<String?> captureException(
     Object error, {
     required ReportContext context,
@@ -37,18 +28,6 @@ final class NoopErrorReporter implements ErrorReporter {
   }) async {
     return null;
   }
-
-  @override
-  Future<void> emitLog(
-    String message, {
-    required ReportContext context,
-  }) async {}
-
-  @override
-  Future<void> captureMessage(
-    String message, {
-    required ReportContext context,
-  }) async {}
 }
 
 final class GuardedErrorReporter implements ErrorReporter {
@@ -76,23 +55,6 @@ final class GuardedErrorReporter implements ErrorReporter {
   }
 
   @override
-  void addBreadcrumb(SafeBreadcrumb breadcrumb) {
-    try {
-      _delegate.addBreadcrumb(breadcrumb);
-    } on Object catch (error, stack) {
-      _fallback(
-        error,
-        const ReportContext(
-          feature: 'Telemetry',
-          operation: 'breadcrumb',
-          classification: 'telemetry.failure',
-        ),
-        stack,
-      );
-    }
-  }
-
-  @override
   Future<String?> captureException(
     Object error, {
     required ReportContext context,
@@ -108,39 +70,6 @@ final class GuardedErrorReporter implements ErrorReporter {
       _fallback(error, context, stackTrace);
       return null;
     }
-  }
-
-  @override
-  Future<void> emitLog(String message, {required ReportContext context}) async {
-    try {
-      await _delegate.emitLog(message, context: context);
-    } on Object catch (error, stack) {
-      _fallbackLog(error, stack, context);
-    }
-  }
-
-  @override
-  Future<void> captureMessage(
-    String message, {
-    required ReportContext context,
-  }) async {
-    try {
-      await _delegate.captureMessage(message, context: context);
-    } on Object catch (error, stack) {
-      _fallbackLog(error, stack, context);
-    }
-  }
-
-  void _fallbackLog(Object error, StackTrace stack, ReportContext context) {
-    // A failed success-log export must not create private activity history.
-    final selected = ReportContext(
-      feature: context.feature,
-      operation: context.operation,
-      classification: context.classification,
-      safeDiagnostics: context.safeDiagnostics,
-      workflow: context.cause == null ? null : context.workflow,
-    );
-    _fallback(context.cause ?? error, selected, context.stackTrace ?? stack);
   }
 
   void _fallback(Object cause, ReportContext context, StackTrace? stack) {
@@ -181,8 +110,6 @@ final class ReportContext {
     this.outcome = DiagnosticOutcome.automatic,
     this.safeDiagnostics = const {},
     this.workflow,
-    this.cause,
-    this.stackTrace,
   });
 
   final String feature;
@@ -192,8 +119,6 @@ final class ReportContext {
   final DiagnosticOutcome outcome;
   final Map<String, Object?> safeDiagnostics;
   final DiagnosticWorkflow? workflow;
-  final Object? cause;
-  final StackTrace? stackTrace;
 }
 
 @immutable

@@ -8,6 +8,7 @@ import 'package:craftsky_app/auth/widgets/account_switcher_content.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
+import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
 import 'package:craftsky_app/subscriptions/data/subscription_api_client.dart';
 import 'package:craftsky_app/subscriptions/models/billing_state.dart';
 import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
@@ -359,7 +360,7 @@ class _SubscriptionPageState extends ConsumerState<SubscriptionPage>
         await SubscriptionPurchaseController(
           ownerGuard: dependencies.guard,
           api: dependencies.api,
-          presentPaywall: (_, _) => throw StateError(
+          presentPaywall: (_, _) => throw DiagnosticStateError(
             'Pending reconciliation cannot present checkout',
           ),
           wait: Future<void>.delayed,
@@ -397,14 +398,16 @@ class _SubscriptionPageState extends ConsumerState<SubscriptionPage>
   Future<SubscriptionAccess> _readAssignedAccess(Did did) async {
     final registry = ref.read(sessionRegistryProvider).requireValue;
     final target = registry.leaseFor(AccountKey(did.value));
-    if (target == null) throw StateError('Assigned account unavailable');
+    if (target == null) {
+      throw DiagnosticStateError('Assigned account unavailable');
+    }
     final api = await ref.read(
       subscriptionRepositoryProvider(target.account).future,
     );
     final access = await api.getAccess();
     final current = ref.read(sessionRegistryProvider).requireValue;
     if (!mounted || current.leaseFor(target.account) != target) {
-      throw StateError('Assigned account session changed');
+      throw DiagnosticStateError('Assigned account session changed');
     }
     return access;
   }
@@ -559,7 +562,7 @@ class _SubscriptionPageState extends ConsumerState<SubscriptionPage>
           readRegistry: () => ref.read(sessionRegistryProvider).requireValue,
           api: dependencies.api,
           readTargetAccess: (_) =>
-              throw StateError('No target for unassignment'),
+              throw DiagnosticStateError('No target for unassignment'),
           isCurrent: () => _operationIsCurrent,
         ).unassign(licenseId: license.id);
         return _assignmentNotice(result.outcome);

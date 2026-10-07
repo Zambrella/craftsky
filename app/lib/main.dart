@@ -7,7 +7,6 @@ import 'dart:async';
 import 'package:craftsky_app/bootstrap.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_emitter.dart';
 import 'package:craftsky_app/shared/observability/error_reporter.dart';
-import 'package:craftsky_app/shared/observability/log_forwarder.dart';
 import 'package:craftsky_app/shared/observability/observability_bootstrap.dart';
 import 'package:craftsky_app/shared/observability/platform_log.dart';
 import 'package:craftsky_app/shared/observability/sentry_config.dart';
@@ -21,80 +20,56 @@ import 'package:media_kit/media_kit.dart';
 final _log = Logger('main');
 
 Future<void> main() async {
-  ErrorReporter reporter = const NoopErrorReporter();
-  await runZonedGuarded(
-    () async {
+  Logger.root.level = Level.FINE;
+  configureRootLogForwarding();
+  // Install local output before Sentry so its integrations can chain it.
+  registerErrorHandlers();
+  var started = false;
+  Future<void> startApplication(ErrorReporter reporter) async {
+    started = true;
+    try {
+      // Initialize bindings inside the SDK runner zone on Flutter Web.
       final binding = WidgetsFlutterBinding.ensureInitialized();
       FlutterNativeSplash.preserve(widgetsBinding: binding);
       MediaKit.ensureInitialized();
-
-      // Configure logging before anything else so error handlers and
-      // bootstrap can both log through the root logger.
-      Logger.root.level = Level.FINE;
-      configureRootLogForwarding(
-        reporter: reporter,
-        currentReporter: () => reporter,
-      );
-
-      reporter = await ObservabilityBootstrap.initialize(
-        config: SentryConfig.fromEnvironment(),
-        adapter: const SentryFlutterBootstrapAdapter(),
-      );
-
-      registerErrorHandlers(reporter: reporter);
-
       await bootstrap(binding, reporter: reporter);
-    },
-    (error, stack) {
+    } on Object catch (error, stack) {
       FlutterNativeSplash.remove();
-      _log.severe(
-        const DiagnosticMessage(
-          'runZonedGuarded caught error',
-          context: ReportContext(
-            feature: 'main',
-            operation: 'runZonedGuarded',
-            classification: 'dart.root_zone',
-          ),
-        ),
+      _log.severe('Application startup failed', error, stack);
+      await reporter.captureException(
         error,
-        stack,
-      );
-      unawaited(
-        reporter.captureException(
-          error,
-          stackTrace: stack,
-          context: const ReportContext(
-            feature: 'main',
-            operation: 'runZonedGuarded',
-            classification: 'dart.root_zone',
-          ),
+        stackTrace: stack,
+        context: const ReportContext(
+          feature: 'main',
+          operation: 'bootstrap',
+          classification: 'app.startup',
         ),
       );
-    },
+    }
+  }
+
+  final reporter = await ObservabilityBootstrap.initialize(
+    config: SentryConfig.fromEnvironment(),
+    adapter: SentryFlutterBootstrapAdapter(appRunner: startApplication),
   );
+  // Disabled/unavailable SDK still runs the app with protected local diagnostics.
+  if (!started) {
+    await runZonedGuarded(
+      () => startApplication(reporter),
+      (error, stack) =>
+          _log.severe('Unhandled application error', error, stack),
+    );
+  }
 }
 
 StreamSubscription<LogRecord> configureRootLogForwarding({
-  required ErrorReporter reporter,
   PlatformLogSink? platformSink,
-  ErrorReporter Function()? currentReporter,
 }) {
   final emitter = DiagnosticEmitter(platformSink: platformSink);
-  return Logger.root.onRecord.listen((record) {
-    emitter.emitLocal(record);
-    final forwarder = LogForwarder(
-      GuardedErrorReporter(
-        currentReporter?.call() ?? reporter,
-        fallbackSink: platformSink,
-      ),
-    );
-    unawaited(
-      forwarder.handle(record),
-    );
-  });
+  return Logger.root.onRecord.listen(emitter.emitLocal);
 }
 
-void registerErrorHandlers({required ErrorReporter reporter}) {
+void registerErrorHandlers() {
   final log = Logger('ErrorHandlers');
 
   FlutterError.onError = (details) {
@@ -117,17 +92,6 @@ void registerErrorHandlers({required ErrorReporter reporter}) {
       details.exception,
       details.stack,
     );
-    unawaited(
-      reporter.captureException(
-        details.exception,
-        stackTrace: details.stack,
-        context: const ReportContext(
-          feature: 'flutter',
-          operation: 'framework_error',
-          classification: 'flutter.framework',
-        ),
-      ),
-    );
   };
 
   PlatformDispatcher.instance.onError = (error, stack) {
@@ -142,17 +106,6 @@ void registerErrorHandlers({required ErrorReporter reporter}) {
       ),
       error,
       stack,
-    );
-    unawaited(
-      reporter.captureException(
-        error,
-        stackTrace: stack,
-        context: const ReportContext(
-          feature: 'flutter',
-          operation: 'platform_error',
-          classification: 'flutter.platform',
-        ),
-      ),
     );
     return true;
   };

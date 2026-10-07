@@ -1,37 +1,51 @@
 import 'dart:async';
-import 'dart:convert';
+import 'dart:convert' show utf8;
 
+import 'package:craftsky_app/shared/api/api_exception.dart';
+import 'package:craftsky_app/shared/errors/app_error.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_details.dart';
+import 'package:craftsky_app/shared/observability/diagnostic_emitter.dart';
+import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_outcome.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_text.dart';
 import 'package:craftsky_app/shared/observability/error_reporter.dart';
 import 'package:craftsky_app/shared/observability/observability_bootstrap.dart';
 import 'package:craftsky_app/shared/observability/sentry_config.dart';
 import 'package:craftsky_app/shared/observability/sentry_sanitizer.dart';
+import 'package:dio/dio.dart';
+import 'package:flutter/widgets.dart';
+import 'package:logging/logging.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
+import 'package:sentry_logging/sentry_logging.dart';
 
 final class SentryFlutterBootstrapAdapter implements SentryBootstrapAdapter {
-  const SentryFlutterBootstrapAdapter();
+  const SentryFlutterBootstrapAdapter({this.appRunner});
+  final Future<void> Function(ErrorReporter)? appRunner;
 
   @override
   Future<ErrorReporter> initialize(SentryConfig config) async {
-    await SentryFlutter.init((options) {
-      options
-        ..dsn = config.dsn
-        ..environment = config.environment
-        ..release = config.release
-        ..dist = config.dist
-        ..sendDefaultPii = false
-        ..enableLogs = true
-        ..tracesSampleRate = null
-        ..enableAutoPerformanceTracing = false
-        ..captureFailedRequests = false
-        ..captureNativeFailedRequests = false;
-      configureDiagnosticOptions(options);
-      options.replay
-        ..sessionSampleRate = 0
-        ..onErrorSampleRate = 0;
-    });
+    await SentryFlutter.init(
+      (options) {
+        options
+          ..dsn = config.dsn
+          ..environment = config.environment
+          ..release = config.release
+          ..dist = config.dist
+          ..sendDefaultPii = false
+          ..enableLogs = true
+          ..tracesSampleRate = null
+          ..enableAutoPerformanceTracing = false
+          ..captureFailedRequests = false
+          ..captureNativeFailedRequests = false;
+        configureDiagnosticOptions(options);
+        options.replay
+          ..sessionSampleRate = 0
+          ..onErrorSampleRate = 0;
+      },
+      appRunner: appRunner == null
+          ? null
+          : () => appRunner!(const GuardedErrorReporter(SentryErrorReporter())),
+    );
     return const SentryErrorReporter();
   }
 }
@@ -41,22 +55,6 @@ final class SentryErrorReporter implements ErrorReporter {
 
   @override
   bool get enabled => true;
-
-  @override
-  void addBreadcrumb(SafeBreadcrumb breadcrumb) {
-    final safe = SentrySanitizer.sanitizeBreadcrumb(breadcrumb);
-    if (safe == null) return;
-    unawaited(
-      Sentry.addBreadcrumb(
-        Breadcrumb(
-          category: safe.category,
-          message: safe.message,
-          data: safe.data,
-          level: SentryLevel.info,
-        ),
-      ),
-    );
-  }
 
   @override
   Future<String?> captureException(
@@ -70,37 +68,10 @@ final class SentryErrorReporter implements ErrorReporter {
       stackTrace: stackTrace,
       withScope: (scope) async {
         await applyContext(scope, context, failure: true);
-        await scope.setContexts('failure', {'causes': selectedCauses(error)});
       },
     );
     return _eventIdOrNull(eventId);
   }
-
-  @override
-  Future<void> emitLog(
-    String message, {
-    required ReportContext context,
-  }) async {
-    final attributes = attributesFor(context);
-    switch (context.severity) {
-      case 'fatal':
-        await Sentry.logger.fatal(message, attributes: attributes);
-      case 'warning':
-        await Sentry.logger.warn(message, attributes: attributes);
-      case 'info':
-        await Sentry.logger.info(message, attributes: attributes);
-      case 'debug':
-        await Sentry.logger.debug(message, attributes: attributes);
-      default:
-        await Sentry.logger.error(message, attributes: attributes);
-    }
-  }
-
-  @override
-  Future<void> captureMessage(
-    String message, {
-    required ReportContext context,
-  }) => emitLog(message, context: context);
 
   static Future<void> applyContext(
     Scope scope,
@@ -128,41 +99,12 @@ final class SentryErrorReporter implements ErrorReporter {
     }
   }
 
-  static Map<String, SentryAttribute> attributesFor(ReportContext context) {
-    final sanitized = SentrySanitizer.sanitizeContext({
-      'feature': context.feature,
-      'operation': context.operation,
-      'classification': context.classification,
-      'severity': context.severity,
-      ...context.safeDiagnostics,
-    });
-    final fields = <String, Object?>{...sanitized};
-    final workflow = selectedWorkflow(context, failure: context.cause != null);
-    if (workflow != null) fields.addAll(_boundFields(workflow.selectedFields));
-    if (context.cause != null) {
-      final cause = selectedCause(context.cause!);
-      fields['errorType'] = cause['type'];
-      fields['causeMessage'] = cause['message'];
-      if (cause['causes'] != null) {
-        fields['causes'] = jsonEncode(cause['causes']);
-      }
-    }
-    if (context.stackTrace != null) {
-      fields['stack'] = jsonEncode(selectedStack(context.stackTrace!));
-    }
-    return {
-      for (final entry in fields.entries) entry.key: _attribute(entry.value),
-    };
-  }
-
-  static SentryAttribute _attribute(Object? value) {
-    return switch (value) {
-      int() => SentryAttribute.int(value),
-      double() => SentryAttribute.double(value),
-      bool() => SentryAttribute.bool(value),
-      _ => SentryAttribute.string(value.toString()),
-    };
-  }
+  static SentryAttribute _attribute(Object? value) => switch (value) {
+    int() => SentryAttribute.int(value),
+    double() => SentryAttribute.double(value),
+    bool() => SentryAttribute.bool(value),
+    _ => SentryAttribute.string(value.toString()),
+  };
 
   static String? _eventIdOrNull(SentryId id) {
     final value = id.toString();
@@ -205,14 +147,50 @@ const _workflowKeys = {
   'hasImage',
 };
 
+/// GoRouter supplies static route names/path patterns, never concrete locations.
+/// Remove arguments before the SDK formats them. Transactions remain disabled.
+NavigatorObserver diagnosticNavigationObserver() => SentryNavigatorObserver(
+  enableAutoTransactions: false,
+  routeNameExtractor: (settings) => RouteSettings(name: settings?.name),
+);
+
 void configureDiagnosticOptions(SentryOptions options) {
   // Install after the client chooses its HTTP/native transport, before other
   // integrations run. Scope attachments are assembled after beforeSend.
+  <ExceptionCauseExtractor<dynamic>>[
+    _DiagnosticCauseExtractor<AppError>(),
+    _DiagnosticCauseExtractor<ApiUnauthorized>(),
+    _DiagnosticCauseExtractor<ApiCanceled>(),
+    _DiagnosticCauseExtractor<ApiBadRequest>(),
+    _DiagnosticCauseExtractor<ApiServerError>(),
+    _DiagnosticCauseExtractor<ApiNetworkError>(),
+    _DiagnosticCauseExtractor<DioException>(),
+  ].forEach(options.addExceptionCauseExtractor);
   options
     ..addIntegrationByIndex(0, _AttachmentPrivacyIntegration())
+    ..addIntegration(
+      LoggingIntegration(
+        minEventLevel: Level.OFF,
+      ),
+    )
     ..maxBreadcrumbs = 50
-    ..beforeBreadcrumb = ((breadcrumb, hint) =>
-        breadcrumb == null ? null : _protectBreadcrumb(breadcrumb))
+    ..beforeBreadcrumb = (breadcrumb, hint) {
+      if (breadcrumb == null) return null;
+      final safe = _protectBreadcrumb(breadcrumb);
+      final record = hint.get(TypeCheckHint.record);
+      if (safe != null && record is LogRecord) {
+        safe.data = {
+          'logger': boundDiagnosticText(record.loggerName, 160),
+          ...?safe.data,
+        };
+        if (record.object case final DiagnosticMessage message) {
+          safe.data!.addAll(
+            _breadcrumbContext(message.context, failure: record.error != null),
+          );
+        }
+      }
+      return safe;
+    }
     ..beforeSendLog = (log) {
       log.body = boundDiagnosticText(log.body, 512);
       final fields = {
@@ -226,47 +204,16 @@ void configureDiagnosticOptions(SentryOptions options) {
             if (_workflowKeys.contains(entry.key)) entry.key: entry.value,
         }),
       };
-      // These structured values are constructed from typed causes/frames at the
-      // source, never exception.toString or a model serialization.
       for (final key in const [
-        'errorType',
-        'causeMessage',
-        'causes',
-        'stack',
+        'loggerName',
+        'sentry.origin',
+        'sentry.trace_id',
+        'sentry.span_id',
       ]) {
         final value = fields[key];
-        if (value is! String) continue;
-        if (key == 'causeMessage') {
-          selected[key] = _safeCauseMessage(value);
-        } else if (key == 'causes') {
-          try {
-            selected[key] = jsonEncode(_safeCauses(jsonDecode(value)));
-          } on FormatException {
-            /* omit malformed attributes */
-          }
-        } else if (key == 'errorType' &&
-            RegExp(r'^[A-Za-z0-9_<>.]{1,160}$').hasMatch(value)) {
+        if (value is String &&
+            RegExp(r'^[A-Za-z0-9_.:-]{1,160}$').hasMatch(value)) {
           selected[key] = value;
-        } else if (key == 'stack') {
-          // Functions and filenames only, already selected at the source.
-          try {
-            final frames = jsonDecode(value);
-            if (frames is List) {
-              selected[key] = jsonEncode([
-                for (final frame in frames.take(64))
-                  if (frame is Map)
-                    {
-                      for (final field in const ['function', 'file', 'line'])
-                        if (frame[field] is String || frame[field] is num)
-                          field: frame[field] is String
-                              ? boundDiagnosticText(frame[field] as String, 160)
-                              : frame[field],
-                    },
-              ]);
-            }
-          } on FormatException {
-            /* omit malformed attributes */
-          }
         }
       }
       log.attributes = {
@@ -292,12 +239,43 @@ void configureDiagnosticOptions(SentryOptions options) {
       return transaction;
     }
     ..beforeSend = (event, hint) {
+      // SDK automatic integrations decorate the original typed throwable.
+      // Explicit owners already classify with their terminal/retry context.
+      if (event.throwableMechanism case ThrowableMechanism(:final throwable)) {
+        if (throwable is Object &&
+            isExpectedDiagnostic(
+              throwable,
+              const ReportContext(
+                feature: 'flutter',
+                operation: 'automatic_error',
+                classification: 'flutter.automatic',
+              ),
+            )) {
+          return null;
+        }
+      }
       hint.attachments.clear();
       hint
         ..screenshot = null
         ..viewHierarchy = null;
       return _protectEvent(event);
     };
+}
+
+// The SDK builds native cause relationships and stacks; the app only exposes
+// the causes carried by its wrappers. No parallel diagnostic exception model.
+final class _DiagnosticCauseExtractor<T> extends ExceptionCauseExtractor<T> {
+  @override
+  ExceptionCause? cause(T error) {
+    final (cause, stack) = switch (error) {
+      DiagnosticFailureCause(:final diagnosticCause, :final diagnosticStack) =>
+        (diagnosticCause, diagnosticStack),
+      ApiException(:final details) => (details.cause, details.stackTrace),
+      DioException(:final error, :final stackTrace) => (error, stackTrace),
+      _ => (null, null),
+    };
+    return cause == null ? null : ExceptionCause(cause, stack);
+  }
 }
 
 final class _AttachmentPrivacyIntegration extends Integration<SentryOptions> {
@@ -364,10 +342,6 @@ SentryEvent _protectEvent(SentryEvent event) {
       event.contexts[key] = SentrySanitizer.sanitizeContext(
         Map<String, Object?>.from(value),
       );
-    } else if (key == 'failure' && value is Map) {
-      // This source-selected explanation is supplemental; SDK cause/stack
-      // structure remains intact and unknown exception prose is omitted below.
-      event.contexts[key] = {'causes': _safeCauses(value['causes'])};
     } else if (!const {
       'app',
       'device',
@@ -381,7 +355,10 @@ SentryEvent _protectEvent(SentryEvent event) {
     }
   }
   for (final exception in event.exceptions ?? <SentryException>[]) {
-    exception.value = 'Operation failed';
+    final throwable = exception.throwable;
+    exception.value = throwable is Object
+        ? selectedCause(throwable)['message']! as String
+        : 'Operation failed';
     final stack = exception.stackTrace;
     if (stack != null &&
         stack.frames.any(
@@ -394,6 +371,8 @@ SentryEvent _protectEvent(SentryEvent event) {
       // Only frames carrying private locals/source need replacement. Native
       // frames without those fields keep the SDK structure and symbolication.
       exception.stackTrace = SentryStackTrace(
+        snapshot: stack.snapshot,
+        lang: stack.lang,
         frames: [
           for (final frame in stack.frames)
             SentryStackFrame(
@@ -405,6 +384,15 @@ SentryEvent _protectEvent(SentryEvent event) {
               colNo: frame.colNo,
               inApp: frame.inApp,
               instructionAddr: frame.instructionAddr,
+              imageAddr: frame.imageAddr,
+              symbolAddr: frame.symbolAddr,
+              rawFunction: frame.rawFunction,
+              package: frame.package,
+              native: frame.native,
+              platform: frame.platform,
+              stackStart: frame.stackStart,
+              symbol: frame.symbol,
+              framesOmitted: frame.framesOmitted,
             ),
         ],
       );
@@ -458,32 +446,35 @@ Breadcrumb? _protectBreadcrumb(Breadcrumb breadcrumb) {
     timestamp: breadcrumb.timestamp,
     category: safe.category,
     message: safe.message,
-    data: safe.data,
+    data: {
+      ...safe.data,
+      ...SentrySanitizer.sanitizeContext(
+        Map<String, Object?>.from(breadcrumb.data ?? {}),
+      ),
+      ..._boundFields({
+        for (final entry in (breadcrumb.data ?? {}).entries)
+          if (_workflowKeys.contains(entry.key)) entry.key: entry.value,
+      }),
+    },
     level: breadcrumb.level,
   );
 }
 
-String _safeCauseMessage(Object? value) =>
-    value is String &&
-        (value == 'ApiUnauthorized: unauthorized' ||
-            value == 'ApiCanceled: canceled' ||
-            RegExp(
-              r'^HTTP request failed \(HTTP [1-5][0-9]{2}\)$',
-            ).hasMatch(value) ||
-            RegExp(
-              r'^Platform operation failed \(code (read_error|write_error|storage_unavailable|Missing Parameter|Unexpected security result code|Exception encountered)(, status -?[0-9]{1,6})?\)$',
-            ).hasMatch(value))
-    ? value
-    : 'Operation failed';
-List<Map<String, Object?>> _safeCauses(Object? value) => value is List
-    ? [
-        for (final cause in value.take(8))
-          if (cause is Map)
-            {
-              'type': cause['type'] is String
-                  ? boundDiagnosticText(cause['type'] as String, 160)
-                  : 'Failure',
-              'message': _safeCauseMessage(cause['message']),
-            },
-      ]
-    : [];
+Map<String, Object?> _breadcrumbContext(
+  ReportContext context, {
+  required bool failure,
+}) => {
+  ...SentrySanitizer.sanitizeContext({
+    'feature': context.feature,
+    'operation': context.operation,
+    ...context.safeDiagnostics,
+  }),
+  ...?_workflowFields(context, failure: failure),
+};
+Map<String, Object?>? _workflowFields(
+  ReportContext context, {
+  required bool failure,
+}) {
+  final workflow = selectedWorkflow(context, failure: failure);
+  return workflow == null ? null : _boundFields(workflow.selectedFields);
+}

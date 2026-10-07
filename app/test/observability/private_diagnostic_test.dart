@@ -2,7 +2,6 @@ import 'dart:convert';
 
 import 'package:craftsky_app/shared/observability/diagnostic_emitter.dart';
 import 'package:craftsky_app/shared/observability/error_reporter.dart';
-import 'package:craftsky_app/shared/observability/sentry_error_reporter.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:logging/logging.dart';
 
@@ -35,13 +34,12 @@ void main() {
         accountDid: 'did:plc:alice',
         workflowRef: '00000000-0000-4000-8000-000000000401',
       );
-      ReportContext context(Object? cause) => ReportContext(
+      ReportContext context(Object? cause) => const ReportContext(
         feature: 'Schedule',
         operation: 'schedule.create',
         classification: 'schedule.failed',
         workflow: workflow,
-        cause: cause,
-        safeDiagnostics: const {'failureStage': 'storage_write'},
+        safeDiagnostics: {'failureStage': 'storage_write'},
       );
       final failed = selectDiagnosticRecord(
         LogRecord(
@@ -54,17 +52,10 @@ void main() {
           DiagnosticMessage('Operation failed', context: context(error)),
         ),
       );
-      final exported = SentryErrorReporter.attributesFor(context(error));
-      for (final output in [
-        jsonEncode(failed),
-        exported
-            .map((key, attribute) => MapEntry(key, attribute.value))
-            .toString(),
-      ]) {
-        expect(output, contains('did:plc:alice'));
-        expect(output, contains('00000000-0000-4000-8000-000000000401'));
-        expect(output, isNot(contains('opaque private schedule')));
-      }
+      final output = jsonEncode(failed);
+      expect(output, contains('did:plc:alice'));
+      expect(output, contains('00000000-0000-4000-8000-000000000401'));
+      expect(output, isNot(contains('opaque private schedule')));
       final success = selectDiagnosticRecord(
         LogRecord(
           Level.INFO,
@@ -77,10 +68,6 @@ void main() {
         ),
       );
       expect(jsonEncode(success), isNot(contains('did:plc:alice')));
-      expect(
-        SentryErrorReporter.attributesFor(context(null)).toString(),
-        isNot(contains('did:plc:alice')),
-      );
     },
   );
 }

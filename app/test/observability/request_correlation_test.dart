@@ -68,7 +68,6 @@ void main() {
       addTearDown(Sentry.close);
       final local = <String>[];
       final subscription = configureRootLogForwarding(
-        reporter: const SentryErrorReporter(),
         platformSink: local.add,
       );
       addTearDown(subscription.cancel);

@@ -1,111 +1,86 @@
-> Correction update 2026-10-07: IR-005 and IR-006 have been addressed in TDD loops C8–C10, with permanent SDK-output regressions and passing focused/full suites. This artifact retains the pre-correction review verdict and reproduced findings; a new implementation review has not yet been performed. See `05-implementation-plan.md` and `06-validation-evidence.md` for correction evidence.
-
-# Implementation Review: Logging and Error Reporting
+# Implementation Review: Sentry-led Logging and Error Reporting
 
 ## Verdict
 
 Status: Changes required
 Reviewer: Codex
 Date: 2026-10-07
-Risk level: High
+Risk level: Medium
 
 ## Summary
 
-The approved SIM-001–SIM-006 refinement substantially simplifies the implementation: Flutter owns UI messages, logs export independently of explicit issue capture, console output uses one brief record, and SDK hooks filter native events without provenance registries or wholesale reconstruction. The implementation follows this direction. Two narrow privacy omissions remain in the final SDK boundaries: Go thread frames and Flutter scope attachments.
+The SDK-001–SDK-006 implementation follows the approved simplification: native exception chains/stacks, official logging integrations, SDK-owned automatic Flutter capture, selected breadcrumbs, reviewed static explanations and a smaller reporter interface. Source selection and final privacy hooks remain, and the existing broad suites pass.
 
-These findings do not require restoring the removed architecture. Fix the remaining fields/envelope items at the existing boundary and add serialized-output regressions. The existing focused suites pass, but their enrichment canaries do not exercise these channels.
+One required correction remains: SDK-owned automatic Flutter events bypass the existing expected-failure classification. Cancellation, offline and expired-session errors now produce issues although explicit capture suppresses them. Keep SDK ownership and apply the existing policy at the automatic SDK boundary; no ownership flags or custom forwarding layer need to return.
 
-This review changes only this artifact. Probes live in `/private/tmp`; the Go probe uses an overlay without modifying repository tests. No source correction, dependency/configuration change, production operation, commit or push was performed. Plannotator previously closed without feedback; that was not approval.
+This review changed only this artifact. A temporary actual-SDK probe under `/private/tmp` reproduced the regression without editing repository source or tests. No commit, push, deployment or production operation was performed.
 
 ## Findings
 
 | ID | Severity | Area | Finding | References | Required Action |
 |---|---|---|---|---|---|
-| IR-005 | Important | Risk / Tests | Go `protectSDKEvent` sanitizes exception frames but leaves `event.Threads` untouched. Thread stack locals, source lines and absolute paths survive actual SDK capture and serialization. | SIM-004, SIM-005; FR-010 / RULE-001–003; SIM-T05, AT-007, IT-011; `appview/internal/observability/diagnostic_final.go:19–63`; `appview/internal/observability/diagnostic_test.go:273` | Omit thread data or sanitize every thread frame using the existing frame protection. Add a permanent SDK-transport regression with private locals/source/path canaries and retained exception type/useful frame/release positives. |
-| IR-006 | Important | Risk / Tests | Flutter clears hint attachments in `beforeSend`, but the SDK assembles scope attachments afterwards. They survive into both issue and transaction envelopes. | SIM-004, SIM-006; FR-010 / RULE-001–003; SIM-T04, AT-007, IT-011; `app/lib/shared/observability/sentry_error_reporter.dart:275–297`; `app/test/observability/sdk_emission_test.dart:619`; installed Sentry 9.23.0 `sentry_client.dart:187–217,456–464` | Block scope attachment envelope items as well as hint screenshot/view-hierarchy/attachment items. Use a small SDK configuration or final envelope boundary appropriate to the installed SDK; do not rebuild events or restore provenance tracking. Add permanent actual-envelope tests for issues and transactions with allowed metadata/type/stack positives. |
+| IR-007 | Important | Behavior / Tests | Automatic SDK capture bypasses expected-failure filtering. `SentryErrorReporter.captureException` checks `isExpectedDiagnostic`, but SDK framework/platform/zone integrations capture directly and `beforeSend` only sanitizes. Actual PlatformDispatcher capture exported three issues for ApiCanceled, AppError(networkUnavailable), and ApiUnauthorized; the same explicit ApiCanceled capture correctly returned null with no event. Expected failures become issue noise and undermine the genuine-error goal. | SDK-001, SDK-005, SIM-002 / AC-009; SDK-T04/T05; `app/lib/shared/observability/sentry_error_reporter.dart:241–246`, `app/lib/shared/observability/diagnostic_outcome.dart:10–46`, `app/lib/main.dart:97–110` | Apply expected classification to SDK-owned automatic events using their original typed throwable. Preserve explicit terminal/reportability overrides, normal unexpected capture, local output and rendering fallback. Add real-SDK framework/platform/unhandled regressions for cancellation, offline/expiry, reportable overrides and unexpected failures. |
+| IR-008 | Suggestion | Code Quality / Diagnostics | Go log breadcrumbs always use LevelInfo even for warning/error records. Structured Logs retain their correct severity, but an issue's breadcrumb timeline mislabels those records. | SDK-004 / SDK-T03/T05; `appview/internal/observability/logs.go:75–77` | Preserve the source log severity when constructing the breadcrumb. Add a focused actual-SDK assertion for a warning/error breadcrumb. This is non-blocking. |
 
-### IR-005 reproduction
+### IR-007 reproduction
 
-A temporary test creates the production Observer with `sentry.MockTransport`, then calls its SDK hub's `CaptureEvent`. The event has a `ReviewFailure` exception and a thread containing `readRecord`, an absolute path, a `draft` local and a source line. After flush, the transport events are JSON-serialized. `ReviewFailure` and `review-release` remain; exception prose is removed, but all three thread canaries remain:
+Temporary probe: `/private/tmp/sdk_review_expected_probe_test.dart`. It initializes the actual SentryFlutter SDK with production `configureDiagnosticOptions`, a serialized transport and the local callbacks installed first. Native platform initialization is disabled to avoid device/plugin dependencies, matching the permanent SDK-T04 fixture.
 
-- `private-thread-canary`
-- `private-path-canary`
-- `private-source-canary`
-
-Command from `appview/`:
-
-```sh
-go test -overlay /private/tmp/refinement-review-overlay.json ./internal/observability -run TestReviewThreadPrivacy -count=1
-```
-
-Result: fails three protected-value assertions. Transcript: `/private/tmp/refinement-review-thread-probe.log`. Probe: `/private/tmp/refinement_review_probe_test.go`. This is synthetic test data, not a claim that existing production events contain private thread values.
-
-### IR-006 reproduction
-
-A temporary Flutter test initializes the real SDK with the production `configureDiagnosticOptions` callbacks and a serialized test transport. It adds one scope attachment containing `private-attachment-canary`, with `addToTransactions: true`, then captures a `StateError` with a supplied `readRecord` frame and finishes a `post.read` transaction. Both serialized envelopes contain the attachment bytes. The exception's prose is correctly replaced; exception type, stack, release and transaction operation survive.
-
-The installed SDK collects `scope.attachments` after the event callback and separately collects transaction-enabled scope attachments after the transaction callback. Clearing `hint.attachments` cannot filter either collection.
+1. Explicit reporter capture of `const ApiCanceled()` returns null and leaves the transport empty.
+2. Invoke the installed PlatformDispatcher SDK callback with ApiCanceled, AppError(networkUnavailable), and ApiUnauthorized, supplying a caught upload frame.
+3. Allow asynchronous SDK capture to settle, close/flush, decode serialized events and assert no issues.
+4. The assertion fails: three events contain the concrete types and `PlatformDispatcher.onError` mechanisms. They remain protected, but should not have become issues.
 
 Command from `app/`:
 
 ```sh
-flutter test --no-pub /private/tmp/refinement_review_sdk_test.dart --plain-name 'review scope attachments excluded from SDK envelope'
+flutter test --no-pub /private/tmp/sdk_review_expected_probe_test.dart
 ```
 
-Result: fails the attachment absence assertion; the canary appears twice, once after each event payload. Transcript: `/private/tmp/refinement-review-attachment-probe.log`. Probe: `/private/tmp/refinement_review_sdk_test.dart`. Transactions remain disabled by production Flutter bootstrap; the issue-envelope bypass also occurs with ordinary issue capture. This is a boundary coverage finding, not evidence of a production disclosure.
+Result: meaningful behavioral failure. Transcript: `/private/tmp/sdk-review-expected.log`. This uses synthetic errors and an injected transport; no real collector receives events. Permanent SDK-T04 tests cover two distinct unexpected failures only, so they do not expose this regression.
 
 ## Requirement And Test Traceability
 
-- Requirements implemented: SIM-001 client scalar correlation and local messages; SIM-002 log/capture separation and explicit consumed owners; SIM-003 brief parseable console output; SIM-004 native SDK exception/stack filtering; SIM-005 static messages and local/source selection; SIM-006 guide and broad evidence are represented in source and the refined R1–R6 execution record.
-- Tests implemented: mapper/code/correlation fixtures, actual SDK issue/log/trace serialization, provider/unhandled and consumed-failure owners, account-switch attribution, platform/product output, private worker/PDS boundaries and guide examples. Existing enrichment tests cover exception frames, request/user/custom contexts and selected attributes, but omit SDK thread frames and scope attachment items.
-- Unplanned behavior: no API route/envelope, lexicon, schema, dependency, infrastructure or business-policy change identified. Injected guarded reporters retain existing storage, caption, device, picker and stale-account fallback behavior. Logs no longer capture implicitly, as explicitly approved.
-- Remaining gaps: IR-005 and IR-006 violate retained private-data exclusions. SIM-T04/SIM-T05/SIM-T06 cannot yet be considered fully accepted despite completed implementation-loop labels.
-- Superseded history: the earlier IR-003 complete chunk/6,500-byte parity finding is superseded by SIM-003 and the fixed brief schema. Earlier IR-001 product output, IR-002 scheduled PDS privacy and IR-004 original media causes remain covered by retained source/tests. No obsolete catalogue, ownership marker, generic Flutter retry-window or aggregate SDK-envelope parity requirement is reopened.
-- Manual gaps: physical iOS/Android release-console retrieval and live production retrieval/access/retention remain pending as explicitly separated rollout checks. Local synthetic evidence and product AOT coverage do not close them.
+- SDK-001: SDK ownership and local-only callbacks are implemented; local handlers remain installed through SDK chaining. Expected-failure policy is incomplete at the new automatic owner (IR-007).
+- SDK-002: native cause extractors/Go SetException preserve chain structure and attached/supplied stacks. Go stackless errors lose the SDK capture-time stack; panic recovery remains separate. Cyclic graphs have tested bounded fallback. Parallel SDK cause/stack JSON is removed.
+- SDK-003: reviewed static DiagnosticStateError/WrapError messages survive selection. Source changes retain StateError subtype catches/Go Unwrap and use literal explanations; reviewed auth/billing/lease guards preserve their conditions and outcomes. Unknown dependency prose stays generic.
+- SDK-004: root/shell/tab observers remove arguments before SDK formatting; transactions stay disabled. Selected log, connectivity, lifecycle and HTTP/operation breadcrumbs survive. Go hubs isolate request histories without tracing. Go breadcrumb severity is a non-blocking loss (IR-008).
+- SDK-005: official matching-version logging packages are added; Dart issue threshold is OFF, Go handler exports Logs only; custom LogForwarder and unused reporter methods/context cause fields are removed. Explicit expected filtering remains, but automatic filtering lacks required coverage (IR-007).
+- SDK-006: approved amendments, implementation/evidence notes and guide agree. Broad tests and analysis pass. The new review probe demonstrates that passing broad evidence does not cover all required automatic expected outcomes.
+- Unplanned business/API/lexicon/schema/production changes: none identified. Generated changes match affected providers/router; the regenerated user-profile comments reflect its existing source rather than new write behavior.
+- Remaining accepted gaps: device/release console retrieval and live symbolication remain pending. Native platform crash/device behavior is not proved by Dart SDK mock transports. These were explicitly deferred by SDK-006.
 
 ## Test Evidence
 
-### Current review execution
+Commands and actual transcripts reviewed:
 
-| Check | Result |
-|---|---|
-| `go test -race ./internal/observability ./internal/middleware -count=1` | Passed. Transcript `/private/tmp/refinement-review-go-focused.log`. Initial sandbox attempt could not bind an httptest loopback port; rerun with local-port permission passed. |
-| Flutter SDK emission, platform diagnostics, product AOT adapter, ProviderLogger and error-mapping suites | 34 passed. Transcript `/private/tmp/refinement-review-flutter-focused.log`. |
-| Go SDK thread privacy probe | Failed: three retained thread canaries; positive exception type/release assertions passed. |
-| Isolated Flutter scope attachment probe | Failed: attachment bytes in issue and transaction envelopes; positive type/release/operation assertions passed; supplied frame observed in output. |
-| `git diff --check` | Passed. |
+- `just test`: all packages passed with PostgreSQL/MinIO and race detector; `/private/tmp/sdk-go-all-green.log`.
+- `cd app && flutter test --no-pub`: 2,707 passed / 38 skipped; `/private/tmp/sdk-flutter-full-final.log`.
+- Final Flutter capture/sanitizer tests: 19 passed after the snapshot/language correction; `/private/tmp/sdk-flutter-last-focused.log`.
+- Flutter observability/router/breadcrumb suite: 243 passed / 8 skipped; `/private/tmp/sdk-flutter-final-focused.log`.
+- Final Flutter analyzer: No issues found; `/private/tmp/sdk-analyze-last.log`.
+- Go focused observability/middleware race suite: passed; `/private/tmp/sdk-go-complete-focused.log`.
+- Reviewer `git diff --check`: passed.
+- Reviewer actual-SDK expected-failure probe: FAILED as documented in IR-007. Broad suites were not repeated during review because source/tests were unchanged and their transcripts are available.
 
-Focused Flutter command:
-
-```sh
-flutter test --no-pub test/observability/sdk_emission_test.dart test/observability/platform_diagnostic_test.dart test/observability/product_platform_log_test.dart test/bootstrap/provider_logger_test.dart test/shared/api/providers/error_mapping_interceptor_test.dart
-```
-
-An exploratory map-form SDK context probe produced no event and is inconclusive; it is not an additional finding. Repository tests and source were not modified to run the probes.
-
-### Implementation-stage evidence inspected
-
-- Full Flutter suite: 2708 passed / 38 skipped, `/private/tmp/refine-flutter-final.log`.
-- Flutter analysis: no issues found, `/private/tmp/refine-analyze.log`.
-- Full Go race/integration suite with local PostgreSQL/MinIO: passed, `/private/tmp/refine-go-final.log`.
-- Refined paired synthetic Go API envelope and Flutter transport artifacts retain request correlation independently of sampled tracing: `evidence/refined-2026-10-07/` and recorded paired commands.
-- Broader suites were not repeated during this source-read-only review. Their passing evidence does not override the new counterexamples. Pending device/live checks and ordinary suite skips remain explicit.
+Prior failed broad runs and their corrections are recorded in 05/06-validation-evidence: legacy navigation message, cyclic fallback, retry scalar error context, native numeric status and stack metadata. This review does not hide or relabel the separate automatic-classification failure.
 
 ## Risk Review
 
-- Risk level: High because diagnostic privacy crosses both runtimes and multiple SDK payload channels.
-- Risk notes: retaining native SDK structures is consistent with the approved simpler design, but fields outside the exception list and envelope items assembled after callbacks need explicit coverage. These defects have small correction scope.
-- Approval notes: both findings require correction before merge/handoff. Keep source-selected privacy and existing business behavior intact; do not introduce a global registry, event reconstruction or runtime ownership flags. Production data/settings/deployment remain outside this task.
+- Risk level: Medium. SDK ownership is simpler, but moves policy enforcement to a boundary not exercised by the current expected-failure tests.
+- Privacy: source-selected private/public fields and credential/private-payload canaries remain; attachment transport guard and Go thread exclusion remain intact. Static error subtype changes do not admit arbitrary StateError/dependency prose. No new privacy bypass was reproduced in this review.
+- Business controls: lease/auth/purchase/retry/ACK conditions are preserved. No API, lexicon, persistence or infrastructure changes.
+- Approval: the maintainer approved the SDK refinement; no extra implementation approval is required for the narrow IR-007 correction once the correction stage is selected.
+- Historical findings IR-005/IR-006: addressed in the preceding correction pass; thread and scope-attachment regressions remain covered. This verdict supersedes the old implementation-review verdict for the current worktree.
 
 ## UI Polish Recommendation
 
 - Recommendation: Not needed.
-- Reason: the refinement concerns diagnostics and client/server separation; no visible styling, layout or copy issue was identified.
-- Suggested polish notes: none.
+- Reason: changes affect diagnostics and preserve existing recovery/rendering behavior; no new UI needs visual polish.
 
 ## Handoff Back To TDD Builder
 
-- Required fixes: IR-005 Go thread-field protection; IR-006 Flutter scope/envelope attachment exclusion.
-- Suggested next failing tests: promote the two confirmed temporary probes into permanent serialization regressions. Separate issue/transaction attachment assertions, retain native exception types and supplied useful frames, and verify normal metadata/correlation survives. Cover hint attachments/screenshots/view hierarchies alongside scope items where the SDK supports them.
-- Verification to rerun: affected Go observability/middleware suites with race detection; affected Flutter SDK/bootstrap/ownership/platform tests and analysis. Then run full Go/Flutter suites after corrections and update implementation/validation evidence. No production telemetry is necessary.
-- Return for implementation review after correction. This review does not authorize a commit, push or deployment.
+- Required fix: IR-007 only. IR-008 is an optional severity improvement.
+- Suggested next failing test: promote the temporary actual-SDK automatic expected-failure probe into permanent SDK-T04 coverage. Assert no issues for canceled/offline/expiry errors, one issue for an explicitly reportable override/unexpected error, retained cause/stack and protected local output. Also retain explicit terminal retry behavior and always suppress cancellation.
+- Implementation direction: keep SDK automatic capture and official logging. Filter at the SDK-owned event boundary using the existing expected classifier, without suppressing explicit captures already admitted with terminal context.
+- Verification to rerun: actual framework/platform/unhandled ownership cases, expected/terminal outcome matrix, serialized privacy/cause/stack tests, affected Flutter regression suite, Flutter analysis and full suite. Go checks only if Go code changes. For optional IR-008, run Go observability tests with serialized breadcrumb severity assertions.

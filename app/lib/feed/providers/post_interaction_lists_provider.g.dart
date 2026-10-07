@@ -56,7 +56,7 @@ final class PostInteractionAccountsProvider
 }
 
 String _$postInteractionAccountsHash() =>
-    r'9f302d3a69c73809ba7fed80f11fa754bcad06c3';
+    r'b43f4ddcdea1c5327ad01222e221c9a84cff562b';
 
 final class PostInteractionAccountsFamily extends $Family
     with
@@ -166,7 +166,7 @@ final class PostQuotesProvider
   }
 }
 
-String _$postQuotesHash() => r'd379105d19e93aa44751e570fd50b0cc768f55a9';
+String _$postQuotesHash() => r'199908b8e77a32684912573857f30e39bf73846c';
 
 final class PostQuotesFamily extends $Family
     with

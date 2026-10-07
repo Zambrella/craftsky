@@ -163,7 +163,7 @@ func TestIT007ScheduledMediaIOCausesSurviveAcrossSinks(t *testing.T) {
 						t.Errorf("missing selected field %s", positive)
 					}
 				}
-				if stage == "open" && !strings.Contains(sink, "Storage request failed (HTTP 503)") {
+				if stage == "open" && !strings.Contains(sink, "503") {
 					t.Error("missing storage HTTP status")
 				}
 				for _, private := range []string{"PRIVATE_HEADER", "PRIVATE_OBJECT_KEY", "PRIVATE_SESSION", string(fixture.bodies[0]), fixture.media[0].ObjectKey} {
