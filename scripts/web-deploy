@@ -1,0 +1,187 @@
+#!/usr/bin/env python3
+"""Deploy a checked website artifact to the existing Cloudflare Worker."""
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import os
+import re
+import subprocess
+import sys
+import tempfile
+import time
+from pathlib import Path
+from urllib.error import URLError
+from urllib.parse import urlsplit
+from urllib.request import Request, urlopen
+
+from cloudflare_pages_build import ROOT, ROUTES, git
+
+
+def require_production_checkout(branch: str) -> None:
+    if git("status", "--porcelain"):
+        raise ValueError("production deployment requires a clean working tree")
+    if git("branch", "--show-current") != branch:
+        raise ValueError(f"production deployment requires checking out {branch}")
+    subprocess.run(["git", "fetch", "origin", f"+refs/heads/{branch}:refs/remotes/origin/{branch}"], cwd=ROOT, check=True)
+    if git("rev-parse", "HEAD") != git("rev-parse", f"origin/{branch}"):
+        raise ValueError(f"production deployment requires HEAD to equal pushed origin/{branch}")
+
+
+def preview_alias(current: str, worker: str) -> str:
+    alias = "preview-" + re.sub(r"[^a-z0-9-]+", "-", current.lower()).strip("-")
+    # Cloudflare requires the alias and Worker name together to fit a DNS label.
+    limit = 63 - len(worker) - 1
+    if limit < len("preview-") + 1:
+        raise ValueError("Worker name is too long for a preview alias")
+    return alias[:limit].rstrip("-")
+
+
+def output_record(path: Path, kind: str) -> dict:
+    return next(record for line in path.read_text().splitlines()
+                if (record := json.loads(line)).get("type") == kind)
+
+
+def verify_once(origin: str, output: Path) -> None:
+    manifest = json.loads((output / "site-release.json").read_text())
+    # Verify the marker and every deployed file, using clean URLs for HTML pages.
+    paths = {"/site-release.json": "site-release.json", **ROUTES}
+    paths.update({"/" + name: name for name in manifest["files"] if name not in ROUTES.values()})
+    for route, filename in paths.items():
+        request = Request(origin.rstrip("/") + route, headers={
+            "Cache-Control": "no-cache",
+            "User-Agent": "CraftSky-Website-Deploy/1.0",
+        })
+        with urlopen(request, timeout=15) as response:
+            actual = response.read()
+        if hashlib.sha256(actual).digest() != hashlib.sha256((output / filename).read_bytes()).digest():
+            raise ValueError(f"deployed content differs at {origin}{route}")
+
+
+def verify(origin: str, output: Path) -> None:
+    for attempt in range(6):
+        try:
+            verify_once(origin, output)
+            print(f"Verified website files at {origin}", flush=True)
+            return
+        except (URLError, TimeoutError, ValueError):
+            if attempt == 5:
+                raise
+            time.sleep(5)
+
+
+def require_unchanged_artifact(output: Path, manifest: dict) -> None:
+    files = {path.relative_to(output).as_posix(): path for path in output.rglob("*") if path.is_file()}
+    if set(files) != {*manifest["files"], "site-release.json"}:
+        raise ValueError("built artifact file list changed during checks; rebuild before deploying")
+    for name, digest in manifest["files"].items():
+        if files[name].is_symlink() or hashlib.sha256(files[name].read_bytes()).hexdigest() != digest:
+            raise ValueError(f"built artifact changed during checks: {name}")
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("environment", choices=("preview", "production"))
+    args = parser.parse_args()
+    config = json.loads((ROOT / "web" / "deploy.json").read_text())
+    wrangler_config_path = ROOT / "web" / "wrangler.json"
+    worker_config = json.loads(wrangler_config_path.read_text())
+    worker, production = worker_config["name"], config["productionBranch"]
+    wrangler = ROOT / "web" / "node_modules" / ".bin" / "wrangler"
+    if not wrangler.exists():
+        raise ValueError("run just web-setup to install the pinned Wrangler and browser test dependencies")
+    env = {
+        **os.environ,
+        "CLOUDFLARE_ACCOUNT_ID": worker_config["account_id"],
+        "WRANGLER_SEND_METRICS": "false",
+    }
+    common = ["--config", str(wrangler_config_path), "--name", worker]
+    # Read-only discovery must succeed before uploading to an existing Worker.
+    versions = json.loads(subprocess.check_output(
+        [str(wrangler), "versions", "list", *common, "--json"], cwd=ROOT / "web", env=env, text=True))
+    if not versions:
+        raise ValueError(f"no versions found for existing Worker {worker!r} in the configured Cloudflare account")
+    if args.environment == "production":
+        require_production_checkout(production)
+    commit = git("rev-parse", "HEAD")
+    branch = git("branch", "--show-current") or commit[:12]
+    alias = preview_alias(branch, worker)
+    subprocess.run(["just", "web-check"], cwd=ROOT, check=True)
+    output = ROOT / "web" / "dist"
+    manifest = json.loads((output / "site-release.json").read_text())
+    if git("rev-parse", "HEAD") != commit or manifest["commit"] != commit:
+        raise ValueError("checkout changed during checks; run deployment again")
+    if args.environment == "production":
+        require_production_checkout(production)
+        if manifest["dirty"]:
+            raise ValueError("production artifact was built from a dirty checkout")
+    require_unchanged_artifact(output, manifest)
+    if git("rev-parse", "HEAD") != commit:
+        raise ValueError("checkout changed during checks; run deployment again")
+    print(f"Uploading {commit} to Worker {worker} ({args.environment})", flush=True)
+    with tempfile.TemporaryDirectory(prefix="craftsky-web-deploy-") as temporary:
+        records = Path(temporary) / "wrangler.jsonl"
+        upload_env = {**env, "WRANGLER_OUTPUT_FILE_PATH": str(records)}
+        subprocess.run([
+            str(wrangler), "versions", "upload", *common, "--preview-alias", alias,
+            "--tag", commit[:12] + ("-dirty" if manifest["dirty"] else ""),
+            "--message", git("log", "-1", "--format=%s"), "--keep-vars",
+        ], cwd=ROOT / "web", env=upload_env, check=True)
+        uploaded = output_record(records, "version-upload")
+        if uploaded["worker_name"] != worker:
+            raise ValueError("Cloudflare upload target did not match the requested Worker")
+        version_id = uploaded["version_id"]
+        url = uploaded.get("preview_url")
+        receipts = ROOT / "web" / ".deployments"
+        receipts.mkdir(exist_ok=True)
+        receipt_path = receipts / (version_id + ".json")
+        receipt = {
+            "worker": worker, "environment": args.environment, "branch": branch,
+            "commit": commit, "dirty": manifest["dirty"], "url": url,
+            "versionId": version_id, "deploymentId": None, "verifiedOrigins": [],
+            "files": manifest["files"],
+        }
+        def save_receipt():
+            receipt_path.write_text(json.dumps(receipt, indent=2) + "\n")
+        save_receipt()
+        print(f"Worker version: {version_id}\nPreview URL: {url}\nDeployment receipt: {receipt_path}", flush=True)
+        if not url:
+            raise ValueError("Worker version uploaded without changing live traffic, but Version URLs are disabled. Enable them in Cloudflare → craftsky-landing → Settings → Domains & Routes → Version URLs, then retry.")
+        if urlsplit(url).scheme != "https" or not (urlsplit(url).hostname or "").endswith(".workers.dev"):
+            raise ValueError("Cloudflare did not return an HTTPS workers.dev version URL")
+        verify(url, output)
+        receipt["verifiedOrigins"].append(url)
+        save_receipt()
+        if args.environment == "production":
+            # Promote precisely the version just verified; do not sync domain triggers.
+            subprocess.run([
+                str(wrangler), "versions", "deploy", version_id + "@100", *common,
+                "--yes", "--message", "Website " + commit,
+            ], cwd=ROOT / "web", env=upload_env, check=True)
+            deployed = output_record(records, "version-deploy")
+            if deployed["worker_name"] != worker:
+                raise ValueError("Cloudflare deployment did not promote the expected Worker version to 100% traffic")
+            receipt["deploymentId"] = deployed["deployment_id"]
+            save_receipt()
+            # Wrangler serializes version_traffic as an empty object in this
+            # pinned release, so confirm the rollout using API-backed discovery.
+            deployments = json.loads(subprocess.check_output(
+                [str(wrangler), "deployments", "list", *common, "--json"],
+                cwd=ROOT / "web", env=env, text=True))
+            actual = next(item for item in deployments if item["id"] == deployed["deployment_id"])
+            if actual["versions"] != [{"version_id": version_id, "percentage": 100}]:
+                raise ValueError("Cloudflare deployment did not promote the expected Worker version to 100% traffic")
+            verify(config["publicOrigin"], output)
+            receipt["verifiedOrigins"].append(config["publicOrigin"])
+            save_receipt()
+
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        raise SystemExit(main())
+    except (ValueError, OSError, subprocess.CalledProcessError, StopIteration) as error:
+        print(f"web-deploy: {error or 'missing Wrangler deployment record'}", file=sys.stderr)
+        raise SystemExit(1)

@@ -1,8 +1,9 @@
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+import os
 
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[1] / os.environ.get("WEB_TEST_ROOT", ".")
 ROUTES = {
     "/": "index.html",
     "/waitlist": "waitlist.html",
