@@ -1026,6 +1026,8 @@ void main() {
     await tester.tap(find.text('Report post'));
     await tester.pumpAndSettle();
 
+    await tester.tap(find.text('Spam, misleading or off-topic content'));
+    await tester.pump();
     await tester.tap(find.text('Spam'));
     await tester.pump();
     await tester.tap(find.widgetWithText(TextButton, 'Submit'));

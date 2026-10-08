@@ -50,6 +50,8 @@ const (
 	ReasonLeaseLost                 ReasonCode = "lease_lost"
 	ReasonProjectionFailure         ReasonCode = "projection_failure"
 	ReasonDurableIngestorRequired   ReasonCode = "durable_ingestor_required"
+	ReasonImageScanPending          ReasonCode = "image_scan_pending"
+	ReasonLaunchVideoDisabled       ReasonCode = "launch_video_disabled"
 )
 
 // Dependency identifies precise blocked work. Key is a canonical DID or AT

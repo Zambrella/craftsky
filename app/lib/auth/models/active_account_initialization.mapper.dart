@@ -37,12 +37,26 @@ class ActiveAccountInitializationMapper
       v.onboardingComplete;
   static const Field<ActiveAccountInitialization, bool> _f$onboardingComplete =
       Field('onboardingComplete', _$onboardingComplete);
+  static AccountEligibilityStatus _$accountEligibility(
+    ActiveAccountInitialization v,
+  ) => v.accountEligibility;
+  static const Field<ActiveAccountInitialization, AccountEligibilityStatus>
+  _f$accountEligibility = Field(
+    'accountEligibility',
+    _$accountEligibility,
+    opt: true,
+    def: const AccountEligibilityStatus(
+      state: AccountEligibilityState.eligible,
+      appealable: false,
+    ),
+  );
 
   @override
   final MappableFields<ActiveAccountInitialization> fields = const {
     #lease: _f$lease,
     #languagePreferences: _f$languagePreferences,
     #onboardingComplete: _f$onboardingComplete,
+    #accountEligibility: _f$accountEligibility,
   };
 
   static ActiveAccountInitialization _instantiate(DecodingData data) {
@@ -50,6 +64,7 @@ class ActiveAccountInitializationMapper
       lease: data.dec(_f$lease),
       languagePreferences: data.dec(_f$languagePreferences),
       onboardingComplete: data.dec(_f$onboardingComplete),
+      accountEligibility: data.dec(_f$accountEligibility),
     );
   }
 
@@ -102,6 +117,7 @@ abstract class ActiveAccountInitializationCopyWith<
     ActiveAccountLease? lease,
     LanguagePreferences? languagePreferences,
     bool? onboardingComplete,
+    AccountEligibilityStatus? accountEligibility,
   });
   ActiveAccountInitializationCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(
     Then<$Out2, $R2> t,
@@ -130,12 +146,14 @@ class _ActiveAccountInitializationCopyWithImpl<$R, $Out>
     ActiveAccountLease? lease,
     LanguagePreferences? languagePreferences,
     bool? onboardingComplete,
+    AccountEligibilityStatus? accountEligibility,
   }) => $apply(
     FieldCopyWithData({
       if (lease != null) #lease: lease,
       if (languagePreferences != null)
         #languagePreferences: languagePreferences,
       if (onboardingComplete != null) #onboardingComplete: onboardingComplete,
+      if (accountEligibility != null) #accountEligibility: accountEligibility,
     }),
   );
   @override
@@ -149,6 +167,10 @@ class _ActiveAccountInitializationCopyWithImpl<$R, $Out>
         onboardingComplete: data.get(
           #onboardingComplete,
           or: $value.onboardingComplete,
+        ),
+        accountEligibility: data.get(
+          #accountEligibility,
+          or: $value.accountEligibility,
         ),
       );
 

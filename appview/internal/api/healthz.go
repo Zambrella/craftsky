@@ -19,10 +19,30 @@ type Stater interface {
 	State() tap.ConnState
 }
 
+type Readiness interface {
+	Ready() bool
+}
+
+// AdvisoryReadiness reports a capability without making it a deployment probe
+// prerequisite. The readiness value remains visible to operators.
+type AdvisoryReadiness struct{ Readiness }
+
+func (AdvisoryReadiness) Required() bool { return false }
+
+type StaticReadiness bool
+
+func (readiness StaticReadiness) Ready() bool { return bool(readiness) }
+
 type healthResponse struct {
-	Status string         `json:"status"`
-	DB     string         `json:"db"`
-	Tap    healthTapBlock `json:"tap"`
+	Status      string                `json:"status"`
+	DB          string                `json:"db"`
+	Tap         healthTapBlock        `json:"tap"`
+	ImageSafety *healthReadinessBlock `json:"imageSafety,omitempty"`
+}
+
+type healthReadinessBlock struct {
+	Ready    bool  `json:"ready"`
+	Required *bool `json:"required,omitempty"`
 }
 
 type healthTapBlock struct {
@@ -38,8 +58,9 @@ type healthTapBlock struct {
 // deep health check that also reports Tap consumer state and cached telemetry.
 // With telemetry, "ok" requires DB readiness, a connected consumer and recent
 // global cursor progress, not activity from the small tracked member feed.
+// Image safety is required unless explicitly supplied as advisory readiness.
 // This does not establish relay-head freshness. HTTP status is always 200.
-func NewHealthHandler(pinger Pinger, stater Stater) http.Handler {
+func NewHealthHandler(pinger Pinger, stater Stater, optional ...Readiness) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		dbStatus := "ok"
 		ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
@@ -57,10 +78,20 @@ func NewHealthHandler(pinger Pinger, stater Stater) http.Handler {
 				LastError:        tapState.LastError,
 			},
 		}
+		imageSafetyReady := true
+		if len(optional) > 0 && optional[0] != nil {
+			imageSafetyReady = optional[0].Ready()
+			resp.ImageSafety = &healthReadinessBlock{Ready: imageSafetyReady}
+			if requirement, ok := optional[0].(interface{ Required() bool }); ok {
+				required := requirement.Required()
+				resp.ImageSafety.Required = &required
+				imageSafetyReady = imageSafetyReady || !required
+			}
+		}
 		if !tapState.LastEventAt.IsZero() {
 			resp.Tap.LastEventAt = tapState.LastEventAt.UTC().Format("2006-01-02T15:04:05Z07:00")
 		}
-		if dbStatus == "ok" && tapState.Connected && !tapState.LastEventAt.IsZero() {
+		if dbStatus == "ok" && tapState.Connected && !tapState.LastEventAt.IsZero() && imageSafetyReady {
 			resp.Status = "ok"
 		} else {
 			resp.Status = "degraded"
@@ -70,7 +101,7 @@ func NewHealthHandler(pinger Pinger, stater Stater) http.Handler {
 			resp.Tap.Telemetry = &telemetry
 			// A quiet tracked feed is normal. Use global cursor progress instead.
 			resp.Status = "degraded"
-			if dbStatus == "ok" && tapState.Connected && telemetry.Status == "progressing" {
+			if dbStatus == "ok" && tapState.Connected && telemetry.Status == "progressing" && imageSafetyReady {
 				resp.Status = "ok"
 			}
 		}

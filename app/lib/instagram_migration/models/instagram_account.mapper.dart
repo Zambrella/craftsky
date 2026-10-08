@@ -65,6 +65,7 @@ class InstagramAccountLinkStateMapper
     }
   }
 }
+
 extension InstagramAccountLinkStateMapperExtension
     on InstagramAccountLinkState {
   String toValue() {
@@ -73,6 +74,7 @@ extension InstagramAccountLinkStateMapperExtension
         as String;
   }
 }
+
 class InstagramAccountLinkMapper extends ClassMapperBase<InstagramAccountLink> {
   InstagramAccountLinkMapper._();
 

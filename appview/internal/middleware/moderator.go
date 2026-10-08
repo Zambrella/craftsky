@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"context"
 	"crypto/subtle"
 	"log/slog"
 	"net/http"
@@ -18,7 +19,27 @@ const bearerPrefix = "Bearer "
 type ModeratorAuthFailureObserver interface{ ObserveModeratorAuthFailure(time.Time) bool }
 type ModeratorAuthSuccessObserver interface{ ObserveModeratorAuthSuccess(time.Time) }
 
+func ModeratorDatabaseAuthentication(authenticator ModeratorAuthenticator, logger *slog.Logger, observers ...ModeratorAuthFailureObserver) func(http.Handler) http.Handler {
+	return moderatorAuthentication(logger, observers, func(ctx context.Context, provided string) (ctxkeys.Moderator, error) {
+		return authenticator.Authenticate(ctx, provided)
+	})
+}
+
 func ModeratorAuthentication(token, actorID, sourceSystem string, logger *slog.Logger, observers ...ModeratorAuthFailureObserver) func(http.Handler) http.Handler {
+	return moderatorAuthentication(logger, observers, func(_ context.Context, provided string) (ctxkeys.Moderator, error) {
+		valid := token != "" && actorID != "" && sourceSystem != "" && len(provided) == len(token) && subtle.ConstantTimeCompare([]byte(provided), []byte(token)) == 1
+		if !valid {
+			return ctxkeys.Moderator{}, ErrModeratorAuthentication
+		}
+		return ctxkeys.Moderator{ActorID: actorID, SourceSystem: sourceSystem, Role: "safetyAdministrator"}, nil
+	})
+}
+
+func moderatorAuthentication(
+	logger *slog.Logger,
+	observers []ModeratorAuthFailureObserver,
+	authenticate func(context.Context, string) (ctxkeys.Moderator, error),
+) func(http.Handler) http.Handler {
 	if logger == nil {
 		logger = slog.Default()
 	}
@@ -29,8 +50,8 @@ func ModeratorAuthentication(token, actorID, sourceSystem string, logger *slog.L
 			if strings.HasPrefix(authorization, bearerPrefix) {
 				provided = strings.TrimPrefix(authorization, bearerPrefix)
 			}
-			valid := token != "" && actorID != "" && sourceSystem != "" && len(provided) == len(token) && subtle.ConstantTimeCompare([]byte(provided), []byte(token)) == 1
-			if !valid {
+			moderator, err := authenticate(r.Context(), provided)
+			if err != nil {
 				if len(observers) > 0 && observers[0] != nil {
 					observers[0].ObserveModeratorAuthFailure(time.Now())
 				}
@@ -44,7 +65,7 @@ func ModeratorAuthentication(token, actorID, sourceSystem string, logger *slog.L
 					observer.ObserveModeratorAuthSuccess(time.Now())
 				}
 			}
-			ctx := ctxkeys.WithModerator(r.Context(), ctxkeys.Moderator{ActorID: actorID, SourceSystem: sourceSystem})
+			ctx := ctxkeys.WithModerator(r.Context(), moderator)
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}

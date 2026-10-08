@@ -207,6 +207,7 @@ class BusinessEventMapper extends ClassMapperBase<BusinessEvent> {
     return ensureInitialized().decodeJson<BusinessEvent>(json);
   }
 }
+
 mixin BusinessEventMappable {
   String toJson() {
     return BusinessEventMapper.ensureInitialized().encodeJson<BusinessEvent>(
@@ -248,6 +249,7 @@ mixin BusinessEventMappable {
     );
   }
 }
+
 extension BusinessEventValueCopy<$R, $Out>
     on ObjectCopyWith<$R, BusinessEvent, $Out> {
   BusinessEventCopyWith<$R, BusinessEvent, $Out> get $asBusinessEvent =>

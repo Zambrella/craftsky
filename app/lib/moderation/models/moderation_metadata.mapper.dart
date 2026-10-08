@@ -48,6 +48,7 @@ class ModerationMetadataMapper extends ClassMapperBase<ModerationMetadata> {
     return ensureInitialized().decodeJson<ModerationMetadata>(json);
   }
 }
+
 mixin ModerationMetadataMappable {
   String toJson() {
     return ModerationMetadataMapper.ensureInitialized()
@@ -92,6 +93,7 @@ mixin ModerationMetadataMappable {
     );
   }
 }
+
 extension ModerationMetadataValueCopy<$R, $Out>
     on ObjectCopyWith<$R, ModerationMetadata, $Out> {
   ModerationMetadataCopyWith<$R, ModerationMetadata, $Out>

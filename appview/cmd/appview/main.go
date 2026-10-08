@@ -39,6 +39,8 @@ const (
 	instagramRetentionInterval          = time.Hour
 	scheduledWorkerPollInterval         = 10 * time.Second
 	accountDeletionWorkerPollInterval   = 2 * time.Second
+	safetyRetentionPollInterval         = time.Minute
+	safetyRetentionBatchSize            = 100
 	backgroundWorkerShutdownTimeout     = 10 * time.Second
 )
 
@@ -60,6 +62,10 @@ type instagramRetentionRunner interface {
 
 type accountDeletionProcessor interface {
 	ProcessOne(context.Context) (bool, error)
+}
+
+type safetyRetentionProcessor interface {
+	RunOnce(context.Context, int) (int, error)
 }
 
 type revenueCatProcessor interface {
@@ -219,6 +225,19 @@ func run(ctx context.Context, args []string, output io.Writer) error {
 	} else {
 		close(tapQuarantineDone)
 	}
+	imageSafetyDone := make(chan struct{})
+	if deps.ImageSafetyWorker != nil {
+		go func() {
+			defer close(imageSafetyDone)
+			if err := deps.ImageSafetyWorker.Run(consumerCtx); err != nil && !errors.Is(err, context.Canceled) {
+				deps.Logger.Error("image safety worker exited",
+					slog.String("component", "image_safety"),
+					slog.String("result", "error"))
+			}
+		}()
+	} else {
+		close(imageSafetyDone)
+	}
 	followerGrowthDone := startFollowerGrowthWorker(
 		consumerCtx,
 		deps.FollowerGrowthWorker,
@@ -322,6 +341,18 @@ func run(ctx context.Context, args []string, output io.Writer) error {
 	} else {
 		close(accountDeletionDone)
 	}
+	safetyRetentionDone := make(chan struct{})
+	if deps.SafetyRetention != nil {
+		go func() {
+			defer close(safetyRetentionDone)
+			runSafetyRetentionWorker(
+				consumerCtx, deps.SafetyRetention, deps.Logger,
+				safetyRetentionBatchSize, safetyRetentionPollInterval,
+			)
+		}()
+	} else {
+		close(safetyRetentionDone)
+	}
 	authRequestSweepDone := make(chan struct{})
 	if deps.OAuthStore != nil {
 		go func() {
@@ -414,6 +445,7 @@ func run(ctx context.Context, args []string, output io.Writer) error {
 		tapProjectionDone,
 		tapRepositoryDone,
 		tapQuarantineDone,
+		imageSafetyDone,
 		followerGrowthDone,
 		pushDone,
 		instagramWorkersDone,
@@ -422,6 +454,7 @@ func run(ctx context.Context, args []string, output io.Writer) error {
 		scheduledPublicationDone,
 		scheduledCleanupDone,
 		accountDeletionDone,
+		safetyRetentionDone,
 		authRequestSweepDone,
 		oauthRevocationDone,
 		authAuxiliaryCleanupDone,
@@ -599,6 +632,43 @@ func startFollowerGrowthWorker(
 		}
 	}()
 	return done
+}
+
+func runSafetyRetentionWorker(
+	ctx context.Context,
+	worker safetyRetentionProcessor,
+	logger *slog.Logger,
+	batchSize int,
+	pollInterval time.Duration,
+) {
+	if worker == nil || batchSize <= 0 || pollInterval <= 0 {
+		return
+	}
+	for {
+		processed, err := worker.RunOnce(ctx, batchSize)
+		if ctx.Err() != nil {
+			return
+		}
+		if err != nil && logger != nil {
+			logger.Error("safety retention worker failed",
+				slog.String("component", "safety_retention"),
+				slog.String("operation", "process"),
+				slog.String("result", "error"),
+				slog.String("error_category", "worker"))
+		}
+		if err == nil && processed == batchSize {
+			continue
+		}
+		timer := time.NewTimer(pollInterval)
+		select {
+		case <-ctx.Done():
+			if !timer.Stop() {
+				<-timer.C
+			}
+			return
+		case <-timer.C:
+		}
+	}
 }
 
 func runAccountDeletionWorker(ctx context.Context, worker accountDeletionProcessor, logger *slog.Logger, pollInterval time.Duration) {

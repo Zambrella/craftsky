@@ -33,7 +33,7 @@ final class ToggleRepostPostProvider
   ToggleRepostPost create() => ToggleRepostPost();
 }
 
-String _$toggleRepostPostHash() => r'90a3bf96e014dd31bfb282e8b6fb50638d53af11';
+String _$toggleRepostPostHash() => r'72576decf9ff12ae9348f5f4713af12274d6ac20';
 
 abstract class _$ToggleRepostPost extends $AsyncNotifier<Post?> {
   FutureOr<Post?> build();

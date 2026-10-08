@@ -512,7 +512,7 @@ func (r heldDiagnosticResolver) ResolveHandle(context.Context, syntax.DID) (synt
 // IT-001 / FR-004, RULE-004 / AC-004, AC-020 verifies the actual server chain
 // resolves the public path before a dependency/handler can hang.
 func TestNewServerArrivalHasCataloguePathWhileHandlerHeld(t *testing.T) {
-	pool := testdb.WithSchema(t, `CREATE TABLE craftsky_profiles(did TEXT PRIMARY KEY); INSERT INTO craftsky_profiles(did) VALUES ('did:plc:test');`)
+	pool := testdb.WithSchema(t, `CREATE TABLE craftsky_profiles(did TEXT PRIMARY KEY); INSERT INTO craftsky_profiles(did) VALUES ('did:plc:test'); CREATE TABLE account_age_eligibility(account_did TEXT PRIMARY KEY, state TEXT NOT NULL, appeal_guidance TEXT);`)
 	var logs bytes.Buffer
 	entered := make(chan struct{})
 	release := make(chan struct{})

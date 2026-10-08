@@ -1,9 +1,12 @@
 import 'dart:ui' show SemanticsAction;
 
+import 'package:craftsky_app/account_eligibility/models/account_eligibility_status.dart';
 import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/auth/models/account_session_lease.dart';
+import 'package:craftsky_app/auth/models/active_account_initialization.dart';
 import 'package:craftsky_app/auth/models/session_registry.dart';
 import 'package:craftsky_app/auth/providers/active_account_identity_provider.dart';
+import 'package:craftsky_app/auth/providers/active_account_initialization_provider.dart';
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
 import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
 import 'package:craftsky_app/business/data/business_repository.dart';
@@ -11,6 +14,7 @@ import 'package:craftsky_app/business/models/business_event.dart';
 import 'package:craftsky_app/business/models/business_profile.dart';
 import 'package:craftsky_app/business/providers/business_repository_provider.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/languages/models/language_preferences.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/settings/pages/account_page.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
@@ -239,6 +243,51 @@ void main() {
     await tester.tap(find.widgetWithText(ChunkyButton, 'Delete account'));
     await tester.pumpAndSettle();
     expect(confirmedDid, 'did:plc:test');
+  });
+
+  testWidgets('AT-011 restricted account cannot change account type', (
+    tester,
+  ) async {
+    final session = AccountSessionLease(
+      account: AccountKey('did:plc:test'),
+      sessionGeneration: 1,
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          authSessionProvider.overrideWith(SignedInAuthSession.new),
+          activeAccountIdentityProvider.overrideWith(
+            (_) async => _identity(AccountType.business),
+          ),
+          activeAccountInitializationProvider.overrideWith(
+            (_) async => ActiveAccountInitialization(
+              lease: ActiveAccountLease(
+                session: session,
+                activationGeneration: 1,
+              ),
+              languagePreferences: const LanguagePreferences(
+                primaryLanguage: 'en',
+                contentLanguages: ['en'],
+              ),
+              onboardingComplete: true,
+              accountEligibility: const AccountEligibilityStatus(
+                state: AccountEligibilityState.restricted,
+                appealable: true,
+              ),
+            ),
+          ),
+        ],
+        child: const MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: AccountPage(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byType(SegmentedButton<AccountType>), findsNothing);
+    expect(find.text('Delete account'), findsOneWidget);
   });
 }
 

@@ -37,6 +37,15 @@ instagram-importer/.env*
 !instagram-importer/.env.example
 !instagram-importer/.env.*.example
 
+# Static public-site browser tests
+web/node_modules/
+web/playwright-report/
+web/test-results/
+
+# Python test/tool caches
+__pycache__/
+*.pyc
+
 # Superpowers brainstorming artefacts
 .superpowers/
 

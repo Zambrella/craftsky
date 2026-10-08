@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:craftsky_app/account_eligibility/models/account_eligibility_status.dart';
+import 'package:craftsky_app/account_eligibility/providers/account_eligibility_provider.dart';
 import 'package:craftsky_app/auth/models/session_registry.dart';
 import 'package:craftsky_app/auth/providers/active_account_initialization_provider.dart';
 import 'package:craftsky_app/auth/providers/auth_controller.dart';
@@ -92,8 +94,10 @@ final class _OnboardingRepository implements OnboardingRepository {
   Future<OnboardingCompletion> readStatus() async =>
       const OnboardingCompletion(completed: false);
   @override
-  Future<OnboardingCompletion> complete() async =>
-      const OnboardingCompletion(completed: true);
+  Future<OnboardingCompletion> complete({
+    required bool meetsMinimumAge,
+    required String policyVersion,
+  }) async => const OnboardingCompletion(completed: true);
 }
 
 final class _RetryOnboardingRepository implements OnboardingRepository {
@@ -107,8 +111,10 @@ final class _RetryOnboardingRepository implements OnboardingRepository {
   }
 
   @override
-  Future<OnboardingCompletion> complete() async =>
-      const OnboardingCompletion(completed: true);
+  Future<OnboardingCompletion> complete({
+    required bool meetsMinimumAge,
+    required String policyVersion,
+  }) async => const OnboardingCompletion(completed: true);
 }
 
 // Inferred as Riverpod's internal override type, which is not publicly
@@ -118,12 +124,23 @@ final _onboardingOverride = onboardingRepositoryProvider.overrideWith(
   (ref, lease) async => const _OnboardingRepository(),
 );
 
+// Inferred as Riverpod's internal override type, which is not publicly
+// exported.
+// ignore: specify_nonobvious_property_types
+final _eligibilityOverride = accountEligibilityProvider.overrideWith(
+  (ref, lease) async => const AccountEligibilityStatus(
+    state: AccountEligibilityState.eligible,
+    appealable: false,
+  ),
+);
+
 void main() {
   testWidgets('signed-out content remains available', (tester) async {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
           _onboardingOverride,
+          _eligibilityOverride,
           secureSessionRegistryStorageProvider.overrideWithValue(
             _RegistryStorage(SessionRegistry.empty()),
           ),
@@ -157,6 +174,7 @@ void main() {
       ProviderScope(
         overrides: [
           _onboardingOverride,
+          _eligibilityOverride,
           secureSessionRegistryStorageProvider.overrideWithValue(
             _RegistryStorage(registry),
           ),
@@ -213,6 +231,7 @@ void main() {
         retry: (_, _) => null,
         overrides: [
           _onboardingOverride,
+          _eligibilityOverride,
           secureSessionRegistryStorageProvider.overrideWithValue(
             _RegistryStorage(registry),
           ),
@@ -310,6 +329,7 @@ void main() {
         retry: (_, _) => null,
         overrides: [
           _onboardingOverride,
+          _eligibilityOverride,
           secureSessionRegistryStorageProvider.overrideWithValue(
             _RegistryStorage(registry),
           ),
@@ -371,6 +391,7 @@ void main() {
           onboardingRepositoryProvider.overrideWith(
             (ref, lease) async => onboarding,
           ),
+          _eligibilityOverride,
         ],
         child: const MaterialApp(
           localizationsDelegates: AppLocalizations.localizationsDelegates,

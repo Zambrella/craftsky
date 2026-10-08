@@ -34,7 +34,10 @@ final class _Repository implements OnboardingRepository {
   Future<OnboardingCompletion> readStatus() async => status;
 
   @override
-  Future<OnboardingCompletion> complete() {
+  Future<OnboardingCompletion> complete({
+    required bool meetsMinimumAge,
+    required String policyVersion,
+  }) {
     final result = completions[completeCalls.clamp(0, completions.length - 1)];
     completeCalls++;
     return result();
@@ -108,7 +111,7 @@ void main() {
 
       final operation = container
           .read(onboardingStatusProvider(lease).notifier)
-          .completeOptimistically();
+          .completeOptimistically(meetsMinimumAge: true);
       expect(
         container.read(onboardingStatusProvider(lease)).requireValue.completed,
         isTrue,
@@ -156,7 +159,7 @@ void main() {
     await container.read(onboardingStatusProvider(oldLease).future);
     final operation = container
         .read(onboardingStatusProvider(oldLease).notifier)
-        .completeOptimistically();
+        .completeOptimistically(meetsMinimumAge: true);
     await Future<void>.delayed(Duration.zero);
 
     await container.read(sessionRegistryProvider.future);
@@ -170,5 +173,40 @@ void main() {
     delay.complete();
     await operation;
     expect(repository.completeCalls, 1);
+  });
+
+  test('retry exhaustion restores incomplete server state', () async {
+    final registry = SessionRegistry.empty().upsertAndActivate(
+      token: 'token',
+      did: 'did:plc:alice',
+      handle: 'alice.test',
+    );
+    final repository = _Repository(
+      status: const OnboardingCompletion(completed: false),
+      completions: [() async => throw StateError('offline')],
+    );
+    final container = ProviderContainer.test(
+      retry: (_, _) => null,
+      overrides: [
+        secureSessionRegistryStorageProvider.overrideWithValue(
+          _Storage(registry),
+        ),
+        onboardingRepositoryProvider.overrideWith(
+          (ref, lease) async => repository,
+        ),
+        onboardingCompletionRetryDelaysProvider.overrideWithValue(const []),
+      ],
+    );
+    final lease = registry.activeLease!.session;
+    await container.read(onboardingStatusProvider(lease).future);
+
+    await container
+        .read(onboardingStatusProvider(lease).notifier)
+        .completeOptimistically(meetsMinimumAge: true);
+
+    expect(
+      container.read(onboardingStatusProvider(lease)).requireValue.completed,
+      isFalse,
+    );
   });
 }

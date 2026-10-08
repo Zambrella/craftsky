@@ -56,4 +56,4 @@ final class SecureSessionRegistryStorageProvider
 }
 
 String _$secureSessionRegistryStorageHash() =>
-    r'167cb5c3e8eec87468de062182c52dd891c6f319';
+    r'1305b8c635a3f07ea0dc7d2c23de5bcbe55b5d5d';

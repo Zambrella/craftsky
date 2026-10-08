@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:craftsky_app/account_eligibility/models/account_eligibility_status.dart';
+import 'package:craftsky_app/account_eligibility/providers/account_eligibility_provider.dart';
 import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/auth/models/active_account_initialization.dart';
 import 'package:craftsky_app/auth/models/session_registry.dart';
@@ -75,8 +77,10 @@ final class _OnboardingRepository implements OnboardingRepository {
   Future<OnboardingCompletion> readStatus() async =>
       const OnboardingCompletion(completed: false);
   @override
-  Future<OnboardingCompletion> complete() async =>
-      const OnboardingCompletion(completed: true);
+  Future<OnboardingCompletion> complete({
+    required bool meetsMinimumAge,
+    required String policyVersion,
+  }) async => const OnboardingCompletion(completed: true);
 }
 
 // Inferred as Riverpod's internal override type, which is not publicly
@@ -84,6 +88,16 @@ final class _OnboardingRepository implements OnboardingRepository {
 // ignore: specify_nonobvious_property_types
 final _onboardingOverride = onboardingRepositoryProvider.overrideWith(
   (ref, lease) async => const _OnboardingRepository(),
+);
+
+// Inferred as Riverpod's internal override type, which is not publicly
+// exported.
+// ignore: specify_nonobvious_property_types
+final _eligibilityOverride = accountEligibilityProvider.overrideWith(
+  (ref, lease) async => const AccountEligibilityStatus(
+    state: AccountEligibilityState.eligible,
+    appealable: false,
+  ),
 );
 
 void main() {
@@ -126,6 +140,7 @@ void main() {
       final container = ProviderContainer.test(
         overrides: [
           _onboardingOverride,
+          _eligibilityOverride,
           secureSessionRegistryStorageProvider.overrideWithValue(
             _RegistryStorage(SessionRegistry.empty()),
           ),
@@ -177,6 +192,7 @@ void main() {
         retry: (_, _) => null,
         overrides: [
           _onboardingOverride,
+          _eligibilityOverride,
           secureSessionRegistryStorageProvider.overrideWithValue(storage),
           languagePreferencesRepositoryProvider.overrideWith(
             (ref, account) async => _PreferencesRepository(
@@ -249,6 +265,7 @@ void main() {
       final container = ProviderContainer.test(
         overrides: [
           _onboardingOverride,
+          _eligibilityOverride,
           secureSessionRegistryStorageProvider.overrideWithValue(storage),
           languagePreferencesRepositoryProvider.overrideWith(
             (ref, account) async => _PreferencesRepository(
@@ -323,6 +340,7 @@ void main() {
     final container = ProviderContainer.test(
       overrides: [
         _onboardingOverride,
+        _eligibilityOverride,
         secureSessionRegistryStorageProvider.overrideWithValue(storage),
         languagePreferencesRepositoryProvider.overrideWith(
           (ref, account) async => repository,

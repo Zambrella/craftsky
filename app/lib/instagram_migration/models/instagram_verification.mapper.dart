@@ -81,6 +81,7 @@ class InstagramVerificationStateMapper
     }
   }
 }
+
 extension InstagramVerificationStateMapperExtension
     on InstagramVerificationState {
   String toValue() {
@@ -89,6 +90,7 @@ extension InstagramVerificationStateMapperExtension
         as String;
   }
 }
+
 class InstagramVerificationRetryCodeMapper
     extends EnumMapper<InstagramVerificationRetryCode> {
   InstagramVerificationRetryCodeMapper._();

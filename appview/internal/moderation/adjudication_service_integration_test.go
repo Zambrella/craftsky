@@ -43,9 +43,11 @@ CREATE TABLE moderation_cases (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     resolved_at TIMESTAMPTZ,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+	,origin TEXT NOT NULL DEFAULT 'userReport'
+	,incident_id UUID
 );
 CREATE UNIQUE INDEX moderation_cases_one_open_subject_idx
-    ON moderation_cases(subject_key) WHERE state='open';
+    ON moderation_cases(subject_key,origin) WHERE state='open';
 CREATE TABLE moderation_case_reports (
     case_id UUID NOT NULL REFERENCES moderation_cases(id) ON DELETE CASCADE,
     report_id TEXT NOT NULL UNIQUE REFERENCES moderation_reports(id) ON DELETE RESTRICT,

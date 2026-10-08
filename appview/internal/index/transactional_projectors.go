@@ -185,7 +185,31 @@ func (indexer *BlueskyProfile) Project(ctx context.Context, tx pgx.Tx, source in
 	}
 	clone := *indexer
 	clone.projectionDB = tx
-	return appliedAfter(clone.Handle(ctx, event))
+	if err := clone.Handle(ctx, event); err != nil {
+		return tap.Retryable(tap.ReasonProjectionFailure), err
+	}
+	if clone.imageScanKey != nil && event.Action != "delete" {
+		var pending bool
+		if err := tx.QueryRow(ctx, `
+			SELECT EXISTS(
+				SELECT 1
+				FROM profile_image_candidates candidate
+				JOIN image_scan_results result ON result.id=candidate.scan_result_id
+				WHERE candidate.profile_did=$1
+				  AND candidate.source_cid=$2
+				  AND result.state <> 'clear'
+			)
+		`, event.DID, event.CID).Scan(&pending); err != nil {
+			return tap.Retryable(tap.ReasonProjectionFailure), fmt.Errorf("check profile image candidates: %w", err)
+		}
+		if pending {
+			return tap.Blocked(tap.ReasonImageScanPending, tap.Dependency{
+				Kind: "image_subject_uri",
+				Key:  event.URI.String(),
+			}), nil
+		}
+	}
+	return tap.Applied(), nil
 }
 
 func (indexer *BlueskyFollow) Project(ctx context.Context, tx pgx.Tx, source ingestion.SourceRecord) (tap.Outcome, error) {

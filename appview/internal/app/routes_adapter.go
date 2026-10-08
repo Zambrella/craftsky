@@ -1,6 +1,10 @@
 package app
 
-import "social.craftsky/appview/internal/routes"
+import (
+	"social.craftsky/appview/internal/api"
+	"social.craftsky/appview/internal/middleware"
+	"social.craftsky/appview/internal/routes"
+)
 
 // RouteDependencies lowers process-wide composition into the narrow boundary
 // owned by the HTTP routes package.
@@ -44,6 +48,9 @@ func RouteDependencies(deps *Deps) *routes.Dependencies {
 			ModerationAdminActorID:        deps.Config.ModerationAdminActorID,
 			ModerationAdminSourceSystem:   "admin-api",
 			ModerationSourceDID:           deps.Config.ModerationSourceDID,
+			ImageSafetyAlertAge:           deps.Config.ImageSafetyAlertAge,
+			RequiredPolicyVersion:         deps.Config.RequiredPolicyVersion,
+			VideoEnabled:                  deps.Config.VideoEnabled,
 		},
 		Logger:                      deps.Logger,
 		DB:                          deps.DB,
@@ -77,6 +84,16 @@ func RouteDependencies(deps *Deps) *routes.Dependencies {
 		HandleResolver:              deps.HandleResolver,
 		AuthoritativeHandleResolver: deps.AuthoritativeHandleResolver,
 		Consumer:                    deps.Consumer,
+		ImageSafetyReadiness:        api.AdvisoryReadiness{Readiness: api.StaticReadiness(deps.Config.ImageSafety.AutomatedReady())},
+		ImageSafetyHealth:           deps.ImageSafetyStore,
+		SafetyWork:                  []api.SafetyWorkReader{deps.SafetyIncidents},
+		SafetyIncidents:             deps.SafetyIncidents,
+		SafetyIntake:                deps.SafetyIntake,
+		SafetyEvidence:              deps.SafetyEvidence,
+		SafetyHolds:                 deps.SafetyHolds,
+		SafetyWorkflows:             deps.SafetyWorkflows,
+		SafetyCSEA:                  deps.SafetyCSEA,
+		ModeratorAuthenticator:      middleware.NewPostgresModeratorAuthenticator(deps.DB, "admin-api", deps.Now),
 		InstagramMembership:         deps.InstagramMembership,
 		InstagramRateLimiter:        deps.InstagramRateLimiter,
 		InstagramVerification:       deps.InstagramVerification,

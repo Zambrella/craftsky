@@ -1635,6 +1635,87 @@ class AppLocalizationsEn extends AppLocalizations {
   String get reportReasonTitle => 'Reason';
 
   @override
+  String get reportGroupTitle => 'What is the concern about?';
+
+  @override
+  String get reportGroupChildSafety => 'Child safety';
+
+  @override
+  String get reportGroupSexualIntimate => 'Sexual or intimate content';
+
+  @override
+  String get reportGroupDanger => 'Threats, violence or self-harm';
+
+  @override
+  String get reportGroupHarassmentPrivacy => 'Harassment, hate or privacy';
+
+  @override
+  String get reportGroupFraudIdentity => 'Fraud, scams or impersonation';
+
+  @override
+  String get reportGroupContentIntegrity =>
+      'Spam, misleading or off-topic content';
+
+  @override
+  String get reportGroupIntellectualProperty => 'Copyright or trade marks';
+
+  @override
+  String get reportGroupOther => 'Something else';
+
+  @override
+  String get reportChangeCategory => 'Change category';
+
+  @override
+  String get reportChildSafetyGuidance =>
+      'Identify where the concern is. Do not download, attach, forward or redistribute suspected material.';
+
+  @override
+  String get reportImmediateDangerGuidance =>
+      'If someone is in immediate danger, contact local emergency services first. CraftSky is not an emergency service, but you can still send this report.';
+
+  @override
+  String get reportIntellectualPropertyGuidance =>
+      'Copyright and trade mark concerns use our dedicated email process. Identify the work, your authority and the CraftSky URL or AT URI. Do not attach media.';
+
+  @override
+  String get reportReasonChildSexualExploitation => 'Child sexual exploitation';
+
+  @override
+  String get reportReasonGrooming => 'Grooming';
+
+  @override
+  String get reportReasonChildAbuseMaterial =>
+      'Suspected child sexual abuse material';
+
+  @override
+  String get reportReasonIntimateImageAbuse =>
+      'Intimate-image abuse or cyberflashing';
+
+  @override
+  String get reportReasonSexualExploitation => 'Sexual exploitation';
+
+  @override
+  String get reportReasonAdultContent => 'Pornographic or adult content';
+
+  @override
+  String get reportReasonGraphicContent => 'Graphic content';
+
+  @override
+  String get reportReasonImmediateDanger => 'Someone is in immediate danger';
+
+  @override
+  String get reportReasonCredibleThreat => 'Credible threat';
+
+  @override
+  String get reportReasonTerrorism => 'Terrorism';
+
+  @override
+  String get reportReasonViolence => 'Violence';
+
+  @override
+  String get reportReasonSelfHarm => 'Encouraging serious self-harm';
+
+  @override
   String get reportReasonHarassment => 'Harassment';
 
   @override
@@ -3243,6 +3324,27 @@ class AppLocalizationsEn extends AppLocalizations {
   String get onboardingGuidelinesViewFull => 'View full guidelines';
 
   @override
+  String get onboardingMinimumAgeDeclaration =>
+      'I confirm that I am at least 16 years old and accept the current CraftSky policies.';
+
+  @override
+  String get accountEligibilityTitle => 'Account eligibility';
+
+  @override
+  String get accountEligibilityHeading => 'Your account access is limited';
+
+  @override
+  String get accountEligibilityAppealGuidance =>
+      'You can appeal this decision. Safety and account-management controls remain available while we review your appeal.';
+
+  @override
+  String get accountEligibilityViewStanding =>
+      'View decision and appeal options';
+
+  @override
+  String get accountEligibilityManageAccount => 'Manage account';
+
+  @override
   String get onboardingSaveError =>
       'We couldn\'t save your profile. Your changes are still here; try again.';
 
@@ -4386,4 +4488,31 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get moderationCopyError =>
       'Could not copy. The text remains selectable.';
+
+  @override
+  String get reportReasonStalking => 'Stalking';
+
+  @override
+  String get reportReasonDoxxing => 'Doxxing';
+
+  @override
+  String get reportReasonBlockEvasion => 'Block evasion';
+
+  @override
+  String get reportReasonPrivacy => 'Privacy violation';
+
+  @override
+  String get reportReasonFraud => 'Fraud';
+
+  @override
+  String get reportReasonScam => 'Scam';
+
+  @override
+  String get reportReasonPhishing => 'Phishing';
+
+  @override
+  String get reportReasonCounterfeit => 'Counterfeit goods';
+
+  @override
+  String get reportReasonPlatformManipulation => 'Platform manipulation';
 }

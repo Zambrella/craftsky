@@ -186,6 +186,29 @@ appview-test-coverage:
 appview-check:
     GOFLAGS="-p=1" ./scripts/appview-check
 
+# Generate the staged five-policy artifact from the canonical Markdown drafts.
+policy-artifact:
+    python3 scripts/generate-policy-artifact.py
+
+# Owner-run full-launch readiness check. Not part of beta builds or deployments.
+online-safety-readiness *ARGS:
+    ./scripts/online-safety-readiness {{ARGS}}
+
+online-safety-readiness-test:
+    python3 -m unittest discover -s scripts -p 'test_online_safety_readiness.py'
+
+web-test-consent:
+    npm run --prefix web test:consent
+
+# Repository release quality checks, also used for private beta.
+# Run online-safety-readiness separately before full public launch.
+public-release-check:
+    just appview-check
+    just app-analyze
+    just app-test
+    just online-safety-readiness-test
+    just web-test-consent
+
 # Format and vet Go code on the host.
 fmt:
     cd appview && gofmt -w . && go vet ./...

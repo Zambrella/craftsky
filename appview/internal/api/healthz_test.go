@@ -130,3 +130,48 @@ func TestHealthz_DBErrorDegraded(t *testing.T) {
 		t.Errorf("status = %v", body["status"])
 	}
 }
+
+func TestHealthz_ImageSafetyReadinessFailsClosedWithoutSensitiveDetail(t *testing.T) {
+	t.Parallel()
+	h := api.NewHealthHandler(
+		fakePinger{},
+		&telemetryStater{
+			fakeStater: fakeStater{state: tap.ConnState{Connected: true, LastEventAt: time.Unix(1700000000, 0)}},
+			telemetry:  tap.Telemetry{Status: "progressing"},
+		},
+		api.StaticReadiness(false),
+	)
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, httptest.NewRequest("GET", "/healthz", nil))
+	var body map[string]any
+	if err := json.NewDecoder(rr.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	if body["status"] != "degraded" {
+		t.Fatalf("status=%v", body["status"])
+	}
+	imageSafety, ok := body["imageSafety"].(map[string]any)
+	if !ok || imageSafety["ready"] != false || len(imageSafety) != 1 {
+		t.Fatalf("unsafe image-safety readiness block=%v", body["imageSafety"])
+	}
+}
+
+func TestHealthzAdvisoryScannerDoesNotBlockDeployment(t *testing.T) {
+	stater := &telemetryStater{fakeStater: fakeStater{state: tap.ConnState{Connected: true}}, telemetry: tap.Telemetry{Status: "progressing"}}
+	handler := api.NewHealthHandler(fakePinger{}, stater, api.AdvisoryReadiness{Readiness: api.StaticReadiness(false)})
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, httptest.NewRequest("GET", "/healthz", nil))
+	var response struct {
+		Status      string `json:"status"`
+		ImageSafety struct {
+			Ready    bool  `json:"ready"`
+			Required *bool `json:"required"`
+		} `json:"imageSafety"`
+	}
+	if err := json.Unmarshal(rr.Body.Bytes(), &response); err != nil {
+		t.Fatal(err)
+	}
+	if response.Status != "ok" || response.ImageSafety.Ready || response.ImageSafety.Required == nil || *response.ImageSafety.Required {
+		t.Fatalf("unexpected advisory readiness: %s", rr.Body.String())
+	}
+}

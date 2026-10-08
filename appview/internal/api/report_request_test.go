@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"social.craftsky/appview/internal/api"
+	"social.craftsky/appview/internal/moderation"
 )
 
 func TestNormalizeReportDetails_TrimsAndOmitsEmptyPlainText(t *testing.T) {
@@ -57,15 +58,34 @@ func TestValidateReportRequest_AllowsOtherWithoutDetails(t *testing.T) {
 func TestValidateReportRequest_ApprovedReasonTaxonomy(t *testing.T) {
 	t.Parallel()
 	for _, reason := range []string{
+		"childSexualExploitation",
+		"grooming",
+		"childAbuseMaterial",
+		"intimateImageAbuse",
+		"sexualExploitation",
+		"adultContent",
+		"graphicContent",
+		"immediateDanger",
+		"credibleThreat",
+		"terrorism",
+		"violence",
+		"selfHarm",
 		"harassment",
 		"hate",
+		"stalking",
+		"doxxing",
+		"blockEvasion",
+		"privacy",
+		"fraud",
+		"scam",
+		"phishing",
+		"counterfeit",
 		"spam",
+		"platformManipulation",
 		"misleading",
-		"suspected_ai_generated",
-		"adult_or_graphic",
+		"suspectedAiGenerated",
 		"impersonation",
-		"off_topic",
-		"intellectual_property",
+		"offTopic",
 		"other",
 	} {
 		reason := reason
@@ -78,9 +98,9 @@ func TestValidateReportRequest_ApprovedReasonTaxonomy(t *testing.T) {
 	}
 }
 
-func TestValidateReportRequest_RejectsMissingOrUnsupportedReason(t *testing.T) {
+func TestValidateReportRequest_RejectsMissingUnsupportedOrSpecialistRouteReason(t *testing.T) {
 	t.Parallel()
-	for _, reason := range []string{"", "not_allowed"} {
+	for _, reason := range []string{"", "not_allowed", "intellectualProperty", "intellectual_property", "illegalContent"} {
 		reason := reason
 		t.Run(reason, func(t *testing.T) {
 			t.Parallel()
@@ -93,5 +113,15 @@ func TestValidateReportRequest_RejectsMissingOrUnsupportedReason(t *testing.T) {
 				t.Fatalf("fields = %v, want reasonType", fe.Fields)
 			}
 		})
+	}
+}
+
+func TestApprovedReportReasonsMatchModerationAllegationMappings(t *testing.T) {
+	t.Parallel()
+	for allegation, mapping := range moderation.ApprovedAllegationMappings() {
+		wantApproved := mapping.Destination == moderation.DestinationInApp
+		if got := api.IsApprovedReportReason(string(allegation)); got != wantApproved {
+			t.Errorf("IsApprovedReportReason(%q)=%t, want %t", allegation, got, wantApproved)
+		}
 	}
 }

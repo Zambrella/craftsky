@@ -13,17 +13,32 @@ void main() {
       final repository = ApiOnboardingRepository(OnboardingApiClient(dio));
       adapter
         ..onGet('/v1/onboarding/status', (server) {
-          server.reply(200, {'completed': false});
-        })
-        ..onPost('/v1/onboarding/completion', (server) {
           server.reply(200, {
-            'completed': true,
-            'completedAt': '2026-08-31T12:00:00Z',
+            'completed': false,
+            'requiredPolicyVersion': 'safety-v3',
           });
-        });
+        })
+        ..onPost(
+          '/v1/onboarding/completion',
+          (server) {
+            server.reply(200, {
+              'completed': true,
+              'completedAt': '2026-08-31T12:00:00Z',
+              'requiredPolicyVersion': 'safety-v3',
+              'acceptedPolicyVersion': 'safety-v3',
+            });
+          },
+          data: {
+            'meetsMinimumAge': true,
+            'policyVersion': 'safety-v3',
+          },
+        );
 
       expect((await repository.readStatus()).completed, isFalse);
-      final completed = await repository.complete();
+      final completed = await repository.complete(
+        meetsMinimumAge: true,
+        policyVersion: 'safety-v3',
+      );
       expect(completed.completed, isTrue);
       expect(completed.completedAt, DateTime.utc(2026, 8, 31, 12));
     },

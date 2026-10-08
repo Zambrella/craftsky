@@ -7,11 +7,13 @@ import 'package:craftsky_app/auth/providers/session_registry_provider.dart'
     show sessionRegistryProvider;
 import 'package:craftsky_app/bootstrap.dart';
 import 'package:craftsky_app/feed/models/create_post_external.dart';
+import 'package:craftsky_app/feed/models/create_post_image.dart';
 import 'package:craftsky_app/feed/models/create_post_video.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/post_page.dart';
 import 'package:craftsky_app/feed/models/timeline_page.dart';
 import 'package:craftsky_app/feed/providers/create_post_provider.dart';
+import 'package:craftsky_app/feed/providers/post_provider.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/feed/providers/timeline_provider.dart';
 import 'package:craftsky_app/feed/providers/user_posts_provider.dart';
@@ -40,6 +42,7 @@ Map<String, dynamic> _postMap({
   String handle = 'alice.craftsky.social',
   PostReply? reply,
   Project? project,
+  List<Map<String, dynamic>>? images,
 }) => {
   'uri': 'at://$did/social.craftsky.feed.post/$rkey',
   'cid': 'bafy_$rkey',
@@ -58,6 +61,7 @@ Map<String, dynamic> _postMap({
   'author': {'did': did, 'handle': handle},
   if (reply != null) 'reply': reply.toMap(),
   if (project != null) 'project': project.toMap(),
+  'images': ?images,
 };
 
 Post _post({
@@ -66,6 +70,7 @@ Post _post({
   String handle = 'alice.craftsky.social',
   PostReply? reply,
   Project? project,
+  List<Map<String, dynamic>>? images,
 }) => PostMapper.fromMap(
   _postMap(
     rkey: rkey,
@@ -73,6 +78,7 @@ Post _post({
     handle: handle,
     reply: reply,
     project: project,
+    images: images,
   ),
 );
 
@@ -600,6 +606,103 @@ void main() {
       final timeline = container.read(timelineProvider).value!;
       expect(timeline.items.map((item) => item.post.rkey), ['new', 'old']);
     });
+
+    test(
+      'REG-001 synthetic image post stays local until AppView serves it',
+      () async {
+        const imageCid =
+            'bafkreigxxxkul4e5rjz4fomqgn6ieeoxbcqeztmxjbrhnbpe7r44ya4ahe';
+        final synthetic = _post(
+          rkey: 'pending-image',
+          images: const [
+            {
+              'cid': imageCid,
+              'mime': 'image/jpeg',
+              'size': 42,
+              'alt': 'Benign test swatch',
+            },
+          ],
+        );
+        var servesImagePost = false;
+        final fake = FakePostRepository(
+          onListTimeline: ({cursor, limit}) async =>
+              _timelinePage(servesImagePost ? [synthetic] : []),
+          onCreate: ({required text, reply, images}) async => synthetic,
+          onFetch: (did, rkey) async =>
+              throw const ApiBadRequest('post_not_found'),
+        );
+        final container = ProviderContainer.test(
+          overrides: [
+            activeLanguagePreferencesProvider.overrideWith(
+              (ref) => const LanguagePreferences(
+                primaryLanguage: 'en',
+                contentLanguages: ['en'],
+              ),
+            ),
+            postRepositoryProvider.overrideWithValue(fake),
+          ],
+        );
+        await container.read(timelineProvider.future);
+
+        await container
+            .read(createPostProvider.notifier)
+            .create(
+              text: 'pending image',
+              langs: _langs,
+              sponsored: false,
+              images: const [
+                CreatePostImage(
+                  blob: CreatePostBlob(
+                    ref: CreatePostBlobRef(link: imageCid),
+                    mimeType: 'image/jpeg',
+                    size: 42,
+                  ),
+                  alt: 'Benign test swatch',
+                ),
+              ],
+            );
+
+        await container.read(timelineProvider.future);
+        final localPost = container
+            .read(timelineProvider)
+            .requireValue
+            .items
+            .single
+            .post;
+        expect(localPost.rkey.value, 'pending-image');
+        expect(localPost.images!.single.cid.value, imageCid);
+
+        final directRead = container.listen(
+          postProvider(_aliceDid, localPost.rkey),
+          (_, _) {},
+          fireImmediately: true,
+        );
+        for (var i = 0; i < 5; i++) {
+          await Future<void>.delayed(Duration.zero);
+        }
+        expect(
+          directRead.read().error,
+          isA<ApiBadRequest>().having(
+            (error) => error.code,
+            'code',
+            'post_not_found',
+          ),
+        );
+        directRead.close();
+
+        await container.refresh(timelineProvider.future);
+        expect(
+          container.read(timelineProvider).requireValue.items.single.post.rkey,
+          localPost.rkey,
+        );
+        servesImagePost = true;
+        await container.refresh(timelineProvider.future);
+        expect(
+          container.read(timelineProvider).requireValue.items.single.post.rkey,
+          localPost.rkey,
+        );
+      },
+    );
 
     test('quote create uses normal top-level cache path', () async {
       final target = _post(rkey: 'target');

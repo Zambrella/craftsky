@@ -59,7 +59,10 @@ void main() {
       );
 
       expect(find.text('Report event'), findsOneWidget);
-      expect(find.text('Spam'), findsOneWidget);
+      expect(
+        find.text('Spam, misleading or off-topic content'),
+        findsOneWidget,
+      );
       expect(
         tester
             .widget<TextButton>(find.widgetWithText(TextButton, 'Submit'))
@@ -81,9 +84,12 @@ void main() {
       );
 
       expect(find.text('Report post'), findsOneWidget);
-      expect(find.text('Reason'), findsOneWidget);
-      expect(find.text('Spam'), findsOneWidget);
-      expect(find.text('Other'), findsOneWidget);
+      expect(find.text('What is the concern about?'), findsOneWidget);
+      expect(
+        find.text('Spam, misleading or off-topic content'),
+        findsOneWidget,
+      );
+      expect(find.text('Something else'), findsOneWidget);
       expect(
         tester
             .widget<TextButton>(find.widgetWithText(TextButton, 'Submit'))
@@ -98,17 +104,27 @@ void main() {
       expect(
         tester
             .state<
+              FormBuilderFieldState<FormBuilderField<ReportGroup>, ReportGroup>
+            >(find.byType(FormBuilderRadioGroup<ReportGroup>))
+            .errorText,
+        isNotNull,
+      );
+      await tester.tap(find.text('Spam, misleading or off-topic content'));
+      await tester.pump();
+      await tester.tap(find.widgetWithText(TextButton, 'Submit'));
+      await tester.pump();
+      expect(submitted, isNull);
+      expect(
+        tester
+            .state<
               FormBuilderFieldState<
                 FormBuilderField<ReportReason>,
                 ReportReason
               >
-            >(
-              find.byType(FormBuilderRadioGroup<ReportReason>),
-            )
+            >(find.byType(FormBuilderRadioGroup<ReportReason>))
             .errorText,
         isNotNull,
       );
-
       await tester.tap(find.text('Spam'));
       await tester.pump();
       expect(
@@ -137,6 +153,8 @@ void main() {
         ),
       );
 
+      await tester.tap(find.text('Something else'));
+      await tester.pump();
       await tester.tap(find.text('Other'));
       await tester.enterText(find.byType(TextField), 'x' * 1001);
       await tester.pump();
@@ -169,8 +187,8 @@ void main() {
         ),
       );
 
-      final group = tester.widget<FormBuilderRadioGroup<ReportReason>>(
-        find.byType(FormBuilderRadioGroup<ReportReason>),
+      final group = tester.widget<FormBuilderRadioGroup<ReportGroup>>(
+        find.byType(FormBuilderRadioGroup<ReportGroup>),
       );
 
       expect(group.decoration.filled, isFalse);
@@ -188,6 +206,9 @@ void main() {
         ),
       );
 
+      await tester.tap(find.text('Something else'));
+      await tester.pump();
+
       expect(
         find.widgetWithText(BrandTextField, 'Details'),
         findsOneWidget,
@@ -203,6 +224,9 @@ void main() {
           onSubmit: (_) async {},
         ),
       );
+
+      await tester.tap(find.text('Something else'));
+      await tester.pump();
 
       await tester.enterText(find.byType(TextField), 'private details');
       await tester.pump();
@@ -221,6 +245,10 @@ void main() {
         ),
       );
 
+      await tester.tap(find.text('Something else'));
+      await tester.pump();
+      await tester.tap(find.text('Other'));
+      await tester.pump();
       final textField = find.byType(TextField);
       await tester.ensureVisible(textField);
       await tester.showKeyboard(textField);
@@ -263,6 +291,8 @@ void main() {
         ),
       );
 
+      await tester.tap(find.text('Spam, misleading or off-topic content'));
+      await tester.pump();
       await tester.tap(find.text('Spam'));
       await tester.enterText(find.byType(TextField), 'private details');
       await tester.pump();
@@ -302,6 +332,81 @@ void main() {
       expect(
         find.text("Couldn't submit report. Please try again."),
         findsNothing,
+      );
+    });
+
+    testWidgets('shows safety guidance and keeps immediate danger reportable', (
+      tester,
+    ) async {
+      ReportSubmission? submitted;
+      await _pump(
+        tester,
+        ReportSubjectSheet(
+          subjectType: ReportSubjectType.post,
+          onSubmit: (value) => submitted = value,
+        ),
+      );
+
+      await tester.tap(find.text('Threats, violence or self-harm'));
+      await tester.pump();
+      await tester.tap(find.text('Someone is in immediate danger'));
+      await tester.pump();
+
+      expect(
+        find.textContaining('local emergency services first'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('not an emergency service'), findsOneWidget);
+      await tester.tap(find.widgetWithText(TextButton, 'Submit'));
+      await tester.pump();
+      expect(submitted?.reasonType, 'immediateDanger');
+    });
+
+    testWidgets('routes intellectual property to email without submission', (
+      tester,
+    ) async {
+      Uri? launched;
+      var submissions = 0;
+      await _pump(
+        tester,
+        ReportSubjectSheet(
+          subjectType: ReportSubjectType.post,
+          onSubmit: (_) => submissions++,
+          onExternalRoute: (uri) async {
+            launched = uri;
+            return true;
+          },
+        ),
+      );
+
+      await tester.tap(find.text('Copyright or trade marks'));
+      await tester.pump();
+      expect(find.textContaining('dedicated email process'), findsOneWidget);
+      await tester.tap(find.widgetWithText(TextButton, 'Submit'));
+      await tester.pump();
+
+      expect(submissions, 0);
+      expect(launched?.scheme, 'mailto');
+    });
+
+    testWidgets('shows non-redistribution guidance for child safety', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        ReportSubjectSheet(
+          subjectType: ReportSubjectType.post,
+          onSubmit: (_) {},
+        ),
+      );
+
+      await tester.tap(find.text('Child safety'));
+      await tester.pump();
+
+      expect(find.textContaining('Do not download'), findsOneWidget);
+      expect(
+        find.textContaining('attach, forward or redistribute'),
+        findsOneWidget,
       );
     });
 

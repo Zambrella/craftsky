@@ -170,6 +170,20 @@ func installFocusedLifecyclePredicates(t *testing.T, ctx context.Context, pool *
 			t.Fatalf("create %s focused fixture: %v", predicate.name, err)
 		}
 	}
+	// Pre-image-safety fixtures should be readable without the full scan schema.
+	// Migration 76 replaces this predicate with the fail-closed implementation.
+	var exists bool
+	if err := pool.QueryRow(ctx, `SELECT to_regprocedure('appview_image_subject_is_clear(text,text)') IS NOT NULL`).Scan(&exists); err != nil {
+		t.Fatalf("inspect image safety focused fixture: %v", err)
+	}
+	if !exists {
+		if _, err := pool.Exec(ctx, `
+			CREATE FUNCTION appview_image_subject_is_clear(candidate_uri TEXT, candidate_cid TEXT)
+			RETURNS BOOLEAN LANGUAGE SQL IMMUTABLE PARALLEL SAFE AS $$ SELECT true $$
+		`); err != nil {
+			t.Fatalf("create image safety focused fixture: %v", err)
+		}
+	}
 }
 
 func testPoolConfig(url string, maxConns int32) (*pgxpool.Config, error) {

@@ -41,9 +41,9 @@ func (s *Store) AttachAcceptedReportTx(ctx context.Context, tx pgx.Tx, report Ac
 	err = tx.QueryRow(ctx, `
 		INSERT INTO moderation_cases(
 			id,subject_key,subject_type,subject_did,subject_collection,subject_rkey,
-			subject_uri,subject_cid_snapshot,owner_did,safe_snapshot,created_at,updated_at
-		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$11)
-		ON CONFLICT (subject_key) WHERE state='open' DO NOTHING
+			subject_uri,subject_cid_snapshot,owner_did,safe_snapshot,origin,created_at,updated_at
+		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'userReport',$11,$11)
+		ON CONFLICT (subject_key,origin) WHERE state='open' DO NOTHING
 		RETURNING id,subject_key,state,revision,created_at
 	`, uuid.New(), subjectKey, report.SubjectType, report.SubjectDID,
 		nullIfEmpty(report.SubjectCollection), nullIfEmpty(report.SubjectRkey),
@@ -55,7 +55,7 @@ func (s *Store) AttachAcceptedReportTx(ctx context.Context, tx pgx.Tx, report Ac
 		err = tx.QueryRow(ctx, `
 			SELECT id,subject_key,state,revision,created_at
 			FROM moderation_cases
-			WHERE subject_key=$1 AND state='open'
+			WHERE subject_key=$1 AND origin='userReport' AND state='open'
 		`, subjectKey).Scan(
 			&created.ID, &created.SubjectKey, &created.State, &created.Revision, &created.CreatedAt,
 		)

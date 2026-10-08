@@ -106,6 +106,7 @@ func (s *Store) ReadEvent(ctx context.Context, input EventReadInput) (EventView,
 		FROM craftsky_business_events event
 		LEFT JOIN craftsky_profiles membership ON membership.did = event.owner_did
 		WHERE event.owner_did = $2 AND event.rkey = $3
+		  AND appview_image_subject_is_clear(event.uri, event.cid)
 	`, input.CallerDID, input.OwnerDID, input.Rkey, s.accessEnvironment).Scan(
 		&raw, &view.URI, &view.CID, &startsAt, &endsAt,
 		&ownerCurrent, &accountType, &blocked, &moderated,
@@ -162,6 +163,7 @@ func (s *Store) ListUpcomingEvents(ctx context.Context, input UpcomingEventListI
 		  AND subscription.anomaly='none'
 		WHERE event.owner_did = $2
 		  AND appview_owner_is_active(event.owner_did)
+		  AND appview_image_subject_is_clear(event.uri, event.cid)
 		  AND event.ends_at > $3
 		  AND event.ends_at > event.starts_at
 		  AND event.ends_at - event.starts_at <= interval '31 days'
@@ -234,6 +236,7 @@ func (s *Store) ListOwnerEvents(ctx context.Context, input OwnerEventListInput) 
 		  AND subscription.anomaly='none'
 		WHERE event.owner_did = $1
 		  AND appview_owner_is_active(event.owner_did)
+		  AND appview_image_subject_is_clear(event.uri, event.cid)
 		  AND ($2::timestamptz IS NULL OR
 		       (event.starts_at, event.uri) < ($2::timestamptz, $3::text))
 		ORDER BY event.starts_at DESC, event.uri DESC
@@ -254,6 +257,7 @@ func (s *Store) ListOwnerEvents(ctx context.Context, input OwnerEventListInput) 
 			  AND subscription.anomaly='none'
 			WHERE event.owner_did = $1
 			  AND appview_owner_is_active(event.owner_did)
+			  AND appview_image_subject_is_clear(event.uri, event.cid)
 			  AND COALESCE(event.status, 'scheduled') = 'scheduled'
 			  AND event.ends_at > $2
 			  AND ($3::timestamptz IS NULL OR
@@ -276,6 +280,7 @@ func (s *Store) ListOwnerEvents(ctx context.Context, input OwnerEventListInput) 
 			  AND subscription.anomaly='none'
 			WHERE event.owner_did = $1
 			  AND appview_owner_is_active(event.owner_did)
+			  AND appview_image_subject_is_clear(event.uri, event.cid)
 			  AND NOT (COALESCE(event.status, 'scheduled') = 'scheduled' AND event.ends_at > $2)
 			  AND ($3::timestamptz IS NULL OR
 			       (event.starts_at, event.uri) < ($3::timestamptz, $4::text))
@@ -344,6 +349,7 @@ func (s *Store) ReadEligibleProfile(ctx context.Context, did syntax.DID) (*Profi
 		 AND subscription.anomaly = 'none'
 		WHERE business_profile.owner_did = $1
 		  AND appview_owner_is_active(business_profile.owner_did)
+		  AND appview_image_subject_is_clear(business_profile.uri, business_profile.cid)
 	`, did, s.accessEnvironment).Scan(&raw, &cid)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
@@ -373,6 +379,7 @@ func (s *Store) HasUpcomingEvents(ctx context.Context, owner syntax.DID, asOf ti
 			  AND subscription.anomaly = 'none'
 			WHERE event.owner_did = $1
 			  AND appview_owner_is_active(event.owner_did)
+			  AND appview_image_subject_is_clear(event.uri, event.cid)
 			  AND event.ends_at > $2
 			  AND event.ends_at > event.starts_at
 			  AND event.ends_at - event.starts_at <= interval '31 days'

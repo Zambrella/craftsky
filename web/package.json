@@ -1,0 +1,12 @@
+{
+  "name": "craftsky-public-site",
+  "private": true,
+  "scripts": {
+    "build": "python3 ../scripts/cloudflare_pages_build.py",
+    "test": "playwright test",
+    "test:consent": "playwright test test/analytics-consent.spec.js"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0"
+  }
+}

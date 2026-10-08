@@ -16,6 +16,7 @@ import (
 	"social.craftsky/appview/internal/instagram"
 	"social.craftsky/appview/internal/observability"
 	"social.craftsky/appview/internal/ownerlifecycle"
+	"social.craftsky/appview/internal/safetyincident"
 	"social.craftsky/appview/internal/scheduledposts"
 	"social.craftsky/appview/internal/subscriptions"
 )
@@ -36,6 +37,7 @@ func newAccountDeletionDependencies(
 	instagramPrivateData *instagram.PrivateDataService,
 	scheduledAccountDeletion *scheduledposts.AccountDeletion,
 	departureParticipant ownerlifecycle.TransitionParticipant,
+	evidenceStore safetyincident.EvidenceStore,
 	cfg Config,
 	logger *slog.Logger,
 	observer *observability.Observer,
@@ -62,7 +64,7 @@ func newAccountDeletionDependencies(
 	}
 	cleaner, err := accountdeletion.NewPrivateCleaner(
 		[]accountdeletion.PrivateCleanupComponent{
-			accountdeletion.NewDatabasePrivateCleanup(pool),
+			accountdeletion.NewDatabasePrivateCleanup(pool, evidenceStore),
 			instagramDeletion,
 		},
 	)

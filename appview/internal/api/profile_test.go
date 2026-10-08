@@ -693,7 +693,13 @@ func TestPutProfile_ReplacesAvatarAndBanner(t *testing.T) {
 		},
 		putCraftsky: func(_ map[string]any) error { return nil },
 	}
-	h := newPutHandler(t, &fakeStore{row: &api.ProfileRow{DID: "did:plc:me", CreatedAt: time.Now()}}, pds, fakeResolver{handleFor: "alice.example"})
+	oldAvatarCID, oldAvatarMIME := "old-avatar", "image/jpeg"
+	oldBannerCID, oldBannerMIME := "old-banner", "image/jpeg"
+	h := newPutHandler(t, &fakeStore{row: &api.ProfileRow{
+		DID: "did:plc:me", CreatedAt: time.Now(),
+		AvatarCID: &oldAvatarCID, AvatarMime: &oldAvatarMIME,
+		BannerCID: &oldBannerCID, BannerMime: &oldBannerMIME,
+	}}, pds, fakeResolver{handleFor: "alice.example"})
 	body := `{
 		"avatar":{"$type":"blob","ref":{"$link":"new-avatar"},"mimeType":"image/jpeg","size":10},
 		"banner":{"$type":"blob","ref":{"$link":"new-banner"},"mimeType":"image/png","size":20}
@@ -717,10 +723,10 @@ func TestPutProfile_ReplacesAvatarAndBanner(t *testing.T) {
 	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
 		t.Fatal(err)
 	}
-	if resp.Avatar == nil || !strings.Contains(*resp.Avatar, "new-avatar@jpeg") {
+	if resp.Avatar == nil || !strings.Contains(*resp.Avatar, "old-avatar@jpeg") {
 		t.Fatalf("response avatar = %v", resp.Avatar)
 	}
-	if resp.Banner == nil || !strings.Contains(*resp.Banner, "new-banner@png") {
+	if resp.Banner == nil || !strings.Contains(*resp.Banner, "old-banner@jpeg") {
 		t.Fatalf("response banner = %v", resp.Banner)
 	}
 

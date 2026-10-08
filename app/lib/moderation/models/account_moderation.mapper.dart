@@ -82,12 +82,14 @@ class ModerationReasonMapper extends EnumMapper<ModerationReason> {
     }
   }
 }
+
 extension ModerationReasonMapperExtension on ModerationReason {
   dynamic toValue() {
     ModerationReasonMapper.ensureInitialized();
     return MapperContainer.globals.toValue<ModerationReason>(this);
   }
 }
+
 class ModerationEffectTypeMapper extends EnumMapper<ModerationEffectType> {
   ModerationEffectTypeMapper._();
 

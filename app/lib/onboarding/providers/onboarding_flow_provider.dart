@@ -135,6 +135,14 @@ class OnboardingFlow extends _$OnboardingFlow {
     state = AsyncData(current.copyWith(selectedCraftIds: selected));
   }
 
+  // This method is passed directly as a ValueChanged<bool> callback.
+  // ignore: avoid_positional_boolean_parameters
+  void setMeetsMinimumAge(bool value) {
+    final current = state.value;
+    if (current == null || current.saving) return;
+    state = AsyncData(current.copyWith(meetsMinimumAge: value));
+  }
+
   Future<void> pickAvatar(ImageSource source) async {
     final current = state.value;
     if (current == null || current.saving || current.uploadingAvatar) return;
@@ -273,9 +281,13 @@ class OnboardingFlow extends _$OnboardingFlow {
     }
   }
 
-  Future<void> complete() => ref
-      .read(onboardingStatusProvider(lease.session).notifier)
-      .completeOptimistically();
+  Future<void> complete() {
+    final current = state.value;
+    if (current == null || !current.meetsMinimumAge) return Future.value();
+    return ref
+        .read(onboardingStatusProvider(lease.session).notifier)
+        .completeOptimistically(meetsMinimumAge: true);
+  }
 
   Future<Profile> _updateProfileWithRetry({
     required ProfileRepository repository,

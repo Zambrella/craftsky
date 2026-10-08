@@ -4,10 +4,12 @@ package index_test
 import (
 	"context"
 	"encoding/json"
+	"os"
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"social.craftsky/appview/internal/imagesafety"
 	"social.craftsky/appview/internal/index"
 	"social.craftsky/appview/internal/tap"
 	"social.craftsky/appview/internal/testdb"
@@ -226,4 +228,117 @@ func TestBlueskyProfile_DeleteNonMemberIsNoop(t *testing.T) {
 	if err := idx.Handle(context.Background(), del); err != nil {
 		t.Errorf("delete on non-member should be silent; got %v", err)
 	}
+}
+
+func TestImageSafetyBlueskyProfileKeepsLastClearImagesIndependently(t *testing.T) {
+	pool := testdb.WithSchema(t, craftskyProfilesDDL+imageScanTapPreStateDDL)
+	migration, err := os.ReadFile("../../migrations/000081_image_safety.up.sql")
+	if err != nil {
+		t.Fatalf("read image safety migration: %v", err)
+	}
+	if _, err := pool.Exec(context.Background(), string(migration)); err != nil {
+		t.Fatalf("apply image safety migration: %v", err)
+	}
+
+	ctx := context.Background()
+	key := imagesafety.ScanKey{ScannerID: "fixture", PolicyVersion: "policy-1", CorpusVersion: "corpus-1"}
+	const (
+		oldAvatar = "bafkreigxxxkul4e5rjz4fomqgn6ieeoxbcqeztmxjbrhnbpe7r44ya4ahe"
+		oldBanner = "bafkreidjq52a7nre4puzipwf3gwfkgnxftvbwnp3jppfogo7her2g3ai64"
+		newAvatar = "bafkreibm6jgql3m7ta4szj3q5wo7fkiny2hzqoqs4dbc65d5u3r3itkqae"
+		newBanner = "bafkreic5jbn7z4xkzqh4mmyv5x5xjhzlb2y6h5b56tn3m76kt4qaxwji5u"
+	)
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO image_scan_results(
+			id,blob_cid,scanner_id,policy_version,corpus_version,state,completed_at
+		) VALUES
+			('20000000-0000-4000-8000-000000000001',$1,$5,$6,$7,'clear',now()),
+			('20000000-0000-4000-8000-000000000002',$2,$5,$6,$7,'clear',now()),
+			('20000000-0000-4000-8000-000000000003',$3,$5,$6,$7,'pending',NULL),
+			('20000000-0000-4000-8000-000000000004',$4,$5,$6,$7,'clear',now())
+	`, oldAvatar, oldBanner, newAvatar, newBanner, key.ScannerID, key.PolicyVersion, key.CorpusVersion); err != nil {
+		t.Fatalf("seed scan results: %v", err)
+	}
+
+	idx := index.NewImageSafetyBlueskyProfile(pool, key)
+	event := tap.Event{
+		URI:        "at://did:plc:safe-profile/app.bsky.actor.profile/self",
+		CID:        "profile-cid-1",
+		DID:        "did:plc:safe-profile",
+		Rkey:       "self",
+		Collection: "app.bsky.actor.profile",
+		Action:     "create",
+		Record: json.RawMessage(`{
+			"displayName":"First",
+			"avatar":{"$type":"blob","ref":{"$link":"` + oldAvatar + `"},"mimeType":"image/jpeg","size":10},
+			"banner":{"$type":"blob","ref":{"$link":"` + oldBanner + `"},"mimeType":"image/png","size":20}
+		}`),
+	}
+	if err := idx.Handle(ctx, event); err != nil {
+		t.Fatalf("project initial clear profile: %v", err)
+	}
+	assertProfileImages(t, pool, event.DID.String(), oldAvatar, oldBanner)
+
+	event.Action = "update"
+	event.CID = "profile-cid-2"
+	event.Record = json.RawMessage(`{
+		"displayName":"Second",
+		"avatar":{"$type":"blob","ref":{"$link":"` + newAvatar + `"},"mimeType":"image/webp","size":30},
+		"banner":{"$type":"blob","ref":{"$link":"` + newBanner + `"},"mimeType":"image/jpeg","size":40}
+	}`)
+	if err := idx.Handle(ctx, event); err != nil {
+		t.Fatalf("project mixed-state replacement: %v", err)
+	}
+	assertProfileImages(t, pool, event.DID.String(), oldAvatar, newBanner)
+
+	if _, err := pool.Exec(ctx, `
+		UPDATE image_scan_results SET state='clear', completed_at=now(), updated_at=now()
+		WHERE blob_cid=$1
+	`, newAvatar); err != nil {
+		t.Fatalf("clear replacement avatar: %v", err)
+	}
+	if err := idx.Handle(ctx, event); err != nil {
+		t.Fatalf("replay current profile after clear: %v", err)
+	}
+	assertProfileImages(t, pool, event.DID.String(), newAvatar, newBanner)
+
+	placeholder := event
+	placeholder.URI = "at://did:plc:placeholder/app.bsky.actor.profile/self"
+	placeholder.DID = "did:plc:placeholder"
+	placeholder.CID = "profile-cid-placeholder"
+	placeholder.Action = "create"
+	placeholder.Record = json.RawMessage(`{
+		"displayName":"Placeholder",
+		"avatar":{"$type":"blob","ref":{"$link":"` + oldAvatar + `"},"mimeType":"image/jpeg","size":10}
+	}`)
+	if _, err := pool.Exec(ctx, `UPDATE image_scan_results SET state='pending', completed_at=NULL WHERE blob_cid=$1`, oldAvatar); err != nil {
+		t.Fatal(err)
+	}
+	if err := idx.Handle(ctx, placeholder); err != nil {
+		t.Fatalf("project profile without clear history: %v", err)
+	}
+	assertProfileImages(t, pool, placeholder.DID.String(), "", "")
+}
+
+func assertProfileImages(t *testing.T, pool *pgxpool.Pool, did, wantAvatar, wantBanner string) {
+	t.Helper()
+	var avatar, banner *string
+	if err := pool.QueryRow(context.Background(), `
+		SELECT avatar_cid,banner_cid FROM bluesky_profiles WHERE did=$1
+	`, did).Scan(&avatar, &banner); err != nil {
+		t.Fatalf("read serving profile images: %v", err)
+	}
+	if got := stringValue(avatar); got != wantAvatar {
+		t.Fatalf("avatar=%q, want %q", got, wantAvatar)
+	}
+	if got := stringValue(banner); got != wantBanner {
+		t.Fatalf("banner=%q, want %q", got, wantBanner)
+	}
+}
+
+func stringValue(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return *value
 }

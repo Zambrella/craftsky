@@ -97,6 +97,14 @@ func TestTerminalOwnerIsInvisibleAndIneffectiveBeforePhysicalPurge(t *testing.T)
 		t.Fatal(err)
 	}
 	if _, err := pool.Exec(ctx, `
+		INSERT INTO image_subject_states(subject_uri,subject_kind,source_cid,visibility_state)
+		VALUES($1,'post','terminal-cid','clear'),
+		      ($2,'post','other-cid','clear'),
+		      ($3,'post','terminal-reply-cid','clear')
+	`, terminalURI, otherURI, terminalReplyURI); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `
 		INSERT INTO tap_source_records(
 			uri,did,collection,rkey,source_event_id,source_fingerprint,revision,cid,
 			action,record,record_bytes,live,ordering_status,projection_disposition,

@@ -14,17 +14,18 @@ import (
 )
 
 type publicOperationsRouteBundle struct {
-	mux      Registrar
-	inFlight func(http.Handler) http.Handler
-	env      Environment
-	db       *pgxpool.Pool
-	consumer tap.Consumer
-	logger   *slog.Logger
+	mux         Registrar
+	inFlight    func(http.Handler) http.Handler
+	env         Environment
+	db          *pgxpool.Pool
+	consumer    tap.Consumer
+	imageSafety api.Readiness
+	logger      *slog.Logger
 }
 
 func registerPublicOperationsRoutes(routes publicOperationsRouteBundle) {
 	routes.mux.Handle("GET /health", api.HealthHandler(routes.db, routes.logger))
-	routes.mux.Handle("GET /healthz", api.NewHealthHandler(routes.db, routes.consumer))
+	routes.mux.Handle("GET /healthz", api.NewHealthHandler(routes.db, routes.consumer, routes.imageSafety))
 	if routes.env == EnvDev {
 		routes.mux.Handle("GET /v1/dev/media/{name}", routes.inFlight(api.DevMediaHandler()))
 		routes.mux.Handle("GET /v1/dev/panic", routes.inFlight(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {

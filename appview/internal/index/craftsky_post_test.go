@@ -1312,6 +1312,14 @@ func TestCraftskyPost_FederatedImagesAndExternalLifecycleUsesImagesWin(t *testin
 	if !firstIndexedAt.Equal(replayIndexedAt) {
 		t.Fatalf("indexed_at changed on replay: %s -> %s", firstIndexedAt, replayIndexedAt)
 	}
+	disabled := index.NewCraftskyPostWithVideoPolicy(pool, testLogger(), false)
+	if err := disabled.Handle(ctx, event); err != nil {
+		t.Fatalf("disable launch video projection: %v", err)
+	}
+	var disabledCount int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM craftsky_posts WHERE uri=$1`, event.URI).Scan(&disabledCount); err != nil || disabledCount != 1 {
+		t.Fatalf("disabled video projection count=%d err=%v", disabledCount, err)
+	}
 
 	event.Action = "update"
 	event.CID = "bafyMixed2"

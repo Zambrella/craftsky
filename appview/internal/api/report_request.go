@@ -48,19 +48,17 @@ func DecodeReportRequest(body io.Reader) (ReportRequest, error) {
 }
 
 var approvedReportReasons = map[string]struct{}{
-	"harassment":             {},
-	"hate":                   {},
-	"spam":                   {},
-	"misleading":             {},
-	"suspected_ai_generated": {},
-	"adult_or_graphic":       {},
-	"impersonation":          {},
-	"off_topic":              {},
-	"intellectual_property":  {},
-	"other":                  {},
+	"childSexualExploitation": {}, "grooming": {}, "childAbuseMaterial": {},
+	"intimateImageAbuse": {}, "sexualExploitation": {}, "adultContent": {}, "graphicContent": {},
+	"immediateDanger": {}, "credibleThreat": {}, "terrorism": {}, "violence": {}, "selfHarm": {},
+	"harassment": {}, "hate": {}, "stalking": {}, "doxxing": {}, "blockEvasion": {}, "privacy": {},
+	"fraud": {}, "scam": {}, "phishing": {}, "impersonation": {}, "counterfeit": {},
+	"spam": {}, "platformManipulation": {}, "misleading": {}, "suspectedAiGenerated": {}, "offTopic": {},
+	"other": {},
 }
 
-// IsApprovedReportReason reports whether reason is in the stable MVP taxonomy.
+// IsApprovedReportReason reports whether reason is an in-app allegation. Rights
+// complaints intentionally use the dedicated email route and are not accepted.
 func IsApprovedReportReason(reason string) bool {
 	_, ok := approvedReportReasons[reason]
 	return ok

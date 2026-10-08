@@ -24,6 +24,9 @@ func TestBusinessProfileServingFollowsLicenseRatherThanLegacyFlag(t *testing.T) 
 			t.Fatal(err)
 		}
 	}
+	if _, err := pool.Exec(ctx, `INSERT INTO image_subject_states(subject_uri,subject_kind,source_cid,visibility_state) SELECT uri,'businessProfile',cid,'clear' FROM craftsky_business_profiles`); err != nil {
+		t.Fatal(err)
+	}
 	store := NewStore(pool)
 	for _, tc := range []struct {
 		did  syntax.DID
@@ -83,6 +86,9 @@ func TestUpcomingBusinessServingFollowsEffectiveLicense(t *testing.T) {
 		if _, err := pool.Exec(ctx, query); err != nil {
 			t.Fatal(err)
 		}
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO image_subject_states(subject_uri,subject_kind,source_cid,visibility_state) SELECT uri,'businessEvent',cid,'clear' FROM craftsky_business_events`); err != nil {
+		t.Fatal(err)
 	}
 	store := NewStore(pool)
 	for _, tc := range []struct {

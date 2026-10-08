@@ -24,8 +24,11 @@ const (
 // Moderator is the server-derived identity attached only by production
 // moderator authentication. Request bodies cannot supply these values.
 type Moderator struct {
-	ActorID      string
-	SourceSystem string
+	ActorID                    string
+	SourceSystem               string
+	Role                       string
+	Permissions                map[string]bool
+	AssignedIncidentReferences map[string]bool
 }
 
 func GetModerator(ctx context.Context) (Moderator, bool) {

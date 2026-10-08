@@ -45,6 +45,7 @@ type VideoCompletionVerifier interface {
 
 type CreatePostHandlerOptions struct {
 	VideoCompletionVerifier VideoCompletionVerifier
+	DisableVideo            bool
 	Commands                AppendCommandExecutor
 }
 
@@ -63,9 +64,11 @@ func CreatePostHandler(
 ) http.Handler {
 	limits = normalizeMediaLimits(limits)
 	var videoVerifier VideoCompletionVerifier
+	disableVideo := false
 	var commands AppendCommandExecutor
 	if len(options) > 0 {
 		videoVerifier = options[0].VideoCompletionVerifier
+		disableVideo = options[0].DisableVideo
 		commands = options[0].Commands
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -124,6 +127,11 @@ func CreatePostHandler(
 		}
 		var verifiedVideo *video.Blob
 		if req.Embed != nil && req.Embed.Video != nil {
+			if disableVideo {
+				envelope.WriteError(w, http.StatusServiceUnavailable,
+					"video_disabled", "video publishing is unavailable", runID, nil)
+				return
+			}
 			if videoVerifier == nil {
 				envelope.WriteError(w, http.StatusBadGateway,
 					"video_service_unavailable", "could not verify video", runID, nil)

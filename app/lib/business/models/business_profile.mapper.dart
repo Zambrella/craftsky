@@ -46,12 +46,14 @@ class AccountTypeMapper extends EnumMapper<AccountType> {
     }
   }
 }
+
 extension AccountTypeMapperExtension on AccountType {
   String toValue() {
     AccountTypeMapper.ensureInitialized();
     return MapperContainer.globals.toValue<AccountType>(this) as String;
   }
 }
+
 class BusinessOpenValueMapper extends ClassMapperBase<BusinessOpenValue> {
   BusinessOpenValueMapper._();
 

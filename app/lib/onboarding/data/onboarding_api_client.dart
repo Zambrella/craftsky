@@ -14,9 +14,16 @@ final class OnboardingApiClient {
     return OnboardingCompletion.fromJson(response.data!);
   });
 
-  Future<OnboardingCompletion> complete() => unwrapApi(() async {
+  Future<OnboardingCompletion> complete({
+    required bool meetsMinimumAge,
+    required String policyVersion,
+  }) => unwrapApi(() async {
     final response = await _dio.post<Map<String, dynamic>>(
       '/v1/onboarding/completion',
+      data: {
+        'meetsMinimumAge': meetsMinimumAge,
+        'policyVersion': policyVersion,
+      },
     );
     return OnboardingCompletion.fromJson(response.data!);
   });

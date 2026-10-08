@@ -127,6 +127,12 @@
   },
   {
     "method": "GET",
+    "path": "/v1/account/eligibility",
+    "category": "appview.account.eligibility",
+    "public": false
+  },
+  {
+    "method": "GET",
     "path": "/v1/admin/moderation/cases",
     "category": "appview.admin.moderation.cases",
     "public": false
@@ -135,6 +141,18 @@
     "method": "GET",
     "path": "/v1/admin/moderation/cases/{caseReference}",
     "category": "appview.admin.moderation.cases.detail",
+    "public": false
+  },
+  {
+    "method": "GET",
+    "path": "/v1/admin/safety/incidents/{incidentReference}",
+    "category": "appview.admin.safety.incidents.detail",
+    "public": false
+  },
+  {
+    "method": "GET",
+    "path": "/v1/admin/safety/status",
+    "category": "appview.admin.safety.status",
     "public": false
   },
   {
@@ -541,6 +559,12 @@
   },
   {
     "method": "POST",
+    "path": "/v1/admin/eligibility/reviews",
+    "category": "appview.admin.eligibility.reviews",
+    "public": false
+  },
+  {
+    "method": "POST",
     "path": "/v1/admin/moderation/cases/{caseReference}/appeal-confirmations",
     "category": "appview.admin.moderation.cases.detail.appeal_confirmations",
     "public": false
@@ -567,6 +591,114 @@
     "method": "POST",
     "path": "/v1/admin/moderation/cases/{caseReference}/restorations",
     "category": "appview.admin.moderation.cases.detail.restorations",
+    "public": false
+  },
+  {
+    "method": "POST",
+    "path": "/v1/admin/safety/evidence/{evidenceId}/access",
+    "category": "appview.admin.safety.evidence.detail.access",
+    "public": false
+  },
+  {
+    "method": "POST",
+    "path": "/v1/admin/safety/external-intakes",
+    "category": "appview.admin.safety.external_intakes",
+    "public": false
+  },
+  {
+    "method": "POST",
+    "path": "/v1/admin/safety/external-intakes/{intakeId}/appeal-link",
+    "category": "appview.admin.safety.external_intakes.detail.appeal_link",
+    "public": false
+  },
+  {
+    "method": "POST",
+    "path": "/v1/admin/safety/external-intakes/{intakeId}/correspondence",
+    "category": "appview.admin.safety.external_intakes.detail.correspondence",
+    "public": false
+  },
+  {
+    "method": "POST",
+    "path": "/v1/admin/safety/incidents/{incidentReference}/authority-reports",
+    "category": "appview.admin.safety.incidents.detail.authority_reports",
+    "public": false
+  },
+  {
+    "method": "POST",
+    "path": "/v1/admin/safety/incidents/{incidentReference}/csea-classification",
+    "category": "appview.admin.safety.incidents.detail.csea_classification",
+    "public": false
+  },
+  {
+    "method": "POST",
+    "path": "/v1/admin/safety/incidents/{incidentReference}/evidence",
+    "category": "appview.admin.safety.incidents.detail.evidence",
+    "public": false
+  },
+  {
+    "method": "POST",
+    "path": "/v1/admin/safety/incidents/{incidentReference}/holds",
+    "category": "appview.admin.safety.incidents.detail.holds",
+    "public": false
+  },
+  {
+    "method": "POST",
+    "path": "/v1/admin/safety/incidents/{incidentReference}/information-requests",
+    "category": "appview.admin.safety.incidents.detail.information_requests",
+    "public": false
+  },
+  {
+    "method": "POST",
+    "path": "/v1/admin/safety/incidents/{incidentReference}/resolution",
+    "category": "appview.admin.safety.incidents.detail.resolution",
+    "public": false
+  },
+  {
+    "method": "POST",
+    "path": "/v1/admin/safety/information-requests/{requestId}/response",
+    "category": "appview.admin.safety.information_requests.detail.response",
+    "public": false
+  },
+  {
+    "method": "POST",
+    "path": "/v1/admin/safety/workflows/authority-requests",
+    "category": "appview.admin.safety.workflows.authority_requests",
+    "public": false
+  },
+  {
+    "method": "POST",
+    "path": "/v1/admin/safety/workflows/authority-requests/{workflowId}/closure",
+    "category": "appview.admin.safety.workflows.authority_requests.detail.closure",
+    "public": false
+  },
+  {
+    "method": "POST",
+    "path": "/v1/admin/safety/workflows/authority-requests/{workflowId}/disclosures",
+    "category": "appview.admin.safety.workflows.authority_requests.detail.disclosures",
+    "public": false
+  },
+  {
+    "method": "POST",
+    "path": "/v1/admin/safety/workflows/authority-requests/{workflowId}/verification",
+    "category": "appview.admin.safety.workflows.authority_requests.detail.verification",
+    "public": false
+  },
+  {
+    "method": "POST",
+    "path": "/v1/admin/safety/workflows/credible-threats",
+    "category": "appview.admin.safety.workflows.credible_threats",
+    "public": false
+  },
+  {
+    "method": "POST",
+    "path": "/v1/admin/safety/workflows/intimate-images",
+    "category": "appview.admin.safety.workflows.intimate_images",
+    "public": false
+  },
+  {
+    "method": "POST",
+    "path": "/v1/admin/safety/workflows/intimate-images/{workflowId}/outcome",
+    "category": "appview.admin.safety.workflows.intimate_images.detail.outcome",
     "public": false
   },
   {

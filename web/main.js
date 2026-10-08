@@ -1,11 +1,11 @@
 /*
- * Craftsky landing page — main.js
+ * CraftSky landing page - main.js
  *
  * Responsibilities:
  *   - Open/close the waiting-list <dialog> on CTA clicks (form is a
  *     cross-origin Brevo iframe, so submission happens entirely inside it)
  *   - Open/close the AT Protocol diagram lightbox <dialog>
- *   - Dispatch PostHog events (behind DNT + key checks)
+ *   - Dispatch PostHog events after consent (behind DNT + key checks)
  *   - Close modal on overlay click
  *   - Keep current year in footer up to date
  *
@@ -21,19 +21,25 @@
 
   const POSTHOG_KEY = 'phc_p9bFRYQRYLhWMjUFpznyKVjXLdZccJFZceEJztFuCFyv';
   const POSTHOG_HOST = 'https://t.craftsky.social';
+  const ANALYTICS_CHOICE_KEY = 'craftsky.analytics-consent';
+  let postHogLoaded = false;
 
   // -----------------------------------------------------------------------
-  // PostHog init (DNT-aware, key-aware)
+  // PostHog init and consent
   // -----------------------------------------------------------------------
 
   function shouldLoadPostHog() {
     if (navigator.doNotTrack === '1') return false;
     if (POSTHOG_KEY === 'REPLACE_ME') return false;
-    return true;
+    return localStorage.getItem(ANALYTICS_CHOICE_KEY) === 'granted';
   }
 
   function loadPostHog() {
     if (!shouldLoadPostHog()) return;
+    if (postHogLoaded) {
+      window.posthog.opt_in_capturing();
+      return;
+    }
     // Minimal PostHog loader. See https://posthog.com/docs/integrate/client/js
     // for the full official snippet. This trimmed version loads the script,
     // initialises with anonymous/no-cookie settings, and exposes window.posthog.
@@ -71,12 +77,62 @@
       capture_pageview: true,
       capture_pageleave: true,
     });
+    postHogLoaded = true;
   }
 
   function track(event, properties, options) {
+    if (!shouldLoadPostHog()) return;
     if (!window.posthog || typeof window.posthog.capture !== 'function') return;
     window.posthog.capture(event, properties || {}, options);
   }
+
+  function setAnalyticsChoice(choice) {
+    localStorage.setItem(ANALYTICS_CHOICE_KEY, choice);
+    if (choice === 'granted') {
+      loadPostHog();
+    } else if (window.posthog && typeof window.posthog.opt_out_capturing === 'function') {
+      window.posthog.opt_out_capturing();
+    }
+  }
+
+  function showAnalyticsChoices() {
+    const existing = document.getElementById('analytics-choices');
+    if (existing) {
+      existing.hidden = false;
+      return;
+    }
+
+    const panel = document.createElement('section');
+    panel.id = 'analytics-choices';
+    panel.className = 'analytics-choices';
+    panel.setAttribute('aria-labelledby', 'analytics-choices-title');
+    panel.innerHTML =
+      '<div><strong id="analytics-choices-title">Optional website analytics</strong>' +
+      '<p>Allow privacy-conscious PostHog analytics to help us improve this site? No advertising, cookies, or session replay.</p></div>' +
+      '<div class="analytics-choices__actions">' +
+      '<button type="button" class="btn btn--ghost" data-analytics-choice="denied">No thanks</button>' +
+      '<button type="button" class="btn btn--primary" data-analytics-choice="granted">Allow analytics</button>' +
+      '</div>';
+    document.body.appendChild(panel);
+
+    panel.querySelectorAll('[data-analytics-choice]').forEach(function (button) {
+      button.addEventListener('click', function () {
+        setAnalyticsChoice(button.getAttribute('data-analytics-choice'));
+        panel.hidden = true;
+      });
+    });
+  }
+
+  if (navigator.doNotTrack !== '1' && localStorage.getItem(ANALYTICS_CHOICE_KEY) === null) {
+    showAnalyticsChoices();
+  }
+
+  const analyticsSettings = document.createElement('button');
+  analyticsSettings.type = 'button';
+  analyticsSettings.className = 'analytics-settings';
+  analyticsSettings.textContent = 'Analytics choices';
+  analyticsSettings.addEventListener('click', showAnalyticsChoices);
+  document.body.appendChild(analyticsSettings);
 
   // -----------------------------------------------------------------------
   // Modal
@@ -199,16 +255,6 @@
     stack.addEventListener('touchend', finishSwipe);
 
     setActive(activeIndex);
-  });
-
-  // -----------------------------------------------------------------------
-  // Spec-click tracking
-  // -----------------------------------------------------------------------
-
-  document.querySelectorAll('.js-track-spec-click').forEach(function (el) {
-    el.addEventListener('click', function () {
-      track('landing_cta_spec_clicked', { source: 'hero' }, { transport: 'sendBeacon' });
-    });
   });
 
   // -----------------------------------------------------------------------

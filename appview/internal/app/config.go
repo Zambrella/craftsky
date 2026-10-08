@@ -21,7 +21,9 @@ import (
 	"social.craftsky/appview/internal/auth"
 	"social.craftsky/appview/internal/buildinfo"
 	"social.craftsky/appview/internal/federatedhttp"
+	"social.craftsky/appview/internal/imagesafety"
 	"social.craftsky/appview/internal/middleware"
+	"social.craftsky/appview/internal/safetyincident"
 	"social.craftsky/appview/internal/scheduledposts"
 )
 
@@ -81,6 +83,10 @@ const (
 	maxIdentityCacheRefreshOperationTimeout       = time.Minute
 	maxIdentityCacheRefreshRetryDelay             = 24 * time.Hour
 	maxIdentityCacheRefreshBatch                  = 1000
+	maxImageSafetyPollInterval                    = time.Minute
+	maxImageSafetyLeaseDuration                   = 10 * time.Minute
+	maxImageSafetyOperationTimeout                = 5 * time.Minute
+	maxImageSafetyBackoff                         = 24 * time.Hour
 	maxOAuthAuthorityMetadataCacheTTL             = 5 * time.Minute
 	maxOAuthAuthorityMetadataCacheCapacity        = 250_000
 	httpWriteResponseSafetyMargin                 = 5 * time.Second
@@ -226,6 +232,14 @@ type Config struct {
 	IdentityCacheRefreshBatchSize         int
 	IdentityCacheRefreshOperationTimeout  time.Duration
 	IdentityCacheRefreshRetryDelay        time.Duration
+	ImageSafety                           imagesafety.Config
+	ImageSafetyPollInterval               time.Duration
+	ImageSafetyLeaseDuration              time.Duration
+	ImageSafetyOperationTimeout           time.Duration
+	ImageSafetyMaxAttempts                int
+	ImageSafetyBackoffMin                 time.Duration
+	ImageSafetyBackoffMax                 time.Duration
+	ImageSafetyAlertAge                   time.Duration
 
 	TapWSURL                      string
 	TapAckTimeout                 time.Duration
@@ -302,8 +316,11 @@ type Config struct {
 	VideoServiceURL           string
 	VideoPlaylistURLTemplate  string
 	VideoThumbnailURLTemplate string
+	VideoEnabled              bool
+	RequiredPolicyVersion     string
 	RateLimits                middleware.RateLimitConfig
 	ScheduledPostsS3          scheduledposts.S3ObjectStoreConfig
+	SafetyEvidenceS3          safetyincident.S3EvidenceStoreConfig
 
 	// Observability. Sentry export/tracing stays disabled unless explicitly
 	// configured, and unsafe body logging is local-dev only.
@@ -355,6 +372,10 @@ func LoadConfig(env Env, envFilePath string) (Config, error) {
 		VideoServiceURL:           getEnvWithDefault("VIDEO_SERVICE_URL", "https://video.bsky.app"),
 		VideoPlaylistURLTemplate:  getEnvWithDefault("VIDEO_PLAYLIST_URL_TEMPLATE", "https://video.bsky.app/watch/{did}/{cid}/playlist.m3u8"),
 		VideoThumbnailURLTemplate: getEnvWithDefault("VIDEO_THUMBNAIL_URL_TEMPLATE", "https://video.bsky.app/watch/{did}/{cid}/thumbnail.jpg"),
+		RequiredPolicyVersion:     getEnvWithDefault("REQUIRED_POLICY_VERSION", "1"),
+	}
+	if strings.TrimSpace(cfg.RequiredPolicyVersion) != cfg.RequiredPolicyVersion || cfg.RequiredPolicyVersion == "" || len(cfg.RequiredPolicyVersion) > 128 {
+		return Config{}, fmt.Errorf("REQUIRED_POLICY_VERSION must be 1-128 trimmed characters")
 	}
 
 	origins := os.Getenv("ALLOWED_ORIGINS")
@@ -370,6 +391,11 @@ func LoadConfig(env Env, envFilePath string) (Config, error) {
 	cfg.TapWSURL = os.Getenv("TAP_WS_URL")
 
 	var err error
+	configuredVideoEnabled, parseVideoEnabledErr := strconv.ParseBool(getEnvWithDefault("VIDEO_ENABLED", "false"))
+	if parseVideoEnabledErr != nil {
+		return Config{}, fmt.Errorf("VIDEO_ENABLED: %w", parseVideoEnabledErr)
+	}
+	cfg.VideoEnabled = configuredVideoEnabled
 	if cfg.TapAckTimeout, err = boundedPositiveDurationEnv("TAP_ACK_TIMEOUT", 10*time.Second, maxTapAckTimeout); err != nil {
 		return Config{}, err
 	}
@@ -810,6 +836,50 @@ func LoadConfig(env Env, envFilePath string) (Config, error) {
 	if cfg.IdentityCacheRefreshRetryDelay, err = boundedPositiveDurationEnv("IDENTITY_CACHE_REFRESH_RETRY_DELAY", 15*time.Minute, maxIdentityCacheRefreshRetryDelay); err != nil {
 		return Config{}, err
 	}
+	imageEnvironment := imagesafety.EnvironmentDevelopment
+	imageModeDefault := string(imagesafety.ScannerModeStub)
+	imageScannerDefault := "fixture-scanner"
+	imagePolicyDefault := "development-policy-v1"
+	imageCorpusDefault := "development-corpus-v1"
+	if env == EnvProd {
+		imageEnvironment = imagesafety.EnvironmentProduction
+		imageModeDefault = string(imagesafety.ScannerModeManual)
+		imageScannerDefault = "manual-moderation"
+		imagePolicyDefault = "manual-policy-v1"
+		imageCorpusDefault = "no-automated-corpus"
+	}
+	cfg.ImageSafety = imagesafety.Config{
+		Environment: imageEnvironment,
+		Mode:        imagesafety.ScannerMode(getEnvWithDefault("IMAGE_SAFETY_SCANNER_MODE", imageModeDefault)),
+		ScannerID:   strings.TrimSpace(getEnvWithDefault("IMAGE_SAFETY_SCANNER_ID", imageScannerDefault)),
+		PolicyVersion: strings.TrimSpace(getEnvWithDefault(
+			"IMAGE_SAFETY_POLICY_VERSION", imagePolicyDefault,
+		)),
+		CorpusVersion: strings.TrimSpace(getEnvWithDefault(
+			"IMAGE_SAFETY_CORPUS_VERSION", imageCorpusDefault,
+		)),
+	}
+	if cfg.ImageSafetyPollInterval, err = boundedPositiveDurationEnv("IMAGE_SAFETY_POLL_INTERVAL", time.Second, maxImageSafetyPollInterval); err != nil {
+		return Config{}, err
+	}
+	if cfg.ImageSafetyLeaseDuration, err = boundedPositiveDurationEnv("IMAGE_SAFETY_LEASE_DURATION", time.Minute, maxImageSafetyLeaseDuration); err != nil {
+		return Config{}, err
+	}
+	if cfg.ImageSafetyOperationTimeout, err = boundedPositiveDurationEnv("IMAGE_SAFETY_OPERATION_TIMEOUT", 30*time.Second, maxImageSafetyOperationTimeout); err != nil {
+		return Config{}, err
+	}
+	if cfg.ImageSafetyMaxAttempts, err = boundedIntEnv("IMAGE_SAFETY_MAX_ATTEMPTS", 5, 1, 100); err != nil {
+		return Config{}, err
+	}
+	if cfg.ImageSafetyBackoffMin, err = boundedPositiveDurationEnv("IMAGE_SAFETY_BACKOFF_MIN", time.Minute, maxImageSafetyBackoff); err != nil {
+		return Config{}, err
+	}
+	if cfg.ImageSafetyBackoffMax, err = boundedPositiveDurationEnv("IMAGE_SAFETY_BACKOFF_MAX", time.Hour, maxImageSafetyBackoff); err != nil {
+		return Config{}, err
+	}
+	if cfg.ImageSafetyAlertAge, err = boundedPositiveDurationEnv("IMAGE_SAFETY_ALERT_AGE", 15*time.Minute, maxImageSafetyBackoff); err != nil {
+		return Config{}, err
+	}
 	if cfg.FederatedHTTP, err = federatedHTTPConfigFromEnv(); err != nil {
 		return Config{}, err
 	}
@@ -873,6 +943,33 @@ func LoadConfig(env Env, envFilePath string) (Config, error) {
 	}
 	if cfg.ScheduledPostsS3.SecretAccessKey == "" {
 		cfg.ScheduledPostsS3.SecretAccessKey = "not-configured"
+	}
+	cfg.SafetyEvidenceS3 = safetyincident.S3EvidenceStoreConfig{
+		Endpoint:        strings.TrimSpace(os.Getenv("SAFETY_EVIDENCE_S3_ENDPOINT")),
+		Region:          strings.TrimSpace(os.Getenv("SAFETY_EVIDENCE_S3_REGION")),
+		Bucket:          strings.TrimSpace(os.Getenv("SAFETY_EVIDENCE_S3_BUCKET")),
+		AccessKeyID:     strings.TrimSpace(os.Getenv("SAFETY_EVIDENCE_S3_ACCESS_KEY_ID")),
+		SecretAccessKey: strings.TrimSpace(os.Getenv("SAFETY_EVIDENCE_S3_SECRET_ACCESS_KEY")),
+		Environment:     string(env),
+	}
+	if cfg.SafetyEvidenceS3.Endpoint == "" {
+		if env == EnvDev {
+			cfg.SafetyEvidenceS3.Endpoint = "http://minio:9000"
+		} else {
+			cfg.SafetyEvidenceS3.Endpoint = "https://restricted-evidence.invalid"
+		}
+	}
+	if cfg.SafetyEvidenceS3.Region == "" {
+		cfg.SafetyEvidenceS3.Region = "us-east-1"
+	}
+	if cfg.SafetyEvidenceS3.Bucket == "" {
+		cfg.SafetyEvidenceS3.Bucket = "restricted-safety-evidence"
+	}
+	if cfg.SafetyEvidenceS3.AccessKeyID == "" {
+		cfg.SafetyEvidenceS3.AccessKeyID = "not-configured"
+	}
+	if cfg.SafetyEvidenceS3.SecretAccessKey == "" {
+		cfg.SafetyEvidenceS3.SecretAccessKey = "not-configured"
 	}
 	cfg.InstagramData, cfg.InstagramMeta, cfg.InstagramLimits, cfg.InstagramDeployment, err = loadInstagramConfig(env)
 	if err != nil {
@@ -1024,6 +1121,18 @@ func LoadConfig(env Env, envFilePath string) (Config, error) {
 	if env == EnvProd && objectStoreURL.Scheme != "https" {
 		return Config{}, fmt.Errorf("SCHEDULED_POSTS_S3_ENDPOINT must use HTTPS in production")
 	}
+	if cfg.SafetyEvidenceS3.Endpoint == "" || cfg.SafetyEvidenceS3.Region == "" ||
+		cfg.SafetyEvidenceS3.Bucket == "" || cfg.SafetyEvidenceS3.AccessKeyID == "" ||
+		cfg.SafetyEvidenceS3.SecretAccessKey == "" {
+		return Config{}, fmt.Errorf("restricted evidence object store configuration is incomplete")
+	}
+	evidenceStoreURL, parseErr := url.Parse(cfg.SafetyEvidenceS3.Endpoint)
+	if parseErr != nil || evidenceStoreURL.Host == "" {
+		return Config{}, fmt.Errorf("SAFETY_EVIDENCE_S3_ENDPOINT is invalid")
+	}
+	if env == EnvProd && evidenceStoreURL.Scheme != "https" {
+		return Config{}, fmt.Errorf("SAFETY_EVIDENCE_S3_ENDPOINT must use HTTPS in production")
+	}
 	if err := cfg.Validate(); err != nil {
 		return Config{}, err
 	}
@@ -1064,6 +1173,12 @@ func (cfg Config) Validate() error {
 		return fmt.Errorf("TAP_QUARANTINE_LEASE_DURATION must exceed TAP_QUARANTINE_POLL_INTERVAL")
 	case cfg.TapQuarantineOperationTimeout >= cfg.TapQuarantineLeaseDuration:
 		return fmt.Errorf("TAP_QUARANTINE_OPERATION_TIMEOUT must be shorter than TAP_QUARANTINE_LEASE_DURATION")
+	case cfg.ImageSafetyLeaseDuration <= cfg.ImageSafetyPollInterval:
+		return fmt.Errorf("IMAGE_SAFETY_LEASE_DURATION must exceed IMAGE_SAFETY_POLL_INTERVAL")
+	case cfg.ImageSafetyOperationTimeout >= cfg.ImageSafetyLeaseDuration:
+		return fmt.Errorf("IMAGE_SAFETY_OPERATION_TIMEOUT must be shorter than IMAGE_SAFETY_LEASE_DURATION")
+	case cfg.ImageSafetyBackoffMax < cfg.ImageSafetyBackoffMin:
+		return fmt.Errorf("IMAGE_SAFETY_BACKOFF_MAX must not be shorter than IMAGE_SAFETY_BACKOFF_MIN")
 	case cfg.TapAckTimeout <= cfg.TapAckSafetyMargin:
 		return fmt.Errorf("TAP_ACK_SAFETY_MARGIN must be shorter than TAP_ACK_TIMEOUT")
 	case cfg.OAuthAuthRequestExpiry >= cfg.OAuthSessionAbsoluteLifetime:

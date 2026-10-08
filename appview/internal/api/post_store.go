@@ -222,6 +222,7 @@ const postSelectColumns = `
 
 const postVisibleModerationPredicate = `
 		  AND NOT appview_owner_is_terminal(p.did)
+		  AND appview_image_subject_is_clear(p.uri, p.cid)
 		  AND NOT EXISTS (
 			SELECT 1
 			FROM moderation_outputs mo

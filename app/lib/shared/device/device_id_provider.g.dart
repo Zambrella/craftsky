@@ -124,4 +124,4 @@ final class DeviceIdProvider
   }
 }
 
-String _$deviceIdHash() => r'93e03fc85c705b8be8b5a586f2e0a8d5271022f3';
+String _$deviceIdHash() => r'a9ad21353781481dd9d78e4cc7a4690a486f49ad';

@@ -5,10 +5,14 @@ import 'package:flutter/material.dart';
 class OnboardingGuidelinesStep extends StatelessWidget {
   const OnboardingGuidelinesStep({
     required this.onViewFullGuidelines,
+    required this.meetsMinimumAge,
+    required this.onMeetsMinimumAgeChanged,
     super.key,
   });
 
   final VoidCallback onViewFullGuidelines;
+  final bool meetsMinimumAge;
+  final ValueChanged<bool> onMeetsMinimumAgeChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -49,6 +53,15 @@ class OnboardingGuidelinesStep extends StatelessWidget {
             icon: const Icon(CraftskyIconsBold.externalLink),
             label: Text(l10n.onboardingGuidelinesViewFull),
           ),
+        ),
+        const SizedBox(height: 24),
+        CheckboxListTile(
+          key: const Key('onboarding-minimum-age-declaration'),
+          contentPadding: EdgeInsets.zero,
+          controlAffinity: ListTileControlAffinity.leading,
+          value: meetsMinimumAge,
+          onChanged: (value) => onMeetsMinimumAgeChanged(value ?? false),
+          title: Text(l10n.onboardingMinimumAgeDeclaration),
         ),
       ],
     );

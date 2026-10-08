@@ -60,6 +60,7 @@ class ReportSubmissionMapper extends ClassMapperBase<ReportSubmission> {
     return ensureInitialized().decodeJson<ReportSubmission>(json);
   }
 }
+
 mixin ReportSubmissionMappable {
   String toJson() {
     return ReportSubmissionMapper.ensureInitialized()
@@ -100,6 +101,7 @@ mixin ReportSubmissionMappable {
     );
   }
 }
+
 extension ReportSubmissionValueCopy<$R, $Out>
     on ObjectCopyWith<$R, ReportSubmission, $Out> {
   ReportSubmissionCopyWith<$R, ReportSubmission, $Out>

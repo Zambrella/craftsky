@@ -100,10 +100,13 @@ class _OnboardingFlowScaffold extends ConsumerWidget {
         state.identity.bio.length <= profileBioMaxLength &&
         !state.uploadingAvatar &&
         !state.avatarUploadFailed;
+    final stepValid =
+        valid &&
+        (state.step != OnboardingStep.guidelines || state.meetsMinimumAge);
     final action = deriveOnboardingActionState(
       step: state.step,
       dirty: dirty,
-      valid: valid,
+      valid: stepValid,
       saving: state.saving,
     );
 
@@ -182,6 +185,9 @@ class _OnboardingFlowScaffold extends ConsumerWidget {
                               ),
                               OnboardingStep.guidelines =>
                                 OnboardingGuidelinesStep(
+                                  meetsMinimumAge: state.meetsMinimumAge,
+                                  onMeetsMinimumAgeChanged:
+                                      notifier.setMeetsMinimumAge,
                                   onViewFullGuidelines: () => unawaited(
                                     _openTrustedLink(
                                       context,

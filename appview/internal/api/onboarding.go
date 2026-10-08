@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net/http"
 	"social.craftsky/appview/internal/observability"
@@ -14,13 +15,26 @@ import (
 )
 
 type OnboardingStatus struct {
-	Completed   bool       `json:"completed"`
-	CompletedAt *time.Time `json:"completedAt,omitempty"`
+	Completed             bool       `json:"completed"`
+	CompletedAt           *time.Time `json:"completedAt,omitempty"`
+	RequiredPolicyVersion string     `json:"requiredPolicyVersion"`
+	AcceptedPolicyVersion string     `json:"acceptedPolicyVersion,omitempty"`
+	AcceptedAt            *time.Time `json:"acceptedAt,omitempty"`
 }
+
+type OnboardingAcceptance struct {
+	MeetsMinimumAge bool   `json:"meetsMinimumAge"`
+	PolicyVersion   string `json:"policyVersion"`
+}
+
+var (
+	ErrMinimumAgeDeclarationRequired = errors.New("minimum age declaration required")
+	ErrPolicyVersionMismatch         = errors.New("policy version mismatch")
+)
 
 type OnboardingStatusService interface {
 	Status(context.Context, syntax.DID) (OnboardingStatus, error)
-	Complete(context.Context, syntax.DID) (OnboardingStatus, error)
+	Complete(context.Context, syntax.DID, OnboardingAcceptance) (OnboardingStatus, error)
 }
 
 func GetOnboardingStatusHandler(store OnboardingStatusService, logger *slog.Logger) http.Handler {
@@ -53,11 +67,22 @@ func onboardingStatusHandler(store OnboardingStatusService, logger *slog.Logger,
 			err    error
 		)
 		if completing {
-			status, err = store.Complete(r.Context(), did)
+			var acceptance OnboardingAcceptance
+			if decodeErr := decodeStrictJSONObject(r, &acceptance); decodeErr != nil {
+				envelope.WriteError(w, http.StatusBadRequest, "invalid_request",
+					"invalid onboarding declaration", runID, nil)
+				return
+			}
+			status, err = store.Complete(r.Context(), did, acceptance)
 		} else {
 			status, err = store.Status(r.Context(), did)
 		}
 		if err != nil {
+			if errors.Is(err, ErrMinimumAgeDeclarationRequired) || errors.Is(err, ErrPolicyVersionMismatch) {
+				envelope.WriteError(w, http.StatusBadRequest, "invalid_request",
+					"minimum age declaration and current policy version are required", runID, nil)
+				return
+			}
 			operation := "onboarding.status.read"
 			if completing {
 				operation = "onboarding.completion.write"

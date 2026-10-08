@@ -48,6 +48,7 @@ CREATE TABLE moderation_decisions (
     case_event_id UUID NOT NULL UNIQUE REFERENCES moderation_case_events(id),
     disposition TEXT NOT NULL, reason TEXT, internal_evidence_notes TEXT,
     user_safe_detail TEXT, severity_rationale TEXT, created_at TIMESTAMPTZ NOT NULL
+	,legal_classification TEXT
 );
 CREATE TABLE moderation_effect_events (
     id UUID PRIMARY KEY, case_id UUID NOT NULL REFERENCES moderation_cases(id),

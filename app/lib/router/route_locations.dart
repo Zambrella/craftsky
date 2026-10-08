@@ -10,6 +10,7 @@ class RouteLocations {
   static const accountDeletionReauthComplete =
       '/account-deletion/reauth-complete';
   static const onboarding = '/onboarding';
+  static const accountEligibility = '/account-eligibility';
   static const feed = '/feed';
   // Alias: the post-auth home landing. Keep as a const reference to `feed`
   // so renaming the branch in one place updates both usages.

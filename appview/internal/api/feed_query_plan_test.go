@@ -131,6 +131,9 @@ func seedFeedQueryPlanCardinality(t *testing.T, pool *pgxpool.Pool) {
 		FROM generate_series(1, 1000) AS author
 		CROSS JOIN generate_series(1, 20) AS post;
 
+		INSERT INTO image_subject_states(subject_uri,subject_kind,source_cid,visibility_state)
+		SELECT uri,'post',cid,'clear' FROM craftsky_posts;
+
 		INSERT INTO tap_source_records(
 			uri,did,collection,rkey,source_event_id,source_fingerprint,revision,cid,
 			action,record,record_bytes,live,ordering_status,projection_disposition,

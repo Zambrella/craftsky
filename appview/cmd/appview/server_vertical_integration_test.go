@@ -132,6 +132,13 @@ func TestNewServer_MigratedPostgresVerticalSlices(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("index post against migrated schema: %v", err)
 	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO image_subject_states(subject_uri,subject_kind,source_cid,visibility_state)
+		VALUES('at://did:plc:verticalauthor/social.craftsky.feed.post/vertical-post',
+		       'post','bafy-vertical-post','clear')
+	`); err != nil {
+		t.Fatalf("seed cleared image-safety state: %v", err)
+	}
 	assertFollowLookupUsesCompositeIndex(t, pool, verticalViewer, verticalAuthor)
 
 	pds := newVerticalPDSServer(t)

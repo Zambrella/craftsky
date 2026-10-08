@@ -18,6 +18,8 @@ void main() {
             body: SingleChildScrollView(
               child: OnboardingGuidelinesStep(
                 onViewFullGuidelines: () => viewFullCalls++,
+                meetsMinimumAge: false,
+                onMeetsMinimumAgeChanged: (_) {},
               ),
             ),
           ),
