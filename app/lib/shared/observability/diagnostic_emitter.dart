@@ -4,6 +4,7 @@ import 'package:craftsky_app/shared/observability/diagnostic_text.dart';
 import 'package:craftsky_app/shared/observability/error_reporter.dart';
 import 'package:craftsky_app/shared/observability/platform_log.dart';
 import 'package:craftsky_app/shared/observability/sentry_sanitizer.dart';
+import 'package:flutter/foundation.dart';
 import 'package:logging/logging.dart';
 
 /// Static developer message plus a few operational fields; never a payload.
@@ -24,6 +25,9 @@ final class DiagnosticMessage {
 final class DiagnosticEmitter {
   DiagnosticEmitter({
     PlatformLogSink? platformSink,
+    this.debugLogs = const bool.fromEnvironment(
+      'CRAFTSKY_DEBUG_LOGS',
+    ),
     this.environment = const String.fromEnvironment(
       'SENTRY_ENVIRONMENT',
       defaultValue: 'development',
@@ -31,10 +35,12 @@ final class DiagnosticEmitter {
     this.release = const String.fromEnvironment('SENTRY_RELEASE'),
   }) : _platform = platformSink ?? writePlatformDiagnostic;
   final PlatformLogSink _platform;
+  final bool debugLogs;
   final String environment;
   final String release;
   void emitLocal(LogRecord record) {
-    if (record.level < Level.WARNING) return;
+    final minimumLevel = debugLogs && kDebugMode ? Level.FINE : Level.INFO;
+    if (record.level < minimumLevel) return;
     final selected = selectDiagnosticRecord(record);
     selected['environment'] = _technical(environment);
     if (RegExp(r'^[A-Za-z0-9_.@+\-]{1,160}$').hasMatch(release)) {

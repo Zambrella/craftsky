@@ -6,6 +6,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"social.craftsky/appview/internal/auth"
+	lexiconschema "social.craftsky/appview/internal/lexicon/schema"
 )
 
 type ClassifiedError struct {
@@ -109,6 +110,14 @@ func ExpectedDiagnostic(err error, fields EventContext) bool {
 		return true
 	}
 	result := safeContextString(fields, "result", "")
+	if result == "quarantine" && fields["error_category"] == "validation" {
+		nodes, _ := boundedErrorNodes(err)
+		for _, node := range nodes {
+			if _, ok := node.(*lexiconschema.ValidationError); ok {
+				return true
+			}
+		}
+	}
 	if result == "exhausted" || result == "terminal" || result == "quarantine" {
 		return false
 	}

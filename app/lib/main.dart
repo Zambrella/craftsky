@@ -1,7 +1,5 @@
-// This file is the debug sink for the `logging` package: it configures the
-// root logger to forward records to stdout via `print` when running in debug
-// mode. That is the one legitimate place in the codebase where `print` is
-// used; everywhere else, use `Logger`.
+// The local logging sink emits protected INFO+ records in every build.
+// CRAFTSKY_DEBUG_LOGS enables FINE output only in debug builds.
 import 'dart:async';
 
 import 'package:craftsky_app/bootstrap.dart';
@@ -64,8 +62,12 @@ Future<void> main() async {
 
 StreamSubscription<LogRecord> configureRootLogForwarding({
   PlatformLogSink? platformSink,
+  bool debugLogs = const bool.fromEnvironment('CRAFTSKY_DEBUG_LOGS'),
 }) {
-  final emitter = DiagnosticEmitter(platformSink: platformSink);
+  final emitter = DiagnosticEmitter(
+    platformSink: platformSink,
+    debugLogs: debugLogs,
+  );
   return Logger.root.onRecord.listen(emitter.emitLocal);
 }
 

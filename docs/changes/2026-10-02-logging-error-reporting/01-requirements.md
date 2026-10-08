@@ -1,5 +1,21 @@
 # Requirements: Useful Logging and Error Reporting
 
+## Flutter console visibility 2026-10-08
+
+CON-001: Flutter local console emits INFO and above by default. CRAFTSKY_DEBUG_LOGS=true additionally enables FINE; sanitization remains on and Sentry issue policy unchanged. Maintainer explicitly permits existing full provider values in opt-in debug-mode FINE logs. Keep bounded output and credential scrubbing; release/profile builds cannot enable FINE through this flag.
+
+## Repository retry escalation correction 2026-10-08
+
+ERR-003: Repository attempts below AlertAttempts are recoverable WARN with no Sentry issue, including mixed handler/lease errors. At or beyond AlertAttempts, escalate ERROR plus one Sentry issue per failed attempt while retries continue. Preserve original causes, fencing, queue state and permitted context. Known source-change races have a safe explanation and source_changed reason. Claim failures remain recoverable WARN.
+
+## Approved completion metadata correction 2026-10-07
+
+REL-001: Preserve the approved follower-growth `already_complete` outcome and known embedded AppView release format across local/native SDK Logs. Omit unavailable empty release metadata; retain rejection of private/unreviewed values. No metric/business/release-policy changes.
+
+## Approved dev error follow-up 2026-10-07
+
+User authorized the diagnostic recommendations and explicitly requested lexicon failures at WARN. ERR-001: preserve typed source validation causes and safe rule details through quarantine; invalid lexicons log WARN and produce no Sentry issue. Keep public references, quarantine/ACK/retry behavior, and private payload exclusion. ERR-002: repository job failures retain original causes and public owner/job/attempt context; confirmed pure lease supersession is WARN, expired/unknown/mixed failures remain ERROR. Keep lease fencing and queue/reconciliation policy. Authoring limits and owner record repair remain separate work; no PDS mutation authorized.
+
 ## Sentry-led refinement approved 2026-10-07
 
 The maintainer explicitly approved and requested implementation of the second simplification. This amendment overrides conflicting SIM/legacy requirements. Privacy changes below are within that explicit approval; no additional approval is pending.

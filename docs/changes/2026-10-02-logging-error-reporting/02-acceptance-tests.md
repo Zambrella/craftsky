@@ -1,5 +1,21 @@
 # Acceptance Test Specification: Useful Logging and Error Reporting
 
+## Flutter console visibility 2026-10-08
+
+CON-T01 / CON-001: root console emits protected INFO and WARNING by default, excludes FINE; debug option emits protected FINE. Debug opt-in applies only in Flutter debug mode; existing provider-value formatting remains unchanged by maintainer instruction.
+
+## Repository retry escalation correction 2026-10-08
+
+ERR-T03 / ERR-003: superseded, expired and mixed/source-changed attempts below threshold serialize WARN and retry; known source explanation survives with original causes. ERR-T04 / ERR-003: real worker at attempts before/at/after threshold emits native WARN/no issue then ERROR/one issue per failed attempt, with public context and protected canaries. Retry state and original error remain unchanged.
+
+## Approved completion metadata correction 2026-10-07
+
+REL-T01: actual protected follower-growth log retains `already_complete` in local JSON and native SDK Log attributes, with private outcome canary excluded. REL-T02: embedded release `craftsky-appview@1.0.11` survives local/native SDK serialization, empty release is absent, and unreviewed release canaries stay excluded.
+
+## Dev error follow-up tests 2026-10-07
+
+ERR-T01 / ERR-001: actual dispatcher + protected log + mock issue owner retains missing-required-field/oversized-blob diagnostics and public event references at WARN without issue export; private payload canaries excluded; permanent invalid outcomes/cleanup unchanged. ERR-T02 / ERR-002: real repository job supersession and expiry preserve fencing, and serialized worker diagnostics retain typed causes and public owner/job/attempt; pure supersession WARN, mixed failures ERROR. Full Go race/integration verification.
+
 ## Sentry-led acceptance amendment approved 2026-10-07
 
 | Test | Requirement / criterion | Observable behavior / order |

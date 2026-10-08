@@ -156,7 +156,7 @@ func (store *Store) runRepositoryJob(ctx context.Context, claim RepositoryClaim,
 		return fmt.Errorf("complete Tap repository job: %w", err)
 	}
 	if result.RowsAffected() != 1 {
-		return ErrProjectionLeaseLost
+		return store.repositoryLeaseFailure(ctx, claim, now)
 	}
 	return nil
 }
@@ -174,7 +174,7 @@ func (store *Store) rescheduleRepositoryJob(ctx context.Context, claim Repositor
 		return fmt.Errorf("reschedule Tap repository job: %w", err)
 	}
 	if result.RowsAffected() != 1 {
-		return ErrProjectionLeaseLost
+		return store.repositoryLeaseFailure(ctx, claim, now)
 	}
 	return nil
 }
@@ -243,4 +243,24 @@ func scanRepositoryJob(row rowScanner) (RepositoryJob, error) {
 		job.AuthoritativeRevision = *revision
 	}
 	return job, nil
+}
+
+// Classification is read-only and never restores authority to a stale claim.
+// An expired claim remains actionable even if another worker has since claimed it.
+type repositoryLeaseError struct{ reason string }
+
+func (e *repositoryLeaseError) Error() string      { return e.reason }
+func (e *repositoryLeaseError) Unwrap() error      { return ErrProjectionLeaseLost }
+func (e *repositoryLeaseError) ReasonCode() string { return e.reason }
+func (store *Store) repositoryLeaseFailure(ctx context.Context, claim RepositoryClaim, now time.Time) error {
+	reason := "lease_lost"
+	if !claim.LeaseExpiresAt.After(now) {
+		reason = "lease_expired"
+	} else {
+		job, err := store.RepositoryJob(ctx, claim.DID, claim.Kind)
+		if err == nil && (job.LeaseToken != claim.LeaseToken || job.State != "processing") {
+			reason = "lease_superseded"
+		}
+	}
+	return &repositoryLeaseError{reason: reason}
 }

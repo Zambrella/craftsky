@@ -276,3 +276,75 @@ func TestSDKNativeHTTPLogScalars(t *testing.T) {
 		t.Fatalf("HTTP numeric fields lost: %#v", attrs)
 	}
 }
+
+func TestFollowerGrowthAlreadyCompleteSurvivesDiagnosticSinks(t *testing.T) {
+	var local bytes.Buffer
+	logger := slog.New(NewDiagnosticHandler(slog.NewJSONHandler(&local, nil)))
+	transport := &sentry.MockTransport{}
+	observer := New(Config{Env: "test", Logger: logger, SentryDSN: "https://public@example.invalid/1", SentryTransport: transport, LogsEnabled: true})
+	observer.FollowerGrowthCapture(context.Background(), "already_complete", "none", time.Second, 0, nil)
+	observer.FollowerGrowthCapture(context.Background(), "private-outcome-canary", "none", time.Second, 0, nil)
+	observer.Flush(time.Second)
+	if !strings.Contains(local.String(), `"result":"already_complete"`) {
+		t.Fatalf("completion outcome lost: %s", local.String())
+	}
+	sawResult := false
+	for _, event := range transport.Events() {
+		for _, entry := range event.Logs {
+			if entry.Attributes["result"].AsString() == "already_complete" {
+				sawResult = true
+			}
+		}
+	}
+	if !sawResult {
+		t.Fatal("native SDK completion outcome lost")
+	}
+	data, _ := json.Marshal(transport.Events())
+	if strings.Contains(string(data)+local.String(), "private-outcome-canary") {
+		t.Fatal("private outcome leaked")
+	}
+}
+
+func TestReleaseMetadataSurvivesOrIsAbsentAcrossDiagnosticSinks(t *testing.T) {
+	for _, release := range []string{"craftsky-appview@1.0.11", "", "private-release-canary@example.invalid"} {
+		t.Run(release, func(t *testing.T) {
+			var local bytes.Buffer
+			logger := slog.New(NewDiagnosticHandler(slog.NewJSONHandler(&local, nil)))
+			transport := &sentry.MockTransport{}
+			observer := New(Config{Env: "test", Release: release, Logger: logger, SentryDSN: "https://public@example.invalid/1", SentryTransport: transport, LogsEnabled: true})
+			observer.FollowerGrowthCapture(context.Background(), "success", "none", time.Second, 0, nil)
+			observer.Flush(time.Second)
+			var record map[string]any
+			if err := json.Unmarshal(local.Bytes(), &record); err != nil {
+				t.Fatal(err)
+			}
+			if release == "" {
+				if _, ok := record["release"]; ok {
+					t.Errorf("unavailable release emitted: %s", local.String())
+				}
+			} else if release == "craftsky-appview@1.0.11" && record["release"] != release {
+				t.Errorf("local release lost: %s", local.String())
+			}
+			count := 0
+			for _, event := range transport.Events() {
+				for _, entry := range event.Logs {
+					count++
+					value, ok := entry.Attributes["release"]
+					if release == "" && ok {
+						t.Error("unavailable SDK release emitted")
+					}
+					if release == "craftsky-appview@1.0.11" && (!ok || value.AsString() != release) {
+						t.Errorf("SDK release lost: %+v", entry)
+					}
+				}
+			}
+			if count != 1 {
+				t.Errorf("native SDK logs=%d", count)
+			}
+			data, _ := json.Marshal(transport.Events())
+			if strings.Contains(string(data)+local.String(), "private-release-canary") {
+				t.Fatal("unreviewed release leaked")
+			}
+		})
+	}
+}

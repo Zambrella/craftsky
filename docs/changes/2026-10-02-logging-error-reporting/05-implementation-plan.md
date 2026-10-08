@@ -1,5 +1,54 @@
 # TDD Implementation Plan: Useful Logging and Error Reporting
 
+## Flutter console visibility 2026-10-08
+
+CON-001 authorized 2026-10-08. CON-T01 completed: meaningful red for missing INFO (`console-t01-red.log`), then green for default INFO/WARNING, FINE suppression and sanitized debug opt-in (`console-t01-green.log`); provider-value changes removed from scope by explicit maintainer preference; Final focused console/native logging suites: seven passed (`console-final-focused.log`). Full Flutter suite: 2,710 passed, 38 skipped, two obsolete WARN-only bridge assertions failed (`console-flutter-full.log`); both were updated for INFO+ and passed in the focused rerun, retaining independent Sentry gate/canary checks. Analyzer clean (`console-flutter-analyze-final.log`). Guide and validation evidence updated; final diff check passed and plan read back. Implementation complete, review pending stage choice. Full suite was not rerun after assertion-only updates; no production/device verification claimed. No Go/business/Sentry capture policy changes; no commit/push.
+
+## Repository retry escalation correction 2026-10-08
+
+ERR-003 amendment approved 2026-10-08: escalation at existing attempt threshold while recovery continues. ERR-T03 completed: behavioral red for expired/mixed/source-change ERROR and missing explanation (`retry-t03-red.log`), then green (`retry-t03-green.log`). ERR-T04 completed: real migrated worker red at threshold with zero issues (`retry-t04-red.log`), then green for WARN/no issue followed by ERROR/one issue on each subsequent failed attempt (`retry-t04-green.log`). Serialized local/native output retains public owner, operation and original exception type; private prose absent and durable pending retry state preserved. Full `just test` Go 1.27.1 race verification against compose PostgreSQL/MinIO passed (`retry-go-full.log`), including final native source-explanation/canary assertions. Guide, requirements, acceptance tests, coding plan and investigation updated; final diff check passed and plan read back. No Flutter source changed, so prior Flutter verification is retained. Implementation complete; review awaits stage choice. No commit, push or runtime restart authorized.
+
+## Approved completion metadata correction 2026-10-07
+
+| Step | Test / requirement | Status |
+|---|---|---|
+| R1 | REL-T01 / REL-001: follower completion outcome across sinks | completed |
+| R2 | REL-T02 / REL-001: known release and absent release across sinks | completed |
+| R3 | Verification, guide/evidence, plan readback | completed |
+
+R1 confirmed behavioral red for `already_complete` becoming `unknown` in local/native SDK output (`rel-t01-red.log`); same test green after admitting the existing legitimate completion outcome (`rel-t01-green.log`). R2 confirmed red for embedded release becoming `[OMITTED]` and empty release being emitted (`rel-t02-red.log`); same test green after shared release selection and omission handling (`rel-t02-green.log`). Existing technical release names remain accepted; only the known embedded AppView format adds `@` support. Private release/outcome canaries remain excluded. No metrics/business/release policy changes. Focused observability/follower-growth/config/startup race suites passed (`rel-focused-final.log`). Full `just test` PostgreSQL/MinIO race verification finished; every package except API passed (`rel-go-full.log`). API hit `TestScheduledImageReleaseConcurrentUploads`' five-second admission timeout; isolated rerun with the same Go 1.27.1 race toolchain passed (`rel-image-recheck.log`). No image code/test change was made. Guide/evidence updated, plan read back and `git diff --check` passed. Full-run timing failure is documented, not claimed as a clean full-suite pass. Implementation review remains pending the stage choice; no Flutter changes or commit/push/restart/deploy.
+
+## Dev error follow-up 2026-10-07
+
+Approved ERR-001/002 scope is recorded in 01/02/04. Using implement-tdd for this continuation.
+
+| Step | Test / requirement | Status |
+|---|---|---|
+| E1 | ERR-T01 / ERR-001: typed validation details, WARN/no issue, unchanged quarantine | completed |
+| E2 | ERR-T02 / ERR-002: per-job cause/context and conservative lease classification | completed |
+| E3 | Full Go verification, guide/evidence and plan readback | completed |
+
+E1 confirmed behavioral red: dispatcher rejection emitted ERROR, generic cause, a public-text excerpt and one issue (`err-t01-red.log`). Green: typed validator details survive transient outcome data; WARN/no issue and no body (`err-t01-green.log`). Native SDK Logs regression separately confirmed red for generic remote body (`err-remote-red.log`) and green with safe missing-field explanation (`err-remote-green.log`). Oversized-blob regression retains original cause and numeric size. Initial new durable reason proved incompatible with the database quarantine constraint; no migration was added. Durable `malformed_record` and source `invalid_lexicon` remain unchanged; diagnostic reason is `invalid_lexicon`. Real projection-worker regression confirms quarantine commit and transient cause retention.
+
+E2 confirmed red: RunOnce logged no per-job cause/context (`err-t02-red.log`). Green: public owner, job operation/kind, attempt and typed joined causes retained; read-only lease inspection distinguishes supersession/expiry without changing conditional fencing. Mixed errors remain ERROR; a further red demonstrated repeated supersession stayed WARN, now ERROR at the configured attempt threshold (`err-durability-red.log`). Batch-only duplicate logging removed; original returned causes still match errors.Is. No queue/lease duration/reconciliation/PDS policy changes.
+
+Affected Go race suites passed (`err-focused-final.log`), followed by native SDK Log explanation verification (`err-remote-green.log`). Full `just test` passed (`err-go-full.log`), followed by final observability/Tap/schema race checks (`err-final-diagnostics.log`) and both missing-field/oversized-business-blob native WARN Log cases (`err-lexicon-last.log`). Exhausted validation guardrail confirmed red for WARN (`err-terminal-red.log`) then green after limiting the downgrade to quarantine. Guide/evidence updated, implementation plan read back and `git diff --check` passed. Implementation review remains pending the stage choice. A Sentry import-boundary failure was fixed by moving the mock SDK test into the already-approved Tap test package, without broadening the boundary. No Flutter changes; no commit/push/restart/deploy.
+
+## Dev diagnostic usability correction 2026-10-07
+
+Maintainer authorized removal of the stale dev Sentry release override and the noisy unsupported-field marker, retaining reviewed operational metadata. Existing SDK-003/005/006, SIM-005/006 and NFR-002 cover the source selection and bounds. Error investigation is read-only; business/schema/record fixes are recommendations only. No commit/push/deploy requested for this pass.
+
+| Step | Test / requirement | Status |
+|---|---|---|
+| D1 | SDK-T05: real protected startup log retains listener/version metadata | completed |
+| D2 | SDK-T05: supported Tap envelope metadata retained; unsupported/private fields quietly excluded | completed |
+| D3 | SDK-T06: actual budget limits still mark truncation; dev release follows embedded version | completed |
+| D4 | Go focused/full verification, guide/evidence, error investigation and plan readback | completed |
+
+D1 red: protected startup test lost `addr` (`devdiag-startup-red.log`); same test green after reviewed literal listener-address and semantic-version selection (`devdiag-startup-green.log`). D2 red: Tap ID/action/recordBytes missing and unsupported fields add marker (`devdiag-metadata-red.log`); same test green with typed public envelope metadata retained and exclusions quiet (`devdiag-metadata-green.log`). Actual logs: 568 of 587 had the marker, including 512 record-event DEBUG messages.
+
+D3 verification: stale dev release override cleared (embedded release precedence remains covered by existing config tests); actual count/byte budget markers retained with correlation and private-frame canaries. An initial byte-budget fixture used an invalid long release and was sanitized before it reached the budget; corrected fixture uses a real large typed panic stack. Final diagnostics/startup/config race suite passed (`devdiag-focused-final.log`). Full `just test` PostgreSQL/MinIO race suite passed (`devdiag-go-full.log`). Guide, validation evidence and read-only dev error investigation updated; implementation plan read back and `git diff --check` passed. Temporary validation probe removed. Implementation review remains pending the stage choice. Running dev container has not been rebuilt; changes remain uncommitted.
+
 ## IR-007 correction 2026-10-07
 
 User selected the required-correction stage. Scope: SDK-T04 / SDK-001, SDK-005, SIM-002, FR-008 / AC-009; preserve SDK ownership and explicit terminal/reportability policy. Optional IR-008 is outside this correction. No commit authorized.

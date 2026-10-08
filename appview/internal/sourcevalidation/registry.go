@@ -27,6 +27,7 @@ type Result struct {
 	StructuralStatus Status
 	SemanticStatus   Status
 	Reason           string
+	Cause            error
 }
 
 type recordKeyPolicy uint8
@@ -88,7 +89,9 @@ func validateRecordBody(event tap.Event) Result {
 	switch event.Collection {
 	case "social.craftsky.actor.profile":
 		if err := lexiconschema.ValidateCraftskyRecord(event.Record, event.Collection.String()); err != nil {
-			return invalid("invalid_lexicon")
+			result := invalid("invalid_lexicon")
+			result.Cause = err
+			return result
 		}
 		var record craftskylex.ActorProfile
 		if err := json.Unmarshal(event.Record, &record); err != nil {
@@ -96,7 +99,9 @@ func validateRecordBody(event tap.Event) Result {
 		}
 	case "social.craftsky.business.profile":
 		if err := lexiconschema.ValidateBusinessRecord(event.Record, event.Collection.String()); err != nil {
-			return invalid("invalid_lexicon")
+			result := invalid("invalid_lexicon")
+			result.Cause = err
+			return result
 		}
 		var record craftskylex.BusinessProfile
 		if err := json.Unmarshal(event.Record, &record); err != nil {
@@ -104,7 +109,9 @@ func validateRecordBody(event tap.Event) Result {
 		}
 	case "social.craftsky.business.event":
 		if err := lexiconschema.ValidateBusinessRecord(event.Record, event.Collection.String()); err != nil {
-			return invalid("invalid_lexicon")
+			result := invalid("invalid_lexicon")
+			result.Cause = err
+			return result
 		}
 		var record craftskylex.BusinessEvent
 		if err := json.Unmarshal(event.Record, &record); err != nil {
@@ -114,8 +121,12 @@ func validateRecordBody(event tap.Event) Result {
 			return semanticInvalid("invalid_timestamp")
 		}
 	case "social.craftsky.feed.post":
-		if !hasRequiredFields(event.Record, "text", "sponsored", "createdAt") {
-			return invalid("invalid_lexicon")
+		for _, field := range []string{"text", "sponsored", "createdAt"} {
+			if !hasRequiredFields(event.Record, field) {
+				result := invalid("invalid_lexicon")
+				result.Cause = &lexiconschema.ValidationError{MissingField: field}
+				return result
+			}
 		}
 		var record craftskylex.FeedPost
 		if err := json.Unmarshal(event.Record, &record); err != nil {

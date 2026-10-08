@@ -23,6 +23,7 @@ import (
 	"github.com/coder/websocket/wsjson"
 
 	craftsky "social.craftsky/appview/internal/lexicon/craftsky"
+	lexiconschema "social.craftsky/appview/internal/lexicon/schema"
 	"social.craftsky/appview/internal/observability"
 )
 
@@ -678,24 +679,35 @@ func RecordFailureDiagnostic(ev Event, outcome Outcome, err error) observability
 	if outcome.Kind == OutcomeRetryable {
 		result = "retry"
 	}
+	var lexiconErr *lexiconschema.ValidationError
 	record := observability.PublicRecordContext{ActorDID: ev.DID, TargetDID: ev.DID, URI: ev.URI, CID: ev.CID, NSID: ev.Collection, RecordKey: ev.Rkey}
 	workflow := observability.TapEventFailureContext{Record: record, EventID: ev.ID, Outcome: result, Acknowledgement: ack, Reason: string(outcome.Reason)}
 	if outcome.Kind == OutcomePermanentInvalid {
 		result, ack, stage = "quarantine", "durably_committed", "parse"
 		workflow.Outcome, workflow.Acknowledgement = result, ack
 		if err == nil {
+			err = outcome.DiagnosticCause
+		}
+		if err == nil {
 			err = errors.New("published record rejected")
+		}
+		if errors.As(err, &lexiconErr) {
+			workflow.Reason = "invalid_lexicon"
 		}
 		// Only a specifically selected field of an already-public Tap record is
 		// admitted, and only on this terminal published parse failure path.
-		if ev.Collection == "social.craftsky.feed.post" && outcome.Reason == ReasonMalformedRecord {
+		if ev.Collection == "social.craftsky.feed.post" && outcome.Reason == ReasonMalformedRecord && lexiconErr == nil {
 			var post craftsky.FeedPost
 			if json.Unmarshal(ev.Record, &post) == nil {
 				workflow.PublishedFailure = &observability.PublishedRecordParseFailureContext{Record: record, Text: post.Text}
 			}
 		}
 	}
-	return observability.DiagnosticInput{Error: err, Context: observability.EventContext{"component": "tap_indexer", "operation": "tap.indexer.handle", "failure_stage": stage, "nsid": ev.Collection.String(), "result": result, "retryable": outcome.Kind == OutcomeRetryable}, Workflow: workflow}
+	input := observability.DiagnosticInput{Error: err, Context: observability.EventContext{"component": "tap_indexer", "operation": "tap.indexer.handle", "failure_stage": stage, "nsid": ev.Collection.String(), "result": result, "retryable": outcome.Kind == OutcomeRetryable}, Workflow: workflow}
+	if lexiconErr != nil && outcome.Kind == OutcomePermanentInvalid {
+		input.Context["error_category"] = "validation"
+	}
+	return input
 }
 
 // Invalid-envelope diagnostics re-parse only source identity fields that could

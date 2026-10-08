@@ -15,6 +15,38 @@ class PlatformOpaqueFailure implements Exception {
 
 void main() {
   test(
+    'CON-T01 root console defaults to INFO with protected debug opt-in',
+    () async {
+      final lines = <String>[];
+      final previous = Logger.root.level;
+      Logger.root.level = Level.FINE;
+      addTearDown(() => Logger.root.level = previous);
+      final subscription = configureRootLogForwarding(platformSink: lines.add);
+      addTearDown(subscription.cancel);
+      final log = Logger('ConsoleProbe')
+        ..fine('Debug transition token=debug-canary')
+        ..info('Application ready token=info-canary')
+        ..warning('Operation retrying');
+      expect(lines, hasLength(2));
+      final infoRecord = jsonDecode(lines.first) as Map<String, dynamic>;
+      expect(infoRecord['severity'], 'INFO');
+      expect(lines.join(), isNot(contains('info-canary')));
+      await subscription.cancel();
+      lines.clear();
+      final debugSubscription = configureRootLogForwarding(
+        platformSink: lines.add,
+        debugLogs: true,
+      );
+      addTearDown(debugSubscription.cancel);
+      log.fine('Debug transition token=debug-canary');
+      expect(lines, hasLength(1));
+      final debugRecord = jsonDecode(lines.single) as Map<String, dynamic>;
+      expect(debugRecord['severity'], 'FINE');
+      expect(lines.single, isNot(contains('debug-canary')));
+    },
+  );
+
+  test(
     'SIM-T03 Unicode and oversized identifiers remain a complete brief record',
     () {
       final lines = <String>[];

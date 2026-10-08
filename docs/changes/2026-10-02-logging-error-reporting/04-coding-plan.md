@@ -1,5 +1,21 @@
 # Coding Plan: Useful Logging and Error Reporting
 
+## Flutter console visibility 2026-10-08
+
+CON-001: CON-T01 root console regression then configurable local emitter minimum, debug flag gated by kDebugMode. Preserve existing provider-value formatting; document compile-time opt-in and restart requirement.
+
+## Repository retry escalation correction 2026-10-08
+
+ERR-003 implementation order: ERR-T03 lease/source integration regression, then ERR-T04 real SDK issue boundary regression. Keep AlertAttempts as an escalation threshold, not a retry limit. Extend existing repair observer with explicit CaptureDiagnostic; use per-attempt capture marker. Preserve metrics, retry scheduling and lease fencing.
+
+## Approved completion metadata correction 2026-10-07
+
+Implement REL-T01 then REL-T02 as separate red/green loops. Add the legitimate result to diagnostic selection only, select the known release format without broadening generic private prose permissions, and omit empty release metadata at the common boundary. Verify affected observability suites and guide/evidence readback.
+
+## Dev error follow-up 2026-10-07
+
+Implement ERR-T01 then ERR-T02 with meaningful red/green tests. Carry validation cause as transient outcome diagnostic data (never as a processing error that changes retry behavior), select concrete reviewed validation explanations, classify invalid lexicons as expected validation. Inspect lease state after fenced update failure solely for diagnostics; do not change queue semantics or grant a stale claim authority. Preserve per-job causes through native diagnostics; avoid duplicate batch-only reports. No PDS/schema/auth policy changes.
+
 ## Sentry-led implementation amendment approved 2026-10-07
 
 Use the existing worktree and implement SDK-T01–SDK-T06 in order. Flutter: register supported SDK cause extractors for app/API wrappers; reviewed static StateError subtype retains its message without permitting arbitrary StateError prose; native exceptions carry chain/stack instead of JSON summaries. Configure official logging integration with issue threshold off and a small context enrichment bridge. Local root console emitter remains independent. Install local-only error callbacks before Sentry integration setup; leave SDK handlers installed afterwards and preserve UI fallback. Go: use SDK SetException conversion with original cause hint and existing bounded cycle detection; preserve extracted stacks, omit synthetic capture-time stacks for stackless errors; reviewed static wrapper explanations and safe runtime adapters remain source controlled. Use official slog handler for remote export after source selection, keep local sanitizing handler and targeted worker suppression. Both final filters preserve selected breadcrumbs and standard metadata, continue rejecting attachments/private enrichment. Simplify ErrorReporter to explicit exception capture; feature code continues to avoid Sentry imports. Add dependencies only for official integrations. Do not enable tracing or alter production/business/API behavior.

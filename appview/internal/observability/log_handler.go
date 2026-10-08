@@ -4,7 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"log/slog"
+	"net"
+	"regexp"
 	"sort"
+	"strconv"
 	"sync"
 	"time"
 
@@ -25,6 +28,8 @@ func newDiagnosticHandler(local slog.Handler, clock func() time.Time) slog.Handl
 	}
 	return &diagnosticHandler{local: local, export: &diagnosticExport{}, retries: &retryLogLimiter{now: clock, scopes: map[string]retryLogState{}}}
 }
+
+var logVersionPattern = regexp.MustCompile(`^(dev|(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*))$`)
 
 type diagnosticExport struct {
 	mu       sync.RWMutex
@@ -83,8 +88,6 @@ func (h *diagnosticHandler) Handle(ctx context.Context, raw slog.Record) error {
 	for _, attr := range attrs {
 		if selected, ok := selectSlogAttr(ctx, attr); ok {
 			safe = append(safe, selected)
-		} else {
-			omitted = true
 		}
 	}
 	// Core operation/correlation/cause fields win over optional excerpts.
@@ -92,7 +95,10 @@ func (h *diagnosticHandler) Handle(ctx context.Context, raw slog.Record) error {
 	size := 512 + len(message)
 	for _, attr := range safe {
 		encoded, err := json.Marshal(attr.Value.Any())
-		if err != nil || size+len(encoded)+len(attr.Key)+8 > 15000 || record.NumAttrs() >= 31 {
+		if err != nil {
+			continue
+		}
+		if size+len(encoded)+len(attr.Key)+8 > 15000 || record.NumAttrs() >= 31 {
 			omitted = true
 			continue
 		}
@@ -100,7 +106,7 @@ func (h *diagnosticHandler) Handle(ctx context.Context, raw slog.Record) error {
 		record.AddAttrs(attr)
 	}
 	if omitted {
-		record.AddAttrs(slog.String("omitted", "[OMITTED: unsupported or over-budget fields]"))
+		record.AddAttrs(slog.String("omitted", "[OMITTED: log field budget exceeded]"))
 	}
 	localOnly, _ := ctx.Value(localDiagnosticFallbackKey{}).(bool)
 	emit, suppressed := true, 0
@@ -142,6 +148,30 @@ func selectSlogAttr(ctx context.Context, attr slog.Attr) (slog.Attr, bool) {
 	// Do not resolve arbitrary LogValuer/Stringer implementations.
 	value := attr.Value.Any()
 	switch attr.Key {
+	case "app_version":
+		if version, ok := value.(string); ok && logVersionPattern.MatchString(version) {
+			return slog.String(attr.Key, version), true
+		}
+	case "addr":
+		if address, ok := value.(string); ok {
+			host, port, err := net.SplitHostPort(address)
+			n, portErr := strconv.ParseUint(port, 10, 16)
+			if err == nil && portErr == nil && n > 0 && (net.ParseIP(host) != nil || host == "localhost" || host == "") {
+				return slog.String(attr.Key, address), true
+			}
+		}
+	case "id":
+		if id, ok := value.(uint64); ok && id > 0 {
+			return slog.Uint64(attr.Key, id), true
+		}
+	case "action":
+		if action, ok := value.(string); ok && (action == "create" || action == "update" || action == "delete") {
+			return slog.String(attr.Key, action), true
+		}
+	case "recordBytes":
+		if size, ok := value.(int64); ok && size >= 0 {
+			return slog.Int64(attr.Key, size), true
+		}
 	case "error", "err":
 		if err, ok := value.(error); ok {
 			return slog.Any("causes", DescribeError(err, EventContext{})), true
@@ -203,7 +233,9 @@ func selectSlogAttr(ctx context.Context, attr slog.Attr) (slog.Attr, bool) {
 		switch value.(type) {
 		case string, bool, int, int64, float64:
 			selected := SanitizeEventContext(EventContext{attr.Key: value})
-			return slog.Any(attr.Key, selected[attr.Key]), true
+			if value, ok := selected[attr.Key]; ok {
+				return slog.Any(attr.Key, value), true
+			}
 		}
 	}
 	return slog.Attr{}, false

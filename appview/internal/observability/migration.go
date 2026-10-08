@@ -303,7 +303,7 @@ func safeRepositoryReason(value string) string {
 		"request_invalid", "download_failed", "download_incomplete", "download_oversized", "source_changed",
 		"car_malformed", "car_ambiguous_root", "repository_invalid", "commit_wrong_did", "commit_invalid",
 		"signing_key_invalid", "signature_invalid", "mst_invalid", "commit_wrong_root", "registry_invalid",
-		"lease_lost", "store_failed":
+		"lease_lost", "lease_expired", "lease_superseded", "store_failed":
 		return strings.TrimSpace(value)
 	default:
 		return "unknown"

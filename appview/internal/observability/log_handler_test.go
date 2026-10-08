@@ -220,3 +220,96 @@ func TestSIMT05DeveloperMessagesNeedNoRegistry(t *testing.T) {
 		t.Fatalf("developer message or redaction lost: %s", output.String())
 	}
 }
+
+// SDK-T05: routine public envelope metadata survives, private/unsupported attrs do not add noise.
+func TestDiagnosticTapMetadataQuietExclusion(t *testing.T) {
+	var output bytes.Buffer
+	logger := slog.New(NewDiagnosticHandler(slog.NewJSONHandler(&output, &slog.HandlerOptions{Level: slog.LevelDebug})))
+	logger.Debug("tap record event received",
+		slog.Uint64("id", 172), slog.String("action", "create"),
+		slog.String("nsid", "social.craftsky.feed.post"), slog.Int("recordBytes", 123),
+		slog.String("token", "private-token-canary"),
+		slog.Any("payload", map[string]string{"draft": "private-draft-canary"}),
+	)
+	var record map[string]any
+	if err := json.Unmarshal(output.Bytes(), &record); err != nil {
+		t.Fatal(err)
+	}
+	for key, want := range map[string]any{"id": float64(172), "action": "create", "nsid": "social.craftsky.feed.post", "recordBytes": float64(123)} {
+		if record[key] != want {
+			t.Errorf("%s=%v, want %v", key, record[key], want)
+		}
+	}
+	if _, ok := record["omitted"]; ok {
+		t.Error("ordinary field exclusion added a truncation marker")
+	}
+	if strings.Contains(output.String(), "private-") {
+		t.Error("private values survived")
+	}
+}
+
+// NFR-002: deliberate exclusions are quiet; real count/size exhaustion remains visible and bounded.
+func TestDiagnosticActualBudgetTruncation(t *testing.T) {
+	for _, test := range []struct {
+		name  string
+		attrs []slog.Attr
+	}{
+		{name: "field count", attrs: func() []slog.Attr {
+			var attrs []slog.Attr
+			for i := 1; i <= 40; i++ {
+				attrs = append(attrs, slog.Uint64("id", uint64(i)))
+			}
+			return attrs
+		}()},
+		{name: "serialized bytes", attrs: func() []slog.Attr {
+			var frames []sentry.Frame
+			for i := 0; i < 128; i++ {
+				frames = append(frames, sentry.Frame{Filename: "worker.go", Function: strings.Repeat("f", 160), Vars: map[string]interface{}{"token": "private-budget-canary"}})
+			}
+			return []slog.Attr{slog.Any("panic", panicLogRecord{Exceptions: []sentry.Exception{{Type: "PanicFailure", Stacktrace: &sentry.Stacktrace{Frames: frames}}}})}
+		}()},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			var output bytes.Buffer
+			logger := slog.New(NewDiagnosticHandler(slog.NewJSONHandler(&output, nil)))
+			attrs := append([]slog.Attr{slog.String("run_id", "00000000-0000-4000-8000-000000000401")}, test.attrs...)
+			logger.LogAttrs(context.Background(), slog.LevelInfo, "boundary budget probe", attrs...)
+			var record map[string]any
+			if err := json.Unmarshal(output.Bytes(), &record); err != nil {
+				t.Fatal(err)
+			}
+			if record["omitted"] != "[OMITTED: log field budget exceeded]" {
+				t.Fatalf("missing actual truncation marker: %v", record["omitted"])
+			}
+			if record["run_id"] != "00000000-0000-4000-8000-000000000401" {
+				t.Fatal("lost priority correlation")
+			}
+			if strings.Contains(output.String(), "private-budget-canary") {
+				t.Fatal("private frame locals survived")
+			}
+			if output.Len() > 16384 {
+				t.Fatalf("output exceeds boundary: %d", output.Len())
+			}
+		})
+	}
+}
+
+func TestDiagnosticOperationalMetadataRejectsUnreviewedValues(t *testing.T) {
+	var output bytes.Buffer
+	logger := slog.New(NewDiagnosticHandler(slog.NewJSONHandler(&output, nil)))
+	logger.Info("invalid metadata", slog.String("addr", "https://private-canary/token"),
+		slog.String("app_version", "private-canary"), slog.String("action", "private-canary"),
+		slog.Int("recordBytes", -1), slog.String("id", "private-canary"))
+	var record map[string]any
+	if err := json.Unmarshal(output.Bytes(), &record); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(output.String(), "private-canary") {
+		t.Fatal("unreviewed value leaked")
+	}
+	for _, key := range []string{"addr", "app_version", "action", "recordBytes", "id", "omitted"} {
+		if _, ok := record[key]; ok {
+			t.Errorf("unexpected excluded field %s", key)
+		}
+	}
+}

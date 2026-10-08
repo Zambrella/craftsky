@@ -23,6 +23,7 @@ import (
 	"social.craftsky/appview/internal/auth"
 	"social.craftsky/appview/internal/ctxkeys"
 	"social.craftsky/appview/internal/integrations/instagrammeta"
+	lexiconschema "social.craftsky/appview/internal/lexicon/schema"
 )
 
 // UT-003 / FR-001, RULE-003 / AC-021: SQL detail is arbitrary private prose.
@@ -770,5 +771,23 @@ func TestSDKCyclicCauseStillCapturesIssue(t *testing.T) {
 	}
 	if strings.Contains(string(data), "opaque cyclic prose") {
 		t.Fatal("private prose leaked")
+	}
+}
+
+func TestExhaustedValidationRemainsActionable(t *testing.T) {
+	var local bytes.Buffer
+	logger := slog.New(NewDiagnosticHandler(slog.NewJSONHandler(&local, nil)))
+	transport := &sentry.MockTransport{}
+	observer := New(Config{Env: "test", Logger: logger, SentryDSN: "https://public@example.invalid/1", SentryTransport: transport})
+	input := DiagnosticInput{Error: &lexiconschema.ValidationError{Cause: errors.New("private-validation-canary")}, Context: EventContext{"error_category": "validation", "result": "exhausted", "operation": "post.read"}}
+	LogDiagnostic(context.Background(), logger, input)
+	observer.CaptureDiagnostic(context.Background(), input)
+	observer.Flush(time.Second)
+	if !strings.Contains(local.String(), `"level":"ERROR"`) || len(transport.Events()) != 1 {
+		t.Fatalf("exhausted failure downgraded: %s events=%d", local.String(), len(transport.Events()))
+	}
+	data, _ := json.Marshal(transport.Events())
+	if strings.Contains(string(data)+local.String(), "private-validation-canary") {
+		t.Error("validator prose leaked")
 	}
 }

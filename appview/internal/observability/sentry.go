@@ -70,6 +70,9 @@ func SanitizeEventContext(ctx EventContext) EventContext {
 		value := ctx[key]
 		switch v := value.(type) {
 		case string:
+			if key == "release" && v == "" {
+				continue
+			}
 			if len(v) > MaxDiagnosticTextBytes {
 				out[key] = "[OMITTED: oversized field]"
 			} else {
@@ -84,6 +87,17 @@ func SanitizeEventContext(ctx EventContext) EventContext {
 
 func sanitizeEventContextValue(key string, value any) any {
 	switch key {
+	case "release":
+		if text, ok := value.(string); ok {
+			if diagnosticTechnicalPattern.MatchString(text) {
+				return text
+			}
+			version := strings.TrimPrefix(text, "craftsky-appview@")
+			if version != text && version != "dev" && logVersionPattern.MatchString(version) {
+				return text
+			}
+		}
+		return "[OMITTED]"
 	case "run_id":
 		if _, err := uuid.Parse(fmt.Sprint(value)); err != nil {
 			return "[OMITTED: invalid request ID]"
@@ -129,7 +143,7 @@ func sanitizeEventContextValue(key string, value any) any {
 	case "result":
 		if text, ok := value.(string); ok {
 			switch text {
-			case "retry", "terminal", "exhausted", "quarantine":
+			case "retry", "terminal", "exhausted", "quarantine", "expected", "already_complete":
 				return text
 			}
 		}

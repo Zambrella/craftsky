@@ -2,6 +2,7 @@ package observability
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"github.com/bluesky-social/indigo/atproto/atclient"
 	"log/slog"
@@ -16,6 +17,7 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 	"social.craftsky/appview/internal/auth"
 	"social.craftsky/appview/internal/integrations/instagrammeta"
+	lexiconschema "social.craftsky/appview/internal/lexicon/schema"
 )
 
 // DiagnosticCause contains selected error details, never an unknown error's
@@ -39,6 +41,8 @@ func DescribeError(err error, eventCtx EventContext) []DiagnosticCause {
 	for _, current := range nodes {
 		cause := DiagnosticCause{Type: fmt.Sprintf("%T", current), Message: ClassifyError(current, eventCtx).Message}
 		switch current.(type) {
+		case *lexiconschema.ValidationError:
+			cause.Message = current.(*lexiconschema.ValidationError).DiagnosticMessage()
 		case *DiagnosticError:
 			cause.Message = boundDiagnosticText(current.(*DiagnosticError).Message, 512)
 		case *runtime.TypeAssertionError, *runtime.PanicNilError:
@@ -96,7 +100,7 @@ func diagnosticExceptions(causes []DiagnosticCause) []sentry.Exception {
 // handed to slog for automatic formatting.
 func LogDiagnostic(ctx context.Context, logger *slog.Logger, input DiagnosticInput) {
 	level := slog.LevelError
-	if input.Context["result"] == "retry" || input.Context["result"] == "expected" {
+	if input.Context["result"] == "retry" || input.Context["result"] == "expected" || (input.Context["error_category"] == "validation" && input.Context["result"] == "quarantine") {
 		level = slog.LevelWarn
 	}
 	logDiagnosticAt(ctx, logger, input, level)
@@ -113,7 +117,14 @@ func logDiagnosticAt(ctx context.Context, logger *slog.Logger, input DiagnosticI
 	if selected := workflowForRequest(ctx, input.Workflow); selected != nil {
 		attrs = append(attrs, slog.Any("diagnostic", workflowLogValue{selected}))
 	}
-	logger.Log(ctx, level, "operation failed", attrs...)
+	message := "operation failed"
+	if input.Context["result"] == "quarantine" && input.Context["error_category"] == "validation" {
+		var failure *lexiconschema.ValidationError
+		if errors.As(input.Error, &failure) {
+			message = failure.DiagnosticMessage()
+		}
+	}
+	logger.Log(ctx, level, message, attrs...)
 }
 
 // The private adapter also keeps selection intact with an injected plain slog

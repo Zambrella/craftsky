@@ -51,7 +51,9 @@ void main() {
           expect(logs.toString(), contains('Storage initialization started'));
           expect(logs.toString(), isNot(contains('Verbose diagnostics')));
         }
-        expect(local, hasLength(2));
+        expect(local, hasLength(3));
+        expect(local.join(), contains('Storage initialization started'));
+        expect(local.join(), isNot(contains('Verbose diagnostics')));
         expect(local.join(), contains('StateError'));
         expect(
           local.join() + transport.payloads.join(),
