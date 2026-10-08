@@ -13,20 +13,21 @@ final class ApiFailureDetails {
   const ApiFailureDetails({
     this.statusCode,
     this.appViewError,
-    this.appViewMessage,
     this.requestId,
-    this.endpointCategory,
+    this.method,
+    this.cause,
+    this.stackTrace,
     this.fields = const {},
   });
 
   final int? statusCode;
   final String? appViewError;
 
-  /// Human-readable AppView text retained for 4xx developer diagnostics.
-  /// Server-error messages remain redacted because they can contain internals.
-  final String? appViewMessage;
   final String? requestId;
-  final String? endpointCategory;
+  final String? method;
+  final Object? cause;
+  final StackTrace? stackTrace;
+  // Validation fields support UI only; diagnostics never serialize them.
   final Map<String, String> fields;
 }
 

@@ -8,6 +8,7 @@ import 'package:craftsky_app/feed/models/create_post_image.dart';
 import 'package:craftsky_app/feed/models/link_preview.dart';
 import 'package:craftsky_app/feed/providers/composer_image_state.dart';
 import 'package:craftsky_app/scheduled_posts/models/scheduled_post.dart';
+import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image/image.dart' as img;
@@ -87,11 +88,13 @@ Future<List<Map<String, dynamic>>> materializeScheduledComposerMedia(
       case ImageUploaded(:final uploaded):
         final bytes = draft.previewBytes;
         if (bytes == null) {
-          throw StateError('scheduled image bytes are unavailable');
+          throw DiagnosticStateError('scheduled image bytes are unavailable');
         }
         final aspectRatio = uploaded.aspectRatio;
         if (aspectRatio == null) {
-          throw StateError('scheduled image dimensions are unavailable');
+          throw DiagnosticStateError(
+            'scheduled image dimensions are unavailable',
+          );
         }
         verifyPreparedMediaBytes(
           bytes: bytes,
@@ -151,7 +154,7 @@ Future<List<Map<String, dynamic>>> materializeScheduledComposerMedia(
           ImageUploading() ||
           ImageUnavailable() ||
           ImageFailed():
-        throw StateError('scheduled image is not ready');
+        throw DiagnosticStateError('scheduled image is not ready');
     }
   }
   return media;

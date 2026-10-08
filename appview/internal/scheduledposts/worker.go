@@ -3,7 +3,7 @@ package scheduledposts
 import (
 	"context"
 	"errors"
-	"fmt"
+	"social.craftsky/appview/internal/observability"
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -86,7 +86,7 @@ func (worker *Worker) ProcessBatch(ctx context.Context) (int, error) {
 					"claim", "failure", "dependency_unavailable", time.Since(started),
 				)
 			}
-			return 0, fmt.Errorf("observe scheduled queue: %w", err)
+			return 0, observability.WrapError("observe scheduled queue", err)
 		}
 		observeScheduledQueue(worker.observer, snapshot)
 	}
@@ -97,7 +97,7 @@ func (worker *Worker) ProcessBatch(ctx context.Context) (int, error) {
 				"claim", "failure", "dependency_unavailable", time.Since(started),
 			)
 		}
-		return 0, fmt.Errorf("claim scheduled posts: %w", err)
+		return 0, observability.WrapError("claim scheduled posts", err)
 	}
 	if worker.observer != nil {
 		worker.observer.ObserveScheduledOperation(
@@ -106,7 +106,7 @@ func (worker *Worker) ProcessBatch(ctx context.Context) (int, error) {
 	}
 	for index, item := range items {
 		if err := worker.processor.Process(ctx, item); err != nil {
-			return index, fmt.Errorf("process scheduled post: %w", err)
+			return index, observability.WrapError("process scheduled post", err)
 		}
 	}
 	return len(items), nil

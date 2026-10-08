@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 	"time"
@@ -67,7 +68,10 @@ func VideoCaptionHandler(store VideoCaptionPostReader, fetcher VideoCaptionBlobF
 		body, err := fetcher.Fetch(r.Context(), did, captionCID)
 		if err != nil || len(body) == 0 || len(body) > 20_000 || !validWebVTT(body) {
 			result, reason = "unavailable", "invalid_content"
-			logger.Warn("video caption fetch failed", slog.String("result", "unavailable"))
+			if err == nil {
+				err = errors.New("caption validation failed")
+			}
+			logger.Error("video caption fetch failed", apiLogErrorAttrs(r.Context(), runID, "video.caption.fetch", "caption_fetch", err)...)
 			envelope.WriteError(w, http.StatusBadGateway, "video_caption_fetch_failed", "video caption unavailable", runID, nil)
 			return
 		}

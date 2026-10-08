@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"social.craftsky/appview/internal/observability"
@@ -1556,6 +1557,37 @@ func TestDispatcherTelemetryNeverExposesProviderSentinels(t *testing.T) {
 	}
 }
 
+func TestIT007PushProviderFailureRetainsCauseWithoutPrivateRouting(t *testing.T) {
+	pool := dispatcherPool(t)
+	seedDelivery(t, pool, "pending", time.Now().Add(6*time.Hour))
+	const workflow = "40000000-0000-4000-8000-000000000001"
+	if _, err := pool.Exec(context.Background(), `UPDATE push_deliveries SET id=$1`, workflow); err != nil {
+		t.Fatal(err)
+	}
+	const sentinel = "PRIVATE_PROVIDER_TOKEN_AND_REPLY"
+	var output bytes.Buffer
+	observer := observability.New(observability.Config{Logger: slog.New(slog.NewJSONHandler(&output, nil))})
+	d := newTestDispatcher(t, pool, sentinelFailureSender{sentinel: sentinel}, DispatcherOptions{Now: time.Now, BatchSize: 1, LeaseDuration: time.Minute, Observer: observer})
+	if processed, err := d.ProcessBatch(context.Background(), "worker"); err != nil || processed != 1 {
+		t.Fatalf("processed=%d error=%v", processed, err)
+	}
+	log := output.String()
+	for _, selected := range []string{"did:plc:viewer", workflow, "push.send", "provider", "retry", "errorString"} {
+		if !strings.Contains(log, selected) {
+			t.Errorf("missing %q in %s", selected, log)
+		}
+	}
+	for _, private := range []string{sentinel, "secret-token", "did:plc:actor", "30000000-", "20000000-", "10000000-", "Alice"} {
+		if strings.Contains(log, private) {
+			t.Errorf("private field %q leaked", private)
+		}
+	}
+	var status string
+	if err := pool.QueryRow(context.Background(), `SELECT status FROM push_deliveries`).Scan(&status); err != nil || status != "retry" {
+		t.Fatalf("status=%s error=%v", status, err)
+	}
+}
+
 func TestModerationQueueStatsCountOnlyEligibleWork(t *testing.T) {
 	pool := dispatcherPool(t)
 	now := time.Date(2026, 9, 10, 12, 0, 0, 0, time.UTC)
@@ -1674,7 +1706,7 @@ func TestDispatcherProcessBatchAlertsOnStaleEligibleModerationWork(t *testing.T)
 		t.Fatalf("alert metrics = %v", got)
 	}
 	if len(sink.events) != 1 || sink.events[0].message != "moderation notification queue alert" ||
-		len(sink.events[0].attrs) != 3 || sink.events[0].attrs["component"] != "moderation" ||
+		sink.events[0].attrs["service"] != "craftsky_appview" || sink.events[0].attrs["component"] != "moderation" ||
 		sink.events[0].attrs["operation"] != "notification_delivery" || sink.events[0].attrs["result"] != "alert" {
 		t.Fatalf("queue alert logs = %#v", sink.events)
 	}
@@ -1824,5 +1856,44 @@ func seedAdditionalDelivery(
 		) VALUES($1,$2,'20000000-0000-0000-0000-000000000001','pending',now(),$3)
 	`, deliveryID, notificationID, deadline); err != nil {
 		t.Fatal(err)
+	}
+}
+
+type closingFailureSender struct {
+	pool  *pgxpool.Pool
+	cause error
+}
+
+func (s closingFailureSender) Send(context.Context, SendRequest) (ProviderResult, error) {
+	s.pool.Close()
+	return ProviderResult{Class: ResultRetryable}, s.cause
+}
+
+func TestIT007PushFinalizationFailureRetainsProviderCauseAndOriginalOutcome(t *testing.T) {
+	pool := dispatcherPool(t)
+	seedDelivery(t, pool, "pending", time.Now().Add(6*time.Hour))
+	if _, err := pool.Exec(context.Background(), `UPDATE push_deliveries SET id='40000000-0000-4000-8000-000000000001'`); err != nil {
+		t.Fatal(err)
+	}
+	var output bytes.Buffer
+	observer := observability.New(observability.Config{Logger: slog.New(slog.NewJSONHandler(&output, nil))})
+	cause := &pgconn.PgError{Code: "40001", Message: "PRIVATE_PROVIDER_RESPONSE"}
+	dispatcher := newTestDispatcher(t, pool, closingFailureSender{pool: pool, cause: cause}, DispatcherOptions{Now: time.Now, BatchSize: 1, LeaseDuration: time.Minute, Observer: observer})
+	items, err := dispatcher.claimOne(context.Background(), "worker")
+	if err != nil || len(items) != 1 {
+		t.Fatalf("claim: %v", err)
+	}
+	if err := dispatcher.processClaim(context.Background(), items[0]); err == nil {
+		t.Fatal("finalization outcome changed")
+	}
+	for _, field := range []string{"40001", "finalization", "did:plc:viewer", items[0].id.String()} {
+		if !strings.Contains(output.String(), field) {
+			t.Errorf("missing %s: %s", field, output.String())
+		}
+	}
+	for _, private := range []string{"PRIVATE_", "secret-token", "did:plc:actor", "30000000-", "20000000-", "10000000-", "Alice"} {
+		if strings.Contains(output.String(), private) {
+			t.Errorf("private routing leaked %s", private)
+		}
 	}
 }

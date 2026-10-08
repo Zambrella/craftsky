@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
+	"social.craftsky/appview/internal/observability"
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -58,6 +59,7 @@ func VideoUploadLimitsHandler(service VideoUploadLimitsService, _ *slog.Logger, 
 		limits, err := service.Get(r.Context(), owner, sessionID)
 		if err != nil {
 			result, reason = "unavailable", "upstream"
+			observability.ReportRequestFailure(r.Context(), err, "api.VideoUploadLimitsHandler", "handler")
 			envelope.WriteError(w, http.StatusBadGateway,
 				"video_service_unavailable", "could not check video upload limits", runID, nil)
 			return

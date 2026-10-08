@@ -8,6 +8,7 @@ import 'package:craftsky_app/moderation/models/report_result.dart';
 import 'package:craftsky_app/moderation/models/report_submission.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
+import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'report_business_event_provider.g.dart';
@@ -25,7 +26,7 @@ class ReportBusinessEvent extends _$ReportBusinessEvent {
     if (state.isLoading) return;
     final ownership = captureActiveAccountOperation(ref);
     if (ownership != null && ownership.session.account != account) {
-      throw StateError('Active account changed');
+      throw DiagnosticStateError('Active account changed');
     }
     state = const AsyncLoading();
     final result = await AsyncValue.guard(

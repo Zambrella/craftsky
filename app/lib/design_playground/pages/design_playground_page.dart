@@ -1,5 +1,6 @@
 import 'package:craftsky_app/app_dependencies.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
 import 'package:craftsky_app/theme/brand_text_field.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
@@ -582,7 +583,7 @@ class _DialogsSample extends StatelessWidget {
               onConfirm: () async {
                 await Future<void>.delayed(const Duration(milliseconds: 1500));
                 if (DateTime.now().millisecondsSinceEpoch.isEven) {
-                  throw StateError('Pretend network error');
+                  throw DiagnosticStateError('Pretend network error');
                 }
               },
             );

@@ -1,17 +1,21 @@
 package instagram
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 
 	"social.craftsky/appview/internal/integrations/instagrammeta"
+	"social.craftsky/appview/internal/observability"
 )
 
 func TestWebhookWorkerRedeemsChecksMembershipLooksUpAndCompletesBeforeOptionalReply(t *testing.T) {
@@ -68,6 +72,9 @@ func TestWebhookWorkerRetriesTransientProviderFailureWithFixedBackoff(t *testing
 	now := time.Date(2026, 7, 19, 12, 0, 0, 0, time.UTC)
 	events := make([]string, 0, 8)
 	work := syntheticClaimedWebhookWork(now)
+	work.ID = uuid.MustParse("40000000-0000-4000-8000-000000000102")
+	var output bytes.Buffer
+	observer := observability.New(observability.Config{Logger: slog.New(slog.NewJSONHandler(&output, nil))})
 	queue := &fakeWebhookQueue{claimed: []WebhookWork{work}, events: &events}
 	redeemer := &fakeWebhookRedeemer{
 		redemption: WebhookRedemption{
@@ -82,7 +89,7 @@ func TestWebhookWorkerRetriesTransientProviderFailureWithFixedBackoff(t *testing
 		events:    &events,
 	}
 	worker, err := NewWebhookWorker(queue, redeemer, membership, meta, WebhookWorkerOptions{
-		Now: func() time.Time { return now },
+		Now: func() time.Time { return now }, Observer: observer,
 	})
 	if err != nil {
 		t.Fatalf("NewWebhookWorker: %v", err)
@@ -98,6 +105,69 @@ func TestWebhookWorkerRetriesTransientProviderFailureWithFixedBackoff(t *testing
 	wantEvents := []string{"claim", "redeem", "membership", "lookup", "retry"}
 	if fmt.Sprint(events) != fmt.Sprint(wantEvents) {
 		t.Fatalf("events = %v, want %v", events, wantEvents)
+	}
+	log := output.String()
+	for _, selected := range []string{"did:plc:synthetic-owner", work.ID.String(), "fakeProviderError", "profile_lookup", "retry"} {
+		if !strings.Contains(log, selected) {
+			t.Errorf("missing %q in %s", selected, log)
+		}
+	}
+	for _, private := range []string{work.SenderIGSID, "synthetic provider failure", work.LeaseToken.String(), redeemer.redemption.AttemptID.String()} {
+		if strings.Contains(log, private) {
+			t.Errorf("private field %q leaked", private)
+		}
+	}
+}
+
+func TestIT007WebhookStorageFailureStages(t *testing.T) {
+	for _, stage := range []string{"redemption", "membership", "candidate", "inactivation", "rate_limit"} {
+		t.Run(stage, func(t *testing.T) {
+			now := time.Date(2026, 7, 19, 12, 0, 0, 0, time.UTC)
+			events := []string{}
+			work := syntheticClaimedWebhookWork(now)
+			work.ID = uuid.MustParse("40000000-0000-4000-8000-000000000102")
+			queue := &fakeWebhookQueue{claimed: []WebhookWork{work}, events: &events}
+			cause := fmt.Errorf("private database failure: %w", &pgconn.PgError{Code: "40001", Detail: "PRIVATE_INSTAGRAM_USERNAME"})
+			redeemer := &fakeWebhookRedeemer{redemption: WebhookRedemption{AttemptID: uuid.New(), OwnerDID: syntax.DID("did:plc:owner")}, events: &events}
+			membership := &fakeWebhookMembership{current: true, events: &events}
+			var limiter WebhookIdentifierLimiter
+			switch stage {
+			case "redemption":
+				redeemer.redeemErr = cause
+			case "membership":
+				membership.err = cause
+			case "candidate":
+				redeemer.candidateErr = cause
+			case "inactivation":
+				membership.current = false
+				redeemer.inactivateErr = cause
+			case "rate_limit":
+				limiter = &fakeWebhookIdentifierLimiter{err: cause}
+			}
+			var output bytes.Buffer
+			observer := observability.New(observability.Config{Logger: slog.New(slog.NewJSONHandler(&output, nil))})
+			worker, err := NewWebhookWorker(queue, redeemer, membership, &fakeMetaClient{username: "PRIVATE_INSTAGRAM_USERNAME", events: &events}, WebhookWorkerOptions{Now: func() time.Time { return now }, Observer: observer, RateLimiter: limiter})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if processed, err := worker.ProcessBatch(context.Background()); err != nil || processed != 1 || queue.retried != work.ID {
+				t.Fatalf("processed=%d error=%v", processed, err)
+			}
+			log := output.String()
+			for _, selected := range []string{stage, "40001", work.ID.String(), "retry"} {
+				if !strings.Contains(log, selected) {
+					t.Errorf("missing %s in %s", selected, log)
+				}
+			}
+			if stage != "redemption" && !strings.Contains(log, "did:plc:owner") {
+				t.Error("lost initiating owner")
+			}
+			for _, private := range []string{"PRIVATE_INSTAGRAM_USERNAME", work.SenderIGSID, work.LeaseToken.String(), redeemer.redemption.AttemptID.String()} {
+				if strings.Contains(log, private) {
+					t.Errorf("leaked %s", private)
+				}
+			}
+		})
 	}
 }
 
@@ -277,6 +347,8 @@ func TestWebhookWorkerBoundsAndRedactsTerminalProviderFailures(t *testing.T) {
 			events := make([]string, 0, 8)
 			work := syntheticClaimedWebhookWork(now)
 			work.Attempts = test.attempts
+			var output bytes.Buffer
+			observer := observability.New(observability.Config{Logger: slog.New(slog.NewJSONHandler(&output, nil))})
 			queue := &fakeWebhookQueue{claimed: []WebhookWork{work}, events: &events}
 			redeemer := &fakeWebhookRedeemer{
 				redemption: WebhookRedemption{
@@ -290,7 +362,7 @@ func TestWebhookWorkerBoundsAndRedactsTerminalProviderFailures(t *testing.T) {
 				redeemer,
 				&fakeWebhookMembership{current: true, events: &events},
 				&fakeMetaClient{lookupErr: fakeProviderError{kind: test.kind}, events: &events},
-				WebhookWorkerOptions{Now: func() time.Time { return now }},
+				WebhookWorkerOptions{Now: func() time.Time { return now }, Observer: observer},
 			)
 			if err != nil {
 				t.Fatalf("NewWebhookWorker: %v", err)
@@ -299,6 +371,16 @@ func TestWebhookWorkerBoundsAndRedactsTerminalProviderFailures(t *testing.T) {
 			if err != nil {
 				t.Fatalf("ProcessBatch: %v", err)
 			}
+			log := output.String()
+			for _, selected := range []string{"did:plc:synthetic-owner", "fakeProviderError", "profile_lookup", "terminal"} {
+				if !strings.Contains(log, selected) {
+					t.Errorf("missing %q in %s", selected, log)
+				}
+			}
+			if strings.Contains(log, "synthetic provider failure") || strings.Contains(log, work.SenderIGSID) {
+				t.Error("private provider text/recipient leaked")
+			}
+
 			if processed != 1 || queue.failed != work.ID || redeemer.retryCode != test.wantCode || queue.terminalReason != test.wantReason {
 				t.Fatalf("terminal result = processed %d failed %s code %q reason %q", processed, queue.failed, redeemer.retryCode, queue.terminalReason)
 			}
@@ -479,6 +561,8 @@ func TestWebhookWorkerReplyIsWindowBoundOptionalAndAfterDurableCompletion(t *tes
 			events := make([]string, 0, 8)
 			work := syntheticClaimedWebhookWork(now)
 			work.EventAt = now.Add(-test.eventAge)
+			var output bytes.Buffer
+			observer := observability.New(observability.Config{Logger: slog.New(slog.NewJSONHandler(&output, nil))})
 			queue := &fakeWebhookQueue{claimed: []WebhookWork{work}, events: &events, completeErr: test.completeErr}
 			redeemer := &fakeWebhookRedeemer{
 				redemption: WebhookRedemption{
@@ -495,6 +579,7 @@ func TestWebhookWorkerReplyIsWindowBoundOptionalAndAfterDurableCompletion(t *tes
 				meta,
 				WebhookWorkerOptions{
 					Now:         func() time.Time { return now },
+					Observer:    observer,
 					ReplyText:   "Synthetic reply.",
 					ReplyWindow: WebhookMaxReplyWindow,
 				},
@@ -506,6 +591,25 @@ func TestWebhookWorkerReplyIsWindowBoundOptionalAndAfterDurableCompletion(t *tes
 			if (err != nil) != test.wantError {
 				t.Fatalf("ProcessBatch = (%d, %v), want error %t", processed, err, test.wantError)
 			}
+			if test.completeErr != nil || test.replyErr != nil {
+				stage := "reply"
+				if test.completeErr != nil {
+					stage = "completion"
+				}
+				for _, selected := range []string{stage, "did:plc:synthetic-owner", "errorString"} {
+					if !strings.Contains(output.String(), selected) {
+						t.Errorf("missing %s in %s", selected, output.String())
+					}
+				}
+			} else if strings.Contains(output.String(), "did:plc:synthetic-owner") {
+				t.Error("success acquired private owner history")
+			}
+			for _, private := range []string{work.SenderIGSID, "Synthetic reply.", "synthetic reply failure", "synthetic completion failure"} {
+				if strings.Contains(output.String(), private) {
+					t.Errorf("private %s leaked", private)
+				}
+			}
+
 			gotReply := meta.replyRecipient != ""
 			if gotReply != test.wantReply {
 				t.Fatalf("reply called = %t, want %t; events %v", gotReply, test.wantReply, events)
@@ -813,5 +917,61 @@ func syntheticClaimedWebhookWork(now time.Time) WebhookWork {
 		LeaseToken:          uuid.MustParse("00000000-0000-0000-0000-000000000002"),
 		LeaseExpiresAt:      now.Add(WebhookLeaseDuration),
 		CreatedAt:           now,
+	}
+}
+
+func TestIT007WebhookRetryPersistenceRetainsOriginalAndStorageCauses(t *testing.T) {
+	now := time.Date(2026, 7, 19, 12, 0, 0, 0, time.UTC)
+	events := []string{}
+	work := syntheticClaimedWebhookWork(now)
+	work.ID = uuid.MustParse("40000000-0000-4000-8000-000000000102")
+	original := &pgconn.PgError{Code: "40001", Message: "PRIVATE_SOURCE"}
+	persist := &pgconn.PgError{Code: "08006", Detail: "PRIVATE_PERSIST"}
+	queue := &fakeWebhookQueue{claimed: []WebhookWork{work}, events: &events, retryErr: persist}
+	redemption := WebhookRedemption{AttemptID: uuid.New(), OwnerDID: syntax.DID("did:plc:owner")}
+	var output bytes.Buffer
+	observer := observability.New(observability.Config{Logger: slog.New(slog.NewJSONHandler(&output, nil))})
+	worker, err := NewWebhookWorker(queue, &fakeWebhookRedeemer{redemption: redemption, events: &events}, &fakeWebhookMembership{current: true, events: &events}, &fakeMetaClient{lookupErr: original, events: &events}, WebhookWorkerOptions{Now: func() time.Time { return now }, Observer: observer})
+	if err != nil {
+		t.Fatal(err)
+	}
+	processed, err := worker.ProcessBatch(context.Background())
+	if processed != 0 || !errors.Is(err, persist) {
+		t.Fatal("persist outcome changed")
+	}
+	for _, selected := range []string{"40001", "08006", "failure_persistence", "did:plc:owner", work.ID.String()} {
+		if !strings.Contains(output.String(), selected) {
+			t.Errorf("missing %s in %s", selected, output.String())
+		}
+	}
+	for _, private := range []string{"PRIVATE_", work.SenderIGSID, work.LeaseToken.String(), redemption.AttemptID.String()} {
+		if strings.Contains(output.String(), private) {
+			t.Errorf("private field leaked %s", private)
+		}
+	}
+}
+
+func TestIT007InstagramClaimFailureRetainsCauseWithoutInventedOwner(t *testing.T) {
+	events := []string{}
+	cause := &pgconn.PgError{Code: "08006", Message: "PRIVATE_QUEUE_DETAIL"}
+	var local bytes.Buffer
+	observer := observability.New(observability.Config{Logger: slog.New(slog.NewJSONHandler(&local, nil))})
+	worker, err := NewWebhookWorker(&fakeWebhookQueue{claimErr: cause, events: &events}, &fakeWebhookRedeemer{events: &events}, &fakeWebhookMembership{events: &events}, &fakeMetaClient{events: &events}, WebhookWorkerOptions{Observer: observer})
+	if err != nil {
+		t.Fatal(err)
+	}
+	count, err := worker.ProcessBatch(context.Background())
+	if count != 0 || !errors.Is(err, cause) {
+		t.Fatalf("claim result: count=%d err=%v", count, err)
+	}
+	for _, value := range []string{"08006", "claim", "instagram.verify"} {
+		if !strings.Contains(local.String(), value) {
+			t.Fatalf("missing %s: %s", value, local.String())
+		}
+	}
+	for _, value := range []string{"PRIVATE_QUEUE_DETAIL", "operation_account_did", uuid.Nil.String()} {
+		if strings.Contains(local.String(), value) {
+			t.Fatalf("invented or private context %s: %s", value, local.String())
+		}
 	}
 }

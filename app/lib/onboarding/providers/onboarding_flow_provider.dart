@@ -15,6 +15,7 @@ import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
 import 'package:craftsky_app/shared/api/pds_mutation_contract.dart';
 import 'package:craftsky_app/shared/mutations/pds_record_operation_controller.dart';
 import 'package:craftsky_app/shared/mutations/pds_record_reconciliation.dart';
+import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -45,10 +46,10 @@ class OnboardingFlow extends _$OnboardingFlow {
   Future<OnboardingFlowState> build(ActiveAccountLease lease) async {
     final registry = await ref.watch(sessionRegistryProvider.future);
     if (registry.activeLease != lease) {
-      throw StateError('Active account changed');
+      throw DiagnosticStateError('Active account changed');
     }
     final session = registry.sessions[lease.session.account.did];
-    if (session == null) throw StateError('Active account changed');
+    if (session == null) throw DiagnosticStateError('Active account changed');
     final initial = OnboardingFlowState.fromProfile(
       Profile(
         did: session.did.value,

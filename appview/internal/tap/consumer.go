@@ -22,6 +22,8 @@ import (
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
 
+	craftsky "social.craftsky/appview/internal/lexicon/craftsky"
+	lexiconschema "social.craftsky/appview/internal/lexicon/schema"
 	"social.craftsky/appview/internal/observability"
 )
 
@@ -312,6 +314,7 @@ func (c *WSConsumer) runOnce(ctx context.Context) (err error) {
 			if !outcome.Acknowledgable() {
 				return errors.New("quarantine malformed Tap envelope: outcome was not durable")
 			}
+			c.logInvalidQuarantine(ctx, envelope{}, ReasonInvalidEnvelope, err)
 			// Without a trustworthy Tap id an ACK cannot be constructed. Reconnect
 			// so Tap retains and redelivers the event after operator correction.
 			return fmt.Errorf("decode Tap envelope: %w", err)
@@ -351,7 +354,7 @@ func (c *WSConsumer) runOnce(ctx context.Context) (err error) {
 				if c.cfg.Observer != nil {
 					c.cfg.Observer.ObserveIndexerSkipped(env.Record.Collection, "malformed")
 				}
-				if quarantineErr := c.quarantineAndAck(ctx, conn, env, rawFrame, reason); quarantineErr != nil {
+				if quarantineErr := c.quarantineAndAck(ctx, conn, env, rawFrame, reason, err); quarantineErr != nil {
 					return quarantineErr
 				}
 				continue
@@ -371,7 +374,8 @@ func (c *WSConsumer) runOnce(ctx context.Context) (err error) {
 			)
 			outcome, err := c.ingestRecordWithTimeout(ctx, ev)
 			if err != nil || !outcome.Acknowledgable() {
-				c.logger.Error("indexer handle failed",
+				// The cause-bearing retry/terminal record owns diagnostic severity.
+				c.logger.Debug("indexer handle failed",
 					slog.Uint64("id", ev.ID),
 					slog.String("nsid", observability.SafeNSIDLabel(ev.Collection.String())),
 					slog.String("result", "error"),
@@ -385,7 +389,7 @@ func (c *WSConsumer) runOnce(ctx context.Context) (err error) {
 		case "identity":
 			identity, reason, decodeErr := decodeIdentityEvent(env)
 			if decodeErr != nil {
-				if err := c.quarantineAndAck(ctx, conn, env, rawFrame, reason); err != nil {
+				if err := c.quarantineAndAck(ctx, conn, env, rawFrame, reason, decodeErr); err != nil {
 					return err
 				}
 				continue
@@ -429,6 +433,9 @@ func (c *WSConsumer) ingestRecordWithTimeout(ctx context.Context, ev Event) (out
 	defer func() {
 		panicCaptured := false
 		if recovered := recover(); recovered != nil {
+			observability.LogPanic(handleCtx, c.logger, observability.EventContext{
+				"component": "tap", "operation": "tap.indexer.handle", "nsid": ev.Collection.String(),
+			}, recovered)
 			if c.cfg.Observer != nil {
 				panicCaptured = true
 				c.cfg.Observer.CapturePanic(handleCtx, observability.EventContext{
@@ -442,15 +449,16 @@ func (c *WSConsumer) ingestRecordWithTimeout(ctx context.Context, ev Event) (out
 		}
 		if c.cfg.Observer != nil {
 			c.cfg.Observer.ObserveIndexerHandled(ev.Collection.String(), err, time.Since(started))
-			if err != nil && !panicCaptured {
-				c.cfg.Observer.CaptureError(handleCtx, observability.EventContext{
-					"component":      "tap_indexer",
-					"nsid":           observability.SafeNSIDLabel(ev.Collection.String()),
-					"result":         "error",
-					"error_category": "unexpected",
-				}, err)
+
+		}
+		if !panicCaptured && (err != nil || outcome.Kind == OutcomePermanentInvalid) {
+			input := RecordFailureDiagnostic(ev, outcome, err)
+			observability.LogDiagnostic(handleCtx, c.logger, input)
+			if c.cfg.Observer != nil {
+				c.cfg.Observer.CaptureDiagnostic(handleCtx, input)
 			}
 		}
+
 		if indexerSpan != nil {
 			result := "success"
 			if err != nil {
@@ -472,12 +480,36 @@ func (c *WSConsumer) ingestRecordWithTimeout(ctx context.Context, ev Event) (out
 }
 
 func (c *WSConsumer) ingestIdentityWithTimeout(ctx context.Context, event IdentityEvent) (outcome Outcome, err error) {
-	callCtx, cancel := context.WithTimeout(ctx, c.cfg.AckTimeout)
+	callCtx, cancel := context.WithTimeout(observability.WithCaptureMarker(ctx), c.cfg.AckTimeout)
 	defer cancel()
+	fields := observability.EventContext{"component": "tap", "operation": "tap.identity", "failure_stage": "identity", "result": "retry", "retryable": true}
 	defer func() {
+		panicked := false
 		if recovered := recover(); recovered != nil {
+			panicked = true
+			observability.LogPanic(callCtx, c.logger, fields, recovered)
+			if c.cfg.Observer != nil {
+				c.cfg.Observer.CapturePanic(callCtx, fields, recovered)
+			}
 			outcome = Retryable(ReasonProjectionFailure)
 			err = fmt.Errorf("identity ingestion panic: %T", recovered)
+		}
+		if !panicked && (err != nil || outcome.Kind == OutcomePermanentInvalid) {
+			cause := err
+			if cause == nil {
+				cause = errors.New("identity event rejected")
+				fields["result"] = "quarantine"
+			}
+			workflow := observability.TapEventFailureContext{Record: observability.PublicRecordContext{TargetDID: event.DID}, EventID: event.ID, Outcome: "retry", Acknowledgement: "not_acknowledged", Reason: string(outcome.Reason)}
+			if outcome.Kind == OutcomePermanentInvalid {
+				workflow.Outcome = "quarantine"
+				workflow.Acknowledgement = "durably_committed"
+			}
+			input := observability.DiagnosticInput{Error: cause, Context: fields, Workflow: workflow}
+			observability.LogDiagnostic(callCtx, c.logger, input)
+			if c.cfg.Observer != nil {
+				c.cfg.Observer.CaptureDiagnostic(callCtx, input)
+			}
 		}
 	}()
 	if c.cfg.Ingestor == nil {
@@ -486,7 +518,7 @@ func (c *WSConsumer) ingestIdentityWithTimeout(ctx context.Context, event Identi
 	return c.cfg.Ingestor.IngestIdentity(callCtx, event)
 }
 
-func (c *WSConsumer) quarantineAndAck(ctx context.Context, conn *websocket.Conn, env envelope, rawFrame []byte, reason ReasonCode) error {
+func (c *WSConsumer) quarantineAndAck(ctx context.Context, conn *websocket.Conn, env envelope, rawFrame []byte, reason ReasonCode, causes ...error) error {
 	outcome, ingestErr := c.quarantineInvalid(ctx, InvalidEvent{
 		ID: env.ID, Type: env.Type, Reason: reason, Envelope: append(json.RawMessage(nil), rawFrame...),
 	})
@@ -496,6 +528,11 @@ func (c *WSConsumer) quarantineAndAck(ctx context.Context, conn *websocket.Conn,
 	if !outcome.Acknowledgable() {
 		return errors.New("persist Tap quarantine: outcome was not durable")
 	}
+	var cause error = errors.New("published envelope rejected")
+	if len(causes) > 0 && causes[0] != nil {
+		cause = causes[0]
+	}
+	c.logInvalidQuarantine(ctx, env, reason, cause)
 	if env.ID == 0 {
 		return errors.New("persisted Tap quarantine but envelope has no acknowledgement id")
 	}
@@ -513,6 +550,11 @@ func (c *WSConsumer) quarantineInvalid(ctx context.Context, invalid InvalidEvent
 	}
 	defer func() {
 		if recovered := recover(); recovered != nil {
+			fields := observability.EventContext{"component": "tap", "operation": "tap.quarantine", "failure_stage": "quarantine", "result": "error"}
+			observability.LogPanic(callCtx, c.logger, fields, recovered)
+			if c.cfg.Observer != nil {
+				c.cfg.Observer.CapturePanic(callCtx, fields, recovered)
+			}
 			outcome = Retryable(ReasonStorageUnavailable)
 			err = fmt.Errorf("quarantine ingestion panic: %T", recovered)
 		}
@@ -628,4 +670,66 @@ func decodeIdentityEvent(env envelope) (IdentityEvent, ReasonCode, error) {
 	return IdentityEvent{
 		ID: env.ID, DID: did, Handle: raw.Handle, IsActive: raw.IsActive, Status: raw.Status,
 	}, ReasonNone, nil
+}
+
+// RecordFailureDiagnostic selects only public event references and failure-only
+// published text for Tap ingress and its durable projection worker.
+func RecordFailureDiagnostic(ev Event, outcome Outcome, err error) observability.DiagnosticInput {
+	result, ack, stage := "terminal", "not_acknowledged", "projection"
+	if outcome.Kind == OutcomeRetryable {
+		result = "retry"
+	}
+	var lexiconErr *lexiconschema.ValidationError
+	record := observability.PublicRecordContext{ActorDID: ev.DID, TargetDID: ev.DID, URI: ev.URI, CID: ev.CID, NSID: ev.Collection, RecordKey: ev.Rkey}
+	workflow := observability.TapEventFailureContext{Record: record, EventID: ev.ID, Outcome: result, Acknowledgement: ack, Reason: string(outcome.Reason)}
+	if outcome.Kind == OutcomePermanentInvalid {
+		result, ack, stage = "quarantine", "durably_committed", "parse"
+		workflow.Outcome, workflow.Acknowledgement = result, ack
+		if err == nil {
+			err = outcome.DiagnosticCause
+		}
+		if err == nil {
+			err = errors.New("published record rejected")
+		}
+		if errors.As(err, &lexiconErr) {
+			workflow.Reason = "invalid_lexicon"
+		}
+		// Only a specifically selected field of an already-public Tap record is
+		// admitted, and only on this terminal published parse failure path.
+		if ev.Collection == "social.craftsky.feed.post" && outcome.Reason == ReasonMalformedRecord && lexiconErr == nil {
+			var post craftsky.FeedPost
+			if json.Unmarshal(ev.Record, &post) == nil {
+				workflow.PublishedFailure = &observability.PublishedRecordParseFailureContext{Record: record, Text: post.Text}
+			}
+		}
+	}
+	input := observability.DiagnosticInput{Error: err, Context: observability.EventContext{"component": "tap_indexer", "operation": "tap.indexer.handle", "failure_stage": stage, "nsid": ev.Collection.String(), "result": result, "retryable": outcome.Kind == OutcomeRetryable}, Workflow: workflow}
+	if lexiconErr != nil && outcome.Kind == OutcomePermanentInvalid {
+		input.Context["error_category"] = "validation"
+	}
+	return input
+}
+
+// Invalid-envelope diagnostics re-parse only source identity fields that could
+// not be trusted as a whole. Never admit the raw quarantine envelope.
+func (c *WSConsumer) logInvalidQuarantine(ctx context.Context, env envelope, reason ReasonCode, cause error) {
+	ctx = observability.WithCaptureMarker(ctx)
+	record := observability.PublicRecordContext{}
+	if env.Record != nil {
+		if did, err := syntax.ParseDID(env.Record.DID); err == nil {
+			record.TargetDID = did
+		}
+		if nsid, err := syntax.ParseNSID(env.Record.Collection); err == nil {
+			record.NSID = nsid
+		}
+		if key, err := syntax.ParseRecordKey(env.Record.Rkey); err == nil {
+			record.RecordKey = key
+		}
+	}
+	workflow := observability.TapEventFailureContext{Record: record, EventID: env.ID, Outcome: "quarantine", Acknowledgement: "durably_committed", Reason: string(reason)}
+	input := observability.DiagnosticInput{Error: cause, Context: observability.EventContext{"component": "tap", "operation": "tap.decode", "failure_stage": "decode", "result": "quarantine"}, Workflow: workflow}
+	observability.LogDiagnostic(ctx, c.logger, input)
+	if c.cfg.Observer != nil {
+		c.cfg.Observer.CaptureDiagnostic(ctx, input)
+	}
 }

@@ -166,7 +166,7 @@ func (o *Observer) WrapPDSFactory(factory auth.PDSClientFactory) auth.PDSClientF
 		if err != nil || client == nil {
 			return client, err
 		}
-		observed := observedPDSClient{inner: client, observer: o}
+		observed := observedPDSClient{inner: client, observer: o, actor: did}
 		lister, hasLister := client.(auth.PDSRecordLister)
 		boundary, hasBoundary := client.(auth.ActiveEffectPDSBoundary)
 		switch {
@@ -193,6 +193,7 @@ func (o *Observer) WrapPDSFactory(factory auth.PDSClientFactory) auth.PDSClientF
 type observedPDSClient struct {
 	inner    auth.PDSClient
 	observer *Observer
+	actor    syntax.DID
 }
 
 type observedPDSListClient struct {
@@ -238,7 +239,7 @@ func (c observedPDSListClient) ListRecords(
 	cursor string,
 	limit int,
 ) ([]auth.PDSRecord, string, error) {
-	return c.lister.ListRecords(ctx, repo, collection, cursor, limit)
+	return c.observedPDSClient.observeListRecords(ctx, c.lister, repo, collection, cursor, limit)
 }
 
 func (c observedPDSListEffectClient) ListRecords(
@@ -248,7 +249,7 @@ func (c observedPDSListEffectClient) ListRecords(
 	cursor string,
 	limit int,
 ) ([]auth.PDSRecord, string, error) {
-	return c.lister.ListRecords(ctx, repo, collection, cursor, limit)
+	return c.observedPDSClient.observeListRecords(ctx, c.lister, repo, collection, cursor, limit)
 }
 
 func (c observedPDSEffectClient) WithActiveEffects(
@@ -267,7 +268,7 @@ func (c observedPDSEffectClient) WithActiveEffects(
 				return errors.New("observed PDS effect client is unavailable")
 			}
 			observed := observedPDSClient{
-				inner: purposeClient, observer: c.observer,
+				inner: purposeClient, observer: c.observer, actor: c.actor,
 			}
 			callbackClient := auth.PDSClient(observed)
 			lister, hasLister := purposeClient.(auth.PDSRecordLister)
@@ -312,6 +313,7 @@ func (client observedRepositoryCommandPDSClient) ListRecords(
 	cursor string,
 	limit int,
 ) ([]auth.PDSRecord, string, error) {
+	ctx = withPDSRecordContext(ctx, client.actor, repo, syntax.NSID(collection), "")
 	operationCtx, finish := client.observer.startPDSOperation(ctx, PDSOperationCommandList)
 	started := time.Now()
 	records, next, err := client.lister.ListRecords(operationCtx, repo, collection, cursor, limit)
@@ -321,6 +323,7 @@ func (client observedRepositoryCommandPDSClient) ListRecords(
 }
 
 func (client observedRepositoryCommandPDSClient) LatestCommit(ctx context.Context, repo syntax.DID) (syntax.CID, error) {
+	ctx = withPDSRecordContext(ctx, client.actor, repo, "", "")
 	operationCtx, finish := client.observer.startPDSOperation(ctx, PDSOperationCommandHead)
 	started := time.Now()
 	head, err := client.command.LatestCommit(operationCtx, repo)
@@ -335,6 +338,7 @@ func (client observedRepositoryCommandPDSClient) ApplyWrites(
 	head syntax.CID,
 	writes []auth.RepositoryWrite,
 ) error {
+	ctx = withPDSRecordContext(ctx, client.actor, repo, "", "")
 	operationCtx, finish := client.observer.startPDSOperation(ctx, PDSOperationCommandApply)
 	started := time.Now()
 	err := client.command.ApplyWrites(operationCtx, repo, head, writes)
@@ -351,6 +355,7 @@ func (client observedRepositoryCommandPDSClient) DeleteRecordWithRepositorySwap(
 	head syntax.CID,
 	record syntax.CID,
 ) error {
+	ctx = withPDSRecordContext(ctx, client.actor, repo, collection, rkey)
 	operationCtx, finish := client.observer.startPDSOperation(ctx, PDSOperationCommandFallback)
 	started := time.Now()
 	err := client.command.DeleteRecordWithRepositorySwap(operationCtx, repo, collection, rkey, head, record)
@@ -367,6 +372,7 @@ func (c observedConditionalPutPDSClient) PutRecordWithSwap(
 	record any,
 	expectedCID syntax.CID,
 ) error {
+	ctx = withPDSRecordContext(ctx, c.actor, repo, syntax.NSID(collection), syntax.RecordKey(rkey))
 	operation := pdsPutOperation(collection)
 	operationCtx, finish := c.observer.startPDSOperation(ctx, operation)
 	started := time.Now()
@@ -413,6 +419,7 @@ func observeConditionalDelete(
 	rkey string,
 	expectedCID syntax.CID,
 ) error {
+	ctx = withPDSRecordContext(ctx, repo, repo, syntax.NSID(collection), syntax.RecordKey(rkey))
 	operation := pdsDeleteOperation(collection)
 	operationCtx, finish := observer.startPDSOperation(ctx, operation)
 	started := time.Now()
@@ -427,6 +434,7 @@ func observeConditionalDelete(
 }
 
 func (c observedPDSClient) GetRecord(ctx context.Context, repo syntax.DID, collection string, rkey string, out any) (string, error) {
+	ctx = withPDSRecordContext(ctx, c.actor, repo, syntax.NSID(collection), syntax.RecordKey(rkey))
 	operation := pdsGetOperation(collection)
 	operationCtx, finish := c.observer.startPDSOperation(ctx, operation)
 	started := time.Now()
@@ -437,6 +445,7 @@ func (c observedPDSClient) GetRecord(ctx context.Context, repo syntax.DID, colle
 }
 
 func (c observedPDSClient) PutRecord(ctx context.Context, repo syntax.DID, collection string, rkey string, record any) error {
+	ctx = withPDSRecordContext(ctx, c.actor, repo, syntax.NSID(collection), syntax.RecordKey(rkey))
 	operation := pdsPutOperation(collection)
 	operationCtx, finish := c.observer.startPDSOperation(ctx, operation)
 	started := time.Now()
@@ -447,6 +456,7 @@ func (c observedPDSClient) PutRecord(ctx context.Context, repo syntax.DID, colle
 }
 
 func (c observedPDSClient) CreateRecord(ctx context.Context, repo syntax.DID, collection string, record any) (syntax.ATURI, syntax.CID, error) {
+	ctx = withPDSRecordContext(ctx, c.actor, repo, syntax.NSID(collection), syntax.RecordKey(""))
 	operation := pdsCreateOperation(collection)
 	operationCtx, finish := c.observer.startPDSOperation(ctx, operation)
 	started := time.Now()
@@ -457,6 +467,7 @@ func (c observedPDSClient) CreateRecord(ctx context.Context, repo syntax.DID, co
 }
 
 func (c observedPDSClient) DeleteRecord(ctx context.Context, repo syntax.DID, collection string, rkey string) error {
+	ctx = withPDSRecordContext(ctx, c.actor, repo, syntax.NSID(collection), syntax.RecordKey(rkey))
 	operation := pdsDeleteOperation(collection)
 	operationCtx, finish := c.observer.startPDSOperation(ctx, operation)
 	started := time.Now()
@@ -510,6 +521,13 @@ func (o *Observer) observePDSWrite(ctx context.Context, operation PDSOperation, 
 	level := slog.LevelInfo
 	if err != nil {
 		level = slog.LevelWarn
+		if pdsCategoryCaptured(category) {
+			level = slog.LevelError
+		}
+		if workflow := pdsRecordWorkflow(ctx, err); workflow != nil {
+			localOnlyAttrs = append(localOnlyAttrs, DiagnosticWorkflowAttr(ctx, workflow))
+		}
+		localOnlyAttrs = append(localOnlyAttrs, slog.Any("causes", DescribeError(err, EventContext{"component": "pds", "operation": string(operation), "failure_stage": string(stage)})))
 	}
 	o.Log(ctx, level, "pds write completed", EventContext{
 		"component":      "pds",
@@ -524,14 +542,14 @@ func (o *Observer) observePDSWrite(ctx context.Context, operation PDSOperation, 
 			MarkCaptured(ctx)
 			return
 		}
-		o.CaptureError(ctx, EventContext{
+		o.CaptureDiagnostic(ctx, DiagnosticInput{Error: err, Workflow: pdsRecordWorkflow(ctx, err), Context: EventContext{
 			"component":      "pds",
 			"operation":      string(operation),
 			"failure_stage":  string(stage),
 			"result":         result,
 			"error_category": string(category),
 			"duration":       duration.String(),
-		}, err)
+		}})
 	}
 }
 
@@ -613,4 +631,47 @@ func pdsDeleteOperation(collection string) PDSOperation {
 	default:
 		return "unknown"
 	}
+}
+
+// Source identifiers are already parsed by their operation boundary. This never
+// reads the record body, blob, cursor, repository writes or OAuth session ID.
+type pdsRecordContextKey struct{}
+
+func withPDSRecordContext(ctx context.Context, actor, target syntax.DID, nsid syntax.NSID, rkey syntax.RecordKey) context.Context {
+	if actor == "" {
+		actor = target
+	}
+	record := PublicRecordContext{ActorDID: actor, TargetDID: target, NSID: nsid, RecordKey: rkey}
+	if target != "" && nsid != "" && rkey != "" {
+		record.URI = syntax.ATURI("at://" + target.String() + "/" + nsid.String() + "/" + rkey.String())
+	}
+	return context.WithValue(ctx, pdsRecordContextKey{}, record)
+}
+func pdsRecordWorkflow(ctx context.Context, cause error) WorkflowContext {
+	if cause == nil {
+		return nil
+	}
+	if private, ok := ctx.Value(privateDiagnosticContextKey{}).(privateFailureContext); ok {
+		return private
+	}
+	// A record's destination alone is not public-workflow provenance.
+	request, classified := ctx.Value(requestDiagnosticContextKey{}).(RequestDiagnosticContext)
+	if !classified || !request.PublicTargets {
+		return RequestFailureWorkflow(ctx, cause)
+	}
+
+	if record, ok := ctx.Value(pdsRecordContextKey{}).(PublicRecordContext); ok {
+		return workflowForRequest(ctx, record)
+	}
+	return RequestPublicWorkflow(ctx)
+}
+
+func (c observedPDSClient) observeListRecords(ctx context.Context, lister auth.PDSRecordLister, repo syntax.DID, collection, cursor string, limit int) ([]auth.PDSRecord, string, error) {
+	ctx = withPDSRecordContext(ctx, c.actor, repo, syntax.NSID(collection), "")
+	operationCtx, finish := c.observer.startPDSOperation(ctx, PDSOperationCommandList)
+	started := time.Now()
+	records, next, err := lister.ListRecords(operationCtx, repo, collection, cursor, limit)
+	c.observer.observePDSWrite(operationCtx, PDSOperationCommandList, PDSStagePDSRequest, err, time.Since(started))
+	finish(pdsResult(err))
+	return records, next, err
 }

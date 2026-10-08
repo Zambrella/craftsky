@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"social.craftsky/appview/internal/observability"
 	"strings"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -48,6 +49,7 @@ func (h *IdentityCustomisationHydrator) Handler(next http.Handler) http.Handler 
 		if status >= 200 && status < 300 && strings.Contains(captured.header.Get("Content-Type"), "application/json") {
 			hydrated, err := h.HydrateJSON(r.Context(), body)
 			if err != nil {
+				observability.ReportRequestFailure(r.Context(), err, "api.Handler", "handler")
 				envelope.WriteError(
 					w,
 					http.StatusInternalServerError,

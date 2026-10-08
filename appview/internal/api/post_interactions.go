@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 	"path"
+	"social.craftsky/appview/internal/observability"
 	"strings"
 	"time"
 
@@ -195,6 +196,7 @@ func LikePostHandler(store likePostStore, newEffects pdseffects.ExecutorFactory,
 		}
 		effectRkey, err := newImmediateRecordKey()
 		if err != nil {
+			observability.ReportRequestFailure(r.Context(), err, "api.LikePostHandler", "handler")
 			envelope.WriteError(w, http.StatusInternalServerError,
 				"internal_error", "could not prepare like", runID, nil)
 			return
@@ -408,6 +410,7 @@ func RepostPostHandler(store repostPostStore, newEffects pdseffects.ExecutorFact
 		}
 		effectRkey, err := newImmediateRecordKey()
 		if err != nil {
+			observability.ReportRequestFailure(r.Context(), err, "api.RepostPostHandler", "handler")
 			envelope.WriteError(w, http.StatusInternalServerError,
 				"internal_error", "could not prepare repost", runID, nil)
 			return

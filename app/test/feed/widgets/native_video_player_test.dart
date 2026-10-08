@@ -6,13 +6,16 @@ import 'package:craftsky_app/feed/widgets/native_video_controller.dart';
 import 'package:craftsky_app/feed/widgets/native_video_player.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/shared/image/image_cache_providers.dart';
+import 'package:craftsky_app/shared/observability/diagnostic_emitter.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:logging/logging.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 
 import '../../fakes/image_cache_fakes.dart';
+import '../../test_support/recording_error_reporter.dart';
 
 void main() {
   testWidgets(
@@ -141,6 +144,163 @@ void main() {
     },
   );
 
+  testWidgets(
+    'IT-010 unavailable caption retains cause without stopping playback',
+    (tester) async {
+      final visibility = VisibilityDetectorController.instance;
+      final previousInterval = visibility.updateInterval;
+      visibility.updateInterval = Duration.zero;
+      addTearDown(() => visibility.updateInterval = previousInterval);
+      final records = <LogRecord>[];
+      final logs = Logger.root.onRecord.listen(records.add);
+      addTearDown(logs.cancel);
+      final adapter = _FakeViewAdapter();
+      final failure = StateError('private caption payload canary');
+      final reporter = RecordingErrorReporter();
+      await tester.pumpWidget(
+        MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(
+            body: NativeVideoPlayer(
+              video: PostVideo(
+                cid: 'bafyvideo',
+                mime: 'video/mp4',
+                size: 10,
+                playlist: 'https://video.example/playlist.m3u8',
+                captions: const [
+                  PostVideoCaption(
+                    lang: 'en',
+                    name: 'private label',
+                    uri: '/v1/posts/did:plc:alice/post/video-captions/bafycap',
+                  ),
+                ],
+              ),
+              createAdapter: () => adapter,
+              loadCaption: (_) async => throw failure,
+              reporter: reporter,
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.byKey(const Key('native-video-thumbnail-play')));
+      await tester.pump();
+      expect(find.byKey(const ValueKey('fake-video-view')), findsOneWidget);
+      expect(find.text('Video is unavailable. Try again later.'), findsNothing);
+      final diagnostic = selectDiagnosticRecord(
+        records.singleWhere((record) => record.error == failure),
+      );
+      expect(reporter.errors, [failure]);
+      expect(diagnostic['failureStage'], 'caption_fetch');
+      expect(diagnostic['cause'].toString(), contains('StateError'));
+      expect(diagnostic['stack'], isNotEmpty);
+      expect(diagnostic.toString(), isNot(contains('private caption')));
+      expect(diagnostic.toString(), isNot(contains('private label')));
+      await tester.pumpWidget(const SizedBox());
+      await adapter.close();
+    },
+  );
+
+  testWidgets('IT-010 playback open failure retains original cause and stack', (
+    tester,
+  ) async {
+    final visibility = VisibilityDetectorController.instance;
+    final previousInterval = visibility.updateInterval;
+    visibility.updateInterval = Duration.zero;
+    addTearDown(() => visibility.updateInterval = previousInterval);
+    final records = <LogRecord>[];
+    final logs = Logger.root.onRecord.listen(records.add);
+    addTearDown(logs.cancel);
+    final adapter = _FakeViewAdapter();
+    final failure = StateError('private playback payload canary');
+    adapter.openFailure = failure;
+    await tester.pumpWidget(
+      MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: Scaffold(
+          body: NativeVideoPlayer(
+            video: PostVideo(
+              cid: 'bafyvideo',
+              mime: 'video/mp4',
+              size: 10,
+              playlist: 'https://video.example/playlist.m3u8',
+            ),
+            createAdapter: () => adapter,
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.byKey(const Key('native-video-thumbnail-play')));
+    await tester.pump();
+    expect(find.text('Video is unavailable. Try again later.'), findsOneWidget);
+
+    final diagnostic = selectDiagnosticRecord(
+      records.singleWhere((record) => record.error == failure),
+    );
+    expect(diagnostic['failureStage'], 'playback_open');
+    expect(diagnostic['cause'].toString(), contains('StateError'));
+    expect(diagnostic['stack'], isNotEmpty);
+    expect(diagnostic.toString(), isNot(contains('private playback')));
+    expect(diagnostic.toString(), isNot(contains('private label')));
+    await tester.pumpWidget(const SizedBox());
+    await adapter.close();
+  });
+
+  testWidgets(
+    'IT-010 playback error stream retains cause without invented stack',
+    (tester) async {
+      final visibility = VisibilityDetectorController.instance;
+      final previousInterval = visibility.updateInterval;
+      visibility.updateInterval = Duration.zero;
+      addTearDown(() => visibility.updateInterval = previousInterval);
+      final records = <LogRecord>[];
+      final logs = Logger.root.onRecord.listen(records.add);
+      addTearDown(logs.cancel);
+      final adapter = _FakeViewAdapter();
+      final failure = StateError('private playback payload canary');
+
+      await tester.pumpWidget(
+        MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(
+            body: NativeVideoPlayer(
+              video: PostVideo(
+                cid: 'bafyvideo',
+                mime: 'video/mp4',
+                size: 10,
+                playlist: 'https://video.example/playlist.m3u8',
+              ),
+              createAdapter: () => adapter,
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.byKey(const Key('native-video-thumbnail-play')));
+      await tester.pump();
+      adapter.ready.add(true);
+      await tester.pump();
+      adapter.errors.add(failure);
+      await tester.pump();
+      expect(
+        find.text('Video is unavailable. Try again later.'),
+        findsOneWidget,
+      );
+
+      final diagnostic = selectDiagnosticRecord(
+        records.singleWhere((record) => record.error == failure),
+      );
+      expect(diagnostic['failureStage'], 'playback_stream');
+      expect(diagnostic['cause'].toString(), contains('StateError'));
+      expect(diagnostic.containsKey('stack'), isFalse);
+      expect(diagnostic.toString(), isNot(contains('private playback')));
+      expect(diagnostic.toString(), isNot(contains('private label')));
+      await tester.pumpWidget(const SizedBox());
+      await adapter.close();
+    },
+  );
+
   test('AT-008 production view uses shared themed controls', () {
     expect(nativeVideoControls, isNot(same(AdaptiveVideoControls)));
   });
@@ -189,6 +349,7 @@ void main() {
 final class _FakeViewAdapter implements NativeVideoViewAdapter {
   final errors = StreamController<Object>.broadcast(sync: true);
   final ready = StreamController<bool>.broadcast(sync: true);
+  Object? openFailure;
   bool? playOnOpen;
   NativeVideoCaptionTrack? selectedCaption;
   int pauseCount = 0;
@@ -214,6 +375,8 @@ final class _FakeViewAdapter implements NativeVideoViewAdapter {
 
   @override
   Future<void> open(Uri playlist, {required bool play}) async {
+    if (openFailure case final Exception cause) throw cause;
+    if (openFailure case final Error cause) throw cause;
     playOnOpen = play;
     mutedBeforeOpen = _muted;
   }

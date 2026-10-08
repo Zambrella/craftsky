@@ -2,6 +2,7 @@ import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/auth/models/pending_account_deletion.dart';
 import 'package:craftsky_app/auth/models/session_registry.dart';
+import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
 import 'package:flutter/foundation.dart';
 
 @immutable
@@ -10,7 +11,7 @@ final class AccountDeletionLeaseFence {
 
   factory AccountDeletionLeaseFence.capture(SessionRegistry registry) {
     final active = registry.activeLease;
-    if (active == null) throw StateError('No active account');
+    if (active == null) throw DiagnosticStateError('No active account');
     return AccountDeletionLeaseFence._(active);
   }
 

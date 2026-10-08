@@ -1,4 +1,5 @@
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
+import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
 import 'package:craftsky_app/subscriptions/data/subscription_api_client.dart';
 import 'package:craftsky_app/subscriptions/models/billing_state.dart';
 import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
@@ -199,7 +200,9 @@ final class SubscriptionPurchaseController {
     }
 
     return switch (result.outcome) {
-      ReconciliationOutcome.completed => throw StateError('handled above'),
+      ReconciliationOutcome.completed => throw DiagnosticStateError(
+        'handled above',
+      ),
       ReconciliationOutcome.timedOut => _pendingRetry(tier, beforeProvider),
       ReconciliationOutcome.cancelled => _pendingRetry(tier, beforeProvider),
       ReconciliationOutcome.failed =>

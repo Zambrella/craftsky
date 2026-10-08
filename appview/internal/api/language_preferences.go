@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"social.craftsky/appview/internal/observability"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 
@@ -132,6 +133,7 @@ func languagePreferencesHandler(
 				)
 				return
 			}
+			observability.ReportRequestFailure(r.Context(), err, "api.languagePreferencesHandler", "handler")
 			envelope.WriteError(
 				w,
 				http.StatusInternalServerError,

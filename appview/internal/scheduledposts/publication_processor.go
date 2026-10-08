@@ -14,6 +14,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/google/uuid"
 
+	"social.craftsky/appview/internal/observability"
 	"social.craftsky/appview/internal/ownerlifecycle"
 	"social.craftsky/appview/internal/pdscommands"
 	"social.craftsky/appview/internal/pdseffects"
@@ -124,6 +125,15 @@ func (p *PublicationProcessor) Process(ctx context.Context, item WorkItem) (proc
 		}
 	}()
 	claim := workItemClaim(item)
+	ctx = observability.WithPrivateDiagnosticContext(ctx, claim.OwnerDID, claim.ID.String())
+	stage := "snapshot"
+	defer func() {
+		if processErr != nil {
+			if diagnostic, ok := p.observer.(privateFailureObserver); ok {
+				diagnostic.ObservePrivateFailure(ctx, processErr, claim.OwnerDID, claim.ID.String(), "schedule.publish", stage, "error", attempt)
+			}
+		}
+	}()
 	if claim.OwnerGeneration <= 0 {
 		return errors.New("scheduled publication generation is unavailable")
 	}
@@ -140,7 +150,9 @@ func (p *PublicationProcessor) Process(ctx context.Context, item WorkItem) (proc
 	if err != nil {
 		return err
 	}
+	stage = "preparation"
 	attempt = snapshot.AttemptCount
+	ctx = context.WithValue(ctx, publicationAttemptKey{}, attempt)
 	startLatency = started.UTC().Sub(snapshot.ScheduledAt)
 	if startLatency < 0 {
 		startLatency = 0
@@ -217,18 +229,25 @@ func (p *PublicationProcessor) Process(ctx context.Context, item WorkItem) (proc
 		}
 	}
 
+	stage = "session"
 	sessionID, err := SelectPublicationSession(ctx, p.sessions, claim.OwnerDID)
 	if err != nil {
 		return p.recordFailure(ctx, claim, err, item.Manual)
 	}
+	stage = "command_setup"
 	coordinator, err := p.newCommands(ctx, claim.OwnerDID, sessionID)
 	if err != nil || coordinator == nil {
+		ctx = context.WithValue(ctx, publicationStageKey{}, stage)
+		if err != nil {
+			ctx = context.WithValue(ctx, publicationDiagnosticCauseKey{}, err)
+		}
 		return p.recordFailure(ctx, claim, ErrAuthUnavailable, item.Manual)
 	}
 	expectedOwners := []ownerlifecycle.ExpectedOwner{{
 		Owner: claim.OwnerDID, Generation: claim.OwnerGeneration,
 	}}
 	finalized := false
+	stage = "effect_acquire"
 	effectErr := coordinator.WithGuardedCommands(
 		ctx,
 		expectedOwners,
@@ -243,12 +262,20 @@ func (p *PublicationProcessor) Process(ctx context.Context, item WorkItem) (proc
 			}
 			effectCtx = guard.bind(effectCtx)
 			defer func() {
-				effectErr = errors.Join(effectErr, guard.Release(effectCtx))
+				releaseErr := guard.Release(effectCtx)
+				if effectErr == nil && releaseErr != nil {
+					stage = "effect_release"
+				}
+				effectErr = errors.Join(effectErr, releaseErr)
 			}()
 			publish := func(effectCtx context.Context) error {
+				stage = "media_upload"
+				effectCtx = context.WithValue(effectCtx, publicationStageKey{}, stage)
 				if err := p.uploadPrivateMedia(effectCtx, effects, claim, expectedOwners, snapshot.Media); err != nil {
 					return p.handleEffectFailure(effectCtx, claim, scheduledBlobEffect, err, item.Manual)
 				}
+				stage = "record_write"
+				effectCtx = context.WithValue(effectCtx, publicationStageKey{}, stage)
 				intent, err := scheduledPublicationCommandIntent(claim, recordBytes)
 				if err != nil {
 					return p.recordFailure(effectCtx, claim, ErrRecordConflict, item.Manual)
@@ -272,6 +299,10 @@ func (p *PublicationProcessor) Process(ctx context.Context, item WorkItem) (proc
 						SelectedURI: selectedURI, SelectedRkey: claim.Rkey,
 					},
 				)
+				if commandResult.DiagnosticCause != nil {
+					effectCtx = context.WithValue(effectCtx, publicationDiagnosticCauseKey{}, commandResult.DiagnosticCause)
+				}
+
 				if err != nil {
 					return p.handleScheduledCommandFailure(effectCtx, claim, err, item.Manual)
 				}
@@ -292,6 +323,7 @@ func (p *PublicationProcessor) Process(ctx context.Context, item WorkItem) (proc
 					result.URI == "" || result.CID == "" {
 					return p.recordFailure(effectCtx, claim, ErrRecordConflict, item.Manual)
 				}
+				stage = "finalization"
 				_, err = p.store.FinalizePublication(effectCtx, FinalizePublicationParams{
 					Claim: claim, PublicationURI: result.URI, PublicationCID: result.CID,
 					PublishedAt: p.now().UTC(),
@@ -429,6 +461,23 @@ func (p *PublicationProcessor) recordFailure(
 	if err != nil {
 		return err
 	}
+	if diagnostic, ok := p.observer.(privateFailureObserver); ok {
+		outcome := "retry"
+		if status == StatusNeedsAttention {
+			outcome = "terminal"
+		}
+		attempt, _ := ctx.Value(publicationAttemptKey{}).(int)
+		diagnosticCause, _ := ctx.Value(publicationDiagnosticCauseKey{}).(error)
+		if diagnosticCause == nil {
+			diagnosticCause = cause
+		}
+		stage, _ := ctx.Value(publicationStageKey{}).(string)
+		if stage == "" {
+			stage = "preparation"
+		}
+		diagnostic.ObservePrivateFailure(ctx, diagnosticCause, claim.OwnerDID, claim.ID.String(), "schedule.publish", stage, outcome, attempt)
+	}
+
 	if p.observer != nil {
 		operation := "retry"
 		if status == StatusNeedsAttention {
@@ -454,11 +503,14 @@ func (p *PublicationProcessor) uploadPrivateMedia(
 	for ordinal, item := range media {
 		body, err := p.objects.Open(ctx, item.ObjectKey)
 		if err != nil {
-			return ErrObjectUnavailable
+			return errors.Join(ErrObjectUnavailable, err)
 		}
 		bytesValue, readErr := io.ReadAll(io.LimitReader(body, item.SizeBytes+1))
 		closeErr := body.Close()
-		if readErr != nil || closeErr != nil || int64(len(bytesValue)) != item.SizeBytes || sha256.Sum256(bytesValue) != item.SHA256 {
+		if readErr != nil || closeErr != nil {
+			return errors.Join(ErrMediaInvalid, readErr, closeErr)
+		}
+		if int64(len(bytesValue)) != item.SizeBytes || sha256.Sum256(bytesValue) != item.SHA256 {
 			return ErrMediaInvalid
 		}
 		effectID := scheduledBlobEffectIdentity(claim, ordinal)

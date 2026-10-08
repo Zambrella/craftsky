@@ -76,3 +76,43 @@ func TestRecovery_ReturnsV1EnvelopeAndContinuesServing(t *testing.T) {
 		t.Fatalf("second status = %d, want 204; body=%s", okRec.Code, okRec.Body.String())
 	}
 }
+
+// AT-002 / BR-001, FR-001 / AC-002: local and issue sinks have useful recovery
+// details even at the ordinary INFO threshold, without changing the response.
+func TestRecoveryRetainsSelectedPanicCauseAndStackLocally(t *testing.T) {
+	var logs bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(&logs, nil))
+	transport := &sentry.MockTransport{}
+	observer := observability.New(observability.Config{Env: "test", SentryDSN: "https://public@example.invalid/1", SentryTransport: transport})
+	next := http.HandlerFunc(func(http.ResponseWriter, *http.Request) { panicAtHTTPDiagnosticBoundary() })
+	handler := Logging(logger)(HTTPMetrics(observer)(Recovery(logger, observer)(next)))
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/v1/panic", nil))
+	observer.Flush(time.Second)
+	if response.Code != 500 {
+		t.Fatalf("status=%d", response.Code)
+	}
+	for _, want := range []string{"runtime.TypeAssertionError", "int, not string", "panicAtHTTPDiagnosticBoundary"} {
+		if !strings.Contains(logs.String(), want) {
+			t.Fatalf("local recovery diagnostic missing %s", want)
+		}
+	}
+	events := transport.Events()
+	if len(events) != 1 {
+		t.Fatalf("issue events=%d", len(events))
+	}
+	if events[0].Exception[0].Stacktrace == nil {
+		t.Fatal("issue recovery stack missing")
+	}
+	if strings.Contains(logs.String(), "/Users/") {
+		t.Fatal("local user path leaked")
+	}
+	if strings.Contains(response.Body.String(), "TypeAssertionError") {
+		t.Fatal("panic detail entered response")
+	}
+}
+
+func panicAtHTTPDiagnosticBoundary() {
+	var value any = 1
+	_ = value.(string)
+}

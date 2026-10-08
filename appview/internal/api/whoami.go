@@ -34,7 +34,7 @@ func WhoAmIHandler(resolver HandleResolver, logger *slog.Logger) http.Handler {
 		handle, err := resolver.ResolveHandle(r.Context(), did)
 		if err != nil {
 			logger.Warn("whoami: handle resolution failed",
-				apiLogErrorAttrs(runID, "whoami.get", "identity")...)
+				apiLogErrorAttrs(r.Context(), runID, "whoami.get", "identity", err)...)
 			envelope.WriteError(w, http.StatusBadGateway,
 				"identity_unavailable", "could not resolve handle",
 				runID, nil)

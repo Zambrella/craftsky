@@ -12,6 +12,7 @@ import 'package:craftsky_app/profile/models/profile_account_page.dart';
 import 'package:craftsky_app/profile/models/profile_account_summary.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
+import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'post_interaction_lists_provider.g.dart';
@@ -38,7 +39,7 @@ class PostInteractionAccounts extends _$PostInteractionAccounts {
     final page = await _list();
     if (generation != _generation ||
         !isActiveAccountOperationCurrent(ref, ownership)) {
-      throw StateError('Active account changed');
+      throw DiagnosticStateError('Active account changed');
     }
     return _accountState(page);
   }
@@ -143,7 +144,7 @@ class PostQuotes extends _$PostQuotes {
     final page = await _list();
     if (generation != _generation ||
         !isActiveAccountOperationCurrent(ref, ownership)) {
-      throw StateError('Active account changed');
+      throw DiagnosticStateError('Active account changed');
     }
     return _quoteState(ref, did, rkey, page);
   }

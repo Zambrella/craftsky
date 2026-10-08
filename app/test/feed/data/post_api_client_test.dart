@@ -987,19 +987,19 @@ void main() {
             (
               status: 403,
               code: 'forbidden',
-              serverMessage: 'You can only pin your own posts.',
+              serverMessage: "cannot pin another member's post",
               rkey: 'forbidden',
             ),
             (
               status: 404,
               code: 'post_not_found',
-              serverMessage: 'Post not found.',
+              serverMessage: 'post not found',
               rkey: 'missing',
             ),
             (
               status: 422,
               code: 'pin_not_allowed',
-              serverMessage: 'Only top-level posts can be pinned.',
+              serverMessage: 'post cannot be pinned',
               rkey: 'reply',
             ),
           ];
@@ -1027,9 +1027,9 @@ void main() {
         expect(error.message, testCase.code);
         expect(error.details.statusCode, testCase.status);
         expect(error.details.appViewError, testCase.code);
-        expect(error.details.appViewMessage, testCase.serverMessage);
+
         expect(error.details.requestId, 'request-${testCase.code}');
-        expect(error.details.endpointCategory, 'appview.posts.pin');
+        expect(error.details.method, 'PUT');
       }
 
       final cursorDio = buildDio();
@@ -1037,7 +1037,7 @@ void main() {
         '/v1/profiles/@alice.craftsky.social/posts',
         (server) => server.reply(400, {
           'error': 'invalid_cursor',
-          'message': 'The cursor is no longer valid.',
+          'message': 'cursor could not be decoded',
           'requestId': 'request-invalid-cursor',
         }),
         queryParameters: {'cursor': 'stale'},
@@ -1050,11 +1050,8 @@ void main() {
       expect(cursorError, isA<ApiBadRequest>());
       expect((cursorError as ApiBadRequest).code, 'invalid_cursor');
       expect(cursorError.message, 'invalid_cursor');
-      expect(
-        cursorError.details.appViewMessage,
-        'The cursor is no longer valid.',
-      );
-      expect(cursorError.details.endpointCategory, 'appview.profiles.posts');
+      expect(cursorError.details.appViewError, 'invalid_cursor');
+      expect(cursorError.details.method, 'GET');
 
       final internalDio = buildDio();
       DioAdapter(dio: internalDio).onPut(
@@ -1074,9 +1071,9 @@ void main() {
       expect(internalError.message, 'http_500');
       expect(internalError.details.statusCode, 500);
       expect(internalError.details.appViewError, 'internal_error');
-      expect(internalError.details.appViewMessage, isNull);
+
       expect(internalError.details.requestId, 'request-pin-500');
-      expect(internalError.details.endpointCategory, 'appview.posts.pin');
+
       expect(internalError.toString(), isNot(contains('did:plc:alice')));
     });
   });
@@ -1704,7 +1701,7 @@ void main() {
         '/v1/posts/did%3Aplc%3Aalice/missing/quotes',
         (server) => server.reply(404, {
           'error': 'post_not_found',
-          'message': 'Post not found.',
+          'message': 'post not found',
           'requestId': 'request-post-not-found',
         }),
       );

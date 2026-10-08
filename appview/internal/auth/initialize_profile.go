@@ -162,7 +162,7 @@ func initializeProfile(
 	switch {
 	case err == nil:
 		if vErr := validateCraftskyProfile(cskyRecord); vErr != nil {
-			return nil, &profileInitStageError{"craftsky_profile_validation", fmt.Errorf("%w: %v", ErrProfileDataInvalid, vErr)}
+			return nil, &profileInitStageError{"craftsky_profile_validation", fmt.Errorf("%w: %w", ErrProfileDataInvalid, vErr)}
 		}
 		return &initializedProfiles{
 			bluesky:  fetchedBluesky,
@@ -228,7 +228,7 @@ func InitializeProfileAndIdentityCache(
 		)
 		cancel()
 		if err != nil {
-			return &profileInitStageError{"craftsky_profile_projection", fmt.Errorf("%w: project %s: %v", ErrProfileInitFailed, craftskyProfileNSID, err)}
+			return &profileInitStageError{"craftsky_profile_projection", fmt.Errorf("%w: project %s: %w", ErrProfileInitFailed, craftskyProfileNSID, err)}
 		}
 	}
 	if profiles.bluesky != nil && blueskyProjector != nil {
@@ -239,7 +239,7 @@ func InitializeProfileAndIdentityCache(
 		cancel()
 		if err != nil && logger != nil {
 			logger.Warn("Bluesky profile projection after profile initialization failed",
-				authLogErrorAttrs("", "profile_init.bluesky_projection", "store")...)
+				authLogErrorAttrs(ctx, "", "profile_init.bluesky_projection", "store", err)...)
 		}
 	}
 	if updater == nil {
@@ -248,7 +248,7 @@ func InitializeProfileAndIdentityCache(
 	if err := updater.RefreshCurrentHandle(ctx, did); err != nil {
 		if logger != nil {
 			logger.Warn("identity cache upsert after profile initialization failed",
-				authLogErrorAttrs("", "profile_init.identity_cache", "store")...)
+				authLogErrorAttrs(ctx, "", "profile_init.identity_cache", "store", err)...)
 		}
 	}
 	return nil

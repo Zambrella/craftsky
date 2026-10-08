@@ -79,7 +79,12 @@ type WebhookIdentifierLimiter interface {
 
 var _ WebhookMembership = (*MembershipStore)(nil)
 
+type WebhookFailureObserver interface {
+	ObservePrivateFailure(context.Context, error, syntax.DID, string, string, string, string, int)
+}
+
 type WebhookWorkerOptions struct {
+	Observer                   WebhookFailureObserver       `json:"-"`
 	BatchSize                  int                          `json:"-"`
 	Now                        func() time.Time             `json:"-"`
 	ReplyText                  string                       `json:"-"`
@@ -179,6 +184,7 @@ func (w *WebhookWorker) ProcessBatch(ctx context.Context) (int, error) {
 	now := w.options.Now().UTC()
 	claimed, err := w.queue.ClaimWebhookWork(ctx, w.options.BatchSize, now)
 	if err != nil {
+		w.observeFailure(ctx, WebhookWork{}, nil, err, "claim", "error")
 		return 0, err
 	}
 	processed := 0
@@ -228,7 +234,7 @@ func (w *WebhookWorker) processOne(ctx context.Context, item WebhookWork) error 
 					w.options.InvalidIGSIDPer15Minutes,
 				)
 				if limitErr != nil {
-					return w.retryWork(ctx, item, nil, now, 0)
+					return w.retryFailure(ctx, item, nil, now, 0, limitErr, "rate_limit")
 				}
 				if !decision.Allowed {
 					return w.queue.IgnoreWebhookWork(ctx, item.ID, item.LeaseToken, now, WebhookReasonRateLimited)
@@ -236,7 +242,7 @@ func (w *WebhookWorker) processOne(ctx context.Context, item WebhookWork) error 
 			}
 			return w.queue.IgnoreWebhookWork(ctx, item.ID, item.LeaseToken, now, WebhookReasonChallengeUnavailable)
 		}
-		return w.retryWork(ctx, item, nil, now, 0)
+		return w.retryFailure(ctx, item, nil, now, 0, redeemErr, "redemption")
 	}
 	if !now.Before(item.ProcessingStartedAt.Add(w.options.RetryPolicy.MaxProcessingAge)) {
 		return w.retryWork(ctx, item, &redemption, now, 0)
@@ -250,7 +256,7 @@ func (w *WebhookWorker) processOne(ctx context.Context, item WebhookWork) error 
 		if errors.Is(membershipErr, context.Canceled) {
 			return context.Canceled
 		}
-		return w.retryWork(ctx, item, &redemption, now, 0)
+		return w.retryFailure(ctx, item, &redemption, now, 0, membershipErr, "membership")
 	}
 	if !now.Before(item.ProcessingStartedAt.Add(w.options.RetryPolicy.MaxProcessingAge)) {
 		return w.retryWork(ctx, item, &redemption, now, 0)
@@ -260,7 +266,7 @@ func (w *WebhookWorker) processOne(ctx context.Context, item WebhookWork) error 
 			if errors.Is(inactivateErr, context.Canceled) {
 				return context.Canceled
 			}
-			return w.retryWork(ctx, item, &redemption, now, 0)
+			return w.retryFailure(ctx, item, &redemption, now, 0, inactivateErr, "inactivation")
 		}
 		inactivateErr := w.redeemer.InactivateWebhookOwner(ctx, redemption.AttemptID, redemption.OwnerDID, now)
 		now, err = w.liveWorkTime(ctx, item)
@@ -271,7 +277,7 @@ func (w *WebhookWorker) processOne(ctx context.Context, item WebhookWork) error 
 			if errors.Is(inactivateErr, context.Canceled) {
 				return context.Canceled
 			}
-			return w.retryWork(ctx, item, &redemption, now, 0)
+			return w.retryFailure(ctx, item, &redemption, now, 0, inactivateErr, "inactivation")
 		}
 		return w.queue.IgnoreWebhookWork(ctx, item.ID, item.LeaseToken, now, WebhookReasonMembershipInactive)
 	}
@@ -288,7 +294,7 @@ func (w *WebhookWorker) processOne(ctx context.Context, item WebhookWork) error 
 			return err
 		}
 		if limitErr != nil {
-			return w.retryWork(ctx, item, &redemption, now, 0)
+			return w.retryFailure(ctx, item, &redemption, now, 0, limitErr, "rate_limit")
 		}
 		if !decision.Allowed {
 			return w.retryWork(ctx, item, &redemption, now, decision.RetryAfter)
@@ -305,7 +311,10 @@ func (w *WebhookWorker) processOne(ctx context.Context, item WebhookWork) error 
 		}
 		kind, retryAfter, classified := classifyMetaFailure(lookupErr)
 		if !classified || kind == instagrammeta.ProviderErrorTransient || kind == instagrammeta.ProviderErrorRateLimited {
-			return w.retryWork(ctx, item, &redemption, now, retryAfter)
+			return w.retryFailure(ctx, item, &redemption, now, retryAfter, lookupErr, "profile_lookup")
+		}
+		if w.options.Observer != nil {
+			w.options.Observer.ObservePrivateFailure(ctx, lookupErr, redemption.OwnerDID, item.ID.String(), "instagram.verify", "profile_lookup", "terminal", item.Attempts)
 		}
 		return w.rejectProviderFailure(ctx, item, redemption, kind, now)
 	}
@@ -330,14 +339,17 @@ func (w *WebhookWorker) processOne(ctx context.Context, item WebhookWork) error 
 		if errors.Is(candidateErr, ErrInstagramResourceNotFound) || errors.Is(candidateErr, ErrInstagramStateTransition) {
 			return w.queue.IgnoreWebhookWork(ctx, item.ID, item.LeaseToken, now, WebhookReasonChallengeUnavailable)
 		}
-		return w.retryWork(ctx, item, &redemption, now, 0)
+		return w.retryFailure(ctx, item, &redemption, now, 0, candidateErr, "candidate")
 	}
 	if err := w.queue.CompleteWebhookWork(ctx, item.ID, item.LeaseToken, now, WebhookReasonProcessed); err != nil {
+		w.observeFailure(ctx, item, &redemption, err, "completion", "error")
 		return err
 	}
 	replyNow := w.options.Now().UTC()
 	if ctx.Err() == nil && w.options.ReplyText != "" && !replyNow.Before(item.EventAt) && replyNow.Before(item.EventAt.Add(w.options.ReplyWindow)) {
-		_ = w.meta.SendReply(ctx, item.SenderIGSID, w.options.ReplyText)
+		if err := w.meta.SendReply(ctx, item.SenderIGSID, w.options.ReplyText); err != nil {
+			w.observeFailure(ctx, item, &redemption, err, "reply", "error")
+		}
 	}
 	return nil
 }
@@ -364,6 +376,34 @@ func classifyMetaFailure(err error) (instagrammeta.ProviderErrorKind, time.Durat
 		return "", 0, false
 	}
 	return classified.Kind(), classified.RetryAfter(), true
+}
+
+func (w *WebhookWorker) observeFailure(ctx context.Context, item WebhookWork, redemption *WebhookRedemption, cause error, stage, outcome string) {
+	var actor syntax.DID
+	if redemption != nil {
+		actor = redemption.OwnerDID
+	}
+	if w.options.Observer != nil {
+		reference := ""
+		if item.ID != uuid.Nil {
+			reference = item.ID.String()
+		}
+		w.options.Observer.ObservePrivateFailure(ctx, cause, actor, reference, "instagram.verify", stage, outcome, item.Attempts)
+	}
+}
+
+func (w *WebhookWorker) retryFailure(ctx context.Context, item WebhookWork, redemption *WebhookRedemption, now time.Time, delay time.Duration, cause error, stage string) error {
+	_, retry := nextWebhookRetry(w.options.RetryPolicy, now, item.ProcessingStartedAt, item.Attempts, delay)
+	outcome := "terminal"
+	if retry {
+		outcome = "retry"
+	}
+	w.observeFailure(ctx, item, redemption, cause, stage, outcome)
+	if err := w.retryWork(ctx, item, redemption, now, delay); err != nil {
+		w.observeFailure(ctx, item, redemption, errors.Join(cause, err), "failure_persistence", "error")
+		return err
+	}
+	return nil
 }
 
 func (w *WebhookWorker) retryWork(ctx context.Context, item WebhookWork, redemption *WebhookRedemption, now time.Time, providerDelay time.Duration) error {

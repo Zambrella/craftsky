@@ -3,6 +3,8 @@ import 'package:craftsky_app/shared/observability/observability_bootstrap.dart';
 import 'package:craftsky_app/shared/observability/sentry_config.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../test_support/diagnostic_evidence.dart';
+
 void main() {
   group('ObservabilityBootstrap', () {
     test(
@@ -38,19 +40,30 @@ void main() {
       expect(adapter.calls, isEmpty);
     });
 
-    test('returns no-op reporter if adapter initialization throws', () async {
-      final adapter = _FakeSentryBootstrapAdapter(throwOnInitialize: true);
+    test(
+      'IT-012 initialization failure is locally diagnosable and returns no-op',
+      () async {
+        final records = <String>[];
+        final adapter = _FakeSentryBootstrapAdapter(throwOnInitialize: true);
 
-      final reporter = await ObservabilityBootstrap.initialize(
-        config: SentryConfig.fromValues(
-          dsn: 'https://public@example.sentry.io/1',
-          environment: 'production',
-        ),
-        adapter: adapter,
-      );
+        final reporter = await ObservabilityBootstrap.initialize(
+          config: SentryConfig.fromValues(
+            dsn: 'https://public@example.sentry.io/1',
+            environment: 'production',
+          ),
+          adapter: adapter,
+          fallbackSink: records.add,
+        );
 
-      expect(reporter, isA<NoopErrorReporter>());
-    });
+        expect(reporter, isA<NoopErrorReporter>());
+        expect(records, hasLength(1));
+        expect(records.single, contains('StateError'));
+        expect(records.single, contains('initialize'));
+        expect(records.single, isNot(contains('Sentry failed')));
+        expect(records.single, isNot(contains('example.sentry.io')));
+        writeDiagnosticEvidence('flutter-initialization', local: records);
+      },
+    );
   });
 }
 
@@ -73,9 +86,6 @@ final class _EnabledReporter implements ErrorReporter {
   bool get enabled => true;
 
   @override
-  void addBreadcrumb(SafeBreadcrumb breadcrumb) {}
-
-  @override
   Future<String?> captureException(
     Object error, {
     required ReportContext context,
@@ -83,10 +93,4 @@ final class _EnabledReporter implements ErrorReporter {
   }) async {
     return '0123456789abcdef0123456789abcdef';
   }
-
-  @override
-  Future<void> captureMessage(
-    String message, {
-    required ReportContext context,
-  }) async {}
 }

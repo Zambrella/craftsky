@@ -1,3 +1,4 @@
+import 'package:craftsky_app/shared/observability/diagnostic_text.dart';
 import 'package:craftsky_app/shared/observability/error_reporter.dart';
 
 final class SentrySanitizer {
@@ -5,6 +6,15 @@ final class SentrySanitizer {
 
   static const _allowedContextKeys = {
     'appErrorKind',
+    'failureStage',
+    'itemCount',
+    'suppressedCount',
+    'providerStatus',
+    'providerCode',
+    'retryable',
+    'attempt',
+    'outcome',
+    'byteBand',
     'severity',
     'feature',
     'operation',
@@ -12,7 +22,6 @@ final class SentrySanitizer {
     'appViewRequestId',
     'appViewError',
     'httpStatus',
-    'endpointCategory',
     'authState',
     'platform',
     'environment',
@@ -24,6 +33,9 @@ final class SentrySanitizer {
     'feature',
     'lifecycle',
     'ui.action',
+    'log',
+    'device.connectivity',
+    'app.lifecycle',
   };
 
   static const _allowedBreadcrumbDataKeys = {
@@ -31,6 +43,9 @@ final class SentrySanitizer {
     'feature',
     'lifecycleState',
     'action',
+    'connectivity',
+    'state',
+    'logger',
   };
 
   static final RegExp _sensitivePattern = RegExp(
@@ -39,30 +54,70 @@ final class SentrySanitizer {
   );
 
   static Map<String, Object?> sanitizeContext(Map<String, Object?> context) {
-    return {
+    final selected = <String, Object?>{
       for (final entry in context.entries)
         if (_allowedContextKeys.contains(entry.key) &&
             _isSafeValue(entry.value))
           entry.key: entry.value,
     };
+    final code = context['appViewError'];
+    if (code is String && RegExp(r'^[a-z][a-z0-9_]{0,79}$').hasMatch(code)) {
+      selected['appViewError'] = code;
+    }
+    final method = context['httpMethod'];
+    if (method is String &&
+        const {
+          'GET',
+          'POST',
+          'PUT',
+          'PATCH',
+          'DELETE',
+          'HEAD',
+          'OPTIONS',
+        }.contains(method)) {
+      selected['httpMethod'] = method;
+    }
+    return selected;
   }
 
   static SafeBreadcrumb? sanitizeBreadcrumb(SafeBreadcrumb breadcrumb) {
     if (!_allowedBreadcrumbCategories.contains(breadcrumb.category)) {
       return null;
     }
-    if (!_isSafeString(breadcrumb.message)) return null;
-
     final data = <String, Object?>{
       for (final entry in breadcrumb.data.entries)
         if (_allowedBreadcrumbDataKeys.contains(entry.key) &&
-            _isSafeValue(entry.value))
+            _isSafeValue(entry.value) &&
+            (entry.value is! String ||
+                RegExp(
+                  r'^[A-Za-z0-9_.]{1,160}$',
+                ).hasMatch(entry.value! as String)))
           entry.key: entry.value,
     };
 
+    // Native observer names originate from GoRouter's static route patterns.
+    // Concrete locations, query strings and route arguments are never selected.
+    if (breadcrumb.category == 'navigation') {
+      for (final key in ['from', 'to']) {
+        final name = breadcrumb.data[key];
+        if (name is String &&
+            RegExp(
+              r'^(?:/[A-Za-z0-9_:/.-]*|[A-Za-z0-9_.-]+)$',
+            ).hasMatch(name) &&
+            name.length <= 160 &&
+            !name.contains('://')) {
+          data[key] = name;
+        }
+      }
+    }
     return SafeBreadcrumb(
       category: breadcrumb.category,
-      message: breadcrumb.message,
+      message: switch (breadcrumb.category) {
+        'device.connectivity' => 'Connectivity changed',
+        'app.lifecycle' => 'Application lifecycle changed',
+        'navigation' => 'Navigation',
+        _ => boundDiagnosticText(breadcrumb.message, 256),
+      },
       data: data,
     );
   }
@@ -78,6 +133,7 @@ final class SentrySanitizer {
 
   static bool _isSafeString(String value) {
     if (value.isEmpty || value.length > 160) return false;
-    return !_sensitivePattern.hasMatch(value);
+    return RegExp(r'^[A-Za-z0-9_.:-]{1,160}$').hasMatch(value) &&
+        !_sensitivePattern.hasMatch(value);
   }
 }

@@ -10,37 +10,22 @@ part of 'user_profile_provider.dart';
 // ignore_for_file: type=lint, type=warning
 /// Single source of truth for a user's profile, keyed by DID.
 ///
-/// Holds both read and write logic so mutation methods can perform
-/// optimistic updates against the cached `AsyncData` and roll back on
-/// failure. Mutations only succeed against the authenticated user's
-/// profile — the AppView rejects writes against any other DID — so
-/// callers should only invoke them on the family entry that matches
-/// the signed-in user.
-///
+/// Accepted writes are composed through the shared record overlay while the
+/// AppView projection catches up; this provider remains read-only.
 
 @ProviderFor(UserProfile)
 final userProfileProvider = UserProfileFamily._();
 
 /// Single source of truth for a user's profile, keyed by DID.
 ///
-/// Holds both read and write logic so mutation methods can perform
-/// optimistic updates against the cached `AsyncData` and roll back on
-/// failure. Mutations only succeed against the authenticated user's
-/// profile — the AppView rejects writes against any other DID — so
-/// callers should only invoke them on the family entry that matches
-/// the signed-in user.
-///
+/// Accepted writes are composed through the shared record overlay while the
+/// AppView projection catches up; this provider remains read-only.
 final class UserProfileProvider
     extends $AsyncNotifierProvider<UserProfile, Profile> {
   /// Single source of truth for a user's profile, keyed by DID.
   ///
-  /// Holds both read and write logic so mutation methods can perform
-  /// optimistic updates against the cached `AsyncData` and roll back on
-  /// failure. Mutations only succeed against the authenticated user's
-  /// profile — the AppView rejects writes against any other DID — so
-  /// callers should only invoke them on the family entry that matches
-  /// the signed-in user.
-  ///
+  /// Accepted writes are composed through the shared record overlay while the
+  /// AppView projection catches up; this provider remains read-only.
   UserProfileProvider._({
     required UserProfileFamily super.from,
     required Did super.argument,
@@ -77,17 +62,12 @@ final class UserProfileProvider
   }
 }
 
-String _$userProfileHash() => r'a57856081d29c197645beb20886269dfc03aebe2';
+String _$userProfileHash() => r'f419dab3ffc6cb1a5f43edd57a66237575f64abf';
 
 /// Single source of truth for a user's profile, keyed by DID.
 ///
-/// Holds both read and write logic so mutation methods can perform
-/// optimistic updates against the cached `AsyncData` and roll back on
-/// failure. Mutations only succeed against the authenticated user's
-/// profile — the AppView rejects writes against any other DID — so
-/// callers should only invoke them on the family entry that matches
-/// the signed-in user.
-///
+/// Accepted writes are composed through the shared record overlay while the
+/// AppView projection catches up; this provider remains read-only.
 
 final class UserProfileFamily extends $Family
     with
@@ -109,13 +89,8 @@ final class UserProfileFamily extends $Family
 
   /// Single source of truth for a user's profile, keyed by DID.
   ///
-  /// Holds both read and write logic so mutation methods can perform
-  /// optimistic updates against the cached `AsyncData` and roll back on
-  /// failure. Mutations only succeed against the authenticated user's
-  /// profile — the AppView rejects writes against any other DID — so
-  /// callers should only invoke them on the family entry that matches
-  /// the signed-in user.
-  ///
+  /// Accepted writes are composed through the shared record overlay while the
+  /// AppView projection catches up; this provider remains read-only.
 
   UserProfileProvider call(Did did) =>
       UserProfileProvider._(argument: did, from: this);
@@ -126,13 +101,8 @@ final class UserProfileFamily extends $Family
 
 /// Single source of truth for a user's profile, keyed by DID.
 ///
-/// Holds both read and write logic so mutation methods can perform
-/// optimistic updates against the cached `AsyncData` and roll back on
-/// failure. Mutations only succeed against the authenticated user's
-/// profile — the AppView rejects writes against any other DID — so
-/// callers should only invoke them on the family entry that matches
-/// the signed-in user.
-///
+/// Accepted writes are composed through the shared record overlay while the
+/// AppView projection catches up; this provider remains read-only.
 
 abstract class _$UserProfile extends $AsyncNotifier<Profile> {
   late final _$args = ref.$arg as Did;

@@ -32,6 +32,7 @@ import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/saved_posts/widgets/saved_post_bookmark_button.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/shared/mutations/pds_record_operation_controller.dart';
+import 'package:craftsky_app/shared/observability/error_reporter_provider.dart';
 import 'package:craftsky_app/shared/rich_text/faceted_text_model.dart';
 import 'package:craftsky_app/shared/rich_text/widgets/faceted_text.dart';
 import 'package:craftsky_app/shared/time/relative_time_text.dart';
@@ -500,6 +501,7 @@ class PostCard extends ConsumerWidget {
                       videoPlayerBuilder?.call(video) ??
                           NativeVideoPlayer(
                             video: video,
+                            reporter: ref.read(errorReporterProvider),
                             loadCaption: ref
                                 .read(postApiClientProvider)
                                 .downloadVideoCaption,

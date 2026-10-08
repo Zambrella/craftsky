@@ -751,7 +751,8 @@ void main() {
       expect(repository.stagedIDs.single, isNot(_externalThumbnailID));
       expect(repository.stagedBytes.single, replacementBytes);
       expect(
-        (repository.updatedPayload?['external'] as Map)['thumbMediaId'],
+        (repository.updatedPayload?['external']
+            as Map<String, dynamic>)['thumbMediaId'],
         repository.stagedIDs.single,
       );
     },
@@ -915,7 +916,8 @@ void main() {
       expect(repository.stagedIDs.last, isNot(failedID));
       expect(repository.stagedBytes.last, secondBytes);
       expect(
-        (repository.updatedPayload?['external'] as Map)['thumbMediaId'],
+        (repository.updatedPayload?['external']
+            as Map<String, dynamic>)['thumbMediaId'],
         repository.stagedIDs.last,
       );
     },

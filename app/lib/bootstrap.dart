@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:craftsky_app/app.dart';
 import 'package:craftsky_app/app_dependencies.dart';
+import 'package:craftsky_app/auth/models/account_key.dart';
+import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/auth/models/pending_auth.dart';
 import 'package:craftsky_app/business/models/business_event.dart';
 import 'package:craftsky_app/business/models/business_profile.dart';
@@ -56,6 +58,8 @@ import 'package:craftsky_app/shared/api/providers/dio_provider.dart';
 import 'package:craftsky_app/shared/device/device_id_provider.dart';
 import 'package:craftsky_app/shared/errors/app_error.dart';
 import 'package:craftsky_app/shared/errors/app_error_mapper.dart';
+import 'package:craftsky_app/shared/observability/diagnostic_emitter.dart';
+import 'package:craftsky_app/shared/observability/diagnostic_outcome.dart';
 import 'package:craftsky_app/shared/observability/error_reporter.dart';
 import 'package:craftsky_app/shared/rich_text/data/facet_suggestion_repository.dart';
 import 'package:craftsky_app/subscriptions/models/billing_state.dart';
@@ -115,37 +119,52 @@ final class ProviderLogger extends ProviderObserver {
     Object error,
     StackTrace stackTrace,
   ) {
-    _log.warning(
-      'provider failed: '
-      'provider=${_providerFeature(context.provider.name)}, '
-      'mutation=${context.mutation?.runtimeType}',
-    );
-
+    final accountDid = switch (context.provider.argument) {
+      ActiveAccountLease(:final session) => session.account.did,
+      AccountSessionLease(:final account) => account.did,
+      AccountKey(:final did) => did,
+      _ => null,
+    };
+    final workflow = accountDid == null
+        ? null
+        : PublicRecordContext(actorDid: accountDid);
     final appError = AppErrorMapper.map(
       error,
       fallbackKind: AppErrorKind.backgroundLoadFailed,
       source: 'provider',
       fallbackClassification: 'provider.failed',
     );
-    if (!appError.reportable) return;
-
-    final providerName = _providerFeature(context.provider.name);
-    unawaited(
-      reporter.captureException(
-        const RedactedProviderFailure(),
-        stackTrace: stackTrace,
-        context: ReportContext(
-          feature: providerName,
+    final diagnosticContext =
+        failureDiagnosticContext(error) ??
+        ReportContext(
+          feature: _providerFeature(context.provider.name),
           operation: 'provider',
           classification: appError.sentryClassification,
           severity: appError.metadata.severity.name,
           safeDiagnostics: {
             ...appError.safeDiagnostics,
             'appErrorKind': appError.kind.name,
-            'feature': providerName,
-            'classification': appError.sentryClassification,
+            'failureStage': 'provider',
           },
-        ),
+          workflow: workflow,
+        );
+    _log.warning(
+      DiagnosticMessage(
+        'provider failed',
+        context: diagnosticContext,
+      ),
+      error,
+      stackTrace,
+    );
+    if (isExpectedDiagnostic(error, diagnosticContext)) {
+      return;
+    }
+
+    unawaited(
+      reporter.captureException(
+        error,
+        stackTrace: stackTrace,
+        context: diagnosticContext,
       ),
     );
   }

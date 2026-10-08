@@ -109,7 +109,7 @@ func newTapDependencies(
 		return nil, fmt.Errorf("tap ingestion service: %w", err)
 	}
 	projectionWorker, err := ingestion.NewProjectionWorker(ingestion.ProjectionWorkerConfig{
-		Store: store, Projector: dispatcher.Project,
+		Store: store, Projector: dispatcher.Project, Observer: observer,
 		WorkerID: "appview-tap-projection", PollInterval: cfg.TapProjectionPollInterval,
 		LeaseDuration: cfg.TapProjectionLeaseDuration, BatchSize: cfg.TapProjectionBatchSize,
 		BackoffMin: cfg.TapProjectionBackoffMin, BackoffMax: cfg.TapProjectionBackoffMax,

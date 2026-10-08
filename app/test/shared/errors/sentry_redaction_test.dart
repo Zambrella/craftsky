@@ -12,7 +12,7 @@ void main() {
         'appViewRequestId': 'req_123',
         'appViewError': 'internal_error',
         'httpStatus': 500,
-        'endpointCategory': 'appview.feed.list',
+        'httpMethod': 'GET',
         'authorization': 'Bearer secret',
         'cookie': 'session=secret',
         'requestBody': {'text': 'private project note'},
@@ -33,7 +33,7 @@ void main() {
         'appViewRequestId': 'req_123',
         'appViewError': 'internal_error',
         'httpStatus': 500,
-        'endpointCategory': 'appview.feed.list',
+        'httpMethod': 'GET',
       });
     });
 
@@ -65,13 +65,13 @@ void main() {
       };
       final sanitized = SentrySanitizer.sanitizeContext({
         'classification': 'notification.unavailable',
-        'endpointCategory': 'appview.notifications.detail',
+        'httpMethod': 'GET',
         ...sentinels,
       });
 
       expect(sanitized, {
         'classification': 'notification.unavailable',
-        'endpointCategory': 'appview.notifications.detail',
+        'httpMethod': 'GET',
       });
       final encoded = sanitized.toString();
       for (final sentinel in sentinels.values) {
@@ -92,7 +92,7 @@ void main() {
         'feature': 'saved_posts',
         'operation': 'folder_delete',
         'classification': 'api.server_error',
-        'endpointCategory': 'appview.saved_post_folders.detail',
+        'httpMethod': 'DELETE',
         ...sentinels,
       });
 
@@ -100,7 +100,7 @@ void main() {
         'feature': 'saved_posts',
         'operation': 'folder_delete',
         'classification': 'api.server_error',
-        'endpointCategory': 'appview.saved_post_folders.detail',
+        'httpMethod': 'DELETE',
       });
       final exposed = sanitized.toString();
       for (final sentinel in sentinels.values) {

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/auth/models/session_registry.dart';
 import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
@@ -21,8 +23,12 @@ import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/api/pds_mutation_contract.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/mutations/pds_record_operation_controller.dart';
+import 'package:craftsky_app/shared/observability/diagnostic_emitter.dart';
+import 'package:craftsky_app/shared/observability/error_reporter.dart';
+import 'package:craftsky_app/shared/observability/error_reporter_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:logging/logging.dart';
 
 import '../fakes/fake_post_repository.dart';
 
@@ -726,6 +732,86 @@ void main() {
       expect(container.read(createPostProvider).value, isNull);
     });
 
+    test(
+      'IT-010 mutation retains initiating account and one owner before/after switch',
+      () async {
+        for (final switchAccount in [false, true]) {
+          final reporter = _MutationDiagnosticReporter();
+          final records = <LogRecord>[];
+          final subscription = Logger.root.onRecord.listen(records.add);
+          addTearDown(subscription.cancel);
+          final failed = Completer<Post>();
+          final entered = Completer<void>();
+          final registry = SessionRegistry.empty()
+              .upsertAndActivate(
+                token: 'private-token-b',
+                did: 'did:plc:bob',
+                handle: 'bob.test',
+              )
+              .upsertAndActivate(
+                token: 'private-token-a',
+                did: 'did:plc:alice',
+                handle: 'alice.test',
+              );
+          final container = ProviderContainer.test(
+            retry: appProviderRetry,
+            observers: [ProviderLogger(reporter: reporter)],
+            overrides: [
+              errorReporterProvider.overrideWithValue(reporter),
+              secureSessionRegistryStorageProvider.overrideWithValue(
+                _RegistryStorage(registry),
+              ),
+              postRepositoryProvider.overrideWithValue(
+                FakePostRepository(
+                  onCreate: ({required text, reply, images}) {
+                    entered.complete();
+                    return failed.future;
+                  },
+                ),
+              ),
+            ],
+          );
+          addTearDown(container.dispose);
+          await container.read(sessionRegistryProvider.future);
+          await container.read(createPostProvider.future);
+          final pending = container
+              .read(createPostProvider.notifier)
+              .create(
+                text: 'private unpublished text',
+                langs: _langs,
+                sponsored: false,
+              );
+          await entered.future;
+          if (switchAccount) {
+            final bob = container
+                .read(sessionRegistryProvider)
+                .requireValue
+                .leaseFor(AccountKey('did:plc:bob'))!;
+            await container
+                .read(sessionRegistryProvider.notifier)
+                .activate(bob);
+          }
+          failed.completeError(StateError('private operation canary'));
+          expect(await pending, isNull);
+          expect(reporter.contexts, hasLength(1));
+          expect(
+            reporter.contexts.single.workflow?.selectedFields,
+            containsPair('actorDid', 'did:plc:alice'),
+          );
+          expect(reporter.contexts.single.operation, 'post.create');
+          final selected = records
+              .map(selectDiagnosticRecord)
+              .toList()
+              .toString();
+          expect(selected, contains('StateError'));
+          expect(selected, contains('did:plc:alice'));
+          expect(selected, isNot(contains('private operation canary')));
+          expect(selected, isNot(contains('private unpublished text')));
+          await subscription.cancel();
+        }
+      },
+    );
+
     test('failure surfaces as AsyncError, no cache mutation', () async {
       final fake = FakePostRepository(
         onListByAuthor: (id, {cursor, limit}) async =>
@@ -959,5 +1045,21 @@ final class _RegistryStorage implements SessionRegistryStorage {
   @override
   Future<void> write(SessionRegistry registry) async {
     this.registry = registry;
+  }
+}
+
+final class _MutationDiagnosticReporter implements ErrorReporter {
+  final contexts = <ReportContext>[];
+  @override
+  bool get enabled => true;
+
+  @override
+  Future<String?> captureException(
+    Object error, {
+    required ReportContext context,
+    StackTrace? stackTrace,
+  }) async {
+    contexts.add(context);
+    return null;
   }
 }

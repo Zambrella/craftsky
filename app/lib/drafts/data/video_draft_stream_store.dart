@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
 import 'package:crypto/crypto.dart';
 
 final class VideoDraftStreamResult {
@@ -74,7 +75,8 @@ Future<VideoDraftStreamResult> writeVideoDraftStream({
 final class _DigestOutput implements Sink<Digest> {
   Digest? _value;
 
-  Digest get value => _value ?? (throw StateError('Digest is not complete'));
+  Digest get value =>
+      _value ?? (throw DiagnosticStateError('Digest is not complete'));
   @override
   void add(Digest data) => _value = data;
 

@@ -1,6 +1,7 @@
 import 'package:craftsky_app/notifications/models/notification_category.dart';
 import 'package:craftsky_app/notifications/models/notification_destination.dart';
 import 'package:craftsky_app/notifications/models/notification_open_event.dart';
+import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
 
 abstract final class NotificationDestinationInference {
   static NotificationOpenOutcome forFacts(
@@ -25,7 +26,7 @@ abstract final class NotificationDestinationInference {
         NotificationCategory.moderation => ModerationHistoryDestination(
           facts.caseReference!,
         ),
-        NotificationCategory.unknown => throw StateError(
+        NotificationCategory.unknown => throw DiagnosticStateError(
           'Unknown categories cannot be valid notification facts',
         ),
       },

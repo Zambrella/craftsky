@@ -1,3 +1,4 @@
+import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
 import 'package:dart_mappable/dart_mappable.dart';
 import 'package:flutter/foundation.dart';
 
@@ -18,7 +19,9 @@ enum InstagramImportSourceType {
       InstagramImportSourceTypeMapper.fromValue(value);
 
   String get wireValue {
-    if (this == unknown) throw StateError('unknown_import_source_type');
+    if (this == unknown) {
+      throw DiagnosticStateError('unknown_import_source_type');
+    }
     return toValue();
   }
 }

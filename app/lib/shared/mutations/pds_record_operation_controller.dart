@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/shared/api/pds_mutation_contract.dart';
+import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -124,7 +125,9 @@ final class PdsRecordOperationController {
     required String immutableBody,
   }) {
     if (_operations[scope]?.status == PdsMutationStatus.ambiguous) {
-      throw StateError('An ambiguous mutation must be retried unchanged');
+      throw DiagnosticStateError(
+        'An ambiguous mutation must be retried unchanged',
+      );
     }
     final sequence = (_sequences[scope] ?? 0) + 1;
     _sequences[scope] = sequence;

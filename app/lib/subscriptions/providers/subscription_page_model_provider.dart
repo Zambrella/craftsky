@@ -1,5 +1,6 @@
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
+import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
 import 'package:craftsky_app/subscriptions/models/billing_state.dart';
 import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
 import 'package:craftsky_app/subscriptions/models/subscription_page_model.dart';
@@ -16,7 +17,9 @@ final FutureProvider<SubscriptionPageModel> subscriptionPageModelProvider =
     FutureProvider.autoDispose<SubscriptionPageModel>((ref) async {
       final registry = await ref.watch(sessionRegistryProvider.future);
       final activeLease = registry.activeLease?.session;
-      if (activeLease == null) throw StateError('Active account unavailable');
+      if (activeLease == null) {
+        throw DiagnosticStateError('Active account unavailable');
+      }
       final access = await ref.watch(
         subscriptionAccessProvider(activeLease).future,
       );
@@ -122,7 +125,7 @@ final FutureProvider<SubscriptionPageModel> subscriptionPageModelProvider =
       final current = ref.read(sessionRegistryProvider).value;
       if (!ref.mounted ||
           current?.leaseFor(activeLease.account) != activeLease) {
-        throw StateError('Account session unavailable');
+        throw DiagnosticStateError('Account session unavailable');
       }
       if (availability == BillingAvailability.available) {
         RevenueCatIdentity identity;

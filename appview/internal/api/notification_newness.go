@@ -128,7 +128,7 @@ func NotificationNewCountHandler(store NotificationNewCountStore, logger *slog.L
 		count, err := store.NotificationNewCount(r.Context(), did.String())
 		if err != nil {
 			logger.Error("notification new count failed",
-				apiLogErrorAttrs(runID, "notifications.new_count", "store")...)
+				apiLogErrorAttrs(r.Context(), runID, "notifications.new_count", "store", err)...)
 			envelope.WriteError(w, http.StatusInternalServerError, "internal_error", "notification new count failed", runID, nil)
 			return
 		}
@@ -150,7 +150,7 @@ func MarkNotificationsSeenHandler(store NotificationSeenStore, logger *slog.Logg
 		}
 		if err := store.MarkNotificationsSeen(r.Context(), did.String()); err != nil {
 			logger.Error("mark notifications seen failed",
-				apiLogErrorAttrs(runID, "notifications.seen", "store")...)
+				apiLogErrorAttrs(r.Context(), runID, "notifications.seen", "store", err)...)
 			envelope.WriteError(w, http.StatusInternalServerError, "internal_error", "mark notifications seen failed", runID, nil)
 			return
 		}

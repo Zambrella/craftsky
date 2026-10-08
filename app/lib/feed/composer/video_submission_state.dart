@@ -1,3 +1,5 @@
+import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
+
 enum VideoSubmissionStage {
   local,
   validating,
@@ -28,19 +30,23 @@ final class VideoSubmissionMachine {
       (_, VideoSubmissionStage.failed) => true,
       _ => false,
     };
-    if (!valid) throw StateError('Invalid video submission transition');
+    if (!valid) {
+      throw DiagnosticStateError('Invalid video submission transition');
+    }
     _stage = next;
   }
 
   void cancel() {
-    if (!canCancel) throw StateError('Video publication cannot be canceled');
+    if (!canCancel) {
+      throw DiagnosticStateError('Video publication cannot be canceled');
+    }
     _stage = VideoSubmissionStage.canceled;
   }
 
   void retry() {
     if (_stage != VideoSubmissionStage.failed &&
         _stage != VideoSubmissionStage.canceled) {
-      throw StateError('Video publication cannot be retried');
+      throw DiagnosticStateError('Video publication cannot be retried');
     }
     _stage = VideoSubmissionStage.validating;
   }

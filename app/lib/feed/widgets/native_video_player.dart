@@ -5,10 +5,14 @@ import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/widgets/caption_uri_resource.dart';
 import 'package:craftsky_app/feed/widgets/native_video_controller.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/shared/errors/app_error_mapper.dart';
 import 'package:craftsky_app/shared/image/image_cache_providers.dart';
+import 'package:craftsky_app/shared/observability/diagnostic_emitter.dart';
+import 'package:craftsky_app/shared/observability/error_reporter.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:logging/logging.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 
 const _playbackStartupGracePeriod = Duration(seconds: 1);
@@ -25,12 +29,14 @@ final class NativeVideoPlayer extends StatefulWidget {
     required this.video,
     super.key,
     this.loadCaption,
+    this.reporter = const NoopErrorReporter(),
     this.createCaptionResource = createCaptionUriResource,
     this.createAdapter = MediaKitNativeVideoAdapter.new,
     this.playbackCoordinator,
   });
 
   final PostVideo video;
+  final ErrorReporter reporter;
   final Future<String> Function(String route)? loadCaption;
   final Future<CaptionUriResource> Function(String data) createCaptionResource;
   final NativeVideoViewAdapter Function() createAdapter;
@@ -76,7 +82,29 @@ final class _NativeVideoPlayerState extends State<NativeVideoPlayer>
       adapter,
       playbackCoordinator: widget.playbackCoordinator,
     );
-    _errorSubscription = adapter.playbackErrors.listen((_) {
+    _errorSubscription = adapter.playbackErrors.listen((error) {
+      final context = ReportContext(
+        feature: 'Video',
+        operation: 'playback',
+        classification: 'video.playback.failed',
+        outcome: _ready ? DiagnosticOutcome.terminal : DiagnosticOutcome.retry,
+        safeDiagnostics: const {'failureStage': 'playback_stream'},
+      );
+      final message = DiagnosticMessage(
+        'video playback failed',
+        context: context,
+      );
+      if (_ready) {
+        Logger('NativeVideoPlayer').severe(message, error);
+        unawaited(
+          GuardedErrorReporter(
+            widget.reporter,
+          ).captureException(error, context: context),
+        );
+      } else {
+        Logger('NativeVideoPlayer').warning(message, error);
+      }
+
       if (_ready) {
         _fail();
         return;
@@ -108,7 +136,34 @@ final class _NativeVideoPlayerState extends State<NativeVideoPlayer>
   Future<void> _open(Uri playlist) async {
     try {
       await _lifecycle!.open(playlist, play: true);
-    } on Object {
+    } on Object catch (error, stack) {
+      Logger('NativeVideoPlayer').severe(
+        const DiagnosticMessage(
+          'video playback failed',
+          context: ReportContext(
+            feature: 'Video',
+            operation: 'playback',
+            classification: 'video.playback.failed',
+            outcome: DiagnosticOutcome.terminal,
+            safeDiagnostics: {'failureStage': 'playback_open'},
+          ),
+        ),
+        error,
+        stack,
+      );
+      unawaited(
+        GuardedErrorReporter(widget.reporter).captureException(
+          error,
+          stackTrace: stack,
+          context: const ReportContext(
+            feature: 'Video',
+            operation: 'playback',
+            classification: 'video.playback.failed',
+            outcome: DiagnosticOutcome.terminal,
+            safeDiagnostics: {'failureStage': 'playback_open'},
+          ),
+        ),
+      );
       _fail();
     }
   }
@@ -119,10 +174,11 @@ final class _NativeVideoPlayerState extends State<NativeVideoPlayer>
     final captions = <NativeVideoCaptionTrack>[];
     final resources = <CaptionUriResource>[];
     for (final caption in widget.video.captions) {
+      var stage = 'caption_fetch';
       try {
-        final resource = await widget.createCaptionResource(
-          await load(caption.uri),
-        );
+        final data = await load(caption.uri);
+        stage = 'caption_resource';
+        final resource = await widget.createCaptionResource(data);
         resources.add(resource);
         captions.add(
           NativeVideoCaptionTrack(
@@ -131,7 +187,33 @@ final class _NativeVideoPlayerState extends State<NativeVideoPlayer>
             uri: resource.uri,
           ),
         );
-      } on Object {
+      } on Object catch (error, stackTrace) {
+        final mapped = AppErrorMapper.map(
+          error,
+          source: 'video',
+          fallbackClassification: 'video.caption.failed',
+        );
+        final message = DiagnosticMessage(
+          'video caption unavailable',
+          context: ReportContext(
+            feature: 'NativeVideoPlayer',
+            operation: 'video.caption',
+            classification: mapped.sentryClassification,
+            safeDiagnostics: {...mapped.safeDiagnostics, 'failureStage': stage},
+          ),
+        );
+        if (mapped.reportable) {
+          Logger('NativeVideoPlayer').severe(message, error, stackTrace);
+          unawaited(
+            GuardedErrorReporter(widget.reporter).captureException(
+              error,
+              stackTrace: stackTrace,
+              context: message.context,
+            ),
+          );
+        } else {
+          Logger('NativeVideoPlayer').warning(message, error, stackTrace);
+        }
         // A bad optional caption must not make the video unavailable.
       }
     }

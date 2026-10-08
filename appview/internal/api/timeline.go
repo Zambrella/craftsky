@@ -89,7 +89,7 @@ func ListTimelineHandler(
 			contentLanguages, preferenceErr = authoritativeContentLanguages(r.Context(), viewerDID, preferenceReaders)
 			if preferenceErr != nil {
 				logger.Error("timeline: language preferences failed",
-					apiLogErrorAttrs(runID, "timeline.list", "language_preferences")...)
+					apiLogErrorAttrs(r.Context(), runID, "timeline.list", "language_preferences", preferenceErr)...)
 				envelope.WriteError(w, http.StatusInternalServerError,
 					"internal_error", "language preferences lookup failed", runID, nil)
 				return
@@ -97,7 +97,7 @@ func ListTimelineHandler(
 			filteredStore, ok := store.(languageFilteredTimelineReader)
 			if !ok {
 				logger.Error("timeline: language filtering unavailable",
-					apiLogErrorAttrs(runID, "timeline.list", "language_filter")...)
+					apiLogErrorAttrs(r.Context(), runID, "timeline.list", "language_filter", errors.New("language filter unavailable"))...)
 				envelope.WriteError(w, http.StatusInternalServerError,
 					"internal_error", "timeline language filtering unavailable", runID, nil)
 				return
@@ -120,7 +120,7 @@ func ListTimelineHandler(
 				return
 			}
 			logger.Error("timeline: list failed",
-				apiLogErrorAttrs(runID, "timeline.list", "store")...)
+				apiLogErrorAttrs(r.Context(), runID, "timeline.list", "store", err)...)
 			envelope.WriteError(w, http.StatusInternalServerError,
 				"internal_error", "timeline list failed", runID, nil)
 			return
@@ -135,7 +135,7 @@ func ListTimelineHandler(
 			summaries, err := store.EngagementSummaries(r.Context(), viewerDID.String(), contentLanguages, postURIs)
 			if err != nil {
 				logger.Error("timeline: EngagementSummaries failed",
-					apiLogErrorAttrs(runID, "timeline.list", "engagement")...)
+					apiLogErrorAttrs(r.Context(), runID, "timeline.list", "engagement", err)...)
 				envelope.WriteError(w, http.StatusInternalServerError,
 					"internal_error", "post engagement lookup failed", runID, nil)
 				return
@@ -144,7 +144,7 @@ func ListTimelineHandler(
 			handles, err := resolveHandlesForTimelineItems(r.Context(), rows, postRows, resolver)
 			if err != nil {
 				logger.Warn("timeline: ResolveHandle failed",
-					apiLogErrorAttrs(runID, "timeline.list", "identity")...)
+					apiLogErrorAttrs(r.Context(), runID, "timeline.list", "identity", err)...)
 				envelope.WriteError(w, http.StatusBadGateway,
 					"identity_unavailable", "could not resolve handle", runID, nil)
 				return
@@ -157,7 +157,7 @@ func ListTimelineHandler(
 			}
 			if err := attachQuoteViews(r.Context(), store, resolver, postResponses); err != nil {
 				logger.Error("timeline: QuoteViewRows failed",
-					apiLogErrorAttrs(runID, "timeline.list", "quote_view")...)
+					apiLogErrorAttrs(r.Context(), runID, "timeline.list", "quote_view", err)...)
 				envelope.WriteError(w, http.StatusInternalServerError,
 					"internal_error", "post quote lookup failed", runID, nil)
 				return

@@ -66,6 +66,8 @@ type Outcome struct {
 	Kind       OutcomeKind
 	Reason     ReasonCode
 	Dependency Dependency
+	// DiagnosticCause is transient; it never controls retries or durable outcome state.
+	DiagnosticCause error `json:"-"`
 }
 
 func Applied() Outcome { return Outcome{Kind: OutcomeApplied, Reason: ReasonNone} }

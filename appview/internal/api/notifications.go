@@ -74,7 +74,7 @@ func ListNotificationsHandler(store NotificationReader, _ HandleResolver, logger
 				return
 			}
 			logger.Error("notifications: list failed",
-				apiLogErrorAttrs(runID, "notifications.list", "store")...)
+				apiLogErrorAttrs(r.Context(), runID, "notifications.list", "store", err)...)
 			envelope.WriteError(w, http.StatusInternalServerError, "internal_error", "notification list failed", runID, nil)
 			return
 		}
@@ -97,7 +97,7 @@ func ListNotificationsHandler(store NotificationReader, _ HandleResolver, logger
 				handles, err = store.NotificationHandles(r.Context(), dids)
 				if err != nil {
 					logger.Error("notifications: indexed handle batch failed",
-						apiLogErrorAttrs(runID, "notifications.list", "store")...)
+						apiLogErrorAttrs(r.Context(), runID, "notifications.list", "store", err)...)
 					envelope.WriteError(w, http.StatusInternalServerError, "internal_error", "notification identity lookup failed", runID, nil)
 					return
 				}
@@ -107,7 +107,7 @@ func ListNotificationsHandler(store NotificationReader, _ HandleResolver, logger
 				summaries, err = store.EngagementSummaries(r.Context(), viewerDID.String(), []string{}, postURIs)
 				if err != nil {
 					logger.Error("notifications: EngagementSummaries failed",
-						apiLogErrorAttrs(runID, "notifications.list", "engagement")...)
+						apiLogErrorAttrs(r.Context(), runID, "notifications.list", "engagement", err)...)
 					envelope.WriteError(w, http.StatusInternalServerError, "internal_error", "post engagement lookup failed", runID, nil)
 					return
 				}

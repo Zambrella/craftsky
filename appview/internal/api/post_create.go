@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"path"
 	"slices"
+	"social.craftsky/appview/internal/observability"
 	"strings"
 	"time"
 
@@ -141,6 +142,7 @@ func CreatePostHandler(
 						"video_verification_failed", "video could not be verified", runID, nil)
 					return
 				}
+				observability.ReportRequestFailure(r.Context(), err, "api.CreatePostHandler", "handler")
 				envelope.WriteError(w, http.StatusBadGateway,
 					"video_service_unavailable", "could not verify video", runID, nil)
 				return
@@ -211,6 +213,7 @@ func CreatePostHandler(
 		if commands != nil {
 			intent, err := json.Marshal(req)
 			if err != nil {
+				observability.ReportRequestFailure(r.Context(), err, "api.CreatePostHandler", "handler")
 				envelope.WriteError(w, http.StatusInternalServerError,
 					"internal_error", "could not prepare post", runID, nil)
 				return
@@ -242,7 +245,7 @@ func CreatePostHandler(
 			})
 			if err != nil {
 				logger.Warn("post append command failed", slog.Any("error", err))
-				WriteCommandError(w, runID, err)
+				WriteCommandError(w, runID, err, r.Context())
 				return
 			}
 			WriteCommandResponse(w, CommandResultFromStored(result))

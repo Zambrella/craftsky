@@ -4,6 +4,8 @@ import 'package:craftsky_app/auth/models/session_registry.dart';
 import 'package:craftsky_app/auth/providers/active_account_initialization_provider.dart';
 import 'package:craftsky_app/auth/providers/auth_controller.dart';
 import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
+import 'package:craftsky_app/auth/providers/session_registry_provider.dart'
+    show sessionRegistryProvider;
 import 'package:craftsky_app/auth/widgets/account_switcher_content.dart';
 import 'package:craftsky_app/auth/widgets/active_account_initialization_gate.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
@@ -13,6 +15,7 @@ import 'package:craftsky_app/languages/providers/language_preferences_repository
 import 'package:craftsky_app/onboarding/data/onboarding_repository.dart';
 import 'package:craftsky_app/onboarding/models/onboarding_completion.dart';
 import 'package:craftsky_app/onboarding/providers/onboarding_repository_provider.dart';
+import 'package:craftsky_app/shared/observability/diagnostic_emitter.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -214,9 +217,12 @@ void main() {
             _RegistryStorage(registry),
           ),
           activeAccountInitializationProvider.overrideWith(
-            (ref) async => throw StateError(
-              'preferences unavailable for did:plc:secret token-secret',
-            ),
+            (ref) async {
+              await ref.watch(sessionRegistryProvider.future);
+              throw StateError(
+                'preferences unavailable for did:plc:secret token-secret',
+              );
+            },
           ),
           authControllerProvider.overrideWith(_RecordingAuthController.new),
         ],
@@ -254,8 +260,14 @@ void main() {
       initializationLogs.single.message,
       'Active account failed to initialize',
     );
-    expect(initializationLogs.single.error, isNull);
-    expect(initializationLogs.single.stackTrace, isNull);
+    expect(initializationLogs.single.error, isA<StateError>());
+    expect(initializationLogs.single.stackTrace, isNotNull);
+    final selected = selectDiagnosticRecord(initializationLogs.single);
+    expect(selected['operation'], 'account.initialize');
+    expect(selected['failureStage'], 'initialization');
+    expect(selected['diagnostic'], containsPair('actorDid', 'did:plc:alice'));
+    expect(selected.toString(), isNot(contains('token-secret')));
+    expect(selected.toString(), isNot(contains('preferences unavailable')));
 
     await tester.tap(
       find.widgetWithText(OutlinedButton, 'Switch account'),

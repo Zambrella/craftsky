@@ -58,12 +58,12 @@ func CommandRepostPostHandler(store repostCommandStore, commands SetCommandExecu
 		if replay != nil {
 			target, valid := replayPostTarget(replay.Intent)
 			if !valid {
-				WriteCommandError(writer, runID, pdscommands.ErrIdempotencyConflict)
+				WriteCommandError(writer, runID, pdscommands.ErrIdempotencyConflict, request.Context())
 				return
 			}
 			result, err := executeRepostCommand(request, commands, caller, generation, targetDID, target, operationKey, replay.SelectedRkey, true, runID)
 			if err != nil {
-				WriteCommandError(writer, runID, err)
+				WriteCommandError(writer, runID, err, request.Context())
 				return
 			}
 			WriteCommandResponse(writer, CommandResultFromStored(result))
@@ -90,7 +90,7 @@ func CommandRepostPostHandler(store repostCommandStore, commands SetCommandExecu
 		result, err := executeRepostCommand(request, commands, caller, generation, targetDID, postTarget, operationKey, rkey, true, runID)
 		if err != nil {
 			logger.Warn("repost command failed", slog.Any("error", err))
-			WriteCommandError(writer, runID, err)
+			WriteCommandError(writer, runID, err, request.Context())
 			return
 		}
 		WriteCommandResponse(writer, CommandResultFromStored(result))
@@ -124,12 +124,12 @@ func CommandUnrepostPostHandler(store unrepostCommandStore, commands SetCommandE
 		if replay != nil {
 			target, valid := replayPostTarget(replay.Intent)
 			if !valid {
-				WriteCommandError(writer, runID, pdscommands.ErrIdempotencyConflict)
+				WriteCommandError(writer, runID, pdscommands.ErrIdempotencyConflict, request.Context())
 				return
 			}
 			result, err := executeRepostCommand(request, commands, caller, generation, targetDID, target, operationKey, "", false, runID)
 			if err != nil {
-				WriteCommandError(writer, runID, err)
+				WriteCommandError(writer, runID, err, request.Context())
 				return
 			}
 			WriteCommandResponse(writer, CommandResultFromStored(result))
@@ -142,7 +142,7 @@ func CommandUnrepostPostHandler(store unrepostCommandStore, commands SetCommandE
 		result, err := executeRepostCommand(request, commands, caller, generation, targetDID, target, operationKey, "", false, runID)
 		if err != nil {
 			logger.Warn("unrepost command failed", slog.Any("error", err))
-			WriteCommandError(writer, runID, err)
+			WriteCommandError(writer, runID, err, request.Context())
 			return
 		}
 		WriteCommandResponse(writer, CommandResultFromStored(result))

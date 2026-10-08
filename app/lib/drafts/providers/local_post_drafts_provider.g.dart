@@ -50,7 +50,7 @@ final class LocalPostDraftsProvider
   }
 }
 
-String _$localPostDraftsHash() => r'8e4816d0b049d65ed6a99f792bf7bbcde7ad09f2';
+String _$localPostDraftsHash() => r'88bbab60e98b4b97e8967d8c9c6ff41f024700e2';
 
 final class LocalPostDraftsFamily extends $Family
     with

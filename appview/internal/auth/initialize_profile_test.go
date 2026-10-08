@@ -208,6 +208,9 @@ func TestInitializeProfileAndIdentityCacheFailsBeforeHandoffEffectsWhenCraftskyP
 	if !errors.Is(err, auth.ErrProfileInitFailed) {
 		t.Fatalf("error = %v; want ErrProfileInitFailed", err)
 	}
+	if !errors.Is(err, projector.err) {
+		t.Fatal("projection failure lost its underlying cause")
+	}
 	if got, want := order, []string{"craftsky-project"}; !slices.Equal(got, want) {
 		t.Fatalf("effect order = %v; want %v", got, want)
 	}

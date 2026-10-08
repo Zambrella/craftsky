@@ -1,4 +1,5 @@
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
 
 enum AppErrorKind {
   networkUnavailable,
@@ -16,15 +17,21 @@ enum AppErrorKind {
 
 enum AppErrorSeverity { info, warning, error }
 
-final class AppError {
+final class AppError implements DiagnosticFailureCause {
   const AppError(
     this.kind, {
     this.safeDiagnostics = const {},
     this.reportableOverride,
     this.sentryClassificationOverride,
+    this.diagnosticCause,
+    this.diagnosticStack,
   });
 
   final AppErrorKind kind;
+  @override
+  final Object? diagnosticCause;
+  @override
+  final StackTrace? diagnosticStack;
   final Map<String, Object?> safeDiagnostics;
   final bool? reportableOverride;
   final String? sentryClassificationOverride;

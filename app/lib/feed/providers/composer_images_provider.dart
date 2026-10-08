@@ -1,13 +1,17 @@
 import 'dart:async';
-import 'dart:typed_data';
 
+import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/drafts/composer/draft_composer_hydrator.dart';
 import 'package:craftsky_app/feed/media/bounded_image_file_reader.dart';
 import 'package:craftsky_app/feed/media/composer_image_media_service.dart';
 import 'package:craftsky_app/feed/models/create_post_image.dart';
 import 'package:craftsky_app/feed/providers/composer_image_state.dart';
+import 'package:craftsky_app/shared/observability/diagnostic_emitter.dart';
+import 'package:craftsky_app/shared/observability/error_reporter.dart';
+import 'package:craftsky_app/shared/observability/error_reporter_provider.dart';
 import 'package:craftsky_app/shared/pipeline/item_pipeline.dart';
 import 'package:crypto/crypto.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:logging/logging.dart';
@@ -33,12 +37,14 @@ class ComposerImages extends _$ComposerImages {
   late ComposerImageMediaService _media;
   late ImagePicker _picker;
   late Uuid _uuid;
+  late ErrorReporter _reporter;
 
   @override
   ComposerImagesState build(String composerId) {
     _media = ref.watch(composerImageMediaServiceProvider);
     _picker = ref.watch(imagePickerProvider);
     _uuid = const Uuid();
+    _reporter = GuardedErrorReporter(ref.read(errorReporterProvider));
     ref.onDispose(_cancelAll);
     return const ComposerImagesState(images: []);
   }
@@ -56,13 +62,15 @@ class ComposerImages extends _$ComposerImages {
       return;
     }
 
+    final accountDid = _existingOperationAccountDid();
     final List<XFile> files;
     try {
       files = await _picker.pickMultiImage(
         maxWidth: _media.config.maxImageWidth.toDouble(),
         maxHeight: _media.config.maxImageHeight.toDouble(),
       );
-    } on Object {
+    } on Object catch (error, stackTrace) {
+      _logPickerFailure('picker', error, stackTrace, accountDid);
       _setNotice(ImagePickerFailedNotice(id: _nextNoticeId()));
       return;
     }
@@ -83,6 +91,7 @@ class ComposerImages extends _$ComposerImages {
       return;
     }
 
+    final accountDid = _existingOperationAccountDid();
     final XFile? file;
     try {
       file = await _picker.pickImage(
@@ -90,13 +99,62 @@ class ComposerImages extends _$ComposerImages {
         maxWidth: _media.config.maxImageWidth.toDouble(),
         maxHeight: _media.config.maxImageHeight.toDouble(),
       );
-    } on Object {
+    } on Object catch (error, stackTrace) {
+      _logPickerFailure('camera', error, stackTrace, accountDid);
       _setNotice(ImagePickerFailedNotice(id: _nextNoticeId()));
       return;
     }
     if (file == null || !ref.mounted) return;
 
     _addSelectedFiles([file]);
+  }
+
+  void _logPickerFailure(
+    String stage,
+    Object error,
+    StackTrace stackTrace,
+    String? accountDid,
+  ) {
+    final expected =
+        error is PlatformException &&
+        const {
+          'camera_access_denied',
+          'camera_access_restricted',
+          'photo_access_denied',
+          'photo_access_restricted',
+          'camera_access_denied_without_prompt',
+          'photo_access_denied_without_prompt',
+        }.contains(error.code);
+    final message = DiagnosticMessage(
+      'composer image pipeline failed',
+      context: ReportContext(
+        feature: 'ComposerImages',
+        operation: 'media.image.$stage',
+        classification: 'media.image.failed',
+        outcome: expected
+            ? DiagnosticOutcome.expected
+            : DiagnosticOutcome.automatic,
+        safeDiagnostics: {
+          'failureStage': stage,
+          'outcome': expected ? 'expected' : 'failed',
+        },
+        workflow: accountDid == null
+            ? null
+            : PublicRecordContext(actorDid: accountDid),
+      ),
+    );
+    if (expected) {
+      _log.warning(message, error, stackTrace);
+    } else {
+      _log.severe(message, error, stackTrace);
+      unawaited(
+        _reporter.captureException(
+          error,
+          stackTrace: stackTrace,
+          context: message.context,
+        ),
+      );
+    }
   }
 
   void _addSelectedFiles(List<XFile> files) {
@@ -151,7 +209,7 @@ class ComposerImages extends _$ComposerImages {
 
     final jobs = <_ComposerImagePipelineItem>[];
     for (final image in accepted) {
-      final operation = _ImageOperation();
+      final operation = _ImageOperation(_existingOperationAccountDid());
       _operations[image.id] = operation;
       jobs.add(
         _ComposerImagePipelineItem(
@@ -173,6 +231,7 @@ class ComposerImages extends _$ComposerImages {
     final index = state.images.indexWhere((image) => image.id == imageId);
     if (index < 0 || state.images[index].phase is! ImageUnavailable) return;
 
+    final accountDid = _existingOperationAccountDid();
     final XFile? file;
     try {
       file = await _picker.pickImage(
@@ -180,7 +239,13 @@ class ComposerImages extends _$ComposerImages {
         maxWidth: _media.config.maxImageWidth.toDouble(),
         maxHeight: _media.config.maxImageHeight.toDouble(),
       );
-    } on Object {
+    } on Object catch (error, stackTrace) {
+      _logPickerFailure(
+        source == ImageSource.camera ? 'camera' : 'picker',
+        error,
+        stackTrace,
+        accountDid,
+      );
       _setNotice(ImagePickerFailedNotice(id: _nextNoticeId()));
       return;
     }
@@ -212,7 +277,7 @@ class ComposerImages extends _$ComposerImages {
       return;
     }
 
-    final operation = _ImageOperation();
+    final operation = _ImageOperation(_existingOperationAccountDid());
     _operations.remove(imageId)?.cancel();
     _operations[imageId] = operation;
     _updateImage(
@@ -306,7 +371,7 @@ class ComposerImages extends _$ComposerImages {
     if (image.phase case ImageFailed(
       :final failure,
     ) when failure.canRetry && image.previewBytes != null) {
-      final operation = _ImageOperation();
+      final operation = _ImageOperation(_existingOperationAccountDid());
       _operations[image.id] = operation;
       _updateImage(
         imageId,
@@ -473,11 +538,28 @@ class ComposerImages extends _$ComposerImages {
       return;
     }
 
-    _log.warning(
-      'composer image pipeline failed: '
-      'step=$stepName, errorType=${error.runtimeType}',
-      null,
-      stackTrace,
+    final message = DiagnosticMessage(
+      'composer image pipeline failed',
+      context: ReportContext(
+        feature: 'ComposerImages',
+        operation: 'media.image.$stepName',
+        classification: 'media.image.failed',
+        safeDiagnostics: {
+          'failureStage': stepName,
+          'retryable': stepName == _ImagePipelineStepNames.prepare,
+        },
+        workflow: _operations[imageId]?.accountDid == null
+            ? null
+            : PublicRecordContext(actorDid: _operations[imageId]!.accountDid),
+      ),
+    );
+    _log.severe(message, error, stackTrace);
+    unawaited(
+      _reporter.captureException(
+        error,
+        stackTrace: stackTrace,
+        context: message.context,
+      ),
     );
 
     switch (stepName) {
@@ -701,6 +783,18 @@ class ComposerImages extends _$ComposerImages {
     state = state.copyWith(images: images);
   }
 
+  // Diagnostics never initialize a dependency just to obtain attribution.
+  String? _existingOperationAccountDid() => ref.exists(sessionRegistryProvider)
+      ? ref
+            .read(sessionRegistryProvider)
+            .value
+            ?.activeLease
+            ?.session
+            .account
+            .did
+            .value
+      : null;
+
   bool _isActive(String imageId, _ImageOperation operation) {
     return !operation.canceled && _operations[imageId] == operation;
   }
@@ -792,6 +886,8 @@ final class _SelectionPair {
 }
 
 final class _ImageOperation {
+  _ImageOperation(this.accountDid);
+  final String? accountDid;
   ImageInspectionJob? inspectionJob;
   ImagePreparationJob? preparationJob;
   bool canceled = false;

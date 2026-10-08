@@ -54,6 +54,7 @@ mixin $AccountDeletionReauthCompleteRoute on GoRouteData {
 
 RouteBase get $authenticatedShellRoute => ShellRouteData.$route(
   navigatorKey: AuthenticatedShellRoute.$navigatorKey,
+  observers: AuthenticatedShellRoute.$observers,
   factory: $AuthenticatedShellRouteExtension._fromState,
   routes: [
     StatefulShellRouteData.$route(
@@ -61,6 +62,7 @@ RouteBase get $authenticatedShellRoute => ShellRouteData.$route(
       branches: [
         StatefulShellBranchData.$branch(
           navigatorKey: FeedBranch.$navigatorKey,
+          observers: FeedBranch.$observers,
           routes: [
             GoRouteData.$route(
               path: '/feed',
@@ -71,6 +73,7 @@ RouteBase get $authenticatedShellRoute => ShellRouteData.$route(
         ),
         StatefulShellBranchData.$branch(
           navigatorKey: ProjectsBranch.$navigatorKey,
+          observers: ProjectsBranch.$observers,
           routes: [
             GoRouteData.$route(
               path: '/projects',
@@ -81,6 +84,7 @@ RouteBase get $authenticatedShellRoute => ShellRouteData.$route(
         ),
         StatefulShellBranchData.$branch(
           navigatorKey: SearchBranch.$navigatorKey,
+          observers: SearchBranch.$observers,
           routes: [
             GoRouteData.$route(
               path: '/search',
@@ -98,6 +102,7 @@ RouteBase get $authenticatedShellRoute => ShellRouteData.$route(
         ),
         StatefulShellBranchData.$branch(
           navigatorKey: NotificationsBranch.$navigatorKey,
+          observers: NotificationsBranch.$observers,
           routes: [
             GoRouteData.$route(
               path: '/notifications',
@@ -117,6 +122,7 @@ RouteBase get $authenticatedShellRoute => ShellRouteData.$route(
         ),
         StatefulShellBranchData.$branch(
           navigatorKey: ProfileBranch.$navigatorKey,
+          observers: ProfileBranch.$observers,
           routes: [
             GoRouteData.$route(
               path: '/profile',
@@ -1332,4 +1338,4 @@ final class GoRouterProvider
   }
 }
 
-String _$goRouterHash() => r'700ca84fe34149bd20478670e9faf776a45d46ac';
+String _$goRouterHash() => r'5213e59b95381ea3a1170fee5fbb64796e88b495';

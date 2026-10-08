@@ -1,4 +1,5 @@
 import 'package:craftsky_app/shared/api/providers/dio_provider.dart';
+import 'package:craftsky_app/shared/observability/error_reporter_provider.dart';
 import 'package:craftsky_app/shared/rich_text/data/appview_facet_suggestion_repository.dart';
 import 'package:craftsky_app/shared/rich_text/data/facet_suggestion_repository.dart';
 import 'package:craftsky_app/shared/rich_text/facet_generator.dart';
@@ -12,13 +13,19 @@ final facetAutocompleteDebounceProvider = Provider<Duration>(
 /// AppView-backed account suggestions.
 final accountSuggestionRepositoryProvider =
     Provider<AccountSuggestionRepository>(
-      (ref) => AppViewAccountSuggestionRepository(ref.watch(dioProvider)),
+      (ref) => AppViewAccountSuggestionRepository(
+        ref.watch(dioProvider),
+        reporter: ref.watch(errorReporterProvider),
+      ),
     );
 
 /// AppView-backed hashtag suggestions.
 final hashtagSuggestionRepositoryProvider =
     Provider<HashtagSuggestionRepository>(
-      (ref) => AppViewHashtagSuggestionRepository(ref.watch(dioProvider)),
+      (ref) => AppViewHashtagSuggestionRepository(
+        ref.watch(dioProvider),
+        reporter: ref.watch(errorReporterProvider),
+      ),
     );
 
 /// Facet generator backed by the local/mock mention resolver seam.

@@ -1,4 +1,5 @@
 import 'package:craftsky_app/feed/composer/submission_screen_awake.dart';
+import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
 
 typedef SubmissionStep = Future<void> Function();
 typedef SubmissionRunningChanged = void Function({required bool running});
@@ -58,6 +59,6 @@ final class ComposerSubmissionCoordinator {
 
 void _requireCurrentOwnership(SubmissionOwnershipCheck ownershipIsCurrent) {
   if (!ownershipIsCurrent()) {
-    throw StateError('submission ownership changed');
+    throw DiagnosticStateError('submission ownership changed');
   }
 }

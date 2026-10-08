@@ -5,6 +5,7 @@ import 'package:craftsky_app/business/models/business_event.dart';
 import 'package:craftsky_app/business/providers/business_record_overlay.dart';
 import 'package:craftsky_app/business/providers/business_repository_provider.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
+import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
 import 'package:flutter/foundation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -91,7 +92,7 @@ class ProfileBusinessEvents extends _$ProfileBusinessEvents {
     _generation = 0;
     final ownership = captureActiveAccountOperation(ref);
     if (ownership != null && ownership.session.account != target.account) {
-      throw StateError('Active account changed');
+      throw DiagnosticStateError('Active account changed');
     }
     final lease = _lease(ownership);
     final readFence = captureBusinessEventListRead(ref, lease);
@@ -99,7 +100,7 @@ class ProfileBusinessEvents extends _$ProfileBusinessEvents {
         .watch(businessRepositoryProvider)
         .listProfileEvents(target.owner);
     if (!isActiveAccountOperationCurrent(ref, ownership)) {
-      throw StateError('Active account changed');
+      throw DiagnosticStateError('Active account changed');
     }
     if (!_isReadCurrent(readFence)) {
       final retained = _reconcile(

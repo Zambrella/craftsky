@@ -1,4 +1,5 @@
 import 'package:craftsky_app/shared/api/api_exception.dart';
+import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
 
 /// User-actionable auth errors surfaced by `AuthController`. Sealed so
 /// call sites can exhaustively switch on them.
@@ -18,8 +19,15 @@ final class InvalidHandle extends AuthError {
 }
 
 /// AppView is unreachable or returned 5xx, or the device is offline.
-final class ServerUnavailable extends AuthError {
-  const ServerUnavailable();
+final class ServerUnavailable extends AuthError
+    implements DiagnosticFailureCause {
+  const ServerUnavailable({this.cause, this.stackTrace});
+  final Object? cause;
+  final StackTrace? stackTrace;
+  @override
+  Object? get diagnosticCause => cause;
+  @override
+  StackTrace? get diagnosticStack => stackTrace;
 }
 
 /// `url_launcher` failed to open the system browser.
@@ -35,8 +43,17 @@ final class SignInTimedOut extends AuthError {
 
 /// `flutter_secure_storage` read/write failed (Android keystore issues,
 /// platform quirks).
-final class StorageFailure extends AuthError {
-  const StorageFailure(this.cause);
+final class StorageFailure extends AuthError implements DiagnosticFailureCause {
+  const StorageFailure(this.cause, {this.stackTrace});
+  final StackTrace? stackTrace;
+  @override
+  Object get diagnosticCause => cause;
+  @override
+  StackTrace? get diagnosticStack =>
+      stackTrace ??
+      (cause is DiagnosticFailureCause
+          ? (cause as DiagnosticFailureCause).diagnosticStack
+          : null);
 
   final Object cause;
 }

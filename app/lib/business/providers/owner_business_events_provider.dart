@@ -6,6 +6,7 @@ import 'package:craftsky_app/business/providers/business_record_overlay.dart';
 import 'package:craftsky_app/business/providers/business_repository_provider.dart';
 import 'package:craftsky_app/business/providers/profile_business_events_provider.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
+import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'owner_business_events_provider.g.dart';
@@ -23,7 +24,7 @@ class OwnerBusinessEvents extends _$OwnerBusinessEvents {
         .watch(businessRepositoryProvider)
         .listOwnerEvents(filter);
     if (!isActiveAccountOperationCurrent(ref, ownership)) {
-      throw StateError('Active account changed');
+      throw DiagnosticStateError('Active account changed');
     }
     if (read != null && !_isReadCurrent(read)) {
       return _retainedState(

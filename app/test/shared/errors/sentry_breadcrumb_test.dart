@@ -25,7 +25,7 @@ void main() {
         breadcrumb,
         const SafeBreadcrumb(
           category: 'navigation',
-          message: 'route changed',
+          message: 'Navigation',
           data: {
             'routeName': 'feed',
             'feature': 'feed',
