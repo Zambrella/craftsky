@@ -23,6 +23,12 @@ func TestConfigReadinessRejectsUnsafeScannerModes(t *testing.T) {
 			ready: true,
 		},
 		{
+			name: "production manual moderation",
+			config: Config{Environment: EnvironmentProduction, Mode: ScannerModeManual,
+				ScannerID: "manual-moderation", PolicyVersion: "manual-v1", CorpusVersion: "none"},
+			ready: true,
+		},
+		{
 			name: "production stub",
 			config: Config{Environment: EnvironmentProduction, Mode: ScannerModeStub,
 				ScannerID: "fixture-scanner", PolicyVersion: "policy-v1", CorpusVersion: "corpus-v1"},

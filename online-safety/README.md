@@ -85,7 +85,9 @@ describe the announced policy as current law.
 - Markdown is canonical. The public policy routes will be `/terms`, `/privacy`,
   `/community-guidelines`, `/reporting`, and `/copyright`.
 - The target effective date is 1 October 2026, but no policy becomes effective
-  and the service does not launch until the recorded P0 controls are ready.
+  and full public launch remains subject to the recorded P0 controls. Private
+  beta builds and deployments are allowed while gaps remain open; the owner
+  controls invitations, distribution, and manual moderation.
 
 ## Immediate Decisions Needed
 

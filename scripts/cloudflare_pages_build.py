@@ -1,16 +1,12 @@
 #!/usr/bin/env python3
-"""Fail closed before Cloudflare Pages publishes the production branch."""
+"""Build the beta website; public launch readiness is a separate owner-run check."""
 
 from __future__ import annotations
 
 import os
-import subprocess
-import sys
-from pathlib import Path
 
 
 def main() -> int:
-    root = Path(__file__).resolve().parents[1]
     branch = os.environ.get("CF_PAGES_BRANCH", "main")
     production_branch = os.environ.get("CF_PAGES_PRODUCTION_BRANCH", "main")
     if branch != production_branch:
@@ -19,19 +15,11 @@ def main() -> int:
         )
         return 0
 
-    result = subprocess.run(
-        [
-            sys.executable,
-            str(root / "scripts" / "online_safety_readiness.py"),
-            "--root",
-            str(root),
-        ],
-        cwd=root,
-        check=False,
+    print(
+        "cloudflare-pages-build: beta publication; "
+        "run just online-safety-readiness before public launch"
     )
-    if result.returncode != 0:
-        print("cloudflare-pages-build: production publication blocked")
-    return result.returncode
+    return 0
 
 
 if __name__ == "__main__":

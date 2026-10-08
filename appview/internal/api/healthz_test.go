@@ -155,3 +155,23 @@ func TestHealthz_ImageSafetyReadinessFailsClosedWithoutSensitiveDetail(t *testin
 		t.Fatalf("unsafe image-safety readiness block=%v", body["imageSafety"])
 	}
 }
+
+func TestHealthzAdvisoryScannerDoesNotBlockDeployment(t *testing.T) {
+	stater := &telemetryStater{fakeStater: fakeStater{state: tap.ConnState{Connected: true}}, telemetry: tap.Telemetry{Status: "progressing"}}
+	handler := api.NewHealthHandler(fakePinger{}, stater, api.AdvisoryReadiness{Readiness: api.StaticReadiness(false)})
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, httptest.NewRequest("GET", "/healthz", nil))
+	var response struct {
+		Status      string `json:"status"`
+		ImageSafety struct {
+			Ready    bool  `json:"ready"`
+			Required *bool `json:"required"`
+		} `json:"imageSafety"`
+	}
+	if err := json.Unmarshal(rr.Body.Bytes(), &response); err != nil {
+		t.Fatal(err)
+	}
+	if response.Status != "ok" || response.ImageSafety.Ready || response.ImageSafety.Required == nil || *response.ImageSafety.Required {
+		t.Fatalf("unexpected advisory readiness: %s", rr.Body.String())
+	}
+}

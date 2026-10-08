@@ -19,10 +19,6 @@ import 'package:flutter_test/flutter_test.dart';
 import '../../fakes/recording_messenger.dart';
 
 void main() {
-  test('AT-015 release video gate ignores compile-time flags', () {
-    expect(videoUploadsAvailableInThisRelease, isFalse);
-  });
-
   testWidgets('standard composer hides video selection by default', (
     tester,
   ) async {
@@ -30,6 +26,7 @@ void main() {
       tester,
       messenger: RecordingMessenger(),
       limits: const VideoUploadLimits(canUpload: true),
+      videoUploadsEnabled: null,
     );
 
     expect(find.text('Add a photo'), findsOneWidget);
@@ -45,6 +42,7 @@ void main() {
       messenger: RecordingMessenger(),
       limits: const VideoUploadLimits(canUpload: true),
       project: true,
+      videoUploadsEnabled: null,
     );
 
     expect(find.text('Add a photo'), findsOneWidget);
@@ -52,31 +50,84 @@ void main() {
     expect(find.byKey(const Key('composer-choose-video')), findsNothing);
   });
 
-  testWidgets('AT-015 standard composer ignores an enabled override', (
+  testWidgets('AT-003 standard composer shows exact video quota threshold', (
     tester,
   ) async {
+    final messenger = RecordingMessenger();
     await _pumpComposer(
       tester,
-      messenger: RecordingMessenger(),
-      limits: const VideoUploadLimits(canUpload: true),
-      videoUploadsEnabled: true,
+      messenger: messenger,
+      limits: const VideoUploadLimits(
+        canUpload: true,
+        remainingDailyVideos: 1,
+      ),
     );
 
-    expect(find.byKey(const Key('composer-choose-video')), findsNothing);
+    await _chooseVideo(tester);
+
+    expect(messenger.calls, [
+      ('info', '1 video remaining today', null),
+    ]);
   });
 
-  testWidgets('AT-015 project composer ignores an enabled override', (
+  testWidgets('AT-003 standard composer omits unconstrained quota', (
     tester,
   ) async {
+    final messenger = RecordingMessenger();
     await _pumpComposer(
       tester,
-      messenger: RecordingMessenger(),
-      limits: const VideoUploadLimits(canUpload: true),
-      project: true,
-      videoUploadsEnabled: true,
+      messenger: messenger,
+      limits: const VideoUploadLimits(
+        canUpload: true,
+        remainingDailyVideos: 2,
+        remainingDailyBytes: 300000000,
+      ),
     );
 
-    expect(find.byKey(const Key('composer-choose-video')), findsNothing);
+    await _chooseVideo(tester);
+
+    expect(messenger.calls, isEmpty);
+  });
+
+  testWidgets('AT-003 project composer shows exact byte quota threshold', (
+    tester,
+  ) async {
+    final messenger = RecordingMessenger();
+    await _pumpComposer(
+      tester,
+      messenger: messenger,
+      limits: const VideoUploadLimits(
+        canUpload: true,
+        remainingDailyBytes: 299999999,
+      ),
+      project: true,
+    );
+
+    await _chooseVideo(tester);
+
+    expect(messenger.calls, [
+      ('info', '299999999 bytes remaining today', null),
+    ]);
+  });
+
+  testWidgets('AT-003 project composer omits unconstrained quota', (
+    tester,
+  ) async {
+    final messenger = RecordingMessenger();
+    await _pumpComposer(
+      tester,
+      messenger: messenger,
+      limits: const VideoUploadLimits(
+        canUpload: true,
+        remainingDailyVideos: 2,
+        remainingDailyBytes: 300000000,
+      ),
+      project: true,
+    );
+
+    await _chooseVideo(tester);
+
+    expect(messenger.calls, isEmpty);
   });
 }
 
@@ -85,7 +136,7 @@ Future<void> _pumpComposer(
   required RecordingMessenger messenger,
   required VideoUploadLimits limits,
   bool project = false,
-  bool? videoUploadsEnabled,
+  bool? videoUploadsEnabled = true,
 }) async {
   final controller = ComposerVideoController(
     picker: _VideoPicker(),
@@ -126,6 +177,19 @@ Future<void> _pumpComposer(
       ),
     ),
   );
+  await tester.pumpAndSettle();
+}
+
+Future<void> _chooseVideo(WidgetTester tester) async {
+  await _openMediaMenu(tester);
+  await tester.tap(find.byKey(const Key('composer-choose-video')));
+  await tester.pumpAndSettle();
+}
+
+Future<void> _openMediaMenu(WidgetTester tester) async {
+  final addMedia = find.byKey(const Key('composer-add-image'));
+  await tester.ensureVisible(addMedia);
+  await tester.tap(addMedia);
   await tester.pumpAndSettle();
 }
 

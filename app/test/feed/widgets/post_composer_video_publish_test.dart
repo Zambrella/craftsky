@@ -26,13 +26,12 @@ import '../../fakes/recording_messenger.dart';
 import '../fakes/fake_post_repository.dart';
 
 void main() {
-  testWidgets('AT-015 restored video is rejected before proof preparation', (
+  testWidgets('AT-001 publishes completed video proof with metadata', (
     tester,
   ) async {
     final repository = FakePostRepository(
       onCreate: ({required text, reply, images}) async => _createdPost(text),
     );
-    final messenger = RecordingMessenger();
     final videos = ComposerVideoController(picker: _NoopPicker())
       ..restoredSelection = _selection();
     final registry = SessionRegistry.empty().upsertAndActivate(
@@ -56,7 +55,7 @@ void main() {
           postRepositoryProvider.overrideWithValue(repository),
         ],
         child: MessengerScope(
-          messenger: messenger,
+          messenger: RecordingMessenger(),
           child: MaterialApp(
             theme: AppTheme.lightThemeData,
             localizationsDelegates: AppLocalizations.localizationsDelegates,
@@ -95,11 +94,14 @@ void main() {
     await tester.tap(find.widgetWithText(ChunkyButton, 'Post'));
     await tester.pumpAndSettle();
 
-    expect(repository.lastCreateVideo, isNull);
-    expect(messenger.calls.last.$2, contains('Video is unavailable'));
+    expect(repository.lastCreateVideo?.jobId, 'job-1');
+    expect(repository.lastCreateVideo?.blob.cid, 'bafyvideo');
+    expect(repository.lastCreateVideo?.alt, 'A blue knitted shawl');
+    expect(repository.lastCreateVideo?.aspectRatio?.width, 1080);
+    expect(repository.lastCreateVideo?.aspectRatio?.height, 1920);
   });
 
-  testWidgets('AT-015 launch gate precedes quota and retry handling', (
+  testWidgets('AT-004 quota failure retains video and Retry publishes', (
     tester,
   ) async {
     var attempts = 0;
@@ -163,11 +165,15 @@ void main() {
     await tester.pumpAndSettle();
 
     final failure = messenger.calls.last;
-    expect(failure.$2, contains('Video is unavailable'));
-    expect(failure.$3, isNull);
+    expect(failure.$2, contains('daily video limit'));
+    expect(failure.$3?.label, 'Retry');
     expect(find.byKey(const Key('composer-video-attachment')), findsOneWidget);
-    expect(attempts, 0);
-    expect(repository.lastCreateVideo, isNull);
+
+    failure.$3!.onPressed();
+    await tester.pumpAndSettle();
+
+    expect(attempts, 2);
+    expect(repository.lastCreateVideo?.jobId, 'job-1');
   });
 }
 

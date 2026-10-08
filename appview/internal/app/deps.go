@@ -477,6 +477,10 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (
 	deps.SafetyWorkflows = safety.workflows
 	deps.SafetyCSEA = safety.csea
 	deps.SafetyRetention = safety.retention
+	var evidenceStore safetyincident.EvidenceStore
+	if safety.objects != nil {
+		evidenceStore = safety.objects
+	}
 	deletion, err := newAccountDeletionDependencies(
 		pool,
 		authCapability,
@@ -485,7 +489,7 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (
 		instagramPrivateData,
 		scheduledAccountDeletion,
 		scheduledDepartureParticipant,
-		safety.objects,
+		evidenceStore,
 		cfg,
 		logger,
 		observer,

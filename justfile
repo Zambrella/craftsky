@@ -190,7 +190,7 @@ appview-check:
 policy-artifact:
     python3 scripts/generate-policy-artifact.py
 
-# Public-release gate. This intentionally fails while P0s or approvals are open.
+# Owner-run full-launch readiness check. Not part of beta builds or deployments.
 online-safety-readiness *ARGS:
     ./scripts/online-safety-readiness {{ARGS}}
 
@@ -200,15 +200,14 @@ online-safety-readiness-test:
 web-test-consent:
     npm run --prefix web test:consent
 
-# Complete repository-side public-release workflow. The final readiness step is
-# expected to fail until the external P0 approvals and evidence are complete.
+# Repository release quality checks, also used for private beta.
+# Run online-safety-readiness separately before full public launch.
 public-release-check:
     just appview-check
     just app-analyze
     just app-test
     just online-safety-readiness-test
     just web-test-consent
-    just online-safety-readiness
 
 # Format and vet Go code on the host.
 fmt:

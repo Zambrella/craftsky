@@ -23,6 +23,12 @@ type Readiness interface {
 	Ready() bool
 }
 
+// AdvisoryReadiness reports a capability without making it a deployment probe
+// prerequisite. The readiness value remains visible to operators.
+type AdvisoryReadiness struct{ Readiness }
+
+func (AdvisoryReadiness) Required() bool { return false }
+
 type StaticReadiness bool
 
 func (readiness StaticReadiness) Ready() bool { return bool(readiness) }
@@ -35,7 +41,8 @@ type healthResponse struct {
 }
 
 type healthReadinessBlock struct {
-	Ready bool `json:"ready"`
+	Ready    bool  `json:"ready"`
+	Required *bool `json:"required,omitempty"`
 }
 
 type healthTapBlock struct {
@@ -51,7 +58,7 @@ type healthTapBlock struct {
 // deep health check that also reports Tap consumer state and cached telemetry.
 // With telemetry, "ok" requires DB readiness, a connected consumer and recent
 // global cursor progress, not activity from the small tracked member feed.
-// Image safety must also be ready when supplied.
+// Image safety is required unless explicitly supplied as advisory readiness.
 // This does not establish relay-head freshness. HTTP status is always 200.
 func NewHealthHandler(pinger Pinger, stater Stater, optional ...Readiness) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -75,6 +82,11 @@ func NewHealthHandler(pinger Pinger, stater Stater, optional ...Readiness) http.
 		if len(optional) > 0 && optional[0] != nil {
 			imageSafetyReady = optional[0].Ready()
 			resp.ImageSafety = &healthReadinessBlock{Ready: imageSafetyReady}
+			if requirement, ok := optional[0].(interface{ Required() bool }); ok {
+				required := requirement.Required()
+				resp.ImageSafety.Required = &required
+				imageSafetyReady = imageSafetyReady || !required
+			}
 		}
 		if !tapState.LastEventAt.IsZero() {
 			resp.Tap.LastEventAt = tapState.LastEventAt.UTC().Format("2006-01-02T15:04:05Z07:00")

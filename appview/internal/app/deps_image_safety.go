@@ -47,7 +47,7 @@ func newImageSafetyDependencies(
 	if !cfg.ImageSafety.Ready() {
 		return result, nil
 	}
-	if cfg.ImageSafety.Mode != imagesafety.ScannerModeStub {
+	if cfg.ImageSafety.Mode != imagesafety.ScannerModeStub && cfg.ImageSafety.Mode != imagesafety.ScannerModeManual {
 		return nil, fmt.Errorf("approved image scanner adapter is not implemented")
 	}
 	fetcher, err := imagesafety.NewPDSBlobFetcher(
@@ -59,8 +59,12 @@ func newImageSafetyDependencies(
 	if err != nil {
 		return nil, fmt.Errorf("image safety PDS fetcher: %w", err)
 	}
+	var scanner imagesafety.Scanner = imagesafety.DevelopmentScanner{}
+	if cfg.ImageSafety.Mode == imagesafety.ScannerModeManual {
+		scanner = imagesafety.ManualModerationScanner{}
+	}
 	worker, err := imagesafety.NewWorker(imagesafety.WorkerOptions{
-		Store: store, Fetcher: fetcher, Scanner: imagesafety.DevelopmentScanner{}, MatchRecorder: incidents,
+		Store: store, Fetcher: fetcher, Scanner: scanner, MatchRecorder: incidents,
 		Config: cfg.ImageSafety,
 		RetryPolicy: imagesafety.RetryPolicy{
 			MaxAttempts:    cfg.ImageSafetyMaxAttempts,

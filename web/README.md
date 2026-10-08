@@ -7,8 +7,7 @@ Static public site served at https://craftsky.social.
 - `index.html` — landing page, nine sections
 - `waitlist.html` — focused waiting-list signup page at `/waitlist`
 - `privacy.html`, `terms.html`, `community-guidelines.html`, `reporting.html`,
-  `copyright.html` — generated policy staging artifact; publication remains blocked
-  until the readiness manifest passes
+  `copyright.html` — generated policy drafts; approval remains recorded in the readiness manifest
 - `styles.css` — all styles, design tokens copied from `../docs/design/colors_and_type.css`
 - `main.js` — waiting-list modal + PostHog event tracking
 - `assets/` — favicon, logo, atproto mark, paper-grain texture
@@ -51,15 +50,15 @@ denial, after grant, and under Do Not Track.
 
 ## Deploy
 
-Run the complete repository-side release workflow from the repository root:
+Run the repository quality checks from the repository root:
 
 ```bash
 just public-release-check
 ```
 
-The command intentionally fails while any policy approval, control evidence, or P0
-remains open. A passing command is necessary but does not replace the external atomic
-deployment and rollback evidence.
+The command runs build and test checks without requiring the full-launch safety
+gaps to be closed. Before full public launch, run `just online-safety-readiness`
+and complete the approvals and evidence recorded in the gap register.
 
 Cloudflare Pages is configured to watch `web/` on `main`:
 
@@ -68,10 +67,9 @@ Cloudflare Pages is configured to watch `web/` on `main`:
 - Build output directory: `/`
 - Root directory: `web`
 
-The build command runs the same fail-closed readiness evaluator for the production
-branch. Cloudflare must retain this build command; an empty or overridden command
-would bypass the repository-owned publication gate. Preview branches remain
-available for policy review without publishing them to the production domain.
+The build command allows beta publication on the production branch while safety
+gaps remain open. It does not approve the policy drafts or mark the service ready
+for full public launch. Preview branches remain available for policy review.
 
 Every PR gets a preview URL under `pages.dev`. Production deploys land on `craftsky.social` after merging to `main`.
 

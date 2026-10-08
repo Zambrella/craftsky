@@ -1,13 +1,15 @@
 package imagesafety_test
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"image"
+	"image/jpeg"
 	"os"
 	"testing"
 	"time"
 
-	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
@@ -23,7 +25,9 @@ func (fetcher *workerFetcher) Fetch(context.Context, imagesafety.BlobSource) ([]
 	if fetcher.err != nil {
 		return nil, fetcher.err
 	}
-	return []byte("fixture"), nil
+	var body bytes.Buffer
+	err := jpeg.Encode(&body, image.NewRGBA(image.Rect(0, 0, 1, 1)), nil)
+	return body.Bytes(), err
 }
 
 func TestWorkerSurvivesRetryRestartExhaustionAndManualRetry(t *testing.T) {
@@ -86,16 +90,14 @@ func TestWorkerSurvivesRetryRestartExhaustionAndManualRetry(t *testing.T) {
 	store := imagesafety.NewWorkerStore(pool, clock)
 	fetcher := &workerFetcher{err: context.DeadlineExceeded}
 	config := imagesafety.Config{
-		Environment: imagesafety.EnvironmentTest, Mode: imagesafety.ScannerModeStub,
+		Environment: imagesafety.EnvironmentProduction, Mode: imagesafety.ScannerModeManual,
 		ScannerID: "fixture", PolicyVersion: "policy-1", CorpusVersion: "corpus-1",
 	}
 	newWorker := func() *imagesafety.Worker {
 		worker, err := imagesafety.NewWorker(imagesafety.WorkerOptions{
 			Store: store, Fetcher: fetcher,
-			Scanner: imagesafety.NewFixtureScanner(map[syntax.CID]imagesafety.State{
-				"bafyworker": imagesafety.StateClear,
-			}),
-			Config: config,
+			Scanner: imagesafety.ManualModerationScanner{},
+			Config:  config,
 			RetryPolicy: imagesafety.RetryPolicy{
 				MaxAttempts: 3, InitialBackoff: time.Minute, MaxBackoff: 2 * time.Minute,
 			},

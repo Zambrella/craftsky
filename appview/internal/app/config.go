@@ -395,7 +395,7 @@ func LoadConfig(env Env, envFilePath string) (Config, error) {
 	if parseVideoEnabledErr != nil {
 		return Config{}, fmt.Errorf("VIDEO_ENABLED: %w", parseVideoEnabledErr)
 	}
-	cfg.VideoEnabled = videoEnabledForLaunch(env, configuredVideoEnabled)
+	cfg.VideoEnabled = configuredVideoEnabled
 	if cfg.TapAckTimeout, err = boundedPositiveDurationEnv("TAP_ACK_TIMEOUT", 10*time.Second, maxTapAckTimeout); err != nil {
 		return Config{}, err
 	}
@@ -843,10 +843,10 @@ func LoadConfig(env Env, envFilePath string) (Config, error) {
 	imageCorpusDefault := "development-corpus-v1"
 	if env == EnvProd {
 		imageEnvironment = imagesafety.EnvironmentProduction
-		imageModeDefault = ""
-		imageScannerDefault = ""
-		imagePolicyDefault = ""
-		imageCorpusDefault = ""
+		imageModeDefault = string(imagesafety.ScannerModeManual)
+		imageScannerDefault = "manual-moderation"
+		imagePolicyDefault = "manual-policy-v1"
+		imageCorpusDefault = "no-automated-corpus"
 	}
 	cfg.ImageSafety = imagesafety.Config{
 		Environment: imageEnvironment,
@@ -1138,10 +1138,6 @@ func LoadConfig(env Env, envFilePath string) (Config, error) {
 	}
 
 	return cfg, nil
-}
-
-func videoEnabledForLaunch(env Env, configured bool) bool {
-	return env != EnvProd && configured
 }
 
 func sentryRelease(explicit, embedded, renderCommit string) string {

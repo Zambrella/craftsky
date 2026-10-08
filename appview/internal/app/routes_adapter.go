@@ -84,7 +84,7 @@ func RouteDependencies(deps *Deps) *routes.Dependencies {
 		HandleResolver:              deps.HandleResolver,
 		AuthoritativeHandleResolver: deps.AuthoritativeHandleResolver,
 		Consumer:                    deps.Consumer,
-		ImageSafetyReadiness:        api.StaticReadiness(deps.Config.ImageSafety.Ready()),
+		ImageSafetyReadiness:        api.AdvisoryReadiness{Readiness: api.StaticReadiness(deps.Config.ImageSafety.AutomatedReady())},
 		ImageSafetyHealth:           deps.ImageSafetyStore,
 		SafetyWork:                  []api.SafetyWorkReader{deps.SafetyIncidents},
 		SafetyIncidents:             deps.SafetyIncidents,

@@ -78,7 +78,7 @@ void main() {
     expect(find.text('Add photos'), findsNothing);
   });
 
-  testWidgets('AT-015 restored project video cannot bypass launch gate', (
+  testWidgets('AT-001 project publication preserves project and video proof', (
     tester,
   ) async {
     final videos = ComposerVideoController(picker: _NoopVideoPicker())
@@ -194,12 +194,15 @@ void main() {
     await tester.pumpAndSettle();
 
     final failure = messenger.calls.last;
-    expect(failure.$1, 'error');
-    expect(failure.$2, contains('Video is unavailable'));
-    expect(failure.$3, isNull);
+    expect(failure.$2, contains('daily video limit'));
+    expect(failure.$3?.label, 'Retry');
     expect(videos.selection, isNotNull);
-    expect(attempts, 0);
-    expect(repository.lastCreateVideo, isNull);
+    failure.$3!.onPressed();
+    await tester.pumpAndSettle();
+
+    expect(attempts, 2);
+    expect(repository.lastCreateVideo?.jobId, 'job-project');
+    expect(repository.lastCreateVideo?.blob.cid, 'bafyvideo');
   });
 }
 

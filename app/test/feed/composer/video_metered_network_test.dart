@@ -24,11 +24,11 @@ import '../../fakes/recording_messenger.dart';
 import '../fakes/fake_post_repository.dart';
 
 void main() {
-  testWidgets('AT-015 launch gate stops publication before network policy', (
+  testWidgets('AT-013 publication starts without a metered-network prompt', (
     tester,
   ) async {
     final publicationStarted = Completer<void>();
-    final messenger = RecordingMessenger();
+    final proofReady = Completer<CreatePostVideo>();
     final registry = SessionRegistry.empty().upsertAndActivate(
       token: 'session-token',
       did: 'did:plc:alice',
@@ -57,7 +57,7 @@ void main() {
           ),
         ],
         child: MessengerScope(
-          messenger: messenger,
+          messenger: RecordingMessenger(),
           child: MaterialApp(
             theme: AppTheme.lightThemeData,
             localizationsDelegates: AppLocalizations.localizationsDelegates,
@@ -69,7 +69,7 @@ void main() {
                 if (!publicationStarted.isCompleted) {
                   publicationStarted.complete();
                 }
-                return Future.value(_proof());
+                return proofReady.future;
               },
             ),
           ),
@@ -84,11 +84,13 @@ void main() {
     await _pumpUntilPostEnabled(tester);
 
     await tester.tap(find.widgetWithText(ChunkyButton, 'Post'));
-    await tester.pumpAndSettle();
+    await tester.pump();
 
-    expect(publicationStarted.isCompleted, isFalse);
-    expect(messenger.calls.last.$2, contains('Video is unavailable'));
+    expect(publicationStarted.isCompleted, isTrue);
     expect(find.byType(AlertDialog), findsNothing);
+
+    proofReady.complete(_proof());
+    await tester.pumpAndSettle();
   });
 }
 

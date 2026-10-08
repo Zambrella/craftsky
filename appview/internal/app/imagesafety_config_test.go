@@ -7,7 +7,7 @@ import (
 	"social.craftsky/appview/internal/imagesafety"
 )
 
-func TestImageSafetyConfigurationFailsClosedByEnvironment(t *testing.T) {
+func TestImageSafetyConfigurationSupportsManualModeration(t *testing.T) {
 	const devBase = "DATABASE_URL=postgres://dev\nALLOWED_ORIGINS=*\nCRAFTSKY_DEV_DID=did:plc:test\nTAP_WS_URL=ws://tap\n"
 	const prodBase = "DATABASE_URL=postgres://prod\nALLOWED_ORIGINS=https://craftsky.social\nTAP_WS_URL=ws://tap\n"
 
@@ -23,8 +23,8 @@ func TestImageSafetyConfigurationFailsClosedByEnvironment(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if prod.ImageSafety.Ready() || prod.ImageSafety.CanMarkClear() {
-		t.Fatal("production must remain unready without a validated adapter")
+	if !prod.ImageSafety.Ready() || !prod.ImageSafety.CanMarkClear() || prod.ImageSafety.AutomatedReady() || prod.ImageSafety.Mode != imagesafety.ScannerModeManual {
+		t.Fatal("production must support manual moderation without claiming an automated scanner")
 	}
 
 	stub, err := LoadConfig(EnvProd, testConfigFile(t, withProductionOAuth(prodBase)+

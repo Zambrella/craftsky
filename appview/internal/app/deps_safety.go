@@ -21,6 +21,19 @@ type safetyDependencies struct {
 }
 
 func newSafetyDependencies(ctx context.Context, pool *pgxpool.Pool, cfg Config) (*safetyDependencies, error) {
+	deadlines, err := safetyincident.NewDeadlinePolicy(nil)
+	if err != nil {
+		return nil, fmt.Errorf("safety workflow deadlines: %w", err)
+	}
+	result := &safetyDependencies{
+		holds:     safetyincident.NewHoldService(pool),
+		workflows: safetyincident.NewWorkflowService(pool, deadlines, time.Now),
+		csea:      safetyincident.NewCSEAWorkflow(pool),
+	}
+	if cfg.SafetyEvidenceS3.AccessKeyID == "" || cfg.SafetyEvidenceS3.AccessKeyID == "not-configured" ||
+		cfg.SafetyEvidenceS3.SecretAccessKey == "" || cfg.SafetyEvidenceS3.SecretAccessKey == "not-configured" {
+		return result, nil
+	}
 	objects, err := safetyincident.NewS3EvidenceStore(ctx, cfg.SafetyEvidenceS3)
 	if err != nil {
 		return nil, fmt.Errorf("restricted evidence object store: %w", err)
@@ -28,16 +41,8 @@ func newSafetyDependencies(ctx context.Context, pool *pgxpool.Pool, cfg Config) 
 	if err := objects.Check(ctx); err != nil {
 		return nil, fmt.Errorf("restricted evidence object store check: %w", err)
 	}
-	deadlines, err := safetyincident.NewDeadlinePolicy(nil)
-	if err != nil {
-		return nil, fmt.Errorf("safety workflow deadlines: %w", err)
-	}
-	return &safetyDependencies{
-		objects:   objects,
-		evidence:  safetyincident.NewEvidenceService(pool, objects, time.Now),
-		holds:     safetyincident.NewHoldService(pool),
-		workflows: safetyincident.NewWorkflowService(pool, deadlines, time.Now),
-		csea:      safetyincident.NewCSEAWorkflow(pool),
-		retention: retention.NewWorker(pool, objects, time.Now),
-	}, nil
+	result.objects = objects
+	result.evidence = safetyincident.NewEvidenceService(pool, objects, time.Now)
+	result.retention = retention.NewWorker(pool, objects, time.Now)
+	return result, nil
 }

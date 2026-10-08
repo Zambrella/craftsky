@@ -4,6 +4,36 @@ Craftsky releases are created, built, and deployed from the maintainer's local
 machine. GitHub Actions only tests pull requests. AppView and the Flutter app
 have independent versions, tags, and changelogs.
 
+## Private beta and full public launch
+
+Private beta releases use the normal build, test, signing, tag, and deployment
+workflow. Open online-safety gaps do not block beta builds, website publication,
+backend startup, or operational health. Invitation and distribution restrictions
+are managed by the owner; there is no new DID allowlist in this release.
+
+- Production images default to `IMAGE_SAFETY_SCANNER_MODE=manual`. The worker
+  validates image format and permits serving; moderators review content through
+  the existing reporting and moderation tools. This is not automated content
+  detection. `/healthz` reports automated scanner readiness separately, without
+  degrading operational health solely because the scanner is unavailable.
+- Enable video with `VIDEO_ENABLED=true` on AppView and
+  `CRAFTSKY_ENABLE_VIDEO_UPLOADS=true` in the Flutter build config. The flags keep
+  their ordinary default of `false`; there is no forced production shutdown.
+- Restricted evidence storage is optional until its S3 credentials are supplied.
+  Without it, evidence preservation/access and its retention worker are
+  unavailable. Reports, moderation, workflow metadata, holds, and account deletion
+  remain available. Existing evidence cannot be deleted without its object store.
+- `just public-release-check` runs quality checks without the gap-register gate.
+  `just online-safety-readiness` remains an explicit owner-run full-launch check.
+  The gap register and policy manifest remain accurate; beta publication does not
+  make draft policies approved or close any gaps.
+
+Before full public launch, complete that readiness check, configure the production
+scanner and evidence store, and record the required approvals and deployment
+verification. Switching to a content scanner requires scanning existing media
+under its own scanner/policy/corpus key; manual-mode results are not scanner
+approval evidence.
+
 ## Shared rules
 
 - Start on a clean local `main` synchronized with `origin/main`.

@@ -7,12 +7,19 @@ import (
 	"io"
 )
 
-// DevelopmentScanner is a deterministic local-only scanner. The validated
-// configuration prevents this implementation from marking production content
-// clear.
+// DevelopmentScanner validates image format for local development.
 type DevelopmentScanner struct{}
 
-func (DevelopmentScanner) Scan(_ context.Context, input ScanInput) (ScanResult, error) {
+// ManualModerationScanner allows valid images to be served pending ordinary
+// manual moderation. StateClear is a visibility result, not an automated
+// content-safety verdict.
+type ManualModerationScanner struct{}
+
+func (DevelopmentScanner) Scan(ctx context.Context, input ScanInput) (ScanResult, error) {
+	return ManualModerationScanner{}.Scan(ctx, input)
+}
+
+func (ManualModerationScanner) Scan(_ context.Context, input ScanInput) (ScanResult, error) {
 	body, err := io.ReadAll(input.Content)
 	if err != nil {
 		return ScanResult{State: StateError}, err
