@@ -1,5 +1,20 @@
 # AppView Changelog
 
+## 1.0.13 - 2026-10-08
+
+- chore(release): AppView 1.0.11
+- fix: preserve onboarding session authority and add revocation CLI
+- feat(appview): expose cached Tap telemetry in healthz
+- fix(appview): embed timezone data for business events
+- fix: avoid demo seed identity handle collisions
+- fix: recover business profile saves and preserve existing data
+- test: allow database setup in registration deadline regression
+- feat: improve logging and error reporting with simpler privacy boundaries
+- Use loopback URLs for local Android AppView access
+- refactor: simplify diagnostics with native Sentry integrations
+- fix: improve diagnostic context and retry severity
+- fix: stabilize Sentry log test and clear staticcheck
+
 ## 1.0.12 - 2026-10-02
 
 - fix(appview): upgrade OpenTelemetry to address GO-2026-6505
