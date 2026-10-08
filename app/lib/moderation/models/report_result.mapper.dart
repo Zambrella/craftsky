@@ -57,6 +57,7 @@ class ReportResultMapper extends ClassMapperBase<ReportResult> {
     return ensureInitialized().decodeJson<ReportResult>(json);
   }
 }
+
 mixin ReportResultMappable {
   String toJson() {
     return ReportResultMapper.ensureInitialized().encodeJson<ReportResult>(
@@ -98,6 +99,7 @@ mixin ReportResultMappable {
     );
   }
 }
+
 extension ReportResultValueCopy<$R, $Out>
     on ObjectCopyWith<$R, ReportResult, $Out> {
   ReportResultCopyWith<$R, ReportResult, $Out> get $asReportResult =>

@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/google/uuid"
@@ -22,6 +23,15 @@ import (
 )
 
 func TestHandoffExchangeIsHashOnlyReplayableUntilConfirmation(t *testing.T) {
+	t.Run("activation before confirmation", func(t *testing.T) {
+		testHandoffProfileActivation(t, false)
+	})
+	t.Run("activation after confirmation", func(t *testing.T) {
+		testHandoffProfileActivation(t, true)
+	})
+}
+
+func testHandoffProfileActivation(t *testing.T, confirmFirst bool) {
 	pool := withAuthSchema(t)
 	owners := newAuthOwnerStore(t, pool)
 	storeConfig := testStoreConfig()
@@ -29,6 +39,12 @@ func TestHandoffExchangeIsHashOnlyReplayableUntilConfirmation(t *testing.T) {
 	oauthStore := auth.NewPostgresAuthStore(pool, storeConfig)
 	children, err := auth.NewCraftskySessionStoreWithConfig(pool, auth.CraftskySessionConfig{
 		Inactivity: 30 * 24 * time.Hour, ActivityWriteInterval: 15 * time.Minute,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	sessions, err := auth.NewSessionLifecycleService(auth.SessionLifecycleOptions{
+		Pool: pool, Owners: owners, Sessions: children,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -46,6 +62,10 @@ func TestHandoffExchangeIsHashOnlyReplayableUntilConfirmation(t *testing.T) {
 
 	owner := syntax.DID("did:plc:handoff-owner")
 	state := "handoff-parent-state"
+	privateKey, err := atcrypto.GeneratePrivateKeyP256()
+	if err != nil {
+		t.Fatal(err)
+	}
 	var code string
 	err = owners.WithOnboardingAuth(context.Background(), owner, func(authCtx context.Context, authority ownerlifecycle.Lifecycle) error {
 		requestContext := auth.WithLoginAuthRequest(
@@ -69,7 +89,9 @@ func TestHandoffExchangeIsHashOnlyReplayableUntilConfirmation(t *testing.T) {
 			Purpose: auth.LoginOAuthPurpose,
 		}
 		callbackContext := auth.WithCallbackAttempt(authCtx, attempt)
-		if err := oauthStore.SaveSession(callbackContext, validOAuthSession(owner, state)); err != nil {
+		data := validOAuthSession(owner, state)
+		data.DPoPPrivateKeyMultibase = privateKey.Multibase()
+		if err := oauthStore.SaveSession(callbackContext, data); err != nil {
 			return err
 		}
 		code, err = handoffs.CreateExchange(callbackContext, attempt, syntax.Handle("alice.example"), "device-handoff")
@@ -164,9 +186,14 @@ func TestHandoffExchangeIsHashOnlyReplayableUntilConfirmation(t *testing.T) {
 		t.Fatalf("pending child authenticated before confirmation: %v", err)
 	}
 
-	if _, err := owners.Transition(context.Background(), ownerlifecycle.TransitionRequest{
-		Owner: owner, ExpectedGeneration: 1, To: ownerlifecycle.StateActive, Reason: "profileCreated",
-	}); err != nil {
+	if confirmFirst {
+		if err := handoffs.Confirm(context.Background(), first.Token, first.ReceiptID, "device-handoff"); err != nil {
+			t.Fatalf("confirm before activation: %v", err)
+		}
+	}
+	if _, err := owners.TransitionWith(context.Background(), ownerlifecycle.TransitionRequest{
+		Owner: owner, ExpectedGeneration: 1, To: ownerlifecycle.StateActive, Reason: "profileActivated",
+	}, sessions.ProfileActivationParticipant()); err != nil {
 		t.Fatal(err)
 	}
 	if err := handoffs.Confirm(context.Background(), first.Token, first.ReceiptID, "device-handoff"); err != nil {
@@ -178,6 +205,29 @@ func TestHandoffExchangeIsHashOnlyReplayableUntilConfirmation(t *testing.T) {
 	info, err := children.Lookup(context.Background(), first.Token)
 	if err != nil || info.DID != owner || info.SessionID != state {
 		t.Fatalf("confirmed child lookup = %+v, %v", info, err)
+	}
+	config := oauth.NewPublicConfig(
+		"https://appview.example/oauth/client-metadata.json",
+		"https://appview.example/oauth/callback", []string{"atproto"},
+	)
+	coordinator, err := auth.NewOAuthSessionCoordinator(auth.OAuthSessionCoordinatorOptions{
+		App:   &oauth.ClientApp{Client: http.DefaultClient, Config: &config},
+		Store: oauthStore, Owners: owners, AuthorityVerifier: matchingOAuthAuthorityVerifier{},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	operationCompleted := false
+	err = coordinator.WithActiveEffectSession(context.Background(),
+		[]ownerlifecycle.ExpectedOwner{{Owner: owner, Generation: 2}}, owner, info.SessionID,
+		func(ctx context.Context, session *oauth.ClientSession) error {
+			operationCompleted = true
+			session.Data.AccessToken = "refreshed-access"
+			session.PersistSessionCallback(ctx, session.Data)
+			return nil
+		})
+	if err != nil || !operationCompleted {
+		t.Fatalf("confirmed login cannot perform a fenced PDS operation: completed=%v error=%v", operationCompleted, err)
 	}
 	var codeHash, ciphertext, nonce []byte
 	if err := pool.QueryRow(context.Background(), `
@@ -203,6 +253,16 @@ func TestHandoffExchangeIsHashOnlyReplayableUntilConfirmation(t *testing.T) {
 	if !active {
 		t.Fatal("confirmation did not atomically activate parent and child")
 	}
+	// A replay must not silently bless an obsolete active parent, including
+	// one left behind by a release that did not rebind onboarding sessions.
+	if _, err := pool.Exec(context.Background(), `
+		UPDATE oauth_sessions SET owner_generation=1 WHERE account_did=$1 AND session_id=$2
+	`, owner, state); err != nil {
+		t.Fatal(err)
+	}
+	if err := handoffs.Confirm(context.Background(), first.Token, first.ReceiptID, "device-handoff"); !errors.Is(err, auth.ErrHandoffInvalid) {
+		t.Fatalf("obsolete confirmation replay = %v, want rejected handoff", err)
+	}
 }
 
 func newAuthOwnerStore(t *testing.T, pool *pgxpool.Pool) *ownerlifecycle.Store {
@@ -216,4 +276,70 @@ func newAuthOwnerStore(t *testing.T, pool *pgxpool.Pool) *ownerlifecycle.Store {
 		t.Fatal(err)
 	}
 	return store
+}
+
+func TestProfileActivationDoesNotReviveObsoleteOAuthSessions(t *testing.T) {
+	for _, test := range []struct {
+		name       string
+		generation int64
+		epoch      int64
+		state      string
+	}{
+		{"older generation", 4, 3, "active"},
+		{"older auth epoch", 5, 2, "active"},
+		{"revocation pending", 5, 3, "revocation_pending"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			ctx := context.Background()
+			pool := withAuthSchema(t)
+			owners := newAuthOwnerStore(t, pool)
+			storeConfig := testStoreConfig()
+			storeConfig.OwnerLifecycles = owners
+			oauthStore := auth.NewPostgresAuthStore(pool, storeConfig)
+			children := auth.NewCraftskySessionStore(pool, time.Minute)
+			sessions, err := auth.NewSessionLifecycleService(auth.SessionLifecycleOptions{
+				Pool: pool, Owners: owners, Sessions: children,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			owner := syntax.DID("did:plc:obsolete-activation-session")
+			if _, err := pool.Exec(ctx, `
+				INSERT INTO owner_lifecycles(owner_did,state,generation,auth_epoch,transition_reason,
+				    transitioned_at,created_at,updated_at)
+				VALUES($1,'departed',5,3,'onboarding',now(),now(),now())
+			`, owner); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := pool.Exec(ctx, `
+				INSERT INTO oauth_sessions(account_did,session_id,data,lifecycle_state,owner_generation,
+				    auth_epoch,absolute_expires_at,revocation_requested_at)
+				VALUES($1,'obsolete-parent',$2,$3,$4,$5,now()+interval '1 day',
+				    CASE WHEN $3='revocation_pending' THEN now() END)
+			`, owner, validOAuthSession(owner, "obsolete-parent"), test.state, test.generation, test.epoch); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := owners.TransitionWith(ctx, ownerlifecycle.TransitionRequest{
+				Owner: owner, ExpectedGeneration: 5, To: ownerlifecycle.StateActive, Reason: "profileActivated",
+			}, sessions.ProfileActivationParticipant()); err != nil {
+				t.Fatal(err)
+			}
+			config := oauth.NewPublicConfig("https://appview.example/oauth/client-metadata.json",
+				"https://appview.example/oauth/callback", []string{"atproto"})
+			coordinator, err := auth.NewOAuthSessionCoordinator(auth.OAuthSessionCoordinatorOptions{
+				App:   &oauth.ClientApp{Client: http.DefaultClient, Config: &config},
+				Store: oauthStore, Owners: owners, AuthorityVerifier: matchingOAuthAuthorityVerifier{},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			called := false
+			err = coordinator.WithActiveEffectSession(ctx,
+				[]ownerlifecycle.ExpectedOwner{{Owner: owner, Generation: 6}}, owner, "obsolete-parent",
+				func(context.Context, *oauth.ClientSession) error { called = true; return nil })
+			if called || (!errors.Is(err, auth.ErrOAuthSessionNotFound) && !errors.Is(err, auth.ErrPDSSessionExpired)) {
+				t.Fatalf("obsolete credential permitted a PDS operation: called=%v error=%v", called, err)
+			}
+		})
+	}
 }

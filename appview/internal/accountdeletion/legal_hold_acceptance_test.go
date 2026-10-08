@@ -25,7 +25,7 @@ func TestAccountDeletionPreservesOnlyActiveInScopeHeldEvidence(t *testing.T) {
 			owner_did TEXT,
 			PRIMARY KEY(incident_id)
 		);`)
-	applyMigrationFile(t, pool, "../../migrations/000078_safety_evidence_holds.up.sql")
+	applyMigrationFile(t, pool, "../../migrations/000083_safety_evidence_holds.up.sql")
 	ctx := context.Background()
 	now := time.Date(2030, 9, 22, 20, 0, 0, 0, time.UTC)
 	owner := syntax.DID("did:plc:deleting-owner")
@@ -111,7 +111,7 @@ func TestAccountDeletionSerializesEvidenceDeletionAgainstHoldCreation(t *testing
 			owner_did TEXT
 		);
 	`)
-	applyMigrationFile(t, pool, "../../migrations/000078_safety_evidence_holds.up.sql")
+	applyMigrationFile(t, pool, "../../migrations/000083_safety_evidence_holds.up.sql")
 	ctx := context.Background()
 	now := time.Date(2030, 7, 8, 9, 0, 0, 0, time.UTC)
 	owner := syntax.DID("did:plc:serializedelete")

@@ -13,7 +13,7 @@ import (
 )
 
 func TestPostgresModeratorAuthenticatorUsesActiveDigestPermissionsAndAssignments(t *testing.T) {
-	migration, err := os.ReadFile("../../migrations/000082_safety_operators.up.sql")
+	migration, err := os.ReadFile("../../migrations/000087_safety_operators.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}

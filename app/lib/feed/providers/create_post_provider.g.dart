@@ -12,14 +12,6 @@ part of 'create_post_provider.dart';
 /// then transitions `AsyncLoading` -> `AsyncData(post)` on success, or
 /// `AsyncError` on failure.
 ///
-/// On success, prepends the synthetic post into any live
-/// `userPostsProvider` family entries keyed by either the author's
-/// handle or DID — sidestepping the AppView's read-after-write window
-/// (where a refetch could miss the just-created row until the firehose
-/// indexer catches up). `ref.exists` guards against accidentally
-/// instantiating a non-live family entry, which would race a fresh
-/// `build` against our prepend.
-///
 /// Callers should bind via `ref.listen(createPostProvider, ...)` and
 /// call [reset] after consuming a transition so a re-entry to the
 /// compose page doesn't see the previous result.
@@ -31,14 +23,6 @@ final createPostProvider = CreatePostProvider._();
 /// then transitions `AsyncLoading` -> `AsyncData(post)` on success, or
 /// `AsyncError` on failure.
 ///
-/// On success, prepends the synthetic post into any live
-/// `userPostsProvider` family entries keyed by either the author's
-/// handle or DID — sidestepping the AppView's read-after-write window
-/// (where a refetch could miss the just-created row until the firehose
-/// indexer catches up). `ref.exists` guards against accidentally
-/// instantiating a non-live family entry, which would race a fresh
-/// `build` against our prepend.
-///
 /// Callers should bind via `ref.listen(createPostProvider, ...)` and
 /// call [reset] after consuming a transition so a re-entry to the
 /// compose page doesn't see the previous result.
@@ -47,14 +31,6 @@ final class CreatePostProvider
   /// Standalone create-a-post mutation notifier. Idle until [create] runs,
   /// then transitions `AsyncLoading` -> `AsyncData(post)` on success, or
   /// `AsyncError` on failure.
-  ///
-  /// On success, prepends the synthetic post into any live
-  /// `userPostsProvider` family entries keyed by either the author's
-  /// handle or DID — sidestepping the AppView's read-after-write window
-  /// (where a refetch could miss the just-created row until the firehose
-  /// indexer catches up). `ref.exists` guards against accidentally
-  /// instantiating a non-live family entry, which would race a fresh
-  /// `build` against our prepend.
   ///
   /// Callers should bind via `ref.listen(createPostProvider, ...)` and
   /// call [reset] after consuming a transition so a re-entry to the
@@ -78,19 +54,11 @@ final class CreatePostProvider
   CreatePost create() => CreatePost();
 }
 
-String _$createPostHash() => r'2335208c83b4080d4616d4ff180c5168a803f42b';
+String _$createPostHash() => r'6891144aa078e6e4f37c5d30eab173a235e0c415';
 
 /// Standalone create-a-post mutation notifier. Idle until [create] runs,
 /// then transitions `AsyncLoading` -> `AsyncData(post)` on success, or
 /// `AsyncError` on failure.
-///
-/// On success, prepends the synthetic post into any live
-/// `userPostsProvider` family entries keyed by either the author's
-/// handle or DID — sidestepping the AppView's read-after-write window
-/// (where a refetch could miss the just-created row until the firehose
-/// indexer catches up). `ref.exists` guards against accidentally
-/// instantiating a non-live family entry, which would race a fresh
-/// `build` against our prepend.
 ///
 /// Callers should bind via `ref.listen(createPostProvider, ...)` and
 /// call [reset] after consuming a transition so a re-entry to the

@@ -32,10 +32,13 @@ import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/saved_posts/widgets/saved_post_bookmark_button.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/shared/mutations/pds_record_operation_controller.dart';
+import 'package:craftsky_app/shared/observability/error_reporter_provider.dart';
 import 'package:craftsky_app/shared/rich_text/faceted_text_model.dart';
 import 'package:craftsky_app/shared/rich_text/widgets/faceted_text.dart';
 import 'package:craftsky_app/shared/time/relative_time_text.dart';
 import 'package:craftsky_app/shared/widgets/post_summary.dart';
+import 'package:craftsky_app/subscriptions/providers/subscription_access_provider.dart';
+import 'package:craftsky_app/subscriptions/widgets/plus_feature_lock.dart';
 import 'package:craftsky_app/theme/brand_colors.dart';
 import 'package:craftsky_app/theme/craftsky_card.dart';
 import 'package:craftsky_app/theme/craftsky_context_menu.dart';
@@ -50,6 +53,8 @@ const _postCardMenuWidth = 48.0;
 const _postCardActionIconSize = 22.0;
 
 enum PostCardStyle { card, flat }
+
+enum PostCardContentKind { post, comment, reply }
 
 enum PostCardImageInteractionMode { navigate, fullscreenGallery }
 
@@ -119,6 +124,7 @@ class PostCard extends ConsumerWidget {
     this.showReplyLabel = false,
     this.isHighlighted = false,
     this.style = PostCardStyle.card,
+    this.contentKind = PostCardContentKind.post,
     this.projectVariant = ProjectCardVariant.summary,
     this.repostReason,
     this.hideWhenAuthorProtected = false,
@@ -152,6 +158,7 @@ class PostCard extends ConsumerWidget {
   final bool showReplyLabel;
   final bool isHighlighted;
   final PostCardStyle style;
+  final PostCardContentKind contentKind;
   final ProjectCardVariant projectVariant;
   final RepostReason? repostReason;
   final bool hideWhenAuthorProtected;
@@ -165,7 +172,12 @@ class PostCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final post = _postWithInteractionState(ref, this.post);
     if (post.isProtected) {
-      return _ProtectedPostCard(post: post, onReveal: onRevealPost);
+      return _ProtectedPostCard(
+        post: post,
+        onReveal: onRevealPost,
+        style: style,
+        contentKind: contentKind,
+      );
     }
     final auth = ref.watch(authSessionProvider).value;
     final isViewerOwned = auth is SignedIn && auth.did == post.author.did;
@@ -324,6 +336,13 @@ class PostCard extends ConsumerWidget {
     final pinPresentation = pinProvider == null
         ? null
         : ref.watch(pinProvider).value;
+    final pinAccess = activeLease == null
+        ? null
+        : ref.watch(subscriptionAccessProvider(activeLease.session));
+    final pinEligible = switch (pinAccess) {
+      AsyncData(:final value) => value.allowsPlus,
+      _ => false,
+    };
     final isCurrentPin =
         pinSlot != null &&
         pinPresentation != null &&
@@ -466,7 +485,10 @@ class PostCard extends ConsumerWidget {
                       const ImportedPostLabel(),
                     ],
                     if (post.sponsored) ...[
-                      const SponsoredLabel(),
+                      const Align(
+                        alignment: AlignmentDirectional.centerStart,
+                        child: SponsoredLabel(),
+                      ),
                     ],
                     SizedBox(height: spacing.sp3),
                     if (post.project == null) ...[
@@ -479,6 +501,7 @@ class PostCard extends ConsumerWidget {
                       videoPlayerBuilder?.call(video) ??
                           NativeVideoPlayer(
                             video: video,
+                            reporter: ref.read(errorReporterProvider),
                             loadCaption: ref
                                 .read(postApiClientProvider)
                                 .downloadVideoCaption,
@@ -595,12 +618,28 @@ class PostCard extends ConsumerWidget {
                               ? l10n.postUnpinAction
                               : l10n.postPinAction,
                           isPinned: isCurrentPin,
+                          pinLocked: !pinEligible,
                           onPinToggle:
                               pinProvider == null ||
                                   pinSlot == null ||
                                   pinPresentation == null ||
                                   isPinPending
                               ? null
+                              : !pinEligible
+                              ? () => unawaited(
+                                  showPlusFeaturePrompt(
+                                    context,
+                                    l10n.postPinAction,
+                                    free: pinAccess is AsyncData,
+                                    onRetry: activeLease == null
+                                        ? null
+                                        : () => ref.invalidate(
+                                            subscriptionAccessProvider(
+                                              activeLease.session,
+                                            ),
+                                          ),
+                                  ),
+                                )
                               : () => unawaited(
                                   _mutateProfilePin(
                                     context,
@@ -999,6 +1038,7 @@ class _PostCardMenu extends StatelessWidget {
     required this.onViewLikes,
     required this.pinLabel,
     required this.isPinned,
+    required this.pinLocked,
     required this.onPinToggle,
     required this.onDelete,
     required this.onReport,
@@ -1015,6 +1055,7 @@ class _PostCardMenu extends StatelessWidget {
   final VoidCallback? onViewLikes;
   final String? pinLabel;
   final bool isPinned;
+  final bool pinLocked;
   final VoidCallback? onPinToggle;
   final VoidCallback? onDelete;
   final VoidCallback? onReport;
@@ -1051,6 +1092,7 @@ class _PostCardMenu extends StatelessWidget {
                 CraftskyContextMenuItem(
                   text: pinLabel!,
                   icon: isPinned ? CraftskyIcons.pinned : CraftskyIconsBold.pin,
+                  locked: pinLocked,
                   onPressed: onPinToggle,
                   isSelected: isPinned,
                 ),
@@ -1130,36 +1172,79 @@ class _QuotePreviewCard extends StatelessWidget {
 }
 
 class _ProtectedPostCard extends StatelessWidget {
-  const _ProtectedPostCard({required this.post, required this.onReveal});
+  const _ProtectedPostCard({
+    required this.post,
+    required this.onReveal,
+    required this.style,
+    required this.contentKind,
+  });
 
   final Post post;
   final VoidCallback? onReveal;
+  final PostCardStyle style;
+  final PostCardContentKind contentKind;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final muted = post.availability == 'muted';
+    final label = muted
+        ? switch (contentKind) {
+            PostCardContentKind.post => l10n.postMutedPlaceholder,
+            PostCardContentKind.comment => l10n.commentMutedPlaceholder,
+            PostCardContentKind.reply => l10n.replyMutedPlaceholder,
+          }
+        : l10n.postUnavailablePlaceholder;
+    final canReveal =
+        muted && post.relationship?.revealable == true && onReveal != null;
+    final revealLabel = switch (contentKind) {
+      PostCardContentKind.post => l10n.postRevealAction,
+      PostCardContentKind.comment => l10n.commentRevealAction,
+      PostCardContentKind.reply => l10n.replyRevealAction,
+    };
+    if (style == PostCardStyle.flat) {
+      final theme = Theme.of(context);
+      final spacing = theme.extension<SpacingTheme>()!;
+      return Semantics(
+        label: label,
+        child: Padding(
+          padding: EdgeInsets.symmetric(
+            horizontal: spacing.sp3,
+            vertical: spacing.sp2,
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  label,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
+              if (canReveal)
+                TextButton(
+                  onPressed: onReveal,
+                  child: Text(revealLabel),
+                ),
+            ],
+          ),
+        ),
+      );
+    }
     return Semantics(
-      label: muted
-          ? l10n.postMutedPlaceholder
-          : l10n.postUnavailablePlaceholder,
+      label: label,
       child: CraftskyCard(
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                muted
-                    ? l10n.postMutedPlaceholder
-                    : l10n.postUnavailablePlaceholder,
-              ),
-              if (muted &&
-                  post.relationship?.revealable == true &&
-                  onReveal != null)
+              Text(label),
+              if (canReveal)
                 TextButton(
                   onPressed: onReveal,
-                  child: Text(l10n.postRevealAction),
+                  child: Text(revealLabel),
                 ),
             ],
           ),

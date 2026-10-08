@@ -7,12 +7,14 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"strings"
 	"testing"
 	"time"
 
 	"social.craftsky/appview/internal/api"
 	"social.craftsky/appview/internal/business"
+	"social.craftsky/appview/internal/subscriptions"
 	"social.craftsky/appview/internal/testdb"
 )
 
@@ -24,7 +26,6 @@ func TestBusinessRoutesDispatchOnlyExactMethodsAndPathsUnderAuth(t *testing.T) {
 		method string
 		path   string
 	}{
-		{http.MethodPut, "/v1/profiles/me/account-type"},
 		{http.MethodPut, "/v1/profiles/me/business"},
 		{http.MethodDelete, "/v1/profiles/me/business"},
 		{http.MethodGet, "/v1/profiles/alice.example/events"},
@@ -49,6 +50,7 @@ func TestBusinessRoutesDispatchOnlyExactMethodsAndPathsUnderAuth(t *testing.T) {
 		method string
 		path   string
 	}{
+		{http.MethodPut, "/v1/profiles/me/account-type"},
 		{http.MethodPatch, "/v1/profiles/me/account-type"},
 		{http.MethodPut, "/v1/profiles/me/account-types"},
 		{http.MethodPatch, "/v1/profiles/me/business"},
@@ -69,6 +71,10 @@ func TestBusinessRoutesDispatchOnlyExactMethodsAndPathsUnderAuth(t *testing.T) {
 }
 
 func TestBusinessRoutesEnforceMemberAndCursorContracts(t *testing.T) {
+	migration, err := os.ReadFile("../../migrations/000076_subscription_accounts.up.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
 	pool := testdb.WithSchema(t, `
 		CREATE TABLE craftsky_profiles (did TEXT PRIMARY KEY, record_cid TEXT NOT NULL);
 		INSERT INTO craftsky_profiles(did, record_cid) VALUES ('did:plc:test', 'profile-cid');
@@ -76,9 +82,11 @@ func TestBusinessRoutesEnforceMemberAndCursorContracts(t *testing.T) {
 			owner_did TEXT PRIMARY KEY REFERENCES craftsky_profiles(did) ON DELETE CASCADE,
 			account_type TEXT NOT NULL CHECK (account_type IN ('regular', 'business'))
 		);
-	`)
+	`+string(migration))
+	seedPaidRouteAccess(t, pool, subscriptions.TierBusiness, "did:plc:test")
 	deps := testDeps()
 	deps.DB = pool
+	deps.Subscriptions = subscriptions.NewStore(pool)
 	deps.BusinessStore = business.NewStore(pool)
 	mux := http.NewServeMux()
 	AddRoutes(context.Background(), mux, deps)
@@ -114,6 +122,10 @@ func TestBusinessRoutesEnforceMemberAndCursorContracts(t *testing.T) {
 }
 
 func TestBusinessRouteRejectsTamperedValidCursor(t *testing.T) {
+	migration, err := os.ReadFile("../../migrations/000076_subscription_accounts.up.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
 	pool := testdb.WithSchema(t, `
 		CREATE TABLE craftsky_profiles (did TEXT PRIMARY KEY, record_cid TEXT NOT NULL);
 		INSERT INTO craftsky_profiles(did, record_cid) VALUES ('did:plc:test', 'profile-cid');
@@ -146,7 +158,8 @@ func TestBusinessRouteRejectsTamperedValidCursor(t *testing.T) {
 			expires_at TIMESTAMPTZ,
 			indexed_at TIMESTAMPTZ NOT NULL DEFAULT now()
 		);
-	`)
+	`+string(migration))
+	seedPaidRouteAccess(t, pool, subscriptions.TierBusiness, "did:plc:test")
 	ctx := context.Background()
 	asOf := time.Date(2026, time.August, 29, 12, 0, 0, 0, time.UTC)
 	for index := 0; index < 21; index++ {
@@ -170,6 +183,7 @@ func TestBusinessRouteRejectsTamperedValidCursor(t *testing.T) {
 	}
 	deps := testDeps()
 	deps.DB = pool
+	deps.Subscriptions = subscriptions.NewStore(pool)
 	deps.BusinessStore = business.NewStore(pool)
 	deps.EventCursorCodec = codec
 	deps.Now = func() time.Time { return asOf }

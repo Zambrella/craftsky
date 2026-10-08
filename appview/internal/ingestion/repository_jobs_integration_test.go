@@ -1,8 +1,11 @@
 package ingestion_test
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"log/slog"
+	"strings"
 	"testing"
 	"time"
 
@@ -269,3 +272,97 @@ func assertRepositoryJobCount(t *testing.T, pool interface {
 		t.Fatalf("repository jobs=%d want=%d err=%v", count, want, err)
 	}
 }
+
+func TestRepositoryWorkerLeaseDiagnosticsPreserveFencingAndMixedCause(t *testing.T) {
+	for _, mode := range []string{"superseded", "expired", "mixed", "source_changed", "repeated"} {
+		t.Run(mode, func(t *testing.T) {
+			pool := testdb.WithSchema(t, ingestionProjectionFixtureDDL)
+			applyTapDurabilityMigration(t, pool)
+			now := time.Date(2026, 10, 7, 0, 0, 0, 0, time.UTC)
+			store, err := ingestion.NewStore(pool, func() time.Time { return now })
+			if err != nil {
+				t.Fatal(err)
+			}
+			did := syntax.DID("did:plc:public-repository")
+			ctx := context.Background()
+			if err := store.EnqueueRepositoryJob(ctx, did, ingestion.RepositoryJobPDSReconcile); err != nil {
+				t.Fatal(err)
+			}
+			var logs bytes.Buffer
+			logger := slog.New(observability.NewDiagnosticHandler(slog.NewJSONHandler(&logs, nil)))
+			cause := &repositoryDiagnosticCause{}
+			worker, err := ingestion.NewRepositoryWorker(ingestion.RepositoryWorkerConfig{Store: store, Logger: logger,
+				AlertAttempts: func() int {
+					if mode == "repeated" {
+						return 1
+					}
+					return 5
+				}(), WorkerID: "test", PollInterval: time.Second, LeaseDuration: time.Minute, BatchSize: 1, BackoffMin: time.Second, BackoffMax: time.Minute,
+				Handler: func(ctx context.Context, claim ingestion.RepositoryClaim) (string, error) {
+					if mode == "expired" {
+						now = now.Add(2 * time.Minute)
+					} else if err := store.EnqueueRepositoryJob(ctx, did, claim.Kind); err != nil {
+						t.Fatal(err)
+					}
+					if mode == "source_changed" {
+						return "", ingestion.ErrReconciliationSourceChanged
+					}
+					if mode == "mixed" {
+						return "", cause
+					}
+					return "rev", nil
+				},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			count, err := worker.RunOnce(ctx)
+			if count != 1 || !errors.Is(err, ingestion.ErrProjectionLeaseLost) {
+				t.Fatalf("fencing changed: %d %v", count, err)
+			}
+			if mode == "mixed" && !errors.Is(err, cause) {
+				t.Fatal("original cause lost")
+			}
+			for _, want := range []string{did.String(), "pds_reconcile", `"attempt":1`} {
+				if !strings.Contains(logs.String(), want) {
+					t.Errorf("missing %s: %s", want, logs.String())
+				}
+			}
+			wantLevel, wantReason := "WARN", "lease_expired"
+			if mode == "superseded" {
+				wantLevel, wantReason = "WARN", "lease_superseded"
+			}
+			if mode == "repeated" {
+				wantLevel = "ERROR"
+				wantReason = "lease_superseded"
+			}
+			if mode == "source_changed" {
+				wantReason = "source_changed"
+				if !errors.Is(err, ingestion.ErrReconciliationSourceChanged) || !strings.Contains(logs.String(), "tap source changed during repository reconciliation") {
+					t.Errorf("source cause/explanation lost: %v %s", err, logs.String())
+				}
+			}
+			if mode == "mixed" {
+				wantReason = "remote_unavailable"
+			}
+			if !strings.Contains(logs.String(), `"level":"`+wantLevel+`"`) || !strings.Contains(logs.String(), wantReason) {
+				t.Errorf("wrong diagnostic: %s", logs.String())
+			}
+			if mode == "mixed" && !strings.Contains(logs.String(), "repositoryDiagnosticCause") {
+				t.Error("typed handler cause absent")
+			}
+			if strings.Contains(logs.String(), "private-canary") {
+				t.Error("cause prose leaked")
+			}
+			job, err := store.RepositoryJob(ctx, did, ingestion.RepositoryJobPDSReconcile)
+			if err != nil || job.State == "complete" {
+				t.Fatalf("stale job completed: %+v %v", job, err)
+			}
+		})
+	}
+}
+
+type repositoryDiagnosticCause struct{}
+
+func (*repositoryDiagnosticCause) Error() string      { return "private-canary" }
+func (*repositoryDiagnosticCause) ReasonCode() string { return "remote_unavailable" }

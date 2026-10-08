@@ -447,6 +447,28 @@ just psql -c 'SELECT encode(token_hash, '\''hex'\''), account_did, oauth_session
 just psql -c "SELECT state, handoff_mode, request_uri, request_state, age(now(), created_at) AS age FROM oauth_auth_requests;"
 ```
 
+### Missing-profile recovery during sign-in
+
+After verifying the current PDS authority and persisting the freshly exchanged
+OAuth credential, login and registration callbacks reconcile a missing
+`social.craftsky.actor.profile/self` record with an `active` local owner. Only
+an explicit PDS `RecordNotFound` triggers this recovery; other read failures
+fail the callback without changing membership.
+
+Under the existing exclusive owner fence, recovery transitions the owner to
+`departed`, advances generation and auth epoch, runs normal departure cleanup,
+and atomically rebinds only this callback's pending, childless OAuth parent and
+authorization request. Older sessions are invalidated. The same sign-in attempt
+then uses the journaled create-only onboarding write for the new generation.
+A concurrently created valid profile is read rather than overwritten, and an
+uncertain write is never blindly repeated. Deletion and terminal owners are
+excluded from recovery.
+
+Callback failure logs include bounded `failure_stage` and `failure_reason`
+values, such as `craftsky_profile_write` / `owner_not_onboarding` or
+`profile_reconciliation` / `callback_authority_invalid`. Provider response
+bodies and credentials are not included in these diagnostics.
+
 ### Dev-only auth shortcut
 
 For non-OAuth smoke tests, the dev appview also accepts an

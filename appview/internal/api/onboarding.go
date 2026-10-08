@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"social.craftsky/appview/internal/observability"
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -90,6 +91,7 @@ func onboardingStatusHandler(store OnboardingStatusService, logger *slog.Logger,
 				slog.String("operation", operation),
 				slog.String("error_category", "store"),
 				slog.String("run_id", runID))
+			observability.ReportRequestFailure(r.Context(), err, "api.onboardingStatusHandler", "handler")
 			envelope.WriteError(w, http.StatusInternalServerError, "internal_error",
 				"onboarding status unavailable", runID, nil)
 			return

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/auth/models/auth_state.dart';
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
+import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/saved_posts/models/saved_post.dart';
@@ -17,6 +18,9 @@ import 'package:craftsky_app/saved_posts/widgets/saved_post_row_actions.dart';
 import 'package:craftsky_app/saved_posts/widgets/saved_post_sort_button.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
+import 'package:craftsky_app/subscriptions/providers/subscription_access_provider.dart';
+import 'package:craftsky_app/subscriptions/widgets/plus_action_icon.dart';
+import 'package:craftsky_app/subscriptions/widgets/plus_feature_lock.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
@@ -49,7 +53,7 @@ class _SavedPostsPageState extends ConsumerState<SavedPostsPage> {
       return Scaffold(
         appBar: AppBar(
           leading: BackButton(
-            onPressed: () => const ProfileRoute().go(context),
+            onPressed: () => const FeedRoute().go(context),
           ),
           title: Text(l10n.savedPostsTitle),
         ),
@@ -58,10 +62,32 @@ class _SavedPostsPageState extends ConsumerState<SavedPostsPage> {
         ),
       );
     }
-    final folders = ref.watch(savedPostFoldersProvider(account));
+    final activeLease = ref
+        .watch(sessionRegistryProvider)
+        .value
+        ?.activeLease
+        ?.session;
+    final access = activeLease?.account == account
+        ? ref.watch(subscriptionAccessProvider(activeLease!))
+        : null;
+    if (access == null || access.isLoading) {
+      return Scaffold(
+        appBar: AppBar(title: Text(l10n.savedPostsTitle)),
+        body: const CraftskySkeletonList(itemBuilder: _buildSavedPostSkeleton),
+      );
+    }
+    final hasPlus = switch (access) {
+      AsyncData(:final value) => value.allowsPlus,
+      _ => false,
+    };
+    final folders = hasPlus
+        ? ref.watch(savedPostFoldersProvider(account))
+        : null;
     final key = SavedPostListKey(
       account: account,
-      scope: const SavedPostScope.unfiled(),
+      scope: hasPlus
+          ? const SavedPostScope.unfiled()
+          : const SavedPostScope.all(),
       sort: _sort,
     );
     final posts = ref.watch(savedPostsProvider(key));
@@ -69,57 +95,181 @@ class _SavedPostsPageState extends ConsumerState<SavedPostsPage> {
     return Scaffold(
       appBar: AppBar(
         leading: BackButton(
-          onPressed: () => const ProfileRoute().go(context),
+          onPressed: () => const FeedRoute().go(context),
         ),
         title: Text(l10n.savedPostsTitle),
         actions: [
-          IconButton(
-            tooltip: l10n.savedPostNewFolder,
-            icon: const Icon(CraftskyIconsBold.newFolder),
-            onPressed: () => unawaited(
+          PlusFeatureLock(
+            feature: l10n.savedPostsFoldersHeading,
+            access: access,
+            showPlusBadge: false,
+            onUnlocked: () => unawaited(
               showCreateSavedPostFolderDialog(context, account: account),
+            ),
+            onRetry: () =>
+                ref.invalidate(subscriptionAccessProvider(activeLease!)),
+            child: IconButton(
+              tooltip: l10n.savedPostNewFolder,
+              icon: hasPlus
+                  ? const Icon(CraftskyIconsBold.newFolder)
+                  : const PlusActionIcon(icon: CraftskyIconsBold.newFolder),
+              onPressed: () => unawaited(
+                showCreateSavedPostFolderDialog(context, account: account),
+              ),
             ),
           ),
         ],
       ),
-      body: switch ((folders, posts)) {
-        (AsyncError(:final error), _) => _InitialError(
-          failure: SavedPostFailure.from(
-            error,
-            operation: SavedPostOperation.loadFolders,
-          ),
-          onRetry: () {
-            ref
-              ..invalidate(savedPostFoldersProvider(account))
-              ..invalidate(savedPostsProvider(key));
-          },
-        ),
-        (_, AsyncError(:final error)) => _InitialError(
-          failure: SavedPostFailure.from(
-            error,
-            operation: SavedPostOperation.loadPosts,
-          ),
-          onRetry: () {
-            ref
-              ..invalidate(savedPostFoldersProvider(account))
-              ..invalidate(savedPostsProvider(key));
-          },
-        ),
-        _ => _OverviewBody(
-          account: account,
-          folderState: folders.value,
-          postState: posts.value,
-          sort: _sort,
-          scrollController: _scrollController,
-          onSortChanged: (sort) => setState(() => _sort = sort),
-          onRefresh: () async {
-            await Future.wait([
-              ref.read(savedPostFoldersProvider(account).notifier).refresh(),
-              ref.read(savedPostsProvider(key).notifier).refresh(),
-            ]);
-          },
-        ),
-      },
+      body: !hasPlus
+          ? switch (posts) {
+              AsyncError(:final error) => _InitialError(
+                failure: SavedPostFailure.from(
+                  error,
+                  operation: SavedPostOperation.loadPosts,
+                ),
+                onRetry: () => ref.invalidate(savedPostsProvider(key)),
+              ),
+              _ => _FlatSavedBody(
+                account: account,
+                keyValue: key,
+                state: posts.value,
+                sort: _sort,
+                onSortChanged: (sort) => setState(() => _sort = sort),
+              ),
+            }
+          : switch ((folders, posts)) {
+              (AsyncError(:final error), _) => _InitialError(
+                failure: SavedPostFailure.from(
+                  error,
+                  operation: SavedPostOperation.loadFolders,
+                ),
+                onRetry: () {
+                  ref
+                    ..invalidate(savedPostFoldersProvider(account))
+                    ..invalidate(savedPostsProvider(key));
+                },
+              ),
+              (_, AsyncError(:final error)) => _InitialError(
+                failure: SavedPostFailure.from(
+                  error,
+                  operation: SavedPostOperation.loadPosts,
+                ),
+                onRetry: () {
+                  ref
+                    ..invalidate(savedPostFoldersProvider(account))
+                    ..invalidate(savedPostsProvider(key));
+                },
+              ),
+              _ => _OverviewBody(
+                account: account,
+                folderState: folders?.value,
+                postState: posts.value,
+                sort: _sort,
+                scrollController: _scrollController,
+                onSortChanged: (sort) => setState(() => _sort = sort),
+                onRefresh: () async {
+                  await Future.wait([
+                    ref
+                        .read(savedPostFoldersProvider(account).notifier)
+                        .refresh(),
+                    ref.read(savedPostsProvider(key).notifier).refresh(),
+                  ]);
+                },
+              ),
+            },
+    );
+  }
+}
+
+class _FlatSavedBody extends ConsumerWidget {
+  const _FlatSavedBody({
+    required this.account,
+    required this.keyValue,
+    required this.state,
+    required this.sort,
+    required this.onSortChanged,
+  });
+
+  final AccountKey account;
+  final SavedPostListKey keyValue;
+  final SavedPostListState? state;
+  final SavedPostSort sort;
+  final ValueChanged<SavedPostSort> onSortChanged;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
+    final items = state?.items ?? const <SavedPostItem>[];
+    return RefreshIndicator(
+      onRefresh: () =>
+          ref.read(savedPostsProvider(keyValue).notifier).refresh(),
+      child: CustomScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        slivers: [
+          if (state == null)
+            const CraftskySkeletonSliverList(
+              itemBuilder: _buildSavedPostSkeleton,
+            )
+          else if (items.isEmpty)
+            SliverFillRemaining(
+              hasScrollBody: false,
+              child: CraftskyEmptyState(
+                icon: CraftskyIcons.savedSection,
+                title: l10n.savedPostsTitle,
+                subtitle: l10n.savedPostsEmpty,
+              ),
+            )
+          else ...[
+            SliverToBoxAdapter(
+              child: _SavedPostsSectionHeader(
+                title: l10n.savedPostsTitle,
+                trailing: SavedPostSortButton(
+                  value: sort,
+                  onChanged: onSortChanged,
+                ),
+              ),
+            ),
+            SliverList.builder(
+              itemCount: items.length,
+              itemBuilder: (context, index) {
+                final item = items[index];
+                return SavedPostRow(
+                  account: account,
+                  item: item,
+                  moveLocked: true,
+                  onOpen: () => openSavedPost(context, item),
+                  onMove: () => unawaited(
+                    showPlusFeaturePrompt(
+                      context,
+                      l10n.savedPostsFoldersHeading,
+                    ),
+                  ),
+                  onUnsave: () => unawaited(
+                    unsaveSavedPost(
+                      context,
+                      ref,
+                      account: account,
+                      item: item,
+                      sourceKey: keyValue,
+                    ),
+                  ),
+                );
+              },
+            ),
+            if (state!.cursor != null)
+              SliverToBoxAdapter(
+                child: TextButton(
+                  onPressed: state!.isLoadingMore
+                      ? null
+                      : ref
+                            .read(savedPostsProvider(keyValue).notifier)
+                            .loadMore,
+                  child: Text(l10n.savedPostsLoadMore),
+                ),
+              ),
+          ],
+        ],
+      ),
     );
   }
 }

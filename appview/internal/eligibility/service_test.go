@@ -12,7 +12,7 @@ import (
 )
 
 func TestReviewRejectsProhibitedAgeInferenceAndSupportsReversal(t *testing.T) {
-	migration, err := os.ReadFile("../../migrations/000081_age_eligibility.up.sql")
+	migration, err := os.ReadFile("../../migrations/000086_age_eligibility.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}

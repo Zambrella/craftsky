@@ -7,6 +7,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"social.craftsky/appview/internal/observability"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 
@@ -64,7 +65,7 @@ func ListCommentRepliesHandler(
 		}
 		if err != nil {
 			logger.Error("post replies: ReadOne failed",
-				apiLogErrorAttrs(runID, "post.replies.list", "store")...)
+				apiLogErrorAttrs(r.Context(), runID, "post.replies.list", "store", err)...)
 			envelope.WriteError(w, http.StatusInternalServerError,
 				"internal_error", "could not resolve post", runID, nil)
 			return
@@ -88,7 +89,7 @@ func ListCommentRepliesHandler(
 				return
 			}
 			logger.Error("post replies: ListCommentBranchReplies failed",
-				apiLogErrorAttrs(runID, "post.replies.list", "store")...)
+				apiLogErrorAttrs(r.Context(), runID, "post.replies.list", "store", err)...)
 			envelope.WriteError(w, http.StatusInternalServerError,
 				"internal_error", "reply list failed", runID, nil)
 			return
@@ -106,7 +107,7 @@ func ListCommentRepliesHandler(
 					parentRow, perr := store.ReadPostByURI(r.Context(), *row.ReplyParentURI)
 					if perr != nil && !errors.Is(perr, ErrPostNotFound) {
 						logger.Error("post replies: ReadPostByURI parent failed",
-							apiLogErrorAttrs(runID, "post.replies.list", "store")...)
+							apiLogErrorAttrs(r.Context(), runID, "post.replies.list", "store", perr)...)
 						envelope.WriteError(w, http.StatusInternalServerError,
 							"internal_error", "reply parent lookup failed", runID, nil)
 						return
@@ -118,12 +119,14 @@ func ListCommentRepliesHandler(
 			}
 			states, stateErr := relationshipStatesForRows(r.Context(), store, viewerDID, hydratedRows)
 			if stateErr != nil {
+				observability.ReportRequestFailure(r.Context(), stateErr, "api.ListCommentRepliesHandler", "handler")
 				envelope.WriteError(w, http.StatusInternalServerError,
 					"internal_error", "reply relationship lookup failed", runID, nil)
 				return
 			}
 			contentLanguages, preferenceErr := authoritativeContentLanguages(r.Context(), viewerDID, preferenceReaders)
 			if preferenceErr != nil {
+				observability.ReportRequestFailure(r.Context(), preferenceErr, "api.ListCommentRepliesHandler", "handler")
 				envelope.WriteError(w, http.StatusInternalServerError,
 					"internal_error", "language preference lookup failed", runID, nil)
 				return
@@ -131,7 +134,7 @@ func ListCommentRepliesHandler(
 			summaries, serr := store.EngagementSummaries(r.Context(), viewerDID.String(), contentLanguages, postURIs)
 			if serr != nil {
 				logger.Error("post replies: EngagementSummaries failed",
-					apiLogErrorAttrs(runID, "post.replies.list", "engagement")...)
+					apiLogErrorAttrs(r.Context(), runID, "post.replies.list", "engagement", serr)...)
 				envelope.WriteError(w, http.StatusInternalServerError,
 					"internal_error", "post engagement lookup failed", runID, nil)
 				return
@@ -139,7 +142,7 @@ func ListCommentRepliesHandler(
 			handles, herr := resolveHandlesForRows(r.Context(), hydratedRows, resolver)
 			if herr != nil {
 				logger.Warn("post replies: ResolveHandle failed",
-					apiLogErrorAttrs(runID, "post.replies.list", "identity")...)
+					apiLogErrorAttrs(r.Context(), runID, "post.replies.list", "identity", herr)...)
 				envelope.WriteError(w, http.StatusBadGateway,
 					"identity_unavailable", "could not resolve handle", runID, nil)
 				return
@@ -169,7 +172,7 @@ func ListCommentRepliesHandler(
 			}
 			if err := attachQuoteViews(r.Context(), store, resolver, responses); err != nil {
 				logger.Error("post replies: QuoteViewRows failed",
-					apiLogErrorAttrs(runID, "post.replies.list", "quote_view")...)
+					apiLogErrorAttrs(r.Context(), runID, "post.replies.list", "quote_view", err)...)
 				envelope.WriteError(w, http.StatusInternalServerError,
 					"internal_error", "post quote lookup failed", runID, nil)
 				return
@@ -214,7 +217,7 @@ func GetPostCommentsHandler(
 		}
 		if err != nil {
 			logger.Error("post comments: ReadOne failed",
-				apiLogErrorAttrs(runID, "post.comments.list", "store")...)
+				apiLogErrorAttrs(r.Context(), runID, "post.comments.list", "store", err)...)
 			envelope.WriteError(w, http.StatusInternalServerError,
 				"internal_error", "post read failed", runID, nil)
 			return
@@ -231,6 +234,7 @@ func GetPostCommentsHandler(
 			return
 		}
 		if err != nil {
+			observability.ReportRequestFailure(r.Context(), err, "api.GetPostCommentsHandler", "handler")
 			envelope.WriteError(w, http.StatusInternalServerError, "internal_error", "post relationship lookup failed", runID, nil)
 			return
 		}
@@ -265,7 +269,7 @@ func GetPostCommentsHandler(
 			focusedRow, ferr := store.ReadPostByURI(r.Context(), focusRaw)
 			if ferr != nil && !errors.Is(ferr, ErrPostNotFound) {
 				logger.Error("post comments: ReadPostByURI failed",
-					apiLogErrorAttrs(runID, "post.comments.list", "store")...)
+					apiLogErrorAttrs(r.Context(), runID, "post.comments.list", "store", ferr)...)
 				envelope.WriteError(w, http.StatusInternalServerError,
 					"internal_error", "focus read failed", runID, nil)
 				return
@@ -285,7 +289,7 @@ func GetPostCommentsHandler(
 						commentRow, cerr := resolveCommentAncestor(r.Context(), store, root.URI, *focusedRow.ReplyParentURI)
 						if cerr != nil {
 							logger.Error("post comments: resolve focus ancestor failed",
-								apiLogErrorAttrs(runID, "post.comments.list", "store")...)
+								apiLogErrorAttrs(r.Context(), runID, "post.comments.list", "store", cerr)...)
 							envelope.WriteError(w, http.StatusInternalServerError,
 								"internal_error", "focus ancestor read failed", runID, nil)
 							return
@@ -312,7 +316,7 @@ func GetPostCommentsHandler(
 				return
 			}
 			logger.Error("post comments: ListRootComments failed",
-				apiLogErrorAttrs(runID, "post.comments.list", "store")...)
+				apiLogErrorAttrs(r.Context(), runID, "post.comments.list", "store", err)...)
 			envelope.WriteError(w, http.StatusInternalServerError,
 				"internal_error", "comment list failed", runID, nil)
 			return
@@ -325,7 +329,7 @@ func GetPostCommentsHandler(
 			focusedBranchRows, focusedBranchCursor, err = store.ListCommentBranchReplies(r.Context(), focusedCommentRow.URI, root.URI, parseCommentLimit(""), "")
 			if err != nil {
 				logger.Error("post comments: ListCommentBranchReplies failed",
-					apiLogErrorAttrs(runID, "post.comments.list", "store")...)
+					apiLogErrorAttrs(r.Context(), runID, "post.comments.list", "store", err)...)
 				envelope.WriteError(w, http.StatusInternalServerError,
 					"internal_error", "reply list failed", runID, nil)
 				return
@@ -334,7 +338,7 @@ func GetPostCommentsHandler(
 				focusedBranchRows, focusedBranchCursor, err = store.ListCommentBranchRepliesAround(r.Context(), focusedCommentRow.URI, root.URI, focusedReplyRow.URI, parseCommentLimit(""))
 				if err != nil {
 					logger.Error("post comments: ListCommentBranchRepliesAround failed",
-						apiLogErrorAttrs(runID, "post.comments.list", "store")...)
+						apiLogErrorAttrs(r.Context(), runID, "post.comments.list", "store", err)...)
 					envelope.WriteError(w, http.StatusInternalServerError,
 						"internal_error", "reply list failed", runID, nil)
 					return
@@ -347,7 +351,7 @@ func GetPostCommentsHandler(
 				parentRow, perr := store.ReadPostByURI(r.Context(), *row.ReplyParentURI)
 				if perr != nil && !errors.Is(perr, ErrPostNotFound) {
 					logger.Error("post comments: ReadPostByURI branch parent failed",
-						apiLogErrorAttrs(runID, "post.comments.list", "store")...)
+						apiLogErrorAttrs(r.Context(), runID, "post.comments.list", "store", perr)...)
 					envelope.WriteError(w, http.StatusInternalServerError,
 						"internal_error", "reply parent lookup failed", runID, nil)
 					return
@@ -366,6 +370,7 @@ func GetPostCommentsHandler(
 		hydratedRows = append(hydratedRows, focusedBranchParentRows...)
 		states, err := relationshipStatesForRows(r.Context(), store, viewerDID, hydratedRows)
 		if err != nil {
+			observability.ReportRequestFailure(r.Context(), err, "api.GetPostCommentsHandler", "handler")
 			envelope.WriteError(w, http.StatusInternalServerError,
 				"internal_error", "thread relationship lookup failed", runID, nil)
 			return
@@ -376,6 +381,7 @@ func GetPostCommentsHandler(
 		}
 		contentLanguages, err := authoritativeContentLanguages(r.Context(), viewerDID, preferenceReaders)
 		if err != nil {
+			observability.ReportRequestFailure(r.Context(), err, "api.GetPostCommentsHandler", "handler")
 			envelope.WriteError(w, http.StatusInternalServerError,
 				"internal_error", "language preference lookup failed", runID, nil)
 			return
@@ -383,7 +389,7 @@ func GetPostCommentsHandler(
 		summaries, err := store.EngagementSummaries(r.Context(), viewerDID.String(), contentLanguages, postURIs)
 		if err != nil {
 			logger.Error("post comments: EngagementSummaries failed",
-				apiLogErrorAttrs(runID, "post.comments.list", "engagement")...)
+				apiLogErrorAttrs(r.Context(), runID, "post.comments.list", "engagement", err)...)
 			envelope.WriteError(w, http.StatusInternalServerError,
 				"internal_error", "post engagement lookup failed", runID, nil)
 			return
@@ -391,7 +397,7 @@ func GetPostCommentsHandler(
 		handles, err := resolveHandlesForRows(r.Context(), hydratedRows, resolver)
 		if err != nil {
 			logger.Warn("post comments: ResolveHandle failed",
-				apiLogErrorAttrs(runID, "post.comments.list", "identity")...)
+				apiLogErrorAttrs(r.Context(), runID, "post.comments.list", "identity", err)...)
 			envelope.WriteError(w, http.StatusBadGateway,
 				"identity_unavailable", "could not resolve handle", runID, nil)
 			return
@@ -441,7 +447,7 @@ func GetPostCommentsHandler(
 		body.Comments.Items = shapeCommentItems(body.Comments.Items, hydratedRows, states)
 		if err := attachQuoteViews(r.Context(), store, resolver, collectCommentSectionPostResponses(body)); err != nil {
 			logger.Error("post comments: QuoteViewRows failed",
-				apiLogErrorAttrs(runID, "post.comments.list", "quote_view")...)
+				apiLogErrorAttrs(r.Context(), runID, "post.comments.list", "quote_view", err)...)
 			envelope.WriteError(w, http.StatusInternalServerError,
 				"internal_error", "post quote lookup failed", runID, nil)
 			return

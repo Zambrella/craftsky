@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -13,6 +14,11 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/google/uuid"
+
+	"social.craftsky/appview/internal/ownerlifecycle"
 )
 
 func TestTrustedRegistrationFailureDestinationUsesOnlyStoredMetadata(t *testing.T) {
@@ -100,6 +106,115 @@ func trustedRegistrationMetadata(mode HandoffMode, loopbackURI string, expiresAt
 		DeviceID: "device", RequestState: AuthRequestReady, ExpiresAt: expiresAt,
 		RegistrationProviderOrigin: "https://provider.example",
 		RegistrationIssuer:         "https://issuer.example",
+	}
+}
+
+func TestRegistrationCallbackFailureLogsBoundedStage(t *testing.T) {
+	var logs strings.Builder
+	handlers := &HTTPHandlers{
+		OAuthFlow: &recordingDeletionOAuthFlow{
+			result: OAuthCallbackResult{Metadata: trustedRegistrationMetadata(
+				HandoffVerifiedLink, "", time.Now().Add(time.Minute),
+			)},
+		},
+		Logger: slog.New(slog.NewJSONHandler(&logs, nil)),
+	}
+	response := httptest.NewRecorder()
+	handlers.CallbackHandler().ServeHTTP(response, httptest.NewRequest(
+		http.MethodGet, "/oauth/callback?state=synthetic&code=synthetic", nil,
+	))
+	if response.Code != http.StatusBadRequest ||
+		!strings.Contains(logs.String(), `"failure_stage":"onboarding_client"`) ||
+		strings.Contains(logs.String(), "synthetic") {
+		t.Fatalf("callback response=%d, logs=%s", response.Code, logs.String())
+	}
+}
+
+type failingProfileReadPDS struct {
+	devSchemePDSClient
+	collection string
+}
+
+func (p failingProfileReadPDS) GetRecord(_ context.Context, _ syntax.DID, collection, _ string, _ any) (string, error) {
+	if collection == p.collection {
+		return "", errors.New("private upstream response")
+	}
+	return "", ErrRecordNotFound
+}
+
+func TestCallbackProfileReadFailureLogsOnlySafeStage(t *testing.T) {
+	for _, test := range []struct {
+		collection string
+		stage      string
+	}{
+		{"app.bsky.actor.profile", "bluesky_profile_read"},
+		{"social.craftsky.actor.profile", "craftsky_profile_read"},
+	} {
+		t.Run(test.collection, func(t *testing.T) {
+			var logs strings.Builder
+			owner := syntax.DID("did:plc:stage-test")
+			attempt := CallbackAttempt{
+				State: "synthetic-state", AttemptID: uuid.New(), Owner: owner,
+				OwnerGeneration: 1, AuthEpoch: 1, Purpose: RegistrationOAuthPurpose,
+			}
+			handlers := &HTTPHandlers{
+				OAuthFlow: &recordingDeletionOAuthFlow{result: OAuthCallbackResult{
+					Attempt: attempt, Metadata: AuthRequestMetadata{
+						Purpose: RegistrationOAuthPurpose, DeviceID: "device",
+					},
+				}},
+				NewPendingPDSClient: func(context.Context, CallbackAttempt) (PDSClient, error) {
+					return failingProfileReadPDS{collection: test.collection}, nil
+				},
+				OnboardingProfile: devSchemeOnboardingWriter{},
+				Handoffs:          &fakeHandoffCoordinator{},
+				Logger:            slog.New(slog.NewJSONHandler(&logs, nil)),
+			}
+			response := httptest.NewRecorder()
+			handlers.CallbackHandler().ServeHTTP(response, httptest.NewRequest(
+				http.MethodGet, "/oauth/callback?state=synthetic&code=synthetic", nil,
+			))
+			if response.Code != http.StatusBadRequest ||
+				!strings.Contains(logs.String(), `"failure_stage":"`+test.stage+`"`) ||
+				strings.Contains(logs.String(), "private upstream response") {
+				t.Fatalf("callback response=%d, logs=%s", response.Code, logs.String())
+			}
+		})
+	}
+}
+
+type failingOnboardingWriter struct{ err error }
+
+func (writer failingOnboardingWriter) PutOnboardingProfile(context.Context, PDSClient, OnboardingProfileWrite) (syntax.CID, error) {
+	return "", writer.err
+}
+
+func TestCallbackProfileWriteFailureLogsBoundedUnderlyingReason(t *testing.T) {
+	for _, test := range []struct {
+		err    error
+		reason string
+	}{
+		{ownerlifecycle.ErrOwnerNotOnboarding, "owner_not_onboarding"},
+		{ErrProfileWriteUnresolved, "profile_write_unresolved"},
+		{context.DeadlineExceeded, "deadline_exceeded"},
+		{errors.New("private upstream body with token=secret"), "operation_failed"},
+	} {
+		t.Run(test.reason, func(t *testing.T) {
+			var logs strings.Builder
+			owner := syntax.DID("did:plc:write-reason-test")
+			attempt := CallbackAttempt{State: "private-state", AttemptID: uuid.New(), Owner: owner, OwnerGeneration: 1, AuthEpoch: 1, Purpose: LoginOAuthPurpose}
+			handlers := &HTTPHandlers{
+				OAuthFlow:           &recordingDeletionOAuthFlow{result: OAuthCallbackResult{Attempt: attempt, Metadata: AuthRequestMetadata{Purpose: LoginOAuthPurpose, DeviceID: "device"}}},
+				NewPendingPDSClient: func(context.Context, CallbackAttempt) (PDSClient, error) { return failingProfileReadPDS{}, nil },
+				OnboardingProfile:   failingOnboardingWriter{err: test.err}, Handoffs: &fakeHandoffCoordinator{}, Logger: slog.New(slog.NewJSONHandler(&logs, nil)),
+			}
+			response := httptest.NewRecorder()
+			handlers.CallbackHandler().ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/oauth/callback?state=private-state&code=secret", nil))
+			if response.Code != http.StatusBadRequest || !strings.Contains(logs.String(), `"failure_stage":"craftsky_profile_write"`) ||
+				!strings.Contains(logs.String(), `"failure_reason":"`+test.reason+`"`) || strings.Contains(logs.String(), "private") || strings.Contains(logs.String(), "secret") {
+				t.Fatalf("unsafe or unclassified callback logs: %s", logs.String())
+			}
+		})
 	}
 }
 

@@ -408,6 +408,8 @@ void main() {
         projectBytes,
       );
       final drafts = _RevisionDraftRepository(origin);
+      final finishDeletion = Completer<void>();
+      drafts.deleteGate = finishDeletion.future;
       final upload = _ImmediatePostApiClient();
       var createCalls = 0;
 
@@ -446,23 +448,36 @@ void main() {
               theme: AppTheme.lightThemeData,
               localizationsDelegates: AppLocalizations.localizationsDelegates,
               supportedLocales: AppLocalizations.supportedLocales,
-              home: ProjectComposerSheet(
-                composerId: 'project-retry',
-                draftSeed: LocalPostDraftSeed(
-                  draft: origin,
-                  media: [
-                    HydratedDraftMedia(
-                      descriptor: origin.media.single,
-                      bytes: projectBytes,
+              home: Builder(
+                builder: (context) => Scaffold(
+                  body: TextButton(
+                    onPressed: () => Navigator.of(context).push(
+                      MaterialPageRoute<Post?>(
+                        builder: (_) => ProjectComposerSheet(
+                          composerId: 'project-retry',
+                          draftSeed: LocalPostDraftSeed(
+                            draft: origin,
+                            media: [
+                              HydratedDraftMedia(
+                                descriptor: origin.media.single,
+                                bytes: projectBytes,
+                              ),
+                            ],
+                          ),
+                          draftOwner: lease,
+                        ),
+                      ),
                     ),
-                  ],
+                    child: const Text('Open project draft'),
+                  ),
                 ),
-                draftOwner: lease,
               ),
             ),
           ),
         ),
       );
+      await tester.tap(find.text('Open project draft'));
+      await tester.pumpAndSettle();
       final container = ProviderScope.containerOf(
         tester.element(find.byType(ProjectComposerSheet)),
       );
@@ -485,12 +500,17 @@ void main() {
       tester
           .widget<ChunkyButton>(find.widgetWithText(ChunkyButton, 'Post'))
           .onPressed!();
+      await _pumpUntil(tester, () => drafts.deletedIds.isNotEmpty);
+
+      expect(find.byType(ProjectComposerSheet), findsOneWidget);
+      finishDeletion.complete();
       await tester.pumpAndSettle();
 
       expect(createCalls, 2);
       expect(upload.uploadCalls, 1);
       expect(drafts.expectedRevisions, [1, 2]);
       expect(drafts.deletedIds, [origin.id]);
+      expect(find.byType(ProjectComposerSheet), findsNothing);
     },
   );
 }
@@ -583,6 +603,7 @@ final class _RevisionDraftRepository implements LocalPostDraftRepository {
   LocalPostDraft current;
   final List<int?> expectedRevisions = [];
   final List<String> deletedIds = [];
+  Future<void>? deleteGate;
 
   @override
   Future<List<LocalPostDraft>> list() async => [current];
@@ -611,6 +632,7 @@ final class _RevisionDraftRepository implements LocalPostDraftRepository {
   @override
   Future<void> delete(String draftId) async {
     deletedIds.add(draftId);
+    await deleteGate;
   }
 
   @override

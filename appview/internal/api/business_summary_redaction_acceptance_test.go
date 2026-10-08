@@ -22,7 +22,7 @@ type summaryAccountTypeReader struct {
 }
 
 func TestBlockedBusinessEventListAndDirectReadAreIndistinguishableFromMissing(t *testing.T) {
-	pool := testdb.WithSchema(t, businessEventStoreDDL)
+	pool := testdb.WithSchema(t, businessEventSubscriptionDDL(t))
 	ctx := context.Background()
 	owner := syntax.DID("did:plc:blocked-business")
 	visitor := syntax.DID("did:plc:event-visitor")

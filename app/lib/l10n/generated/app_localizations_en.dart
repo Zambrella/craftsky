@@ -344,7 +344,10 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get authCompleteTimedOutError =>
-      'That sign-in link expired. Please sign in again.';
+      'This sign-in link has already been used or has expired. Please sign in again.';
+
+  @override
+  String get authCompleteSignInAgain => 'Sign in again';
 
   @override
   String get authCompleteStorageError =>
@@ -602,6 +605,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get postMutedPlaceholder => 'Post from a muted account';
 
   @override
+  String get commentMutedPlaceholder => 'Comment from a muted account';
+
+  @override
+  String get replyMutedPlaceholder => 'Reply from a muted account';
+
+  @override
   String get postUnavailablePlaceholder => 'Post unavailable';
 
   @override
@@ -679,6 +688,12 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get postRevealAction => 'Show post';
+
+  @override
+  String get commentRevealAction => 'Show comment';
+
+  @override
+  String get replyRevealAction => 'Show reply';
 
   @override
   String get postRevealError => 'Couldn\'t show this post.';
@@ -1796,6 +1811,14 @@ class AppLocalizationsEn extends AppLocalizations {
       'Couldn\'t save your profile or business details.';
 
   @override
+  String get editProfileBusinessRefreshedError =>
+      'Your business details changed elsewhere. Your edits have been kept; review the updated details and save again.';
+
+  @override
+  String get editProfileBusinessProductsInvalidError =>
+      'Check your featured products in Settings before saving your business details again.';
+
+  @override
   String get editProfileBusinessConflictError =>
       'Your business details changed elsewhere. Reload before saving them again.';
 
@@ -2879,6 +2902,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get submissionPublishingPost => 'Publishing your post…';
 
   @override
+  String get submissionPublishingComment => 'Publishing your comment…';
+
+  @override
+  String get submissionPublishingReply => 'Publishing your reply…';
+
+  @override
   String get submissionSchedulingPost => 'Scheduling your post…';
 
   @override
@@ -2933,6 +2962,27 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get settingsSwitchAccount => 'Switch account';
+
+  @override
+  String get settingsSubscriptionCalloutTitle => 'Make more with CraftSky';
+
+  @override
+  String get settingsSubscriptionCalloutDescription =>
+      'Unlock scheduling, saved folders and more with Plus or Business.';
+
+  @override
+  String get settingsSubscriptionCalloutExplore => 'Explore subscriptions';
+
+  @override
+  String get settingsSubscriptionCalloutActiveTitle =>
+      'Your CraftSky subscription';
+
+  @override
+  String get settingsSubscriptionCalloutActiveDescription =>
+      'Review your access and subscription details.';
+
+  @override
+  String get settingsSubscriptionCalloutView => 'View subscription';
 
   @override
   String get settingsSectionPreferences => 'Preferences';
@@ -3939,6 +3989,308 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get businessEventDeleteConfirmAction => 'Delete';
+
+  @override
+  String get subscriptionsTitle => 'Subscriptions';
+
+  @override
+  String plusFeatureRequired(String feature) {
+    return '$feature requires Plus';
+  }
+
+  @override
+  String plusFeatureComingSoon(String feature) {
+    return '$feature is coming soon';
+  }
+
+  @override
+  String plusFeatureComingSoonExplanation(String feature) {
+    return '$feature isn\'t available yet. We\'ll let you know when it launches.';
+  }
+
+  @override
+  String plusFeatureExplanation(String feature) {
+    return 'Subscribe to Plus or Business to use $feature.';
+  }
+
+  @override
+  String get plusFeatureLearnMore => 'Learn about subscriptions';
+
+  @override
+  String plusFeatureAccessUnavailable(String feature) {
+    return 'Subscription access is unavailable. Try again before using $feature.';
+  }
+
+  @override
+  String get scheduledPostSubscriptionPending =>
+      'Plus is required before this scheduled post can publish.';
+
+  @override
+  String get scheduledPostSubscriptionMissed =>
+      'This post was not published because Plus access ended. Edit it to schedule again after subscribing.';
+
+  @override
+  String get subscriptionsTierFree => 'Free';
+
+  @override
+  String get subscriptionsTierPlus => 'Plus';
+
+  @override
+  String get subscriptionsTierBusiness => 'Business';
+
+  @override
+  String subscriptionsTierPrice(String price) {
+    return '$price / month';
+  }
+
+  @override
+  String get subscriptionsPriceUnavailable => 'Price unavailable';
+
+  @override
+  String get subscriptionsPlusBenefits =>
+      'Schedule posts, organise saves into folders, personalise your profile, pin posts and track follower growth.';
+
+  @override
+  String get subscriptionsBusinessBenefits =>
+      'Everything in Plus, plus featured products, a profile action button, business details and events.';
+
+  @override
+  String get subscriptionsViewDetails => 'View details';
+
+  @override
+  String get subscriptionsTierLoading => 'Loading tier';
+
+  @override
+  String get subscriptionsTierUnavailable => 'Tier unavailable';
+
+  @override
+  String subscriptionsEffectiveAccess(String tier) {
+    return 'Current access: $tier';
+  }
+
+  @override
+  String subscriptionsDormantAssignment(String tier) {
+    return '$tier is assigned to this account but is not currently providing access.';
+  }
+
+  @override
+  String get subscriptionsBeneficiaryExplanation =>
+      'Subscription access is managed by the billing owner. Billing details stay private.';
+
+  @override
+  String get subscriptionsSwitchToOwner => 'Switch to billing owner';
+
+  @override
+  String get subscriptionsChooseOwnerTitle => 'Choose a billing owner';
+
+  @override
+  String get subscriptionsChooseOwnerBody =>
+      'Use this account to manage subscriptions on this device. If it already owns a Craftsky subscription, we\'ll reconnect it here. Billing ownership can\'t be moved to a different account.';
+
+  @override
+  String get subscriptionsChooseOwnerAction => 'Use this account';
+
+  @override
+  String get subscriptionsSetupIncomplete =>
+      'Billing setup is incomplete for this account.';
+
+  @override
+  String get subscriptionsRetrySetup => 'Retry setup';
+
+  @override
+  String get subscriptionsOwnerInactive =>
+      'Switch to the billing owner to review or manage subscriptions.';
+
+  @override
+  String get subscriptionsOwnerReauthenticate =>
+      'The billing owner must sign in again before subscriptions can be managed.';
+
+  @override
+  String get subscriptionsOwnerRecoveryLocked =>
+      'We couldn\'t confirm this account\'s billing details. Subscription changes are paused. Please contact support for help.';
+
+  @override
+  String get subscriptionsOwnerSignInRequired =>
+      'Your sign-in has expired. Sign in to this account again to manage subscriptions.';
+
+  @override
+  String get subscriptionsIndependentLicenses =>
+      'Plus and Business are separate account licenses. After puchase, assign each license to a CraftSky account.';
+
+  @override
+  String get subscriptionsStatusAvailable => 'Available to purchase';
+
+  @override
+  String get subscriptionsStatusActive => 'Active';
+
+  @override
+  String get subscriptionsStatusCanceledAccessible =>
+      'Canceled; access continues until the current period ends';
+
+  @override
+  String get subscriptionsStatusDormant => 'Not currently providing access';
+
+  @override
+  String get subscriptionsStatusStale => 'Subscription status needs refreshing';
+
+  @override
+  String get subscriptionsStatusPending =>
+      'Payment or reconciliation is pending';
+
+  @override
+  String get subscriptionsStatusAnomaly => 'Subscription state needs support';
+
+  @override
+  String get subscriptionsStatusUnavailable => 'Status unavailable';
+
+  @override
+  String subscriptionsAssignedTo(String account) {
+    return 'Assigned to $account';
+  }
+
+  @override
+  String get subscriptionsUnassigned => 'Not assigned';
+
+  @override
+  String subscriptionsProductContext(String store, String product) {
+    return 'Store: $store · Product: $product';
+  }
+
+  @override
+  String subscriptionsCurrentPeriod(String start, String end) {
+    return 'Current period: $start to $end';
+  }
+
+  @override
+  String subscriptionsAccessEnds(String date) {
+    return 'Access ends: $date';
+  }
+
+  @override
+  String subscriptionsRenewsOn(String date) {
+    return 'Renews on $date';
+  }
+
+  @override
+  String subscriptionsAccessUntil(String date) {
+    return 'Access until $date';
+  }
+
+  @override
+  String get subscriptionsLicenseAssignable => 'License can be assigned';
+
+  @override
+  String get subscriptionsLicenseNotAssignable =>
+      'License cannot currently be assigned';
+
+  @override
+  String subscriptionsReconciliationRequested(String date) {
+    return 'Reconciliation requested: $date';
+  }
+
+  @override
+  String subscriptionsLastReconciled(String date) {
+    return 'Last reconciled: $date';
+  }
+
+  @override
+  String subscriptionsPurchase(String tier) {
+    return 'Purchase $tier';
+  }
+
+  @override
+  String subscriptionsRepurchase(String tier) {
+    return 'Purchase $tier again';
+  }
+
+  @override
+  String get subscriptionsAssign => 'Assign license';
+
+  @override
+  String get subscriptionsUnassign => 'Remove assignment';
+
+  @override
+  String get subscriptionsRestore => 'Restore purchases';
+
+  @override
+  String get subscriptionsManage => 'Manage subscription';
+
+  @override
+  String get subscriptionsRefresh => 'Refresh status';
+
+  @override
+  String get subscriptionsBillingUnavailable =>
+      'Purchases and subscription management are unavailable on this device. Your CraftSky account remains fully usable.';
+
+  @override
+  String get subscriptionsOfferingUnavailable =>
+      'This subscription option is unavailable right now.';
+
+  @override
+  String get subscriptionsProviderFailure =>
+      'The subscription provider could not complete that action.';
+
+  @override
+  String get subscriptionsAssignmentConflict =>
+      'That license is already assigned. Refresh to see its current assignment.';
+
+  @override
+  String get subscriptionsAssignmentCooldown =>
+      'That license cannot be reassigned yet. Try again after the reassignment wait ends.';
+
+  @override
+  String get subscriptionsLicenseNotFound =>
+      'That license is no longer available. Refresh to update this page.';
+
+  @override
+  String get subscriptionsTargetIneligible =>
+      'That account cannot receive this license.';
+
+  @override
+  String get subscriptionsUnauthorized =>
+      'Your session can no longer make that billing change. Sign in again and retry.';
+
+  @override
+  String get subscriptionsActionFailed =>
+      'That subscription change could not be completed. Refresh and try again.';
+
+  @override
+  String get subscriptionsPendingRefresh =>
+      'Your provider action completed. CraftSky is waiting for confirmed subscription status.';
+
+  @override
+  String subscriptionsActionSemantic(
+    String tier,
+    String status,
+    String action,
+  ) {
+    return '$tier: $status. $action';
+  }
+
+  @override
+  String get subscriptionsAssignmentConfirmTitle => 'Assign this license?';
+
+  @override
+  String subscriptionsAssignmentConfirmBody(String tier, String account) {
+    return 'Assign $tier to $account?';
+  }
+
+  @override
+  String get subscriptionsReassignmentCooldown =>
+      'After this change, the license cannot be assigned to another account for seven days.';
+
+  @override
+  String get subscriptionsReassign => 'Change assignment';
+
+  @override
+  String get subscriptionsReassignmentConfirmTitle => 'Change this assignment?';
+
+  @override
+  String get subscriptionsUnassignmentConfirmTitle => 'Remove this assignment?';
+
+  @override
+  String get subscriptionsUnassignmentConfirmBody =>
+      'The assigned account will lose paid access. Changing it again may require a seven-day wait.';
 
   @override
   String get accountStandingTitle => 'Account standing';

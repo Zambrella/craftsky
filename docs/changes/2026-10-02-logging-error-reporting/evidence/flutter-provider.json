@@ -1,0 +1,348 @@
+{
+  "local": [
+    "{\"occurrence\":1,\"chunk\":1,\"chunks\":1,\"diagnostic\":\"{\\\"severity\\\":\\\"WARNING\\\",\\\"feature\\\":\\\"publicReadProvider\\\",\\\"operation\\\":\\\"provider\\\",\\\"message\\\":\\\"provider failed\\\",\\\"appErrorKind\\\":\\\"backgroundLoadFailed\\\",\\\"failureStage\\\":\\\"provider\\\",\\\"cause\\\":{\\\"type\\\":\\\"StateError\\\",\\\"message\\\":\\\"Operation failed\\\"},\\\"stack\\\":[{\\\"function\\\":\\\"readPublishedPost\\\",\\\"file\\\":\\\"post.dart\\\",\\\"line\\\":12}],\\\"environment\\\":\\\"development\\\"}\"}",
+    "{\"occurrence\":2,\"chunk\":1,\"chunks\":1,\"diagnostic\":\"{\\\"severity\\\":\\\"WARNING\\\",\\\"feature\\\":\\\"publicReadProvider\\\",\\\"operation\\\":\\\"provider\\\",\\\"message\\\":\\\"provider failed\\\",\\\"appErrorKind\\\":\\\"backgroundLoadFailed\\\",\\\"failureStage\\\":\\\"provider\\\",\\\"cause\\\":{\\\"type\\\":\\\"StateError\\\",\\\"message\\\":\\\"Operation failed\\\"},\\\"stack\\\":[{\\\"function\\\":\\\"readPublishedPost\\\",\\\"file\\\":\\\"post.dart\\\",\\\"line\\\":12}],\\\"environment\\\":\\\"development\\\"}\"}"
+  ],
+  "exported": [
+    {
+      "event_id": "b9898f56197e47a8be3b26084085565b",
+      "timestamp": "2026-10-05T21:29:33.698Z",
+      "platform": "other",
+      "environment": "debug",
+      "tags": {
+        "feature": "publicReadProvider",
+        "operation": "provider",
+        "classification": "provider.failed",
+        "severity": "warning",
+        "appErrorKind": "backgroundLoadFailed"
+      },
+      "contexts": {
+        "trace": {
+          "span_id": "5424bdebfdbd49d9",
+          "trace_id": "3470a2d494af4719bcc71d0ae1fa6f60",
+          "op": "diagnostic"
+        },
+        "selection": {
+          "omitted": "[OMITTED: unsupported SDK enrichment]"
+        }
+      },
+      "sdk": {
+        "name": "sentry.dart",
+        "version": "9.23.0",
+        "packages": [
+          {
+            "name": "pub:sentry",
+            "version": "9.23.0"
+          }
+        ],
+        "integrations": [
+          "isolateErrorIntegration",
+          "MetricsSetup",
+          "LoggerSetup",
+          "InstrumentationSpanFactorySetup",
+          "FeatureFlagsIntegration",
+          "InMemoryTelemetryProcessor",
+          "TrackBeforeSendUsageIntegration",
+          "Enricher"
+        ],
+        "features": [
+          "beforeSendEvent",
+          "beforeSendTransaction",
+          "beforeSendLog"
+        ]
+      },
+      "exception": {
+        "values": [
+          {
+            "type": "StateError",
+            "value": "Operation failed",
+            "stacktrace": {
+              "frames": [
+                {
+                  "filename": "post.dart",
+                  "function": "readPublishedPost",
+                  "lineno": 12,
+                  "colno": 3,
+                  "in_app": true
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "event_id": "59bb76387db748e889636e693af0adff",
+      "timestamp": "2026-10-05T21:29:33.704Z",
+      "platform": "other",
+      "environment": "debug",
+      "tags": {
+        "feature": "publicReadProvider",
+        "operation": "provider",
+        "classification": "provider.failed",
+        "severity": "warning",
+        "appErrorKind": "backgroundLoadFailed"
+      },
+      "contexts": {
+        "trace": {
+          "span_id": "558558b9bdc54b29",
+          "trace_id": "3470a2d494af4719bcc71d0ae1fa6f60",
+          "op": "diagnostic"
+        },
+        "selection": {
+          "omitted": "[OMITTED: unsupported SDK enrichment]"
+        }
+      },
+      "sdk": {
+        "name": "sentry.dart",
+        "version": "9.23.0",
+        "packages": [
+          {
+            "name": "pub:sentry",
+            "version": "9.23.0"
+          }
+        ],
+        "integrations": [
+          "isolateErrorIntegration",
+          "MetricsSetup",
+          "LoggerSetup",
+          "InstrumentationSpanFactorySetup",
+          "FeatureFlagsIntegration",
+          "InMemoryTelemetryProcessor",
+          "TrackBeforeSendUsageIntegration",
+          "Enricher"
+        ],
+        "features": [
+          "beforeSendEvent",
+          "beforeSendTransaction",
+          "beforeSendLog"
+        ]
+      },
+      "exception": {
+        "values": [
+          {
+            "type": "StateError",
+            "value": "Operation failed",
+            "stacktrace": {
+              "frames": [
+                {
+                  "filename": "post.dart",
+                  "function": "readPublishedPost",
+                  "lineno": 12,
+                  "colno": 3,
+                  "in_app": true
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "event_id": "ed47fe59d6f24e098de2a7b3f7618a1b",
+      "timestamp": "2026-10-05T21:29:33.706Z",
+      "platform": "other",
+      "environment": "debug",
+      "tags": {
+        "feature": "Api",
+        "operation": "read",
+        "classification": "network",
+        "severity": "error"
+      },
+      "contexts": {
+        "trace": {
+          "span_id": "91d9fab2cf42454a",
+          "trace_id": "3470a2d494af4719bcc71d0ae1fa6f60",
+          "op": "diagnostic"
+        },
+        "selection": {
+          "omitted": "[OMITTED: unsupported SDK enrichment]"
+        }
+      },
+      "sdk": {
+        "name": "sentry.dart",
+        "version": "9.23.0",
+        "packages": [
+          {
+            "name": "pub:sentry",
+            "version": "9.23.0"
+          }
+        ],
+        "integrations": [
+          "isolateErrorIntegration",
+          "MetricsSetup",
+          "LoggerSetup",
+          "InstrumentationSpanFactorySetup",
+          "FeatureFlagsIntegration",
+          "InMemoryTelemetryProcessor",
+          "TrackBeforeSendUsageIntegration",
+          "Enricher"
+        ],
+        "features": [
+          "beforeSendEvent",
+          "beforeSendTransaction",
+          "beforeSendLog"
+        ]
+      },
+      "exception": {
+        "values": [
+          {
+            "type": "ApiNetworkError",
+            "value": "Operation failed",
+            "stacktrace": {
+              "frames": [
+                {
+                  "filename": "invoker.dart",
+                  "function": "Invoker._waitForOutstandingCallbacks.<fn>",
+                  "lineno": 318,
+                  "colno": 9,
+                  "in_app": true
+                },
+                {
+                  "filename": "<asynchronous suspension>"
+                },
+                {
+                  "filename": "declarer.dart",
+                  "function": "Declarer.test.<fn>",
+                  "lineno": 250,
+                  "colno": 11,
+                  "in_app": true
+                },
+                {
+                  "filename": "<asynchronous suspension>"
+                },
+                {
+                  "filename": "declarer.dart",
+                  "function": "Declarer.test.<fn>.<fn>",
+                  "lineno": 253,
+                  "colno": 15,
+                  "in_app": true
+                },
+                {
+                  "filename": "<asynchronous suspension>"
+                },
+                {
+                  "filename": "sdk_emission_test.dart",
+                  "function": "main.<fn>",
+                  "lineno": 318,
+                  "colno": 7,
+                  "in_app": true
+                },
+                {
+                  "filename": "<asynchronous suspension>"
+                },
+                {
+                  "filename": "sentry_error_reporter.dart",
+                  "function": "SentryErrorReporter.captureException",
+                  "lineno": 87,
+                  "colno": 21,
+                  "in_app": true
+                },
+                {
+                  "filename": "<asynchronous suspension>"
+                },
+                {
+                  "filename": "<asynchronous suspension>"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "items": [
+        {
+          "timestamp": 1791235773.697683,
+          "trace_id": "3470a2d494af4719bcc71d0ae1fa6f60",
+          "level": "warn",
+          "body": "provider failed",
+          "attributes": {
+            "feature": {
+              "value": "publicReadProvider",
+              "type": "string"
+            },
+            "operation": {
+              "value": "provider",
+              "type": "string"
+            },
+            "classification": {
+              "value": "provider.failed",
+              "type": "string"
+            },
+            "severity": {
+              "value": "warning",
+              "type": "string"
+            },
+            "appErrorKind": {
+              "value": "backgroundLoadFailed",
+              "type": "string"
+            },
+            "failureStage": {
+              "value": "provider",
+              "type": "string"
+            },
+            "errorType": {
+              "value": "StateError",
+              "type": "string"
+            },
+            "causeMessage": {
+              "value": "Operation failed",
+              "type": "string"
+            },
+            "stack": {
+              "value": "[{\"function\":\"readPublishedPost\",\"file\":\"post.dart\",\"line\":12}]",
+              "type": "string"
+            }
+          },
+          "severity_number": 13
+        },
+        {
+          "timestamp": 1791235773.70387,
+          "trace_id": "3470a2d494af4719bcc71d0ae1fa6f60",
+          "level": "warn",
+          "body": "provider failed",
+          "attributes": {
+            "feature": {
+              "value": "publicReadProvider",
+              "type": "string"
+            },
+            "operation": {
+              "value": "provider",
+              "type": "string"
+            },
+            "classification": {
+              "value": "provider.failed",
+              "type": "string"
+            },
+            "severity": {
+              "value": "warning",
+              "type": "string"
+            },
+            "appErrorKind": {
+              "value": "backgroundLoadFailed",
+              "type": "string"
+            },
+            "failureStage": {
+              "value": "provider",
+              "type": "string"
+            },
+            "errorType": {
+              "value": "StateError",
+              "type": "string"
+            },
+            "causeMessage": {
+              "value": "Operation failed",
+              "type": "string"
+            },
+            "stack": {
+              "value": "[{\"function\":\"readPublishedPost\",\"file\":\"post.dart\",\"line\":12}]",
+              "type": "string"
+            }
+          },
+          "severity_number": 13
+        }
+      ]
+    }
+  ]
+}

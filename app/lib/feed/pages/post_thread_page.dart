@@ -172,6 +172,16 @@ class _PostThreadPageState extends ConsumerState<PostThreadPage> {
                       showInlineComposer: formFactor.isLarge,
                       isLoadingMoreComments: pageLoaderAsync.isLoading,
                       isRefreshingComments: isRefreshingComments,
+                      onRefresh: () async {
+                        final _ = await ref.refresh(
+                          postCommentSectionProvider(
+                            widget.did,
+                            widget.rkey,
+                            sort: _sort,
+                            focus: widget.focus,
+                          ).future,
+                        );
+                      },
                       onNearEnd: () => ref
                           .read(
                             postCommentPageLoaderProvider(
@@ -358,6 +368,7 @@ class _CommentSectionBody extends ConsumerStatefulWidget {
     required this.showInlineComposer,
     required this.isLoadingMoreComments,
     required this.isRefreshingComments,
+    required this.onRefresh,
     required this.onNearEnd,
     required this.onCollapseReplies,
     required this.selectedSort,
@@ -373,6 +384,7 @@ class _CommentSectionBody extends ConsumerStatefulWidget {
   final bool showInlineComposer;
   final bool isLoadingMoreComments;
   final bool isRefreshingComments;
+  final RefreshCallback onRefresh;
   final VoidCallback onNearEnd;
   final void Function(AtUri commentUri) onCollapseReplies;
   final CommentSort selectedSort;
@@ -499,116 +511,120 @@ class _CommentSectionBodyState extends ConsumerState<_CommentSectionBody> {
     final l10n = AppLocalizations.of(context);
     final spacing = Theme.of(context).extension<SpacingTheme>()!;
     _scheduleFocusedReveal();
-    return CustomScrollView(
-      controller: _controller,
-      slivers: [
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: EdgeInsets.symmetric(vertical: spacing.sp2),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                PostCard(
-                  post: widget.section.post,
-                  allowProfilePinAction: true,
-                  projectVariant: ProjectCardVariant.detail,
-                  replyTooltip: l10n.postCommentAction,
-                  onReply: () => showPostComposerSheet(
-                    context,
-                    replyTarget: widget.section.post,
+    return RefreshIndicator(
+      onRefresh: widget.onRefresh,
+      child: CustomScrollView(
+        controller: _controller,
+        physics: const AlwaysScrollableScrollPhysics(),
+        slivers: [
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: EdgeInsets.symmetric(vertical: spacing.sp2),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  PostCard(
+                    post: widget.section.post,
+                    allowProfilePinAction: true,
+                    projectVariant: ProjectCardVariant.detail,
+                    replyTooltip: l10n.postCommentAction,
+                    onReply: () => showPostComposerSheet(
+                      context,
+                      replyTarget: widget.section.post,
+                    ),
+                    onLike: () => ref
+                        .read(toggleLikePostProvider.notifier)
+                        .toggle(post: widget.section.post),
+                    onRepost: () => ref
+                        .read(toggleRepostPostProvider.notifier)
+                        .toggle(post: widget.section.post),
+                    onDelete: _deleteIfViewerOwned(widget.section.post),
+                    onReport: _reportIfViewerNotOwner(widget.section.post),
                   ),
-                  onLike: () => ref
-                      .read(toggleLikePostProvider.notifier)
-                      .toggle(post: widget.section.post),
-                  onRepost: () => ref
-                      .read(toggleRepostPostProvider.notifier)
-                      .toggle(post: widget.section.post),
-                  onDelete: _deleteIfViewerOwned(widget.section.post),
-                  onReport: _reportIfViewerNotOwner(widget.section.post),
-                ),
-                if (widget.section.post.likeCount > 0 ||
-                    widget.section.post.repostCount > 0 ||
-                    widget.section.post.quoteCount > 0)
+                  if (widget.section.post.likeCount > 0 ||
+                      widget.section.post.repostCount > 0 ||
+                      widget.section.post.quoteCount > 0)
+                    Padding(
+                      padding: EdgeInsets.symmetric(horizontal: spacing.sp4),
+                      child: PostInteractionSummary(
+                        post: widget.section.post,
+                        onLikes: () => PostLikesRoute(
+                          did: widget.section.post.author.did.toString(),
+                          rkey: widget.section.post.rkey.toString(),
+                        ).push<void>(context),
+                        onReposts: () => PostRepostsRoute(
+                          did: widget.section.post.author.did.toString(),
+                          rkey: widget.section.post.rkey.toString(),
+                        ).push<void>(context),
+                        onQuotes: () => PostQuotesRoute(
+                          did: widget.section.post.author.did.toString(),
+                          rkey: widget.section.post.rkey.toString(),
+                        ).push<void>(context),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+          SliverPadding(
+            padding: EdgeInsets.only(bottom: spacing.sp5),
+            sliver: SliverToBoxAdapter(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
                   Padding(
                     padding: EdgeInsets.symmetric(horizontal: spacing.sp4),
-                    child: PostInteractionSummary(
+                    child: Align(
+                      alignment: Alignment.centerRight,
+                      child: SortMenuButton<CommentSort>(
+                        selectedValue: widget.selectedSort,
+                        options: _commentSortOptions(l10n),
+                        onChanged: widget.onSortChanged,
+                      ),
+                    ),
+                  ),
+                  if (widget.showInlineComposer)
+                    _ReplyPrompt(
+                      key: const ValueKey('threadInlineReplyPrompt'),
                       post: widget.section.post,
-                      onLikes: () => PostLikesRoute(
-                        did: widget.section.post.author.did.toString(),
-                        rkey: widget.section.post.rkey.toString(),
-                      ).push<void>(context),
-                      onReposts: () => PostRepostsRoute(
-                        did: widget.section.post.author.did.toString(),
-                        rkey: widget.section.post.rkey.toString(),
-                      ).push<void>(context),
-                      onQuotes: () => PostQuotesRoute(
-                        did: widget.section.post.author.did.toString(),
-                        rkey: widget.section.post.rkey.toString(),
-                      ).push<void>(context),
+                      isRootPrompt: true,
                     ),
-                  ),
-              ],
+                  if (widget.isRefreshingComments)
+                    Padding(
+                      padding: EdgeInsets.symmetric(vertical: spacing.sp6),
+                      child: const Center(child: StitchProgressIndicator()),
+                    )
+                  else if (widget.section.comments.items.isEmpty)
+                    CraftskyEmptyState(
+                      icon: CraftskyIcons.comment,
+                      title: l10n.postThreadEmptyReplies,
+                      subtitle: l10n.postThreadEmptyCommentsSubtitle,
+                    )
+                  else
+                    for (final comment in widget.section.comments.items)
+                      _CommentCard(
+                        item: comment,
+                        did: widget.did,
+                        rkey: widget.rkey,
+                        sort: widget.selectedSort,
+                        focus: widget.focus,
+                        targetUri: _targetUri(widget),
+                        highlightedUri: _highlightedTargetUri,
+                        focusedTargetKey: _focusedTargetKey,
+                        viewerDid: widget.viewerDid,
+                        onCollapseReplies: widget.onCollapseReplies,
+                      ),
+                  if (widget.isLoadingMoreComments)
+                    Padding(
+                      padding: EdgeInsets.symmetric(vertical: spacing.sp4),
+                      child: const Center(child: StitchProgressIndicator()),
+                    ),
+                ],
+              ),
             ),
           ),
-        ),
-        SliverPadding(
-          padding: EdgeInsets.only(bottom: spacing.sp5),
-          sliver: SliverToBoxAdapter(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Padding(
-                  padding: EdgeInsets.symmetric(horizontal: spacing.sp4),
-                  child: Align(
-                    alignment: Alignment.centerRight,
-                    child: SortMenuButton<CommentSort>(
-                      selectedValue: widget.selectedSort,
-                      options: _commentSortOptions(l10n),
-                      onChanged: widget.onSortChanged,
-                    ),
-                  ),
-                ),
-                if (widget.showInlineComposer)
-                  _ReplyPrompt(
-                    key: const ValueKey('threadInlineReplyPrompt'),
-                    post: widget.section.post,
-                    isRootPrompt: true,
-                  ),
-                if (widget.isRefreshingComments)
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 32),
-                    child: Center(child: StitchProgressIndicator()),
-                  )
-                else if (widget.section.comments.items.isEmpty)
-                  CraftskyEmptyState(
-                    icon: CraftskyIcons.comment,
-                    title: l10n.postThreadEmptyReplies,
-                    subtitle: l10n.postThreadEmptyCommentsSubtitle,
-                  )
-                else
-                  for (final comment in widget.section.comments.items)
-                    _CommentCard(
-                      item: comment,
-                      did: widget.did,
-                      rkey: widget.rkey,
-                      sort: widget.selectedSort,
-                      focus: widget.focus,
-                      targetUri: _targetUri(widget),
-                      highlightedUri: _highlightedTargetUri,
-                      focusedTargetKey: _focusedTargetKey,
-                      viewerDid: widget.viewerDid,
-                      onCollapseReplies: widget.onCollapseReplies,
-                    ),
-                if (widget.isLoadingMoreComments)
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 16),
-                    child: Center(child: StitchProgressIndicator()),
-                  ),
-              ],
-            ),
-          ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -689,6 +705,7 @@ class _CommentCard extends ConsumerWidget {
                 )
               : null,
           style: PostCardStyle.flat,
+          contentKind: PostCardContentKind.comment,
           isHighlighted: highlightedUri == item.post.uri,
           replyTooltip: l10n.postThreadReplyAction,
           showRepostAction: false,
@@ -736,6 +753,7 @@ class _CommentCard extends ConsumerWidget {
                         : null,
                     post: reply.post,
                     style: PostCardStyle.flat,
+                    contentKind: PostCardContentKind.reply,
                     isHighlighted: highlightedUri == reply.post.uri,
                     replyTooltip: l10n.postThreadReplyAction,
                     showRepostAction: false,

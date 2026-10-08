@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:craftsky_app/auth/data/auth_api_client.dart';
 import 'package:craftsky_app/auth/data/handoff_api_client.dart';
@@ -22,9 +23,16 @@ import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/api/models/login_response.dart';
 import 'package:craftsky_app/shared/api/models/whoami.dart';
 import 'package:craftsky_app/shared/device/device_id_provider.dart';
+import 'package:craftsky_app/shared/errors/app_error_mapper.dart';
+import 'package:craftsky_app/shared/observability/diagnostic_details.dart';
+import 'package:craftsky_app/shared/observability/diagnostic_emitter.dart';
+import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
+import 'package:craftsky_app/shared/observability/diagnostic_outcome.dart';
+import 'package:craftsky_app/shared/observability/error_reporter.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:logging/logging.dart';
 
 // --- Fakes (services, not notifiers — per riverpod.md Testing rules) ---
 
@@ -201,6 +209,77 @@ void main() {
     expect(
       container.read(authControllerProvider).error,
       isA<HandleRequired>(),
+    );
+  });
+
+  test(
+    'IT-010 auth network wrapper preserves the initiating API cause and stack',
+    () async {
+      const failure = ApiNetworkError('private provider prose canary');
+      final stack = StackTrace.fromString(
+        '#0 authLogin (package:craftsky_app/auth/auth_api.dart:42:3)',
+      );
+      final container = _container(
+        api: _FakeAuthApi(
+          onLogin: (_) async => Error.throwWithStackTrace(failure, stack),
+        ),
+      );
+      await container
+          .read(authControllerProvider.notifier)
+          .signIn(handle: 'private-input.test');
+      final error = container.read(authControllerProvider).error!;
+      expect(error, isA<ServerUnavailable>());
+      expect(
+        selectedCauses(error).map((cause) => cause['type']),
+        contains('ApiNetworkError'),
+      );
+      expect((error as DiagnosticFailureCause).diagnosticCause, same(failure));
+      expect(error.diagnosticStack.toString(), contains('authLogin'));
+      expect(
+        isExpectedDiagnostic(
+          error,
+          const ReportContext(
+            feature: 'Auth',
+            operation: 'auth.login',
+            classification: 'auth.failed',
+          ),
+        ),
+        isTrue,
+      );
+      expect(
+        jsonEncode(selectedCause(error)),
+        isNot(contains('private provider prose')),
+      );
+    },
+  );
+
+  test('IT-010 auth server wrapper retains safe API correlation', () async {
+    const failure = ApiServerError(
+      'private provider response canary',
+      details: ApiFailureDetails(
+        statusCode: 503,
+        appViewError: 'internal_error',
+        requestId: 'req-auth-failed',
+        method: 'POST',
+      ),
+    );
+    final container = _container(
+      api: _FakeAuthApi(onLogin: (_) async => throw failure),
+    );
+    await container
+        .read(authControllerProvider.notifier)
+        .signIn(handle: 'private-input.test');
+    final error = container.read(authControllerProvider).error!;
+    final mapped = AppErrorMapper.map(error);
+    expect(mapped.safeDiagnostics, containsPair('httpStatus', 503));
+    expect(
+      mapped.safeDiagnostics,
+      containsPair('appViewRequestId', 'req-auth-failed'),
+    );
+    expect(mapped.reportable, isTrue);
+    expect(
+      jsonEncode(mapped.safeDiagnostics),
+      isNot(contains('private provider')),
     );
   });
 
@@ -627,6 +706,9 @@ void main() {
   test(
     'confirmed receipt remains retryable when final local storage fails',
     () async {
+      final records = <LogRecord>[];
+      final subscription = Logger.root.onRecord.listen(records.add);
+      addTearDown(subscription.cancel);
       final storage = _FakeRegistryStorage(SessionRegistry.empty())
         ..failOnWrite = 2;
       final handoff = _FakeHandoffApi(
@@ -648,6 +730,19 @@ void main() {
         container.read(authControllerProvider).error,
         isA<StorageFailure>(),
       );
+      expect(
+        selectedCause(container.read(authControllerProvider).error!).toString(),
+        contains('SessionRegistryStorageException'),
+      );
+      final diagnostic = selectDiagnosticRecord(
+        records.lastWhere((record) => record.loggerName == 'AuthController'),
+      );
+      expect(diagnostic['failureStage'], 'handoff_confirm_storage');
+      expect(
+        diagnostic.toString(),
+        contains('SessionRegistryStorageException'),
+      );
+      expect(diagnostic.toString(), isNot(contains('durable-pending-token')));
       expect(storage.value.sessions, isEmpty);
       expect(storage.value.pendingHandoff?.token, 'durable-pending-token');
       expect(handoff.confirmations, hasLength(1));

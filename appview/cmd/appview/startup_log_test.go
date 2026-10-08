@@ -5,11 +5,13 @@ import (
 	"encoding/json"
 	"log/slog"
 	"testing"
+
+	"social.craftsky/appview/internal/observability"
 )
 
 func TestLogListeningIncludesAppVersion(t *testing.T) {
 	var output bytes.Buffer
-	logger := slog.New(slog.NewJSONHandler(&output, nil))
+	logger := slog.New(observability.NewDiagnosticHandler(slog.NewJSONHandler(&output, nil)))
 
 	logListening(logger, "0.0.0.0:8080")
 

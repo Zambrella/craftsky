@@ -1,4 +1,6 @@
+import 'package:craftsky_app/auth/models/session_registry.dart';
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
+import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
 import 'package:craftsky_app/business/data/business_repository.dart';
 import 'package:craftsky_app/business/models/business_event.dart';
 import 'package:craftsky_app/business/models/business_profile.dart';
@@ -8,11 +10,14 @@ import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/pages/edit_profile_dialog.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
+import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/link/external_link.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/shared/messaging/scaffold_messenger_impl.dart';
 import 'package:craftsky_app/shared/mutations/pds_record_operation_controller.dart';
+import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
+import 'package:craftsky_app/subscriptions/providers/subscription_access_provider.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:flutter/material.dart';
@@ -42,15 +47,37 @@ Future<void> _pumpEditDialog(
   WidgetTester tester, {
   required FakeProfileRepository repo,
   BusinessRepository? businessRepository,
+  bool businessAccess = false,
   ExternalLinkLauncher linkLauncher = launchExternalLink,
   ExternalLinkConfirmer confirmOpenLink = showOpenLinkDialog,
 }) async {
+  repo.fallbackFetchMeToFetch = true;
   final scaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
   final messenger = ScaffoldMessengerImpl(scaffoldMessengerKey);
 
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
+        secureSessionRegistryStorageProvider.overrideWithValue(
+          _EditRegistryStorage(
+            SessionRegistry.empty().upsertAndActivate(
+              token: 'test-token',
+              did: 'did:plc:test',
+              handle: 'test.bsky.social',
+            ),
+          ),
+        ),
+        subscriptionAccessProvider.overrideWith((ref, lease) async {
+          final tier = businessAccess || businessRepository != null
+              ? SubscriptionTier.business
+              : SubscriptionTier.plus;
+          return SubscriptionAccess(
+            did: lease.account.did,
+            effectiveTier: tier,
+            givesAccess: true,
+            assignedTier: tier,
+          );
+        }),
         authSessionProvider.overrideWith(SignedInAuthSession.new),
         profileRepositoryProvider.overrideWithValue(repo),
         pdsRecordOperationControllerProvider.overrideWithValue(
@@ -88,6 +115,16 @@ Future<void> _pumpEditDialog(
   );
   await tester.tap(find.text('Open'));
   await tester.pumpAndSettle();
+}
+
+final class _EditRegistryStorage implements SessionRegistryStorage {
+  _EditRegistryStorage(this.registry);
+  SessionRegistry registry;
+  @override
+  Future<SessionRegistry> read() async => registry;
+  @override
+  Future<void> write(SessionRegistry registry) async =>
+      this.registry = registry;
 }
 
 void main() {
@@ -254,7 +291,7 @@ void main() {
         business: _businessDeclaration,
       );
       final repo = FakeProfileRepository(onFetch: (_) async => businessProfile);
-      await _pumpEditDialog(tester, repo: repo);
+      await _pumpEditDialog(tester, repo: repo, businessAccess: true);
 
       expect(find.text('Business details'), findsOneWidget);
       expect(find.text('Teacher'), findsWidgets);
@@ -552,7 +589,7 @@ void main() {
       expect(find.text('Open'), findsOneWidget);
     });
 
-    testWidgets('successful save does not mutate the profile cache directly', (
+    testWidgets('successful save publishes the active account overlay', (
       tester,
     ) async {
       var fetchCallCount = 0;
@@ -589,8 +626,9 @@ void main() {
       );
       addTearDown(sub.close);
 
-      // Edit page's initial fetch already happened.
-      expect(fetchCallCount, 1);
+      // The active-account identity and editor may each request the profile.
+      final baselineFetches = fetchCallCount;
+      expect(baselineFetches, greaterThanOrEqualTo(1));
 
       await tester.enterText(
         find.widgetWithText(TextField, 'Test User'),
@@ -600,11 +638,9 @@ void main() {
       await tester.tap(find.widgetWithText(TextButton, 'Save'));
       await tester.pumpAndSettle();
 
-      // The legacy direct cache publication path is gone. A production account
-      // publishes through the shared overlay; this account-less harness leaves
-      // the existing cache untouched.
-      expect(sub.read().value?.displayName, 'Test User');
-      expect(fetchCallCount, 1);
+      // A leased account refreshes the profile and applies the shared overlay.
+      expect(sub.read().value?.displayName, 'Renamed');
+      expect(fetchCallCount, baselineFetches + 1);
     });
 
     testWidgets('failed save surfaces an error snackbar and stays on page', (
@@ -701,6 +737,93 @@ void main() {
       expect(find.text('Open'), findsOneWidget);
       expect(ordinaryCalls, 2);
       expect(businessRepository.putCalls, 1);
+    });
+
+    testWidgets(
+      'business conflict refresh keeps edits and adopts untouched newer fields',
+      (tester) async {
+        var latest = _seedProfile.copyWith(
+          accountType: AccountType.business,
+          business: _businessDeclaration,
+        );
+        final repo = FakeProfileRepository(
+          onFetch: (_) async => latest,
+          onFetchMe: () async => latest,
+        );
+        final business = _RecordingBusinessRepository(
+          firstError: const ApiBadRequest('pds_record_conflict'),
+        );
+        await _pumpEditDialog(tester, repo: repo, businessRepository: business);
+        await tester.enterText(
+          find.widgetWithText(TextField, 'Thoughtful classes'),
+          'My edited tagline',
+        );
+        await tester.pump();
+        latest = latest.copyWith(
+          business: _businessDeclaration.copyWith(
+            cid: Cid.parse(
+              'bafyreifbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+            ),
+            hoursNote: 'New hours elsewhere',
+          ),
+        );
+        await tester.tap(find.widgetWithText(TextButton, 'Save'));
+        await tester.pumpAndSettle();
+        expect(
+          find.widgetWithText(TextField, 'My edited tagline'),
+          findsOneWidget,
+        );
+        expect(
+          find.widgetWithText(TextField, 'New hours elsewhere'),
+          findsOneWidget,
+        );
+        expect(
+          find.text(
+            'Your business details changed elsewhere. '
+            'Your edits have been kept; review the updated details '
+            'and save again.',
+          ),
+          findsOneWidget,
+        );
+        expect(business.putCalls, 1);
+        await tester.tap(find.widgetWithText(TextButton, 'Save'));
+        await tester.pumpAndSettle();
+        expect(business.expectedCids, [
+          _businessDeclaration.cid,
+          latest.business!.cid,
+        ]);
+        expect(business.bodies.last['tagline'], 'My edited tagline');
+        expect(business.bodies.last['hoursNote'], 'New hours elsewhere');
+        expect(business.operationKeys.toSet(), hasLength(2));
+        expect(find.text('Open'), findsOneWidget);
+      },
+    );
+
+    testWidgets('business validation errors identify the field', (
+      tester,
+    ) async {
+      final profile = _seedProfile.copyWith(
+        accountType: AccountType.business,
+        business: _businessDeclaration,
+      );
+      final repo = FakeProfileRepository(onFetch: (_) async => profile);
+      final business = _RecordingBusinessRepository(
+        firstError: const ApiBadRequest(
+          'validation_failed',
+          details: ApiFailureDetails(fields: {'tagline': 'is invalid'}),
+        ),
+      );
+      await _pumpEditDialog(tester, repo: repo, businessRepository: business);
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Thoughtful classes'),
+        'Edited tagline',
+      );
+      await tester.pump();
+      await tester.tap(find.widgetWithText(TextButton, 'Save'));
+      await tester.pumpAndSettle();
+      expect(find.text('Tagline: is invalid'), findsOneWidget);
+      expect(find.widgetWithText(TextField, 'Edited tagline'), findsOneWidget);
+      expect(find.text('Open'), findsNothing);
     });
 
     testWidgets('inverse partial save retries only the business record', (
@@ -828,6 +951,43 @@ void main() {
     );
 
     testWidgets(
+      'business text input keeps keyboard focus while another field is invalid',
+      (tester) async {
+        final profile = _seedProfile.copyWith(
+          accountType: AccountType.business,
+          business: _businessDeclaration.copyWith(
+            location: const BusinessLocation(
+              country: 'XX',
+              locality: 'Bristol',
+            ),
+          ),
+        );
+        await _pumpEditDialog(
+          tester,
+          repo: FakeProfileRepository(onFetch: (_) async => profile),
+          businessAccess: true,
+        );
+
+        final tagline = find.widgetWithText(TextField, 'Thoughtful classes');
+        await tester.ensureVisible(tagline);
+        await tester.tap(tagline);
+        await tester.pumpAndSettle();
+        final focusNode = tester.widget<TextField>(tagline).focusNode!;
+        expect(focusNode.hasFocus, isTrue);
+        final focusedField = find.byWidgetPredicate(
+          (widget) => widget is TextField && widget.focusNode == focusNode,
+        );
+
+        for (final text in ['Thoughtful classes!', 'Thoughtful classes!!']) {
+          await tester.enterText(focusedField, text);
+          await tester.pump();
+          expect(focusNode.hasFocus, isTrue);
+          expect(tester.testTextInput.isVisible, isTrue);
+        }
+      },
+    );
+
+    testWidgets(
       'display name longer than 64 characters surfaces a validator error '
       'without disabling dirty save',
       (tester) async {
@@ -911,9 +1071,13 @@ final _businessDeclaration = BusinessProfile(
 
 final class _RecordingBusinessRepository extends Fake
     implements BusinessRepository {
-  _RecordingBusinessRepository({this.failFirst = false});
+  _RecordingBusinessRepository({this.failFirst = false, this.firstError});
 
   final bool failFirst;
+  final Exception? firstError;
+  final expectedCids = <Cid?>[];
+  final bodies = <Map<String, dynamic>>[];
+  final operationKeys = <String>[];
   int putCalls = 0;
 
   @override
@@ -923,6 +1087,10 @@ final class _RecordingBusinessRepository extends Fake
     required Cid? expectedCid,
   }) async {
     putCalls++;
+    expectedCids.add(expectedCid);
+    bodies.add(body);
+    operationKeys.add(operationKey);
+    if (putCalls == 1 && firstError != null) throw firstError!;
     if (failFirst && putCalls == 1) throw Exception('business failed');
     return RecordMutationResult(
       cid: 'bafyreifbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',

@@ -43,6 +43,7 @@ type Resource struct {
 	ScheduledPost
 	PayloadBytes            []byte
 	NeedsAttentionExpiresAt *time.Time
+	LastErrorCode           string
 }
 
 type UpdateParams struct {
@@ -272,6 +273,7 @@ type scheduledPostResourceScanner interface {
 func scanScheduledPostResource(scanner scheduledPostResourceScanner) (Resource, error) {
 	var resource Resource
 	var expiresAt *time.Time
+	var errorCode *string
 	if err := scanner.Scan(
 		&resource.ID,
 		&resource.OwnerDID,
@@ -282,6 +284,7 @@ func scanScheduledPostResource(scanner scheduledPostResourceScanner) (Resource, 
 		&resource.PayloadBytes,
 		&resource.PayloadVersion,
 		&expiresAt,
+		&errorCode,
 	); err != nil {
 		return Resource{}, err
 	}
@@ -289,6 +292,9 @@ func scanScheduledPostResource(scanner scheduledPostResourceScanner) (Resource, 
 	if expiresAt != nil {
 		utc := expiresAt.UTC()
 		resource.NeedsAttentionExpiresAt = &utc
+	}
+	if errorCode != nil {
+		resource.LastErrorCode = *errorCode
 	}
 	return resource, nil
 }

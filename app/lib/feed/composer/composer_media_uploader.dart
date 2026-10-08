@@ -7,6 +7,7 @@ import 'package:craftsky_app/feed/models/create_post_external.dart';
 import 'package:craftsky_app/feed/models/create_post_image.dart';
 import 'package:craftsky_app/feed/providers/composer_image_state.dart';
 import 'package:craftsky_app/shared/media/uploaded_image_blob.dart';
+import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
 import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
 
@@ -56,7 +57,7 @@ final class ComposerMediaUploader {
         continue;
       }
       if (phase is! ImageReady) {
-        throw StateError('composer image is not ready');
+        throw DiagnosticStateError('composer image is not ready');
       }
       final verifiedDigest = verifyPreparedMediaBytes(
         bytes: phase.bytes,
@@ -182,5 +183,7 @@ typedef _ExternalUploadKey = ({
 });
 
 void _requireCurrentOwnership(bool Function() ownershipIsCurrent) {
-  if (!ownershipIsCurrent()) throw StateError('submission ownership changed');
+  if (!ownershipIsCurrent()) {
+    throw DiagnosticStateError('submission ownership changed');
+  }
 }

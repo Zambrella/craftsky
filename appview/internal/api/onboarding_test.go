@@ -51,7 +51,7 @@ func TestOnboardingStatusStoreCompletesPermanentlyAndIsolatesDIDs(t *testing.T) 
 		);
 		INSERT INTO owner_lifecycles (owner_did, state, generation)
 		VALUES ('did:plc:alice', 'active', 1), ('did:plc:bob', 'active', 1);
-	`+string(migration)+mustReadMigration(t, "../../migrations/000081_age_eligibility.up.sql"))
+	`+string(migration)+mustReadMigration(t, "../../migrations/000086_age_eligibility.up.sql"))
 	store := api.NewOnboardingStatusStore(pool, "safety-v3")
 	ctx := ownerlifecycle.WithExpectedGeneration(context.Background(), 1)
 	alice := syntax.DID("did:plc:alice")

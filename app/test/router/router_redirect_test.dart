@@ -40,6 +40,8 @@ import 'package:craftsky_app/profile/providers/profile_repository_provider.dart'
 import 'package:craftsky_app/router/route_locations.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/shared/device/device_id_provider.dart';
+import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
+import 'package:craftsky_app/subscriptions/providers/subscription_access_provider.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/form_factor.dart';
 import 'package:flutter/material.dart';
@@ -235,7 +237,10 @@ void main() {
               '${RouteLocations.authComplete}?token=not-a-credential',
         );
         expect(find.byType(AuthCompletePage), findsOneWidget);
-        expect(find.textContaining('sign-in link expired'), findsOneWidget);
+        expect(
+          find.textContaining('already been used or has expired'),
+          findsOneWidget,
+        );
       },
     );
 
@@ -508,6 +513,13 @@ void main() {
         final container = ProviderContainer.test(
           overrides: [
             secureSessionRegistryStorageProvider.overrideWithValue(storage),
+            subscriptionAccessProvider.overrideWith(
+              (ref, lease) async => SubscriptionAccess(
+                did: lease.account.did,
+                effectiveTier: SubscriptionTier.free,
+                givesAccess: false,
+              ),
+            ),
             sessionValidationLauncherProvider.overrideWithValue((_) async {}),
             handoffApiClientProvider.overrideWithValue(_HandoffApi()),
             deviceIdProvider.overrideWith((ref) async => 'test-device'),
@@ -533,6 +545,11 @@ void main() {
             profileRepositoryProvider.overrideWithValue(
               FakeProfileRepository(
                 onFetch: (id) async => Profile(
+                  did: 'did:plc:bob',
+                  handle: 'bob.test',
+                  crafts: const [],
+                ),
+                onFetchMe: () async => Profile(
                   did: 'did:plc:bob',
                   handle: 'bob.test',
                   crafts: const [],

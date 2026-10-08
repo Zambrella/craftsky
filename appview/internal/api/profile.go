@@ -7,6 +7,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"social.craftsky/appview/internal/observability"
 	"strings"
 	"time"
 
@@ -60,7 +61,7 @@ func GetProfileHandler(store ProfileReader, businessProfiles BusinessProfileRead
 					"invalid_identifier", "not a valid handle or DID", runID, nil)
 			default:
 				logger.Warn("profile: ResolveDID failed",
-					apiLogErrorAttrs(runID, "profile.get", "identity")...)
+					apiLogErrorAttrs(r.Context(), runID, "profile.get", "identity", err)...)
 				envelope.WriteError(w, http.StatusBadGateway,
 					"identity_unavailable", "could not resolve identity", runID, nil)
 			}
@@ -108,7 +109,7 @@ func GetMutualFollowersHandler(store ProfileGraphReader, resolver HandleResolver
 					"invalid_identifier", "not a valid handle or DID", runID, nil)
 			default:
 				logger.Warn("profile mutual followers: ResolveDID failed",
-					apiLogErrorAttrs(runID, "profile.mutual_followers.list", "identity")...)
+					apiLogErrorAttrs(r.Context(), runID, "profile.mutual_followers.list", "identity", err)...)
 				envelope.WriteError(w, http.StatusBadGateway,
 					"identity_unavailable", "could not resolve identity", runID, nil)
 			}
@@ -125,7 +126,7 @@ func GetMutualFollowersHandler(store ProfileGraphReader, resolver HandleResolver
 				return
 			}
 			logger.Error("profile mutual followers: list failed",
-				apiLogErrorAttrs(runID, "profile.mutual_followers.list", "store")...)
+				apiLogErrorAttrs(r.Context(), runID, "profile.mutual_followers.list", "store", err)...)
 			envelope.WriteError(w, http.StatusInternalServerError,
 				"internal_error", "mutual followers list failed", runID, nil)
 			return
@@ -134,7 +135,7 @@ func GetMutualFollowersHandler(store ProfileGraphReader, resolver HandleResolver
 		items, err := buildProfileAccountSummaries(r.Context(), rows, resolver)
 		if err != nil {
 			logger.Warn("profile mutual followers: ResolveHandle failed",
-				apiLogErrorAttrs(runID, "profile.mutual_followers.list", "identity")...)
+				apiLogErrorAttrs(r.Context(), runID, "profile.mutual_followers.list", "identity", err)...)
 			envelope.WriteError(w, http.StatusBadGateway,
 				"identity_unavailable", "could not resolve handle", runID, nil)
 			return
@@ -185,7 +186,7 @@ func getMeGraphListHandler(
 				return
 			}
 			logger.Error("profile "+label+": list failed",
-				apiLogErrorAttrs(runID, operation, "store")...)
+				apiLogErrorAttrs(r.Context(), runID, operation, "store", err)...)
 			envelope.WriteError(w, http.StatusInternalServerError,
 				"internal_error", label+" list failed", runID, nil)
 			return
@@ -193,7 +194,7 @@ func getMeGraphListHandler(
 		items, err := buildProfileAccountSummaries(r.Context(), rows, resolver)
 		if err != nil {
 			logger.Warn("profile "+label+": ResolveHandle failed",
-				apiLogErrorAttrs(runID, operation, "identity")...)
+				apiLogErrorAttrs(r.Context(), runID, operation, "identity", err)...)
 			envelope.WriteError(w, http.StatusBadGateway,
 				"identity_unavailable", "could not resolve handle", runID, nil)
 			return
@@ -262,7 +263,7 @@ func writeProfileResponse(
 			return
 		}
 		logger.Error("profile: store read failed",
-			apiLogErrorAttrs(runID, operation, "store")...)
+			apiLogErrorAttrs(r.Context(), runID, operation, "store", err)...)
 		envelope.WriteError(w, http.StatusInternalServerError,
 			"internal_error", "profile read failed", runID, nil)
 		return
@@ -272,7 +273,7 @@ func writeProfileResponse(
 	handle, err := resolver.ResolveHandle(r.Context(), did)
 	if err != nil {
 		logger.Warn("profile: ResolveHandle failed",
-			apiLogErrorAttrs(runID, operation, "identity")...)
+			apiLogErrorAttrs(r.Context(), runID, operation, "identity", err)...)
 		envelope.WriteError(w, http.StatusBadGateway,
 			"identity_unavailable", "could not resolve handle", runID, nil)
 		return
@@ -282,7 +283,7 @@ func writeProfileResponse(
 		accountType, err := businessProfiles.ReadAccountType(r.Context(), did)
 		if err != nil {
 			logger.Error("profile: account type read failed",
-				apiLogErrorAttrs(runID, operation, "store")...)
+				apiLogErrorAttrs(r.Context(), runID, operation, "store", err)...)
 			envelope.WriteError(w, http.StatusInternalServerError,
 				"internal_error", "profile read failed", runID, nil)
 			return
@@ -291,7 +292,7 @@ func writeProfileResponse(
 		presentation, err := businessProfiles.ReadEligibleProfile(r.Context(), did)
 		if err != nil {
 			logger.Error("profile: business profile read failed",
-				apiLogErrorAttrs(runID, operation, "store")...)
+				apiLogErrorAttrs(r.Context(), runID, operation, "store", err)...)
 			envelope.WriteError(w, http.StatusInternalServerError,
 				"internal_error", "profile read failed", runID, nil)
 			return
@@ -301,7 +302,7 @@ func writeProfileResponse(
 			resp.HasUpcomingEvents, err = businessProfiles.HasUpcomingEvents(r.Context(), did, time.Now().UTC())
 			if err != nil {
 				logger.Error("profile: upcoming event availability read failed",
-					apiLogErrorAttrs(runID, operation, "store")...)
+					apiLogErrorAttrs(r.Context(), runID, operation, "store", err)...)
 				envelope.WriteError(w, http.StatusInternalServerError,
 					"internal_error", "profile read failed", runID, nil)
 				return
@@ -416,6 +417,7 @@ func PutMeProfileHandler(
 			}
 			intent, blobs, err := profileCommandIntent(reqBody)
 			if err != nil {
+				observability.ReportRequestFailure(r.Context(), err, "api.PutMeProfileHandler", "handler")
 				envelope.WriteError(w, http.StatusInternalServerError,
 					"internal_error", "could not prepare profile update", runID, nil)
 				return
@@ -470,7 +472,7 @@ func PutMeProfileHandler(
 				},
 			})
 			if err != nil {
-				WriteCommandError(w, runID, err)
+				WriteCommandError(w, runID, err, r.Context())
 				return
 			}
 			WriteCommandResponse(w, CommandResultFromStored(result))
@@ -560,6 +562,7 @@ func PutMeProfileHandler(
 		case bskyErr == nil && cskyErr == nil:
 			handle, herr := resolver.ResolveHandle(r.Context(), did)
 			if herr != nil {
+				observability.ReportRequestFailure(r.Context(), herr, "api.PutMeProfileHandler", "handler")
 				envelope.WriteError(w, http.StatusBadGateway,
 					"identity_unavailable", "could not resolve handle", runID, nil)
 				return
@@ -704,7 +707,7 @@ func applyProfileImageUpdate(out map[string]any, field string, update ProfileIma
 // syntheticRow constructs the safe text portion of a ProfileRow from the bodies
 // just written. Serving images come only from the AppView's last-cleared row.
 func syntheticRow(did string, bsky map[string]any, crafts []string) *ProfileRow {
-	row := &ProfileRow{DID: did, Crafts: nonNilStrings(crafts)}
+	row := &ProfileRow{DID: did, Crafts: nonNilStrings(crafts), IsCraftskyProfile: true}
 	if dn, ok := bsky["displayName"].(string); ok {
 		row.DisplayName = &dn
 	}

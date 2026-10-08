@@ -56,6 +56,7 @@ type ProfileRow struct {
 // list endpoints before the handler resolves each DID to its current handle.
 type ProfileAccountRow struct {
 	DID               string
+	Crafts            []string
 	DisplayName       *string
 	Description       *string
 	AvatarCID         *string
@@ -428,6 +429,7 @@ func (s *ProfileStore) ListMutualFollowers(ctx context.Context, viewerDID string
 			bp.avatar_cid,
 			bp.avatar_mime,
 			(cp.did IS NOT NULL) AS is_craftsky_profile,
+			cp.crafts,
 			EXISTS (SELECT 1 FROM actor_mutes m WHERE m.owner_did = $1 AND m.subject_did = viewer_follow.subject_did
 			        AND NOT appview_owner_is_terminal(m.owner_did) AND NOT appview_owner_is_terminal(m.subject_did)),
 			EXISTS (SELECT 1 FROM pds_set_aggregates b WHERE b.kind = 'block' AND b.actor_did = $1 AND b.subject_did = viewer_follow.subject_did
@@ -534,6 +536,7 @@ func (s *ProfileStore) listFollowAccounts(ctx context.Context, kind string, did 
 			bp.avatar_cid,
 			bp.avatar_mime,
 			(cp.did IS NOT NULL) AS is_craftsky_profile,
+			cp.crafts,
 			EXISTS (SELECT 1 FROM actor_mutes m WHERE m.owner_did = $1 AND m.subject_did = ` + queryConfig.accountExpr + `
 			        AND NOT appview_owner_is_terminal(m.owner_did) AND NOT appview_owner_is_terminal(m.subject_did)),
 			EXISTS (SELECT 1 FROM pds_set_aggregates b WHERE b.kind = 'block' AND b.actor_did = $1 AND b.subject_did = ` + queryConfig.accountExpr + `
@@ -605,6 +608,7 @@ func scanProfileAccountRow(scanner pgx.Row) (*ProfileAccountRow, error) {
 		&out.AvatarCID,
 		&out.AvatarMime,
 		&out.IsCraftskyProfile,
+		&out.Crafts,
 		&out.Muted,
 		&out.Blocking,
 		&out.BlockedBy,

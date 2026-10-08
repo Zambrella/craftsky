@@ -2,6 +2,7 @@ package api_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -9,8 +10,33 @@ import (
 
 	"social.craftsky/appview/internal/api"
 	"social.craftsky/appview/internal/ownerlifecycle"
+	"social.craftsky/appview/internal/subscriptions"
 	"social.craftsky/appview/internal/testdb"
 )
+
+func TestProfilePinMutationRechecksPaidAccessInsideTransaction(t *testing.T) {
+	pool := testdb.WithMigratedSchema(t)
+	owner := syntax.DID("did:plc:pin-paid-owner")
+	ctx := ownerlifecycle.WithExpectedGeneration(context.Background(), 1)
+	if _, err := pool.Exec(ctx, `INSERT INTO craftsky_profiles(did,record_cid) VALUES ($1,'cid')`, owner); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO owner_lifecycles(owner_did,state,generation,auth_epoch,transition_reason,transitioned_at,created_at,updated_at) VALUES ($1,'active',1,1,'test',now(),now(),now())`, owner); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO craftsky_posts(uri,did,rkey,cid,text,record,created_at) VALUES ('at://did:plc:pin-paid-owner/social.craftsky.feed.post/post',$1,'post','cid','hello','{}',now())`, owner); err != nil {
+		t.Fatal(err)
+	}
+	store := api.NewProfilePinStore(pool, api.ProfilePinStoreOptions{RequirePlus: true})
+	_, err := store.Pin(ctx, owner, owner, "post")
+	if !errors.Is(err, subscriptions.ErrFeatureAccessRequired) {
+		t.Fatalf("free pin error=%v, want subscription required", err)
+	}
+	var count int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM profile_pins WHERE owner_did=$1`, owner).Scan(&count); err != nil || count != 0 {
+		t.Fatalf("free pin rows=%d, err=%v", count, err)
+	}
+}
 
 func TestProfilePinPermanentDeleteAndMembershipCascades(t *testing.T) {
 	migration, err := testdb.ReadMigration("000035_profile_pins.up.sql")

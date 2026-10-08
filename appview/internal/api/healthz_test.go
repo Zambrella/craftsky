@@ -18,6 +18,39 @@ func (f fakePinger) Ping(ctx context.Context) error { return f.err }
 
 type fakeStater struct{ state tap.ConnState }
 
+type telemetryStater struct {
+	fakeStater
+	telemetry tap.Telemetry
+}
+
+func (f *telemetryStater) Telemetry() tap.Telemetry { return f.telemetry }
+
+func TestHealthzCachedTelemetry(t *testing.T) {
+	for _, status := range []string{"progressing", "stalled", "unknown"} {
+		t.Run(status, func(t *testing.T) {
+			// No member events are needed to establish global cursor progress.
+			stater := &telemetryStater{fakeStater: fakeStater{state: tap.ConnState{Connected: true}}, telemetry: tap.Telemetry{Status: status}}
+			h := api.NewHealthHandler(fakePinger{}, stater)
+			rr := httptest.NewRecorder()
+			h.ServeHTTP(rr, httptest.NewRequest("GET", "/healthz", nil))
+			var doc struct {
+				Status string
+				Tap    struct{ Telemetry tap.Telemetry }
+			}
+			if err := json.Unmarshal(rr.Body.Bytes(), &doc); err != nil {
+				t.Fatal(err)
+			}
+			want := "degraded"
+			if status == "progressing" {
+				want = "ok"
+			}
+			if doc.Status != want || doc.Tap.Telemetry.Status != status || rr.Header().Get("Cache-Control") != "no-store" {
+				t.Fatalf("unexpected health: %s", rr.Body.String())
+			}
+		})
+	}
+}
+
 func (f *fakeStater) State() tap.ConnState { return f.state }
 
 func TestHealthz_AllOK(t *testing.T) {
@@ -102,7 +135,10 @@ func TestHealthz_ImageSafetyReadinessFailsClosedWithoutSensitiveDetail(t *testin
 	t.Parallel()
 	h := api.NewHealthHandler(
 		fakePinger{},
-		&fakeStater{state: tap.ConnState{Connected: true, LastEventAt: time.Unix(1700000000, 0)}},
+		&telemetryStater{
+			fakeStater: fakeStater{state: tap.ConnState{Connected: true, LastEventAt: time.Unix(1700000000, 0)}},
+			telemetry:  tap.Telemetry{Status: "progressing"},
+		},
 		api.StaticReadiness(false),
 	)
 	rr := httptest.NewRecorder()

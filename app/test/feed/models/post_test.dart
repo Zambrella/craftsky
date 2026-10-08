@@ -134,22 +134,22 @@ void main() {
       final muted = PostMapper.fromMap({
         'uri': 'at://did:plc:bob/social.craftsky.feed.post/muted',
         'availability': 'muted',
-        'sponsored': false,
         'relationship': {'state': 'muted', 'revealable': true},
       });
       final blocked = PostMapper.fromMap({
         'availability': 'blocked',
-        'sponsored': false,
         'relationship': {'state': 'blocked', 'revealable': false},
       });
 
       expect(muted.isProtected, isTrue);
       expect(muted.relationship?.revealable, isTrue);
       expect(muted.text, isEmpty);
+      expect(muted.sponsored, isFalse);
       expect(blocked.isProtected, isTrue);
       expect(blocked.availability, 'blocked');
       expect(blocked.relationship?.revealable, isFalse);
       expect(blocked.text, isEmpty);
+      expect(blocked.sponsored, isFalse);
     });
 
     test('round-trips a fully-populated wire payload', () {

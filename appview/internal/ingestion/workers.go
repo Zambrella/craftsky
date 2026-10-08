@@ -9,13 +9,16 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 
+	"social.craftsky/appview/internal/observability"
 	"social.craftsky/appview/internal/tap"
 )
 
 const maxWorkerBatchSize = 1000
 
 type ProjectionWorkerConfig struct {
+	Observer      *observability.Observer
 	Store         *Store
 	Projector     Projector
 	WorkerID      string
@@ -70,7 +73,35 @@ func (worker *ProjectionWorker) RunOnce(ctx context.Context) (int, error) {
 	var batchErr error
 	for _, claim := range claims {
 		delay := exponentialBackoff(claim.Attempts, worker.config.BackoffMin, worker.config.BackoffMax)
-		if err := worker.config.Store.project(ctx, claim, worker.config.Projector, delay); err != nil {
+		occurrenceCtx := observability.WithCaptureMarker(ctx)
+		if worker.config.Observer != nil {
+			occurrenceCtx = observability.WithRequestObserver(occurrenceCtx, worker.config.Observer)
+		}
+		var source SourceRecord
+		var outcome tap.Outcome
+		err := worker.config.Store.project(occurrenceCtx, claim, func(ctx context.Context, tx pgx.Tx, current SourceRecord) (tap.Outcome, error) {
+			source = current
+			var cause error
+			outcome, cause = worker.config.Projector(ctx, tx, current)
+			return outcome, cause
+		}, delay)
+		if err != nil || outcome.Kind == tap.OutcomePermanentInvalid {
+			event := tap.Event{URI: claim.SourceURI, DID: claim.SourceURI.Authority().DID(), ID: claim.SourceEventID}
+			if source.URI != "" {
+				event = tap.Event{URI: source.URI, DID: source.DID, CID: source.CID, Collection: source.Collection, Rkey: source.Rkey, Record: source.Record, ID: source.SourceEventID}
+			}
+			if err != nil {
+				outcome = tap.Retryable(tap.ReasonProjectionFailure)
+			}
+			input := tap.RecordFailureDiagnostic(event, outcome, err)
+			input.Context["operation"] = "tap.projection"
+			input.Context["attempt"] = claim.Attempts
+			observability.LogDiagnostic(occurrenceCtx, worker.logger, input)
+			if worker.config.Observer != nil {
+				worker.config.Observer.CaptureDiagnostic(occurrenceCtx, input)
+			}
+		}
+		if err != nil {
 			batchErr = errors.Join(batchErr, err)
 		}
 	}
@@ -93,6 +124,7 @@ type RepositoryWorkerConfig struct {
 }
 
 type RepositoryRepairObserver interface {
+	CaptureDiagnostic(context.Context, observability.DiagnosticInput)
 	ObserveRepositoryRepair(jobKind, result, reason string, duration time.Duration, attempt int)
 	ObserveRepositoryRepairQueue(pending int, oldestAge time.Duration, maxAttempts int, alert bool)
 }
@@ -207,13 +239,7 @@ func NewRepositoryWorker(config RepositoryWorkerConfig) (*RepositoryWorker, erro
 
 func (worker *RepositoryWorker) Run(ctx context.Context) error {
 	return runWorkerLoop(ctx, worker.config.PollInterval, func(ctx context.Context) error {
-		_, err := worker.RunOnce(ctx)
-		if err != nil {
-			worker.logger.Error("Tap repository batch failed",
-				slog.String("component", "tap_repository"),
-				slog.String("error_category", "batch"),
-				slog.String("reason", repositoryJobFailureReason(err)))
-		}
+		_, _ = worker.RunOnce(ctx) // RunOnce logs each failure with its original cause/context.
 		return nil
 	})
 }
@@ -225,13 +251,15 @@ func (worker *RepositoryWorker) RunOnce(ctx context.Context) (int, error) {
 		LeaseDuration: worker.config.LeaseDuration, Limit: worker.config.BatchSize,
 	})
 	if err != nil {
+		observability.LogDiagnostic(ctx, worker.logger, observability.DiagnosticInput{Error: err, Context: observability.EventContext{"component": "tap_repository", "operation": "tap.repository.claim", "failure_stage": "claim", "result": "retry"}})
 		return 0, err
 	}
 	var batchErr error
 	for _, claim := range claims {
 		started := time.Now()
 		delay := exponentialBackoff(claim.Attempts, worker.config.BackoffMin, worker.config.BackoffMax)
-		runErr := worker.config.Store.runRepositoryJob(ctx, claim, worker.config.Handler, delay)
+		occurrenceCtx := observability.WithCaptureMarker(ctx)
+		runErr := worker.config.Store.runRepositoryJob(occurrenceCtx, claim, worker.config.Handler, delay)
 		if worker.config.Observer != nil {
 			result, reason := "success", "none"
 			if runErr != nil {
@@ -240,6 +268,26 @@ func (worker *RepositoryWorker) RunOnce(ctx context.Context) (int, error) {
 			worker.config.Observer.ObserveRepositoryRepair(string(claim.Kind), result, reason, time.Since(started), claim.Attempts)
 		}
 		if runErr != nil {
+			result := "retry"
+			if claim.Attempts >= worker.config.AlertAttempts {
+				// Escalate diagnostics without stopping durable recovery.
+				result = "exhausted"
+			}
+			cause := runErr
+			if errors.Is(runErr, ErrReconciliationSourceChanged) {
+				cause = observability.WrapError("tap source changed during repository reconciliation", runErr)
+			} else if lease, ok := runErr.(*repositoryLeaseError); ok {
+				if lease.reason == "lease_superseded" {
+					cause = observability.WrapError("repository job lease superseded", runErr)
+				} else if lease.reason == "lease_expired" {
+					cause = observability.WrapError("repository job lease expired", runErr)
+				}
+			}
+			input := observability.DiagnosticInput{Error: cause, Context: observability.EventContext{"component": "tap_repository", "operation": "tap.repository." + string(claim.Kind), "failure_stage": "run", "result": result, "attempt": claim.Attempts, "reason": repositoryJobFailureReason(runErr)}, Workflow: observability.PublicRecordContext{ActorDID: claim.DID}}
+			observability.LogDiagnostic(occurrenceCtx, worker.logger, input)
+			if result == "exhausted" && worker.config.Observer != nil {
+				worker.config.Observer.CaptureDiagnostic(occurrenceCtx, input)
+			}
 			batchErr = errors.Join(batchErr, runErr)
 		}
 	}
@@ -260,12 +308,15 @@ func (worker *RepositoryWorker) observeRepositoryHealth(ctx context.Context) {
 }
 
 func repositoryJobFailureReason(err error) string {
-	if errors.Is(err, ErrProjectionLeaseLost) {
-		return "lease_lost"
+	if errors.Is(err, ErrReconciliationSourceChanged) {
+		return "source_changed"
 	}
 	var reasoned interface{ ReasonCode() string }
 	if errors.As(err, &reasoned) && strings.TrimSpace(reasoned.ReasonCode()) != "" {
 		return reasoned.ReasonCode()
+	}
+	if errors.Is(err, ErrProjectionLeaseLost) {
+		return "lease_lost"
 	}
 	return "store_failed"
 }

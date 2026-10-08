@@ -30,6 +30,7 @@ abstract final class BrandColors {
 
   // Supporting paper swatches — cutout backgrounds, chips, large surfaces.
   static const butter = Color(0xFFF7D46A);
+  static const butterDeep = Color(0xFF765A00);
   static const clay = Color(0xFFE27B4A);
   static const moss = Color(0xFF6E8B3D);
   static const sky = Color(0xFF9BC2E6);

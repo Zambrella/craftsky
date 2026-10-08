@@ -3,8 +3,9 @@ import 'dart:async';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/widgets/post_card.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/profile/models/profile_account_summary.dart';
 import 'package:craftsky_app/profile/models/profile_handle.dart';
-import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
+import 'package:craftsky_app/profile/widgets/profile_account_list_tile.dart';
 import 'package:craftsky_app/profile/widgets/profile_card_modal.dart';
 import 'package:craftsky_app/projects/options/project_option.dart';
 import 'package:craftsky_app/projects/options/project_option_catalogs.dart';
@@ -173,6 +174,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
               handle: profile.handle.toString(),
               displayName: profile.displayName,
               avatar: profile.avatar,
+              crafts: profile.crafts,
             ),
           ),
         );
@@ -452,51 +454,9 @@ class _ProfileResultTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final handle = ProfileHandle(profile.handle);
-    final title = handle.currentLabel(
-      unavailableLabel: l10n.handleUnavailable,
-    );
-    final subtitle = profile.subtitle(context);
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
-      leading: ProfileAvatar(
-        seed: handle.displayLabel(
-          displayName: profile.displayName,
-          unavailableLabel: l10n.handleUnavailable,
-        ),
-        size: ProfileAvatarSize.small,
-        customisation: profile.customisation,
-      ),
-      title: Text(title),
-      subtitle: subtitle == null
-          ? null
-          : _ProfileResultSubtitle(profile: profile, text: subtitle),
+    return ProfileAccountListTile(
+      account: profile.summary,
       onTap: onTap,
-    );
-  }
-}
-
-class _ProfileResultSubtitle extends StatelessWidget {
-  const _ProfileResultSubtitle({required this.profile, required this.text});
-
-  final ProfileSearchResult profile;
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    final iconCrafts = profile.crafts
-        .where((craft) => CraftIcon.assetPathFor(craft) != null)
-        .toList(growable: false);
-    if (iconCrafts.isEmpty) return Text(text);
-    return Row(
-      children: [
-        for (final craft in iconCrafts) ...[
-          CraftIcon(craft: craft, size: 16),
-          const SizedBox(width: 4),
-        ],
-        Flexible(child: Text(text)),
-      ],
     );
   }
 }
@@ -548,23 +508,6 @@ class _ErrorView extends StatelessWidget {
         ),
       ),
     );
-  }
-}
-
-extension on ProfileSearchResult {
-  String? subtitle(BuildContext context) {
-    final name = displayName;
-    final crafts = this.crafts
-        .map((craft) => _optionLabel(ProjectOptionCatalogs.craftTypes, craft))
-        .join(', ');
-    if (name != null && name.isNotEmpty && crafts.isNotEmpty) {
-      return AppLocalizations.of(
-        context,
-      ).searchProfileCraftSubtitle(name, crafts);
-    }
-    if (name != null && name.isNotEmpty) return name;
-    if (crafts.isNotEmpty) return crafts;
-    return description;
   }
 }
 

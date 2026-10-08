@@ -202,4 +202,45 @@ void main() {
         .removeConfirmed(lease);
     expect(storage.value.routingBindings, isEmpty);
   });
+
+  test(
+    'IT-004 durably persists billing owner reservation transitions',
+    () async {
+      final original = SessionRegistry.empty().upsertAndActivate(
+        token: 'token-alice',
+        did: 'did:plc:alice',
+        handle: 'alice.test',
+      );
+      final storage = _FakeRegistryStorage(original);
+      final container = ProviderContainer.test(
+        overrides: [
+          secureSessionRegistryStorageProvider.overrideWithValue(storage),
+        ],
+      );
+      await container.read(sessionRegistryProvider.future);
+      final notifier = container.read(sessionRegistryProvider.notifier);
+
+      await notifier.reserveBillingOwner('did:plc:alice');
+
+      expect(storage.value.billingOwner?.did.value, 'did:plc:alice');
+      expect(
+        container
+            .read(sessionRegistryProvider)
+            .requireValue
+            .billingOwner
+            ?.revenueCatAppUserId,
+        isNull,
+      );
+
+      await notifier.completeBillingOwner(
+        'did:plc:alice',
+        '20000000-0000-4000-8000-000000000001',
+      );
+
+      expect(
+        storage.value.billingOwner?.revenueCatAppUserId,
+        '20000000-0000-4000-8000-000000000001',
+      );
+    },
+  );
 }

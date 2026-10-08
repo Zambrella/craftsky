@@ -30,6 +30,7 @@ var rootCmd = &cobra.Command{
   * ping    — check DB connectivity
   * request — hit the running server as the dev DID
   * seed    — populate local development data
+  * sessions — revoke a user's sessions on all devices
   * did-resolve — stub pending real impl`,
 }
 

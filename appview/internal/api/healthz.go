@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"time"
 
 	"social.craftsky/appview/internal/tap"
 )
@@ -38,21 +39,26 @@ type healthReadinessBlock struct {
 }
 
 type healthTapBlock struct {
-	Connected        bool   `json:"connected"`
-	LastEventAt      string `json:"last_event_at"`
-	ReconnectAttempt int    `json:"reconnect_attempt"`
-	LastError        string `json:"last_error"`
+	Telemetry        *tap.Telemetry `json:"telemetry,omitempty"`
+	Connected        bool           `json:"connected"`
+	LastEventAt      string         `json:"last_event_at"`
+	ReconnectAttempt int            `json:"reconnect_attempt"`
+	LastError        string         `json:"last_error"`
 }
 
 // NewHealthHandler returns a handler for GET /healthz. Unlike the
 // shallow HealthHandler (which only checks DB liveness), this is the
-// deep health check that also reports Tap consumer state. Status is
-// "ok" only when DB ping succeeds and the Tap consumer is connected and
-// has received at least one event; otherwise "degraded". HTTP status is always 200.
+// deep health check that also reports Tap consumer state and cached telemetry.
+// With telemetry, "ok" requires DB readiness, a connected consumer and recent
+// global cursor progress, not activity from the small tracked member feed.
+// Image safety must also be ready when supplied.
+// This does not establish relay-head freshness. HTTP status is always 200.
 func NewHealthHandler(pinger Pinger, stater Stater, optional ...Readiness) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		dbStatus := "ok"
-		if err := pinger.Ping(r.Context()); err != nil {
+		ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+		defer cancel()
+		if err := pinger.Ping(ctx); err != nil {
 			dbStatus = "error"
 		}
 		tapState := stater.State()
@@ -78,8 +84,18 @@ func NewHealthHandler(pinger Pinger, stater Stater, optional ...Readiness) http.
 		} else {
 			resp.Status = "degraded"
 		}
+		if provider, ok := stater.(interface{ Telemetry() tap.Telemetry }); ok {
+			telemetry := provider.Telemetry()
+			resp.Tap.Telemetry = &telemetry
+			// A quiet tracked feed is normal. Use global cursor progress instead.
+			resp.Status = "degraded"
+			if dbStatus == "ok" && tapState.Connected && telemetry.Status == "progressing" && imageSafetyReady {
+				resp.Status = "ok"
+			}
+		}
 
 		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Cache-Control", "no-store")
 		w.WriteHeader(http.StatusOK)
 		_ = json.NewEncoder(w).Encode(resp)
 	})

@@ -18,8 +18,12 @@ type Store struct {
 }
 
 type ListItem struct {
-	SubjectDID syntax.DID
-	CreatedAt  time.Time
+	SubjectDID  syntax.DID
+	CreatedAt   time.Time
+	Crafts      []string
+	DisplayName *string
+	AvatarCID   *string
+	AvatarMime  *string
 }
 
 func NewStore(pool *pgxpool.Pool) *Store {
@@ -169,9 +173,10 @@ func (s *Store) ListMutes(
 		after = afterCreated
 	}
 	rows, err := s.pool.Query(ctx, `
-		SELECT m.subject_did, m.created_at
+		SELECT m.subject_did, m.created_at, cp.crafts, bp.display_name, bp.avatar_cid, bp.avatar_mime
 		FROM actor_mutes m
 		JOIN craftsky_profiles cp ON cp.did = m.subject_did
+		LEFT JOIN bluesky_profiles bp ON bp.did = m.subject_did
 		WHERE m.owner_did = $1
 		  AND NOT appview_owner_is_terminal(m.owner_did)
 		  AND NOT appview_owner_is_terminal(m.subject_did)
@@ -204,9 +209,10 @@ func (s *Store) ListBlocks(
 		after = afterCreated
 	}
 	rows, err := s.pool.Query(ctx, `
-		SELECT block.subject_did, block.activated_at
+		SELECT block.subject_did, block.activated_at, cp.crafts, bp.display_name, bp.avatar_cid, bp.avatar_mime
 		FROM pds_set_aggregates block
 		JOIN craftsky_profiles cp ON cp.did = block.subject_did
+		LEFT JOIN bluesky_profiles bp ON bp.did = block.subject_did
 		WHERE block.kind = 'block'
 		  AND block.actor_did = $1
 		  AND NOT appview_owner_is_terminal(block.actor_did)
@@ -238,7 +244,7 @@ func scanListItems(rows listItemRows) ([]ListItem, error) {
 	items := make([]ListItem, 0)
 	for rows.Next() {
 		var item ListItem
-		if err := rows.Scan(&item.SubjectDID, &item.CreatedAt); err != nil {
+		if err := rows.Scan(&item.SubjectDID, &item.CreatedAt, &item.Crafts, &item.DisplayName, &item.AvatarCID, &item.AvatarMime); err != nil {
 			return nil, fmt.Errorf("scan relationship list item: %w", err)
 		}
 		items = append(items, item)

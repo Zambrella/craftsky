@@ -6,8 +6,26 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   for (final scenario in [
-    (scheduling: false, copy: 'Publishing your post…'),
-    (scheduling: true, copy: 'Scheduling your post…'),
+    (
+      kind: SubmissionKind.post,
+      scheduling: false,
+      copy: 'Publishing your post…',
+    ),
+    (
+      kind: SubmissionKind.post,
+      scheduling: true,
+      copy: 'Scheduling your post…',
+    ),
+    (
+      kind: SubmissionKind.comment,
+      scheduling: false,
+      copy: 'Publishing your comment…',
+    ),
+    (
+      kind: SubmissionKind.reply,
+      scheduling: false,
+      copy: 'Publishing your reply…',
+    ),
   ]) {
     testWidgets('blocks the full surface and shows ${scenario.copy}', (
       tester,
@@ -26,7 +44,10 @@ void main() {
               const Scaffold(
                 body: TextButton(onPressed: null, child: Text('Behind')),
               ),
-              SubmissionBlockingOverlay(scheduling: scenario.scheduling),
+              SubmissionBlockingOverlay(
+                scheduling: scenario.scheduling,
+                kind: scenario.kind,
+              ),
             ],
           ),
         ),

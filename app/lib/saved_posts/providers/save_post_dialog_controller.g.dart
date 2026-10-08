@@ -60,7 +60,7 @@ final class SavePostDialogControllerProvider
 }
 
 String _$savePostDialogControllerHash() =>
-    r'a6f96236333cb7c85337c1b77e8e095111483801';
+    r'a3da1da3b1d748c4b2d1d483276a6a4693cfe0c3';
 
 final class SavePostDialogControllerFamily extends $Family
     with

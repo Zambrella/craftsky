@@ -41,7 +41,7 @@ final class SavedPostApiClient implements SavedPostApi {
   }) => unwrapApi(() async {
     final response = await _dio.post<Map<String, dynamic>>(
       _postSavePath(post),
-      data: {'folderId': folderId},
+      data: {'folderId': ?folderId},
     );
     return SavedPostStateMapper.fromMap(response.data!);
   });

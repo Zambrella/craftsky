@@ -6,6 +6,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"social.craftsky/appview/internal/observability"
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -30,6 +31,9 @@ const (
 type relationshipAccountSummary struct {
 	DID               syntax.DID    `json:"did"`
 	Handle            syntax.Handle `json:"handle"`
+	Crafts            []string      `json:"crafts"`
+	DisplayName       *string       `json:"displayName,omitempty"`
+	Avatar            *string       `json:"avatar,omitempty"`
 	IsCraftskyProfile bool          `json:"isCraftskyProfile"`
 	Muted             bool          `json:"muted"`
 	Blocking          bool          `json:"blocking"`
@@ -91,6 +95,7 @@ func relationshipListHandler(
 					slog.String("run_id", runID),
 					slog.String("stage", "store"))
 			}
+			observability.ReportRequestFailure(r.Context(), err, "api.relationshipListHandler", "handler")
 			envelope.WriteError(w, http.StatusInternalServerError,
 				"internal_error", "relationship list failed", runID, nil)
 			return
@@ -100,17 +105,24 @@ func relationshipListHandler(
 		for _, item := range items {
 			handle, err := resolver.ResolveHandle(r.Context(), item.SubjectDID)
 			if err != nil {
+				observability.ReportRequestFailure(r.Context(), err, "api.relationshipListHandler", "handler")
 				envelope.WriteError(w, http.StatusBadGateway,
 					"identity_unavailable", "could not resolve identity", runID, nil)
 				return
 			}
-			summaries = append(summaries, relationshipAccountSummary{
+			summary := relationshipAccountSummary{
 				DID:               item.SubjectDID,
 				Handle:            handle,
+				Crafts:            append([]string{}, item.Crafts...),
+				DisplayName:       item.DisplayName,
 				IsCraftskyProfile: true,
 				Muted:             kind == relationshipListMutes,
 				Blocking:          kind == relationshipListBlocks,
-			})
+			}
+			if avatar := synthBlobURL("avatar", item.SubjectDID.String(), item.AvatarCID, item.AvatarMime); avatar != "" {
+				summary.Avatar = &avatar
+			}
+			summaries = append(summaries, summary)
 		}
 
 		var cursor string
@@ -123,6 +135,7 @@ func relationshipListHandler(
 			last := items[len(items)-1]
 			cursor, err = EncodeRelationshipCursor(last.CreatedAt, last.SubjectDID)
 			if err != nil {
+				observability.ReportRequestFailure(r.Context(), err, "api.relationshipListHandler", "handler")
 				envelope.WriteError(w, http.StatusInternalServerError,
 					"internal_error", "relationship list cursor failed", runID, nil)
 				return

@@ -28,7 +28,7 @@ class ScheduledPostsPage extends ConsumerWidget {
       return Scaffold(
         appBar: AppBar(
           leading: BackButton(
-            onPressed: () => const ProfileRoute().go(context),
+            onPressed: () => const FeedRoute().go(context),
           ),
           title: Text(l10n.scheduledPostsTitle),
         ),
@@ -41,7 +41,7 @@ class ScheduledPostsPage extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(
         leading: BackButton(
-          onPressed: () => const ProfileRoute().go(context),
+          onPressed: () => const FeedRoute().go(context),
         ),
         title: Text(l10n.scheduledPostsTitle),
       ),
@@ -230,6 +230,10 @@ class _ScheduledPostTile extends StatelessWidget {
             liveRegion: true,
             child: Text(_statusLabel(l10n, item.status)),
           ),
+          if (item.subscriptionRequired)
+            Text(l10n.scheduledPostSubscriptionPending),
+          if (item.lastErrorCode == 'subscription_required')
+            Text(l10n.scheduledPostSubscriptionMissed),
           if (item.needsAttentionExpiresAt case final expiresAt?)
             Text(
               l10n.scheduledPostsDeletedOn(

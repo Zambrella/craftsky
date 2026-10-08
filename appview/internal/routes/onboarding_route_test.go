@@ -38,7 +38,7 @@ func TestOnboardingRoutesEnforceOwnerAndSelectorContract(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ageMigration, err := os.ReadFile("../../migrations/000081_age_eligibility.up.sql")
+	ageMigration, err := os.ReadFile("../../migrations/000086_age_eligibility.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}

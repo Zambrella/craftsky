@@ -16,6 +16,9 @@ import 'package:craftsky_app/profile/widgets/profile_tabs/profile_posts_tab.dart
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
+import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
+import 'package:craftsky_app/subscriptions/providers/subscription_access_provider.dart';
+import 'package:craftsky_app/subscriptions/subscription_build_config.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
@@ -77,6 +80,7 @@ Future<void> _pump(
   required bool isOwnProfile,
   RecordingMessenger? messenger,
   List<dynamic> overrides = const [],
+  SubscriptionTier tier = SubscriptionTier.plus,
 }) {
   return pumpProfileTab(
     tester,
@@ -86,7 +90,17 @@ Future<void> _pump(
     ),
     repository: repo,
     messenger: messenger,
-    overrides: overrides,
+    overrides: [
+      subscriptionAccessProvider.overrideWith(
+        (ref, lease) async => SubscriptionAccess(
+          did: lease.account.did,
+          effectiveTier: tier,
+          givesAccess: tier != SubscriptionTier.free,
+          assignedTier: tier == SubscriptionTier.free ? null : tier,
+        ),
+      ),
+      ...overrides,
+    ],
   );
 }
 
@@ -187,6 +201,51 @@ void main() {
       expect(pinnedTargets, ['did:plc:alice/standard']);
       expect(messenger.calls, [('info', 'Post pinned', null)]);
     });
+
+    testWidgets(
+      'AT-007 Free profile pin menu opens Plus explanation instead of pinning',
+      (tester) async {
+        var pinCalls = 0;
+        final post = _post('standard');
+        final repo = FakePostRepository(
+          onListByAuthor: (_, {cursor, limit}) async => PostPage(items: [post]),
+          onProfilePins: () async => const ProfilePinState(),
+          onPin: (did, rkey) async {
+            pinCalls++;
+            return const ProfilePinState();
+          },
+        );
+        await _pump(
+          tester,
+          repo: repo,
+          isOwnProfile: true,
+          tier: SubscriptionTier.free,
+          overrides: [
+            authSessionProvider.overrideWith(
+              () => SignedInAuthSession(did: 'did:plc:alice'),
+            ),
+            secureSessionRegistryStorageProvider.overrideWithValue(
+              _ProfilePinRegistryStorage(),
+            ),
+          ],
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(find.byIcon(CraftskyIconsBold.more));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Pin post'));
+        await tester.pumpAndSettle();
+        expect(
+          find.text(
+            subscriptionsEnabled
+                ? 'Subscribe to Plus or Business to use Pin post.'
+                : "Pin post isn't available yet. "
+                      "We'll let you know when it launches.",
+          ),
+          findsOneWidget,
+        );
+        expect(pinCalls, 0);
+      },
+    );
 
     testWidgets('UIP-001 uses the themed message for unpin confirmation', (
       tester,

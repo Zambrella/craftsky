@@ -360,13 +360,26 @@ class BusinessDeclarationDraft {
     products: products,
   );
 
-  Map<String, dynamic> toJson({List<ProductDraft>? productDrafts}) {
+  Map<String, dynamic> toJson({
+    List<ProductDraft>? productDrafts,
+    bool preserveProducts = false,
+    bool preserveUnknownCatalogValues = false,
+  }) {
     final json = <String, dynamic>{
-      'businessTypes': businessTypes.map((value) => value.value).toList(),
-      'offerings': offerings.map((value) => value.value).toList(),
-      'products': productDrafts == null
-          ? products.map(_productToJson).toList()
-          : productDrafts.map((product) => product.toJson()).toList(),
+      'businessTypes': businessTypes
+          .where((value) => !preserveUnknownCatalogValues || value.known)
+          .map((value) => value.value)
+          .toList(),
+      'offerings': offerings
+          .where((value) => !preserveUnknownCatalogValues || value.known)
+          .map((value) => value.value)
+          .toList(),
+      if (preserveProducts) 'preserveProducts': true,
+      if (preserveUnknownCatalogValues) 'preserveUnknownCatalogValues': true,
+      if (!preserveProducts)
+        'products': productDrafts == null
+            ? products.map(_productToJson).toList()
+            : productDrafts.map((product) => product.toJson()).toList(),
     };
     if (tagline != null) json['tagline'] = tagline;
     if (hoursNote != null) json['hoursNote'] = hoursNote;

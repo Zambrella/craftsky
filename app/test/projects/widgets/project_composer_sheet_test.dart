@@ -36,6 +36,30 @@ void main() {
     expect(find.text('Next'), findsNothing);
   });
 
+  testWidgets('Post button clears the three-button navigation inset', (
+    tester,
+  ) async {
+    const bottomInset = 24.0;
+    const buttonGap = 16.0;
+    await _pumpComposer(
+      tester,
+      'nav-inset-composer',
+      bottomInset: bottomInset,
+    );
+
+    final buttonBottom = tester
+        .getBottomLeft(
+          find.byKey(const Key('project-composer-primary-action')),
+        )
+        .dy;
+    final screenBottom =
+        tester.view.physicalSize.height / tester.view.devicePixelRatio;
+    expect(
+      buttonBottom,
+      lessThanOrEqualTo(screenBottom - bottomInset - buttonGap),
+    );
+  });
+
   testWidgets('AT-003 tapping scaffold space clears focused field', (
     tester,
   ) async {
@@ -105,7 +129,11 @@ void main() {
   });
 }
 
-Future<void> _pumpComposer(WidgetTester tester, String composerId) async {
+Future<void> _pumpComposer(
+  WidgetTester tester,
+  String composerId, {
+  double bottomInset = 0,
+}) async {
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
@@ -123,7 +151,15 @@ Future<void> _pumpComposer(WidgetTester tester, String composerId) async {
           theme: AppTheme.lightThemeData,
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
-          home: ProjectComposerSheet(composerId: composerId),
+          home: Builder(
+            builder: (context) => MediaQuery(
+              data: MediaQuery.of(context).copyWith(
+                padding: EdgeInsets.only(bottom: bottomInset),
+                viewPadding: EdgeInsets.only(bottom: bottomInset),
+              ),
+              child: ProjectComposerSheet(composerId: composerId),
+            ),
+          ),
         ),
       ),
     ),

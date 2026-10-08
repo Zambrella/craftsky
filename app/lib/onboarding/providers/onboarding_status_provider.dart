@@ -4,6 +4,7 @@ import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/onboarding/models/onboarding_completion.dart';
 import 'package:craftsky_app/onboarding/providers/onboarding_repository_provider.dart';
+import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:logging/logging.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -32,7 +33,7 @@ class OnboardingStatus extends _$OnboardingStatus {
   Future<OnboardingCompletion> build(AccountSessionLease lease) async {
     final registry = await ref.watch(sessionRegistryProvider.future);
     if (registry.leaseFor(lease.account) != lease) {
-      throw StateError('Account session unavailable');
+      throw DiagnosticStateError('Account session unavailable');
     }
     final repository = await ref.watch(
       onboardingRepositoryProvider(lease).future,

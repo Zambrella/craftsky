@@ -17,7 +17,6 @@ import (
 
 func TestTerminalDIDInventoryIncludesBusinessState(t *testing.T) {
 	want := map[string]TerminalDIDAction{
-		"craftsky_account_types.owner_did":              TerminalDeleteRow,
 		"craftsky_business_profiles.owner_did":          TerminalDeleteRow,
 		"craftsky_business_events.owner_did":            TerminalDeleteRow,
 		"craftsky_business_record_tombstones.owner_did": TerminalDeleteRow,

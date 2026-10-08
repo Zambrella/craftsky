@@ -32,6 +32,7 @@ type Config struct {
 	SentryTransport     sentry.Transport
 	Logger              *slog.Logger
 	FlushFunc           func(time.Duration) bool
+	DiagnosticClock     func() time.Time
 }
 
 // Observer owns AppView observability sinks behind local interfaces.
@@ -76,6 +77,9 @@ func NewValidated(cfg Config) (*Observer, error) {
 }
 
 func newObserver(cfg Config) (*Observer, error) {
+	if cfg.Logger != nil {
+		cfg.Logger = slog.New(newDiagnosticHandler(cfg.Logger.Handler(), cfg.DiagnosticClock))
+	}
 	if cfg.Service == "" {
 		cfg.Service = defaultServiceName
 	}
@@ -94,6 +98,10 @@ func newObserver(cfg Config) (*Observer, error) {
 	var sentryClient *sentry.Client
 	var sentryHub *sentry.Hub
 	if cfg.SentryDSN != "" {
+		transport := cfg.SentryTransport
+		if transport != nil {
+			transport = guardedTransport{Transport: transport, observer: observer}
+		}
 		client, err := sentry.NewClient(sentry.ClientOptions{
 			Dsn:              cfg.SentryDSN,
 			Environment:      cfg.Env,
@@ -107,7 +115,16 @@ func newObserver(cfg Config) (*Observer, error) {
 				HTTPBodies:  []sentry.BodyType{},
 				QueryParams: &sentry.KeyValueCollectionBehavior{Mode: sentry.CollectionOff},
 			},
-			Transport: cfg.SentryTransport,
+			Transport:             transport,
+			BeforeSend:            protectSDKEvent,
+			BeforeBreadcrumb:      protectSDKBreadcrumb,
+			BeforeSendTransaction: protectSDKTransaction,
+			BeforeSendLog: func(log *sentry.Log) *sentry.Log {
+				if !cfg.LogsEnabled {
+					return nil
+				}
+				return protectSDKLog(log)
+			},
 		})
 		if err != nil {
 			return observer, ErrSentryInitialization
@@ -132,6 +149,12 @@ func newObserver(cfg Config) (*Observer, error) {
 			observer.logSink = noopLogSink{}
 		}
 	}
+	if observer.logger != nil {
+		if handler, ok := observer.logger.Handler().(*diagnosticHandler); ok {
+			handler.export.bind(observer.logSink, EventContext{"service": cfg.Service, "environment": cfg.Env, "release": cfg.Release})
+		}
+	}
+
 	return observer, nil
 }
 
@@ -179,7 +202,15 @@ func (o *Observer) ObserveVideoOperation(ctx context.Context, operation, result,
 	}
 }
 
-func (o *Observer) Flush(timeout time.Duration) bool {
+func (o *Observer) Flush(timeout time.Duration) (success bool) {
+	defer func() {
+		if recover() != nil {
+			success = false
+		}
+		if !success && o != nil {
+			o.localFailure(context.Background(), "telemetry flush failed", EventContext{"component": "telemetry", "operation": "telemetry.flush", "result": "error"}, nil)
+		}
+	}()
 	if o == nil {
 		return true
 	}

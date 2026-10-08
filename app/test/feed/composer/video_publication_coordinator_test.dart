@@ -6,6 +6,7 @@ import 'package:craftsky_app/feed/models/create_post_video.dart';
 import 'package:craftsky_app/feed/models/video_service_result.dart';
 import 'package:craftsky_app/feed/models/video_upload_limits.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
+import 'package:craftsky_app/shared/observability/diagnostic_emitter.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:logging/logging.dart';
@@ -253,18 +254,146 @@ void main() {
       throwsA(isA<VideoTransportException>()),
     );
 
-    expect(
-      records.map((record) => record.message),
-      contains(
-        'VideoDiagnosticEvent(operation: upload, outcome: failed, '
-        'bytes: unknown, requestId: none)',
-      ),
-    );
+    final selected = selectDiagnosticRecord(records.last);
+    expect(selected['operation'], 'video.upload');
+    expect(selected['failureStage'], 'upload');
+    expect(selected['outcome'], 'failed');
+    expect(selected.toString(), contains('VideoTransportException'));
+    expect(selected['stack'], isNotEmpty);
     expect(records.last.level, Level.SEVERE);
     final diagnosticOutput = records.map((record) => record.message).join('\n');
     expect(diagnosticOutput, isNot(contains(tokenCanary)));
     expect(diagnosticOutput, isNot(contains(altTextCanary)));
   });
+
+  test(
+    'IT-010 late video failure remains attributed to initiating account',
+    () async {
+      var activeAccount = 'did:plc:alice';
+      final records = <LogRecord>[];
+      final sub = Logger('VideoPublication').onRecord.listen(records.add);
+      addTearDown(sub.cancel);
+      final uploadDone = Completer<VideoServiceResult>();
+      final coordinator = VideoPublicationCoordinator(
+        operationAccountDid: activeAccount,
+        checkEligibility: () async => const VideoUploadLimits(canUpload: true),
+        authorize: () async => _authorization(),
+        upload:
+            ({
+              required authorizationHeader,
+              required cancelToken,
+              required bypassDeduplication,
+              required onProgress,
+            }) => uploadDone.future,
+        poll: (_, _) => throw StateError('poll must not run'),
+        wait: (_) async {},
+        publish: (_, {required allowBlobRecovery}) async {},
+        onProgress: (_) {},
+      );
+      final pending = coordinator.publish(
+        altText: 'private media text',
+        aspectRatio: null,
+      );
+      final failure = expectLater(pending, throwsStateError);
+      await Future<void>.delayed(Duration.zero);
+      activeAccount = 'did:plc:bob';
+      uploadDone.completeError(
+        StateError('private source /Users/secret/video.mp4'),
+      );
+      await failure;
+      final selected = selectDiagnosticRecord(records.last);
+      expect(selected['diagnostic'], containsPair('actorDid', 'did:plc:alice'));
+      expect(selected.toString(), isNot(contains(activeAccount)));
+      expect(selected.toString(), isNot(contains('private source')));
+      expect(coordinator.hasEphemeralState, isFalse);
+    },
+  );
+
+  for (final phase in [
+    'limits',
+    'authorization',
+    'upload',
+    'polling',
+    'publication',
+  ]) {
+    test(
+      'IT-010 video $phase failure keeps initiating actor cause and stage',
+      () async {
+        final failure = StateError('private video $phase payload JWT canary');
+        final stack = StackTrace.fromString(
+          '#0 videoPhase (package:craftsky_app/feed/video.dart:25:3)',
+        );
+        final records = <LogRecord>[];
+        final logs = Logger.root.onRecord.listen(records.add);
+        addTearDown(logs.cancel);
+        Future<T> failed<T>() async =>
+            Error.throwWithStackTrace(failure, stack);
+        const completed = VideoServiceResult(
+          outcome: VideoServiceOutcome.completed,
+          jobId: 'private job canary',
+          blob: VideoServiceBlob(
+            cid: 'bafyvideo',
+            mimeType: 'video/mp4',
+            size: 8,
+          ),
+        );
+        final coordinator = VideoPublicationCoordinator(
+          operationAccountDid: 'did:plc:alice',
+          checkEligibility: () => phase == 'limits'
+              ? failed()
+              : Future.value(const VideoUploadLimits(canUpload: true)),
+          authorize: () => phase == 'authorization'
+              ? failed()
+              : Future.value(_authorization()),
+          upload:
+              ({
+                required authorizationHeader,
+                required cancelToken,
+                required bypassDeduplication,
+                required onProgress,
+              }) => phase == 'upload'
+              ? failed()
+              : Future.value(
+                  phase == 'polling'
+                      ? const VideoServiceResult(
+                          outcome: VideoServiceOutcome.processing,
+                          jobId: 'private job canary',
+                        )
+                      : completed,
+                ),
+          poll: (_, _) =>
+              phase == 'polling' ? failed() : Future.value(completed),
+          wait: (_) async {},
+          publish: (_, {required allowBlobRecovery}) =>
+              phase == 'publication' ? failed<void>() : Future.value(),
+          onProgress: (_) {},
+        );
+        await expectLater(
+          coordinator.publish(altText: 'private alt canary', aspectRatio: null),
+          throwsA(same(failure)),
+        );
+        final record = records.singleWhere(
+          (r) => r.level == Level.SEVERE && r.error == failure,
+        );
+        final diagnostic = selectDiagnosticRecord(record);
+        expect(diagnostic['failureStage'], phase);
+        expect(
+          diagnostic['diagnostic'],
+          containsPair('actorDid', 'did:plc:alice'),
+        );
+        expect(diagnostic['cause'].toString(), contains('StateError'));
+        expect(diagnostic['stack'].toString(), contains('videoPhase'));
+        for (final canary in [
+          'private video',
+          'private job canary',
+          'private alt canary',
+        ]) {
+          expect(diagnostic.toString(), isNot(contains(canary)));
+        }
+        expect(coordinator.hasEphemeralState, isFalse);
+      },
+    );
+  }
 
   test('missing PDS blob retries once with deduplication bypass', () async {
     final calls = <String>[];

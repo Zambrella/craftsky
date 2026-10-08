@@ -14,6 +14,9 @@ import 'package:craftsky_app/scheduled_posts/models/scheduled_post.dart';
 import 'package:craftsky_app/scheduled_posts/providers/scheduled_post_repository_provider.dart';
 import 'package:craftsky_app/scheduled_posts/providers/scheduled_posts_provider.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
+import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
+import 'package:craftsky_app/subscriptions/providers/subscription_access_provider.dart';
+import 'package:craftsky_app/subscriptions/subscription_build_config.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:dio/dio.dart';
@@ -24,88 +27,100 @@ import 'package:flutter_test/flutter_test.dart';
 import '../fakes/recording_messenger.dart';
 
 void main() {
-  testWidgets('AT-005 explains full capacity and unlocks after refresh', (
-    tester,
-  ) async {
-    final registry = SessionRegistry.empty().upsertAndActivate(
-      token: 'alice-token',
-      did: 'did:plc:alice',
-      handle: 'alice.test',
-    );
-    final account = registry.activeLease!.session.account;
-    final repository = _CapacityRepository([
-      _summary('one'),
-      _summary('two', status: ScheduledPostStatus.retrying),
-      _summary('three', status: ScheduledPostStatus.needsAttention),
-    ]);
-    final container = ProviderContainer.test(
-      overrides: [
-        secureSessionRegistryStorageProvider.overrideWithValue(
-          _RegistryStorage(registry),
-        ),
-        activeLanguagePreferencesProvider.overrideWith(
-          (ref) => const LanguagePreferences(
-            primaryLanguage: 'en',
-            contentLanguages: ['en'],
+  testWidgets(
+    'AT-005 explains full capacity and unlocks after refresh',
+    (
+      tester,
+    ) async {
+      final registry = SessionRegistry.empty().upsertAndActivate(
+        token: 'alice-token',
+        did: 'did:plc:alice',
+        handle: 'alice.test',
+      );
+      final account = registry.activeLease!.session.account;
+      final repository = _CapacityRepository([
+        _summary('one'),
+        _summary('two', status: ScheduledPostStatus.retrying),
+        _summary('three', status: ScheduledPostStatus.needsAttention),
+      ]);
+      final container = ProviderContainer.test(
+        overrides: [
+          subscriptionAccessProvider.overrideWith(
+            (ref, lease) async => SubscriptionAccess(
+              did: lease.account.did,
+              effectiveTier: SubscriptionTier.plus,
+              givesAccess: true,
+              assignedTier: SubscriptionTier.plus,
+            ),
+          ),
+          secureSessionRegistryStorageProvider.overrideWithValue(
+            _RegistryStorage(registry),
+          ),
+          activeLanguagePreferencesProvider.overrideWith(
+            (ref) => const LanguagePreferences(
+              primaryLanguage: 'en',
+              contentLanguages: ['en'],
+            ),
+          ),
+          accountScheduledPostRepositoryProvider(
+            account,
+          ).overrideWith((ref) async => repository),
+        ],
+      );
+      addTearDown(container.dispose);
+      await container.read(sessionRegistryProvider.future);
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MessengerScope(
+            messenger: RecordingMessenger(),
+            child: MaterialApp(
+              theme: AppTheme.lightThemeData,
+              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
+              home: const PostComposerSheet(composerId: 'capacity'),
+            ),
           ),
         ),
-        accountScheduledPostRepositoryProvider(
-          account,
-        ).overrideWith((ref) async => repository),
-      ],
-    );
-    addTearDown(container.dispose);
-    await container.read(sessionRegistryProvider.future);
+      );
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField).first, 'A valid post');
+      await tester.pumpAndSettle();
 
-    await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: MessengerScope(
-          messenger: RecordingMessenger(),
-          child: MaterialApp(
-            theme: AppTheme.lightThemeData,
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
-            supportedLocales: AppLocalizations.supportedLocales,
-            home: const PostComposerSheet(composerId: 'capacity'),
-          ),
-        ),
-      ),
-    );
-    await tester.pumpAndSettle();
-    await tester.enterText(find.byType(TextField).first, 'A valid post');
-    await tester.pumpAndSettle();
+      const capacityWarning =
+          "You can't schedule another post because you already have "
+          '3 scheduled posts.';
+      expect(
+        find.text(capacityWarning),
+        findsOneWidget,
+      );
+      expect(find.text('Manage scheduled posts'), findsOneWidget);
+      expect(_button(tester, 'Post').onPressed, isNotNull);
 
-    const capacityWarning =
-        "You can't schedule another post because you already have "
-        '3 scheduled posts.';
-    expect(
-      find.text(capacityWarning),
-      findsOneWidget,
-    );
-    expect(find.text('Manage scheduled posts'), findsOneWidget);
-    expect(_button(tester, 'Post').onPressed, isNotNull);
+      await tester.tap(find.byKey(const Key('composer-schedule-control')));
+      await tester.pumpAndSettle();
+      final laterTile = find.ancestor(
+        of: find.text('Schedule for later'),
+        matching: find.byType(ListTile),
+      );
+      expect(tester.widget<ListTile>(laterTile).enabled, isFalse);
+      await tester.tap(find.text('Now').last);
+      await tester.pumpAndSettle();
 
-    await tester.tap(find.byKey(const Key('composer-schedule-control')));
-    await tester.pumpAndSettle();
-    final laterTile = find.ancestor(
-      of: find.text('Schedule for later'),
-      matching: find.byType(ListTile),
-    );
-    expect(tester.widget<ListTile>(laterTile).enabled, isFalse);
-    await tester.tap(find.text('Now').last);
-    await tester.pumpAndSettle();
+      repository.items.removeLast();
+      await container.read(scheduledPostsProvider(account).notifier).refresh();
+      await tester.pumpAndSettle();
 
-    repository.items.removeLast();
-    await container.read(scheduledPostsProvider(account).notifier).refresh();
-    await tester.pumpAndSettle();
+      expect(find.textContaining('of 3 scheduled'), findsNothing);
+      expect(find.textContaining("can't schedule another post"), findsNothing);
+      expect(find.text('Manage scheduled posts'), findsNothing);
 
-    expect(find.textContaining('of 3 scheduled'), findsNothing);
-    expect(find.textContaining("can't schedule another post"), findsNothing);
-    expect(find.text('Manage scheduled posts'), findsNothing);
-
-    await _selectLater(tester);
-    expect(_button(tester, 'Schedule').onPressed, isNotNull);
-  });
+      await _selectLater(tester);
+      expect(_button(tester, 'Schedule').onPressed, isNotNull);
+    },
+    skip: !subscriptionsEnabled,
+  );
 }
 
 ChunkyButton _button(WidgetTester tester, String label) =>

@@ -3,6 +3,7 @@ import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/auth/providers/account_operation_guard.dart';
 import 'package:craftsky_app/scheduled_posts/models/scheduled_post.dart';
 import 'package:craftsky_app/scheduled_posts/providers/scheduled_post_repository_provider.dart';
+import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'scheduled_posts_provider.g.dart';
@@ -37,14 +38,14 @@ class ScheduledPosts extends _$ScheduledPosts {
   ActiveAccountLease? _captureOwnership(AccountKey account) {
     final ownership = captureActiveAccountOperation(ref);
     if (ownership != null && ownership.session.account != account) {
-      throw StateError('scheduled-post account changed');
+      throw DiagnosticStateError('scheduled-post account changed');
     }
     return ownership;
   }
 
   void _assertCurrent(ActiveAccountLease? ownership) {
     if (!isActiveAccountOperationCurrent(ref, ownership)) {
-      throw StateError('scheduled-post account changed');
+      throw DiagnosticStateError('scheduled-post account changed');
     }
   }
 

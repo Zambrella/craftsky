@@ -20,10 +20,6 @@ type PDSDeleter struct {
 	batchSize int
 }
 
-type AccountTypeDeleter interface {
-	DeleteAccountType(context.Context, syntax.DID) error
-}
-
 func isDeletionCollection(collection syntax.NSID) bool {
 	for _, candidate := range CraftskyRecordCollections() {
 		if collection == candidate {
@@ -71,26 +67,12 @@ func (deleter *PDSDeleter) DeleteExact(
 // fixed stages and proves the complete registry empty. Repeated passes recover
 // records skipped when deletion mutates pagination.
 func (deleter *PDSDeleter) DeleteAll(ctx context.Context, owner syntax.DID) (PDSDeletionResult, error) {
-	return deleter.deleteAll(ctx, owner, nil)
-}
-
-// DeleteAllWithAccountType preserves the permanent-deletion boundary between
-// public business records and the membership-defining profile.
-func (deleter *PDSDeleter) DeleteAllWithAccountType(
-	ctx context.Context,
-	owner syntax.DID,
-	accountTypes AccountTypeDeleter,
-) (PDSDeletionResult, error) {
-	if accountTypes == nil {
-		return PDSDeletionResult{}, errors.New("account type deletion is unavailable")
-	}
-	return deleter.deleteAll(ctx, owner, accountTypes)
+	return deleter.deleteAll(ctx, owner)
 }
 
 func (deleter *PDSDeleter) deleteAll(
 	ctx context.Context,
 	owner syntax.DID,
-	accountTypes AccountTypeDeleter,
 ) (PDSDeletionResult, error) {
 	var result PDSDeletionResult
 	collections := CraftskyRecordCollections()
@@ -111,11 +93,6 @@ func (deleter *PDSDeleter) deleteAll(
 		for _, stage := range stages {
 			if err := deleter.convergeCollections(ctx, owner, stage, &result); err != nil {
 				return result, err
-			}
-		}
-		if accountTypes != nil {
-			if err := accountTypes.DeleteAccountType(ctx, owner); err != nil {
-				return result, fmt.Errorf("delete CraftSky account type: %w", err)
 			}
 		}
 		if err := deleter.convergeCollections(ctx, owner, membership, &result); err != nil {

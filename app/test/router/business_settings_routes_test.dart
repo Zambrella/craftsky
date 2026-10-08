@@ -3,8 +3,10 @@ import 'dart:async';
 import 'package:craftsky_app/app_dependencies.dart';
 import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/auth/models/account_session_lease.dart';
+import 'package:craftsky_app/auth/models/session_registry.dart';
 import 'package:craftsky_app/auth/providers/active_account_identity_provider.dart';
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
+import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
 import 'package:craftsky_app/auth/providers/unsaved_work_guard_provider.dart';
 import 'package:craftsky_app/business/data/business_repository.dart';
 import 'package:craftsky_app/business/models/business_event.dart';
@@ -23,10 +25,14 @@ import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/settings/pages/settings_page.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/mutations/pds_record_operation_controller.dart';
+import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
+import 'package:craftsky_app/subscriptions/providers/subscription_access_provider.dart';
+import 'package:craftsky_app/subscriptions/subscription_build_config.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/form_factor.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -36,6 +42,50 @@ import '../feed/fakes/fake_post_repository.dart';
 import '../profile/fakes/fake_profile_repository.dart';
 
 void main() {
+  for (final route in _ownerRoutes) {
+    testWidgets('AT-008 ${route.label} route closes on Business lapse', (
+      tester,
+    ) async {
+      final tier = StateProvider<SubscriptionTier>(
+        (ref) => SubscriptionTier.business,
+      );
+      final harness = await _pumpRouter(
+        tester,
+        accountType: AccountType.business,
+        initialLocation: route.location,
+        size: route.size,
+        accessTierProvider: tier,
+      );
+      expect(find.byType(route.pageType), findsOneWidget);
+
+      harness.container.read(tier.notifier).state = SubscriptionTier.free;
+      await tester.pumpAndSettle();
+      expect(
+        harness.router.state.matchedLocation,
+        const SettingsRoute().location,
+      );
+      expect(find.byType(route.pageType), findsNothing);
+      expect(find.byType(SettingsPage), findsOneWidget);
+    });
+  }
+
+  testWidgets(
+    'AT-008 cached Business label cannot open owner page without access',
+    (tester) async {
+      final harness = await _pumpRouter(
+        tester,
+        accountType: AccountType.business,
+        accessTier: SubscriptionTier.plus,
+        initialLocation: const BusinessProductsRoute().location,
+        size: const Size(500, 800),
+      );
+      expect(
+        harness.router.state.matchedLocation,
+        const SettingsRoute().location,
+      );
+      expect(find.byType(ProductsSettingsPage), findsNothing);
+    },
+  );
   test('UT-018 owner routes use canonical settings locations', () {
     expect(
       const BusinessProductsRoute().location,
@@ -104,6 +154,7 @@ void main() {
           route.layout == 'wide' ? findsOneWidget : findsNothing,
         );
       },
+      skip: !subscriptionsEnabled,
     );
   }
 
@@ -117,6 +168,11 @@ void main() {
           initialLocation: const ProfileRoute().location,
           size: const Size(800, 900),
         );
+        expect(
+          harness.router.state.matchedLocation,
+          const ProfileRoute().location,
+        );
+        expect(find.byType(Tab), findsWidgets);
 
         await tester.tap(find.widgetWithText(Tab, route.profileTabLabel));
         await tester.pumpAndSettle();
@@ -183,6 +239,8 @@ Future<_RouterHarness> _pumpRouter(
   required AccountType accountType,
   required String initialLocation,
   required Size size,
+  SubscriptionTier? accessTier,
+  StateProvider<SubscriptionTier>? accessTierProvider,
   List<BusinessProductView> products = const [],
 }) async {
   tester.view.devicePixelRatio = 1;
@@ -211,6 +269,31 @@ Future<_RouterHarness> _pumpRouter(
   final preferences = await SharedPreferences.getInstance();
   final container = ProviderContainer.test(
     overrides: [
+      secureSessionRegistryStorageProvider.overrideWithValue(
+        _BusinessRegistryStorage(
+          SessionRegistry.empty().upsertAndActivate(
+            token: 'test-token',
+            did: 'did:plc:test',
+            handle: 'test.bsky.social',
+          ),
+        ),
+      ),
+      subscriptionAccessProvider.overrideWith((ref, lease) async {
+        final tier =
+            (accessTierProvider == null
+                ? null
+                : ref.watch(accessTierProvider)) ??
+            accessTier ??
+            (accountType == AccountType.business
+                ? SubscriptionTier.business
+                : SubscriptionTier.free);
+        return SubscriptionAccess(
+          did: Did.parse('did:plc:test'),
+          effectiveTier: tier,
+          givesAccess: tier != SubscriptionTier.free,
+          assignedTier: tier == SubscriptionTier.free ? null : tier,
+        );
+      }),
       sharedPreferencesProvider.overrideWithValue(preferences),
       authSessionProvider.overrideWith(SignedInAuthSession.new),
       onboardingStatusProvider.overrideWith2(
@@ -220,7 +303,10 @@ Future<_RouterHarness> _pumpRouter(
         (_) async => identity,
       ),
       profileRepositoryProvider.overrideWithValue(
-        FakeProfileRepository(onFetch: (_) async => profile),
+        FakeProfileRepository(
+          onFetch: (_) async => profile,
+          onFetchMe: () async => profile,
+        ),
       ),
       postRepositoryProvider.overrideWithValue(
         FakePostRepository(
@@ -265,6 +351,16 @@ Future<_RouterHarness> _pumpRouter(
     container: container,
     identity: identity,
   );
+}
+
+final class _BusinessRegistryStorage implements SessionRegistryStorage {
+  _BusinessRegistryStorage(this.registry);
+  SessionRegistry registry;
+  @override
+  Future<SessionRegistry> read() async => registry;
+  @override
+  Future<void> write(SessionRegistry registry) async =>
+      this.registry = registry;
 }
 
 final class _RouterHarness {

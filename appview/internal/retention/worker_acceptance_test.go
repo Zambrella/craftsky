@@ -17,8 +17,8 @@ import (
 
 func TestWorkerDeletesDueEvidenceIdempotentlyAndPreservesActiveHolds(t *testing.T) {
 	pool := testdb.WithSchema(t, retentionPreStateDDL)
-	applyRetentionMigration(t, pool, "../../migrations/000078_safety_evidence_holds.up.sql")
-	applyRetentionMigration(t, pool, "../../migrations/000083_safety_retention.up.sql")
+	applyRetentionMigration(t, pool, "../../migrations/000083_safety_evidence_holds.up.sql")
+	applyRetentionMigration(t, pool, "../../migrations/000088_safety_retention.up.sql")
 	ctx := context.Background()
 	now := time.Date(2030, 9, 22, 19, 0, 0, 0, time.UTC)
 	store := safetyincident.NewMemoryEvidenceStore()
@@ -72,8 +72,8 @@ func TestWorkerDeletesDueEvidenceIdempotentlyAndPreservesActiveHolds(t *testing.
 
 func TestWorkerRetriesFailuresAndDeadLettersAtTheBound(t *testing.T) {
 	pool := testdb.WithSchema(t, retentionPreStateDDL)
-	applyRetentionMigration(t, pool, "../../migrations/000078_safety_evidence_holds.up.sql")
-	applyRetentionMigration(t, pool, "../../migrations/000083_safety_retention.up.sql")
+	applyRetentionMigration(t, pool, "../../migrations/000083_safety_evidence_holds.up.sql")
+	applyRetentionMigration(t, pool, "../../migrations/000088_safety_retention.up.sql")
 	ctx := context.Background()
 	now := time.Date(2030, 9, 22, 19, 0, 0, 0, time.UTC)
 	objects := &failingEvidenceStore{MemoryEvidenceStore: safetyincident.NewMemoryEvidenceStore()}

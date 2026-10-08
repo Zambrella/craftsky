@@ -261,7 +261,7 @@ only while green, and record the result below.
   reference, state, scanner/policy/corpus identity, safe provider/integrity references,
   detection time, and aggregate subject-kind counts. It returns no blob CID, DID,
   subject URI, bytes, raw payload, report, evidence object, or enforcement detail.
-- Migration `000077_safety_incidents` is reversible and contains metadata/reference
+- Migration `000082_safety_incidents` is reversible and contains metadata/reference
   columns only; up/down/up and closed constraints are covered.
 - AT-008 remains partially open for the authorized human-confirmation,
   `systemDetected` case, and owner-safe notice clauses assigned to Step 12.

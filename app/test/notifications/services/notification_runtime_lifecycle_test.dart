@@ -15,6 +15,63 @@ import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('cold-start open waits for account initialization', () async {
+    final did = Did.parse('did:plc:viewer');
+    final binding = AccountSubscriptionId.parse('binding');
+    final base = SessionRegistry.empty().upsertAndActivate(
+      token: 'token',
+      did: did.value,
+      handle: 'viewer.test',
+    );
+    final registry = SessionRegistry(
+      nextSessionGeneration: base.nextSessionGeneration,
+      nextUseOrdinal: base.nextUseOrdinal,
+      activationGeneration: base.activationGeneration,
+      activeDid: base.activeDid?.value,
+      sessions: {
+        for (final entry in base.sessions.entries) entry.key.value: entry.value,
+      },
+      routingBindings: {did.value: binding.wireValue},
+    );
+    final service = _RecordingService(
+      initialOpen: _attempt(NotificationOpenSource.initialOpen),
+    );
+    final effects = StreamController<NotificationEffect>.broadcast();
+    final received = <NotificationNavigationEffect>[];
+    final subscription = effects.stream
+        .where((effect) => effect is NotificationNavigationEffect)
+        .cast<NotificationNavigationEffect>()
+        .listen(received.add);
+    final runtime = NotificationRuntime(
+      service: service,
+      registration: NotificationRegistrationCoordinator(
+        service: service,
+        platform: NotificationPlatform.ios,
+        registerAccount:
+            ({required lease, required platform, required token}) async =>
+                binding,
+        saveBindingForLease: ({required lease, required binding}) async {},
+      ),
+      routingStorage: NotificationRoutingStorage(() => registry),
+      invalidateList: () {},
+      refreshCount: () {},
+      effects: effects,
+    );
+    addTearDown(subscription.cancel);
+    addTearDown(effects.close);
+    addTearDown(service.close);
+    addTearDown(runtime.dispose);
+
+    await runtime.start();
+    expect(received, isEmpty);
+    await runtime.updateReadiness(did: did, onboarded: true);
+    expect(received, hasLength(1));
+    expect(
+      received.single.outcome.destination,
+      ProfileDestination(Did.parse('did:plc:actor')),
+    );
+  });
+
   test('IT-004 AT-004 REG-010 unify callback sources at least once', () async {
     final binding = AccountSubscriptionId.parse('binding');
     final did = Did.parse('did:plc:viewer');

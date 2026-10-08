@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log/slog"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -14,6 +16,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/google/uuid"
 	"github.com/ipfs/go-cid"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/multiformats/go-multihash"
 
@@ -151,6 +154,82 @@ func TestPublicationWorkerPublishesDuePostWithStablePutAndFinalizes(t *testing.T
 	}
 	if _, err := store.Get(ctx, "did:plc:alice", created.ID); !errors.Is(err, ErrScheduleNotFound) {
 		t.Fatalf("finalized schedule get error=%v", err)
+	}
+}
+
+func TestScheduledPublicationRechecksPlusAtLastEffectBoundary(t *testing.T) {
+	store := NewStore(newScheduledPostStoreTestPool(t))
+	ctx := context.Background()
+	now := time.Date(2026, 8, 2, 12, 0, 0, 0, time.UTC)
+	payload, _ := EncodePayload(Payload{Kind: PostKindStandard, Text: "unlicensed"})
+	created, err := store.Create(ctx, CreateParams{ID: uuid.New(), OwnerDID: "did:plc:alice", OperationID: uuid.New(), RequestHash: [32]byte{1}, ScheduledAt: now, PayloadBytes: payload, PayloadHash: sha256.Sum256(payload), PayloadVersion: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	pds := &recordingScheduledPDS{}
+	checks := 0
+	processor, err := NewPublicationProcessor(PublicationProcessorOptions{
+		Store: store, Sessions: stubPublicationSessionSelector{wantOwner: "did:plc:alice", sessionID: "owner-session"},
+		NewCommands: recordingGuardedFactory(pds, nil), Objects: newMemoryPrivateObjectStore(), Now: func() time.Time { return now },
+		WithPlusAccess: func(_ context.Context, did syntax.DID, _ func(context.Context) error) error {
+			checks++
+			if did != created.OwnerDID {
+				t.Fatalf("checked %s, want owner %s", did, created.OwnerDID)
+			}
+			return ErrSubscriptionRequired
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	worker, err := NewWorker(WorkerOptions{Store: store, Processor: processor, Now: func() time.Time { return now }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if processed, err := worker.ProcessBatch(ctx); err != nil || processed != 1 {
+		t.Fatalf("processed=%d, err=%v", processed, err)
+	}
+	resource, err := store.Get(ctx, created.OwnerDID, created.ID)
+	if err != nil || checks != 1 || pds.putCalls != 0 || resource.Status != StatusNeedsAttention {
+		t.Fatalf("resource=%+v err=%v checks=%d putCalls=%d", resource, err, checks, pds.putCalls)
+	}
+	if resource.LastErrorCode != "subscription_required" {
+		t.Fatalf("owner-visible error code = %q", resource.LastErrorCode)
+	}
+	var code string
+	if err := store.pool.QueryRow(ctx, `SELECT last_error_code FROM scheduled_posts WHERE id=$1`, created.ID).Scan(&code); err != nil || code != "subscription_required" {
+		t.Fatalf("code=%q err=%v", code, err)
+	}
+}
+
+func TestDueWithoutSubscriptionIsNotReclassifiedAsAutomaticCutoff(t *testing.T) {
+	store := NewStore(newScheduledPostStoreTestPool(t))
+	ctx := context.Background()
+	now := time.Date(2026, 8, 2, 12, 0, 0, 0, time.UTC)
+	payload, _ := EncodePayload(Payload{Kind: PostKindStandard, Text: "missed"})
+	created, err := store.Create(ctx, CreateParams{ID: uuid.New(), OwnerDID: "did:plc:alice", OperationID: uuid.New(), RequestHash: [32]byte{1}, ScheduledAt: now.Add(-31 * time.Minute), PayloadBytes: payload, PayloadHash: sha256.Sum256(payload), PayloadVersion: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	pds := &recordingScheduledPDS{}
+	processor, err := NewPublicationProcessor(PublicationProcessorOptions{Store: store,
+		Sessions:    stubPublicationSessionSelector{wantOwner: "did:plc:alice", sessionID: "owner-session"},
+		NewCommands: recordingGuardedFactory(pds, nil), Objects: newMemoryPrivateObjectStore(), Now: func() time.Time { return now },
+		CheckPlusAccess: func(context.Context, syntax.DID) (bool, error) { return false, nil },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	worker, err := NewWorker(WorkerOptions{Store: store, Processor: processor, Now: func() time.Time { return now }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := worker.ProcessBatch(ctx); err != nil {
+		t.Fatal(err)
+	}
+	var code string
+	if err := store.pool.QueryRow(ctx, `SELECT last_error_code FROM scheduled_posts WHERE id=$1`, created.ID).Scan(&code); err != nil || code != "subscription_required" || pds.putCalls != 0 {
+		t.Fatalf("code=%s err=%v pds=%d", code, err, pds.putCalls)
 	}
 }
 
@@ -310,8 +389,9 @@ func TestIT018ScheduledPublicationRetryTelemetryExcludesPrivateCanaries(t *testi
 		t.Fatal(err)
 	}
 	metrics := observability.NewInMemoryMetricRecorder()
-	observer := observability.New(observability.Config{MetricRecorder: metrics})
-	pds := &recordingScheduledPDS{putErr: errors.New(canaries[7])}
+	var local bytes.Buffer
+	observer := observability.New(observability.Config{MetricRecorder: metrics, Logger: slog.New(slog.NewJSONHandler(&local, nil))})
+	pds := &recordingScheduledPDS{putErr: &pgconn.PgError{Code: "40001", Message: canaries[7]}}
 	processor, err := NewPublicationProcessor(PublicationProcessorOptions{
 		Store: store, Sessions: stubPublicationSessionSelector{wantOwner: owner, sessionID: "owner-session"},
 		NewCommands: recordingGuardedFactory(pds, nil), Objects: objects,
@@ -328,6 +408,16 @@ func TestIT018ScheduledPublicationRetryTelemetryExcludesPrivateCanaries(t *testi
 	}
 	if pds.uploadCalls != 1 || pds.putCalls != 1 {
 		t.Fatalf("uploads=%d puts=%d, want publication retry after both effects", pds.uploadCalls, pds.putCalls)
+	}
+	for _, positive := range []string{owner.String(), "workflow_ref", "record_write", "retry", "40001"} {
+		if !strings.Contains(local.String(), positive) {
+			t.Fatalf("IT-007 private retry omitted %s: %s", positive, local.String())
+		}
+	}
+	for _, private := range canaries[1:] {
+		if strings.Contains(local.String(), private) {
+			t.Fatalf("private failure leaked %s", private)
+		}
 	}
 	captured := fmt.Sprint(metrics.Calls())
 	for _, canary := range canaries {
@@ -374,6 +464,43 @@ func TestPublicationWorkerUploadsThePrivateCopyBeforeWritingImageRecord(t *testi
 	image := images[0].(map[string]any)
 	if image["alt"] != "private alt" {
 		t.Fatalf("image record=%#v", image)
+	}
+}
+
+func TestUnlicensedClaimCannotUploadMediaBeforeFinalEffectCheck(t *testing.T) {
+	store := NewStore(newScheduledPostStoreTestPool(t))
+	objects := newMemoryPrivateObjectStore()
+	mediaService, _ := newScheduledTestMediaService(t, store, objects)
+	ctx := context.Background()
+	now := time.Date(2026, 8, 2, 12, 0, 0, 0, time.UTC)
+	mediaID := uuid.New()
+	if _, err := mediaService.Put(ctx, PutPrivateMediaParams{ID: mediaID, OwnerDID: "did:plc:alice", OwnerGeneration: 1, MIMEType: "image/jpeg", Bytes: []byte("private"), Now: now}); err != nil {
+		t.Fatal(err)
+	}
+	payload, _ := EncodePayload(Payload{Kind: PostKindStandard, Text: "blocked image", Media: []PayloadMedia{{ID: mediaID.String(), Alt: "alt", Width: 4, Height: 3}}})
+	created, err := store.Create(ctx, CreateParams{ID: uuid.New(), OwnerDID: "did:plc:alice", OperationID: uuid.New(), RequestHash: [32]byte{1}, ScheduledAt: now, PayloadBytes: payload, PayloadHash: sha256.Sum256(payload), PayloadVersion: 1, MediaIDs: []uuid.UUID{mediaID}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	pds := &recordingScheduledPDS{}
+	processor, err := NewPublicationProcessor(PublicationProcessorOptions{
+		Store: store, Sessions: stubPublicationSessionSelector{wantOwner: "did:plc:alice", sessionID: "owner-session"},
+		NewCommands: recordingGuardedFactory(pds, nil), Objects: objects, Now: func() time.Time { return now },
+		WithPlusAccess: func(context.Context, syntax.DID, func(context.Context) error) error { return ErrSubscriptionRequired },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	worker, err := NewWorker(WorkerOptions{Store: store, Processor: processor, Now: func() time.Time { return now }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := worker.ProcessBatch(ctx); err != nil {
+		t.Fatal(err)
+	}
+	resource, err := store.Get(ctx, created.OwnerDID, created.ID)
+	if err != nil || resource.Status != StatusNeedsAttention || resource.LastErrorCode != "subscription_required" || pds.uploadCalls != 0 || pds.putCalls != 0 {
+		t.Fatalf("status=%s code=%s uploads=%d puts=%d err=%v", resource.Status, resource.LastErrorCode, pds.uploadCalls, pds.putCalls, err)
 	}
 }
 
@@ -735,7 +862,7 @@ func journaledRecordingGuardedFactory(
 	t *testing.T,
 	pool *pgxpool.Pool,
 	lifecycles *ownerlifecycle.Store,
-	pds *recordingScheduledPDS,
+	pds auth.PDSClient,
 	now func() time.Time,
 ) GuardedCommandCoordinatorFactory {
 	t.Helper()
@@ -748,7 +875,7 @@ func journaledRecordingGuardedFactory(
 	appendService, err := pdscommands.NewAppendCommandService(pdscommands.AppendCommandServiceConfig{
 		Store: commandStore, Lifecycles: lifecycles,
 		NewBoundary: func(context.Context, syntax.DID, string) (auth.ActiveEffectPDSBoundary, error) {
-			return pds, nil
+			return &countingPublicationEffectBoundary{lifecycles: lifecycles, client: pds}, nil
 		},
 		NewRecordKey: func() (syntax.RecordKey, error) {
 			return "unused", nil
@@ -786,20 +913,22 @@ func (coordinator *journaledRecordingGuardedCoordinator) WithGuardedCommands(
 		ctx,
 		expected,
 		func(effectCtx context.Context, effects pdseffects.EffectExecutor) error {
-			commands, err := pdscommands.NewAlreadyFencedCommandExecutor(
-				coordinator.append,
-				coordinator.client,
-				expected,
-			)
-			if err != nil {
-				return err
-			}
-			scoped, err := pdscommands.NewScopedAlreadyFencedCommandExecutor(commands)
-			if err != nil {
-				return err
-			}
-			defer scoped.CloseAndWait()
-			return operation(effectCtx, effects, scoped)
+			return coordinator.client.(auth.ActiveEffectPDSBoundary).WithActiveEffects(effectCtx, expected, func(commandCtx context.Context, client auth.PDSClient) error {
+				commands, err := pdscommands.NewAlreadyFencedCommandExecutor(
+					coordinator.append,
+					client,
+					expected,
+				)
+				if err != nil {
+					return err
+				}
+				scoped, err := pdscommands.NewScopedAlreadyFencedCommandExecutor(commands)
+				if err != nil {
+					return err
+				}
+				defer scoped.CloseAndWait()
+				return operation(commandCtx, effects, scoped)
+			})
 		},
 	)
 }
@@ -828,11 +957,11 @@ func (executor *recordingCommandExecutor) ExecuteAppend(
 		if errors.Is(err, pdseffects.ErrOutcomeAmbiguous) {
 			return pdscommands.CommandResult{
 				TerminalResult:    pdscommands.TerminalResult{State: pdscommands.CommandAmbiguous},
-				RetryAfterSeconds: 1,
+				RetryAfterSeconds: 1, DiagnosticCause: err,
 			}, nil
 		}
 		terminal := request.Command.Rejected(err)
-		return pdscommands.CommandResult{TerminalResult: terminal}, nil
+		return pdscommands.CommandResult{TerminalResult: terminal, DiagnosticCause: err}, nil
 	}
 	terminal, err := request.Command.Accepted(pdscommands.AuthoritativeRecord{
 		URI: result.URI, CID: result.CID, Record: record,
@@ -1078,4 +1207,82 @@ func (p *recordingScheduledPDS) UploadBlob(_ context.Context, contentType string
 		},
 		CID: blobCID, MIME: contentType, Size: int64(len(body)),
 	}, nil
+}
+
+type diagnosticSnapshotFailureStore struct {
+	publicationProcessorStoreFake
+	cause error
+}
+
+func (s diagnosticSnapshotFailureStore) publicationSnapshot(context.Context, PublishingClaim) (publicationSnapshot, error) {
+	return publicationSnapshot{}, s.cause
+}
+
+func TestIT007ScheduledSnapshotFailureRetainsReturnedCause(t *testing.T) {
+	cause := &pgconn.PgError{Code: "08006", Detail: "PRIVATE_SNAPSHOT"}
+	var local bytes.Buffer
+	observer := observability.New(observability.Config{Logger: slog.New(slog.NewJSONHandler(&local, nil))})
+	processor, err := NewPublicationProcessor(PublicationProcessorOptions{Store: diagnosticSnapshotFailureStore{cause: cause}, Sessions: stubPublicationSessionSelector{}, NewCommands: recordingGuardedFactory(&recordingScheduledPDS{}, nil), Objects: newMemoryPrivateObjectStore(), Observer: observer, Now: time.Now})
+	if err != nil {
+		t.Fatal(err)
+	}
+	item := WorkItem{ID: uuid.New(), OwnerDID: syntax.DID("did:plc:owner"), OwnerGeneration: 1, LeaseToken: uuid.New()}
+	if err := processor.Process(context.Background(), item); !errors.Is(err, cause) {
+		t.Fatalf("lost return cause %v", err)
+	}
+	for _, selected := range []string{"08006", "did:plc:owner", item.ID.String(), "snapshot"} {
+		if !strings.Contains(local.String(), selected) {
+			t.Errorf("missing %s in %s", selected, local.String())
+		}
+	}
+	if strings.Contains(local.String(), "PRIVATE_SNAPSHOT") || strings.Contains(local.String(), item.LeaseToken.String()) {
+		t.Error("private data leaked")
+	}
+	if os.Getenv("CRAFTSKY_DIAGNOSTIC_EVIDENCE") == "1" {
+		t.Logf("private scheduled snapshot local diagnostics:\n%s", local.String())
+	}
+}
+
+type diagnosticFinalizationFailureStore struct {
+	*Store
+	cause error
+}
+
+func (s diagnosticFinalizationFailureStore) FinalizePublication(context.Context, FinalizePublicationParams) (FinalizePublicationResult, error) {
+	return FinalizePublicationResult{}, s.cause
+}
+func TestIT007ScheduledFinalizationFailureRetainsStageAndCause(t *testing.T) {
+	store := NewStore(newScheduledPostStoreTestPool(t))
+	ctx := context.Background()
+	now := time.Date(2026, 8, 2, 12, 0, 0, 0, time.UTC)
+	payload, _ := EncodePayload(Payload{Kind: PostKindStandard, Text: "PRIVATE_SCHEDULE_PAYLOAD"})
+	created, err := store.Create(ctx, CreateParams{ID: uuid.New(), OwnerDID: "did:plc:alice", OperationID: uuid.New(), RequestHash: [32]byte{1}, ScheduledAt: now, PayloadBytes: payload, PayloadHash: sha256.Sum256(payload), PayloadVersion: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	cause := &pgconn.PgError{Code: "08006", Message: "PRIVATE_FINALIZATION_DETAIL"}
+	var local bytes.Buffer
+	observer := observability.New(observability.Config{Logger: slog.New(slog.NewJSONHandler(&local, nil))})
+	processor, err := NewPublicationProcessor(PublicationProcessorOptions{Store: diagnosticFinalizationFailureStore{Store: store, cause: cause}, Sessions: stubPublicationSessionSelector{wantOwner: "did:plc:alice", sessionID: "PRIVATE_SESSION"}, NewCommands: recordingGuardedFactory(&recordingScheduledPDS{}, nil), Objects: newMemoryPrivateObjectStore(), Observer: observer, Now: func() time.Time { return now }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	worker, err := NewWorker(WorkerOptions{Store: store, Processor: processor, Now: func() time.Time { return now }, BatchSize: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = worker.ProcessBatch(ctx)
+	if !errors.Is(err, cause) {
+		t.Fatalf("lost cause: %v", err)
+	}
+	for _, value := range []string{"08006", "finalization", "did:plc:alice", created.ID.String()} {
+		if !strings.Contains(local.String(), value) {
+			t.Fatalf("missing %s in %s", value, local.String())
+		}
+	}
+	for _, value := range []string{"PRIVATE_SCHEDULE_PAYLOAD", "PRIVATE_FINALIZATION_DETAIL", "PRIVATE_SESSION"} {
+		if strings.Contains(local.String(), value) {
+			t.Fatalf("private context: %s", local.String())
+		}
+	}
 }

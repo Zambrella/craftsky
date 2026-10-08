@@ -59,6 +59,7 @@ import 'package:craftsky_app/scheduled_posts/widgets/scheduled_post_capacity_war
 import 'package:craftsky_app/scheduled_posts/widgets/scheduled_staging_progress.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/shared/messaging/message_action.dart';
+import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
 import 'package:craftsky_app/shared/rich_text/facet_autocomplete_controller.dart';
 import 'package:craftsky_app/shared/rich_text/providers/facet_suggestion_providers.dart';
 import 'package:craftsky_app/shared/rich_text/widgets/facet_autocomplete_editor.dart';
@@ -86,8 +87,7 @@ Future<Post?> showProjectComposerSheet(
   ActiveAccountLease? draftOwner,
 }) {
   return responsiveModalNavigator(context).push<Post?>(
-    MaterialPageRoute<Post?>(
-      fullscreenDialog: true,
+    FullscreenModalRoute<Post?>(
       builder: (_) => ProjectComposerSheet(
         scheduledPost: scheduledPost,
         scheduledOwner: scheduledOwner,
@@ -248,6 +248,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
   bool _sponsored = false;
   bool _initialSponsored = false;
   bool _submissionSucceeded = false;
+  Post? _pendingPublishedDraftPost;
   late final DraftSubmissionOrigin _origin;
   String _initialBodyText = '';
   List<String>? _initialLanguages;
@@ -497,7 +498,9 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
       ..listen(createPostProvider, (previous, next) {
         switch ((previous, next)) {
           case (AsyncLoading(), AsyncData(:final value?)):
-            if (Navigator.of(context).canPop()) {
+            if (_origin.draft != null) {
+              _pendingPublishedDraftPost = value;
+            } else if (Navigator.of(context).canPop()) {
               Navigator.of(context).pop(value);
             }
             context.showInfo(l10n.postCreateSuccess);
@@ -530,7 +533,11 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
     }
 
     return PopScope<Post?>(
-      canPop: !_isSubmitting && (!hasDraft || createState.isLoading),
+      canPop:
+          !_isSubmitting &&
+          (_pendingPublishedDraftPost != null ||
+              !hasDraft ||
+              createState.isLoading),
       onPopInvokedWithResult: (didPop, _) async {
         if (didPop) return;
         if (_isSubmitting) return;
@@ -785,17 +792,19 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
                     bottom: 0,
                     child: SafeArea(
                       top: false,
-                      minimum: EdgeInsets.only(bottom: spacing.sp4),
-                      child: ChunkyButton(
-                        key: const Key('project-composer-primary-action'),
-                        focusNode: _primaryActionFocusNode,
-                        onPressed: canSubmit
-                            ? () => _submitProject(trimmedBody: trimmedBody)
-                            : null,
-                        child: Text(
-                          _scheduleChoice == ScheduleChoice.later
-                              ? l10n.scheduledPostAction
-                              : l10n.postComposeSubmit,
+                      child: Padding(
+                        padding: EdgeInsets.only(bottom: spacing.sp4),
+                        child: ChunkyButton(
+                          key: const Key('project-composer-primary-action'),
+                          focusNode: _primaryActionFocusNode,
+                          onPressed: canSubmit
+                              ? () => _submitProject(trimmedBody: trimmedBody)
+                              : null,
+                          child: Text(
+                            _scheduleChoice == ScheduleChoice.later
+                                ? l10n.scheduledPostAction
+                                : l10n.postComposeSubmit,
+                          ),
                         ),
                       ),
                     ),
@@ -1429,6 +1438,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
         CraftskyFormBuilderTextField(
           name: ProjectComposerFields.title,
           label: l10n.projectComposerProjectTitleLabel,
+          textCapitalization: TextCapitalization.words,
           hintText: l10n.projectComposerProjectTitleHint,
           textFieldKey: const Key('project-title-input'),
           enabled: controlsEnabled,
@@ -1449,6 +1459,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
           label: l10n.projectComposerPatternNameLabel,
           hintText: l10n.projectComposerPatternNameHint,
           controller: _patternNameController,
+          textCapitalization: TextCapitalization.none,
           focusNode: _patternNameFocusNode,
           enabled: controlsEnabled,
           initialDisplayText: '#',
@@ -2096,7 +2107,9 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
     required Project project,
     required List<Map<String, dynamic>>? facets,
   }) async {
-    if (owner == null) throw StateError('Video publication requires an owner');
+    if (owner == null) {
+      throw DiagnosticStateError('Video publication requires an owner');
+    }
     if (widget.prepareVideoProof case final prepare?) {
       final video = await prepare(selectedVideo);
       final created = await ref
@@ -2116,6 +2129,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
     final api = ref.read(postApiClientProvider);
     final service = ref.read(videoServiceClientProvider);
     final coordinator = VideoPublicationCoordinator(
+      operationAccountDid: owner.session.account.did.value,
       checkEligibility: api.getVideoUploadLimits,
       authorize: api.authorizeVideoUpload,
       upload:
@@ -2179,11 +2193,12 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
   ) async {
     if (_submissionCoordinator.isRunning) return;
     _submissionSucceeded = false;
+    _pendingPublishedDraftPost = null;
     _videoFailure = null;
     await _submissionCoordinator.run(
       presentOverlay: () async {
         await WidgetsBinding.instance.endOfFrame;
-        if (!mounted) throw StateError('composer disposed');
+        if (!mounted) throw DiagnosticStateError('composer disposed');
       },
       ownershipIsCurrent: () => _submissionOwnershipIsCurrent(submissionOwner),
       saveOriginSnapshot: _saveOriginSnapshot,
@@ -2220,6 +2235,11 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
         }
       },
     );
+    final published = _pendingPublishedDraftPost;
+    if (published != null) await WidgetsBinding.instance.endOfFrame;
+    if (mounted && published != null && Navigator.of(context).canPop()) {
+      Navigator.of(context).pop(published);
+    }
   }
 
   bool _submissionOwnershipIsCurrent(ActiveAccountLease? owner) =>
@@ -2233,7 +2253,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
     if (active == null ||
         active != widget.draftOwner ||
         active.session.account != origin.owner) {
-      throw StateError('local-draft account changed');
+      throw DiagnosticStateError('local-draft account changed');
     }
     _formKey.currentState?.save();
     final saved = await ref
@@ -2244,7 +2264,9 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
             ref.read(composerImagesProvider(_composerId)),
           ),
         );
-    if (saved == null) throw StateError('local-draft account changed');
+    if (saved == null) {
+      throw DiagnosticStateError('local-draft account changed');
+    }
     _origin.acceptSnapshot(saved);
   }
 
@@ -2507,7 +2529,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
         if (!mounted) return;
         owner = _captureScheduledOperationOwner();
       }
-      if (owner == null) throw StateError('account unavailable');
+      if (owner == null) throw DiagnosticStateError('account unavailable');
       final account = owner.session.account;
       final repository = await ref.read(
         accountScheduledPostRepositoryProvider(account).future,
@@ -2836,6 +2858,7 @@ class _MaterialsInputState extends ConsumerState<_MaterialsInput> {
           label: widget.label,
           hintText: widget.inputHintText,
           controller: _controller,
+          textCapitalization: TextCapitalization.words,
           focusNode: _focusNode,
           enabled: widget.enabled,
           errorText: _errorText,
@@ -2963,6 +2986,7 @@ class _FacetFormBuilderTextField extends StatefulWidget {
     this.focusNode,
     this.hintText,
     this.enabled = true,
+    this.textCapitalization = TextCapitalization.words,
     this.initialDisplayText,
     this.allowedTokenKinds,
     this.normalizeValue,
@@ -2976,6 +3000,7 @@ class _FacetFormBuilderTextField extends StatefulWidget {
   final FocusNode? focusNode;
   final String? hintText;
   final bool enabled;
+  final TextCapitalization textCapitalization;
   final String? initialDisplayText;
   final Set<ActiveFacetTokenKind>? allowedTokenKinds;
   final String? Function(String value)? normalizeValue;
@@ -3012,6 +3037,7 @@ class _FacetFormBuilderTextFieldState
           hintText: widget.hintText,
           controller: widget.controller,
           focusNode: widget.focusNode,
+          textCapitalization: widget.textCapitalization,
           enabled: field.widget.enabled,
           textInputAction: TextInputAction.next,
           allowedTokenKinds: widget.allowedTokenKinds,

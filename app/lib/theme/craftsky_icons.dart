@@ -111,6 +111,7 @@ abstract final class CraftskyIcons {
   static const IconData settings = PhosphorIconsRegular.gear;
   static const IconData settingsSelected = PhosphorIconsFill.gear;
   static const IconData share = PhosphorIconsRegular.shareNetwork;
+  static const IconData plusTier = PhosphorIconsFill.sparkle;
   static const IconData sponsored = PhosphorIconsRegular.currencyDollar;
   static const IconData storefront = PhosphorIconsRegular.storefront;
   static const IconData systemTheme = PhosphorIconsRegular.sunDim;

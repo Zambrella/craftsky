@@ -16,14 +16,14 @@ func Recovery(logger *slog.Logger, observer *observability.Observer) func(http.H
 			rw := &responseLogger{ResponseWriter: w, status: http.StatusOK}
 			defer func() {
 				if recovered := recover(); recovered != nil {
+					observability.MarkPanicRecovered(r.Context())
 					runID := GetRunID(r.Context())
 					routePattern := observability.RoutePattern(r)
-					logger.Error("HTTP panic recovered",
-						slog.String("component", "http"),
-						slog.String("route_pattern", routePattern),
-						slog.Int("status", http.StatusInternalServerError),
-						slog.String("run_id", runID),
-					)
+					observability.LogPanic(r.Context(), logger, observability.EventContext{
+						"component": "http", "route_pattern": routePattern,
+						"http_status": http.StatusInternalServerError,
+						"run_id":      runID,
+					}, recovered)
 					if observer != nil {
 						observer.CapturePanic(r.Context(), observability.EventContext{
 							"component":         "http",

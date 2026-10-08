@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -8,6 +9,7 @@ import (
 
 	"social.craftsky/appview/internal/api/envelope"
 	"social.craftsky/appview/internal/auth"
+	"social.craftsky/appview/internal/observability"
 	"social.craftsky/appview/internal/pdscommands"
 )
 
@@ -19,8 +21,11 @@ type CommandHTTPResult struct {
 	RetryAfterSeconds int
 }
 
-func WriteCommandError(writer http.ResponseWriter, requestID string, err error) {
+func WriteCommandError(writer http.ResponseWriter, requestID string, err error, contexts ...context.Context) {
 	status, code, message := commandError(err)
+	if len(contexts) > 0 && status >= 500 {
+		observability.ReportRequestFailure(contexts[0], err, "pds.command", "dispatch")
+	}
 	envelope.WriteError(writer, status, code, message, requestID, nil)
 }
 

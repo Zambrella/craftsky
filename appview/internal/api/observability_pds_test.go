@@ -403,7 +403,7 @@ func TestPDSWriteHandlerLogsUseBoundedContextWithoutRawIdentitySessionOrContent(
 	}
 }
 
-func TestReadHandlerLogsUseBoundedContextWithoutRawIdentityOrContent(t *testing.T) {
+func TestReadHandlerLogsRetainPublicFailureContextWithoutPrivateContent(t *testing.T) {
 	var debugLogs bytes.Buffer
 	debugLogger := slog.New(slog.NewJSONHandler(&debugLogs, &slog.HandlerOptions{Level: slog.LevelDebug}))
 	var prodLogs bytes.Buffer
@@ -491,6 +491,9 @@ func TestReadHandlerLogsUseBoundedContextWithoutRawIdentityOrContent(t *testing.
 		`"run_id":"run-test"`,
 		`"component":"api"`,
 		`"operation":"post.get"`,
+		`"target_did":"did:plc:alice"`,
+		`"actor_did":"did:plc:viewer"`,
+		`"record_uri":"at://did:plc:alice/social.craftsky.feed.post/post1"`,
 		`"operation":"post.replies.list"`,
 		`"operation":"post.comments.list"`,
 		`"operation":"post.author.list"`,
@@ -502,13 +505,9 @@ func TestReadHandlerLogsUseBoundedContextWithoutRawIdentityOrContent(t *testing.
 		}
 	}
 	for _, forbidden := range []string{
-		"did:plc:alice",
 		"did:plc:bob",
-		"did:plc:viewer",
 		"alice.example",
-		"post1",
 		"reply1",
-		"at://",
 		"bafyPost",
 		"bafyComment",
 		"secret body",

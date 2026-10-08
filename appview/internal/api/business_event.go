@@ -7,6 +7,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"social.craftsky/appview/internal/observability"
 	"strings"
 	"time"
 
@@ -133,6 +134,7 @@ func GetBusinessEventHandler(store BusinessEventReader, now func() time.Time) ht
 			return
 		}
 		if err != nil {
+			observability.ReportRequestFailure(r.Context(), err, "api.GetBusinessEventHandler", "handler")
 			envelope.WriteError(w, http.StatusInternalServerError, "internal_error", "event read failed", runID, nil)
 			return
 		}
@@ -197,6 +199,7 @@ func GetOwnerBusinessEventsHandler(store OwnerBusinessEventLister, cursors *Even
 			OwnerDID: owner, Filter: filter, AsOf: asOf, Limit: limit, Seek: seek,
 		})
 		if err != nil {
+			observability.ReportRequestFailure(r.Context(), err, "api.GetOwnerBusinessEventsHandler", "handler")
 			envelope.WriteError(w, http.StatusInternalServerError, "internal_error", "event list failed", runID, nil)
 			return
 		}
@@ -206,6 +209,7 @@ func GetOwnerBusinessEventsHandler(store OwnerBusinessEventLister, cursors *Even
 			last := page.Items[len(page.Items)-1]
 			startsAt, err := time.Parse(time.RFC3339Nano, last.StartsAt)
 			if err != nil {
+				observability.ReportRequestFailure(r.Context(), err, "api.GetOwnerBusinessEventsHandler", "handler")
 				envelope.WriteError(w, http.StatusInternalServerError, "internal_error", "event cursor could not be created", runID, nil)
 				return
 			}
@@ -217,6 +221,7 @@ func GetOwnerBusinessEventsHandler(store OwnerBusinessEventLister, cursors *Even
 				Kind: cursorKind, AsOf: asOf, StartsAt: startsAt, URI: last.URI,
 			}, owner)
 			if err != nil {
+				observability.ReportRequestFailure(r.Context(), err, "api.GetOwnerBusinessEventsHandler", "handler")
 				envelope.WriteError(w, http.StatusInternalServerError, "internal_error", "event cursor could not be created", runID, nil)
 				return
 			}
@@ -246,6 +251,7 @@ func GetProfileBusinessEventsHandler(
 			if errors.Is(err, errInvalidIdentifier) {
 				envelope.WriteError(w, http.StatusBadRequest, "invalid_identifier", "not a valid handle or DID", runID, nil)
 			} else {
+				observability.ReportRequestFailure(r.Context(), err, "api.GetProfileBusinessEventsHandler", "handler")
 				envelope.WriteError(w, http.StatusBadGateway, "identity_unavailable", "could not resolve identity", runID, nil)
 			}
 			return
@@ -280,6 +286,7 @@ func GetProfileBusinessEventsHandler(
 			Seek:      seek,
 		})
 		if err != nil {
+			observability.ReportRequestFailure(r.Context(), err, "api.GetProfileBusinessEventsHandler", "handler")
 			envelope.WriteError(w, http.StatusInternalServerError, "internal_error", "event list failed", runID, nil)
 			return
 		}
@@ -289,6 +296,7 @@ func GetProfileBusinessEventsHandler(
 			last := page.Items[len(page.Items)-1]
 			startsAt, err := time.Parse(time.RFC3339Nano, last.StartsAt)
 			if err != nil {
+				observability.ReportRequestFailure(r.Context(), err, "api.GetProfileBusinessEventsHandler", "handler")
 				envelope.WriteError(w, http.StatusInternalServerError, "internal_error", "event cursor could not be created", runID, nil)
 				return
 			}
@@ -300,6 +308,7 @@ func GetProfileBusinessEventsHandler(
 				Kind: EventCursorUpcoming, AsOf: asOf, StartsAt: startsAt, URI: last.URI,
 			}, owner)
 			if err != nil {
+				observability.ReportRequestFailure(r.Context(), err, "api.GetProfileBusinessEventsHandler", "handler")
 				envelope.WriteError(w, http.StatusInternalServerError, "internal_error", "event cursor could not be created", runID, nil)
 				return
 			}
@@ -390,6 +399,7 @@ func PostBusinessEventHandler(
 			sessionID, _ := middleware.GetOAuthSessionID(r.Context())
 			intent, err := json.Marshal(request)
 			if err != nil {
+				observability.ReportRequestFailure(r.Context(), err, "api.PostBusinessEventHandler", "handler")
 				envelope.WriteError(w, http.StatusInternalServerError, "internal_error", "could not prepare business event", runID, nil)
 				return
 			}
@@ -419,7 +429,7 @@ func PostBusinessEventHandler(
 				},
 			})
 			if err != nil {
-				WriteCommandError(w, runID, err)
+				WriteCommandError(w, runID, err, r.Context())
 				return
 			}
 			WriteCommandResponse(w, CommandResultFromStored(result))
@@ -432,6 +442,7 @@ func PostBusinessEventHandler(
 		}
 		rkey, err := newImmediateRecordKey()
 		if err != nil {
+			observability.ReportRequestFailure(r.Context(), err, "api.PostBusinessEventHandler", "handler")
 			envelope.WriteError(w, http.StatusInternalServerError, "internal_error", "could not allocate event record key", runID, nil)
 			return
 		}
@@ -544,6 +555,7 @@ func PutBusinessEventHandler(
 			sessionID, _ := middleware.GetOAuthSessionID(r.Context())
 			intent, err := json.Marshal(request)
 			if err != nil {
+				observability.ReportRequestFailure(r.Context(), err, "api.PutBusinessEventHandler", "handler")
 				envelope.WriteError(w, http.StatusInternalServerError, "internal_error", "could not prepare business event", runID, nil)
 				return
 			}
@@ -582,7 +594,7 @@ func PutBusinessEventHandler(
 				},
 			})
 			if err != nil {
-				WriteCommandError(w, runID, err)
+				WriteCommandError(w, runID, err, r.Context())
 				return
 			}
 			WriteCommandResponse(w, CommandResultFromStored(result))
@@ -677,6 +689,7 @@ func DeleteBusinessEventHandler(
 				ExpectedCID syntax.CID   `json:"expectedCid"`
 			}{URI: uri, ExpectedCID: expectedCID})
 			if err != nil {
+				observability.ReportRequestFailure(r.Context(), err, "api.DeleteBusinessEventHandler", "handler")
 				envelope.WriteError(w, http.StatusInternalServerError, "internal_error", "could not prepare business event delete", runID, nil)
 				return
 			}
@@ -693,7 +706,7 @@ func DeleteBusinessEventHandler(
 				},
 			})
 			if err != nil {
-				WriteCommandError(w, runID, err)
+				WriteCommandError(w, runID, err, r.Context())
 				return
 			}
 			WriteCommandResponse(w, CommandResultFromStored(result))

@@ -1,0 +1,962 @@
+[
+  {
+    "method": "DELETE",
+    "path": "/v1/account-deletion/intents/{jobId}",
+    "category": "appview.account_deletion.intents.detail",
+    "public": false
+  },
+  {
+    "method": "DELETE",
+    "path": "/v1/billing/licenses/{licenseId}/assignment",
+    "category": "appview.billing.licenses.detail.assignment",
+    "public": false
+  },
+  {
+    "method": "DELETE",
+    "path": "/v1/events/{did}/{rkey}",
+    "category": "appview.events.detail",
+    "public": true
+  },
+  {
+    "method": "DELETE",
+    "path": "/v1/migrations/instagram/account",
+    "category": "appview.migrations.instagram.account",
+    "public": false
+  },
+  {
+    "method": "DELETE",
+    "path": "/v1/migrations/instagram/imports/{importId}",
+    "category": "appview.migrations.instagram.imports.detail",
+    "public": false
+  },
+  {
+    "method": "DELETE",
+    "path": "/v1/migrations/instagram/suggestions/{suggestionId}",
+    "category": "appview.migrations.instagram.suggestions.detail",
+    "public": false
+  },
+  {
+    "method": "DELETE",
+    "path": "/v1/migrations/instagram/verifications/{verificationId}",
+    "category": "appview.migrations.instagram.verifications.detail",
+    "public": false
+  },
+  {
+    "method": "DELETE",
+    "path": "/v1/notifications/devices/{accountSubscriptionId}",
+    "category": "appview.notifications.devices.detail",
+    "public": false
+  },
+  {
+    "method": "DELETE",
+    "path": "/v1/posts/{did}/{rkey}",
+    "category": "appview.posts.detail",
+    "public": true
+  },
+  {
+    "method": "DELETE",
+    "path": "/v1/posts/{did}/{rkey}/likes",
+    "category": "appview.posts.likes",
+    "public": true
+  },
+  {
+    "method": "DELETE",
+    "path": "/v1/posts/{did}/{rkey}/pin",
+    "category": "appview.posts.pin",
+    "public": true
+  },
+  {
+    "method": "DELETE",
+    "path": "/v1/posts/{did}/{rkey}/reposts",
+    "category": "appview.posts.reposts",
+    "public": true
+  },
+  {
+    "method": "DELETE",
+    "path": "/v1/posts/{did}/{rkey}/saves",
+    "category": "appview.posts.saves",
+    "public": false
+  },
+  {
+    "method": "DELETE",
+    "path": "/v1/profiles/me/business",
+    "category": "appview.profiles.me.business",
+    "public": false
+  },
+  {
+    "method": "DELETE",
+    "path": "/v1/profiles/{handleOrDid}/blocks",
+    "category": "appview.profiles.blocks",
+    "public": true
+  },
+  {
+    "method": "DELETE",
+    "path": "/v1/profiles/{handleOrDid}/follows",
+    "category": "appview.profiles.follows",
+    "public": true
+  },
+  {
+    "method": "DELETE",
+    "path": "/v1/profiles/{handleOrDid}/mutes",
+    "category": "appview.profiles.mutes",
+    "public": false
+  },
+  {
+    "method": "DELETE",
+    "path": "/v1/saved-post-folders/{folderId}",
+    "category": "appview.saved_post_folders.detail",
+    "public": false
+  },
+  {
+    "method": "DELETE",
+    "path": "/v1/scheduled-post-media/{mediaId}",
+    "category": "appview.scheduled_post_media.detail",
+    "public": false
+  },
+  {
+    "method": "DELETE",
+    "path": "/v1/scheduled-posts/{id}",
+    "category": "appview.scheduled_posts.detail",
+    "public": false
+  },
+  {
+    "method": "DELETE",
+    "path": "/v1/search/recent/{id}",
+    "category": "appview.search.recent.detail",
+    "public": false
+  },
+  {
+    "method": "GET",
+    "path": "/v1/account/eligibility",
+    "category": "appview.account.eligibility",
+    "public": false
+  },
+  {
+    "method": "GET",
+    "path": "/v1/admin/moderation/cases",
+    "category": "appview.admin.moderation.cases",
+    "public": false
+  },
+  {
+    "method": "GET",
+    "path": "/v1/admin/moderation/cases/{caseReference}",
+    "category": "appview.admin.moderation.cases.detail",
+    "public": false
+  },
+  {
+    "method": "GET",
+    "path": "/v1/admin/safety/incidents/{incidentReference}",
+    "category": "appview.admin.safety.incidents.detail",
+    "public": false
+  },
+  {
+    "method": "GET",
+    "path": "/v1/admin/safety/status",
+    "category": "appview.admin.safety.status",
+    "public": false
+  },
+  {
+    "method": "GET",
+    "path": "/v1/billing/account",
+    "category": "appview.billing.account",
+    "public": false
+  },
+  {
+    "method": "GET",
+    "path": "/v1/blobs/videos/limits",
+    "category": "appview.blobs.videos.limits",
+    "public": false
+  },
+  {
+    "method": "GET",
+    "path": "/v1/dev/media/{name}",
+    "category": "appview.dev.media.detail",
+    "public": false
+  },
+  {
+    "method": "GET",
+    "path": "/v1/dev/panic",
+    "category": "appview.dev.panic",
+    "public": false
+  },
+  {
+    "method": "GET",
+    "path": "/v1/events",
+    "category": "appview.events",
+    "public": true
+  },
+  {
+    "method": "GET",
+    "path": "/v1/events/{did}/{rkey}",
+    "category": "appview.events.detail",
+    "public": true
+  },
+  {
+    "method": "GET",
+    "path": "/v1/facets/hashtags",
+    "category": "appview.facets.hashtags",
+    "public": false
+  },
+  {
+    "method": "GET",
+    "path": "/v1/facets/mentions",
+    "category": "appview.facets.mentions",
+    "public": false
+  },
+  {
+    "method": "GET",
+    "path": "/v1/facets/mentions/resolve",
+    "category": "appview.facets.mentions.resolve",
+    "public": false
+  },
+  {
+    "method": "GET",
+    "path": "/v1/feed/timeline",
+    "category": "appview.feed.timeline",
+    "public": true
+  },
+  {
+    "method": "GET",
+    "path": "/v1/languages/preferences",
+    "category": "appview.languages.preferences",
+    "public": false
+  },
+  {
+    "method": "GET",
+    "path": "/v1/migrations/instagram/account",
+    "category": "appview.migrations.instagram.account",
+    "public": false
+  },
+  {
+    "method": "GET",
+    "path": "/v1/migrations/instagram/imports",
+    "category": "appview.migrations.instagram.imports",
+    "public": false
+  },
+  {
+    "method": "GET",
+    "path": "/v1/migrations/instagram/imports/{importId}",
+    "category": "appview.migrations.instagram.imports.detail",
+    "public": false
+  },
+  {
+    "method": "GET",
+    "path": "/v1/migrations/instagram/suggestions",
+    "category": "appview.migrations.instagram.suggestions",
+    "public": false
+  },
+  {
+    "method": "GET",
+    "path": "/v1/migrations/instagram/verifications/current",
+    "category": "appview.migrations.instagram.verifications.current",
+    "public": false
+  },
+  {
+    "method": "GET",
+    "path": "/v1/migrations/instagram/verifications/{verificationId}",
+    "category": "appview.migrations.instagram.verifications.detail",
+    "public": false
+  },
+  {
+    "method": "GET",
+    "path": "/v1/moderation/history",
+    "category": "appview.moderation.history",
+    "public": false
+  },
+  {
+    "method": "GET",
+    "path": "/v1/moderation/history/{caseReference}",
+    "category": "appview.moderation.history.detail",
+    "public": false
+  },
+  {
+    "method": "GET",
+    "path": "/v1/moderation/standing",
+    "category": "appview.moderation.standing",
+    "public": false
+  },
+  {
+    "method": "GET",
+    "path": "/v1/notifications",
+    "category": "appview.notifications",
+    "public": false
+  },
+  {
+    "method": "GET",
+    "path": "/v1/notifications/new-count",
+    "category": "appview.notifications.new_count",
+    "public": false
+  },
+  {
+    "method": "GET",
+    "path": "/v1/notifications/preferences",
+    "category": "appview.notifications.preferences",
+    "public": false
+  },
+  {
+    "method": "GET",
+    "path": "/v1/onboarding/status",
+    "category": "appview.onboarding.status",
+    "public": false
+  },
+  {
+    "method": "GET",
+    "path": "/v1/posts/{did}/{rkey}",
+    "category": "appview.posts.detail",
+    "public": true
+  },
+  {
+    "method": "GET",
+    "path": "/v1/posts/{did}/{rkey}/comments",
+    "category": "appview.posts.comments",
+    "public": true
+  },
+  {
+    "method": "GET",
+    "path": "/v1/posts/{did}/{rkey}/likes",
+    "category": "appview.posts.likes",
+    "public": true
+  },
+  {
+    "method": "GET",
+    "path": "/v1/posts/{did}/{rkey}/quotes",
+    "category": "appview.posts.quotes",
+    "public": true
+  },
+  {
+    "method": "GET",
+    "path": "/v1/posts/{did}/{rkey}/replies",
+    "category": "appview.posts.replies",
+    "public": true
+  },
+  {
+    "method": "GET",
+    "path": "/v1/posts/{did}/{rkey}/reposts",
+    "category": "appview.posts.reposts",
+    "public": true
+  },
+  {
+    "method": "GET",
+    "path": "/v1/posts/{did}/{rkey}/video-captions/{captionCid}",
+    "category": "appview.posts.video_captions",
+    "public": true
+  },
+  {
+    "method": "GET",
+    "path": "/v1/profiles/me",
+    "category": "appview.profiles.me",
+    "public": false
+  },
+  {
+    "method": "GET",
+    "path": "/v1/profiles/me/blocks",
+    "category": "appview.profiles.me.blocks",
+    "public": false
+  },
+  {
+    "method": "GET",
+    "path": "/v1/profiles/me/follower-growth",
+    "category": "appview.profiles.me.follower_growth",
+    "public": false
+  },
+  {
+    "method": "GET",
+    "path": "/v1/profiles/me/followers",
+    "category": "appview.profiles.me.followers",
+    "public": false
+  },
+  {
+    "method": "GET",
+    "path": "/v1/profiles/me/following",
+    "category": "appview.profiles.me.following",
+    "public": false
+  },
+  {
+    "method": "GET",
+    "path": "/v1/profiles/me/mutes",
+    "category": "appview.profiles.me.mutes",
+    "public": false
+  },
+  {
+    "method": "GET",
+    "path": "/v1/profiles/me/pins",
+    "category": "appview.profiles.me.pins",
+    "public": false
+  },
+  {
+    "method": "GET",
+    "path": "/v1/profiles/{handleOrDid}",
+    "category": "appview.profiles.detail",
+    "public": true
+  },
+  {
+    "method": "GET",
+    "path": "/v1/profiles/{handleOrDid}/comments",
+    "category": "appview.profiles.comments",
+    "public": true
+  },
+  {
+    "method": "GET",
+    "path": "/v1/profiles/{handleOrDid}/events",
+    "category": "appview.profiles.events",
+    "public": true
+  },
+  {
+    "method": "GET",
+    "path": "/v1/profiles/{handleOrDid}/mutual-followers",
+    "category": "appview.profiles.mutual_followers",
+    "public": true
+  },
+  {
+    "method": "GET",
+    "path": "/v1/profiles/{handleOrDid}/posts",
+    "category": "appview.profiles.posts",
+    "public": true
+  },
+  {
+    "method": "GET",
+    "path": "/v1/profiles/{handleOrDid}/projects",
+    "category": "appview.profiles.projects",
+    "public": true
+  },
+  {
+    "method": "GET",
+    "path": "/v1/profiles/{handleOrDid}/reposts",
+    "category": "appview.profiles.reposts",
+    "public": true
+  },
+  {
+    "method": "GET",
+    "path": "/v1/projects",
+    "category": "appview.projects",
+    "public": true
+  },
+  {
+    "method": "GET",
+    "path": "/v1/saved-post-folders",
+    "category": "appview.saved_post_folders",
+    "public": false
+  },
+  {
+    "method": "GET",
+    "path": "/v1/saved-posts",
+    "category": "appview.saved_posts",
+    "public": false
+  },
+  {
+    "method": "GET",
+    "path": "/v1/scheduled-post-media/{mediaId}",
+    "category": "appview.scheduled_post_media.detail",
+    "public": false
+  },
+  {
+    "method": "GET",
+    "path": "/v1/scheduled-posts",
+    "category": "appview.scheduled_posts",
+    "public": false
+  },
+  {
+    "method": "GET",
+    "path": "/v1/scheduled-posts/{id}",
+    "category": "appview.scheduled_posts.detail",
+    "public": false
+  },
+  {
+    "method": "GET",
+    "path": "/v1/search/hashtags",
+    "category": "appview.search.hashtags",
+    "public": false
+  },
+  {
+    "method": "GET",
+    "path": "/v1/search/hashtags/top",
+    "category": "appview.search.hashtags.top",
+    "public": false
+  },
+  {
+    "method": "GET",
+    "path": "/v1/search/hashtags/{tag}/posts",
+    "category": "appview.search.hashtag_posts",
+    "public": false
+  },
+  {
+    "method": "GET",
+    "path": "/v1/search/posts",
+    "category": "appview.search.posts",
+    "public": false
+  },
+  {
+    "method": "GET",
+    "path": "/v1/search/profiles",
+    "category": "appview.search.profiles",
+    "public": false
+  },
+  {
+    "method": "GET",
+    "path": "/v1/search/projects",
+    "category": "appview.search.projects",
+    "public": false
+  },
+  {
+    "method": "GET",
+    "path": "/v1/search/recent",
+    "category": "appview.search.recent",
+    "public": false
+  },
+  {
+    "method": "GET",
+    "path": "/v1/search/suggestions",
+    "category": "appview.search.suggestions",
+    "public": false
+  },
+  {
+    "method": "GET",
+    "path": "/v1/subscriptions/access",
+    "category": "appview.subscriptions.access",
+    "public": false
+  },
+  {
+    "method": "GET",
+    "path": "/v1/whoami",
+    "category": "appview.whoami",
+    "public": false
+  },
+  {
+    "method": "PATCH",
+    "path": "/v1/migrations/instagram/imports/{importId}",
+    "category": "appview.migrations.instagram.imports.detail",
+    "public": false
+  },
+  {
+    "method": "PATCH",
+    "path": "/v1/migrations/instagram/settings",
+    "category": "appview.migrations.instagram.settings",
+    "public": false
+  },
+  {
+    "method": "PATCH",
+    "path": "/v1/notifications/preferences",
+    "category": "appview.notifications.preferences",
+    "public": false
+  },
+  {
+    "method": "PATCH",
+    "path": "/v1/saved-post-folders/{folderId}",
+    "category": "appview.saved_post_folders.detail",
+    "public": false
+  },
+  {
+    "method": "POST",
+    "path": "/v1/account-deletion/intents",
+    "category": "appview.account_deletion.intents",
+    "public": false
+  },
+  {
+    "method": "POST",
+    "path": "/v1/account-deletions/{jobId}",
+    "category": "appview.account_deletions.detail",
+    "public": false
+  },
+  {
+    "method": "POST",
+    "path": "/v1/admin/eligibility/reviews",
+    "category": "appview.admin.eligibility.reviews",
+    "public": false
+  },
+  {
+    "method": "POST",
+    "path": "/v1/admin/moderation/cases/{caseReference}/appeal-confirmations",
+    "category": "appview.admin.moderation.cases.detail.appeal_confirmations",
+    "public": false
+  },
+  {
+    "method": "POST",
+    "path": "/v1/admin/moderation/cases/{caseReference}/appeal-resolutions",
+    "category": "appview.admin.moderation.cases.detail.appeal_resolutions",
+    "public": false
+  },
+  {
+    "method": "POST",
+    "path": "/v1/admin/moderation/cases/{caseReference}/decisions",
+    "category": "appview.admin.moderation.cases.detail.decisions",
+    "public": false
+  },
+  {
+    "method": "POST",
+    "path": "/v1/admin/moderation/cases/{caseReference}/effect-changes",
+    "category": "appview.admin.moderation.cases.detail.effect_changes",
+    "public": false
+  },
+  {
+    "method": "POST",
+    "path": "/v1/admin/moderation/cases/{caseReference}/restorations",
+    "category": "appview.admin.moderation.cases.detail.restorations",
+    "public": false
+  },
+  {
+    "method": "POST",
+    "path": "/v1/admin/safety/evidence/{evidenceId}/access",
+    "category": "appview.admin.safety.evidence.detail.access",
+    "public": false
+  },
+  {
+    "method": "POST",
+    "path": "/v1/admin/safety/external-intakes",
+    "category": "appview.admin.safety.external_intakes",
+    "public": false
+  },
+  {
+    "method": "POST",
+    "path": "/v1/admin/safety/external-intakes/{intakeId}/appeal-link",
+    "category": "appview.admin.safety.external_intakes.detail.appeal_link",
+    "public": false
+  },
+  {
+    "method": "POST",
+    "path": "/v1/admin/safety/external-intakes/{intakeId}/correspondence",
+    "category": "appview.admin.safety.external_intakes.detail.correspondence",
+    "public": false
+  },
+  {
+    "method": "POST",
+    "path": "/v1/admin/safety/incidents/{incidentReference}/authority-reports",
+    "category": "appview.admin.safety.incidents.detail.authority_reports",
+    "public": false
+  },
+  {
+    "method": "POST",
+    "path": "/v1/admin/safety/incidents/{incidentReference}/csea-classification",
+    "category": "appview.admin.safety.incidents.detail.csea_classification",
+    "public": false
+  },
+  {
+    "method": "POST",
+    "path": "/v1/admin/safety/incidents/{incidentReference}/evidence",
+    "category": "appview.admin.safety.incidents.detail.evidence",
+    "public": false
+  },
+  {
+    "method": "POST",
+    "path": "/v1/admin/safety/incidents/{incidentReference}/holds",
+    "category": "appview.admin.safety.incidents.detail.holds",
+    "public": false
+  },
+  {
+    "method": "POST",
+    "path": "/v1/admin/safety/incidents/{incidentReference}/information-requests",
+    "category": "appview.admin.safety.incidents.detail.information_requests",
+    "public": false
+  },
+  {
+    "method": "POST",
+    "path": "/v1/admin/safety/incidents/{incidentReference}/resolution",
+    "category": "appview.admin.safety.incidents.detail.resolution",
+    "public": false
+  },
+  {
+    "method": "POST",
+    "path": "/v1/admin/safety/information-requests/{requestId}/response",
+    "category": "appview.admin.safety.information_requests.detail.response",
+    "public": false
+  },
+  {
+    "method": "POST",
+    "path": "/v1/admin/safety/workflows/authority-requests",
+    "category": "appview.admin.safety.workflows.authority_requests",
+    "public": false
+  },
+  {
+    "method": "POST",
+    "path": "/v1/admin/safety/workflows/authority-requests/{workflowId}/closure",
+    "category": "appview.admin.safety.workflows.authority_requests.detail.closure",
+    "public": false
+  },
+  {
+    "method": "POST",
+    "path": "/v1/admin/safety/workflows/authority-requests/{workflowId}/disclosures",
+    "category": "appview.admin.safety.workflows.authority_requests.detail.disclosures",
+    "public": false
+  },
+  {
+    "method": "POST",
+    "path": "/v1/admin/safety/workflows/authority-requests/{workflowId}/verification",
+    "category": "appview.admin.safety.workflows.authority_requests.detail.verification",
+    "public": false
+  },
+  {
+    "method": "POST",
+    "path": "/v1/admin/safety/workflows/credible-threats",
+    "category": "appview.admin.safety.workflows.credible_threats",
+    "public": false
+  },
+  {
+    "method": "POST",
+    "path": "/v1/admin/safety/workflows/intimate-images",
+    "category": "appview.admin.safety.workflows.intimate_images",
+    "public": false
+  },
+  {
+    "method": "POST",
+    "path": "/v1/admin/safety/workflows/intimate-images/{workflowId}/outcome",
+    "category": "appview.admin.safety.workflows.intimate_images.detail.outcome",
+    "public": false
+  },
+  {
+    "method": "POST",
+    "path": "/v1/auth/handoffs/confirm",
+    "category": "appview.auth.handoffs.confirm",
+    "public": false
+  },
+  {
+    "method": "POST",
+    "path": "/v1/auth/handoffs/exchange",
+    "category": "appview.auth.handoffs.exchange",
+    "public": false
+  },
+  {
+    "method": "POST",
+    "path": "/v1/auth/login",
+    "category": "appview.auth.login",
+    "public": false
+  },
+  {
+    "method": "POST",
+    "path": "/v1/auth/logout",
+    "category": "appview.auth.logout",
+    "public": false
+  },
+  {
+    "method": "POST",
+    "path": "/v1/auth/registrations",
+    "category": "appview.auth.registrations",
+    "public": false
+  },
+  {
+    "method": "POST",
+    "path": "/v1/billing/reconciliation",
+    "category": "appview.billing.reconciliation",
+    "public": false
+  },
+  {
+    "method": "POST",
+    "path": "/v1/blobs/images",
+    "category": "appview.blobs.images",
+    "public": false
+  },
+  {
+    "method": "POST",
+    "path": "/v1/blobs/videos/authorization",
+    "category": "appview.blobs.videos.authorization",
+    "public": false
+  },
+  {
+    "method": "POST",
+    "path": "/v1/dev/moderation/ozone-events",
+    "category": "appview.dev.moderation.ozone_events",
+    "public": false
+  },
+  {
+    "method": "POST",
+    "path": "/v1/events",
+    "category": "appview.events",
+    "public": false
+  },
+  {
+    "method": "POST",
+    "path": "/v1/events/{did}/{rkey}/reports",
+    "category": "appview.events.reports",
+    "public": false
+  },
+  {
+    "method": "POST",
+    "path": "/v1/languages/preferences/initialize",
+    "category": "appview.languages.preferences.initialize",
+    "public": false
+  },
+  {
+    "method": "POST",
+    "path": "/v1/link-previews",
+    "category": "appview.link_previews",
+    "public": false
+  },
+  {
+    "method": "POST",
+    "path": "/v1/migrations/instagram/imports",
+    "category": "appview.migrations.instagram.imports",
+    "public": false
+  },
+  {
+    "method": "POST",
+    "path": "/v1/migrations/instagram/suggestions/{suggestionId}/accept",
+    "category": "appview.migrations.instagram.suggestions.detail.accept",
+    "public": false
+  },
+  {
+    "method": "POST",
+    "path": "/v1/migrations/instagram/verifications",
+    "category": "appview.migrations.instagram.verifications",
+    "public": false
+  },
+  {
+    "method": "POST",
+    "path": "/v1/migrations/instagram/verifications/{verificationId}/confirm",
+    "category": "appview.migrations.instagram.verifications.detail.confirm",
+    "public": false
+  },
+  {
+    "method": "POST",
+    "path": "/v1/notifications/devices",
+    "category": "appview.notifications.devices",
+    "public": false
+  },
+  {
+    "method": "POST",
+    "path": "/v1/notifications/seen",
+    "category": "appview.notifications.seen",
+    "public": false
+  },
+  {
+    "method": "POST",
+    "path": "/v1/onboarding/completion",
+    "category": "appview.onboarding.completion",
+    "public": false
+  },
+  {
+    "method": "POST",
+    "path": "/v1/posts",
+    "category": "appview.posts",
+    "public": false
+  },
+  {
+    "method": "POST",
+    "path": "/v1/posts/{did}/{rkey}/likes",
+    "category": "appview.posts.likes",
+    "public": true
+  },
+  {
+    "method": "POST",
+    "path": "/v1/posts/{did}/{rkey}/reports",
+    "category": "appview.posts.reports",
+    "public": false
+  },
+  {
+    "method": "POST",
+    "path": "/v1/posts/{did}/{rkey}/reposts",
+    "category": "appview.posts.reposts",
+    "public": true
+  },
+  {
+    "method": "POST",
+    "path": "/v1/posts/{did}/{rkey}/saves",
+    "category": "appview.posts.saves",
+    "public": false
+  },
+  {
+    "method": "POST",
+    "path": "/v1/profiles/{handleOrDid}/blocks",
+    "category": "appview.profiles.blocks",
+    "public": true
+  },
+  {
+    "method": "POST",
+    "path": "/v1/profiles/{handleOrDid}/follows",
+    "category": "appview.profiles.follows",
+    "public": true
+  },
+  {
+    "method": "POST",
+    "path": "/v1/profiles/{handleOrDid}/mutes",
+    "category": "appview.profiles.mutes",
+    "public": false
+  },
+  {
+    "method": "POST",
+    "path": "/v1/profiles/{handleOrDid}/reports",
+    "category": "appview.profiles.reports",
+    "public": false
+  },
+  {
+    "method": "POST",
+    "path": "/v1/saved-post-folders",
+    "category": "appview.saved_post_folders",
+    "public": false
+  },
+  {
+    "method": "POST",
+    "path": "/v1/scheduled-posts",
+    "category": "appview.scheduled_posts",
+    "public": false
+  },
+  {
+    "method": "POST",
+    "path": "/v1/scheduled-posts/{id}/publication",
+    "category": "appview.scheduled_posts.detail.publication",
+    "public": false
+  },
+  {
+    "method": "POST",
+    "path": "/v1/search/recent",
+    "category": "appview.search.recent",
+    "public": false
+  },
+  {
+    "method": "PUT",
+    "path": "/v1/billing/account",
+    "category": "appview.billing.account",
+    "public": false
+  },
+  {
+    "method": "PUT",
+    "path": "/v1/billing/licenses/{licenseId}/assignment",
+    "category": "appview.billing.licenses.detail.assignment",
+    "public": false
+  },
+  {
+    "method": "PUT",
+    "path": "/v1/events/{did}/{rkey}",
+    "category": "appview.events.detail",
+    "public": true
+  },
+  {
+    "method": "PUT",
+    "path": "/v1/languages/preferences",
+    "category": "appview.languages.preferences",
+    "public": false
+  },
+  {
+    "method": "PUT",
+    "path": "/v1/posts/{did}/{rkey}/pin",
+    "category": "appview.posts.pin",
+    "public": true
+  },
+  {
+    "method": "PUT",
+    "path": "/v1/profiles/me",
+    "category": "appview.profiles.me",
+    "public": false
+  },
+  {
+    "method": "PUT",
+    "path": "/v1/profiles/me/business",
+    "category": "appview.profiles.me.business",
+    "public": false
+  },
+  {
+    "method": "PUT",
+    "path": "/v1/profiles/me/customisation",
+    "category": "appview.profiles.me.customisation",
+    "public": false
+  },
+  {
+    "method": "PUT",
+    "path": "/v1/scheduled-post-media/{mediaId}",
+    "category": "appview.scheduled_post_media.detail",
+    "public": false
+  },
+  {
+    "method": "PUT",
+    "path": "/v1/scheduled-posts/{id}",
+    "category": "appview.scheduled_posts.detail",
+    "public": false
+  }
+]

@@ -2,11 +2,11 @@ package observability
 
 import (
 	"context"
-	"errors"
 	"net"
 
 	"github.com/jackc/pgx/v5"
 	"social.craftsky/appview/internal/auth"
+	lexiconschema "social.craftsky/appview/internal/lexicon/schema"
 )
 
 type ClassifiedError struct {
@@ -32,22 +32,31 @@ func ClassifyError(err error, eventCtx EventContext) ClassifiedError {
 		return classified
 	}
 
+	nodes, _ := boundedErrorNodes(err)
+	matches := func(target error) bool {
+		for _, node := range nodes {
+			if sameDiagnosticError(node, target) {
+				return true
+			}
+		}
+		return false
+	}
 	switch {
-	case errors.Is(err, auth.ErrAuthTokenInvalid):
+	case matches(auth.ErrAuthTokenInvalid):
 		classified.Category, classified.Code, classified.Message = "auth", "auth.session_invalid", "auth session invalid"
-	case errors.Is(err, auth.ErrCraftskySessionNotFound):
+	case matches(auth.ErrCraftskySessionNotFound):
 		classified.Category, classified.Code, classified.Message = "auth", "auth.session_not_found", "auth session not found"
-	case errors.Is(err, auth.ErrOAuthSessionNotFound):
+	case matches(auth.ErrOAuthSessionNotFound):
 		classified.Category, classified.Code, classified.Message = "auth", "auth.oauth_session_not_found", "oauth session not found"
-	case errors.Is(err, auth.ErrPDSSessionExpired):
+	case matches(auth.ErrPDSSessionExpired):
 		classified.Category, classified.Code, classified.Message = "auth", "auth.pds_session_expired", "pds session expired"
-	case errors.Is(err, auth.ErrRecordNotFound):
+	case matches(auth.ErrRecordNotFound):
 		classified.Category, classified.Code, classified.Message = "not_found", "pds.record_not_found", "pds record not found"
-	case errors.Is(err, context.DeadlineExceeded):
+	case matches(context.DeadlineExceeded):
 		classified.Category, classified.Code, classified.Message = "timeout", "timeout.deadline_exceeded", "operation timed out"
 	case isNetworkError(err):
 		classified.Category, classified.Code, classified.Message = "network", "network.unavailable", "network unavailable"
-	case errors.Is(err, pgx.ErrNoRows):
+	case matches(pgx.ErrNoRows):
 		classified.Category, classified.Code, classified.Message = "not_found", "db.no_rows", "database row not found"
 	case classified.Category == "validation":
 		classified.Code, classified.Message = "appview.validation", "validation failed"
@@ -68,12 +77,13 @@ func ClassifyError(err error, eventCtx EventContext) ClassifiedError {
 }
 
 func isNetworkError(err error) bool {
-	var netErr net.Error
-	if errors.As(err, &netErr) {
-		return true
+	nodes, _ := boundedErrorNodes(err)
+	for _, node := range nodes {
+		if _, ok := node.(net.Error); ok {
+			return true
+		}
 	}
-	var opErr *net.OpError
-	return errors.As(err, &opErr)
+	return false
 }
 
 func safeContextString(eventCtx EventContext, key string, fallback string) string {
@@ -90,4 +100,36 @@ func safeContextString(eventCtx EventContext, key string, fallback string) strin
 	default:
 		return fallback
 	}
+}
+
+// ExpectedDiagnostic distinguishes ordinary caller conditions and active retries
+// from terminal dependency failures. An exhausted retry remains reportable even
+// if its last cause has an otherwise expected class.
+func ExpectedDiagnostic(err error, fields EventContext) bool {
+	if diagnosticHasCause(err, context.Canceled) {
+		return true
+	}
+	result := safeContextString(fields, "result", "")
+	if result == "quarantine" && fields["error_category"] == "validation" {
+		nodes, _ := boundedErrorNodes(err)
+		for _, node := range nodes {
+			if _, ok := node.(*lexiconschema.ValidationError); ok {
+				return true
+			}
+		}
+	}
+	if result == "exhausted" || result == "terminal" || result == "quarantine" {
+		return false
+	}
+	if result == "retry" {
+		return true
+	}
+	classified := ClassifyError(err, fields)
+	switch classified.Category {
+	case "auth", "not_found", "validation", "forbidden", "rate_limited":
+		return true
+	case "network":
+		return safeContextString(fields, "component", "") == ""
+	}
+	return false
 }

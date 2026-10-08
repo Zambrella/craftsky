@@ -1,5 +1,6 @@
 import 'package:craftsky_app/app_dependencies.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
 import 'package:craftsky_app/theme/brand_text_field.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
@@ -289,18 +290,21 @@ class _TextFieldsSample extends StatelessWidget {
       children: [
         const BrandTextField(
           label: 'Pattern name',
+          textCapitalization: TextCapitalization.words,
           hintText: 'e.g. Wiksten Haori',
           prefixIcon: Icon(CraftskyIcons.search),
         ),
         SizedBox(height: sp.sp5),
         const BrandTextField(
           label: 'Fabric or yarn',
+          textCapitalization: TextCapitalization.words,
           hintText: 'e.g. Merchant & Mills 185 linen, indigo',
           helperText: 'What did you use? Brand and colour help other makers.',
         ),
         SizedBox(height: sp.sp5),
         const BrandTextField(
           label: 'Modifications',
+          textCapitalization: TextCapitalization.sentences,
           hintText: 'What did you change?',
           maxLines: 3,
           minLines: 3,
@@ -579,7 +583,7 @@ class _DialogsSample extends StatelessWidget {
               onConfirm: () async {
                 await Future<void>.delayed(const Duration(milliseconds: 1500));
                 if (DateTime.now().millisecondsSinceEpoch.isEven) {
-                  throw StateError('Pretend network error');
+                  throw DiagnosticStateError('Pretend network error');
                 }
               },
             );

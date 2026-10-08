@@ -20,11 +20,8 @@ part of 'save_profile_provider.dart';
 /// PDS, regardless of any "leave unchanged" wording the AppView's HTTP
 /// layer suggests. Always send the complete current state.
 ///
-/// On success this provider pushes the freshly-saved [Profile] back
-/// into the `userProfileProvider` family cache for the entries
-/// currently being watched (keyed by handle and by DID). That avoids a
-/// refetch round-trip and any read-after-write lag, and keeps the
-/// profile page in sync the instant the edit page pops.
+/// On success the shared operation controller publishes a bounded overlay and
+/// refreshes profile reads until the AppView projection agrees.
 
 @ProviderFor(SaveProfile)
 final saveProfileProvider = SaveProfileProvider._();
@@ -41,11 +38,8 @@ final saveProfileProvider = SaveProfileProvider._();
 /// PDS, regardless of any "leave unchanged" wording the AppView's HTTP
 /// layer suggests. Always send the complete current state.
 ///
-/// On success this provider pushes the freshly-saved [Profile] back
-/// into the `userProfileProvider` family cache for the entries
-/// currently being watched (keyed by handle and by DID). That avoids a
-/// refetch round-trip and any read-after-write lag, and keeps the
-/// profile page in sync the instant the edit page pops.
+/// On success the shared operation controller publishes a bounded overlay and
+/// refreshes profile reads until the AppView projection agrees.
 final class SaveProfileProvider
     extends $AsyncNotifierProvider<SaveProfile, CombinedProfileSaveResult?> {
   /// Mutation notifier for the profile-edit page.
@@ -60,11 +54,8 @@ final class SaveProfileProvider
   /// PDS, regardless of any "leave unchanged" wording the AppView's HTTP
   /// layer suggests. Always send the complete current state.
   ///
-  /// On success this provider pushes the freshly-saved [Profile] back
-  /// into the `userProfileProvider` family cache for the entries
-  /// currently being watched (keyed by handle and by DID). That avoids a
-  /// refetch round-trip and any read-after-write lag, and keeps the
-  /// profile page in sync the instant the edit page pops.
+  /// On success the shared operation controller publishes a bounded overlay and
+  /// refreshes profile reads until the AppView projection agrees.
   SaveProfileProvider._()
     : super(
         from: null,
@@ -84,7 +75,7 @@ final class SaveProfileProvider
   SaveProfile create() => SaveProfile();
 }
 
-String _$saveProfileHash() => r'220577de93a91a4fb40c9a1d71ecde06b50f6999';
+String _$saveProfileHash() => r'f18cf7336c5749730b548bd73d45ba2ff60c91eb';
 
 /// Mutation notifier for the profile-edit page.
 ///
@@ -98,11 +89,8 @@ String _$saveProfileHash() => r'220577de93a91a4fb40c9a1d71ecde06b50f6999';
 /// PDS, regardless of any "leave unchanged" wording the AppView's HTTP
 /// layer suggests. Always send the complete current state.
 ///
-/// On success this provider pushes the freshly-saved [Profile] back
-/// into the `userProfileProvider` family cache for the entries
-/// currently being watched (keyed by handle and by DID). That avoids a
-/// refetch round-trip and any read-after-write lag, and keeps the
-/// profile page in sync the instant the edit page pops.
+/// On success the shared operation controller publishes a bounded overlay and
+/// refreshes profile reads until the AppView projection agrees.
 
 abstract class _$SaveProfile
     extends $AsyncNotifier<CombinedProfileSaveResult?> {

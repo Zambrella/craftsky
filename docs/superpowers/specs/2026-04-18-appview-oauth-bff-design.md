@@ -135,6 +135,13 @@ requires its device and receipt ID. In one ordered transaction it changes the
 parent to `active`, the child to active, consumes the code/receipt, and destroys
 sealed pending secrets. A pending bearer cannot call ordinary APIs.
 
+Profile activation advances the owner generation. In that same transaction,
+onboarding OAuth parents bound to the preceding generation and unchanged auth
+epoch advance to the new generation, whether pending or already confirmed.
+Older-generation, older-epoch, and revocation-pending parents do not advance.
+Confirmation, including replay, requires the parent generation to match the
+current owner so that it cannot activate a session which PDS operations reject.
+
 The row-lock order after canonical advisory locks is:
 
 1. owner lifecycle/auth epoch;

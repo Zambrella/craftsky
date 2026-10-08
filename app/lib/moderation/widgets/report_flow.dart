@@ -24,8 +24,7 @@ Future<void> showPostReportSheet(
   final successMessage = AppLocalizations.of(context).reportSubmitSuccess;
   ref.read(reportPostProvider.notifier).reset();
   return responsiveModalNavigator(context).push<void>(
-    MaterialPageRoute<void>(
-      fullscreenDialog: true,
+    FullscreenModalRoute<void>(
       builder: (routeContext) => _PostReportRouteBody(
         parentContext: context,
         successMessage: successMessage,
@@ -43,8 +42,7 @@ Future<void> showProfileReportSheet(
   final successMessage = AppLocalizations.of(context).reportSubmitSuccess;
   ref.read(reportProfileProvider.notifier).reset();
   return responsiveModalNavigator(context).push<void>(
-    MaterialPageRoute<void>(
-      fullscreenDialog: true,
+    FullscreenModalRoute<void>(
       builder: (routeContext) => _ProfileReportRouteBody(
         parentContext: context,
         successMessage: successMessage,
@@ -64,8 +62,7 @@ Future<void> showBusinessEventReportSheet(
   final successMessage = AppLocalizations.of(context).reportSubmitSuccess;
   ref.read(reportBusinessEventProvider(account).notifier).reset();
   return responsiveModalNavigator(context).push<void>(
-    MaterialPageRoute<void>(
-      fullscreenDialog: true,
+    FullscreenModalRoute<void>(
       builder: (routeContext) => _BusinessEventReportRouteBody(
         parentContext: context,
         successMessage: successMessage,

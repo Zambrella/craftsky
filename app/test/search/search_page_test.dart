@@ -190,8 +190,13 @@ void main() {
 
     expect(find.text('Profiles'), findsWidgets);
     expect(find.text('@alice.craftsky.social'), findsOneWidget);
-    expect(find.text('Alice • Knitting'), findsOneWidget);
+    expect(find.text('Alice'), findsOneWidget);
+    expect(find.text('Knitting'), findsNothing);
     expect(find.byType(CraftIcon), findsOneWidget);
+    expect(
+      tester.getTopLeft(find.byType(ProfileAvatar)).dx,
+      greaterThanOrEqualTo(16),
+    );
     expect(find.text('Hashtags'), findsOneWidget);
     expect(find.text('#sockkal'), findsOneWidget);
     expect(find.text('12 posts'), findsOneWidget);

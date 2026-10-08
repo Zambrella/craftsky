@@ -40,6 +40,72 @@ import (
 
 var errRepairInterrupted = errors.New("injected repair interruption")
 
+func TestRepositoryRepairRevalidatesUnchangedHistoricalSource(t *testing.T) {
+	pool := lifecycleIngestionPool(t)
+	ctx := context.Background()
+	if _, err := pool.Exec(ctx, `
+		CREATE TABLE repair_projection_audit(
+			uri TEXT PRIMARY KEY, owner_did TEXT NOT NULL, action TEXT NOT NULL,
+			applications INTEGER NOT NULL DEFAULT 1
+		)
+	`); err != nil {
+		t.Fatal(err)
+	}
+	store, _, service := repairIntegrationService(t, pool, nil)
+	dispatcher := repairIntegrationDispatcher(t)
+	owner := syntax.DID("did:plc:repair-historical-validation")
+	profile := repairFixtureRecord(owner, "social.craftsky.actor.profile", "self", "knitting")
+	follow := repairFixtureRecord(owner, "app.bsky.graph.follow", repairFixtureRkey("app.bsky.graph.follow", 0), "follow")
+	seedRepairSource(t, service, store, dispatcher, profile.event(1, "3aaaaaaaaaaa2", "create"))
+	if _, err := pool.Exec(ctx, `INSERT INTO craftsky_profiles(did,record_cid) VALUES($1,$2)`, owner, profile.cid); err != nil {
+		t.Fatal(err)
+	}
+	seedRepairSource(t, service, store, dispatcher, follow.event(2, "3aaaaaaaaaaa2", "create"))
+	if _, err := pool.Exec(ctx, `
+		UPDATE tap_source_records
+		SET structural_validation_status='pending', semantic_validation_status='pending'
+		WHERE uri=$1
+	`, follow.uri); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `DELETE FROM repair_projection_audit WHERE uri=$1`, follow.uri); err != nil {
+		t.Fatal(err)
+	}
+
+	snapshot := fetchSignedRepairSnapshot(t, owner, "3aaaaaaaaaaa2", []repairFixture{profile, follow})
+	before, err := store.Source(ctx, follow.uri)
+	if err != nil {
+		t.Fatal(err)
+	}
+	comparisons, err := ingestion.DescribeRepositoryRepair(snapshot, []ingestion.SourceRecord{before}, dispatcher)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, comparison := range comparisons {
+		if comparison.URI == follow.uri && comparison.Action != ingestion.RepositoryRepairNoop {
+			t.Fatalf("historical follow comparison = %s, want no-op", comparison.Action)
+		}
+	}
+	repair, err := ingestion.NewRepositoryRepair(ingestion.RepositoryRepairConfig{
+		Store: store, Ingestor: service, Projector: dispatcher.Project,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := repair.Apply(ctx, snapshot, dispatcher); err != nil {
+		t.Fatalf("repair unchanged historical follow: %v", err)
+	}
+	source, err := store.Source(ctx, follow.uri)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if source.StructuralValidationStatus != "valid" || source.SemanticValidationStatus != "valid" {
+		t.Fatalf("historical follow validation = %s/%s, want valid/valid",
+			source.StructuralValidationStatus, source.SemanticValidationStatus)
+	}
+	assertRepairProjection(t, pool, follow.uri, "update", owner)
+}
+
 func TestRepositoryRepairReconcilesNoopWithStaleProjectionGeneration(t *testing.T) {
 	pool := lifecycleIngestionPool(t)
 	ctx := context.Background()

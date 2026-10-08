@@ -225,10 +225,8 @@ func TestHTTPMetrics_CapturesNonPanic5xxBeforeFinishingActiveSpan(t *testing.T) 
 	if got := fmt.Sprint(traceCtx["span_id"]); got != handlerSpanID {
 		t.Fatalf("span_id = %#v, want %q; trace context=%#v", got, handlerSpanID, traceCtx)
 	}
-	if errorEvent.Tags["sentry_trace_id"] != handlerTraceID || errorEvent.Tags["sentry_span_id"] != handlerSpanID {
-		t.Fatalf("trace tags = (%q, %q), want (%q, %q); tags=%#v",
-			errorEvent.Tags["sentry_trace_id"], errorEvent.Tags["sentry_span_id"],
-			handlerTraceID, handlerSpanID, errorEvent.Tags)
+	if errorEvent.Contexts["correlation"]["sentry_trace_id"] != handlerTraceID || errorEvent.Contexts["correlation"]["sentry_span_id"] != handlerSpanID {
+		t.Fatalf("trace correlation = %#v, want (%q, %q)", errorEvent.Contexts["correlation"], handlerTraceID, handlerSpanID)
 	}
 }
 

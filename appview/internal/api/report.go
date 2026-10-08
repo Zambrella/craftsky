@@ -81,7 +81,7 @@ func ReportPostHandler(targets PostReportTargetResolver, reports ReportCreator, 
 		}
 		if err != nil {
 			logger.Error("report post: resolve target failed",
-				apiLogErrorAttrs(runID, "report.post.create", "target_lookup")...)
+				apiLogErrorAttrs(r.Context(), runID, "report.post.create", "target_lookup", err)...)
 			envelope.WriteError(w, http.StatusInternalServerError, "internal_error", "report target lookup failed", runID, nil)
 			return
 		}
@@ -95,7 +95,7 @@ func ReportPostHandler(targets PostReportTargetResolver, reports ReportCreator, 
 		metadata, err := forwarder.Prepare(r.Context(), ReportForwardingInput{ReporterDID: reporterDID.String(), Subject: subject, ReasonType: req.ReasonType, Details: normalizedDetails})
 		if err != nil {
 			logger.Error("report post: prepare forwarding failed",
-				apiLogErrorAttrs(runID, "report.post.create", "forwarding")...)
+				apiLogErrorAttrs(r.Context(), runID, "report.post.create", "forwarding", err)...)
 			envelope.WriteError(w, http.StatusInternalServerError, "internal_error", "report forwarding preparation failed", runID, nil)
 			return
 		}
@@ -117,7 +117,7 @@ func ReportPostHandler(targets PostReportTargetResolver, reports ReportCreator, 
 		})
 		if err != nil {
 			logger.Error("report post: create report failed",
-				apiLogErrorAttrs(runID, "report.post.create", "store")...)
+				apiLogErrorAttrs(r.Context(), runID, "report.post.create", "store", err)...)
 			envelope.WriteError(w, http.StatusInternalServerError, "internal_error", "report persistence failed", runID, nil)
 			return
 		}
@@ -169,7 +169,7 @@ func ReportBusinessEventHandler(
 		}
 		if err != nil {
 			logger.Error("report event: resolve target failed",
-				apiLogErrorAttrs(runID, "report.event.create", "target_lookup")...)
+				apiLogErrorAttrs(r.Context(), runID, "report.event.create", "target_lookup", err)...)
 			envelope.WriteError(w, http.StatusInternalServerError, "internal_error", "report target lookup failed", runID, nil)
 			return
 		}
@@ -190,7 +190,7 @@ func ReportBusinessEventHandler(
 		})
 		if err != nil {
 			logger.Error("report event: prepare forwarding failed",
-				apiLogErrorAttrs(runID, "report.event.create", "forwarding")...)
+				apiLogErrorAttrs(r.Context(), runID, "report.event.create", "forwarding", err)...)
 			envelope.WriteError(w, http.StatusInternalServerError, "internal_error", "report forwarding preparation failed", runID, nil)
 			return
 		}
@@ -204,7 +204,7 @@ func ReportBusinessEventHandler(
 		})
 		if err != nil {
 			logger.Error("report event: create report failed",
-				apiLogErrorAttrs(runID, "report.event.create", "store")...)
+				apiLogErrorAttrs(r.Context(), runID, "report.event.create", "store", err)...)
 			envelope.WriteError(w, http.StatusInternalServerError, "internal_error", "report persistence failed", runID, nil)
 			return
 		}
@@ -237,7 +237,7 @@ func ReportProfileHandler(targets AccountReportTargetResolver, reports ReportCre
 		}
 		if err != nil {
 			logger.Error("report profile: resolve target failed",
-				apiLogErrorAttrs(runID, "report.profile.create", "target_lookup")...)
+				apiLogErrorAttrs(r.Context(), runID, "report.profile.create", "target_lookup", err)...)
 			envelope.WriteError(w, http.StatusInternalServerError, "internal_error", "report target lookup failed", runID, nil)
 			return
 		}
@@ -250,7 +250,7 @@ func ReportProfileHandler(targets AccountReportTargetResolver, reports ReportCre
 		metadata, err := forwarder.Prepare(r.Context(), ReportForwardingInput{ReporterDID: reporterDID.String(), Subject: subject, ReasonType: req.ReasonType, Details: normalizedDetails})
 		if err != nil {
 			logger.Error("report profile: prepare forwarding failed",
-				apiLogErrorAttrs(runID, "report.profile.create", "forwarding")...)
+				apiLogErrorAttrs(r.Context(), runID, "report.profile.create", "forwarding", err)...)
 			envelope.WriteError(w, http.StatusInternalServerError, "internal_error", "report forwarding preparation failed", runID, nil)
 			return
 		}
@@ -269,7 +269,7 @@ func ReportProfileHandler(targets AccountReportTargetResolver, reports ReportCre
 		})
 		if err != nil {
 			logger.Error("report profile: create report failed",
-				apiLogErrorAttrs(runID, "report.profile.create", "store")...)
+				apiLogErrorAttrs(r.Context(), runID, "report.profile.create", "store", err)...)
 			envelope.WriteError(w, http.StatusInternalServerError, "internal_error", "report persistence failed", runID, nil)
 			return
 		}

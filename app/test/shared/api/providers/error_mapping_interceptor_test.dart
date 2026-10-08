@@ -1,5 +1,6 @@
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/api/providers/error_mapping_interceptor.dart';
+import 'package:craftsky_app/shared/errors/app_error_mapper.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -25,6 +26,100 @@ void main() {
 
     setUp(() => handler = _CapturingHandler());
 
+    test(
+      'SIM-T01 client diagnostics retain codes and correlation '
+      'without server prose or paths',
+      () {
+        const ErrorMappingInterceptor().onError(
+          _ex(
+            status: 422,
+            path: '/v1/posts/did:plc:alice/post1?cursor=private-cursor',
+            data: {
+              'error': 'validation_failed',
+              'message': 'validation failed',
+              'requestId': 'req_validation',
+              'fields': {
+                'text': 'must not be empty',
+                r'embed.video.blob.ref.$link': 'must be a canonical CID',
+                'privateTarget': 'opaque private target',
+                'textValue': 'opaque private draft',
+              },
+            },
+          ),
+          handler,
+        );
+        final mapped = AppErrorMapper.map(handler.error!);
+        expect(mapped.safeDiagnostics, containsPair('httpMethod', 'GET'));
+        expect(
+          mapped.safeDiagnostics,
+          containsPair('appViewError', 'validation_failed'),
+        );
+        expect(
+          mapped.safeDiagnostics,
+          containsPair('appViewRequestId', 'req_validation'),
+        );
+        for (final key in [
+          'appViewMessage',
+          'validationFields',
+          'routePattern',
+          'incomingPath',
+        ]) {
+          expect(mapped.safeDiagnostics, isNot(contains(key)));
+        }
+        expect(
+          mapped.safeDiagnostics.toString(),
+          isNot(contains('opaque private')),
+        );
+        expect(
+          mapped.safeDiagnostics.toString(),
+          isNot(contains('private-cursor')),
+        );
+        for (final status in [400, 401, 404, 422, 500, 503]) {
+          handler = _CapturingHandler();
+          const ErrorMappingInterceptor().onError(
+            _ex(
+              status: status,
+              data: {
+                'error': 'internal_error',
+                'message': 'opaque private body',
+                'requestId': 'req_matrix',
+                'fields': {'text': 'opaque private'},
+              },
+            ),
+            handler,
+          );
+          final mapped = AppErrorMapper.map(handler.error!);
+          expect(
+            mapped.safeDiagnostics,
+            containsPair('appViewRequestId', 'req_matrix'),
+          );
+          expect(
+            mapped.safeDiagnostics.toString(),
+            isNot(contains('opaque private')),
+          );
+        }
+      },
+    );
+    test(
+      'UT-009 typed underlying parse cause and supplied stack survive mapping',
+      () {
+        const cause = FormatException('opaque private response');
+        final stack = StackTrace.fromString(
+          '#0 decodePublicRecord (package:craftsky_app/post.dart:10:2)',
+        );
+        final dioError = DioException(
+          requestOptions: RequestOptions(path: '/v1/posts/did:plc:alice/post1'),
+          error: cause,
+          stackTrace: stack,
+        );
+        const ErrorMappingInterceptor().onError(dioError, handler);
+        final mapped = AppErrorMapper.map(handler.error!);
+        expect(mapped.reportable, isTrue);
+        expect(mapped.sentryClassification, 'parse.failed');
+        expect(mapped.diagnosticCause, same(cause));
+        expect(mapped.diagnosticStack, same(stack));
+      },
+    );
     test('401 → ApiUnauthorized', () {
       const ErrorMappingInterceptor().onError(_ex(status: 401), handler);
       expect(handler.error, isA<ApiUnauthorized>());
@@ -42,6 +137,33 @@ void main() {
         (handler.error as ApiBadRequest?)?.details.appViewError,
         'handle_required',
       );
+    });
+
+    test('retains string field validation errors for 4xx responses only', () {
+      const ErrorMappingInterceptor().onError(
+        _ex(
+          status: 422,
+          data: {
+            'error': 'validation_failed',
+            'fields': {'tagline': 'is invalid', 'bad': 42},
+          },
+        ),
+        handler,
+      );
+      expect((handler.error! as ApiBadRequest).details.fields, {
+        'tagline': 'is invalid',
+      });
+      final server = _CapturingHandler();
+      const ErrorMappingInterceptor().onError(
+        _ex(
+          status: 500,
+          data: {
+            'fields': {'tagline': 'private internals'},
+          },
+        ),
+        server,
+      );
+      expect((server.error! as ApiServerError).details.fields, isEmpty);
     });
 
     test('400 with no error field → ApiBadRequest(null)', () {
@@ -69,7 +191,7 @@ void main() {
             'message': 'database failed for did:plc:alice',
             'requestId': 'req_123',
           },
-          path: '/v1/feed?cursor=secret',
+          path: '/v1/feed/timeline?cursor=secret',
         ),
         handler,
       );
@@ -78,7 +200,7 @@ void main() {
       expect(error?.details.statusCode, 500);
       expect(error?.details.appViewError, 'internal_error');
       expect(error?.details.requestId, 'req_123');
-      expect(error?.details.endpointCategory, 'appview.feed');
+      expect(error?.details.method, 'GET');
       expect(error?.message, isNot(contains('database failed')));
       expect(error?.message, isNot(contains('did:plc:alice')));
     });
@@ -111,10 +233,13 @@ void main() {
           expect(error?.details.appViewError, code);
           expect(error?.details.requestId, 'req_registration');
           expect(
-            error?.details.endpointCategory,
-            'appview.auth.registrations',
+            error?.details.method,
+            'GET',
           );
-          expect(error?.details.appViewMessage, isNull);
+          expect(
+            AppErrorMapper.map(error!).safeDiagnostics['appViewMessage'],
+            isNull,
+          );
           expect(error.toString(), isNot(contains(providerText)));
           expect(error.toString(), isNot(contains('auth-code')));
         }
@@ -137,80 +262,83 @@ void main() {
 
       final error = handler.error as ApiServerError?;
       expect(
-        error?.details.endpointCategory,
-        'appview.languages.preferences',
+        error?.details.method,
+        'GET',
       );
       expect(error.toString(), isNot(contains('primaryLanguage')));
       expect(error.toString(), isNot(contains('[fr,en,cy]')));
     });
 
-    test('normalizes dynamic endpoint paths to allowlisted categories', () {
-      final cases = <({String path, String category})>[
-        (
-          path: '/v1/posts/did:plc:alice/rkey-secret',
-          category: 'appview.posts.detail',
-        ),
-        (
-          path: '/v1/posts/did:plc:alice/rkey-secret/replies',
-          category: 'appview.posts.replies',
-        ),
-        (
-          path: '/v1/profiles/@alice.example',
-          category: 'appview.profiles.detail',
-        ),
-        (
-          path: '/v1/profiles/@alice.example/posts',
-          category: 'appview.profiles.posts',
-        ),
-        (
-          path: '/v1/search/hashtags/secret-tag/posts?cursor=hidden',
-          category: 'appview.search.hashtag_posts',
-        ),
-        (
-          path: '/v1/search/recent/recent-secret-id',
-          category: 'appview.search.recent.detail',
-        ),
-        (
-          path: '/v1/posts/did:plc:alice/rkey-secret/saves',
-          category: 'appview.posts.saves',
-        ),
-        (
-          path: '/v1/saved-posts?folderId=folder-secret&cursor=cursor-secret',
-          category: 'appview.saved_posts',
-        ),
-        (
-          path: '/v1/saved-post-folders',
-          category: 'appview.saved_post_folders',
-        ),
-        (
-          path: '/v1/saved-post-folders/folder-secret',
-          category: 'appview.saved_post_folders.detail',
-        ),
-        (
-          path: '/v1/languages/preferences/initialize',
-          category: 'appview.languages.preferences.initialize',
-        ),
-      ];
+    test(
+      'SIM-T01 resource paths never become client diagnostic categories',
+      () {
+        final cases = <({String path, String category})>[
+          (
+            path: '/v1/posts/did:plc:alice/rkey-secret',
+            category: 'appview.posts.detail',
+          ),
+          (
+            path: '/v1/posts/did:plc:alice/rkey-secret/replies',
+            category: 'appview.posts.replies',
+          ),
+          (
+            path: '/v1/profiles/@alice.example',
+            category: 'appview.profiles.detail',
+          ),
+          (
+            path: '/v1/profiles/@alice.example/posts',
+            category: 'appview.profiles.posts',
+          ),
+          (
+            path: '/v1/search/hashtags/secret-tag/posts?cursor=hidden',
+            category: 'appview.search.hashtag_posts',
+          ),
+          (
+            path: '/v1/search/recent/recent-secret-id',
+            category: 'appview.search.recent.detail',
+          ),
+          (
+            path: '/v1/posts/did:plc:alice/rkey-secret/saves',
+            category: 'appview.posts.saves',
+          ),
+          (
+            path: '/v1/saved-posts?folderId=folder-secret&cursor=cursor-secret',
+            category: 'appview.saved_posts',
+          ),
+          (
+            path: '/v1/saved-post-folders',
+            category: 'appview.saved_post_folders',
+          ),
+          (
+            path: '/v1/saved-post-folders/folder-secret',
+            category: 'appview.saved_post_folders.detail',
+          ),
+          (
+            path: '/v1/languages/preferences/initialize',
+            category: 'appview.languages.preferences.initialize',
+          ),
+        ];
 
-      for (final testCase in cases) {
-        handler = _CapturingHandler();
-        const ErrorMappingInterceptor().onError(
-          _ex(status: 500, path: testCase.path),
-          handler,
-        );
+        for (final testCase in cases) {
+          handler = _CapturingHandler();
+          const ErrorMappingInterceptor().onError(
+            _ex(status: 500, path: testCase.path),
+            handler,
+          );
 
-        final error = handler.error as ApiServerError?;
-        expect(
-          error?.details.endpointCategory,
-          testCase.category,
-          reason: testCase.path,
-        );
-        expect(
-          error?.details.endpointCategory,
-          isNot(anyOf(contains('alice'), contains('secret'))),
-        );
-      }
-    });
+          final error = handler.error as ApiServerError?;
+          expect(
+            error?.details.method,
+            'GET',
+            reason: testCase.path,
+          );
+          expect(
+            error?.details.method,
+            isNot(anyOf(contains('alice'), contains('secret'))),
+          );
+        }
+      },
+    );
 
     test('timeout → ApiNetworkError', () {
       const ErrorMappingInterceptor().onError(

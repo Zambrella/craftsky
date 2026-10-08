@@ -91,9 +91,13 @@ func TestAuthAndSourceUncertaintyDurablyCoalesceRepositoryJobsAcrossRestart(t *t
 
 			token, receiptID := prepareRepositoryJobHandoff(t, pool, owners, handoffs, owner)
 			if !testCase.ownerActive {
-				if _, err := owners.Transition(context.Background(), ownerlifecycle.TransitionRequest{
+				sessions, err := auth.NewSessionLifecycleService(auth.SessionLifecycleOptions{Pool: pool, Owners: owners, Sessions: children})
+				if err != nil {
+					t.Fatal(err)
+				}
+				if _, err := owners.TransitionWith(context.Background(), ownerlifecycle.TransitionRequest{
 					Owner: owner, ExpectedGeneration: 1, To: ownerlifecycle.StateActive, Reason: "profileCreated",
-				}); err != nil {
+				}, sessions.ProfileActivationParticipant()); err != nil {
 					t.Fatalf("complete onboarding profile: %v", err)
 				}
 			}

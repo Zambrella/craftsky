@@ -33,16 +33,6 @@ StreamController<NotificationEffect> _notificationEffectController(Ref ref) {
 
 @Riverpod(keepAlive: true)
 NotificationRuntime notificationRuntime(Ref ref) {
-  final registrySnapshot = ref.watch(sessionRegistryProvider).value;
-  final onboardingStatuses = {
-    if (registrySnapshot != null)
-      for (final account in registrySnapshot.sessions.keys)
-        registrySnapshot.leaseFor(AccountKey(account.value))!: ref.watch(
-          onboardingStatusProvider(
-            registrySnapshot.leaseFor(AccountKey(account.value))!,
-          ),
-        ),
-  };
   final service = ref.watch(notificationServiceProvider);
   final registration = NotificationRegistrationCoordinator(
     service: service,
@@ -89,8 +79,11 @@ NotificationRuntime notificationRuntime(Ref ref) {
       final registry = ref.read(sessionRegistryProvider).value;
       if (registry == null) return const [];
       return [
-        for (final lease in onboardingStatuses.keys)
-          if (onboardingStatuses[lease]?.value?.completed ?? false) lease,
+        for (final account in registry.sessions.keys)
+          if (registry.leaseFor(AccountKey(account.value)) case final lease?)
+            if (ref.read(onboardingStatusProvider(lease)).value?.completed ??
+                false)
+              lease,
       ];
     },
   );

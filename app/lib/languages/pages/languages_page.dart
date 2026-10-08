@@ -5,6 +5,7 @@ import 'package:craftsky_app/languages/data/language_catalogue.dart';
 import 'package:craftsky_app/languages/models/language_preferences.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
+import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
 import 'package:craftsky_app/theme/craftsky_card.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/craftsky_select_inputs.dart';
@@ -37,7 +38,9 @@ class LanguagesPage extends ConsumerWidget {
         .requireValue
         ?.lease;
     if (activeLease == null) {
-      throw StateError('Language settings require an initialized account');
+      throw DiagnosticStateError(
+        'Language settings require an initialized account',
+      );
     }
     return Scaffold(
       appBar: AppBar(title: Text(l10n.languagesTitle)),
@@ -46,7 +49,7 @@ class LanguagesPage extends ConsumerWidget {
           spacing.sp4,
           spacing.sp4,
           spacing.sp4,
-          spacing.sp7,
+          spacing.sp7 + MediaQuery.paddingOf(context).bottom,
         ),
         child: Center(
           child: ConstrainedBox(

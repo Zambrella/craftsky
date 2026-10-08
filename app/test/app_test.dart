@@ -3,15 +3,20 @@ import 'dart:async';
 import 'package:craftsky_app/app.dart';
 import 'package:craftsky_app/app_dependencies.dart';
 import 'package:craftsky_app/auth/models/active_account_initialization.dart';
+import 'package:craftsky_app/auth/models/auth_state.dart';
 import 'package:craftsky_app/auth/models/session_registry.dart';
 import 'package:craftsky_app/auth/pages/welcome_page.dart';
 import 'package:craftsky_app/auth/providers/active_account_initialization_provider.dart';
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
 import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
+import 'package:craftsky_app/feed/models/timeline_page.dart';
+import 'package:craftsky_app/feed/pages/feed_page.dart';
+import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/initialization_error_screen.dart';
 import 'package:craftsky_app/initialization_loading_screen.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/shared/messaging/scaffold_messenger_impl.dart';
+import 'package:craftsky_app/shared/observability/diagnostic_emitter.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -22,6 +27,17 @@ import 'package:pub_semver/pub_semver.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'fakes/auth_session_fakes.dart';
+import 'feed/fakes/fake_post_repository.dart';
+import 'test_support/diagnostic_evidence.dart';
+
+final class _DelayedAuthSession extends AuthSession {
+  _DelayedAuthSession(this.result);
+
+  final Future<AuthState> result;
+
+  @override
+  Future<AuthState> build() => result;
+}
 
 final class _RegistryStorage implements SessionRegistryStorage {
   SessionRegistry value = SessionRegistry.empty();
@@ -177,6 +193,58 @@ void main() {
       },
     );
 
+    testWidgets('cold start keeps splash until signed-in routing is ready', (
+      tester,
+    ) async {
+      final auth = Completer<AuthState>();
+      var initializationResolutions = 0;
+      final storage = _RegistryStorage()
+        ..value = SessionRegistry.empty().upsertAndActivate(
+          token: 'token',
+          did: 'did:plc:test',
+          handle: 'test.test',
+        );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            appDependenciesProvider.overrideWith((ref) async => stubDeps()),
+            activeAccountInitializationProvider.overrideWith(
+              (ref) => completedActiveAccountInitialization(),
+            ),
+            authSessionProvider.overrideWith(
+              () => _DelayedAuthSession(auth.future),
+            ),
+            secureSessionRegistryStorageProvider.overrideWithValue(storage),
+            postRepositoryProvider.overrideWithValue(
+              FakePostRepository(
+                onListTimeline: ({cursor, limit}) async =>
+                    const TimelinePage(items: []),
+              ),
+            ),
+          ],
+          child: App(
+            onInitializationResolved: () => initializationResolutions++,
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.byType(InitializationLoadingScreen), findsOneWidget);
+      expect(find.byType(WelcomePage), findsNothing);
+      expect(initializationResolutions, 0);
+
+      auth.complete(SignedIn(did: 'did:plc:test', handle: 'test.test'));
+      await tester.pump();
+      expect(find.byType(WelcomePage), findsNothing);
+      await tester.pumpAndSettle();
+
+      expect(find.byType(WelcomePage), findsNothing);
+      expect(find.byType(FeedPage), findsOneWidget);
+      expect(initializationResolutions, 1);
+    });
+
     testWidgets(
       'cold-start account failure logs safely and opens account recovery',
       (tester) async {
@@ -213,8 +281,22 @@ void main() {
           initializationLogs.single.message,
           'Active account failed to initialize',
         );
-        expect(initializationLogs.single.error, isNull);
-        expect(initializationLogs.single.stackTrace, isNull);
+        expect(initializationLogs.single.error, isA<StateError>());
+        expect(initializationLogs.single.stackTrace, isNotNull);
+        final selected = selectDiagnosticRecord(initializationLogs.single);
+        expect(selected['cause'].toString(), contains('StateError'));
+        for (final private in [
+          'did:plc:secret',
+          'token-secret',
+          'preferences unavailable',
+        ]) {
+          expect(selected.toString(), isNot(contains(private)));
+        }
+        final local = <String>[];
+        DiagnosticEmitter(
+          platformSink: local.add,
+        ).emitLocal(initializationLogs.single);
+        writeDiagnosticEvidence('flutter-account-initialization', local: local);
       },
     );
 

@@ -316,14 +316,14 @@ func (service *AppendCommandService) executeFenced(
 			if completeErr := service.store.CompleteDispatch(ctx, attempt.ID, DispatchCompletion{Outcome: CommandAmbiguous, RetryAfterSeconds: 1, ErrorClass: "transport"}); completeErr != nil {
 				return CommandResult{}, completeErr
 			}
-			return service.store.Result(ctx, command.ID)
+			return service.resultWithDiagnosticCause(ctx, command.ID, err)
 		}
 		authoritative, err = transport.GetRecord(ctx, request.Owner, command.SelectedURI)
 		if err != nil {
 			if completeErr := service.store.CompleteDispatch(ctx, attempt.ID, DispatchCompletion{Outcome: CommandAmbiguous, RetryAfterSeconds: 1, ErrorClass: "result_read"}); completeErr != nil {
 				return CommandResult{}, completeErr
 			}
-			return service.store.Result(ctx, command.ID)
+			return service.resultWithDiagnosticCause(ctx, command.ID, err)
 		}
 		equal, compareErr := equalCanonicalJSON(authoritative.Record, record)
 		if compareErr != nil || !equal {
@@ -431,7 +431,7 @@ func (service *AppendCommandService) reject(
 		}
 		return CommandResult{}, err
 	}
-	return service.store.Result(ctx, commandID)
+	return service.resultWithDiagnosticCause(ctx, commandID, cause)
 }
 
 func (service *AppendCommandService) rejectDispatch(
@@ -454,5 +454,13 @@ func (service *AppendCommandService) rejectDispatch(
 	); err != nil {
 		return CommandResult{}, err
 	}
-	return service.store.Result(ctx, commandID)
+	return service.resultWithDiagnosticCause(ctx, commandID, cause)
+}
+
+func (service *AppendCommandService) resultWithDiagnosticCause(ctx context.Context, commandID uuid.UUID, cause error) (CommandResult, error) {
+	result, err := service.store.Result(ctx, commandID)
+	if err == nil {
+		result.DiagnosticCause = cause
+	}
+	return result, err
 }

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"social.craftsky/appview/internal/observability"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 
@@ -92,6 +93,7 @@ func relationshipProfileMutationHandler(
 					slog.String("run_id", runID),
 					slog.String("stage", "mutation"))
 			}
+			observability.ReportRequestFailure(r.Context(), err, "api.relationshipProfileMutationHandler", "handler")
 			envelope.WriteError(w, http.StatusInternalServerError,
 				"internal_error", "relationship mutation failed", runID, nil)
 			return

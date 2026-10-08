@@ -186,7 +186,7 @@ func TestReleaseScriptPushesCommitAndTagAtomically(t *testing.T) {
 	runRelease(t, repo, script, nil, "create", "appview", "--version", "1.0.4", "--notes", notes)
 	releaseCommit := runGit(t, repo, "rev-parse", "HEAD")
 
-	output := runRelease(t, repo, script, strings.NewReader("y\n"), "push", "appview", "prod-v1.0.4")
+	output := runRelease(t, repo, script, nil, "push", "appview", "prod-v1.0.4")
 	if !strings.Contains(output, "-> main") {
 		t.Fatalf("push output = %q", output)
 	}
@@ -208,7 +208,7 @@ func TestReleaseScriptRejectsPushCommitWithExtraFiles(t *testing.T) {
 	runGit(t, repo, "tag", "-d", "prod-v1.0.4")
 	runGit(t, repo, "tag", "-a", "prod-v1.0.4", "-m", "AppView 1.0.4")
 
-	output, err := runReleaseError(repo, script, strings.NewReader("y\n"), "push", "appview", "prod-v1.0.4")
+	output, err := runReleaseError(repo, script, nil, "push", "appview", "prod-v1.0.4")
 	if err == nil || !strings.Contains(output, "release commit must change only") {
 		t.Fatalf("push error = %v, output = %q", err, output)
 	}
@@ -217,7 +217,7 @@ func TestReleaseScriptRejectsPushCommitWithExtraFiles(t *testing.T) {
 	}
 }
 
-func TestReleaseScriptRejectsHeadChangeWhileAwaitingPushConfirmation(t *testing.T) {
+func TestReleaseScriptRejectsHeadChangeDuringPushPreflight(t *testing.T) {
 	repo, remote, script := newReleaseTestRepo(t)
 	notes := writeNotes(t, "- Ready for production.\n")
 	runRelease(t, repo, script, nil, "create", "appview", "--version", "1.0.4", "--notes", notes)
@@ -252,11 +252,11 @@ exec "$REAL_GIT" "$@"
 	output, err := runReleaseErrorWithEnv(
 		repo,
 		script,
-		strings.NewReader("y\n"),
+		nil,
 		[]string{"push", "appview", "prod-v1.0.4"},
 		env,
 	)
-	if err == nil || !strings.Contains(output, "HEAD changed while awaiting confirmation") {
+	if err == nil || !strings.Contains(output, "HEAD changed during push preflight") {
 		t.Fatalf("push error = %v, output = %q", err, output)
 	}
 	if gitRefExists(remote, "refs/tags/prod-v1.0.4") {
@@ -309,11 +309,11 @@ exec "$REAL_GIT" "$@"
 	output, err := runReleaseErrorWithEnv(
 		repo,
 		script,
-		strings.NewReader("y\n"),
+		nil,
 		[]string{"push", "appview", "prod-v1.0.4"},
 		env,
 	)
-	if err == nil || !strings.Contains(output, "origin/main changed while awaiting confirmation") {
+	if err == nil || !strings.Contains(output, "origin/main changed during push preflight") {
 		t.Fatalf("push error = %v, output = %q", err, output)
 	}
 	if gitRefExists(remote, "refs/tags/prod-v1.0.4") {

@@ -447,6 +447,7 @@ class _DraftImageTile extends StatelessWidget {
                 maxLines: 4,
                 keyboardType: TextInputType.multiline,
                 textInputAction: TextInputAction.newline,
+                textCapitalization: TextCapitalization.sentences,
                 enabled: enabled,
                 onChanged: onAltChanged,
                 labelLeading: Icon(

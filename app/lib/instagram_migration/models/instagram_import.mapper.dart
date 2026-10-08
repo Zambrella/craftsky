@@ -53,6 +53,7 @@ class InstagramImportSourceTypeMapper
     }
   }
 }
+
 extension InstagramImportSourceTypeMapperExtension
     on InstagramImportSourceType {
   String toValue() {
@@ -61,6 +62,7 @@ extension InstagramImportSourceTypeMapperExtension
         as String;
   }
 }
+
 class InstagramImportStateMapper extends EnumMapper<InstagramImportState> {
   InstagramImportStateMapper._();
 

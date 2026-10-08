@@ -42,7 +42,7 @@ func (imageReplayServingProjector) Project(ctx context.Context, tx pgx.Tx, sourc
 func TestImageSafetyReplayUsesCurrentSourceAndDeleteCannotResurrect(t *testing.T) {
 	pool := testdb.WithSchema(t, ingestionProjectionFixtureDDL+imageReplayFixtureDDL)
 	applyTapDurabilityMigration(t, pool)
-	migration, err := os.ReadFile("../../migrations/000076_image_safety.up.sql")
+	migration, err := os.ReadFile("../../migrations/000081_image_safety.up.sql")
 	if err != nil {
 		t.Fatalf("read image safety migration: %v", err)
 	}

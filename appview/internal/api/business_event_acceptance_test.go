@@ -24,7 +24,7 @@ import (
 )
 
 func TestBusinessEventLifecycleAcceptance(t *testing.T) {
-	pool := testdb.WithSchema(t, businessEventStoreDDL+`
+	pool := testdb.WithSchema(t, businessEventSubscriptionDDL(t)+`
 		CREATE TABLE craftsky_business_record_tombstones (
 			uri TEXT PRIMARY KEY,
 			owner_did TEXT NOT NULL,
@@ -43,6 +43,7 @@ func TestBusinessEventLifecycleAcceptance(t *testing.T) {
 	if _, err := pool.Exec(ctx, `INSERT INTO craftsky_account_types(owner_did, account_type) VALUES ($1, 'business')`, owner); err != nil {
 		t.Fatalf("seed eligible business owner account type: %v", err)
 	}
+	seedBusinessTestLicense(t, pool, owner)
 
 	effects := newBusinessEventEffects()
 	factory := func(context.Context, syntax.DID, string) (pdseffects.EffectExecutor, error) {

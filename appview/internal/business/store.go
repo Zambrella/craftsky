@@ -10,12 +10,11 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-
-	"social.craftsky/appview/internal/ownerlifecycle"
 )
 
 type Store struct {
-	pool *pgxpool.Pool
+	pool              *pgxpool.Pool
+	accessEnvironment string
 }
 
 var ErrEventNotFound = errors.New("business: event not found")
@@ -95,14 +94,20 @@ func (s *Store) ReadEvent(ctx context.Context, input EventReadInput) (EventView,
 	err := s.pool.QueryRow(ctx, `
 		SELECT event.raw_record, event.uri, event.cid, event.starts_at, event.ends_at,
 		       membership.did IS NOT NULL AND appview_owner_is_active(event.owner_did),
-		       COALESCE(account_type.account_type, 'regular'),
+		       CASE WHEN EXISTS (
+		           SELECT 1 FROM billing_licenses license
+		           JOIN provider_subscriptions subscription ON subscription.id=license.provider_subscription_id
+		           WHERE license.assigned_did=event.owner_did AND license.tier='business'
+		             AND subscription.gives_access AND subscription.environment=$4
+		             AND subscription.app_id IS NOT NULL AND subscription.mapped_tier=license.tier
+		             AND subscription.anomaly='none'
+		       ) THEN 'business' ELSE 'regular' END,
 		       `+eventBlockedSQL+`, `+eventModeratedSQL+`
 		FROM craftsky_business_events event
 		LEFT JOIN craftsky_profiles membership ON membership.did = event.owner_did
-		LEFT JOIN craftsky_account_types account_type ON account_type.owner_did = event.owner_did
 		WHERE event.owner_did = $2 AND event.rkey = $3
 		  AND appview_image_subject_is_clear(event.uri, event.cid)
-	`, input.CallerDID, input.OwnerDID, input.Rkey).Scan(
+	`, input.CallerDID, input.OwnerDID, input.Rkey, s.accessEnvironment).Scan(
 		&raw, &view.URI, &view.CID, &startsAt, &endsAt,
 		&ownerCurrent, &accountType, &blocked, &moderated,
 	)
@@ -148,11 +153,14 @@ func (s *Store) ListUpcomingEvents(ctx context.Context, input UpcomingEventListI
 	}
 	rows, err := s.pool.Query(ctx, `
 		SELECT event.raw_record, event.uri, event.rkey, event.cid,
-		       event.starts_at, event.ends_at, COALESCE(account_type.account_type, 'regular')
+		       event.starts_at, event.ends_at, 'business'
 		FROM craftsky_business_events event
 		JOIN craftsky_profiles membership ON membership.did = event.owner_did
-		JOIN craftsky_account_types account_type
-		  ON account_type.owner_did = event.owner_did AND account_type.account_type = 'business'
+		JOIN billing_licenses license ON license.assigned_did=event.owner_did AND license.tier='business'
+		JOIN provider_subscriptions subscription ON subscription.id=license.provider_subscription_id
+		  AND subscription.gives_access AND subscription.environment=$7
+		  AND subscription.app_id IS NOT NULL AND subscription.mapped_tier=license.tier
+		  AND subscription.anomaly='none'
 		WHERE event.owner_did = $2
 		  AND appview_owner_is_active(event.owner_did)
 		  AND appview_image_subject_is_clear(event.uri, event.cid)
@@ -166,7 +174,7 @@ func (s *Store) ListUpcomingEvents(ctx context.Context, input UpcomingEventListI
 		       (event.starts_at, event.uri) > ($4::timestamptz, $5::text))
 		ORDER BY event.starts_at ASC, event.uri ASC
 		LIMIT $6
-	`, input.CallerDID, input.OwnerDID, input.AsOf, seekStartsAt, seekURI, input.Limit+1)
+	`, input.CallerDID, input.OwnerDID, input.AsOf, seekStartsAt, seekURI, input.Limit+1, s.accessEnvironment)
 	if err != nil {
 		return nil, fmt.Errorf("list upcoming business events: %w", err)
 	}
@@ -218,10 +226,14 @@ func (s *Store) ListOwnerEvents(ctx context.Context, input OwnerEventListInput) 
 	query := `
 		SELECT event.raw_record, event.uri, event.rkey, event.cid,
 		       event.starts_at, event.ends_at,
-		       COALESCE(account_type.account_type, 'regular'), ` + eventModeratedSQL + `
+		       'business', ` + eventModeratedSQL + `
 		FROM craftsky_business_events event
 		JOIN craftsky_profiles membership ON membership.did = event.owner_did
-		LEFT JOIN craftsky_account_types account_type ON account_type.owner_did = event.owner_did
+		JOIN billing_licenses license ON license.assigned_did=event.owner_did AND license.tier='business'
+		JOIN provider_subscriptions subscription ON subscription.id=license.provider_subscription_id
+		  AND subscription.gives_access AND subscription.environment=$5
+		  AND subscription.app_id IS NOT NULL AND subscription.mapped_tier=license.tier
+		  AND subscription.anomaly='none'
 		WHERE event.owner_did = $1
 		  AND appview_owner_is_active(event.owner_did)
 		  AND appview_image_subject_is_clear(event.uri, event.cid)
@@ -230,15 +242,19 @@ func (s *Store) ListOwnerEvents(ctx context.Context, input OwnerEventListInput) 
 		ORDER BY event.starts_at DESC, event.uri DESC
 		LIMIT $4
 	`
-	args := []any{input.OwnerDID, seekStartsAt, seekURI, input.Limit + 1}
+	args := []any{input.OwnerDID, seekStartsAt, seekURI, input.Limit + 1, s.accessEnvironment}
 	if input.Filter == OwnerEventUpcoming {
 		query = `
 			SELECT event.raw_record, event.uri, event.rkey, event.cid,
 			       event.starts_at, event.ends_at,
-			       COALESCE(account_type.account_type, 'regular'), ` + eventModeratedSQL + `
+			       'business', ` + eventModeratedSQL + `
 			FROM craftsky_business_events event
 			JOIN craftsky_profiles membership ON membership.did = event.owner_did
-			LEFT JOIN craftsky_account_types account_type ON account_type.owner_did = event.owner_did
+			JOIN billing_licenses license ON license.assigned_did=event.owner_did AND license.tier='business'
+			JOIN provider_subscriptions subscription ON subscription.id=license.provider_subscription_id
+			  AND subscription.gives_access AND subscription.environment=$6
+			  AND subscription.app_id IS NOT NULL AND subscription.mapped_tier=license.tier
+			  AND subscription.anomaly='none'
 			WHERE event.owner_did = $1
 			  AND appview_owner_is_active(event.owner_did)
 			  AND appview_image_subject_is_clear(event.uri, event.cid)
@@ -249,15 +265,19 @@ func (s *Store) ListOwnerEvents(ctx context.Context, input OwnerEventListInput) 
 			ORDER BY event.starts_at ASC, event.uri ASC
 			LIMIT $5
 		`
-		args = []any{input.OwnerDID, input.AsOf, seekStartsAt, seekURI, input.Limit + 1}
+		args = []any{input.OwnerDID, input.AsOf, seekStartsAt, seekURI, input.Limit + 1, s.accessEnvironment}
 	} else if input.Filter == OwnerEventHistory {
 		query = `
 			SELECT event.raw_record, event.uri, event.rkey, event.cid,
 			       event.starts_at, event.ends_at,
-			       COALESCE(account_type.account_type, 'regular'), ` + eventModeratedSQL + `
+			       'business', ` + eventModeratedSQL + `
 			FROM craftsky_business_events event
 			JOIN craftsky_profiles membership ON membership.did = event.owner_did
-			LEFT JOIN craftsky_account_types account_type ON account_type.owner_did = event.owner_did
+			JOIN billing_licenses license ON license.assigned_did=event.owner_did AND license.tier='business'
+			JOIN provider_subscriptions subscription ON subscription.id=license.provider_subscription_id
+			  AND subscription.gives_access AND subscription.environment=$6
+			  AND subscription.app_id IS NOT NULL AND subscription.mapped_tier=license.tier
+			  AND subscription.anomaly='none'
 			WHERE event.owner_did = $1
 			  AND appview_owner_is_active(event.owner_did)
 			  AND appview_image_subject_is_clear(event.uri, event.cid)
@@ -267,7 +287,7 @@ func (s *Store) ListOwnerEvents(ctx context.Context, input OwnerEventListInput) 
 			ORDER BY event.starts_at DESC, event.uri DESC
 			LIMIT $5
 		`
-		args = []any{input.OwnerDID, input.AsOf, seekStartsAt, seekURI, input.Limit + 1}
+		args = []any{input.OwnerDID, input.AsOf, seekStartsAt, seekURI, input.Limit + 1, s.accessEnvironment}
 	}
 	rows, err := s.pool.Query(ctx, query, args...)
 	if err != nil {
@@ -320,13 +340,17 @@ func (s *Store) ReadEligibleProfile(ctx context.Context, did syntax.DID) (*Profi
 		FROM craftsky_business_profiles AS business_profile
 		JOIN craftsky_profiles AS membership
 		  ON membership.did = business_profile.owner_did
-		JOIN craftsky_account_types AS account_type
-		  ON account_type.owner_did = business_profile.owner_did
-		 AND account_type.account_type = 'business'
+		JOIN billing_licenses AS license
+		  ON license.assigned_did = business_profile.owner_did AND license.tier = 'business'
+		JOIN provider_subscriptions AS subscription
+		  ON subscription.id = license.provider_subscription_id
+		 AND subscription.gives_access AND subscription.environment=$2
+		 AND subscription.app_id IS NOT NULL AND subscription.mapped_tier = license.tier
+		 AND subscription.anomaly = 'none'
 		WHERE business_profile.owner_did = $1
 		  AND appview_owner_is_active(business_profile.owner_did)
 		  AND appview_image_subject_is_clear(business_profile.uri, business_profile.cid)
-	`, did).Scan(&raw, &cid)
+	`, did, s.accessEnvironment).Scan(&raw, &cid)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
 	}
@@ -348,9 +372,11 @@ func (s *Store) HasUpcomingEvents(ctx context.Context, owner syntax.DID, asOf ti
 			SELECT 1
 			FROM craftsky_business_events event
 			JOIN craftsky_profiles membership ON membership.did = event.owner_did
-			JOIN craftsky_account_types account_type
-			  ON account_type.owner_did = event.owner_did
-			 AND account_type.account_type = 'business'
+			JOIN billing_licenses license ON license.assigned_did = event.owner_did AND license.tier = 'business'
+			JOIN provider_subscriptions subscription ON subscription.id = license.provider_subscription_id
+			  AND subscription.gives_access AND subscription.environment=$3
+			  AND subscription.app_id IS NOT NULL AND subscription.mapped_tier = license.tier
+			  AND subscription.anomaly = 'none'
 			WHERE event.owner_did = $1
 			  AND appview_owner_is_active(event.owner_did)
 			  AND appview_image_subject_is_clear(event.uri, event.cid)
@@ -360,7 +386,7 @@ func (s *Store) HasUpcomingEvents(ctx context.Context, owner syntax.DID, asOf ti
 			  AND COALESCE(event.status, 'scheduled') NOT IN ('cancelled', 'postponed')
 			  AND NOT `+eventModeratedSQL+`
 		)
-	`, owner, asOf).Scan(&exists)
+	`, owner, asOf, s.accessEnvironment).Scan(&exists)
 	if err != nil {
 		return false, fmt.Errorf("read upcoming business event availability: %w", err)
 	}
@@ -368,23 +394,35 @@ func (s *Store) HasUpcomingEvents(ctx context.Context, owner syntax.DID, asOf ti
 }
 
 func NewStore(pool *pgxpool.Pool) *Store {
-	return &Store{pool: pool}
+	return NewStoreForEnvironment(pool, "production")
+}
+
+func NewStoreForEnvironment(pool *pgxpool.Pool, environment string) *Store {
+	if environment != "sandbox" {
+		environment = "production"
+	}
+	return &Store{pool: pool, accessEnvironment: environment}
 }
 
 func (s *Store) ReadAccountType(ctx context.Context, did syntax.DID) (AccountType, error) {
-	var accountType AccountType
+	var active bool
 	err := s.pool.QueryRow(ctx, `
-		SELECT account_type
-		FROM craftsky_account_types
-		WHERE owner_did = $1
-	`, did).Scan(&accountType)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return AccountTypeRegular, nil
-	}
+		SELECT EXISTS (
+			SELECT 1 FROM billing_licenses license
+			JOIN provider_subscriptions subscription ON subscription.id=license.provider_subscription_id
+			WHERE license.assigned_did=$1 AND license.tier='business'
+			  AND subscription.gives_access AND subscription.environment=$2
+			  AND subscription.app_id IS NOT NULL AND subscription.mapped_tier=license.tier
+			  AND subscription.anomaly='none'
+		)
+	`, did, s.accessEnvironment).Scan(&active)
 	if err != nil {
 		return "", fmt.Errorf("read account type: %w", err)
 	}
-	return accountType, nil
+	if active {
+		return AccountTypeBusiness, nil
+	}
+	return AccountTypeRegular, nil
 }
 
 func (s *Store) ReadAccountTypes(ctx context.Context, dids []syntax.DID) (map[syntax.DID]AccountType, error) {
@@ -402,62 +440,27 @@ func (s *Store) ReadAccountTypes(ctx context.Context, dids []syntax.DID) (map[sy
 		values = append(values, did.String())
 	}
 	rows, err := s.pool.Query(ctx, `
-		SELECT owner_did, account_type
-		FROM craftsky_account_types
-		WHERE owner_did = ANY($1)
-	`, values)
+		SELECT license.assigned_did
+		FROM billing_licenses license
+		JOIN provider_subscriptions subscription ON subscription.id=license.provider_subscription_id
+		WHERE license.assigned_did=ANY($1) AND license.tier='business'
+		  AND subscription.gives_access AND subscription.environment=$2
+		  AND subscription.app_id IS NOT NULL AND subscription.mapped_tier=license.tier
+		  AND subscription.anomaly='none'
+	`, values, s.accessEnvironment)
 	if err != nil {
 		return nil, fmt.Errorf("read account types: %w", err)
 	}
 	defer rows.Close()
 	for rows.Next() {
 		var did syntax.DID
-		var accountType AccountType
-		if err := rows.Scan(&did, &accountType); err != nil {
+		if err := rows.Scan(&did); err != nil {
 			return nil, fmt.Errorf("scan account type: %w", err)
 		}
-		result[did] = accountType
+		result[did] = AccountTypeBusiness
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("iterate account types: %w", err)
 	}
 	return result, nil
-}
-
-func (s *Store) PutAccountType(ctx context.Context, did syntax.DID, accountType AccountType) error {
-	if _, err := ParseAccountType(string(accountType)); err != nil {
-		return err
-	}
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return fmt.Errorf("begin account type update: %w", err)
-	}
-	defer func() { _ = tx.Rollback(context.Background()) }()
-	if err := ownerlifecycle.GuardPrivateMutationTx(ctx, tx, did, nil); err != nil {
-		return fmt.Errorf("guard account type update: %w", err)
-	}
-	if _, err := tx.Exec(ctx, `
-		INSERT INTO craftsky_account_types (owner_did, account_type)
-		VALUES ($1, $2)
-		ON CONFLICT (owner_did) DO UPDATE
-		SET account_type = EXCLUDED.account_type
-	`, did, accountType); err != nil {
-		return fmt.Errorf("put account type: %w", err)
-	}
-	if err := tx.Commit(ctx); err != nil {
-		return fmt.Errorf("commit account type update: %w", err)
-	}
-	return nil
-}
-
-// DeleteAccountType is the narrow idempotent capability used only by approved
-// permanent account deletion after public business records have converged.
-func (s *Store) DeleteAccountType(ctx context.Context, did syntax.DID) error {
-	if s == nil || s.pool == nil || did == "" {
-		return errors.New("delete account type scope is invalid")
-	}
-	if _, err := s.pool.Exec(ctx, `DELETE FROM craftsky_account_types WHERE owner_did = $1`, did); err != nil {
-		return fmt.Errorf("delete account type: %w", err)
-	}
-	return nil
 }

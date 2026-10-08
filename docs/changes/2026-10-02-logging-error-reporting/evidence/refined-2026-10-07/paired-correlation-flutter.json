@@ -1,0 +1,211 @@
+{
+  "local": [
+    "{\"severity\":\"SEVERE\",\"feature\":\"Post\",\"operation\":\"read\",\"message\":\"Operation failed\",\"httpStatus\":500,\"appViewError\":\"internal_error\",\"appViewRequestId\":\"b50fb7be-d6c3-4115-b596-6698f1988157\",\"httpMethod\":\"GET\",\"cause\":{\"type\":\"ApiServerError\",\"message\":\"Operation failed\",\"causes\":[{\"type\":\"DioException\",\"message\":\"HTTP request failed (HTTP 500)\"}]},\"stack\":[{\"function\":\"loadPublicRecord\",\"file\":\"post.dart\",\"line\":12}],\"environment\":\"development\"}"
+  ],
+  "exported": [
+    {
+      "event_id": "b58ea50d809f451d9e5a8dbebc7edd05",
+      "timestamp": "2026-10-07T09:42:20.105Z",
+      "platform": "other",
+      "environment": "debug",
+      "tags": {
+        "feature": "Post",
+        "operation": "read",
+        "classification": "api.server_error",
+        "severity": "error",
+        "httpStatus": "500",
+        "appViewError": "internal_error"
+      },
+      "contexts": {
+        "device": {
+          "processor_count": 12
+        },
+        "os": {
+          "name": "macOS",
+          "version": "27.0.1",
+          "build": "26A434",
+          "raw_description": "Version 27.0.1 (Build 26A434)"
+        },
+        "app": {
+          "app_memory": 353337344
+        },
+        "trace": {
+          "span_id": "bb30524499744603",
+          "trace_id": "b6802d0ebc084fa1a09ec083820479ef",
+          "op": "default"
+        },
+        "operation": {
+          "feature": "Post",
+          "operation": "read",
+          "classification": "api.server_error",
+          "severity": "error",
+          "httpStatus": 500,
+          "appViewError": "internal_error",
+          "appViewRequestId": "b50fb7be-d6c3-4115-b596-6698f1988157",
+          "httpMethod": "GET"
+        },
+        "failure": {
+          "causes": [
+            {
+              "type": "ApiServerError",
+              "message": "Operation failed"
+            },
+            {
+              "type": "DioException",
+              "message": "HTTP request failed (HTTP 500)"
+            }
+          ]
+        }
+      },
+      "sdk": {
+        "name": "sentry.dart",
+        "version": "9.23.0",
+        "packages": [
+          {
+            "name": "pub:sentry",
+            "version": "9.23.0"
+          }
+        ],
+        "integrations": [
+          "isolateErrorIntegration",
+          "MetricsSetup",
+          "LoggerSetup",
+          "InstrumentationSpanFactorySetup",
+          "FeatureFlagsIntegration",
+          "InMemoryTelemetryProcessor",
+          "TrackBeforeSendUsageIntegration",
+          "Enricher"
+        ],
+        "features": [
+          "beforeSendEvent",
+          "beforeSendTransaction",
+          "beforeSendLog"
+        ]
+      },
+      "exception": {
+        "values": [
+          {
+            "type": "ApiServerError",
+            "value": "Operation failed",
+            "stacktrace": {
+              "frames": [
+                {
+                  "filename": "invoker.dart",
+                  "package": "test_api",
+                  "function": "Invoker._waitForOutstandingCallbacks.<fn>",
+                  "lineno": 318,
+                  "colno": 9,
+                  "in_app": true,
+                  "platform": "dart"
+                },
+                {},
+                {
+                  "filename": "declarer.dart",
+                  "package": "test_api",
+                  "function": "Declarer.test.<fn>",
+                  "lineno": 250,
+                  "colno": 11,
+                  "in_app": true,
+                  "platform": "dart"
+                },
+                {},
+                {
+                  "filename": "declarer.dart",
+                  "package": "test_api",
+                  "function": "Declarer.test.<fn>.<fn>",
+                  "lineno": 253,
+                  "colno": 15,
+                  "in_app": true,
+                  "platform": "dart"
+                },
+                {},
+                {
+                  "filename": "request_correlation_test.dart",
+                  "function": "main.<fn>",
+                  "lineno": 91,
+                  "colno": 7,
+                  "in_app": true,
+                  "platform": "dart"
+                },
+                {},
+                {
+                  "filename": "sentry_error_reporter.dart",
+                  "package": "craftsky_app",
+                  "function": "SentryErrorReporter.captureException",
+                  "lineno": 68,
+                  "colno": 21,
+                  "in_app": true,
+                  "platform": "dart"
+                },
+                {},
+                {}
+              ],
+              "snapshot": true
+            }
+          }
+        ]
+      }
+    },
+    {
+      "items": [
+        {
+          "timestamp": 1791366140.092016,
+          "trace_id": "b6802d0ebc084fa1a09ec083820479ef",
+          "level": "error",
+          "body": "Operation failed",
+          "attributes": {
+            "feature": {
+              "value": "Post",
+              "type": "string"
+            },
+            "operation": {
+              "value": "read",
+              "type": "string"
+            },
+            "classification": {
+              "value": "api.server_error",
+              "type": "string"
+            },
+            "severity": {
+              "value": "error",
+              "type": "string"
+            },
+            "httpStatus": {
+              "value": 500,
+              "type": "integer"
+            },
+            "appViewError": {
+              "value": "internal_error",
+              "type": "string"
+            },
+            "appViewRequestId": {
+              "value": "b50fb7be-d6c3-4115-b596-6698f1988157",
+              "type": "string"
+            },
+            "httpMethod": {
+              "value": "GET",
+              "type": "string"
+            },
+            "errorType": {
+              "value": "ApiServerError",
+              "type": "string"
+            },
+            "causeMessage": {
+              "value": "Operation failed",
+              "type": "string"
+            },
+            "causes": {
+              "value": "[{\"type\":\"DioException\",\"message\":\"HTTP request failed (HTTP 500)\"}]",
+              "type": "string"
+            },
+            "stack": {
+              "value": "[{\"function\":\"loadPublicRecord\",\"file\":\"post.dart\",\"line\":12}]",
+              "type": "string"
+            }
+          },
+          "severity_number": 17
+        }
+      ]
+    }
+  ]
+}

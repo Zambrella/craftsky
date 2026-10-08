@@ -63,8 +63,8 @@ func (matchScanner) Scan(context.Context, imagesafety.ScanInput) (imagesafety.Sc
 
 func TestMatchCreatesRestrictedIncidentWithoutGuiltOrRenderedBytes(t *testing.T) {
 	pool := testdb.WithSchema(t, detectionPreStateDDL)
-	applyMigration(t, pool, "../../migrations/000076_image_safety.up.sql")
-	applyMigration(t, pool, "../../migrations/000077_safety_incidents.up.sql")
+	applyMigration(t, pool, "../../migrations/000081_image_safety.up.sql")
+	applyMigration(t, pool, "../../migrations/000082_safety_incidents.up.sql")
 
 	ctx := context.Background()
 	now := time.Date(2030, 9, 22, 16, 0, 0, 0, time.UTC)

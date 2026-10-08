@@ -43,6 +43,7 @@ void main() {
         'businessTypes': ['dyer'],
         'offerings': ['yarn'],
         'tagline': 'Details survive',
+        'preserveUnknownCatalogValues': true,
         'products': [
           isA<Map<String, dynamic>>().having(
             (value) => value['title'],

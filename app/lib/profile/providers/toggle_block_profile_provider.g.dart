@@ -34,7 +34,7 @@ final class ToggleBlockProfileProvider
 }
 
 String _$toggleBlockProfileHash() =>
-    r'681f4ab0bae62d1604c49badc4c074e0461f2df8';
+    r'9b80922e80a5ad7c6e9f2f15262923bd5b7783a4';
 
 abstract class _$ToggleBlockProfile extends $AsyncNotifier<bool?> {
   FutureOr<bool?> build();

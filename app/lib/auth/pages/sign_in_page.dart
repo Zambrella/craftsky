@@ -4,10 +4,10 @@ import 'package:craftsky_app/auth/models/auth_error.dart';
 import 'package:craftsky_app/auth/models/session_registry.dart' as model;
 import 'package:craftsky_app/auth/providers/auth_controller.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
+import 'package:craftsky_app/auth/widgets/handle_typeahead_field.dart';
 import 'package:craftsky_app/auth/widgets/registration_action.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
-import 'package:craftsky_app/theme/brand_text_field.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
@@ -67,42 +67,50 @@ class _SignInPageState extends ConsumerState<SignInPage> {
               : l10n.signInTitle,
         ),
       ),
-      body: Padding(
-        padding: EdgeInsets.all(spacing.sp5),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            if (widget.mode == SignInMode.addAccount) ...[
-              Text(
-                l10n.addAccountDescription,
-                style: Theme.of(context).textTheme.bodyLarge,
+      body: LayoutBuilder(
+        builder: (context, constraints) => SingleChildScrollView(
+          padding: EdgeInsets.all(spacing.sp5),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              minHeight: (constraints.maxHeight - spacing.sp5 * 2).clamp(
+                0,
+                double.infinity,
               ),
-              SizedBox(height: spacing.sp5),
-            ],
-            BrandTextField(
-              label: l10n.signInHandleLabel,
-              hintText: 'alice.bsky.social',
-              controller: _controller,
-              enabled: canAddAccount && !busy,
-              onSubmitted: (_) => _submit(),
             ),
-            SizedBox(height: spacing.sp5),
-            ChunkyButton(
-              onPressed: canAddAccount && !busy ? _submit : null,
-              child: busy
-                  ? const StitchProgressIndicator(size: 18)
-                  : Text(l10n.signInContinueAction),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (widget.mode == SignInMode.addAccount) ...[
+                  Text(
+                    l10n.addAccountDescription,
+                    style: Theme.of(context).textTheme.bodyLarge,
+                  ),
+                  SizedBox(height: spacing.sp5),
+                ],
+                HandleTypeaheadField(
+                  controller: _controller,
+                  enabled: canAddAccount && !busy,
+                  onSubmitted: (_) => _submit(),
+                ),
+                SizedBox(height: spacing.sp5),
+                ChunkyButton(
+                  onPressed: canAddAccount && !busy ? _submit : null,
+                  child: busy
+                      ? const StitchProgressIndicator(size: 18)
+                      : Text(l10n.signInContinueAction),
+                ),
+                if (widget.mode == SignInMode.addAccount) ...[
+                  SizedBox(height: spacing.sp5),
+                  RegistrationAction(
+                    enabled: canAddAccount,
+                    isLoading: busy,
+                    onPressed: _startRegistration,
+                  ),
+                ],
+              ],
             ),
-            if (widget.mode == SignInMode.addAccount) ...[
-              SizedBox(height: spacing.sp5),
-              RegistrationAction(
-                enabled: canAddAccount,
-                isLoading: busy,
-                onPressed: _startRegistration,
-              ),
-            ],
-          ],
+          ),
         ),
       ),
     );
@@ -117,9 +125,7 @@ class _SignInPageState extends ConsumerState<SignInPage> {
   }
 
   void _startRegistration() {
-    unawaited(
-      ref.read(authControllerProvider.notifier).startRegistration(),
-    );
+    unawaited(ref.read(authControllerProvider.notifier).startRegistration());
   }
 
   String _messageFor(AppLocalizations l10n, Object? error) => switch (error) {

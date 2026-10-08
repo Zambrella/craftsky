@@ -58,7 +58,7 @@ final class ComposerImagesProvider
   }
 }
 
-String _$composerImagesHash() => r'2a7df7cb1149fecf642e19fc827c472b87f8758e';
+String _$composerImagesHash() => r'462774d54c28e9166abd27ae0e37db4fb4e61a52';
 
 final class ComposerImagesFamily extends $Family
     with

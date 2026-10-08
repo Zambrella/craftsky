@@ -5,6 +5,7 @@ import 'package:craftsky_app/saved_posts/models/saved_post.dart';
 import 'package:craftsky_app/saved_posts/widgets/saved_post_row.dart';
 import 'package:craftsky_app/shared/time/relative_time_text.dart';
 import 'package:craftsky_app/shared/widgets/post_summary.dart';
+import 'package:craftsky_app/subscriptions/subscription_build_config.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/craftsky_context_menu.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
@@ -83,6 +84,43 @@ void main() {
     await tester.pumpAndSettle();
     expect((opens, moves, unsaves), (1, 1, 1));
   });
+
+  testWidgets('beta Move is muted without a Plus upsell', (tester) async {
+    var moves = 0;
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(
+          theme: AppTheme.lightThemeData,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(
+            body: SavedPostRow(
+              account: AccountKey('did:plc:alice'),
+              item: _item(),
+              moveLocked: true,
+              onOpen: () {},
+              onMove: () => moves++,
+              onUnsave: () {},
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.byTooltip('Saved post actions'));
+    await tester.pumpAndSettle();
+    expect(find.text('Move'), findsOneWidget);
+    expect(find.textContaining('requires Plus'), findsNothing);
+    final text = tester.widget<Text>(find.text('Move'));
+    expect(
+      text.style?.color,
+      Theme.of(
+        tester.element(find.text('Move')),
+      ).colorScheme.onSurface.withValues(alpha: 0.72),
+    );
+    await tester.tap(find.text('Move'));
+    await tester.pumpAndSettle();
+    expect(moves, 1);
+  }, skip: subscriptionsEnabled);
 
   testWidgets('AT-012 saved row uses PostSummary with parent-owned metadata', (
     tester,

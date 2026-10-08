@@ -19,6 +19,43 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  testWidgets('AT-009 owner sees pending and missed subscription notices', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: Scaffold(
+          body: ScheduledPostsPageContent(
+            items: [
+              _item(
+                'future',
+                ScheduledPostStatus.scheduled,
+                subscriptionRequired: true,
+              ),
+              _item(
+                'missed',
+                ScheduledPostStatus.needsAttention,
+                lastErrorCode: 'subscription_required',
+              ),
+            ],
+            onRefresh: () async {},
+            onEdit: (_) async {},
+            onDelete: (_) async {},
+          ),
+        ),
+      ),
+    );
+    expect(
+      find.textContaining('Plus is required before this scheduled post'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('not published because Plus access ended'),
+      findsOneWidget,
+    );
+  });
   testWidgets('AT-006 management rows expose edit/delete and publishing lock', (
     tester,
   ) async {
@@ -201,6 +238,8 @@ ScheduledPostSummary _item(
   ScheduledPostStatus status, {
   List<String> mediaIds = const [],
   DateTime? needsAttentionExpiresAt,
+  bool subscriptionRequired = false,
+  String? lastErrorCode,
   ScheduledPostKind kind = ScheduledPostKind.standard,
   String? text,
   String? projectTitle,
@@ -213,4 +252,6 @@ ScheduledPostSummary _item(
   scheduledAt: ScheduledInstant(DateTime.utc(2026, 8, 2, 12)),
   mediaIds: mediaIds,
   needsAttentionExpiresAt: needsAttentionExpiresAt,
+  subscriptionRequired: subscriptionRequired,
+  lastErrorCode: lastErrorCode,
 );

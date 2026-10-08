@@ -57,8 +57,10 @@ import 'package:craftsky_app/scheduled_posts/widgets/scheduled_staging_progress.
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/shared/messaging/message_action.dart';
 import 'package:craftsky_app/shared/messaging/widgets/craftsky_snack_bar.dart';
+import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
 import 'package:craftsky_app/shared/rich_text/providers/facet_suggestion_providers.dart';
 import 'package:craftsky_app/shared/rich_text/widgets/facet_autocomplete_editor.dart';
+import 'package:craftsky_app/subscriptions/providers/subscription_access_provider.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
@@ -84,8 +86,7 @@ Future<Post?> showPostComposerSheet(
   ActiveAccountLease? draftOwner,
 }) {
   return responsiveModalNavigator(context).push<Post?>(
-    MaterialPageRoute<Post?>(
-      fullscreenDialog: true,
+    FullscreenModalRoute<Post?>(
       builder: (_) => PostComposerSheet(
         replyTarget: replyTarget,
         quoteTarget: quoteTarget,
@@ -182,6 +183,7 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
   var _sponsored = false;
   var _initialSponsored = false;
   var _submissionSucceeded = false;
+  Post? _pendingPublishedDraftPost;
   late final DraftSubmissionOrigin _origin;
   List<String>? _initialLanguages;
   ScheduleChoice _initialScheduleChoice = ScheduleChoice.now;
@@ -344,6 +346,13 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
       });
     }
     final account = activeLease?.session.account;
+    final scheduleAccess = activeLease == null
+        ? null
+        : ref.watch(subscriptionAccessProvider(activeLease.session));
+    final maySchedule = switch (scheduleAccess) {
+      AsyncData(:final value) => value.allowsPlus,
+      _ => false,
+    };
     final previewProvider = account == null
         ? null
         : linkPreviewControllerProvider(_composerId, account);
@@ -400,7 +409,8 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
         _languages != null &&
         imagesState.isSubmitReady &&
         (selectedVideo == null || _scheduleChoice == ScheduleChoice.now) &&
-        (_scheduleChoice == ScheduleChoice.now || capacity.scheduleEnabled);
+        (_scheduleChoice == ScheduleChoice.now ||
+            (capacity.scheduleEnabled && maySchedule));
     final bodyErrorText = switch ((_attemptedSubmit, trimmedText.isEmpty)) {
       (true, true) => l10n.postComposeBodyRequiredError,
       _ when tooLong => l10n.postComposeTooLong,
@@ -421,7 +431,9 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
       ..listen(createPostProvider, (previous, next) {
         switch ((previous, next)) {
           case (AsyncLoading(), AsyncData(:final value?)):
-            if (Navigator.of(context).canPop()) {
+            if (_origin.draft != null) {
+              _pendingPublishedDraftPost = value;
+            } else if (Navigator.of(context).canPop()) {
               Navigator.of(context).pop(value);
             }
             context.showInfo(l10n.postCreateSuccess);
@@ -448,7 +460,11 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
       });
 
     return PopScope<Post?>(
-      canPop: !_isSubmitting && (!hasDraft || createState.isLoading),
+      canPop:
+          !_isSubmitting &&
+          (_pendingPublishedDraftPost != null ||
+              !hasDraft ||
+              createState.isLoading),
       onPopInvokedWithResult: (didPop, _) async {
         if (didPop) return;
         if (_isSubmitting) return;
@@ -558,6 +574,14 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
                           showSponsored: !isResponse,
                           scheduledAtLocal: _scheduledAtLocal,
                           showSchedule: isSchedulable,
+                          scheduleAccess: scheduleAccess,
+                          onScheduleAccessRetry: activeLease == null
+                              ? null
+                              : () => ref.invalidate(
+                                  subscriptionAccessProvider(
+                                    activeLease.session,
+                                  ),
+                                ),
                           onSchedulePressed: isSchedulable && !_isScheduling
                               ? (menuContext) => _chooseWhen(
                                   menuContext,
@@ -709,14 +733,16 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
                   bottom: 0,
                   child: SafeArea(
                     top: false,
-                    minimum: EdgeInsets.only(bottom: spacing.sp4),
-                    child: _PostAction(
-                      actionKey: const Key('post-composer-primary-action'),
-                      isSaving: createState.isLoading || _isScheduling,
-                      label: submitLabel,
-                      onPressed: canSubmit
-                          ? () => _submitPost(trimmedText: trimmedText)
-                          : null,
+                    child: Padding(
+                      padding: EdgeInsets.only(bottom: spacing.sp4),
+                      child: _PostAction(
+                        actionKey: const Key('post-composer-primary-action'),
+                        isSaving: createState.isLoading || _isScheduling,
+                        label: submitLabel,
+                        onPressed: canSubmit
+                            ? () => _submitPost(trimmedText: trimmedText)
+                            : null,
+                      ),
                     ),
                   ),
                 ),
@@ -726,6 +752,11 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
           if (_isSubmitting)
             SubmissionBlockingOverlay(
               scheduling: _scheduleChoice == ScheduleChoice.later,
+              kind: isComment
+                  ? SubmissionKind.comment
+                  : isResponse
+                  ? SubmissionKind.reply
+                  : SubmissionKind.post,
               videoProgress: _videoProgress,
               onCancelVideo: _videoPublication?.cancel,
             ),
@@ -1006,7 +1037,9 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
     required String trimmedText,
     required List<Map<String, dynamic>> facets,
   }) async {
-    if (owner == null) throw StateError('Video publication requires an owner');
+    if (owner == null) {
+      throw DiagnosticStateError('Video publication requires an owner');
+    }
     if (widget.prepareVideoProof case final prepare?) {
       final video = await prepare(selectedVideo);
       final created = await ref
@@ -1025,6 +1058,7 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
     final api = ref.read(postApiClientProvider);
     final service = ref.read(videoServiceClientProvider);
     final coordinator = VideoPublicationCoordinator(
+      operationAccountDid: owner.session.account.did.value,
       checkEligibility: api.getVideoUploadLimits,
       authorize: api.authorizeVideoUpload,
       upload:
@@ -1236,11 +1270,12 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
   ) async {
     if (_submissionCoordinator.isRunning) return;
     _submissionSucceeded = false;
+    _pendingPublishedDraftPost = null;
     _videoFailure = null;
     await _submissionCoordinator.run(
       presentOverlay: () async {
         await WidgetsBinding.instance.endOfFrame;
-        if (!mounted) throw StateError('composer disposed');
+        if (!mounted) throw DiagnosticStateError('composer disposed');
       },
       ownershipIsCurrent: () => _submissionOwnershipIsCurrent(submissionOwner),
       saveOriginSnapshot: _saveOriginSnapshot,
@@ -1277,6 +1312,11 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
         }
       },
     );
+    final published = _pendingPublishedDraftPost;
+    if (published != null) await WidgetsBinding.instance.endOfFrame;
+    if (mounted && published != null && Navigator.of(context).canPop()) {
+      Navigator.of(context).pop(published);
+    }
   }
 
   bool _submissionOwnershipIsCurrent(ActiveAccountLease? owner) =>
@@ -1290,7 +1330,7 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
     if (active == null ||
         active != widget.draftOwner ||
         active.session.account != origin.owner) {
-      throw StateError('local-draft account changed');
+      throw DiagnosticStateError('local-draft account changed');
     }
     final saved = await ref
         .read(draftSaveControllerProvider(origin.owner).notifier)
@@ -1300,7 +1340,9 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
             ref.read(composerImagesProvider(_composerId)),
           ),
         );
-    if (saved == null) throw StateError('local-draft account changed');
+    if (saved == null) {
+      throw DiagnosticStateError('local-draft account changed');
+    }
     _origin.acceptSnapshot(saved);
   }
 
@@ -1576,12 +1618,14 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
       case _ScheduledExternalDisposition.preserve:
         final existing = widget.scheduledPost?.payload['external'];
         if (existing is! Map<dynamic, dynamic>) {
-          throw StateError('scheduled external is unavailable');
+          throw DiagnosticStateError('scheduled external is unavailable');
         }
         return Map<String, dynamic>.from(existing);
       case _ScheduledExternalDisposition.attach:
         if (selection == null) {
-          throw StateError('scheduled external selection is unavailable');
+          throw DiagnosticStateError(
+            'scheduled external selection is unavailable',
+          );
         }
         return (await materializeScheduledExternal(
           selection,
@@ -1624,7 +1668,7 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
         if (!mounted) return;
         owner = _captureScheduledOperationOwner();
       }
-      if (owner == null) throw StateError('account unavailable');
+      if (owner == null) throw DiagnosticStateError('account unavailable');
       final account = owner.session.account;
       final repository = await ref.read(
         accountScheduledPostRepositoryProvider(account).future,

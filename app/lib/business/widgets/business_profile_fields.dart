@@ -88,6 +88,25 @@ class BusinessProfileFields extends StatelessWidget {
     );
   }
 
+  static Map<String, dynamic> valuesFrom(BusinessDeclarationDraft draft) => {
+    BusinessProfileFieldNames.types: draft.businessTypes
+        .where((value) => value.known)
+        .map((value) => value.value)
+        .toList(),
+    BusinessProfileFieldNames.offerings: draft.offerings
+        .where((value) => value.known)
+        .map((value) => value.value)
+        .toList(),
+    BusinessProfileFieldNames.tagline: draft.tagline ?? '',
+    BusinessProfileFieldNames.hours: draft.hoursNote ?? '',
+    BusinessProfileFieldNames.serviceArea: draft.serviceArea ?? '',
+    BusinessProfileFieldNames.country: draft.location?.country ?? '',
+    BusinessProfileFieldNames.locality: draft.location?.locality ?? '',
+    BusinessProfileFieldNames.actionType: draft.primaryAction?.type ?? '',
+    BusinessProfileFieldNames.actionDestination:
+        draft.primaryAction?.destination ?? '',
+  };
+
   static String? _trimmedOrNull(String? value) {
     final trimmed = value?.trim();
     return trimmed == null || trimmed.isEmpty ? null : trimmed;
@@ -158,6 +177,7 @@ class BusinessProfileFields extends StatelessWidget {
           label: l10n.editProfileBusinessTaglineLabel,
           initialValue: initial.tagline,
           maxLines: 2,
+          textCapitalization: TextCapitalization.sentences,
           enabled: enabled,
           validator: _bounded(
             l10n.editProfileBusinessTaglineTooLong,
@@ -171,6 +191,7 @@ class BusinessProfileFields extends StatelessWidget {
           label: l10n.editProfileBusinessHoursLabel,
           initialValue: initial.hoursNote,
           maxLines: 4,
+          textCapitalization: TextCapitalization.sentences,
           enabled: enabled,
           validator: _bounded(
             l10n.editProfileBusinessHoursTooLong,
@@ -184,6 +205,7 @@ class BusinessProfileFields extends StatelessWidget {
           label: l10n.editProfileBusinessServiceAreaLabel,
           initialValue: initial.serviceArea,
           maxLines: 3,
+          textCapitalization: TextCapitalization.words,
           enabled: enabled,
           validator: _bounded(
             l10n.editProfileBusinessServiceAreaTooLong,
@@ -212,6 +234,7 @@ class BusinessProfileFields extends StatelessWidget {
           name: BusinessProfileFieldNames.locality,
           label: l10n.editProfileBusinessLocalityLabel,
           initialValue: initial.location?.locality,
+          textCapitalization: TextCapitalization.words,
           enabled: enabled,
           validator: _bounded(
             l10n.editProfileBusinessLocalityTooLong,

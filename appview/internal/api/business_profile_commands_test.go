@@ -108,3 +108,44 @@ func TestCommandDeleteBusinessProfileUsesFixedSelfAndReturnsEmptyNoContent(t *te
 		t.Fatalf("fixed-key delete request = %+v calls=%d", commands.request, commands.calls)
 	}
 }
+
+func TestCommandBusinessDetailEditPreservesIndependentRecordFields(t *testing.T) {
+	current := json.RawMessage(`{"$type":"social.craftsky.business.profile","businessTypes":["teacher","future-type"],"offerings":["classes","future-offering"],"tagline":"Before","products":[{"title":"Legacy product","uri":"https://example.com/legacy","com.example.extension":{"sequence":9007199254740993}}]}`)
+	commands := &recordingAddressedPutCommands{}
+	commands.put = func(request pdscommands.AddressedPutCommandRequest) (pdscommands.CommandResult, error) {
+		record, err := request.BuildRecord(pdscommands.AuthoritativeRecord{URI: request.URI, CID: businessProfileCID1, Record: current})
+		if err != nil {
+			return pdscommands.CommandResult{}, err
+		}
+		commands.record = record
+		terminal, err := request.Accepted(pdscommands.AuthoritativeRecord{URI: request.URI, CID: businessProfileCID2, Record: record})
+		return pdscommands.CommandResult{TerminalResult: terminal}, err
+	}
+	handler := api.PutBusinessProfileHandler(nil, api.BusinessProfileHandlerOptions{Commands: commands})
+	request := httptest.NewRequest(http.MethodPut, "/v1/profiles/me/business", strings.NewReader(`{"businessTypes":["dyer"],"offerings":[],"tagline":"After","preserveProducts":true,"preserveUnknownCatalogValues":true}`))
+	request.Header.Set("Idempotency-Key", "018f4d5c-7a61-7d40-a1a2-999999999996")
+	request.Header.Set("If-Match", businessProfileCID1)
+	ctx := middleware.WithDID(request.Context(), "did:plc:owner")
+	ctx = middleware.WithOwnerGeneration(ctx, 7)
+	ctx = middleware.WithOAuthSessionID(ctx, "oauth-owner-session")
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request.WithContext(ctx))
+	if response.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
+	}
+	var record map[string]json.RawMessage
+	if err := json.Unmarshal(commands.record, &record); err != nil {
+		t.Fatal(err)
+	}
+	if string(record["businessTypes"]) != `["dyer","future-type"]` || string(record["offerings"]) != `["future-offering"]` || string(record["tagline"]) != `"After"` {
+		t.Fatalf("replacement fields=%s", commands.record)
+	}
+	if strings.Contains(string(commands.record), "preserveProducts") || strings.Contains(string(commands.record), "preserveUnknownCatalogValues") {
+		t.Fatalf("API intent leaked into PDS record: %s", commands.record)
+	}
+	var original map[string]json.RawMessage
+	_ = json.Unmarshal(current, &original)
+	if string(record["products"]) != string(original["products"]) {
+		t.Fatalf("raw products changed: %s", commands.record)
+	}
+}

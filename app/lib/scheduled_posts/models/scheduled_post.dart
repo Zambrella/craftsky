@@ -70,6 +70,8 @@ final class ScheduledPostSummary {
     this.projectTitle,
     this.mediaIds = const [],
     this.needsAttentionExpiresAt,
+    this.subscriptionRequired = false,
+    this.lastErrorCode,
   });
 
   final String id;
@@ -80,6 +82,8 @@ final class ScheduledPostSummary {
   final ScheduledInstant scheduledAt;
   final List<String> mediaIds;
   final DateTime? needsAttentionExpiresAt;
+  final bool subscriptionRequired;
+  final String? lastErrorCode;
 
   @override
   String toString() => 'ScheduledPostSummary [REDACTED]';
@@ -92,6 +96,8 @@ final class ScheduledPostDetail {
     required this.status,
     required this.scheduledAt,
     required this.payload,
+    this.subscriptionRequired = false,
+    this.lastErrorCode,
   });
 
   final String id;
@@ -99,6 +105,8 @@ final class ScheduledPostDetail {
   final ScheduledPostStatus status;
   final ScheduledInstant scheduledAt;
   final Map<String, dynamic> payload;
+  final bool subscriptionRequired;
+  final String? lastErrorCode;
 
   @override
   String toString() => 'ScheduledPostDetail [REDACTED]';

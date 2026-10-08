@@ -11,6 +11,7 @@ Widget craftskyTextInputsPreview() {
       children: [
         CraftskyTextInput(
           label: 'Project name',
+          textCapitalization: TextCapitalization.words,
           hintText: 'Name this project',
           helperText: 'Short names are easiest to scan.',
         ),
@@ -23,6 +24,7 @@ Widget craftskyTextInputsPreview() {
         SizedBox(height: 24),
         CraftskyTextInput(
           label: 'Project name',
+          textCapitalization: TextCapitalization.words,
           initialValue: 'My summer cardigan',
           errorText: 'Choose a unique project name.',
         ),
@@ -91,6 +93,7 @@ Widget craftskyTextInputsLargeTypePreview() {
   return const _InputPreviewFrame(
     child: CraftskyTextInput(
       label: 'A deliberately long project name label',
+      textCapitalization: TextCapitalization.words,
       hintText: 'Try a short, memorable name',
       helperText:
           'Labels and helper text should remain readable at larger text sizes.',

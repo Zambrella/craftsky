@@ -33,6 +33,7 @@ import (
 	"social.craftsky/appview/internal/safetyincident"
 	"social.craftsky/appview/internal/safetyintake"
 	"social.craftsky/appview/internal/scheduledposts"
+	"social.craftsky/appview/internal/subscriptions"
 	"social.craftsky/appview/internal/tap"
 )
 
@@ -158,8 +159,11 @@ type Deps struct {
 	PDSCompoundCommands  *pdscommands.CompoundCommandService
 	PDSCommandCompaction *pdscommands.CompactionProcessor
 	// BusinessStore owns account-type, declaration, and event read models.
-	BusinessStore    *business.Store
-	EventCursorCodec *api.EventCursorCodec
+	BusinessStore        *business.Store
+	Subscriptions        *subscriptions.Store
+	RevenueCatWebhook    http.Handler
+	RevenueCatReconciler *subscriptions.Reconciler
+	EventCursorCodec     *api.EventCursorCodec
 	// Now is the process clock used by request-time business event policy.
 	Now func() time.Time
 
@@ -246,7 +250,6 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (
 	}
 	ownerFence := owners.fence
 	ownerLifecycles := owners.lifecycles
-	onboardingEffects := owners.onboardingEffects
 	scheduledStorage, err := newScheduledStorageDependencies(ctx, pool, cfg)
 	if err != nil {
 		return nil, nil, err
@@ -341,6 +344,11 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (
 	if err != nil {
 		return nil, nil, err
 	}
+	onboardingReconciler, err := newOnboardingReconciliationDependencies(owners, authCapability, pdsEffects, scheduledDepartureParticipant, tapCapability)
+	if err != nil {
+		return nil, nil, err
+	}
+	oauthFlow = oauthFlow.WithOnboardingReconciler(onboardingReconciler)
 
 	eventCursorCodec, err := newBusinessEventCursorCodec(handoffReceiptKey)
 	if err != nil {
@@ -351,6 +359,11 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (
 	if err != nil {
 		return nil, nil, err
 	}
+	subscriptionCapability, err := newSubscriptionDependencies(pool, cfg.RevenueCat, nil, observer)
+	if err != nil {
+		return nil, nil, err
+	}
+	setBusinessAccessEnvironment(content, pool, subscriptionCapability.store.AccessEnvironment())
 	deps := &Deps{
 		Config:                      cfg,
 		Logger:                      logger,
@@ -376,7 +389,7 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (
 		CraftskySessionStore:        craftskyStore,
 		OwnerLifecycles:             ownerLifecycles,
 		OwnerFence:                  ownerFence,
-		OnboardingProfile:           onboardingProfileEffectAdapter{executor: onboardingEffects},
+		OnboardingProfile:           onboardingProfileEffectAdapter{executor: pdsEffects.onboarding},
 		BlueskyProfileProjector:     tapCapability.profileProjector,
 		CraftskyProfileProjector:    tapCapability.craftskyProfileProjector,
 		NewPendingPDSClient:         pdsEffects.pending,
@@ -401,6 +414,9 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (
 		RelationshipStore:           relationshipStore,
 		LanguagePreferences:         languagePreferences,
 		BusinessStore:               content.business,
+		Subscriptions:               subscriptionCapability.store,
+		RevenueCatWebhook:           subscriptionCapability.webhook,
+		RevenueCatReconciler:        subscriptionCapability.reconciler,
 		EventCursorCodec:            eventCursorCodec,
 		Now:                         time.Now,
 		ProfileStore:                content.profiles,
@@ -428,7 +444,7 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (
 	}
 
 	instagramRuntime, err := newInstagramRuntimeDependencies(
-		ctx, pool, instagramStorage, owners, pdsEffects, cfg, logger,
+		ctx, pool, instagramStorage, owners, pdsEffects, cfg, logger, observer,
 	)
 	if err != nil {
 		return nil, nil, err
@@ -466,13 +482,13 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (
 		authCapability,
 		owners,
 		federated,
-		content.business,
 		instagramPrivateData,
 		scheduledAccountDeletion,
 		scheduledDepartureParticipant,
 		safety.objects,
 		cfg,
 		logger,
+		observer,
 	)
 	if err != nil {
 		return nil, nil, err
@@ -483,7 +499,7 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (
 	deps.AccountDeletionWorker = deletion.worker
 	deps.AccountDeletionIntentExpiry = deletion.intentExpiry
 	scheduledPublication, err := newScheduledPublicationDependencies(
-		pool, scheduledStorage, content, pdsEffects, observer, cfg,
+		pool, scheduledStorage, content, pdsEffects, observer, cfg, subscriptionCapability.store,
 	)
 	if err != nil {
 		return nil, nil, err

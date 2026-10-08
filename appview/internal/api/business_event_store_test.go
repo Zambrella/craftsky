@@ -56,8 +56,37 @@ CREATE TABLE moderation_outputs (
 );
 `
 
+func businessEventSubscriptionDDL(t *testing.T) string {
+	t.Helper()
+	return businessEventStoreDDL + subscriptionSchema(t)
+}
+
+func subscriptionSchema(t *testing.T) string {
+	t.Helper()
+	migration, err := testdb.ReadMigration("000076_subscription_accounts.up.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(migration)
+}
+
+func seedBusinessTestLicense(t *testing.T, pool *pgxpool.Pool, did syntax.DID) {
+	t.Helper()
+	ctx := context.Background()
+	var accountID, subscriptionID string
+	if err := pool.QueryRow(ctx, `INSERT INTO billing_accounts(owner_did,revenuecat_app_user_id) VALUES ($1,gen_random_uuid()) RETURNING id`, did).Scan(&accountID); err != nil {
+		t.Fatal(err)
+	}
+	if err := pool.QueryRow(ctx, `INSERT INTO provider_subscriptions(billing_account_id,project_id,revenuecat_subscription_id,product_id,app_id,store,environment,status,gives_access,mapped_tier,accepted_generation) VALUES ($1,'test-project',$2,'business','test-app','app_store','production','active',true,'business',1) RETURNING id`, accountID, "test-"+did.String()).Scan(&subscriptionID); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO billing_licenses(provider_subscription_id,tier,assigned_did,assigned_at) VALUES ($1,'business',$2,now())`, subscriptionID, did); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestBusinessEventStoreServesEligibleVisitorDirectAndUpcoming(t *testing.T) {
-	pool := testdb.WithSchema(t, businessEventStoreDDL)
+	pool := testdb.WithSchema(t, businessEventSubscriptionDDL(t))
 	ctx := context.Background()
 	owner := syntax.DID("did:plc:event-owner")
 	visitor := syntax.DID("did:plc:event-visitor")
@@ -71,6 +100,7 @@ func TestBusinessEventStoreServesEligibleVisitorDirectAndUpcoming(t *testing.T) 
 	if _, err := pool.Exec(ctx, `INSERT INTO craftsky_account_types(owner_did, account_type) VALUES ($1, 'business')`, owner); err != nil {
 		t.Fatalf("seed eligible owner account type: %v", err)
 	}
+	seedBusinessTestLicense(t, pool, owner)
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO craftsky_business_events
 			(uri, owner_did, rkey, cid, raw_record, source_revision, starts_at, ends_at, created_at, status)
@@ -134,7 +164,7 @@ func TestBusinessEventStoreServesEligibleVisitorDirectAndUpcoming(t *testing.T) 
 }
 
 func TestBusinessEventStoreHidesNonClearCurrentRevision(t *testing.T) {
-	pool := testdb.WithSchema(t, businessEventStoreDDL)
+	pool := testdb.WithSchema(t, businessEventSubscriptionDDL(t))
 	ctx := context.Background()
 	owner := syntax.DID("did:plc:event-owner")
 	visitor := syntax.DID("did:plc:event-visitor")
@@ -164,6 +194,7 @@ func TestBusinessEventStoreHidesNonClearCurrentRevision(t *testing.T) {
 	if _, err := pool.Exec(ctx, `INSERT INTO craftsky_account_types(owner_did, account_type) VALUES ($1, 'business')`, owner); err != nil {
 		t.Fatalf("seed blocked event account type: %v", err)
 	}
+	seedBusinessTestLicense(t, pool, owner)
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO craftsky_business_events
 			(uri, owner_did, rkey, cid, raw_record, source_revision, starts_at, ends_at, created_at, status)
@@ -204,7 +235,7 @@ func TestBusinessEventStoreHidesNonClearCurrentRevision(t *testing.T) {
 }
 
 func TestBusinessEventStoreCallerAwarePolicyMatrix(t *testing.T) {
-	pool := testdb.WithSchema(t, businessEventStoreDDL)
+	pool := testdb.WithSchema(t, businessEventSubscriptionDDL(t))
 	ctx := context.Background()
 	asOf := time.Date(2026, time.August, 29, 12, 0, 0, 0, time.UTC)
 	visitor := syntax.DID("did:plc:event-visitor")
@@ -225,6 +256,8 @@ func TestBusinessEventStoreCallerAwarePolicyMatrix(t *testing.T) {
 	`, owner, regular, blockedOwner, departed); err != nil {
 		t.Fatalf("seed owner account types: %v", err)
 	}
+	seedBusinessTestLicense(t, pool, owner)
+	seedBusinessTestLicense(t, pool, blockedOwner)
 
 	seedEventFixture(t, pool, eventFixture{Owner: owner, Rkey: "3msfuture0001", Name: "Future", StartsAt: asOf.Add(time.Hour), EndsAt: asOf.Add(2 * time.Hour)})
 	seedEventFixture(t, pool, eventFixture{Owner: owner, Rkey: "3msongoing001", Name: "Ongoing", StartsAt: asOf.Add(-time.Hour), EndsAt: asOf.Add(time.Hour)})
@@ -292,9 +325,9 @@ func TestBusinessEventStoreCallerAwarePolicyMatrix(t *testing.T) {
 	if err != nil || !reflect.DeepEqual(ownerModerated.PublicSuppressionReasons, []string{"record-moderated"}) {
 		t.Fatalf("moderated owner event = (%+v, %v)", ownerModerated, err)
 	}
-	regularManagement, err := store.ReadEvent(ctx, business.EventReadInput{CallerDID: regular, OwnerDID: regular, Rkey: "3msregular001", AsOf: asOf})
-	if err != nil || !reflect.DeepEqual(regularManagement.PublicSuppressionReasons, []string{"owner-not-business"}) {
-		t.Fatalf("regular owner management event = (%+v, %v)", regularManagement, err)
+	_, err = store.ReadEvent(ctx, business.EventReadInput{CallerDID: regular, OwnerDID: regular, Rkey: "3msregular001", AsOf: asOf})
+	if !errors.Is(err, business.ErrEventNotFound) {
+		t.Fatalf("regular owner management error = %v, want not found", err)
 	}
 
 	for _, test := range []struct {

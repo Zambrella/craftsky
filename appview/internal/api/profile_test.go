@@ -556,6 +556,9 @@ func TestPutProfile_CompoundCommandBuildsBothRecords(t *testing.T) {
 	if body.DisplayName == nil || *body.DisplayName != "After" || body.Handle != "alice.example" {
 		t.Fatalf("response = %+v", body)
 	}
+	if !body.IsCraftskyProfile {
+		t.Fatal("accepted profile response must identify the written CraftSky record")
+	}
 	if commands.request.Records[0].URI != "at://did:plc:me/app.bsky.actor.profile/self" ||
 		commands.request.Records[1].URI != "at://did:plc:me/social.craftsky.actor.profile/self" {
 		t.Fatalf("ordered URIs = %s, %s", commands.request.Records[0].URI, commands.request.Records[1].URI)
@@ -630,6 +633,9 @@ func TestPutProfile_HappyPathMergesBlueskyExtras(t *testing.T) {
 	}
 	if resp.Pronouns == nil || *resp.Pronouns != "they/them" {
 		t.Fatalf("response pronouns = %v", resp.Pronouns)
+	}
+	if !resp.IsCraftskyProfile {
+		t.Fatal("successful profile update must identify the written CraftSky record")
 	}
 }
 

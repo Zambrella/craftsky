@@ -1,8 +1,15 @@
 import 'dart:async';
 
+import 'package:craftsky_app/auth/models/auth_state.dart';
+import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
 import 'package:craftsky_app/feed/models/post.dart';
+import 'package:craftsky_app/feed/providers/delete_post_provider.dart';
+import 'package:craftsky_app/feed/providers/toggle_like_post_provider.dart';
+import 'package:craftsky_app/feed/providers/toggle_repost_post_provider.dart';
 import 'package:craftsky_app/feed/widgets/post_card.dart';
+import 'package:craftsky_app/feed/widgets/post_composer_sheet.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/moderation/widgets/report_flow.dart';
 import 'package:craftsky_app/projects/models/project_browse_filters.dart';
 import 'package:craftsky_app/projects/options/project_option.dart';
 import 'package:craftsky_app/projects/options/project_option_catalogs.dart';
@@ -11,12 +18,14 @@ import 'package:craftsky_app/router/app_shell_drawer.dart';
 import 'package:craftsky_app/router/responsive_modal_navigation.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/search/models/search_sort.dart';
+import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/shared/widgets/auto_paginated_list_view.dart';
 import 'package:craftsky_app/shared/widgets/craft_icon.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/shared/widgets/scroll_to_top_button.dart';
 import 'package:craftsky_app/shared/widgets/sort_menu_button.dart';
+import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:craftsky_app/theme/craftsky_divider.dart';
 import 'package:craftsky_app/theme/craftsky_floating_action_button.dart';
 import 'package:craftsky_app/theme/craftsky_form_builder_select_fields.dart';
@@ -70,6 +79,31 @@ class _ProjectsPageState extends ConsumerState<ProjectsPage>
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    ref
+      ..listen(deletePostProvider, (previous, next) {
+        switch ((previous, next)) {
+          case (AsyncLoading(), AsyncData(value: != null)):
+            context.showInfo(l10n.postDeleteSuccess);
+            ref.read(deletePostProvider.notifier).reset();
+          case (AsyncLoading(), AsyncError()):
+            context.showError(l10n.postDeleteError);
+            ref.read(deletePostProvider.notifier).reset();
+          case _:
+            break;
+        }
+      })
+      ..listen(toggleLikePostProvider, (previous, next) {
+        if (next.hasError) {
+          context.showError(l10n.postLikeError);
+          ref.read(toggleLikePostProvider.notifier).reset();
+        }
+      })
+      ..listen(toggleRepostPostProvider, (previous, next) {
+        if (next.hasError) {
+          context.showError(l10n.postRepostError);
+          ref.read(toggleRepostPostProvider.notifier).reset();
+        }
+      });
     final spacing =
         Theme.of(context).extension<SpacingTheme>() ?? const SpacingTheme();
     final activeCraft =
@@ -260,8 +294,7 @@ class _ProjectsPageState extends ConsumerState<ProjectsPage>
         ProjectOptionCatalogs.craftTypes[_selectedCraftIndex].value;
     final filters = await responsiveModalNavigator(context)
         .push<ProjectBrowseFilters>(
-          MaterialPageRoute<ProjectBrowseFilters>(
-            fullscreenDialog: true,
+          FullscreenModalRoute<ProjectBrowseFilters>(
             builder: (_) => _ProjectFilterSheet(
               craftType: craftType,
               initialFilters: _filters,
@@ -406,7 +439,7 @@ class _ProjectTabScrollView extends ConsumerWidget {
   }
 }
 
-class _ProjectPostSlivers extends StatelessWidget {
+class _ProjectPostSlivers extends ConsumerWidget {
   const _ProjectPostSlivers({
     required this.posts,
     required this.isLoadingMore,
@@ -424,8 +457,12 @@ class _ProjectPostSlivers extends StatelessWidget {
   final VoidCallback onNearEnd;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
+    final viewerDid = switch (ref.watch(authSessionProvider).value) {
+      SignedIn(:final did) => did,
+      _ => null,
+    };
     return AutoPaginatedSliverList(
       itemCount: posts.length,
       emptyState: CraftskyEmptyState(
@@ -445,14 +482,47 @@ class _ProjectPostSlivers extends StatelessWidget {
           collapseBody: true,
           imageInteractionMode: PostCardImageInteractionMode.navigate,
           hideWhenAuthorProtected: true,
+          allowProfilePinAction: true,
           onTap: () => PostThreadRoute(
             did: post.author.did,
             rkey: post.rkey,
           ).push<void>(context),
+          onReply: () => unawaited(
+            showPostComposerSheet(context, replyTarget: post),
+          ),
+          onLike: () =>
+              ref.read(toggleLikePostProvider.notifier).toggle(post: post),
+          onRepost: () =>
+              ref.read(toggleRepostPostProvider.notifier).toggle(post: post),
+          onQuote: () => unawaited(
+            showPostComposerSheet(context, quoteTarget: post),
+          ),
+          onDelete: viewerDid == post.author.did
+              ? () => unawaited(_confirmProjectPostDelete(context, ref, post))
+              : null,
+          onReport: viewerDid != null && viewerDid != post.author.did
+              ? () => showPostReportSheet(context, ref, post)
+              : null,
+          replyTooltip: l10n.postCommentAction,
         );
       },
     );
   }
+}
+
+Future<void> _confirmProjectPostDelete(
+  BuildContext context,
+  WidgetRef ref,
+  Post post,
+) async {
+  final l10n = AppLocalizations.of(context);
+  await showCraftskyDestructiveConfirmDialog(
+    context,
+    title: l10n.postDeleteTitle,
+    message: l10n.postDeleteMessage,
+    confirmLabel: l10n.postDeleteConfirm,
+    onConfirm: () => ref.read(deletePostProvider.notifier).delete(post: post),
+  );
 }
 
 class _ProjectErrorSliver extends StatelessWidget {

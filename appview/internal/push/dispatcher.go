@@ -56,6 +56,13 @@ type DispatcherObserver interface {
 	ObservePushDelivery(string, string)
 	ObservePushQueue(int, time.Duration)
 }
+
+// DispatcherFailureObserver selects failure context separately from aggregate metrics.
+// Only the owning account and a delivery reference cross this boundary.
+type DispatcherFailureObserver interface {
+	ObservePrivateFailure(context.Context, error, syntax.DID, string, string, string, string, int)
+}
+
 type ModerationQueueObserver interface{ ObserveModerationNotificationQueue(int, time.Duration) bool }
 
 // DispatcherOperationObserver is the optional detailed counterpart to
@@ -628,15 +635,28 @@ func (d *Dispatcher) processClaimFenced(ctx context.Context, item claimedDeliver
 		1,
 	)
 	if err != nil {
+		if observer, ok := d.options.Observer.(DispatcherFailureObserver); ok {
+			observer.ObservePrivateFailure(ctx, errors.Join(sendErr, err), item.recipientDID, item.id.String(), "push.send", "finalization", "error", item.attempts)
+		}
 		return err
 	}
 	if d.options.Observer != nil {
 		d.options.Observer.ObservePushDelivery(item.platform, string(result.Class))
 	}
-	// Sender implementations translate raw provider errors into ResultClass.
-	// State transitions and telemetry use that safe classification rather
-	// than persisting or exposing provider error details.
-	_ = sendErr
+	// Preserve the original failure for selected diagnostics, never persisted
+	// provider prose, device routing, or notification payloads.
+	if sendErr != nil {
+		if observer, ok := d.options.Observer.(DispatcherFailureObserver); ok {
+			outcome := "terminal"
+			if result.Class == ResultRetryable {
+				outcome = "retry"
+			}
+			if result.Class == ResultInvalidToken {
+				outcome = "expected"
+			}
+			observer.ObservePrivateFailure(ctx, sendErr, item.recipientDID, item.id.String(), "push.send", "provider", outcome, item.attempts)
+		}
+	}
 	return nil
 }
 

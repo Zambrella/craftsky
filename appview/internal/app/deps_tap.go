@@ -28,6 +28,7 @@ type tapDependencies struct {
 	repositoryWorker         *ingestion.RepositoryWorker
 	quarantineWorker         *ingestion.QuarantineReplayWorker
 	consumer                 tap.Consumer
+	removeMissingProfile     ownerlifecycle.TransitionParticipant
 }
 
 func newTapIngestionStore(pool *pgxpool.Pool) (*ingestion.Store, error) {
@@ -97,7 +98,7 @@ func newTapDependencies(
 		after ownerlifecycle.Lifecycle,
 	) error {
 		if after.State == ownerlifecycle.StateActive {
-			return nil
+			return authCapability.sessionLifecycle.ProfileActivationParticipant()(ctx, tx, before, after)
 		}
 		return profileDepartureParticipant(ctx, tx, before, after)
 	}
@@ -110,7 +111,7 @@ func newTapDependencies(
 		return nil, fmt.Errorf("tap ingestion service: %w", err)
 	}
 	projectionWorker, err := ingestion.NewProjectionWorker(ingestion.ProjectionWorkerConfig{
-		Store: store, Projector: dispatcher.Project,
+		Store: store, Projector: dispatcher.Project, Observer: observer,
 		WorkerID: "appview-tap-projection", PollInterval: cfg.TapProjectionPollInterval,
 		LeaseDuration: cfg.TapProjectionLeaseDuration, BatchSize: cfg.TapProjectionBatchSize,
 		BackoffMin: cfg.TapProjectionBackoffMin, BackoffMax: cfg.TapProjectionBackoffMax,
@@ -166,6 +167,16 @@ func newTapDependencies(
 		projectionWorker: projectionWorker,
 		repositoryWorker: repositoryWorker,
 		quarantineWorker: quarantineWorker,
-		consumer:         consumer,
+		consumer:         tap.WithTelemetry(consumer, repositoryTracker),
+		removeMissingProfile: func(ctx context.Context, tx pgx.Tx, before, after ownerlifecycle.Lifecycle) error {
+			if err := profileDeletion.HardDeleteByActor(ctx, tx, after.Owner); err != nil {
+				return err
+			}
+			if _, err := tx.Exec(ctx, `DELETE FROM craftsky_profiles WHERE did=$1`, after.Owner); err != nil {
+				return err
+			}
+			_, err := tx.Exec(ctx, `DELETE FROM bluesky_profiles WHERE did=$1`, after.Owner)
+			return err
+		},
 	}, nil
 }

@@ -2,8 +2,8 @@ package observability
 
 import (
 	"context"
-	"errors"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -19,6 +19,7 @@ type EventContext map[string]any
 
 var allowedEventContextKeys = map[string]struct{}{
 	"service":           {},
+	"run_id":            {},
 	"environment":       {},
 	"release":           {},
 	"component":         {},
@@ -34,6 +35,7 @@ var allowedEventContextKeys = map[string]struct{}{
 	"result":            {},
 	"reason":            {},
 	"retryable":         {},
+	"attempt":           {},
 	"nsid":              {},
 	"tap_connected":     {},
 	"reconnect_attempt": {},
@@ -48,8 +50,35 @@ var allowedEventContextKeys = map[string]struct{}{
 
 func SanitizeEventContext(ctx EventContext) EventContext {
 	out := EventContext{}
-	for key, value := range ctx {
-		if _, ok := allowedEventContextKeys[key]; ok {
+	keys := make([]string, 0, len(allowedEventContextKeys))
+	for key := range allowedEventContextKeys {
+		if _, ok := ctx[key]; ok {
+			keys = append(keys, key)
+		}
+	}
+	sort.Slice(keys, func(i, j int) bool {
+		pi, pj := logFieldPriority(keys[i]), logFieldPriority(keys[j])
+		if pi != pj {
+			return pi < pj
+		}
+		return keys[i] < keys[j]
+	})
+	for _, key := range keys {
+		if len(out) >= 32 {
+			break
+		}
+		value := ctx[key]
+		switch v := value.(type) {
+		case string:
+			if key == "release" && v == "" {
+				continue
+			}
+			if len(v) > MaxDiagnosticTextBytes {
+				out[key] = "[OMITTED: oversized field]"
+			} else {
+				out[key] = sanitizeEventContextValue(key, v)
+			}
+		case bool, int, int64, float64, time.Duration:
 			out[key] = sanitizeEventContextValue(key, value)
 		}
 	}
@@ -58,6 +87,27 @@ func SanitizeEventContext(ctx EventContext) EventContext {
 
 func sanitizeEventContextValue(key string, value any) any {
 	switch key {
+	case "release":
+		if text, ok := value.(string); ok {
+			if diagnosticTechnicalPattern.MatchString(text) {
+				return text
+			}
+			version := strings.TrimPrefix(text, "craftsky-appview@")
+			if version != text && version != "dev" && logVersionPattern.MatchString(version) {
+				return text
+			}
+		}
+		return "[OMITTED]"
+	case "run_id":
+		if _, err := uuid.Parse(fmt.Sprint(value)); err != nil {
+			return "[OMITTED: invalid request ID]"
+		}
+		return value
+	case "duration":
+		if duration, err := time.ParseDuration(fmt.Sprint(value)); err == nil {
+			return duration.String()
+		}
+		return "[OMITTED: invalid duration]"
 	case "component", "operation":
 		return safeMetricOperation(fmt.Sprint(value))
 	case "route_pattern":
@@ -68,6 +118,11 @@ func sanitizeEventContextValue(key string, value any) any {
 		switch v := value.(type) {
 		case int:
 			return safeHTTPStatus(v)
+		case int64:
+			if v < 100 || v > 599 {
+				return "000"
+			}
+			return safeHTTPStatus(int(v))
 		case string:
 			n, err := strconv.Atoi(v)
 			if err != nil {
@@ -86,6 +141,12 @@ func sanitizeEventContextValue(key string, value any) any {
 	case "failure_stage":
 		return safeMetricStage(fmt.Sprint(value))
 	case "result":
+		if text, ok := value.(string); ok {
+			switch text {
+			case "retry", "terminal", "exhausted", "quarantine", "expected", "already_complete":
+				return text
+			}
+		}
 		if strings.TrimSpace(fmt.Sprint(value)) == "alert" {
 			return "alert"
 		}
@@ -112,71 +173,110 @@ func sanitizeEventContextValue(key string, value any) any {
 		retryable, ok := value.(bool)
 		return ok && retryable
 	default:
-		return value
+		switch v := value.(type) {
+		case string:
+			if diagnosticTechnicalPattern.MatchString(v) {
+				return v
+			}
+			return "[OMITTED]"
+		case bool, int, int64, float64, time.Duration:
+			return value
+		default:
+			return "[OMITTED]"
+		}
 	}
 }
 
 func (o *Observer) CaptureError(ctx context.Context, eventCtx EventContext, err error) {
-	if o == nil || o.sentryClient == nil || err == nil {
-		return
-	}
-	if errors.Is(err, context.Canceled) || errors.Is(ctx.Err(), context.Canceled) {
-		MarkCaptured(ctx)
-		return
-	}
-	MarkCaptured(ctx)
-	classified := ClassifyError(err, eventCtx)
-	if eventCtx == nil {
-		eventCtx = EventContext{}
-	}
-	eventCtx["error_category"] = classified.Category
-	eventCtx["error_code"] = classified.Code
-	eventCtx["failure_stage"] = classified.Stage
-	eventCtx["result"] = classified.Result
-	o.capture(ctx, classified.Message, "AppViewError", classified.Code, eventCtx)
+	o.CaptureDiagnostic(ctx, DiagnosticInput{Error: err, Context: eventCtx})
 }
 
 func (o *Observer) CapturePanic(ctx context.Context, eventCtx EventContext, recovered any) {
-	if o == nil || o.sentryClient == nil || recovered == nil {
+	if o == nil || recovered == nil || !claimCapture(ctx) {
 		return
 	}
-	MarkCaptured(ctx)
+	if o.sentryClient == nil {
+		return
+	}
 	if eventCtx == nil {
 		eventCtx = EventContext{}
 	}
 	eventCtx["recovered_type"] = fmt.Sprintf("%T", recovered)
 	eventCtx["result"] = "error"
-	o.capture(ctx, "appview panic recovered", "AppViewPanic", "redacted", eventCtx)
+
+	exceptions := diagnosticPanicExceptions(recovered, eventCtx)
+	original, _ := recovered.(error)
+	o.captureExceptions(ctx, "appview panic recovered", exceptions, eventCtx, original)
 }
 
-func (o *Observer) capture(ctx context.Context, message, exceptionType, exceptionValue string, eventCtx EventContext) {
-	tags := map[string]string{}
-	for key, value := range SanitizeEventContext(eventCtx) {
-		tags[key] = fmt.Sprint(value)
-	}
-	if traceID, spanID := TraceIDs(ctx); traceID != "" || spanID != "" {
-		if traceID != "" {
-			tags["sentry_trace_id"] = traceID
+func (o *Observer) captureExceptions(ctx context.Context, message string, exceptions []sentry.Exception, eventCtx EventContext, original error, workflowContexts ...EventContext) {
+	defer func() {
+		if recover() != nil {
+			causes := make([]DiagnosticCause, 0, len(exceptions))
+			if original != nil && len(exceptions) == 0 {
+				causes = DescribeError(original, eventCtx)
+			}
+			for _, exception := range exceptions {
+				causes = append(causes, DiagnosticCause{Type: exception.Type, Message: exception.Value})
+			}
+			o.localFailure(ctx, "telemetry capture failed", eventCtx, causes)
 		}
-		if spanID != "" {
-			tags["sentry_span_id"] = spanID
+	}()
+	eventCtx = withDiagnosticCorrelation(ctx, eventCtx)
+	tags := map[string]string{}
+	correlation := EventContext{}
+	for key, value := range SanitizeEventContext(eventCtx) {
+		if correlationFieldNames[key] {
+			correlation[key] = value
+		} else {
+			tags[key] = fmt.Sprint(value)
 		}
 	}
 	event := &sentry.Event{
-		Message: message,
-		Level:   sentry.LevelError,
-		Tags:    tags,
-		Exception: []sentry.Exception{{
-			Type:  exceptionType,
-			Value: exceptionValue,
-		}},
+		Message:   message,
+		Level:     sentry.LevelError,
+		Tags:      tags,
+		Exception: exceptions,
+	}
+	if original != nil && len(exceptions) == 0 {
+		nodes, omitted := boundedErrorNodes(original)
+		if !omitted {
+			event.SetException(original, 8)
+			// The SDK adds the capture-time stack to a stackless outer error.
+			// Preserve real attached origin stacks, without inventing one.
+			if len(event.Exception) > 0 && sentry.ExtractStacktrace(original) == nil {
+				event.Exception[len(event.Exception)-1].Stacktrace = nil
+			}
+		} else {
+			event.Exception = diagnosticExceptions(DescribeError(original, eventCtx))
+			// Limit adversarial wide/deep graphs before SDK traversal. Preserve
+			// supported attached stacks on each admitted concrete cause.
+			if len(nodes) >= 8 {
+				nodes = nodes[:7]
+			}
+			for i, node := range nodes {
+				target := len(event.Exception) - 1 - i
+				if target >= 0 && target < len(event.Exception) {
+					event.Exception[target].Stacktrace = sentry.ExtractStacktrace(node)
+				}
+			}
+		}
+	}
+	if len(workflowContexts) > 0 && len(workflowContexts[0]) > 0 {
+		event.Contexts = map[string]sentry.Context{"diagnostic": sentry.Context(workflowContexts[0])}
+	}
+	if event.Contexts == nil {
+		event.Contexts = map[string]sentry.Context{}
+	}
+	if len(correlation) > 0 {
+		event.Contexts["correlation"] = sentry.Context(correlation)
 	}
 	hub := sentry.GetHubFromContext(ctx)
 	if hub == nil {
 		hub = o.sentryHub
 	}
 	if hub == nil {
-		o.sentryClient.CaptureEvent(event, &sentry.EventHint{Context: ctx}, nil)
+		o.sentryClient.CaptureEvent(event, &sentry.EventHint{Context: ctx, OriginalException: original}, nil)
 		return
 	}
 	captureHub := hub.Clone()
@@ -185,13 +285,26 @@ func (o *Observer) capture(ctx context.Context, message, exceptionType, exceptio
 			scope.SetSpan(span)
 		}
 	})
-	captureHub.CaptureEventWithHint(event, &sentry.EventHint{Context: ctx})
+	captureHub.CaptureEventWithHint(event, &sentry.EventHint{Context: ctx, OriginalException: original})
 }
 
 type captureMarkerKey struct{}
 
 type captureMarker struct {
 	captured atomic.Bool
+	panicked atomic.Bool
+}
+
+// MarkPanicRecovered records the request outcome independently of remote capture.
+func MarkPanicRecovered(ctx context.Context) {
+	if marker, ok := ctx.Value(captureMarkerKey{}).(*captureMarker); ok {
+		marker.panicked.Store(true)
+	}
+}
+
+func PanicRecovered(ctx context.Context) bool {
+	marker, ok := ctx.Value(captureMarkerKey{}).(*captureMarker)
+	return ok && marker.panicked.Load()
 }
 
 func WithCaptureMarker(ctx context.Context) context.Context {
@@ -199,6 +312,15 @@ func WithCaptureMarker(ctx context.Context) context.Context {
 		return ctx
 	}
 	return context.WithValue(ctx, captureMarkerKey{}, &captureMarker{})
+}
+
+// claimCapture assigns one owner to this occurrence even without a backend.
+// Contexts without a marker represent independent standalone occurrences.
+func claimCapture(ctx context.Context) bool {
+	if marker, ok := ctx.Value(captureMarkerKey{}).(*captureMarker); ok {
+		return marker.captured.CompareAndSwap(false, true)
+	}
+	return true
 }
 
 func MarkCaptured(ctx context.Context) {
@@ -292,7 +414,9 @@ func (o *Observer) StartSpan(ctx context.Context, spanCtx SpanContext) (context.
 	spanCtx.Operation = safeMetricOperation(spanCtx.Operation)
 	spanCtx.Component = safeMetricOperation(spanCtx.Component)
 	if o.sentryHub != nil {
-		ctx = sentry.SetHubOnContext(ctx, o.sentryHub)
+		if sentry.GetHubFromContext(ctx) == nil {
+			ctx = sentry.SetHubOnContext(ctx, o.sentryHub.Clone())
+		}
 		options := []sentry.SpanOption{}
 		if sentry.SpanFromContext(ctx) == nil {
 			options = append(options, sentry.WithTransactionName(spanCtx.Operation))
@@ -300,7 +424,10 @@ func (o *Observer) StartSpan(ctx context.Context, spanCtx SpanContext) (context.
 		sdkSpan := sentry.StartSpan(ctx, spanCtx.Operation, options...)
 		sdkSpan.SetData("component", spanCtx.Component)
 		sdkSpan.SetData("operation", spanCtx.Operation)
-		for key, value := range SanitizeEventContext(spanCtx.Attributes) {
+		attributes := withDiagnosticCorrelation(ctx, spanCtx.Attributes)
+		attributes["sentry_trace_id"] = sdkSpan.TraceID.String()
+		attributes["sentry_span_id"] = sdkSpan.SpanID.String()
+		for key, value := range SanitizeEventContext(attributes) {
 			sdkSpan.SetData(key, value)
 		}
 		ctx = context.WithValue(sdkSpan.Context(), traceContextKey{}, traceIDs{
@@ -309,8 +436,7 @@ func (o *Observer) StartSpan(ctx context.Context, spanCtx SpanContext) (context.
 		})
 		return ctx, &Span{enabled: true, sentrySpan: sdkSpan}
 	}
-	ids := traceIDs{traceID: uuid.NewString(), spanID: uuid.NewString()}
-	return context.WithValue(ctx, traceContextKey{}, ids), &Span{enabled: true}
+	return ctx, &Span{}
 }
 
 func TraceIDs(ctx context.Context) (string, string) {

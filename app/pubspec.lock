@@ -1308,6 +1308,22 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.5.0"
+  purchases_flutter:
+    dependency: "direct main"
+    description:
+      name: purchases_flutter
+      sha256: "53c9ed025c4a60b6304d2c88795c4bbbf4b52d9029fc6ed3d5e3eec1b6197295"
+      url: "https://pub.dev"
+    source: hosted
+    version: "10.12.0"
+  purchases_ui_flutter:
+    dependency: "direct main"
+    description:
+      name: purchases_ui_flutter
+      sha256: "72e0844e03b6f0b61543b2369bd5ea1fb850a0e2acea75796ce327f4053103ac"
+      url: "https://pub.dev"
+    source: hosted
+    version: "10.12.0"
   record_use:
     dependency: transitive
     description:
@@ -1409,6 +1425,14 @@ packages:
     description:
       name: sentry_flutter
       sha256: "1e6c2950b944f512ad88b8c05e905849f25a5e9cecd3cad4c53e38e7cc679362"
+      url: "https://pub.dev"
+    source: hosted
+    version: "9.23.0"
+  sentry_logging:
+    dependency: "direct main"
+    description:
+      name: sentry_logging
+      sha256: ccacca2ffb314a02cdeb6621fe7c3c3fc18f2a3df9465257c64b53d37075750d
       url: "https://pub.dev"
     source: hosted
     version: "9.23.0"
@@ -2057,14 +2081,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "3.1.3"
-  zoom_pinch_overlay:
-    dependency: "direct main"
-    description:
-      name: zoom_pinch_overlay
-      sha256: "8f34f508c81441b0f51f0ea56827ccbfd32fd3c1c63c0c4d677b55fd849d9ef4"
-      url: "https://pub.dev"
-    source: hosted
-    version: "1.4.3"
 sdks:
   dart: ">=3.12.0 <4.0.0"
   flutter: ">=3.44.0"

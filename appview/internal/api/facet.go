@@ -47,7 +47,7 @@ func ListFacetMentionSuggestionsHandler(store FacetSuggestionReader, logger *slo
 		rows, err := store.SearchMentionSuggestions(r.Context(), viewerDID, req.Query, req.Limit, time.Now().UTC())
 		if err != nil {
 			logger.Error("facet mention suggestions failed",
-				apiLogErrorAttrs(middleware.GetRunID(r.Context()), "facet.mention_suggestions", "store")...)
+				apiLogErrorAttrs(r.Context(), middleware.GetRunID(r.Context()), "facet.mention_suggestions", "store", err)...)
 			envelope.WriteError(w, http.StatusInternalServerError, "facet_suggestions_unavailable", "facet suggestions unavailable", middleware.GetRunID(r.Context()), nil)
 			return
 		}
@@ -86,7 +86,7 @@ func ResolveFacetMentionHandler(resolver FacetMentionResolver, logger *slog.Logg
 		}
 		if err != nil {
 			logger.Error("facet mention resolve failed",
-				apiLogErrorAttrs(middleware.GetRunID(r.Context()), "facet.mention.resolve", "store")...)
+				apiLogErrorAttrs(r.Context(), middleware.GetRunID(r.Context()), "facet.mention.resolve", "store", err)...)
 			envelope.WriteError(w, http.StatusNotFound, "mention_not_found", "mention not found", middleware.GetRunID(r.Context()), nil)
 			return
 		}
@@ -108,7 +108,7 @@ func ListFacetHashtagSuggestionsHandler(store FacetSuggestionReader, logger *slo
 		rows, err := store.SearchHashtagSuggestions(r.Context(), req.Query, req.Limit, time.Now().UTC())
 		if err != nil {
 			logger.Error("facet hashtag suggestions failed",
-				apiLogErrorAttrs(middleware.GetRunID(r.Context()), "facet.hashtag_suggestions", "store")...)
+				apiLogErrorAttrs(r.Context(), middleware.GetRunID(r.Context()), "facet.hashtag_suggestions", "store", err)...)
 			envelope.WriteError(w, http.StatusInternalServerError, "facet_suggestions_unavailable", "facet suggestions unavailable", middleware.GetRunID(r.Context()), nil)
 			return
 		}

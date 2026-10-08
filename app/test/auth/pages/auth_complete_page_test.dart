@@ -3,11 +3,15 @@ import 'dart:async';
 import 'package:craftsky_app/auth/models/auth_error.dart';
 import 'package:craftsky_app/auth/pages/auth_complete_page.dart';
 import 'package:craftsky_app/auth/providers/auth_controller.dart';
+import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
+
+import '../../fakes/auth_session_fakes.dart';
 
 class _FakeAuthController extends AuthController {
   _FakeAuthController({required this.onComplete, this.onStartRegistration});
@@ -28,7 +32,139 @@ class _FakeAuthController extends AuthController {
       onStartRegistration?.call() ?? Future.value();
 }
 
+Future<GoRouter> _pumpCompletionRouter(
+  WidgetTester tester, {
+  required Future<void> Function(String code) onComplete,
+  required bool signedIn,
+  String? code = 'code-123',
+}) async {
+  final router = GoRouter(
+    initialLocation: '/auth/complete',
+    routes: [
+      GoRoute(
+        path: '/auth/complete',
+        builder: (context, state) => AuthCompletePage(code: code),
+      ),
+      GoRoute(
+        path: '/feed',
+        builder: (context, state) => const Scaffold(body: Text('Feed')),
+      ),
+      GoRoute(
+        path: '/sign-in',
+        builder: (context, state) => const Scaffold(body: Text('Sign-in page')),
+      ),
+    ],
+  );
+  await tester.pumpWidget(
+    ProviderScope(
+      overrides: [
+        authControllerProvider.overrideWith(
+          () => _FakeAuthController(onComplete: onComplete),
+        ),
+        authSessionProvider.overrideWith(
+          signedIn ? SignedInAuthSession.new : SignedOutAuthSession.new,
+        ),
+      ],
+      child: MaterialApp.router(
+        routerConfig: router,
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+      ),
+    ),
+  );
+  return router;
+}
+
 void main() {
+  testWidgets('reopening a used link returns an existing session to the app', (
+    tester,
+  ) async {
+    final seen = <String>[];
+    final router = await _pumpCompletionRouter(
+      tester,
+      signedIn: true,
+      onComplete: (code) async {
+        seen.add(code);
+        throw const SignInTimedOut();
+      },
+    );
+    addTearDown(router.dispose);
+
+    await tester.pumpAndSettle();
+
+    expect(seen, ['code-123']);
+    expect(router.routeInformationProvider.value.uri.path, '/feed');
+    expect(find.text('Feed'), findsOneWidget);
+    expect(find.text('Sign in again'), findsNothing);
+  });
+
+  testWidgets('an expired link without a session offers a fresh sign-in', (
+    tester,
+  ) async {
+    final seen = <String>[];
+    final router = await _pumpCompletionRouter(
+      tester,
+      signedIn: false,
+      onComplete: (code) async {
+        seen.add(code);
+        throw const SignInTimedOut();
+      },
+    );
+    addTearDown(router.dispose);
+
+    await tester.pumpAndSettle();
+    expect(seen, ['code-123']);
+    expect(
+      find.textContaining('already been used or has expired'),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.text('Sign in again'));
+    await tester.pumpAndSettle();
+    expect(router.routeInformationProvider.value.uri.path, '/sign-in');
+  });
+
+  testWidgets('a valid add-account link is exchanged even when signed in', (
+    tester,
+  ) async {
+    final seen = <String>[];
+    final router = await _pumpCompletionRouter(
+      tester,
+      signedIn: true,
+      onComplete: (code) async => seen.add(code),
+    );
+    addTearDown(router.dispose);
+
+    await tester.pumpAndSettle();
+    expect(seen, ['code-123']);
+    expect(router.routeInformationProvider.value.uri.path, '/feed');
+  });
+
+  testWidgets('a transient failure stays retryable even when signed in', (
+    tester,
+  ) async {
+    final seen = <String>[];
+    final retryInProgress = Completer<void>();
+    final router = await _pumpCompletionRouter(
+      tester,
+      signedIn: true,
+      onComplete: (code) async {
+        seen.add(code);
+        if (seen.length == 1) throw const ServerUnavailable();
+        await retryInProgress.future;
+      },
+    );
+    addTearDown(router.dispose);
+
+    await tester.pump();
+    await tester.pump();
+    expect(router.routeInformationProvider.value.uri.path, '/auth/complete');
+    expect(find.text('Retry'), findsOneWidget);
+    await tester.tap(find.text('Retry'));
+    await tester.pump();
+    expect(seen, ['code-123', 'code-123']);
+  });
+
   testWidgets('calls completeFromDeepLink with the browser code on init', (
     tester,
   ) async {
@@ -196,29 +332,26 @@ void main() {
     tester,
   ) async {
     final seen = <String>[];
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          authControllerProvider.overrideWith(
-            () => _FakeAuthController(
-              onComplete: (code) async => seen.add(code),
-            ),
-          ),
-        ],
-        child: const MaterialApp(
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
-          supportedLocales: AppLocalizations.supportedLocales,
-          home: AuthCompletePage(),
-        ),
-      ),
+    final router = await _pumpCompletionRouter(
+      tester,
+      signedIn: false,
+      code: null,
+      onComplete: (code) async => seen.add(code),
     );
+    addTearDown(router.dispose);
 
     await tester.pump();
     expect(seen, isEmpty);
     expect(
-      find.textContaining('sign-in link expired', findRichText: true),
+      find.textContaining(
+        'already been used or has expired',
+        findRichText: true,
+      ),
       findsOneWidget,
     );
+    await tester.tap(find.text('Sign in again'));
+    await tester.pumpAndSettle();
+    expect(router.routeInformationProvider.value.uri.path, '/sign-in');
   });
 
   testWidgets('renders a coarse pending-deletion outcome without signing in', (

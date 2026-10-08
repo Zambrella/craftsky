@@ -6,12 +6,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"social.craftsky/appview/internal/observability"
 	"strings"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 
 	"social.craftsky/appview/internal/api/envelope"
 	"social.craftsky/appview/internal/middleware"
+	"social.craftsky/appview/internal/subscriptions"
 )
 
 type ProfileCustomisationBatchReader interface {
@@ -20,10 +22,19 @@ type ProfileCustomisationBatchReader interface {
 
 type IdentityCustomisationHydrator struct {
 	reader ProfileCustomisationBatchReader
+	tiers  interface {
+		EffectiveTiers(context.Context, []syntax.DID) (map[syntax.DID]subscriptions.Tier, error)
+	}
 }
 
-func NewIdentityCustomisationHydrator(reader ProfileCustomisationBatchReader) *IdentityCustomisationHydrator {
-	return &IdentityCustomisationHydrator{reader: reader}
+func NewIdentityCustomisationHydrator(reader ProfileCustomisationBatchReader, tiers ...interface {
+	EffectiveTiers(context.Context, []syntax.DID) (map[syntax.DID]subscriptions.Tier, error)
+}) *IdentityCustomisationHydrator {
+	h := &IdentityCustomisationHydrator{reader: reader}
+	if len(tiers) > 0 {
+		h.tiers = tiers[0]
+	}
+	return h
 }
 
 func (h *IdentityCustomisationHydrator) Handler(next http.Handler) http.Handler {
@@ -38,6 +49,7 @@ func (h *IdentityCustomisationHydrator) Handler(next http.Handler) http.Handler 
 		if status >= 200 && status < 300 && strings.Contains(captured.header.Get("Content-Type"), "application/json") {
 			hydrated, err := h.HydrateJSON(r.Context(), body)
 			if err != nil {
+				observability.ReportRequestFailure(r.Context(), err, "api.Handler", "handler")
 				envelope.WriteError(
 					w,
 					http.StatusInternalServerError,
@@ -116,6 +128,22 @@ func (h *IdentityCustomisationHydrator) HydrateJSON(
 	values, err := h.reader.ReadBatch(ctx, dids)
 	if err != nil {
 		return nil, err
+	}
+	if h.tiers != nil {
+		projected := make(map[syntax.DID]ProfileCustomisation, len(values)+len(dids))
+		for did, value := range values {
+			projected[did] = value
+		}
+		values = projected
+		effective, err := h.tiers.EffectiveTiers(ctx, dids)
+		if err != nil {
+			return nil, err
+		}
+		for _, did := range dids {
+			if tier := effective[did]; tier != subscriptions.TierPlus && tier != subscriptions.TierBusiness {
+				values[did] = DefaultProfileCustomisation
+			}
+		}
 	}
 	for did, value := range values {
 		for _, identity := range identities[did] {

@@ -18,6 +18,7 @@ import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/link/external_link.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
+import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
 import 'package:craftsky_app/theme/craftsky_card.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
@@ -518,7 +519,9 @@ class _RevokeInstagramVerificationButton extends ConsumerWidget {
         onConfirm: () async {
           final revoked = await notifier.revoke();
           if (!revoked) {
-            throw StateError('Instagram verification revocation failed');
+            throw DiagnosticStateError(
+              'Instagram verification revocation failed',
+            );
           }
         },
       ),
@@ -616,6 +619,7 @@ class _ImportComposerCardState extends ConsumerState<_ImportComposerCard> {
               controller: _manualController,
               label: l10n.instagramImportHandles,
               hintText: l10n.instagramImportHandlesHint,
+              textCapitalization: TextCapitalization.none,
               enabled: ready && !_busy,
             ),
             SizedBox(height: spacing.sp2),

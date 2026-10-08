@@ -48,7 +48,7 @@ void main() {
     'relationship list': (
       source: 'lib/settings/pages/relationship_list_page.dart',
       behaviorTest: 'test/settings/relationship_list_page_test.dart',
-      didContracts: ['did: account.did'],
+      didContracts: ['ProfileAccountListTile(', 'account: account'],
     ),
     'Instagram suggestions': (
       source: 'lib/instagram_migration/pages/instagram_migration_page.dart',

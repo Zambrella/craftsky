@@ -7,22 +7,18 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 
 	"social.craftsky/appview/internal/auth"
-	"social.craftsky/appview/internal/pdseffects"
+	"social.craftsky/appview/internal/ownerlifecycle"
+	"social.craftsky/appview/internal/pdscommands"
 )
 
-// onboardingProfileEffectAdapter exposes only the single deterministic
-// CraftSky profile Put permitted during a fenced OAuth callback. It cannot be
-// reused as an ordinary departed-owner PDS writer.
+// onboardingProfileEffectAdapter exposes only the deterministic CraftSky
+// profile command admitted during a fenced OAuth callback.
 type onboardingProfileEffectAdapter struct {
 	executor onboardingProfilePutter
 }
 
 type onboardingProfilePutter interface {
-	PutProfile(
-		context.Context,
-		auth.PDSClient,
-		pdseffects.OnboardingProfileRequest,
-	) (pdseffects.RecordResult, error)
+	PutProfile(context.Context, auth.PDSClient, syntax.DID, int64, any) (syntax.CID, error)
 }
 
 func (adapter onboardingProfileEffectAdapter) PutOnboardingProfile(
@@ -33,12 +29,30 @@ func (adapter onboardingProfileEffectAdapter) PutOnboardingProfile(
 	if adapter.executor == nil {
 		return "", errors.New("onboarding PDS effect executor is unavailable")
 	}
-	result, err := adapter.executor.PutProfile(ctx, client, pdseffects.OnboardingProfileRequest{
-		OperationID: request.OperationID, MutationKey: request.MutationKey,
-		Owner: request.Owner, OwnerGeneration: request.OwnerGeneration,
-		Record: request.Record,
-	})
-	return result.CID, err
+	cid, err := adapter.executor.PutProfile(ctx, client, request.Owner, request.OwnerGeneration, request.Record)
+	switch {
+	case errors.Is(err, pdscommands.ErrOnboardingProfileChanged):
+		err = errors.Join(auth.ErrProfileCreationConflict, err)
+	case errors.Is(err, pdscommands.ErrOnboardingProfileUnresolved):
+		err = errors.Join(auth.ErrProfileWriteUnresolved, err)
+	case errors.Is(err, pdscommands.ErrDispatchRejected), errors.Is(err, pdscommands.ErrAtomicWritesUnsupported):
+		err = errors.Join(auth.ErrProfileWriteRejected, err)
+	}
+	return cid, err
 }
 
 var _ auth.OnboardingProfileWriter = onboardingProfileEffectAdapter{}
+
+func newOnboardingReconciliationDependencies(
+	owners *ownerDependencies,
+	authCapability *authDependencies,
+	pdsEffects *pdsEffectDependencies,
+	scheduledDeparture ownerlifecycle.TransitionParticipant,
+	tapCapability *tapDependencies,
+) (*auth.OnboardingReconciler, error) {
+	return auth.NewOnboardingReconciler(
+		owners.lifecycles, authCapability.sessionLifecycle, pdsEffects.pending,
+		composeTransitionParticipants(owners.deletionStore.ProfileDepartureParticipant(), scheduledDeparture),
+		tapCapability.removeMissingProfile,
+	)
+}

@@ -39,6 +39,10 @@ func (reader *countingBusinessProfileReader) HasUpcomingEvents(context.Context, 
 }
 
 func TestBusinessDeclarationPresentation(t *testing.T) {
+	subscriptionMigration, err := testdb.ReadMigration("000076_subscription_accounts.up.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
 	pool := testdb.WithSchema(t, `
 		CREATE TABLE craftsky_profiles (
 			did TEXT PRIMARY KEY,
@@ -56,7 +60,7 @@ func TestBusinessDeclarationPresentation(t *testing.T) {
 			source_revision TEXT NOT NULL,
 			indexed_at TIMESTAMPTZ NOT NULL DEFAULT now()
 		);
-	`)
+	`+string(subscriptionMigration))
 	ctx := context.Background()
 	did := syntax.DID("did:plc:business")
 	if _, err := pool.Exec(ctx, `INSERT INTO craftsky_profiles(did, record_cid) VALUES ($1, 'profile-cid')`, did); err != nil {
@@ -65,6 +69,7 @@ func TestBusinessDeclarationPresentation(t *testing.T) {
 	if _, err := pool.Exec(ctx, `INSERT INTO craftsky_account_types(owner_did, account_type) VALUES ($1, 'business')`, did); err != nil {
 		t.Fatalf("seed account type: %v", err)
 	}
+	seedBusinessTestLicense(t, pool, did)
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO craftsky_business_profiles(owner_did, uri, cid, raw_record, source_revision)
 		VALUES ($1, 'at://did:plc:business/social.craftsky.business.profile/self', 'business-cid', $2, '3mprofile00001')

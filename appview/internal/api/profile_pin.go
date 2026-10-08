@@ -9,6 +9,7 @@ import (
 
 	"social.craftsky/appview/internal/api/envelope"
 	"social.craftsky/appview/internal/middleware"
+	"social.craftsky/appview/internal/subscriptions"
 )
 
 type ProfilePinReader interface {
@@ -106,6 +107,8 @@ func profilePinPath(w http.ResponseWriter, r *http.Request) (syntax.DID, syntax.
 
 func writeProfilePinMutationError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
+	case errors.Is(err, subscriptions.ErrFeatureAccessRequired):
+		writeProfilePinError(w, r, http.StatusForbidden, "subscription_required", "Plus subscription required")
 	case errors.Is(err, ErrProfilePinForbidden):
 		writeProfilePinError(w, r, http.StatusForbidden, "forbidden", "cannot pin another member's post")
 	case errors.Is(err, ErrProfilePinTargetNotFound), errors.Is(err, ErrPostNotFound):

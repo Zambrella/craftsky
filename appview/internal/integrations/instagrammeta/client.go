@@ -31,11 +31,14 @@ const (
 type ProviderError struct {
 	kind       ProviderErrorKind
 	retryAfter time.Duration
+	statusCode int
 }
 
 func (e *ProviderError) Error() string {
 	return "Instagram provider request failed (" + string(e.kind) + ")"
 }
+
+func (e *ProviderError) StatusCode() int { return e.statusCode }
 
 func (e *ProviderError) Kind() ProviderErrorKind {
 	return e.kind

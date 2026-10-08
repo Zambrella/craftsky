@@ -34,7 +34,12 @@ class PostCommentSection extends _$PostCommentSection {
 
   void appendCommentPage(model.CommentPage page) {
     final current = state.requireValue;
-    state = AsyncData(current.appendCommentPageDeduplicating(page));
+    state = AsyncData(
+      applyPostCommentSectionInteractionOverlays(
+        ref,
+        current.appendCommentPageDeduplicating(page),
+      ),
+    );
   }
 
   void setRepliesForComment({
@@ -45,11 +50,14 @@ class PostCommentSection extends _$PostCommentSection {
   }) {
     final current = state.requireValue;
     state = AsyncData(
-      current.setCommentReplies(
-        commentUri: commentUri,
-        replies: replies,
-        cursor: cursor,
-        incrementRootReplyCount: incrementRootReplyCount,
+      applyPostCommentSectionInteractionOverlays(
+        ref,
+        current.setCommentReplies(
+          commentUri: commentUri,
+          replies: replies,
+          cursor: cursor,
+          incrementRootReplyCount: incrementRootReplyCount,
+        ),
       ),
     );
   }

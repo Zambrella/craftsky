@@ -102,28 +102,37 @@ func (store *Store) TransitionWith(
 	}
 	var updated Lifecycle
 	err := store.fencer.WithExclusive(ctx, []syntax.DID{request.Owner}, func(fenceCtx context.Context) error {
-		return store.beginFenced(fenceCtx, func(tx pgx.Tx) error {
-			current, err := scanLifecycle(tx.QueryRow(
-				fenceCtx, lifecycleSelect+` WHERE owner_did=$1 FOR UPDATE`, request.Owner,
-			))
-			if err != nil {
-				return err
-			}
-			if current.State == StateTerminal {
-				return ErrTerminalOwner
-			}
-			if current.Generation != request.ExpectedGeneration {
-				return ErrGenerationChanged
-			}
-			if err := ValidateTransition(current.State, request.To); err != nil {
-				return err
-			}
-			now := store.now().UTC()
-			authEpoch := current.AuthEpoch
-			if transitionAdvancesAuthEpoch(current.State, request.To) {
-				authEpoch++
-			}
-			updated, err = scanLifecycle(tx.QueryRow(fenceCtx, `
+		var err error
+		updated, err = store.transitionFenced(fenceCtx, request, participant)
+		return err
+	})
+	return updated, err
+}
+
+func (store *Store) transitionFenced(fenceCtx context.Context, request TransitionRequest, participant TransitionParticipant) (Lifecycle, error) {
+	var updated Lifecycle
+	err := store.beginFenced(fenceCtx, func(tx pgx.Tx) error {
+		current, err := scanLifecycle(tx.QueryRow(
+			fenceCtx, lifecycleSelect+` WHERE owner_did=$1 FOR UPDATE`, request.Owner,
+		))
+		if err != nil {
+			return err
+		}
+		if current.State == StateTerminal {
+			return ErrTerminalOwner
+		}
+		if current.Generation != request.ExpectedGeneration {
+			return ErrGenerationChanged
+		}
+		if err := ValidateTransition(current.State, request.To); err != nil {
+			return err
+		}
+		now := store.now().UTC()
+		authEpoch := current.AuthEpoch
+		if transitionAdvancesAuthEpoch(current.State, request.To) {
+			authEpoch++
+		}
+		updated, err = scanLifecycle(tx.QueryRow(fenceCtx, `
 				UPDATE owner_lifecycles
 				SET state=$2,generation=generation+1,auth_epoch=$3,
 				    transition_reason=$4,transitioned_at=$5,terminal_at=NULL,
@@ -132,26 +141,54 @@ func (store *Store) TransitionWith(
 				RETURNING owner_did,state,generation,auth_epoch,transition_reason,
 				          transitioned_at,terminal_at,purge_completed_at,created_at,updated_at
 			`, request.Owner, request.To, authEpoch, strings.TrimSpace(request.Reason), now, request.ExpectedGeneration))
-			if errors.Is(err, pgx.ErrNoRows) {
-				return ErrGenerationChanged
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrGenerationChanged
+		}
+		if err != nil {
+			return fmt.Errorf("update owner lifecycle: %w", err)
+		}
+		if participant != nil {
+			if err := participant(fenceCtx, tx, current, updated); err != nil {
+				return err
 			}
-			if err != nil {
-				return fmt.Errorf("update owner lifecycle: %w", err)
+		}
+		if current.State == StateActive && request.To != StateActive {
+			if err := closeOwnerEffectsTx(fenceCtx, tx, request.Owner, current.Generation, false, now); err != nil {
+				return err
 			}
-			if participant != nil {
-				if err := participant(fenceCtx, tx, current, updated); err != nil {
-					return err
-				}
-			}
-			if current.State == StateActive && request.To != StateActive {
-				if err := closeOwnerEffectsTx(fenceCtx, tx, request.Owner, current.Generation, false, now); err != nil {
-					return err
-				}
-			}
-			return nil
-		})
+		}
+		return nil
 	})
 	return updated, err
+}
+
+// WithReconciledProfileDeparture is the narrow callback-time counterpart of a
+// profile deletion transition. The caller has confirmed absence on the current
+// PDS and already owns the exclusive auth fence. The participant must atomically
+// rebind the one pending callback while invalidating prior membership authority.
+func (store *Store) WithReconciledProfileDeparture(
+	ctx context.Context,
+	expected Lifecycle,
+	participant TransitionParticipant,
+	callback func(context.Context, Lifecycle) error,
+) error {
+	authority, ok := ctx.Value(authTransitionContextKey{}).(Lifecycle)
+	if !ok || ctx.Value(exclusiveAuthContextKey{}) == nil || authority.Owner != expected.Owner || authority.State != expected.State ||
+		authority.Generation != expected.Generation || authority.AuthEpoch != expected.AuthEpoch ||
+		expected.Owner == "" || participant == nil || callback == nil {
+		return ErrFenceRequired
+	}
+	if expected.State != StateActive || ctx.Value(activeEffectsContextKey{}) != nil {
+		return ErrOwnerNotActive
+	}
+	updated, err := store.transitionFenced(ctx, TransitionRequest{
+		Owner: expected.Owner, ExpectedGeneration: expected.Generation,
+		To: StateDeparted, Reason: "profileMissingAtLogin",
+	}, participant)
+	if err != nil {
+		return err
+	}
+	return callback(context.WithValue(ctx, authTransitionContextKey{}, updated), updated)
 }
 
 // AdvanceAuthEpoch invalidates all credentials tied to the current epoch at
@@ -205,6 +242,8 @@ type activeEffectsContextKey struct{}
 
 type authTransitionContextKey struct{}
 
+type exclusiveAuthContextKey struct{}
+
 // WithOnboardingAuth owns the complete first-login security boundary. It
 // creates the explicit departed authority when necessary, rejects a terminal
 // tombstone, and keeps the exclusive owner fence held while callback performs
@@ -250,6 +289,7 @@ func (store *Store) WithOnboardingAuth(
 			return err
 		}
 		authCtx := context.WithValue(fenceCtx, authTransitionContextKey{}, lifecycle)
+		authCtx = context.WithValue(authCtx, exclusiveAuthContextKey{}, struct{}{})
 		return callback(authCtx, lifecycle)
 	})
 }
@@ -286,6 +326,7 @@ func (store *Store) WithExistingAuth(
 			return err
 		}
 		authCtx := context.WithValue(fenceCtx, authTransitionContextKey{}, lifecycle)
+		authCtx = context.WithValue(authCtx, exclusiveAuthContextKey{}, struct{}{})
 		return callback(authCtx, lifecycle)
 	})
 }

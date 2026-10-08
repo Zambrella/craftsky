@@ -44,7 +44,7 @@ func TestIR017LinkPreviewAdmissionExcludesCanariesFromEveryApplicableSink(t *tes
 	}
 
 	var localLogs bytes.Buffer
-	logger := slog.New(slog.NewJSONHandler(&localLogs, nil))
+	logger := slog.New(observability.NewDiagnosticHandler(slog.NewJSONHandler(&localLogs, nil)))
 	metrics := observability.NewInMemoryMetricRecorder()
 	externalLogs := &admissionLogSink{}
 	transport := &sentry.MockTransport{}
@@ -118,8 +118,17 @@ func TestIR017LinkPreviewAdmissionExcludesCanariesFromEveryApplicableSink(t *tes
 	if !sawError || !sawTransaction {
 		t.Fatalf("Sentry events missing error or transaction: %#v", transport.Events())
 	}
-	if len(externalLogs.events) != 0 {
-		t.Fatalf("admission unexpectedly emitted external logs: %s", externalLogs.String())
+	received, completed := 0, 0
+	for _, message := range externalLogs.messages {
+		if message == "Request received" {
+			received++
+		}
+		if message == "Request completed" {
+			completed++
+		}
+	}
+	if received != 5 || completed != 5 {
+		t.Fatalf("missing exported request lifecycle: received=%d completed=%d logs=%s", received, completed, externalLogs.String())
 	}
 }
 
@@ -142,11 +151,13 @@ func (admissionResolver) ResolveDID(context.Context, syntax.Handle) (syntax.DID,
 }
 
 type admissionLogSink struct {
-	events []observability.EventContext
+	events   []observability.EventContext
+	messages []string
 }
 
-func (sink *admissionLogSink) Emit(_ context.Context, _ slog.Level, _ string, attrs observability.EventContext) {
+func (sink *admissionLogSink) Emit(_ context.Context, _ slog.Level, message string, attrs observability.EventContext) {
 	sink.events = append(sink.events, attrs)
+	sink.messages = append(sink.messages, message)
 }
 
 func (sink *admissionLogSink) String() string {

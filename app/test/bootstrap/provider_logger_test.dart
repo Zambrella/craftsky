@@ -1,5 +1,11 @@
+import 'dart:async';
+
+import 'package:craftsky_app/auth/models/account_key.dart';
+import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/bootstrap.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
+import 'package:craftsky_app/shared/observability/diagnostic_details.dart';
+import 'package:craftsky_app/shared/observability/diagnostic_emitter.dart';
 import 'package:craftsky_app/shared/observability/error_reporter.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -25,6 +31,44 @@ void main() {
       expect(reporter.contexts.single.feature, 'failingProvider');
       expect(reporter.contexts.single.classification, 'provider.failed');
     });
+
+    test(
+      'IT-010 family failure retains initiating lease after account switch',
+      () async {
+        final reporter = _RecordingReporter();
+        final failed = Completer<int>();
+        final leaseA = AccountSessionLease(
+          account: AccountKey('did:plc:alice'),
+          sessionGeneration: 1,
+        );
+        final leaseB = AccountSessionLease(
+          account: AccountKey('did:plc:bob'),
+          sessionGeneration: 1,
+        );
+        final provider = FutureProvider.family<int, AccountSessionLease>(
+          (ref, lease) => lease == leaseA ? failed.future : Future.value(2),
+          name: 'accountLoad',
+        );
+        final container = ProviderContainer(
+          retry: appProviderRetry,
+          observers: [ProviderLogger(reporter: reporter)],
+        );
+        addTearDown(container.dispose);
+        final started = container.read(provider(leaseA).future);
+        final expectation = expectLater(started, throwsStateError);
+        expect(await container.read(provider(leaseB).future), 2);
+        failed.completeError(StateError('private account state token=secret'));
+        await expectation;
+        expect(
+          reporter.contexts.single.workflow?.selectedFields,
+          containsPair('actorDid', 'did:plc:alice'),
+        );
+        expect(
+          reporter.contexts.single.safeDiagnostics,
+          containsPair('failureStage', 'provider'),
+        );
+      },
+    );
 
     test('does not report expected provider failures', () async {
       final reporter = _RecordingReporter();
@@ -58,7 +102,6 @@ void main() {
               statusCode: 500,
               appViewError: 'internal_error',
               requestId: 'req_123',
-              endpointCategory: 'appview.feed.timeline',
             ),
           ),
         );
@@ -88,7 +131,7 @@ void main() {
         );
         expect(
           reporter.contexts.single.safeDiagnostics,
-          containsPair('endpointCategory', 'appview.feed.timeline'),
+          isNot(contains('endpointCategory')),
         );
       },
     );
@@ -145,7 +188,12 @@ void main() {
       await expectLater(container.read(provider.future), throwsStateError);
       await Future<void>.delayed(Duration.zero);
 
-      final diagnostic = '${records.join(' ')} ${reporter.errors.join(' ')}';
+      final local = <String>[];
+      final emitter = DiagnosticEmitter(platformSink: local.add);
+      records.forEach(emitter.emitLocal);
+      final diagnostic =
+          '${local.join(' ')} ${reporter.errors.map(selectedCause).join(' ')}';
+      expect(diagnostic, contains('StateError'));
       for (final sentinel in sentinels) {
         expect(diagnostic, isNot(contains(sentinel)));
       }
@@ -161,9 +209,6 @@ final class _RecordingReporter implements ErrorReporter {
   bool get enabled => true;
 
   @override
-  void addBreadcrumb(SafeBreadcrumb breadcrumb) {}
-
-  @override
   Future<String?> captureException(
     Object error, {
     required ReportContext context,
@@ -173,10 +218,4 @@ final class _RecordingReporter implements ErrorReporter {
     contexts.add(context);
     return '0123456789abcdef0123456789abcdef';
   }
-
-  @override
-  Future<void> captureMessage(
-    String message, {
-    required ReportContext context,
-  }) async {}
 }

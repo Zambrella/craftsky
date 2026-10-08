@@ -137,10 +137,15 @@ The AppView service uses Render Postgres's direct internal URL. Do not replace
 it with `connectionPoolString` or enable transaction-mode PgBouncer because
 owner lifecycle fences use session advisory locks.
 
-The pre-deploy command runs `/app/cli --env prod ping` before migrations. This
-constructs the production dependency graph and checks PostgreSQL and S3, so an
-invalid OAuth key, handoff key, database connection, or object-store credential
-fails before `migrate up` can change the production schema.
+The pre-deploy command runs `/app/pre-deploy.sh` with `/bin/sh` to run ping,
+migrations, and migration status in sequence. The script compares the database
+version with the highest migration shipped in the image and fails pre-deploy if
+it is missing or dirty. Docker pre-deploy commands do not interpret `&&` unless
+a shell is invoked. In the 1.0.7 deployment only the ping ran; the migrations
+were skipped. Ping constructs the production dependency graph and checks
+PostgreSQL and S3, so an invalid OAuth key, handoff key, database connection,
+or object-store credential fails before `migrate up` can change the production
+schema.
 
 The Pro workspace and Blueprint isolate the production environment's private
 network boundary and protect it from non-admin destructive changes. Keep these
@@ -224,7 +229,9 @@ just appview-deploy prod-v1.0.4
 
 The local deploy script resolves the pushed tag, deploys that exact SHA through
 Render's public HTTP API, waits for a terminal result, and polls bounded public
-health checks until PostgreSQL and Tap are healthy. Record its tag, commit SHA,
+health checks until PostgreSQL and Tap are healthy. A transient 502 from the
+public edge during rollout is retried within that bounded health check. Record
+its tag, commit SHA,
 Render deploy ID, target migration, and health output. Blueprint validation
 remains part of the separate reviewed infrastructure-sync path because an
 application release does not synchronize `render.yaml`. Render auto-deploy is
@@ -242,7 +249,57 @@ Expected:
 
 - `/health` returns `{"status":"ok"}`.
 - `/healthz` has `db: "ok"` and `tap.connected: true`.
-- `status` can remain `degraded` until Tap receives its first tracked event.
+- `status` can remain `degraded` until background telemetry observes cursor progress.
+
+### Public Tap telemetry
+
+`GET /healthz` includes a cached `tap.telemetry` summary. AppView polls Tap's
+private `/stats/cursors`, `/stats/outbox-buffer`, and `/stats/resync-buffer`
+endpoints immediately at startup and every 30 seconds, with a five-second total
+poll deadline. Health requests read the cache and never poll Tap themselves.
+Responses include `Cache-Control: no-store`.
+
+```json
+{
+  "status": "ok",
+  "db": "ok",
+  "tap": {
+    "connected": true,
+    "last_event_at": "2026-10-01T18:22:43Z",
+    "reconnect_attempt": 0,
+    "last_error": "",
+    "telemetry": {
+      "status": "progressing",
+      "firehoseCursor": 34099694547,
+      "outboxDepth": 0,
+      "resyncDepth": 0,
+      "sampledAt": "2026-10-01T18:23:00Z",
+      "lastCursorAdvanceAt": "2026-10-01T18:23:00Z",
+      "relayLagSeconds": null
+    }
+  }
+}
+```
+
+Telemetry status is `unknown` before observing progress, after a failed poll,
+or when the last successful sample is over two minutes old. Failed polls retain
+the last complete sample and its timestamp; missing values are `null`, not zero.
+After observing an increasing cursor, status is `progressing`. Ten minutes
+without observed progress reports `stalled`. A decreasing cursor establishes a
+new baseline, so a Tap restart/reset does not inherit an old stall timer.
+`stalled` describes observed Tap progress, not a proven relay failure.
+
+With telemetry enabled, top-level `status` is `ok` only when the database is
+ready, AppView is connected to Tap, and telemetry is `progressing`; otherwise it
+is `degraded`. HTTP status remains 200, so monitoring tools must inspect JSON.
+A quiet tracked feed does not cause degradation. `/health` remains the shallow
+Render restart probe.
+
+Alert on `stalled`, persistently `unknown`, stale `sampledAt`, or growing buffer
+depths. Cursor progress alone cannot detect a slow-but-moving relay connection:
+`relayLagSeconds` is explicitly `null` because this implementation has no
+independent relay-head reference. Do not interpret top-level `ok` as proof of
+being caught up, and do not convert sequence differences into elapsed seconds.
 
 Use Render logs to confirm migrations, S3 bucket connectivity, one Tap consumer,
 one copy of each worker, successful Firebase initialization, and no Sentry
@@ -269,9 +326,15 @@ Tap traces, push metrics, and safe push completion logs without device tokens or
 other private identifiers.
 
 Before launch, configure an external monitor to poll `/healthz` and alert when
-`db != "ok"`, `tap.connected != true`, or a non-empty `tap.last_event_at` is more
-than 15 minutes old. Render's `/health` restart probe intentionally covers
-database readiness only; it cannot detect ingestion becoming stale after startup.
+`db != "ok"` or `tap.connected != true`. Also monitor Tap's firehose cursor
+against an independent, contemporaneous relay-head sample: alert if the gap
+keeps growing or the cursor stops advancing while the relay head advances.
+Check several samples over at least 10–15 minutes before acting on a slow
+connection. A stale or empty `tap.last_event_at` alone is not an alert: it is
+process-local and only changes when an event from a tracked repository reaches
+AppView. A quiet member feed can leave it unchanged even while Tap processes
+global relay events. Render's `/health` restart probe intentionally covers
+database readiness only; it cannot detect a live but under-delivering firehose.
 
 ## Rollback
 
@@ -295,7 +358,30 @@ database readiness only; it cannot detect ingestion becoming stale after startup
 The persistent AppView disk makes rollback stop-before-start, so expect a short
 availability interruption.
 
+## Revoke a user's sessions
+
+From the AppView service shell, run the existing logout-all flow for one exact
+user DID:
+
+```sh
+/app/cli --env prod sessions revoke 'did:plc:...'
+```
+
+This invalidates ordinary CraftSky sessions on every device, advances the
+owner's authentication epoch, and queues OAuth credential and push cleanup.
+The command reports that cleanup was queued; the running AppView workers
+complete it asynchronously. An eligible credential bound to an accepted account
+deletion remains available to its deletion worker. The user must sign in again.
+No PDS records or account membership are deleted.
+
+The command requires database access and the normal environment configuration;
+it does not require a user's bearer token. Use it only for an explicitly
+authorized session revocation. Do not delete OAuth rows directly, because the
+cleanup worker needs their credentials to revoke upstream access.
+
 ## PostgreSQL recovery
+
+For billing identity incidents, follow [subscription-billing-recovery.md](subscription-billing-recovery.md) before choosing a database recovery action. Restoring an old production snapshot can roll back other customers' billing state.
 
 The selected paid Render Postgres plan provides a three-day PITR window.
 Before launch, create an on-demand logical export and perform a restore drill into
@@ -326,3 +412,90 @@ After restoring a snapshot or attaching a fresh disk:
 Tap's disk snapshot is an acceleration mechanism, not the sole recovery path.
 Canonical records remain on users' PDSes and reconciliation is the recovery
 boundary.
+
+### Recover stale public projections without resetting private data
+
+An accepted PDS command does not imply the AppView has received the corresponding
+Tap event. First confirm the command outcome, the Tap firehose cursor trend, and
+the newest `tap_ingestion_receipts.received_at`. A connected `/healthz` with an
+empty `last_event_at` means only that this AppView process has not received a
+Tap frame since it started. Compare the cursor on two readings before deciding
+whether Tap is replaying a backlog or stalled. The production AppView listens
+on Render's configured port, not the CLI's local default of 8080; from its SSH
+shell run:
+
+```sh
+APPVIEW_URL=https://appview.craftsky.social /app/cli --env prod tap status
+```
+
+Before a repair, take an on-demand logical PostgreSQL export and record the
+active member DIDs from `craftsky_profiles`. Keep the Tap disk and cursor intact
+while diagnosing live delivery. Apply a reviewed AppView release containing the
+repository repair validation fix before reconciling historical sources: older
+rows can have `pending` validation with `complete` projection jobs, and an older
+repair implementation cannot correct that mismatch. Do not mark them `valid` or
+reset completed jobs directly in SQL; authoritative PDS records must pass the
+current record validator and projectors.
+
+After the fixed release, enqueue verified PDS reconciliation once per active
+member DID from an AppView shell:
+
+```sh
+/app/cli --env prod tap reconcile 'did:plc:...'
+/app/cli --env prod tap backlog --limit 100
+```
+
+Monitor repository job results and source validation by collection, including
+`app.bsky.graph.follow` and `social.craftsky.feed.like`. Check that no source
+remaining in the PDS is `pending`, active facts populate `pds_set_aggregates`,
+and blocked jobs have a real missing dependency rather than an unfinished
+repair. Compare the profile, follower, and like API responses with PDS state.
+Finally make one fresh like and verify its Tap receipt, source row, projection,
+and API count converge. Repository reconciliation recovers existing records but
+does not by itself establish that live Tap delivery is working.
+
+When diagnosing a growing relay cursor gap, Tap's metrics server is bound to
+`127.0.0.1:9090` inside the Tap container; it is not exposed on the private
+service's network port. From an interactive `render ssh craftsky-tap` shell,
+sample the same counters twice, several minutes apart:
+
+```sh
+wget -qO- http://127.0.0.1:9090/metrics |
+  grep -E '^(tap_firehose_events_(received|processed|skipped)_total|tap_firehose_last_seq|tap_events_(delivered|acked)_total)'
+```
+
+Compare `tap_firehose_last_seq` with a contemporaneous live-head cursor and
+the AppView's `/healthz`. A zero outbox and resync buffer with a growing cursor
+gap puts the delay before delivery to AppView; these counters show whether Tap
+is receiving and skipping historical global events or waiting on the relay.
+Use the local-only pprof endpoint only when the counters point to slow Tap
+processing. Do not expose the metrics listener outside the Tap container.
+
+### Slow firehose connection incident (2026-10-01)
+
+Tap's old process repeatedly fell behind while its relay WebSocket remained
+connected. Between 2026-09-30 23:42 UTC and 2026-10-01 08:27 UTC, its reconnect
+cursor advanced only from 34077160457 to 34077721824; CPU hovered near 0.01.
+The relay read then timed out and Tap reconnected. Between 08:31 and 09:14 UTC,
+the reconnect cursor advanced from 34077811545 to 34087384511 with much higher
+CPU. A manual restart at 15:07 UTC did not restore sustained throughput: the
+next instance advanced from 34089004261 to 34091166832 by 17:32 UTC. A second
+connection established by the 17:32 Blueprint redeploy replayed the backlog and
+reached the near-live cursor at approximately 18:19 UTC. Tap's outbox and resync
+buffers were empty during the lag, and sampled counters showed almost all
+received events being skipped as unrelated to tracked repositories.
+
+This is consistent with an under-delivering relay connection rather than an
+AppView acknowledgment backlog, but the exact network or relay cause is not
+proven. Upstream tracks [zombie Tap relay WebSockets](https://github.com/bluesky-social/indigo/issues/1279).
+In the pinned Tap version, the read deadline is refreshed on WebSocket pongs;
+ping/pong alone does not establish that relay events are flowing at the expected
+rate. A connected `/healthz`, an HTTP-healthy Tap, and an empty outbox therefore
+do not rule out a growing cursor gap. When alerted, capture two timed cursor
+and counter samples, relay-head comparisons, Tap CPU/bandwidth, and connection
+logs. If the gap grows despite an apparently healthy connection, escalate for a
+controlled Tap restart or an upstream progress-watchdog fix. Preserve the Tap
+disk and cursor so replay can recover events; do not set `TAP_NO_REPLAY=true`.
+The `failed to save cursor on shutdown: context canceled` log observed at both
+restarts was emitted after shutdown began and does not establish the original
+stall.

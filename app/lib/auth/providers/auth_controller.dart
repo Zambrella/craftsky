@@ -13,6 +13,8 @@ import 'package:craftsky_app/auth/providers/session_registry_provider.dart'
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/api/models/login_response.dart';
 import 'package:craftsky_app/shared/device/device_id_provider.dart';
+import 'package:craftsky_app/shared/observability/diagnostic_emitter.dart';
+import 'package:craftsky_app/shared/observability/error_reporter.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:logging/logging.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -66,14 +68,14 @@ class AuthController extends _$AuthController {
       final LoginResponse response;
       try {
         response = await api.login(handle: trimmed);
-      } on ApiException catch (e) {
+      } on ApiException catch (e, stackTrace) {
         throw switch (e) {
           ApiBadRequest(code: 'handle_required') => const HandleRequired(),
           ApiBadRequest() => const InvalidHandle(),
           ApiNetworkError() ||
           ApiServerError() ||
           ApiUnauthorized() ||
-          ApiCanceled() => const ServerUnavailable(),
+          ApiCanceled() => ServerUnavailable(cause: e, stackTrace: stackTrace),
         };
       }
 
@@ -140,13 +142,13 @@ class AuthController extends _$AuthController {
       final PendingHandoff handoff;
       try {
         handoff = await api.exchange(code: code);
-      } on ApiException catch (error) {
+      } on ApiException catch (error, stackTrace) {
         switch (error) {
           case ApiBadRequest(code: 'invalid_handoff'):
             ref.read(pendingAuthProvider.notifier).clear();
             throw const SignInTimedOut();
           case ApiNetworkError() || ApiServerError() || ApiCanceled():
-            throw const ServerUnavailable();
+            throw ServerUnavailable(cause: error, stackTrace: stackTrace);
           default:
             rethrow;
         }
@@ -155,14 +157,40 @@ class AuthController extends _$AuthController {
       if (!ref.mounted) return;
       try {
         await ref.read(sessionRegistryProvider.notifier).stageHandoff(handoff);
-      } on SessionRegistryStorageException catch (error) {
-        _log.warning('pending handoff storage failed');
-        throw StorageFailure(error);
+      } on SessionRegistryStorageException catch (error, stackTrace) {
+        _log.warning(
+          DiagnosticMessage(
+            'pending handoff storage failed',
+            context: ReportContext(
+              feature: 'AuthController',
+              operation: 'auth.handoff',
+              classification: 'storage.unavailable',
+              safeDiagnostics: const {'failureStage': 'handoff_stage_storage'},
+              workflow: PublicRecordContext(actorDid: handoff.did),
+            ),
+          ),
+          error,
+          stackTrace,
+        );
+        throw StorageFailure(error, stackTrace: stackTrace);
       } on AccountLimitReached {
         rethrow;
-      } on Object catch (error) {
-        _log.warning('pending handoff mutation failed');
-        throw StorageFailure(error);
+      } on Object catch (error, stackTrace) {
+        _log.warning(
+          DiagnosticMessage(
+            'pending handoff mutation failed',
+            context: ReportContext(
+              feature: 'AuthController',
+              operation: 'auth.handoff',
+              classification: 'storage.unavailable',
+              safeDiagnostics: const {'failureStage': 'handoff_stage_mutation'},
+              workflow: PublicRecordContext(actorDid: handoff.did),
+            ),
+          ),
+          error,
+          stackTrace,
+        );
+        throw StorageFailure(error, stackTrace: stackTrace);
       }
       if (!ref.mounted) return;
       ref.read(pendingAuthProvider.notifier).clear();
@@ -214,7 +242,7 @@ class AuthController extends _$AuthController {
     final api = ref.read(handoffApiClientProvider);
     try {
       await api.confirm(token: handoff.token, receiptId: handoff.receiptId);
-    } on ApiException catch (error) {
+    } on ApiException catch (error, stackTrace) {
       switch (error) {
         case ApiBadRequest(code: 'invalid_handoff') || ApiUnauthorized():
           await ref
@@ -222,7 +250,7 @@ class AuthController extends _$AuthController {
               .discardHandoff(handoff.receiptId);
           throw const SignInTimedOut();
         case ApiNetworkError() || ApiServerError() || ApiCanceled():
-          throw const ServerUnavailable();
+          throw ServerUnavailable(cause: error, stackTrace: stackTrace);
         default:
           rethrow;
       }
@@ -239,14 +267,40 @@ class AuthController extends _$AuthController {
                 ? null
                 : ref.read(accountStateInvalidatorProvider),
           );
-    } on SessionRegistryStorageException catch (error) {
-      _log.warning('confirmed handoff storage failed');
-      throw StorageFailure(error);
+    } on SessionRegistryStorageException catch (error, stackTrace) {
+      _log.warning(
+        DiagnosticMessage(
+          'confirmed handoff storage failed',
+          context: ReportContext(
+            feature: 'AuthController',
+            operation: 'auth.handoff',
+            classification: 'storage.unavailable',
+            safeDiagnostics: const {'failureStage': 'handoff_confirm_storage'},
+            workflow: PublicRecordContext(actorDid: handoff.did),
+          ),
+        ),
+        error,
+        stackTrace,
+      );
+      throw StorageFailure(error, stackTrace: stackTrace);
     } on AccountLimitReached {
       rethrow;
-    } on Object catch (error) {
-      _log.warning('confirmed handoff mutation failed');
-      throw StorageFailure(error);
+    } on Object catch (error, stackTrace) {
+      _log.warning(
+        DiagnosticMessage(
+          'confirmed handoff mutation failed',
+          context: ReportContext(
+            feature: 'AuthController',
+            operation: 'auth.handoff',
+            classification: 'storage.unavailable',
+            safeDiagnostics: const {'failureStage': 'handoff_confirm_mutation'},
+            workflow: PublicRecordContext(actorDid: handoff.did),
+          ),
+        ),
+        error,
+        stackTrace,
+      );
+      throw StorageFailure(error, stackTrace: stackTrace);
     }
   }
 

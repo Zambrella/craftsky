@@ -19,6 +19,7 @@ class ProfileAccountSummary with ProfileAccountSummaryMappable {
     this.displayName,
     this.description,
     this.avatar,
+    this.crafts = const [],
     this.muted = false,
     this.blocking = false,
     this.blockedBy = false,
@@ -32,6 +33,7 @@ class ProfileAccountSummary with ProfileAccountSummaryMappable {
   final String? displayName;
   final String? description;
   final String? avatar;
+  final List<String> crafts;
   final bool muted;
   final bool blocking;
   final bool blockedBy;

@@ -1,9 +1,13 @@
 package observability
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/jackc/pgx/v5/pgconn"
+	"log/slog"
 	"strings"
 	"testing"
 	"time"
@@ -115,4 +119,29 @@ func valueString(value any) string {
 		return ""
 	}
 	return strings.TrimSpace(strings.ReplaceAll(strings.ReplaceAll(strings.ReplaceAll(fmt.Sprint(value), "\n", " "), "\t", " "), "\r", " "))
+}
+
+func TestDBDiagnosticRetainsSQLStateAndCauseWithoutRowText(t *testing.T) {
+	var local bytes.Buffer
+	transport := &sentry.MockTransport{}
+	observer := New(Config{Env: "test", Logger: slog.New(slog.NewJSONHandler(&local, nil)), SentryDSN: "https://public@example.invalid/1", SentryTransport: transport})
+	cause := &pgconn.PgError{Code: "40001", Message: "opaque private row canary", Detail: "access_token=credential-canary"}
+	ctx := WithCaptureMarker(context.Background())
+	err := observer.ObserveDB(ctx, DBOperation{Operation: "post.read"}, func(context.Context) error { return cause })
+	if err != cause {
+		t.Fatal("business error changed")
+	}
+	observer.Flush(time.Second)
+	for _, want := range []string{"pgconn.PgError", "40001", "post.read"} {
+		if !strings.Contains(local.String(), want) {
+			t.Fatalf("missing %s: %s", want, local.String())
+		}
+	}
+	if len(transport.Events()) != 1 {
+		t.Fatal("missing issue")
+	}
+	data, _ := json.Marshal(transport.Events())
+	if strings.Contains(string(data)+local.String(), "canary") {
+		t.Fatal("private detail leaked")
+	}
 }

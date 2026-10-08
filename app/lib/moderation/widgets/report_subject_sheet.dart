@@ -92,7 +92,7 @@ class _ReportSubjectSheetState extends State<ReportSubjectSheet> {
             spacing.sp4,
             spacing.sp4,
             spacing.sp4,
-            spacing.sp6,
+            spacing.sp6 + MediaQuery.paddingOf(context).bottom,
           ),
           child: FormBuilder(
             key: _formKey,
@@ -186,6 +186,7 @@ class _ReportSubjectSheetState extends State<ReportSubjectSheet> {
                       maxLines: 4,
                       keyboardType: TextInputType.multiline,
                       textInputAction: TextInputAction.newline,
+                      textCapitalization: TextCapitalization.sentences,
                       enabled: !widget.isSubmitting,
                       onChanged: (value) {
                         setState(() => _details = value);

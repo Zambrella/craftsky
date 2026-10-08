@@ -14,6 +14,7 @@ import (
 
 	craftskylex "social.craftsky/appview/internal/lexicon/craftsky"
 	"social.craftsky/appview/internal/notifications"
+	"social.craftsky/appview/internal/observability"
 	"social.craftsky/appview/internal/tap"
 )
 
@@ -94,11 +95,12 @@ func (c *CraftskyProfile) Handle(ctx context.Context, ev tap.Event) error {
 		// errors are logged and swallowed so the craftsky event is still
 		// acked by Tap. ev.DID is already validated at the WS boundary.
 		if bfErr := c.backfiller.Backfill(ctx, ev.DID); bfErr != nil {
-			c.logger.Warn("craftsky profile: bluesky backfill failed",
-				slog.String("component", "indexer"),
-				slog.String("operation", "profile.backfill"),
-				slog.String("result", "error"),
-				slog.String("error_category", "backfill"))
+			input := tap.RecordFailureDiagnostic(ev, tap.Retryable(tap.ReasonProjectionFailure), bfErr)
+			input.Context["operation"] = "profile.backfill"
+			input.Context["failure_stage"] = "backfill"
+			input.Context["result"] = "terminal"
+			observability.LogDiagnostic(ctx, c.logger, input)
+			observability.CaptureRequestDiagnostic(ctx, input)
 		}
 		return nil
 	case "delete":

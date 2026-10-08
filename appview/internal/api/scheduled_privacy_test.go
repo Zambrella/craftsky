@@ -3,7 +3,9 @@ package api
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
+	"github.com/getsentry/sentry-go"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -177,7 +179,32 @@ func TestIR017ScheduledSaveLifecycleExcludesCanariesFromApplicableSinks(t *testi
 		t.Fatal("observer flush failed")
 	}
 
-	captured := collector.String(t)
+	// Allow the reviewed operation owner only in one failed issue context.
+	captured := collector.localLogs.String() + collector.externalLogs.String()
+	metricBytes, _ := json.Marshal(collector.metrics.Calls())
+	captured += string(metricBytes)
+	selectedFailures := 0
+	for _, event := range collector.transport.Events() {
+		raw, _ := json.Marshal(event)
+		var fields map[string]any
+		if err := json.Unmarshal(raw, &fields); err != nil {
+			t.Fatal(err)
+		}
+		if contexts, ok := fields["contexts"].(map[string]any); ok {
+			if diagnostic, ok := contexts["diagnostic"].(map[string]any); ok && diagnostic["operation_account_did"] != nil {
+				if event.Level != sentry.LevelError || event.Type == "transaction" || diagnostic["operation_account_did"] != canaries[1] || len(diagnostic) != 1 {
+					t.Fatalf("unexpected private context %#v", fields)
+				}
+				delete(diagnostic, "operation_account_did")
+				selectedFailures++
+			}
+		}
+		selected, _ := json.Marshal(fields)
+		captured += string(selected)
+	}
+	if selectedFailures != 1 {
+		t.Fatalf("selected failures=%d", selectedFailures)
+	}
 	for _, canary := range canaries {
 		if strings.Contains(captured, canary) {
 			t.Fatalf("scheduled-save lifecycle telemetry leaked %q:\n%s", canary, captured)
@@ -187,8 +214,8 @@ func TestIR017ScheduledSaveLifecycleExcludesCanariesFromApplicableSinks(t *testi
 		t.Fatalf("expected local logs, metrics, and Sentry trace/error events; captured=%s", captured)
 	}
 	collector.assertSentryErrorAndTransaction(t)
-	if len(collector.externalLogs.events) != 0 {
-		t.Fatalf("scheduled-save lifecycle unexpectedly emitted external logs: %s", collector.externalLogs.String())
+	if len(collector.externalLogs.events) == 0 {
+		t.Fatalf("scheduled-save lifecycle failed to export logs: %s", collector.externalLogs.String())
 	}
 }
 

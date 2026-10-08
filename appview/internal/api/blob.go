@@ -6,6 +6,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"social.craftsky/appview/internal/observability"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 
@@ -89,6 +90,7 @@ func ImageBlobUploadHandler(
 			}
 			if errors.Is(err, ErrImageDecodeSaturated) {
 				w.Header().Set("Retry-After", "1")
+				observability.ReportRequestFailure(r.Context(), err, "api.ImageBlobUploadHandler", "handler")
 				envelope.WriteError(w, http.StatusServiceUnavailable,
 					"upload_capacity_unavailable", "image validation capacity unavailable", runID, nil)
 				return

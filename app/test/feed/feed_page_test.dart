@@ -19,6 +19,8 @@ import 'package:craftsky_app/moderation/models/report_result.dart';
 import 'package:craftsky_app/moderation/models/report_submission.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
+import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
+import 'package:craftsky_app/subscriptions/providers/subscription_access_provider.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/craftsky_floating_action_button.dart';
@@ -472,6 +474,14 @@ void main() {
         ),
         secureSessionRegistryStorageProvider.overrideWithValue(
           _FeedPinRegistryStorage(),
+        ),
+        subscriptionAccessProvider.overrideWith(
+          (ref, lease) async => SubscriptionAccess(
+            did: lease.account.did,
+            effectiveTier: SubscriptionTier.plus,
+            givesAccess: true,
+            assignedTier: SubscriptionTier.plus,
+          ),
         ),
       ],
       messenger: messenger,

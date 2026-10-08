@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"net/http"
+	"social.craftsky/appview/internal/observability"
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -38,6 +39,7 @@ func GetFollowerGrowthHandler(reader FollowerGrowthReader, now func() time.Time)
 		dateRange := period.Range(now())
 		history, err := reader.Read(r.Context(), owner, dateRange)
 		if err != nil {
+			observability.ReportRequestFailure(r.Context(), err, "api.GetFollowerGrowthHandler", "handler")
 			envelope.WriteError(w, http.StatusInternalServerError, "internal_error", "could not load follower growth", runID, nil)
 			return
 		}

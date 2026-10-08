@@ -239,7 +239,12 @@ func classifyContextError(err error) error {
 	return &ProviderError{kind: ProviderErrorTransient}
 }
 
-func classifyStatus(status int, retryAfterValue string) error {
+func classifyStatus(status int, retryAfterValue string) (result error) {
+	defer func() {
+		if selected, ok := result.(*ProviderError); ok && status >= 100 && status <= 599 {
+			selected.statusCode = status
+		}
+	}()
 	switch status {
 	case http.StatusUnauthorized, http.StatusForbidden:
 		return &ProviderError{kind: ProviderErrorAuthentication}
@@ -256,7 +261,12 @@ func classifyStatus(status int, retryAfterValue string) error {
 	return &ProviderError{kind: ProviderErrorPermanent}
 }
 
-func classifyResponse(status int, retryAfterValue string, body []byte) error {
+func classifyResponse(status int, retryAfterValue string, body []byte) (result error) {
+	defer func() {
+		if selected, ok := result.(*ProviderError); ok && status >= 100 && status <= 599 {
+			selected.statusCode = status
+		}
+	}()
 	var envelope struct {
 		Error struct {
 			Code         int  `json:"code"`

@@ -38,11 +38,11 @@ INSERT INTO tap_source_records(uri) VALUES
 `
 
 func TestImageSafetyMigration(t *testing.T) {
-	up, err := os.ReadFile("../../migrations/000076_image_safety.up.sql")
+	up, err := os.ReadFile("../../migrations/000081_image_safety.up.sql")
 	if err != nil {
 		t.Fatalf("read up migration: %v", err)
 	}
-	down, err := os.ReadFile("../../migrations/000076_image_safety.down.sql")
+	down, err := os.ReadFile("../../migrations/000081_image_safety.down.sql")
 	if err != nil {
 		t.Fatalf("read down migration: %v", err)
 	}
@@ -78,15 +78,15 @@ func TestImageSafetyMigration(t *testing.T) {
 }
 
 func TestSafetyIncidentMigration(t *testing.T) {
-	imageSafety, err := os.ReadFile("../../migrations/000076_image_safety.up.sql")
+	imageSafety, err := os.ReadFile("../../migrations/000081_image_safety.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
-	up, err := os.ReadFile("../../migrations/000077_safety_incidents.up.sql")
+	up, err := os.ReadFile("../../migrations/000082_safety_incidents.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
-	down, err := os.ReadFile("../../migrations/000077_safety_incidents.down.sql")
+	down, err := os.ReadFile("../../migrations/000082_safety_incidents.down.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -117,11 +117,11 @@ func TestSafetyIncidentMigration(t *testing.T) {
 }
 
 func TestExternalSafetyIntakeMigration(t *testing.T) {
-	up, err := os.ReadFile("../../migrations/000080_external_safety_intake.up.sql")
+	up, err := os.ReadFile("../../migrations/000085_external_safety_intake.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
-	down, err := os.ReadFile("../../migrations/000080_external_safety_intake.down.sql")
+	down, err := os.ReadFile("../../migrations/000085_external_safety_intake.down.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -191,11 +191,11 @@ func TestExternalSafetyIntakeMigration(t *testing.T) {
 }
 
 func TestAgeEligibilityMigration(t *testing.T) {
-	up, err := os.ReadFile("../../migrations/000081_age_eligibility.up.sql")
+	up, err := os.ReadFile("../../migrations/000086_age_eligibility.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
-	down, err := os.ReadFile("../../migrations/000081_age_eligibility.down.sql")
+	down, err := os.ReadFile("../../migrations/000086_age_eligibility.down.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -230,11 +230,11 @@ func TestAgeEligibilityMigration(t *testing.T) {
 }
 
 func TestSafetyOperatorsMigration(t *testing.T) {
-	up, err := os.ReadFile("../../migrations/000082_safety_operators.up.sql")
+	up, err := os.ReadFile("../../migrations/000087_safety_operators.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
-	down, err := os.ReadFile("../../migrations/000082_safety_operators.down.sql")
+	down, err := os.ReadFile("../../migrations/000087_safety_operators.down.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -301,15 +301,15 @@ func TestSafetyOperatorsMigration(t *testing.T) {
 }
 
 func TestSafetyRetentionMigration(t *testing.T) {
-	evidenceUp, err := os.ReadFile("../../migrations/000078_safety_evidence_holds.up.sql")
+	evidenceUp, err := os.ReadFile("../../migrations/000083_safety_evidence_holds.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
-	up, err := os.ReadFile("../../migrations/000083_safety_retention.up.sql")
+	up, err := os.ReadFile("../../migrations/000088_safety_retention.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
-	down, err := os.ReadFile("../../migrations/000083_safety_retention.down.sql")
+	down, err := os.ReadFile("../../migrations/000088_safety_retention.down.sql")
 	if err != nil {
 		t.Fatal(err)
 	}

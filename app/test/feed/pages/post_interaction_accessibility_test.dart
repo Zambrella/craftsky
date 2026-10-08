@@ -151,8 +151,8 @@ void main() {
     final data = tester.getSemantics(row).getSemanticsData();
     expect(
       data.label,
-      'A deliberately long display name that remains readable, '
-      '@long-name.craftsky.social',
+      '@long-name.craftsky.social, '
+      'A deliberately long display name that remains readable',
     );
     expect(data.hint, 'Visit profile');
     expect(data.flagsCollection.isButton, isTrue);

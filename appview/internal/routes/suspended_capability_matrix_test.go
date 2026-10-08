@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"regexp"
 	"slices"
 	"strings"
@@ -19,6 +20,7 @@ import (
 	"social.craftsky/appview/internal/ownerlifecycle"
 	"social.craftsky/appview/internal/pdscommands"
 	"social.craftsky/appview/internal/pdseffects"
+	"social.craftsky/appview/internal/subscriptions"
 	"social.craftsky/appview/internal/testdb"
 )
 
@@ -107,15 +109,29 @@ func (reader *suspendedRouteReader) IsSuspended(_ context.Context, owner syntax.
 var routeParameterPattern = regexp.MustCompile(`\{[^}]+\}`)
 
 func TestSuspendedAccountInvokesEveryRegisteredAuthenticatedRoute(t *testing.T) {
+	migration, err := os.ReadFile("../../migrations/000076_subscription_accounts.up.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
 	pool := testdb.WithSchema(t, `
 		CREATE TABLE craftsky_profiles (did TEXT PRIMARY KEY);
 		INSERT INTO craftsky_profiles (did) VALUES ('did:plc:suspended');
-	`)
+	`+string(migration))
+	for _, statement := range []string{
+		`INSERT INTO billing_accounts(id,owner_did,revenuecat_app_user_id) VALUES ('10000000-0000-4000-8000-000000000001','did:plc:suspended','20000000-0000-4000-8000-000000000001')`,
+		`INSERT INTO provider_subscriptions(id,billing_account_id,project_id,revenuecat_subscription_id,product_id,app_id,store,environment,status,gives_access,mapped_tier,accepted_generation) VALUES ('30000000-0000-4000-8000-000000000001','10000000-0000-4000-8000-000000000001','project','subscription','business','app','app_store','production','active',true,'business',1)`,
+		`INSERT INTO billing_licenses(provider_subscription_id,tier,assigned_did,assigned_at) VALUES ('30000000-0000-4000-8000-000000000001','business','did:plc:suspended',now())`,
+	} {
+		if _, err := pool.Exec(context.Background(), statement); err != nil {
+			t.Fatal(err)
+		}
+	}
 	reader := &suspendedRouteReader{}
 	effects := &suspendedRouteEffects{handlerCalls: make(map[string]int)}
 	deps := testDeps()
 	deps.Config = Config{Env: EnvProd, AllowedOrigins: []string{"*"}}
 	deps.DB = pool
+	deps.Subscriptions = subscriptions.NewStore(pool)
 	deps.AuthService = &auth.MockAuthService{DefaultDID: "did:plc:suspended"}
 	deps.SuspensionReader = reader
 	deps.routeHandlerDecorator = func(policy RoutePolicy, _ http.Handler) http.Handler {
@@ -317,6 +333,7 @@ func suspendedRouteRequest(policy RoutePolicy) (*http.Request, *suspendedBodyPro
 func TestEveryAuthenticatedV1MutationHasExactSuspensionClassification(t *testing.T) {
 	wantAllowed := []string{
 		"DELETE /v1/account-deletion/intents/{jobId}",
+		"DELETE /v1/billing/licenses/{licenseId}/assignment",
 		"DELETE /v1/events/{did}/{rkey}",
 		"DELETE /v1/migrations/instagram/account",
 		"DELETE /v1/migrations/instagram/imports/{importId}",
@@ -338,6 +355,7 @@ func TestEveryAuthenticatedV1MutationHasExactSuspensionClassification(t *testing
 		"POST /v1/account-deletion/intents",
 		"POST /v1/account-deletions/{jobId}",
 		"POST /v1/auth/logout",
+		"POST /v1/billing/reconciliation",
 		"POST /v1/events/{did}/{rkey}/reports",
 		"POST /v1/languages/preferences/initialize",
 		"POST /v1/notifications/devices",
@@ -349,6 +367,8 @@ func TestEveryAuthenticatedV1MutationHasExactSuspensionClassification(t *testing
 		"POST /v1/profiles/{handleOrDid}/reports",
 		"POST /v1/saved-post-folders",
 		"POST /v1/search/recent",
+		"PUT /v1/billing/account",
+		"PUT /v1/billing/licenses/{licenseId}/assignment",
 		"PUT /v1/languages/preferences",
 	}
 	wantDenied := []string{
@@ -375,7 +395,6 @@ func TestEveryAuthenticatedV1MutationHasExactSuspensionClassification(t *testing
 		"PUT /v1/events/{did}/{rkey}",
 		"PUT /v1/posts/{did}/{rkey}/pin",
 		"PUT /v1/profiles/me",
-		"PUT /v1/profiles/me/account-type",
 		"PUT /v1/profiles/me/business",
 		"PUT /v1/profiles/me/customisation",
 		"PUT /v1/scheduled-post-media/{mediaId}",

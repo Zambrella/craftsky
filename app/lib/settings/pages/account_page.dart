@@ -1,17 +1,16 @@
-import 'dart:async';
-
 import 'package:craftsky_app/auth/models/auth_state.dart';
 import 'package:craftsky_app/auth/providers/active_account_identity_provider.dart';
 import 'package:craftsky_app/auth/providers/active_account_initialization_provider.dart';
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
+import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/business/models/business_profile.dart';
-import 'package:craftsky_app/business/providers/account_type_controller.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/settings/models/delete_account_confirmation.dart';
 import 'package:craftsky_app/settings/models/settings_row.dart';
 import 'package:craftsky_app/settings/providers/account_deletion_controller.dart';
 import 'package:craftsky_app/settings/widgets/settings_row_tile.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
+import 'package:craftsky_app/subscriptions/providers/subscription_access_provider.dart';
 import 'package:craftsky_app/theme/brand_colors.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
@@ -34,8 +33,21 @@ class AccountPage extends ConsumerWidget {
         .value
         ?.profile
         .accountType;
-    final accountTypeState = ref.watch(accountTypeControllerProvider);
-    final accountType = accountTypeState.value ?? profileType;
+    final lease = ref
+        .watch(sessionRegistryProvider)
+        .value
+        ?.activeLease
+        ?.session;
+    final access = lease == null
+        ? null
+        : ref.watch(subscriptionAccessProvider(lease));
+    final accountType = profileType == null
+        ? null
+        : switch (access) {
+            AsyncData(:final value) when value.allowsBusiness =>
+              AccountType.business,
+            _ => AccountType.regular,
+          };
     final isRestricted =
         ref
             .watch(activeAccountInitializationProvider)
@@ -59,24 +71,10 @@ class AccountPage extends ConsumerWidget {
             ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: SegmentedButton<AccountType>(
-                expandedInsets: EdgeInsets.zero,
-                segments: [
-                  ButtonSegment(
-                    value: AccountType.regular,
-                    label: Text(l10n.accountTypeRegular),
-                  ),
-                  ButtonSegment(
-                    value: AccountType.business,
-                    label: Text(l10n.accountTypeBusiness),
-                  ),
-                ],
-                selected: {accountType},
-                onSelectionChanged: accountTypeState.isLoading
-                    ? null
-                    : (selected) => unawaited(
-                        _setAccountType(context, ref, selected.single),
-                      ),
+              child: Text(
+                accountType == AccountType.business
+                    ? l10n.accountTypeBusiness
+                    : l10n.accountTypeRegular,
               ),
             ),
             const SizedBox(height: 12),
@@ -93,19 +91,6 @@ class AccountPage extends ConsumerWidget {
         ],
       ),
     );
-  }
-
-  Future<void> _setAccountType(
-    BuildContext context,
-    WidgetRef ref,
-    AccountType accountType,
-  ) async {
-    final succeeded = await ref
-        .read(accountTypeControllerProvider.notifier)
-        .setAccountType(accountType);
-    if (!succeeded && context.mounted) {
-      context.showError(AppLocalizations.of(context).errorActionFailed);
-    }
   }
 
   Future<void> _begin(

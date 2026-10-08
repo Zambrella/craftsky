@@ -1,5 +1,4 @@
 import 'package:craftsky_app/business/models/business_event.dart';
-import 'package:craftsky_app/business/models/business_profile.dart';
 import 'package:craftsky_app/moderation/models/report_result.dart';
 import 'package:craftsky_app/moderation/models/report_submission.dart';
 import 'package:craftsky_app/shared/api/api_unwrap.dart';
@@ -11,15 +10,6 @@ class BusinessApiClient {
   const BusinessApiClient(this._dio);
 
   final Dio _dio;
-
-  Future<AccountType> updateAccountType(AccountType value) =>
-      unwrapApi(() async {
-        final response = await _dio.put<Map<String, dynamic>>(
-          '/v1/profiles/me/account-type',
-          data: {'accountType': value.toValue()},
-        );
-        return AccountTypeMapper.fromValue(response.data!['accountType']);
-      });
 
   Future<RecordMutationResult> putBusinessProfile(
     Map<String, dynamic> body, {

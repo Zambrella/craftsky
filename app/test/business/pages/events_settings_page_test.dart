@@ -1,8 +1,13 @@
+import 'dart:async';
 import 'dart:ui' show Tristate;
 
 import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/auth/models/account_session_lease.dart';
+import 'package:craftsky_app/auth/models/session_registry.dart';
 import 'package:craftsky_app/auth/providers/active_account_identity_provider.dart';
+import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
+import 'package:craftsky_app/auth/providers/session_registry_provider.dart'
+    show sessionRegistryProvider;
 import 'package:craftsky_app/bootstrap.dart';
 import 'package:craftsky_app/business/data/business_repository.dart';
 import 'package:craftsky_app/business/models/business_drafts.dart';
@@ -17,6 +22,8 @@ import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
+import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
+import 'package:craftsky_app/subscriptions/providers/subscription_access_provider.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/craftsky_context_menu.dart';
@@ -34,6 +41,75 @@ import '../accessibility_test_helpers.dart';
 
 void main() {
   setUpAll(initializeMappers);
+  testWidgets('AT-008 Events create action hides during access refresh', (
+    tester,
+  ) async {
+    var refreshing = false;
+    final pending = Completer<SubscriptionAccess>();
+    await tester.pumpWidget(
+      _app(
+        _Repository(
+          pages: {
+            OwnerEventFilter.upcoming: [const BusinessEventPage(items: [])],
+            OwnerEventFilter.history: [const BusinessEventPage(items: [])],
+          },
+        ),
+        access: (lease) => refreshing
+            ? pending.future
+            : Future.value(
+                SubscriptionAccess(
+                  did: lease.account.did,
+                  effectiveTier: SubscriptionTier.business,
+                  givesAccess: true,
+                  assignedTier: SubscriptionTier.business,
+                ),
+              ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byType(CraftskyFloatingActionButton), findsOneWidget);
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(EventsSettingsPage)),
+    );
+    final lease = container
+        .read(sessionRegistryProvider)
+        .requireValue
+        .activeLease!
+        .session;
+    refreshing = true;
+    container.invalidate(subscriptionAccessProvider(lease));
+    await tester.pump();
+    final loading = container.read(subscriptionAccessProvider(lease));
+    expect(loading, isA<AsyncData<SubscriptionAccess>>());
+    expect(loading.isLoading, isTrue);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.byType(CraftskyFloatingActionButton), findsNothing);
+    pending.complete(
+      SubscriptionAccess(
+        did: lease.account.did,
+        effectiveTier: SubscriptionTier.business,
+        givesAccess: true,
+        assignedTier: SubscriptionTier.business,
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byType(CraftskyFloatingActionButton), findsOneWidget);
+  });
+
+  testWidgets('AT-008 lapsed Business owner cannot see event management', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _app(_Repository(pages: const {}), tier: SubscriptionTier.free),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      find.text('Event management is available to business accounts.'),
+      findsOneWidget,
+    );
+    expect(find.byType(CraftskyFloatingActionButton), findsNothing);
+  });
 
   testWidgets('Events manager uses the hard-shadow CraftSky FAB', (
     tester,
@@ -422,8 +498,31 @@ void main() {
 Widget _app(
   _Repository repository, {
   AccountType accountType = AccountType.business,
+  SubscriptionTier tier = SubscriptionTier.business,
+  Future<SubscriptionAccess> Function(AccountSessionLease)? access,
 }) => ProviderScope(
   overrides: [
+    secureSessionRegistryStorageProvider.overrideWithValue(
+      _EventsRegistryStorage(
+        SessionRegistry.empty().upsertAndActivate(
+          token: 'token',
+          did: 'did:plc:owner',
+          handle: 'owner.test',
+        ),
+      ),
+    ),
+    subscriptionAccessProvider.overrideWith(
+      (ref, lease) =>
+          access?.call(lease) ??
+          Future.value(
+            SubscriptionAccess(
+              did: lease.account.did,
+              effectiveTier: tier,
+              givesAccess: tier != SubscriptionTier.free,
+              assignedTier: tier == SubscriptionTier.free ? null : tier,
+            ),
+          ),
+    ),
     activeAccountIdentityProvider.overrideWith(
       (_) async => ActiveAccountIdentity(
         lease: AccountSessionLease(
@@ -450,6 +549,16 @@ Widget _app(
     home: const EventsSettingsPage(),
   ),
 );
+
+final class _EventsRegistryStorage implements SessionRegistryStorage {
+  _EventsRegistryStorage(this.registry);
+  SessionRegistry registry;
+  @override
+  Future<SessionRegistry> read() async => registry;
+  @override
+  Future<void> write(SessionRegistry registry) async =>
+      this.registry = registry;
+}
 
 BusinessEvent _event(
   String rkey, {

@@ -26,6 +26,9 @@ import 'package:craftsky_app/scheduled_posts/services/scheduled_composer_media.d
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/shared/rich_text/facet_generator.dart';
 import 'package:craftsky_app/shared/rich_text/providers/facet_suggestion_providers.dart';
+import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
+import 'package:craftsky_app/subscriptions/providers/subscription_access_provider.dart';
+import 'package:craftsky_app/subscriptions/subscription_build_config.dart';
 import 'package:craftsky_app/theme/brand_colors.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
@@ -33,11 +36,23 @@ import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
 
 import '../fakes/recording_messenger.dart';
 import '../test_support/deterministic_pump.dart';
+
+final List<Override> _paidAccessOverrides = [
+  subscriptionAccessProvider.overrideWith(
+    (ref, lease) async => SubscriptionAccess(
+      did: lease.account.did,
+      effectiveTier: SubscriptionTier.plus,
+      givesAccess: true,
+      assignedTier: SubscriptionTier.plus,
+    ),
+  ),
+];
 
 void main() {
   test(
@@ -218,6 +233,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            ..._paidAccessOverrides,
             secureSessionRegistryStorageProvider.overrideWithValue(
               _RegistryStorage(registry),
             ),
@@ -291,6 +307,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            ..._paidAccessOverrides,
             secureSessionRegistryStorageProvider.overrideWithValue(
               _RegistryStorage(registry),
             ),
@@ -379,6 +396,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            ..._paidAccessOverrides,
             secureSessionRegistryStorageProvider.overrideWithValue(
               _RegistryStorage(registry),
             ),
@@ -470,6 +488,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            ..._paidAccessOverrides,
             secureSessionRegistryStorageProvider.overrideWithValue(
               _RegistryStorage(registry),
             ),
@@ -550,6 +569,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          ..._paidAccessOverrides,
           secureSessionRegistryStorageProvider.overrideWithValue(
             _RegistryStorage(registry),
           ),
@@ -618,6 +638,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          ..._paidAccessOverrides,
           secureSessionRegistryStorageProvider.overrideWithValue(
             _RegistryStorage(registry),
           ),
@@ -682,6 +703,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            ..._paidAccessOverrides,
             secureSessionRegistryStorageProvider.overrideWithValue(
               _RegistryStorage(registry),
             ),
@@ -729,7 +751,8 @@ void main() {
       expect(repository.stagedIDs.single, isNot(_externalThumbnailID));
       expect(repository.stagedBytes.single, replacementBytes);
       expect(
-        (repository.updatedPayload?['external'] as Map)['thumbMediaId'],
+        (repository.updatedPayload?['external']
+            as Map<String, dynamic>)['thumbMediaId'],
         repository.stagedIDs.single,
       );
     },
@@ -752,6 +775,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            ..._paidAccessOverrides,
             secureSessionRegistryStorageProvider.overrideWithValue(
               _RegistryStorage(registry),
             ),
@@ -829,6 +853,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            ..._paidAccessOverrides,
             secureSessionRegistryStorageProvider.overrideWithValue(
               _RegistryStorage(registry),
             ),
@@ -891,7 +916,8 @@ void main() {
       expect(repository.stagedIDs.last, isNot(failedID));
       expect(repository.stagedBytes.last, secondBytes);
       expect(
-        (repository.updatedPayload?['external'] as Map)['thumbMediaId'],
+        (repository.updatedPayload?['external']
+            as Map<String, dynamic>)['thumbMediaId'],
         repository.stagedIDs.last,
       );
     },
@@ -913,6 +939,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          ..._paidAccessOverrides,
           secureSessionRegistryStorageProvider.overrideWithValue(
             _RegistryStorage(registry),
           ),
@@ -974,67 +1001,72 @@ void main() {
     expect(repository.stagedIDs, isEmpty);
   });
 
-  testWidgets('AT-007 Post now publishes the final existing media edits', (
-    tester,
-  ) async {
-    final registry = SessionRegistry.empty().upsertAndActivate(
-      token: 'alice-token',
-      did: 'did:plc:alice',
-      handle: 'alice.test',
-    );
-    final account = registry.activeLease!.session.account;
-    final repository = _ScheduledRepository(_pngBytes(width: 3, height: 2));
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          secureSessionRegistryStorageProvider.overrideWithValue(
-            _RegistryStorage(registry),
-          ),
-          activeLanguagePreferencesProvider.overrideWith(
-            (ref) => const LanguagePreferences(
-              primaryLanguage: 'en',
-              contentLanguages: ['en'],
+  testWidgets(
+    'AT-007 Post now publishes the final existing media edits',
+    (
+      tester,
+    ) async {
+      final registry = SessionRegistry.empty().upsertAndActivate(
+        token: 'alice-token',
+        did: 'did:plc:alice',
+        handle: 'alice.test',
+      );
+      final account = registry.activeLease!.session.account;
+      final repository = _ScheduledRepository(_pngBytes(width: 3, height: 2));
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            ..._paidAccessOverrides,
+            secureSessionRegistryStorageProvider.overrideWithValue(
+              _RegistryStorage(registry),
             ),
-          ),
-          accountScheduledPostRepositoryProvider(
-            account,
-          ).overrideWith((ref) async => repository),
-        ],
-        child: MessengerScope(
-          messenger: RecordingMessenger(),
-          child: MaterialApp(
-            theme: _testTheme,
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
-            supportedLocales: AppLocalizations.supportedLocales,
-            home: PostComposerSheet(
-              composerId: 'scheduled-publish-editor',
-              scheduledPost: _scheduledDetail,
+            activeLanguagePreferencesProvider.overrideWith(
+              (ref) => const LanguagePreferences(
+                primaryLanguage: 'en',
+                contentLanguages: ['en'],
+              ),
+            ),
+            accountScheduledPostRepositoryProvider(
+              account,
+            ).overrideWith((ref) async => repository),
+          ],
+          child: MessengerScope(
+            messenger: RecordingMessenger(),
+            child: MaterialApp(
+              theme: _testTheme,
+              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
+              home: PostComposerSheet(
+                composerId: 'scheduled-publish-editor',
+                scheduledPost: _scheduledDetail,
+              ),
             ),
           ),
         ),
-      ),
-    );
-    await tester.pumpAndSettle();
+      );
+      await tester.pumpAndSettle();
 
-    await tester.enterText(
-      find.descendant(
-        of: find.byKey(const Key('composer-alt-old-1')),
-        matching: find.byType(EditableText),
-      ),
-      'published front',
-    );
-    await tester.tap(find.byKey(const Key('composer-schedule-control')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Now').last);
-    await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(ChunkyButton, 'Post'));
-    await tester.pumpAndSettle();
+      await tester.enterText(
+        find.descendant(
+          of: find.byKey(const Key('composer-alt-old-1')),
+          matching: find.byType(EditableText),
+        ),
+        'published front',
+      );
+      await tester.tap(find.byKey(const Key('composer-schedule-control')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Now').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(ChunkyButton, 'Post'));
+      await tester.pumpAndSettle();
 
-    expect(repository.publishedPayload?['media'], [
-      {'id': 'old-1', 'alt': 'published front', 'width': 3, 'height': 2},
-      {'id': 'old-2', 'alt': 'back', 'width': 2, 'height': 3},
-    ]);
-  });
+      expect(repository.publishedPayload?['media'], [
+        {'id': 'old-1', 'alt': 'published front', 'width': 3, 'height': 2},
+        {'id': 'old-2', 'alt': 'back', 'width': 2, 'height': 3},
+      ]);
+    },
+    skip: !subscriptionsEnabled,
+  );
 
   testWidgets(
     'IT-021 delayed media is discarded after account activation changes',
@@ -1063,6 +1095,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            ..._paidAccessOverrides,
             secureSessionRegistryStorageProvider.overrideWithValue(
               _RegistryStorage(aliceRegistry),
             ),
@@ -1137,6 +1170,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            ..._paidAccessOverrides,
             secureSessionRegistryStorageProvider.overrideWithValue(
               _RegistryStorage(aliceRegistry),
             ),
@@ -1199,6 +1233,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          ..._paidAccessOverrides,
           secureSessionRegistryStorageProvider.overrideWithValue(
             _RegistryStorage(registry),
           ),
@@ -1239,65 +1274,70 @@ void main() {
     );
   });
 
-  testWidgets('AT-007 Post now preserves facets when text is unchanged', (
-    tester,
-  ) async {
-    final registry = SessionRegistry.empty().upsertAndActivate(
-      token: 'alice-token',
-      did: 'did:plc:alice',
-      handle: 'alice.test',
-    );
-    final account = registry.activeLease!.session.account;
-    final repository = _ScheduledRepository(
-      _pngBytes(width: 1, height: 1),
-      detail: _scheduledFacetedDetail,
-    );
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          secureSessionRegistryStorageProvider.overrideWithValue(
-            _RegistryStorage(registry),
-          ),
-          activeLanguagePreferencesProvider.overrideWith(
-            (ref) => const LanguagePreferences(
-              primaryLanguage: 'en',
-              contentLanguages: ['en'],
+  testWidgets(
+    'AT-007 Post now preserves facets when text is unchanged',
+    (
+      tester,
+    ) async {
+      final registry = SessionRegistry.empty().upsertAndActivate(
+        token: 'alice-token',
+        did: 'did:plc:alice',
+        handle: 'alice.test',
+      );
+      final account = registry.activeLease!.session.account;
+      final repository = _ScheduledRepository(
+        _pngBytes(width: 1, height: 1),
+        detail: _scheduledFacetedDetail,
+      );
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            ..._paidAccessOverrides,
+            secureSessionRegistryStorageProvider.overrideWithValue(
+              _RegistryStorage(registry),
             ),
-          ),
-          facetGeneratorProvider.overrideWithValue(
-            const FacetGenerator(mentionResolver: _EmptyMentionResolver()),
-          ),
-          accountScheduledPostRepositoryProvider(
-            account,
-          ).overrideWith((ref) async => repository),
-        ],
-        child: MessengerScope(
-          messenger: RecordingMessenger(),
-          child: MaterialApp(
-            theme: _testTheme,
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
-            supportedLocales: AppLocalizations.supportedLocales,
-            home: PostComposerSheet(
-              composerId: 'scheduled-facet-publish',
-              scheduledPost: _scheduledFacetedDetail,
+            activeLanguagePreferencesProvider.overrideWith(
+              (ref) => const LanguagePreferences(
+                primaryLanguage: 'en',
+                contentLanguages: ['en'],
+              ),
+            ),
+            facetGeneratorProvider.overrideWithValue(
+              const FacetGenerator(mentionResolver: _EmptyMentionResolver()),
+            ),
+            accountScheduledPostRepositoryProvider(
+              account,
+            ).overrideWith((ref) async => repository),
+          ],
+          child: MessengerScope(
+            messenger: RecordingMessenger(),
+            child: MaterialApp(
+              theme: _testTheme,
+              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
+              home: PostComposerSheet(
+                composerId: 'scheduled-facet-publish',
+                scheduledPost: _scheduledFacetedDetail,
+              ),
             ),
           ),
         ),
-      ),
-    );
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('composer-schedule-control')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Now').last);
-    await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(ChunkyButton, 'Post'));
-    await tester.pumpAndSettle();
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('composer-schedule-control')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Now').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(ChunkyButton, 'Post'));
+      await tester.pumpAndSettle();
 
-    expect(
-      repository.publishedPayload?['facets'],
-      _scheduledFacetedDetail.payload['facets'],
-    );
-  });
+      expect(
+        repository.publishedPayload?['facets'],
+        _scheduledFacetedDetail.payload['facets'],
+      );
+    },
+    skip: !subscriptionsEnabled,
+  );
 
   testWidgets('AT-007 project editor retains its slot at full capacity', (
     tester,
@@ -1315,6 +1355,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          ..._paidAccessOverrides,
           secureSessionRegistryStorageProvider.overrideWithValue(
             _RegistryStorage(registry),
           ),
@@ -1417,6 +1458,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            ..._paidAccessOverrides,
             secureSessionRegistryStorageProvider.overrideWithValue(
               _RegistryStorage(registry),
             ),

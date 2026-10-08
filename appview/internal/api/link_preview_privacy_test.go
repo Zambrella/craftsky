@@ -141,8 +141,13 @@ func TestIR024RealLinkPreviewLifecycleExcludesCanariesFromApplicableSinks(t *tes
 		t.Fatalf("expected local logs, metrics, and Sentry trace/error events; captured=%s", captured)
 	}
 	collector.assertSentryErrorAndTransaction(t)
-	if len(collector.externalLogs.events) != 0 {
-		t.Fatalf("link-preview lifecycle unexpectedly emitted external logs: %s", collector.externalLogs.String())
+	if len(collector.externalLogs.events) != 2 {
+		t.Fatalf("expected two generic operational 5xx logs: %s", collector.externalLogs.String())
+	}
+	for _, event := range collector.externalLogs.events {
+		if event["operation"] != "http.server" || event["error_category"] != "server" {
+			t.Fatalf("preview activity entered exported context: %#v", event)
+		}
 	}
 }
 

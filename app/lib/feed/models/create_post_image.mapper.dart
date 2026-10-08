@@ -70,6 +70,7 @@ class CreatePostImageMapper extends ClassMapperBase<CreatePostImage> {
     return ensureInitialized().decodeJson<CreatePostImage>(json);
   }
 }
+
 mixin CreatePostImageMappable {
   String toJson() {
     return CreatePostImageMapper.ensureInitialized()
@@ -111,6 +112,7 @@ mixin CreatePostImageMappable {
     );
   }
 }
+
 extension CreatePostImageValueCopy<$R, $Out>
     on ObjectCopyWith<$R, CreatePostImage, $Out> {
   CreatePostImageCopyWith<$R, CreatePostImage, $Out> get $asCreatePostImage =>

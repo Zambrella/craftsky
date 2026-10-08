@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/bluesky-social/indigo/atproto/atclient"
 	"log/slog"
 	"strings"
 	"testing"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/getsentry/sentry-go"
+	"github.com/jackc/pgx/v5/pgconn"
 	"social.craftsky/appview/internal/auth"
 	"social.craftsky/appview/internal/ownerlifecycle"
 )
@@ -24,6 +26,7 @@ type fakePDSClient struct {
 
 type fakeListPDSClient struct {
 	fakePDSClient
+	listErr error
 	records []auth.PDSRecord
 	cursor  string
 }
@@ -119,7 +122,7 @@ func (f *fakeEffectPDSClient) WithActiveEffects(
 }
 
 func (f fakeListPDSClient) ListRecords(context.Context, syntax.DID, string, string, int) ([]auth.PDSRecord, string, error) {
-	return f.records, f.cursor, nil
+	return f.records, f.cursor, f.listErr
 }
 
 func TestWrapPDSFactoryPreservesRecordListingCapability(t *testing.T) {
@@ -379,11 +382,11 @@ func TestWrapPDSFactoryEmitsLogsSpansAndSentryForUnexpectedFailures(t *testing.T
 		return fakePDSClient{createErr: pdsErr}, nil
 	})
 
-	client, err := wrappedFactory(context.Background(), syntax.DID("did:plc:writer"), "session-secret")
+	client, err := wrappedFactory(WithRequestDiagnosticContext(context.Background(), RequestDiagnosticContext{PublicTargets: true}), syntax.DID("did:plc:writer"), "session-secret")
 	if err != nil {
 		t.Fatalf("wrapped factory: %v", err)
 	}
-	_, _, _ = client.CreateRecord(context.Background(), syntax.DID("did:plc:writer"), "social.craftsky.feed.post", map[string]any{"text": "secret body"})
+	_, _, _ = client.CreateRecord(WithRequestDiagnosticContext(context.Background(), RequestDiagnosticContext{PublicTargets: true}), syntax.DID("did:plc:writer"), "social.craftsky.feed.post", map[string]any{"text": "secret body"})
 
 	logged := logs.String()
 	for _, want := range []string{
@@ -398,7 +401,10 @@ func TestWrapPDSFactoryEmitsLogsSpansAndSentryForUnexpectedFailures(t *testing.T
 			t.Fatalf("PDS logs missing %q:\n%s", want, logged)
 		}
 	}
-	for _, forbidden := range []string{"did:plc:writer", "session-secret", "secret body"} {
+	if !strings.Contains(logged, "did:plc:writer") {
+		t.Fatal("public repository missing")
+	}
+	for _, forbidden := range []string{"session-secret", "secret body"} {
 		if strings.Contains(logged, forbidden) {
 			t.Fatalf("PDS logs contain sensitive value %q:\n%s", forbidden, logged)
 		}
@@ -430,10 +436,10 @@ func TestWrapPDSFactoryEmitsLogsSpansAndSentryForUnexpectedFailures(t *testing.T
 			t.Fatalf("Sentry tag %q = %q, want %q; all tags=%#v", key, tags[key], want, tags)
 		}
 	}
-	if tags["sentry_trace_id"] == "" || tags["sentry_span_id"] == "" {
+	if errorEvents[0].Contexts["correlation"]["sentry_trace_id"] == "" || errorEvents[0].Contexts["correlation"]["sentry_span_id"] == "" {
 		t.Fatalf("Sentry event missing trace/span IDs: %#v", tags)
 	}
-	for _, forbidden := range []string{"did:plc:writer", "session-secret", "secret body"} {
+	for _, forbidden := range []string{"session-secret", "secret body"} {
 		if strings.Contains(errorEvents[0].Message, forbidden) {
 			t.Fatalf("Sentry message contains forbidden value %q: %#v", forbidden, errorEvents[0])
 		}
@@ -516,5 +522,85 @@ func TestWrapPDSFactoryInstrumentsProfileReadBeforeWriteFailures(t *testing.T) {
 				t.Fatalf("Sentry tag contains forbidden value %q: %q=%q", forbidden, key, value)
 			}
 		}
+	}
+}
+
+func TestPDSCompletionDiagnosticRetainsCauseInLocalLog(t *testing.T) {
+	var local bytes.Buffer
+	observer := New(Config{Env: "test", Logger: slog.New(slog.NewJSONHandler(&local, nil))})
+	cause := &pgconn.PgError{Code: "40001", Message: "opaque private provider canary"}
+	factory := observer.WrapPDSFactory(func(context.Context, syntax.DID, string) (auth.PDSClient, error) {
+		return &fakePDSClient{createErr: cause}, nil
+	})
+	client, err := factory(WithRequestDiagnosticContext(context.Background(), RequestDiagnosticContext{PublicTargets: true}), syntax.DID("did:plc:actor"), "credential-canary")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _, err = client.CreateRecord(WithRequestDiagnosticContext(context.Background(), RequestDiagnosticContext{PublicTargets: true}), syntax.DID("did:plc:actor"), "social.craftsky.feed.post", map[string]any{"text": "opaque private draft canary"})
+	if err != cause {
+		t.Fatal("business error changed")
+	}
+	for _, want := range []string{"pgconn.PgError", "40001", "post.create", "did:plc:actor", "social.craftsky.feed.post"} {
+		if !strings.Contains(local.String(), want) {
+			t.Fatalf("missing %s: %s", want, local.String())
+		}
+	}
+	for _, value := range []string{"opaque private provider canary", "opaque private draft canary", "credential-canary"} {
+		if strings.Contains(local.String(), value) {
+			t.Fatal("protected value leaked")
+		}
+	}
+}
+
+func TestPDSFailureRetainsApprovedHTTPStatus(t *testing.T) {
+	var local bytes.Buffer
+	transport := &sentry.MockTransport{}
+	observer := New(Config{Env: "test", Logger: slog.New(slog.NewJSONHandler(&local, nil)), SentryDSN: "https://public@example.invalid/1", SentryTransport: transport})
+	cause := &atclient.APIError{StatusCode: 502, Message: "private provider response canary"}
+	factory := observer.WrapPDSFactory(func(context.Context, syntax.DID, string) (auth.PDSClient, error) {
+		return fakePDSClient{createErr: cause}, nil
+	})
+	client, err := factory(context.Background(), "did:plc:actor", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _, err = client.CreateRecord(context.Background(), "did:plc:actor", "social.craftsky.feed.post", nil)
+	if err != cause {
+		t.Fatal("business cause changed")
+	}
+	observer.Flush(time.Second)
+	data, _ := json.Marshal(transport.Events())
+	for _, want := range []string{"atclient.APIError", "HTTP 502"} {
+		if !strings.Contains(local.String(), want) || !strings.Contains(string(data), want) {
+			t.Fatalf("missing %s: %s %s", want, local.String(), data)
+		}
+	}
+	if strings.Contains(local.String()+string(data), "private provider response canary") {
+		t.Fatal("provider prose leaked")
+	}
+}
+
+func TestIT006DirectPDSListRetainsCauseAndPublicReferences(t *testing.T) {
+	var output bytes.Buffer
+	cause := &pgconn.PgError{Code: "08006", Message: "PRIVATE_PROVIDER_BODY"}
+	observer := New(Config{Logger: slog.New(slog.NewJSONHandler(&output, nil))})
+	factory := observer.WrapPDSFactory(func(context.Context, syntax.DID, string) (auth.PDSClient, error) {
+		return fakeListPDSClient{listErr: cause}, nil
+	})
+	client, err := factory(WithRequestDiagnosticContext(context.Background(), RequestDiagnosticContext{PublicTargets: true}), syntax.DID("did:plc:actor"), "PRIVATE_SESSION")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _, err = client.(auth.PDSRecordLister).ListRecords(WithRequestDiagnosticContext(context.Background(), RequestDiagnosticContext{PublicTargets: true}), syntax.DID("did:plc:target"), "social.craftsky.feed.post", "PRIVATE_CURSOR", 50)
+	if !errors.Is(err, cause) {
+		t.Fatal("listing outcome changed")
+	}
+	for _, field := range []string{"08006", "did:plc:target", "social.craftsky.feed.post"} {
+		if !strings.Contains(output.String(), field) {
+			t.Errorf("missing %s: %s", field, output.String())
+		}
+	}
+	if strings.Contains(output.String(), "PRIVATE_") {
+		t.Fatal("private listing values leaked")
 	}
 }

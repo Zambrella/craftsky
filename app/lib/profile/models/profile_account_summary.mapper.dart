@@ -66,6 +66,13 @@ class ProfileAccountSummaryMapper
     _$avatar,
     opt: true,
   );
+  static List<String> _$crafts(ProfileAccountSummary v) => v.crafts;
+  static const Field<ProfileAccountSummary, List<String>> _f$crafts = Field(
+    'crafts',
+    _$crafts,
+    opt: true,
+    def: const [],
+  );
   static bool _$muted(ProfileAccountSummary v) => v.muted;
   static const Field<ProfileAccountSummary, bool> _f$muted = Field(
     'muted',
@@ -105,6 +112,7 @@ class ProfileAccountSummaryMapper
     #displayName: _f$displayName,
     #description: _f$description,
     #avatar: _f$avatar,
+    #crafts: _f$crafts,
     #muted: _f$muted,
     #blocking: _f$blocking,
     #blockedBy: _f$blockedBy,
@@ -119,6 +127,7 @@ class ProfileAccountSummaryMapper
       displayName: data.dec(_f$displayName),
       description: data.dec(_f$description),
       avatar: data.dec(_f$avatar),
+      crafts: data.dec(_f$crafts),
       muted: data.dec(_f$muted),
       blocking: data.dec(_f$blocking),
       blockedBy: data.dec(_f$blockedBy),
@@ -196,6 +205,7 @@ abstract class ProfileAccountSummaryCopyWith<
   $Out
 >
     implements ClassCopyWith<$R, $In, $Out> {
+  ListCopyWith<$R, String, ObjectCopyWith<$R, String, String>> get crafts;
   $R call({
     String? did,
     String? handle,
@@ -203,6 +213,7 @@ abstract class ProfileAccountSummaryCopyWith<
     String? displayName,
     String? description,
     String? avatar,
+    List<String>? crafts,
     bool? muted,
     bool? blocking,
     bool? blockedBy,
@@ -222,6 +233,13 @@ class _ProfileAccountSummaryCopyWithImpl<$R, $Out>
   late final ClassMapperBase<ProfileAccountSummary> $mapper =
       ProfileAccountSummaryMapper.ensureInitialized();
   @override
+  ListCopyWith<$R, String, ObjectCopyWith<$R, String, String>> get crafts =>
+      ListCopyWith(
+        $value.crafts,
+        (v, t) => ObjectCopyWith(v, $identity, t),
+        (v) => call(crafts: v),
+      );
+  @override
   $R call({
     String? did,
     String? handle,
@@ -229,6 +247,7 @@ class _ProfileAccountSummaryCopyWithImpl<$R, $Out>
     Object? displayName = $none,
     Object? description = $none,
     Object? avatar = $none,
+    List<String>? crafts,
     bool? muted,
     bool? blocking,
     bool? blockedBy,
@@ -241,6 +260,7 @@ class _ProfileAccountSummaryCopyWithImpl<$R, $Out>
       if (displayName != $none) #displayName: displayName,
       if (description != $none) #description: description,
       if (avatar != $none) #avatar: avatar,
+      if (crafts != null) #crafts: crafts,
       if (muted != null) #muted: muted,
       if (blocking != null) #blocking: blocking,
       if (blockedBy != null) #blockedBy: blockedBy,
@@ -258,6 +278,7 @@ class _ProfileAccountSummaryCopyWithImpl<$R, $Out>
     displayName: data.get(#displayName, or: $value.displayName),
     description: data.get(#description, or: $value.description),
     avatar: data.get(#avatar, or: $value.avatar),
+    crafts: data.get(#crafts, or: $value.crafts),
     muted: data.get(#muted, or: $value.muted),
     blocking: data.get(#blocking, or: $value.blocking),
     blockedBy: data.get(#blockedBy, or: $value.blockedBy),

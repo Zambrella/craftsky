@@ -64,7 +64,11 @@ func businessEventModerationMigrationDDL(t *testing.T) string {
 }
 
 func TestBusinessEventReportPersistsExactRecordSnapshot(t *testing.T) {
-	pool := testdb.WithSchema(t, moderationStoreDDL(t)+businessEventModerationDDL+businessEventModerationMigrationDDL(t))
+	subscriptionMigration, err := testdb.ReadMigration("000076_subscription_accounts.up.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	pool := testdb.WithSchema(t, moderationStoreDDL(t)+businessEventModerationDDL+businessEventModerationMigrationDDL(t)+string(subscriptionMigration))
 	ctx := context.Background()
 	reporter := syntax.DID("did:plc:event-reporter")
 	owner := syntax.DID("did:plc:event-owner")
@@ -89,6 +93,7 @@ func TestBusinessEventReportPersistsExactRecordSnapshot(t *testing.T) {
 	if _, err := pool.Exec(ctx, `INSERT INTO craftsky_account_types(owner_did, account_type) VALUES ($1, 'business')`, owner); err != nil {
 		t.Fatalf("seed owner type: %v", err)
 	}
+	seedBusinessTestLicense(t, pool, owner)
 	seedModerationBusinessEvent(t, pool, owner, rkey, cid, asOf.Add(time.Hour), asOf.Add(2*time.Hour))
 
 	reports := api.NewReportStore(pool)
@@ -140,7 +145,11 @@ func TestBusinessEventReportPersistsExactRecordSnapshot(t *testing.T) {
 }
 
 func TestBusinessEventModerationHideAndNegateAreURIScoped(t *testing.T) {
-	pool := testdb.WithSchema(t, moderationStoreDDL(t)+businessEventModerationDDL+businessEventModerationMigrationDDL(t))
+	subscriptionMigration, err := testdb.ReadMigration("000076_subscription_accounts.up.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	pool := testdb.WithSchema(t, moderationStoreDDL(t)+businessEventModerationDDL+businessEventModerationMigrationDDL(t)+string(subscriptionMigration))
 	ctx := context.Background()
 	owner := syntax.DID("did:plc:event-owner")
 	visitor := syntax.DID("did:plc:event-visitor")
@@ -162,6 +171,7 @@ func TestBusinessEventModerationHideAndNegateAreURIScoped(t *testing.T) {
 	if _, err := pool.Exec(ctx, `INSERT INTO craftsky_account_types(owner_did, account_type) VALUES ($1, 'business')`, owner); err != nil {
 		t.Fatalf("seed owner type: %v", err)
 	}
+	seedBusinessTestLicense(t, pool, owner)
 	firstRkey := syntax.RecordKey("3msmoderateaa")
 	secondRkey := syntax.RecordKey("3msmoderateab")
 	firstURI := seedModerationBusinessEvent(t, pool, owner, firstRkey, "bafyreieventone", asOf.Add(time.Hour), asOf.Add(2*time.Hour))

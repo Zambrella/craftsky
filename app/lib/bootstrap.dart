@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:craftsky_app/app.dart';
 import 'package:craftsky_app/app_dependencies.dart';
+import 'package:craftsky_app/auth/models/account_key.dart';
+import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/auth/models/pending_auth.dart';
 import 'package:craftsky_app/business/models/business_event.dart';
 import 'package:craftsky_app/business/models/business_profile.dart';
@@ -56,8 +58,16 @@ import 'package:craftsky_app/shared/api/providers/dio_provider.dart';
 import 'package:craftsky_app/shared/device/device_id_provider.dart';
 import 'package:craftsky_app/shared/errors/app_error.dart';
 import 'package:craftsky_app/shared/errors/app_error_mapper.dart';
+import 'package:craftsky_app/shared/observability/diagnostic_emitter.dart';
+import 'package:craftsky_app/shared/observability/diagnostic_outcome.dart';
 import 'package:craftsky_app/shared/observability/error_reporter.dart';
 import 'package:craftsky_app/shared/rich_text/data/facet_suggestion_repository.dart';
+import 'package:craftsky_app/subscriptions/models/billing_state.dart';
+import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
+import 'package:craftsky_app/subscriptions/providers/revenuecat_service_provider.dart';
+import 'package:craftsky_app/subscriptions/services/revenuecat_bootstrap.dart';
+import 'package:craftsky_app/subscriptions/services/revenuecat_service_native.dart';
+import 'package:craftsky_app/subscriptions/subscription_build_config.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -109,37 +119,52 @@ final class ProviderLogger extends ProviderObserver {
     Object error,
     StackTrace stackTrace,
   ) {
-    _log.warning(
-      'provider failed: '
-      'provider=${_providerFeature(context.provider.name)}, '
-      'mutation=${context.mutation?.runtimeType}',
-    );
-
+    final accountDid = switch (context.provider.argument) {
+      ActiveAccountLease(:final session) => session.account.did,
+      AccountSessionLease(:final account) => account.did,
+      AccountKey(:final did) => did,
+      _ => null,
+    };
+    final workflow = accountDid == null
+        ? null
+        : PublicRecordContext(actorDid: accountDid);
     final appError = AppErrorMapper.map(
       error,
       fallbackKind: AppErrorKind.backgroundLoadFailed,
       source: 'provider',
       fallbackClassification: 'provider.failed',
     );
-    if (!appError.reportable) return;
-
-    final providerName = _providerFeature(context.provider.name);
-    unawaited(
-      reporter.captureException(
-        const RedactedProviderFailure(),
-        stackTrace: stackTrace,
-        context: ReportContext(
-          feature: providerName,
+    final diagnosticContext =
+        failureDiagnosticContext(error) ??
+        ReportContext(
+          feature: _providerFeature(context.provider.name),
           operation: 'provider',
           classification: appError.sentryClassification,
           severity: appError.metadata.severity.name,
           safeDiagnostics: {
             ...appError.safeDiagnostics,
             'appErrorKind': appError.kind.name,
-            'feature': providerName,
-            'classification': appError.sentryClassification,
+            'failureStage': 'provider',
           },
-        ),
+          workflow: workflow,
+        );
+    _log.warning(
+      DiagnosticMessage(
+        'provider failed',
+        context: diagnosticContext,
+      ),
+      error,
+      stackTrace,
+    );
+    if (isExpectedDiagnostic(error, diagnosticContext)) {
+      return;
+    }
+
+    unawaited(
+      reporter.captureException(
+        error,
+        stackTrace: stackTrace,
+        context: diagnosticContext,
       ),
     );
   }
@@ -205,6 +230,23 @@ Future<void> bootstrap(
   usePathUrlStrategy();
 
   final businessTimeZones = BusinessTimeZoneService.initialized();
+  final revenueCatService = await bootstrapRevenueCat(
+    platform: _revenueCatPlatform(),
+    iosPublicKey: subscriptionsEnabled
+        ? const String.fromEnvironment('REVENUECAT_IOS_PUBLIC_KEY')
+        : '',
+    androidPublicKey: subscriptionsEnabled
+        ? const String.fromEnvironment('REVENUECAT_ANDROID_PUBLIC_KEY')
+        : '',
+    testStorePublicKey: subscriptionsEnabled
+        ? const String.fromEnvironment('REVENUECAT_TEST_STORE_PUBLIC_KEY')
+        : '',
+    useTestStore:
+        subscriptionsEnabled &&
+        const bool.fromEnvironment('REVENUECAT_USE_TEST_STORE'),
+    isDebug: kDebugMode,
+    configurator: const NativeRevenueCatConfigurator(),
+  );
 
   if (kIsWeb) {
     _log.fine('web detected, skipping native init');
@@ -214,6 +256,7 @@ Future<void> bootstrap(
         retry: appProviderRetry,
         overrides: [
           businessTimeZoneServiceProvider.overrideWithValue(businessTimeZones),
+          revenueCatServiceProvider.overrideWithValue(revenueCatService),
         ],
         child: const App(),
       ),
@@ -275,10 +318,23 @@ Future<void> bootstrap(
       overrides: [
         notificationServiceProvider.overrideWithValue(notificationService),
         businessTimeZoneServiceProvider.overrideWithValue(businessTimeZones),
+        revenueCatServiceProvider.overrideWithValue(revenueCatService),
       ],
       child: const App(),
     ),
   );
+}
+
+RevenueCatPlatform _revenueCatPlatform() {
+  if (kIsWeb) return RevenueCatPlatform.web;
+  return switch (defaultTargetPlatform) {
+    TargetPlatform.iOS => RevenueCatPlatform.ios,
+    TargetPlatform.android => RevenueCatPlatform.android,
+    TargetPlatform.macOS => RevenueCatPlatform.macos,
+    TargetPlatform.windows => RevenueCatPlatform.windows,
+    TargetPlatform.linux => RevenueCatPlatform.linux,
+    TargetPlatform.fuchsia => RevenueCatPlatform.linux,
+  };
 }
 
 /// Initialize all `dart_mappable` mappers here as models are added.
@@ -354,4 +410,7 @@ void initializeMappers() {
   TopHashtagItemMapper.ensureInitialized();
   AccountSuggestionMapper.ensureInitialized();
   HashtagSuggestionMapper.ensureInitialized();
+  SubscriptionAccessMapper.ensureInitialized();
+  BillingStateMapper.ensureInitialized();
+  BillingAssignmentMapper.ensureInitialized();
 }

@@ -3,6 +3,7 @@ package scheduledposts
 import (
 	"context"
 	"fmt"
+	"github.com/bluesky-social/indigo/atproto/syntax"
 	"time"
 )
 
@@ -12,6 +13,14 @@ type OperationalObserver interface {
 	ObserveScheduledPublication(attempt int, startLatency, duration time.Duration)
 	ObserveScheduledCleanupQueue(pending int, oldestAge time.Duration)
 }
+
+// Optional diagnostic adapter preserves existing metrics-only observers.
+type privateFailureObserver interface {
+	ObservePrivateFailure(context.Context, error, syntax.DID, string, string, string, string, int)
+}
+type publicationAttemptKey struct{}
+type publicationDiagnosticCauseKey struct{}
+type publicationStageKey struct{}
 
 type ScheduledQueueSnapshot struct {
 	StatusCounts map[Status]int

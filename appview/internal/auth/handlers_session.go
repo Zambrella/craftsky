@@ -101,21 +101,21 @@ func (h *HTTPHandlers) LoginHandler() http.Handler {
 		if err != nil {
 			if errors.Is(err, ErrOAuthOwnerIneligible) {
 				h.Logger.Warn("login rejected for ineligible account",
-					authLogErrorAttrs(runID, "login.start", "account_state")...)
+					authLogErrorAttrs(r.Context(), runID, "login.start", "account_state", err)...)
 				envelope.WriteError(w, http.StatusConflict, "account_unavailable",
 					"this account cannot start an ordinary sign-in", runID, nil)
 				return
 			}
 			if errors.Is(err, ErrAuthRequestCapacity) {
 				h.Logger.Warn("login rejected by pending authentication capacity",
-					authLogErrorAttrs(runID, "login.start", "capacity")...)
+					authLogErrorAttrs(r.Context(), runID, "login.start", "capacity", err)...)
 				w.Header().Set("Retry-After", "5")
 				envelope.WriteError(w, http.StatusServiceUnavailable, "authentication_capacity_exhausted",
 					"authentication is temporarily unavailable", runID, nil)
 				return
 			}
 			h.Logger.Warn("StartAuthFlow failed",
-				authLogErrorAttrs(runID, "login.start", "authorization_server")...)
+				authLogErrorAttrs(r.Context(), runID, "login.start", "authorization_server", err)...)
 			envelope.WriteError(w, http.StatusBadGateway, "authorization_server_unavailable",
 				"could not reach the authorization server",
 				runID, nil)
@@ -181,7 +181,7 @@ func (h *HTTPHandlers) RegistrationHandler() http.Handler {
 			if errors.Is(err, ErrAuthRequestCapacity) {
 				if h.Logger != nil {
 					h.Logger.Warn("registration start rejected",
-						append(authLogErrorAttrs(runID, "registration.start", "capacity"),
+						append(authLogErrorAttrs(r.Context(), runID, "registration.start", "capacity", err),
 							slog.String("stage", "admission"))...)
 				}
 				w.Header().Set("Retry-After", "5")
@@ -198,7 +198,7 @@ func (h *HTTPHandlers) RegistrationHandler() http.Handler {
 					category = string(registrationFailure.Code)
 				}
 				h.Logger.Warn("registration start failed",
-					append(authLogErrorAttrs(runID, "registration.start", category),
+					append(authLogErrorAttrs(r.Context(), runID, "registration.start", category, err),
 						slog.String("stage", stage))...)
 			}
 			if errors.As(err, &registrationFailure) && registrationFailure.Code == RegistrationOAuthIncomplete {
@@ -275,7 +275,7 @@ func (h *HTTPHandlers) LogoutHandler() http.Handler {
 		}
 		if err != nil && !errors.Is(err, ErrCraftskySessionNotFound) {
 			h.Logger.Error("logout local invalidation failed",
-				append(authLogErrorAttrs(runID, "logout", "store"), slog.Bool("all", all))...)
+				append(authLogErrorAttrs(r.Context(), runID, "logout", "store", err), slog.Bool("all", all))...)
 			w.Header().Set("Retry-After", "5")
 			envelope.WriteError(w, http.StatusServiceUnavailable, "logout_unavailable", "logout is temporarily unavailable", runID, nil)
 			return

@@ -6,11 +6,9 @@ import 'package:craftsky_app/auth/models/auth_state.dart';
 import 'package:craftsky_app/auth/pages/auth_complete_page.dart';
 import 'package:craftsky_app/auth/pages/sign_in_page.dart';
 import 'package:craftsky_app/auth/pages/welcome_page.dart';
-import 'package:craftsky_app/auth/providers/active_account_identity_provider.dart';
 import 'package:craftsky_app/auth/providers/active_account_initialization_provider.dart';
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
-import 'package:craftsky_app/business/models/business_profile.dart';
 import 'package:craftsky_app/business/pages/event_detail_page.dart';
 import 'package:craftsky_app/business/pages/events_settings_page.dart';
 import 'package:craftsky_app/business/pages/products_settings_page.dart';
@@ -54,6 +52,10 @@ import 'package:craftsky_app/settings/pages/profile_customisation_page.dart';
 import 'package:craftsky_app/settings/pages/relationship_list_page.dart';
 import 'package:craftsky_app/settings/pages/settings_page.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
+import 'package:craftsky_app/shared/observability/sentry_error_reporter.dart';
+import 'package:craftsky_app/subscriptions/pages/subscription_page.dart';
+import 'package:craftsky_app/subscriptions/providers/subscription_access_provider.dart';
+import 'package:craftsky_app/subscriptions/subscription_build_config.dart';
 import 'package:dart_mappable/dart_mappable.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -118,6 +120,7 @@ GoRouter goRouter(Ref ref) {
   return GoRouter(
     initialLocation: RouteLocations.welcome,
     navigatorKey: _NavigatorKeys.rootNavigatorKey,
+    observers: [diagnosticNavigationObserver()],
     refreshListenable: refresh,
     redirect: (context, state) {
       final loc = state.matchedLocation;
@@ -163,6 +166,9 @@ GoRouter goRouter(Ref ref) {
               (unauthenticatedRoutes.contains(loc) ||
                   loc == RouteLocations.onboarding)) {
             return RouteLocations.home;
+          }
+          if (!subscriptionsEnabled && loc == RouteLocations.subscriptions) {
+            return RouteLocations.settings;
           }
           return null;
       }
@@ -295,6 +301,10 @@ class AccountEligibilityRoute extends GoRouteData
                       path: RouteLocations.accountChild,
                       name: 'settings-account',
                     ),
+                    TypedGoRoute<SubscriptionsRoute>(
+                      path: RouteLocations.subscriptionsChild,
+                      name: 'settings-subscriptions',
+                    ),
                     TypedGoRoute<AccountStandingRoute>(
                       path: RouteLocations.moderationChild,
                       name: 'account-standing',
@@ -337,24 +347,6 @@ class AccountEligibilityRoute extends GoRouteData
                     ),
                   ],
                 ),
-                TypedGoRoute<ScheduledPostsRoute>(
-                  path: RouteLocations.scheduledPostsChild,
-                  name: 'scheduled-posts',
-                ),
-                TypedGoRoute<DraftsRoute>(
-                  path: RouteLocations.draftsChild,
-                  name: 'drafts',
-                ),
-                TypedGoRoute<SavedPostsRoute>(
-                  path: RouteLocations.savedPostsChild,
-                  name: 'saved-posts',
-                  routes: [
-                    TypedGoRoute<SavedPostFolderRoute>(
-                      path: RouteLocations.savedPostFolderChild,
-                      name: 'saved-post-folder',
-                    ),
-                  ],
-                ),
                 TypedGoRoute<PlaygroundRoute>(
                   path: RouteLocations.playgroundChild,
                   name: 'playground',
@@ -362,6 +354,21 @@ class AccountEligibilityRoute extends GoRouteData
               ],
             ),
           ],
+        ),
+      ],
+    ),
+    TypedGoRoute<ScheduledPostsRoute>(
+      path: RouteLocations.scheduledPosts,
+      name: 'scheduled-posts',
+    ),
+    TypedGoRoute<DraftsRoute>(path: RouteLocations.drafts, name: 'drafts'),
+    TypedGoRoute<SavedPostsRoute>(
+      path: RouteLocations.savedPosts,
+      name: 'saved-posts',
+      routes: [
+        TypedGoRoute<SavedPostFolderRoute>(
+          path: RouteLocations.savedPostFolderChild,
+          name: 'saved-post-folder',
         ),
       ],
     ),
@@ -399,6 +406,9 @@ class AccountEligibilityRoute extends GoRouteData
 )
 class AuthenticatedShellRoute extends ShellRouteData {
   const AuthenticatedShellRoute();
+  static List<NavigatorObserver> get $observers => [
+    diagnosticNavigationObserver(),
+  ];
 
   static final GlobalKey<NavigatorState> $navigatorKey =
       _NavigatorKeys.authenticatedShellNavigatorKey;
@@ -424,30 +434,45 @@ class AppShellRoute extends StatefulShellRouteData {
 
 class FeedBranch extends StatefulShellBranchData {
   const FeedBranch();
+  static List<NavigatorObserver> get $observers => [
+    diagnosticNavigationObserver(),
+  ];
   static final GlobalKey<NavigatorState> $navigatorKey =
       _NavigatorKeys.feedNavigatorKey;
 }
 
 class SearchBranch extends StatefulShellBranchData {
   const SearchBranch();
+  static List<NavigatorObserver> get $observers => [
+    diagnosticNavigationObserver(),
+  ];
   static final GlobalKey<NavigatorState> $navigatorKey =
       _NavigatorKeys.searchNavigatorKey;
 }
 
 class ProjectsBranch extends StatefulShellBranchData {
   const ProjectsBranch();
+  static List<NavigatorObserver> get $observers => [
+    diagnosticNavigationObserver(),
+  ];
   static final GlobalKey<NavigatorState> $navigatorKey =
       _NavigatorKeys.projectsNavigatorKey;
 }
 
 class NotificationsBranch extends StatefulShellBranchData {
   const NotificationsBranch();
+  static List<NavigatorObserver> get $observers => [
+    diagnosticNavigationObserver(),
+  ];
   static final GlobalKey<NavigatorState> $navigatorKey =
       _NavigatorKeys.notificationsNavigatorKey;
 }
 
 class ProfileBranch extends StatefulShellBranchData {
   const ProfileBranch();
+  static List<NavigatorObserver> get $observers => [
+    diagnosticNavigationObserver(),
+  ];
   static final GlobalKey<NavigatorState> $navigatorKey =
       _NavigatorKeys.profileNavigatorKey;
 }
@@ -583,6 +608,17 @@ class AccountRoute extends GoRouteData with $AccountRoute {
       const AccountPage();
 }
 
+class SubscriptionsRoute extends GoRouteData with $SubscriptionsRoute {
+  const SubscriptionsRoute();
+
+  static final GlobalKey<NavigatorState> $parentNavigatorKey =
+      _NavigatorKeys.authenticatedShellNavigatorKey;
+
+  @override
+  Widget build(BuildContext context, GoRouterState state) =>
+      const SubscriptionPage();
+}
+
 class AccountStandingRoute extends GoRouteData with $AccountStandingRoute {
   const AccountStandingRoute();
 
@@ -611,18 +647,8 @@ class BusinessProductsRoute extends GoRouteData with $BusinessProductsRoute {
       _NavigatorKeys.authenticatedShellNavigatorKey;
 
   @override
-  FutureOr<String?> redirect(BuildContext context, GoRouterState state) async {
-    try {
-      final identity = await ProviderScope.containerOf(
-        context,
-      ).read(activeAccountIdentityProvider.future);
-      return identity?.profile.accountType == AccountType.business
-          ? null
-          : const SettingsRoute().location;
-    } on Object {
-      return const SettingsRoute().location;
-    }
-  }
+  FutureOr<String?> redirect(BuildContext context, GoRouterState state) =>
+      _businessOwnerRouteRedirect(context);
 
   @override
   Widget build(BuildContext context, GoRouterState state) =>
@@ -636,22 +662,29 @@ class BusinessEventsRoute extends GoRouteData with $BusinessEventsRoute {
       _NavigatorKeys.authenticatedShellNavigatorKey;
 
   @override
-  FutureOr<String?> redirect(BuildContext context, GoRouterState state) async {
-    try {
-      final identity = await ProviderScope.containerOf(
-        context,
-      ).read(activeAccountIdentityProvider.future);
-      return identity?.profile.accountType == AccountType.business
-          ? null
-          : const SettingsRoute().location;
-    } on Object {
-      return const SettingsRoute().location;
-    }
-  }
+  FutureOr<String?> redirect(BuildContext context, GoRouterState state) =>
+      _businessOwnerRouteRedirect(context);
 
   @override
   Widget build(BuildContext context, GoRouterState state) =>
       const EventsSettingsPage();
+}
+
+Future<String?> _businessOwnerRouteRedirect(BuildContext context) async {
+  try {
+    final container = ProviderScope.containerOf(context);
+    final registry = await container.read(sessionRegistryProvider.future);
+    final lease = registry.activeLease?.session;
+    if (lease == null) return const SettingsRoute().location;
+    final access = await container.read(
+      subscriptionAccessProvider(lease).future,
+    );
+    return access.did == lease.account.did && access.allowsBusiness
+        ? null
+        : const SettingsRoute().location;
+  } on Object {
+    return const SettingsRoute().location;
+  }
 }
 
 class ScheduledPostsRoute extends GoRouteData with $ScheduledPostsRoute {
@@ -662,7 +695,7 @@ class ScheduledPostsRoute extends GoRouteData with $ScheduledPostsRoute {
 
   @override
   Widget build(BuildContext context, GoRouterState state) =>
-      const ScheduledPostsPage();
+      const _ReturnToFeedOnBack(child: ScheduledPostsPage());
 }
 
 class DraftsRoute extends GoRouteData with $DraftsRoute {
@@ -672,7 +705,8 @@ class DraftsRoute extends GoRouteData with $DraftsRoute {
       _NavigatorKeys.authenticatedShellNavigatorKey;
 
   @override
-  Widget build(BuildContext context, GoRouterState state) => const DraftsPage();
+  Widget build(BuildContext context, GoRouterState state) =>
+      const _ReturnToFeedOnBack(child: DraftsPage());
 }
 
 class InstagramMigrationRoute extends GoRouteData
@@ -739,7 +773,22 @@ class SavedPostsRoute extends GoRouteData with $SavedPostsRoute {
 
   @override
   Widget build(BuildContext context, GoRouterState state) =>
-      const SavedPostsPage();
+      const _ReturnToFeedOnBack(child: SavedPostsPage());
+}
+
+class _ReturnToFeedOnBack extends StatelessWidget {
+  const _ReturnToFeedOnBack({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => PopScope<void>(
+    canPop: false,
+    onPopInvokedWithResult: (didPop, _) {
+      if (!didPop) const FeedRoute().go(context);
+    },
+    child: child,
+  );
 }
 
 @immutable

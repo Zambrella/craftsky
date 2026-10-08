@@ -1,4 +1,6 @@
+import 'package:craftsky_app/auth/models/session_registry.dart';
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
+import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
 import 'package:craftsky_app/business/data/business_repository.dart';
 import 'package:craftsky_app/business/models/business_event.dart';
 import 'package:craftsky_app/business/models/business_profile.dart';
@@ -12,6 +14,8 @@ import 'package:craftsky_app/profile/pages/profile_page.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
+import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
+import 'package:craftsky_app/subscriptions/providers/subscription_access_provider.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -24,6 +28,25 @@ import '../fakes/fake_profile_repository.dart';
 const _cid = 'bafyreicdvexolyvp6j6yksqiib7hihwktt6ogalbvyzvtkj6ecrtqqw5fq';
 
 void main() {
+  testWidgets('AT-008 lapsed owner does not see cached Business tabs', (
+    tester,
+  ) async {
+    await _pumpProfile(
+      tester,
+      Profile(
+        did: 'did:plc:test',
+        handle: 'test.bsky.social',
+        crafts: const [],
+        accountType: AccountType.business,
+        business: BusinessProfile(cid: _cid),
+      ),
+      isOwnProfile: true,
+      accessTier: SubscriptionTier.plus,
+    );
+    expect(find.text('Products'), findsNothing);
+    expect(find.text('Upcoming Events'), findsNothing);
+    expect(find.text('Projects'), findsOneWidget);
+  });
   testWidgets(
     'account type changes replace the tab composition with semantics enabled',
     (tester) async {
@@ -364,7 +387,12 @@ Future<void> _pumpProfile(
   BusinessRepository? businessRepository,
   FakeProfileRepository? profileRepository,
   bool isOwnProfile = false,
+  SubscriptionTier? accessTier,
 }) async {
+  final repo =
+      (profileRepository ??
+            FakeProfileRepository(onFetch: (_) async => profile))
+        ..fallbackFetchMeToFetch = true;
   final posts = FakePostRepository(
     onListByAuthor: (_, {cursor, limit}) async => const PostPage(items: []),
     onListCommentsByAuthor: (_, {cursor, limit}) async =>
@@ -373,11 +401,40 @@ Future<void> _pumpProfile(
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
+        if (isOwnProfile) ...[
+          secureSessionRegistryStorageProvider.overrideWithValue(
+            _BusinessProfileRegistryStorage(
+              SessionRegistry.empty().upsertAndActivate(
+                token: 'token',
+                did: 'did:plc:test',
+                handle: 'test.bsky.social',
+              ),
+            ),
+          ),
+          subscriptionAccessProvider.overrideWith(
+            (ref, lease) async => SubscriptionAccess(
+              did: lease.account.did,
+              effectiveTier:
+                  accessTier ??
+                  (profile.accountType == AccountType.business
+                      ? SubscriptionTier.business
+                      : SubscriptionTier.free),
+              givesAccess:
+                  (accessTier ??
+                      (profile.accountType == AccountType.business
+                          ? SubscriptionTier.business
+                          : SubscriptionTier.free)) !=
+                  SubscriptionTier.free,
+              assignedTier:
+                  accessTier ??
+                  (profile.accountType == AccountType.business
+                      ? SubscriptionTier.business
+                      : null),
+            ),
+          ),
+        ],
         authSessionProvider.overrideWith(SignedInAuthSession.new),
-        profileRepositoryProvider.overrideWithValue(
-          profileRepository ??
-              FakeProfileRepository(onFetch: (_) async => profile),
-        ),
+        profileRepositoryProvider.overrideWithValue(repo),
         postRepositoryProvider.overrideWithValue(posts),
         businessRepositoryProvider.overrideWithValue(
           businessRepository ?? _EmptyBusinessRepository(),
@@ -394,6 +451,16 @@ Future<void> _pumpProfile(
     ),
   );
   await tester.pumpAndSettle();
+}
+
+final class _BusinessProfileRegistryStorage implements SessionRegistryStorage {
+  _BusinessProfileRegistryStorage(this.registry);
+  SessionRegistry registry;
+  @override
+  Future<SessionRegistry> read() async => registry;
+  @override
+  Future<void> write(SessionRegistry registry) async =>
+      this.registry = registry;
 }
 
 final class _EmptyBusinessRepository extends Fake

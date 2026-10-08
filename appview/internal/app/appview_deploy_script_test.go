@@ -81,6 +81,40 @@ func TestAppViewDeployScriptRejectsUnhealthyAppView(t *testing.T) {
 	}
 }
 
+func TestAppViewDeployScriptRetriesTransientPublic502(t *testing.T) {
+	repo, _, releaseScript := newReleaseTestRepo(t)
+	notes := writeNotes(t, "- Ready for production.\n")
+	runRelease(t, repo, releaseScript, nil, "create", "appview", "--version", "1.0.4", "--notes", notes)
+	runRelease(t, repo, releaseScript, strings.NewReader("y\n"), "push", "appview", "prod-v1.0.4")
+	commit := runGit(t, repo, "rev-parse", "HEAD")
+	binDir := fakeRenderCurl(t, "live", commit)
+	if err := os.WriteFile(filepath.Join(binDir, "fail-health-count"), []byte("1\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	output, err := runDeployWithHealthAttempts(repo, repositoryScript(t, "appview-deploy"), binDir, strings.NewReader("y\n"), commit, "2")
+	if err != nil || !strings.Contains(output, "AppView deployment succeeded.") {
+		t.Fatalf("deploy after transient 502: err=%v output=%s", err, output)
+	}
+}
+
+func TestAppViewDeployScriptBoundsPersistentPublic502(t *testing.T) {
+	repo, _, releaseScript := newReleaseTestRepo(t)
+	notes := writeNotes(t, "- Ready for production.\n")
+	runRelease(t, repo, releaseScript, nil, "create", "appview", "--version", "1.0.4", "--notes", notes)
+	runRelease(t, repo, releaseScript, strings.NewReader("y\n"), "push", "appview", "prod-v1.0.4")
+	commit := runGit(t, repo, "rev-parse", "HEAD")
+	binDir := fakeRenderCurl(t, "live", commit)
+	if err := os.WriteFile(filepath.Join(binDir, "fail-health-count"), []byte("2\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	output, err := runDeployWithHealthAttempts(repo, repositoryScript(t, "appview-deploy"), binDir, strings.NewReader("y\n"), commit, "2")
+	if err == nil || !strings.Contains(output, "did not reach full production health after 2 polls") {
+		t.Fatalf("deploy with persistent 502: err=%v output=%s", err, output)
+	}
+}
+
 func repositoryScript(t *testing.T, name string) string {
 	t.Helper()
 	repositoryRoot := filepath.Clean(filepath.Join("..", "..", ".."))
@@ -122,7 +156,17 @@ case "$url" in
     printf '%s\n' '{"id":"dep-test"}'
     ;;
   */services/*/deploys/dep-test) printf '{"status":"%s","commit":{"id":"%s"}}\n' "$FAKE_RENDER_STATUS" "$FAKE_RENDER_COMMIT" ;;
-  */health) printf '%s\n' '{"status":"ok"}' ;;
+  */health)
+    count_file="$(dirname "$0")/fail-health-count"
+    if [ -f "$count_file" ]; then
+      IFS= read -r count < "$count_file"
+      if [ "$count" -gt 0 ]; then
+        printf '%s\n' "$((count - 1))" > "$count_file"
+        printf 'curl: (56) The requested URL returned error: 502\n' >&2
+        exit 56
+      fi
+    fi
+    printf '%s\n' '{"status":"ok"}' ;;
   */healthz) printf '%s\n' "$FAKE_RENDER_HEALTH" ;;
   *) printf 'unexpected URL: %s\n' "$url" >&2; exit 1 ;;
 esac
@@ -143,6 +187,10 @@ esac
 }
 
 func runDeploy(repo, script, binDir string, stdin *strings.Reader, expectedCommit string) (string, error) {
+	return runDeployWithHealthAttempts(repo, script, binDir, stdin, expectedCommit, "1")
+}
+
+func runDeployWithHealthAttempts(repo, script, binDir string, stdin *strings.Reader, expectedCommit, healthAttempts string) (string, error) {
 	status, _ := os.ReadFile(filepath.Join(binDir, "status"))
 	commit, _ := os.ReadFile(filepath.Join(binDir, "commit"))
 	health, _ := os.ReadFile(filepath.Join(binDir, "health"))
@@ -156,7 +204,7 @@ func runDeploy(repo, script, binDir string, stdin *strings.Reader, expectedCommi
 		"RENDER_API_BASE=https://render.invalid/v1",
 		"APPVIEW_PUBLIC_ORIGIN=https://appview.invalid",
 		"RENDER_DEPLOY_POLL_ATTEMPTS=1",
-		"APPVIEW_HEALTH_ATTEMPTS=1",
+		"APPVIEW_HEALTH_ATTEMPTS="+healthAttempts,
 		"RENDER_DEPLOY_POLL_SLEEP_SECONDS=0",
 		"APPVIEW_HEALTH_SLEEP_SECONDS=0",
 		"FAKE_RENDER_STATUS="+strings.TrimSpace(string(status)),

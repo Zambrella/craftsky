@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"social.craftsky/appview/internal/ownerlifecycle"
+	"social.craftsky/appview/internal/sourcevalidation"
 	"social.craftsky/appview/internal/tap"
 )
 
@@ -223,6 +224,7 @@ func (store *Store) reconcileSourceTx(
 	if current.SourceEventID != expected.SourceEventID || !bytes.Equal(current.SourceFingerprint[:], expected.SourceFingerprint[:]) {
 		return tap.Outcome{}, ErrReconciliationSourceChanged
 	}
+	validation := sourcevalidation.Validate(event)
 	outcome := tap.Applied()
 	disposition := "eligible"
 	orderingStatus := "authoritative"
@@ -257,10 +259,13 @@ func (store *Store) reconcileSourceTx(
 		UPDATE tap_source_records
 		SET source_fingerprint=$2,revision=$3,cid=$4,action=$5,record=$6,record_bytes=$7,
 		    ordering_status=$8,projection_disposition=$9,
-		    projection_generation=$10,effect_operation_id=$11,updated_at=$12
+		    projection_generation=$10,effect_operation_id=$11,updated_at=$12,
+		    validation_version=1,structural_validation_status=$13,
+		    semantic_validation_status=$14,validation_reason=$15
 		WHERE uri=$1
 	`, event.URI, fingerprint[:], event.Rev, cid, event.Action, record, recordBytes,
-		orderingStatus, disposition, projectionGeneration, nil, now)
+		orderingStatus, disposition, projectionGeneration, nil, now,
+		validation.StructuralStatus, validation.SemanticStatus, nullableString(validation.Reason))
 	if err != nil {
 		return tap.Outcome{}, fmt.Errorf("install reconciled Tap source: %w", err)
 	}

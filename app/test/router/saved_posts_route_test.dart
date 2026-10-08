@@ -6,10 +6,10 @@ import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
 import 'package:craftsky_app/drafts/pages/drafts_page.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/post_page.dart';
+import 'package:craftsky_app/feed/pages/feed_page.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
-import 'package:craftsky_app/profile/pages/profile_page.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/router/error_screen.dart';
 import 'package:craftsky_app/router/route_locations.dart';
@@ -22,6 +22,8 @@ import 'package:craftsky_app/saved_posts/pages/saved_posts_page.dart';
 import 'package:craftsky_app/saved_posts/providers/saved_post_repository_provider.dart';
 import 'package:craftsky_app/scheduled_posts/pages/scheduled_posts_page.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
+import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
+import 'package:craftsky_app/subscriptions/providers/subscription_access_provider.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/form_factor.dart';
 import 'package:flutter/material.dart';
@@ -48,10 +50,10 @@ final class _RegistryStorage implements SessionRegistryStorage {
 
 void main() {
   test('UT-011 uses canonical static and redacted saved routes', () {
-    expect(RouteLocations.savedPosts, '/profile/saved');
-    expect(const SavedPostsRoute().location, '/profile/saved');
-    expect(const ScheduledPostsRoute().location, '/profile/scheduled');
-    expect(const DraftsRoute().location, '/profile/drafts');
+    expect(RouteLocations.savedPosts, '/saved');
+    expect(const SavedPostsRoute().location, '/saved');
+    expect(const ScheduledPostsRoute().location, '/scheduled');
+    expect(const DraftsRoute().location, '/drafts');
 
     final folder = SavedPostFolder(
       id: 'private-folder-id',
@@ -61,7 +63,7 @@ void main() {
     );
     final extra = SavedPostFolderRouteData(folder: folder);
     final route = SavedPostFolderRoute($extra: extra);
-    expect(route.location, '/profile/saved/folder');
+    expect(route.location, '/saved/folder');
     expect(route.location, isNot(contains(folder.id)));
     expect(route.location, isNot(contains(folder.name)));
     expect(extra.copyWith(), extra);
@@ -71,7 +73,7 @@ void main() {
     expect(route.toString(), isNot(contains(folder.name)));
   });
 
-  testWidgets('IT-007 nests Saved posts and folders directly under Profile', (
+  testWidgets('IT-007 nests folders under Saved posts', (
     tester,
   ) async {
     final account = AccountKey('did:plc:test');
@@ -83,29 +85,27 @@ void main() {
     );
     final repository = _RouteRepository(folder);
     final router = GoRouter(
-      initialLocation: '/profile/saved',
+      initialLocation: '/saved',
       routes: [
         GoRoute(
-          path: '/profile',
-          builder: (_, _) => const Scaffold(body: Text('Profile route')),
+          path: '/feed',
+          builder: (_, _) => const Scaffold(body: Text('Feed route')),
+        ),
+        GoRoute(
+          path: '/saved',
+          name: 'saved-posts',
+          builder: (_, _) => const SavedPostsPage(),
           routes: [
             GoRoute(
-              path: 'saved',
-              name: 'saved-posts',
-              builder: (_, _) => const SavedPostsPage(),
-              routes: [
-                GoRoute(
-                  path: 'folder',
-                  name: 'saved-post-folder',
-                  builder: (_, state) {
-                    final data = state.extra! as SavedPostFolderRouteData;
-                    return SavedPostFolderScreen(
-                      account: account,
-                      folder: data.folder,
-                    );
-                  },
-                ),
-              ],
+              path: 'folder',
+              name: 'saved-post-folder',
+              builder: (_, state) {
+                final data = state.extra! as SavedPostFolderRouteData;
+                return SavedPostFolderScreen(
+                  account: account,
+                  folder: data.folder,
+                );
+              },
             ),
           ],
         ),
@@ -116,6 +116,23 @@ void main() {
       ProviderScope(
         overrides: [
           authSessionProvider.overrideWith(SignedInAuthSession.new),
+          secureSessionRegistryStorageProvider.overrideWithValue(
+            _RegistryStorage(
+              SessionRegistry.empty().upsertAndActivate(
+                token: 'test-token',
+                did: account.did.value,
+                handle: 'test.bsky.social',
+              ),
+            ),
+          ),
+          subscriptionAccessProvider.overrideWith(
+            (ref, lease) async => SubscriptionAccess(
+              did: lease.account.did,
+              effectiveTier: SubscriptionTier.plus,
+              givesAccess: true,
+              assignedTier: SubscriptionTier.plus,
+            ),
+          ),
           accountSavedPostRepositoryProvider(
             account,
           ).overrideWith((ref) async => repository),
@@ -131,23 +148,23 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(SavedPostsPage), findsOneWidget);
-    expect(router.state.matchedLocation, '/profile/saved');
+    expect(router.state.matchedLocation, '/saved');
 
     await tester.tap(find.text('Ideas'));
     await tester.pumpAndSettle();
     expect(find.byType(SavedPostFolderScreen), findsOneWidget);
-    expect(router.state.matchedLocation, '/profile/saved/folder');
+    expect(router.state.matchedLocation, '/saved/folder');
 
     await tester.pageBack();
     await tester.pumpAndSettle();
     expect(find.byType(SavedPostsPage), findsOneWidget);
-    await tester.pageBack();
+    await tester.tap(find.byType(BackButton));
     await tester.pumpAndSettle();
-    expect(find.text('Profile route'), findsOneWidget);
+    expect(find.text('Feed route'), findsOneWidget);
   });
 
   testWidgets(
-    'Saved posts opens above Profile with the production router',
+    'Saved posts opens above Feed with the production router',
     (tester) async {
       final folder = SavedPostFolder(
         id: 'private-folder-id',
@@ -193,7 +210,7 @@ void main() {
 
       expect(
         router.state.matchedLocation,
-        '/profile/saved/folder',
+        '/saved/folder',
       );
       expect(find.byType(SavedPostFolderScreen), findsOneWidget);
       expect(find.byType(SavedPostsPage), findsNothing);
@@ -204,7 +221,8 @@ void main() {
 
       await tester.pageBack();
       await tester.pumpAndSettle();
-      expect(find.byType(ProfilePage), findsOneWidget);
+      expect(router.state.matchedLocation, RouteLocations.feed);
+      expect(find.byType(FeedPage), findsOneWidget);
     },
   );
 
@@ -269,7 +287,7 @@ void main() {
       fireImmediately: true,
     );
     addTearDown(routerSubscription.close);
-    final router = routerSubscription.read()..go(RouteLocations.profile);
+    final router = routerSubscription.read()..go(RouteLocations.feed);
 
     await _pumpProductionRouter(
       tester,
@@ -287,6 +305,11 @@ void main() {
 
   for (final routeCase in [
     (
+      label: 'Saved posts',
+      location: const SavedPostsRoute().location,
+      pageType: SavedPostsPage,
+    ),
+    (
       label: 'Scheduled posts',
       location: const ScheduledPostsRoute().location,
       pageType: ScheduledPostsPage,
@@ -297,47 +320,50 @@ void main() {
       pageType: DraftsPage,
     ),
   ]) {
-    testWidgets(
-      'CORR-007 ${routeCase.label} returns directly to Profile',
-      (tester) async {
-        final container = _productionContainer();
-        addTearDown(container.dispose);
-        final routerSubscription = container.listen(
-          goRouterProvider,
-          (_, _) {},
-          fireImmediately: true,
-        );
-        addTearDown(routerSubscription.close);
-        final router = routerSubscription.read();
+    for (final useSystemBack in [false, true]) {
+      final backAction = useSystemBack ? 'System Back' : 'Back button';
+      testWidgets(
+        '$backAction from ${routeCase.label} returns to Feed',
+        (tester) async {
+          final container = _productionContainer(
+            savedRepository: const _RouteRepository(null),
+          );
+          addTearDown(container.dispose);
+          final routerSubscription = container.listen(
+            goRouterProvider,
+            (_, _) {},
+            fireImmediately: true,
+          );
+          addTearDown(routerSubscription.close);
+          final router = routerSubscription.read();
 
-        await _pumpProductionRouter(tester, container, router);
-        expect(router.state.matchedLocation, RouteLocations.home);
+          await _pumpProductionRouter(tester, container, router);
+          expect(router.state.matchedLocation, RouteLocations.home);
 
-        router.go(RouteLocations.profile);
-        await tester.pump();
-        await tester.pump(const Duration(seconds: 1));
-        expect(router.state.matchedLocation, RouteLocations.profile);
+          router.go(routeCase.location);
+          await tester.pump();
+          await tester.pump(const Duration(seconds: 1));
 
-        router.push<void>(routeCase.location).ignore();
-        await tester.pump();
-        await tester.pump(const Duration(seconds: 1));
+          expect(router.state.matchedLocation, routeCase.location);
+          expect(
+            find.byWidgetPredicate(
+              (widget) => widget.runtimeType == routeCase.pageType,
+            ),
+            findsOneWidget,
+          );
 
-        expect(router.state.matchedLocation, routeCase.location);
-        expect(
-          find.byWidgetPredicate(
-            (widget) => widget.runtimeType == routeCase.pageType,
-          ),
-          findsOneWidget,
-        );
+          if (useSystemBack) {
+            await tester.binding.handlePopRoute();
+          } else {
+            await tester.tap(find.byType(BackButton));
+          }
+          await tester.pumpAndSettle();
 
-        expect(find.byType(BackButton), findsOneWidget);
-        await tester.tap(find.byType(BackButton));
-        await tester.pumpAndSettle();
-
-        expect(router.state.matchedLocation, RouteLocations.profile);
-        expect(find.byType(ProfilePage), findsOneWidget);
-      },
-    );
+          expect(router.state.matchedLocation, RouteLocations.feed);
+          expect(find.byType(FeedPage), findsOneWidget);
+        },
+      );
+    }
   }
 
   testWidgets('CORR-007 former Settings-owned paths remain unknown', (
@@ -360,6 +386,10 @@ void main() {
       '/profile/settings/saved/folder',
       '/profile/settings/scheduled',
       '/profile/settings/drafts',
+      '/profile/saved',
+      '/profile/saved/folder',
+      '/profile/scheduled',
+      '/profile/drafts',
     ]) {
       router.go(oldLocation);
       await tester.pumpAndSettle();
@@ -382,6 +412,14 @@ ProviderContainer _productionContainer({SavedPostRepository? savedRepository}) {
   );
   return ProviderContainer(
     overrides: [
+      subscriptionAccessProvider.overrideWith(
+        (ref, lease) async => SubscriptionAccess(
+          did: lease.account.did,
+          effectiveTier: SubscriptionTier.plus,
+          givesAccess: true,
+          assignedTier: SubscriptionTier.plus,
+        ),
+      ),
       authSessionProvider.overrideWith(SignedInAuthSession.new),
       secureSessionRegistryStorageProvider.overrideWithValue(
         _RegistryStorage(registry),
@@ -392,6 +430,11 @@ ProviderContainer _productionContainer({SavedPostRepository? savedRepository}) {
       profileRepositoryProvider.overrideWithValue(
         FakeProfileRepository(
           onFetch: (_) async => Profile(
+            did: account.did,
+            handle: 'test.bsky.social',
+            crafts: const [],
+          ),
+          onFetchMe: () async => Profile(
             did: account.did,
             handle: 'test.bsky.social',
             crafts: const [],

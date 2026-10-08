@@ -1,4 +1,5 @@
 import 'package:craftsky_app/settings/models/settings_row.dart';
+import 'package:craftsky_app/subscriptions/widgets/plus_action_icon.dart';
 import 'package:flutter/material.dart';
 
 class SettingsRowTile extends StatelessWidget {
@@ -8,6 +9,7 @@ class SettingsRowTile extends StatelessWidget {
     required this.leading,
     this.onTap,
     this.subtitle,
+    this.locked = false,
     super.key,
   });
 
@@ -16,6 +18,7 @@ class SettingsRowTile extends StatelessWidget {
   final IconData leading;
   final VoidCallback? onTap;
   final String? subtitle;
+  final bool locked;
 
   @override
   Widget build(BuildContext context) {
@@ -34,7 +37,10 @@ class SettingsRowTile extends StatelessWidget {
       child: ConstrainedBox(
         constraints: const BoxConstraints(minHeight: 48),
         child: ListTile(
-          leading: Icon(leading, color: foreground),
+          leading: IconTheme.merge(
+            data: IconThemeData(color: foreground),
+            child: locked ? PlusActionIcon(icon: leading) : Icon(leading),
+          ),
           title: Text(label, style: TextStyle(color: foreground)),
           subtitle: subtitle == null ? null : Text(subtitle!),
           textColor: foreground,

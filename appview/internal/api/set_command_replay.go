@@ -29,7 +29,7 @@ func existingSetCommand(
 	}
 	replay, err := lookup.LookupCommand(request.Context(), owner, kind, key)
 	if err != nil {
-		WriteCommandError(writer, runID, err)
+		WriteCommandError(writer, runID, err, request.Context())
 		return nil, true
 	}
 	if replay == nil {
@@ -41,7 +41,7 @@ func existingSetCommand(
 	}
 	if json.Unmarshal(replay.Intent, &intent) != nil || replay.OwnerGeneration != generation ||
 		(intent.SubjectURI != requestTarget && intent.RequestTarget != requestTarget) {
-		WriteCommandError(writer, runID, pdscommands.ErrIdempotencyConflict)
+		WriteCommandError(writer, runID, pdscommands.ErrIdempotencyConflict, request.Context())
 		return nil, true
 	}
 	if replay.Result.State == pdscommands.CommandAccepted || replay.Result.State == pdscommands.CommandRejected {

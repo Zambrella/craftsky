@@ -10,6 +10,8 @@ import 'package:craftsky_app/saved_posts/models/saved_post_folder.dart';
 import 'package:craftsky_app/saved_posts/providers/saved_post_repository_provider.dart';
 import 'package:craftsky_app/saved_posts/widgets/save_post_dialog.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
+import 'package:craftsky_app/subscriptions/subscription_build_config.dart';
+import 'package:craftsky_app/subscriptions/widgets/plus_feature_lock.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
@@ -22,297 +24,354 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   setUpAll(initializeMappers);
 
-  testWidgets('AT-002 pages distinct folders and confirms once', (
-    tester,
-  ) async {
-    final account = AccountKey('did:plc:alice');
-    final repository = _DialogSavedPostRepository(
-      folderPages: {
-        null: SavedPostFolderPage(
-          items: [
-            _folder('folder-1', 'Ideas'),
-            _folder('folder-2', 'IDEAS'),
-          ],
-          cursor: 'opaque/private cursor',
+  group('folder-enabled save dialog', () {
+    testWidgets('AT-002 pages distinct folders and confirms once', (
+      tester,
+    ) async {
+      final account = AccountKey('did:plc:alice');
+      final repository = _DialogSavedPostRepository(
+        folderPages: {
+          null: SavedPostFolderPage(
+            items: [
+              _folder('folder-1', 'Ideas'),
+              _folder('folder-2', 'IDEAS'),
+            ],
+            cursor: 'opaque/private cursor',
+          ),
+          'opaque/private cursor': SavedPostFolderPage(
+            items: [_folder('folder-3', 'Ideas')],
+          ),
+        },
+      )..saveCompleter = Completer<SavedPostState>();
+      await _pumpDialog(tester, account, repository);
+      await tester.pumpAndSettle();
+
+      expect(find.byType(CraftskyDialog), findsOneWidget);
+      expect(find.byType(AlertDialog), findsNothing);
+      final selector = find.byType(CraftskySingleSelectInput<String?>);
+      expect(selector, findsOneWidget);
+      expect(
+        tester.widget<CraftskySingleSelectInput<String?>>(selector).value,
+        isNull,
+      );
+      expect(
+        tester
+            .widget<CraftskySingleSelectInput<String?>>(selector)
+            .options
+            .map((option) => option.label),
+        ['No folder', 'Ideas', 'IDEAS'],
+      );
+      expect(repository.saveCalls, 0);
+
+      await tester.tap(find.widgetWithText(TextButton, 'Load more folders'));
+      await tester.pumpAndSettle();
+      expect(repository.folderCursors, [null, 'opaque/private cursor']);
+      expect(
+        tester
+            .widget<CraftskySingleSelectInput<String?>>(selector)
+            .options
+            .where((option) => option.label == 'Ideas'),
+        hasLength(2),
+      );
+
+      await tester.tap(find.byKey(const Key('saved-folder-select-button')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('saved-folder-option-folder-3')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(ChunkyButton, 'Save post'));
+      await tester.pump();
+      await tester.tap(find.byType(ChunkyButton).last);
+      await tester.pump();
+
+      expect(repository.saveCalls, 1);
+      expect(repository.lastSavedFolderId, 'folder-3');
+      expect(find.byType(SavePostDialog), findsOneWidget);
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+
+      repository.saveCompleter!.complete(
+        SavedPostState(
+          savedAt: DateTime.utc(2026, 7, 21, 15),
+          folderId: 'folder-3',
         ),
-        'opaque/private cursor': SavedPostFolderPage(
-          items: [_folder('folder-3', 'Ideas')],
-        ),
-      },
-    )..saveCompleter = Completer<SavedPostState>();
-    await _pumpDialog(tester, account, repository);
-    await tester.pumpAndSettle();
+      );
+      await tester.pumpAndSettle();
+      expect(find.byType(SavePostDialog), findsNothing);
+      expect(find.byType(SnackBar), findsNothing);
+    });
 
-    expect(find.byType(CraftskyDialog), findsOneWidget);
-    expect(find.byType(AlertDialog), findsNothing);
-    final selector = find.byType(CraftskySingleSelectInput<String?>);
-    expect(selector, findsOneWidget);
-    expect(
-      tester.widget<CraftskySingleSelectInput<String?>>(selector).value,
-      isNull,
-    );
-    expect(
-      tester
-          .widget<CraftskySingleSelectInput<String?>>(selector)
-          .options
-          .map((option) => option.label),
-      ['No folder', 'Ideas', 'IDEAS'],
-    );
-    expect(repository.saveCalls, 0);
+    testWidgets('AT-002 folder failure leaves No folder savable', (
+      tester,
+    ) async {
+      final account = AccountKey('did:plc:alice');
+      final repository = _DialogSavedPostRepository(
+        folderError: Exception('private folder failure'),
+      );
+      await _pumpDialog(tester, account, repository);
+      await tester.pumpAndSettle();
 
-    await tester.tap(find.widgetWithText(TextButton, 'Load more folders'));
-    await tester.pumpAndSettle();
-    expect(repository.folderCursors, [null, 'opaque/private cursor']);
-    expect(
-      tester
-          .widget<CraftskySingleSelectInput<String?>>(selector)
-          .options
-          .where((option) => option.label == 'Ideas'),
-      hasLength(2),
-    );
+      expect(find.text("Folders couldn't load."), findsOneWidget);
+      expect(find.text('Retry'), findsOneWidget);
+      expect(find.text('No folder'), findsOneWidget);
+      expect(find.textContaining('private folder failure'), findsNothing);
+      expect(find.byType(SearchBar), findsNothing);
 
-    await tester.tap(find.byKey(const Key('saved-folder-select-button')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('saved-folder-option-folder-3')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(ChunkyButton, 'Save post'));
-    await tester.pump();
-    await tester.tap(find.byType(ChunkyButton).last);
-    await tester.pump();
+      await tester.tap(find.widgetWithText(ChunkyButton, 'Save post'));
+      await tester.pumpAndSettle();
+      expect(repository.saveCalls, 1);
+      expect(repository.lastSavedFolderId, isNull);
+    });
 
-    expect(repository.saveCalls, 1);
-    expect(repository.lastSavedFolderId, 'folder-3');
-    expect(find.byType(SavePostDialog), findsOneWidget);
-    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    testWidgets('AT-002 creates a folder independently and keeps it selected', (
+      tester,
+    ) async {
+      final account = AccountKey('did:plc:alice');
+      final repository = _DialogSavedPostRepository(
+        folderPages: {null: const SavedPostFolderPage(items: [])},
+        createdFolder: _folder('created-id', 'Fresh ideas'),
+      );
+      await _pumpDialog(tester, account, repository);
+      await tester.pumpAndSettle();
 
-    repository.saveCompleter!.complete(
-      SavedPostState(
-        savedAt: DateTime.utc(2026, 7, 21, 15),
-        folderId: 'folder-3',
-      ),
-    );
-    await tester.pumpAndSettle();
-    expect(find.byType(SavePostDialog), findsNothing);
-    expect(find.byType(SnackBar), findsNothing);
-  });
+      await tester.tap(find.widgetWithText(TextButton, 'New folder'));
+      await tester.pump();
+      expect(find.byType(CraftskyTextInput), findsOneWidget);
+      expect(
+        tester
+            .getSize(
+              find.byKey(const Key('saved-folder-create-spacing')),
+            )
+            .height,
+        16,
+      );
+      await tester.enterText(find.byType(TextField), '  Fresh ideas  ');
+      await tester.tap(find.widgetWithText(ChunkyButton, 'Create folder'));
+      await tester.pumpAndSettle();
 
-  testWidgets('AT-002 folder failure leaves No folder savable', (
-    tester,
-  ) async {
-    final account = AccountKey('did:plc:alice');
-    final repository = _DialogSavedPostRepository(
-      folderError: Exception('private folder failure'),
-    );
-    await _pumpDialog(tester, account, repository);
-    await tester.pumpAndSettle();
+      expect(repository.createNames, ['Fresh ideas']);
+      expect(find.byType(TextField), findsNothing);
+      expect(find.text('Fresh ideas'), findsOneWidget);
+      expect(
+        tester
+            .widget<CraftskySingleSelectInput<String?>>(
+              find.byType(CraftskySingleSelectInput<String?>),
+            )
+            .value,
+        'created-id',
+      );
 
-    expect(find.text("Folders couldn't load."), findsOneWidget);
-    expect(find.text('Retry'), findsOneWidget);
-    expect(find.text('No folder'), findsOneWidget);
-    expect(find.textContaining('private folder failure'), findsNothing);
-    expect(find.byType(SearchBar), findsNothing);
+      await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
+      await tester.pumpAndSettle();
+      expect(repository.saveCalls, 0);
+      expect(repository.createNames, hasLength(1));
+    });
 
-    await tester.tap(find.widgetWithText(ChunkyButton, 'Save post'));
-    await tester.pumpAndSettle();
-    expect(repository.saveCalls, 1);
-    expect(repository.lastSavedFolderId, isNull);
-  });
+    testWidgets('AT-002 create failure stays editable with safe error', (
+      tester,
+    ) async {
+      final account = AccountKey('did:plc:alice');
+      final repository = _DialogSavedPostRepository(
+        folderPages: {null: const SavedPostFolderPage(items: [])},
+        createError: Exception('folder-name-private-sentinel'),
+      );
+      await _pumpDialog(tester, account, repository);
+      await tester.pumpAndSettle();
 
-  testWidgets('AT-002 creates a folder independently and keeps it selected', (
-    tester,
-  ) async {
-    final account = AccountKey('did:plc:alice');
-    final repository = _DialogSavedPostRepository(
-      folderPages: {null: const SavedPostFolderPage(items: [])},
-      createdFolder: _folder('created-id', 'Fresh ideas'),
-    );
-    await _pumpDialog(tester, account, repository);
-    await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(TextButton, 'New folder'));
+      await tester.pump();
+      await tester.enterText(find.byType(TextField), 'Ideas');
+      await tester.tap(find.widgetWithText(ChunkyButton, 'Create folder'));
+      await tester.pumpAndSettle();
 
-    await tester.tap(find.widgetWithText(TextButton, 'New folder'));
-    await tester.pump();
-    expect(find.byType(CraftskyTextInput), findsOneWidget);
-    expect(
-      tester
-          .getSize(
-            find.byKey(const Key('saved-folder-create-spacing')),
-          )
-          .height,
-      16,
-    );
-    await tester.enterText(find.byType(TextField), '  Fresh ideas  ');
-    await tester.tap(find.widgetWithText(ChunkyButton, 'Create folder'));
-    await tester.pumpAndSettle();
+      expect(find.byType(TextField), findsOneWidget);
+      expect(
+        find.text("That folder couldn't be created. Try again."),
+        findsOneWidget,
+      );
+      expect(find.textContaining('folder-name-private-sentinel'), findsNothing);
+      expect(find.byType(SavePostDialog), findsOneWidget);
+    });
 
-    expect(repository.createNames, ['Fresh ideas']);
-    expect(find.byType(TextField), findsNothing);
-    expect(find.text('Fresh ideas'), findsOneWidget);
-    expect(
-      tester
-          .widget<CraftskySingleSelectInput<String?>>(
-            find.byType(CraftskySingleSelectInput<String?>),
-          )
-          .value,
-      'created-id',
-    );
+    testWidgets(
+      'IT-008 retries a failed folder mutation restart from page one',
+      (
+        tester,
+      ) async {
+        final account = AccountKey('did:plc:alice');
+        final repository = _RestartRetryRepository();
+        await _pumpDialog(tester, account, repository);
+        await tester.pumpAndSettle();
 
-    await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
-    await tester.pumpAndSettle();
-    expect(repository.saveCalls, 0);
-    expect(repository.createNames, hasLength(1));
-  });
+        await tester.tap(find.widgetWithText(TextButton, 'New folder'));
+        await tester.pump();
+        await tester.enterText(find.byType(TextField), 'Created');
+        await tester.tap(find.widgetWithText(ChunkyButton, 'Create folder'));
+        await tester.pumpAndSettle();
 
-  testWidgets('AT-002 create failure stays editable with safe error', (
-    tester,
-  ) async {
-    final account = AccountKey('did:plc:alice');
-    final repository = _DialogSavedPostRepository(
-      folderPages: {null: const SavedPostFolderPage(items: [])},
-      createError: Exception('folder-name-private-sentinel'),
-    );
-    await _pumpDialog(tester, account, repository);
-    await tester.pumpAndSettle();
+        expect(repository.folderCalls, 2);
+        expect(find.text('Created'), findsOneWidget);
+        expect(find.widgetWithText(TextButton, 'Retry'), findsOneWidget);
 
-    await tester.tap(find.widgetWithText(TextButton, 'New folder'));
-    await tester.pump();
-    await tester.enterText(find.byType(TextField), 'Ideas');
-    await tester.tap(find.widgetWithText(ChunkyButton, 'Create folder'));
-    await tester.pumpAndSettle();
+        await tester.tap(find.widgetWithText(TextButton, 'Retry'));
+        await tester.pumpAndSettle();
 
-    expect(find.byType(TextField), findsOneWidget);
-    expect(
-      find.text("That folder couldn't be created. Try again."),
-      findsOneWidget,
-    );
-    expect(find.textContaining('folder-name-private-sentinel'), findsNothing);
-    expect(find.byType(SavePostDialog), findsOneWidget);
-  });
-
-  testWidgets('IT-008 retries a failed folder mutation restart from page one', (
-    tester,
-  ) async {
-    final account = AccountKey('did:plc:alice');
-    final repository = _RestartRetryRepository();
-    await _pumpDialog(tester, account, repository);
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.widgetWithText(TextButton, 'New folder'));
-    await tester.pump();
-    await tester.enterText(find.byType(TextField), 'Created');
-    await tester.tap(find.widgetWithText(ChunkyButton, 'Create folder'));
-    await tester.pumpAndSettle();
-
-    expect(repository.folderCalls, 2);
-    expect(find.text('Created'), findsOneWidget);
-    expect(find.widgetWithText(TextButton, 'Retry'), findsOneWidget);
-
-    await tester.tap(find.widgetWithText(TextButton, 'Retry'));
-    await tester.pumpAndSettle();
-
-    expect(repository.folderCalls, 3);
-    expect(find.widgetWithText(TextButton, 'Retry'), findsNothing);
-    expect(find.text('Created'), findsOneWidget);
-  });
-
-  testWidgets('UT-010 canceled folder creation stays silent and editable', (
-    tester,
-  ) async {
-    final account = AccountKey('did:plc:alice');
-    final repository = _DialogSavedPostRepository(
-      folderPages: {null: const SavedPostFolderPage(items: [])},
-      createError: const ApiCanceled(),
-    );
-    await _pumpDialog(tester, account, repository);
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.widgetWithText(TextButton, 'New folder'));
-    await tester.pump();
-    await tester.enterText(find.byType(TextField), 'Ideas');
-    await tester.tap(find.widgetWithText(ChunkyButton, 'Create folder'));
-    await tester.pumpAndSettle();
-
-    expect(find.byType(TextField), findsOneWidget);
-    expect(tester.widget<TextField>(find.byType(TextField)).enabled, isTrue);
-    expect(
-      find.text("That folder couldn't be created. Try again."),
-      findsNothing,
-    );
-    expect(find.byType(SavePostDialog), findsOneWidget);
-  });
-
-  testWidgets('UT-010 hides Retry for a non-retryable folder failure', (
-    tester,
-  ) async {
-    final account = AccountKey('did:plc:alice');
-    final repository = _DialogSavedPostRepository(
-      folderError: const ApiBadRequest('validation_failed'),
-    );
-    await _pumpDialog(tester, account, repository);
-    await tester.pumpAndSettle();
-
-    expect(find.text("Folders couldn't load."), findsOneWidget);
-    expect(find.widgetWithText(TextButton, 'Retry'), findsNothing);
-    expect(find.text('No folder'), findsOneWidget);
-  });
-
-  testWidgets('long folder lists use a scrollable selector without search', (
-    tester,
-  ) async {
-    final account = AccountKey('did:plc:alice');
-    final repository = _DialogSavedPostRepository(
-      folderPages: {
-        null: SavedPostFolderPage(
-          items: [
-            for (var index = 1; index <= 6; index++)
-              _folder('folder-$index', 'Folder $index'),
-          ],
-        ),
+        expect(repository.folderCalls, 3);
+        expect(find.widgetWithText(TextButton, 'Retry'), findsNothing);
+        expect(find.text('Created'), findsOneWidget);
       },
     );
-    await _pumpDialog(tester, account, repository);
-    await tester.pumpAndSettle();
 
-    expect(
-      find.byType(CraftskySingleSelectInput<String?>),
-      findsOneWidget,
-    );
-    expect(
-      find.byKey(const Key('saved-folder-search-input')),
-      findsNothing,
-    );
+    testWidgets('UT-010 canceled folder creation stays silent and editable', (
+      tester,
+    ) async {
+      final account = AccountKey('did:plc:alice');
+      final repository = _DialogSavedPostRepository(
+        folderPages: {null: const SavedPostFolderPage(items: [])},
+        createError: const ApiCanceled(),
+      );
+      await _pumpDialog(tester, account, repository);
+      await tester.pumpAndSettle();
 
-    await tester.tap(find.byKey(const Key('saved-folder-select-button')));
-    await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(TextButton, 'New folder'));
+      await tester.pump();
+      await tester.enterText(find.byType(TextField), 'Ideas');
+      await tester.tap(find.widgetWithText(ChunkyButton, 'Create folder'));
+      await tester.pumpAndSettle();
 
-    expect(
-      find.byKey(const Key('saved-folder-options-panel')),
-      findsOneWidget,
-    );
-    expect(
-      find.byKey(const Key('saved-folder-option-folder-1')),
-      findsOneWidget,
-    );
-    await tester.drag(
-      find.byKey(const Key('saved-folder-options-panel')),
-      const Offset(0, -240),
-    );
-    await tester.pumpAndSettle();
-    expect(
-      find.byKey(const Key('saved-folder-option-folder-6')),
-      findsOneWidget,
-    );
-    await tester.tap(find.byKey(const Key('saved-folder-option-folder-6')));
-    await tester.pumpAndSettle();
+      expect(find.byType(TextField), findsOneWidget);
+      expect(tester.widget<TextField>(find.byType(TextField)).enabled, isTrue);
+      expect(
+        find.text("That folder couldn't be created. Try again."),
+        findsNothing,
+      );
+      expect(find.byType(SavePostDialog), findsOneWidget);
+    });
 
-    expect(
-      tester
-          .widget<CraftskySingleSelectInput<String?>>(
-            find.byType(CraftskySingleSelectInput<String?>),
-          )
-          .value,
-      'folder-6',
-    );
-  });
+    testWidgets('UT-010 hides Retry for a non-retryable folder failure', (
+      tester,
+    ) async {
+      final account = AccountKey('did:plc:alice');
+      final repository = _DialogSavedPostRepository(
+        folderError: const ApiBadRequest('validation_failed'),
+      );
+      await _pumpDialog(tester, account, repository);
+      await tester.pumpAndSettle();
+
+      expect(find.text("Folders couldn't load."), findsOneWidget);
+      expect(find.widgetWithText(TextButton, 'Retry'), findsNothing);
+      expect(find.text('No folder'), findsOneWidget);
+    });
+
+    testWidgets('long folder lists use a scrollable selector without search', (
+      tester,
+    ) async {
+      final account = AccountKey('did:plc:alice');
+      final repository = _DialogSavedPostRepository(
+        folderPages: {
+          null: SavedPostFolderPage(
+            items: [
+              for (var index = 1; index <= 6; index++)
+                _folder('folder-$index', 'Folder $index'),
+            ],
+          ),
+        },
+      );
+      await _pumpDialog(tester, account, repository);
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byType(CraftskySingleSelectInput<String?>),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('saved-folder-search-input')),
+        findsNothing,
+      );
+
+      await tester.tap(find.byKey(const Key('saved-folder-select-button')));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('saved-folder-options-panel')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('saved-folder-option-folder-1')),
+        findsOneWidget,
+      );
+      await tester.drag(
+        find.byKey(const Key('saved-folder-options-panel')),
+        const Offset(0, -240),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const Key('saved-folder-option-folder-6')),
+        findsOneWidget,
+      );
+      await tester.tap(find.byKey(const Key('saved-folder-option-folder-6')));
+      await tester.pumpAndSettle();
+
+      expect(
+        tester
+            .widget<CraftskySingleSelectInput<String?>>(
+              find.byType(CraftskySingleSelectInput<String?>),
+            )
+            .value,
+        'folder-6',
+      );
+    });
+  }, skip: !subscriptionsEnabled);
+
+  testWidgets(
+    'beta saves without loading folders and explains New folder',
+    (
+      tester,
+    ) async {
+      final account = AccountKey('did:plc:alice');
+      final repository = _DialogSavedPostRepository(
+        folderError: Exception('private folder failure'),
+      );
+      await _pumpDialog(tester, account, repository);
+      await tester.pumpAndSettle();
+
+      expect(repository.folderCursors, isEmpty);
+      expect(find.text("Folders couldn't load."), findsNothing);
+      final selector = find.byType(CraftskySingleSelectInput<String?>);
+      expect(selector, findsOneWidget);
+      expect(
+        tester
+            .widget<CraftskySingleSelectInput<String?>>(selector)
+            .options
+            .map((option) => option.label),
+        ['No folder'],
+      );
+      expect(find.byType(CraftskyTextInput), findsNothing);
+      final lock = find.byType(PlusFeatureLock);
+      expect(lock, findsOneWidget);
+      expect(
+        tester
+            .widget<Opacity>(
+              find.descendant(of: lock, matching: find.byType(Opacity)),
+            )
+            .opacity,
+        0.72,
+      );
+
+      await tester.tap(lock);
+      await tester.pumpAndSettle();
+      expect(find.text('New folder is coming soon'), findsOneWidget);
+      expect(find.byType(CraftskyTextInput), findsNothing);
+      expect(repository.createNames, isEmpty);
+
+      await tester.tap(find.text('OK'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(ChunkyButton, 'Save post'));
+      await tester.pumpAndSettle();
+      expect(repository.saveCalls, 1);
+      expect(repository.lastSavedFolderId, isNull);
+      expect(find.byType(SavePostDialog), findsNothing);
+    },
+    skip: subscriptionsEnabled,
+  );
 }
 
 Future<void> _pumpDialog(

@@ -68,6 +68,11 @@ type safetyRetentionProcessor interface {
 	RunOnce(context.Context, int) (int, error)
 }
 
+type revenueCatProcessor interface {
+	ScheduleActiveAccounts(context.Context) (int64, error)
+	ProcessOne(context.Context) (bool, error)
+}
+
 func stopBackgroundWorkers(cancel context.CancelFunc, timeout time.Duration, done ...<-chan struct{}) error {
 	if cancel == nil {
 		return errors.New("background worker cancellation is unavailable")
@@ -412,6 +417,13 @@ func run(ctx context.Context, args []string, output io.Writer) error {
 		"identity_cache",
 		"refresh",
 	)
+	revenueCatDone := startRevenueCatProcessor(
+		consumerCtx,
+		deps.RevenueCatReconciler,
+		deps.Logger,
+		deps.Config.RevenueCat.ReconciliationPollInterval(),
+		deps.Config.RevenueCat.ReconciliationScheduleInterval(),
+	)
 	moderationExpiryDone := startBatchWorker(
 		consumerCtx,
 		deps.ModerationExpiry,
@@ -450,6 +462,7 @@ func run(ctx context.Context, args []string, output io.Writer) error {
 		accountDeletionIntentExpiryDone,
 		terminalPurgeDone,
 		identityCacheRefreshDone,
+		revenueCatDone,
 		moderationExpiryDone,
 		pdsCommandCompactionDone,
 	}
@@ -520,6 +533,60 @@ func run(ctx context.Context, args []string, output io.Writer) error {
 		_ = httpServer.Close()
 	}
 	return nil
+}
+
+func startRevenueCatProcessor(ctx context.Context, processor revenueCatProcessor, logger *slog.Logger, pollInterval, scheduleInterval time.Duration) <-chan struct{} {
+	done := make(chan struct{})
+	if processor == nil || pollInterval <= 0 || scheduleInterval <= 0 {
+		close(done)
+		return done
+	}
+	go func() {
+		defer close(done)
+		schedule := func() {
+			if _, err := processor.ScheduleActiveAccounts(ctx); err != nil && ctx.Err() == nil && logger != nil {
+				logger.Error("RevenueCat reconciliation scheduling failed",
+					slog.String("component", "revenuecat_reconciliation"),
+					slog.String("operation", "schedule"),
+					slog.String("result", "error"),
+					slog.String("error_category", "worker"))
+			}
+		}
+		schedule()
+		poll := time.NewTicker(pollInterval)
+		periodic := time.NewTicker(scheduleInterval)
+		defer poll.Stop()
+		defer periodic.Stop()
+		for {
+			processed, err := processor.ProcessOne(ctx)
+			if ctx.Err() != nil {
+				return
+			}
+			if err != nil && logger != nil {
+				logger.Error("RevenueCat reconciliation failed",
+					slog.String("component", "revenuecat_reconciliation"),
+					slog.String("operation", "process"),
+					slog.String("result", "error"),
+					slog.String("error_category", "provider"))
+			}
+			select {
+			case <-periodic.C:
+				schedule()
+			default:
+			}
+			if err == nil && processed {
+				continue
+			}
+			select {
+			case <-ctx.Done():
+				return
+			case <-periodic.C:
+				schedule()
+			case <-poll.C:
+			}
+		}
+	}()
+	return done
 }
 
 func logListening(logger *slog.Logger, addr string) {

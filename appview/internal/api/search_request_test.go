@@ -107,6 +107,7 @@ func TestDecodeSaveRecentSearchRequestNormalizesTypedPayloads(t *testing.T) {
 	}{
 		{name: "hashtag", body: `{"type":"hashtag","displayLabel":" #Sock ","payload":{"tag":"#Sock"}}`, want: `{"tag":"sock"}`},
 		{name: "profile", body: `{"type":"profile","displayLabel":"Ali","payload":{"did":"did:plc:alice","handle":"@Alice.Craftsky.Social","displayName":" Ali "}}`, want: `{"did":"did:plc:alice","displayName":"Ali","handle":"alice.craftsky.social"}`},
+		{name: "profile crafts", body: `{"type":"profile","displayLabel":"Ali","payload":{"did":"did:plc:alice","handle":"alice.example","crafts":["knitting"]}}`, want: `{"crafts":["social.craftsky.feed.defs#knitting"],"did":"did:plc:alice","handle":"alice.example"}`},
 		{name: "post popular", body: `{"type":"post","displayLabel":"Alpaca","payload":{"q":" alpaca ","sort":"popular"}}`, want: `{"q":"alpaca","sort":"popular"}`},
 		{name: "project filters", body: `{"type":"project","displayLabel":"Projects","payload":{"sort":"chronological","filters":{"projectTag":["KAL","kal"],"craftType":["Knitting"]},"q":" sock "}}`, want: `{"filters":{"craftType":["knitting"],"projectTag":["kal"]},"q":"sock","sort":"chronological"}`},
 	} {
@@ -164,6 +165,7 @@ func TestDecodeSaveRecentSearchRequestRejectsInvalidTypedPayloads(t *testing.T) 
 		`{"type":"hashtag","displayLabel":"Sock","payload":{"tag":"sock","sort":"popular"}}`,
 		`{"type":"profile","displayLabel":"Ali","payload":{"q":""}}`,
 		`{"type":"profile","displayLabel":"Ali","payload":{"handle":"alice.example"}}`,
+		`{"type":"profile","displayLabel":"Ali","payload":{"did":"did:plc:alice","handle":"alice.example","crafts":["unknown"]}}`,
 		`{"type":"post","displayLabel":"Alpaca","payload":{"q":"alpaca","sort":"newest"}}`,
 		`{"type":"project","displayLabel":"Projects","payload":{"filters":{"unknown":["x"]}}}`,
 		`{"type":"profile","displayLabel":"Ali","payload":null}`,

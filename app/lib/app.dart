@@ -1,6 +1,8 @@
 import 'package:craftsky_app/app_dependencies.dart';
 import 'package:craftsky_app/auth/models/active_account_initialization.dart';
 import 'package:craftsky_app/auth/providers/active_account_initialization_provider.dart';
+import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
+import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/auth/widgets/active_account_initialization_gate.dart';
 import 'package:craftsky_app/initialization_error_screen.dart';
 import 'package:craftsky_app/initialization_loading_screen.dart';
@@ -57,8 +59,18 @@ class _AppState extends ConsumerState<App> {
   ) {
     if (_coldStartComplete || next is AsyncLoading) return;
 
-    if (next case AsyncError()) {
-      logActiveAccountInitializationFailure();
+    if (next case AsyncError(:final error, :final stackTrace)) {
+      logActiveAccountInitializationFailure(
+        error,
+        stackTrace,
+        accountDid: ref
+            .read(sessionRegistryProvider)
+            .value
+            ?.activeLease
+            ?.session
+            .account
+            .did,
+      );
     }
     _coldStartComplete = true;
     _coldStartAccountInitialization?.close();
@@ -77,15 +89,19 @@ class _AppState extends ConsumerState<App> {
     });
 
     final depsAsync = ref.watch(appDependenciesProvider);
+    // The router reads authSessionProvider synchronously on its first redirect.
+    // Account initialization can finish before that async projection does;
+    // mounting the router in between briefly renders its /welcome default.
+    final authReady = ref.watch(authSessionProvider) is! AsyncLoading;
     final initializationResolved = switch (depsAsync) {
-      AsyncData() => _coldStartComplete,
+      AsyncData() => _coldStartComplete && authReady,
       AsyncError() => true,
       _ => false,
     };
     if (initializationResolved) _scheduleInitializationResolved();
 
     return switch (depsAsync) {
-      AsyncData() when _coldStartComplete => const _ReadyApp(),
+      AsyncData() when _coldStartComplete && authReady => const _ReadyApp(),
       AsyncData() => const _LoadingApp(),
       AsyncError(:final error) => _ErrorApp(error: error),
       _ => const _LoadingApp(),

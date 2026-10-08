@@ -39,7 +39,7 @@ CREATE TABLE tap_projection_jobs (
 
 func TestCraftskyImagePostVisibilityWaitsForEveryCurrentScan(t *testing.T) {
 	pool := testdb.WithSchema(t, craftskyPostsDDL+imageScanTapPreStateDDL)
-	migration, err := os.ReadFile("../../migrations/000076_image_safety.up.sql")
+	migration, err := os.ReadFile("../../migrations/000081_image_safety.up.sql")
 	if err != nil {
 		t.Fatalf("read image safety migration: %v", err)
 	}
@@ -193,7 +193,7 @@ func imageSourceFromEvent(event tap.Event) ingestion.SourceRecord {
 
 func TestImageSafetyExtractsEveryRenderedBlobIntoOneScanWorkflow(t *testing.T) {
 	pool := testdb.WithSchema(t, craftskyProfilesDDL+imageScanTapPreStateDDL)
-	migration, err := os.ReadFile("../../migrations/000076_image_safety.up.sql")
+	migration, err := os.ReadFile("../../migrations/000081_image_safety.up.sql")
 	if err != nil {
 		t.Fatalf("read image safety migration: %v", err)
 	}

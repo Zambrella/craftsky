@@ -51,87 +51,35 @@ class ErrorMappingInterceptor extends Interceptor {
 
   ApiFailureDetails _detailsFor(DioException err) {
     final data = err.response?.data;
-    final endpointCategory = _endpointCategory(err.requestOptions.path);
-    final appViewError = data is Map && data['error'] is String
-        ? data['error'] as String
-        : null;
-    final requestId = data is Map && data['requestId'] is String
-        ? data['requestId'] as String
-        : null;
     final statusCode = err.response?.statusCode;
-    final appViewMessage =
-        statusCode != null &&
-            statusCode >= 400 &&
-            statusCode < 500 &&
-            data is Map &&
-            data['message'] is String &&
-            endpointCategory != 'appview.auth.registrations'
-        ? data['message'] as String
-        : null;
-    return ApiFailureDetails(
-      statusCode: statusCode,
-      appViewError: appViewError,
-      appViewMessage: appViewMessage,
-      requestId: requestId,
-      endpointCategory: endpointCategory,
-    );
-  }
+    String? field(String key, RegExp pattern) {
+      final value = data is Map ? data[key] : null;
+      return value is String && pattern.hasMatch(value) ? value : null;
+    }
 
-  String _endpointCategory(String path) {
-    final uri = Uri.tryParse(path);
-    final pathOnly = uri?.path ?? path.split('?').first;
-    final parts = pathOnly
-        .split('/')
-        .where((part) => part.isNotEmpty && part != 'v1')
-        .toList();
-    if (parts.isEmpty) return 'appview.unknown';
-    return switch (parts) {
-      ['auth', 'login'] => 'appview.auth.login',
-      ['auth', 'registrations'] => 'appview.auth.registrations',
-      ['auth', 'logout'] => 'appview.auth.logout',
-      ['whoami'] => 'appview.whoami',
-      ['blobs', 'images'] => 'appview.blobs.images',
-      ['notifications'] => 'appview.notifications',
-      ['projects'] => 'appview.projects',
-      ['feed'] => 'appview.feed',
-      ['feed', 'timeline'] => 'appview.feed.timeline',
-      ['languages', 'preferences'] => 'appview.languages.preferences',
-      ['languages', 'preferences', 'initialize'] =>
-        'appview.languages.preferences.initialize',
-      ['posts'] => 'appview.posts',
-      ['posts', _, _] => 'appview.posts.detail',
-      ['posts', _, _, 'saves'] => 'appview.posts.saves',
-      ['posts', _, _, 'reports'] => 'appview.posts.reports',
-      ['posts', _, _, 'replies'] => 'appview.posts.replies',
-      ['posts', _, _, 'comments'] => 'appview.posts.comments',
-      ['posts', _, _, 'likes'] => 'appview.posts.likes',
-      ['posts', _, _, 'reposts'] => 'appview.posts.reposts',
-      ['posts', _, _, 'pin'] => 'appview.posts.pin',
-      ['profiles', 'me'] => 'appview.profiles.me',
-      ['profiles', 'me', 'followers'] => 'appview.profiles.me.followers',
-      ['profiles', 'me', 'following'] => 'appview.profiles.me.following',
-      ['profiles', 'me', ...] => 'appview.profiles.me',
-      ['profiles', _] => 'appview.profiles.detail',
-      ['profiles', _, 'posts'] => 'appview.profiles.posts',
-      ['profiles', _, 'projects'] => 'appview.profiles.projects',
-      ['profiles', _, 'comments'] => 'appview.profiles.comments',
-      ['profiles', _, 'follows'] => 'appview.profiles.follows',
-      ['profiles', _, 'reports'] => 'appview.profiles.reports',
-      ['profiles', _, 'mutual-followers'] =>
-        'appview.profiles.mutual_followers',
-      ['search', 'suggestions'] => 'appview.search.suggestions',
-      ['search', 'hashtags'] => 'appview.search.hashtags',
-      ['search', 'hashtags', 'top'] => 'appview.search.hashtags.top',
-      ['search', 'hashtags', _, 'posts'] => 'appview.search.hashtag_posts',
-      ['search', 'profiles'] => 'appview.search.profiles',
-      ['search', 'posts'] => 'appview.search.posts',
-      ['search', 'projects'] => 'appview.search.projects',
-      ['search', 'recent'] => 'appview.search.recent',
-      ['search', 'recent', _] => 'appview.search.recent.detail',
-      ['saved-posts'] => 'appview.saved_posts',
-      ['saved-post-folders'] => 'appview.saved_post_folders',
-      ['saved-post-folders', _] => 'appview.saved_post_folders.detail',
-      _ => 'appview.unknown',
-    };
+    // Server prose and resource paths stay out of diagnostics.
+    // Validation fields are retained separately for UI validation.
+    // Codes are a bounded API contract, not a catalogue of server wording.
+    return ApiFailureDetails(
+      statusCode: err.response?.statusCode,
+      appViewError: field('error', RegExp(r'^[a-z][a-z0-9_]{0,79}$')),
+      requestId: field('requestId', RegExp(r'^[A-Za-z0-9_-]{1,160}$')),
+      method: err.requestOptions.method,
+      cause: err.error ?? err,
+      stackTrace: err.stackTrace,
+      fields:
+          statusCode != null &&
+              statusCode >= 400 &&
+              statusCode < 500 &&
+              data is Map &&
+              data['fields'] is Map &&
+              err.requestOptions.uri.path != '/v1/auth/registrations'
+          ? Map.unmodifiable({
+              for (final entry in (data['fields'] as Map).entries)
+                if (entry.key is String && entry.value is String)
+                  entry.key as String: entry.value as String,
+            })
+          : const {},
+    );
   }
 }

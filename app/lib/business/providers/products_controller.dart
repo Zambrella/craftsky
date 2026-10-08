@@ -212,7 +212,12 @@ class ProductsController extends _$ProductsController {
         );
     final body = Map<String, dynamic>.from(
       jsonDecode(
-            jsonEncode(current.declaration.toJson(productDrafts: products)),
+            jsonEncode(
+              current.declaration.toJson(
+                productDrafts: products,
+                preserveUnknownCatalogValues: true,
+              ),
+            ),
           )
           as Map,
     );
@@ -302,7 +307,10 @@ class ProductsController extends _$ProductsController {
       );
       final reconciliation = PdsFixedKeyReconciliation(
         uri: 'at://$_ownerDid/social.craftsky.business.profile/self',
-        controlledContent: businessProfileControlledContent(body),
+        controlledContent: businessProfileProjection(
+          _ownerDid,
+          accepted,
+        ).content,
       );
       if (!commandController.markAccepted(
         commandToken,

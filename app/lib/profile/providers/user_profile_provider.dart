@@ -10,6 +10,7 @@ import 'package:craftsky_app/profile/providers/follow_profile_overlay.dart';
 import 'package:craftsky_app/profile/providers/profile_record_overlay.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
+import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'user_profile_provider.g.dart';
@@ -43,7 +44,7 @@ class UserProfile extends _$UserProfile {
       rethrow;
     }
     if (!isActiveAccountOperationCurrent(ref, ownership)) {
-      throw StateError('Active account changed');
+      throw DiagnosticStateError('Active account changed');
     }
     var reconciledProfile = profile;
     if (lease != null) {

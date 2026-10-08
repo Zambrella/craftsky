@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 
 	"social.craftsky/appview/internal/auth"
+	"social.craftsky/appview/internal/observability"
 )
 
 type ClaimedOperation struct {
@@ -59,6 +60,7 @@ type WorkerOptions struct {
 	LeaseDuration time.Duration
 	RetryPolicy   RetryPolicy
 	Logger        *slog.Logger
+	Observer      *observability.Observer
 }
 
 type Worker struct {
@@ -70,6 +72,7 @@ type Worker struct {
 	leaseDuration time.Duration
 	retryPolicy   RetryPolicy
 	logger        *slog.Logger
+	observer      *observability.Observer
 }
 
 func NewWorker(options WorkerOptions) (*Worker, error) {
@@ -87,14 +90,20 @@ func NewWorker(options WorkerOptions) (*Worker, error) {
 		store: options.Store, processor: options.Processor, finalizer: options.Finalizer,
 		workerID: options.WorkerID,
 		now:      options.Now, leaseDuration: options.LeaseDuration,
-		retryPolicy: options.RetryPolicy, logger: options.Logger,
+		retryPolicy: options.RetryPolicy, logger: options.Logger, observer: options.Observer,
 	}, nil
 }
 
 func (worker *Worker) ProcessOne(ctx context.Context) (bool, error) {
 	operation, found, err := worker.store.ClaimDue(ctx, worker.workerID, worker.leaseDuration)
-	if err != nil || !found {
+	if err != nil {
+		input := observability.DiagnosticInput{Error: err, Context: observability.EventContext{"component": "worker", "operation": "account.delete", "failure_stage": "claim", "result": "error"}}
+		observability.LogDiagnostic(ctx, worker.logger, input)
+		worker.observer.CaptureDiagnostic(ctx, input)
 		return found, err
+	}
+	if !found {
+		return found, nil
 	}
 	if err := worker.processor.Process(ctx, operation); err != nil {
 		// The session coordinator has already atomically removed the stale
@@ -111,15 +120,11 @@ func (worker *Worker) ProcessOne(ctx context.Context) (bool, error) {
 		nextAttempt := operation.AttemptCount + 1
 		nextAt := worker.retryPolicy.Next(worker.now().UTC(), operation.JobID.String(), nextAttempt)
 		if persistErr := worker.store.RecordFailure(ctx, operation, nextAt, category, nextAttempt); persistErr != nil {
+			worker.reportFailure(ctx, operation, errors.Join(err, persistErr), "failure_persistence", "error", nextAttempt)
 			return true, fmt.Errorf("persist account deletion failure: %w", persistErr)
 		}
-		if worker.logger != nil {
-			worker.logger.WarnContext(ctx, "account deletion attempt scheduled for retry",
-				slog.String("jobId", operation.JobID.String()),
-				slog.String("errorCategory", string(category)),
-				slog.Int("attempt", nextAttempt),
-			)
-		}
+		worker.reportFailure(ctx, operation, err, "processing", "retry", nextAttempt)
+
 		return true, nil
 	}
 	if err := worker.finalizer.CompleteAccepted(ctx, operation); err != nil {
@@ -133,14 +138,23 @@ func (worker *Worker) ProcessOne(ctx context.Context) (bool, error) {
 				ErrorCategoryPDS,
 				nextAttempt,
 			); persistErr != nil {
+				worker.reportFailure(ctx, operation, errors.Join(err, persistErr), "failure_persistence", "error", nextAttempt)
 				return true, fmt.Errorf("persist account deletion safety retry: %w", persistErr)
 			}
+			worker.reportFailure(ctx, operation, err, "finalization", "retry", nextAttempt)
 			return true, nil
 		}
+		worker.reportFailure(ctx, operation, err, "finalization", "error", operation.AttemptCount+1)
 		return true, fmt.Errorf("finalize account deletion: %w", err)
 	}
 	if worker.logger != nil {
 		worker.logger.InfoContext(ctx, "account deletion completed", slog.String("jobId", operation.JobID.String()))
 	}
 	return true, nil
+}
+
+func (worker *Worker) reportFailure(ctx context.Context, operation ClaimedOperation, cause error, stage, outcome string, attempt int) {
+	input := observability.DiagnosticInput{Error: cause, Context: observability.EventContext{"component": "worker", "operation": "account.delete", "failure_stage": stage, "result": outcome, "attempt": attempt}, Workflow: observability.PrivateFailureContext(cause, operation.Owner, operation.JobID.String())}
+	observability.LogDiagnostic(ctx, worker.logger, input)
+	worker.observer.CaptureDiagnostic(ctx, input)
 }

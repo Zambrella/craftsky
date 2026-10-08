@@ -82,6 +82,7 @@ mixin $AccountEligibilityRoute on GoRouteData {
 
 RouteBase get $authenticatedShellRoute => ShellRouteData.$route(
   navigatorKey: AuthenticatedShellRoute.$navigatorKey,
+  observers: AuthenticatedShellRoute.$observers,
   factory: $AuthenticatedShellRouteExtension._fromState,
   routes: [
     StatefulShellRouteData.$route(
@@ -89,6 +90,7 @@ RouteBase get $authenticatedShellRoute => ShellRouteData.$route(
       branches: [
         StatefulShellBranchData.$branch(
           navigatorKey: FeedBranch.$navigatorKey,
+          observers: FeedBranch.$observers,
           routes: [
             GoRouteData.$route(
               path: '/feed',
@@ -99,6 +101,7 @@ RouteBase get $authenticatedShellRoute => ShellRouteData.$route(
         ),
         StatefulShellBranchData.$branch(
           navigatorKey: ProjectsBranch.$navigatorKey,
+          observers: ProjectsBranch.$observers,
           routes: [
             GoRouteData.$route(
               path: '/projects',
@@ -109,6 +112,7 @@ RouteBase get $authenticatedShellRoute => ShellRouteData.$route(
         ),
         StatefulShellBranchData.$branch(
           navigatorKey: SearchBranch.$navigatorKey,
+          observers: SearchBranch.$observers,
           routes: [
             GoRouteData.$route(
               path: '/search',
@@ -126,6 +130,7 @@ RouteBase get $authenticatedShellRoute => ShellRouteData.$route(
         ),
         StatefulShellBranchData.$branch(
           navigatorKey: NotificationsBranch.$navigatorKey,
+          observers: NotificationsBranch.$observers,
           routes: [
             GoRouteData.$route(
               path: '/notifications',
@@ -145,6 +150,7 @@ RouteBase get $authenticatedShellRoute => ShellRouteData.$route(
         ),
         StatefulShellBranchData.$branch(
           navigatorKey: ProfileBranch.$navigatorKey,
+          observers: ProfileBranch.$observers,
           routes: [
             GoRouteData.$route(
               path: '/profile',
@@ -182,6 +188,13 @@ RouteBase get $authenticatedShellRoute => ShellRouteData.$route(
                       name: 'settings-account',
                       parentNavigatorKey: AccountRoute.$parentNavigatorKey,
                       factory: $AccountRoute._fromState,
+                    ),
+                    GoRouteData.$route(
+                      path: 'subscriptions',
+                      name: 'settings-subscriptions',
+                      parentNavigatorKey:
+                          SubscriptionsRoute.$parentNavigatorKey,
+                      factory: $SubscriptionsRoute._fromState,
                     ),
                     GoRouteData.$route(
                       path: 'moderation',
@@ -252,33 +265,6 @@ RouteBase get $authenticatedShellRoute => ShellRouteData.$route(
                   ],
                 ),
                 GoRouteData.$route(
-                  path: 'scheduled',
-                  name: 'scheduled-posts',
-                  parentNavigatorKey: ScheduledPostsRoute.$parentNavigatorKey,
-                  factory: $ScheduledPostsRoute._fromState,
-                ),
-                GoRouteData.$route(
-                  path: 'drafts',
-                  name: 'drafts',
-                  parentNavigatorKey: DraftsRoute.$parentNavigatorKey,
-                  factory: $DraftsRoute._fromState,
-                ),
-                GoRouteData.$route(
-                  path: 'saved',
-                  name: 'saved-posts',
-                  parentNavigatorKey: SavedPostsRoute.$parentNavigatorKey,
-                  factory: $SavedPostsRoute._fromState,
-                  routes: [
-                    GoRouteData.$route(
-                      path: 'folder',
-                      name: 'saved-post-folder',
-                      parentNavigatorKey:
-                          SavedPostFolderRoute.$parentNavigatorKey,
-                      factory: $SavedPostFolderRoute._fromState,
-                    ),
-                  ],
-                ),
-                GoRouteData.$route(
                   path: 'playground',
                   name: 'playground',
                   parentNavigatorKey: PlaygroundRoute.$parentNavigatorKey,
@@ -287,6 +273,32 @@ RouteBase get $authenticatedShellRoute => ShellRouteData.$route(
               ],
             ),
           ],
+        ),
+      ],
+    ),
+    GoRouteData.$route(
+      path: '/scheduled',
+      name: 'scheduled-posts',
+      parentNavigatorKey: ScheduledPostsRoute.$parentNavigatorKey,
+      factory: $ScheduledPostsRoute._fromState,
+    ),
+    GoRouteData.$route(
+      path: '/drafts',
+      name: 'drafts',
+      parentNavigatorKey: DraftsRoute.$parentNavigatorKey,
+      factory: $DraftsRoute._fromState,
+    ),
+    GoRouteData.$route(
+      path: '/saved',
+      name: 'saved-posts',
+      parentNavigatorKey: SavedPostsRoute.$parentNavigatorKey,
+      factory: $SavedPostsRoute._fromState,
+      routes: [
+        GoRouteData.$route(
+          path: 'folder',
+          name: 'saved-post-folder',
+          parentNavigatorKey: SavedPostFolderRoute.$parentNavigatorKey,
+          factory: $SavedPostFolderRoute._fromState,
         ),
       ],
     ),
@@ -611,6 +623,28 @@ mixin $AccountRoute on GoRouteData {
   void replace(BuildContext context) => context.replace(location);
 }
 
+mixin $SubscriptionsRoute on GoRouteData {
+  static SubscriptionsRoute _fromState(GoRouterState state) =>
+      const SubscriptionsRoute();
+
+  @override
+  String get location =>
+      GoRouteData.$location('/profile/settings/subscriptions');
+
+  @override
+  void go(BuildContext context) => context.go(location);
+
+  @override
+  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
+
+  @override
+  void pushReplacement(BuildContext context) =>
+      context.pushReplacement(location);
+
+  @override
+  void replace(BuildContext context) => context.replace(location);
+}
+
 mixin $AccountStandingRoute on GoRouteData {
   static AccountStandingRoute _fromState(GoRouterState state) =>
       const AccountStandingRoute();
@@ -820,12 +854,33 @@ mixin $BlockedAccountsRoute on GoRouteData {
   void replace(BuildContext context) => context.replace(location);
 }
 
+mixin $PlaygroundRoute on GoRouteData {
+  static PlaygroundRoute _fromState(GoRouterState state) =>
+      const PlaygroundRoute();
+
+  @override
+  String get location => GoRouteData.$location('/profile/playground');
+
+  @override
+  void go(BuildContext context) => context.go(location);
+
+  @override
+  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
+
+  @override
+  void pushReplacement(BuildContext context) =>
+      context.pushReplacement(location);
+
+  @override
+  void replace(BuildContext context) => context.replace(location);
+}
+
 mixin $ScheduledPostsRoute on GoRouteData {
   static ScheduledPostsRoute _fromState(GoRouterState state) =>
       const ScheduledPostsRoute();
 
   @override
-  String get location => GoRouteData.$location('/profile/scheduled');
+  String get location => GoRouteData.$location('/scheduled');
 
   @override
   void go(BuildContext context) => context.go(location);
@@ -845,7 +900,7 @@ mixin $DraftsRoute on GoRouteData {
   static DraftsRoute _fromState(GoRouterState state) => const DraftsRoute();
 
   @override
-  String get location => GoRouteData.$location('/profile/drafts');
+  String get location => GoRouteData.$location('/drafts');
 
   @override
   void go(BuildContext context) => context.go(location);
@@ -866,7 +921,7 @@ mixin $SavedPostsRoute on GoRouteData {
       const SavedPostsRoute();
 
   @override
-  String get location => GoRouteData.$location('/profile/saved');
+  String get location => GoRouteData.$location('/saved');
 
   @override
   void go(BuildContext context) => context.go(location);
@@ -889,7 +944,7 @@ mixin $SavedPostFolderRoute on GoRouteData {
   SavedPostFolderRoute get _self => this as SavedPostFolderRoute;
 
   @override
-  String get location => GoRouteData.$location('/profile/saved/folder');
+  String get location => GoRouteData.$location('/saved/folder');
 
   @override
   void go(BuildContext context) => context.go(location, extra: _self.$extra);
@@ -905,27 +960,6 @@ mixin $SavedPostFolderRoute on GoRouteData {
   @override
   void replace(BuildContext context) =>
       context.replace(location, extra: _self.$extra);
-}
-
-mixin $PlaygroundRoute on GoRouteData {
-  static PlaygroundRoute _fromState(GoRouterState state) =>
-      const PlaygroundRoute();
-
-  @override
-  String get location => GoRouteData.$location('/profile/playground');
-
-  @override
-  void go(BuildContext context) => context.go(location);
-
-  @override
-  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
-
-  @override
-  void pushReplacement(BuildContext context) =>
-      context.pushReplacement(location);
-
-  @override
-  void replace(BuildContext context) => context.replace(location);
 }
 
 mixin $PostThreadRoute on GoRouteData {
@@ -1332,4 +1366,4 @@ final class GoRouterProvider
   }
 }
 
-String _$goRouterHash() => r'4650f5c79dea6662dceb7a912a68fd79127d0287';
+String _$goRouterHash() => r'94d3f4e4dcf34678c8126ad1c74fe514650668df';

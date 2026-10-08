@@ -66,7 +66,10 @@ void main() {
     expect(debugInfoPlist, isNot(contains('<string>craftsky</string>')));
     expect(releaseInfoPlist, isNot(contains('CFBundleURLTypes')));
     expect(releaseInfoPlist, isNot(contains('craftsky-dev')));
-    expect(project, contains('INFOPLIST_FILE = Runner/Info-Debug.plist;'));
+    expect(
+      project,
+      contains(RegExp(r'INFOPLIST_FILE = "?Runner/Info-Debug\.plist"?;')),
+    );
     expect(
       'INFOPLIST_FILE = Runner/Info.plist;'.allMatches(project),
       hasLength(2),

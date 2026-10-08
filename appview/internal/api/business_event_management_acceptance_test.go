@@ -21,7 +21,11 @@ import (
 )
 
 func TestAT007DiagnoseReportAndModerateBusinessEvent(t *testing.T) {
-	pool := testdb.WithSchema(t, moderationStoreDDL(t)+businessEventModerationDDL+businessEventModerationMigrationDDL(t))
+	subscriptionMigration, err := testdb.ReadMigration("000076_subscription_accounts.up.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	pool := testdb.WithSchema(t, moderationStoreDDL(t)+businessEventModerationDDL+businessEventModerationMigrationDDL(t)+string(subscriptionMigration))
 	ctx := context.Background()
 	owner := syntax.DID("did:plc:event-owner")
 	visitor := syntax.DID("did:plc:event-visitor")
@@ -44,6 +48,7 @@ func TestAT007DiagnoseReportAndModerateBusinessEvent(t *testing.T) {
 	if _, err := pool.Exec(ctx, `INSERT INTO craftsky_account_types(owner_did, account_type) VALUES ($1, 'business')`, owner); err != nil {
 		t.Fatalf("seed business account type: %v", err)
 	}
+	seedBusinessTestLicense(t, pool, owner)
 
 	fixtures := []eventFixture{
 		{

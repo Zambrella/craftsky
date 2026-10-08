@@ -10,8 +10,6 @@ import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/auth/providers/unsaved_work_guard_provider.dart';
 import 'package:craftsky_app/auth/widgets/account_avatar.dart';
 import 'package:craftsky_app/auth/widgets/account_switcher_launcher.dart';
-import 'package:craftsky_app/business/models/business_profile.dart';
-import 'package:craftsky_app/business/providers/account_type_controller.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:craftsky_app/profile/models/profile_handle.dart';
@@ -20,7 +18,11 @@ import 'package:craftsky_app/settings/models/settings_identity.dart';
 import 'package:craftsky_app/settings/models/settings_row.dart';
 import 'package:craftsky_app/settings/widgets/settings_row_tile.dart';
 import 'package:craftsky_app/settings/widgets/sign_out_tile.dart';
+import 'package:craftsky_app/subscriptions/providers/subscription_access_provider.dart';
+import 'package:craftsky_app/subscriptions/subscription_build_config.dart';
+import 'package:craftsky_app/subscriptions/widgets/plus_feature_lock.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
+import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:craftsky_app/theme/theme_notifier.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -37,11 +39,19 @@ class SettingsPage extends ConsumerWidget {
         ? null
         : registry?.sessions[activeLease.account.did];
     final loadedIdentity = ref.watch(activeAccountIdentityProvider).value;
-    final accountType =
-        ref.watch(accountTypeControllerProvider).value ??
-        loadedIdentity?.profile.accountType;
     final auth = ref.watch(authSessionProvider).value;
     final themeMode = ref.watch(themeModeProvider);
+    final subscriptionAccess = activeLease == null
+        ? null
+        : ref.watch(subscriptionAccessProvider(activeLease));
+    final hasPaidAccess = switch (subscriptionAccess) {
+      AsyncData(:final value)
+          when !subscriptionAccess.isLoading &&
+              !subscriptionAccess.hasError &&
+              value.did == activeLease?.account.did =>
+        value.allowsPlus,
+      _ => false,
+    };
 
     SettingsIdentity? identity;
     if (activeLease != null && activeSession != null) {
@@ -90,6 +100,8 @@ class SettingsPage extends ConsumerWidget {
                 ? null
                 : () => unawaited(_openSwitcher(context, ref, switcherState)),
           ),
+          if (subscriptionsEnabled)
+            _SubscriptionCallout(hasPaidAccess: hasPaidAccess),
           _SectionLabel(l10n.settingsSectionPreferences),
           SettingsRowTile(
             descriptor: const SettingsRowDescriptor(
@@ -105,14 +117,24 @@ class SettingsPage extends ConsumerWidget {
             },
             onTap: () => const AppearanceRoute().go(context),
           ),
-          SettingsRowTile(
-            descriptor: const SettingsRowDescriptor(
-              id: SettingsRowId.customisation,
-              kind: SettingsRowKind.disclosure,
+          PlusFeatureLock(
+            feature: l10n.profileCustomisationTitle,
+            access: subscriptionAccess,
+            showPlusBadge: false,
+            onUnlocked: () => const ProfileCustomisationRoute().go(context),
+            onRetry: activeLease == null
+                ? null
+                : () => ref.invalidate(subscriptionAccessProvider(activeLease)),
+            child: SettingsRowTile(
+              descriptor: const SettingsRowDescriptor(
+                id: SettingsRowId.customisation,
+                kind: SettingsRowKind.disclosure,
+              ),
+              label: l10n.profileCustomisationTitle,
+              leading: CraftskyIcons.palette,
+              locked: subscriptionAccess?.value?.allowsPlus != true,
+              onTap: () => const ProfileCustomisationRoute().go(context),
             ),
-            label: l10n.profileCustomisationTitle,
-            leading: CraftskyIcons.palette,
-            onTap: () => const ProfileCustomisationRoute().go(context),
           ),
           SettingsRowTile(
             descriptor: const SettingsRowDescriptor(
@@ -135,14 +157,24 @@ class SettingsPage extends ConsumerWidget {
             ),
           ),
           _SectionLabel(l10n.settingsSectionConnections),
-          SettingsRowTile(
-            descriptor: const SettingsRowDescriptor(
-              id: SettingsRowId.growth,
-              kind: SettingsRowKind.disclosure,
+          PlusFeatureLock(
+            feature: l10n.settingsGrowth,
+            access: subscriptionAccess,
+            showPlusBadge: false,
+            onUnlocked: () => const FollowerGrowthRoute().go(context),
+            onRetry: activeLease == null
+                ? null
+                : () => ref.invalidate(subscriptionAccessProvider(activeLease)),
+            child: SettingsRowTile(
+              descriptor: const SettingsRowDescriptor(
+                id: SettingsRowId.growth,
+                kind: SettingsRowKind.disclosure,
+              ),
+              label: l10n.settingsGrowth,
+              leading: CraftskyIcons.trending,
+              locked: subscriptionAccess?.value?.allowsPlus != true,
+              onTap: () => const FollowerGrowthRoute().go(context),
             ),
-            label: l10n.settingsGrowth,
-            leading: CraftskyIcons.trending,
-            onTap: () => const FollowerGrowthRoute().go(context),
           ),
           SettingsRowTile(
             descriptor: const SettingsRowDescriptor(
@@ -191,27 +223,35 @@ class SettingsPage extends ConsumerWidget {
             onTap: () => const InstagramMigrationRoute().go(context),
             subtitle: l10n.instagramMigrationSettingsSubtitle,
           ),
-          if (accountType == AccountType.business) ...[
-            _SectionLabel(l10n.settingsSectionBusiness),
-            SettingsRowTile(
-              descriptor: const SettingsRowDescriptor(
-                id: SettingsRowId.businessEvents,
-                kind: SettingsRowKind.disclosure,
+          if (subscriptionsEnabled)
+            if (subscriptionAccess
+                case AsyncData(
+                  :final value,
+                )
+                when !subscriptionAccess.isLoading &&
+                    !subscriptionAccess.hasError &&
+                    value.did == activeLease?.account.did &&
+                    value.allowsBusiness) ...[
+              _SectionLabel(l10n.settingsSectionBusiness),
+              SettingsRowTile(
+                descriptor: const SettingsRowDescriptor(
+                  id: SettingsRowId.businessEvents,
+                  kind: SettingsRowKind.disclosure,
+                ),
+                label: l10n.settingsBusinessEvents,
+                leading: CraftskyIcons.events,
+                onTap: () => const BusinessEventsRoute().go(context),
               ),
-              label: l10n.settingsBusinessEvents,
-              leading: CraftskyIcons.events,
-              onTap: () => const BusinessEventsRoute().go(context),
-            ),
-            SettingsRowTile(
-              descriptor: const SettingsRowDescriptor(
-                id: SettingsRowId.businessProducts,
-                kind: SettingsRowKind.disclosure,
+              SettingsRowTile(
+                descriptor: const SettingsRowDescriptor(
+                  id: SettingsRowId.businessProducts,
+                  kind: SettingsRowKind.disclosure,
+                ),
+                label: l10n.settingsBusinessProducts,
+                leading: CraftskyIcons.storefront,
+                onTap: () => const BusinessProductsRoute().go(context),
               ),
-              label: l10n.settingsBusinessProducts,
-              leading: CraftskyIcons.storefront,
-              onTap: () => const BusinessProductsRoute().go(context),
-            ),
-          ],
+            ],
           _SectionLabel(l10n.settingsSectionGeneral),
           SettingsRowTile(
             descriptor: const SettingsRowDescriptor(
@@ -268,6 +308,104 @@ class SettingsPage extends ConsumerWidget {
         Navigator.pop(context);
         unawaited(const AddAccountRoute().push<void>(context));
       },
+    );
+  }
+}
+
+class _SubscriptionCallout extends StatelessWidget {
+  const _SubscriptionCallout({required this.hasPaidAccess});
+
+  final bool hasPaidAccess;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    final colors = theme.colorScheme;
+    final title = hasPaidAccess
+        ? l10n.settingsSubscriptionCalloutActiveTitle
+        : l10n.settingsSubscriptionCalloutTitle;
+    final description = hasPaidAccess
+        ? l10n.settingsSubscriptionCalloutActiveDescription
+        : l10n.settingsSubscriptionCalloutDescription;
+    final action = hasPaidAccess
+        ? l10n.settingsSubscriptionCalloutView
+        : l10n.settingsSubscriptionCalloutExplore;
+    final radius = theme.extension<RadiusTheme>()?.r3 ?? const RadiusTheme().r3;
+    final shadow =
+        theme.extension<BrandShadowTheme>()?.dropSm ??
+        const BrandShadowTheme().dropSm;
+    return Semantics(
+      button: true,
+      label: '$title. $description. $action',
+      excludeSemantics: true,
+      child: Container(
+        key: const Key('settings-subscription-callout'),
+        margin: const EdgeInsetsDirectional.fromSTEB(16, 12, 16, 4),
+        decoration: BoxDecoration(
+          color: Color.alphaBlend(
+            colors.primary.withValues(alpha: 0.1),
+            colors.surface,
+          ),
+          border: Border.all(color: colors.onSurface, width: 1.5),
+          borderRadius: BorderRadius.circular(radius),
+          boxShadow: shadow,
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Material(
+          type: MaterialType.transparency,
+          child: InkWell(
+            onTap: () => const SubscriptionsRoute().go(context),
+            excludeFromSemantics: true,
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        CraftskyIcons.plusTier,
+                        color: colors.primary,
+                        size: 28,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(title, style: theme.textTheme.titleMedium),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(description, style: theme.textTheme.bodyMedium),
+                  const SizedBox(height: 12),
+                  Container(
+                    width: double.infinity,
+                    constraints: const BoxConstraints(minHeight: 48),
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      color: colors.primary,
+                      borderRadius: BorderRadius.circular(radius),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      child: Text(
+                        action,
+                        textAlign: TextAlign.center,
+                        style: theme.textTheme.labelLarge?.copyWith(
+                          color: colors.onPrimary,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
