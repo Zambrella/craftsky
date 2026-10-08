@@ -1,5 +1,11 @@
 # Logging and Error Reporting Validation Evidence
 
+## PR 127 CI repair — 2026-10-08
+
+GitHub run 37761501772 on 37294149: Flutter failed only SDK-T05's enabled-log case (expected three serialized Logs, received zero); AppView release gate failed Staticcheck S1034 for repeated type assertions and U1000 for the unused capture wrapper. Aggregate PR check failed because these jobs failed. Read run/job logs and check annotations before changes.
+
+Minimal repair: type-switch binding removes redundant assertions; unused private capture helper removed. Flutter transport test waits for the actual serialized three-log batch before SDK shutdown instead of one event-loop turn, preserving real integration, native transport, issue gate, local output and canary assertions. No SDK/product behavior or workflow changes. Narrow verification: exact Staticcheck 2026.2.1 across AppView passed; observability race tests with isolated local PostgreSQL passed; both Flutter bridge cases passed; scoped Flutter analysis and git diff check clean. Logs: `/private/tmp/pr127-staticcheck.log`, `/private/tmp/pr127-go-repair.log`, `/private/tmp/pr127-flutter-repair.log`, `/private/tmp/pr127-flutter-analysis.log`. Remote rerun pending after push.
+
 ## PR handoff and merged-tree verification — 2026-10-08
 
 Maintainer authorized committing all changes, pushing and opening a PR. Current main was merged to resolve five conflicts. Retained main's AppView version/changelog (1.0.12), business-profile replacement validation and UI-only 4xx field details; preserved this branch's original diagnostic cause/stack and removal of server prose/route catalogues from client telemetry. No route/envelope/lexicon schema changes from this integration.

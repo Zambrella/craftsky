@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:craftsky_app/main.dart';
@@ -13,7 +14,7 @@ void main() {
     test(
       'SDK-T05 native logging gate $enabled keeps independent local fallback',
       () async {
-        final transport = SerializedTransport();
+        final transport = _LoggingTransport();
         await Sentry.init((options) {
           options
             ..dsn = 'https://public@example.invalid/1'
@@ -35,7 +36,13 @@ void main() {
             StackTrace.current,
           )
           ..fine('Verbose diagnostics');
-        await Future<void>.delayed(Duration.zero);
+        if (enabled) {
+          // Wait for the serialized batch, not one event-loop turn: the native
+          // integration enriches logs asynchronously before buffering them.
+          await transport.logsReceived.future.timeout(
+            const Duration(seconds: 15),
+          );
+        }
         await Sentry.close();
         final payloads = transport.payloads
             .map(jsonDecode)
@@ -61,5 +68,21 @@ void main() {
         );
       },
     );
+  }
+}
+
+class _LoggingTransport extends SerializedTransport {
+  final logsReceived = Completer<void>();
+
+  @override
+  Future<SentryId?> send(SentryEnvelope envelope) async {
+    final id = await super.send(envelope);
+    final logs = payloads
+        .map(jsonDecode)
+        .cast<Map<String, dynamic>>()
+        .expand((payload) => (payload['items'] as List?) ?? [])
+        .length;
+    if (logs >= 3 && !logsReceived.isCompleted) logsReceived.complete();
+    return id;
   }
 }

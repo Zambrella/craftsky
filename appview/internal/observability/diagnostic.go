@@ -40,11 +40,11 @@ func DescribeError(err error, eventCtx EventContext) []DiagnosticCause {
 	}
 	for _, current := range nodes {
 		cause := DiagnosticCause{Type: fmt.Sprintf("%T", current), Message: ClassifyError(current, eventCtx).Message}
-		switch current.(type) {
+		switch current := current.(type) {
 		case *lexiconschema.ValidationError:
-			cause.Message = current.(*lexiconschema.ValidationError).DiagnosticMessage()
+			cause.Message = current.DiagnosticMessage()
 		case *DiagnosticError:
-			cause.Message = boundDiagnosticText(current.(*DiagnosticError).Message, 512)
+			cause.Message = boundDiagnosticText(current.Message, 512)
 		case *runtime.TypeAssertionError, *runtime.PanicNilError:
 			cause.Message = sanitizeKnownDiagnosticText(current.Error())
 		}

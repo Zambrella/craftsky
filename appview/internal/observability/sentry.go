@@ -209,10 +209,6 @@ func (o *Observer) CapturePanic(ctx context.Context, eventCtx EventContext, reco
 	o.captureExceptions(ctx, "appview panic recovered", exceptions, eventCtx, original)
 }
 
-func (o *Observer) capture(ctx context.Context, message, exceptionType, exceptionValue string, eventCtx EventContext) {
-	o.captureExceptions(ctx, message, []sentry.Exception{{Type: exceptionType, Value: exceptionValue}}, eventCtx, nil)
-}
-
 func (o *Observer) captureExceptions(ctx context.Context, message string, exceptions []sentry.Exception, eventCtx EventContext, original error, workflowContexts ...EventContext) {
 	defer func() {
 		if recover() != nil {
