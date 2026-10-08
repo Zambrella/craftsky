@@ -38,8 +38,9 @@ class _SelectedChips<T> extends StatelessWidget {
   }
 }
 
-class _CraftskyOptionsPanel extends StatelessWidget {
-  const _CraftskyOptionsPanel({
+/// Shared dropdown surface for select inputs and asynchronous suggestions.
+class CraftskyOptionsPanel extends StatelessWidget {
+  const CraftskyOptionsPanel({
     required this.child,
     super.key,
     this.scrollable = true,
@@ -81,12 +82,14 @@ class _CraftskyOptionsPanel extends StatelessWidget {
   }
 }
 
-class _AnchoredSelectOverlay extends StatelessWidget {
-  const _AnchoredSelectOverlay({
+/// Positions a dropdown against its field within the keyboard-safe viewport.
+class CraftskyAnchoredSelectOverlay extends StatelessWidget {
+  const CraftskyAnchoredSelectOverlay({
     required this.anchorKey,
     required this.onDismiss,
     required this.onEscape,
     required this.child,
+    super.key,
   });
 
   final GlobalKey anchorKey;
@@ -95,73 +98,78 @@ class _AnchoredSelectOverlay extends StatelessWidget {
   final Widget child;
 
   @override
-  Widget build(BuildContext context) {
-    final anchorBox = anchorKey.currentContext?.findRenderObject();
-    if (anchorBox is! RenderBox) {
-      return const SizedBox.shrink();
-    }
+  Widget build(BuildContext context) => LayoutBuilder(
+    // Measure after the underlying form has laid out, including when opening
+    // the keyboard changes the field's position without a scroll event.
+    builder: (context, constraints) {
+      final anchorBox = anchorKey.currentContext?.findRenderObject();
+      if (anchorBox is! RenderBox) {
+        return const SizedBox.shrink();
+      }
 
-    const gap = 4.0;
-    const preferredMaxHeight = 280.0;
-    final anchorRect = anchorBox.localToGlobal(Offset.zero) & anchorBox.size;
-    final mediaQuery = MediaQuery.of(context);
-    final usableTop = mediaQuery.padding.top;
-    final usableBottom =
-        mediaQuery.size.height -
-        mediaQuery.padding.bottom -
-        mediaQuery.viewInsets.bottom;
-    final availableAbove = anchorRect.top - usableTop - gap;
-    final availableBelow = usableBottom - anchorRect.bottom - gap;
-    final openAbove =
-        availableBelow < preferredMaxHeight && availableAbove > availableBelow;
-    final maxHeight = (openAbove ? availableAbove : availableBelow).clamp(
-      0.0,
-      preferredMaxHeight,
-    );
+      const gap = 4.0;
+      const preferredMaxHeight = 280.0;
+      final anchorRect = anchorBox.localToGlobal(Offset.zero) & anchorBox.size;
+      final mediaQuery = MediaQuery.of(context);
+      final usableTop = mediaQuery.padding.top;
+      final usableBottom =
+          mediaQuery.size.height -
+          mediaQuery.padding.bottom -
+          mediaQuery.viewInsets.bottom;
+      final availableAbove = anchorRect.top - usableTop - gap;
+      final availableBelow = usableBottom - anchorRect.bottom - gap;
+      final openAbove =
+          availableBelow < preferredMaxHeight &&
+          availableAbove > availableBelow;
+      final maxHeight = (openAbove ? availableAbove : availableBelow).clamp(
+        0.0,
+        preferredMaxHeight,
+      );
 
-    return Stack(
-      children: [
-        Positioned.fill(
-          child: GestureDetector(
-            behavior: HitTestBehavior.translucent,
-            onTap: onDismiss,
+      return Stack(
+        children: [
+          Positioned.fill(
+            child: GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onTap: onDismiss,
+            ),
           ),
-        ),
-        Positioned(
-          left: anchorRect.left,
-          top: openAbove
-              ? anchorRect.top - gap - maxHeight
-              : anchorRect.bottom + gap,
-          width: anchorBox.size.width,
-          height: maxHeight,
-          child: Align(
-            alignment: openAbove ? Alignment.bottomLeft : Alignment.topLeft,
-            child: SizedBox(
-              width: anchorBox.size.width,
-              child: Focus(
-                canRequestFocus: false,
-                skipTraversal: true,
-                descendantsAreFocusable: false,
-                descendantsAreTraversable: false,
-                onKeyEvent: (_, event) {
-                  if (event is KeyDownEvent &&
-                      event.logicalKey == LogicalKeyboardKey.escape) {
-                    onEscape();
-                    return KeyEventResult.handled;
-                  }
-                  return KeyEventResult.ignored;
-                },
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(maxHeight: maxHeight),
-                  child: child,
+          Positioned(
+            left: anchorRect.left,
+            top: openAbove
+                ? anchorRect.top - gap - maxHeight
+                : anchorRect.bottom + gap,
+            width: anchorBox.size.width,
+            height: maxHeight,
+            child: Align(
+              alignment: openAbove ? Alignment.bottomLeft : Alignment.topLeft,
+              child: SizedBox(
+                width: anchorBox.size.width,
+                child: Focus(
+                  canRequestFocus: false,
+                  skipTraversal: true,
+                  descendantsAreFocusable: false,
+                  descendantsAreTraversable: false,
+                  onKeyEvent: (_, event) {
+                    if (event is KeyDownEvent &&
+                        event.logicalKey == LogicalKeyboardKey.escape) {
+                      onEscape();
+                      return KeyEventResult.handled;
+                    }
+                    return KeyEventResult.ignored;
+                  },
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(maxHeight: maxHeight),
+                    child: child,
+                  ),
                 ),
               ),
             ),
           ),
-        ),
-      ],
-    );
-  }
+        ],
+      );
+    },
+  );
 }
 
 String _optionKey(String? keyPrefix, String label, Object? value) {

@@ -142,7 +142,7 @@ class _CraftskySingleSelectInputState<T>
       _overlayScrollPosition = Scrollable.maybeOf(context)?.position
         ?..addListener(_markOverlayNeedsBuild);
       _overlayEntry = OverlayEntry(
-        builder: (context) => _AnchoredSelectOverlay(
+        builder: (context) => CraftskyAnchoredSelectOverlay(
           anchorKey: _anchorKey,
           onDismiss: () => _setOpen(false),
           onEscape: _closeOverlayAndRefocus,
@@ -497,7 +497,7 @@ class _CraftskySingleSelectInputState<T>
     final selectedTileShape = RoundedRectangleBorder(
       borderRadius: BorderRadius.circular(radii.r2),
     );
-    return _CraftskyOptionsPanel(
+    return CraftskyOptionsPanel(
       key: Key('${widget.keyPrefix ?? widget.label}-options-panel'),
       scrollable: false,
       child: ListView(
