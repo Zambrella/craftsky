@@ -200,6 +200,37 @@ online-safety-readiness-test:
 web-test-consent:
     npm run --prefix web test:consent
 
+# Install pinned website tooling and Chromium for consent checks.
+web-setup:
+    npm ci --prefix web
+    cd web && npm exec -- playwright install chromium
+
+# Authenticate Wrangler locally; credentials are managed outside the repository.
+web-login:
+    cd web && npm exec -- wrangler login
+
+# Show the Cloudflare accounts available to the current Wrangler login.
+web-whoami:
+    cd web && npm exec -- wrangler whoami
+
+# Package only public files into web/dist.
+web-build:
+    npm run --prefix web build
+
+# Check deployment tooling and consent behavior of the built website.
+web-check: web-build
+    python3 -m unittest discover -s scripts -p 'test_web_deploy.py'
+    python3 -m unittest discover -s scripts -p 'test_cloudflare_pages_build.py'
+    WEB_TEST_ROOT=dist npm run --prefix web test:consent
+
+# Upload a Worker version for preview without changing live traffic.
+web-preview:
+    ./scripts/web-deploy preview
+
+# Deploy clean, pushed main to craftsky.social and verify the published files.
+web-deploy:
+    ./scripts/web-deploy production
+
 # Repository release quality checks, also used for private beta.
 # Run online-safety-readiness separately before full public launch.
 public-release-check:

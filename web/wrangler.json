@@ -1,0 +1,12 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "craftsky-landing",
+  "account_id": "5019e87cb75545b8a7279c42dd92bd90",
+  "compatibility_date": "2026-10-08",
+  "keep_vars": true,
+  "assets": {
+    "directory": "./dist",
+    "html_handling": "drop-trailing-slash",
+    "not_found_handling": "none"
+  }
+}

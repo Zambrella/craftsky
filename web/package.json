@@ -7,6 +7,13 @@
     "test:consent": "playwright test test/analytics-consent.spec.js"
   },
   "devDependencies": {
-    "@playwright/test": "1.63.0"
+    "@playwright/test": "1.63.0",
+    "wrangler": "4.148.0"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "overrides": {
+    "sharp": "0.35.5"
   }
 }

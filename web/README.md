@@ -48,30 +48,129 @@ The suite uses clean browser contexts for every public route and verifies networ
 script, cookie, local-storage, and session-storage behavior before consent, after
 denial, after grant, and under Do Not Track.
 
-## Deploy
+## Build and deploy
 
-Run the repository quality checks from the repository root:
+The existing **Cloudflare Worker with static assets** is `craftsky-landing`,
+serving `https://craftsky.social`. Production releases come from Git branch `main`. Deployments
+are run locally; merging a PR does not automatically publish the website.
+The non-secret account ID, Worker name and asset settings live in `wrangler.json`;
+`deploy.json` contains the production Git branch and public origin. The Worker
+has no custom runtime code. HTML handling supports clean routes such as `/privacy`.
+The website deploys independently of AppView and Flutter releases.
+
+### One-time setup
+
+Use Node.js 22 or newer, npm, Python 3.10 or newer, Git, and `just`:
 
 ```bash
-just public-release-check
+just web-setup
+just web-login
+just web-whoami
 ```
 
-The command runs build and test checks without requiring the full-launch safety
-gaps to be closed. Before full public launch, run `just online-safety-readiness`
-and complete the approvals and evidence recorded in the gap register.
+Run these commands from the repository root. `web-setup` installs the locked
+Wrangler/browser-test dependencies and Chromium. `web-whoami` shows your account
+IDs. Deployment uses the account ID checked into `wrangler.json`, overriding any
+inherited `CLOUDFLARE_ACCOUNT_ID`; no account environment variable is needed.
+The scripts do not load the repository's backend `.env.local` or write Cloudflare credentials.
+Wrangler manages the local OAuth login. Alternatively, supply
+`CLOUDFLARE_API_TOKEN` in your shell with Account → Workers Scripts → Edit
+permission scoped to the intended account. Never commit a token.
 
-Cloudflare Pages is configured to watch `web/` on `main`:
+### Build and check
 
-- Framework preset: None
-- Build command: `npm run build`
-- Build output directory: `/`
-- Root directory: `web`
+```bash
+just web-build
+just web-check
+```
 
-The build command allows beta publication on the production branch while safety
-gaps remain open. It does not approve the policy drafts or mark the service ready
-for full public launch. Preview branches remain available for policy review.
+`web-build` creates a fresh `web/dist/` with the homepage, waitlist, all five
+policy pages, JavaScript, CSS, robots.txt and image/font assets. It excludes
+packages, tests, email templates, documentation, configuration and policy
+approval metadata. New public pages must be added to `ROUTES` in
+`scripts/cloudflare_pages_build.py`; other root files must be added to
+`PUBLIC_FILES`. Hidden asset files and unsupported asset extensions are excluded.
 
-Every PR gets a preview URL under `pages.dev`. Production deploys land on `craftsky.social` after merging to `main`.
+`site-release.json` contains the Git commit, dirty-checkout flag and SHA-256
+hashes of the public files. This metadata is public. Build output and local
+deployment receipts are Git-ignored. `web-check` runs the build/deployment unit
+tests and the consent browser suite **against the built artifact**. Existing
+`web-test-consent` still tests the source website.
+
+### Preview
+
+```bash
+just web-preview
+```
+
+This runs `web-check`, confirms the existing Worker is accessible, and uses
+`wrangler versions upload` to upload a new version without assigning it live
+traffic. The `preview-<current-branch>` alias is capped to Cloudflare's DNS length
+limit. Uncommitted changes are allowed and recorded in the version tag and local
+receipt. The script verifies the unique `workers.dev` Version URL and records it
+in `web/.deployments/<version-id>.json`. Review the preview before merging.
+
+Version URLs must be enabled in Cloudflare → Workers & Pages → `craftsky-landing`
+→ Settings → Domains & Routes → Version URLs (sometimes labelled Preview URLs).
+The script preserves the existing setting. If disabled, it reports how to enable
+it and stops without promoting the uploaded version to live traffic.
+
+### Production
+
+After merging the reviewed PR, check out the updated `main` and run:
+
+```bash
+git switch main
+git pull --ff-only
+just web-deploy
+```
+
+The command requires a clean checkout equal to freshly fetched `origin/main`,
+confirms the existing Worker is accessible in the configured account, runs
+`web-check`, and uploads the complete artifact as a Worker version. It verifies
+every published file at that version's URL, including clean `/privacy` and
+`/terms` routes, before running `wrangler versions deploy <version-id>@100`.
+It confirms the deployed version and percentage via deployment discovery, then
+verifies all files at `https://craftsky.social`. These commands preserve the
+existing custom domains/routes and do not run `wrangler triggers deploy`.
+
+Keep the checkout and build output unchanged while deployment runs. Verification
+retries while changes propagate. If Version URL verification fails, production
+promotion is skipped. If public-origin verification fails after promotion, the
+version may already be live: inspect the printed receipt before retrying or
+rolling back. There is no automatic rollback. Receipts record the commit, dirty
+flag, file hashes, Worker version ID, production deployment ID (when promoted),
+URL and verified origins.
+
+The checked-in policy HTML is generated from `online-safety/policies/` via
+`just policy-artifact`. Generate and review those files before deploying policy
+changes. Deployment copies their existing content without approving drafts or
+changing their effective dates. `web/policy-publication-manifest.json` continues
+to track approval independently. Before full public launch, run
+`just online-safety-readiness` and complete the approvals/evidence in the gap
+register. Open readiness gaps do not prevent beta website publication.
+
+### Rollback
+
+In Cloudflare → Workers & Pages → `craftsky-landing` → Deployments, select the
+previous known-good version and use the rollback/deployment control to assign
+it 100% of traffic. Alternatively, from `web/`, use the pinned CLI:
+
+```bash
+npm exec -- wrangler versions deploy <previous-version-id>@100 --config wrangler.json
+```
+
+This restores the complete site's version while preserving custom domains.
+Verify the homepage and policy routes and compare
+`https://craftsky.social/site-release.json` with the intended previous release
+(older dashboard-uploaded versions may not have this file). Keep the deployment
+ID/receipt as evidence and reconcile reverted website changes in Git before the
+next production release.
+
+Cloudflare references: [static assets](https://developers.cloudflare.com/workers/static-assets/),
+[Version URLs](https://developers.cloudflare.com/workers/versions-and-deployments/version-urls/),
+[versions and deployments](https://developers.cloudflare.com/workers/versions-and-deployments/),
+[rollbacks](https://developers.cloudflare.com/workers/versions-and-deployments/rollbacks/).
 
 ## Open FIXMEs
 

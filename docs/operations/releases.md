@@ -34,6 +34,18 @@ verification. Switching to a content scanner requires scanning existing media
 under its own scanner/policy/corpus key; manual-mode results are not scanner
 approval evidence.
 
+## Public website deployments
+
+The static website has its own local deployment workflow, independent of AppView
+and Flutter versions/tags. Use `just web-preview` to review a checked artifact,
+then `just web-deploy` from clean, pushed `main` to deploy to the existing
+Cloudflare Worker with static assets `craftsky-landing`. Merging changes alone does not
+publish them. Both commands run the website checks and verify an uploaded version;
+production then assigns that exact version 100% of traffic and verifies
+`https://craftsky.social`. Existing custom domains/routes are preserved. See
+[`web/README.md`](../../web/README.md#build-and-deploy) for account setup,
+deployment receipts, policy-artifact handling and full-site rollback.
+
 ## Shared rules
 
 - Start on a clean local `main` synchronized with `origin/main`.
