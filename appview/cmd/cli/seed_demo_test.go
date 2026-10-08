@@ -32,10 +32,13 @@ CREATE TABLE bluesky_profiles (
 CREATE TABLE atproto_identity_cache (
     did TEXT NOT NULL PRIMARY KEY,
     handle TEXT NOT NULL,
-    handle_lower TEXT NOT NULL UNIQUE,
+    handle_lower TEXT NOT NULL,
     resolved_at TIMESTAMPTZ NOT NULL,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+CREATE UNIQUE INDEX atproto_identity_cache_valid_handle_lower_unique
+    ON atproto_identity_cache (handle_lower)
+    WHERE handle_lower <> 'handle.invalid';
 CREATE TABLE tap_source_records (
     uri TEXT PRIMARY KEY, did TEXT NOT NULL, collection TEXT NOT NULL, rkey TEXT NOT NULL,
     source_event_id BIGINT NOT NULL, source_fingerprint BYTEA NOT NULL, revision TEXT NOT NULL,
@@ -174,8 +177,8 @@ func TestRunDemoSeedCreatesScreenshotDatasetAndIsIdempotent(t *testing.T) {
 		JOIN atproto_identity_cache id USING (did)
 		JOIN craftsky_profiles cp USING (did)
 		WHERE (bp.display_name, id.handle) IN (
-			('Alma', 'almitamade.bsky.social'),
-			('Yvette Todd', 'blossomsandwich.bsky.social')
+			('Alma', 'almitamade-shot.craftsky.test'),
+			('Yvette Todd', 'blossomsandwich-shot.craftsky.test')
 		)
 		AND cp.crafts && ARRAY['social.craftsky.feed.defs#knitting', 'social.craftsky.feed.defs#sewing']
 		AND bp.avatar_cid IN ('devmedia:alma-profile', 'devmedia:yvette-profile')
@@ -225,6 +228,36 @@ func TestRunDemoSeedCreatesScreenshotDatasetAndIsIdempotent(t *testing.T) {
 	}
 	if selfDraftedProjects != 1 {
 		t.Fatalf("self-drafted projects = %d, want 1", selfDraftedProjects)
+	}
+}
+
+func TestRunDemoSeedPreservesRealIdentitiesAcrossNamespaces(t *testing.T) {
+	pool := testdb.WithSchema(t, demoSeedDDL)
+	ctx := context.Background()
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO atproto_identity_cache (did, handle, handle_lower, resolved_at)
+		VALUES ('did:plc:realalma', 'almitamade.bsky.social', 'almitamade.bsky.social', now()),
+		       ('did:plc:realyvette', 'blossomsandwich.bsky.social', 'blossomsandwich.bsky.social', now())
+	`); err != nil {
+		t.Fatal(err)
+	}
+	for _, seed := range []string{"demo", "shot", "demo"} {
+		if _, err := runDemoSeed(ctx, pool, demoSeedArgs{UserDID: "did:plc:viewer", Seed: seed}); err != nil {
+			t.Fatalf("runDemoSeed(%q): %v", seed, err)
+		}
+	}
+	var preserved int
+	if err := pool.QueryRow(ctx, `
+		SELECT count(*) FROM atproto_identity_cache
+		WHERE (did, handle, handle_lower) IN (
+			('did:plc:realalma', 'almitamade.bsky.social', 'almitamade.bsky.social'),
+			('did:plc:realyvette', 'blossomsandwich.bsky.social', 'blossomsandwich.bsky.social')
+		)
+	`).Scan(&preserved); err != nil {
+		t.Fatal(err)
+	}
+	if preserved != 2 {
+		t.Fatalf("preserved real identities = %d, want 2", preserved)
 	}
 }
 

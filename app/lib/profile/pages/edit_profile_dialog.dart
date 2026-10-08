@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:typed_data';
 
 import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/auth/models/auth_state.dart';
@@ -16,6 +15,7 @@ import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/models/profile_feature_access.dart';
 import 'package:craftsky_app/profile/models/profile_save_result.dart';
 import 'package:craftsky_app/profile/providers/profile_image_picker_provider.dart';
+import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/profile/providers/save_profile_provider.dart';
 import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
 import 'package:craftsky_app/profile/widgets/edit_profile_banner_avatar.dart';
@@ -23,6 +23,7 @@ import 'package:craftsky_app/profile/widgets/edit_profile_crafts_picker.dart';
 import 'package:craftsky_app/profile/widgets/profile_page_error.dart';
 import 'package:craftsky_app/router/responsive_modal_navigation.dart';
 import 'package:craftsky_app/settings/settings_links.dart';
+import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/link/external_link.dart';
 import 'package:craftsky_app/shared/media/image_source_menu.dart';
 import 'package:craftsky_app/shared/media/uploaded_image_blob.dart';
@@ -33,6 +34,7 @@ import 'package:craftsky_app/theme/brand_text_field.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_form_builder/flutter_form_builder.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -217,6 +219,7 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
   late BusinessDeclarationDraft _businessBaseline;
 
   _ProfileImageDraft _avatarDraft = const _ProfileImageDraft();
+  bool _refreshingBusiness = false;
   AccountSessionLease? _unsavedOwner;
   UnsavedWorkRegistration? _unsavedRegistration;
   late final UnsavedWorkGuard _unsavedGuard;
@@ -411,7 +414,7 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
     final swatches = theme.extension<BrandSwatchTheme>()!;
     final l10n = AppLocalizations.of(context);
     final saveState = ref.watch(saveProfileProvider);
-    final isSaving = saveState is AsyncLoading;
+    final isSaving = saveState is AsyncLoading || _refreshingBusiness;
 
     // Reconcile each independently versioned record before deciding whether
     // the dialog can close. A successful half becomes the new baseline even
@@ -430,7 +433,11 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
         case (AsyncLoading(), AsyncData(value: final result?))
             when result.failedPortions.isNotEmpty:
           _applySaveResult(result);
-          context.showError(_saveFailureMessage(result, l10n));
+          if (result.business.failureKind == ProfileSaveFailureKind.conflict) {
+            unawaited(_refreshBusinessAfterConflict(result, l10n));
+          } else {
+            context.showError(_saveFailureMessage(result, l10n));
+          }
         case (AsyncLoading(), AsyncError()):
           context.showError(l10n.editProfileSaveError);
         case _:
@@ -675,10 +682,93 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
     if (mounted) setState(() {});
   }
 
+  Future<void> _refreshBusinessAfterConflict(
+    CombinedProfileSaveResult result,
+    AppLocalizations l10n,
+  ) async {
+    final ownership = ref.read(sessionRegistryProvider).value?.activeLease;
+    final before = BusinessProfileFields.valuesFrom(_businessBaseline);
+    final edited = BusinessProfileFields.valuesFrom(_currentBusinessDraft);
+    setState(() => _refreshingBusiness = true);
+    var refreshed = false;
+    try {
+      final profile = await ref.read(profileRepositoryProvider).fetchMe();
+      if (!mounted ||
+          (ownership != null &&
+              !(ref.read(sessionRegistryProvider).value?.isCurrent(ownership) ??
+                  false)) ||
+          profile.did != _ordinaryBaseline.did) {
+        return;
+      }
+      final baseline = BusinessDeclarationDraft.fromProfile(profile.business);
+      // A projection may still lag the PDS. Never claim recovery until its
+      // version differs from the one rejected by the save.
+      if (baseline.expectedCid != _businessBaseline.expectedCid) {
+        final latest = BusinessProfileFields.valuesFrom(baseline);
+        final patch = <String, dynamic>{};
+        for (final field in latest.keys) {
+          final old = before[field];
+          final local = edited[field];
+          final unchanged = old is List && local is List
+              ? listEquals(old, local)
+              : old == local;
+          patch[field] = unchanged ? latest[field] : local;
+        }
+        _businessBaseline = baseline;
+        _ordinaryBaseline = _ordinaryBaseline.copyWith(
+          business: profile.business,
+        );
+        _formKey.currentState?.patchValue(patch);
+        refreshed = true;
+      }
+    } on Object {
+      // Keep the draft and its original version when refresh is unavailable.
+    } finally {
+      if (mounted) setState(() => _refreshingBusiness = false);
+    }
+    if (!mounted ||
+        (ownership != null &&
+            !(ref.read(sessionRegistryProvider).value?.isCurrent(ownership) ??
+                false))) {
+      return;
+    }
+    context.showError(
+      refreshed && result.failedPortions.length == 1
+          ? l10n.editProfileBusinessRefreshedError
+          : _saveFailureMessage(result, l10n),
+    );
+  }
+
   String _saveFailureMessage(
     CombinedProfileSaveResult result,
     AppLocalizations l10n,
   ) {
+    if (result.business.error case final ApiBadRequest error
+        when result.failedPortions.length == 1 &&
+            error.details.fields.keys.any(
+              (field) => field == 'products' || field.startsWith('products['),
+            )) {
+      return l10n.editProfileBusinessProductsInvalidError;
+    }
+    if (result.business.error case final ApiBadRequest error
+        when result.failedPortions.length == 1) {
+      final labels = {
+        'businessTypes': l10n.editProfileBusinessTypesLabel,
+        'offerings': l10n.editProfileBusinessOfferingsLabel,
+        'tagline': l10n.editProfileBusinessTaglineLabel,
+        'hoursNote': l10n.editProfileBusinessHoursLabel,
+        'serviceArea': l10n.editProfileBusinessServiceAreaLabel,
+        'location.country': l10n.editProfileBusinessCountryLabel,
+        'location.locality': l10n.editProfileBusinessLocalityLabel,
+        'primaryAction.type': l10n.editProfileBusinessActionLabel,
+        'primaryAction.destination':
+            l10n.editProfileBusinessActionDestinationLabel,
+      };
+      for (final entry in error.details.fields.entries) {
+        final label = labels[entry.key];
+        if (label != null) return '$label: ${entry.value}';
+      }
+    }
     if (result.failedPortions.length == 2) {
       return l10n.editProfileBothSaveError;
     }

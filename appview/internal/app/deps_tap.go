@@ -96,7 +96,7 @@ func newTapDependencies(
 		after ownerlifecycle.Lifecycle,
 	) error {
 		if after.State == ownerlifecycle.StateActive {
-			return nil
+			return authCapability.sessionLifecycle.ProfileActivationParticipant()(ctx, tx, before, after)
 		}
 		return profileDepartureParticipant(ctx, tx, before, after)
 	}
@@ -164,7 +164,7 @@ func newTapDependencies(
 		projectionWorker: projectionWorker,
 		repositoryWorker: repositoryWorker,
 		quarantineWorker: quarantineWorker,
-		consumer:         consumer,
+		consumer:         tap.WithTelemetry(consumer, repositoryTracker),
 		removeMissingProfile: func(ctx context.Context, tx pgx.Tx, before, after ownerlifecycle.Lifecycle) error {
 			if err := profileDeletion.HardDeleteByActor(ctx, tx, after.Owner); err != nil {
 				return err

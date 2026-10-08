@@ -51,12 +51,14 @@ class ErrorMappingInterceptor extends Interceptor {
 
   ApiFailureDetails _detailsFor(DioException err) {
     final data = err.response?.data;
+    final statusCode = err.response?.statusCode;
     String? field(String key, RegExp pattern) {
       final value = data is Map ? data[key] : null;
       return value is String && pattern.hasMatch(value) ? value : null;
     }
 
-    // Server prose, validation payloads and resource paths stay on AppView.
+    // Server prose and resource paths stay out of diagnostics.
+    // Validation fields are retained separately for UI validation.
     // Codes are a bounded API contract, not a catalogue of server wording.
     return ApiFailureDetails(
       statusCode: err.response?.statusCode,
@@ -65,6 +67,19 @@ class ErrorMappingInterceptor extends Interceptor {
       method: err.requestOptions.method,
       cause: err.error ?? err,
       stackTrace: err.stackTrace,
+      fields:
+          statusCode != null &&
+              statusCode >= 400 &&
+              statusCode < 500 &&
+              data is Map &&
+              data['fields'] is Map &&
+              err.requestOptions.uri.path != '/v1/auth/registrations'
+          ? Map.unmodifiable({
+              for (final entry in (data['fields'] as Map).entries)
+                if (entry.key is String && entry.value is String)
+                  entry.key as String: entry.value as String,
+            })
+          : const {},
     );
   }
 }

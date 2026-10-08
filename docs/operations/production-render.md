@@ -249,7 +249,57 @@ Expected:
 
 - `/health` returns `{"status":"ok"}`.
 - `/healthz` has `db: "ok"` and `tap.connected: true`.
-- `status` can remain `degraded` until Tap receives its first tracked event.
+- `status` can remain `degraded` until background telemetry observes cursor progress.
+
+### Public Tap telemetry
+
+`GET /healthz` includes a cached `tap.telemetry` summary. AppView polls Tap's
+private `/stats/cursors`, `/stats/outbox-buffer`, and `/stats/resync-buffer`
+endpoints immediately at startup and every 30 seconds, with a five-second total
+poll deadline. Health requests read the cache and never poll Tap themselves.
+Responses include `Cache-Control: no-store`.
+
+```json
+{
+  "status": "ok",
+  "db": "ok",
+  "tap": {
+    "connected": true,
+    "last_event_at": "2026-10-01T18:22:43Z",
+    "reconnect_attempt": 0,
+    "last_error": "",
+    "telemetry": {
+      "status": "progressing",
+      "firehoseCursor": 34099694547,
+      "outboxDepth": 0,
+      "resyncDepth": 0,
+      "sampledAt": "2026-10-01T18:23:00Z",
+      "lastCursorAdvanceAt": "2026-10-01T18:23:00Z",
+      "relayLagSeconds": null
+    }
+  }
+}
+```
+
+Telemetry status is `unknown` before observing progress, after a failed poll,
+or when the last successful sample is over two minutes old. Failed polls retain
+the last complete sample and its timestamp; missing values are `null`, not zero.
+After observing an increasing cursor, status is `progressing`. Ten minutes
+without observed progress reports `stalled`. A decreasing cursor establishes a
+new baseline, so a Tap restart/reset does not inherit an old stall timer.
+`stalled` describes observed Tap progress, not a proven relay failure.
+
+With telemetry enabled, top-level `status` is `ok` only when the database is
+ready, AppView is connected to Tap, and telemetry is `progressing`; otherwise it
+is `degraded`. HTTP status remains 200, so monitoring tools must inspect JSON.
+A quiet tracked feed does not cause degradation. `/health` remains the shallow
+Render restart probe.
+
+Alert on `stalled`, persistently `unknown`, stale `sampledAt`, or growing buffer
+depths. Cursor progress alone cannot detect a slow-but-moving relay connection:
+`relayLagSeconds` is explicitly `null` because this implementation has no
+independent relay-head reference. Do not interpret top-level `ok` as proof of
+being caught up, and do not convert sequence differences into elapsed seconds.
 
 Use Render logs to confirm migrations, S3 bucket connectivity, one Tap consumer,
 one copy of each worker, successful Firebase initialization, and no Sentry
@@ -307,6 +357,27 @@ database readiness only; it cannot detect a live but under-delivering firehose.
 
 The persistent AppView disk makes rollback stop-before-start, so expect a short
 availability interruption.
+
+## Revoke a user's sessions
+
+From the AppView service shell, run the existing logout-all flow for one exact
+user DID:
+
+```sh
+/app/cli --env prod sessions revoke 'did:plc:...'
+```
+
+This invalidates ordinary CraftSky sessions on every device, advances the
+owner's authentication epoch, and queues OAuth credential and push cleanup.
+The command reports that cleanup was queued; the running AppView workers
+complete it asynchronously. An eligible credential bound to an accepted account
+deletion remains available to its deletion worker. The user must sign in again.
+No PDS records or account membership are deleted.
+
+The command requires database access and the normal environment configuration;
+it does not require a user's bearer token. Use it only for an explicitly
+authorized session revocation. Do not delete OAuth rows directly, because the
+cleanup worker needs their credentials to revoke upstream access.
 
 ## PostgreSQL recovery
 

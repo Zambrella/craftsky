@@ -38,8 +38,10 @@ The Android application ID and iOS bundle ID are both `social.craftsky.app`.
 ### Base URL
 
 The app talks to the AppView via `CRAFTSKY_API_BASE_URL`. In debug builds the
-default is `http://10.0.2.2:18080` (Android emulator → host). Chrome, macOS,
-and iOS simulator runs use `localhost` instead.
+default is `http://127.0.0.1:18080`. Android uses ADB reverse to reach the
+host's loopback listener; Chrome, macOS, and iOS simulator runs use
+`localhost` directly. The emulator's `10.0.2.2` alias reaches the host but
+is rejected by AppView's local Host policy with HTTP 421.
 
 Initialize local app config once:
 
@@ -53,6 +55,8 @@ Then run from the repo root:
 just app-run-ios
 just app-run-android
 just app-run-chrome
+# Interactive picker, including Android (prepares ADB reverse automatically):
+just app-run
 # Physical Android device connected via USB with USB debugging enabled:
 flutter devices
 just app-run-device <device-id>
@@ -77,10 +81,13 @@ release builds or direct video uploads. Remove the setting or set it to `0` to
 restore normal request timing.
 
 `just app-run-android` also installs an ADB reverse mapping from the emulator's
-loopback address to the same worktree-specific host port. The app uses
-`10.0.2.2:<port>` for normal API requests, but atproto's localhost OAuth client
-requires its browser callback to use `127.0.0.1:<port>`. The reverse mapping
-lets that callback reach the matching local AppView from Android.
+loopback address to the same worktree-specific host port. API requests and
+the localhost OAuth browser callback both use `127.0.0.1:<port>` through
+that mapping. The recipe enables the debug OAuth completion scheme and
+accepts Flutter arguments, for example `just app-run-android -d emulator-5554`.
+`just app-run` prepares reverse mappings for connected Android devices before
+showing Flutter's picker. If running Flutter directly, install the mapping
+first with `adb reverse tcp:18080 tcp:18080` (use your checkout's actual port).
 
 `just app-run-device <device-id>` uses ADB reverse for a physical Android device
 and points the app at `127.0.0.1:<worktree AppView port>`. The phone's local

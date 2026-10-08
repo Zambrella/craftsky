@@ -421,6 +421,61 @@ void main() {
     await tester.pump(const Duration(seconds: 31));
   });
 
+  for (final delayedLookup in [false, true]) {
+    testWidgets(
+      'follow notification accepts a delayed follow response '
+      '(delayed lookup: $delayedLookup)',
+      (tester) async {
+        final messenger = RecordingMessenger();
+        final pending = Completer<Profile>();
+        final lookup = Completer<Profile>();
+        final profile = Profile(
+          did: 'did:plc:alice',
+          handle: 'alice.craftsky.social',
+          crafts: const [],
+        );
+        final repository = FakeProfileRepository(
+          onFetch: (_) async => delayedLookup ? lookup.future : profile,
+          onFollow: (_) => pending.future,
+        );
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              profileRepositoryProvider.overrideWithValue(repository),
+            ],
+            child: _TestApp(
+              home: MessengerScope(
+                messenger: messenger,
+                child: Scaffold(
+                  body: NotificationRow(
+                    notification: _follow('delayed-follow'),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.text('Follow'));
+        await tester.pumpAndSettle();
+        if (delayedLookup) {
+          expect(repository.followOperationKeys, isEmpty);
+          lookup.complete(profile);
+          await tester.pumpAndSettle();
+        }
+        expect(repository.followOperationKeys, hasLength(1));
+
+        pending.complete(profile.copyWith(viewerIsFollowing: true));
+        await tester.pumpAndSettle();
+
+        expect(messenger.calls, isEmpty);
+        expect(find.text('Unfollow'), findsOneWidget);
+        await tester.pump(const Duration(seconds: 31));
+      },
+    );
+  }
+
   testWidgets('UT-023 follow notification rolls back a failed mutation', (
     tester,
   ) async {

@@ -80,6 +80,31 @@ func NewSessionLifecycleService(options SessionLifecycleOptions) (*SessionLifecy
 	}, nil
 }
 
+// ProfileActivationParticipant preserves sessions created during onboarding
+// when the profile activates that same owner epoch. The exclusive owner fence
+// prevents session use or mutation while their generation binding advances.
+func (service *SessionLifecycleService) ProfileActivationParticipant() ownerlifecycle.TransitionParticipant {
+	return func(ctx context.Context, tx pgx.Tx, before, after ownerlifecycle.Lifecycle) error {
+		if before.Owner != after.Owner || before.State != ownerlifecycle.StateDeparted ||
+			after.State != ownerlifecycle.StateActive || after.Generation != before.Generation+1 ||
+			after.AuthEpoch != before.AuthEpoch {
+			return errors.New("invalid profile activation auth transition")
+		}
+		_, err := tx.Exec(ctx, `
+			WITH parents AS MATERIALIZED (
+				SELECT session_id FROM oauth_sessions
+				WHERE account_did=$1 AND owner_generation=$2 AND auth_epoch=$4
+				  AND lifecycle_state IN ('pending_handoff','active')
+				ORDER BY session_id FOR UPDATE
+			)
+			UPDATE oauth_sessions parent
+			SET owner_generation=$3,row_version=row_version+1,updated_at=$5
+			FROM parents WHERE parent.account_did=$1 AND parent.session_id=parents.session_id
+		`, after.Owner, before.Generation, after.Generation, after.AuthEpoch, service.now().UTC())
+		return err
+	}
+}
+
 // OwnerTransitionParticipant invalidates owner-scoped authentication in the
 // same transaction as an owner lifecycle transition. If preserve is non-nil,
 // only that exact, childless deletion_only parent survives. The optional

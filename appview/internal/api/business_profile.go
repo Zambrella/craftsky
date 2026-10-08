@@ -33,14 +33,16 @@ type businessProfileResponse struct {
 }
 
 type businessProfileRequest struct {
-	BusinessTypes []string                     `json:"businessTypes,omitempty"`
-	Offerings     []string                     `json:"offerings,omitempty"`
-	Tagline       *string                      `json:"tagline,omitempty"`
-	HoursNote     *string                      `json:"hoursNote,omitempty"`
-	ServiceArea   *string                      `json:"serviceArea,omitempty"`
-	Location      *business.Location           `json:"location,omitempty"`
-	PrimaryAction *business.Action             `json:"primaryAction,omitempty"`
-	Products      []businessProfileProductBody `json:"products,omitempty"`
+	PreserveProducts             bool                         `json:"preserveProducts,omitempty"`
+	PreserveUnknownCatalogValues bool                         `json:"preserveUnknownCatalogValues,omitempty"`
+	BusinessTypes                []string                     `json:"businessTypes,omitempty"`
+	Offerings                    []string                     `json:"offerings,omitempty"`
+	Tagline                      *string                      `json:"tagline,omitempty"`
+	HoursNote                    *string                      `json:"hoursNote,omitempty"`
+	ServiceArea                  *string                      `json:"serviceArea,omitempty"`
+	Location                     *business.Location           `json:"location,omitempty"`
+	PrimaryAction                *business.Action             `json:"primaryAction,omitempty"`
+	Products                     []businessProfileProductBody `json:"products,omitempty"`
 }
 
 type businessProfileProductBody struct {
@@ -116,20 +118,13 @@ func PutBusinessProfileHandler(
 				OperationKind: "business_profile.put", OperationKey: operationKey,
 				URI: uri, ExpectedCID: expectedCID, Intent: intent, Blobs: businessProfileBlobReferences(replacement),
 				BuildRecord: func(current pdscommands.AuthoritativeRecord) (json.RawMessage, error) {
-					replacementRaw, err := json.Marshal(replacement)
-					if err != nil {
-						return nil, err
-					}
-					if current.CID == "" && len(current.Record) == 0 {
-						return replacementRaw, nil
-					}
-					return business.MergeProfileReplacement(current.Record, replacementRaw)
+					return buildBusinessProfileReplacement(current.Record, replacement)
 				},
 				Accepted: func(authoritative pdscommands.AuthoritativeRecord) (pdscommands.TerminalResult, error) {
 					return acceptedBusinessProfilePutResult(owner, authoritative)
 				},
 				Rejected: func(err error) pdscommands.TerminalResult {
-					return RejectedCommandResult(runID, err)
+					return rejectedBusinessProfileResult(runID, err)
 				},
 			})
 			if err != nil {
@@ -156,21 +151,16 @@ func PutBusinessProfileHandler(
 			return
 		}
 
-		var record any = replacement
-		if exists {
-			replacementRaw, replacementErr := json.Marshal(replacement)
-			if replacementErr != nil {
-				observability.ReportRequestFailure(r.Context(), replacementErr, "api.PutBusinessProfileHandler", "handler")
-				envelope.WriteError(w, http.StatusInternalServerError, "internal_error", "could not prepare business profile", runID, nil)
-				return
-			}
-			merged, mergeErr := business.MergeProfileReplacement(current, replacementRaw)
-			if mergeErr != nil {
-				observability.ReportRequestFailure(r.Context(), mergeErr, "api.PutBusinessProfileHandler", "handler")
+		record, buildErr := buildBusinessProfileReplacement(current, replacement)
+		if buildErr != nil {
+			var fieldErr *FieldError
+			if errors.As(buildErr, &fieldErr) {
+				envelope.WriteError(w, http.StatusUnprocessableEntity, fieldErr.Code, "invalid business profile", runID, fieldErr.Fields)
+			} else {
+				observability.ReportRequestFailure(r.Context(), buildErr, "api.PutBusinessProfileHandler", "handler")
 				envelope.WriteError(w, http.StatusBadGateway, "pds_read_failed", "could not read business profile", runID, nil)
-				return
 			}
-			record = merged
+			return
 		}
 		operationID, mutationKey := immediateEffectIdentity(runID, "business_profile.put")
 		result, putErr := executor.PutRecord(r.Context(), pdseffects.PutRecordRequest{
@@ -423,6 +413,9 @@ func decodeBusinessProfileRequest(body io.Reader) (map[string]any, *FieldError) 
 
 func validateBusinessProfileRequest(request *businessProfileRequest) *FieldError {
 	fields := make(map[string]string)
+	if request.PreserveProducts && request.Products != nil {
+		fields["products"] = "must be omitted when preserveProducts is true"
+	}
 	if values, err := business.ValidateBusinessTypes(request.BusinessTypes); err != nil {
 		fields["businessTypes"] = "contains unsupported or duplicate values"
 	} else {
@@ -505,4 +498,76 @@ func validateOptionalBusinessText(fields map[string]string, name string, kind bu
 func isPDSRecordConflict(err error) bool {
 	return errors.Is(err, auth.ErrRecordNotFound) || errors.Is(err, auth.ErrRecordSwapConflict) ||
 		errors.Is(err, pdseffects.ErrEffectConflict)
+}
+
+// Preservation controls are API-only intent. Copy raw PDS fields rather than
+// reserializing their lossy, display-safe projection.
+func buildBusinessProfileReplacement(current json.RawMessage, replacement map[string]any) (json.RawMessage, error) {
+	encoded, err := json.Marshal(replacement)
+	if err != nil {
+		return nil, err
+	}
+	var desired map[string]json.RawMessage
+	if err := json.Unmarshal(encoded, &desired); err != nil {
+		return nil, err
+	}
+	preserveProducts, _ := replacement["preserveProducts"].(bool)
+	preserveUnknown, _ := replacement["preserveUnknownCatalogValues"].(bool)
+	delete(desired, "preserveProducts")
+	delete(desired, "preserveUnknownCatalogValues")
+	var existing map[string]json.RawMessage
+	if len(current) != 0 {
+		if err := json.Unmarshal(current, &existing); err != nil || existing == nil {
+			return nil, business.ErrInvalidProfile
+		}
+	}
+	if preserveProducts {
+		if products, ok := existing["products"]; ok {
+			desired["products"] = products
+		}
+	}
+	if preserveUnknown {
+		for _, field := range []string{"businessTypes", "offerings"} {
+			var previous, selected []string
+			if raw, ok := existing[field]; ok {
+				if err := json.Unmarshal(raw, &previous); err != nil {
+					return nil, business.ErrInvalidProfile
+				}
+			}
+			if raw, ok := desired[field]; ok {
+				if err := json.Unmarshal(raw, &selected); err != nil {
+					return nil, err
+				}
+			}
+			catalog := business.BusinessTypeCatalog()
+			if field == "offerings" {
+				catalog = business.OfferingCatalog()
+			}
+			for _, value := range previous {
+				if !slices.Contains(catalog, value) && !slices.Contains(selected, value) {
+					selected = append(selected, value)
+				}
+			}
+			if len(selected) > 20 {
+				return nil, &FieldError{Code: "validation_failed", Fields: map[string]string{field: "must contain at most twenty values including preserved values"}}
+			}
+			if len(selected) > 0 {
+				desired[field], _ = json.Marshal(selected)
+			}
+		}
+	}
+	raw, err := json.Marshal(desired)
+	if err != nil || len(current) == 0 {
+		return raw, err
+	}
+	return business.MergeProfileReplacement(current, raw)
+}
+
+func rejectedBusinessProfileResult(runID string, err error) pdscommands.TerminalResult {
+	var fieldErr *FieldError
+	if !errors.As(err, &fieldErr) {
+		return RejectedCommandResult(runID, err)
+	}
+	body, _ := json.Marshal(envelope.Error{Error: fieldErr.Code, Message: "invalid business profile", RequestID: runID, Fields: fieldErr.Fields})
+	return pdscommands.TerminalResult{State: pdscommands.CommandRejected, HTTPStatus: http.StatusUnprocessableEntity, ResponseBody: body}
 }

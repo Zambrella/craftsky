@@ -795,11 +795,13 @@ func demoHashtagFacetsJSON(text string) (json.RawMessage, error) {
 }
 
 func demoProfiles(seed string) []demoProfile {
+	// Synthetic DIDs need seed-scoped handles, even for profiles inspired by real
+	// accounts, so they cannot collide with cached identities or other demo seeds.
 	prefix := demoDIDPrefix(seed)
 	handle := func(name string) string { return name + "-" + seed + ".craftsky.test" }
 	profiles := []demoProfile{
-		{DID: prefix + "0001", Handle: "almitamade.bsky.social", DisplayName: "Alma", Description: "Sewing and knitting and dopamine dressing. Purple-haired Italo-Costa Rican living in London 🪡🧶💜", Crafts: []string{"social.craftsky.feed.defs#knitting", "social.craftsky.feed.defs#sewing"}, AvatarName: "alma-profile", BannerName: "banner-alma"},
-		{DID: prefix + "0002", Handle: "blossomsandwich.bsky.social", DisplayName: "Yvette Todd", Description: "🧵 Colourful and fun sewing since 2020\n📲 Co-founder of Sewing Organiser App @stash_hub\n🍓 Host of #SewFruity26 (Happening now!)", Crafts: []string{"social.craftsky.feed.defs#sewing"}, AvatarName: "yvette-profile", BannerName: "banner-yvette"},
+		{DID: prefix + "0001", Handle: handle("almitamade"), DisplayName: "Alma", Description: "Sewing and knitting and dopamine dressing. Purple-haired Italo-Costa Rican living in London 🪡🧶💜", Crafts: []string{"social.craftsky.feed.defs#knitting", "social.craftsky.feed.defs#sewing"}, AvatarName: "alma-profile", BannerName: "banner-alma"},
+		{DID: prefix + "0002", Handle: handle("blossomsandwich"), DisplayName: "Yvette Todd", Description: "🧵 Colourful and fun sewing since 2020\n📲 Co-founder of Sewing Organiser App @stash_hub\n🍓 Host of #SewFruity26 (Happening now!)", Crafts: []string{"social.craftsky.feed.defs#sewing"}, AvatarName: "yvette-profile", BannerName: "banner-yvette"},
 		{DID: prefix + "0003", Handle: handle("nina-quilts"), DisplayName: "Nina Park", Description: "Modern quilts, tiny scraps, big opinions about binding.", Crafts: []string{"social.craftsky.feed.defs#quilting"}, AvatarName: "avatar-nina", BannerName: "banner-nina"},
 		{DID: prefix + "0004", Handle: handle("sol-crochets"), DisplayName: "Sol Amari", Description: "Crochet blankets, market bags, and color experiments.", Crafts: []string{"social.craftsky.feed.defs#crochet"}, AvatarName: "avatar-sol", BannerName: "banner-sol"},
 		{DID: prefix + "0005", Handle: handle("bea-mends"), DisplayName: "Bea Tan", Description: "Repairs, refashions, and making old garments useful again.", Crafts: []string{"social.craftsky.feed.defs#sewing", "social.craftsky.feed.defs#embroidery"}, AvatarName: "avatar-bea", BannerName: "banner-bea"},

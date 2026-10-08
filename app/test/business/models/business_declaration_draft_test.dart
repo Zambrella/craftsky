@@ -80,6 +80,36 @@ void main() {
     });
   });
 
+  test(
+    'detail save preserves raw products and unknown categories on the server',
+    () {
+      const draft = BusinessDeclarationDraft(
+        businessTypes: [
+          BusinessOpenValue(value: 'teacher', known: true),
+          BusinessOpenValue(value: 'future-type', known: false),
+        ],
+        offerings: [
+          BusinessOpenValue(value: 'future-offering', known: false),
+        ],
+        products: [BusinessProductView(title: 'Legacy product')],
+        tagline: 'After',
+      );
+      expect(
+        draft.toJson(
+          preserveProducts: true,
+          preserveUnknownCatalogValues: true,
+        ),
+        {
+          'businessTypes': ['teacher'],
+          'offerings': <String>[],
+          'tagline': 'After',
+          'preserveProducts': true,
+          'preserveUnknownCatalogValues': true,
+        },
+      );
+    },
+  );
+
   test('empty draft has no CID and serializes every known collection', () {
     final draft = BusinessDeclarationDraft.empty();
 

@@ -1,5 +1,11 @@
 # TDD Implementation Plan: Useful Logging and Error Reporting
 
+## PR handoff and merged-tree verification — 2026-10-08
+
+Maintainer authorized committing all changes, pushing and opening a PR. Current main was merged to resolve five conflicts. Retained main's AppView version/changelog (1.0.12), business-profile replacement validation and UI-only 4xx field details; preserved this branch's original diagnostic cause/stack and removal of server prose/route catalogues from client telemetry. No route/envelope/lexicon schema changes from this integration.
+
+Final stable merged-tree checks: `just test` passed (Go 1.27.1, race, local PostgreSQL/MinIO; `/private/tmp/pr-go-final-full.log`); full Flutter suite 2,761 passed, 38 skipped (`/private/tmp/pr-flutter-final-full.log`); `flutter analyze` reported No issues found (`/private/tmp/pr-flutter-analyze.log`); working/staged `git diff --check` passed. These results supersede the earlier assertion-only Flutter failures. The first handoff Flutter run was invalidated by merging while it ran and was stopped; only the fresh resolved-tree run above is final evidence. No live production verification or deployment performed.
+
 ## Flutter console visibility 2026-10-08
 
 CON-001 authorized 2026-10-08. CON-T01 completed: meaningful red for missing INFO (`console-t01-red.log`), then green for default INFO/WARNING, FINE suppression and sanitized debug opt-in (`console-t01-green.log`); provider-value changes removed from scope by explicit maintainer preference; Final focused console/native logging suites: seven passed (`console-final-focused.log`). Full Flutter suite: 2,710 passed, 38 skipped, two obsolete WARN-only bridge assertions failed (`console-flutter-full.log`); both were updated for INFO+ and passed in the focused rerun, retaining independent Sentry gate/canary checks. Analyzer clean (`console-flutter-analyze-final.log`). Guide and validation evidence updated; final diff check passed and plan read back. Implementation complete, review pending stage choice. Full suite was not rerun after assertion-only updates; no production/device verification claimed. No Go/business/Sentry capture policy changes; no commit/push.

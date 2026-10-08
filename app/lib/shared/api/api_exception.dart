@@ -17,6 +17,7 @@ final class ApiFailureDetails {
     this.method,
     this.cause,
     this.stackTrace,
+    this.fields = const {},
   });
 
   final int? statusCode;
@@ -26,6 +27,8 @@ final class ApiFailureDetails {
   final String? method;
   final Object? cause;
   final StackTrace? stackTrace;
+  // Validation fields support UI only; diagnostics never serialize them.
+  final Map<String, String> fields;
 }
 
 /// HTTP 401. The global 401 handler in `_ErrorMappingInterceptor`

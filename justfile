@@ -260,6 +260,15 @@ app-run *ARGS: app-env-init
     set -euo pipefail
     APPVIEW_ADDRESS=$(./scripts/compose-dev port appview 8080)
     APPVIEW_PORT=${APPVIEW_ADDRESS##*:}
+    # Android's loopback belongs to the device. Prepare connected Android
+    # devices before Flutter's picker so localhost works on every target.
+    if command -v adb >/dev/null 2>&1; then
+      while read -r device state rest; do
+        if [[ "$state" == device ]]; then
+          adb -s "$device" reverse "tcp:${APPVIEW_PORT}" "tcp:${APPVIEW_PORT}"
+        fi
+      done < <(adb devices)
+    fi
     cd app
     flutter run --dart-define-from-file=config/local.env \
       --dart-define="CRAFTSKY_API_BASE_URL=http://localhost:${APPVIEW_PORT}" \
@@ -293,17 +302,20 @@ app-run-ios: app-env-init
     flutter run -d ios --dart-define-from-file=config/local.env \
       --dart-define="CRAFTSKY_API_BASE_URL=http://localhost:${APPVIEW_PORT}"
 
-app-run-android: app-env-init
+app-run-android *ARGS: app-env-init
     #!/usr/bin/env bash
     set -euo pipefail
     # atproto's localhost OAuth client only permits loopback redirect URIs.
-    # Reverse this checkout's published AppView port into the emulator.
+    # Use the reverse mapping for API requests too: AppView's local Host
+    # policy accepts loopback hosts, not the emulator's 10.0.2.2 alias.
     APPVIEW_ADDRESS=$(./scripts/compose-dev port appview 8080)
     APPVIEW_PORT=${APPVIEW_ADDRESS##*:}
     adb reverse "tcp:${APPVIEW_PORT}" "tcp:${APPVIEW_PORT}"
     cd app
     flutter run --dart-define-from-file=config/local-android.env \
-      --dart-define="CRAFTSKY_API_BASE_URL=http://10.0.2.2:${APPVIEW_PORT}"
+      --dart-define="CRAFTSKY_API_BASE_URL=http://127.0.0.1:${APPVIEW_PORT}" \
+      --dart-define="CRAFTSKY_DEV_OAUTH_SCHEME=true" \
+      {{ARGS}}
 
 # Run on a physical Android device using ADB reverse (DEVICE is its Flutter ID).
 app-run-device DEVICE *ARGS: app-env-init

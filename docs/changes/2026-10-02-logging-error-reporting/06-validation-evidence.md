@@ -1,5 +1,11 @@
 # Logging and Error Reporting Validation Evidence
 
+## PR handoff and merged-tree verification — 2026-10-08
+
+Maintainer authorized committing all changes, pushing and opening a PR. Current main was merged to resolve five conflicts. Retained main's AppView version/changelog (1.0.12), business-profile replacement validation and UI-only 4xx field details; preserved this branch's original diagnostic cause/stack and removal of server prose/route catalogues from client telemetry. No route/envelope/lexicon schema changes from this integration.
+
+Final stable merged-tree checks: `just test` passed (Go 1.27.1, race, local PostgreSQL/MinIO; `/private/tmp/pr-go-final-full.log`); full Flutter suite 2,761 passed, 38 skipped (`/private/tmp/pr-flutter-final-full.log`); `flutter analyze` reported No issues found (`/private/tmp/pr-flutter-analyze.log`); working/staged `git diff --check` passed. These results supersede the earlier assertion-only Flutter failures. The first handoff Flutter run was invalidated by merging while it ran and was stopped; only the fresh resolved-tree run above is final evidence. No live production verification or deployment performed.
+
 ## Flutter console visibility — 2026-10-08 (CON-001)
 
 CON-T01 red: INFO disappeared behind the hard-coded WARNING threshold (`/private/tmp/console-t01-red.log`). Green: root forwarding emits INFO/WARNING by default, omits FINE, and opt-in debug FINE retains credential scrubbing (`/private/tmp/console-t01-green.log`). `CRAFTSKY_DEBUG_LOGS=true` is gated by `kDebugMode`; release/profile retain INFO+. Full provider formatting remains unchanged per explicit maintainer preference.
