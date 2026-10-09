@@ -179,74 +179,7 @@ func (s *SearchStore) searchProjectsByRelevance(
 	contentLanguages []string,
 	req ProjectSearchRequest,
 ) ([]SearchPostRow, string, error) {
-	if s == nil || s.pool == nil {
-		return nil, "", fmt.Errorf("search store unavailable")
-	}
-	queryLimit := req.Limit + 1
-	fts := searchTSQuery(req.Query)
-	cur, err := DecodeRelevanceSearchCursor(req.Cursor, relevanceCursorKindProjects, fts)
-	if err != nil {
-		return nil, "", err
-	}
-	projectVector := `
-		setweight(to_tsvector('simple', coalesce(pp.common_title, '')), 'A') ||
-		setweight(to_tsvector('simple', coalesce(pp.pattern_name, '')), 'B') ||
-		setweight(to_tsvector('simple', coalesce(craftsky_text_array_to_string(pp.materials, ' '), '')), 'C') ||
-		setweight(to_tsvector('simple', coalesce(craftsky_text_array_to_string(pp.project_tags, ' '), '')), 'C') ||
-		setweight(to_tsvector('simple', coalesce(craftsky_text_array_to_string(pp.design_tags, ' '), '')), 'C') ||
-		setweight(to_tsvector('simple', coalesce(p.text, '')), 'D')`
-	rows, err := s.pool.Query(ctx, `
-		WITH ranked AS (
-		SELECT p.*,
-		  ts_rank_cd(`+projectVector+`, plainto_tsquery('simple', $9))::double precision AS relevance_score
-		FROM craftsky_posts p
-		JOIN craftsky_project_posts pp ON pp.uri = p.uri
-		WHERE p.is_project = true
-		  AND p.reply_root_uri IS NULL AND p.reply_parent_uri IS NULL AND p.quote_uri IS NULL
-		  AND (cardinality($2::text[]) = 0 OR lower(pp.common_craft_type) = ANY($2::text[]))
-		  AND (cardinality($3::text[]) = 0 OR lower(coalesce(pp.pattern_difficulty, '')) = ANY($3::text[]))
-		  AND (cardinality($4::text[]) = 0 OR lower(coalesce(pp.knitting_project_type, '')) = ANY($4::text[]) OR lower(coalesce(pp.crochet_project_type, '')) = ANY($4::text[]) OR lower(coalesce(pp.quilting_project_type, '')) = ANY($4::text[]) OR lower(coalesce(pp.sewing_project_type, '')) = ANY($4::text[]))
-		  AND (cardinality($5::text[]) = 0 OR EXISTS (SELECT 1 FROM unnest(coalesce(pp.colors, '{}')) AS v WHERE lower(v) = ANY($5::text[])))
-		  AND (cardinality($6::text[]) = 0 OR EXISTS (SELECT 1 FROM unnest(coalesce(pp.materials, '{}')) AS v WHERE lower(v) = ANY($6::text[])))
-		  AND (cardinality($7::text[]) = 0 OR EXISTS (SELECT 1 FROM unnest(coalesce(pp.design_tags, '{}')) AS v WHERE lower(v) = ANY($7::text[])))
-		  AND (cardinality($8::text[]) = 0 OR EXISTS (SELECT 1 FROM unnest(coalesce(pp.project_tags, '{}')) AS v WHERE lower(v) = ANY($8::text[])))
-		  AND (`+projectVector+`) @@ plainto_tsquery('simple', $9)
-		`+relationshipTopLevelPredicate("$13")+`
-		`+postVisibleModerationPredicate+`
-		`+languageVisibilityPredicate("p", "$13", "$14")+`
-		)
-		SELECT `+postSelectColumns+`, relevance_score
-		FROM ranked p
-		JOIN craftsky_project_posts pp ON pp.uri = p.uri
-		LEFT JOIN bluesky_profiles bp ON bp.did = p.did
-		WHERE ($10::double precision IS NULL OR (relevance_score, p.created_at, p.uri) < ($10::double precision, $11::timestamptz, $12::text))
-		ORDER BY relevance_score DESC, p.created_at DESC, p.uri DESC
-		LIMIT $1
-	`, queryLimit,
-		projectFilterValues(req, "craftType"), projectFilterValues(req, "patternDifficulty"), projectFilterValues(req, "projectType"), projectFilterValues(req, "color"), projectFilterValues(req, "material"), projectFilterValues(req, "designTag"), projectFilterValues(req, "projectTag"), fts,
-		cur.ScorePtr(), cur.CreatedAtPtr(), cur.URIPtr(), viewerDID, contentLanguages)
-	if err != nil {
-		return nil, "", fmt.Errorf("project relevance search: %w", err)
-	}
-	defer rows.Close()
-	out := make([]SearchPostRow, 0, req.Limit)
-	for rows.Next() {
-		row, scanErr := scanSearchPostRow(rows)
-		if scanErr != nil {
-			return nil, "", scanErr
-		}
-		out = append(out, row)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, "", err
-	}
-	if len(out) <= req.Limit {
-		return out, "", nil
-	}
-	out = out[:req.Limit]
-	last := out[len(out)-1]
-	next, err := EncodeRelevanceSearchCursor(relevanceCursorKindProjects, fts, last.Score, last.Post.CreatedAt, last.Post.URI)
-	return out, next, err
+	return s.searchSubmittedByRelevance(ctx, viewerDID, contentLanguages, req, true)
 }
 
 func projectFilterValues(req ProjectSearchRequest, key string) []string {

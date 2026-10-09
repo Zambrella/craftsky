@@ -559,3 +559,28 @@ app-build-apk ENV="production":
 
 app-build-appbundle ENV="production":
     just _app-build-mobile appbundle {{ quote(ENV) }}
+
+# Deterministic status contract/operator/Worker checks; no remote publication.
+service-status-test:
+    python3 -m unittest discover -s scripts -p test_service_status_publish.py
+    node --test service-status/test/worker.test.js
+
+# Seed local simulated R2 from an editable draft; install pinned tools if needed.
+service-status-dev-setup:
+    ./scripts/service-status-dev setup
+
+# Serve the status Worker locally. Run setup once before the first start.
+service-status-dev:
+    ./scripts/service-status-dev serve
+
+# Validate and publish a local draft with a fresh announcement revision.
+service-status-dev-publish FILE="service-status/.wrangler/dev/app.json":
+    ./scripts/service-status-dev publish {{ quote(FILE) }}
+
+# Clear local maintenance/announcements without editing JSON.
+service-status-dev-clear:
+    ./scripts/service-status-dev clear
+
+# Normal app-run, with local status URL and Android status-port reverse mapping.
+app-run-status *ARGS: app-env-init
+    ./scripts/service-status-dev app -- {{ARGS}}

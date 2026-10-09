@@ -14,6 +14,7 @@ import 'package:craftsky_app/feed/pages/feed_page.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/initialization_error_screen.dart';
 import 'package:craftsky_app/initialization_loading_screen.dart';
+import 'package:craftsky_app/service_status/providers/service_status_controller.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/shared/messaging/scaffold_messenger_impl.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_emitter.dart';
@@ -27,6 +28,7 @@ import 'package:pub_semver/pub_semver.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'fakes/auth_session_fakes.dart';
+import 'fakes/fake_service_status_repository.dart';
 import 'feed/fakes/fake_post_repository.dart';
 import 'test_support/diagnostic_evidence.dart';
 
@@ -116,6 +118,9 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            serviceStatusRepositoryProvider.overrideWithValue(
+              const NormalServiceStatusRepository(),
+            ),
             appDependenciesProvider.overrideWith((ref) => completer.future),
           ],
           child: const App(),
@@ -143,6 +148,9 @@ void main() {
         await tester.pumpWidget(
           ProviderScope(
             overrides: [
+              serviceStatusRepositoryProvider.overrideWithValue(
+                const NormalServiceStatusRepository(),
+              ),
               appDependenciesProvider.overrideWith(
                 (ref) => dependencies.future,
               ),
@@ -208,6 +216,9 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            serviceStatusRepositoryProvider.overrideWithValue(
+              const NormalServiceStatusRepository(),
+            ),
             appDependenciesProvider.overrideWith((ref) async => stubDeps()),
             activeAccountInitializationProvider.overrideWith(
               (ref) => completedActiveAccountInitialization(),
@@ -252,6 +263,9 @@ void main() {
           ProviderScope(
             retry: (_, _) => null,
             overrides: [
+              serviceStatusRepositoryProvider.overrideWithValue(
+                const NormalServiceStatusRepository(),
+              ),
               appDependenciesProvider.overrideWith(
                 (ref) async => stubDeps(),
               ),
@@ -310,6 +324,9 @@ void main() {
         await tester.pumpWidget(
           ProviderScope(
             overrides: [
+              serviceStatusRepositoryProvider.overrideWithValue(
+                const NormalServiceStatusRepository(),
+              ),
               appDependenciesProvider.overrideWith(
                 (ref) async => stubDeps(),
               ),
@@ -383,6 +400,9 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            serviceStatusRepositoryProvider.overrideWithValue(
+              const NormalServiceStatusRepository(),
+            ),
             appDependenciesProvider.overrideWith(
               (ref) async => throw Exception('boot failed'),
             ),
@@ -419,6 +439,9 @@ void main() {
           // the test gets to see the error state at all.
           retry: (_, _) => null,
           overrides: [
+            serviceStatusRepositoryProvider.overrideWithValue(
+              const NormalServiceStatusRepository(),
+            ),
             appDependenciesProvider.overrideWith((ref) async {
               attempt++;
               if (attempt == 1) {
@@ -514,6 +537,9 @@ void main() {
         await tester.pumpWidget(
           ProviderScope(
             overrides: [
+              serviceStatusRepositoryProvider.overrideWithValue(
+                const NormalServiceStatusRepository(),
+              ),
               appDependenciesProvider.overrideWith(
                 (ref) => neverComplete.future,
               ),
@@ -532,6 +558,9 @@ void main() {
         await tester.pumpWidget(
           ProviderScope(
             overrides: [
+              serviceStatusRepositoryProvider.overrideWithValue(
+                const NormalServiceStatusRepository(),
+              ),
               appDependenciesProvider.overrideWith(
                 (ref) async => stubDeps(),
               ),
@@ -558,6 +587,9 @@ void main() {
             // Disable auto-retry to keep the provider in the error state.
             retry: (_, _) => null,
             overrides: [
+              serviceStatusRepositoryProvider.overrideWithValue(
+                const NormalServiceStatusRepository(),
+              ),
               appDependenciesProvider.overrideWith(
                 (ref) async => throw Exception('boot failed'),
               ),

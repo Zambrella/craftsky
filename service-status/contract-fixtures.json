@@ -1,0 +1,22 @@
+[
+  {"name":"normal","accepted":true,"document":{"schemaVersion":1,"mode":"normal","revision":"A"}},
+  {"name":"maintenance","accepted":true,"document":{"schemaVersion":1,"mode":"maintenance","revision":"A","title":"Back soon","message":"Maintenance in progress"}},
+  {"name":"announcement and additive controls","accepted":true,"document":{"schemaVersion":1,"mode":"announcement","revision":"B","title":"News","message":"<script>plain text</script> https://example.invalid","estimatedRecoveryAt":"2026-10-09T14:30:00.123456+02:00","externalLink":"https://example.invalid","startsAt":"2099-01-01T00:00:00Z"}},
+  {"name":"unsupported schema","accepted":false,"document":{"schemaVersion":2,"mode":"normal","revision":"A"}},
+  {"name":"boolean schema","accepted":false,"document":{"schemaVersion":true,"mode":"normal","revision":"A"}},
+  {"name":"float schema","accepted":false,"document":{"schemaVersion":1.0,"mode":"normal","revision":"A"}},
+  {"name":"missing schema","accepted":false,"document":{"mode":"normal","revision":"A"}},
+  {"name":"unknown mode","accepted":false,"document":{"schemaVersion":1,"mode":"partial","revision":"A"}},
+  {"name":"invalid revision","accepted":false,"document":{"schemaVersion":1,"mode":"normal","revision":"A B"}},
+  {"name":"missing revision","accepted":false,"document":{"schemaVersion":1,"mode":"normal"}},
+  {"name":"missing text","accepted":false,"document":{"schemaVersion":1,"mode":"maintenance","revision":"A"}},
+  {"name":"blank text","accepted":false,"document":{"schemaVersion":1,"mode":"announcement","revision":"A","title":"  ","message":"x"}},
+  {"name":"wrong text type","accepted":false,"document":{"schemaVersion":1,"mode":"normal","revision":"A","title":42}},
+  {"name":"null estimate","accepted":false,"document":{"schemaVersion":1,"mode":"normal","revision":"A","estimatedRecoveryAt":null}},
+  {"name":"impossible day","accepted":false,"document":{"schemaVersion":1,"mode":"normal","revision":"A","estimatedRecoveryAt":"2026-02-30T12:00:00Z"}},
+  {"name":"missing zone","accepted":false,"document":{"schemaVersion":1,"mode":"normal","revision":"A","estimatedRecoveryAt":"2026-10-09T12:00:00"}},
+  {"name":"leap second","accepted":false,"document":{"schemaVersion":1,"mode":"normal","revision":"A","estimatedRecoveryAt":"2026-10-09T12:00:60Z"}},
+  {"name":"invalid offset","accepted":false,"document":{"schemaVersion":1,"mode":"normal","revision":"A","estimatedRecoveryAt":"2026-10-09T12:00:00+24:00"}},
+  {"name":"too precise","accepted":false,"document":{"schemaVersion":1,"mode":"normal","revision":"A","estimatedRecoveryAt":"2026-10-09T12:00:00.1234567Z"}},
+  {"name":"unpaired surrogate","accepted":false,"document":{"schemaVersion":1,"mode":"normal","revision":"A","title":"\ud800"}}
+]

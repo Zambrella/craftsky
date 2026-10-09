@@ -23,6 +23,9 @@ import 'package:craftsky_app/feed/widgets/post_composer_sheet.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/languages/models/language_preferences.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
+import 'package:craftsky_app/service_status/models/service_status_document.dart';
+import 'package:craftsky_app/service_status/providers/service_status_controller.dart';
+import 'package:craftsky_app/service_status/widgets/service_status_host.dart';
 import 'package:craftsky_app/shared/media/uploaded_image_blob.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/theme/brand_colors.dart';
@@ -35,6 +38,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../fakes/recording_messenger.dart';
+import '../../service_status/announcement_dismissal_test.dart'
+    show FakeDismissalStore;
+import '../../service_status/service_status_controller_test.dart'
+    show FakeStatusRepository, maintenance;
 import '../fakes/fake_post_repository.dart';
 
 void main() {
@@ -49,11 +56,13 @@ void main() {
         );
         final account = registry.activeLease!.session.account;
         final drafts = _GatedDraftSaveRepository();
+        final status = FakeStatusRepository();
         final messenger = RecordingMessenger();
 
         await _openComposer(
           tester,
           composerId: '96ad7199-292f-4388-a6cd-b4f74230116b',
+          status: status,
           registry: registry,
           messenger: messenger,
           overrides: [
@@ -77,10 +86,34 @@ void main() {
         // Cross an additional frame so an unlistened auto-dispose mutation
         // provider is released before its repository future completes.
         await tester.pump(const Duration(milliseconds: 20));
+        // REG-003 / FR-009, RULE-004 / AC-008, AC-012.
+        final container = ProviderScope.containerOf(
+          tester.element(find.byType(MaterialApp)),
+        );
+        final controller = container.read(
+          serviceStatusControllerProvider.notifier,
+        );
+        final covered = controller.refresh();
+        status.requests.last.complete(maintenance);
+        await tester.pump();
+        await covered;
+        expect(find.text('Maintenance'), findsOneWidget);
         drafts.complete();
         await tester.pumpAndSettle();
 
+        expect(find.text('Maintenance'), findsOneWidget);
+        expect(drafts.saveCalls, 1);
+        final clear = controller.refresh();
+        status.requests.last.complete(
+          const ServiceStatusDocument(
+            mode: ServiceStatusMode.normal,
+            revision: 'B',
+          ),
+        );
+        await tester.pump();
+        await clear;
         expect(find.text('Host'), findsOneWidget);
+        expect(drafts.saveCalls, 1);
         expect(
           messenger.calls,
           contains(('info', 'Draft saved', null)),
@@ -441,8 +474,15 @@ Future<void> _openComposer(
   RecordingMessenger? messenger,
   LocalPostDraftSeed? draftSeed,
   ActiveAccountLease? draftOwner,
+  FakeStatusRepository? status,
 }) async {
   final providerOverrides = <dynamic>[
+    if (status != null) ...[
+      serviceStatusRepositoryProvider.overrideWithValue(status),
+      announcementDismissalStoreProvider.overrideWithValue(
+        FakeDismissalStore(),
+      ),
+    ],
     activeLanguagePreferencesProvider.overrideWith(
       (ref) => const LanguagePreferences(
         primaryLanguage: 'en',
@@ -465,6 +505,9 @@ Future<void> _openComposer(
         messenger: messenger ?? RecordingMessenger(),
         child: MaterialApp(
           theme: _testTheme,
+          builder: status == null
+              ? null
+              : (context, child) => ServiceStatusHost(child: child!),
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: Builder(
@@ -561,12 +604,14 @@ final class _RevisionDraftRepository implements LocalPostDraftRepository {
 final class _GatedDraftSaveRepository implements LocalPostDraftRepository {
   final _gate = Completer<void>();
   DraftWriteRequest? request;
+  int saveCalls = 0;
   LocalPostDraft? saved;
 
   void complete() => _gate.complete();
 
   @override
   Future<LocalPostDraft> save(DraftWriteRequest request) async {
+    saveCalls++;
     this.request = request;
     await _gate.future;
     return saved = LocalPostDraft(

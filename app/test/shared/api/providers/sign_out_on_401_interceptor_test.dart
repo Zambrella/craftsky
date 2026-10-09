@@ -1,8 +1,18 @@
+import 'dart:io';
+
 import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/auth/models/account_session_lease.dart';
+import 'package:craftsky_app/auth/providers/account_boundary_provider.dart';
+import 'package:craftsky_app/service_status/providers/service_status_controller.dart';
 import 'package:craftsky_app/shared/api/providers/sign_out_on_401_interceptor.dart';
 import 'package:dio/dio.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import '../../../service_status/announcement_dismissal_test.dart'
+    show FakeDismissalStore;
+import '../../../service_status/service_status_controller_test.dart'
+    show FakeStatusRepository, maintenance;
 
 class _CapturingHandler extends ErrorInterceptorHandler {
   DioException? error;
@@ -106,6 +116,55 @@ void main() {
 
       expect(invalidated, isEmpty);
       expect(handler.error, same(error503));
+    },
+  );
+  // REG-001 / FR-007, RULE-004 / AC-010, AC-012.
+  test(
+    'status maintenance/offline/invalid results never invalidate the session; true 401 does',
+    () async {
+      final lease = AccountSessionLease(
+        account: AccountKey('did:plc:alice'),
+        sessionGeneration: 3,
+      );
+      final invalidated = <AccountSessionLease>[];
+      final status = FakeStatusRepository();
+      final container = ProviderContainer(
+        overrides: [
+          serviceStatusRepositoryProvider.overrideWithValue(status),
+          announcementDismissalStoreProvider.overrideWithValue(
+            FakeDismissalStore(),
+          ),
+          accountSessionInvalidatorProvider.overrideWithValue(
+            (lease) async => invalidated.add(lease),
+          ),
+        ],
+      );
+      final controller = container.read(
+        serviceStatusControllerProvider.notifier,
+      );
+      final accepted = controller.refresh();
+      status.requests.last.complete(maintenance);
+      await accepted;
+      for (final error in [
+        const SocketException('Offline'),
+        const FormatException('Invalid'),
+        _exWithStatus(503),
+      ]) {
+        final refreshed = controller.refresh();
+        status.requests.last.completeError(error);
+        await refreshed;
+      }
+      expect(invalidated, isEmpty);
+      final interceptor = SignOutOn401Interceptor.withLease(
+        lease: lease,
+        invalidate: container.read(accountSessionInvalidatorProvider),
+      );
+      // Separate invocation makes the genuine-401 control explicit.
+      // ignore: cascade_invocations
+      interceptor.onError(_exWithStatus(401), _CapturingHandler());
+      await Future<void>.delayed(Duration.zero);
+      expect(invalidated, [lease]);
+      container.dispose();
     },
   );
 }

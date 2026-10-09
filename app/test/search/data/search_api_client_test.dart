@@ -247,14 +247,14 @@ void main() {
             'cursor': 'opaque:posts',
           }),
           queryParameters: {
-            'q': 'alpaca',
+            'q': 'crochett blanket',
             'limit': '10',
             'cursor': 'opaque:start',
           },
         );
 
         final page = await SearchApiClient(dio).searchPosts(
-          q: 'alpaca',
+          q: 'crochett blanket',
           limit: 10,
           cursor: 'opaque:start',
         );
@@ -274,13 +274,13 @@ void main() {
             'items': [samplePost(rkey: 'project')],
           }),
           queryParameters: {
-            'q': 'cardigan',
+            'q': 'crochett blanket',
             'limit': '25',
             'cursor': 'opaque:projects',
           },
         );
         final page = await SearchApiClient(dio).searchProjects(
-          q: 'cardigan',
+          q: 'crochett blanket',
           limit: 25,
           cursor: 'opaque:projects',
         );
@@ -426,14 +426,14 @@ void main() {
           (server) => server.reply(201, {
             'id': 'recent_query',
             'type': 'query',
-            'displayLabel': 'Alpaca socks',
-            'payload': {'q': 'alpaca socks'},
+            'displayLabel': 'Crochett blanket',
+            'payload': {'q': 'crochett blanket'},
             'updatedAt': '2026-06-20T11:59:00Z',
           }),
           data: {
             'type': 'query',
-            'displayLabel': 'Alpaca socks',
-            'payload': {'q': 'alpaca socks'},
+            'displayLabel': 'Crochett blanket',
+            'payload': {'q': 'crochett blanket'},
           },
         )
         ..onPost(
@@ -522,8 +522,8 @@ void main() {
         await client.saveRecentSearch(
           const SaveRecentSearchRequest(
             type: RecentSearchType.query,
-            displayLabel: 'Alpaca socks',
-            payload: QueryRecentSearchPayload(q: 'alpaca socks'),
+            displayLabel: 'Crochett blanket',
+            payload: QueryRecentSearchPayload(q: 'crochett blanket'),
           ),
         ),
         await client.saveRecentSearch(
