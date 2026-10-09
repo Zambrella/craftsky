@@ -400,7 +400,7 @@ func TestTimelineExcludesImportedOriginalButIncludesLaterRepostAndQuote(t *testi
 func TestSearchPostsIncludesImportedPostsWithOriginalChronologyAndProvenance(t *testing.T) {
 	t.Parallel()
 
-	pool := testdb.WithSchema(t, searchStoreDDL)
+	pool := testdb.WithSchema(t, searchStoreDDL(t))
 	seedMember(t, pool, "did:plc:alice")
 	imported := seedPost(t, pool, "did:plc:alice", "imported-search", "heritage cardigan", time.Date(2026, 7, 23, 12, 0, 0, 0, time.UTC))
 	if _, err := pool.Exec(context.Background(), `
@@ -438,7 +438,7 @@ func TestSearchPostsIncludesImportedPostsWithOriginalChronologyAndProvenance(t *
 func TestSearchImportedHashtagsAndKeywordsPaginateWithOriginalChronology(t *testing.T) {
 	t.Parallel()
 
-	pool := testdb.WithSchema(t, searchStoreDDL)
+	pool := testdb.WithSchema(t, searchStoreDDL(t))
 	seedMember(t, pool, "did:plc:alice")
 
 	type fixture struct {

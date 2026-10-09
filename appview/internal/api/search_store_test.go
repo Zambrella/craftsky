@@ -26,7 +26,7 @@ import (
 	"social.craftsky/appview/internal/testlog"
 )
 
-const searchStoreDDL = timelineStoreDDL + `
+const searchStoreBaseDDL = timelineStoreDDL + `
 CREATE FUNCTION craftsky_text_array_to_string(arr TEXT[], delimiter TEXT)
 RETURNS TEXT
 LANGUAGE sql
@@ -46,8 +46,19 @@ CREATE TABLE atproto_identity_cache (
 );
 `
 
+// Load migration files only when a search fixture is used. Standalone release
+// media probes run this package without a source checkout or database fixtures.
+func searchStoreDDL(t *testing.T) string {
+	t.Helper()
+	contents, err := testdb.ReadMigration("000089_search_matching_helpers.up.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return searchStoreBaseDDL + string(contents)
+}
+
 func TestSearchProfilesOmitsBlockedAccountExceptExactHandleManagementShell(t *testing.T) {
-	pool := testdb.WithSchema(t, searchStoreDDL)
+	pool := testdb.WithSchema(t, searchStoreDDL(t))
 	ctx := context.Background()
 	for _, did := range []string{"did:plc:viewer", "did:plc:bob", "did:plc:carol"} {
 		seedMember(t, pool, did)
@@ -182,7 +193,7 @@ func searchURIs(rows []api.SearchPostRow) []string {
 }
 
 func TestSearchStore_ProjectBrowseAppliesLanguageVisibilityBeforePagination(t *testing.T) {
-	pool := testdb.WithSchema(t, searchStoreDDL)
+	pool := testdb.WithSchema(t, searchStoreDDL(t))
 	ctx := middleware.WithDID(context.Background(), syntax.DID("did:plc:viewer"))
 	now := time.Date(2026, 7, 29, 13, 0, 0, 0, time.UTC)
 	for _, did := range []string{"did:plc:viewer", "did:plc:alice"} {
@@ -235,7 +246,7 @@ func TestSearchStore_ProjectBrowseAppliesLanguageVisibilityBeforePagination(t *t
 }
 
 func TestSearchStore_PostSearchAppliesLanguageVisibilityBeforePagination(t *testing.T) {
-	pool := testdb.WithSchema(t, searchStoreDDL)
+	pool := testdb.WithSchema(t, searchStoreDDL(t))
 	ctx := middleware.WithDID(context.Background(), syntax.DID("did:plc:viewer"))
 	base := time.Date(2026, 7, 29, 14, 0, 0, 0, time.UTC)
 	for _, did := range []string{"did:plc:viewer", "did:plc:alice"} {
@@ -287,7 +298,7 @@ func TestSearchStore_PostSearchAppliesLanguageVisibilityBeforePagination(t *test
 }
 
 func TestSearchStore_ProjectSearchAppliesLanguageVisibilityBeforePagination(t *testing.T) {
-	pool := testdb.WithSchema(t, searchStoreDDL)
+	pool := testdb.WithSchema(t, searchStoreDDL(t))
 	ctx := middleware.WithDID(context.Background(), syntax.DID("did:plc:viewer"))
 	base := time.Date(2026, 7, 29, 15, 0, 0, 0, time.UTC)
 	for _, did := range []string{"did:plc:viewer", "did:plc:alice"} {
@@ -337,7 +348,7 @@ func TestSearchStore_ProjectSearchAppliesLanguageVisibilityBeforePagination(t *t
 }
 
 func TestSearchStore_HashtagPostsApplyLanguageVisibilityBeforePagination(t *testing.T) {
-	pool := testdb.WithSchema(t, searchStoreDDL)
+	pool := testdb.WithSchema(t, searchStoreDDL(t))
 	ctx := middleware.WithDID(context.Background(), syntax.DID("did:plc:viewer"))
 	base := time.Date(2026, 7, 29, 16, 0, 0, 0, time.UTC)
 	for _, did := range []string{"did:plc:viewer", "did:plc:alice"} {
@@ -402,7 +413,7 @@ func TestSearchStore_HashtagPostsApplyLanguageVisibilityBeforePagination(t *test
 
 func TestSearchStore_SearchProjectsPopularOrdersBrowseAllAndFilteredProjects(t *testing.T) {
 	t.Parallel()
-	pool := testdb.WithSchema(t, searchStoreDDL)
+	pool := testdb.WithSchema(t, searchStoreDDL(t))
 	ctx := context.Background()
 	now := time.Date(2026, 6, 20, 12, 0, 0, 0, time.UTC)
 	for _, did := range []string{"did:plc:alice", "did:plc:bob", "did:plc:carol", "did:plc:fan1", "did:plc:fan2", "did:plc:fan3"} {
@@ -441,7 +452,7 @@ func TestSearchStore_SearchProjectsPopularOrdersBrowseAllAndFilteredProjects(t *
 
 func TestSearchStore_SearchProfilesPaginatesByRankTuple(t *testing.T) {
 	t.Parallel()
-	pool := testdb.WithSchema(t, searchStoreDDL)
+	pool := testdb.WithSchema(t, searchStoreDDL(t))
 	ctx := context.Background()
 	for _, did := range []string{"did:plc:viewer", "did:plc:alice", "did:plc:alicia", "did:plc:mallory"} {
 		seedMember(t, pool, did)
@@ -477,7 +488,7 @@ func TestSearchStore_SearchProfilesPaginatesByRankTuple(t *testing.T) {
 
 func TestSearchAndFacetProfileSuggestionsShareRankingAndCrafts(t *testing.T) {
 	t.Parallel()
-	pool := testdb.WithSchema(t, searchStoreDDL)
+	pool := testdb.WithSchema(t, searchStoreDDL(t))
 	ctx := context.Background()
 	for _, did := range []string{"did:plc:viewer", "did:plc:display", "did:plc:description"} {
 		seedMember(t, pool, did)
@@ -518,7 +529,7 @@ func TestSearchAndFacetProfileSuggestionsShareRankingAndCrafts(t *testing.T) {
 
 func TestFacetHashtagSuggestionsUseHashtagResultRanking(t *testing.T) {
 	t.Parallel()
-	pool := testdb.WithSchema(t, searchStoreDDL)
+	pool := testdb.WithSchema(t, searchStoreDDL(t))
 	ctx := context.Background()
 	now := time.Date(2026, 6, 20, 12, 0, 0, 0, time.UTC)
 	seedMember(t, pool, "did:plc:alice")
@@ -547,7 +558,7 @@ func TestFacetHashtagSuggestionsUseHashtagResultRanking(t *testing.T) {
 
 func TestFacetHashtagSuggestionsUseVisibleSearchHashtagCounts(t *testing.T) {
 	t.Parallel()
-	pool := testdb.WithSchema(t, searchStoreDDL)
+	pool := testdb.WithSchema(t, searchStoreDDL(t))
 	ctx := context.Background()
 	now := time.Date(2026, 6, 20, 12, 0, 0, 0, time.UTC)
 	for _, did := range []string{"did:plc:alice", "did:plc:bob", "did:plc:carol"} {
@@ -606,7 +617,7 @@ func TestFacetHashtagSuggestionsUseVisibleSearchHashtagCounts(t *testing.T) {
 
 func TestSearchSuggestionsHandlerReturnsGroupedTopNSections(t *testing.T) {
 	t.Parallel()
-	pool := testdb.WithSchema(t, searchStoreDDL)
+	pool := testdb.WithSchema(t, searchStoreDDL(t))
 	ctx := context.Background()
 	now := time.Now().UTC().Add(-time.Hour)
 	for _, did := range []string{"did:plc:viewer", "did:plc:sock-a", "did:plc:sock-b"} {
@@ -651,7 +662,7 @@ func TestSearchSuggestionsHandlerReturnsGroupedTopNSections(t *testing.T) {
 
 func TestSearchStore_SearchHashtagsRanksAndPaginates(t *testing.T) {
 	t.Parallel()
-	pool := testdb.WithSchema(t, searchStoreDDL)
+	pool := testdb.WithSchema(t, searchStoreDDL(t))
 	ctx := context.Background()
 	now := time.Date(2026, 6, 20, 12, 0, 0, 0, time.UTC)
 	seedMember(t, pool, "did:plc:alice")
@@ -684,7 +695,7 @@ func TestSearchStore_SearchHashtagsRanksAndPaginates(t *testing.T) {
 
 func TestSearchStore_SearchHashtagPostsUsesStoredTagEqualityOnly(t *testing.T) {
 	t.Parallel()
-	pool := testdb.WithSchema(t, searchStoreDDL)
+	pool := testdb.WithSchema(t, searchStoreDDL(t))
 	ctx := context.Background()
 	base := time.Date(2026, 6, 20, 12, 0, 0, 0, time.UTC)
 	seedMember(t, pool, "did:plc:alice")
@@ -709,7 +720,7 @@ func TestSearchStore_SearchHashtagPostsUsesStoredTagEqualityOnly(t *testing.T) {
 }
 
 func TestSearchStoreRelationshipFiltersBeforeHashtagPagination(t *testing.T) {
-	pool := testdb.WithSchema(t, searchStoreDDL)
+	pool := testdb.WithSchema(t, searchStoreDDL(t))
 	base := time.Date(2026, 7, 19, 12, 0, 0, 0, time.UTC)
 	for _, did := range []string{"did:plc:viewer", "did:plc:bob", "did:plc:carol", "did:plc:dave"} {
 		seedMember(t, pool, did)
@@ -738,7 +749,7 @@ func TestSearchStoreRelationshipFiltersBeforeHashtagPagination(t *testing.T) {
 
 func TestSearchStore_SearchHashtagPostsSortsChronologicalAndPopular(t *testing.T) {
 	t.Parallel()
-	pool := testdb.WithSchema(t, searchStoreDDL)
+	pool := testdb.WithSchema(t, searchStoreDDL(t))
 	ctx := context.Background()
 	base := time.Date(2026, 6, 20, 12, 0, 0, 0, time.UTC)
 	for _, did := range []string{"did:plc:alice", "did:plc:fan1", "did:plc:fan2", "did:plc:fan3"} {
@@ -781,7 +792,7 @@ func TestSearchStore_SearchHashtagPostsSortsChronologicalAndPopular(t *testing.T
 
 func TestSearchStore_SearchPostsAndProjectsUseRelevanceAndDisjointTabs(t *testing.T) {
 	t.Parallel()
-	pool := testdb.WithSchema(t, searchStoreDDL)
+	pool := testdb.WithSchema(t, searchStoreDDL(t))
 	ctx := context.Background()
 	base := time.Date(2026, 6, 20, 12, 0, 0, 0, time.UTC)
 	seedMember(t, pool, "did:plc:alice")
@@ -832,7 +843,7 @@ func TestSearchStore_SearchPostsAndProjectsUseRelevanceAndDisjointTabs(t *testin
 }
 
 func TestSearchPostsHandlerIncludesAuthenticatedViewerSavedState(t *testing.T) {
-	pool := testdb.WithSchema(t, searchStoreDDL)
+	pool := testdb.WithSchema(t, searchStoreDDL(t))
 	ctx := context.Background()
 	seedMember(t, pool, "did:plc:viewer")
 	seedMember(t, pool, "did:plc:alice")
@@ -875,7 +886,7 @@ func TestSearchPostsHandlerIncludesAuthenticatedViewerSavedState(t *testing.T) {
 
 func TestSearchStore_SearchPostsEmitsDBOperationTelemetry(t *testing.T) {
 	t.Parallel()
-	pool := testdb.WithSchema(t, searchStoreDDL)
+	pool := testdb.WithSchema(t, searchStoreDDL(t))
 	ctx := context.Background()
 	base := time.Date(2026, 6, 20, 12, 0, 0, 0, time.UTC)
 	seedMember(t, pool, "did:plc:alice")
@@ -948,7 +959,7 @@ func valueString(value any) string {
 
 func TestSearchStore_SearchProjectsAppliesFilterSemantics(t *testing.T) {
 	t.Parallel()
-	pool := testdb.WithSchema(t, searchStoreDDL)
+	pool := testdb.WithSchema(t, searchStoreDDL(t))
 	ctx := context.Background()
 	base := time.Date(2026, 6, 20, 12, 0, 0, 0, time.UTC)
 	seedMember(t, pool, "did:plc:alice")
@@ -1023,7 +1034,7 @@ func TestSearchStore_SearchProjectsAppliesFilterSemantics(t *testing.T) {
 
 func TestSearchStore_ModerationFiltersBeforeSearchRankingAndLimits(t *testing.T) {
 	t.Parallel()
-	pool := testdb.WithSchema(t, searchStoreDDL)
+	pool := testdb.WithSchema(t, searchStoreDDL(t))
 	ctx := context.Background()
 	base := time.Date(2026, 6, 20, 12, 0, 0, 0, time.UTC)
 	for _, did := range []string{"did:plc:alice", "did:plc:bob", "did:plc:fan"} {
@@ -1047,7 +1058,7 @@ func TestSearchStore_ModerationFiltersBeforeSearchRankingAndLimits(t *testing.T)
 
 func TestSearchStore_TopHashtagsGroupsDistinctProjectsAndEmptyCrafts(t *testing.T) {
 	t.Parallel()
-	pool := testdb.WithSchema(t, searchStoreDDL)
+	pool := testdb.WithSchema(t, searchStoreDDL(t))
 	ctx := context.Background()
 	now := time.Date(2026, 6, 20, 12, 0, 0, 0, time.UTC)
 	seedMember(t, pool, "did:plc:alice")
