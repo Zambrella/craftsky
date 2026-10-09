@@ -9,7 +9,10 @@ import 'package:craftsky_app/initialization_loading_screen.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/languages/providers/app_language_provider.dart';
 import 'package:craftsky_app/notifications/widgets/notification_effect_host.dart';
-import 'package:craftsky_app/router/router.dart';
+import 'package:craftsky_app/service_status/providers/service_status_controller.dart';
+import 'package:craftsky_app/service_status/service_status_router_config.dart';
+import 'package:craftsky_app/service_status/widgets/service_status_host.dart';
+import 'package:craftsky_app/service_status/widgets/service_status_lifecycle_host.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/shared/messaging/scaffold_messenger_impl.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
@@ -98,14 +101,20 @@ class _AppState extends ConsumerState<App> {
       AsyncError() => true,
       _ => false,
     };
-    if (initializationResolved) _scheduleInitializationResolved();
+    ref.watch(serviceStatusControllerProvider);
+    if (initializationResolved ||
+        ref.read(serviceStatusControllerProvider.notifier).maintenanceActive) {
+      _scheduleInitializationResolved();
+    }
 
-    return switch (depsAsync) {
-      AsyncData() when _coldStartComplete && authReady => const _ReadyApp(),
-      AsyncData() => const _LoadingApp(),
-      AsyncError(:final error) => _ErrorApp(error: error),
-      _ => const _LoadingApp(),
-    };
+    return ServiceStatusLifecycleHost(
+      child: switch (depsAsync) {
+        AsyncData() when _coldStartComplete && authReady => const _ReadyApp(),
+        AsyncData() => const _LoadingApp(),
+        AsyncError(:final error) => _ErrorApp(error: error),
+        _ => const _LoadingApp(),
+      },
+    );
   }
 
   void _scheduleInitializationResolved() {
@@ -126,7 +135,7 @@ class _ReadyApp extends ConsumerWidget {
     // notifiers, so the generated provider is `themeModeProvider`, not
     // `themeModeNotifierProvider`.
     final themeMode = ref.watch(themeModeProvider);
-    final router = ref.watch(goRouterProvider);
+    final router = ref.watch(serviceStatusRouterConfigProvider);
     final appLanguage = ref.watch(appLanguageProvider);
 
     return MessengerScope(
@@ -145,9 +154,11 @@ class _ReadyApp extends ConsumerWidget {
         builder: (context, child) {
           return TextScaleFactorClamper(
             child: FormFactorWidget(
-              child: NotificationEffectHost(
-                child: ActiveAccountInitializationGate(
-                  child: child ?? const SizedBox.shrink(),
+              child: ServiceStatusHost(
+                child: NotificationEffectHost(
+                  child: ActiveAccountInitializationGate(
+                    child: child ?? const SizedBox.shrink(),
+                  ),
                 ),
               ),
             ),
@@ -172,6 +183,8 @@ class _LoadingApp extends StatelessWidget {
         debugShowCheckedModeBanner: false,
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
+        builder: (context, child) =>
+            ServiceStatusHost(child: child ?? const SizedBox.shrink()),
         home: const InitializationLoadingScreen(),
       ),
     );
@@ -194,6 +207,8 @@ class _ErrorApp extends ConsumerWidget {
         debugShowCheckedModeBanner: false,
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
+        builder: (context, child) =>
+            ServiceStatusHost(child: child ?? const SizedBox.shrink()),
         home: InitializationErrorScreen(
           error: error,
           onRetry: () => ref.invalidate(appDependenciesProvider),

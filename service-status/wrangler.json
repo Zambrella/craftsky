@@ -1,0 +1,19 @@
+{
+  "$schema": "../web/node_modules/wrangler/config-schema.json",
+  "name": "craftsky-status",
+  "main": "src/index.js",
+  "compatibility_date": "2026-10-08",
+  "workers_dev": false,
+  "preview_urls": false,
+  "routes": [{"pattern": "status.craftsky.social", "custom_domain": true}],
+  "r2_buckets": [{"binding": "STATUS_DOCUMENTS", "bucket_name": "craftsky-service-status"}],
+  "env": {
+    "preview": {
+      "name": "craftsky-status-preview",
+      "workers_dev": false,
+      "preview_urls": false,
+      "routes": [{"pattern": "preview-status.craftsky.social", "custom_domain": true}],
+      "r2_buckets": [{"binding": "STATUS_DOCUMENTS", "bucket_name": "craftsky-service-status-preview"}]
+    }
+  }
+}
