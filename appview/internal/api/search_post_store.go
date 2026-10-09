@@ -64,57 +64,7 @@ func (s *SearchStore) searchPostsByRelevance(
 	contentLanguages []string,
 	req PostSearchRequest,
 ) ([]SearchPostRow, string, error) {
-	if s == nil || s.pool == nil {
-		return nil, "", fmt.Errorf("search store unavailable")
-	}
-	queryLimit := req.Limit + 1
-	fts := searchTSQuery(req.Query)
-	cur, err := DecodeRelevanceSearchCursor(req.Cursor, relevanceCursorKindPosts, fts)
-	if err != nil {
-		return nil, "", err
-	}
-	rows, err := s.pool.Query(ctx, `
-		WITH ranked AS (
-		SELECT p.*,
-		  ts_rank_cd(to_tsvector('simple', coalesce(p.text, '')), plainto_tsquery('simple', $1))::double precision AS relevance_score
-		FROM craftsky_posts p
-		WHERE p.is_project = false
-		  AND p.reply_root_uri IS NULL AND p.reply_parent_uri IS NULL
-		  AND to_tsvector('simple', coalesce(p.text, '')) @@ plainto_tsquery('simple', $1)
-		`+relationshipTopLevelPredicate("$6")+`
-		`+postVisibleModerationPredicate+`
-		`+languageVisibilityPredicate("p", "$6", "$7")+`
-		)
-		SELECT `+postSelectColumns+`, relevance_score
-		FROM ranked p
-		LEFT JOIN craftsky_project_posts pp ON pp.uri = p.uri
-		LEFT JOIN bluesky_profiles bp ON bp.did = p.did
-		WHERE ($3::double precision IS NULL OR (relevance_score, p.created_at, p.uri) < ($3::double precision, $4::timestamptz, $5::text))
-		ORDER BY relevance_score DESC, p.created_at DESC, p.uri DESC
-		LIMIT $2
-	`, fts, queryLimit, cur.ScorePtr(), cur.CreatedAtPtr(), cur.URIPtr(), viewerDID, contentLanguages)
-	if err != nil {
-		return nil, "", fmt.Errorf("post relevance search: %w", err)
-	}
-	defer rows.Close()
-	out := make([]SearchPostRow, 0, req.Limit)
-	for rows.Next() {
-		row, scanErr := scanSearchPostRow(rows)
-		if scanErr != nil {
-			return nil, "", scanErr
-		}
-		out = append(out, row)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, "", err
-	}
-	if len(out) <= req.Limit {
-		return out, "", nil
-	}
-	out = out[:req.Limit]
-	last := out[len(out)-1]
-	next, err := EncodeRelevanceSearchCursor(relevanceCursorKindPosts, fts, last.Score, last.Post.CreatedAt, last.Post.URI)
-	return out, next, err
+	return s.searchSubmittedByRelevance(ctx, viewerDID, contentLanguages, ProjectSearchRequest{Query: req.Query, Limit: req.Limit, Cursor: req.Cursor}, false)
 }
 
 type searchPostQuery struct {

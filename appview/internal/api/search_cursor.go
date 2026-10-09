@@ -1,7 +1,10 @@
 package api
 
 import (
+	"math"
 	"time"
+
+	"github.com/bluesky-social/indigo/atproto/syntax"
 
 	"social.craftsky/appview/internal/api/envelope"
 )
@@ -26,6 +29,7 @@ type HashtagCursor struct {
 }
 
 type RelevanceCursor struct {
+	Tier      int
 	Kind      string
 	Query     string
 	Score     float64
@@ -208,7 +212,12 @@ func DecodeHashtagSearchCursor(cursor, query string) (HashtagCursor, error) {
 }
 
 func EncodeRelevanceSearchCursor(kind, query string, score float64, createdAt time.Time, uri string) (string, error) {
+	return encodeTieredRelevanceSearchCursor(kind, query, 1, score, createdAt, uri)
+}
+
+func encodeTieredRelevanceSearchCursor(kind, query string, tier int, score float64, createdAt time.Time, uri string) (string, error) {
 	return envelope.EncodeCursor(map[string]any{
+		"tier":      tier,
 		"kind":      kind,
 		"query":     query,
 		"score":     score,
@@ -225,8 +234,12 @@ func DecodeRelevanceSearchCursor(cursor, kind, query string) (RelevanceCursor, e
 	if cur["kind"] != kind || cur["query"] != query {
 		return RelevanceCursor{}, envelope.ErrInvalidCursor
 	}
+	tier, ok := numberAsInt(cur["tier"])
+	if !ok || (tier != 0 && tier != 1) {
+		return RelevanceCursor{}, envelope.ErrInvalidCursor
+	}
 	score, ok := cur["score"].(float64)
-	if !ok {
+	if !ok || math.IsNaN(score) || math.IsInf(score, 0) || score < 0 {
 		return RelevanceCursor{}, envelope.ErrInvalidCursor
 	}
 	createdAt, ok := cur["createdAt"].(string)
@@ -241,7 +254,10 @@ func DecodeRelevanceSearchCursor(cursor, kind, query string) (RelevanceCursor, e
 	if !ok || uri == "" {
 		return RelevanceCursor{}, envelope.ErrInvalidCursor
 	}
-	return RelevanceCursor{Kind: kind, Query: query, Score: score, CreatedAt: parsedCreatedAt, URI: uri}, nil
+	if _, err := syntax.ParseATURI(uri); err != nil {
+		return RelevanceCursor{}, envelope.ErrInvalidCursor
+	}
+	return RelevanceCursor{Tier: tier, Kind: kind, Query: query, Score: score, CreatedAt: parsedCreatedAt, URI: uri}, nil
 }
 
 func numberAsInt(v any) (int, bool) {
@@ -256,4 +272,11 @@ func numberAsInt(v any) (int, bool) {
 	default:
 		return 0, false
 	}
+}
+
+func (c RelevanceCursor) TierPtr() any {
+	if c.URI == "" {
+		return nil
+	}
+	return c.Tier
 }

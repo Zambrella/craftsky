@@ -72,6 +72,10 @@ These scope changes were explicitly authorized after the simplification review; 
 
 The user chose to revise requirements and acceptance tests following `03-document-review.md`. DR-001 clarifies language-normalized versus typo eligibility; DR-002 makes scenario cases explicit; DR-003 records deterministic, visibility-aware proposed correction bounds; DR-004 makes benchmark cases and distractors concrete. These clarify the existing scope and preserve all stable IDs and retired performance obligations. Numerical defaults remain engineering proposals for coding-plan review.
 
+### Implementation scope confirmation (2026-10-09)
+
+The user approved removing older-post upgrade coverage and creating/testing the local SQL helper migration. No backfill, reindexing or pre-upgrade-record harness is required. Production operations remain outside this authorization.
+
 ## 4. Candidate Approaches
 
 ### Option A: Improve existing PostgreSQL lexical search
@@ -123,6 +127,7 @@ Users should find a useful post without knowing its author's exact inflection, r
 - NG-008: Google-style question answering, instructional-intent inference, automatic language detection or correcting several query words at once.
 - NG-009: Performance metrics, latency or query-plan measurement, load testing and numerical performance release gates for this slice. Existing instrumentation requires no change.
 - NG-010: A matching-configuration versioning system or preserving an in-progress search across deployments that change matching rules.
+- NG-011: Older-post backfill, reindexing, compatibility layers and pre-upgrade-record test coverage; the app has no users.
 
 ## 9. Users / Actors
 
@@ -151,7 +156,7 @@ Users can search `sock` and find declared-English content using `socks`, or sear
 | FR-004 | Functional | Must | Posts search shall retrieve eligible records through caption, existing authored hashtags and image alt text. Projects search shall retain all existing searchable fields and also retrieve through existing materialized authored tags and image alt text. No new author-entered tag field or generated description shall be required. | Use available public information | Codebase; grilling Q7, Q12 | AC-007, AC-008 |
 | FR-005 | Functional | Must | Reliable matches shall precede typo matches. Within each group, rank by relevance, weighting captions, project titles and pattern names above tags and alt text. Break ties by descending creation time then URI; do not boost popularity or duplicate tags. | Preserve agreed ordering and field priorities without requiring literal-versus-synonym ranking | Grilling Q6, Q7; user-approved simplification | AC-009 |
 | FR-006 | Functional | Must | While data and matching rules are unchanged, pagination shall be complete and duplicate-free, including the reliable-to-typo transition. Cursors shall reject use with a different query or result type. A deployment that changes matching rules may require restarting the search. | Preserve correct pagination without requiring continuity across matching changes | Codebase; grilling Q3, Q6; user-approved simplification | AC-010 |
-| NFR-001 | Non-functional | Must | Search shall use AppView's PostgreSQL projection without an external search/model service and without changing published records or requiring author edits. Existing eligible records shall receive the improved behavior after any required local projection/index migration or backfill. | Keep operational scope small | Accepted direction; architecture | AC-011 |
+| NFR-001 | Non-functional | Must | Search shall use AppView's PostgreSQL projection without an external search/model service and without changing published records or requiring author edits. | Keep operational scope small | Accepted direction; architecture | AC-011 |
 | NFR-002 | Non-functional | Must | Typo correction and vocabulary expansion shall have explicit finite bounds documented in test design, retain existing request/result limits, and avoid unbounded retries or candidate expansion. | Bound workload | Discovery; API contract | AC-012 |
 | RULE-001 | Business rule | Must | Submitted Posts search shall return only ordinary top-level posts; submitted Projects search shall return only project posts. Replies shall remain excluded. Other search/feed surfaces shall retain their existing behavior. | Preserve user-approved separation | User answer; codebase | AC-014 |
 | RULE-002 | Business rule | Must | All retrieval paths and ranking candidates shall apply existing authentication, moderation, account-lifecycle, relationship and content-language visibility rules before candidate eligibility and result selection. Hidden content shall not prevent eligible typo matches or displace visible results. | Protect visibility and useful pages | Codebase; AGENTS.md | AC-015 |
@@ -172,7 +177,7 @@ Users can search `sock` and find declared-English content using `socks`, or sear
 | AC-008 | FR-004 | Given projects matching separately by title, pattern name, material, project tag, design tag, caption, existing materialized authored tag or image alt text, each remains retrievable through its designated query. |
 | AC-009 | FR-005 | Given an old weak reliable match and a newer stronger typo match, the reliable record appears first. Within each group, comparable caption/title/name matches outrank tag/alt-text-only matches. Equal relevance uses descending creation time then URI. Duplicate tags and increased likes/reposts do not independently boost rank. No separate ranking guarantee distinguishes literal matches from approved synonym matches. |
 | AC-010 | FR-006 | Given an unchanged dataset/configuration and a page limit smaller than the result set, traversing reliable-only, synonym, typo-only and mixed-tier queries returns the expected ordered set once, including pages straddling the tier transition and records matching both tiers. Reusing a cursor for another query/tab produces the standard validation error. |
-| AC-011 | NFR-001 | Given eligible records indexed before the improvement, they become searchable under new matching/field rules without PDS writes or author edits. The feature operates with no external model/search call. |
+| AC-011 | NFR-001 | Search uses local PostgreSQL without changing published records, PDS writes, author edits or external model/search calls. |
 | AC-012 | NFR-002 | Given maximum supported query input, repeated equivalents and adversarial typo input, documented expansion/correction bounds and existing result limits hold, and execution does not perform an unbounded correction loop. |
 | AC-014 | RULE-001 | Given ordinary posts, projects and replies with matching content, Posts returns only ordinary top-level posts and Projects only projects. Exact hashtag feeds, project browse, profiles, typeahead and the home feed retain existing behavior. |
 | AC-015 | RULE-002 | Given matching muted/blocked authors, moderated or terminal owners and language-excluded records, neither reliable nor typo paths expose those records. Hidden candidates cannot consume the visible page limit, displace visible records or prevent eligible corrected records being retrieved. |
@@ -196,7 +201,7 @@ Users can search `sock` and find declared-English content using `socks`, or sear
 
 - New public fields: None. Search uses already published captions, tags, structured project fields and image descriptions.
 - Changed fields: Local derived search vectors/indexes may change; dictionary configuration may be added. The schema/index design belongs to the coding plan.
-- Migration required: Likely for derived indexes or extension configuration; existing-data backfill must be addressed if materialized search fields are chosen. Verify PostgreSQL extension availability before selecting a mechanism.
+- Migration required: Local SQL helper functions only, as selected in the coding plan. No older-post backfill, reindexing or upgrade compatibility work is required.
 - Backwards compatibility: No shipped-client behavior guarantee is required per AGENTS.md, but preserve the current API integration. Production data and migrations still require normal controls. Incompatible cursors may be rejected through existing validation; preserving searches across matching-rule deployments is not required. Cursor mechanics remain an implementation choice.
 
 ## 16. UI / API / CLI Impact
@@ -265,5 +270,5 @@ Notes: The user accepted the grilling recommendations, then explicitly authorize
 - Next test specification: `02-acceptance-tests.md` using `write-acceptance-tests`.
 - Must-cover requirement IDs: BR-001; FR-001 through FR-006; NFR-001 and NFR-002; RULE-001 through RULE-004. NFR-003 and AC-013 are retired and must not be restored as test obligations.
 - Suggested test levels: normalization/dictionary/bounds unit tests; PostgreSQL-backed reliable/typo retrieval, ranking, lifecycle and cursor integration tests; authenticated handler/response/visibility regressions; existing Flutter search regression checks if the integration changes; an offline relevance fixture benchmark for retrieval and ordering only.
-- Test design must enumerate reviewable realistic query/expected-record/negative fixtures, the three approved initial equivalences, deterministic correction thresholds and bounds. Cover mixed reliable/typo pages and tier transitions, cross-field concepts, declared-English versus unspecified/non-English metadata, protected short codes, and unchanged UI query text. Include ingestion updates/deletes and existing-record migration coverage, not just fresh inserts.
+- Test design must enumerate reviewable realistic query/expected-record/negative fixtures, the three approved initial equivalences, deterministic correction thresholds and bounds. Cover mixed reliable/typo pages and tier transitions, cross-field concepts, declared-English versus unspecified/non-English metadata, protected short codes, and unchanged UI query text. Include normal ingestion updates/deletes. Older-post upgrade coverage is excluded because the app has no users.
 - Blocking open questions: None. Matching thresholds, weights, query bounds and cursor mechanics remain engineering choices within the confirmed product rules. No performance measurement or release threshold is required.

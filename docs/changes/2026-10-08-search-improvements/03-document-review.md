@@ -71,3 +71,5 @@ The findings below are non-blocking test-design and engineering clarifications. 
 - Keep candidate limits deterministic and visibility-aware. Retain complete duplicate-free pagination only for unchanged data/rules; do not introduce configuration-version continuity as a requirement.
 - Carry forward the relevance corpus and corrected-result exception. Do not introduce performance measurement or release gates under the heading of benchmark validation.
 - Plan future commands using the repository test harness; PostgreSQL skips are missing evidence. No source changes, executable tests, migrations, dependencies or commits were created in this review stage.
+
+Subsequent user-approved scope update (2026-10-09): Older-post upgrade coverage IT-007/GAP-002 is retired. The historical review above is unchanged; local helper migration implementation/testing is approved, with production actions excluded.

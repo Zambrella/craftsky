@@ -57,10 +57,14 @@ func scanSearchPostRow(scanner pgx.Row) (SearchPostRow, error) {
 }
 
 func scanPostRowWithExtraScore(scanner pgx.Row) (SearchPostRow, error) {
+	return scanPostRowWithScoreAndTier(scanner, nil)
+}
+
+func scanPostRowWithScoreAndTier(scanner pgx.Row, tier *int) (SearchPostRow, error) {
 	post := &PostRow{}
 	var rawProject *[]byte
 	var score float64
-	err := scanner.Scan(
+	destinations := []any{
 		&post.URI, &post.DID, &post.Rkey, &post.CID, &post.Text, &post.Sponsored, &post.Facets, &post.Images, &post.RawEmbed,
 		&post.ReplyRootURI, &post.ReplyRootCID, &post.ReplyParentURI, &post.ReplyParentCID,
 		&post.QuoteURI, &post.QuoteCID, &post.Tags, &post.Langs, &post.CreatedAt, &post.IndexedAt,
@@ -69,7 +73,11 @@ func scanPostRowWithExtraScore(scanner pgx.Row) (SearchPostRow, error) {
 		&post.AuthorDisplayName, &post.AuthorAvatarCID, &post.AuthorAvatarMime,
 		&post.ModerationWarningKind,
 		&score,
-	)
+	}
+	if tier != nil {
+		destinations = append(destinations, tier)
+	}
+	err := scanner.Scan(destinations...)
 	if err != nil {
 		return SearchPostRow{}, err
 	}

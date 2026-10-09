@@ -1,0 +1,1265 @@
+[
+  {
+    "query": "Flax Light",
+    "project": false,
+    "language": "en",
+    "rationale": "Exact technical name",
+    "useful": {
+      "key": "post-flax",
+      "caption": "Flax Light"
+    },
+    "negatives": [
+      {
+        "key": "post-flax-other",
+        "caption": "Flax pullover"
+      },
+      {
+        "key": "post-flax-d1",
+        "caption": "Flax pullover"
+      },
+      {
+        "key": "post-flax-d2",
+        "caption": "Light cardigan"
+      },
+      {
+        "key": "post-flax-d3",
+        "caption": "Harvest pullover"
+      },
+      {
+        "key": "post-flax-d4",
+        "caption": "Cabled cardigan"
+      },
+      {
+        "key": "post-flax-d5",
+        "caption": "Linen mittens"
+      },
+      {
+        "key": "post-flax-d6",
+        "caption": "Wool scarf"
+      }
+    ]
+  },
+  {
+    "query": "Flax Light",
+    "project": true,
+    "language": "en",
+    "rationale": "Exact technical name",
+    "useful": {
+      "key": "project-flax",
+      "patternName": "Flax Light"
+    },
+    "negatives": [
+      {
+        "key": "project-flax-other",
+        "title": "Flax pullover"
+      },
+      {
+        "key": "project-flax-d1",
+        "title": "Flax pullover"
+      },
+      {
+        "key": "project-flax-d2",
+        "title": "Light cardigan"
+      },
+      {
+        "key": "project-flax-d3",
+        "title": "Harvest pullover"
+      },
+      {
+        "key": "project-flax-d4",
+        "title": "Cabled cardigan"
+      },
+      {
+        "key": "project-flax-d5",
+        "title": "Linen mittens"
+      },
+      {
+        "key": "project-flax-d6",
+        "title": "Wool scarf"
+      }
+    ]
+  },
+  {
+    "query": "sock",
+    "project": false,
+    "language": "en",
+    "rationale": "English plural topic",
+    "useful": {
+      "key": "post-socks",
+      "caption": "Finished knitting socks"
+    },
+    "negatives": [
+      {
+        "key": "post-hat",
+        "caption": "Finished knitting hats"
+      },
+      {
+        "key": "post-sock-d1",
+        "caption": "Finished knitting hats"
+      },
+      {
+        "key": "post-sock-d2",
+        "caption": "Blue knitted cardigan"
+      },
+      {
+        "key": "post-sock-d3",
+        "caption": "Knitted wool scarf"
+      },
+      {
+        "key": "post-sock-d4",
+        "caption": "Crochet blanket"
+      },
+      {
+        "key": "post-sock-d5",
+        "caption": "Woven linen towel"
+      },
+      {
+        "key": "post-sock-d6",
+        "caption": "Quilted cushion"
+      }
+    ]
+  },
+  {
+    "query": "sock",
+    "project": true,
+    "language": "en",
+    "rationale": "English plural topic",
+    "useful": {
+      "key": "project-socks",
+      "title": "Finished knitting socks"
+    },
+    "negatives": [
+      {
+        "key": "project-hat",
+        "title": "Finished knitting hats"
+      },
+      {
+        "key": "project-sock-d1",
+        "title": "Finished knitting hats"
+      },
+      {
+        "key": "project-sock-d2",
+        "title": "Blue knitted cardigan"
+      },
+      {
+        "key": "project-sock-d3",
+        "title": "Knitted wool scarf"
+      },
+      {
+        "key": "project-sock-d4",
+        "title": "Crochet blanket"
+      },
+      {
+        "key": "project-sock-d5",
+        "title": "Woven linen towel"
+      },
+      {
+        "key": "project-sock-d6",
+        "title": "Quilted cushion"
+      }
+    ]
+  },
+  {
+    "query": "knit",
+    "project": false,
+    "language": "en",
+    "rationale": "English inflection topic",
+    "useful": {
+      "key": "post-socks",
+      "caption": "Finished knitting socks"
+    },
+    "negatives": [
+      {
+        "key": "post-weaving",
+        "caption": "Woven towels"
+      },
+      {
+        "key": "post-knit-d1",
+        "caption": "Woven linen towel"
+      },
+      {
+        "key": "post-knit-d2",
+        "caption": "Crochet blanket"
+      },
+      {
+        "key": "post-knit-d3",
+        "caption": "Quilted cotton cushion"
+      },
+      {
+        "key": "post-knit-d4",
+        "caption": "Embroidered sampler"
+      },
+      {
+        "key": "post-knit-d5",
+        "caption": "Felted wool bowl"
+      },
+      {
+        "key": "post-knit-d6",
+        "caption": "Cross stitch bookmark"
+      }
+    ]
+  },
+  {
+    "query": "knit",
+    "project": true,
+    "language": "en",
+    "rationale": "English inflection topic",
+    "useful": {
+      "key": "project-socks",
+      "title": "Finished knitting socks"
+    },
+    "negatives": [
+      {
+        "key": "project-weaving",
+        "title": "Woven towels"
+      },
+      {
+        "key": "project-knit-d1",
+        "title": "Woven linen towel"
+      },
+      {
+        "key": "project-knit-d2",
+        "title": "Crochet blanket"
+      },
+      {
+        "key": "project-knit-d3",
+        "title": "Quilted cotton cushion"
+      },
+      {
+        "key": "project-knit-d4",
+        "title": "Embroidered sampler"
+      },
+      {
+        "key": "project-knit-d5",
+        "title": "Felted wool bowl"
+      },
+      {
+        "key": "project-knit-d6",
+        "title": "Cross stitch bookmark"
+      }
+    ]
+  },
+  {
+    "query": "how to knit socks",
+    "project": false,
+    "language": "en",
+    "rationale": "Topic showcase without instructional intent",
+    "useful": {
+      "key": "post-socks",
+      "caption": "Finished knitting socks"
+    },
+    "negatives": [
+      {
+        "key": "post-hat",
+        "caption": "Finished knitting hats"
+      },
+      {
+        "key": "post-sock-d1",
+        "caption": "Finished knitting hats"
+      },
+      {
+        "key": "post-sock-d2",
+        "caption": "Blue knitted cardigan"
+      },
+      {
+        "key": "post-sock-d3",
+        "caption": "Knitted wool scarf"
+      },
+      {
+        "key": "post-sock-d4",
+        "caption": "Crochet blanket"
+      },
+      {
+        "key": "post-sock-d5",
+        "caption": "Woven linen towel"
+      },
+      {
+        "key": "post-sock-d6",
+        "caption": "Quilted cushion"
+      }
+    ]
+  },
+  {
+    "query": "how to knit socks",
+    "project": true,
+    "language": "en",
+    "rationale": "Topic showcase without instructional intent",
+    "useful": {
+      "key": "project-socks",
+      "title": "Finished knitting socks"
+    },
+    "negatives": [
+      {
+        "key": "project-hat",
+        "title": "Finished knitting hats"
+      },
+      {
+        "key": "project-sock-d1",
+        "title": "Finished knitting hats"
+      },
+      {
+        "key": "project-sock-d2",
+        "title": "Blue knitted cardigan"
+      },
+      {
+        "key": "project-sock-d3",
+        "title": "Knitted wool scarf"
+      },
+      {
+        "key": "project-sock-d4",
+        "title": "Crochet blanket"
+      },
+      {
+        "key": "project-sock-d5",
+        "title": "Woven linen towel"
+      },
+      {
+        "key": "project-sock-d6",
+        "title": "Quilted cushion"
+      }
+    ]
+  },
+  {
+    "query": "jumper",
+    "project": false,
+    "language": "en",
+    "rationale": "Approved regional equivalent",
+    "useful": {
+      "key": "post-sweater",
+      "caption": "Finished sweater"
+    },
+    "negatives": [
+      {
+        "key": "post-cardigan",
+        "caption": "Finished cardigan"
+      },
+      {
+        "key": "post-jumper-d1",
+        "caption": "Crochet blanket"
+      },
+      {
+        "key": "post-jumper-d2",
+        "caption": "Woven scarf"
+      },
+      {
+        "key": "post-jumper-d3",
+        "caption": "Quilted cushion"
+      },
+      {
+        "key": "post-jumper-d4",
+        "caption": "Knitted mittens"
+      },
+      {
+        "key": "post-jumper-d5",
+        "caption": "Felted bowl"
+      },
+      {
+        "key": "post-jumper-d6",
+        "caption": "Linen trousers"
+      }
+    ]
+  },
+  {
+    "query": "jumper",
+    "project": true,
+    "language": "en",
+    "rationale": "Approved regional equivalent",
+    "useful": {
+      "key": "project-sweater",
+      "title": "Finished sweater"
+    },
+    "negatives": [
+      {
+        "key": "project-cardigan",
+        "title": "Finished cardigan"
+      },
+      {
+        "key": "project-jumper-d1",
+        "title": "Crochet blanket"
+      },
+      {
+        "key": "project-jumper-d2",
+        "title": "Woven scarf"
+      },
+      {
+        "key": "project-jumper-d3",
+        "title": "Quilted cushion"
+      },
+      {
+        "key": "project-jumper-d4",
+        "title": "Knitted mittens"
+      },
+      {
+        "key": "project-jumper-d5",
+        "title": "Felted bowl"
+      },
+      {
+        "key": "project-jumper-d6",
+        "title": "Linen trousers"
+      }
+    ]
+  },
+  {
+    "query": "sweater",
+    "project": false,
+    "language": "en",
+    "rationale": "Approved reverse regional equivalent",
+    "useful": {
+      "key": "post-jumper",
+      "caption": "Finished jumper"
+    },
+    "negatives": [
+      {
+        "key": "post-cardigan",
+        "caption": "Finished cardigan"
+      },
+      {
+        "key": "post-jumper-d1",
+        "caption": "Crochet blanket"
+      },
+      {
+        "key": "post-jumper-d2",
+        "caption": "Woven scarf"
+      },
+      {
+        "key": "post-jumper-d3",
+        "caption": "Quilted cushion"
+      },
+      {
+        "key": "post-jumper-d4",
+        "caption": "Knitted mittens"
+      },
+      {
+        "key": "post-jumper-d5",
+        "caption": "Felted bowl"
+      },
+      {
+        "key": "post-jumper-d6",
+        "caption": "Linen trousers"
+      }
+    ]
+  },
+  {
+    "query": "sweater",
+    "project": true,
+    "language": "en",
+    "rationale": "Approved reverse regional equivalent",
+    "useful": {
+      "key": "project-jumper",
+      "title": "Finished jumper"
+    },
+    "negatives": [
+      {
+        "key": "project-cardigan",
+        "title": "Finished cardigan"
+      },
+      {
+        "key": "project-jumper-d1",
+        "title": "Crochet blanket"
+      },
+      {
+        "key": "project-jumper-d2",
+        "title": "Woven scarf"
+      },
+      {
+        "key": "project-jumper-d3",
+        "title": "Quilted cushion"
+      },
+      {
+        "key": "project-jumper-d4",
+        "title": "Knitted mittens"
+      },
+      {
+        "key": "project-jumper-d5",
+        "title": "Felted bowl"
+      },
+      {
+        "key": "project-jumper-d6",
+        "title": "Linen trousers"
+      }
+    ]
+  },
+  {
+    "query": "WIP socks",
+    "project": false,
+    "language": "en",
+    "rationale": "Approved multiword equivalent",
+    "useful": {
+      "key": "post-progress",
+      "caption": "Work in progress socks"
+    },
+    "negatives": [
+      {
+        "key": "post-progress-hat",
+        "caption": "Work in progress hat"
+      },
+      {
+        "key": "post-progress-d1",
+        "caption": "WIP hat"
+      },
+      {
+        "key": "post-progress-d2",
+        "caption": "Work in progress cardigan"
+      },
+      {
+        "key": "post-progress-d3",
+        "caption": "Finished socks"
+      },
+      {
+        "key": "post-progress-d4",
+        "caption": "Wool socks"
+      },
+      {
+        "key": "post-progress-d5",
+        "caption": "Progress on a quilt"
+      },
+      {
+        "key": "post-progress-d6",
+        "caption": "New sock yarn"
+      }
+    ]
+  },
+  {
+    "query": "WIP socks",
+    "project": true,
+    "language": "en",
+    "rationale": "Approved multiword equivalent",
+    "useful": {
+      "key": "project-progress",
+      "title": "Work in progress socks"
+    },
+    "negatives": [
+      {
+        "key": "project-progress-hat",
+        "title": "Work in progress hat"
+      },
+      {
+        "key": "project-progress-d1",
+        "title": "WIP hat"
+      },
+      {
+        "key": "project-progress-d2",
+        "title": "Work in progress cardigan"
+      },
+      {
+        "key": "project-progress-d3",
+        "title": "Finished socks"
+      },
+      {
+        "key": "project-progress-d4",
+        "title": "Wool socks"
+      },
+      {
+        "key": "project-progress-d5",
+        "title": "Progress on a quilt"
+      },
+      {
+        "key": "project-progress-d6",
+        "title": "New sock yarn"
+      }
+    ]
+  },
+  {
+    "query": "work in progress socks",
+    "project": false,
+    "language": "en",
+    "rationale": "Approved reverse multiword equivalent",
+    "useful": {
+      "key": "post-wip",
+      "caption": "WIP socks"
+    },
+    "negatives": [
+      {
+        "key": "post-progress-hat",
+        "caption": "WIP hat"
+      },
+      {
+        "key": "post-progress-d1",
+        "caption": "WIP hat"
+      },
+      {
+        "key": "post-progress-d2",
+        "caption": "Work in progress cardigan"
+      },
+      {
+        "key": "post-progress-d3",
+        "caption": "Finished socks"
+      },
+      {
+        "key": "post-progress-d4",
+        "caption": "Wool socks"
+      },
+      {
+        "key": "post-progress-d5",
+        "caption": "Progress on a quilt"
+      },
+      {
+        "key": "post-progress-d6",
+        "caption": "New sock yarn"
+      }
+    ]
+  },
+  {
+    "query": "work in progress socks",
+    "project": true,
+    "language": "en",
+    "rationale": "Approved reverse multiword equivalent",
+    "useful": {
+      "key": "project-wip",
+      "title": "WIP socks"
+    },
+    "negatives": [
+      {
+        "key": "project-progress-hat",
+        "title": "WIP hat"
+      },
+      {
+        "key": "project-progress-d1",
+        "title": "WIP hat"
+      },
+      {
+        "key": "project-progress-d2",
+        "title": "Work in progress cardigan"
+      },
+      {
+        "key": "project-progress-d3",
+        "title": "Finished socks"
+      },
+      {
+        "key": "project-progress-d4",
+        "title": "Wool socks"
+      },
+      {
+        "key": "project-progress-d5",
+        "title": "Progress on a quilt"
+      },
+      {
+        "key": "project-progress-d6",
+        "title": "New sock yarn"
+      }
+    ]
+  },
+  {
+    "query": "stockinette socks",
+    "project": false,
+    "language": "en",
+    "rationale": "Approved stitch equivalent",
+    "useful": {
+      "key": "post-stocking",
+      "caption": "Stocking stitch socks"
+    },
+    "negatives": [
+      {
+        "key": "post-garter",
+        "caption": "Garter socks"
+      },
+      {
+        "key": "post-stitch-d1",
+        "caption": "Garter stitch socks"
+      },
+      {
+        "key": "post-stitch-d2",
+        "caption": "Ribbed socks"
+      },
+      {
+        "key": "post-stitch-d3",
+        "caption": "Stockinette hat"
+      },
+      {
+        "key": "post-stitch-d4",
+        "caption": "Stocking stitch scarf"
+      },
+      {
+        "key": "post-stitch-d5",
+        "caption": "Cable blanket"
+      },
+      {
+        "key": "post-stitch-d6",
+        "caption": "Moss stitch cardigan"
+      }
+    ]
+  },
+  {
+    "query": "stockinette socks",
+    "project": true,
+    "language": "en",
+    "rationale": "Approved stitch equivalent",
+    "useful": {
+      "key": "project-stocking",
+      "title": "Stocking stitch socks"
+    },
+    "negatives": [
+      {
+        "key": "project-garter",
+        "title": "Garter socks"
+      },
+      {
+        "key": "project-stitch-d1",
+        "title": "Garter stitch socks"
+      },
+      {
+        "key": "project-stitch-d2",
+        "title": "Ribbed socks"
+      },
+      {
+        "key": "project-stitch-d3",
+        "title": "Stockinette hat"
+      },
+      {
+        "key": "project-stitch-d4",
+        "title": "Stocking stitch scarf"
+      },
+      {
+        "key": "project-stitch-d5",
+        "title": "Cable blanket"
+      },
+      {
+        "key": "project-stitch-d6",
+        "title": "Moss stitch cardigan"
+      }
+    ]
+  },
+  {
+    "query": "stocking stitch socks",
+    "project": false,
+    "language": "en",
+    "rationale": "Approved reverse stitch equivalent",
+    "useful": {
+      "key": "post-stockinette",
+      "caption": "Stockinette socks"
+    },
+    "negatives": [
+      {
+        "key": "post-garter",
+        "caption": "Garter socks"
+      },
+      {
+        "key": "post-stitch-d1",
+        "caption": "Garter stitch socks"
+      },
+      {
+        "key": "post-stitch-d2",
+        "caption": "Ribbed socks"
+      },
+      {
+        "key": "post-stitch-d3",
+        "caption": "Stockinette hat"
+      },
+      {
+        "key": "post-stitch-d4",
+        "caption": "Stocking stitch scarf"
+      },
+      {
+        "key": "post-stitch-d5",
+        "caption": "Cable blanket"
+      },
+      {
+        "key": "post-stitch-d6",
+        "caption": "Moss stitch cardigan"
+      }
+    ]
+  },
+  {
+    "query": "stocking stitch socks",
+    "project": true,
+    "language": "en",
+    "rationale": "Approved reverse stitch equivalent",
+    "useful": {
+      "key": "project-stockinette",
+      "title": "Stockinette socks"
+    },
+    "negatives": [
+      {
+        "key": "project-garter",
+        "title": "Garter socks"
+      },
+      {
+        "key": "project-stitch-d1",
+        "title": "Garter stitch socks"
+      },
+      {
+        "key": "project-stitch-d2",
+        "title": "Ribbed socks"
+      },
+      {
+        "key": "project-stitch-d3",
+        "title": "Stockinette hat"
+      },
+      {
+        "key": "project-stitch-d4",
+        "title": "Stocking stitch scarf"
+      },
+      {
+        "key": "project-stitch-d5",
+        "title": "Cable blanket"
+      },
+      {
+        "key": "project-stitch-d6",
+        "title": "Moss stitch cardigan"
+      }
+    ]
+  },
+  {
+    "query": "crochett blanket",
+    "project": false,
+    "language": "en",
+    "rationale": "One query-word correction",
+    "useful": {
+      "key": "post-crochet",
+      "caption": "Crochet blanket"
+    },
+    "negatives": [
+      {
+        "key": "post-crochet-hat",
+        "caption": "Crochet hat"
+      },
+      {
+        "key": "post-two-correction",
+        "caption": "Crochet blankett"
+      },
+      {
+        "key": "post-crochet-d1",
+        "caption": "Crochet hat"
+      },
+      {
+        "key": "post-crochet-d2",
+        "caption": "Crochett scarf"
+      },
+      {
+        "key": "post-crochet-d3",
+        "caption": "Woven blanket"
+      },
+      {
+        "key": "post-crochet-d4",
+        "caption": "Knitted blanket"
+      },
+      {
+        "key": "post-crochet-d5",
+        "caption": "Quilted blanket"
+      },
+      {
+        "key": "post-crochet-d6",
+        "caption": "Crochet basket"
+      }
+    ]
+  },
+  {
+    "query": "crochett blanket",
+    "project": true,
+    "language": "en",
+    "rationale": "One query-word correction",
+    "useful": {
+      "key": "project-crochet",
+      "title": "Crochet blanket"
+    },
+    "negatives": [
+      {
+        "key": "project-crochet-hat",
+        "title": "Crochet hat"
+      },
+      {
+        "key": "project-two-correction",
+        "title": "Crochet blankett"
+      },
+      {
+        "key": "project-crochet-d1",
+        "title": "Crochet hat"
+      },
+      {
+        "key": "project-crochet-d2",
+        "title": "Crochett scarf"
+      },
+      {
+        "key": "project-crochet-d3",
+        "title": "Woven blanket"
+      },
+      {
+        "key": "project-crochet-d4",
+        "title": "Knitted blanket"
+      },
+      {
+        "key": "project-crochet-d5",
+        "title": "Quilted blanket"
+      },
+      {
+        "key": "project-crochet-d6",
+        "title": "Crochet basket"
+      }
+    ]
+  },
+  {
+    "query": "Flaxx Light",
+    "project": true,
+    "language": "en",
+    "rationale": "One pattern name correction",
+    "useful": {
+      "key": "project-flax",
+      "patternName": "Flax Light"
+    },
+    "negatives": [
+      {
+        "key": "project-flax-other",
+        "title": "Flax pullover"
+      },
+      {
+        "key": "project-flax-d1",
+        "title": "Flax pullover"
+      },
+      {
+        "key": "project-flax-d2",
+        "title": "Light cardigan"
+      },
+      {
+        "key": "project-flax-d3",
+        "title": "Harvest pullover"
+      },
+      {
+        "key": "project-flax-d4",
+        "title": "Cabled cardigan"
+      },
+      {
+        "key": "project-flax-d5",
+        "title": "Linen mittens"
+      },
+      {
+        "key": "project-flax-d6",
+        "title": "Wool scarf"
+      }
+    ]
+  },
+  {
+    "query": "blue wool socks",
+    "project": false,
+    "language": "en",
+    "rationale": "All concepts across own fields",
+    "useful": {
+      "key": "post-cross",
+      "caption": "blue",
+      "tags": [
+        "wool"
+      ],
+      "alt": "socks"
+    },
+    "negatives": [
+      {
+        "key": "post-yarn",
+        "caption": "blue yarn socks"
+      },
+      {
+        "key": "post-cross-d1",
+        "caption": "Blue yarn socks"
+      },
+      {
+        "key": "post-cross-d2",
+        "caption": "Red wool socks"
+      },
+      {
+        "key": "post-cross-d3",
+        "caption": "Blue wool hat"
+      },
+      {
+        "key": "post-cross-d4",
+        "caption": "White cotton socks"
+      },
+      {
+        "key": "post-cross-d5",
+        "caption": "Blue linen scarf"
+      },
+      {
+        "key": "post-cross-d6",
+        "caption": "Wool mittens"
+      }
+    ]
+  },
+  {
+    "query": "blue wool socks",
+    "project": true,
+    "language": "en",
+    "rationale": "All concepts across own fields",
+    "useful": {
+      "key": "project-cross",
+      "caption": "blue",
+      "title": "socks",
+      "materials": [
+        "wool"
+      ]
+    },
+    "negatives": [
+      {
+        "key": "project-yarn",
+        "title": "blue yarn socks"
+      },
+      {
+        "key": "project-cross-d1",
+        "title": "Blue yarn socks"
+      },
+      {
+        "key": "project-cross-d2",
+        "title": "Red wool socks"
+      },
+      {
+        "key": "project-cross-d3",
+        "title": "Blue wool hat"
+      },
+      {
+        "key": "project-cross-d4",
+        "title": "White cotton socks"
+      },
+      {
+        "key": "project-cross-d5",
+        "title": "Blue linen scarf"
+      },
+      {
+        "key": "project-cross-d6",
+        "title": "Wool mittens"
+      }
+    ]
+  },
+  {
+    "query": "shawl",
+    "project": false,
+    "language": "en",
+    "rationale": "Own authored image description",
+    "useful": {
+      "key": "post-alt",
+      "alt": "Shawl"
+    },
+    "negatives": [
+      {
+        "key": "post-quote-only",
+        "caption": "",
+        "quoteOnly": true
+      },
+      {
+        "key": "post-alt-d1",
+        "caption": "Knitted hat"
+      },
+      {
+        "key": "post-alt-d2",
+        "caption": "Crochet blanket"
+      },
+      {
+        "key": "post-alt-d3",
+        "caption": "Linen towel"
+      },
+      {
+        "key": "post-alt-d4",
+        "caption": "Wool mittens"
+      },
+      {
+        "key": "post-alt-d5",
+        "caption": "Cotton socks"
+      },
+      {
+        "key": "post-alt-d6",
+        "caption": "Quilted cushion"
+      }
+    ]
+  },
+  {
+    "query": "shawl",
+    "project": true,
+    "language": "en",
+    "rationale": "Own authored image description",
+    "useful": {
+      "key": "project-alt",
+      "alt": "Shawl"
+    },
+    "negatives": [
+      {
+        "key": "project-unrelated",
+        "title": ""
+      },
+      {
+        "key": "project-alt-d1",
+        "title": "Knitted hat"
+      },
+      {
+        "key": "project-alt-d2",
+        "title": "Crochet blanket"
+      },
+      {
+        "key": "project-alt-d3",
+        "title": "Linen towel"
+      },
+      {
+        "key": "project-alt-d4",
+        "title": "Wool mittens"
+      },
+      {
+        "key": "project-alt-d5",
+        "title": "Cotton socks"
+      },
+      {
+        "key": "project-alt-d6",
+        "title": "Quilted cushion"
+      }
+    ]
+  },
+  {
+    "query": "lace",
+    "project": false,
+    "language": "en",
+    "rationale": "Materialized authored hashtag",
+    "useful": {
+      "key": "post-tag",
+      "tags": [
+        "lace"
+      ]
+    },
+    "negatives": [
+      {
+        "key": "post-private-only",
+        "caption": "",
+        "privateOnly": true
+      },
+      {
+        "key": "post-tag-d1",
+        "caption": "Cable cardigan"
+      },
+      {
+        "key": "post-tag-d2",
+        "caption": "Ribbed hat"
+      },
+      {
+        "key": "post-tag-d3",
+        "caption": "Wool mittens"
+      },
+      {
+        "key": "post-tag-d4",
+        "caption": "Linen towel"
+      },
+      {
+        "key": "post-tag-d5",
+        "caption": "Garter scarf"
+      },
+      {
+        "key": "post-tag-d6",
+        "caption": "Quilted cushion"
+      }
+    ]
+  },
+  {
+    "query": "lace",
+    "project": true,
+    "language": "en",
+    "rationale": "Materialized authored hashtag",
+    "useful": {
+      "key": "project-tag",
+      "tags": [
+        "lace"
+      ]
+    },
+    "negatives": [
+      {
+        "key": "project-private-only",
+        "title": "",
+        "privateOnly": true
+      },
+      {
+        "key": "project-tag-d1",
+        "title": "Cable cardigan"
+      },
+      {
+        "key": "project-tag-d2",
+        "title": "Ribbed hat"
+      },
+      {
+        "key": "project-tag-d3",
+        "title": "Wool mittens"
+      },
+      {
+        "key": "project-tag-d4",
+        "title": "Linen towel"
+      },
+      {
+        "key": "project-tag-d5",
+        "title": "Garter scarf"
+      },
+      {
+        "key": "project-tag-d6",
+        "title": "Quilted cushion"
+      }
+    ]
+  },
+  {
+    "query": "chaussettes",
+    "project": false,
+    "language": "fr",
+    "rationale": "Declared French literal",
+    "useful": {
+      "key": "post-fr",
+      "caption": "Chaussettes en laine"
+    },
+    "negatives": [
+      {
+        "key": "post-unrelated-fr",
+        "caption": "Bonnet en laine"
+      },
+      {
+        "key": "post-french-d1",
+        "caption": "Bonnet en laine"
+      },
+      {
+        "key": "post-french-d2",
+        "caption": "Écharpe bleue"
+      },
+      {
+        "key": "post-french-d3",
+        "caption": "Couverture crochetée"
+      },
+      {
+        "key": "post-french-d4",
+        "caption": "Serviette en lin"
+      },
+      {
+        "key": "post-french-d5",
+        "caption": "Gants rouges"
+      },
+      {
+        "key": "post-french-d6",
+        "caption": "Coussin brodé"
+      }
+    ]
+  },
+  {
+    "query": "chaussettes",
+    "project": true,
+    "language": "fr",
+    "rationale": "Declared French literal",
+    "useful": {
+      "key": "project-fr",
+      "title": "Chaussettes en laine"
+    },
+    "negatives": [
+      {
+        "key": "project-unrelated-fr",
+        "title": "Bonnet en laine"
+      },
+      {
+        "key": "project-french-d1",
+        "title": "Bonnet en laine"
+      },
+      {
+        "key": "project-french-d2",
+        "title": "Écharpe bleue"
+      },
+      {
+        "key": "project-french-d3",
+        "title": "Couverture crochetée"
+      },
+      {
+        "key": "project-french-d4",
+        "title": "Serviette en lin"
+      },
+      {
+        "key": "project-french-d5",
+        "title": "Gants rouges"
+      },
+      {
+        "key": "project-french-d6",
+        "title": "Coussin brodé"
+      }
+    ]
+  }
+]

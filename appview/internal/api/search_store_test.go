@@ -26,7 +26,7 @@ import (
 	"social.craftsky/appview/internal/testlog"
 )
 
-const searchStoreDDL = timelineStoreDDL + `
+var searchStoreDDL = timelineStoreDDL + `
 CREATE FUNCTION craftsky_text_array_to_string(arr TEXT[], delimiter TEXT)
 RETURNS TEXT
 LANGUAGE sql
@@ -44,7 +44,15 @@ CREATE TABLE atproto_identity_cache (
     resolved_at  TIMESTAMPTZ NOT NULL,
     updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
-`
+` + searchHelperTestDDL()
+
+func searchHelperTestDDL() string {
+	contents, err := testdb.ReadMigration("000089_search_matching_helpers.up.sql")
+	if err != nil {
+		panic(err)
+	}
+	return string(contents)
+}
 
 func TestSearchProfilesOmitsBlockedAccountExceptExactHandleManagementShell(t *testing.T) {
 	pool := testdb.WithSchema(t, searchStoreDDL)

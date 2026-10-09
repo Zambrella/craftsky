@@ -25,6 +25,7 @@ import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 
 import 'fakes/fake_search_repository.dart';
 
@@ -205,34 +206,64 @@ void main() {
     expect(avatar.customisation.colour, 'amber');
   });
 
-  testWidgets('SearchPage renders submitted result tabs and post results', (
-    tester,
-  ) async {
-    await tester.pumpWidget(
-      _searchPageApp(
-        repository: FakeSearchRepository(
-          onSearchPosts: ({required q, limit, cursor}) async {
-            expect(q, 'alpaca');
-            return SearchPostPage(items: [_post('result-a')]);
-          },
-          onSearchProjects: ({required q, limit, cursor}) async =>
-              const SearchPostPage(items: []),
-          onSearchProfiles: ({required q, limit, cursor}) async =>
-              const ProfileSearchPage(items: []),
-          onSearchHashtags: ({required q, limit, cursor}) async =>
-              const HashtagSearchPage(items: []),
+  testWidgets(
+    'AT-007 preserves entered typo across separate post/project results',
+    (tester) async {
+      final router = GoRouter(
+        initialLocation: '/search?q=crochett%20blanket',
+        routes: [
+          GoRoute(
+            path: '/search',
+            builder: (context, state) => SearchPage(
+              q: state.uri.queryParameters['q'],
+              tab: SearchResultsTab.fromWire(state.uri.queryParameters['tab']),
+            ),
+          ),
+        ],
+      );
+      addTearDown(router.dispose);
+      await tester.pumpWidget(
+        _searchPageApp(
+          router: router,
+          repository: FakeSearchRepository(
+            onSearchPosts: ({required q, limit, cursor}) async {
+              expect(q, 'crochett blanket');
+              return SearchPostPage(items: [_post('result-a')]);
+            },
+            onSearchProjects: ({required q, limit, cursor}) async {
+              expect(q, 'crochett blanket');
+              return SearchPostPage(items: [_post('project-result')]);
+            },
+            onSearchProfiles: ({required q, limit, cursor}) async =>
+                const ProfileSearchPage(items: []),
+            onSearchHashtags: ({required q, limit, cursor}) async =>
+                const HashtagSearchPage(items: []),
+          ),
+          home: const SearchPage(q: 'crochett blanket'),
         ),
-        home: const SearchPage(q: 'alpaca'),
-      ),
-    );
-    await tester.pumpAndSettle();
+      );
+      await tester.pumpAndSettle();
 
-    expect(find.text('Posts'), findsOneWidget);
-    expect(find.text('Projects'), findsOneWidget);
-    expect(find.text('Profiles'), findsOneWidget);
-    expect(find.text('Tags'), findsOneWidget);
-    expect(find.text('search result result-a'), findsOneWidget);
-  });
+      expect(find.text('Posts'), findsOneWidget);
+      expect(find.text('Projects'), findsOneWidget);
+      expect(find.text('Profiles'), findsOneWidget);
+      expect(find.text('Tags'), findsOneWidget);
+      expect(find.text('search result result-a'), findsOneWidget);
+      expect(
+        tester.widget<EditableText>(find.byType(EditableText)).controller.text,
+        'crochett blanket',
+      );
+      await tester.tap(find.text('Projects'));
+      await tester.pumpAndSettle();
+      expect(find.text('search result project-result'), findsOneWidget);
+      expect(
+        tester.widget<EditableText>(find.byType(EditableText)).controller.text,
+        'crochett blanket',
+      );
+      expect(find.text('All'), findsNothing);
+      expect(find.textContaining('Did you mean'), findsNothing);
+    },
+  );
 
   testWidgets('SearchPage renders submitted empty and error states', (
     tester,
@@ -447,6 +478,7 @@ void main() {
 Widget _searchPageApp({
   required Widget home,
   FakeSearchRepository? repository,
+  GoRouter? router,
 }) {
   return ProviderScope(
     overrides: [
@@ -460,7 +492,7 @@ Widget _searchPageApp({
         repository ?? _blankSearchRepository(),
       ),
     ],
-    child: _LocalizedApp(home: home),
+    child: _LocalizedApp(home: home, router: router),
   );
 }
 
@@ -508,12 +540,21 @@ Post _post(String rkey) => PostMapper.fromMap({
 });
 
 class _LocalizedApp extends StatelessWidget {
-  const _LocalizedApp({required this.home});
+  const _LocalizedApp({required this.home, this.router});
 
   final Widget home;
+  final GoRouter? router;
 
   @override
   Widget build(BuildContext context) {
+    if (router != null) {
+      return MaterialApp.router(
+        theme: AppTheme.lightThemeData,
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        routerConfig: router,
+      );
+    }
     return MaterialApp(
       theme: AppTheme.lightThemeData,
       localizationsDelegates: AppLocalizations.localizationsDelegates,
