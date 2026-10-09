@@ -23,7 +23,7 @@ type searchNeutralitySnapshot struct {
 
 func assertBusinessSearchNeutrality(t *testing.T) {
 	t.Helper()
-	pool := testdb.WithSchema(t, searchStoreDDL+businessNeutralityDDL)
+	pool := testdb.WithSchema(t, searchStoreDDL(t)+businessNeutralityDDL)
 	ctx := context.Background()
 	for _, did := range []string{"did:plc:viewer", "did:plc:alice", "did:plc:bob", "did:plc:carol"} {
 		seedMember(t, pool, did)
