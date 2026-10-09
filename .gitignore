@@ -57,3 +57,6 @@ __pycache__/
 .sisyphus/*
 !.sisyphus/plans/
 !.sisyphus/plans/*
+
+# Dedicated status host local tooling
+service-status/.wrangler/

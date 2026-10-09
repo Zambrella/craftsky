@@ -5,7 +5,7 @@ script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 root_dir=$(cd "$script_dir/.." && pwd)
 appview_dir="$root_dir/appview"
 
-export GOTOOLCHAIN="go1.27.1"
+export GOTOOLCHAIN="go1.27.2"
 
 without_integration_services() {
   unset DATABASE_URL

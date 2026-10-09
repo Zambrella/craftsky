@@ -52,6 +52,7 @@ import 'package:craftsky_app/search/models/search_result_state.dart';
 import 'package:craftsky_app/search/models/search_sort.dart';
 import 'package:craftsky_app/search/models/search_suggestions.dart';
 import 'package:craftsky_app/search/models/top_hashtags.dart';
+import 'package:craftsky_app/service_status/providers/service_status_controller.dart';
 import 'package:craftsky_app/shared/api/models/login_response.dart';
 import 'package:craftsky_app/shared/api/models/whoami.dart';
 import 'package:craftsky_app/shared/api/providers/dio_provider.dart';
@@ -255,6 +256,7 @@ Future<void> bootstrap(
         observers: [ProviderLogger(reporter: reporter)],
         retry: appProviderRetry,
         overrides: [
+          serviceStatusReporterProvider.overrideWithValue(reporter),
           businessTimeZoneServiceProvider.overrideWithValue(businessTimeZones),
           revenueCatServiceProvider.overrideWithValue(revenueCatService),
         ],
@@ -316,6 +318,7 @@ Future<void> bootstrap(
       observers: [ProviderLogger(reporter: reporter)],
       retry: appProviderRetry,
       overrides: [
+        serviceStatusReporterProvider.overrideWithValue(reporter),
         notificationServiceProvider.overrideWithValue(notificationService),
         businessTimeZoneServiceProvider.overrideWithValue(businessTimeZones),
         revenueCatServiceProvider.overrideWithValue(revenueCatService),

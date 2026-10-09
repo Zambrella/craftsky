@@ -19,21 +19,26 @@ import 'package:craftsky_app/notifications/models/notification_permission.dart';
 import 'package:craftsky_app/notifications/providers/notification_repository_provider.dart';
 import 'package:craftsky_app/notifications/providers/notification_service_provider.dart';
 import 'package:craftsky_app/notifications/services/notification_service.dart';
+import 'package:craftsky_app/service_status/providers/service_status_controller.dart';
 import 'package:craftsky_app/shared/api/providers/dio_provider.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'loopback_service_status.dart';
+
 final class CriticalJourneyHarness {
   CriticalJourneyHarness._({
     required this.server,
+    required this.status,
     required this.storage,
     required this.notificationService,
     required this.container,
   });
 
   final LoopbackAppView server;
+  final LoopbackServiceStatus status;
   final InMemorySessionRegistryStorage storage;
   final IntegrationNotificationService notificationService;
   final ProviderContainer container;
@@ -44,12 +49,14 @@ final class CriticalJourneyHarness {
     await preferences.clear();
 
     final server = await LoopbackAppView.start();
+    final status = await LoopbackServiceStatus.start();
     final storage = InMemorySessionRegistryStorage(_initialRegistry());
     final notificationService = IntegrationNotificationService();
     final newness = ZeroNotificationNewnessRepository();
 
     final container = ProviderContainer(
       overrides: [
+        serviceStatusRepositoryProvider.overrideWithValue(status.repository),
         secureSessionRegistryStorageProvider.overrideWithValue(storage),
         sessionValidationLauncherProvider.overrideWithValue((_) async {}),
         activeAccountInitializationProvider.overrideWith((ref) async {
@@ -92,6 +99,7 @@ final class CriticalJourneyHarness {
 
     return CriticalJourneyHarness._(
       server: server,
+      status: status,
       storage: storage,
       notificationService: notificationService,
       container: container,
@@ -110,6 +118,7 @@ final class CriticalJourneyHarness {
     container.dispose();
     await notificationService.shutdown();
     await server.close();
+    await status.close();
   }
 }
 
@@ -223,6 +232,7 @@ final class LoopbackAppView {
   final HttpServer _server;
   final requests = <RecordedRequest>[];
   final createBodies = <Map<String, dynamic>>[];
+  Future<void>? createGate;
 
   static Future<LoopbackAppView> start() async {
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
@@ -265,6 +275,9 @@ final class LoopbackAppView {
       ),
     );
 
+    if (request.method == 'POST' && request.uri.path == '/v1/posts') {
+      await createGate;
+    }
     final response = switch ((
       request.method,
       request.uri.path,

@@ -7976,6 +7976,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Platform manipulation'**
   String get reportReasonPlatformManipulation;
+
+  /// Refresh independently hosted service status.
+  ///
+  /// In en, this message translates to:
+  /// **'Try again'**
+  String get serviceStatusTryAgain;
+
+  /// Dismiss the current general announcement.
+  ///
+  /// In en, this message translates to:
+  /// **'Dismiss'**
+  String get serviceStatusDismiss;
+
+  /// Informational local-time recovery estimate.
+  ///
+  /// In en, this message translates to:
+  /// **'Estimated recovery: {time}'**
+  String serviceStatusEstimatedRecovery(String time);
 }
 
 class _AppLocalizationsDelegate
