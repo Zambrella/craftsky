@@ -1,0 +1,99 @@
+#!/usr/bin/env python3
+"""Local service-status tooling: simulated R2 only, never remote publication."""
+import argparse
+import os
+from pathlib import Path
+import subprocess
+import sys
+import tempfile
+import uuid
+
+from service_status import MAX_BYTES, ROOT, TARGETS, encode_document, validate_document
+
+LOCAL = ROOT / 'service-status/.wrangler/dev'
+DRAFT = LOCAL / 'app.json'
+STATE = LOCAL / 'state'
+CLI = ROOT / 'web/node_modules/wrangler/bin/wrangler.js'
+CONFIG = ROOT / 'service-status/wrangler.json'
+
+
+def wrangler(*arguments):
+    if not CLI.is_file():
+        subprocess.run(['npm', 'ci', '--prefix', str(ROOT / 'web')], cwd=ROOT, check=True)
+    subprocess.run(['node', str(CLI), *arguments, '--config', str(CONFIG),
+                    '--env', 'preview'], cwd=ROOT, check=True,
+                   env={**os.environ, 'WRANGLER_SEND_METRICS': 'false'})
+
+
+def publish(document):
+    document = {**document, 'revision': str(uuid.uuid4())}
+    raw = encode_document(document)
+    LOCAL.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(dir=LOCAL) as temp:
+        payload = Path(temp) / 'app.json'
+        payload.write_bytes(raw)
+        wrangler('r2', 'object', 'put', TARGETS['preview']['bucket'] + '/app.json',
+                 '--file', str(payload), '--local', '--persist-to', str(STATE))
+    print(f"Local status: {document['mode']} (revision {document['revision']})")
+
+
+def setup():
+    LOCAL.mkdir(parents=True, exist_ok=True)
+    if not DRAFT.exists():
+        DRAFT.write_bytes((ROOT / 'service-status/example.json').read_bytes())
+    with DRAFT.open('rb') as source:
+        publish(validate_document(source.read(MAX_BYTES + 1)))
+    print(f'Editable draft: {DRAFT}')
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    commands = parser.add_subparsers(dest='command', required=True)
+    commands.add_parser('setup')
+    commands.add_parser('serve')
+    commands.add_parser('clear')
+    upload = commands.add_parser('publish')
+    upload.add_argument('file', nargs='?', type=Path, default=DRAFT)
+    app = commands.add_parser('app')
+    app.add_argument('arguments', nargs=argparse.REMAINDER)
+    args = parser.parse_args()
+    port = int(os.environ.get('CRAFTSKY_STATUS_DEV_PORT', '8789'))
+    if not 1 <= port <= 65535:
+        parser.error('CRAFTSKY_STATUS_DEV_PORT must be between 1 and 65535')
+    if args.command == 'setup':
+        setup()
+    elif args.command == 'serve':
+        print(f'Local status endpoint: http://127.0.0.1:{port}/app.json', flush=True)
+        wrangler('dev', '--local', '--ip', '127.0.0.1', '--port', str(port),
+                 '--persist-to', str(STATE))
+    elif args.command == 'publish':
+        with args.file.open('rb') as source:
+            publish(validate_document(source.read(MAX_BYTES + 1)))
+    elif args.command == 'clear':
+        publish({'schemaVersion': 1, 'mode': 'normal', 'revision': 'draft'})
+    elif args.command == 'app':
+        # Match existing app-run's connected Android device handling.
+        from shutil import which
+        if which('adb'):
+            devices = subprocess.check_output(['adb', 'devices'], text=True)
+            for line in devices.splitlines()[1:]:
+                fields = line.split()
+                if len(fields) >= 2 and fields[1] == 'device':
+                    subprocess.run(['adb', '-s', fields[0], 'reverse',
+                                    f'tcp:{port}', f'tcp:{port}'], check=True)
+        arguments = args.arguments
+        if arguments[:1] == ['--']:
+            arguments = arguments[1:]
+        subprocess.run(['just', 'app-run',
+                        f'--dart-define=CRAFTSKY_STATUS_URL=http://127.0.0.1:{port}/app.json',
+                        *arguments], cwd=ROOT, check=True)
+
+
+if __name__ == '__main__':
+    try:
+        main()
+    except KeyboardInterrupt:
+        raise SystemExit(130)
+    except (OSError, ValueError, subprocess.CalledProcessError) as error:
+        print(f'Local status command failed: {type(error).__name__}', file=sys.stderr)
+        raise SystemExit(1)

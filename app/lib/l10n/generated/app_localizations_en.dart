@@ -4515,4 +4515,15 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get reportReasonPlatformManipulation => 'Platform manipulation';
+
+  @override
+  String get serviceStatusTryAgain => 'Try again';
+
+  @override
+  String get serviceStatusDismiss => 'Dismiss';
+
+  @override
+  String serviceStatusEstimatedRecovery(String time) {
+    return 'Estimated recovery: $time';
+  }
 }

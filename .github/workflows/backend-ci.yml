@@ -23,6 +23,7 @@ jobs:
       appview: ${{ steps.paths.outputs.appview }}
       app: ${{ steps.paths.outputs.app }}
       workflows: ${{ steps.paths.outputs.workflows }}
+      status: ${{ steps.paths.outputs.status }}
     steps:
       - name: Check out repository
         uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
@@ -39,6 +40,7 @@ jobs:
           appview=false
           app=false
           workflows=false
+          status=false
           while IFS= read -r path; do
             case "$path" in
               appview/*|lexicon/*|scripts/app-release-preflight|scripts/appview-check|scripts/appview-check-*|scripts/appview-deploy|scripts/appview-test|scripts/release|docker-compose.yml|docker-compose.push.yml|render.yaml|.github/workflows/*)
@@ -55,13 +57,18 @@ jobs:
                 workflows=true
                 ;;
             esac
+            case "$path" in
+              service-status/*|scripts/service-status*|scripts/service_status.py|scripts/test_service_status_publish.py|scripts/test_cloudflare_pages_build.py|scripts/test_web_deploy.py|web/package*.json|.github/workflows/*|justfile)
+                status=true
+                ;;
+            esac
             if [[ "$path" == justfile ]]; then
               appview=true
               app=true
             fi
           done < <(git diff --name-only "$BASE_SHA...HEAD")
-          printf 'appview=%s\napp=%s\nworkflows=%s\n' \
-            "$appview" "$app" "$workflows" >>"$GITHUB_OUTPUT"
+          printf 'appview=%s\napp=%s\nworkflows=%s\nstatus=%s\n' \
+            "$appview" "$app" "$workflows" "$status" >>"$GITHUB_OUTPUT"
 
   appview-unit-feedback:
     name: AppView unit feedback
@@ -147,6 +154,27 @@ jobs:
       - name: Test
         working-directory: app
         run: flutter test
+
+  status:
+    name: Service status checks
+    needs: changes
+    if: needs.changes.outputs.status == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+      - name: Set up Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '24'
+      - name: Validate operator and website independence
+        run: |
+          python3 -m unittest discover -s scripts -p test_service_status_publish.py
+          python3 -m unittest discover -s scripts -p test_cloudflare_pages_build.py
+          python3 -m unittest discover -s scripts -p test_web_deploy.py
+      - name: Validate anonymous Worker
+        run: node --test service-status/test/worker.test.js
 
   workflow-lint:
     name: Workflow lint
@@ -240,7 +268,7 @@ jobs:
   required:
     name: PR checks
     if: always() && github.event_name == 'pull_request'
-    needs: [changes, appview-unit-feedback, appview, app, workflow-lint]
+    needs: [changes, appview-unit-feedback, appview, app, status, workflow-lint]
     runs-on: ubuntu-24.04
     steps:
       - name: Require applicable checks
@@ -249,11 +277,12 @@ jobs:
           APPVIEW_UNIT_RESULT: ${{ needs.appview-unit-feedback.result }}
           APPVIEW_RESULT: ${{ needs.appview.result }}
           APP_RESULT: ${{ needs.app.result }}
+          STATUS_RESULT: ${{ needs.status.result }}
           WORKFLOW_RESULT: ${{ needs.workflow-lint.result }}
         shell: bash
         run: |
           set -euo pipefail
           [[ "$CHANGES_RESULT" == success ]]
-          for result in "$APPVIEW_UNIT_RESULT" "$APPVIEW_RESULT" "$APP_RESULT" "$WORKFLOW_RESULT"; do
+          for result in "$APPVIEW_UNIT_RESULT" "$APPVIEW_RESULT" "$APP_RESULT" "$STATUS_RESULT" "$WORKFLOW_RESULT"; do
             [[ "$result" == success || "$result" == skipped ]]
           done

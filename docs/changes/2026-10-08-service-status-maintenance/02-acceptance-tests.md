@@ -27,7 +27,7 @@ All 20 active Must requirements and all 17 active acceptance criteria have plann
 |---|---|---|---|---|
 | BR-001 | AC-001, AC-003, AC-004 | AT-001, AT-002, AT-003 | Acceptance | Yes |
 | BR-002 | AC-002, AC-015 | AT-008, IT-003, IT-004, IT-005 | Acceptance / Integration | Yes |
-| FR-001 | AC-001, AC-002, AC-015 | AT-001, AT-008, IT-005, IT-007 | Acceptance / Integration | Yes; hosted execution pending |
+| FR-001 | AC-001, AC-002, AC-015 | AT-001, AT-008, IT-005, IT-007 | Acceptance / Integration | Mixed; hosted checks manual and pending |
 | FR-002 | AC-003, AC-004, AC-005 | AT-002, AT-003, UT-001, UT-002, UT-006 | Acceptance / Unit | Yes |
 | FR-003 | AC-005 | UT-001, UT-002, UT-004, IT-003 | Unit / Integration | Yes |
 | FR-004 | AC-006, AC-007 | UT-003, UT-004, AT-006 | Unit / Acceptance | Yes |
@@ -38,7 +38,7 @@ All 20 active Must requirements and all 17 active acceptance criteria have plann
 | FR-009 | AC-008, AC-012 | AT-004, AT-006, REG-002, REG-003 | Acceptance / Regression | Yes |
 | FR-012 | AC-002, AC-015 | AT-008, IT-003, IT-004, IT-005 | Acceptance / Integration | Yes |
 | NFR-001 | AC-005, AC-006, AC-010, AC-011 | UT-002, UT-003, UT-004, AT-005, AT-007 | Unit / Acceptance | Yes |
-| NFR-002 | AC-016 | IT-004, IT-007 | Integration | Yes; hosted execution pending |
+| NFR-002 | AC-016 | IT-004, IT-007 | Integration | Mixed; hosted checks manual and pending |
 | NFR-003 | AC-017 | UT-006, AT-002, AT-009, MAN-001 | Unit / Acceptance / Manual | Mixed |
 | NFR-004 | AC-018 | IT-006 | Integration | Yes |
 | RULE-001 | AC-003, AC-010, AC-011 | AT-002, AT-005, UT-004, UT-006 | Acceptance / Unit | Yes |
@@ -98,7 +98,7 @@ Feature: Maintenance presentation
 
 Parameterize estimate present/absent and HTML-like prose. UT-003 owns retry coalescing/timeout; UT-006 owns estimate formatting and passing the estimate without a mode change.
 
-### AT-003: One non-blocking announcement
+### AT-003: One themed announcement modal
 
 Requirement IDs: BR-001, FR-002, FR-006
 Acceptance Criteria: AC-004
@@ -108,11 +108,12 @@ Automation Target: `app/test/service_status/service_status_app_test.dart` (propo
 
 ```gherkin
 Feature: General announcements
-  Scenario: Use the app while a notice is visible
+  Scenario: Dismiss an announcement and resume the app
     Given the normal app is ready
     When an announcement is accepted
-    Then one dismissible general notice appears
-    And navigation and ordinary operations remain available
+    Then one CraftSky-themed dismissible modal appears without changing the underlying layout
+    When the user dismisses it
+    Then navigation and ordinary operations resume on the retained screen
     When normal or maintenance replaces the announcement
     Then the previous announcement disappears
     And only the current mode is presented
@@ -313,7 +314,7 @@ UT-002's common corpus must be run through both consumers and publication valida
 | IT-004 | BR-002, FR-012, NFR-002 | AC-002, AC-015, AC-016 | Verify intended public document honestly | Fake publication adapter and public fetch; exact intended result, old result, wrong content/type, unreachable origin, auth/mutation failure | Confirm publish or clear and inspect command result/stdout/stderr and calls | Success only after public response verifies intended document; cannot verify only upload response; mismatch/failure reports unverified and may already be live; no false success or automatic rollback; credentials not emitted | `scripts/test_service_status_publish.py` (proposed) |
 | IT-005 | BR-002, FR-001, FR-012 | AC-002, AC-015 | Website release/rollback independent of status | Separate fake resource stores; status maintenance with known document/revision; current website and prior website versions | Publish/revise/clear status without site build/commit; execute site deploy and rollback adapter paths | Status commands leave site versions untouched; site commands address only website resource and leave status bytes/revision untouched; no bundled live status artifact | Proposed status command suite plus existing `scripts/test_web_deploy.py` and `scripts/test_cloudflare_pages_build.py`; real resource isolation verified in IT-007 |
 | IT-006 | NFR-004, RULE-002 | AC-018, AC-019 | Inspect serialized diagnostics and operator output | Existing recording logger/serialized SDK transport; original typed exception and available stack; protected canaries in body, message, credentials, editor/account context; failing reporter | Exercise status transitions, repeated expected maintenance/offline/validation polling, one unexpected consumed failure and publishing failure; await observed sink output | Bounded approved operation/classification/outcome retained with available original cause/stack; no remote prose/full document or protected values; one owner for actionable occurrence; expected polls do not repeatedly capture issues; no revision/account metric labels; reporter failure does not change UI/retries/command result | `app/test/observability/service_status_diagnostics_test.dart` (proposed), reusing `diagnostic_evidence.dart` and `serialized_sentry_transport.dart`; command output canary assertions in Python suite |
-| IT-007 | FR-001, FR-012, NFR-002, RULE-002 | AC-001, AC-015, AC-016, AC-019 | Real hosted JSON, CORS/cache and resource isolation | Authorized isolated Cloudflare status origin and separate disposable landing resource; selected equivalent production cache configuration; supported native HTTP client and web browser harness | Publish A, read anonymously from native/web; publish B then normal; apply scheduled foreground refresh checks; deploy/rollback disposable landing site; verify public response | Correct JSON/content type; web cross-origin reads permitted without credentials; native reads work; new publications observable via required refresh policy without indefinitely renewing A; verification reads intended document; site release/rollback leaves current status unchanged | Proposed hosted smoke/browser suite; final runner/location depends on hosting design (GAP-002) |
+| IT-007 | FR-001, FR-012, NFR-002, RULE-002 | AC-001, AC-015, AC-016, AC-019 | Real hosted JSON, CORS/cache and resource isolation | Authorized isolated Cloudflare status origin and separate disposable landing resource; selected equivalent production cache configuration; supported native HTTP client and web browser | Publish A, read anonymously from native/web; publish B then normal; apply scheduled foreground refresh checks; deploy/rollback disposable landing site; verify public response | Correct JSON/content type; web cross-origin reads permitted without credentials; native reads work; new publications observable via required refresh policy without indefinitely renewing A; verification reads intended document; site release/rollback leaves current status unchanged | Local Worker tests plus manual hosted native/browser checks in docs/operations/service-status.md; hosted evidence remains pending (GAP-002) |
 
 For IT-001, select and test an explicit redirect policy; refusing all redirects is acceptable. Do not require accepting arbitrary redirects. For web, application code must not add account-specific data; CORS/browser tests also verify credentials are omitted. Publication secrets may authorize the operator's mutation calls, but must never enter the public JSON, app binary/configuration or captured output.
 

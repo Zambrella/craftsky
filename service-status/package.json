@@ -1,0 +1,7 @@
+{
+  "name": "craftsky-service-status",
+  "private": true,
+  "type": "module",
+  "scripts": {"test": "node --test test/worker.test.js"},
+  "engines": {"node": ">=22"}
+}

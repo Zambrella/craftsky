@@ -3457,5 +3457,11 @@
   "reportReasonCounterfeit": "Counterfeit goods",
   "@reportReasonCounterfeit": { "description": "Report reason for counterfeit goods." },
   "reportReasonPlatformManipulation": "Platform manipulation",
-  "@reportReasonPlatformManipulation": { "description": "Report reason for platform manipulation." }
+  "@reportReasonPlatformManipulation": { "description": "Report reason for platform manipulation." },
+  "serviceStatusTryAgain": "Try again",
+  "@serviceStatusTryAgain": {"description": "Refresh independently hosted service status."},
+  "serviceStatusDismiss": "Dismiss",
+  "@serviceStatusDismiss": {"description": "Dismiss the current general announcement."},
+  "serviceStatusEstimatedRecovery": "Estimated recovery: {time}",
+  "@serviceStatusEstimatedRecovery": {"description": "Informational local-time recovery estimate.", "placeholders": {"time": {"type": "String"}}}
 }

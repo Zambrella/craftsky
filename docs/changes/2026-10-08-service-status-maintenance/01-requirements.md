@@ -21,7 +21,7 @@ The user confirmed the following during the grilling interview and approved the 
 
 | Question | Confirmed decision | Implication |
 |---|---|---|
-| Q1 | Whole-app maintenance plus a non-blocking general announcement. | No individual feature notices or restrictions. |
+| Q1 | Whole-app maintenance plus a dismissible modal general announcement. | No individual feature notices or restrictions. |
 | Q2 | Communication and Flutter screen only. | No AppView enforcement, backend pause or worker control in this feature. Existing maintenance/deployment procedures control the backend. |
 | Q3 | Manual activation and clearing. | No scheduled activation; estimated recovery is informational only. |
 | Q4 | Independent local JSON publishing command. | No website release or Git commit required for each message change; website deployment/rollback must not alter incident state. |
@@ -68,19 +68,19 @@ Summary: Provides history, subscriptions and richer communication, with another 
 
 Serve one versioned public JSON document at `https://status.craftsky.social/app.json`, independently of landing-page deployment and rollback. Modes are `normal`, `announcement` and `maintenance`, manually published and cleared.
 
-Flutter renders a non-blocking announcement or an immediate whole-app maintenance screen. It preserves account/navigation/editor state, checks status at the agreed intervals, and stops trusting cached maintenance five minutes after the last successful fetch. Existing localized failure handling covers unknown outages.
+Flutter renders a dismissible modal announcement or an immediate whole-app maintenance screen. It preserves account/navigation/editor state, checks status at the agreed intervals, and stops trusting cached maintenance five minutes after the last successful fetch. Existing localized failure handling covers unknown outages.
 
 Provide local validate, publish and clear commands with confirmation and public-response verification for live changes. This feature communicates status and controls client presentation; it does not enforce backend maintenance.
 
 ## 6. Problem / Opportunity
 
-Generic startup and request errors give users little indication of what is happening. An independently delivered message explains confirmed downtime while preserving sessions and unsent work. A general announcement communicates information without interrupting normal use.
+Generic startup and request errors give users little indication of what is happening. An independently delivered message explains confirmed downtime while preserving sessions and unsent work. A general announcement communicates information in a dismissible branded modal.
 
 ## 7. Goals
 
 - G-001: Explain confirmed whole-app downtime with an operator-authored public message.
 - G-002: Keep communication available when AppView or its database is unavailable.
-- G-003: Distinguish explicit maintenance, non-blocking announcements and unknown connection failures.
+- G-003: Distinguish explicit maintenance, dismissible modal announcements and unknown connection failures.
 - G-004: Recover without unnecessary sign-in, navigation loss or automatic write replay.
 - G-005: Publish, revise and clear status independently of website/app/backend releases.
 
@@ -122,14 +122,14 @@ Sources: **Prompt** = initial request; **Q1–Q14** = confirmed interview decisi
 
 | ID | Type | Priority | Requirement | Rationale | Source | Acceptance Criteria |
 |---|---|---|---|---|---|---|
-| BR-001 | Business | Must | Users shall receive a custom explanation of explicitly published whole-app maintenance and non-blocking announcements. | Explain service status clearly. | Prompt, Q1 | AC-001, AC-003, AC-004 |
+| BR-001 | Business | Must | Users shall receive a custom explanation of explicitly published whole-app maintenance and dismissible modal announcements. | Explain service status clearly. | Prompt, Q1 | AC-001, AC-003, AC-004 |
 | BR-002 | Business | Must | Maintainers shall publish, revise and clear status without an app release, website release, Git commit for each message, or functioning Render AppView/database. | Communicate during outages. | Q4, Q12 | AC-002, AC-015 |
 | FR-001 | Functional | Must | Cloudflare shall serve the current public JSON at `https://status.craftsky.social/app.json` without account, AppView or database dependencies and independently of landing-page releases/rollbacks. | Independent delivery and ownership. | Q13 | AC-001, AC-002, AC-015 |
 | FR-002 | Functional | Must | The versioned camelCase JSON contract shall represent one current mode (`normal`, `announcement`, `maintenance`), a revision, English plain-text title/message for announcement/maintenance, and optional estimated recovery time. Each publication replaces the previous status; announcement dismissal applies to its revision. Publication time is not required. There shall be no scheduled activation, feature scope or external information link. | Bound the first-version contract. | Q3, Q5, Q11, Q14 | AC-003, AC-004, AC-005 |
 | FR-003 | Functional | Must | Publication and consumers shall reject malformed/oversized data, unsupported schema/mode, missing required text or an invalid estimated recovery timestamp when supplied. Additive unknown optional fields shall be tolerated within a supported schema without enabling unsupported behavior. Invalid fetches shall not overwrite valid cache or renew its trust period. | Avoid unsafe interpretation and accidental blocking. | Codebase, Q7 | AC-005 |
 | FR-004 | Functional | Must | Flutter shall fetch status at launch, foreground resume and manual retry, and every 60 seconds while foregrounded in all modes. Each fetch shall time out within three seconds. Initialization shall proceed concurrently; duplicate triggers shall coalesce rather than start overlapping requests. | Detect changes during ordinary use without mandatory startup delay. | Q8 | AC-006, AC-007 |
 | FR-005 | Functional | Must | Fresh maintenance mode shall immediately show a branded, non-dismissible whole-app screen with custom title/message and Try again, regardless of sign-in/account initialization. Optional recovery time shall be labelled as an estimate. | Cover cold start and active sessions. | Q1, Q9, Q11 | AC-001, AC-003, AC-008 |
-| FR-006 | Functional | Must | Announcement mode shall show a non-blocking dismissible general notice. Dismissal shall persist across restarts for the same revision and cease to apply when that announcement is revised/replaced. Announcement dismissal shall never dismiss maintenance. | Inform without interrupting use. | Q1, Q10, Q14 | AC-004, AC-009 |
+| FR-006 | Functional | Must | Announcement mode shall show a dismissible CraftSky-themed general-notice modal. Dismissal shall persist across restarts for the same revision and cease to apply when that announcement is revised/replaced. Announcement dismissal shall never dismiss maintenance. | Inform in a dismissible branded modal. | Q1, Q10, Q14 | AC-004, AC-009 |
 | FR-007 | Functional | Must | Without fresh JSON maintenance, failed requests shall retain localized errors/retry on affected screens; startup failure may show a full-screen connection/service error. Failed API/status requests or normal JSON shall not trigger the custom maintenance screen. | Distinguish unknown failures from explicit status. | Q6 | AC-010 |
 | FR-008 | Functional | Must | The client may retain the last validated status in memory; cross-process persistence is not required. Each process launch shall fetch status anew and use existing error handling when no valid status is available. Cached maintenance shall stop blocking no later than five minutes after its last successful validated fetch. A validated successful fetch of unchanged maintenance renews that period. New normal/announcement status clears maintenance immediately upon acceptance. Expired cache permits ordinary access attempts without asserting recovery; failed/invalid fetches do not refresh freshness. | Prevent indefinite cached lockout. | Q7, Q14 | AC-007, AC-011 |
 | FR-009 | Functional | Must | Maintenance shall cover rather than discard existing editor/navigation state, preserve the session/current account and unsent in-memory work, and allow in-flight requests to follow existing rules. Clearing/expiry shall restore appropriate UI through required initialization/policy gates without automatic write resubmission. | Preserve work and account isolation. | Q9, Q6, Codebase | AC-008, AC-012 |
@@ -152,7 +152,7 @@ AC-013 and AC-014 (backend enforcement/coordination) are withdrawn and their IDs
 | AC-001 | BR-001, FR-001, FR-005 | Given AppView/database are unavailable, when a signed-in or signed-out client launches and obtains maintenance JSON from the selected Cloudflare address, then it shows the custom screen without successful account initialization or backend access. |
 | AC-002 | BR-002, FR-001, FR-012 | Given Render is unavailable, when an authorized maintainer validates, publishes/revises and clears status, then verified public responses reflect the changes without app/site/backend releases or a Git commit for each message. Clear requires no manual JSON edit. |
 | AC-003 | BR-001, FR-002, FR-005, RULE-001 | Given fresh maintenance, when rendered, then the English title/message, localized Try again and optional local-time estimated recovery appear, with no dismiss/link action. Passing the estimate never changes mode. |
-| AC-004 | BR-001, FR-002, FR-006 | Given announcement mode, when accepted, then a general notice appears without blocking normal operations. Publishing another mode replaces it; there is no simultaneous notice or scheduled activation. |
+| AC-004 | BR-001, FR-002, FR-006 | Given announcement mode, when accepted, then a general notice appears in a CraftSky-themed modal; dismissal restores normal interaction without altering the underlying screen. Publishing another mode replaces it; there is no simultaneous notice or scheduled activation. |
 | AC-005 | FR-002, FR-003, NFR-001, RULE-003 | Given malformed JSON/HTML, oversized data, unsupported schema/mode, missing required text or invalid optional estimated recovery timestamp, when validated, then publication is rejected or the client ignores it without replacing valid cache/renewing freshness. Supported-schema optional unknown fields are ignored without activating links or other behavior. |
 | AC-006 | FR-004, NFR-001 | Given launch, resume, retry or foreground polling in any mode, when triggered, then one coalesced fetch runs with a three-second timeout and periodic checks run every 60 seconds. Startup proceeds concurrently and does not wait an unconditional three seconds; background polling stops. |
 | AC-007 | FR-004, FR-008 | Given foreground maintenance UI, when normal or announcement is published and fetched, then custom blocking clears without relaunch. Late overlapping results cannot reinstate superseded state. |
@@ -196,7 +196,7 @@ AC-013 and AC-014 (backend enforcement/coordination) are withdrawn and their IDs
 
 ## 16. UI / API / CLI Impact
 
-- UI: maintenance cover, non-blocking general announcement, localized existing failure guidance, retry and optional estimate. Preserve underlying editor/navigation and expose the custom screen before account initialization succeeds.
+- UI: maintenance cover, dismissible modal general announcement, localized existing failure guidance, retry and optional estimate. Preserve underlying editor/navigation and expose the custom screen before account initialization succeeds.
 - API: public anonymous Cloudflare JSON contract at the confirmed address. No AppView routes, maintenance error code, admission policy or health-probe changes.
 - CLI: local validate/publish/clear workflow with editable JSON, intended-change display, confirmation and public verification. Status is independently published, outside landing-site release/rollback.
 - Background jobs: none added. Client polling occurs only while foregrounded; backend workers/in-flight work retain existing rules.
@@ -266,3 +266,5 @@ Notes: The user answered Q1–Q14 and confirmed the complete shared-understandin
 - Test timeout/freshness guarantees once and link the resulting evidence to dependent NFR-001/RULE-001 criteria; do not duplicate suites for repeated references. Include offline process restart without a restored maintenance cache, persistent dismissal by revision, and optional estimated recovery timestamp validation. Do not require publication time or persisted-cache clock reconciliation.
 - Required boundary scenarios: all-mode 60-second foreground checks, three-second timeout with concurrent startup, five-minute freshness and renewal, expiry without a recovery claim, no inferred custom maintenance, preserved in-flight outcomes and no automatic write replay.
 - Blocking open questions: none at product level. Resolve implementation bounds/contract/cache details in test design. Production checks require separate authorized execution.
+
+On 2026-10-09, the user requested a CraftSky-themed modal instead of the announcement banner. This supersedes the earlier non-blocking presentation: the modal temporarily captures interaction, can be dismissed, and preserves the underlying app and revision-based dismissal.

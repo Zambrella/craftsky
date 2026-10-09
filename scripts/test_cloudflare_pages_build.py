@@ -35,6 +35,17 @@ class CloudflarePagesBuildTests(unittest.TestCase):
         for name, digest in manifest["files"].items():
             self.assertEqual(digest, hashlib.sha256((output / name).read_bytes()).hexdigest())
 
+    # REG-004 / FR-001, FR-012 / AC-001, AC-015.
+    def test_status_is_excluded_across_website_build_and_rollback(self):
+        (self.web / 'app.json').write_text('status document canary')
+        (self.web / 'service-status').mkdir()
+        (self.web / 'service-status' / 'app.json').write_text('status document canary')
+        for commit in ['website-v2', 'website-v1']:
+            output = build_site(self.web, commit, False)
+            self.assertFalse((output / 'app.json').exists())
+            self.assertFalse((output / 'service-status').exists())
+            self.assertEqual((self.web / 'app.json').read_text(), 'status document canary')
+
     def test_missing_required_page_preserves_previous_build(self):
         output = build_site(self.web, "abc123", False)
         previous = (output / "site-release.json").read_bytes()
