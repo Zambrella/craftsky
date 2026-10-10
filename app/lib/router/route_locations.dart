@@ -45,6 +45,7 @@ class RouteLocations {
   static const drafts = '/drafts';
   static const savedPosts = '/saved';
   static const savedPostFolderChild = 'folder';
+  static const mutualFollowersChild = 'mutual-followers';
   static const followersChild = 'followers';
   static const followingChild = 'following';
   static const mutedAccountsChild = 'muted';

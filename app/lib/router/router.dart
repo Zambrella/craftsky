@@ -27,6 +27,7 @@ import 'package:craftsky_app/notifications/pages/notification_settings_page.dart
 import 'package:craftsky_app/notifications/pages/notifications_page.dart';
 import 'package:craftsky_app/onboarding/pages/onboarding_page.dart';
 import 'package:craftsky_app/profile/models/profile_handle.dart';
+import 'package:craftsky_app/profile/pages/profile_mutual_followers_page.dart';
 import 'package:craftsky_app/profile/pages/profile_page.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/profile/widgets/profile_presentation_page.dart';
@@ -401,6 +402,12 @@ class AccountEligibilityRoute extends GoRouteData
     TypedGoRoute<UserProfileRoute>(
       path: '${RouteLocations.profiles}/:did',
       name: 'user-profile',
+      routes: [
+        TypedGoRoute<ProfileMutualFollowersRoute>(
+          path: RouteLocations.mutualFollowersChild,
+          name: 'profile-mutual-followers',
+        ),
+      ],
     ),
   ],
 )
@@ -1038,6 +1045,23 @@ class UserProfileRoute extends GoRouteData with $UserProfileRoute {
       ),
     );
   }
+}
+
+class ProfileMutualFollowersRoute extends GoRouteData
+    with $ProfileMutualFollowersRoute {
+  const ProfileMutualFollowersRoute({
+    @TypedQueryParameter<Did>(
+      encoder: _encodeDidRouteParameter,
+      decoder: _decodeDidRouteParameter,
+    )
+    required this.did,
+  });
+
+  final Did did;
+
+  @override
+  Widget build(BuildContext context, GoRouterState state) =>
+      ProfileMutualFollowersPage(targetDid: did);
 }
 
 class ProfileAliasRoute extends GoRouteData with $ProfileAliasRoute {

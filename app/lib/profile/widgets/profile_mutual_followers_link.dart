@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:craftsky_app/profile/widgets/profile_mutual_followers_sheet.dart';
+import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:flutter/material.dart';
 
@@ -22,16 +22,7 @@ class ProfileMutualFollowersLink extends StatelessWidget {
     return TextButton(
       onPressed: () {
         unawaited(
-          showModalBottomSheet<void>(
-            context: context,
-            isScrollControlled: true,
-            builder: (context) => FractionallySizedBox(
-              heightFactor: 0.9,
-              child: ProfileMutualFollowersSheet(
-                targetDid: targetDid,
-              ),
-            ),
-          ),
+          ProfileMutualFollowersRoute(did: targetDid).push<void>(context),
         );
       },
       child: Text('$count mutual followers'),

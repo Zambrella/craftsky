@@ -11,6 +11,14 @@ void main() {
     );
   });
 
+  test('mutual followers uses a child route of the canonical DID profile', () {
+    final did = Did.parse('did:plc:alice');
+    expect(
+      ProfileMutualFollowersRoute(did: did).location,
+      '${UserProfileRoute(did: did).location}/mutual-followers',
+    );
+  });
+
   test('UT-009 explicit handle input has a distinct alias route', () {
     expect(
       ProfileAliasRoute(handle: Handle.parse('old.example')).location,
