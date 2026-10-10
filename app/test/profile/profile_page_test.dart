@@ -194,6 +194,12 @@ void main() {
             authSessionProvider.overrideWith(SignedInAuthSession.new),
             profileRepositoryProvider.overrideWithValue(repo),
             postRepositoryProvider.overrideWithValue(_emptyPostRepository),
+            activeLanguagePreferencesProvider.overrideWithValue(
+              const LanguagePreferences(
+                primaryLanguage: 'en',
+                contentLanguages: ['en'],
+              ),
+            ),
           ],
           child: MaterialApp(
             theme: AppTheme.lightThemeData,
@@ -216,6 +222,18 @@ void main() {
       // Settings is icon-only in the action row plus the cog in the
       // collapsed-state trailing slot — assert by icon, not text.
       expect(find.byIcon(CraftskyIconsBold.settings), findsWidgets);
+
+      expect(find.text('New post'), findsOneWidget);
+      await tester.tap(find.text('New post'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Regular post'), findsOneWidget);
+      expect(find.text('Project post'), findsOneWidget);
+      await tester.tap(find.text('Project post'));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('craftType-select-button')), findsOneWidget);
+      expect(tester.takeException(), isNull);
     });
 
     testWidgets(
@@ -252,6 +270,7 @@ void main() {
 
         expect(find.text('Follow'), findsOneWidget);
         expect(find.text('Edit profile'), findsNothing);
+        expect(find.text('New post'), findsNothing);
       },
     );
 
@@ -285,6 +304,7 @@ void main() {
 
       expect(find.text('Edit profile'), findsOneWidget);
       expect(find.text('Follow'), findsNothing);
+      expect(find.text('New post'), findsOneWidget);
     });
 
     testWidgets('visitor profile renders Follow + Mute actions', (

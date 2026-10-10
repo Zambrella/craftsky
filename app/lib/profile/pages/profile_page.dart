@@ -10,6 +10,7 @@ import 'package:craftsky_app/feed/providers/user_comments_provider.dart';
 import 'package:craftsky_app/feed/providers/user_posts_provider.dart';
 import 'package:craftsky_app/feed/providers/user_reposts_provider.dart';
 import 'package:craftsky_app/feed/widgets/post_image_gallery.dart';
+import 'package:craftsky_app/feed/widgets/post_type_chooser.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/moderation/widgets/report_flow.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
@@ -44,6 +45,10 @@ import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/shared/widgets/notification_destination_error_state.dart';
 import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
 import 'package:craftsky_app/subscriptions/providers/subscription_access_provider.dart';
+import 'package:craftsky_app/theme/craftsky_context_menu.dart';
+import 'package:craftsky_app/theme/craftsky_floating_action_button.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
+import 'package:craftsky_app/theme/form_factor.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -52,7 +57,7 @@ import 'package:skeletonizer/skeletonizer.dart';
 /// Unified profile screen. Used by the bottom-nav `Profile` branch
 /// (no [did], resolves to the signed-in user) and by
 /// `/profiles/:did` deep links. Self-vs-visitor differs only in the
-/// action row — the rest of the chrome is shared.
+/// action row and compose button — the rest of the chrome is shared.
 class ProfilePage extends ConsumerWidget {
   const ProfilePage({
     this.did,
@@ -107,6 +112,10 @@ class _ProfileScaffold extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final profileAsync = ref.watch(userProfileProvider(did));
+    final l10n = AppLocalizations.of(context);
+    final isCompact = FormFactor.fromWidth(
+      MediaQuery.sizeOf(context).width,
+    ).isSmall;
     ref.listen(userProfileProvider(did), (previous, next) {
       final profile = next.value;
       final lease = ref
@@ -138,6 +147,24 @@ class _ProfileScaffold extends ConsumerWidget {
 
     return switch (profileAsync) {
       AsyncValue(:final value?) => Scaffold(
+        floatingActionButton: value.did == viewerDid && isCompact
+            ? Builder(
+                builder: (buttonContext) =>
+                    CraftskyFloatingActionButton.extended(
+                      tooltip: l10n.postComposeAction,
+                      onPressed: () => unawaited(
+                        showTopLevelPostComposerChooser(
+                          buttonContext,
+                          position: craftskyContextMenuAnchorPosition(
+                            buttonContext,
+                          ),
+                        ),
+                      ),
+                      icon: const Icon(CraftskyIconsBold.add),
+                      label: Text(l10n.postComposeAction),
+                    ),
+              )
+            : null,
         body: switch (destinationError) {
           final error? => Column(
             children: [
