@@ -385,7 +385,18 @@ func TestCleanupProcessorDeletesObjectsAndRetriesSafely(t *testing.T) {
 }
 
 func TestCleanupProcessorDoesNotDeleteAConcurrentReupload(t *testing.T) {
-	store := NewStore(newScheduledPostStoreTestPool(t))
+	basePool := newScheduledPostStoreTestPool(t)
+	poolConfig := basePool.Config().Copy()
+	// Cleanup and reupload each hold an owner fence and an object fence.
+	// Cleanup needs a fifth connection to settle before releasing the object
+	// fence that the reupload is waiting on.
+	poolConfig.MaxConns = 5
+	pool, err := pgxpool.NewWithConfig(t.Context(), poolConfig)
+	if err != nil {
+		t.Fatalf("construct cleanup concurrency pool: %v", err)
+	}
+	t.Cleanup(pool.Close)
+	store := NewStore(pool)
 	baseObjects := &flakyCleanupObjectStore{objects: map[string][]byte{}}
 	objects := &blockingCleanupObjectStore{
 		flakyCleanupObjectStore: baseObjects,
@@ -393,7 +404,8 @@ func TestCleanupProcessorDoesNotDeleteAConcurrentReupload(t *testing.T) {
 		continueDelete:          make(chan struct{}),
 	}
 	service, ownerFence := newScheduledTestMediaService(t, store, objects)
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(t.Context())
+	t.Cleanup(cancel)
 	owner := syntax.DID("did:plc:alice")
 	now := time.Date(2026, 8, 2, 12, 0, 0, 0, time.UTC)
 	mediaID := uuid.MustParse("00000000-0000-4000-8000-000000000109")
@@ -427,6 +439,7 @@ func TestCleanupProcessorDoesNotDeleteAConcurrentReupload(t *testing.T) {
 		_, err := service.Put(ctx, putParams)
 		reuploadResult <- err
 	}()
+	waitForScheduledAdvisoryWaiter(t, basePool, reuploadResult)
 	close(objects.continueDelete)
 	if err := waitForScheduledResult(t, processResult, "cleanup processor completion"); err != nil {
 		t.Fatalf("complete cleanup processor: %v", err)
