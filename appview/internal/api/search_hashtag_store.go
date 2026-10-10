@@ -41,7 +41,8 @@ func (s *SearchStore) searchHashtagsObserved(ctx context.Context, req HashtagSea
 	likeQuery := EscapeFacetLikePattern(query)
 	viewerDID, _ := middleware.GetDID(ctx)
 	rows, err := s.pool.Query(ctx, `
-		SELECT lower(trim(tag.raw_tag)) AS tag, COUNT(DISTINCT p.uri)::int AS posts_last_28_days
+		WITH eligible AS (
+		SELECT p.uri, p.tag_spellings, lower(trim(tag.raw_tag)) AS tag_key
 		FROM craftsky_posts p
 		CROSS JOIN LATERAL unnest(p.tags) AS tag(raw_tag)
 		WHERE p.reply_root_uri IS NULL
@@ -52,15 +53,15 @@ func (s *SearchStore) searchHashtagsObserved(ctx context.Context, req HashtagSea
 		  AND lower(trim(tag.raw_tag)) LIKE '%' || $3 || '%' ESCAPE '\'
 		`+relationshipTopLevelPredicate("$6")+`
 		`+postVisibleModerationPredicate+`
-		GROUP BY lower(trim(tag.raw_tag))
+		)`+hashtagAggregationCTEs+`
 		ORDER BY
 		  CASE
-		    WHEN lower(trim(tag.raw_tag)) = $2 THEN 0
-		    WHEN lower(trim(tag.raw_tag)) LIKE $3 || '%' ESCAPE '\' THEN 1
+		    WHEN c.tag_key = $2 THEN 0
+		    WHEN c.tag_key LIKE $3 || '%' ESCAPE '\' THEN 1
 		    ELSE 2
 		  END ASC,
-		  posts_last_28_days DESC,
-		  tag ASC
+		  c.post_count DESC,
+		  c.tag_key ASC
 		LIMIT $4 OFFSET $5
 	`, now.Add(-28*24*time.Hour), query, likeQuery, limit+1, cur.Offset, viewerDID.String())
 	if err != nil {
@@ -144,7 +145,8 @@ func (s *SearchStore) topHashtagsObserved(ctx context.Context, req TopHashtagsRe
 	viewerDID, _ := middleware.GetDID(ctx)
 	for _, craft := range crafts {
 		q := `
-			SELECT lower(tag) AS tag, count(DISTINCT p.uri)::int AS count
+			WITH eligible AS (
+			SELECT p.uri, p.tag_spellings, lower(tag) AS tag_key
 			FROM craftsky_posts p
 			JOIN craftsky_project_posts pp ON pp.uri = p.uri
 			CROSS JOIN LATERAL unnest(p.tags) AS tag
@@ -154,8 +156,8 @@ func (s *SearchStore) topHashtagsObserved(ctx context.Context, req TopHashtagsRe
 			  AND lower(pp.common_craft_type) = $1
 			` + relationshipTopLevelPredicate("$4") + `
 			` + postVisibleModerationPredicate + `
-			GROUP BY lower(tag)
-			ORDER BY count DESC, tag ASC
+			)` + hashtagAggregationCTEs + `
+			ORDER BY c.post_count DESC, c.tag_key ASC
 			LIMIT $3`
 		rows, err := s.pool.Query(ctx, q, craft, now.Add(-28*24*time.Hour), req.Limit, viewerDID.String())
 		if err != nil {

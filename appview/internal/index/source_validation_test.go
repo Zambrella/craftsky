@@ -228,3 +228,64 @@ func TestSourceValidatorRejectsMismatchedExplicitType(t *testing.T) {
 		t.Fatalf("validation result = %+v, want structural invalid_lexicon", result)
 	}
 }
+
+// UT-007 / FR-006, FR-004 / AC-012: preserve raw field order and duplicates.
+func TestSourceValidatorRejectsAmbiguousHashtagFields(t *testing.T) {
+	const feature = `"$type":"app.bsky.richtext.facet#tag",`
+	const prefix = `{"text":"#MeMadeMay","sponsored":false,"createdAt":"2026-10-09T11:00:00Z",`
+	facet := func(fields string) string {
+		return `"facets":[{"index":{"byteStart":0,"byteEnd":10},"features":[{` + feature + fields + `}]}]`
+	}
+	cases := []struct{ name, fields string }{
+		{"different identities", facet(`"tag":"OtherTag","Tag":"MeMadeMay"`)},
+		{"reverse order", facet(`"Tag":"MeMadeMay","tag":"OtherTag"`)},
+		{"same identity", facet(`"tag":"memademay","Tag":"MeMadeMay"`)},
+		{"same values", facet(`"tag":"MeMadeMay","Tag":"MeMadeMay"`)},
+		{"exact duplicate", facet(`"tag":"OtherTag","tag":"MeMadeMay"`)},
+		{"escaped alias", facet(`"tag":"OtherTag","\u0054ag":"MeMadeMay"`)},
+		{"top text", `"Text":"other",` + facet(`"tag":"MeMadeMay"`)},
+		{"top facets", facet(`"tag":"MeMadeMay"`) + `,"Facets":[]`},
+		{"project", `"project":null,"Project":null`},
+		{"common", `"project":{"common":{},"Common":{}}`},
+		{"craft type", `"project":{"common":{"craftType":"knitting","CraftType":"sewing"}}`},
+		{"structured tags", `"project":{"common":{"tags":["memademay"],"Tags":["MeMadeMay"]}}`},
+		{"pattern", `"project":{"common":{"pattern":{},"Pattern":{}}}`},
+		{"pattern name", `"project":{"common":{"pattern":{"name":"one","Name":"two"}}}`},
+		{"pattern facets", `"project":{"common":{"pattern":{"designerFacets":[],"DesignerFacets":[]}}}`},
+		{"materials", `"project":{"common":{"materials":[],"Materials":[]}}`},
+		{"material text", `"project":{"common":{"materials":[{"text":"one","Text":"two"}]}}`},
+		{"material facets", `"project":{"common":{"materials":[{"facets":[],"Facets":[]}]}}`},
+		{"facet index", `"facets":[{"index":{},"Index":{}}]`},
+		{"facet features", `"facets":[{"features":[],"Features":[]}]`},
+		{"byte index Unicode fold", `"facets":[{"index":{"byteStart":0,"byteſtart":0}}]`},
+		{"feature type", `"facets":[{"features":[{` + feature + `"$TYPE":"app.bsky.richtext.facet#tag","tag":"MeMadeMay"}]}]`},
+		{"recognized link", `"facets":[{"features":[{"$type":"app.bsky.richtext.facet#link","uri":"https://example.com","URI":"https://example.org"}]}]`},
+		{"recognized mention", `"facets":[{"features":[{"$type":"app.bsky.richtext.facet#mention","did":"did:plc:one","DID":"did:plc:two"}]}]`},
+	}
+	for _, tc := range cases {
+		for _, action := range []string{"create", "update"} {
+			t.Run(tc.name+"/"+action, func(t *testing.T) {
+				result := validateSourceRecord(tap.Event{Collection: craftskyPostNSID, Rkey: "3aaaaaaaaaaa2", Action: action, Record: json.RawMessage(prefix + tc.fields + `}`)})
+				if result.StructuralStatus != ValidationInvalid || result.SemanticStatus != ValidationInvalid || result.Reason != "ambiguous_tag_fields" {
+					t.Fatalf("result=%+v; want structural/semantic invalid ambiguous_tag_fields", result)
+				}
+			})
+		}
+	}
+	for _, fields := range []string{
+		facet(`"Tag":"MeMadeMay"`),
+		`"facets":[{"Index":{"byteſtart":0,"ByteEnd":10},"Features":[{` + feature + `"Tag":"MeMadeMay"}]}]`,
+		`"facets":[{"index":{"byteStart":0,"byteEnd":10},"features":[{` + feature + `"tag":"MeMadeMay"},{` + feature + `"tag":"memademay"}]}]`,
+		`"future":{"tag":"one","Tag":"two"}`, // Unknown payload is not a tag source.
+		`"facets":[{"features":[{"$type":"future#tag","tag":"one","Tag":"two"}]}]`,
+		facet(`"tag":"MeMadeMay","future":1,"Future":2`),
+	} {
+		result := validateSourceRecord(tap.Event{Collection: craftskyPostNSID, Rkey: "3aaaaaaaaaaa2", Action: "create", Record: json.RawMessage(prefix + fields + `}`)})
+		if result.StructuralStatus != ValidationValid || result.SemanticStatus != ValidationValid {
+			t.Fatalf("unambiguous/unknown payload rejected: %s: %+v", fields, result)
+		}
+	}
+	if result := validateSourceRecord(tap.Event{Collection: craftskyPostNSID, Rkey: "3aaaaaaaaaaa2", Action: "delete"}); result.StructuralStatus != ValidationValid {
+		t.Fatalf("delete rejected: %+v", result)
+	}
+}

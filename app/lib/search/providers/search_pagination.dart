@@ -1,4 +1,5 @@
 import 'package:craftsky_app/feed/models/post.dart';
+import 'package:craftsky_app/search/models/hashtag_identity.dart';
 import 'package:craftsky_app/search/models/hashtag_search_page.dart';
 import 'package:craftsky_app/search/models/profile_search_page.dart';
 
@@ -27,10 +28,10 @@ List<HashtagSearchResult> appendUniqueHashtags(
   List<HashtagSearchResult> current,
   List<HashtagSearchResult> next,
 ) {
-  final seen = current.map((hashtag) => hashtag.tag).toSet();
+  final seen = current.map((hashtag) => hashtagIdentity(hashtag.tag)).toSet();
   return [
     ...current,
     for (final hashtag in next)
-      if (seen.add(hashtag.tag)) hashtag,
+      if (seen.add(hashtagIdentity(hashtag.tag))) hashtag,
   ];
 }

@@ -4,16 +4,22 @@ package index_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"social.craftsky/appview/internal/api"
 	"social.craftsky/appview/internal/index"
+	"social.craftsky/appview/internal/ingestion"
+	"social.craftsky/appview/internal/postutil"
+	"social.craftsky/appview/internal/sourcevalidation"
 	"social.craftsky/appview/internal/tap"
 	"social.craftsky/appview/internal/testdb"
 )
@@ -142,6 +148,15 @@ CREATE TABLE pds_set_aggregates (
 );
 `
 
+func hashtagIndexerTestPool(t *testing.T) *pgxpool.Pool {
+	t.Helper()
+	pool := testdb.WithSchema(t, craftskyPostsDDL)
+	if err := testdb.ApplyMigrations(context.Background(), pool, "000090_hashtag_spellings.up.sql"); err != nil {
+		t.Fatal(err)
+	}
+	return pool
+}
+
 // seedCraftskyMember inserts a craftsky_profiles row so a post for did
 // can pass the membership check.
 func seedCraftskyMember(t *testing.T, pool *pgxpool.Pool, did string) {
@@ -197,7 +212,7 @@ func testTime(t *testing.T) time.Time {
 
 func TestCraftskyPost_OtherCollectionIgnored(t *testing.T) {
 	t.Parallel()
-	pool := testdb.WithSchema(t, craftskyPostsDDL)
+	pool := hashtagIndexerTestPool(t)
 	idx := index.NewCraftskyPost(pool, testLogger())
 
 	ev := tap.Event{
@@ -216,7 +231,7 @@ func TestCraftskyPost_OtherCollectionIgnored(t *testing.T) {
 
 func TestCraftskyPost_UnknownAction(t *testing.T) {
 	t.Parallel()
-	pool := testdb.WithSchema(t, craftskyPostsDDL)
+	pool := hashtagIndexerTestPool(t)
 	idx := index.NewCraftskyPost(pool, testLogger())
 
 	ev := tap.Event{
@@ -235,7 +250,7 @@ func TestCraftskyPost_UnknownAction(t *testing.T) {
 
 func TestCraftskyPost_Create_NonMember_DroppedSilently(t *testing.T) {
 	t.Parallel()
-	pool := testdb.WithSchema(t, craftskyPostsDDL)
+	pool := hashtagIndexerTestPool(t)
 	idx := index.NewCraftskyPost(pool, testLogger())
 
 	ev := tap.Event{
@@ -261,7 +276,7 @@ func TestCraftskyPost_Create_NonMember_DroppedSilently(t *testing.T) {
 
 func TestCraftskyPost_Create_PlainText(t *testing.T) {
 	t.Parallel()
-	pool := testdb.WithSchema(t, craftskyPostsDDL)
+	pool := hashtagIndexerTestPool(t)
 	seedCraftskyMember(t, pool, "did:plc:m")
 	idx := index.NewCraftskyPost(pool, testLogger())
 
@@ -334,7 +349,7 @@ func TestCraftskyPost_Create_PlainText(t *testing.T) {
 }
 
 func TestCraftskyPost_MaterializesLanguagesAcrossCreateAndUpdate(t *testing.T) {
-	pool := testdb.WithSchema(t, craftskyPostsDDL)
+	pool := hashtagIndexerTestPool(t)
 	seedCraftskyMember(t, pool, "did:plc:m")
 	idx := index.NewCraftskyPost(pool, testLogger())
 	event := tap.Event{
@@ -419,7 +434,7 @@ func assertStoredPostLanguages(
 
 func TestCraftskyPost_Create_WithProjectPayload_MaterializesProject(t *testing.T) {
 	t.Parallel()
-	pool := testdb.WithSchema(t, craftskyPostsDDL)
+	pool := hashtagIndexerTestPool(t)
 	seedCraftskyMember(t, pool, "did:plc:p")
 	idx := index.NewCraftskyPost(pool, testLogger())
 
@@ -526,7 +541,7 @@ func TestCraftskyPost_Create_WithProjectPayload_MaterializesProject(t *testing.T
 
 func TestCraftskyPost_Create_ProjectPatternFacetsMaterializeTagsAndMentions(t *testing.T) {
 	t.Parallel()
-	pool := testdb.WithSchema(t, craftskyPostsDDL)
+	pool := hashtagIndexerTestPool(t)
 	seedCraftskyMember(t, pool, "did:plc:author")
 	idx := index.NewCraftskyPost(pool, testLogger())
 
@@ -610,7 +625,7 @@ func TestCraftskyPost_Create_ProjectPatternFacetsMaterializeTagsAndMentions(t *t
 
 func TestCraftskyPost_Create_ProjectFacetsStoreRawFutureShapes(t *testing.T) {
 	t.Parallel()
-	pool := testdb.WithSchema(t, craftskyPostsDDL)
+	pool := hashtagIndexerTestPool(t)
 	seedCraftskyMember(t, pool, "did:plc:futurefacet")
 	idx := index.NewCraftskyPost(pool, testLogger())
 
@@ -666,7 +681,7 @@ func TestCraftskyPost_Create_ProjectFacetsStoreRawFutureShapes(t *testing.T) {
 
 func TestCraftskyPost_Create_ProjectPatternFacetsIgnoreInvalidByteRanges(t *testing.T) {
 	t.Parallel()
-	pool := testdb.WithSchema(t, craftskyPostsDDL)
+	pool := hashtagIndexerTestPool(t)
 	seedCraftskyMember(t, pool, "did:plc:invalidfacet")
 	idx := index.NewCraftskyPost(pool, testLogger())
 
@@ -717,7 +732,7 @@ func TestCraftskyPost_Create_ProjectPatternFacetsIgnoreInvalidByteRanges(t *test
 
 func TestCraftskyPost_Create_KnittingDetailsPopulatesOnlyKnittingColumns(t *testing.T) {
 	t.Parallel()
-	pool := testdb.WithSchema(t, craftskyPostsDDL)
+	pool := hashtagIndexerTestPool(t)
 	seedCraftskyMember(t, pool, "did:plc:knit")
 	idx := index.NewCraftskyPost(pool, testLogger())
 
@@ -805,7 +820,7 @@ func TestCraftskyPost_Create_KnittingDetailsPopulatesOnlyKnittingColumns(t *test
 
 func TestCraftskyPost_Create_ProjectReplyOrQuoteIsOrdinaryPost(t *testing.T) {
 	t.Parallel()
-	pool := testdb.WithSchema(t, craftskyPostsDDL)
+	pool := hashtagIndexerTestPool(t)
 	seedCraftskyMember(t, pool, "did:plc:standalone")
 	idx := index.NewCraftskyPost(pool, testLogger())
 
@@ -866,7 +881,7 @@ func TestCraftskyPost_Create_ProjectReplyOrQuoteIsOrdinaryPost(t *testing.T) {
 }
 
 func TestCraftskyPost_UpdateClearsStructurallyInvalidPinsOnly(t *testing.T) {
-	pool := testdb.WithSchema(t, craftskyPostsDDL)
+	pool := hashtagIndexerTestPool(t)
 	ctx := context.Background()
 	const owner = "did:plc:pinned"
 	seedCraftskyMember(t, pool, owner)
@@ -945,7 +960,7 @@ func TestCraftskyPost_UpdateClearsStructurallyInvalidPinsOnly(t *testing.T) {
 
 func TestCraftskyPost_Create_GeneralPostHasNoProjectRow(t *testing.T) {
 	t.Parallel()
-	pool := testdb.WithSchema(t, craftskyPostsDDL)
+	pool := hashtagIndexerTestPool(t)
 	seedCraftskyMember(t, pool, "did:plc:g")
 	idx := index.NewCraftskyPost(pool, testLogger())
 
@@ -981,7 +996,7 @@ func TestCraftskyPost_Create_GeneralPostHasNoProjectRow(t *testing.T) {
 
 func TestCraftskyPost_Create_WithTagsFromFacets(t *testing.T) {
 	t.Parallel()
-	pool := testdb.WithSchema(t, craftskyPostsDDL)
+	pool := hashtagIndexerTestPool(t)
 	seedCraftskyMember(t, pool, "did:plc:t")
 	idx := index.NewCraftskyPost(pool, testLogger())
 
@@ -1056,7 +1071,7 @@ func TestCraftskyPost_Create_WithTagsFromFacets(t *testing.T) {
 
 func TestCraftskyPost_MalformedCreatedAt_Errors(t *testing.T) {
 	t.Parallel()
-	pool := testdb.WithSchema(t, craftskyPostsDDL)
+	pool := hashtagIndexerTestPool(t)
 	seedCraftskyMember(t, pool, "did:plc:bad")
 	idx := index.NewCraftskyPost(pool, testLogger())
 
@@ -1083,7 +1098,7 @@ func TestCraftskyPost_MalformedCreatedAt_Errors(t *testing.T) {
 
 func TestCraftskyPost_Create_WithImages(t *testing.T) {
 	t.Parallel()
-	pool := testdb.WithSchema(t, craftskyPostsDDL)
+	pool := hashtagIndexerTestPool(t)
 	seedCraftskyMember(t, pool, "did:plc:i")
 	idx := index.NewCraftskyPost(pool, testLogger())
 
@@ -1137,7 +1152,7 @@ func TestCraftskyPost_Create_WithImages(t *testing.T) {
 
 func TestCraftskyPost_Create_WithImages_StoresSizeAndAspectRatio(t *testing.T) {
 	t.Parallel()
-	pool := testdb.WithSchema(t, craftskyPostsDDL)
+	pool := hashtagIndexerTestPool(t)
 	seedCraftskyMember(t, pool, "did:plc:is")
 	idx := index.NewCraftskyPost(pool, testLogger())
 
@@ -1195,7 +1210,7 @@ func TestCraftskyPost_Create_WithImages_StoresSizeAndAspectRatio(t *testing.T) {
 
 func TestCraftskyPost_Create_WithReply(t *testing.T) {
 	t.Parallel()
-	pool := testdb.WithSchema(t, craftskyPostsDDL)
+	pool := hashtagIndexerTestPool(t)
 	seedCraftskyMember(t, pool, "did:plc:r")
 	idx := index.NewCraftskyPost(pool, testLogger())
 
@@ -1237,7 +1252,7 @@ func TestCraftskyPost_Create_WithReply(t *testing.T) {
 
 func TestCraftskyPost_Create_WithQuote(t *testing.T) {
 	t.Parallel()
-	pool := testdb.WithSchema(t, craftskyPostsDDL)
+	pool := hashtagIndexerTestPool(t)
 	seedCraftskyMember(t, pool, "did:plc:q")
 	idx := index.NewCraftskyPost(pool, testLogger())
 
@@ -1274,7 +1289,7 @@ func TestCraftskyPost_Create_WithQuote(t *testing.T) {
 }
 
 func TestCraftskyPost_FederatedImagesAndExternalLifecycleUsesImagesWin(t *testing.T) {
-	pool := testdb.WithSchema(t, craftskyPostsDDL)
+	pool := hashtagIndexerTestPool(t)
 	ctx := context.Background()
 	seedCraftskyMember(t, pool, "did:plc:external")
 	idx := index.NewCraftskyPost(pool, testLogger())
@@ -1366,7 +1381,7 @@ func TestCraftskyPost_FederatedImagesAndExternalLifecycleUsesImagesWin(t *testin
 
 func TestCraftskyPost_Replay_PreservesIndexedAt(t *testing.T) {
 	t.Parallel()
-	pool := testdb.WithSchema(t, craftskyPostsDDL)
+	pool := hashtagIndexerTestPool(t)
 	seedCraftskyMember(t, pool, "did:plc:rp")
 	idx := index.NewCraftskyPost(pool, testLogger())
 
@@ -1408,7 +1423,7 @@ func TestCraftskyPost_Replay_PreservesIndexedAt(t *testing.T) {
 }
 
 func TestCraftskyPostVideoIndexingValidationAndIdempotence(t *testing.T) {
-	pool := testdb.WithSchema(t, craftskyPostsDDL)
+	pool := hashtagIndexerTestPool(t)
 	ctx := context.Background()
 	seedCraftskyMember(t, pool, "did:plc:video")
 	idx := index.NewCraftskyPost(pool, testLogger())
@@ -1456,7 +1471,7 @@ func TestCraftskyPostVideoIndexingValidationAndIdempotence(t *testing.T) {
 
 func TestCraftskyPost_Replay_PreservesMentionIndexedAt(t *testing.T) {
 	t.Parallel()
-	pool := testdb.WithSchema(t, craftskyPostsDDL)
+	pool := hashtagIndexerTestPool(t)
 	seedCraftskyMember(t, pool, "did:plc:mentionreplay")
 	idx := index.NewCraftskyPost(pool, testLogger())
 	ctx := context.Background()
@@ -1498,7 +1513,7 @@ func TestCraftskyPost_Replay_PreservesMentionIndexedAt(t *testing.T) {
 
 func TestCraftskyPost_Update_NewCID_ReplacesRow(t *testing.T) {
 	t.Parallel()
-	pool := testdb.WithSchema(t, craftskyPostsDDL)
+	pool := hashtagIndexerTestPool(t)
 	seedCraftskyMember(t, pool, "did:plc:u")
 	idx := index.NewCraftskyPost(pool, testLogger())
 	ctx := context.Background()
@@ -1553,7 +1568,7 @@ func TestCraftskyPost_Update_NewCID_ReplacesRow(t *testing.T) {
 
 func TestCraftskyPost_Update_ProjectTagsRefreshWhenOnlyCaptionFacetsChange(t *testing.T) {
 	t.Parallel()
-	pool := testdb.WithSchema(t, craftskyPostsDDL)
+	pool := hashtagIndexerTestPool(t)
 	seedCraftskyMember(t, pool, "did:plc:projecttags")
 	idx := index.NewCraftskyPost(pool, testLogger())
 	ctx := context.Background()
@@ -1602,7 +1617,7 @@ func TestCraftskyPost_Update_ProjectTagsRefreshWhenOnlyCaptionFacetsChange(t *te
 
 func TestCraftskyPost_ProjectUpdateRemovalUnknownDetailsAndDeleteConverge(t *testing.T) {
 	t.Parallel()
-	pool := testdb.WithSchema(t, craftskyPostsDDL)
+	pool := hashtagIndexerTestPool(t)
 	seedCraftskyMember(t, pool, "did:plc:conv")
 	idx := index.NewCraftskyPost(pool, testLogger())
 	ctx := context.Background()
@@ -1699,7 +1714,7 @@ func assertProjectChildCount(t *testing.T, pool *pgxpool.Pool, uri string, want 
 
 func TestCraftskyPost_Update_BeforeCreate_TreatedAsCreate(t *testing.T) {
 	t.Parallel()
-	pool := testdb.WithSchema(t, craftskyPostsDDL)
+	pool := hashtagIndexerTestPool(t)
 	seedCraftskyMember(t, pool, "did:plc:ub")
 	idx := index.NewCraftskyPost(pool, testLogger())
 
@@ -1729,7 +1744,7 @@ func TestCraftskyPost_Update_BeforeCreate_TreatedAsCreate(t *testing.T) {
 
 func TestCraftskyPost_Delete(t *testing.T) {
 	t.Parallel()
-	pool := testdb.WithSchema(t, craftskyPostsDDL)
+	pool := hashtagIndexerTestPool(t)
 	seedCraftskyMember(t, pool, "did:plc:d")
 	idx := index.NewCraftskyPost(pool, testLogger())
 	ctx := context.Background()
@@ -1766,7 +1781,7 @@ func TestCraftskyPost_Delete(t *testing.T) {
 
 func TestCraftskyPost_Delete_Nonexistent_NoOp(t *testing.T) {
 	t.Parallel()
-	pool := testdb.WithSchema(t, craftskyPostsDDL)
+	pool := hashtagIndexerTestPool(t)
 	idx := index.NewCraftskyPost(pool, testLogger())
 
 	del := tap.Event{
@@ -1852,7 +1867,7 @@ func TestCraftskyPost_Delete_CleansExactAndDescendantSavesOnly(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-			pool := testdb.WithSchema(t, craftskyPostsDDL)
+			pool := hashtagIndexerTestPool(t)
 			ctx := context.Background()
 			seedCraftskyMember(t, pool, "did:plc:alice")
 			seedCraftskyMember(t, pool, "did:plc:author")
@@ -1904,7 +1919,7 @@ func TestCraftskyPost_Delete_CleansExactAndDescendantSavesOnly(t *testing.T) {
 
 func TestCraftskyPost_PreservesPublicRecordOnMembershipDelete(t *testing.T) {
 	t.Parallel()
-	pool := testdb.WithSchema(t, craftskyPostsDDL)
+	pool := hashtagIndexerTestPool(t)
 	seedCraftskyMember(t, pool, "did:plc:cc")
 	idx := index.NewCraftskyPost(pool, testLogger())
 	ctx := context.Background()
@@ -1934,5 +1949,342 @@ func TestCraftskyPost_PreservesPublicRecordOnMembershipDelete(t *testing.T) {
 		`SELECT count(*) FROM craftsky_posts WHERE did = $1`, create.DID).Scan(&count)
 	if count != 1 {
 		t.Errorf("post count = %d after profile delete, want 1 retained public record", count)
+	}
+}
+
+// IR-001 / UT-006, IT-001, IT-002: Go-normalized identities retain Unicode spelling votes.
+func TestCraftskyPost_HashtagUnicodeSpelling(t *testing.T) {
+	for _, spellings := range [][]string{{"꟎"}, {"꟎", "꟏", "꟎"}} {
+		t.Run(fmt.Sprint(len(spellings)), func(t *testing.T) {
+			pool := testdb.WithMigratedSchema(t)
+			ctx := context.Background()
+			seedCraftskyMember(t, pool, "did:plc:spelling")
+			idx := index.NewCraftskyPost(pool, testLogger())
+			now := time.Date(2026, 10, 9, 12, 0, 0, 0, time.UTC)
+			for i, spelling := range spellings {
+				body := "#" + spelling
+				record, err := json.Marshal(map[string]any{
+					"$type": "social.craftsky.feed.post", "text": body, "sponsored": false,
+					"createdAt": now.Add(-time.Hour).Format(time.RFC3339),
+					"project":   map[string]any{"common": map[string]string{"craftType": "social.craftsky.feed.defs#knitting"}},
+					"facets":    []any{map[string]any{"index": map[string]int{"byteStart": 0, "byteEnd": len(body)}, "features": []any{map[string]string{"$type": "app.bsky.richtext.facet#tag", "tag": spelling}}}},
+				})
+				if err != nil {
+					t.Fatal(err)
+				}
+				uri := syntax.ATURI(fmt.Sprintf("at://did:plc:spelling/social.craftsky.feed.post/unicode%d", i))
+				if err := idx.Handle(ctx, tap.Event{URI: uri, DID: "did:plc:spelling", Rkey: syntax.RecordKey(fmt.Sprintf("unicode%d", i)), Collection: "social.craftsky.feed.post", CID: "cid", Action: "create", Record: record}); err != nil {
+					t.Fatal(err)
+				}
+				if _, err := pool.Exec(ctx, `INSERT INTO image_subject_states(subject_uri,subject_kind,source_cid,visibility_state) VALUES($1,'post','cid','clear')`, uri); err != nil {
+					t.Fatal(err)
+				}
+				var tags, candidates []string
+				if err := pool.QueryRow(ctx, `SELECT tags,tag_spellings FROM craftsky_posts WHERE uri=$1`, uri).Scan(&tags, &candidates); err != nil {
+					t.Fatal(err)
+				}
+				if !slices.Equal(tags, []string{"꟏"}) || !slices.Equal(candidates, []string{spelling}) {
+					t.Fatalf("identity=%v candidates=%v", tags, candidates)
+				}
+			}
+			for _, query := range []string{"꟎", "꟏"} {
+				facet, err := api.NewFacetStore(pool).SearchHashtagSuggestions(ctx, query, 10, now)
+				if err != nil {
+					t.Fatal(err)
+				}
+				search, _, err := api.NewSearchStore(pool, nil).SearchHashtags(ctx, api.HashtagSearchRequest{Query: query, Limit: 10}, now)
+				if err != nil {
+					t.Fatal(err)
+				}
+				top, err := api.NewSearchStore(pool, nil).TopHashtags(ctx, api.TopHashtagsRequest{CraftTypes: []string{"knitting"}, Limit: 10}, now)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if len(facet) != 1 || facet[0].Tag != "꟎" || facet[0].PostsLast28Days != len(spellings) {
+					t.Fatalf("query=%q facet=%v; want uppercase winner/%d", query, facet, len(spellings))
+				}
+				if len(search) != 1 || search[0].Tag != "꟎" || search[0].PostsLast28Days != len(spellings) {
+					t.Fatalf("query=%q search=%v", query, search)
+				}
+				if len(top) != 1 || len(top[0].Items) != 1 || top[0].Items[0].Tag != "꟎" || top[0].Items[0].Count != len(spellings) {
+					t.Fatalf("top=%v", top)
+				}
+			}
+		})
+	}
+}
+
+// IR-002 / UT-003, IT-005: preserve field casing accepted by the existing decoder.
+func TestCraftskyPost_HashtagFieldCasing(t *testing.T) {
+	const facet = `[{"Index":{"BYTESTART":0,"ByteEnd":10},"Features":[{"$type":"app.bsky.richtext.facet#tag","Tag":"MeMadeMay"}]}]`
+	const craft = `"craftType":"social.craftsky.feed.defs#knitting"`
+	for _, tc := range []struct{ name, source string }{
+		{"facet fields", `"facets":` + facet + `,"project":{"common":{` + craft + `}}`},
+		{"top facets", `"Facets":` + facet + `,"project":{"common":{` + craft + `}}`},
+		{"structured tags", `"Project":{"Common":{` + craft + `,"Tags":["MeMadeMay"]}}`},
+		{"pattern fields", `"Project":{"Common":{` + craft + `,"Pattern":{"Name":"#MeMadeMay","NameFacets":` + facet + `}}}`},
+		{"material fields", `"Project":{"Common":{` + craft + `,"Materials":[{"Text":"#MeMadeMay","Facets":` + facet + `}]}}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			pool := testdb.WithMigratedSchema(t)
+			ctx := context.Background()
+			seedCraftskyMember(t, pool, "did:plc:spelling")
+			now := time.Date(2026, 10, 9, 12, 0, 0, 0, time.UTC)
+			raw := json.RawMessage(`{"$type":"social.craftsky.feed.post","text":"#MeMadeMay","sponsored":false,"createdAt":"2026-10-09T11:00:00Z",` + tc.source + `}`)
+			ev := tap.Event{URI: "at://did:plc:spelling/social.craftsky.feed.post/3m3m3m3m3m3m3", DID: "did:plc:spelling", Rkey: "3m3m3m3m3m3m3", Collection: "social.craftsky.feed.post", CID: "cid", Action: "create", Record: raw}
+			if result := sourcevalidation.Validate(ev); result.StructuralStatus != sourcevalidation.Valid || result.SemanticStatus != sourcevalidation.Valid {
+				t.Fatalf("fixture rejected by source validation: %+v", result)
+			}
+			if err := index.NewCraftskyPost(pool, testLogger()).Handle(ctx, ev); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := pool.Exec(ctx, `INSERT INTO image_subject_states(subject_uri,subject_kind,source_cid,visibility_state) VALUES($1,'post','cid','clear')`, ev.URI); err != nil {
+				t.Fatal(err)
+			}
+			var tags []string
+			if err := pool.QueryRow(ctx, `SELECT tags FROM craftsky_posts WHERE uri=$1`, ev.URI).Scan(&tags); err != nil {
+				t.Fatal(err)
+			}
+			if !slices.Equal(tags, []string{"memademay"}) {
+				t.Fatalf("existing indexed identity=%v", tags)
+			}
+			facetRows, err := api.NewFacetStore(pool).SearchHashtagSuggestions(ctx, "mema", 10, now)
+			if err != nil {
+				t.Fatal(err)
+			}
+			search, _, err := api.NewSearchStore(pool, nil).SearchHashtags(ctx, api.HashtagSearchRequest{Query: "MeMa", Limit: 10}, now)
+			if err != nil {
+				t.Fatal(err)
+			}
+			top, err := api.NewSearchStore(pool, nil).TopHashtags(ctx, api.TopHashtagsRequest{CraftTypes: []string{"knitting"}, Limit: 10}, now)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(facetRows) != 1 || facetRows[0].Tag != "MeMadeMay" || facetRows[0].PostsLast28Days != 1 {
+				t.Fatalf("facet=%v; want MeMadeMay/1", facetRows)
+			}
+			if len(search) != 1 || search[0].Tag != "MeMadeMay" || search[0].PostsLast28Days != 1 {
+				t.Fatalf("search=%v", search)
+			}
+			if len(top) != 1 || len(top[0].Items) != 1 || top[0].Items[0].Tag != "MeMadeMay" || top[0].Items[0].Count != 1 {
+				t.Fatalf("top=%v", top)
+			}
+		})
+	}
+}
+
+// IT-005 / FR-004, NFR-001 / AC-006: exact TD-009 lifecycle oracle.
+func TestCraftskyPost_HashtagSpellingLifecycle(t *testing.T) {
+	pool := testdb.WithMigratedSchema(t)
+	ctx := context.Background()
+	seedCraftskyMember(t, pool, "did:plc:spelling")
+	idx := index.NewCraftskyPost(pool, testLogger())
+	now := time.Date(2026, 10, 9, 12, 0, 0, 0, time.UTC)
+	makeEvent := func(i int, spelling, cid string) tap.Event {
+		text := "#" + spelling
+		facets := []any{}
+		if spelling == "" {
+			text = "untagged"
+		} else {
+			facets = append(facets, map[string]any{"index": map[string]int{"byteStart": 0, "byteEnd": len(text)}, "features": []any{map[string]string{"$type": "app.bsky.richtext.facet#tag", "tag": spelling}}})
+		}
+		raw, err := json.Marshal(map[string]any{"text": text, "createdAt": now.Add(-time.Hour).Format(time.RFC3339), "facets": facets})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return tap.Event{URI: syntax.ATURI(fmt.Sprintf("at://did:plc:spelling/social.craftsky.feed.post/p%d", i)), DID: "did:plc:spelling", Rkey: syntax.RecordKey(fmt.Sprintf("p%d", i)), Collection: "social.craftsky.feed.post", CID: syntax.CID(cid), Action: "create", Record: raw}
+	}
+	events := []tap.Event{}
+	apply := func(ev tap.Event) {
+		t.Helper()
+		if err := idx.Handle(ctx, ev); err != nil {
+			t.Fatal(err)
+		}
+		if ev.Action != "delete" {
+			if _, err := pool.Exec(ctx, `INSERT INTO image_subject_states(subject_uri,subject_kind,source_cid,visibility_state) VALUES($1,'post',$2,'clear') ON CONFLICT(subject_uri) DO UPDATE SET source_cid=EXCLUDED.source_cid,visibility_state='clear'`, ev.URI, ev.CID); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	assertState := func(lower, mixed, count int, winner string) {
+		t.Helper()
+		var l, m int
+		if err := pool.QueryRow(ctx, `SELECT count(*) FILTER (WHERE 'memademay'=ANY(tag_spellings)),count(*) FILTER(WHERE 'MeMadeMay'=ANY(tag_spellings)) FROM craftsky_posts`).Scan(&l, &m); err != nil {
+			t.Fatal(err)
+		}
+		if l != lower || m != mixed {
+			t.Fatalf("frequencies=%d/%d want %d/%d", l, m, lower, mixed)
+		}
+		rows, err := api.NewFacetStore(pool).SearchHashtagSuggestions(ctx, "mema", 10, now)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(rows) != 1 || rows[0].Tag != winner || rows[0].PostsLast28Days != count {
+			t.Fatalf("suggestion=%v want %s/%d", rows, winner, count)
+		}
+	}
+	for i := range 9 {
+		spelling := "memademay"
+		if i >= 4 {
+			spelling = "MeMadeMay"
+		}
+		ev := makeEvent(i, spelling, fmt.Sprintf("cid%d", i))
+		events = append(events, ev)
+		apply(ev)
+	}
+	assertState(4, 5, 9, "MeMadeMay")
+	for _, ev := range events {
+		apply(ev)
+	}
+	assertState(4, 5, 9, "MeMadeMay")
+	update := makeEvent(4, "memademay", "updated")
+	update.Action = "update"
+	apply(update)
+	assertState(5, 4, 9, "memademay")
+	apply(update)
+	assertState(5, 4, 9, "memademay")
+	untagged := makeEvent(4, "", "untagged")
+	untagged.Action = "update"
+	apply(untagged)
+	assertState(4, 4, 8, "MeMadeMay")
+	untagged.Action = "delete"
+	apply(untagged)
+	assertState(4, 4, 8, "MeMadeMay")
+	deleted := events[5]
+	deleted.Action = "delete"
+	apply(deleted)
+	assertState(4, 3, 7, "memademay")
+	apply(deleted)
+	assertState(4, 3, 7, "memademay")
+	early := makeEvent(99, "MeMadeMay", "early-update")
+	early.Action = "update"
+	apply(early)
+	apply(early)
+	assertState(4, 4, 8, "MeMadeMay")
+}
+
+// IT-010 / FR-006, FR-004 / AC-006, AC-012: guard direct callers before JSONB.
+func TestCraftskyPost_RejectsAmbiguousTagSources(t *testing.T) {
+	pool := testdb.WithMigratedSchema(t)
+	ctx := context.Background()
+	seedCraftskyMember(t, pool, "did:plc:ambiguous")
+	idx := index.NewCraftskyPost(pool, testLogger())
+	const prefix = `{"text":"#MeMadeMay","sponsored":false,"createdAt":"2026-10-09T11:00:00Z","facets":[{"index":{"byteStart":0,"byteEnd":10},"features":[{"$type":"app.bsky.richtext.facet#tag",`
+	const suffix = `}]}]}`
+	ev := tap.Event{URI: "at://did:plc:ambiguous/social.craftsky.feed.post/3aaaaaaaaaaa2", DID: "did:plc:ambiguous", Rkey: "3aaaaaaaaaaa2", Collection: "social.craftsky.feed.post", CID: "valid", Action: "create", Record: json.RawMessage(prefix + `"Tag":"MeMadeMay"` + suffix)}
+	if err := idx.Handle(ctx, ev); err != nil {
+		t.Fatal(err)
+	}
+	var before string
+	if err := pool.QueryRow(ctx, `SELECT to_jsonb(p)::text FROM craftsky_posts p`).Scan(&before); err != nil {
+		t.Fatal(err)
+	}
+	for _, fields := range []string{
+		`"tag":"OtherTag","tag":"MeMadeMay"`,
+		`"tag":"OtherTag","Tag":"MeMadeMay"`,
+		`"Tag":"MeMadeMay","tag":"OtherTag"`,
+		`"tag":"memademay","Tag":"MeMadeMay"`,
+		`"tag":"MeMadeMay","Tag":"MeMadeMay"`,
+	} {
+		for _, action := range []string{"create", "update"} {
+			ambiguous := ev
+			ambiguous.Action, ambiguous.CID = action, "ambiguous"
+			ambiguous.Record = json.RawMessage(prefix + fields + suffix)
+			if action == "create" {
+				ambiguous.URI, ambiguous.Rkey = "at://did:plc:ambiguous/social.craftsky.feed.post/3aaaaaaaaaaa3", "3aaaaaaaaaaa3"
+			}
+			if err := idx.Handle(ctx, ambiguous); !errors.Is(err, postutil.ErrAmbiguousTagFields) {
+				t.Fatalf("%s %s: error=%v; want ambiguity rejection", action, fields, err)
+			}
+			var after string
+			var count int
+			if err := pool.QueryRow(ctx, `SELECT count(*) FROM craftsky_posts`).Scan(&count); err != nil {
+				t.Fatal(err)
+			}
+			if err := pool.QueryRow(ctx, `SELECT to_jsonb(p)::text FROM craftsky_posts p`).Scan(&after); err != nil {
+				t.Fatal(err)
+			}
+			if count != 1 || before != after {
+				t.Fatalf("rejected direct write changed serving state: count=%d before=%s after=%s", count, before, after)
+			}
+		}
+	}
+	// Older binaries/direct SQL cannot install an ambiguous spelling projection.
+	_, err := pool.Exec(ctx, `UPDATE craftsky_posts SET record=$1::jsonb WHERE uri=$2`, prefix+`"tag":"OtherTag","Tag":"MeMadeMay"`+suffix, ev.URI)
+	var constraintErr *pgconn.PgError
+	if !errors.As(err, &constraintErr) || constraintErr.Code != "23514" || constraintErr.ConstraintName != "craftsky_posts_unambiguous_tag_source" {
+		t.Fatalf("database safeguard error=%v", err)
+	}
+	var after string
+	if err := pool.QueryRow(ctx, `SELECT to_jsonb(p)::text FROM craftsky_posts p`).Scan(&after); err != nil {
+		t.Fatal(err)
+	}
+	if before != after {
+		t.Fatal("constraint failure changed serving state")
+	}
+}
+
+// IT-010: durable JSON retains raw tokens and the existing invalid-source policy.
+func TestCraftskyPost_DurableAmbiguityRejection(t *testing.T) {
+	pool := testdb.WithMigratedSchema(t)
+	ctx := context.Background()
+	seedCraftskyMember(t, pool, "did:plc:ambiguous")
+	if _, err := pool.Exec(ctx, `INSERT INTO owner_lifecycles(owner_did,state,generation,auth_epoch,transition_reason,transitioned_at,created_at,updated_at) VALUES('did:plc:ambiguous','active',1,1,'test',now(),now(),now())`); err != nil {
+		t.Fatal(err)
+	}
+	idx := index.NewCraftskyPost(pool, testLogger())
+	const prefix = `{"text":"#MeMadeMay","sponsored":false,"createdAt":"2026-10-09T11:00:00Z","facets":[{"index":{"byteStart":0,"byteEnd":10},"features":[{"$type":"app.bsky.richtext.facet#tag",`
+	const suffix = `}]}]}`
+	ev := tap.Event{ID: 991, URI: "at://did:plc:ambiguous/social.craftsky.feed.post/3aaaaaaaaaaa2", DID: "did:plc:ambiguous", Rkey: "3aaaaaaaaaaa2", Collection: "social.craftsky.feed.post", CID: "valid", Rev: "3aaaaaaaaaaa2", Action: "create", Record: json.RawMessage(prefix + `"tag":"MeMadeMay"` + suffix)}
+	if err := idx.Handle(ctx, ev); err != nil {
+		t.Fatal(err)
+	}
+	ev.Action, ev.CID = "update", "ambiguous"
+	ev.Record = json.RawMessage(prefix + `"tag":"OtherTag","tag":"MeMadeMay"` + suffix)
+	store, err := ingestion.NewStore(pool, time.Now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.IngestRecord(ctx, ev); err != nil {
+		t.Fatal(err)
+	}
+	source, err := store.Source(ctx, ev.URI)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if source.StructuralValidationStatus != sourcevalidation.Invalid || source.ValidationReason != "ambiguous_tag_fields" {
+		t.Fatalf("durable rejection was not retained: %+v", source)
+	}
+	if !postutil.HasAmbiguousTagFields(source.Record) {
+		t.Fatal("durable JSON must retain duplicate exact keys for worker validation")
+	}
+	// Bind the source to this fixture's active owner generation, as the
+	// production ingest lifecycle authority does.
+	generation := int64(1)
+	source.ProjectionGeneration = &generation
+	dispatcher := index.NewTransactionalDispatcher()
+	dispatcher.Register("social.craftsky.feed.post", idx)
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tx.Rollback(ctx)
+	outcome, err := dispatcher.Project(ctx, tx, source)
+	if err != nil || outcome.Kind != tap.OutcomePermanentInvalid || outcome.Reason != tap.ReasonMalformedRecord {
+		t.Fatalf("projection failed ambiguity rejection: outcome=%+v err=%v", outcome, err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		t.Fatal(err)
+	}
+	var count int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM craftsky_posts WHERE uri=$1`, ev.URI).Scan(&count); err != nil {
+		t.Fatal(err)
+	}
+	if count != 0 {
+		t.Fatal("invalid authoritative update should clear prior serving state under existing pipeline policy")
+	}
+	retained, err := store.Source(ctx, ev.URI)
+	if err != nil || retained.CID != "ambiguous" || retained.ValidationReason != "ambiguous_tag_fields" {
+		t.Fatalf("source must remain retained: source=%+v err=%v", retained, err)
 	}
 }

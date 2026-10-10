@@ -12,6 +12,7 @@ import (
 	"social.craftsky/appview/internal/languages"
 	craftskylex "social.craftsky/appview/internal/lexicon/craftsky"
 	lexiconschema "social.craftsky/appview/internal/lexicon/schema"
+	"social.craftsky/appview/internal/postutil"
 	"social.craftsky/appview/internal/tap"
 )
 
@@ -121,6 +122,9 @@ func validateRecordBody(event tap.Event) Result {
 			return semanticInvalid("invalid_timestamp")
 		}
 	case "social.craftsky.feed.post":
+		if postutil.HasAmbiguousTagFields(event.Record) {
+			return invalid("ambiguous_tag_fields")
+		}
 		for _, field := range []string{"text", "sponsored", "createdAt"} {
 			if !hasRequiredFields(event.Record, field) {
 				result := invalid("invalid_lexicon")
