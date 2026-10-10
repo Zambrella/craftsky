@@ -659,28 +659,7 @@ func TestFacetStoreResolveMentionDoesNotTrustFreshLookingReassignedHandle(t *tes
 
 func TestFacetStoreSearchHashtagSuggestionsCountsRecentRootPosts(t *testing.T) {
 	t.Parallel()
-	pool := testdb.WithSchema(t, facetStoreDDL+`
-CREATE TABLE craftsky_posts (
-    uri              TEXT        NOT NULL PRIMARY KEY,
-    did              TEXT        NOT NULL,
-    rkey             TEXT        NOT NULL,
-    cid              TEXT        NOT NULL,
-    text             TEXT        NOT NULL,
-    facets           JSONB,
-    images           JSONB,
-    reply_root_uri   TEXT,
-    reply_root_cid   TEXT,
-    reply_parent_uri TEXT,
-    reply_parent_cid TEXT,
-    quote_uri        TEXT,
-    quote_cid        TEXT,
-    tags             TEXT[]      NOT NULL DEFAULT '{}',
-    record           JSONB       NOT NULL,
-    created_at       TIMESTAMPTZ NOT NULL,
-    indexed_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
-    UNIQUE (did, rkey)
-);
-`)
+	pool := hashtagSearchTestPool(t)
 	ctx := context.Background()
 	now := time.Date(2026, 6, 4, 12, 0, 0, 0, time.UTC)
 	if _, err := pool.Exec(ctx, `INSERT INTO craftsky_profiles (did, crafts, record_cid) VALUES ('did:plc:alice', '{}', 'cid')`); err != nil {
@@ -697,6 +676,7 @@ CREATE TABLE craftsky_posts (
 		t.Fatalf("seed posts: %v", err)
 	}
 
+	hydrateHashtagFixtureSources(t, pool)
 	rows, err := api.NewFacetStore(pool).SearchHashtagSuggestions(ctx, "sock", 10, now)
 	if err != nil {
 		t.Fatalf("SearchHashtagSuggestions: %v", err)
@@ -717,28 +697,7 @@ CREATE TABLE craftsky_posts (
 
 func TestFacetStoreSearchHashtagSuggestionsTreatsWildcardQueryLiterally(t *testing.T) {
 	t.Parallel()
-	pool := testdb.WithSchema(t, facetStoreDDL+`
-CREATE TABLE craftsky_posts (
-    uri              TEXT        NOT NULL PRIMARY KEY,
-    did              TEXT        NOT NULL,
-    rkey             TEXT        NOT NULL,
-    cid              TEXT        NOT NULL,
-    text             TEXT        NOT NULL,
-    facets           JSONB,
-    images           JSONB,
-    reply_root_uri   TEXT,
-    reply_root_cid   TEXT,
-    reply_parent_uri TEXT,
-    reply_parent_cid TEXT,
-    quote_uri        TEXT,
-    quote_cid        TEXT,
-    tags             TEXT[]      NOT NULL DEFAULT '{}',
-    record           JSONB       NOT NULL,
-    created_at       TIMESTAMPTZ NOT NULL,
-    indexed_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
-    UNIQUE (did, rkey)
-);
-`)
+	pool := hashtagSearchTestPool(t)
 	ctx := context.Background()
 	now := time.Date(2026, 6, 4, 12, 0, 0, 0, time.UTC)
 	if _, err := pool.Exec(ctx, `INSERT INTO craftsky_profiles (did, crafts, record_cid) VALUES ('did:plc:alice', '{}', 'cid')`); err != nil {
@@ -752,6 +711,7 @@ CREATE TABLE craftsky_posts (
 		t.Fatalf("seed posts: %v", err)
 	}
 
+	hydrateHashtagFixtureSources(t, pool)
 	rows, err := api.NewFacetStore(pool).SearchHashtagSuggestions(ctx, "%", 10, now)
 	if err != nil {
 		t.Fatalf("SearchHashtagSuggestions wildcard: %v", err)

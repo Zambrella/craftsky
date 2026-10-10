@@ -37,10 +37,12 @@ void main() {
       tester,
     ) async {
       List<Map<String, dynamic>>? capturedFacets;
+      String? capturedText;
       final repo = FakePostRepository(
         onCreateWithFacets:
             ({required text, reply, project, images, facets}) async {
               capturedFacets = facets;
+              capturedText = text;
               return _post(text);
             },
       );
@@ -80,6 +82,10 @@ void main() {
       await tester.tap(find.widgetWithText(ChunkyButton, 'Post'));
       await tester.pumpAndSettle();
 
+      expect(
+        capturedText,
+        '🧶 Hi @alice.craftsky.social see craftsky.social, #SockKAL',
+      );
       expect(capturedFacets, isNotNull);
       final facets = capturedFacets!;
       expect(

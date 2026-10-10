@@ -94,7 +94,8 @@ void main() {
     );
 
     testWidgets(
-      'AT-004 shows hashtag suggestions with counts and inserts canonical tag',
+      'AT-004 shows hashtag suggestions with counts '
+      'and inserts representative spelling',
       (tester) async {
         final controller = FacetTextEditingController();
         final focusNode = FocusNode();
@@ -110,8 +111,8 @@ void main() {
               hashtagSuggestionRepositoryProvider.overrideWithValue(
                 const MockHashtagSuggestionRepository(
                   hashtags: [
-                    HashtagSuggestion(tag: 'SockKAL', postsLast28Days: 128),
-                    HashtagSuggestion(tag: 'sockmending', postsLast28Days: 12),
+                    HashtagSuggestion(tag: 'MeMadeMay', postsLast28Days: 9),
+                    HashtagSuggestion(tag: 'MeMadeJune', postsLast28Days: 12),
                   ],
                 ),
               ),
@@ -124,24 +125,61 @@ void main() {
           ),
         );
 
-        await tester.enterText(find.byType(TextField), '#sock');
+        await tester.enterText(find.byType(TextField), 'Before #mema');
         await tester.pumpAndSettle();
 
-        expect(find.text('#SockKAL'), findsOneWidget);
-        expect(find.text('128 posts'), findsOneWidget);
-        expect(find.text('#sockmending'), findsOneWidget);
+        expect(find.text('#MeMadeMay'), findsOneWidget);
+        expect(find.text('9 posts'), findsOneWidget);
+        expect(find.text('#MeMadeJune'), findsOneWidget);
         expect(find.text('12 posts'), findsOneWidget);
         expect(find.textContaining('in the last 28 days'), findsNothing);
         expect(find.byIcon(CraftskyIcons.trending), findsNWidgets(2));
 
-        await tester.tap(find.text('#SockKAL'));
+        await tester.tap(find.text('#MeMadeMay'));
         await tester.pump();
 
-        expect(controller.text, '#SockKAL ');
+        expect(controller.text, 'Before #MeMadeMay ');
         expect(controller.selection.baseOffset, controller.text.length);
         expect(focusNode.hasFocus, isTrue);
       },
     );
+
+    for (final count in [0, 1]) {
+      testWidgets('REG-004 retains existing composer count label for $count', (
+        tester,
+      ) async {
+        final controller = FacetTextEditingController();
+        final focusNode = FocusNode();
+        addTearDown(controller.dispose);
+        addTearDown(focusNode.dispose);
+        await tester.pumpWidget(
+          _wrap(
+            overrides: [
+              facetAutocompleteDebounceProvider.overrideWithValue(
+                Duration.zero,
+              ),
+              hashtagSuggestionRepositoryProvider.overrideWithValue(
+                MockHashtagSuggestionRepository(
+                  hashtags: [
+                    HashtagSuggestion(tag: 'MeMadeMay', postsLast28Days: count),
+                  ],
+                ),
+              ),
+            ],
+            child: FacetAutocompleteEditor(
+              label: 'Body',
+              controller: controller,
+              focusNode: focusNode,
+            ),
+          ),
+        );
+        await tester.enterText(find.byType(TextField), '#mema');
+        await tester.pumpAndSettle();
+        expect(find.text('#MeMadeMay'), findsOneWidget);
+        expect(find.text('$count posts'), findsOneWidget);
+        expect(find.textContaining('28 days'), findsNothing);
+      });
+    }
 
     testWidgets(
       'IR-001 styles active mention and hashtag tokens with theme primary '

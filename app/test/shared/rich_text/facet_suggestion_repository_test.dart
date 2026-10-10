@@ -154,7 +154,7 @@ void main() {
         '/v1/facets/hashtags',
         (server) => server.reply(200, {
           'items': [
-            {'tag': 'sockkal', 'postsLast28Days': 12},
+            {'tag': 'SockKAL', 'postsLast28Days': 12},
             {'tag': 'knitting'},
           ],
         }),
@@ -166,7 +166,7 @@ void main() {
       ).searchHashtags('sock');
 
       expect(items, hasLength(2));
-      expect(items.first.tag, 'sockkal');
+      expect(items.first.tag, 'SockKAL');
       expect(items.first.postsLast28Days, 12);
       expect(items.last.tag, 'knitting');
       expect(items.last.postsLast28Days, 0);

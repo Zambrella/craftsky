@@ -89,6 +89,10 @@ func (c *CraftskyPost) handleUpsert(ctx context.Context, ev tap.Event) error {
 		return nil
 	}
 
+	if postutil.HasAmbiguousTagFields(ev.Record) {
+		return postutil.ErrAmbiguousTagFields
+	}
+
 	var rec craftskylex.FeedPost
 	if err := json.Unmarshal(ev.Record, &rec); err != nil {
 		return fmt.Errorf("unmarshal %s: %w", ev.URI, err)
