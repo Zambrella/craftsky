@@ -10,6 +10,7 @@ import 'package:craftsky_app/moderation/widgets/moderation_history_entry.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
+import 'package:craftsky_app/shared/widgets/action_progress.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
 import 'package:craftsky_app/theme/craftsky_card.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
@@ -259,12 +260,15 @@ class _HistoryContent extends ConsumerWidget {
                           accountModerationHistoryProvider(account).notifier,
                         )
                         .loadMore(),
-              child: Text(
-                state.loadingMore
-                    ? l10n.moderationHistoryLoadingMore
-                    : state.loadMoreFailed
-                    ? l10n.moderationHistoryRetryMore
-                    : l10n.moderationHistoryLoadMore,
+              child: ActionProgress(
+                isLoading: state.loadingMore,
+                child: Text(
+                  state.loadingMore
+                      ? l10n.moderationHistoryLoadingMore
+                      : state.loadMoreFailed
+                      ? l10n.moderationHistoryRetryMore
+                      : l10n.moderationHistoryLoadMore,
+                ),
               ),
             ),
           ),

@@ -21,6 +21,7 @@ class SignOutTile extends ConsumerWidget {
       ),
       label: AppLocalizations.of(context).settingsSignOut,
       leading: CraftskyIconsBold.logout,
+      isLoading: state is AsyncLoading,
       onTap: state is AsyncLoading
           ? null
           : () async {

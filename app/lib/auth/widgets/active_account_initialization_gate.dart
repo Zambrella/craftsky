@@ -85,6 +85,7 @@ class _ActiveAccountInitializationGateState
         registry != null && registry.orderedSessions.length > 1;
     return ActiveAccountInitializationErrorScreen(
       busy: _recovering || ref.watch(authControllerProvider).isLoading,
+      isSigningOut: _recovering,
       onRetry: _retry,
       onSwitchAccount: hasAlternative
           ? () => unawaited(_showAccountSwitcher(registry))

@@ -3,7 +3,10 @@ import 'dart:ui' show Tristate;
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/profile/widgets/profile_actions.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
+import 'package:craftsky_app/theme/chunky_button.dart';
+import 'package:craftsky_app/theme/chunky_icon_button.dart';
 import 'package:craftsky_app/theme/craftsky_context_menu.dart';
+import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -20,6 +23,79 @@ Future<void> _pump(WidgetTester tester, Widget child) {
 
 void main() {
   group('ProfileActions', () {
+    testWidgets('following spins only Follow and disables competing actions', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        ProfileActions(
+          actions: VisitorProfileActionSet(
+            isFollowing: false,
+            isBusy: true,
+            isFollowingBusy: true,
+            onFollowToggle: () {},
+            onShare: () {},
+            onReport: () {},
+            onMuteToggle: () {},
+            onBlockToggle: () {},
+          ),
+        ),
+      );
+      expect(
+        find.descendant(
+          of: find.byType(ChunkyButton).first,
+          matching: find.byType(StitchProgressIndicator),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byType(ChunkyIconButton),
+          matching: find.byType(StitchProgressIndicator),
+        ),
+        findsNothing,
+      );
+      expect(
+        tester
+            .widget<ChunkyIconButton>(find.byType(ChunkyIconButton))
+            .onPressed,
+        isNull,
+      );
+      expect(
+        tester
+            .widget<CraftskyContextMenuButton>(
+              find.byType(CraftskyContextMenuButton),
+            )
+            .enabled,
+        isFalse,
+      );
+    });
+    testWidgets('optimistic mute keeps its icon and disables Follow', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        ProfileActions(
+          actions: VisitorProfileActionSet(
+            isFollowing: false,
+            isBusy: true,
+            isMuted: true,
+            onFollowToggle: () {},
+            onShare: () {},
+            onReport: () {},
+            onMuteToggle: () {},
+            onBlockToggle: () {},
+          ),
+        ),
+      );
+      expect(find.byType(StitchProgressIndicator), findsNothing);
+      expect(find.byTooltip('Unmute account'), findsOneWidget);
+      expect(
+        tester.widget<ChunkyButton>(find.byType(ChunkyButton).first).onPressed,
+        isNull,
+      );
+    });
+
     testWidgets(
       'visitor profile exposes mute and moves share into compact More menu',
       (

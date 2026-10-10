@@ -16,6 +16,7 @@ import 'package:craftsky_app/saved_posts/widgets/saved_post_folder_dialogs.dart'
 import 'package:craftsky_app/saved_posts/widgets/saved_post_row.dart';
 import 'package:craftsky_app/saved_posts/widgets/saved_post_row_actions.dart';
 import 'package:craftsky_app/saved_posts/widgets/saved_post_sort_button.dart';
+import 'package:craftsky_app/shared/widgets/action_progress.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/subscriptions/providers/subscription_access_provider.dart';
@@ -264,7 +265,10 @@ class _FlatSavedBody extends ConsumerWidget {
                       : ref
                             .read(savedPostsProvider(keyValue).notifier)
                             .loadMore,
-                  child: Text(l10n.savedPostsLoadMore),
+                  child: ActionProgress(
+                    isLoading: state!.isLoadingMore,
+                    child: Text(l10n.savedPostsLoadMore),
+                  ),
                 ),
               ),
           ],
@@ -384,7 +388,10 @@ class _OverviewBody extends ConsumerWidget {
                                   savedPostFoldersProvider(account).notifier,
                                 )
                                 .loadMore,
-                      child: Text(l10n.savedPostLoadMoreFolders),
+                      child: ActionProgress(
+                        isLoading: folderState!.isLoadingMore,
+                        child: Text(l10n.savedPostLoadMoreFolders),
+                      ),
                     ),
                   ),
               ],
@@ -479,7 +486,10 @@ class _OverviewBody extends ConsumerWidget {
                                     ).notifier,
                                   )
                                   .loadMore,
-                        child: Text(l10n.savedPostsLoadMore),
+                        child: ActionProgress(
+                          isLoading: postState!.isLoadingMore,
+                          child: Text(l10n.savedPostsLoadMore),
+                        ),
                       ),
                     ),
                 ],

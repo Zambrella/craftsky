@@ -9,12 +9,16 @@ import 'package:craftsky_app/scheduled_posts/models/scheduled_post_row_model.dar
 import 'package:craftsky_app/scheduled_posts/providers/scheduled_post_repository_provider.dart';
 import 'package:craftsky_app/scheduled_posts/providers/scheduled_posts_provider.dart';
 import 'package:craftsky_app/scheduled_posts/widgets/scheduled_media_thumbnail.dart';
+import 'package:craftsky_app/shared/widgets/action_progress.dart';
+import 'package:craftsky_app/shared/widgets/async_action_builder.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+enum _ScheduledPostAction { edit, delete }
 
 class ScheduledPostsPage extends ConsumerWidget {
   const ScheduledPostsPage({super.key});
@@ -157,6 +161,7 @@ class ScheduledPostsPageContent extends StatelessWidget {
           else
             for (final item in items)
               _ScheduledPostTile(
+                key: ValueKey(item.id),
                 item: item,
                 onEdit: onEdit,
                 onDelete: onDelete,
@@ -174,6 +179,7 @@ class _ScheduledPostTile extends StatelessWidget {
     required this.onEdit,
     required this.onDelete,
     this.thumbnailBuilder,
+    super.key,
   });
 
   final ScheduledPostSummary item;
@@ -183,89 +189,114 @@ class _ScheduledPostTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final locked = item.status == ScheduledPostStatus.publishing;
-    final local = item.scheduledAt.utc.toLocal();
-    final row = ScheduledPostRowModel.fromSummary(
-      item,
-      zoneName: local.timeZoneName,
-      offset: local.timeZoneOffset,
-    );
-    final date = MaterialLocalizations.of(
-      context,
-    ).formatMediumDate(row.time.wallTime);
-    final time = MaterialLocalizations.of(
-      context,
-    ).formatTimeOfDay(TimeOfDay.fromDateTime(row.time.wallTime));
-    return ListTile(
-      onTap: locked ? null : () => onEdit(item),
-      leading: row.firstMediaId == null
-          ? const Icon(CraftskyIcons.schedule)
-          : thumbnailBuilder?.call(row.firstMediaId!) ??
-                const Icon(CraftskyIcons.image),
-      title: Text(
-        row.projectTitle ?? row.preview,
-        maxLines: 2,
-        overflow: TextOverflow.ellipsis,
-      ),
-      subtitle: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (row.projectTitle != null)
-            Text(
-              row.preview,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-          Text(
-            l10n.scheduledPostsRowDateTime(
-              row.kind == ScheduledPostKind.project
-                  ? l10n.scheduledPostsKindProject
-                  : l10n.scheduledPostsKindStandard,
-              date,
-              '$time · ${row.time.zoneLabel}',
-            ),
+    return AsyncActionBuilder(
+      builder: (context, actions) {
+        final l10n = AppLocalizations.of(context);
+        final locked = item.status == ScheduledPostStatus.publishing;
+        final local = item.scheduledAt.utc.toLocal();
+        final row = ScheduledPostRowModel.fromSummary(
+          item,
+          zoneName: local.timeZoneName,
+          offset: local.timeZoneOffset,
+        );
+        final date = MaterialLocalizations.of(
+          context,
+        ).formatMediumDate(row.time.wallTime);
+        final time = MaterialLocalizations.of(
+          context,
+        ).formatTimeOfDay(TimeOfDay.fromDateTime(row.time.wallTime));
+        return ListTile(
+          onTap: locked || actions.isBusy
+              ? null
+              : () =>
+                    actions.run(_ScheduledPostAction.edit, () => onEdit(item)),
+          leading: row.firstMediaId == null
+              ? const Icon(CraftskyIcons.schedule)
+              : thumbnailBuilder?.call(row.firstMediaId!) ??
+                    const Icon(CraftskyIcons.image),
+          title: Text(
+            row.projectTitle ?? row.preview,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
           ),
-          Semantics(
-            liveRegion: true,
-            child: Text(_statusLabel(l10n, item.status)),
+          subtitle: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (row.projectTitle != null)
+                Text(
+                  row.preview,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              Text(
+                l10n.scheduledPostsRowDateTime(
+                  row.kind == ScheduledPostKind.project
+                      ? l10n.scheduledPostsKindProject
+                      : l10n.scheduledPostsKindStandard,
+                  date,
+                  '$time · ${row.time.zoneLabel}',
+                ),
+              ),
+              Semantics(
+                liveRegion: true,
+                child: Text(_statusLabel(l10n, item.status)),
+              ),
+              if (item.subscriptionRequired)
+                Text(l10n.scheduledPostSubscriptionPending),
+              if (item.lastErrorCode == 'subscription_required')
+                Text(l10n.scheduledPostSubscriptionMissed),
+              if (item.needsAttentionExpiresAt case final expiresAt?)
+                Text(
+                  l10n.scheduledPostsDeletedOn(
+                    MaterialLocalizations.of(
+                      context,
+                    ).formatMediumDate(expiresAt.toLocal()),
+                  ),
+                ),
+              if (locked) Text(l10n.scheduledPostsPublishingLocked),
+            ],
           ),
-          if (item.subscriptionRequired)
-            Text(l10n.scheduledPostSubscriptionPending),
-          if (item.lastErrorCode == 'subscription_required')
-            Text(l10n.scheduledPostSubscriptionMissed),
-          if (item.needsAttentionExpiresAt case final expiresAt?)
-            Text(
-              l10n.scheduledPostsDeletedOn(
-                MaterialLocalizations.of(
-                  context,
-                ).formatMediumDate(expiresAt.toLocal()),
-              ),
-            ),
-          if (locked) Text(l10n.scheduledPostsPublishingLocked),
-        ],
-      ),
-      trailing: locked
-          ? Semantics(
-              label: l10n.scheduledPostsPublishingLockSemantics,
-              child: const ExcludeSemantics(
-                child: Icon(CraftskyIcons.lock),
-              ),
-            )
-          : Wrap(
-              children: [
-                IconButton(
-                  tooltip: l10n.scheduledPostsEditTooltip,
-                  onPressed: () => onEdit(item),
-                  icon: const Icon(CraftskyIconsBold.edit),
+          trailing: locked
+              ? Semantics(
+                  label: l10n.scheduledPostsPublishingLockSemantics,
+                  child: const ExcludeSemantics(
+                    child: Icon(CraftskyIcons.lock),
+                  ),
+                )
+              : Wrap(
+                  children: [
+                    IconButton(
+                      tooltip: l10n.scheduledPostsEditTooltip,
+                      onPressed: actions.isBusy
+                          ? null
+                          : () => actions.run(
+                              _ScheduledPostAction.edit,
+                              () => onEdit(item),
+                            ),
+                      icon: ActionProgress(
+                        isLoading: actions.isRunning(_ScheduledPostAction.edit),
+                        child: const Icon(CraftskyIconsBold.edit),
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: l10n.scheduledPostsDeleteTooltip,
+                      onPressed: actions.isBusy
+                          ? null
+                          : () => actions.run(
+                              _ScheduledPostAction.delete,
+                              () => onDelete(item),
+                            ),
+                      icon: ActionProgress(
+                        isLoading: actions.isRunning(
+                          _ScheduledPostAction.delete,
+                        ),
+                        child: const Icon(CraftskyIconsBold.delete),
+                      ),
+                    ),
+                  ],
                 ),
-                IconButton(
-                  tooltip: l10n.scheduledPostsDeleteTooltip,
-                  onPressed: () => onDelete(item),
-                  icon: const Icon(CraftskyIconsBold.delete),
-                ),
-              ],
-            ),
+        );
+      },
     );
   }
 }

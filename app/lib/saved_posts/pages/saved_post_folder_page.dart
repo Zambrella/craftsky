@@ -12,6 +12,7 @@ import 'package:craftsky_app/saved_posts/widgets/saved_post_folder_dialogs.dart'
 import 'package:craftsky_app/saved_posts/widgets/saved_post_row.dart';
 import 'package:craftsky_app/saved_posts/widgets/saved_post_row_actions.dart';
 import 'package:craftsky_app/saved_posts/widgets/saved_post_sort_button.dart';
+import 'package:craftsky_app/shared/widgets/action_progress.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/theme/craftsky_context_menu.dart';
@@ -142,7 +143,10 @@ class _SavedPostFolderScreenState extends ConsumerState<SavedPostFolderScreen> {
                   onPressed: value.isLoadingMore
                       ? null
                       : ref.read(savedPostsProvider(key).notifier).loadMore,
-                  child: Text(l10n.savedPostsLoadMore),
+                  child: ActionProgress(
+                    isLoading: value.isLoadingMore,
+                    child: Text(l10n.savedPostsLoadMore),
+                  ),
                 ),
             ],
           ),

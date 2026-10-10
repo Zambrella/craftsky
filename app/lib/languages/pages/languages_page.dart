@@ -6,6 +6,7 @@ import 'package:craftsky_app/languages/models/language_preferences.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
+import 'package:craftsky_app/shared/widgets/async_action_builder.dart';
 import 'package:craftsky_app/theme/craftsky_card.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/craftsky_select_inputs.dart';
@@ -24,6 +25,8 @@ final List<CraftskySelectOption<String>> _languageOptions = List.unmodifiable(
       ),
   ]..sort((left, right) => left.label.compareTo(right.label)),
 );
+
+enum _LanguageAction { primary, content }
 
 class LanguagesPage extends ConsumerWidget {
   const LanguagesPage({super.key});
@@ -98,85 +101,98 @@ class _AccountLanguageSections extends ConsumerWidget {
         context.showError(l10n.languageSaveError);
       }
     });
-    if (preferences.hasValue) {
-      final accountState = preferences.requireValue;
-      final value = accountState.preferences;
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          CraftskyCard(
-            key: const Key('primary-language-card'),
+    return AsyncActionBuilder(
+      builder: (context, actions) {
+        if (preferences.hasValue) {
+          final accountState = preferences.requireValue;
+          final value = accountState.preferences;
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              CraftskyCard(
+                key: const Key('primary-language-card'),
+                clipBehavior: Clip.none,
+                padding: EdgeInsets.all(spacing.sp4),
+                child: CraftskySingleSelectInput<String>(
+                  key: const Key('primary-language-input'),
+                  isLoading: actions.isRunning(_LanguageAction.primary),
+                  keyPrefix: 'primary-language',
+                  label: l10n.primaryLanguageTitle,
+                  helperText: l10n.primaryLanguageDescription,
+                  value: value.primaryLanguage,
+                  options: _languageOptions,
+                  enabled:
+                      !accountState.replacement.isLoading && !actions.isBusy,
+                  searchHintText: l10n.languageSearchHint,
+                  onChanged: (language) async {
+                    await actions.run(_LanguageAction.primary, () async {
+                      if (language == null ||
+                          language == value.primaryLanguage) {
+                        return;
+                      }
+                      await _replace(
+                        ref,
+                        value.copyWith(primaryLanguage: language),
+                      );
+                    });
+                  },
+                ),
+              ),
+              SizedBox(height: spacing.sp4),
+              CraftskyCard(
+                key: const Key('content-languages-card'),
+                clipBehavior: Clip.none,
+                padding: EdgeInsets.all(spacing.sp4),
+                child: CraftskySearchableMultiSelectInput<String>(
+                  key: const Key('content-languages-input'),
+                  isLoading: actions.isRunning(_LanguageAction.content),
+                  keyPrefix: 'content-languages',
+                  label: l10n.contentLanguagesTitle,
+                  helperText: l10n.contentLanguagesDescription,
+                  values: value.contentLanguages,
+                  options: _languageOptions,
+                  enabled:
+                      !accountState.replacement.isLoading && !actions.isBusy,
+                  searchHintText: l10n.languageAddMore,
+                  onChanged: (languages) async {
+                    await actions.run(_LanguageAction.content, () async {
+                      await _replace(
+                        ref,
+                        value.copyWith(contentLanguages: languages),
+                      );
+                    });
+                  },
+                ),
+              ),
+            ],
+          );
+        }
+        return switch (preferences) {
+          AsyncError() => CraftskyCard(
+            key: const Key('language-preferences-error-card'),
             clipBehavior: Clip.none,
             padding: EdgeInsets.all(spacing.sp4),
-            child: CraftskySingleSelectInput<String>(
-              key: const Key('primary-language-input'),
-              keyPrefix: 'primary-language',
-              label: l10n.primaryLanguageTitle,
-              helperText: l10n.primaryLanguageDescription,
-              value: value.primaryLanguage,
-              options: _languageOptions,
-              enabled: !accountState.replacement.isLoading,
-              searchHintText: l10n.languageSearchHint,
-              onChanged: (language) async {
-                if (language == null || language == value.primaryLanguage) {
-                  return;
-                }
-                await _replace(
-                  ref,
-                  value.copyWith(primaryLanguage: language),
-                );
-              },
+            child: Column(
+              children: [
+                Icon(
+                  CraftskyIcons.offline,
+                  color: theme.colorScheme.primary,
+                ),
+                SizedBox(height: spacing.sp3),
+                FilledButton(
+                  onPressed: () => ref.invalidate(provider),
+                  child: Text(l10n.retryButton),
+                ),
+              ],
             ),
           ),
-          SizedBox(height: spacing.sp4),
-          CraftskyCard(
-            key: const Key('content-languages-card'),
-            clipBehavior: Clip.none,
-            padding: EdgeInsets.all(spacing.sp4),
-            child: CraftskySearchableMultiSelectInput<String>(
-              key: const Key('content-languages-input'),
-              keyPrefix: 'content-languages',
-              label: l10n.contentLanguagesTitle,
-              helperText: l10n.contentLanguagesDescription,
-              values: value.contentLanguages,
-              options: _languageOptions,
-              enabled: !accountState.replacement.isLoading,
-              searchHintText: l10n.languageAddMore,
-              onChanged: (languages) async {
-                await _replace(
-                  ref,
-                  value.copyWith(contentLanguages: languages),
-                );
-              },
-            ),
+          _ => Padding(
+            padding: EdgeInsets.all(spacing.sp5),
+            child: const Center(child: StitchProgressIndicator()),
           ),
-        ],
-      );
-    }
-    return switch (preferences) {
-      AsyncError() => CraftskyCard(
-        key: const Key('language-preferences-error-card'),
-        clipBehavior: Clip.none,
-        padding: EdgeInsets.all(spacing.sp4),
-        child: Column(
-          children: [
-            Icon(
-              CraftskyIcons.offline,
-              color: theme.colorScheme.primary,
-            ),
-            SizedBox(height: spacing.sp3),
-            FilledButton(
-              onPressed: () => ref.invalidate(provider),
-              child: Text(l10n.retryButton),
-            ),
-          ],
-        ),
-      ),
-      _ => Padding(
-        padding: EdgeInsets.all(spacing.sp5),
-        child: const Center(child: StitchProgressIndicator()),
-      ),
-    };
+        };
+      },
+    );
   }
 }
 

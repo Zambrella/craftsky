@@ -9,6 +9,7 @@ class CraftskySearchableMultiSelectInput<T> extends StatefulWidget {
     this.helperText,
     this.errorText,
     this.enabled = true,
+    this.isLoading = false,
     this.maxSelected,
     this.searchHintText,
     this.disabledText,
@@ -23,6 +24,7 @@ class CraftskySearchableMultiSelectInput<T> extends StatefulWidget {
   final String? helperText;
   final String? errorText;
   final bool enabled;
+  final bool isLoading;
   final int? maxSelected;
   final String? searchHintText;
   final String? disabledText;
@@ -312,7 +314,10 @@ class _CraftskySearchableMultiSelectInputState<T>
                                   ),
                                 ),
                               ),
-                              const Icon(CraftskyIcons.search),
+                              ActionProgress(
+                                isLoading: widget.isLoading,
+                                child: const Icon(CraftskyIcons.search),
+                              ),
                             ],
                           ),
                         ],

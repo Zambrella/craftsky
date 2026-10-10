@@ -20,6 +20,7 @@ import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/shared/time/relative_time_text.dart';
+import 'package:craftsky_app/shared/widgets/action_progress.dart';
 import 'package:craftsky_app/shared/widgets/post_summary.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
@@ -390,8 +391,11 @@ class _NotificationFollowButtonState
           EdgeInsets.symmetric(horizontal: 18, vertical: 8),
         ),
       ),
-      child: Text(
-        _isFollowing ? l10n.profileFollowingAction : l10n.profileFollowAction,
+      child: ActionProgress(
+        isLoading: _isBusy,
+        child: Text(
+          _isFollowing ? l10n.profileFollowingAction : l10n.profileFollowAction,
+        ),
       ),
     );
   }

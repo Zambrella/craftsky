@@ -9,6 +9,7 @@ class CraftskySingleSelectInput<T> extends StatefulWidget {
     this.helperText,
     this.errorText,
     this.enabled = true,
+    this.isLoading = false,
     this.searchThreshold = 5,
     this.searchHintText = 'Search',
     this.noResultsText = 'No results',
@@ -24,6 +25,7 @@ class CraftskySingleSelectInput<T> extends StatefulWidget {
   final String? helperText;
   final String? errorText;
   final bool enabled;
+  final bool isLoading;
   final int? searchThreshold;
   final String searchHintText;
   final String noResultsText;
@@ -424,7 +426,10 @@ class _CraftskySingleSelectInputState<T>
                           ),
                         ),
                       ),
-                      const Icon(CraftskyIcons.search),
+                      ActionProgress(
+                        isLoading: widget.isLoading,
+                        child: const Icon(CraftskyIcons.search),
+                      ),
                     ],
                   ),
                 )
@@ -472,10 +477,13 @@ class _CraftskySingleSelectInputState<T>
                                   ),
                             ),
                           ),
-                          Icon(
-                            _open
-                                ? CraftskyIconsBold.collapse
-                                : CraftskyIconsBold.expand,
+                          ActionProgress(
+                            isLoading: widget.isLoading,
+                            child: Icon(
+                              _open
+                                  ? CraftskyIconsBold.collapse
+                                  : CraftskyIconsBold.expand,
+                            ),
                           ),
                         ],
                       ),

@@ -60,6 +60,7 @@ import 'package:craftsky_app/shared/messaging/widgets/craftsky_snack_bar.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
 import 'package:craftsky_app/shared/rich_text/providers/facet_suggestion_providers.dart';
 import 'package:craftsky_app/shared/rich_text/widgets/facet_autocomplete_editor.dart';
+import 'package:craftsky_app/shared/widgets/action_progress.dart';
 import 'package:craftsky_app/subscriptions/providers/subscription_access_provider.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
@@ -179,6 +180,7 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
   var _usesStoredDraftVideo = false;
   var _isSubmitting = false;
   var _isSavingDraft = false;
+  var _isDeletingSchedule = false;
   var _attemptedSubmit = false;
   var _sponsored = false;
   var _initialSponsored = false;
@@ -401,6 +403,7 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
     final trimmedText = _text.trim();
     final tooLong = _text.length > PostComposerSheet.maxCharacters;
     final canSubmit =
+        !_isSavingDraft &&
         !createState.isLoading &&
         !_isSubmitting &&
         !_isScheduling &&
@@ -461,13 +464,15 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
 
     return PopScope<Post?>(
       canPop:
+          !_isSavingDraft &&
+          !_isDeletingSchedule &&
           !_isSubmitting &&
           (_pendingPublishedDraftPost != null ||
               !hasDraft ||
               createState.isLoading),
       onPopInvokedWithResult: (didPop, _) async {
         if (didPop) return;
-        if (_isSubmitting) return;
+        if (_isSubmitting || _isSavingDraft || _isDeletingSchedule) return;
         final shouldClose = await _confirmClose(imagesState);
         if (!shouldClose) return;
         if (!context.mounted) return;
@@ -497,10 +502,13 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
                     onPressed: canSaveDraft
                         ? () => _saveDraft(imagesState)
                         : null,
-                    child: Text(
-                      widget.draftSeed == null
-                          ? l10n.draftSaveAction
-                          : l10n.draftSaveChangesAction,
+                    child: ActionProgress(
+                      isLoading: _isSavingDraft,
+                      child: Text(
+                        widget.draftSeed == null
+                            ? l10n.draftSaveAction
+                            : l10n.draftSaveChangesAction,
+                      ),
                     ),
                   ),
               ],
@@ -547,7 +555,11 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
                           maxLines: 12,
                           textInputAction: TextInputAction.newline,
                           keyboardType: TextInputType.multiline,
-                          enabled: !createState.isLoading,
+                          enabled:
+                              !createState.isLoading &&
+                              !_isSavingDraft &&
+                              !_isScheduling &&
+                              !_isSubmitting,
                           errorText: bodyErrorText,
                           helperText:
                               '${_text.length}/${PostComposerSheet.maxCharacters}',
@@ -561,12 +573,17 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
                         ),
                         ComposerMetadataControls(
                           languages: _languages!,
-                          onLanguagesChanged: createState.isLoading
+                          onLanguagesChanged:
+                              createState.isLoading ||
+                                  _isSavingDraft ||
+                                  _isScheduling ||
+                                  _isSubmitting
                               ? null
                               : (value) => setState(() => _languages = value),
                           sponsored: _sponsored,
                           onSponsoredChanged:
                               !createState.isLoading &&
+                                  !_isSavingDraft &&
                                   !_isSubmitting &&
                                   !_isScheduling
                               ? (value) => setState(() => _sponsored = value)
@@ -582,7 +599,11 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
                                     activeLease.session,
                                   ),
                                 ),
-                          onSchedulePressed: isSchedulable && !_isScheduling
+                          onSchedulePressed:
+                              isSchedulable &&
+                                  !_isScheduling &&
+                                  !_isSavingDraft &&
+                                  !_isSubmitting
                               ? (menuContext) => _chooseWhen(
                                   menuContext,
                                   scheduleEnabled: capacity.scheduleEnabled,
@@ -611,10 +632,16 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
                             Align(
                               alignment: AlignmentDirectional.centerStart,
                               child: TextButton.icon(
-                                onPressed: _isScheduling
+                                onPressed:
+                                    _isScheduling ||
+                                        _isSavingDraft ||
+                                        _isSubmitting
                                     ? null
                                     : _deleteExistingSchedule,
-                                icon: const Icon(CraftskyIconsBold.delete),
+                                icon: ActionProgress(
+                                  isLoading: _isDeletingSchedule,
+                                  child: const Icon(CraftskyIconsBold.delete),
+                                ),
                                 label: Text(l10n.scheduledPostsDeleteTooltip),
                               ),
                             ),
@@ -670,7 +697,11 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
                           else if (selectedVideo != null)
                             ComposerVideoAttachmentCard(
                               selection: selectedVideo,
-                              enabled: !createState.isLoading && !_isSubmitting,
+                              enabled:
+                                  !createState.isLoading &&
+                                  !_isSubmitting &&
+                                  !_isSavingDraft &&
+                                  !_isScheduling,
                               onAltTextChanged: (value) {
                                 setState(
                                   () => _videoController.setAltText(value),
@@ -688,7 +719,11 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
                           else
                             ComposerImageAttachmentSection(
                               imagesState: imagesState,
-                              enabled: !createState.isLoading,
+                              enabled:
+                                  !createState.isLoading &&
+                                  !_isSavingDraft &&
+                                  !_isScheduling &&
+                                  !_isSubmitting,
                               onAddImages: () =>
                                   ref.read(imagesProvider.notifier).addImages(),
                               onTakePhoto: () =>
@@ -736,7 +771,9 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
                       padding: EdgeInsets.only(bottom: spacing.sp4),
                       child: _PostAction(
                         actionKey: const Key('post-composer-primary-action'),
-                        isSaving: createState.isLoading || _isScheduling,
+                        isSaving:
+                            createState.isLoading ||
+                            (_isScheduling && !_isDeletingSchedule),
                         label: submitLabel,
                         onPressed: canSubmit
                             ? () => _submitPost(trimmedText: trimmedText)
@@ -1724,7 +1761,10 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
       cancelLabel: l10n.languageCancel,
     );
     if (!confirmed || !mounted || !_scheduledOperationIsCurrent(owner)) return;
-    setState(() => _isScheduling = true);
+    setState(() {
+      _isScheduling = true;
+      _isDeletingSchedule = true;
+    });
     try {
       final repository = await ref.read(
         accountScheduledPostRepositoryProvider(account).future,
@@ -1740,7 +1780,12 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
         context.showError(l10n.scheduledPostDeleteError);
       }
     } finally {
-      if (mounted) setState(() => _isScheduling = false);
+      if (mounted) {
+        setState(() {
+          _isScheduling = false;
+          _isDeletingSchedule = false;
+        });
+      }
     }
   }
 }

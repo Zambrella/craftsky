@@ -458,11 +458,25 @@ void main() {
         await tester.pumpAndSettle();
 
         await tester.tap(find.text('Follow'));
-        await tester.pumpAndSettle();
+        await tester.pump();
+        expect(find.byType(StitchProgressIndicator), findsOneWidget);
+        final button = tester.widget<ButtonStyleButton>(
+          find.ancestor(
+            of: find.text('Follow'),
+            matching: find.byWidgetPredicate(
+              (widget) => widget is ButtonStyleButton,
+            ),
+          ),
+        );
+        expect(button.onPressed, isNull);
         if (delayedLookup) {
           expect(repository.followOperationKeys, isEmpty);
           lookup.complete(profile);
-          await tester.pumpAndSettle();
+          await pumpUntil(
+            tester,
+            () => repository.followOperationKeys.isNotEmpty,
+            description: 'follow request after lookup',
+          );
         }
         expect(repository.followOperationKeys, hasLength(1));
 
@@ -471,6 +485,7 @@ void main() {
 
         expect(messenger.calls, isEmpty);
         expect(find.text('Unfollow'), findsOneWidget);
+        expect(find.byType(StitchProgressIndicator), findsNothing);
         await tester.pump(const Duration(seconds: 31));
       },
     );

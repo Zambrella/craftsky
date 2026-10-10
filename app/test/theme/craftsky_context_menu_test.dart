@@ -1,8 +1,12 @@
+import 'dart:async';
+
+import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/brand_colors.dart';
 import 'package:craftsky_app/theme/craftsky_context_menu.dart';
 import 'package:craftsky_app/theme/craftsky_divider.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
+import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -20,6 +24,8 @@ void main() {
 
     await tester.pumpWidget(
       MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
         theme: AppTheme.lightThemeData,
         darkTheme: AppTheme.darkThemeData,
         themeMode: themeMode,
@@ -29,6 +35,48 @@ void main() {
   }
 
   group('CraftskyContextMenuButton', () {
+    testWidgets('selected async action spins on its closed menu button', (
+      tester,
+    ) async {
+      final request = Completer<void>();
+      await pumpHarness(
+        tester,
+        size: const Size(390, 844),
+        child: CraftskyContextMenuButton(
+          groups: [
+            CraftskyContextMenuGroup(
+              items: [
+                CraftskyContextMenuItem(
+                  text: 'Move',
+                  icon: CraftskyIconsBold.moveUp,
+                  onPressed: () => request.future,
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+      await tester.tap(find.byIcon(CraftskyIconsBold.more));
+      await tester.pumpAndSettle();
+      expect(find.byType(StitchProgressIndicator), findsNothing);
+      await tester.tap(find.text('Move'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(find.byType(BottomSheet), findsNothing);
+      expect(find.byType(StitchProgressIndicator), findsOneWidget);
+      expect(
+        tester.widget<IconButton>(find.byType(IconButton)).onPressed,
+        isNull,
+      );
+      request.complete();
+      await tester.pumpAndSettle();
+      expect(find.byType(StitchProgressIndicator), findsNothing);
+      expect(
+        tester.widget<IconButton>(find.byType(IconButton)).onPressed,
+        isNotNull,
+      );
+    });
+
     testWidgets('opens a bottom sheet on compact screens', (tester) async {
       var tapped = false;
 

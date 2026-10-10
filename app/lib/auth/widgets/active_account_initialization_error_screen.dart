@@ -1,4 +1,5 @@
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/shared/widgets/action_progress.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:flutter/material.dart';
 
@@ -8,6 +9,7 @@ class ActiveAccountInitializationErrorScreen extends StatelessWidget {
     required this.onSignOut,
     required this.busy,
     this.onSwitchAccount,
+    this.isSigningOut = false,
     super.key,
   });
 
@@ -15,6 +17,7 @@ class ActiveAccountInitializationErrorScreen extends StatelessWidget {
   final VoidCallback? onSwitchAccount;
   final VoidCallback onSignOut;
   final bool busy;
+  final bool isSigningOut;
 
   @override
   Widget build(BuildContext context) {
@@ -63,7 +66,10 @@ class ActiveAccountInitializationErrorScreen extends StatelessWidget {
                 const SizedBox(height: 8),
                 TextButton.icon(
                   onPressed: busy ? null : onSignOut,
-                  icon: const Icon(CraftskyIconsBold.logout),
+                  icon: ActionProgress(
+                    isLoading: isSigningOut,
+                    child: const Icon(CraftskyIconsBold.logout),
+                  ),
                   label: Text(l10n.activeAccountSignOutAction),
                 ),
               ],

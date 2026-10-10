@@ -4,6 +4,7 @@ import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/profile/models/profile_account_summary.dart';
 import 'package:craftsky_app/profile/widgets/profile_account_list_tile.dart';
 import 'package:craftsky_app/settings/providers/relationship_list_provider.dart';
+import 'package:craftsky_app/shared/widgets/action_progress.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
@@ -165,13 +166,16 @@ class _RelationshipListBody extends StatelessWidget {
                     onPressed: state.mutatingDids.contains(did)
                         ? null
                         : () => unawaited(onReverse(account)),
-                    child: Text(
-                      switch (kind) {
-                        RelationshipListKind.muted =>
-                          l10n.relationshipListUnmute,
-                        RelationshipListKind.blocked =>
-                          l10n.relationshipListUnblock,
-                      },
+                    child: ActionProgress(
+                      isLoading: state.mutatingDids.contains(did),
+                      child: Text(
+                        switch (kind) {
+                          RelationshipListKind.muted =>
+                            l10n.relationshipListUnmute,
+                          RelationshipListKind.blocked =>
+                            l10n.relationshipListUnblock,
+                        },
+                      ),
                     ),
                   ),
                 );

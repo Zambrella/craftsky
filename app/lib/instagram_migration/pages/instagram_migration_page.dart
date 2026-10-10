@@ -19,6 +19,8 @@ import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/link/external_link.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
+import 'package:craftsky_app/shared/widgets/action_progress.dart';
+import 'package:craftsky_app/shared/widgets/async_action_builder.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
 import 'package:craftsky_app/theme/craftsky_card.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
@@ -33,6 +35,17 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 final instagramDmLauncherProvider = Provider<ExternalLinkLauncher>(
   (_) => launchExternalLink,
 );
+
+enum _InstagramAction {
+  create,
+  confirm,
+  cancel,
+  reactivate,
+  delete,
+  follow,
+  dismiss,
+  more,
+}
 
 class InstagramMigrationPage extends ConsumerWidget {
   const InstagramMigrationPage({super.key});
@@ -214,119 +227,145 @@ class _AccountAndVerificationCardState
     final notifier = ref.read(
       instagramVerificationProvider(widget.lease).notifier,
     );
-    final attempt = flow.attempt;
-    if (attempt == null) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(l10n.instagramVerificationDescription),
-          const SizedBox(height: 12),
-          FilledButton.icon(
-            onPressed: flow.isBusy ? null : notifier.create,
-            icon: const Icon(CraftskyIconsBold.verifiedAccount),
-            label: Text(l10n.instagramVerificationStart),
-          ),
-          if (flow.hasError) ...[
-            const SizedBox(height: 8),
-            Text(l10n.instagramActionError),
-          ],
-        ],
-      );
-    }
-    if (attempt.state == InstagramVerificationState.pendingConfirmation &&
-        _choiceVerificationId != attempt.verificationId) {
-      _choiceVerificationId = attempt.verificationId;
-      _confirmDiscoverable = true;
-    }
-    return switch (attempt.state) {
-      InstagramVerificationState.pendingDm ||
-      InstagramVerificationState.processing => _ChallengeControls(
-        lease: widget.lease,
-        attempt: attempt,
-        isBusy: flow.isBusy,
-        hasError: flow.hasError,
-      ),
-      InstagramVerificationState.pendingConfirmation => Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          _InstagramHandleText(
-            username:
-                attempt.candidateUsername ?? l10n.instagramUnknownUsername,
-            localizedText: l10n.instagramVerificationCandidate(
-              attempt.candidateUsername ?? l10n.instagramUnknownUsername,
-            ),
-          ),
-          const SizedBox(height: 8),
-          SegmentedButton<bool>(
-            segments: [
-              ButtonSegment(
-                value: true,
-                label: Text(l10n.instagramDiscoverableAllow),
+
+    return AsyncActionBuilder(
+      builder: (context, actions) {
+        final attempt = flow.attempt;
+        if (attempt == null) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(l10n.instagramVerificationDescription),
+              const SizedBox(height: 12),
+              FilledButton.icon(
+                onPressed: flow.isBusy || actions.isBusy
+                    ? null
+                    : () =>
+                          actions.run(_InstagramAction.create, notifier.create),
+                icon: ActionProgress(
+                  isLoading: actions.isRunning(_InstagramAction.create),
+                  child: const Icon(CraftskyIconsBold.verifiedAccount),
+                ),
+                label: Text(l10n.instagramVerificationStart),
               ),
-              ButtonSegment(
-                value: false,
-                label: Text(l10n.instagramDiscoverablePrivate),
-              ),
+              if (flow.hasError) ...[
+                const SizedBox(height: 8),
+                Text(l10n.instagramActionError),
+              ],
             ],
-            selected: {?_confirmDiscoverable},
-            onSelectionChanged: flow.isBusy
-                ? null
-                : (value) => setState(
-                    () => _confirmDiscoverable = value.single,
+          );
+        }
+        if (attempt.state == InstagramVerificationState.pendingConfirmation &&
+            _choiceVerificationId != attempt.verificationId) {
+          _choiceVerificationId = attempt.verificationId;
+          _confirmDiscoverable = true;
+        }
+        return switch (attempt.state) {
+          InstagramVerificationState.pendingDm ||
+          InstagramVerificationState.processing => _ChallengeControls(
+            lease: widget.lease,
+            attempt: attempt,
+            isBusy: flow.isBusy || actions.isBusy,
+            hasError: flow.hasError,
+          ),
+          InstagramVerificationState.pendingConfirmation => Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _InstagramHandleText(
+                username:
+                    attempt.candidateUsername ?? l10n.instagramUnknownUsername,
+                localizedText: l10n.instagramVerificationCandidate(
+                  attempt.candidateUsername ?? l10n.instagramUnknownUsername,
+                ),
+              ),
+              const SizedBox(height: 8),
+              SegmentedButton<bool>(
+                segments: [
+                  ButtonSegment(
+                    value: true,
+                    label: Text(l10n.instagramDiscoverableAllow),
                   ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            _confirmDiscoverable == false
-                ? l10n.instagramDiscoverablePrivateDescription
-                : l10n.instagramDiscoverableDescription,
-          ),
-          const SizedBox(height: 8),
-          Text(l10n.instagramVerificationCandidateWarning),
-          const SizedBox(height: 8),
-          FilledButton(
-            onPressed: flow.isBusy || _confirmDiscoverable == null
-                ? null
-                : () => notifier.confirm(
-                    discoverable: _confirmDiscoverable!,
+                  ButtonSegment(
+                    value: false,
+                    label: Text(l10n.instagramDiscoverablePrivate),
                   ),
-            child: Text(l10n.instagramVerificationConfirm),
+                ],
+                selected: {?_confirmDiscoverable},
+                onSelectionChanged: flow.isBusy
+                    ? null
+                    : (value) => setState(
+                        () => _confirmDiscoverable = value.single,
+                      ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                _confirmDiscoverable == false
+                    ? l10n.instagramDiscoverablePrivateDescription
+                    : l10n.instagramDiscoverableDescription,
+              ),
+              const SizedBox(height: 8),
+              Text(l10n.instagramVerificationCandidateWarning),
+              const SizedBox(height: 8),
+              FilledButton(
+                onPressed:
+                    flow.isBusy ||
+                        actions.isBusy ||
+                        _confirmDiscoverable == null
+                    ? null
+                    : () => actions.run(
+                        _InstagramAction.confirm,
+                        () => notifier.confirm(
+                          discoverable: _confirmDiscoverable!,
+                        ),
+                      ),
+                child: ActionProgress(
+                  isLoading: actions.isRunning(_InstagramAction.confirm),
+                  child: Text(l10n.instagramVerificationConfirm),
+                ),
+              ),
+              TextButton(
+                onPressed: flow.isBusy || actions.isBusy
+                    ? null
+                    : () =>
+                          actions.run(_InstagramAction.cancel, notifier.cancel),
+                child: ActionProgress(
+                  isLoading: actions.isRunning(_InstagramAction.cancel),
+                  child: Text(l10n.instagramCancelVerification),
+                ),
+              ),
+              if (flow.hasError) ...[
+                const SizedBox(height: 8),
+                Text(l10n.instagramActionError),
+              ],
+            ],
           ),
-          TextButton(
-            onPressed: flow.isBusy ? null : notifier.cancel,
-            child: Text(l10n.instagramCancelVerification),
+          InstagramVerificationState.confirmed => Text(
+            l10n.instagramVerificationConfirmed,
           ),
-          if (flow.hasError) ...[
-            const SizedBox(height: 8),
-            Text(l10n.instagramActionError),
-          ],
-        ],
-      ),
-      InstagramVerificationState.confirmed => Text(
-        l10n.instagramVerificationConfirmed,
-      ),
-      InstagramVerificationState.expired => _RetryVerification(
-        message: l10n.instagramVerificationExpired,
-        onRetry: notifier.create,
-      ),
-      InstagramVerificationState.cancelled ||
-      InstagramVerificationState.superseded => _RetryVerification(
-        message: l10n.instagramVerificationCancelled,
-        onRetry: notifier.create,
-      ),
-      InstagramVerificationState.rejected => _RetryVerification(
-        message: _verificationRetryMessage(l10n, attempt.retryCode),
-        onRetry: notifier.create,
-      ),
-      InstagramVerificationState.conflicted => _RetryVerification(
-        message: l10n.instagramVerificationConflict,
-        onRetry: notifier.create,
-      ),
-      InstagramVerificationState.unknown => _RetryVerification(
-        message: l10n.instagramActionError,
-        onRetry: notifier.create,
-      ),
-    };
+          InstagramVerificationState.expired => _RetryVerification(
+            message: l10n.instagramVerificationExpired,
+            onRetry: notifier.create,
+          ),
+          InstagramVerificationState.cancelled ||
+          InstagramVerificationState.superseded => _RetryVerification(
+            message: l10n.instagramVerificationCancelled,
+            onRetry: notifier.create,
+          ),
+          InstagramVerificationState.rejected => _RetryVerification(
+            message: _verificationRetryMessage(l10n, attempt.retryCode),
+            onRetry: notifier.create,
+          ),
+          InstagramVerificationState.conflicted => _RetryVerification(
+            message: l10n.instagramVerificationConflict,
+            onRetry: notifier.create,
+          ),
+          InstagramVerificationState.unknown => _RetryVerification(
+            message: l10n.instagramActionError,
+            onRetry: notifier.create,
+          ),
+        };
+      },
+    );
   }
 }
 
@@ -376,69 +415,84 @@ class _ChallengeControls extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final l10n = AppLocalizations.of(context);
-    final challenge = attempt.challenge;
-    final dmUrl = attempt.dmUrl;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Text(l10n.instagramVerificationSendChallenge),
-        const SizedBox(height: 8),
-        Semantics(
-          label: l10n.instagramVerificationChallengeLabel,
-          child: SelectableText(
-            challenge ?? l10n.instagramVerificationProcessing,
-            style: Theme.of(context).textTheme.headlineSmall,
-            textAlign: TextAlign.center,
-          ),
-        ),
-        const SizedBox(height: 8),
-        Column(
+    return AsyncActionBuilder(
+      builder: (context, actions) {
+        final l10n = AppLocalizations.of(context);
+        final challenge = attempt.challenge;
+        final dmUrl = attempt.dmUrl;
+        return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            OutlinedButton.icon(
-              onPressed: challenge == null
-                  ? null
-                  : () async {
-                      await Clipboard.setData(ClipboardData(text: challenge));
-                      if (!context.mounted || !_current(ref, lease)) return;
-                      context.showInfo(l10n.instagramChallengeCopied);
-                    },
-              icon: const Icon(CraftskyIconsBold.copy),
-              label: Text(l10n.instagramCopyChallenge),
+            Text(l10n.instagramVerificationSendChallenge),
+            const SizedBox(height: 8),
+            Semantics(
+              label: l10n.instagramVerificationChallengeLabel,
+              child: SelectableText(
+                challenge ?? l10n.instagramVerificationProcessing,
+                style: Theme.of(context).textTheme.headlineSmall,
+                textAlign: TextAlign.center,
+              ),
             ),
             const SizedBox(height: 8),
-            FilledButton.icon(
-              onPressed: dmUrl == null
-                  ? null
-                  : () async {
-                      await ref.read(instagramDmLauncherProvider)(dmUrl);
-                      if (!context.mounted || !_current(ref, lease)) return;
-                    },
-              icon: const Icon(CraftskyIconsBold.externalLink),
-              label: Text(l10n.instagramOpenDm),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: challenge == null
+                      ? null
+                      : () async {
+                          await Clipboard.setData(
+                            ClipboardData(text: challenge),
+                          );
+                          if (!context.mounted || !_current(ref, lease)) return;
+                          context.showInfo(l10n.instagramChallengeCopied);
+                        },
+                  icon: const Icon(CraftskyIconsBold.copy),
+                  label: Text(l10n.instagramCopyChallenge),
+                ),
+                const SizedBox(height: 8),
+                FilledButton.icon(
+                  onPressed: dmUrl == null
+                      ? null
+                      : () async {
+                          await ref.read(instagramDmLauncherProvider)(dmUrl);
+                          if (!context.mounted || !_current(ref, lease)) return;
+                        },
+                  icon: const Icon(CraftskyIconsBold.externalLink),
+                  label: Text(l10n.instagramOpenDm),
+                ),
+                const SizedBox(height: 8),
+                TextButton(
+                  onPressed: isBusy || actions.isBusy
+                      ? null
+                      : () => actions.run(
+                          _InstagramAction.cancel,
+                          () => ref
+                              .read(
+                                instagramVerificationProvider(lease).notifier,
+                              )
+                              .cancel(),
+                        ),
+                  child: ActionProgress(
+                    isLoading: actions.isRunning(_InstagramAction.cancel),
+                    child: Text(l10n.instagramCancelVerification),
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 8),
-            TextButton(
-              onPressed: isBusy
-                  ? null
-                  : () => ref
-                        .read(instagramVerificationProvider(lease).notifier)
-                        .cancel(),
-              child: Text(l10n.instagramCancelVerification),
-            ),
+            if (hasError) ...[
+              const SizedBox(height: 8),
+              Text(l10n.instagramActionError),
+              TextButton(
+                onPressed: () => ref
+                    .read(instagramVerificationProvider(lease).notifier)
+                    .poll(),
+                child: Text(l10n.instagramRetry),
+              ),
+            ],
           ],
-        ),
-        if (hasError) ...[
-          const SizedBox(height: 8),
-          Text(l10n.instagramActionError),
-          TextButton(
-            onPressed: () =>
-                ref.read(instagramVerificationProvider(lease).notifier).poll(),
-            child: Text(l10n.instagramRetry),
-          ),
-        ],
-      ],
+        );
+      },
     );
   }
 }
@@ -586,7 +640,10 @@ class _ImportComposerCardState extends ConsumerState<_ImportComposerCard> {
               ButtonSegment(
                 value: _ImportInputKind.json,
                 label: Text(l10n.instagramImportJson),
-                icon: const Icon(CraftskyIconsBold.openFile),
+                icon: ActionProgress(
+                  isLoading: _busy,
+                  child: const Icon(CraftskyIconsBold.openFile),
+                ),
               ),
               ButtonSegment(
                 value: _ImportInputKind.manual,
@@ -625,12 +682,18 @@ class _ImportComposerCardState extends ConsumerState<_ImportComposerCard> {
             SizedBox(height: spacing.sp2),
             FilledButton(
               onPressed: ready && !_busy ? _importManual : null,
-              child: Text(l10n.instagramImportManualAction),
+              child: ActionProgress(
+                isLoading: _busy,
+                child: Text(l10n.instagramImportManualAction),
+              ),
             ),
           ] else
             FilledButton.icon(
               onPressed: ready && !_busy ? _pickExport : null,
-              icon: const Icon(CraftskyIconsBold.openFile),
+              icon: ActionProgress(
+                isLoading: _busy,
+                child: const Icon(CraftskyIconsBold.openFile),
+              ),
               label: Text(l10n.instagramImportSelectJson),
             ),
           if (imports.hasError) ...[
@@ -795,11 +858,27 @@ class _ImportsCard extends ConsumerWidget {
                       for (final item in page.items)
                         _ImportRow(lease: lease, item: item),
                       if (page.cursor != null)
-                        TextButton(
-                          onPressed: () => ref
-                              .read(instagramImportsProvider(lease).notifier)
-                              .loadMore(),
-                          child: Text(l10n.instagramLoadMore),
+                        AsyncActionBuilder(
+                          builder: (context, pagination) => TextButton(
+                            onPressed: pagination.isBusy
+                                ? null
+                                : () => pagination.run(
+                                    _InstagramAction.more,
+                                    () async {
+                                      await ref
+                                          .read(
+                                            instagramImportsProvider(
+                                              lease,
+                                            ).notifier,
+                                          )
+                                          .loadMore();
+                                    },
+                                  ),
+                            child: ActionProgress(
+                              isLoading: pagination.isBusy,
+                              child: Text(l10n.instagramLoadMore),
+                            ),
+                          ),
                         ),
                     ],
                   ),
@@ -818,63 +897,85 @@ class _ImportRow extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final theme = Theme.of(context);
-    final l10n = AppLocalizations.of(context);
-    final notifier = ref.read(instagramImportsProvider(lease).notifier);
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    return AsyncActionBuilder(
+      builder: (context, actions) {
+        final theme = Theme.of(context);
+        final l10n = AppLocalizations.of(context);
+        final notifier = ref.read(instagramImportsProvider(lease).notifier);
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      _importSourceLabel(l10n, item.sourceType),
-                      style: theme.textTheme.titleMedium,
-                    ),
-                    Text(
-                      l10n.instagramImportCounts(item.followingCount),
-                    ),
-                    if (item.state ==
-                        InstagramImportState.membershipInactive) ...[
-                      const SizedBox(height: 4),
-                      Text(l10n.instagramImportReactivationDisclosure),
-                      FilledButton.tonal(
-                        onPressed: () => _runImportAction(
-                          context,
-                          ref,
-                          lease,
-                          () => notifier.reactivate(item.importId),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          _importSourceLabel(l10n, item.sourceType),
+                          style: theme.textTheme.titleMedium,
                         ),
-                        child: Text(l10n.instagramImportReactivate),
-                      ),
-                    ],
-                  ],
-                ),
+                        Text(
+                          l10n.instagramImportCounts(item.followingCount),
+                        ),
+                        if (item.state ==
+                            InstagramImportState.membershipInactive) ...[
+                          const SizedBox(height: 4),
+                          Text(l10n.instagramImportReactivationDisclosure),
+                          FilledButton.tonal(
+                            onPressed: actions.isBusy
+                                ? null
+                                : () => actions.run(
+                                    _InstagramAction.reactivate,
+                                    () => _runImportAction(
+                                      context,
+                                      ref,
+                                      lease,
+                                      () => notifier.reactivate(item.importId),
+                                    ),
+                                  ),
+                            child: ActionProgress(
+                              isLoading: actions.isRunning(
+                                _InstagramAction.reactivate,
+                              ),
+                              child: Text(l10n.instagramImportReactivate),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: actions.isBusy
+                        ? null
+                        : () => actions.run(
+                            _InstagramAction.delete,
+                            () => _runImportAction(
+                              context,
+                              ref,
+                              lease,
+                              () => notifier.delete(item.importId),
+                            ),
+                          ),
+                    style: IconButton.styleFrom(
+                      foregroundColor: theme.colorScheme.error,
+                    ),
+                    icon: ActionProgress(
+                      isLoading: actions.isRunning(_InstagramAction.delete),
+                      child: const Icon(CraftskyIconsBold.delete),
+                    ),
+                    tooltip: l10n.instagramImportDelete,
+                  ),
+                ],
               ),
-              IconButton(
-                onPressed: () => _runImportAction(
-                  context,
-                  ref,
-                  lease,
-                  () => notifier.delete(item.importId),
-                ),
-                style: IconButton.styleFrom(
-                  foregroundColor: theme.colorScheme.error,
-                ),
-                icon: const Icon(CraftskyIconsBold.delete),
-                tooltip: l10n.instagramImportDelete,
-              ),
+              const Divider(),
             ],
           ),
-          const Divider(),
-        ],
-      ),
+        );
+      },
     );
   }
 }
@@ -935,11 +1036,25 @@ class _SuggestionsCard extends ConsumerWidget {
                       onTap: onSuggestionTap,
                     ),
                 if (value.cursor != null)
-                  TextButton(
-                    onPressed: () => ref
-                        .read(instagramSuggestionsProvider(lease).notifier)
-                        .loadMore(),
-                    child: Text(l10n.instagramLoadMore),
+                  AsyncActionBuilder(
+                    builder: (context, pagination) => TextButton(
+                      onPressed: pagination.isBusy
+                          ? null
+                          : () =>
+                                pagination.run(_InstagramAction.more, () async {
+                                  await ref
+                                      .read(
+                                        instagramSuggestionsProvider(
+                                          lease,
+                                        ).notifier,
+                                      )
+                                      .loadMore();
+                                }),
+                      child: ActionProgress(
+                        isLoading: pagination.isBusy,
+                        child: Text(l10n.instagramLoadMore),
+                      ),
+                    ),
                   ),
                 if (value.hasActionError) ...[
                   SizedBox(height: spacing.sp2),
@@ -969,80 +1084,96 @@ class _SuggestionRow extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final theme = Theme.of(context);
-    final spacing = theme.extension<SpacingTheme>()!;
-    final l10n = AppLocalizations.of(context);
-    final target = suggestion.target;
-    final notifier = ref.read(instagramSuggestionsProvider(lease).notifier);
-    return Padding(
-      key: ValueKey('instagram-suggestion-${suggestion.suggestionId}'),
-      padding: EdgeInsets.only(bottom: spacing.sp3),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          InkWell(
-            onTap: busy || onTap == null
-                ? null
-                : () {
-                    if (!_current(ref, lease)) return;
-                    onTap!(suggestion);
-                  },
-            child: Row(
-              children: [
-                ProfileAvatar(
-                  seed: target.displayLabel,
-                  avatarUrl: target.avatar,
-                  size: ProfileAvatarSize.small,
-                ),
-                SizedBox(width: spacing.sp3),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        target.displayLabel,
-                        style: theme.textTheme.titleMedium,
-                      ),
-                      Text('@${target.handle}'),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          SizedBox(height: spacing.sp2),
-          Row(
+    return AsyncActionBuilder(
+      builder: (context, actions) {
+        final theme = Theme.of(context);
+        final spacing = theme.extension<SpacingTheme>()!;
+        final l10n = AppLocalizations.of(context);
+        final target = suggestion.target;
+        final notifier = ref.read(instagramSuggestionsProvider(lease).notifier);
+        return Padding(
+          key: ValueKey('instagram-suggestion-${suggestion.suggestionId}'),
+          padding: EdgeInsets.only(bottom: spacing.sp3),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Expanded(
-                child: FilledButton(
-                  onPressed: busy
-                      ? null
-                      : () => _runSuggestionAction(
-                          context,
-                          ref,
-                          lease,
-                          () => notifier.accept(suggestion.suggestionId),
-                        ),
-                  child: Text(l10n.instagramSuggestionFollow),
+              InkWell(
+                onTap: busy || actions.isBusy || onTap == null
+                    ? null
+                    : () {
+                        if (!_current(ref, lease)) return;
+                        onTap!(suggestion);
+                      },
+                child: Row(
+                  children: [
+                    ProfileAvatar(
+                      seed: target.displayLabel,
+                      avatarUrl: target.avatar,
+                      size: ProfileAvatarSize.small,
+                    ),
+                    SizedBox(width: spacing.sp3),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            target.displayLabel,
+                            style: theme.textTheme.titleMedium,
+                          ),
+                          Text('@${target.handle}'),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              SizedBox(width: spacing.sp2),
-              TextButton(
-                onPressed: busy
-                    ? null
-                    : () => _runSuggestionAction(
-                        context,
-                        ref,
-                        lease,
-                        () => notifier.dismiss(suggestion.suggestionId),
+              SizedBox(height: spacing.sp2),
+              Row(
+                children: [
+                  Expanded(
+                    child: FilledButton(
+                      onPressed: busy || actions.isBusy
+                          ? null
+                          : () => actions.run(
+                              _InstagramAction.follow,
+                              () => _runSuggestionAction(
+                                context,
+                                ref,
+                                lease,
+                                () => notifier.accept(suggestion.suggestionId),
+                              ),
+                            ),
+                      child: ActionProgress(
+                        isLoading: actions.isRunning(_InstagramAction.follow),
+                        child: Text(l10n.instagramSuggestionFollow),
                       ),
-                child: Text(l10n.instagramSuggestionDismiss),
+                    ),
+                  ),
+                  SizedBox(width: spacing.sp2),
+                  TextButton(
+                    onPressed: busy || actions.isBusy
+                        ? null
+                        : () => actions.run(
+                            _InstagramAction.dismiss,
+                            () => _runSuggestionAction(
+                              context,
+                              ref,
+                              lease,
+                              () => notifier.dismiss(suggestion.suggestionId),
+                            ),
+                          ),
+                    child: ActionProgress(
+                      isLoading: actions.isRunning(_InstagramAction.dismiss),
+                      child: Text(l10n.instagramSuggestionDismiss),
+                    ),
+                  ),
+                ],
               ),
+              const Divider(),
             ],
           ),
-          const Divider(),
-        ],
-      ),
+        );
+      },
     );
   }
 }
