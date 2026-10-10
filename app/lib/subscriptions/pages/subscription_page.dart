@@ -1146,6 +1146,12 @@ class _TierCard extends StatelessWidget {
     BillingSubscription? subscription,
   ) {
     final presentation = projectLicensePresentation(state, license);
+    final assignmentIsLoading =
+        pendingOperation?.licenseId == license.id &&
+        pendingOperation?.kind == PendingSubscriptionOperationKind.assignment;
+    final unassignmentIsLoading =
+        pendingOperation?.licenseId == license.id &&
+        pendingOperation?.kind == PendingSubscriptionOperationKind.unassignment;
     final periodEnd = subscription?.currentPeriodEndsAt;
     final accessEnd = subscription?.endsAt ?? periodEnd;
     final summary = _subscriptionSummary(
@@ -1161,8 +1167,10 @@ class _TierCard extends StatelessWidget {
         license.assignable &&
         (presentation == SubscriptionTierPresentation.active ||
             presentation == SubscriptionTierPresentation.canceledAccessible) &&
-        model.onAssign != null;
-    final canUnassign = license.assignedDid != null && model.onUnassign != null;
+        (model.onAssign != null || assignmentIsLoading);
+    final canUnassign =
+        license.assignedDid != null &&
+        (model.onUnassign != null || unassignmentIsLoading);
     return [
       const SizedBox(height: 12),
       const Divider(),
@@ -1176,7 +1184,10 @@ class _TierCard extends StatelessWidget {
             label: license.assignedDid == null
                 ? l10n.subscriptionsAssign
                 : l10n.subscriptionsReassign,
-            onPressed: () => model.onAssign!(license),
+            onPressed: model.onAssign == null
+                ? null
+                : () => model.onAssign!(license),
+            isLoading: assignmentIsLoading,
           ),
         ),
       ],
@@ -1186,7 +1197,10 @@ class _TierCard extends StatelessWidget {
           alignment: AlignmentDirectional.centerStart,
           child: _TextActionButton(
             label: l10n.subscriptionsUnassign,
-            onPressed: () => model.onUnassign!(license),
+            onPressed: model.onUnassign == null
+                ? null
+                : () => model.onUnassign!(license),
+            isLoading: unassignmentIsLoading,
           ),
         ),
       ],
@@ -1295,7 +1309,7 @@ class _ActionButton extends StatelessWidget {
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.only(bottom: 6),
     child: ChunkyButton(
-      onPressed: onPressed,
+      onPressed: isLoading ? null : onPressed,
       child: _ActionButtonChild(label: label, isLoading: isLoading),
     ),
   );
@@ -1314,7 +1328,7 @@ class _PrimaryActionButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => FilledButton(
-    onPressed: onPressed,
+    onPressed: isLoading ? null : onPressed,
     child: _ActionButtonChild(label: label, isLoading: isLoading),
   );
 }
@@ -1332,7 +1346,7 @@ class _TextActionButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => TextButton(
-    onPressed: onPressed,
+    onPressed: isLoading ? null : onPressed,
     style: TextButton.styleFrom(minimumSize: const Size(48, 48)),
     child: _ActionButtonChild(label: label, isLoading: isLoading),
   );

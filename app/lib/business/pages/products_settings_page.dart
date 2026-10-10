@@ -8,6 +8,7 @@ import 'package:craftsky_app/business/providers/products_controller.dart';
 import 'package:craftsky_app/business/widgets/product_editor.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/shared/image/craftsky_image_attachment_preview.dart';
+import 'package:craftsky_app/shared/widgets/async_action_builder.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/subscriptions/providers/subscription_access_provider.dart';
@@ -19,6 +20,8 @@ import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+enum _ProductAction { reorder }
 
 class ProductsSettingsPage extends ConsumerWidget {
   const ProductsSettingsPage({super.key});
@@ -106,232 +109,253 @@ class _ProductsContent extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final l10n = AppLocalizations.of(context);
-    final controller = ref.read(productsControllerProvider.notifier);
-    final busy = state.status == ProductsStatus.saving;
-    final spacing = Theme.of(context).extension<SpacingTheme>()!;
-    return SafeArea(
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 760),
-          child: Padding(
-            padding: EdgeInsets.all(spacing.sp4),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Semantics(
-                  liveRegion: true,
-                  label: l10n.businessProductsCount(
-                    state.products.length,
-                    businessProductLimit,
-                  ),
-                  child: Text(
-                    l10n.businessProductsCount(
-                      state.products.length,
-                      businessProductLimit,
-                    ),
-                  ),
-                ),
-                if (state.status == ProductsStatus.conflict)
-                  Card(
-                    color: Theme.of(context).colorScheme.errorContainer,
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(l10n.businessProductsConflict),
-                          TextButton(
-                            onPressed: controller.reloadAfterConflict,
-                            child: Text(l10n.businessProductsReload),
-                          ),
-                        ],
+    return AsyncActionBuilder(
+      builder: (context, actions) {
+        final l10n = AppLocalizations.of(context);
+        final controller = ref.read(productsControllerProvider.notifier);
+        final busy = state.status == ProductsStatus.saving || actions.isBusy;
+        final spacing = Theme.of(context).extension<SpacingTheme>()!;
+        return SafeArea(
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 760),
+              child: Padding(
+                padding: EdgeInsets.all(spacing.sp4),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Semantics(
+                      liveRegion: true,
+                      label: l10n.businessProductsCount(
+                        state.products.length,
+                        businessProductLimit,
+                      ),
+                      child: Text(
+                        l10n.businessProductsCount(
+                          state.products.length,
+                          businessProductLimit,
+                        ),
                       ),
                     ),
-                  )
-                else if (state.status == ProductsStatus.error ||
-                    state.status == ProductsStatus.ambiguous)
-                  Text(
-                    l10n.businessProductsSaveError,
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.error,
-                    ),
-                  ),
-                if (state.imageErrorProductId != null)
-                  Text(
-                    l10n.businessProductsUploadError,
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.error,
-                    ),
-                  ),
-                SizedBox(height: spacing.sp3),
-                Expanded(
-                  child: state.products.isEmpty
-                      ? CraftskyEmptyState(
-                          icon: CraftskyIcons.storefront,
-                          title: l10n.businessProductsSettingsTitle,
-                          subtitle: l10n.businessProductsEmpty,
-                        )
-                      : ReorderableListView.builder(
-                          itemCount: state.products.length,
-                          onReorderItem: (oldIndex, newIndex) => unawaited(
-                            controller.reorder(oldIndex, newIndex),
+                    if (state.status == ProductsStatus.conflict)
+                      Card(
+                        color: Theme.of(context).colorScheme.errorContainer,
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(l10n.businessProductsConflict),
+                              TextButton(
+                                onPressed: controller.reloadAfterConflict,
+                                child: Text(l10n.businessProductsReload),
+                              ),
+                            ],
                           ),
-                          itemBuilder: (context, index) {
-                            final product = state.products[index];
-                            final editLabel =
-                                l10n.businessProductEditorEditTitle;
-                            return CraftskyCard(
-                              key: ValueKey(product.id),
-                              margin: EdgeInsets.only(bottom: spacing.sp3),
-                              child: InkWell(
-                                onTap: busy
-                                    ? null
-                                    : () => _openEditor(
-                                        context,
-                                        controller,
-                                        product,
-                                      ),
-                                child: Padding(
-                                  padding: EdgeInsets.all(spacing.sp3),
-                                  child: Row(
-                                    children: [
-                                      SizedBox.square(
-                                        dimension: 88,
-                                        child: CraftskyImageAttachmentPreview(
-                                          aspectRatio: 1,
-                                          bytes: product.image.previewBytes,
-                                          imageUrl: product.image.previewUrl,
-                                          placeholderIcon: CraftskyIcons.image,
-                                        ),
-                                      ),
-                                      SizedBox(width: spacing.sp3),
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              product.title,
-                                              style: Theme.of(
-                                                context,
-                                              ).textTheme.titleMedium,
-                                            ),
-                                            SizedBox(height: spacing.sp1),
-                                            Text(
-                                              product.destination,
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                              style: Theme.of(
-                                                context,
-                                              ).textTheme.bodySmall,
-                                            ),
-                                            if (product.amount.isNotEmpty &&
-                                                product
-                                                    .currency
-                                                    .isNotEmpty) ...[
-                                              SizedBox(height: spacing.sp1),
-                                              Text(
-                                                '${product.amount} '
-                                                '${product.currency}',
-                                                style: Theme.of(
-                                                  context,
-                                                ).textTheme.labelMedium,
-                                              ),
-                                            ],
-                                          ],
-                                        ),
-                                      ),
-                                      CraftskyContextMenuButton(
-                                        tooltip: l10n.businessProductEdit(
-                                          product.title,
-                                        ),
-                                        enabled: !busy,
-                                        groups: [
-                                          CraftskyContextMenuGroup(
-                                            items: [
-                                              CraftskyContextMenuItem(
-                                                text: editLabel,
-                                                icon: CraftskyIconsBold.edit,
-                                                onPressed: () => _openEditor(
-                                                  context,
-                                                  controller,
-                                                  product,
-                                                ),
-                                              ),
-                                              if (index > 0)
-                                                CraftskyContextMenuItem(
-                                                  text: l10n
-                                                      .businessProductMoveUp(
-                                                        product.title,
-                                                      ),
-                                                  icon:
-                                                      CraftskyIconsBold.moveUp,
-                                                  onPressed: () => unawaited(
-                                                    controller.move(
-                                                      product.id,
-                                                      -1,
-                                                    ),
-                                                  ),
-                                                ),
-                                              if (index <
-                                                  state.products.length - 1)
-                                                CraftskyContextMenuItem(
-                                                  text: l10n
-                                                      .businessProductMoveDown(
-                                                        product.title,
-                                                      ),
-                                                  icon: CraftskyIconsBold
-                                                      .moveDown,
-                                                  onPressed: () => unawaited(
-                                                    controller.move(
-                                                      product.id,
-                                                      1,
-                                                    ),
-                                                  ),
-                                                ),
-                                            ],
+                        ),
+                      )
+                    else if (state.status == ProductsStatus.error ||
+                        state.status == ProductsStatus.ambiguous)
+                      Text(
+                        l10n.businessProductsSaveError,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.error,
+                        ),
+                      ),
+                    if (state.imageErrorProductId != null)
+                      Text(
+                        l10n.businessProductsUploadError,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.error,
+                        ),
+                      ),
+                    SizedBox(height: spacing.sp3),
+                    Expanded(
+                      child: state.products.isEmpty
+                          ? CraftskyEmptyState(
+                              icon: CraftskyIcons.storefront,
+                              title: l10n.businessProductsSettingsTitle,
+                              subtitle: l10n.businessProductsEmpty,
+                            )
+                          : ReorderableListView.builder(
+                              itemCount: state.products.length,
+                              onReorderItem: (oldIndex, newIndex) {
+                                if (busy) return;
+                                unawaited(
+                                  actions.run(
+                                    _ProductAction.reorder,
+                                    () =>
+                                        controller.reorder(oldIndex, newIndex),
+                                    target: state.products[oldIndex].id,
+                                  ),
+                                );
+                              },
+                              itemBuilder: (context, index) {
+                                final product = state.products[index];
+                                final moveUpLabel = l10n.businessProductMoveUp(
+                                  product.title,
+                                );
+                                final moveDownLabel = l10n
+                                    .businessProductMoveDown(product.title);
+                                const destructive =
+                                    CraftskyContextMenuItemStyle.destructive;
+                                final editLabel =
+                                    l10n.businessProductEditorEditTitle;
+                                return CraftskyCard(
+                                  key: ValueKey(product.id),
+                                  margin: EdgeInsets.only(bottom: spacing.sp3),
+                                  child: InkWell(
+                                    onTap: busy
+                                        ? null
+                                        : () => _openEditor(
+                                            context,
+                                            controller,
+                                            product,
                                           ),
-                                          CraftskyContextMenuGroup(
-                                            items: [
-                                              CraftskyContextMenuItem(
-                                                text: l10n
-                                                    .businessProductRemove(
-                                                      product.title,
-                                                    ),
-                                                icon: CraftskyIconsBold.delete,
-                                                style:
-                                                    CraftskyContextMenuItemStyle
-                                                        .destructive,
-                                                onPressed: () => unawaited(
-                                                  _removeProduct(
-                                                    context,
-                                                    controller,
-                                                    product,
-                                                  ),
+                                    child: Padding(
+                                      padding: EdgeInsets.all(spacing.sp3),
+                                      child: Row(
+                                        children: [
+                                          SizedBox.square(
+                                            dimension: 88,
+                                            child:
+                                                CraftskyImageAttachmentPreview(
+                                                  aspectRatio: 1,
+                                                  bytes: product
+                                                      .image
+                                                      .previewBytes,
+                                                  imageUrl:
+                                                      product.image.previewUrl,
+                                                  placeholderIcon:
+                                                      CraftskyIcons.image,
                                                 ),
+                                          ),
+                                          SizedBox(width: spacing.sp3),
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  product.title,
+                                                  style: Theme.of(
+                                                    context,
+                                                  ).textTheme.titleMedium,
+                                                ),
+                                                SizedBox(height: spacing.sp1),
+                                                Text(
+                                                  product.destination,
+                                                  maxLines: 1,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                  style: Theme.of(
+                                                    context,
+                                                  ).textTheme.bodySmall,
+                                                ),
+                                                if (product.amount.isNotEmpty &&
+                                                    product
+                                                        .currency
+                                                        .isNotEmpty) ...[
+                                                  SizedBox(height: spacing.sp1),
+                                                  Text(
+                                                    '${product.amount} '
+                                                    '${product.currency}',
+                                                    style: Theme.of(
+                                                      context,
+                                                    ).textTheme.labelMedium,
+                                                  ),
+                                                ],
+                                              ],
+                                            ),
+                                          ),
+                                          CraftskyContextMenuButton(
+                                            tooltip: l10n.businessProductEdit(
+                                              product.title,
+                                            ),
+                                            enabled: !busy,
+                                            isLoading: actions.isRunning(
+                                              _ProductAction.reorder,
+                                              target: product.id,
+                                            ),
+                                            groups: [
+                                              CraftskyContextMenuGroup(
+                                                items: [
+                                                  CraftskyContextMenuItem(
+                                                    text: editLabel,
+                                                    icon:
+                                                        CraftskyIconsBold.edit,
+                                                    onPressed: () =>
+                                                        _openEditor(
+                                                          context,
+                                                          controller,
+                                                          product,
+                                                        ),
+                                                  ),
+                                                  if (index > 0)
+                                                    CraftskyContextMenuItem(
+                                                      text: moveUpLabel,
+                                                      icon: CraftskyIconsBold
+                                                          .moveUp,
+                                                      onPressed: () =>
+                                                          controller.move(
+                                                            product.id,
+                                                            -1,
+                                                          ),
+                                                    ),
+                                                  if (index <
+                                                      state.products.length - 1)
+                                                    CraftskyContextMenuItem(
+                                                      text: moveDownLabel,
+                                                      icon: CraftskyIconsBold
+                                                          .moveDown,
+                                                      onPressed: () =>
+                                                          controller.move(
+                                                            product.id,
+                                                            1,
+                                                          ),
+                                                    ),
+                                                ],
+                                              ),
+                                              CraftskyContextMenuGroup(
+                                                items: [
+                                                  CraftskyContextMenuItem(
+                                                    text: l10n
+                                                        .businessProductRemove(
+                                                          product.title,
+                                                        ),
+                                                    icon: CraftskyIconsBold
+                                                        .delete,
+                                                    style: destructive,
+                                                    onPressed: () =>
+                                                        _removeProduct(
+                                                          context,
+                                                          controller,
+                                                          product,
+                                                        ),
+                                                  ),
+                                                ],
                                               ),
                                             ],
                                           ),
                                         ],
                                       ),
-                                    ],
+                                    ),
                                   ),
-                                ),
-                              ),
-                            );
-                          },
-                        ),
+                                );
+                              },
+                            ),
+                    ),
+                    SizedBox(
+                      key: const Key('products-manager-bottom-safe-space'),
+                      height: spacing.sp9,
+                    ),
+                  ],
                 ),
-                SizedBox(
-                  key: const Key('products-manager-bottom-safe-space'),
-                  height: spacing.sp9,
-                ),
-              ],
+              ),
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 

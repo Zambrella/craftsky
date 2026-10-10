@@ -7,6 +7,7 @@ import 'package:craftsky_app/auth/widgets/handle_typeahead_field.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/shared/link/external_link.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
+import 'package:craftsky_app/shared/widgets/action_progress.dart';
 import 'package:craftsky_app/shared/widgets/craft_icon.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/craftsky_divider.dart';
@@ -14,6 +15,8 @@ import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+enum _WelcomeAction { signIn, register }
 
 class WelcomePage extends ConsumerStatefulWidget {
   const WelcomePage({this.linkLauncher = launchExternalLink, super.key});
@@ -27,6 +30,8 @@ class WelcomePage extends ConsumerStatefulWidget {
 class _WelcomePageState extends ConsumerState<WelcomePage> {
   static final Uri _termsUri = Uri.parse('https://craftsky.social/terms');
   static final Uri _privacyUri = Uri.parse('https://craftsky.social/privacy');
+
+  _WelcomeAction? _pendingAction;
 
   final _handleController = TextEditingController();
 
@@ -103,9 +108,12 @@ class _WelcomePageState extends ConsumerState<WelcomePage> {
                           SizedBox(height: spacing.sp5),
                           ChunkyButton(
                             onPressed: busy ? null : _startRegistration,
-                            child: busy
-                                ? Text(l10n.welcomeRedirectingAction)
-                                : Text(l10n.welcomeRegisterAction),
+                            child: ActionProgress(
+                              isLoading:
+                                  busy &&
+                                  _pendingAction == _WelcomeAction.register,
+                              child: Text(l10n.welcomeRegisterAction),
+                            ),
                           ),
                           SizedBox(height: spacing.sp2),
                           Text(
@@ -128,10 +136,11 @@ class _WelcomePageState extends ConsumerState<WelcomePage> {
                           ChunkyButton(
                             variant: ChunkyButtonVariant.secondary,
                             onPressed: busy ? null : _signIn,
-                            child: Text(
-                              busy
-                                  ? l10n.welcomeRedirectingAction
-                                  : l10n.welcomeSignInAction,
+                            child: ActionProgress(
+                              isLoading:
+                                  busy &&
+                                  _pendingAction == _WelcomeAction.signIn,
+                              child: Text(l10n.welcomeSignInAction),
                             ),
                           ),
                           SizedBox(height: spacing.sp5),
@@ -156,6 +165,8 @@ class _WelcomePageState extends ConsumerState<WelcomePage> {
   }
 
   void _signIn() {
+    if (ref.read(authControllerProvider).isLoading) return;
+    setState(() => _pendingAction = _WelcomeAction.signIn);
     unawaited(
       ref
           .read(authControllerProvider.notifier)
@@ -164,6 +175,8 @@ class _WelcomePageState extends ConsumerState<WelcomePage> {
   }
 
   void _startRegistration() {
+    if (ref.read(authControllerProvider).isLoading) return;
+    setState(() => _pendingAction = _WelcomeAction.register);
     unawaited(ref.read(authControllerProvider.notifier).startRegistration());
   }
 

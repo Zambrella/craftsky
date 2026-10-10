@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:craftsky_app/shared/widgets/action_progress.dart';
 import 'package:craftsky_app/subscriptions/subscription_build_config.dart';
 import 'package:craftsky_app/subscriptions/widgets/plus_action_icon.dart';
 import 'package:craftsky_app/theme/craftsky_divider.dart';
@@ -74,12 +75,13 @@ RelativeRect craftskyContextMenuAnchorPosition(BuildContext context) {
 }
 
 /// Icon button that opens a responsive CraftSky context menu.
-class CraftskyContextMenuButton extends StatelessWidget {
+class CraftskyContextMenuButton extends StatefulWidget {
   const CraftskyContextMenuButton({
     required this.groups,
     this.icon = CraftskyIconsBold.more,
     this.tooltip,
     this.enabled = true,
+    this.isLoading = false,
     super.key,
   });
 
@@ -87,20 +89,67 @@ class CraftskyContextMenuButton extends StatelessWidget {
   final IconData icon;
   final String? tooltip;
   final bool enabled;
+  final bool isLoading;
+
+  @override
+  State<CraftskyContextMenuButton> createState() =>
+      _CraftskyContextMenuButtonState();
+}
+
+class _CraftskyContextMenuButtonState extends State<CraftskyContextMenuButton> {
+  bool _acting = false;
+
+  Future<void> _perform(FutureOr<void> Function() action) async {
+    if (_acting || !mounted || !widget.enabled || widget.isLoading) return;
+    final result = action();
+    if (result is! Future || !mounted) return;
+    setState(() => _acting = true);
+    try {
+      await result;
+    } finally {
+      if (mounted) setState(() => _acting = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    final loading = widget.isLoading || _acting;
     return IconButton(
-      icon: Icon(icon, size: 22),
-      tooltip: tooltip,
+      icon: ActionProgress(
+        isLoading: loading,
+        size: 22,
+        child: Icon(widget.icon, size: 22),
+      ),
+      tooltip: widget.tooltip,
       padding: EdgeInsets.zero,
-      onPressed: enabled
+      onPressed: widget.enabled && !loading
           ? () {
               unawaited(
                 showCraftskyContextMenu(
                   context,
                   position: craftskyContextMenuAnchorPosition(context),
-                  groups: groups,
+                  groups: [
+                    for (final group in widget.groups)
+                      CraftskyContextMenuGroup(
+                        items: [
+                          for (final item in group.items)
+                            CraftskyContextMenuItem(
+                              text: item.text,
+                              icon: item.icon,
+                              key: item.key,
+                              description: item.description,
+                              semanticHint: item.semanticHint,
+                              isSelected: item.isSelected,
+                              switchValue: item.switchValue,
+                              style: item.style,
+                              locked: item.locked,
+                              onPressed: item.onPressed == null
+                                  ? null
+                                  : () => _perform(item.onPressed!),
+                            ),
+                        ],
+                      ),
+                  ],
                 ),
               );
             }

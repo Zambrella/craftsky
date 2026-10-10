@@ -1,6 +1,7 @@
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/service_status/models/service_status_document.dart';
 import 'package:craftsky_app/service_status/service_status_estimate_formatter.dart';
+import 'package:craftsky_app/shared/widgets/action_progress.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:flutter/material.dart';
@@ -51,7 +52,10 @@ class AnnouncementModal extends StatelessWidget {
               autofocus: true,
               backgroundColor: theme.colorScheme.primary,
               onPressed: dismissing ? null : onDismiss,
-              child: Text(l10n.serviceStatusDismiss),
+              child: ActionProgress(
+                isLoading: dismissing,
+                child: Text(l10n.serviceStatusDismiss),
+              ),
             ),
           ],
         ),

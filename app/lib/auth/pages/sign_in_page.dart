@@ -8,13 +8,15 @@ import 'package:craftsky_app/auth/widgets/handle_typeahead_field.dart';
 import 'package:craftsky_app/auth/widgets/registration_action.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
+import 'package:craftsky_app/shared/widgets/action_progress.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
-import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 enum SignInMode { signIn, addAccount }
+
+enum _SignInAction { signIn, register }
 
 class SignInPage extends ConsumerStatefulWidget {
   const SignInPage({super.key, this.mode = SignInMode.signIn});
@@ -26,6 +28,7 @@ class SignInPage extends ConsumerStatefulWidget {
 }
 
 class _SignInPageState extends ConsumerState<SignInPage> {
+  _SignInAction? _pendingAction;
   final _controller = TextEditingController();
 
   @override
@@ -96,15 +99,16 @@ class _SignInPageState extends ConsumerState<SignInPage> {
                 SizedBox(height: spacing.sp5),
                 ChunkyButton(
                   onPressed: canAddAccount && !busy ? _submit : null,
-                  child: busy
-                      ? const StitchProgressIndicator(size: 18)
-                      : Text(l10n.signInContinueAction),
+                  child: ActionProgress(
+                    isLoading: busy && _pendingAction == _SignInAction.signIn,
+                    child: Text(l10n.signInContinueAction),
+                  ),
                 ),
                 if (widget.mode == SignInMode.addAccount) ...[
                   SizedBox(height: spacing.sp5),
                   RegistrationAction(
-                    enabled: canAddAccount,
-                    isLoading: busy,
+                    enabled: canAddAccount && !busy,
+                    isLoading: busy && _pendingAction == _SignInAction.register,
                     onPressed: _startRegistration,
                   ),
                 ],
@@ -117,6 +121,8 @@ class _SignInPageState extends ConsumerState<SignInPage> {
   }
 
   void _submit() {
+    if (ref.read(authControllerProvider).isLoading) return;
+    setState(() => _pendingAction = _SignInAction.signIn);
     unawaited(
       ref
           .read(authControllerProvider.notifier)
@@ -125,6 +131,8 @@ class _SignInPageState extends ConsumerState<SignInPage> {
   }
 
   void _startRegistration() {
+    if (ref.read(authControllerProvider).isLoading) return;
+    setState(() => _pendingAction = _SignInAction.register);
     unawaited(ref.read(authControllerProvider.notifier).startRegistration());
   }
 

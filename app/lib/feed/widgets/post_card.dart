@@ -618,6 +618,7 @@ class PostCard extends ConsumerWidget {
                               ? l10n.postUnpinAction
                               : l10n.postPinAction,
                           isPinned: isCurrentPin,
+                          isPinPending: isPinPending,
                           pinLocked: !pinEligible,
                           onPinToggle:
                               pinProvider == null ||
@@ -1045,6 +1046,7 @@ class _PostCardMenu extends StatelessWidget {
     required this.isMuted,
     required this.isBlocking,
     required this.isRelationshipBusy,
+    required this.isPinPending,
     required this.onMuteToggle,
     required this.onBlockToggle,
     this.tooltip,
@@ -1065,6 +1067,7 @@ class _PostCardMenu extends StatelessWidget {
   final bool isMuted;
   final bool isBlocking;
   final bool isRelationshipBusy;
+  final bool isPinPending;
   final VoidCallback? onMuteToggle;
   final VoidCallback? onBlockToggle;
 
@@ -1075,6 +1078,8 @@ class _PostCardMenu extends StatelessWidget {
       width: _postCardMenuWidth,
       child: CraftskyContextMenuButton(
         tooltip: tooltip ?? l10n.postMoreActions,
+        isLoading: isPinPending,
+        enabled: !isRelationshipBusy && !isPinPending,
         groups: [
           if (onViewLikes != null)
             CraftskyContextMenuGroup(

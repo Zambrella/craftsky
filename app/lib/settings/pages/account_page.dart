@@ -10,6 +10,7 @@ import 'package:craftsky_app/settings/models/settings_row.dart';
 import 'package:craftsky_app/settings/providers/account_deletion_controller.dart';
 import 'package:craftsky_app/settings/widgets/settings_row_tile.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
+import 'package:craftsky_app/shared/widgets/async_action_builder.dart';
 import 'package:craftsky_app/subscriptions/providers/subscription_access_provider.dart';
 import 'package:craftsky_app/theme/brand_colors.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
@@ -17,6 +18,8 @@ import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+enum _AccountAction { delete }
 
 class AccountPage extends ConsumerWidget {
   const AccountPage({this.onDeleteConfirmed, super.key});
@@ -55,41 +58,51 @@ class AccountPage extends ConsumerWidget {
             ?.accountEligibility
             .restricted ??
         false;
-    return Scaffold(
-      appBar: AppBar(title: Text(l10n.accountTitle)),
-      body: ListView(
-        children: [
-          if (!isRestricted && accountType != null) ...[
-            Padding(
-              padding: const EdgeInsetsDirectional.fromSTEB(16, 20, 16, 8),
-              child: Text(
-                l10n.accountTypeTitle,
-                style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  color: Theme.of(context).colorScheme.primary,
+    return AsyncActionBuilder(
+      builder: (context, actions) {
+        return Scaffold(
+          appBar: AppBar(title: Text(l10n.accountTitle)),
+          body: ListView(
+            children: [
+              if (!isRestricted && accountType != null) ...[
+                Padding(
+                  padding: const EdgeInsetsDirectional.fromSTEB(16, 20, 16, 8),
+                  child: Text(
+                    l10n.accountTypeTitle,
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                  ),
                 ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Text(
+                    accountType == AccountType.business
+                        ? l10n.accountTypeBusiness
+                        : l10n.accountTypeRegular,
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
+              SettingsRowTile(
+                descriptor: const SettingsRowDescriptor(
+                  id: SettingsRowId.deleteAccount,
+                  kind: SettingsRowKind.destructiveAction,
+                ),
+                label: l10n.deleteAccountAction,
+                leading: CraftskyIconsBold.deleteForever,
+                isLoading: actions.isRunning(_AccountAction.delete),
+                onTap: did == null || actions.isBusy
+                    ? null
+                    : () => actions.run(
+                        _AccountAction.delete,
+                        () => _begin(context, ref, did),
+                      ),
               ),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Text(
-                accountType == AccountType.business
-                    ? l10n.accountTypeBusiness
-                    : l10n.accountTypeRegular,
-              ),
-            ),
-            const SizedBox(height: 12),
-          ],
-          SettingsRowTile(
-            descriptor: const SettingsRowDescriptor(
-              id: SettingsRowId.deleteAccount,
-              kind: SettingsRowKind.destructiveAction,
-            ),
-            label: l10n.deleteAccountAction,
-            leading: CraftskyIconsBold.deleteForever,
-            onTap: did == null ? null : () => _begin(context, ref, did),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 

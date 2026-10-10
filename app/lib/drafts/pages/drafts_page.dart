@@ -189,6 +189,7 @@ final class DraftsPageContent extends StatelessWidget {
           else
             for (final draft in items)
               DraftRow(
+                key: ValueKey(draft.id),
                 draft: draft,
                 onEdit: onEdit,
                 onDelete: onDelete,

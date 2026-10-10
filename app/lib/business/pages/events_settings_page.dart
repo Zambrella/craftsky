@@ -76,7 +76,11 @@ class EventsSettingsPage extends ConsumerWidget {
           licensed &&
               identity.value?.profile.accountType == AccountType.business
           ? CraftskyFloatingActionButton.extended(
-              onPressed: () => _openEditor(context),
+              onPressed:
+                  ref.watch(businessEventMutationControllerProvider).status ==
+                      EventMutationStatus.saving
+                  ? null
+                  : () => _openEditor(context),
               icon: const Icon(CraftskyIconsBold.add),
               label: Text(l10n.businessEventCreateTitle),
             )
@@ -281,9 +285,16 @@ class _OwnerEventCard extends ConsumerWidget {
         children: [
           EventCard(
             event: event,
-            onTap: () => _openEditor(context, event),
+            onTap:
+                ref.watch(businessEventMutationControllerProvider).status ==
+                    EventMutationStatus.saving
+                ? null
+                : () => _openEditor(context, event),
             trailing: CraftskyContextMenuButton(
               tooltip: l10n.businessEventManage(event.name),
+              enabled:
+                  ref.watch(businessEventMutationControllerProvider).status !=
+                  EventMutationStatus.saving,
               groups: [
                 CraftskyContextMenuGroup(
                   items: [

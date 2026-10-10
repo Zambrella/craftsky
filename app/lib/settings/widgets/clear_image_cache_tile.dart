@@ -42,6 +42,7 @@ class ClearImageCacheTile extends ConsumerWidget {
       ),
       label: l10n.settingsClearImageCache,
       leading: CraftskyIconsBold.clearCache,
+      isLoading: state is AsyncLoading,
       onTap: state is AsyncLoading
           ? null
           : () => ref.read(clearImageCacheProvider.notifier).clear(),

@@ -14,6 +14,7 @@ import 'package:craftsky_app/profile/providers/profile_image_picker_provider.dar
 import 'package:craftsky_app/router/responsive_modal_navigation.dart';
 import 'package:craftsky_app/shared/media/blob_api_client_provider.dart';
 import 'package:craftsky_app/shared/media/uploaded_image_blob.dart';
+import 'package:craftsky_app/shared/widgets/action_progress.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
@@ -69,6 +70,7 @@ class _EventEditorDialogState extends ConsumerState<EventEditorDialog> {
   AccountSessionLease? _unsavedOwner;
   bool _dirty = false;
   bool _saving = false;
+  bool _reloading = false;
 
   @override
   void initState() {
@@ -109,9 +111,9 @@ class _EventEditorDialogState extends ConsumerState<EventEditorDialog> {
         ? l10n.businessEventCreateTitle
         : l10n.businessEventSave;
     return PopScope<Object?>(
-      canPop: !_dirty || _saving,
+      canPop: !_dirty && !_saving && !_reloading,
       onPopInvokedWithResult: (didPop, _) async {
-        if (didPop) return;
+        if (didPop || _saving || _reloading) return;
         if (await _confirmDiscard() && context.mounted) {
           Navigator.of(context).pop();
         }
@@ -119,7 +121,9 @@ class _EventEditorDialogState extends ConsumerState<EventEditorDialog> {
       child: Scaffold(
         backgroundColor: swatches.paper,
         appBar: AppBar(
-          leading: CloseButton(onPressed: _requestClose),
+          leading: CloseButton(
+            onPressed: _saving || _reloading ? null : _requestClose,
+          ),
           title: Text(
             _event == null
                 ? l10n.businessEventCreateTitle
@@ -128,13 +132,16 @@ class _EventEditorDialogState extends ConsumerState<EventEditorDialog> {
         ),
         body: Column(
           children: [
-            if (conflict)
+            if (conflict || _reloading)
               MaterialBanner(
                 content: Text(l10n.businessEventConflict),
                 actions: [
                   TextButton(
-                    onPressed: _reloadConflict,
-                    child: Text(l10n.businessEventReload),
+                    onPressed: _reloading ? null : _reloadConflict,
+                    child: ActionProgress(
+                      isLoading: _reloading,
+                      child: Text(l10n.businessEventReload),
+                    ),
                   ),
                 ],
               )
@@ -152,7 +159,7 @@ class _EventEditorDialogState extends ConsumerState<EventEditorDialog> {
                     key: _formKey,
                     initial: _initial,
                     pickImage: widget.pickImage,
-                    enabled: !_saving && !conflict,
+                    enabled: !_saving && !_reloading && !conflict,
                     onChanged: () {
                       if (!_dirty) setState(() => _dirty = true);
                     },
@@ -167,7 +174,9 @@ class _EventEditorDialogState extends ConsumerState<EventEditorDialog> {
                         padding: EdgeInsets.only(bottom: spacing.sp4),
                         child: ChunkyButton(
                           key: const ValueKey('event-submit'),
-                          onPressed: _saving || conflict ? null : _submit,
+                          onPressed: _saving || _reloading || conflict
+                              ? null
+                              : _submit,
                           style: ButtonStyle(
                             minimumSize: WidgetStatePropertyAll(
                               Size.fromHeight(spacing.sp7),
@@ -270,19 +279,25 @@ class _EventEditorDialogState extends ConsumerState<EventEditorDialog> {
   }
 
   Future<void> _reloadConflict() async {
-    final event = await ref
-        .read(businessEventMutationControllerProvider.notifier)
-        .reloadConflict();
-    if (event != null && mounted) {
-      setState(() {
-        _event = event;
-        _initial = BusinessEventDraft.fromEvent(
-          event,
-          timeZones: ref.read(businessTimeZoneServiceProvider),
-        );
-        _formKey = GlobalKey<EventFormState>();
-        _dirty = false;
-      });
+    if (_saving || _reloading) return;
+    setState(() => _reloading = true);
+    try {
+      final event = await ref
+          .read(businessEventMutationControllerProvider.notifier)
+          .reloadConflict();
+      if (event != null && mounted) {
+        setState(() {
+          _event = event;
+          _initial = BusinessEventDraft.fromEvent(
+            event,
+            timeZones: ref.read(businessTimeZoneServiceProvider),
+          );
+          _formKey = GlobalKey<EventFormState>();
+          _dirty = false;
+        });
+      }
+    } finally {
+      if (mounted) setState(() => _reloading = false);
     }
   }
 

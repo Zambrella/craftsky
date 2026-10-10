@@ -244,29 +244,37 @@ void main() {
     expect(controller.signInCalls, ['alice.bsky.social']);
   });
 
-  testWidgets('Welcome labels both loading actions as redirecting', (
-    tester,
-  ) async {
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          authControllerProvider.overrideWith(_LoadingAuthController.new),
-        ],
-        child: MaterialApp(
-          theme: AppTheme.lightThemeData,
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
-          supportedLocales: AppLocalizations.supportedLocales,
-          home: const WelcomePage(),
+  testWidgets(
+    'Welcome disables handoff controls during unrelated auth loading',
+    (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            authControllerProvider.overrideWith(_LoadingAuthController.new),
+          ],
+          child: MaterialApp(
+            theme: AppTheme.lightThemeData,
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: const WelcomePage(),
+          ),
         ),
-      ),
-    );
+      );
 
-    expect(
-      find.widgetWithText(ChunkyButton, 'Redirecting...'),
-      findsNWidgets(2),
-    );
-    expect(find.byType(StitchProgressIndicator), findsNothing);
-  });
+      expect(
+        find.widgetWithText(ChunkyButton, 'Sign in'),
+        findsOneWidget,
+      );
+      expect(find.byType(StitchProgressIndicator), findsNothing);
+      for (final button in tester.widgetList<ChunkyButton>(
+        find.byType(ChunkyButton),
+      )) {
+        expect(button.onPressed, isNull);
+      }
+    },
+  );
 
   testWidgets('AT-003 resume without a callback leaves Welcome retryable', (
     tester,

@@ -16,6 +16,7 @@ import 'package:craftsky_app/profile/widgets/profile_identity.dart';
 import 'package:craftsky_app/profile/widgets/profile_sliver_app_bar.dart';
 import 'package:craftsky_app/profile/widgets/profile_stats.dart';
 import 'package:craftsky_app/profile/widgets/profile_tab_bar.dart';
+import 'package:craftsky_app/shared/widgets/action_progress.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/chunky_icon_button.dart';
 import 'package:craftsky_app/theme/craftsky_context_menu.dart';
@@ -481,7 +482,7 @@ class _ProfileCardActions extends StatelessWidget {
             child: SizedBox(
               width: double.infinity,
               child: OutlinedButton(
-                onPressed: onVisitProfile,
+                onPressed: isBusy ? null : onVisitProfile,
                 style: OutlinedButton.styleFrom(
                   foregroundColor: colors.primary,
                   side: BorderSide(color: colors.primary, width: 1.5),
@@ -549,7 +550,7 @@ class _ProfileCardActions extends StatelessWidget {
                     child: SizedBox(
                       width: compactButtonWidth,
                       child: OutlinedButton(
-                        onPressed: onVisitProfile,
+                        onPressed: isBusy ? null : onVisitProfile,
                         style: OutlinedButton.styleFrom(
                           foregroundColor: colors.primary,
                           side: BorderSide(
@@ -572,7 +573,10 @@ class _ProfileCardActions extends StatelessWidget {
                 variant: isFollowing
                     ? ChunkyButtonVariant.secondary
                     : ChunkyButtonVariant.primary,
-                child: Text(primaryLabel),
+                child: ActionProgress(
+                  isLoading: isBusy,
+                  child: Text(primaryLabel),
+                ),
               ),
             ),
             SizedBox(width: spacing.sp3 * expandedOpacity),

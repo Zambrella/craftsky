@@ -358,6 +358,8 @@ class _ProfileBody extends ConsumerWidget {
     final blockState = ref.watch(toggleBlockProfileProvider);
     return VisitorProfileActionSet(
       isFollowing: profile.viewerIsFollowing,
+      isFollowingBusy: toggleState.isLoading,
+      isBlockingBusy: blockState.isLoading,
       isBusy:
           toggleState.isLoading ||
           blockState.isLoading ||

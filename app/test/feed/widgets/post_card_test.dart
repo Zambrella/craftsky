@@ -47,6 +47,7 @@ import 'package:craftsky_app/theme/brand_colors.dart';
 import 'package:craftsky_app/theme/craftsky_card.dart';
 import 'package:craftsky_app/theme/craftsky_context_menu.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
+import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -410,20 +411,23 @@ void main() {
       await tester.tap(find.text('Pin post'));
       await tester.pump();
 
-      await tester.tap(find.byIcon(CraftskyIconsBold.more).first);
-      await tester.pumpAndSettle();
-      final standardTile = tester.widget<ListTile>(
-        find.ancestor(
-          of: find.text('Pin post'),
-          matching: find.byType(ListTile),
+      await tester.pump(const Duration(milliseconds: 400));
+      final standardMenu = find.byType(CraftskyContextMenuButton).first;
+      expect(
+        find.descendant(
+          of: standardMenu,
+          matching: find.byType(StitchProgressIndicator),
         ),
+        findsOneWidget,
       );
-      expect(standardTile.enabled, isFalse);
-      await tester.tapAt(Offset.zero);
-      await tester.pumpAndSettle();
+      final standardButton = tester.widget<IconButton>(
+        find.descendant(of: standardMenu, matching: find.byType(IconButton)),
+      );
+      expect(standardButton.onPressed, isNull);
 
-      await tester.tap(find.byIcon(CraftskyIconsBold.more).at(1));
-      await tester.pumpAndSettle();
+      await tester.tap(find.byIcon(CraftskyIconsBold.more).last);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
       final projectTile = tester.widget<ListTile>(
         find.ancestor(
           of: find.text('Pin post'),
@@ -433,6 +437,7 @@ void main() {
       expect(projectTile.enabled, isTrue);
 
       standardPin.complete(const ProfilePinState());
+      await tester.pumpAndSettle();
     });
 
     testWidgets(
@@ -978,6 +983,22 @@ void main() {
       expect(replyCount.style?.color, BrandColors.clay);
       expect(likeCount.style?.color, BrandColors.red);
       expect(repostCount.style?.color, BrandColors.moss);
+    });
+
+    testWidgets('like keeps its icon while its request is pending', (
+      tester,
+    ) async {
+      final request = Completer<void>();
+      await _pump(
+        tester,
+        PostCard(post: _post(), onLike: () => request.future),
+      );
+      await tester.tap(find.byTooltip('Like'));
+      await tester.pump();
+      expect(find.byType(StitchProgressIndicator), findsNothing);
+      expect(find.byIcon(CraftskyIconsBold.like), findsOneWidget);
+      request.complete();
+      await tester.pumpAndSettle();
     });
 
     testWidgets('optimistically renders a like and rolls it back on failure', (
@@ -2191,24 +2212,33 @@ void main() {
       );
     });
 
-    testWidgets('double tapping card likes once without navigating', (
+    testWidgets('double tapping likes without a spinner or navigation', (
       tester,
     ) async {
+      final request = Completer<void>();
       var likes = 0;
       var taps = 0;
       await _pump(
         tester,
-        PostCard(post: _post(), onTap: () => taps++, onLike: () => likes++),
+        PostCard(
+          post: _post(),
+          onTap: () => taps++,
+          onLike: () async {
+            likes++;
+            await request.future;
+          },
+        ),
       );
-
       await _doubleTap(
         tester,
         find.text('Cast on for the Hitchhiker shawl tonight.'),
       );
-      await tester.pumpAndSettle();
-
+      await tester.pump();
+      expect(find.byType(StitchProgressIndicator), findsNothing);
       expect(likes, 1);
       expect(taps, 0);
+      request.complete();
+      await tester.pumpAndSettle();
     });
 
     testWidgets('double tapping an already-liked card is a no-op', (
@@ -2245,8 +2275,10 @@ void main() {
 
       await tester.tap(find.byIcon(CraftskyIconsBold.comment));
 
+      await tester.pump();
       expect(replies, 1);
       expect(taps, 0);
+      expect(find.byType(StitchProgressIndicator), findsNothing);
     });
 
     testWidgets('falls back to handle when display name is absent', (

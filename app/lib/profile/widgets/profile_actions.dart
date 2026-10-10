@@ -1,4 +1,5 @@
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/shared/widgets/action_progress.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/chunky_icon_button.dart';
 import 'package:craftsky_app/theme/craftsky_context_menu.dart';
@@ -34,6 +35,8 @@ final class VisitorProfileActionSet extends ProfileActionSet {
     required this.onReport,
     required this.onMuteToggle,
     required this.onBlockToggle,
+    this.isFollowingBusy = false,
+    this.isBlockingBusy = false,
     this.isMuted = false,
     this.isBlocking = false,
     this.canFollow = true,
@@ -42,6 +45,8 @@ final class VisitorProfileActionSet extends ProfileActionSet {
 
   final bool isFollowing;
   final bool isBusy;
+  final bool isFollowingBusy;
+  final bool isBlockingBusy;
   final VoidCallback onFollowToggle;
   final VoidCallback onShare;
   final VoidCallback onReport;
@@ -155,10 +160,13 @@ class _VisitorActions extends StatelessWidget {
               variant: actions.isFollowing
                   ? ChunkyButtonVariant.secondary
                   : ChunkyButtonVariant.primary,
-              child: Text(
-                actions.isFollowing
-                    ? l10n.profileFollowingAction
-                    : l10n.profileFollowAction,
+              child: ActionProgress(
+                isLoading: actions.isFollowingBusy,
+                child: Text(
+                  actions.isFollowing
+                      ? l10n.profileFollowingAction
+                      : l10n.profileFollowAction,
+                ),
               ),
             ),
           ),
@@ -177,6 +185,7 @@ class _VisitorActions extends StatelessWidget {
         CraftskyContextMenuButton(
           tooltip: l10n.profileMoreActions,
           enabled: !actions.isBusy,
+          isLoading: actions.isBlockingBusy,
           groups: [
             CraftskyContextMenuGroup(
               items: [

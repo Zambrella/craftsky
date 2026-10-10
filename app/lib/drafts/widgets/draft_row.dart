@@ -1,8 +1,12 @@
 import 'package:craftsky_app/drafts/models/draft_media_descriptor.dart';
 import 'package:craftsky_app/drafts/models/local_post_draft.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/shared/widgets/action_progress.dart';
+import 'package:craftsky_app/shared/widgets/async_action_builder.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:flutter/material.dart';
+
+enum _DraftAction { edit, delete }
 
 final class DraftRow extends StatelessWidget {
   const DraftRow({
@@ -20,60 +24,81 @@ final class DraftRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final unavailable = !draft.canEdit;
-    final preview = unavailable ? l10n.draftsUnavailable : _preview(l10n);
-    final firstMedia = draft.media.firstOrNull;
-    final local = draft.updatedAt.toLocal();
-    final date = MaterialLocalizations.of(context).formatMediumDate(local);
-    final time = MaterialLocalizations.of(
-      context,
-    ).formatTimeOfDay(TimeOfDay.fromDateTime(local));
-    final kind = draft.kind == LocalPostDraftKind.project
-        ? l10n.draftsKindProject
-        : l10n.draftsKindStandard;
-    final projectBody = switch (draft.content) {
-      ProjectDraftContent(:final body) => body.trim(),
-      _ => null,
-    };
+    return AsyncActionBuilder(
+      builder: (context, actions) {
+        final l10n = AppLocalizations.of(context);
+        final unavailable = !draft.canEdit;
+        final preview = unavailable ? l10n.draftsUnavailable : _preview(l10n);
+        final firstMedia = draft.media.firstOrNull;
+        final local = draft.updatedAt.toLocal();
+        final date = MaterialLocalizations.of(context).formatMediumDate(local);
+        final time = MaterialLocalizations.of(
+          context,
+        ).formatTimeOfDay(TimeOfDay.fromDateTime(local));
+        final kind = draft.kind == LocalPostDraftKind.project
+            ? l10n.draftsKindProject
+            : l10n.draftsKindStandard;
+        final projectBody = switch (draft.content) {
+          ProjectDraftContent(:final body) => body.trim(),
+          _ => null,
+        };
 
-    return ListTile(
-      onTap: unavailable ? null : () => onEdit(draft),
-      leading: _leading(l10n, firstMedia),
-      title: Text(preview, maxLines: 2, overflow: TextOverflow.ellipsis),
-      subtitle: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (!unavailable &&
-              projectBody != null &&
-              projectBody.isNotEmpty &&
-              projectBody != preview)
-            Text(
-              projectBody,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-          if (!unavailable) Text(l10n.draftsRowDateTime(kind, date, time)),
-          if (firstMedia?.availability == DraftMediaAvailability.unavailable)
-            Text(l10n.draftsImageUnavailable),
-        ],
-      ),
-      trailing: Wrap(
-        spacing: 4,
-        children: [
-          if (!unavailable)
-            IconButton(
-              tooltip: l10n.draftsEditTooltip,
-              onPressed: () => onEdit(draft),
-              icon: const Icon(CraftskyIconsBold.edit),
-            ),
-          IconButton(
-            tooltip: l10n.draftsDeleteTooltip,
-            onPressed: () => onDelete(draft),
-            icon: const Icon(CraftskyIconsBold.delete),
+        return ListTile(
+          onTap: unavailable || actions.isBusy
+              ? null
+              : () => actions.run(_DraftAction.edit, () => onEdit(draft)),
+          leading: _leading(l10n, firstMedia),
+          title: Text(preview, maxLines: 2, overflow: TextOverflow.ellipsis),
+          subtitle: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (!unavailable &&
+                  projectBody != null &&
+                  projectBody.isNotEmpty &&
+                  projectBody != preview)
+                Text(
+                  projectBody,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              if (!unavailable) Text(l10n.draftsRowDateTime(kind, date, time)),
+              if (firstMedia?.availability ==
+                  DraftMediaAvailability.unavailable)
+                Text(l10n.draftsImageUnavailable),
+            ],
           ),
-        ],
-      ),
+          trailing: Wrap(
+            spacing: 4,
+            children: [
+              if (!unavailable)
+                IconButton(
+                  tooltip: l10n.draftsEditTooltip,
+                  onPressed: actions.isBusy
+                      ? null
+                      : () =>
+                            actions.run(_DraftAction.edit, () => onEdit(draft)),
+                  icon: ActionProgress(
+                    isLoading: actions.isRunning(_DraftAction.edit),
+                    child: const Icon(CraftskyIconsBold.edit),
+                  ),
+                ),
+              IconButton(
+                tooltip: l10n.draftsDeleteTooltip,
+                onPressed: actions.isBusy
+                    ? null
+                    : () => actions.run(
+                        _DraftAction.delete,
+                        () => onDelete(draft),
+                      ),
+                icon: ActionProgress(
+                  isLoading: actions.isRunning(_DraftAction.delete),
+                  child: const Icon(CraftskyIconsBold.delete),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 

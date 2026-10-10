@@ -17,7 +17,7 @@ class EventCard extends StatelessWidget {
   });
 
   final BusinessEvent event;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
   final Widget? trailing;
 
   @override
@@ -32,6 +32,7 @@ class EventCard extends StatelessWidget {
 
     return Semantics(
       button: true,
+      enabled: onTap != null,
       child: CraftskyCard(
         child: InkWell(
           onTap: onTap,

@@ -64,6 +64,7 @@ import 'package:craftsky_app/shared/rich_text/facet_autocomplete_controller.dart
 import 'package:craftsky_app/shared/rich_text/providers/facet_suggestion_providers.dart';
 import 'package:craftsky_app/shared/rich_text/widgets/facet_autocomplete_editor.dart';
 import 'package:craftsky_app/shared/rich_text/widgets/faceted_text.dart';
+import 'package:craftsky_app/shared/widgets/action_progress.dart';
 import 'package:craftsky_app/shared/widgets/craft_icon.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
@@ -229,6 +230,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
   DateTime? _scheduledAtLocal;
   DateTime? _missedScheduledAtLocal;
   bool _isScheduling = false;
+  bool _isDeletingSchedule = false;
   int _stagedImageCount = 0;
   int _stagedImageTotal = 0;
   bool _isSavingSchedule = false;
@@ -447,6 +449,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
       ownsExistingSlot: widget.scheduledPost != null,
     );
     final controlsEnabled =
+        !_isSavingDraft &&
         !createState.isLoading &&
         !_isSubmitting &&
         !_isScheduling &&
@@ -455,6 +458,8 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
     final trimmedBody = _bodyText.trim();
     final tooLong = _bodyText.length > ProjectComposerSheet.maxCharacters;
     final canSubmit =
+        !_isSavingDraft &&
+        !_isScheduling &&
         !createState.isLoading &&
         !_isSubmitting &&
         !_isLoadingScheduledMedia &&
@@ -534,13 +539,15 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
 
     return PopScope<Post?>(
       canPop:
+          !_isSavingDraft &&
+          !_isDeletingSchedule &&
           !_isSubmitting &&
           (_pendingPublishedDraftPost != null ||
               !hasDraft ||
               createState.isLoading),
       onPopInvokedWithResult: (didPop, _) async {
         if (didPop) return;
-        if (_isSubmitting) return;
+        if (_isSubmitting || _isSavingDraft || _isDeletingSchedule) return;
         final shouldClose = await _confirmProjectClose(imagesState);
         if (!shouldClose || !context.mounted) return;
         Navigator.of(context).pop();
@@ -561,10 +568,13 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
                     onPressed: canSaveDraft
                         ? () => _saveProjectDraft(imagesState)
                         : null,
-                    child: Text(
-                      widget.draftSeed == null
-                          ? l10n.draftSaveAction
-                          : l10n.draftSaveChangesAction,
+                    child: ActionProgress(
+                      isLoading: _isSavingDraft,
+                      child: Text(
+                        widget.draftSeed == null
+                            ? l10n.draftSaveAction
+                            : l10n.draftSaveChangesAction,
+                      ),
                     ),
                   ),
               ],
@@ -694,11 +704,17 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
                                   Align(
                                     alignment: AlignmentDirectional.centerStart,
                                     child: TextButton.icon(
-                                      onPressed: _isScheduling
+                                      onPressed:
+                                          _isScheduling ||
+                                              _isSavingDraft ||
+                                              _isSubmitting
                                           ? null
                                           : _deleteExistingSchedule,
-                                      icon: const Icon(
-                                        CraftskyIconsBold.delete,
+                                      icon: ActionProgress(
+                                        isLoading: _isDeletingSchedule,
+                                        child: const Icon(
+                                          CraftskyIconsBold.delete,
+                                        ),
                                       ),
                                       label: Text(
                                         l10n.scheduledPostsDeleteTooltip,
@@ -2561,7 +2577,10 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
       cancelLabel: l10n.languageCancel,
     );
     if (!confirmed || !mounted || !_scheduledOperationIsCurrent(owner)) return;
-    setState(() => _isScheduling = true);
+    setState(() {
+      _isScheduling = true;
+      _isDeletingSchedule = true;
+    });
     try {
       final repository = await ref.read(
         accountScheduledPostRepositoryProvider(account).future,
@@ -2577,7 +2596,12 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
         context.showError(l10n.scheduledPostDeleteError);
       }
     } finally {
-      if (mounted) setState(() => _isScheduling = false);
+      if (mounted) {
+        setState(() {
+          _isScheduling = false;
+          _isDeletingSchedule = false;
+        });
+      }
     }
   }
 }
@@ -2800,8 +2824,10 @@ class _MaterialsInputState extends ConsumerState<_MaterialsInput> {
     if (mounted) setState(() {});
   }
 
+  bool _isAdding = false;
+
   Future<void> _addCurrent() async {
-    if (!widget.enabled) return;
+    if (!widget.enabled || _isAdding) return;
     final text = _controller.text.trim();
     if (text.isEmpty) return;
     if (text.characters.length > _MaterialsInput.maxGraphemes) {
@@ -2815,21 +2841,26 @@ class _MaterialsInputState extends ConsumerState<_MaterialsInput> {
       return;
     }
 
-    final facets = await ref
-        .read(facetGeneratorProvider)
-        .generate(
-          text,
-          includeLinks: false,
-        );
-    if (!mounted) return;
+    setState(() => _isAdding = true);
+    try {
+      final facets = await ref
+          .read(facetGeneratorProvider)
+          .generate(
+            text,
+            includeLinks: false,
+          );
+      if (!mounted) return;
 
-    widget.onChanged([
-      ...widget.values,
-      ProjectMaterial(text: text, facets: facets.isEmpty ? null : facets),
-    ]);
-    _controller.clear();
-    setState(() => _errorText = null);
-    _focusNode.requestFocus();
+      widget.onChanged([
+        ...widget.values,
+        ProjectMaterial(text: text, facets: facets.isEmpty ? null : facets),
+      ]);
+      _controller.clear();
+      setState(() => _errorText = null);
+      _focusNode.requestFocus();
+    } finally {
+      if (mounted) setState(() => _isAdding = false);
+    }
   }
 
   void _remove(ProjectMaterial material) {
@@ -2854,13 +2885,13 @@ class _MaterialsInputState extends ConsumerState<_MaterialsInput> {
           controller: _controller,
           textCapitalization: TextCapitalization.words,
           focusNode: _focusNode,
-          enabled: widget.enabled,
+          enabled: widget.enabled && !_isAdding,
           errorText: _errorText,
           betweenLabelAndField: widget.values.isEmpty
               ? null
               : _MaterialEntryList(
                   values: widget.values,
-                  enabled: widget.enabled,
+                  enabled: widget.enabled && !_isAdding,
                   onRemove: _remove,
                 ),
           suffixIcon: Padding(
@@ -2872,8 +2903,11 @@ class _MaterialsInputState extends ConsumerState<_MaterialsInput> {
                 padding: const EdgeInsets.symmetric(horizontal: 8),
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               ),
-              onPressed: _canAdd ? _addCurrent : null,
-              child: Text(widget.addButtonLabel),
+              onPressed: _canAdd && !_isAdding ? _addCurrent : null,
+              child: ActionProgress(
+                isLoading: _isAdding,
+                child: Text(widget.addButtonLabel),
+              ),
             ),
           ),
           allowedTokenKinds: const {
