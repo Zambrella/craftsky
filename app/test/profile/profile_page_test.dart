@@ -16,6 +16,7 @@ import 'package:craftsky_app/profile/models/profile_account_page.dart';
 import 'package:craftsky_app/profile/models/profile_account_summary.dart';
 import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:craftsky_app/profile/models/profile_relationship.dart';
+import 'package:craftsky_app/profile/pages/profile_mutual_followers_page.dart';
 import 'package:craftsky_app/profile/pages/profile_page.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
@@ -28,6 +29,7 @@ import 'package:craftsky_app/profile/widgets/profile_sliver_app_bar.dart';
 import 'package:craftsky_app/profile/widgets/profile_stats.dart';
 import 'package:craftsky_app/profile/widgets/profile_tab_bar.dart';
 import 'package:craftsky_app/router/app_shell_drawer.dart';
+import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/image/image_cache_providers.dart';
@@ -41,6 +43,7 @@ import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 
 import '../fakes/auth_session_fakes.dart';
 import '../fakes/image_cache_fakes.dart';
@@ -1457,86 +1460,123 @@ void main() {
       );
     });
 
-    testWidgets('tapping mutual followers opens bottom sheet list', (
-      tester,
-    ) async {
-      final cursors = <String?>[];
-      String? mutualFollowersTarget;
-      final profile = Profile(
-        did: 'did:plc:other',
-        handle: 'bob.bsky.social',
-        displayName: 'Bob',
-        crafts: [],
-        mutualFollowerCount: 12,
-      );
-      final repo = FakeProfileRepository(
-        onFetch: (_) async => profile,
-        onListMutualFollowers: (target, {cursor, limit}) async {
-          mutualFollowersTarget = target;
-          cursors.add(cursor);
-          if (cursor == 'next-mutuals') {
+    testWidgets(
+      'mutual followers opens a full page and returns to the profile',
+      (
+        tester,
+      ) async {
+        final cursors = <String?>[];
+        String? mutualFollowersTarget;
+        final profile = Profile(
+          did: 'did:plc:other',
+          handle: 'bob.bsky.social',
+          displayName: 'Bob',
+          crafts: [],
+          mutualFollowerCount: 12,
+        );
+        final repo = FakeProfileRepository(
+          onFetch: (_) async => profile,
+          onListMutualFollowers: (target, {cursor, limit}) async {
+            mutualFollowersTarget = target;
+            cursors.add(cursor);
+            if (cursor == 'next-mutuals') {
+              return ProfileAccountPage(
+                totalCount: 12,
+                items: [
+                  ProfileAccountSummary(
+                    did: 'did:plc:dana',
+                    handle: 'dana.craftsky.social',
+                    displayName: 'Dana',
+                    isCraftskyProfile: true,
+                  ),
+                ],
+              );
+            }
             return ProfileAccountPage(
               totalCount: 12,
+              cursor: 'next-mutuals',
               items: [
                 ProfileAccountSummary(
-                  did: 'did:plc:dana',
-                  handle: 'dana.craftsky.social',
-                  displayName: 'Dana',
+                  did: 'did:plc:carol',
+                  handle: 'carol.craftsky.social',
+                  displayName: 'Carol',
                   isCraftskyProfile: true,
                 ),
               ],
             );
-          }
-          return ProfileAccountPage(
-            totalCount: 12,
-            cursor: 'next-mutuals',
-            items: [
-              ProfileAccountSummary(
-                did: 'did:plc:carol',
-                handle: 'carol.craftsky.social',
-                displayName: 'Carol',
-                isCraftskyProfile: true,
+          },
+        );
+
+        final router = GoRouter(
+          initialLocation: '/profiles/did%3Aplc%3Aother',
+          routes: [
+            GoRoute(
+              path: '/profiles/:did',
+              builder: (_, state) => ProfilePage(
+                did: Did.parse(state.pathParameters['did']!),
               ),
-            ],
-          );
-        },
-      );
-
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: [
-            authSessionProvider.overrideWith(SignedInAuthSession.new),
-            profileRepositoryProvider.overrideWithValue(repo),
-            postRepositoryProvider.overrideWithValue(_emptyPostRepository),
+              routes: [
+                GoRoute(
+                  path: 'mutual-followers',
+                  builder: (context, state) => ProfileMutualFollowersRoute(
+                    did: Did.parse(state.pathParameters['did']!),
+                  ).build(context, state),
+                ),
+              ],
+            ),
           ],
-          child: MaterialApp(
-            theme: AppTheme.lightThemeData,
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
-            supportedLocales: AppLocalizations.supportedLocales,
-            home: ProfilePage(did: Did.parse('did:plc:bob')),
+        );
+        addTearDown(router.dispose);
+
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              authSessionProvider.overrideWith(SignedInAuthSession.new),
+              profileRepositoryProvider.overrideWithValue(repo),
+              postRepositoryProvider.overrideWithValue(_emptyPostRepository),
+            ],
+            child: MaterialApp.router(
+              theme: AppTheme.lightThemeData,
+              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
+              routerConfig: router,
+            ),
           ),
-        ),
-      );
-      await tester.pumpAndSettle();
+        );
+        await tester.pumpAndSettle();
 
-      await tester.tap(find.text('12 mutual followers'));
-      await tester.pumpAndSettle();
+        await tester.tap(find.text('12 mutual followers'));
+        await tester.pumpAndSettle();
 
-      expect(find.text('Mutual followers'), findsOneWidget);
-      expect(find.text('Carol'), findsOneWidget);
-      expect(find.text('@carol.craftsky.social'), findsOneWidget);
-      expect(mutualFollowersTarget, 'did:plc:other');
-      expect(cursors, [isNull]);
-      expect(find.text('Load more'), findsOneWidget);
+        expect(
+          router.state.uri.path,
+          ProfileMutualFollowersRoute(did: Did.parse('did:plc:other')).location,
+        );
+        expect(find.byType(ProfileMutualFollowersPage), findsOneWidget);
+        expect(find.byType(BottomSheet), findsNothing);
+        expect(find.byType(BackButton), findsOneWidget);
+        expect(find.text('Mutual followers'), findsOneWidget);
+        expect(find.text('Carol'), findsOneWidget);
+        expect(find.text('@carol.craftsky.social'), findsOneWidget);
+        expect(mutualFollowersTarget, 'did:plc:other');
+        expect(cursors, [isNull]);
+        expect(find.text('Load more'), findsOneWidget);
 
-      await tester.tap(find.text('Load more'));
-      await tester.pumpAndSettle();
+        await tester.tap(find.text('Load more'));
+        await tester.pumpAndSettle();
 
-      expect(cursors, [isNull, 'next-mutuals']);
-      expect(find.text('Dana'), findsOneWidget);
-      expect(find.text('@dana.craftsky.social'), findsOneWidget);
-      expect(find.text('Load more'), findsNothing);
-    });
+        expect(cursors, [isNull, 'next-mutuals']);
+        expect(find.text('Dana'), findsOneWidget);
+        expect(find.text('@dana.craftsky.social'), findsOneWidget);
+        expect(find.text('Load more'), findsNothing);
+
+        await tester.tap(find.byType(BackButton));
+        await tester.pumpAndSettle();
+        expect(find.byType(ProfileMutualFollowersPage), findsNothing);
+        expect(find.text('12 mutual followers'), findsOneWidget);
+        expect(router.canPop(), isFalse);
+      },
+    );
 
     testWidgets('visitor profile renders Unfollow when already following', (
       tester,

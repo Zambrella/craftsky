@@ -338,6 +338,13 @@ RouteBase get $authenticatedShellRoute => ShellRouteData.$route(
       path: '/profiles/:did',
       name: 'user-profile',
       factory: $UserProfileRoute._fromState,
+      routes: [
+        GoRouteData.$route(
+          path: 'mutual-followers',
+          name: 'profile-mutual-followers',
+          factory: $ProfileMutualFollowersRoute._fromState,
+        ),
+      ],
     ),
   ],
 );
@@ -1156,6 +1163,33 @@ mixin $UserProfileRoute on GoRouteData {
   @override
   void replace(BuildContext context) =>
       context.replace(location, extra: _self.$extra);
+}
+
+mixin $ProfileMutualFollowersRoute on GoRouteData {
+  static ProfileMutualFollowersRoute _fromState(GoRouterState state) =>
+      ProfileMutualFollowersRoute(
+        did: _decodeDidRouteParameter(state.pathParameters['did']!),
+      );
+
+  ProfileMutualFollowersRoute get _self => this as ProfileMutualFollowersRoute;
+
+  @override
+  String get location => GoRouteData.$location(
+    '/profiles/${Uri.encodeComponent(_encodeDidRouteParameter(_self.did))}/mutual-followers',
+  );
+
+  @override
+  void go(BuildContext context) => context.go(location);
+
+  @override
+  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
+
+  @override
+  void pushReplacement(BuildContext context) =>
+      context.pushReplacement(location);
+
+  @override
+  void replace(BuildContext context) => context.replace(location);
 }
 
 T? _$convertMapValue<T>(

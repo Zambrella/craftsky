@@ -12,8 +12,8 @@ import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-class ProfileMutualFollowersSheet extends ConsumerStatefulWidget {
-  const ProfileMutualFollowersSheet({
+class ProfileMutualFollowersPage extends ConsumerStatefulWidget {
+  const ProfileMutualFollowersPage({
     required this.targetDid,
     super.key,
   });
@@ -21,12 +21,12 @@ class ProfileMutualFollowersSheet extends ConsumerStatefulWidget {
   final Did targetDid;
 
   @override
-  ConsumerState<ProfileMutualFollowersSheet> createState() =>
-      _ProfileMutualFollowersSheetState();
+  ConsumerState<ProfileMutualFollowersPage> createState() =>
+      _ProfileMutualFollowersPageState();
 }
 
-class _ProfileMutualFollowersSheetState
-    extends ConsumerState<ProfileMutualFollowersSheet> {
+class _ProfileMutualFollowersPageState
+    extends ConsumerState<ProfileMutualFollowersPage> {
   final _items = <ProfileAccountSummary>[];
   String? _cursor;
   var _isInitialLoading = true;
@@ -71,25 +71,16 @@ class _ProfileMutualFollowersSheetState
 
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      child: Column(
-        children: [
-          AppBar(
-            title: const Text('Mutual followers'),
-            automaticallyImplyLeading: false,
-          ),
-          Expanded(
-            child: _isInitialLoading
-                ? const Center(child: StitchProgressIndicator())
-                : _ProfileMutualFollowersBody(
-                    items: _items,
-                    hasMore: _cursor != null,
-                    isLoadingMore: _isLoadingMore,
-                    onLoadMore: _loadMore,
-                  ),
-          ),
-        ],
-      ),
+    return Scaffold(
+      appBar: AppBar(title: const Text('Mutual followers')),
+      body: _isInitialLoading
+          ? const Center(child: StitchProgressIndicator())
+          : _ProfileMutualFollowersBody(
+              items: _items,
+              hasMore: _cursor != null,
+              isLoadingMore: _isLoadingMore,
+              onLoadMore: _loadMore,
+            ),
     );
   }
 }
