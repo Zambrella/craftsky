@@ -132,7 +132,7 @@ void main() {
     expect(find.text('Recent searches'), findsOneWidget);
     expect(find.text('linen dress'), findsOneWidget);
     expect(find.text('Trending hashtags'), findsOneWidget);
-    expect(find.text('#memademay'), findsOneWidget);
+    expect(find.text('#MeMadeMay'), findsOneWidget);
     expect(find.byType(CraftIcon), findsOneWidget);
   });
 
@@ -171,7 +171,7 @@ void main() {
                     hasMore: true,
                     items: [
                       HashtagSearchResult(
-                        tag: 'sockkal',
+                        tag: 'SockKAL',
                         postsLast28Days: 12,
                       ),
                     ],
@@ -199,7 +199,7 @@ void main() {
       greaterThanOrEqualTo(16),
     );
     expect(find.text('Hashtags'), findsOneWidget);
-    expect(find.text('#sockkal'), findsOneWidget);
+    expect(find.text('#SockKAL'), findsOneWidget);
     expect(find.text('12 posts'), findsOneWidget);
     expect(find.text('View all'), findsNWidgets(2));
     final avatar = tester.widget<ProfileAvatar>(find.byType(ProfileAvatar));
@@ -456,6 +456,115 @@ void main() {
     expect(find.text('search result tag-refreshed'), findsOneWidget);
   });
 
+  for (final surface in ['suggestion', 'result', 'top']) {
+    testWidgets('AT-005 opens representative spelling from $surface', (
+      tester,
+    ) async {
+      String? requestedTag;
+      final repository = FakeSearchRepository(
+        onListRecentSearches: () async => const RecentSearchPage(items: []),
+        onTopHashtags: ({craftTypes, limit}) async => const TopHashtagsResponse(
+          groups: [
+            TopHashtagGroup(
+              craftType: ProjectOptionCatalogs.sewingCraftToken,
+              items: [TopHashtagItem(tag: 'MeMadeMay', count: 9)],
+            ),
+          ],
+        ),
+        onSearchSuggestions:
+            ({required q, types, profileLimit, hashtagLimit}) async =>
+                const SearchSuggestions(
+                  profiles: SearchSuggestionProfileSection(
+                    items: [],
+                    hasMore: false,
+                  ),
+                  hashtags: SearchSuggestionHashtagSection(
+                    items: [
+                      HashtagSearchResult(tag: 'MeMadeMay', postsLast28Days: 0),
+                    ],
+                    hasMore: false,
+                  ),
+                ),
+        onSearchHashtags: ({required q, limit, cursor}) async =>
+            const HashtagSearchPage(
+              items: [
+                HashtagSearchResult(tag: 'MeMadeMay', postsLast28Days: 1),
+              ],
+            ),
+        onSearchPosts: ({required q, limit, cursor}) async =>
+            const SearchPostPage(items: []),
+        onSearchProjects: ({required q, limit, cursor}) async =>
+            const SearchPostPage(items: []),
+        onSearchProfiles: ({required q, limit, cursor}) async =>
+            const ProfileSearchPage(items: []),
+        onSearchHashtagPosts: (tag, {sort, limit, cursor}) async {
+          requestedTag = tag;
+          return const SearchPostPage(items: []);
+        },
+        onSaveRecentSearch: (request) async => RecentSearchItem(
+          id: 'selected',
+          type: request.type,
+          displayLabel: request.displayLabel,
+          payload: request.payload,
+          updatedAt: DateTime.utc(2026),
+        ),
+      );
+      final router = GoRouter(
+        initialLocation: '/search',
+        routes: [
+          GoRoute(
+            path: '/search',
+            builder: (context, state) => surface == 'result'
+                ? const SearchPage(q: 'mema', tab: SearchResultsTab.tags)
+                : const SearchPage(),
+          ),
+          GoRoute(
+            path: '/search/tags',
+            builder: (context, state) =>
+                TagSearchPage(tag: state.uri.queryParameters['tag']!),
+          ),
+        ],
+      );
+      addTearDown(router.dispose);
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            searchRepositoryProvider.overrideWithValue(repository),
+            activeLanguagePreferencesProvider.overrideWith(
+              (ref) => const LanguagePreferences(
+                primaryLanguage: 'en',
+                contentLanguages: ['en'],
+              ),
+            ),
+          ],
+          child: MaterialApp.router(
+            routerConfig: router,
+            theme: AppTheme.lightThemeData,
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      if (surface == 'suggestion') {
+        await tester.enterText(
+          find.byKey(const ValueKey('search-input')),
+          'mema',
+        );
+        await tester.pump(const Duration(milliseconds: 350));
+        await tester.pumpAndSettle();
+      }
+      expect(find.text('#MeMadeMay'), findsOneWidget);
+      if (surface == 'suggestion') expect(find.text('0 posts'), findsOneWidget);
+      if (surface == 'result') expect(find.text('1 post'), findsOneWidget);
+      await tester.tap(find.text('#MeMadeMay'));
+      await tester.pumpAndSettle();
+      expect(find.byType(TagSearchPage), findsOneWidget);
+      expect(find.text('#MeMadeMay'), findsOneWidget);
+      expect(requestedTag, 'MeMadeMay');
+    });
+  }
+
   test('SearchRoute preserves submitted query context', () {
     expect(const SearchRoute(q: 'sock').location, '/search?q=sock');
   });
@@ -513,7 +622,7 @@ FakeSearchRepository _blankSearchRepository() {
       groups: [
         TopHashtagGroup(
           craftType: ProjectOptionCatalogs.sewingCraftToken,
-          items: [TopHashtagItem(tag: 'memademay', count: 12)],
+          items: [TopHashtagItem(tag: 'MeMadeMay', count: 12)],
         ),
       ],
     ),

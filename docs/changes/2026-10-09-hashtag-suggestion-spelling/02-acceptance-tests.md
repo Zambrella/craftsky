@@ -26,6 +26,7 @@ Existing automation context:
 | FR-003 | AC-005 | AT-004, AT-005, IT-004, REG-003 | Acceptance / Integration / Regression | Planned |
 | FR-004 | AC-006 | UT-003, IT-005 | Unit / Integration | Planned |
 | FR-005 | AC-007 | IT-006 | Integration | Planned; recovery target pending |
+| FR-006 | AC-012 | UT-007, IT-009, IT-010 | Unit / Integration | User-approved correction |
 | RULE-001 | AC-001, AC-002 | AT-001, AT-002, UT-001, UT-006, IT-001 | Acceptance / Unit / Integration | Planned |
 | RULE-002 | AC-008 | UT-003, IT-007 | Unit / Integration | Planned |
 | RULE-003 | AC-009 | UT-002, IT-001 | Unit / Integration | Planned |
@@ -270,3 +271,27 @@ No implemented coverage is claimed. All 12 Must requirements and 11 acceptance c
 - Blocking product questions: None. Before implementation/rollout, coding planning must bind API/storage seams and resolve recovery feasibility, completion evidence, and any migration-backed verification in GAP-001–GAP-003. Carry ASM-001–ASM-004 visibly into that plan. Query-plan assessment is required follow-up, but no numeric latency threshold or performance pass is claimed.
 - Revision disposition: DR-002 is addressed by the exact IT-005 oracle; DR-001/DR-003 are captured as explicit recovery/migration/API gates; DR-004 assumptions remain visible; DR-005 query-cost work remains a coding-plan follow-up. Technical feasibility has not been verified by document edits.
 - Next action: review the revised documents or proceed to coding planning at the user's direction; risk remains medium.
+
+## Approved Correction Tests (2026-10-09, IR-003)
+
+The user explicitly revised the source-parity contract to reject ambiguous recognized fields. These cases supplement the original 23 test IDs.
+
+### UT-007: Reject ambiguous raw source fields
+
+Requirement IDs: FR-006, FR-004. Acceptance criteria: AC-012. Priority: Must. Target: `internal/index/source_validation_test.go` through the shared source validator.
+
+Use original raw JSON literals, not map-marshaled conflicting keys. For create and update, reject both orders of `tag/Tag`, same identity with different spelling, different identities and identical values; reject duplicate exact keys and Unicode field-fold aliases. Cover each recognized nested source boundary. A single alias, multiple independent hashtag features, unknown fields and unknown feature payloads remain valid. Delete processing is unchanged.
+
+### IT-009: Block ambiguous historical recovery
+
+Requirement IDs: FR-006, FR-005. Acceptance criteria: AC-007, AC-012. Priority: Must. Target: `internal/db/hashtag_spellings_migration_test.go`.
+
+Apply the exact migration to pre-update records with detectable case-folded field collisions. Expect a clear error and rollback with source rows and pre-migration schema intact. Cover recognized nested boundaries, including project metadata. Explicitly resolve only the disposable fixture, then verify successful recovery of original spelling. No automatic repair/deletion is permitted. JSONB's lost exact duplicate keys are not claimed recoverable.
+
+### IT-010: Prevent ambiguous fresh projections
+
+Requirement IDs: FR-006, FR-004, FR-002. Acceptance criteria: AC-004, AC-006, AC-012. Priority: Must. Target: real PostgreSQL/indexer ingestion tests.
+
+Reject ambiguous create/update before mutating the post projection. Verify a previously valid contribution remains intact on a direct indexer failure, and that the existing validated pipeline treats invalid sources according to its established behavior. Test the database safeguard against writes that bypass application validation. Keep single-alias real-indexer-to-all-discovery-store coverage green.
+
+Correction order: UT-007 → IT-009 → IT-010 → existing source-parity/lifecycle/discovery regressions → full service-backed Go suite.

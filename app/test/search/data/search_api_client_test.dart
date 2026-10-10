@@ -179,7 +179,7 @@ void main() {
           },
           'hashtags': {
             'items': [
-              {'tag': 'sockkal', 'postsLast28Days': 12},
+              {'tag': 'SockKAL', 'postsLast28Days': 12},
             ],
             'hasMore': false,
           },
@@ -206,7 +206,7 @@ void main() {
       expect(suggestions.profiles.items.single.crafts, [
         'social.craftsky.feed.defs#knitting',
       ]);
-      expect(suggestions.hashtags.items.single.tag, 'sockkal');
+      expect(suggestions.hashtags.items.single.tag, 'SockKAL');
     });
 
     test('IT-012 fetches committed hashtag-query results', () async {
@@ -215,7 +215,7 @@ void main() {
         '/v1/search/hashtags',
         (server) => server.reply(200, {
           'items': [
-            {'tag': 'sock', 'postsLast28Days': 4},
+            {'tag': 'Sock', 'postsLast28Days': 4},
           ],
           'cursor': 'opaque:hashtags',
         }),
@@ -232,6 +232,7 @@ void main() {
 
       expect(page.cursor, 'opaque:hashtags');
       expect(page.items.single.postsLast28Days, 4);
+      expect(page.items.single.tag, 'Sock');
     });
   });
 
@@ -301,7 +302,7 @@ void main() {
               'craftType':
                   ProjectOptionCatalogs.defaultSupportedCraftTokens.first,
               'items': [
-                {'tag': 'sockkal', 'count': 12},
+                {'tag': 'SockKAL', 'count': 12},
               ],
             },
             {
@@ -333,6 +334,7 @@ void main() {
         ProjectOptionCatalogs.crochetCraftToken,
       ]);
       expect(response.groups.first.items.single.count, 12);
+      expect(response.groups.first.items.single.tag, 'SockKAL');
     });
 
     test('IT-007 lists recent searches with all typed payloads', () async {

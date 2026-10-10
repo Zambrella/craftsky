@@ -57,8 +57,17 @@ func searchStoreDDL(t *testing.T) string {
 	return searchStoreBaseDDL + string(contents)
 }
 
-func TestSearchProfilesOmitsBlockedAccountExceptExactHandleManagementShell(t *testing.T) {
+func hashtagSearchTestPool(t *testing.T) *pgxpool.Pool {
+	t.Helper()
 	pool := testdb.WithSchema(t, searchStoreDDL(t))
+	if err := testdb.ApplyMigrations(context.Background(), pool, "000090_hashtag_spellings.up.sql"); err != nil {
+		t.Fatal(err)
+	}
+	return pool
+}
+
+func TestSearchProfilesOmitsBlockedAccountExceptExactHandleManagementShell(t *testing.T) {
+	pool := hashtagSearchTestPool(t)
 	ctx := context.Background()
 	for _, did := range []string{"did:plc:viewer", "did:plc:bob", "did:plc:carol"} {
 		seedMember(t, pool, did)
@@ -179,8 +188,51 @@ func seedProjectDetails(t *testing.T, pool *pgxpool.Pool, uri string, materials,
 
 func seedPostTags(t *testing.T, pool *pgxpool.Pool, uri string, tags []string) {
 	t.Helper()
-	if _, err := pool.Exec(context.Background(), `UPDATE craftsky_posts SET tags = $2 WHERE uri = $1`, uri, tags); err != nil {
+	// Supply public source facets as well as the normalized test projection.
+	text := ""
+	facets := []any{}
+	for _, tag := range tags {
+		start := len(text)
+		text += "#" + tag + " "
+		facets = append(facets, map[string]any{"index": map[string]int{"byteStart": start, "byteEnd": len(text) - 1}, "features": []any{map[string]string{"$type": "app.bsky.richtext.facet#tag", "tag": tag}}})
+	}
+	normalized := make([]string, len(tags))
+	for i, tag := range tags {
+		normalized[i] = strings.ToLower(tag)
+	}
+	source, err := json.Marshal(map[string]any{"text": text, "facets": facets})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(context.Background(), `UPDATE craftsky_posts SET tags = $2, record = record || $3::jsonb WHERE uri = $1`, uri, normalized, source); err != nil {
 		t.Fatalf("seed tags: %v", err)
+	}
+}
+
+func hydrateHashtagFixtureSources(t *testing.T, pool *pgxpool.Pool) {
+	t.Helper()
+	rows, err := pool.Query(context.Background(), `SELECT uri,tags FROM craftsky_posts`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	type seed struct {
+		uri  string
+		tags []string
+	}
+	seeds := []seed{}
+	for rows.Next() {
+		var v seed
+		if err := rows.Scan(&v.uri, &v.tags); err != nil {
+			t.Fatal(err)
+		}
+		seeds = append(seeds, v)
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	rows.Close()
+	for _, v := range seeds {
+		seedPostTags(t, pool, v.uri, v.tags)
 	}
 }
 
@@ -193,7 +245,7 @@ func searchURIs(rows []api.SearchPostRow) []string {
 }
 
 func TestSearchStore_ProjectBrowseAppliesLanguageVisibilityBeforePagination(t *testing.T) {
-	pool := testdb.WithSchema(t, searchStoreDDL(t))
+	pool := hashtagSearchTestPool(t)
 	ctx := middleware.WithDID(context.Background(), syntax.DID("did:plc:viewer"))
 	now := time.Date(2026, 7, 29, 13, 0, 0, 0, time.UTC)
 	for _, did := range []string{"did:plc:viewer", "did:plc:alice"} {
@@ -246,7 +298,7 @@ func TestSearchStore_ProjectBrowseAppliesLanguageVisibilityBeforePagination(t *t
 }
 
 func TestSearchStore_PostSearchAppliesLanguageVisibilityBeforePagination(t *testing.T) {
-	pool := testdb.WithSchema(t, searchStoreDDL(t))
+	pool := hashtagSearchTestPool(t)
 	ctx := middleware.WithDID(context.Background(), syntax.DID("did:plc:viewer"))
 	base := time.Date(2026, 7, 29, 14, 0, 0, 0, time.UTC)
 	for _, did := range []string{"did:plc:viewer", "did:plc:alice"} {
@@ -298,7 +350,7 @@ func TestSearchStore_PostSearchAppliesLanguageVisibilityBeforePagination(t *test
 }
 
 func TestSearchStore_ProjectSearchAppliesLanguageVisibilityBeforePagination(t *testing.T) {
-	pool := testdb.WithSchema(t, searchStoreDDL(t))
+	pool := hashtagSearchTestPool(t)
 	ctx := middleware.WithDID(context.Background(), syntax.DID("did:plc:viewer"))
 	base := time.Date(2026, 7, 29, 15, 0, 0, 0, time.UTC)
 	for _, did := range []string{"did:plc:viewer", "did:plc:alice"} {
@@ -348,7 +400,7 @@ func TestSearchStore_ProjectSearchAppliesLanguageVisibilityBeforePagination(t *t
 }
 
 func TestSearchStore_HashtagPostsApplyLanguageVisibilityBeforePagination(t *testing.T) {
-	pool := testdb.WithSchema(t, searchStoreDDL(t))
+	pool := hashtagSearchTestPool(t)
 	ctx := middleware.WithDID(context.Background(), syntax.DID("did:plc:viewer"))
 	base := time.Date(2026, 7, 29, 16, 0, 0, 0, time.UTC)
 	for _, did := range []string{"did:plc:viewer", "did:plc:alice"} {
@@ -413,7 +465,7 @@ func TestSearchStore_HashtagPostsApplyLanguageVisibilityBeforePagination(t *test
 
 func TestSearchStore_SearchProjectsPopularOrdersBrowseAllAndFilteredProjects(t *testing.T) {
 	t.Parallel()
-	pool := testdb.WithSchema(t, searchStoreDDL(t))
+	pool := hashtagSearchTestPool(t)
 	ctx := context.Background()
 	now := time.Date(2026, 6, 20, 12, 0, 0, 0, time.UTC)
 	for _, did := range []string{"did:plc:alice", "did:plc:bob", "did:plc:carol", "did:plc:fan1", "did:plc:fan2", "did:plc:fan3"} {
@@ -452,7 +504,7 @@ func TestSearchStore_SearchProjectsPopularOrdersBrowseAllAndFilteredProjects(t *
 
 func TestSearchStore_SearchProfilesPaginatesByRankTuple(t *testing.T) {
 	t.Parallel()
-	pool := testdb.WithSchema(t, searchStoreDDL(t))
+	pool := hashtagSearchTestPool(t)
 	ctx := context.Background()
 	for _, did := range []string{"did:plc:viewer", "did:plc:alice", "did:plc:alicia", "did:plc:mallory"} {
 		seedMember(t, pool, did)
@@ -488,7 +540,7 @@ func TestSearchStore_SearchProfilesPaginatesByRankTuple(t *testing.T) {
 
 func TestSearchAndFacetProfileSuggestionsShareRankingAndCrafts(t *testing.T) {
 	t.Parallel()
-	pool := testdb.WithSchema(t, searchStoreDDL(t))
+	pool := hashtagSearchTestPool(t)
 	ctx := context.Background()
 	for _, did := range []string{"did:plc:viewer", "did:plc:display", "did:plc:description"} {
 		seedMember(t, pool, did)
@@ -527,9 +579,67 @@ func TestSearchAndFacetProfileSuggestionsShareRankingAndCrafts(t *testing.T) {
 	}
 }
 
+// IT-001 / AT-001: BR-001, FR-002, RULE-001; AC-001.
+func TestHashtagSuggestionsMostUsedSpelling(t *testing.T) {
+	pool := hashtagSearchTestPool(t)
+	ctx := context.Background()
+	now := time.Date(2026, 10, 9, 12, 0, 0, 0, time.UTC)
+	seedMember(t, pool, "did:plc:alice")
+	for i := range 9 {
+		spelling := "memademay"
+		if i >= 4 {
+			spelling = "MeMadeMay"
+		}
+		text := "#" + spelling
+		uri := seedSearchProject(t, pool, "did:plc:alice", fmt.Sprintf("spelling-%d", i), text, "social.craftsky.feed.defs#knitting", "", now.Add(-24*time.Hour))
+		record, err := json.Marshal(map[string]any{
+			"$type":     "social.craftsky.feed.post",
+			"text":      text,
+			"project":   map[string]any{"common": map[string]string{"craftType": "social.craftsky.feed.defs#knitting"}},
+			"createdAt": now.Add(-24 * time.Hour).Format(time.RFC3339),
+			"facets": []any{map[string]any{
+				"index": map[string]int{"byteStart": 0, "byteEnd": len(text)},
+				"features": []any{map[string]string{
+					"$type": "app.bsky.richtext.facet#tag", "tag": spelling,
+				}},
+			}},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := pool.Exec(ctx, `UPDATE craftsky_posts SET record = $2::jsonb, tags = ARRAY['memademay'] WHERE uri = $1`, uri, record); err != nil {
+			t.Fatalf("seed original hashtag spelling: %v", err)
+		}
+	}
+	rows, err := api.NewFacetStore(pool).SearchHashtagSuggestions(ctx, "mema", 10, now)
+	if err != nil {
+		t.Fatalf("SearchHashtagSuggestions: %v", err)
+	}
+	want := []api.HashtagSuggestionRow{{Tag: "MeMadeMay", PostsLast28Days: 9}}
+	if !slices.Equal(rows, want) {
+		t.Fatalf("suggestions = %#v, want %#v", rows, want)
+	}
+	results, _, err := api.NewSearchStore(pool, nil).SearchHashtags(ctx, api.HashtagSearchRequest{Query: "MeMa", Limit: 10}, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(results) != 1 || results[0].Tag != "MeMadeMay" || results[0].PostsLast28Days != 9 {
+		t.Fatalf("search results=%v", results)
+	}
+
+	groups, err := api.NewSearchStore(pool, nil).TopHashtags(ctx, api.TopHashtagsRequest{CraftTypes: []string{"knitting"}, Limit: 10}, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(groups) != 1 || len(groups[0].Items) != 1 || groups[0].Items[0].Tag != "MeMadeMay" || groups[0].Items[0].Count != 9 {
+		t.Fatalf("top hashtags=%v", groups)
+	}
+
+}
+
 func TestFacetHashtagSuggestionsUseHashtagResultRanking(t *testing.T) {
 	t.Parallel()
-	pool := testdb.WithSchema(t, searchStoreDDL(t))
+	pool := hashtagSearchTestPool(t)
 	ctx := context.Background()
 	now := time.Date(2026, 6, 20, 12, 0, 0, 0, time.UTC)
 	seedMember(t, pool, "did:plc:alice")
@@ -558,7 +668,7 @@ func TestFacetHashtagSuggestionsUseHashtagResultRanking(t *testing.T) {
 
 func TestFacetHashtagSuggestionsUseVisibleSearchHashtagCounts(t *testing.T) {
 	t.Parallel()
-	pool := testdb.WithSchema(t, searchStoreDDL(t))
+	pool := hashtagSearchTestPool(t)
 	ctx := context.Background()
 	now := time.Date(2026, 6, 20, 12, 0, 0, 0, time.UTC)
 	for _, did := range []string{"did:plc:alice", "did:plc:bob", "did:plc:carol"} {
@@ -617,7 +727,7 @@ func TestFacetHashtagSuggestionsUseVisibleSearchHashtagCounts(t *testing.T) {
 
 func TestSearchSuggestionsHandlerReturnsGroupedTopNSections(t *testing.T) {
 	t.Parallel()
-	pool := testdb.WithSchema(t, searchStoreDDL(t))
+	pool := hashtagSearchTestPool(t)
 	ctx := context.Background()
 	now := time.Now().UTC().Add(-time.Hour)
 	for _, did := range []string{"did:plc:viewer", "did:plc:sock-a", "did:plc:sock-b"} {
@@ -662,7 +772,7 @@ func TestSearchSuggestionsHandlerReturnsGroupedTopNSections(t *testing.T) {
 
 func TestSearchStore_SearchHashtagsRanksAndPaginates(t *testing.T) {
 	t.Parallel()
-	pool := testdb.WithSchema(t, searchStoreDDL(t))
+	pool := hashtagSearchTestPool(t)
 	ctx := context.Background()
 	now := time.Date(2026, 6, 20, 12, 0, 0, 0, time.UTC)
 	seedMember(t, pool, "did:plc:alice")
@@ -695,7 +805,7 @@ func TestSearchStore_SearchHashtagsRanksAndPaginates(t *testing.T) {
 
 func TestSearchStore_SearchHashtagPostsUsesStoredTagEqualityOnly(t *testing.T) {
 	t.Parallel()
-	pool := testdb.WithSchema(t, searchStoreDDL(t))
+	pool := hashtagSearchTestPool(t)
 	ctx := context.Background()
 	base := time.Date(2026, 6, 20, 12, 0, 0, 0, time.UTC)
 	seedMember(t, pool, "did:plc:alice")
@@ -720,7 +830,7 @@ func TestSearchStore_SearchHashtagPostsUsesStoredTagEqualityOnly(t *testing.T) {
 }
 
 func TestSearchStoreRelationshipFiltersBeforeHashtagPagination(t *testing.T) {
-	pool := testdb.WithSchema(t, searchStoreDDL(t))
+	pool := hashtagSearchTestPool(t)
 	base := time.Date(2026, 7, 19, 12, 0, 0, 0, time.UTC)
 	for _, did := range []string{"did:plc:viewer", "did:plc:bob", "did:plc:carol", "did:plc:dave"} {
 		seedMember(t, pool, did)
@@ -749,7 +859,7 @@ func TestSearchStoreRelationshipFiltersBeforeHashtagPagination(t *testing.T) {
 
 func TestSearchStore_SearchHashtagPostsSortsChronologicalAndPopular(t *testing.T) {
 	t.Parallel()
-	pool := testdb.WithSchema(t, searchStoreDDL(t))
+	pool := hashtagSearchTestPool(t)
 	ctx := context.Background()
 	base := time.Date(2026, 6, 20, 12, 0, 0, 0, time.UTC)
 	for _, did := range []string{"did:plc:alice", "did:plc:fan1", "did:plc:fan2", "did:plc:fan3"} {
@@ -792,7 +902,7 @@ func TestSearchStore_SearchHashtagPostsSortsChronologicalAndPopular(t *testing.T
 
 func TestSearchStore_SearchPostsAndProjectsUseRelevanceAndDisjointTabs(t *testing.T) {
 	t.Parallel()
-	pool := testdb.WithSchema(t, searchStoreDDL(t))
+	pool := hashtagSearchTestPool(t)
 	ctx := context.Background()
 	base := time.Date(2026, 6, 20, 12, 0, 0, 0, time.UTC)
 	seedMember(t, pool, "did:plc:alice")
@@ -843,7 +953,7 @@ func TestSearchStore_SearchPostsAndProjectsUseRelevanceAndDisjointTabs(t *testin
 }
 
 func TestSearchPostsHandlerIncludesAuthenticatedViewerSavedState(t *testing.T) {
-	pool := testdb.WithSchema(t, searchStoreDDL(t))
+	pool := hashtagSearchTestPool(t)
 	ctx := context.Background()
 	seedMember(t, pool, "did:plc:viewer")
 	seedMember(t, pool, "did:plc:alice")
@@ -886,7 +996,7 @@ func TestSearchPostsHandlerIncludesAuthenticatedViewerSavedState(t *testing.T) {
 
 func TestSearchStore_SearchPostsEmitsDBOperationTelemetry(t *testing.T) {
 	t.Parallel()
-	pool := testdb.WithSchema(t, searchStoreDDL(t))
+	pool := hashtagSearchTestPool(t)
 	ctx := context.Background()
 	base := time.Date(2026, 6, 20, 12, 0, 0, 0, time.UTC)
 	seedMember(t, pool, "did:plc:alice")
@@ -959,7 +1069,7 @@ func valueString(value any) string {
 
 func TestSearchStore_SearchProjectsAppliesFilterSemantics(t *testing.T) {
 	t.Parallel()
-	pool := testdb.WithSchema(t, searchStoreDDL(t))
+	pool := hashtagSearchTestPool(t)
 	ctx := context.Background()
 	base := time.Date(2026, 6, 20, 12, 0, 0, 0, time.UTC)
 	seedMember(t, pool, "did:plc:alice")
@@ -1034,7 +1144,7 @@ func TestSearchStore_SearchProjectsAppliesFilterSemantics(t *testing.T) {
 
 func TestSearchStore_ModerationFiltersBeforeSearchRankingAndLimits(t *testing.T) {
 	t.Parallel()
-	pool := testdb.WithSchema(t, searchStoreDDL(t))
+	pool := hashtagSearchTestPool(t)
 	ctx := context.Background()
 	base := time.Date(2026, 6, 20, 12, 0, 0, 0, time.UTC)
 	for _, did := range []string{"did:plc:alice", "did:plc:bob", "did:plc:fan"} {
@@ -1058,7 +1168,7 @@ func TestSearchStore_ModerationFiltersBeforeSearchRankingAndLimits(t *testing.T)
 
 func TestSearchStore_TopHashtagsGroupsDistinctProjectsAndEmptyCrafts(t *testing.T) {
 	t.Parallel()
-	pool := testdb.WithSchema(t, searchStoreDDL(t))
+	pool := hashtagSearchTestPool(t)
 	ctx := context.Background()
 	now := time.Date(2026, 6, 20, 12, 0, 0, 0, time.UTC)
 	seedMember(t, pool, "did:plc:alice")
@@ -1121,5 +1231,285 @@ func TestSearchStore_TopHashtagsGroupsDistinctProjectsAndEmptyCrafts(t *testing.
 	}
 	if !slices.Equal(mixedCrafts, []string{knitting, crochetToken}) {
 		t.Fatalf("mixed groups = %#v", mixedGroups)
+	}
+}
+
+// UT-001, UT-002, AT-002: RULE-001, RULE-003 / AC-002, AC-009.
+func TestHashtagSpellingWinnersAndOverlap(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		spellings [][]string
+		winner    string
+	}{
+		{"lowercase majority", [][]string{{"MeMadeMay"}, {"memademay"}, {"memademay"}}, "memademay"},
+		{"all caps majority", [][]string{{"MEMADEMAY"}, {"MeMadeMay"}, {"MEMADEMAY"}}, "MEMADEMAY"},
+		{"tie", [][]string{{"memademay"}, {"MeMadeMay"}}, "MeMadeMay"},
+		{"reverse tie", [][]string{{"MeMadeMay"}, {"memademay"}}, "MeMadeMay"},
+		{"accented tie", [][]string{{"été"}, {"Été"}}, "Été"},
+		{"uncased", [][]string{{"編み物"}}, "編み物"},
+		{"overlap tie", [][]string{{"MeMadeMay", "MeMadeMay", "memademay"}}, "MeMadeMay"},
+		{"overlap majority", [][]string{{"MeMadeMay", "MeMadeMay", "memademay"}, {"memademay"}}, "memademay"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			pool := hashtagSearchTestPool(t)
+			ctx := context.Background()
+			now := time.Date(2026, 10, 9, 12, 0, 0, 0, time.UTC)
+			seedMember(t, pool, "did:plc:alice")
+			for i, spellings := range tc.spellings {
+				uri := seedSearchProject(t, pool, "did:plc:alice", fmt.Sprintf("winner-%d", i), "", "social.craftsky.feed.defs#knitting", "", now.Add(-time.Hour))
+				seedPostTags(t, pool, uri, spellings)
+				if _, err := pool.Exec(ctx, `UPDATE craftsky_posts SET tags=ARRAY(SELECT DISTINCT lower(tag) FROM unnest(tags) tag) WHERE uri=$1`, uri); err != nil {
+					t.Fatal(err)
+				}
+			}
+			for _, q := range []string{strings.ToLower(tc.winner), tc.winner, strings.ToUpper(tc.winner)} {
+				facet, err := api.NewFacetStore(pool).SearchHashtagSuggestions(ctx, q, 10, now)
+				if err != nil {
+					t.Fatal(err)
+				}
+				search, _, err := api.NewSearchStore(pool, nil).SearchHashtags(ctx, api.HashtagSearchRequest{Query: q, Limit: 10}, now)
+				if err != nil {
+					t.Fatal(err)
+				}
+				top, err := api.NewSearchStore(pool, nil).TopHashtags(ctx, api.TopHashtagsRequest{CraftTypes: []string{"knitting"}, Limit: 10}, now)
+				if err != nil {
+					t.Fatal(err)
+				}
+				count := len(tc.spellings)
+				if len(facet) != 1 || facet[0].Tag != tc.winner || facet[0].PostsLast28Days != count {
+					t.Fatalf("facet=%v want %s/%d", facet, tc.winner, count)
+				}
+				if len(search) != 1 || search[0].Tag != tc.winner || search[0].PostsLast28Days != count {
+					t.Fatalf("search=%v", search)
+				}
+				if len(top) != 1 || len(top[0].Items) != 1 || top[0].Items[0].Tag != tc.winner || top[0].Items[0].Count != count {
+					t.Fatalf("top=%v", top)
+				}
+			}
+		})
+	}
+}
+
+// IT-002, IT-008 / FR-001, NFR-002 / AC-003, AC-011.
+func TestHashtagSpellingRankingAndSavedCursor(t *testing.T) {
+	pool := hashtagSearchTestPool(t)
+	ctx := context.Background()
+	now := time.Date(2026, 10, 9, 12, 0, 0, 0, time.UTC)
+	seedMember(t, pool, "did:plc:alice")
+	uris := map[string]string{}
+	for i, tag := range []string{"Sock", "SockKAL", "SockMending", "WoolSock"} {
+		uri := seedPost(t, pool, "did:plc:alice", fmt.Sprintf("cursor-%d", i), "", now.Add(-time.Hour))
+		seedPostTags(t, pool, uri, []string{tag})
+		uris[tag] = uri
+	}
+	store := api.NewSearchStore(pool, nil)
+	var saved string
+	for _, q := range []string{"sock", "Sock", "SOCK"} {
+		first, cursor, err := store.SearchHashtags(ctx, api.HashtagSearchRequest{Query: q, Limit: 2}, now)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(first) != 2 || first[0].Tag != "Sock" || first[1].Tag != "SockKAL" || cursor == "" {
+			t.Fatalf("first=%v cursor=%q", first, cursor)
+		}
+		saved = cursor
+	}
+	seedPostTags(t, pool, uris["SockMending"], []string{"SOCKMENDING"})
+	next, cursor, err := store.SearchHashtags(ctx, api.HashtagSearchRequest{Query: "#sOcK", Limit: 2, Cursor: saved}, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(next) != 2 || next[0].Tag != "SOCKMENDING" || next[1].Tag != "WoolSock" || cursor != "" {
+		t.Fatalf("next=%v cursor=%q", next, cursor)
+	}
+	for _, q := range []string{"", "absent"} {
+		rows, _, err := store.SearchHashtags(ctx, api.HashtagSearchRequest{Query: q, Limit: 2}, now)
+		if err != nil || len(rows) != 0 {
+			t.Fatalf("empty/no-match=%v %v", rows, err)
+		}
+	}
+}
+
+// IT-003, REG-002 / RULE-004 / AC-010: excluded records cannot vote.
+func TestHashtagSpellingEligibilityAndCraft(t *testing.T) {
+	pool := hashtagSearchTestPool(t)
+	ctx := middleware.WithDID(context.Background(), syntax.DID("did:plc:viewer"))
+	now := time.Date(2026, 10, 9, 12, 0, 0, 0, time.UTC)
+	for _, did := range []string{"did:plc:alice", "did:plc:bob", "did:plc:viewer"} {
+		seedMember(t, pool, did)
+	}
+	knit := seedSearchProject(t, pool, "did:plc:alice", "knit", "", "social.craftsky.feed.defs#knitting", "", now.Add(-28*24*time.Hour))
+	seedPostTags(t, pool, knit, []string{"MeMadeMay"})
+	crochet := seedSearchProject(t, pool, "did:plc:alice", "crochet", "", "social.craftsky.feed.defs#crochet", "", now.Add(-28*24*time.Hour+time.Microsecond))
+	seedPostTags(t, pool, crochet, []string{"memademay"})
+	for _, kind := range []string{"old", "reply", "quote", "hidden", "blocked", "muted"} {
+		did := "did:plc:alice"
+		if kind == "blocked" || kind == "muted" {
+			did = "did:plc:bob"
+		}
+		uri := seedSearchProject(t, pool, did, kind, "", "social.craftsky.feed.defs#knitting", "", now.Add(-time.Hour))
+		seedPostTags(t, pool, uri, []string{"MEMADEMAY"})
+		switch kind {
+		case "old":
+			if _, err := pool.Exec(ctx, `UPDATE craftsky_posts SET created_at=$2 WHERE uri=$1`, uri, now.Add(-28*24*time.Hour-time.Nanosecond)); err != nil {
+				t.Fatal(err)
+			}
+		case "reply":
+			if _, err := pool.Exec(ctx, `UPDATE craftsky_posts SET reply_root_uri=$2,reply_parent_uri=$2 WHERE uri=$1`, uri, knit); err != nil {
+				t.Fatal(err)
+			}
+		case "quote":
+			if _, err := pool.Exec(ctx, `UPDATE craftsky_posts SET quote_uri=$2 WHERE uri=$1`, uri, knit); err != nil {
+				t.Fatal(err)
+			}
+		case "hidden":
+			seedModerationOutput(t, pool, "post", did, uri, "hide", now)
+		case "blocked":
+			seedBlockAggregate(t, pool, "did:plc:viewer", "did:plc:bob", now)
+		case "muted":
+			if _, err := pool.Exec(ctx, `INSERT INTO actor_mutes(owner_did,subject_did,created_at) VALUES('did:plc:viewer','did:plc:bob',$1) ON CONFLICT DO NOTHING`, now); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	search, _, err := api.NewSearchStore(pool, nil).SearchHashtags(ctx, api.HashtagSearchRequest{Query: "mema", Limit: 10}, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(search) != 1 || search[0].Tag != "MeMadeMay" || search[0].PostsLast28Days != 2 {
+		t.Fatalf("search=%v", search)
+	}
+	facet, err := api.NewFacetStore(pool).SearchHashtagSuggestions(ctx, "mema", 10, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Composer retains its preexisting absence of viewer relationship exclusions.
+	if len(facet) != 1 || facet[0].Tag != "MEMADEMAY" || facet[0].PostsLast28Days != 4 {
+		t.Fatalf("facet=%v", facet)
+	}
+	groups, err := api.NewSearchStore(pool, nil).TopHashtags(ctx, api.TopHashtagsRequest{CraftTypes: []string{"knitting", "crochet"}, Limit: 10}, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(groups) != 2 || len(groups[0].Items) != 1 || groups[0].Items[0].Tag != "MeMadeMay" || groups[0].Items[0].Count != 1 || len(groups[1].Items) != 1 || groups[1].Items[0].Tag != "memademay" || groups[1].Items[0].Count != 1 {
+		t.Fatalf("crafts=%v", groups)
+	}
+	aged, _, err := api.NewSearchStore(pool, nil).SearchHashtags(ctx, api.HashtagSearchRequest{Query: "mema", Limit: 10}, now.Add(29*24*time.Hour))
+	if err != nil || len(aged) != 0 {
+		t.Fatalf("aged=%v %v", aged, err)
+	}
+}
+
+type fixedHashtagSearchReader struct {
+	*api.SearchStore
+	now time.Time
+}
+
+func (s fixedHashtagSearchReader) SearchHashtags(ctx context.Context, req api.HashtagSearchRequest, _ time.Time) ([]api.HashtagSearchResult, string, error) {
+	return s.SearchStore.SearchHashtags(ctx, req, s.now)
+}
+func (s fixedHashtagSearchReader) TopHashtags(ctx context.Context, req api.TopHashtagsRequest, _ time.Time) ([]api.TopHashtagGroup, error) {
+	return s.SearchStore.TopHashtags(ctx, req, s.now)
+}
+
+type fixedHashtagFacetReader struct {
+	*api.FacetStore
+	now time.Time
+}
+
+func (s fixedHashtagFacetReader) SearchHashtagSuggestions(ctx context.Context, q string, limit int, _ time.Time) ([]api.HashtagSuggestionRow, error) {
+	return s.FacetStore.SearchHashtagSuggestions(ctx, q, limit, s.now)
+}
+
+// IT-001 / FR-002 / AC-004: wire JSON retains the selected spelling.
+func TestHashtagSpellingHTTPResponses(t *testing.T) {
+	pool := hashtagSearchTestPool(t)
+	now := time.Date(2026, 10, 9, 12, 0, 0, 0, time.UTC)
+	seedMember(t, pool, "did:plc:alice")
+	for i := range 9 {
+		tag := "memademay"
+		if i >= 4 {
+			tag = "MeMadeMay"
+		}
+		uri := seedSearchProject(t, pool, "did:plc:alice", fmt.Sprintf("wire-%d", i), "", "social.craftsky.feed.defs#knitting", "", now.Add(-time.Hour))
+		seedPostTags(t, pool, uri, []string{tag})
+	}
+	search := fixedHashtagSearchReader{api.NewSearchStore(pool, nil), now}
+	facet := fixedHashtagFacetReader{api.NewFacetStore(pool), now}
+	for _, tc := range []struct {
+		path    string
+		handler http.Handler
+		count   string
+	}{
+		{"/v1/facets/hashtags?q=mema", api.ListFacetHashtagSuggestionsHandler(facet, nilLogger()), `"postsLast28Days":9`},
+		{"/v1/search/hashtags?q=MeMa", api.SearchHashtagsHandler(search, nilLogger()), `"postsLast28Days":9`},
+		{"/v1/search/suggestions?q=MEMA&types=hashtags", api.SearchSuggestionsHandler(search, nilLogger()), `"postsLast28Days":9`},
+		{"/v1/search/hashtags/top?craftTypes=knitting&limit=10", api.TopHashtagsHandler(search, nilLogger()), `"count":9`},
+	} {
+		req := httptest.NewRequest(http.MethodGet, tc.path, nil)
+		req = req.WithContext(middleware.WithDID(req.Context(), syntax.DID("did:plc:alice")))
+		response := httptest.NewRecorder()
+		tc.handler.ServeHTTP(response, req)
+		body := response.Body.String()
+		if response.Code != http.StatusOK || !strings.Contains(body, `"tag":"MeMadeMay"`) || !strings.Contains(body, tc.count) {
+			t.Fatalf("%s => %d %s", tc.path, response.Code, body)
+		}
+	}
+	// IT-004: case variants address the same post set and pagination.
+	store := api.NewSearchStore(pool, nil)
+	var baseline []string
+	for _, tag := range []string{"memademay", "MeMadeMay", "MEMADEMAY"} {
+		rows, _, err := store.SearchHashtagPosts(context.Background(), tag, api.SearchSortChronological, 10, "", now)
+		if err != nil {
+			t.Fatal(err)
+		}
+		got := searchURIs(rows)
+		if baseline == nil {
+			baseline = got
+		}
+		if len(got) != 9 || !slices.Equal(got, baseline) {
+			t.Fatalf("tag feed %s=%v want %v", tag, got, baseline)
+		}
+	}
+}
+
+// REG-002: terminal owners never influence display winners or counts.
+func TestHashtagSpellingExcludesTerminalOwners(t *testing.T) {
+	pool := testdb.WithMigratedSchema(t)
+	ctx := context.Background()
+	now := time.Date(2026, 10, 9, 12, 0, 0, 0, time.UTC)
+	for _, did := range []string{"did:plc:active", "did:plc:terminal"} {
+		seedMember(t, pool, did)
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO owner_lifecycles(owner_did,state,generation,auth_epoch,transition_reason,transitioned_at,terminal_at,created_at,updated_at) VALUES('did:plc:terminal','terminal',1,1,'test',$1,$1,$1,$1)`, now); err != nil {
+		t.Fatal(err)
+	}
+	for i := range 4 {
+		did := "did:plc:terminal"
+		tag := "MEMADEMAY"
+		if i == 0 {
+			did = "did:plc:active"
+			tag = "MeMadeMay"
+		}
+		uri := seedSearchProject(t, pool, did, fmt.Sprintf("terminal-%d", i), "", "social.craftsky.feed.defs#knitting", "", now.Add(-time.Hour))
+		seedPostTags(t, pool, uri, []string{tag})
+		if _, err := pool.Exec(ctx, `INSERT INTO image_subject_states(subject_uri,subject_kind,source_cid,visibility_state) VALUES($1,'post','bafycid','clear')`, uri); err != nil {
+			t.Fatal(err)
+		}
+	}
+	facet, err := api.NewFacetStore(pool).SearchHashtagSuggestions(ctx, "mema", 10, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	search, _, err := api.NewSearchStore(pool, nil).SearchHashtags(ctx, api.HashtagSearchRequest{Query: "mema", Limit: 10}, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	groups, err := api.NewSearchStore(pool, nil).TopHashtags(ctx, api.TopHashtagsRequest{CraftTypes: []string{"knitting"}, Limit: 10}, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(facet) != 1 || facet[0].Tag != "MeMadeMay" || facet[0].PostsLast28Days != 1 || len(search) != 1 || search[0].Tag != "MeMadeMay" || search[0].PostsLast28Days != 1 || len(groups) != 1 || len(groups[0].Items) != 1 || groups[0].Items[0].Tag != "MeMadeMay" || groups[0].Items[0].Count != 1 {
+		t.Fatalf("facet=%v search=%v top=%v", facet, search, groups)
 	}
 }

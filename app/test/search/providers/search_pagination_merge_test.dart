@@ -1,5 +1,6 @@
 import 'package:craftsky_app/bootstrap.dart';
 import 'package:craftsky_app/feed/models/post.dart';
+import 'package:craftsky_app/search/models/hashtag_search_page.dart';
 import 'package:craftsky_app/search/models/profile_search_page.dart';
 import 'package:craftsky_app/search/providers/search_pagination.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -36,6 +37,30 @@ ProfileSearchResult _profile({
 
 void main() {
   setUpAll(initializeMappers);
+
+  test('IR-001 Unicode casing changes preserve one server identity', () {
+    const current = HashtagSearchResult(tag: '꟎', postsLast28Days: 3);
+    final merged = appendUniqueHashtags(
+      [current],
+      const [HashtagSearchResult(tag: '꟏', postsLast28Days: 3)],
+    );
+    expect(merged, [same(current)]);
+  });
+
+  test('IT-008 casing changes across pages preserve one hashtag identity', () {
+    const current = HashtagSearchResult(tag: 'MeMadeMay', postsLast28Days: 9);
+    final merged = appendUniqueHashtags(
+      [current],
+      const [
+        HashtagSearchResult(tag: 'memademay', postsLast28Days: 9),
+        HashtagSearchResult(tag: 'MEMADEMAY', postsLast28Days: 9),
+        HashtagSearchResult(tag: 'SockKAL', postsLast28Days: 2),
+        HashtagSearchResult(tag: 'sockkal', postsLast28Days: 2),
+      ],
+    );
+    expect(merged.map((tag) => tag.tag), ['MeMadeMay', 'SockKAL']);
+    expect(merged.first, same(current));
+  });
 
   test(
     'UT-008 appendUniquePosts keeps existing duplicate and appends new rows',

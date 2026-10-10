@@ -21,7 +21,7 @@ Proposed database contract:
 
 This choice recovers existing records when the column is added and automatically derives spellings on later inserts/updates, including writes from an older binary during deployment. Deletes naturally remove their contributions. It avoids a separate backfill CLI, recurring worker, readiness flag, and same-CID replay exception. The generation expression uses only row inputs and an immutable function; PostgreSQL 16 supports stored generated columns with these restrictions. [PostgreSQL 16 documentation](https://www.postgresql.org/docs/16/ddl-generated-columns.html)
 
-The extractor must mirror the existing recognised-source and best-effort facet semantics. It must not be a second broad lexicon validator. SQL/Go parity and exact migration tests are implementation gates; a generated-column design that changes accepted tag contributions or fails on tolerated future facet shapes must be corrected before proceeding, rather than silently weakening the contract.
+The extractor must mirror the existing recognised-source and best-effort facet semantics for records accepted under FR-006. The user-approved validation exception rejects ambiguous recognized field aliases before indexing; it does not reject single aliases or change ordinary tag syntax. It must not be a second broad lexicon validator. SQL/Go parity and exact migration tests are implementation gates; a generated-column design that changes accepted tag contributions or fails on tolerated future facet shapes must be corrected before proceeding, rather than silently weakening the contract.
 
 ## 3. Affected Areas
 
@@ -130,7 +130,7 @@ Keep `/v1/facets/hashtags`, `/v1/search/suggestions`, `/v1/search/hashtags`, `/v
 | Lowercase/all-caps dominance | Any observed style can win | RULE-001 | AT-002, UT-001, IT-001 |
 | Duplicate occurrences/overlapping spellings | Per-post exact-spelling dedup; independent distinct aggregate | RULE-002 | UT-003, IT-007 |
 | Tied frequencies | Explicit case-sensitive code-point-compatible comparator | RULE-003 | UT-002/IT-001 |
-| Unknown/invalid facets | Match existing best-effort recognised-source behaviour; no new write failures | FR-004, RULE-002 | UT-003, migration parity tests |
+| Unknown/invalid facets | Match existing best-effort recognised-source behaviour; no new write failures except the explicitly approved FR-006 ambiguity rejection | FR-004, RULE-002 | UT-003, migration parity tests |
 | Post edits/deletes/replay | Generated data follows source row; existing same-CID no-op remains | FR-004, NFR-001 | IT-005 |
 | Historical source integrity failure | Migration/verification fails visibly; do not guess casing or silently omit required recovery | FR-005 | IT-006 |
 | Case-only changes across pages | Stable identity ordering/cursor; client dedup by lowercase identity | NFR-002 | IT-008, REG-001 |
@@ -170,7 +170,7 @@ Use `testdb.ApplyMigrations`/`ReadMigration` for exact historical boundary tests
 
 | ID | Type | Description | Impact | Resolution |
 |---|---|---|---|---|
-| CPQ-001 | Non-blocking design; implementation gate | SQL extraction must match Go best-effort facets, Unicode trimming, and source eligibility | Incorrect contributions or failed ingestion | Exact migration/source-parity tests before query rollout; revise the implementation design if parity cannot be achieved without changing semantics |
+| CPQ-001 | Non-blocking design; implementation gate | SQL extraction must match Go best-effort facets, Unicode trimming, and source eligibility for unambiguous records; FR-006 rejects duplicate recognized fields | Incorrect contributions or failed ingestion | Exact migration/source-parity tests before query rollout; revise the implementation design if parity cannot be achieved without changing semantics |
 | CPQ-002 | Non-blocking rollout dependency | Code retains full records, but live historical integrity/size has not been inspected | Recovery correctness and migration duration | IT-006 proves repository mechanism; deployment review verifies source integrity and table/migration cost. If recovery is infeasible, return to FR-005 revision |
 | CPQ-003 | Non-blocking | Database lowercasing/collation and Go/Dart lowercase behaviour can differ for unusual Unicode | Identity/spelling matching drift | Preserve existing identities, test accepted non-ASCII cases across actual PostgreSQL configuration and helpers; do not add new case-folding rules in this change |
 | CPQ-004 | Non-blocking | No agreed latency budget | No numerical performance verdict possible | Assess plans with representative tags and sizes; seek a target only if a meaningful trade-off emerges |
@@ -187,3 +187,13 @@ DR-001/GAP-001: retained-source inventory and recovery mechanism are bound above
 - Required service-backed checks: `just test` (development PostgreSQL/MinIO available); focused exact-migration tests in `./internal/db`; `just app-test test/search/providers/search_pagination_merge_test.dart test/shared/rich_text/facet_autocomplete_editor_test.dart test/feed/widgets/post_composer_sheet_facets_test.dart test/search/search_page_test.dart`; expand to the appropriate remaining changed suites. `just appview-test-unit` is explicitly incomplete database evidence.
 - No tests, code, migrations, dependencies, commits, or production mutations were created/executed in this planning stage. Only this plan artifact is added.
 - Next choice: proceed to `implement-tdd`, add a manual note, or stop.
+
+## Approved IR-003 Correction Design (2026-10-09)
+
+The user approved rejecting ambiguous recognized source fields, including the historical migration check. This explicitly revises CPQ-001's preservation contract only for duplicate recognized fields. Keep the generated spelling projection for unambiguous sources.
+
+- Add a shared raw-JSON ambiguity validator for recognized hashtag-source boundaries. Preserve raw field order/duplicates while examining names with Go case-fold equivalence. Unknown fields/features keep best-effort semantics. Invoke it from shared source validation and guard direct post-indexer writes.
+- Add equivalent JSONB ambiguity checking to migration 90 (still unshipped; renumbered after merging main), a clear historical preflight failure and a database constraint to prevent ambiguity during writes by older binaries or direct callers. The migration must leave source data intact and fail transactionally. Down migration removes the constraint and helper.
+- Historical conflicting aliases require explicit resolution before migration retry. Never delete/rewrite PDS records automatically. JSONB cannot expose exact duplicate keys already overwritten; document this information limit.
+- Test order and mapping: UT-007 / FR-006, FR-004; IT-009 / FR-006, FR-005; IT-010 / FR-006, FR-004, FR-002; then existing regression gates.
+- No route, wire, lexicon, auth, permission, UI or production-infrastructure change. Normal source aliases, hashtag spelling variants and independent facet features remain accepted.

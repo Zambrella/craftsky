@@ -28,6 +28,10 @@ Decision / implication: The exact spelling used by the most distinct eligible po
 Answer: The user disagreed with adding that explanation.
 Decision / implication: Keep the existing count label. Preserving the current 28-day calculation is an assumption; changing it to all-time is outside this update.
 
+### Q3: How should conflicting source-field aliases be handled?
+Answer: On 2026-10-09, the user approved validation rather than preserving ambiguous decoder outcomes and explicitly authorized implementation, including the historical migration check.
+Decision / implication: Reject duplicate recognized hashtag-source fields case-insensitively, regardless of their values or input order. A single canonical or case-folded alias remains accepted. Check existing records before enabling spelling recovery and fail visibly on detectable ambiguity; do not rewrite or silently omit affected records. This is an explicit exception to preserving previously accepted record shapes.
+
 No blocking questions identified. Remaining defaults are recorded in section 20.
 
 ## 4. Candidate Approaches
@@ -97,7 +101,8 @@ With four eligible distinct posts containing `#memademay` and five containing `#
 | FR-002 | Functional | Must | Return the winning observed spelling on composer hashtag suggestions, search suggestions, hashtag search results, and top-hashtag items. | Consistent policy across discovery surfaces. | Discovery, ASM-004 | AC-001, AC-002, AC-004 |
 | FR-003 | Functional | Must | Selecting a composer suggestion shall insert the returned spelling; navigating from a suggestion/result shall retrieve posts for the case-insensitive identity. | Display casing must remain usable. | Discovery, current UI | AC-005 |
 | FR-004 | Functional | Must | Retain observed original tag spellings for indexed posts and update their contribution on post edits, deletes, and reprocessing. | Spelling selection needs accurate source data. | Codebase | AC-006 |
-| FR-005 | Functional | Must | Existing eligible indexed posts shall participate in spelling selection once the update is available, using verified public source spellings. Recovery shall preserve public source records and shall not fabricate casing from normalised tag arrays. | Avoid a winner based only on new posts. | Initial scenario, codebase | AC-007 |
+| FR-005 | Functional | Must | Existing eligible indexed posts shall participate in spelling selection once the update is available, using verified public source spellings. Records with detectable conflicting source aliases must block recovery pending explicit resolution under FR-006. Recovery shall preserve public source records and shall not fabricate casing from normalised tag arrays. | Avoid a winner based only on new posts. | Initial scenario, codebase | AC-007 |
+| FR-006 | Functional | Must | Reject create/update records containing duplicate recognized fields within the same hashtag-source object, using the existing decoder's case-insensitive field equivalence. Reject duplicates even when values agree. Continue accepting a single alias and tolerated unknown fields/features. Historical recovery must fail visibly on detectable conflicting aliases before enabling the spelling projection; no automatic source repair or omission. | Prevent input-order-dependent identities and spellings. | User-approved validation fix, 2026-10-09 | AC-012 |
 | RULE-001 | Business rule | Must | Select the exact observed spelling used by the greatest number of distinct eligible posts, without preferring any casing style. | Implements the selected approach. | User answer | AC-001, AC-002 |
 | RULE-002 | Business rule | Must | Count each eligible post once in the aggregate tag count and at most once per exact spelling, regardless of repeated occurrences or metadata locations. A post containing two case variants may contribute once to each variant but only once to the aggregate. | Avoid inflated counts and ambiguous frequency calculations. | Initial request, ASM-002 | AC-008 |
 | RULE-003 | Business rule | Must | Resolve equal spelling frequencies deterministically without depending on query casing or row order. Proposed default: ascending case-sensitive Unicode code-point order. | Stable results under ties. | ASM-003 | AC-009 |
@@ -120,6 +125,7 @@ With four eligible distinct posts containing `#memademay` and five containing `#
 | AC-009 | RULE-003 | Given tied spelling frequencies, repeated requests and different input row orders select the same winner using the agreed tie-break rule. Under the proposed default, `MeMadeMay` sorts before `memademay`. |
 | AC-010 | RULE-004 | Given posts excluded by a surface's existing time, content, visibility, or craft rules, those posts affect neither its winner nor its count. Existing count labels receive no new time-window explanation. |
 | AC-011 | NFR-002 | Given paginated hashtag results, changing only source casing without changing tag identities or aggregate counts does not alter normalised result order, duplicate identities across pages, or invalidate a cursor solely because display spelling changed. |
+| AC-012 | FR-006, FR-004, FR-005 | Given duplicate recognized fields such as `tag` and `Tag`, either order and same/different values are rejected before projection. Single aliases and distinct hashtag features remain valid. Given an existing ambiguous record, the actual migration fails clearly and preserves pre-migration data/schema. After explicitly resolving the disposable test fixture, recovery succeeds. |
 
 ### Lifecycle example for AC-006
 
@@ -206,6 +212,10 @@ Notes: Revised following DR-001–DR-005 in `03-document-review.md`. Added recov
 
 - Requirements file: `01-requirements.md`.
 - Next test specification: `02-acceptance-tests.md`.
-- Must-cover requirement IDs: BR-001; FR-001–FR-005; RULE-001–RULE-004; NFR-001–NFR-002.
+- Must-cover requirement IDs: BR-001; FR-001–FR-006; RULE-001–RULE-004; NFR-001–NFR-002.
 - Suggested test levels: unit coverage for winner/tie/deduplication rules; PostgreSQL integration coverage for visibility, lifecycle, recovery, counts, and pagination; API/Flutter coverage for spelling preservation, selection, navigation, and unchanged labels.
 - Blocking product questions: None. Carry ASM-001–ASM-004 into later planning unless revised. Before implementation/rollout, resolve source recovery feasibility, API/storage seams, and any migration-backed verification; do not silently weaken a Must requirement.
+
+## Approved Validation Scope (2026-10-09 correction)
+
+FR-006 applies to recognized hashtag-source fields at their actual object boundaries: post `text/facets/project`; project `common`; common `craftType/tags/pattern/materials`; pattern `name/nameFacets/designer/designerFacets/publisher/publisherFacets`; material `text/facets`; facet `index/features`; byte index `byteStart/byteEnd`; feature `$type` and the recognized feature's `tag`, `did` or `uri`. Unknown fields and unknown feature payloads remain ignored. Duplicate exact keys in new raw JSON are also rejected. Historical JSONB cannot reveal overwritten exact duplicate keys; the historical gate detects surviving case-folded aliases, and does not claim original-token recovery of information already lost. No production inspection or mutation is authorized by this correction.

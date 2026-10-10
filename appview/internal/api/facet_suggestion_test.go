@@ -47,32 +47,6 @@ func TestRankMentionSuggestionRowsUsesSharedProfileRelevance(t *testing.T) {
 	}
 }
 
-func TestNormalizeHashtagSuggestionRowsLowercaseCountsAndSorts(t *testing.T) {
-	t.Parallel()
-	rows := []HashtagSuggestionRow{
-		{Tag: "SockKAL", PostsLast28Days: 2},
-		{Tag: "", PostsLast28Days: 99},
-		{Tag: "sockkal", PostsLast28Days: 3},
-		{Tag: "sockmending", PostsLast28Days: 3},
-		{Tag: "sockbad", PostsLast28Days: -1},
-	}
-
-	got := NormalizeHashtagSuggestionRows(rows)
-	want := []HashtagSuggestionRow{
-		{Tag: "sockkal", PostsLast28Days: 5},
-		{Tag: "sockmending", PostsLast28Days: 3},
-		{Tag: "sockbad", PostsLast28Days: 0},
-	}
-	if len(got) != len(want) {
-		t.Fatalf("len = %d, want %d: %#v", len(got), len(want), got)
-	}
-	for i := range want {
-		if got[i] != want[i] {
-			t.Fatalf("row %d = %#v, want %#v; all=%#v", i, got[i], want[i], got)
-		}
-	}
-}
-
 func TestEscapeFacetLikePatternTreatsWildcardCharactersLiterally(t *testing.T) {
 	t.Parallel()
 

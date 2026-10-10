@@ -68,32 +68,6 @@ func derefString(value *string) string {
 	return *value
 }
 
-func NormalizeHashtagSuggestionRows(rows []HashtagSuggestionRow) []HashtagSuggestionRow {
-	counts := map[string]int{}
-	for _, row := range rows {
-		tag := strings.ToLower(strings.TrimSpace(row.Tag))
-		if tag == "" {
-			continue
-		}
-		count := row.PostsLast28Days
-		if count < 0 {
-			count = 0
-		}
-		counts[tag] += count
-	}
-	out := make([]HashtagSuggestionRow, 0, len(counts))
-	for tag, count := range counts {
-		out = append(out, HashtagSuggestionRow{Tag: tag, PostsLast28Days: count})
-	}
-	sort.SliceStable(out, func(i, j int) bool {
-		if out[i].PostsLast28Days != out[j].PostsLast28Days {
-			return out[i].PostsLast28Days > out[j].PostsLast28Days
-		}
-		return out[i].Tag < out[j].Tag
-	})
-	return out
-}
-
 func EscapeFacetLikePattern(query string) string {
 	replacer := strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)
 	return replacer.Replace(query)
@@ -186,7 +160,8 @@ func (s *FacetStore) SearchHashtagSuggestions(ctx context.Context, query string,
 	}
 	likeQuery := EscapeFacetLikePattern(queryLower)
 	rows, err := s.pool.Query(ctx, `
-		SELECT lower(trim(tag.raw_tag)) AS tag, COUNT(DISTINCT p.uri)::int AS posts_last_28_days
+		WITH eligible AS (
+		SELECT p.uri, p.tag_spellings, lower(trim(tag.raw_tag)) AS tag_key
 		FROM craftsky_posts p
 		CROSS JOIN LATERAL unnest(p.tags) AS tag(raw_tag)
 		WHERE p.reply_root_uri IS NULL
@@ -196,15 +171,15 @@ func (s *FacetStore) SearchHashtagSuggestions(ctx context.Context, query string,
 		  AND trim(tag.raw_tag) <> ''
 		  AND lower(trim(tag.raw_tag)) LIKE '%' || $3 || '%' ESCAPE '\'
 		`+postVisibleModerationPredicate+`
-		GROUP BY lower(trim(tag.raw_tag))
+		)`+hashtagAggregationCTEs+`
 		ORDER BY
 		  CASE
-		    WHEN lower(trim(tag.raw_tag)) = $2 THEN 0
-		    WHEN lower(trim(tag.raw_tag)) LIKE $3 || '%' ESCAPE '\' THEN 1
+		    WHEN c.tag_key = $2 THEN 0
+		    WHEN c.tag_key LIKE $3 || '%' ESCAPE '\' THEN 1
 		    ELSE 2
 		  END ASC,
-		  posts_last_28_days DESC,
-		  tag ASC
+		  c.post_count DESC,
+		  c.tag_key ASC
 		LIMIT $4
 	`, now.Add(-28*24*time.Hour), queryLower, likeQuery, limit)
 	if err != nil {
