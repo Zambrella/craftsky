@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/profile/models/profile_handle.dart';
+import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
 import 'package:craftsky_app/shared/rich_text/data/facet_suggestion_repository.dart';
 import 'package:craftsky_app/shared/rich_text/facet_autocomplete_controller.dart';
 import 'package:craftsky_app/shared/rich_text/facet_syntax.dart';
@@ -56,10 +57,7 @@ class FacetTextEditingController extends TextEditingController {
       children.add(TextSpan(text: text.substring(cursor)));
     }
 
-    return TextSpan(
-      style: baseStyle,
-      children: children,
-    );
+    return TextSpan(style: baseStyle, children: children);
   }
 }
 
@@ -609,22 +607,15 @@ class _MentionSuggestionList extends StatelessWidget {
                 child: Row(
                   children: [
                     Semantics(
-                      label: _avatarLabel(
-                        suggestion,
-                        unavailableHandleLabel,
-                      ),
+                      label: _avatarLabel(suggestion, unavailableHandleLabel),
                       container: true,
                       child: ExcludeSemantics(
-                        child: CircleAvatar(
-                          child: Text(
-                            ProfileHandle(suggestion.handle)
-                                .displayLabel(
-                                  displayName: suggestion.displayName,
-                                  unavailableLabel: unavailableHandleLabel,
-                                )
-                                .characters
-                                .first
-                                .toUpperCase(),
+                        child: ProfileAvatar(
+                          avatarUrl: suggestion.avatar,
+                          size: ProfileAvatarSize.small,
+                          seed: ProfileHandle(suggestion.handle).displayLabel(
+                            displayName: suggestion.displayName,
+                            unavailableLabel: unavailableHandleLabel,
                           ),
                         ),
                       ),
