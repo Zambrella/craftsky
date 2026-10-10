@@ -1,6 +1,5 @@
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/profile/models/profile_handle.dart';
-import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 
 /// Display name (DM Serif Display) + optional pronouns + `@handle` block,
@@ -24,7 +23,6 @@ class ProfileIdentity extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final spacing = theme.extension<SpacingTheme>()!;
     final l10n = AppLocalizations.of(context);
     final profileHandle = ProfileHandle(handle);
     final visiblePronouns = pronouns?.trim();
@@ -44,34 +42,30 @@ class ProfileIdentity extends StatelessWidget {
           : CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          mainAxisAlignment: centered
-              ? MainAxisAlignment.center
-              : MainAxisAlignment.start,
-          crossAxisAlignment: CrossAxisAlignment.baseline,
-          textBaseline: TextBaseline.alphabetic,
-          children: [
-            Flexible(
-              child: Text(
-                name,
-                style: theme.textTheme.headlineMedium,
-                overflow: TextOverflow.ellipsis,
-                textAlign: centered ? TextAlign.center : TextAlign.start,
-              ),
+        SizedBox(
+          width: double.infinity,
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: centered
+                ? Alignment.center
+                : AlignmentDirectional.centerStart,
+            child: Text(
+              name,
+              style: theme.textTheme.headlineMedium,
+              maxLines: 1,
+              softWrap: false,
+              textAlign: centered ? TextAlign.center : TextAlign.start,
             ),
-            if (visiblePronouns?.isNotEmpty ?? false) ...[
-              SizedBox(width: spacing.sp2),
-              Flexible(
-                child: Text(
-                  visiblePronouns!,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.bodySmall?.copyWith(color: mutedInk),
-                ),
-              ),
-            ],
-          ],
+          ),
         ),
+        if (visiblePronouns?.isNotEmpty ?? false) ...[
+          const SizedBox(height: 2),
+          Text(
+            visiblePronouns!,
+            textAlign: centered ? TextAlign.center : TextAlign.start,
+            style: theme.textTheme.bodySmall?.copyWith(color: mutedInk),
+          ),
+        ],
         if (businessLabel != null) ...[
           const SizedBox(height: 2),
           Text(

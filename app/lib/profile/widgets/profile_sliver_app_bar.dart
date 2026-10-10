@@ -112,8 +112,18 @@ class ProfileSliverAppBar extends StatelessWidget {
       style: theme.textTheme.headlineMedium,
       textScaler: textScaler,
       direction: direction,
-      maxWidth: availableWidth,
+      maxWidth: double.infinity,
     );
+    final visiblePronouns = pronouns?.trim();
+    final pronounsHeight = (visiblePronouns?.isNotEmpty ?? false)
+        ? _measureTextHeight(
+            text: visiblePronouns!,
+            style: theme.textTheme.bodySmall,
+            textScaler: textScaler,
+            direction: direction,
+            maxWidth: availableWidth,
+          )
+        : 0.0;
     final handleHeight = (displayName?.isNotEmpty ?? false)
         ? _measureTextHeight(
             text: profileHandle.currentLabel(unavailableLabel: unavailable),
@@ -134,6 +144,7 @@ class ProfileSliverAppBar extends StatelessWidget {
         : 0.0;
     final measuredIdentityHeight =
         nameHeight +
+        (pronounsHeight == 0 ? 0 : 2 + pronounsHeight) +
         (businessLabelHeight == 0 ? 0 : 2 + businessLabelHeight) +
         (handleHeight == 0 ? 0 : 2 + handleHeight);
     final identityHeight = math.max(
