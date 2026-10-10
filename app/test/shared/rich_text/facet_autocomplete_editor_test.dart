@@ -1,3 +1,5 @@
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:craftsky_app/shared/image/image_cache_providers.dart';
 import 'package:craftsky_app/shared/rich_text/data/facet_suggestion_repository.dart';
 import 'package:craftsky_app/shared/rich_text/data/mock_facet_suggestion_repository.dart';
 import 'package:craftsky_app/shared/rich_text/providers/facet_suggestion_providers.dart';
@@ -8,6 +10,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import '../../fakes/image_cache_fakes.dart';
 
 void main() {
   group('FacetAutocompleteEditor', () {
@@ -22,6 +26,9 @@ void main() {
         await tester.pumpWidget(
           _wrap(
             overrides: [
+              profileImageCacheManagerProvider.overrideWithValue(
+                FakeBaseCacheManager(),
+              ),
               facetAutocompleteDebounceProvider.overrideWithValue(
                 Duration.zero,
               ),
@@ -71,6 +78,15 @@ void main() {
         expect(find.text('@alicia.craftsky.social'), findsOneWidget);
         expect(find.text('Mallory'), findsNothing);
         expect(find.text('@alice.elsewhere.example'), findsNothing);
+        expect(
+          tester
+              .widgetList<CachedNetworkImage>(find.byType(CachedNetworkImage))
+              .map((image) => image.imageUrl),
+          orderedEquals([
+            'https://example.com/alice.jpg',
+            'https://example.com/alicia.jpg',
+          ]),
+        );
         expect(
           find.byWidgetPredicate(
             (widget) =>
@@ -333,6 +349,8 @@ void main() {
       await tester.pumpAndSettle();
 
       final tokenStart = _tokenStartGlobalOffset(tester, text.indexOf('@'));
+      expect(find.text('A'), findsOneWidget);
+      expect(find.byType(CachedNetworkImage), findsNothing);
       final cardTopLeft = tester.getTopLeft(find.byType(Card));
 
       expect(cardTopLeft.dx, closeTo(tokenStart.dx, 1));
