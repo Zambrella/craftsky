@@ -16,4 +16,5 @@ final accountAuthApiClientProvider = FutureProvider.autoDispose
     .family<AuthApiClient, AccountKey>(
       (ref, account) async =>
           AuthApiClient(await ref.watch(accountDioProvider(account).future)),
+      name: 'accountAuthApiClientProvider',
     );

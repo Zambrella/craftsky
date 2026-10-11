@@ -1,3 +1,4 @@
+import 'package:craftsky_app/auth/models/account_operation_canceled.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/errors/app_error.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
@@ -22,6 +23,12 @@ final class AppErrorMapper {
       error = error.diagnosticCause!;
     }
     return switch (error) {
+      AccountOperationCanceled() => AppError(
+        AppErrorKind.actionFailed,
+        reportableOverride: false,
+        sentryClassificationOverride: 'account.canceled',
+        diagnosticCause: error,
+      ),
       DioException(error: final ApiException mapped) => _mapApiException(
         mapped,
       ),

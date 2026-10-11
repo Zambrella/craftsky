@@ -1,8 +1,21 @@
+import 'package:craftsky_app/auth/models/account_operation_canceled.dart';
 import 'package:craftsky_app/shared/observability/sentry_error_reporter.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 
 void main() {
+  test('automatic account cancellation does not emit a Sentry event', () async {
+    final options = SentryOptions();
+    configureDiagnosticOptions(options);
+    final event = SentryEvent(
+      throwable: ThrowableMechanism(
+        Mechanism(type: 'FlutterError'),
+        AccountOperationCanceled(),
+      ),
+    );
+    expect(await options.beforeSend!(event, Hint()), isNull);
+  });
+
   test('SDK-T06 native frame metadata survives locals filtering', () async {
     final options = SentryOptions();
     configureDiagnosticOptions(options);

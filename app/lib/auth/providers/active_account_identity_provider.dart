@@ -52,6 +52,7 @@ final activeAccountIdentityProvider =
             ? ActiveAccountIdentity(lease: target.lease, profile: profile)
             : null;
       },
+      name: 'activeAccountIdentityProvider',
     );
 
 _ActiveIdentityTarget? _activeIdentityTarget(

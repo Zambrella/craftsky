@@ -121,7 +121,7 @@ func ExpectedDiagnostic(err error, fields EventContext) bool {
 	if result == "exhausted" || result == "terminal" || result == "quarantine" {
 		return false
 	}
-	if result == "retry" {
+	if result == "retry" || result == "expected" {
 		return true
 	}
 	classified := ClassifyError(err, fields)

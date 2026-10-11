@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:craftsky_app/auth/models/account_operation_canceled.dart';
 import 'package:craftsky_app/auth/models/auth_state.dart';
 import 'package:craftsky_app/bootstrap.dart';
 import 'package:craftsky_app/feed/composer/video_submission_state.dart';
@@ -47,6 +48,8 @@ void main() {
       );
       const reporter = SentryErrorReporter();
       for (final error in [
+        AccountOperationCanceled(),
+        AppErrorMapper.map(AccountOperationCanceled()),
         const ApiCanceled(),
         const AppError(
           AppErrorKind.unexpected,
