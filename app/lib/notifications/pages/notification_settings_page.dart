@@ -8,6 +8,7 @@ import 'package:craftsky_app/notifications/providers/notification_permission_pro
 import 'package:craftsky_app/notifications/providers/notification_preferences_provider.dart';
 import 'package:craftsky_app/notifications/providers/notification_service_provider.dart';
 import 'package:craftsky_app/notifications/widgets/notification_category_icon.dart';
+import 'package:craftsky_app/notifications/widgets/notification_category_label.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
 import 'package:craftsky_app/theme/craftsky_card.dart';
@@ -210,7 +211,7 @@ class _PreferenceSection extends ConsumerWidget {
               SizedBox(width: spacing.sp2),
               Expanded(
                 child: Text(
-                  _categoryLabel(l10n, category),
+                  notificationCategoryLabel(l10n, category),
                   style: theme.textTheme.titleLarge,
                 ),
               ),
@@ -307,19 +308,3 @@ class _PreferenceSection extends ConsumerWidget {
     );
   }
 }
-
-String _categoryLabel(AppLocalizations l10n, NotificationCategory category) =>
-    switch (category) {
-      NotificationCategory.like => l10n.notificationCategoryLikes,
-      NotificationCategory.follow => l10n.notificationCategoryFollows,
-      NotificationCategory.reply => l10n.notificationCategoryReplies,
-      NotificationCategory.mention => l10n.notificationCategoryMentions,
-      NotificationCategory.quote => l10n.notificationCategoryQuotes,
-      NotificationCategory.repost => l10n.notificationCategoryReposts,
-      NotificationCategory.instagramMatch =>
-        l10n.notificationCategoryInstagramMatches,
-      NotificationCategory.moderation => l10n.notificationCategoryModeration,
-      NotificationCategory.everythingElse =>
-        l10n.notificationCategoryEverythingElse,
-      NotificationCategory.unknown => l10n.notificationCategoryEverythingElse,
-    };

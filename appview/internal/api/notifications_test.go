@@ -16,6 +16,7 @@ import (
 	"social.craftsky/appview/internal/api"
 	"social.craftsky/appview/internal/api/envelope"
 	"social.craftsky/appview/internal/business"
+	"social.craftsky/appview/internal/notifications"
 )
 
 type fakeNotificationStore struct {
@@ -26,15 +27,17 @@ type fakeNotificationStore struct {
 	lastViewer   string
 	lastLimit    int
 	lastCursor   string
+	lastCategory notifications.Category
 	engagementIn []string
 	handles      map[string]syntax.Handle
 	handleCalls  int
 }
 
-func (f *fakeNotificationStore) ListNotifications(_ context.Context, viewerDID string, limit int, cursor string) ([]*api.NotificationRow, string, error) {
+func (f *fakeNotificationStore) ListNotifications(_ context.Context, viewerDID string, limit int, cursor string, category notifications.Category) ([]*api.NotificationRow, string, error) {
 	f.lastViewer = viewerDID
 	f.lastLimit = limit
 	f.lastCursor = cursor
+	f.lastCategory = category
 	return f.rows, f.cursor, f.err
 }
 
@@ -440,5 +443,29 @@ func TestNotificationsHandler_StoreFailureUsesServerErrorEnvelope(t *testing.T) 
 	}
 	if rec.Body.String() == "" || errors.Is(store.err, envelope.ErrInvalidCursor) {
 		t.Fatalf("unexpected body/error: %s", rec.Body.String())
+	}
+}
+
+func TestNotificationsCategoryFilter(t *testing.T) {
+	for _, category := range append([]notifications.Category{""}, notifications.Categories()...) {
+		t.Run(string(category), func(t *testing.T) {
+			store := &fakeNotificationStore{}
+			rec := httptest.NewRecorder()
+			api.ListNotificationsHandler(store, fakeResolver{}, nilLogger()).ServeHTTP(rec, authedReq(http.MethodGet, "/v1/notifications?category="+string(category), "", "did:plc:viewer"))
+			if rec.Code != http.StatusOK || store.lastCategory != category {
+				t.Fatalf("status=%d category=%q", rec.Code, store.lastCategory)
+			}
+		})
+	}
+	for _, category := range []string{"all", "unknown", "Like", "futureCategory"} {
+		rec := httptest.NewRecorder()
+		api.ListNotificationsHandler(&fakeNotificationStore{}, fakeResolver{}, nilLogger()).ServeHTTP(rec, authedReq(http.MethodGet, "/v1/notifications?category="+category, "", "did:plc:viewer"))
+		var body map[string]any
+		if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+			t.Fatal(err)
+		}
+		if rec.Code != http.StatusBadRequest || body["error"] != "invalid_category" {
+			t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+		}
 	}
 }

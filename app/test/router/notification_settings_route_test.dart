@@ -11,7 +11,6 @@ import 'package:craftsky_app/notifications/providers/notification_repository_pro
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
-import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/form_factor.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -73,13 +72,11 @@ void main() {
     expect(find.byType(NotificationsPage), findsOneWidget);
     expect(notifications.listCalls, 1);
 
-    expect(find.byTooltip('Notification settings'), findsOneWidget);
-    final settingsButton = find.widgetWithIcon(
-      IconButton,
-      CraftskyIconsBold.settings,
+    expect(find.byTooltip('Notification settings'), findsNothing);
+    // The settings route remains reachable independently of the AppBar action.
+    const NotificationSettingsRoute().go(
+      tester.element(find.byType(NotificationsPage)),
     );
-    expect(GoRouter.of(tester.element(settingsButton)), same(router));
-    tester.widget<IconButton>(settingsButton).onPressed!();
     await tester.pumpAndSettle();
 
     expect(find.byType(NotificationSettingsPage), findsOneWidget);
@@ -109,7 +106,11 @@ final class _NotificationsRepository implements NotificationRepository {
   int listCalls = 0;
 
   @override
-  Future<NotificationPage> list({String? cursor, int? limit}) async {
+  Future<NotificationPage> list({
+    String? cursor,
+    int? limit,
+    NotificationCategory? category,
+  }) async {
     listCalls++;
     return const NotificationPage(items: []);
   }

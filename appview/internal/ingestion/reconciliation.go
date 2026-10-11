@@ -277,14 +277,17 @@ func (store *Store) reconcileSourceTx(
 		SET state=$2,dependency_kind=$3,dependency_key=$4,attempts=0,
 		    next_attempt_at=$5,lease_owner=NULL,lease_token=NULL,lease_expires_at=NULL,
 		    last_reason_code=$6,completed_at=$7,updated_at=$5
-		WHERE source_uri=$1 AND source_event_id=$8
+		WHERE source_uri=$1 AND source_event_id=$8 AND projection_kind=$9
 	`, event.URI, state, dependencyKind, dependencyKey, now,
-		nullableString(string(outcome.Reason)), completedAt, event.ID)
+		nullableString(string(outcome.Reason)), completedAt, event.ID, projectionKind(event.Collection))
 	if err != nil {
 		return tap.Outcome{}, fmt.Errorf("wake reconciled Tap projection: %w", err)
 	}
 	if jobResult.RowsAffected() != 1 {
 		return tap.Outcome{}, ErrReconciliationSourceChanged
+	}
+	if err := resetPostNotificationJob(ctx, tx, event.URI, event.Collection); err != nil {
+		return tap.Outcome{}, err
 	}
 	return outcome, nil
 }

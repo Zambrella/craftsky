@@ -44,6 +44,8 @@ func NewStore(pool *pgxpool.Pool, now func() time.Time) (*Store, error) {
 }
 
 type SourceRecord struct {
+	// ProjectionKind is populated only while executing a claimed projection job.
+	ProjectionKind             string
 	URI                        syntax.ATURI
 	DID                        syntax.DID
 	Collection                 syntax.NSID
@@ -345,7 +347,7 @@ func installSourceProjectionTx(
 		dependencyKind, dependencyKey, now, nullableString(string(reason)), completedAt); err != nil {
 		return fmt.Errorf("upsert Tap projection job: %w", err)
 	}
-	return nil
+	return resetPostNotificationJob(ctx, tx, event.URI, event.Collection)
 }
 
 func markSourceConflictTx(ctx context.Context, tx pgx.Tx, event tap.Event, fingerprint [32]byte, now time.Time) (tap.Outcome, error) {
@@ -521,7 +523,8 @@ func readCurrentJobOutcome(ctx context.Context, tx pgx.Tx, uri syntax.ATURI) (ta
 	var reason *tap.ReasonCode
 	if err := tx.QueryRow(ctx, `
 		SELECT state,dependency_kind,dependency_key,last_reason_code
-		FROM tap_projection_jobs WHERE source_uri=$1
+		FROM tap_projection_jobs job JOIN tap_source_records source ON source.uri=job.source_uri
+		WHERE job.source_uri=$1 AND job.projection_kind=replace(source.collection,'.','_')
 	`, uri).Scan(&state, &kind, &key, &reason); err != nil {
 		return tap.Outcome{}, fmt.Errorf("read current projection job: %w", err)
 	}
@@ -556,17 +559,22 @@ func (store *Store) ClaimProjectionJobs(ctx context.Context, request ProjectionC
 	}
 	now := store.now().UTC().Truncate(time.Microsecond)
 	expires := now.Add(request.LeaseDuration).Truncate(time.Microsecond)
+	// Notification jobs also retry once a minute: a dependency may commit
+	// between the readiness check and registering the blocked job, before its
+	// wake query can see that job. The timer closes that missed-wake window.
 	rows, err := store.pool.Query(ctx, `
 		WITH candidates AS (
 			SELECT id FROM tap_projection_jobs
 			WHERE next_attempt_at <= $1
-			  AND (state='pending' OR (state='processing' AND lease_expires_at <= $1))
+			  AND (state='pending' OR (state='processing' AND lease_expires_at <= $1)
+			       OR (state='blocked' AND projection_kind='post_notifications'))
 			ORDER BY next_attempt_at,id
 			LIMIT $2
 			FOR UPDATE SKIP LOCKED
 		)
 		UPDATE tap_projection_jobs AS job
 		SET state='processing',attempts=job.attempts+1,
+		    dependency_kind=NULL,dependency_key=NULL,
 		    lease_owner=$3,lease_token=$4,lease_expires_at=$5,updated_at=$1
 		FROM candidates
 		WHERE job.id=candidates.id
@@ -650,6 +658,7 @@ func (store *Store) project(ctx context.Context, claim ProjectionClaim, projecto
 			return eligibleErr
 		}
 		if outcome.Kind == "" {
+			source.ProjectionKind = claim.ProjectionKind
 			outcome, err = projector(ctx, tx, source)
 		} else {
 			err = nil
@@ -675,7 +684,7 @@ func (store *Store) project(ctx context.Context, claim ProjectionClaim, projecto
 			if result.RowsAffected() != 1 {
 				return ErrProjectionLeaseLost
 			}
-			if source.Action != "delete" {
+			if source.Action != "delete" && claim.ProjectionKind != PostNotificationsProjection {
 				switch source.Collection {
 				case "social.craftsky.actor.profile":
 					if err := wakeDependencyTx(ctx, tx, tap.Dependency{Kind: "member_did", Key: source.DID.String()}, now); err != nil {
@@ -695,6 +704,8 @@ func (store *Store) project(ctx context.Context, claim ProjectionClaim, projecto
 				UPDATE tap_projection_jobs
 				SET state='blocked',dependency_kind=$3,dependency_key=$4,
 				    lease_owner=NULL,lease_token=NULL,lease_expires_at=NULL,
+				    next_attempt_at=CASE WHEN projection_kind='post_notifications'
+				        THEN $6::timestamptz + interval '1 minute' ELSE next_attempt_at END,
 				    last_reason_code=$5,updated_at=$6
 				WHERE id=$1 AND lease_token=$2
 			`, claim.ID, claim.LeaseToken, outcome.Dependency.Kind, outcome.Dependency.Key, outcome.Reason, now)
@@ -876,7 +887,7 @@ func (store *Store) ProjectionJob(ctx context.Context, uri syntax.ATURI) (Projec
 		SELECT id,source_uri,projection_kind,source_event_id,state,
 		       dependency_kind,dependency_key,attempts,lease_owner,
 		       lease_token::text,lease_expires_at
-		FROM tap_projection_jobs WHERE source_uri=$1
+		FROM tap_projection_jobs WHERE source_uri=$1 AND projection_kind <> 'post_notifications'
 	`, uri).Scan(&job.ID, &job.SourceURI, &job.ProjectionKind, &sourceEventID, &job.State,
 		&kind, &key, &job.Attempts, &owner, &token, &expires); err != nil {
 		return ProjectionJob{}, err

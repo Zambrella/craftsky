@@ -1,4 +1,5 @@
 import 'package:craftsky_app/notifications/models/account_subscription_id.dart';
+import 'package:craftsky_app/notifications/models/notification_category.dart';
 import 'package:craftsky_app/notifications/models/notification_page.dart';
 import 'package:craftsky_app/notifications/models/notification_preferences.dart';
 import 'package:craftsky_app/notifications/services/notification_registration_coordinator.dart';
@@ -8,7 +9,11 @@ import 'package:craftsky_app/notifications/services/notification_registration_co
 // Ignored because this boundary intentionally remains a one-method seam.
 // ignore: one_member_abstracts
 abstract interface class NotificationRepository {
-  Future<NotificationPage> list({String? cursor, int? limit});
+  Future<NotificationPage> list({
+    String? cursor,
+    int? limit,
+    NotificationCategory? category,
+  });
 }
 
 // Ignored because registration is a deliberately narrow adapter boundary.

@@ -358,6 +358,24 @@ abstract class AppLocalizations {
   /// **'Open settings'**
   String get notificationOpenSettings;
 
+  /// No description provided for @notificationFilterAll.
+  ///
+  /// In en, this message translates to:
+  /// **'All categories'**
+  String get notificationFilterAll;
+
+  /// No description provided for @notificationFilterEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No notifications in this category yet.'**
+  String get notificationFilterEmpty;
+
+  /// No description provided for @notificationFilterShowAll.
+  ///
+  /// In en, this message translates to:
+  /// **'Show all notifications'**
+  String get notificationFilterShowAll;
+
   /// No description provided for @notificationCategoryLikes.
   ///
   /// In en, this message translates to:

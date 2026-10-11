@@ -7,7 +7,9 @@ import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/bootstrap.dart';
 import 'package:craftsky_app/notifications/data/notification_repository.dart';
 import 'package:craftsky_app/notifications/models/craftsky_notification.dart';
+import 'package:craftsky_app/notifications/models/notification_category.dart';
 import 'package:craftsky_app/notifications/models/notification_page.dart';
+import 'package:craftsky_app/notifications/providers/notification_filter_provider.dart';
 import 'package:craftsky_app/notifications/providers/notification_repository_provider.dart';
 import 'package:craftsky_app/notifications/providers/notifications_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -63,6 +65,101 @@ void main() {
     expect(_socialRkey(bobState.items.single), 'bob');
     expect(aliceState.owner?.account, alice);
     expect(bobState.owner?.account, bob);
+  });
+
+  test(
+    'category changes reset pagination and discard pending old pages',
+    () async {
+      final pending = Completer<NotificationPage>();
+      final repo = _FakeNotificationRepository()
+        ..responses.addAll([
+          Future.value(
+            NotificationPage(items: [_follow('all')], cursor: 'all-next'),
+          ),
+          pending.future,
+          Future.value(
+            NotificationPage(
+              items: [_follow('filtered')],
+              cursor: 'filtered-next',
+            ),
+          ),
+          Future.value(NotificationPage(items: [_follow('filtered-more')])),
+        ]);
+      final container = ProviderContainer.test(
+        overrides: [notificationRepositoryProvider.overrideWithValue(repo)],
+      )..listen(notificationsProvider, (_, _) {});
+      await container.read(notificationsProvider.future);
+      final oldLoad = container.read(notificationsProvider.notifier).loadMore();
+      container
+          .read(notificationFilterProvider.notifier)
+          .select(NotificationCategory.follow);
+      await container.read(notificationsProvider.future);
+      pending.complete(NotificationPage(items: [_follow('stale')]));
+      await oldLoad;
+      expect(
+        container
+            .read(notificationsProvider)
+            .requireValue
+            .items
+            .map(_socialRkey),
+        ['filtered'],
+      );
+      await container.read(notificationsProvider.notifier).loadMore();
+      expect(repo.calls.map((call) => call.category), [
+        null,
+        null,
+        NotificationCategory.follow,
+        NotificationCategory.follow,
+      ]);
+      expect(repo.calls.map((call) => call.cursor), [
+        null,
+        'all-next',
+        null,
+        'filtered-next',
+      ]);
+      expect(
+        container
+            .read(notificationsProvider)
+            .requireValue
+            .items
+            .map(_socialRkey),
+        ['filtered', 'filtered-more'],
+      );
+    },
+  );
+
+  test('category selection resets when the active account changes', () async {
+    final registry = auth_model.SessionRegistry.empty()
+        .upsertAndActivate(
+          token: 'alice-token',
+          did: 'did:plc:alice',
+          handle: 'alice.test',
+        )
+        .upsertAndActivate(
+          token: 'bob-token',
+          did: 'did:plc:bob',
+          handle: 'bob.test',
+        );
+    final container = ProviderContainer.test(
+      overrides: [
+        secureSessionRegistryStorageProvider.overrideWithValue(
+          _RegistryStorage(registry),
+        ),
+      ],
+    );
+    await container.read(sessionRegistryProvider.future);
+    expect(container.read(notificationFilterProvider), isNull);
+    container
+        .read(notificationFilterProvider.notifier)
+        .select(NotificationCategory.mention);
+    expect(
+      container.read(notificationFilterProvider),
+      NotificationCategory.mention,
+    );
+    await container
+        .read(sessionRegistryProvider.notifier)
+        .activate(registry.leaseFor(AccountKey('did:plc:alice'))!);
+    expect(container.read(notificationFilterProvider), isNull);
   });
 
   test('initial load retries after failure', () async {
@@ -212,14 +309,19 @@ class _FakeNotificationRepository implements NotificationRepository {
   final calls = <_Call>[];
 
   @override
-  Future<NotificationPage> list({String? cursor, int? limit}) {
-    calls.add(_Call(cursor: cursor, limit: limit));
+  Future<NotificationPage> list({
+    String? cursor,
+    int? limit,
+    NotificationCategory? category,
+  }) {
+    calls.add(_Call(cursor: cursor, limit: limit, category: category));
     return responses.removeAt(0);
   }
 }
 
 final class _Call {
-  const _Call({this.cursor, this.limit});
+  const _Call({this.cursor, this.limit, this.category});
+  final NotificationCategory? category;
   final String? cursor;
   final int? limit;
 }

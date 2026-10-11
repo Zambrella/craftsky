@@ -10,6 +10,7 @@ import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/notifications/data/notification_repository.dart';
 import 'package:craftsky_app/notifications/models/account_subscription_id.dart';
 import 'package:craftsky_app/notifications/models/foreground_notification_event.dart';
+import 'package:craftsky_app/notifications/models/notification_category.dart';
 import 'package:craftsky_app/notifications/models/notification_destination.dart';
 import 'package:craftsky_app/notifications/models/notification_effect.dart';
 import 'package:craftsky_app/notifications/models/notification_open_event.dart';
@@ -387,7 +388,11 @@ final class _RecordingNotificationRepository implements NotificationRepository {
   int listCalls = 0;
 
   @override
-  Future<NotificationPage> list({String? cursor, int? limit}) async {
+  Future<NotificationPage> list({
+    String? cursor,
+    int? limit,
+    NotificationCategory? category,
+  }) async {
     listCalls++;
     return const NotificationPage(items: []);
   }
