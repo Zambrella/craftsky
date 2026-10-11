@@ -32,6 +32,92 @@ import 'fakes/fake_search_repository.dart';
 void main() {
   setUpAll(initializeMappers);
 
+  for (final (query, expectedTab) in [
+    ('@alice', SearchResultsTab.profiles),
+    ('#knitting', SearchResultsTab.tags),
+    ('  @alice  ', SearchResultsTab.profiles),
+    ('  #knitting  ', SearchResultsTab.tags),
+    ('knitting', SearchResultsTab.posts),
+    ('knitting @alice #socks', SearchResultsTab.posts),
+  ]) {
+    for (final initialLocation in ['/search', '/search?q=socks&tab=projects']) {
+      testWidgets('submitting "$query" from $initialLocation selects '
+          '${expectedTab.name}', (tester) async {
+        final router = GoRouter(
+          initialLocation: initialLocation,
+          routes: [
+            GoRoute(
+              path: '/search',
+              builder: (context, state) => SearchPage(
+                q: state.uri.queryParameters['q'],
+                tab: SearchResultsTab.fromWire(
+                  state.uri.queryParameters['tab'],
+                ),
+              ),
+            ),
+          ],
+        );
+        addTearDown(router.dispose);
+        final savedQueries = <String>[];
+        await tester.pumpWidget(
+          _searchPageApp(
+            home: const SearchPage(),
+            router: router,
+            repository: FakeSearchRepository(
+              onListRecentSearches: () async =>
+                  const RecentSearchPage(items: []),
+              onTopHashtags: ({craftTypes, limit}) async =>
+                  const TopHashtagsResponse(groups: []),
+              onSaveRecentSearch: (request) async {
+                savedQueries.add(request.displayLabel);
+                return RecentSearchItem(
+                  id: 'recent-query',
+                  type: request.type,
+                  displayLabel: request.displayLabel,
+                  payload: request.payload,
+                  updatedAt: DateTime.utc(2026),
+                );
+              },
+              onSearchPosts: ({required q, limit, cursor}) async =>
+                  const SearchPostPage(items: []),
+              onSearchProjects: ({required q, limit, cursor}) async =>
+                  const SearchPostPage(items: []),
+              onSearchProfiles: ({required q, limit, cursor}) async =>
+                  const ProfileSearchPage(items: []),
+              onSearchHashtags: ({required q, limit, cursor}) async =>
+                  const HashtagSearchPage(items: []),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.enterText(
+          find.byKey(const ValueKey('search-input')),
+          query,
+        );
+        await tester.testTextInput.receiveAction(TextInputAction.search);
+        await tester.pumpAndSettle();
+
+        expect(
+          tester.widget<TabBar>(find.byType(TabBar)).controller!.index,
+          expectedTab.index,
+        );
+        expect(
+          router.routeInformationProvider.value.uri.queryParameters['q'],
+          query.trim(),
+        );
+        expect(savedQueries, [query.trim()]);
+        expect(
+          tester
+              .widget<EditableText>(find.byType(EditableText))
+              .controller
+              .text,
+          query.trim(),
+        );
+      });
+    }
+  }
+
   testWidgets(
     'SearchPage shows compact skeletons for blank discovery loading',
     (
