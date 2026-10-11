@@ -3470,5 +3470,8 @@
   "serviceStatusDismiss": "Dismiss",
   "@serviceStatusDismiss": {"description": "Dismiss the current general announcement."},
   "serviceStatusEstimatedRecovery": "Estimated recovery: {time}",
-  "@serviceStatusEstimatedRecovery": {"description": "Informational local-time recovery estimate.", "placeholders": {"time": {"type": "String"}}}
+  "@serviceStatusEstimatedRecovery": {"description": "Informational local-time recovery estimate.", "placeholders": {"time": {"type": "String"}}},
+  "recordCopyLinkAction": "Copy link",
+  "recordLinkCopied": "Link copied",
+  "recordCopyLinkFailed": "Could not copy link. Please try again."
 }

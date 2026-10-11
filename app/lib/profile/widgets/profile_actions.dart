@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/shared/widgets/action_progress.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
@@ -20,7 +22,13 @@ sealed class ProfileActionSet {
 }
 
 final class SelfProfileActionSet extends ProfileActionSet {
-  const SelfProfileActionSet({required this.onEdit, required this.onSettings});
+  const SelfProfileActionSet({
+    required this.onEdit,
+    required this.onSettings,
+    this.onCopyLink,
+  });
+
+  final FutureOr<void> Function()? onCopyLink;
 
   final VoidCallback onEdit;
   final VoidCallback onSettings;
@@ -35,6 +43,7 @@ final class VisitorProfileActionSet extends ProfileActionSet {
     required this.onReport,
     required this.onMuteToggle,
     required this.onBlockToggle,
+    this.onCopyLink,
     this.isFollowingBusy = false,
     this.isBlockingBusy = false,
     this.isMuted = false,
@@ -49,6 +58,7 @@ final class VisitorProfileActionSet extends ProfileActionSet {
   final bool isBlockingBusy;
   final VoidCallback onFollowToggle;
   final VoidCallback onShare;
+  final FutureOr<void> Function()? onCopyLink;
   final VoidCallback onReport;
   final VoidCallback onMuteToggle;
   final VoidCallback onBlockToggle;
@@ -104,32 +114,46 @@ class _SelfActions extends StatelessWidget {
     final theme = Theme.of(context);
     final spacing = theme.extension<SpacingTheme>()!;
     final l10n = AppLocalizations.of(context);
-    return Row(
-      // Hug content rather than stretching across the action lane —
-      // Edit and Settings are secondary on your own profile, so the
-      // group reads better at intrinsic size, anchored to the right
-      // by the surrounding Align.
-      mainAxisSize: MainAxisSize.min,
+    return Wrap(
+      alignment: WrapAlignment.end,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      spacing: spacing.sp3,
+      runSpacing: spacing.sp3,
       children: [
         ChunkyButton(
           onPressed: actions.onEdit,
           variant: ChunkyButtonVariant.secondary,
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            mainAxisSize: MainAxisSize.min,
+          child: Wrap(
+            alignment: WrapAlignment.center,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: spacing.sp2,
             children: [
               const Icon(CraftskyIconsBold.edit),
-              SizedBox(width: spacing.sp2),
               Text(l10n.profileEditAction),
             ],
           ),
         ),
-        SizedBox(width: spacing.sp3),
         ChunkyIconButton(
           onPressed: actions.onSettings,
           icon: CraftskyIconsBold.settings,
           tooltip: l10n.profileSettingsAction,
         ),
+        if (actions.onCopyLink != null) ...[
+          CraftskyContextMenuButton(
+            tooltip: l10n.profileMoreActions,
+            groups: [
+              CraftskyContextMenuGroup(
+                items: [
+                  CraftskyContextMenuItem(
+                    text: l10n.recordCopyLinkAction,
+                    icon: CraftskyIcons.link,
+                    onPressed: actions.onCopyLink,
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ],
       ],
     );
   }
@@ -189,6 +213,12 @@ class _VisitorActions extends StatelessWidget {
           groups: [
             CraftskyContextMenuGroup(
               items: [
+                if (actions.onCopyLink != null)
+                  CraftskyContextMenuItem(
+                    text: l10n.recordCopyLinkAction,
+                    icon: CraftskyIcons.link,
+                    onPressed: actions.onCopyLink,
+                  ),
                 CraftskyContextMenuItem(
                   text: l10n.profileShareAction,
                   icon: CraftskyIconsBold.share,

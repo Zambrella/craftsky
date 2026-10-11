@@ -23,6 +23,63 @@ Future<void> _pump(WidgetTester tester, Widget child) {
 
 void main() {
   group('ProfileActions', () {
+    testWidgets('self profile copy menu fits a narrow screen with large text', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(320, 568);
+      tester.view.devicePixelRatio = 1;
+      tester.platformDispatcher.textScaleFactorTestValue = 2;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      await _pump(
+        tester,
+        ProfileActions(
+          actions: SelfProfileActionSet(
+            onEdit: () {},
+            onSettings: () {},
+            onCopyLink: () {},
+          ),
+        ),
+      );
+      expect(tester.takeException(), isNull);
+      await tester.tap(find.byType(CraftskyContextMenuButton));
+      await tester.pumpAndSettle();
+      expect(find.text('Copy link'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    for (final own in [false, true]) {
+      testWidgets(
+        '${own ? 'self' : 'visitor'} profile menu exposes copy link',
+        (tester) async {
+          var copied = false;
+          final actions = own
+              ? SelfProfileActionSet(
+                  onEdit: () {},
+                  onSettings: () {},
+                  onCopyLink: () => copied = true,
+                )
+              : VisitorProfileActionSet(
+                  isFollowing: false,
+                  isBusy: false,
+                  onFollowToggle: () {},
+                  onShare: () {},
+                  onReport: () {},
+                  onMuteToggle: () {},
+                  onBlockToggle: () {},
+                  onCopyLink: () => copied = true,
+                );
+          await _pump(tester, ProfileActions(actions: actions));
+          await tester.tap(find.byType(CraftskyContextMenuButton));
+          await tester.pumpAndSettle();
+          await tester.tap(find.text('Copy link'));
+          await tester.pumpAndSettle();
+          expect(copied, isTrue);
+        },
+      );
+    }
+
     testWidgets('following spins only Follow and disables competing actions', (
       tester,
     ) async {

@@ -98,9 +98,11 @@ void main() {
       final menu = tester.widget<CraftskyContextMenuButton>(
         find.byType(CraftskyContextMenuButton),
       );
-      expect(menu.groups, hasLength(2));
+      expect(menu.groups, hasLength(3));
       expect(menu.groups.first.items, hasLength(1));
       expect(menu.groups.first.items.single.text, 'View likes');
+      expect(menu.groups[1].items.single.text, 'Copy link');
+      expect(menu.groups.last.items.single.text, 'Delete post');
       expect(
         menu.groups.first.items.single.style,
         CraftskyContextMenuItemStyle.normal,
@@ -128,7 +130,7 @@ void main() {
           of: find.byType(BottomSheet),
           matching: find.byType(CraftskyDivider),
         ),
-        findsOneWidget,
+        findsNWidgets(2),
       );
       expect(
         tester.getTopLeft(find.text('View likes')).dy,

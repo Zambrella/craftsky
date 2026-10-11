@@ -5,6 +5,8 @@ import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/saved_posts/models/saved_post.dart';
 import 'package:craftsky_app/saved_posts/models/saved_post_keys.dart';
 import 'package:craftsky_app/saved_posts/providers/account_saved_post_state_provider.dart';
+import 'package:craftsky_app/shared/sharing/copy_link_menu_item.dart';
+import 'package:craftsky_app/shared/sharing/record_links.dart';
 import 'package:craftsky_app/shared/time/relative_time_text.dart';
 import 'package:craftsky_app/shared/widgets/post_summary.dart';
 import 'package:craftsky_app/subscriptions/subscription_build_config.dart';
@@ -66,6 +68,11 @@ class SavedPostRow extends ConsumerWidget {
                 child: CraftskyContextMenuButton(
                   tooltip: l10n.savedPostRowActions,
                   groups: [
+                    CraftskyContextMenuGroup(
+                      items: [
+                        copyLinkMenuItem(context, RecordLinks.post(item.post)),
+                      ],
+                    ),
                     CraftskyContextMenuGroup(
                       items: [
                         CraftskyContextMenuItem(

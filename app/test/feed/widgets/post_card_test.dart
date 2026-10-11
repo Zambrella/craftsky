@@ -49,6 +49,7 @@ import 'package:craftsky_app/theme/craftsky_context_menu.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -192,6 +193,62 @@ Future<void> _doubleTap(WidgetTester tester, Finder finder) async {
 
 void main() {
   group('PostCard', () {
+    for (final kind in ['post', 'comment', 'reply']) {
+      testWidgets('$kind menu copies the selected record link', (tester) async {
+        final root = PostRef(
+          uri: 'at://did:plc:bob/social.craftsky.feed.post/root',
+          cid: 'root-cid',
+        );
+        final post = _post(
+          reply: kind == 'post'
+              ? null
+              : PostReply(
+                  root: root,
+                  parent: kind == 'comment'
+                      ? root
+                      : PostRef(
+                          uri:
+                              'at://did:plc:carol/social.craftsky.feed.post/comment',
+                          cid: 'comment-cid',
+                        ),
+                ),
+        );
+        String? copied;
+        tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          (call) async {
+            if (call.method == 'Clipboard.setData') {
+              copied = (call.arguments as Map)['text'] as String;
+            }
+            return null;
+          },
+        );
+        addTearDown(
+          () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+            SystemChannels.platform,
+            null,
+          ),
+        );
+        await _pump(tester, PostCard(post: post));
+        await tester.tap(find.byType(CraftskyContextMenuButton).first);
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Copy link'));
+        await tester.pumpAndSettle();
+        final link = Uri.parse(copied!);
+        expect(link.origin, 'https://app.craftsky.social');
+        expect(
+          link.pathSegments,
+          kind == 'post'
+              ? ['posts', post.author.did.value, post.rkey.value]
+              : ['posts', 'did:plc:bob', 'root'],
+        );
+        expect(
+          link.queryParameters['focus'],
+          kind == 'post' ? null : post.uri.value,
+        );
+      });
+    }
+
     testWidgets('IT-014 renders full external card and applies images-win', (
       tester,
     ) async {
@@ -1864,7 +1921,7 @@ void main() {
         final menu = tester.widget<CraftskyContextMenuButton>(
           find.byType(CraftskyContextMenuButton),
         );
-        expect(menu.groups, hasLength(2));
+        expect(menu.groups, hasLength(3));
         expect(menu.groups.first.items, hasLength(1));
         expect(menu.groups.first.items.single.text, 'View likes');
         expect(

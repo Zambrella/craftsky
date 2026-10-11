@@ -323,6 +323,10 @@ void main() {
     expect(find.text('Summer fibre fair'), findsOneWidget);
     expect(find.byTooltip('Report event'), findsNothing);
     expect(find.textContaining('Published'), findsOneWidget);
+    await tester.tap(find.byTooltip('More actions'));
+    await tester.pumpAndSettle();
+    expect(find.text('Copy link'), findsOneWidget);
+    expect(find.text('Report event'), findsNothing);
   });
 
   testWidgets('IT-009 event report keeps established pending and failure UX', (

@@ -16,6 +16,9 @@ import 'package:craftsky_app/profile/widgets/profile_identity.dart';
 import 'package:craftsky_app/profile/widgets/profile_sliver_app_bar.dart';
 import 'package:craftsky_app/profile/widgets/profile_stats.dart';
 import 'package:craftsky_app/profile/widgets/profile_tab_bar.dart';
+import 'package:craftsky_app/shared/atproto/identifiers.dart';
+import 'package:craftsky_app/shared/sharing/copy_link_menu_item.dart';
+import 'package:craftsky_app/shared/sharing/record_links.dart';
 import 'package:craftsky_app/shared/widgets/action_progress.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/chunky_icon_button.dart';
@@ -325,6 +328,7 @@ class _ProfileCardSurface extends StatelessWidget {
                                       child: SizedBox(
                                         width: double.infinity,
                                         child: _ProfileCardActions(
+                                          did: profile.did,
                                           isOwnProfile: isOwnProfile,
                                           isFollowing:
                                               profile.viewerIsFollowing,
@@ -446,6 +450,7 @@ class _ProfileCardSurface extends StatelessWidget {
 
 class _ProfileCardActions extends StatelessWidget {
   const _ProfileCardActions({
+    required this.did,
     required this.isOwnProfile,
     required this.isFollowing,
     required this.isBusy,
@@ -455,6 +460,7 @@ class _ProfileCardActions extends StatelessWidget {
     required this.onPrimaryAction,
   });
 
+  final Did did;
   final bool isOwnProfile;
   final bool isFollowing;
   final bool isBusy;
@@ -515,6 +521,17 @@ class _ProfileCardActions extends StatelessWidget {
                     onPressed: () {},
                     icon: CraftskyIconsBold.settings,
                     tooltip: l10n.profileSettingsAction,
+                  ),
+                  SizedBox(width: spacing.sp3),
+                  CraftskyContextMenuButton(
+                    tooltip: l10n.profileMoreActions,
+                    groups: [
+                      CraftskyContextMenuGroup(
+                        items: [
+                          copyLinkMenuItem(context, RecordLinks.profile(did)),
+                        ],
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -598,7 +615,7 @@ class _ProfileCardActions extends StatelessWidget {
                         SizedBox(width: spacing.sp3),
                         CraftskyContextMenuButton(
                           tooltip: l10n.profileMoreActions,
-                          groups: _expandedMenuGroups(l10n),
+                          groups: _expandedMenuGroups(context, l10n),
                         ),
                       ],
                     ),
@@ -612,11 +629,13 @@ class _ProfileCardActions extends StatelessWidget {
   }
 
   List<CraftskyContextMenuGroup> _expandedMenuGroups(
+    BuildContext context,
     AppLocalizations l10n,
   ) {
     return [
       CraftskyContextMenuGroup(
         items: [
+          copyLinkMenuItem(context, RecordLinks.profile(did)),
           CraftskyContextMenuItem(
             text: l10n.profileShareAction,
             icon: CraftskyIconsBold.share,
