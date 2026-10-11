@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:craftsky_app/bootstrap.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/timeline_page.dart';
@@ -5,6 +7,8 @@ import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/feed/providers/timeline_provider.dart';
 import 'package:craftsky_app/languages/models/language_preferences.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
+import 'package:craftsky_app/shared/api/api_exception.dart';
+import 'package:craftsky_app/shared/observability/error_reporter.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -112,6 +116,41 @@ void main() {
   );
 
   group('timelineProvider build', () {
+    test(
+      'late fetch after disposal exits as cancellation before reading overlays',
+      () async {
+        final pending = Completer<TimelinePage>();
+        final reporter = _RecordingReporter();
+        final container = ProviderContainer(
+          retry: appProviderRetry,
+          observers: [ProviderLogger(reporter: reporter)],
+          overrides: [
+            activeLanguagePreferencesProvider.overrideWith(
+              (ref) => const LanguagePreferences(
+                primaryLanguage: 'en',
+                contentLanguages: ['en'],
+              ),
+            ),
+            postRepositoryProvider.overrideWithValue(
+              FakePostRepository(
+                onListTimeline: ({cursor, limit}) => pending.future,
+              ),
+            ),
+          ],
+        );
+        final subscription = container.listen(timelineProvider, (_, _) {});
+        final result = container.read(timelineProvider.future);
+        final expectation = expectLater(result, throwsA(isA<ApiCanceled>()));
+        subscription.close();
+        container.dispose();
+        pending.complete(
+          TimelinePage(items: [_timelinePost(_samplePost(rkey: 'late'))]),
+        );
+        await expectation;
+        expect(reporter.errors, isEmpty);
+      },
+    );
+
     test(
       'IT-019 reads the established Content policy before fetching',
       () async {
@@ -240,4 +279,21 @@ void main() {
       },
     );
   });
+}
+
+final class _RecordingReporter implements ErrorReporter {
+  final errors = <Object>[];
+
+  @override
+  bool get enabled => true;
+
+  @override
+  Future<String?> captureException(
+    Object error, {
+    required ReportContext context,
+    StackTrace? stackTrace,
+  }) async {
+    errors.add(error);
+    return null;
+  }
 }

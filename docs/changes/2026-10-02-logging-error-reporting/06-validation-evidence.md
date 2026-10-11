@@ -1,5 +1,25 @@
 # Logging and Error Reporting Validation Evidence
 
+## Login timeline lifecycle — 2026-10-11
+
+Timeline initial loading now checks `ref.mounted` after fetching, before reading overlays. Pagination checks the captured account operation at the same point. The late-fetch regression first reproduced `UnmountedRefException`, then passed with `ApiCanceled` and no issue capture.
+
+Riverpod `StateError` and `UnmountedRefException` reporting remains unchanged. A regression reproduces a loading auto-dispose provider whose future was retained by a read-only consumer, requires its original `StateError` to remain reportable, and verifies retained type/origin stack plus excluded provider-prose canary in serialized local output. Auth startup's manual providers now have stable names to identify previously anonymous failures; the original unnamed loading-disposal warning's application source has not been established.
+
+- Focused timeline, account-boundary, client, provider-logger and observability suites: **106 passed / 1 skipped** (`/private/tmp/craftsky-login-disposal-focused.log`). Analysis: **No issues found** (`/private/tmp/craftsky-login-disposal-analyze.log`).
+- Full Flutter suite: **2,844 passed / 38 skipped** (`/private/tmp/craftsky-login-disposal-full.log`). Diff whitespace check passed.
+- No iPhone simulator relaunch, physical release-device check, deployment or production mutation was performed. Backend code is unchanged; the full Go race suite passed earlier in this session, as recorded below.
+
+## Account-client startup disposal — 2026-10-11
+
+Account-client initialization now checks whether its build is still mounted after registry and device-ID loading. A disposed build or removed session exits with `ApiCanceled`, using the existing expected-cancellation classifier rather than reporting an unexpected provider failure.
+
+- The session-invalidation regression first failed with `DiagnosticStateError: Account session unavailable`, then passed after the correction. Regressions cover delayed registry loading and session removal during device-ID loading, the replacement client's bearer header, no issue capture, retained public actor DID, and token/device-ID canaries excluded from serialized local output.
+- Focused client, provider-logger, session-validation and language-provider suites: **23 passed**.
+- Full Flutter suite: **2,842 passed / 38 skipped** (`/private/tmp/craftsky-disposal-flutter.log`). Flutter analysis: **No issues found** (`/private/tmp/craftsky-disposal-analyze.log`). Diff whitespace check passed.
+- Full Go `just test`: passed all packages with race detection against local PostgreSQL/MinIO (`/private/tmp/craftsky-disposal-go.log`).
+- iPhone simulator relaunch, physical release-device diagnostics and production retrieval were not performed for this correction. No deployment or production mutation was performed.
+
 ## PR 127 CI repair — 2026-10-08
 
 GitHub run 37761501772 on 37294149: Flutter failed only SDK-T05's enabled-log case (expected three serialized Logs, received zero); AppView release gate failed Staticcheck S1034 for repeated type assertions and U1000 for the unused capture wrapper. Aggregate PR check failed because these jobs failed. Read run/job logs and check annotations before changes.

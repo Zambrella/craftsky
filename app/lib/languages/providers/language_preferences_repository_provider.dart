@@ -8,9 +8,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 // The concrete family type is intentionally inferred by Riverpod.
 // ignore: specify_nonobvious_property_types
 final languagePreferencesRepositoryProvider = FutureProvider.autoDispose
-    .family<LanguagePreferencesRepository, AccountKey>((ref, account) async {
-      final dio = await ref.watch(accountDioProvider(account).future);
-      return ApiLanguagePreferencesRepository(
-        LanguagePreferencesApiClient(dio),
-      );
-    });
+    .family<LanguagePreferencesRepository, AccountKey>(
+      (ref, account) async {
+        final dio = await ref.watch(accountDioProvider(account).future);
+        return ApiLanguagePreferencesRepository(
+          LanguagePreferencesApiClient(dio),
+        );
+      },
+      name: 'languagePreferencesRepositoryProvider',
+    );

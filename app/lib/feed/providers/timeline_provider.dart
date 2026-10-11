@@ -6,6 +6,7 @@ import 'package:craftsky_app/feed/providers/post_record_overlay.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
 import 'package:craftsky_app/profile/providers/block_profile_overlay.dart';
+import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -21,6 +22,7 @@ class Timeline extends _$Timeline {
     ref.watch(activeContentLanguagePolicyProvider);
     final repo = ref.watch(postRepositoryProvider);
     final page = await repo.listTimeline(limit: timelinePageLimit);
+    if (!ref.mounted) throw const ApiCanceled();
     return TimelineState(
       items: _dedupe(_applyTimelineOverlays(ref, page.items)),
       cursor: page.cursor,
@@ -40,6 +42,9 @@ class Timeline extends _$Timeline {
         cursor: current.cursor,
         limit: timelinePageLimit,
       );
+      if (!isActiveAccountOperationCurrent(ref, ownership)) {
+        throw const ApiCanceled();
+      }
       return TimelineState(
         items: _appendDeduped(
           current.items,

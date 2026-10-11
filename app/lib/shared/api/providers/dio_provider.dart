@@ -6,6 +6,7 @@ import 'package:craftsky_app/auth/models/session_registry.dart'
     as import_registry;
 import 'package:craftsky_app/auth/providers/account_boundary_provider.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
+import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/api/providers/error_mapping_interceptor.dart';
 import 'package:craftsky_app/shared/api/providers/session_auth_interceptor.dart';
 import 'package:craftsky_app/shared/api/providers/sign_out_on_401_interceptor.dart';
@@ -83,17 +84,20 @@ Future<Dio> accountDio(Ref ref, AccountKey account) async {
   );
   if (!selection.loaded) {
     await ref.read(sessionRegistryProvider.future);
+    // Loading the registry can invalidate this build. Never access a disposed
+    // ref or create a client for a superseded session.
+    if (!ref.mounted) throw const ApiCanceled();
     selection = _accountClientSelection(
       ref.read(sessionRegistryProvider),
       account,
     );
   }
-  final deviceId = await ref.watch(deviceIdProvider.future);
-  if (!ref.mounted) {
-    throw DiagnosticStateError('Account client disposed during build');
-  }
   final target = selection.target;
-  if (target == null) throw DiagnosticStateError('Account session unavailable');
+  // Session invalidation can briefly leave dependents watching this account.
+  // This is expected teardown, not an unexpected provider failure.
+  if (target == null) throw const ApiCanceled();
+  final deviceId = await ref.watch(deviceIdProvider.future);
+  if (!ref.mounted) throw const ApiCanceled();
   final lease = AccountSessionLease(
     account: account,
     sessionGeneration: target.generation,
