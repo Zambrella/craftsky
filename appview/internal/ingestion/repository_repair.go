@@ -221,6 +221,7 @@ func (store *Store) claimProjectionSource(ctx context.Context, uri syntax.ATURI)
 		FROM tap_source_records AS source
 		WHERE job.source_uri=$5 AND source.uri=job.source_uri
 		  AND source.source_event_id=job.source_event_id
+		  AND job.projection_kind=replace(source.collection,'.','_')
 		  AND (job.state IN ('pending','blocked')
 		       OR (job.state='processing' AND job.lease_expires_at<=$1))
 		RETURNING job.id,job.source_uri,job.projection_kind,job.source_event_id,
@@ -236,7 +237,7 @@ func (store *Store) claimProjectionSource(ctx context.Context, uri syntax.ATURI)
 			SELECT job.state,source.source_event_id
 			FROM tap_projection_jobs AS job
 			JOIN tap_source_records AS source ON source.uri=job.source_uri
-			WHERE job.source_uri=$1
+			WHERE job.source_uri=$1 AND job.projection_kind=replace(source.collection,'.','_')
 		`, uri).Scan(&state, &currentEventID); readErr != nil {
 			return ProjectionClaim{}, false, fmt.Errorf("read repository repair projection %s: %w", uri, readErr)
 		}

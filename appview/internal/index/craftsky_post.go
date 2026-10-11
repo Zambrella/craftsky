@@ -31,11 +31,12 @@ import (
 // before its author's craftsky_profiles row is dropped permanently for now;
 // see the design spec for the post-backfiller follow-up.
 type CraftskyPost struct {
-	pool         *pgxpool.Pool
-	projectionDB transactionalDatabase
-	logger       *slog.Logger
-	lifecycle    notifications.Lifecycle
-	videoEnabled bool
+	pool               *pgxpool.Pool
+	projectionDB       transactionalDatabase
+	logger             *slog.Logger
+	lifecycle          notifications.Lifecycle
+	videoEnabled       bool
+	deferNotifications bool
 }
 
 var _ Indexer = (*CraftskyPost)(nil)
@@ -278,7 +279,7 @@ func (c *CraftskyPost) handleUpsert(ctx context.Context, ev tap.Event) error {
 	if err := syncPostMentions(ctx, tx, ev.URI, mentions, createdAt); err != nil {
 		return err
 	}
-	if externalImportSource == "" {
+	if externalImportSource == "" && !c.deferNotifications {
 		if err := c.activatePostNotifications(ctx, tx, ev, rec, mentions, createdAt); err != nil {
 			return err
 		}

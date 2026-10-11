@@ -33,6 +33,21 @@ func (projector *imageSafetyCraftskyPost) Project(
 	if tx == nil {
 		return tap.Retryable(tap.ReasonProjectionFailure), fmt.Errorf("image safety post projection requires a transaction")
 	}
+	if source.ProjectionKind == ingestion.PostNotificationsProjection {
+		if event.Action != "delete" {
+			var clear bool
+			if err := tx.QueryRow(ctx, `
+				SELECT EXISTS(SELECT 1 FROM image_subject_states
+				WHERE subject_uri=$1 AND source_cid=$2 AND visibility_state='clear')
+			`, event.URI, event.CID).Scan(&clear); err != nil {
+				return tap.Retryable(tap.ReasonProjectionFailure), err
+			}
+			if !clear {
+				return tap.Blocked(tap.ReasonImageScanPending, tap.Dependency{Kind: "image_subject_uri", Key: event.URI.String()}), nil
+			}
+		}
+		return projector.next.Project(ctx, tx, source)
+	}
 	if event.Action == "delete" {
 		if _, err := tx.Exec(ctx, `DELETE FROM image_subject_states WHERE subject_uri=$1`, event.URI); err != nil {
 			return tap.Retryable(tap.ReasonProjectionFailure), fmt.Errorf("delete image subject state %s: %w", event.URI, err)
