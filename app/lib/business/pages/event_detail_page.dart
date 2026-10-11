@@ -11,6 +11,8 @@ import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/moderation/widgets/report_flow.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/link/external_link.dart';
+import 'package:craftsky_app/shared/sharing/copy_link_menu_item.dart';
+import 'package:craftsky_app/shared/sharing/record_links.dart';
 import 'package:craftsky_app/subscriptions/providers/subscription_access_provider.dart';
 import 'package:craftsky_app/theme/craftsky_card.dart';
 import 'package:craftsky_app/theme/craftsky_context_menu.dart';
@@ -73,23 +75,30 @@ class EventDetailPage extends ConsumerWidget {
       AsyncData(value: BusinessEventDetailAvailable(:final event)) => event,
       _ => null,
     };
-    final reportAction = event != null && account.did != event.did
+    final recordMenu = event != null
         ? CraftskyContextMenuButton(
-            tooltip: l10n.businessEventReportAction,
+            tooltip: account.did == event.did
+                ? l10n.postMoreActions
+                : l10n.businessEventReportAction,
             groups: [
               CraftskyContextMenuGroup(
                 items: [
-                  CraftskyContextMenuItem(
-                    text: l10n.businessEventReportAction,
-                    icon: CraftskyIconsBold.report,
-                    onPressed: () => showBusinessEventReportSheet(
-                      context,
-                      ref,
-                      account: account,
-                      owner: event.did,
-                      rkey: event.rkey,
-                    ),
+                  copyLinkMenuItem(
+                    context,
+                    RecordLinks.event(event.did, event.rkey),
                   ),
+                  if (account.did != event.did)
+                    CraftskyContextMenuItem(
+                      text: l10n.businessEventReportAction,
+                      icon: CraftskyIconsBold.report,
+                      onPressed: () => showBusinessEventReportSheet(
+                        context,
+                        ref,
+                        account: account,
+                        owner: event.did,
+                        rkey: event.rkey,
+                      ),
+                    ),
                 ],
               ),
             ],
@@ -100,7 +109,7 @@ class EventDetailPage extends ConsumerWidget {
         body: _AvailableEventDetail(
           event: event,
           isOwner: account.did == event.did,
-          reportAction: reportAction,
+          reportAction: recordMenu,
           launchExternal: launchExternal,
           confirmExternal: confirmExternal,
         ),

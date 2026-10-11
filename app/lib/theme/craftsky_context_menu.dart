@@ -378,14 +378,16 @@ class _CraftskyContextMenuSheet extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final radii = theme.extension<RadiusTheme>()!;
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        SizedBox(height: radii.r3),
-        ..._sheetChildren(context),
-        SizedBox(height: MediaQuery.of(context).padding.bottom),
-      ],
+    return SingleChildScrollView(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SizedBox(height: radii.r3),
+          ..._sheetChildren(context),
+          SizedBox(height: MediaQuery.of(context).padding.bottom),
+        ],
+      ),
     );
   }
 

@@ -8018,6 +8018,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Estimated recovery: {time}'**
   String serviceStatusEstimatedRecovery(String time);
+
+  /// No description provided for @recordCopyLinkAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy link'**
+  String get recordCopyLinkAction;
+
+  /// No description provided for @recordLinkCopied.
+  ///
+  /// In en, this message translates to:
+  /// **'Link copied'**
+  String get recordLinkCopied;
+
+  /// No description provided for @recordCopyLinkFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not copy link. Please try again.'**
+  String get recordCopyLinkFailed;
 }
 
 class _AppLocalizationsDelegate

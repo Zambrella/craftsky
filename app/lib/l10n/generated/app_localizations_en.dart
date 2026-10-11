@@ -4540,4 +4540,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String serviceStatusEstimatedRecovery(String time) {
     return 'Estimated recovery: $time';
   }
+
+  @override
+  String get recordCopyLinkAction => 'Copy link';
+
+  @override
+  String get recordLinkCopied => 'Link copied';
+
+  @override
+  String get recordCopyLinkFailed => 'Could not copy link. Please try again.';
 }

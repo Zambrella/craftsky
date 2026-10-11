@@ -11,6 +11,8 @@ import 'package:craftsky_app/business/providers/owner_business_events_provider.d
 import 'package:craftsky_app/business/providers/profile_business_events_provider.dart';
 import 'package:craftsky_app/business/widgets/event_card.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/shared/sharing/copy_link_menu_item.dart';
+import 'package:craftsky_app/shared/sharing/record_links.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/subscriptions/providers/subscription_access_provider.dart';
@@ -296,6 +298,14 @@ class _OwnerEventCard extends ConsumerWidget {
                   ref.watch(businessEventMutationControllerProvider).status !=
                   EventMutationStatus.saving,
               groups: [
+                CraftskyContextMenuGroup(
+                  items: [
+                    copyLinkMenuItem(
+                      context,
+                      RecordLinks.event(event.did, event.rkey),
+                    ),
+                  ],
+                ),
                 CraftskyContextMenuGroup(
                   items: [
                     CraftskyContextMenuItem(
