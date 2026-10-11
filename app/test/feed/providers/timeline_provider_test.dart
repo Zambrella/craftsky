@@ -116,6 +116,45 @@ void main() {
   );
 
   group('timelineProvider build', () {
+    test('disposed timeline cancels before reading record overlays', () async {
+      final response = Completer<TimelinePage>();
+      final started = Completer<void>();
+      final container = ProviderContainer.test(
+        overrides: [
+          activeLanguagePreferencesProvider.overrideWith(
+            (ref) => const LanguagePreferences(
+              primaryLanguage: 'en',
+              contentLanguages: ['en'],
+            ),
+          ),
+          postRepositoryProvider.overrideWithValue(
+            FakePostRepository(
+              onListTimeline: ({cursor, limit}) {
+                started.complete();
+                return response.future;
+              },
+            ),
+          ),
+        ],
+      );
+      // Keep the original build future so its post-await behavior is exercised.
+      final result = container.read(timelineProvider.future);
+      final assertion = expectLater(
+        result,
+        throwsA(isA<ApiCanceled>()),
+      );
+      await started.future;
+      container.dispose();
+      response.complete(
+        TimelinePage(
+          items: [
+            _timelinePost(_samplePost(rkey: 'late')),
+          ],
+        ),
+      );
+      await assertion;
+    });
+
     test(
       'late fetch after disposal exits as cancellation before reading overlays',
       () async {

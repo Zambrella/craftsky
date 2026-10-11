@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:craftsky_app/auth/models/account_key.dart';
+import 'package:craftsky_app/auth/models/account_operation_canceled.dart';
 import 'package:craftsky_app/drafts/data/local_post_draft_repository.dart';
 import 'package:craftsky_app/drafts/models/local_post_draft.dart';
 import 'package:craftsky_app/drafts/providers/local_post_draft_repository_provider.dart';
@@ -9,6 +11,44 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test(
+    'draft load after disposal cannot publish account-private data',
+    () async {
+      final account = AccountKey('did:plc:alice');
+      final response = Completer<List<LocalPostDraft>>();
+      final started = Completer<void>();
+      final repository = _MemoryRepository([]);
+      final container = ProviderContainer.test(
+        overrides: [
+          accountLocalPostDraftRepositoryProvider(
+            account,
+          ).overrideWith((ref) async => repository),
+        ],
+      );
+      final subscription = container.listen(
+        localPostDraftsProvider(account),
+        (_, _) {},
+      );
+      await container.read(localPostDraftsProvider(account).future);
+      repository.onList = () {
+        started.complete();
+        return response.future;
+      };
+      final result = container
+          .read(localPostDraftsProvider(account).notifier)
+          .build(account);
+      final assertion = expectLater(
+        result,
+        throwsA(isA<AccountOperationCanceled>()),
+      );
+      await started.future;
+      subscription.close();
+      container.dispose();
+      response.complete([_draft('private', account, 1)]);
+      await assertion;
+    },
+  );
+
   test('sorts, refreshes, deletes, and isolates account families', () async {
     final alice = AccountKey('did:plc:alice');
     final bob = AccountKey('did:plc:bob');
@@ -75,6 +115,7 @@ final class _MemoryRepository implements LocalPostDraftRepository {
 
   final List<LocalPostDraft> items;
   final List<String> deleted = [];
+  Future<List<LocalPostDraft>> Function()? onList;
 
   @override
   Future<void> delete(String draftId) async {
@@ -83,7 +124,8 @@ final class _MemoryRepository implements LocalPostDraftRepository {
   }
 
   @override
-  Future<List<LocalPostDraft>> list() async => List.of(items);
+  Future<List<LocalPostDraft>> list() async =>
+      onList == null ? List.of(items) : await onList!();
 
   @override
   Future<LocalPostDraft> get(String draftId) async =>

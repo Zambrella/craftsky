@@ -49,6 +49,43 @@ final class _ErrorHandler extends ErrorInterceptorHandler {
 
 void main() {
   test(
+    'account client disposed during device lookup cancels construction',
+    () async {
+      final started = Completer<void>();
+      final device = Completer<String>();
+      final container = ProviderContainer.test(
+        overrides: [
+          secureSessionRegistryStorageProvider.overrideWithValue(
+            _RegistryStorage(
+              SessionRegistry.empty().upsertAndActivate(
+                token: 'token',
+                did: 'did:plc:alice',
+                handle: 'alice.test',
+              ),
+            ),
+          ),
+          deviceIdProvider.overrideWith((ref) {
+            started.complete();
+            return device.future;
+          }),
+        ],
+      );
+      await container.read(sessionRegistryProvider.future);
+      final result = container.read(
+        accountDioProvider(AccountKey('did:plc:alice')).future,
+      );
+      final assertion = expectLater(
+        result,
+        throwsA(isA<ApiCanceled>()),
+      );
+      await started.future;
+      container.dispose();
+      device.complete('device-id');
+      await assertion;
+    },
+  );
+
+  test(
     'registry loading supersedes a client build without unexpected failures',
     () async {
       final initial = SessionRegistry.empty().upsertAndActivate(
