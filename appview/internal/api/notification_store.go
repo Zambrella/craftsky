@@ -11,6 +11,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 
 	"social.craftsky/appview/internal/api/envelope"
+	"social.craftsky/appview/internal/notifications"
 )
 
 type NotificationType string
@@ -101,10 +102,26 @@ func (s *PostStore) NotificationHandles(ctx context.Context, dids []string) (map
 	return out, nil
 }
 
-func (s *PostStore) ListNotifications(ctx context.Context, viewerDID string, limit int, cursor string) ([]*NotificationRow, string, error) {
-	curIndexedAt, curID, err := decodeSeekCursor(cursor, "indexedAt")
-	if err != nil {
-		return nil, "", err
+func (s *PostStore) ListNotifications(ctx context.Context, viewerDID string, limit int, cursor string, category notifications.Category) ([]*NotificationRow, string, error) {
+	var curIndexedAt, curID any
+	if cursor != "" {
+		payload, err := envelope.DecodeCursor(cursor)
+		if err != nil {
+			return nil, "", err
+		}
+		if raw, exists := payload["category"]; exists {
+			cursorCategory, ok := raw.(string)
+			if !ok || cursorCategory != string(category) {
+				return nil, "", envelope.ErrInvalidCursor
+			}
+			delete(payload, "category")
+		} else if category != "" {
+			return nil, "", envelope.ErrInvalidCursor
+		}
+		curIndexedAt, curID, err = decodeSeekCursorPayload(payload, "indexedAt")
+		if err != nil {
+			return nil, "", err
+		}
 	}
 
 	q := `
@@ -113,6 +130,7 @@ func (s *PostStore) ListNotifications(ctx context.Context, viewerDID string, lim
 			FROM notification_events e
 			WHERE e.recipient_did = $1
 			  AND e.state = 'active'
+			  AND ($5::text = '' OR e.category = $5)
 			  AND NOT appview_owner_is_terminal(e.recipient_did)
 			  AND (e.actor_did IS NULL OR (
 				NOT appview_owner_is_terminal(e.actor_did)
@@ -245,7 +263,7 @@ func (s *PostStore) ListNotifications(ctx context.Context, viewerDID string, lim
 		ORDER BY e.indexed_at DESC, e.id DESC
 	`
 	queryLimit := limit + 1
-	rows, err := s.pool.Query(ctx, q, viewerDID, curIndexedAt, curID, queryLimit)
+	rows, err := s.pool.Query(ctx, q, viewerDID, curIndexedAt, curID, queryLimit, category)
 	if err != nil {
 		return nil, "", fmt.Errorf("notification list %s: %w", viewerDID, err)
 	}
@@ -319,6 +337,7 @@ func (s *PostStore) ListNotifications(ctx context.Context, viewerDID string, lim
 	next, err := envelope.EncodeCursor(map[string]any{
 		"indexedAt": last.IndexedAt.UTC().Format(time.RFC3339Nano),
 		"uri":       last.ID,
+		"category":  string(category),
 	})
 	if err != nil {
 		return nil, "", fmt.Errorf("encode notification cursor: %w", err)

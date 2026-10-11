@@ -4,11 +4,13 @@ import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/notifications/models/craftsky_notification.dart';
+import 'package:craftsky_app/notifications/providers/notification_filter_provider.dart';
 import 'package:craftsky_app/notifications/providers/notification_seen_provider.dart';
 import 'package:craftsky_app/notifications/providers/notifications_provider.dart';
+import 'package:craftsky_app/notifications/widgets/notification_category_filter.dart';
+import 'package:craftsky_app/notifications/widgets/notification_category_label.dart';
 import 'package:craftsky_app/notifications/widgets/notification_row.dart';
 import 'package:craftsky_app/router/app_shell_drawer.dart';
-import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
@@ -30,6 +32,7 @@ class NotificationsPage extends ConsumerWidget {
         ? ref.watch(notificationsProvider)
         : ref.watch(accountNotificationsProvider(owner.account));
     final l10n = AppLocalizations.of(context);
+    final category = ref.watch(notificationFilterProvider);
     return Scaffold(
       body: RefreshIndicator(
         edgeOffset: MediaQuery.paddingOf(context).top + kToolbarHeight,
@@ -37,6 +40,7 @@ class NotificationsPage extends ConsumerWidget {
             ? ref.refresh(notificationsProvider.future)
             : ref.refresh(accountNotificationsProvider(owner.account).future),
         child: CustomScrollView(
+          key: ValueKey((owner?.account, category)),
           physics: const AlwaysScrollableScrollPhysics(),
           slivers: [
             SliverAppBar(
@@ -46,32 +50,39 @@ class NotificationsPage extends ConsumerWidget {
               title: Text(l10n.notificationsTitle),
               pinned: true,
               actions: [
-                IconButton(
-                  tooltip: l10n.notificationSettingsAction,
-                  onPressed: () =>
-                      const NotificationSettingsRoute().go(context),
-                  icon: const Icon(CraftskyIconsBold.settings),
+                Padding(
+                  padding: const EdgeInsetsDirectional.only(end: 16),
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                      maxWidth: MediaQuery.sizeOf(context).width * .45,
+                    ),
+                    child: const NotificationCategoryFilter(),
+                  ),
                 ),
               ],
             ),
             switch (notifications) {
-              AsyncValue(:final value?) => _NotificationsLoadedSlivers(
-                items: value.items,
-                hasMore: value.hasMore,
-                isLoadingMore: notifications.isLoading,
-                hasLoadMoreError: notifications.hasError,
-                renderToken: value.renderToken,
-                owner: value.owner,
-              ),
-              _ when notifications.hasError => _NotificationsErrorSliver(
-                onRetry: () {
-                  if (owner != null) {
-                    ref.invalidate(accountNotificationsProvider(owner.account));
-                  } else {
-                    ref.invalidate(notificationsProvider);
-                  }
-                },
-              ),
+              AsyncValue(:final value?) when value.category == category =>
+                _NotificationsLoadedSlivers(
+                  items: value.items,
+                  hasMore: value.hasMore,
+                  isLoadingMore: notifications.isLoading,
+                  hasLoadMoreError: notifications.hasError,
+                  renderToken: value.renderToken,
+                  owner: value.owner,
+                ),
+              _ when notifications.hasError && !notifications.isLoading =>
+                _NotificationsErrorSliver(
+                  onRetry: () {
+                    if (owner != null) {
+                      ref.invalidate(
+                        accountNotificationsProvider(owner.account),
+                      );
+                    } else {
+                      ref.invalidate(notificationsProvider);
+                    }
+                  },
+                ),
               _ => const CraftskySkeletonSliverList(
                 itemBuilder: _buildActivitySkeleton,
               ),
@@ -105,7 +116,13 @@ class _NotificationsLoadedSlivers extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final category = ref.watch(notificationFilterProvider);
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!context.mounted ||
+          category != null ||
+          ref.read(notificationFilterProvider) != null) {
+        return;
+      }
       final rowOwner = owner;
       if (rowOwner == null) {
         unawaited(
@@ -125,8 +142,17 @@ class _NotificationsLoadedSlivers extends ConsumerWidget {
         hasScrollBody: false,
         child: CraftskyEmptyState(
           icon: CraftskyIcons.notifications,
-          title: l10n.notificationsTitle,
-          subtitle: l10n.notificationsEmpty,
+          title: category == null
+              ? l10n.notificationsTitle
+              : notificationCategoryLabel(l10n, category),
+          subtitle: category == null
+              ? l10n.notificationsEmpty
+              : l10n.notificationFilterEmpty,
+          actionLabel: category == null ? null : l10n.notificationFilterShowAll,
+          onAction: category == null
+              ? null
+              : () =>
+                    ref.read(notificationFilterProvider.notifier).select(null),
         ),
       );
     }

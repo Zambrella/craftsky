@@ -1,6 +1,7 @@
 import 'package:craftsky_app/feed/pages/feed_page.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/notifications/data/notification_repository.dart';
+import 'package:craftsky_app/notifications/models/notification_category.dart';
 import 'package:craftsky_app/notifications/models/notification_page.dart';
 import 'package:craftsky_app/notifications/pages/notifications_page.dart';
 import 'package:craftsky_app/notifications/providers/notification_repository_provider.dart';
@@ -93,8 +94,11 @@ final class _EmptyNotificationRepository
   const _EmptyNotificationRepository();
 
   @override
-  Future<NotificationPage> list({String? cursor, int? limit}) async =>
-      const NotificationPage(items: []);
+  Future<NotificationPage> list({
+    String? cursor,
+    int? limit,
+    NotificationCategory? category,
+  }) async => const NotificationPage(items: []);
 
   @override
   Future<int> count() async => 0;

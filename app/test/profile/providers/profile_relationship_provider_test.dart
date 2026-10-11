@@ -4,6 +4,7 @@ import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/bootstrap.dart';
 import 'package:craftsky_app/notifications/data/notification_repository.dart';
 import 'package:craftsky_app/notifications/models/craftsky_notification.dart';
+import 'package:craftsky_app/notifications/models/notification_category.dart';
 import 'package:craftsky_app/notifications/models/notification_page.dart';
 import 'package:craftsky_app/notifications/providers/notification_new_count_provider.dart';
 import 'package:craftsky_app/notifications/providers/notification_repository_provider.dart';
@@ -223,7 +224,11 @@ final class _StaticNotificationRepository implements NotificationRepository {
   final NotificationPage page;
 
   @override
-  Future<NotificationPage> list({String? cursor, int? limit}) async => page;
+  Future<NotificationPage> list({
+    String? cursor,
+    int? limit,
+    NotificationCategory? category,
+  }) async => page;
 }
 
 final class _StaticNewnessRepository implements NotificationNewnessRepository {
