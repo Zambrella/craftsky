@@ -868,7 +868,14 @@ class _ProfileTabScrollView extends ConsumerWidget {
     final scrollView = CustomScrollView(
       key: PageStorageKey<String>(tab.storageKey),
       physics: onRefresh == null ? null : const AlwaysScrollableScrollPhysics(),
-      slivers: [_sliverForTab(context, tab, profile, l10n)],
+      slivers: [
+        SliverPadding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.paddingOf(context).bottom,
+          ),
+          sliver: _sliverForTab(context, tab, profile, l10n),
+        ),
+      ],
     );
     return onRefresh == null
         ? scrollView
