@@ -9,14 +9,14 @@ class SortMenuOption<T> {
   const SortMenuOption({
     required this.value,
     required this.label,
-    required this.description,
-    required this.icon,
+    this.description,
+    this.icon,
   });
 
   final T value;
   final String label;
-  final String description;
-  final IconData icon;
+  final String? description;
+  final IconData? icon;
 }
 
 class SortMenuButton<T> extends StatelessWidget {
@@ -75,8 +75,8 @@ class SortMenuButton<T> extends StatelessWidget {
                 CraftskyContextMenuItem(
                   text: option.label,
                   description: option.description,
-                  icon: option.icon,
-                  showTrailingCheckmark: true,
+                  icon: option.icon ?? CraftskyIcons.unselectedOption,
+                  showSelectionCheckmark: option.icon != null,
                   isSelected: selectedValue == option.value,
                   onPressed: selectedValue == option.value
                       ? () {}

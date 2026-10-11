@@ -1,5 +1,6 @@
 import 'package:craftsky_app/notifications/data/notification_repository.dart';
 import 'package:craftsky_app/notifications/models/account_subscription_id.dart';
+import 'package:craftsky_app/notifications/models/notification_category.dart';
 import 'package:craftsky_app/notifications/models/notification_page.dart';
 import 'package:craftsky_app/notifications/models/notification_preferences.dart';
 import 'package:craftsky_app/notifications/services/notification_registration_coordinator.dart';
@@ -17,11 +18,19 @@ class ApiNotificationRepository
   final Dio _dio;
 
   @override
-  Future<NotificationPage> list({String? cursor, int? limit}) => unwrapApi(
+  Future<NotificationPage> list({
+    String? cursor,
+    int? limit,
+    NotificationCategory? category,
+  }) => unwrapApi(
     () async {
       final response = await _dio.get<Map<String, dynamic>>(
         '/v1/notifications',
-        queryParameters: {'cursor': ?cursor, 'limit': ?limit?.toString()},
+        queryParameters: {
+          'cursor': ?cursor,
+          'limit': ?limit?.toString(),
+          'category': ?category?.wireValue,
+        },
       );
       return NotificationPage.fromMap(response.data!);
     },

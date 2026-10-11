@@ -352,6 +352,10 @@ func decodeSeekCursor(cursor, timeKey string) (any, any, error) {
 	if cursor == "" {
 		return nil, nil, nil
 	}
+	return decodeSeekCursorPayload(cur, timeKey)
+}
+
+func decodeSeekCursorPayload(cur map[string]any, timeKey string) (any, any, error) {
 	if len(cur) != 2 {
 		return nil, nil, envelope.ErrInvalidCursor
 	}

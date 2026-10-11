@@ -1,5 +1,6 @@
 import 'package:craftsky_app/bootstrap.dart';
 import 'package:craftsky_app/notifications/data/api_notification_repository.dart';
+import 'package:craftsky_app/notifications/models/notification_category.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http_mock_adapter/http_mock_adapter.dart';
@@ -29,6 +30,24 @@ void main() {
       expect(page.cursor, isNull);
     },
   );
+
+  test('category is sent with the matching cursor', () async {
+    final dio = buildDio();
+    DioAdapter(dio: dio).onGet(
+      '/v1/notifications',
+      (server) => server.reply(200, {'items': <Map<String, dynamic>>[]}),
+      queryParameters: {
+        'category': 'mention',
+        'cursor': 'filtered-next',
+        'limit': '20',
+      },
+    );
+    await ApiNotificationRepository(dio).list(
+      category: NotificationCategory.mention,
+      cursor: 'filtered-next',
+      limit: 20,
+    );
+  });
 
   test('IT-005 posts seen without a request body', () async {
     final dio = buildDio();

@@ -46,7 +46,7 @@ func TestPrimaryFeedPaginationQueriesAvoidFullHotTableScans(t *testing.T) {
 	})
 
 	t.Run("notifications", func(t *testing.T) {
-		_, cursor, err := store.ListNotifications(ctx, "did:plc:plan-viewer", 20, "")
+		_, cursor, err := store.ListNotifications(ctx, "did:plc:plan-viewer", 20, "", "")
 		if err != nil {
 			t.Fatalf("list first notification page: %v", err)
 		}
@@ -55,7 +55,7 @@ func TestPrimaryFeedPaginationQueriesAvoidFullHotTableScans(t *testing.T) {
 		}
 
 		tracer.reset()
-		if _, _, err := store.ListNotifications(ctx, "did:plc:plan-viewer", 20, cursor); err != nil {
+		if _, _, err := store.ListNotifications(ctx, "did:plc:plan-viewer", 20, cursor, ""); err != nil {
 			t.Fatalf("list notification cursor page: %v", err)
 		}
 		query, args := tracer.queryContaining(t, "WITH page_events AS MATERIALIZED")

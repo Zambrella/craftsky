@@ -7,6 +7,7 @@ import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/moderation/models/account_moderation.dart';
 import 'package:craftsky_app/notifications/data/notification_repository.dart';
 import 'package:craftsky_app/notifications/models/craftsky_notification.dart';
+import 'package:craftsky_app/notifications/models/notification_category.dart';
 import 'package:craftsky_app/notifications/models/notification_page.dart';
 import 'package:craftsky_app/notifications/pages/notifications_page.dart';
 import 'package:craftsky_app/notifications/providers/notification_repository_provider.dart';
@@ -20,6 +21,7 @@ import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/shared/widgets/post_summary.dart';
+import 'package:craftsky_app/shared/widgets/sort_menu_button.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
@@ -52,6 +54,139 @@ void main() {
     );
     expect(find.text(l10n.notificationsTitle), findsWidgets);
   });
+
+  testWidgets(
+    'selector applies categories, preserves selection on refresh, '
+    'and clears from empty state',
+    (tester) async {
+      final repo = _QueueNotificationRepository([
+        Future.value(NotificationPage(items: [_follow('all')])),
+        Future.value(const NotificationPage(items: [])),
+        Future.value(const NotificationPage(items: [])),
+        Future.value(NotificationPage(items: [_follow('all-again')])),
+      ]);
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [notificationRepositoryProvider.overrideWithValue(repo)],
+          child: const _TestApp(home: NotificationsPage()),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('All categories'), findsOneWidget);
+      await tester.tap(find.text('All categories'));
+      await tester.pumpAndSettle();
+      expect(find.byType(BottomSheet), findsOneWidget);
+      await tester.tap(find.text('Mentions'));
+      await tester.pumpAndSettle();
+      expect(find.byType(BottomSheet), findsNothing);
+      expect(
+        find.text('No notifications in this category yet.'),
+        findsOneWidget,
+      );
+      expect(find.text('Alice followed you'), findsNothing);
+      await tester.drag(find.byType(CustomScrollView), const Offset(0, 400));
+      await tester.pumpAndSettle();
+      expect(repo.calls.last.category, NotificationCategory.mention);
+      await tester.tap(find.text('Show all notifications'));
+      await tester.pumpAndSettle();
+      expect(repo.calls.map((call) => call.category), [
+        null,
+        NotificationCategory.mention,
+        NotificationCategory.mention,
+        null,
+      ]);
+      expect(find.text('Alice followed you'), findsOneWidget);
+    },
+  );
+
+  testWidgets('dismissing the category sheet preserves All', (tester) async {
+    final repo = _QueueNotificationRepository([
+      Future.value(const NotificationPage(items: [])),
+    ]);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [notificationRepositoryProvider.overrideWithValue(repo)],
+        child: const _TestApp(home: NotificationsPage()),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('All categories'));
+    await tester.pumpAndSettle();
+    Navigator.of(tester.element(find.byType(BottomSheet))).pop();
+    await tester.pumpAndSettle();
+    expect(repo.calls, hasLength(1));
+    expect(find.text('All categories'), findsOneWidget);
+  });
+
+  testWidgets('changing category hides old rows while the new page loads', (
+    tester,
+  ) async {
+    final pending = Completer<NotificationPage>();
+    final repo = _QueueNotificationRepository([
+      Future.value(NotificationPage(items: [_follow('all')])),
+      pending.future,
+    ]);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [notificationRepositoryProvider.overrideWithValue(repo)],
+        child: const _TestApp(home: NotificationsPage()),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('All categories'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Mentions'));
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.text('Alice followed you'), findsNothing);
+    expect(find.byType(CraftskySkeletonSliverList), findsOneWidget);
+    pending.complete(const NotificationPage(items: []));
+    await tester.pumpAndSettle();
+    expect(find.text('No notifications in this category yet.'), findsOneWidget);
+  });
+
+  testWidgets(
+    'AppBar uses the shared filter menu and scrolls all categories on a phone',
+    (tester) async {
+      tester.view.physicalSize = const Size(390, 844);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            notificationRepositoryProvider.overrideWithValue(
+              const _FakeNotificationRepository(NotificationPage(items: [])),
+            ),
+          ],
+          child: const _TestApp(home: NotificationsPage()),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final appBar = tester.widget<SliverAppBar>(find.byType(SliverAppBar));
+      expect(appBar.bottom, isNull);
+      expect(find.byTooltip('Notification settings'), findsNothing);
+      expect(
+        find.byType(SortMenuButton<NotificationCategory?>),
+        findsOneWidget,
+      );
+      await tester.tap(find.text('All categories'));
+      await tester.pumpAndSettle();
+      expect(find.byType(BottomSheet), findsOneWidget);
+      expect(find.byIcon(CraftskyIcons.unselectedOption), findsNothing);
+      expect(find.byIcon(CraftskyIcons.selectedOption), findsNothing);
+      expect(find.byIcon(CraftskyIcons.notifications), findsWidgets);
+      expect(find.byIcon(CraftskyIcons.like), findsOneWidget);
+      expect(find.byIcon(CraftskyIcons.mention), findsOneWidget);
+      expect(find.byIcon(CraftskyIcons.check), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      await tester.ensureVisible(find.text('Moderation'));
+      await tester.tap(find.text('Moderation'));
+      await tester.pumpAndSettle();
+      expect(find.byType(BottomSheet), findsNothing);
+      expect(find.text('Moderation'), findsNWidgets(2));
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets('initial loading uses activity row skeletons', (tester) async {
     final page = Completer<NotificationPage>();
@@ -1158,7 +1293,11 @@ class _FakeNotificationRepository implements NotificationRepository {
   final NotificationPage page;
 
   @override
-  Future<NotificationPage> list({String? cursor, int? limit}) async => page;
+  Future<NotificationPage> list({
+    String? cursor,
+    int? limit,
+    NotificationCategory? category,
+  }) async => page;
 }
 
 class _QueueNotificationRepository implements NotificationRepository {
@@ -1168,14 +1307,19 @@ class _QueueNotificationRepository implements NotificationRepository {
   final calls = <_Call>[];
 
   @override
-  Future<NotificationPage> list({String? cursor, int? limit}) {
-    calls.add(_Call(cursor: cursor, limit: limit));
+  Future<NotificationPage> list({
+    String? cursor,
+    int? limit,
+    NotificationCategory? category,
+  }) {
+    calls.add(_Call(cursor: cursor, limit: limit, category: category));
     return responses.removeAt(0);
   }
 }
 
 final class _Call {
-  const _Call({this.cursor, this.limit});
+  const _Call({this.cursor, this.limit, this.category});
+  final NotificationCategory? category;
 
   final String? cursor;
   final int? limit;

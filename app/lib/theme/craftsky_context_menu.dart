@@ -29,7 +29,7 @@ class CraftskyContextMenuItem {
     this.description,
     this.semanticHint,
     this.isSelected = false,
-    this.showTrailingCheckmark = false,
+    this.showSelectionCheckmark = false,
     this.switchValue,
     this.style = CraftskyContextMenuItemStyle.normal,
     this.locked = false,
@@ -43,8 +43,8 @@ class CraftskyContextMenuItem {
   final String? semanticHint;
   final bool isSelected;
 
-  /// Retains the leading icon and marks selection with a trailing checkmark.
-  final bool showTrailingCheckmark;
+  /// Preserve the leading icon and mark selection with a trailing check.
+  final bool showSelectionCheckmark;
   final bool? switchValue;
   final CraftskyContextMenuItemStyle style;
   final bool locked;
@@ -144,7 +144,8 @@ class _CraftskyContextMenuButtonState extends State<CraftskyContextMenuButton> {
                               description: item.description,
                               semanticHint: item.semanticHint,
                               isSelected: item.isSelected,
-                              showTrailingCheckmark: item.showTrailingCheckmark,
+                              showSelectionCheckmark:
+                                  item.showSelectionCheckmark,
                               switchValue: item.switchValue,
                               style: item.style,
                               locked: item.locked,
@@ -383,14 +384,16 @@ class _CraftskyContextMenuSheet extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final radii = theme.extension<RadiusTheme>()!;
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        SizedBox(height: radii.r3),
-        ..._sheetChildren(context),
-        SizedBox(height: MediaQuery.of(context).padding.bottom),
-      ],
+    return SingleChildScrollView(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SizedBox(height: radii.r3),
+          ..._sheetChildren(context),
+          SizedBox(height: MediaQuery.of(context).padding.bottom),
+        ],
+      ),
     );
   }
 
@@ -448,6 +451,7 @@ class _CraftskyContextMenuRow extends StatelessWidget {
       hint: item.semanticHint,
       button: item.switchValue == null,
       toggled: item.switchValue,
+      selected: item.isSelected,
       enabled: !isDisabled,
       excludeSemantics: true,
       child: Material(
@@ -467,8 +471,8 @@ class _CraftskyContextMenuRow extends StatelessWidget {
                 )
               : Icon(
                   item.isSelected &&
-                          item.switchValue == null &&
-                          !item.showTrailingCheckmark
+                          !item.showSelectionCheckmark &&
+                          item.switchValue == null
                       ? CraftskyIcons.selectedOption
                       : item.icon,
                   color: color,
@@ -492,10 +496,11 @@ class _CraftskyContextMenuRow extends StatelessWidget {
                 onChanged: isDisabled ? null : (_) {},
               ),
             ),
-            null =>
-              item.showTrailingCheckmark && item.isSelected
-                  ? Icon(CraftskyIcons.check, color: color)
-                  : null,
+            null when item.isSelected && item.showSelectionCheckmark => Icon(
+              CraftskyIcons.check,
+              color: color,
+            ),
+            null => null,
           },
         ),
       ),

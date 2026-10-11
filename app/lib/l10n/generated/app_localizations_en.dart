@@ -175,6 +175,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String get notificationOpenSettings => 'Open settings';
 
   @override
+  String get notificationFilterAll => 'All categories';
+
+  @override
+  String get notificationFilterEmpty =>
+      'No notifications in this category yet.';
+
+  @override
+  String get notificationFilterShowAll => 'Show all notifications';
+
+  @override
   String get notificationCategoryLikes => 'Likes';
 
   @override

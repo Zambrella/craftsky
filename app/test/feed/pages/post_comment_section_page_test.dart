@@ -814,7 +814,17 @@ void main() {
       await tester.tap(find.text('Oldest'));
       await tester.pumpAndSettle();
       expect(find.text('Conversation order'), findsOneWidget);
-      expect(find.byIcon(CraftskyIcons.selectedOption), findsOneWidget);
+      expect(find.byIcon(CraftskyIcons.selectedOption), findsNothing);
+      expect(find.byIcon(CraftskyIcons.unselectedOption), findsNothing);
+      final selectedRow = tester.widget<ListTile>(
+        find.ancestor(
+          of: find.text('Oldest').last,
+          matching: find.byType(ListTile),
+        ),
+      );
+      expect((selectedRow.leading! as Icon).icon, CraftskyIcons.history);
+      expect((selectedRow.trailing! as Icon).icon, CraftskyIcons.check);
+      expect(find.byIcon(CraftskyIcons.check), findsOneWidget);
       await tester.tap(find.text('Newest').last);
       await tester.pumpAndSettle();
 

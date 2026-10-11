@@ -78,7 +78,7 @@ func TestNotificationNewCountUsesAccountMarkerAndListVisibility(t *testing.T) {
 	if count := requestCount(); count != 2 {
 		t.Fatalf("first-use count=%d, want 2", count)
 	}
-	listed, _, err := api.NewPostStore(pool).ListNotifications(ctx, "did:plc:viewer", 20, "")
+	listed, _, err := api.NewPostStore(pool).ListNotifications(ctx, "did:plc:viewer", 20, "", "")
 	if err != nil {
 		t.Fatalf("list notifications: %v", err)
 	}
@@ -151,7 +151,7 @@ func TestActorlessModerationNotificationIsListedCountedAndHasNoActorDTO(t *testi
 	if err != nil || count != 1 {
 		t.Fatalf("new count=%d err=%v", count, err)
 	}
-	rows, _, err := store.ListNotifications(ctx, "did:plc:viewer", 20, "")
+	rows, _, err := store.ListNotifications(ctx, "did:plc:viewer", 20, "", "")
 	if err != nil || len(rows) != 1 {
 		t.Fatalf("listed=%d err=%v", len(rows), err)
 	}

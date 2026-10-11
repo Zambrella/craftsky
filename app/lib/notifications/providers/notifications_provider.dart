@@ -2,6 +2,7 @@ import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/notifications/models/craftsky_notification.dart';
 import 'package:craftsky_app/notifications/models/notifications_state.dart';
+import 'package:craftsky_app/notifications/providers/notification_filter_provider.dart';
 import 'package:craftsky_app/notifications/providers/notification_repository_provider.dart';
 import 'package:craftsky_app/profile/providers/block_profile_overlay.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -13,16 +14,24 @@ int _nextRenderToken = 0;
 
 @Riverpod(keepAlive: true)
 class AccountNotifications extends _$AccountNotifications {
+  int _generation = 0;
+
   @override
   Future<NotificationsState> build(AccountKey account) async {
+    ++_generation;
+    final category = ref.watch(notificationFilterProvider);
     final repo = await ref.watch(
       accountNotificationRepositoryProvider(account).future,
     );
     final registry = ref.read(sessionRegistryProvider).requireValue;
     final owner = registry.leaseFor(account);
-    final page = await repo.list(limit: notificationsPageLimit);
+    final page = await repo.list(
+      limit: notificationsPageLimit,
+      category: category,
+    );
     return NotificationsState(
       items: _filterAndDedupe(ref.read, page.items),
+      category: category,
       cursor: page.cursor,
       renderToken: ++_nextRenderToken,
       owner: owner,
@@ -32,6 +41,8 @@ class AccountNotifications extends _$AccountNotifications {
   Future<void> loadMore() async {
     if (!state.hasValue || state.isLoading) return;
     final current = state.requireValue;
+    final generation = _generation;
+    final category = ref.read(notificationFilterProvider);
     if (!current.hasMore) return;
     state = const AsyncLoading<NotificationsState>();
     final next = await AsyncValue.guard(() async {
@@ -40,9 +51,11 @@ class AccountNotifications extends _$AccountNotifications {
       );
       final page = await repo.list(
         cursor: current.cursor,
+        category: category,
         limit: notificationsPageLimit,
       );
       return NotificationsState(
+        category: category,
         items: _appendDeduped(
           current.items,
           _filterAndDedupe(ref.read, page.items),
@@ -52,7 +65,11 @@ class AccountNotifications extends _$AccountNotifications {
         owner: current.owner,
       );
     });
-    if (ref.mounted) state = next;
+    if (ref.mounted &&
+        generation == _generation &&
+        ref.read(notificationFilterProvider) == category) {
+      state = next;
+    }
   }
 
   int suppressActor(String did) => _suppressActor(state, did, (next) {
@@ -62,13 +79,21 @@ class AccountNotifications extends _$AccountNotifications {
 
 @Riverpod(keepAlive: true)
 class Notifications extends _$Notifications {
+  int _generation = 0;
+
   @override
   Future<NotificationsState> build() async {
+    ++_generation;
     final owner = ref.read(sessionRegistryProvider).value?.activeLease?.session;
     final repo = ref.watch(notificationRepositoryProvider);
-    final page = await repo.list(limit: notificationsPageLimit);
+    final category = ref.watch(notificationFilterProvider);
+    final page = await repo.list(
+      limit: notificationsPageLimit,
+      category: category,
+    );
     return NotificationsState(
       items: _filterAndDedupe(ref.read, page.items),
+      category: category,
       cursor: page.cursor,
       renderToken: ++_nextRenderToken,
       owner: owner,
@@ -78,6 +103,8 @@ class Notifications extends _$Notifications {
   Future<void> loadMore() async {
     if (!state.hasValue || state.isLoading) return;
     final current = state.requireValue;
+    final generation = _generation;
+    final category = ref.read(notificationFilterProvider);
     if (!current.hasMore) return;
 
     state = const AsyncLoading<NotificationsState>();
@@ -86,9 +113,11 @@ class Notifications extends _$Notifications {
       final repo = ref.read(notificationRepositoryProvider);
       final page = await repo.list(
         cursor: current.cursor,
+        category: category,
         limit: notificationsPageLimit,
       );
       return NotificationsState(
+        category: category,
         items: _appendDeduped(
           current.items,
           _filterAndDedupe(ref.read, page.items),
@@ -99,7 +128,11 @@ class Notifications extends _$Notifications {
       );
     });
 
-    if (!ref.mounted) return;
+    if (!ref.mounted ||
+        generation != _generation ||
+        ref.read(notificationFilterProvider) != category) {
+      return;
+    }
     state = next;
   }
 

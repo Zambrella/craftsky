@@ -296,7 +296,7 @@ func TestTerminalOwnerIsInvisibleAndIneffectiveBeforePhysicalPurge(t *testing.T)
 	if state != (relationships.State{}) {
 		t.Fatalf("terminal relationship remained effective: %+v", state)
 	}
-	notifications, _, err := posts.ListNotifications(ctx, viewer.String(), 20, "")
+	notifications, _, err := posts.ListNotifications(ctx, viewer.String(), 20, "", "")
 	if err != nil {
 		t.Fatal(err)
 	}

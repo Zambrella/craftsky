@@ -53,6 +53,9 @@ func (indexer *CraftskyProfile) Project(ctx context.Context, tx pgx.Tx, source i
 }
 
 func (indexer *CraftskyPost) Project(ctx context.Context, tx pgx.Tx, source ingestion.SourceRecord) (tap.Outcome, error) {
+	if source.ProjectionKind == ingestion.PostNotificationsProjection {
+		return indexer.ProjectNotifications(ctx, tx, source)
+	}
 	event := eventFromSource(source)
 	if event.Action != "delete" {
 		outcome, ready, err := projectionMemberReady(ctx, tx, event.DID)
@@ -62,7 +65,14 @@ func (indexer *CraftskyPost) Project(ctx context.Context, tx pgx.Tx, source inge
 	}
 	clone := *indexer
 	clone.projectionDB = tx
-	return appliedAfter(clone.Handle(ctx, event))
+	clone.deferNotifications = source.ProjectionKind != ""
+	if err := clone.Handle(ctx, event); err != nil {
+		return tap.Retryable(tap.ReasonProjectionFailure), err
+	}
+	if !clone.deferNotifications {
+		return tap.Applied(), nil
+	}
+	return appliedAfter(ingestion.EnqueuePostNotifications(ctx, tx, source))
 }
 
 func (indexer *CraftskyLike) Project(ctx context.Context, tx pgx.Tx, source ingestion.SourceRecord) (tap.Outcome, error) {
