@@ -78,11 +78,13 @@ class _TagSearchPageState extends ConsumerState<TagSearchPage> {
   List<SortMenuOption<SearchSort>> _sortOptions(AppLocalizations l10n) => [
     SortMenuOption(
       value: SearchSort.chronological,
+      icon: CraftskyIcons.schedule,
       label: l10n.searchSortNewest,
       description: l10n.searchSortNewestDescription,
     ),
     SortMenuOption(
       value: SearchSort.popular,
+      icon: CraftskyIcons.trending,
       label: l10n.searchSortPopular,
       description: l10n.searchSortPopularDescription,
     ),

@@ -894,16 +894,19 @@ List<SortMenuOption<CommentSort>> _commentSortOptions(AppLocalizations l10n) =>
     [
       SortMenuOption(
         value: CommentSort.newest,
+        icon: CraftskyIcons.schedule,
         label: l10n.postCommentsSortNewest,
         description: l10n.postCommentsSortNewestDescription,
       ),
       SortMenuOption(
         value: CommentSort.oldest,
+        icon: CraftskyIcons.history,
         label: l10n.postCommentsSortOldest,
         description: l10n.postCommentsSortOldestDescription,
       ),
       SortMenuOption(
         value: CommentSort.follows,
+        icon: CraftskyIcons.people,
         label: l10n.postCommentsSortFollows,
         description: l10n.postCommentsSortFollowsDescription,
       ),
