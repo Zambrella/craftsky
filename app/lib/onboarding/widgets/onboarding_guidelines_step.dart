@@ -7,9 +7,11 @@ class OnboardingGuidelinesStep extends StatelessWidget {
     required this.onViewFullGuidelines,
     required this.meetsMinimumAge,
     required this.onMeetsMinimumAgeChanged,
+    this.errorReportingConsent,
     super.key,
   });
 
+  final Widget? errorReportingConsent;
   final VoidCallback onViewFullGuidelines;
   final bool meetsMinimumAge;
   final ValueChanged<bool> onMeetsMinimumAgeChanged;
@@ -63,6 +65,7 @@ class OnboardingGuidelinesStep extends StatelessWidget {
           onChanged: (value) => onMeetsMinimumAgeChanged(value ?? false),
           title: Text(l10n.onboardingMinimumAgeDeclaration),
         ),
+        ?errorReportingConsent,
       ],
     );
   }

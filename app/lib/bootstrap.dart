@@ -62,6 +62,9 @@ import 'package:craftsky_app/shared/errors/app_error_mapper.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_emitter.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_outcome.dart';
 import 'package:craftsky_app/shared/observability/error_reporter.dart';
+import 'package:craftsky_app/shared/observability/error_reporter_provider.dart';
+import 'package:craftsky_app/shared/observability/error_reporting_controller.dart';
+import 'package:craftsky_app/shared/observability/error_reporting_provider.dart';
 import 'package:craftsky_app/shared/rich_text/data/facet_suggestion_repository.dart';
 import 'package:craftsky_app/subscriptions/models/billing_state.dart';
 import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
@@ -79,7 +82,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_web_plugins/url_strategy.dart';
 import 'package:intl/intl.dart';
 import 'package:logging/logging.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 final _log = Logger('bootstrap');
 
@@ -224,6 +226,7 @@ String _formatDataValue(Object provider, Object? value) {
 Future<void> bootstrap(
   WidgetsBinding widgetsBinding, {
   ErrorReporter reporter = const NoopErrorReporter(),
+  ErrorReportingController? errorReporting,
 }) async {
   _log.fine('bootstrap starting');
 
@@ -257,6 +260,11 @@ Future<void> bootstrap(
         retry: appProviderRetry,
         overrides: [
           serviceStatusReporterProvider.overrideWithValue(reporter),
+          errorReporterProvider.overrideWithValue(reporter),
+          if (errorReporting != null)
+            errorReportingControllerProvider.overrideWith(
+              (ref) => errorReporting,
+            ),
           businessTimeZoneServiceProvider.overrideWithValue(businessTimeZones),
           revenueCatServiceProvider.overrideWithValue(revenueCatService),
         ],
@@ -273,9 +281,6 @@ Future<void> bootstrap(
 
   // dart_mappable mapper init — empty for now, grows as models are added.
   initializeMappers();
-
-  // Namespace all shared_preferences keys.
-  SharedPreferences.setPrefix('craftsky.');
 
   if (defaultTargetPlatform == TargetPlatform.android) {
     await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
@@ -319,6 +324,11 @@ Future<void> bootstrap(
       retry: appProviderRetry,
       overrides: [
         serviceStatusReporterProvider.overrideWithValue(reporter),
+        errorReporterProvider.overrideWithValue(reporter),
+        if (errorReporting != null)
+          errorReportingControllerProvider.overrideWith(
+            (ref) => errorReporting,
+          ),
         notificationServiceProvider.overrideWithValue(notificationService),
         businessTimeZoneServiceProvider.overrideWithValue(businessTimeZones),
         revenueCatServiceProvider.overrideWithValue(revenueCatService),
