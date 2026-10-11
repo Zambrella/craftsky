@@ -20,9 +20,12 @@ class Timeline extends _$Timeline {
   @override
   Future<TimelineState> build() async {
     ref.watch(activeContentLanguagePolicyProvider);
+    final ownership = captureActiveAccountOperation(ref);
     final repo = ref.watch(postRepositoryProvider);
     final page = await repo.listTimeline(limit: timelinePageLimit);
-    if (!ref.mounted) throw const ApiCanceled();
+    if (!isActiveAccountOperationCurrent(ref, ownership)) {
+      throw const ApiCanceled();
+    }
     return TimelineState(
       items: _dedupe(_applyTimelineOverlays(ref, page.items)),
       cursor: page.cursor,

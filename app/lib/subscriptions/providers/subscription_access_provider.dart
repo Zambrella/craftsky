@@ -1,3 +1,4 @@
+import 'package:craftsky_app/auth/models/account_operation_canceled.dart';
 import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
@@ -27,10 +28,10 @@ Future<SubscriptionAccess> subscriptionAccess(
 
 Future<void> _requireLease(Ref ref, AccountSessionLease lease) async {
   if (!ref.mounted) {
-    throw DiagnosticStateError('Account session unavailable');
+    throw AccountOperationCanceled();
   }
   final registry = await ref.watch(sessionRegistryProvider.future);
   if (!ref.mounted || registry.leaseFor(lease.account) != lease) {
-    throw DiagnosticStateError('Account session unavailable');
+    throw AccountOperationCanceled();
   }
 }

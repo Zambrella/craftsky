@@ -1,9 +1,9 @@
 import 'package:craftsky_app/auth/models/account_key.dart';
+import 'package:craftsky_app/auth/models/account_operation_canceled.dart';
 import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/auth/providers/account_operation_guard.dart';
 import 'package:craftsky_app/drafts/models/local_post_draft.dart';
 import 'package:craftsky_app/drafts/providers/local_post_draft_repository_provider.dart';
-import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'local_post_drafts_provider.g.dart';
@@ -51,14 +51,14 @@ class LocalPostDrafts extends _$LocalPostDrafts {
   ActiveAccountLease? _captureOwnership() {
     final ownership = captureActiveAccountOperation(ref);
     if (ownership != null && ownership.session.account != account) {
-      throw DiagnosticStateError('local-draft account changed');
+      throw AccountOperationCanceled();
     }
     return ownership;
   }
 
   void _assertCurrent(ActiveAccountLease? ownership) {
     if (!isActiveAccountOperationCurrent(ref, ownership)) {
-      throw DiagnosticStateError('local-draft account changed');
+      throw AccountOperationCanceled();
     }
   }
 

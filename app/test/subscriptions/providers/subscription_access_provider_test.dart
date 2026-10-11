@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:craftsky_app/auth/models/account_key.dart';
+import 'package:craftsky_app/auth/models/account_operation_canceled.dart';
 import 'package:craftsky_app/auth/models/session_registry.dart';
 import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart'
@@ -67,7 +68,7 @@ void main() {
           );
       delayed.complete(_access('did:plc:bob', SubscriptionTier.plus));
 
-      await expectLater(result, throwsStateError);
+      await expectLater(result, throwsA(isA<AccountOperationCanceled>()));
     },
   );
 
