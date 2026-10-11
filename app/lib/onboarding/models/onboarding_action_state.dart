@@ -29,7 +29,7 @@ OnboardingActionState deriveOnboardingActionState({
   };
   return OnboardingActionState(
     kind: kind,
-    canSubmit: !saving && (kind != OnboardingActionKind.saveAndNext || valid),
+    canSubmit: !saving && (kind == OnboardingActionKind.next || valid),
     canGoBack: step != OnboardingStep.profile && !saving,
     busy: saving,
   );

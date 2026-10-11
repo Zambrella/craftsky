@@ -3,6 +3,24 @@ import 'package:craftsky_app/onboarding/models/onboarding_flow_state.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('Finish requires the age and policy declaration', () {
+    expect(
+      deriveOnboardingActionState(
+        step: OnboardingStep.guidelines,
+        dirty: false,
+        valid: false,
+      ).canSubmit,
+      isFalse,
+    );
+    expect(
+      deriveOnboardingActionState(
+        step: OnboardingStep.guidelines,
+        dirty: false,
+        valid: true,
+      ).canSubmit,
+      isTrue,
+    );
+  });
   test('derives Next, Save & next, and Finish with navigation gates', () {
     expect(
       deriveOnboardingActionState(

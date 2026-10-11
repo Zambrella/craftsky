@@ -5877,6 +5877,30 @@ abstract class AppLocalizations {
   /// **'View full guidelines'**
   String get onboardingGuidelinesViewFull;
 
+  /// No description provided for @errorReportingTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Error reporting'**
+  String get errorReportingTitle;
+
+  /// No description provided for @errorReportingOptIn.
+  ///
+  /// In en, this message translates to:
+  /// **'Enable error reporting (optional)'**
+  String get errorReportingOptIn;
+
+  /// No description provided for @errorReportingDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Send crash reports and diagnostic logs to help improve CraftSky.'**
+  String get errorReportingDescription;
+
+  /// No description provided for @errorReportingSaveError.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not update error reporting. Please try again.'**
+  String get errorReportingSaveError;
+
   /// No description provided for @onboardingMinimumAgeDeclaration.
   ///
   /// In en, this message translates to:

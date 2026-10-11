@@ -17,6 +17,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../fakes/recording_messenger.dart';
 
@@ -67,6 +68,7 @@ final class _ErrorFlow extends OnboardingFlow {
 }
 
 void main() {
+  setUp(() => SharedPreferences.setMockInitialValues({}));
   testWidgets('Skip is absent during prefill loading and error', (
     tester,
   ) async {
