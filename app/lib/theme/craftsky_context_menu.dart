@@ -29,6 +29,7 @@ class CraftskyContextMenuItem {
     this.description,
     this.semanticHint,
     this.isSelected = false,
+    this.showTrailingCheckmark = false,
     this.switchValue,
     this.style = CraftskyContextMenuItemStyle.normal,
     this.locked = false,
@@ -41,6 +42,9 @@ class CraftskyContextMenuItem {
   final String? description;
   final String? semanticHint;
   final bool isSelected;
+
+  /// Retains the leading icon and marks selection with a trailing checkmark.
+  final bool showTrailingCheckmark;
   final bool? switchValue;
   final CraftskyContextMenuItemStyle style;
   final bool locked;
@@ -140,6 +144,7 @@ class _CraftskyContextMenuButtonState extends State<CraftskyContextMenuButton> {
                               description: item.description,
                               semanticHint: item.semanticHint,
                               isSelected: item.isSelected,
+                              showTrailingCheckmark: item.showTrailingCheckmark,
                               switchValue: item.switchValue,
                               style: item.style,
                               locked: item.locked,
@@ -461,7 +466,9 @@ class _CraftskyContextMenuRow extends StatelessWidget {
                   child: PlusActionIcon(icon: item.icon),
                 )
               : Icon(
-                  item.isSelected && item.switchValue == null
+                  item.isSelected &&
+                          item.switchValue == null &&
+                          !item.showTrailingCheckmark
                       ? CraftskyIcons.selectedOption
                       : item.icon,
                   color: color,
@@ -485,7 +492,10 @@ class _CraftskyContextMenuRow extends StatelessWidget {
                 onChanged: isDisabled ? null : (_) {},
               ),
             ),
-            null => null,
+            null =>
+              item.showTrailingCheckmark && item.isSelected
+                  ? Icon(CraftskyIcons.check, color: color)
+                  : null,
           },
         ),
       ),

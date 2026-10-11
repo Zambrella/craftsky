@@ -10,11 +10,13 @@ class SortMenuOption<T> {
     required this.value,
     required this.label,
     required this.description,
+    required this.icon,
   });
 
   final T value;
   final String label;
   final String description;
+  final IconData icon;
 }
 
 class SortMenuButton<T> extends StatelessWidget {
@@ -73,7 +75,8 @@ class SortMenuButton<T> extends StatelessWidget {
                 CraftskyContextMenuItem(
                   text: option.label,
                   description: option.description,
-                  icon: CraftskyIcons.unselectedOption,
+                  icon: option.icon,
+                  showTrailingCheckmark: true,
                   isSelected: selectedValue == option.value,
                   onPressed: selectedValue == option.value
                       ? () {}
