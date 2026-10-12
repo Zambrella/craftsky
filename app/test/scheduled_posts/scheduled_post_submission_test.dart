@@ -422,6 +422,8 @@ void main() {
         find.byKey(const Key('composer-remove-test-image')),
       );
       await tester.tap(find.byKey(const Key('composer-remove-test-image')));
+      await tester.pageBack();
+      await tester.pumpAndSettle();
       await _pumpUntil(tester, () => previews.tokens.length == 3);
       await tester.pump();
       expect(find.text('One pattern'), findsOneWidget);

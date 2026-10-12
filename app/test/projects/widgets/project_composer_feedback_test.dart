@@ -10,7 +10,6 @@ import 'package:craftsky_app/languages/providers/language_preferences_provider.d
 import 'package:craftsky_app/projects/widgets/project_composer_sheet.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
-import 'package:craftsky_app/theme/brand_text_field.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -170,18 +169,18 @@ void main() {
     expect(
       tester
           .widget<InkWell>(
-            find.byKey(const Key('composer-add-image'), skipOffstage: false),
+            find.byKey(const Key('composer-edit-images'), skipOffstage: false),
           )
           .onTap,
       isNull,
     );
     expect(
       tester
-          .widget<BrandTextField>(
-            find.byKey(const Key('composer-alt-image-1'), skipOffstage: false),
+          .widget<TextButton>(
+            find.byKey(const Key('composer-clear-images'), skipOffstage: false),
           )
-          .enabled,
-      isFalse,
+          .onPressed,
+      isNull,
     );
     createGate.complete(_post('Finished project'));
     await tester.pumpAndSettle();

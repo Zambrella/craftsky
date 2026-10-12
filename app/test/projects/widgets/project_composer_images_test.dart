@@ -1,5 +1,7 @@
+import 'package:animated_list_plus/animated_list_plus.dart';
 import 'package:craftsky_app/feed/providers/composer_image_state.dart';
 import 'package:craftsky_app/feed/providers/composer_images_provider.dart';
+import 'package:craftsky_app/feed/widgets/post_composer_sheet.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/languages/models/language_preferences.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
@@ -14,6 +16,77 @@ import 'package:flutter_test/flutter_test.dart';
 import '../../fakes/recording_messenger.dart';
 
 void main() {
+  for (final project in [true, false]) {
+    testWidgets(
+      '${project ? 'project' : 'post'} photo details receives provider updates '
+      'while composer is hidden',
+      (
+        tester,
+      ) async {
+        const composerId = 'live-photo-details';
+        final imagesNotifier = _PreparingComposerImages();
+        final container = ProviderContainer.test(
+          overrides: [
+            activeLanguagePreferencesProvider.overrideWithValue(
+              const LanguagePreferences(
+                primaryLanguage: 'en',
+                contentLanguages: ['en'],
+              ),
+            ),
+            composerImagesProvider(
+              composerId,
+            ).overrideWith(() => imagesNotifier),
+          ],
+        );
+        addTearDown(container.dispose);
+        await tester.pumpWidget(
+          UncontrolledProviderScope(
+            container: container,
+            child: MessengerScope(
+              messenger: RecordingMessenger(),
+              child: MaterialApp(
+                theme: AppTheme.lightThemeData,
+                localizationsDelegates: AppLocalizations.localizationsDelegates,
+                supportedLocales: AppLocalizations.supportedLocales,
+                home: project
+                    ? const ProjectComposerSheet(composerId: composerId)
+                    : const PostComposerSheet(composerId: composerId),
+              ),
+            ),
+          ),
+        );
+        await tester.tap(find.byKey(const Key('composer-edit-images')));
+        // Let the opaque route deactivate the underlying Riverpod consumer.
+        await tester.pump();
+        await tester.pump(const Duration(seconds: 1));
+        expect(find.text('Preparing image'), findsWidgets);
+
+        imagesNotifier.finishPreparing();
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 300));
+        expect(find.text('Preparing image'), findsNothing);
+        expect(
+          find.byKey(const Key('composer-preview-overlay-first')),
+          findsNothing,
+        );
+
+        await tester.tap(find.byKey(const Key('composer-move-down-first')));
+        await tester.pumpAndSettle();
+        final list = tester
+            .widget<ImplicitlyAnimatedReorderableList<ComposerImageDraft>>(
+              find.byType(
+                ImplicitlyAnimatedReorderableList<ComposerImageDraft>,
+              ),
+            );
+        expect(list.items.first.id, 'second');
+        await tester.tap(find.byKey(const Key('composer-remove-second')));
+        await tester.pumpAndSettle();
+        expect(find.byKey(const Key('composer-alt-second')), findsNothing);
+        expect(find.byKey(const Key('composer-alt-first')), findsOneWidget);
+      },
+    );
+  }
+
   testWidgets(
     'AT-003/IT-005 add photo action uses provider and exposes alt text',
     (tester) async {
@@ -289,4 +362,37 @@ Future<void> _pumpComposerWithNotice(
     ),
   );
   await tester.pump();
+}
+
+class _PreparingComposerImages extends _FakeComposerImages {
+  @override
+  ComposerImagesState build(String composerId) => ComposerImagesState(
+    images: [
+      for (final id in ['first', 'second'])
+        ComposerImageDraft(
+          id: id,
+          fileName: '$id.png',
+          mimeType: 'image/png',
+          altText: '',
+          phase: const ImagePreparing(),
+        ),
+    ],
+  );
+
+  void finishPreparing() {
+    state = state.copyWith(
+      images: [
+        for (final image in state.images)
+          image.copyWith(
+            phase: const ImageUploaded(
+              UploadedDraftImage(
+                cid: 'bafkimage',
+                mime: 'image/png',
+                size: 123,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
 }

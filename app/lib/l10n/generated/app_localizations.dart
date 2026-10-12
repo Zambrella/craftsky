@@ -8054,6 +8054,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Could not copy link. Please try again.'**
   String get recordCopyLinkFailed;
+
+  /// Title of the photo attachment editing page.
+  ///
+  /// In en, this message translates to:
+  /// **'Photo details'**
+  String get postComposePhotoDetailsTitle;
+
+  /// Hint on the attached photo thumbnail card.
+  ///
+  /// In en, this message translates to:
+  /// **'Reorder photos, remove them or add alt text'**
+  String get postComposeEditPhotosHelper;
+
+  /// Action to remove all attached photos from the composer.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear all'**
+  String get postComposeClearPhotos;
 }
 
 class _AppLocalizationsDelegate
