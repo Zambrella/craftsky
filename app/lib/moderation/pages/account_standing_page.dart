@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/feed/models/post_uri.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/moderation/models/account_moderation.dart';
 import 'package:craftsky_app/moderation/providers/moderation_providers.dart';
 import 'package:craftsky_app/moderation/widgets/moderation_history_entry.dart';
@@ -15,11 +15,11 @@ import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
 import 'package:craftsky_app/theme/craftsky_card.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:material_ui/material_ui.dart';
 
 class AccountStandingPage extends ConsumerWidget {
-  const AccountStandingPage({this.account, super.key});
+  const new({this.account, super.key});
 
   final AccountKey? account;
 
@@ -46,7 +46,7 @@ class AccountStandingPage extends ConsumerWidget {
 }
 
 class _AccountStandingBody extends ConsumerWidget {
-  const _AccountStandingBody({required this.account});
+  const new({required this.account});
 
   final AccountKey account;
 
@@ -129,7 +129,7 @@ class _AccountStandingBody extends ConsumerWidget {
 }
 
 class _StandingSummaryCard extends StatelessWidget {
-  const _StandingSummaryCard({required this.standing});
+  const new({required this.standing});
 
   final AccountStanding standing;
 
@@ -160,7 +160,7 @@ class _StandingSummaryCard extends StatelessWidget {
         : (semanticColors.warningSurface, theme.colorScheme.onSurface);
     return Semantics(
       container: true,
-      header: true,
+      headingLevel: 2,
       label: '$title. $detail',
       child: CraftskyCard(
         key: const Key('account-standing-summary-card'),
@@ -211,7 +211,7 @@ class _StandingSummaryCard extends StatelessWidget {
 }
 
 class _HistoryContent extends ConsumerWidget {
-  const _HistoryContent({
+  const new({
     required this.account,
     required this.state,
   });
@@ -328,7 +328,7 @@ class _HistoryContent extends ConsumerWidget {
 }
 
 class _StandingSkeleton extends StatelessWidget {
-  const _StandingSkeleton();
+  const new();
 
   @override
   Widget build(BuildContext context) => const Card(
@@ -340,7 +340,7 @@ class _StandingSkeleton extends StatelessWidget {
 }
 
 class _LoadError extends StatelessWidget {
-  const _LoadError({required this.message, required this.onRetry});
+  const new({required this.message, required this.onRetry});
 
   final String message;
   final VoidCallback onRetry;

@@ -17,7 +17,7 @@ import 'package:craftsky_app/notifications/services/pending_notification_open.da
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 
 final class NotificationRuntime {
-  NotificationRuntime({
+  new({
     required NotificationService service,
     required NotificationRegistrationCoordinator registration,
     required NotificationRoutingStorage routingStorage,
@@ -188,7 +188,7 @@ final class NotificationRuntime {
       isCurrentLease: _routingStorage.isCurrentLease,
       activate: (lease) async => _activateRecipient == null
           ? AccountActivationResult.alreadyActive
-          : _activateRecipient(lease),
+          : await _activateRecipient(lease),
       onOutcome: (outcome) {
         if (!_isCurrentOpen(work)) return;
         _effects.add(NotificationNavigationEffect(outcome));

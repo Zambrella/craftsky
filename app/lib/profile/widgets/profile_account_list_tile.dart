@@ -1,16 +1,16 @@
 import 'dart:async';
 
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/profile/models/profile_account_summary.dart';
 import 'package:craftsky_app/profile/models/profile_handle.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
 import 'package:craftsky_app/profile/widgets/profile_card_modal.dart';
 import 'package:craftsky_app/shared/widgets/craft_icon.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 class ProfileAccountListTile extends StatelessWidget {
-  const ProfileAccountListTile({
+  const new({
     required this.account,
     this.onTap,
     this.trailing,

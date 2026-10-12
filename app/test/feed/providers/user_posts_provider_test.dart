@@ -62,7 +62,7 @@ PaginationContractSubject<Post> _paginationSubject(
   final subscription = container.listen(provider, (_, _) {});
 
   return PaginationContractSubject(
-    initialize: () async => container.read(provider.future),
+    initialize: () async => await container.read(provider.future),
     loadMore: () => container.read(provider.notifier).loadMore(),
     snapshot: () {
       final asyncState = container.read(provider);

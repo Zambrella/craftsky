@@ -4,21 +4,21 @@ import 'package:dart_mappable/dart_mappable.dart';
 import 'package:multiformats/multiformats.dart' as multiformats;
 
 extension type Did._(String value) implements String {
-  factory Did.parse(String value) {
+  factory parse(String value) {
     at_identifier.ensureValidDid(value);
     return Did._(value);
   }
 }
 
 extension type Handle._(String value) implements String {
-  factory Handle.parse(String value) {
+  factory parse(String value) {
     at_identifier.ensureValidHandle(value);
     return Handle._(value);
   }
 }
 
 extension type AtIdentifier._(String value) implements String {
-  factory AtIdentifier.parse(String value) {
+  factory parse(String value) {
     try {
       Did.parse(value);
     } on Object catch (_) {
@@ -29,7 +29,7 @@ extension type AtIdentifier._(String value) implements String {
 }
 
 extension type Cid._(String value) implements String {
-  factory Cid.parse(String value) {
+  factory parse(String value) {
     if (value.isEmpty) {
       throw const FormatException('Invalid CID');
     }
@@ -44,7 +44,7 @@ extension type Cid._(String value) implements String {
 }
 
 extension type AtUri._(String value) implements String {
-  factory AtUri.parse(String value) {
+  factory parse(String value) {
     if (value.isEmpty) {
       throw const FormatException('Invalid AT URI');
     }
@@ -59,7 +59,7 @@ extension type AtUri._(String value) implements String {
 }
 
 extension type RecordKey._(String value) implements String {
-  factory RecordKey.parse(String value) {
+  factory parse(String value) {
     if (value.isEmpty || value.contains('/')) {
       throw FormatException('Invalid ATProto record key', value);
     }
@@ -68,7 +68,7 @@ extension type RecordKey._(String value) implements String {
 }
 
 class DidMapper extends SimpleMapper<Did> {
-  const DidMapper();
+  const new();
 
   @override
   Did decode(Object value) => Did.parse(value as String);
@@ -78,7 +78,7 @@ class DidMapper extends SimpleMapper<Did> {
 }
 
 class HandleMapper extends SimpleMapper<Handle> {
-  const HandleMapper();
+  const new();
 
   @override
   Handle decode(Object value) => Handle.parse(value as String);
@@ -88,7 +88,7 @@ class HandleMapper extends SimpleMapper<Handle> {
 }
 
 class AtIdentifierMapper extends SimpleMapper<AtIdentifier> {
-  const AtIdentifierMapper();
+  const new();
 
   @override
   AtIdentifier decode(Object value) => AtIdentifier.parse(value as String);
@@ -98,7 +98,7 @@ class AtIdentifierMapper extends SimpleMapper<AtIdentifier> {
 }
 
 class CidMapper extends SimpleMapper<Cid> {
-  const CidMapper();
+  const new();
 
   @override
   Cid decode(Object value) => Cid.parse(value as String);
@@ -108,7 +108,7 @@ class CidMapper extends SimpleMapper<Cid> {
 }
 
 class AtUriMapper extends SimpleMapper<AtUri> {
-  const AtUriMapper();
+  const new();
 
   @override
   AtUri decode(Object value) => AtUri.parse(value as String);
@@ -118,7 +118,7 @@ class AtUriMapper extends SimpleMapper<AtUri> {
 }
 
 class RecordKeyMapper extends SimpleMapper<RecordKey> {
-  const RecordKeyMapper();
+  const new();
 
   @override
   RecordKey decode(Object value) => RecordKey.parse(value as String);

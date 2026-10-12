@@ -10,7 +10,7 @@ import 'package:craftsky_app/auth/providers/session_registry_provider.dart'
     show sessionRegistryProvider;
 import 'package:craftsky_app/auth/widgets/account_switcher_content.dart';
 import 'package:craftsky_app/auth/widgets/active_account_initialization_gate.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/languages/data/language_preferences_repository.dart';
 import 'package:craftsky_app/languages/models/language_preferences.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_repository_provider.dart';
@@ -19,13 +19,13 @@ import 'package:craftsky_app/onboarding/models/onboarding_completion.dart';
 import 'package:craftsky_app/onboarding/providers/onboarding_repository_provider.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_emitter.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:logging/logging.dart';
+import 'package:material_ui/material_ui.dart';
 
 final class _RegistryStorage implements SessionRegistryStorage {
-  _RegistryStorage(this.value);
+  new(this.value);
 
   SessionRegistry value;
 
@@ -37,7 +37,7 @@ final class _RegistryStorage implements SessionRegistryStorage {
 }
 
 final class _PreferencesRepository implements LanguagePreferencesRepository {
-  _PreferencesRepository(this.loaded);
+  new(this.loaded);
 
   final Future<LanguagePreferences> loaded;
 
@@ -57,7 +57,7 @@ final class _PreferencesRepository implements LanguagePreferencesRepository {
 
 final class _RetryPreferencesRepository
     implements LanguagePreferencesRepository {
-  _RetryPreferencesRepository(this.loadPreferences);
+  new(this.loadPreferences);
 
   final Future<LanguagePreferences> Function() loadPreferences;
 
@@ -89,7 +89,7 @@ final class _RecordingAuthController extends AuthController {
 }
 
 final class _OnboardingRepository implements OnboardingRepository {
-  const _OnboardingRepository();
+  const new();
   @override
   Future<OnboardingCompletion> readStatus() async =>
       const OnboardingCompletion(completed: false);
@@ -146,7 +146,7 @@ void main() {
           ),
         ],
         child: const MaterialApp(
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: appLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: ActiveAccountInitializationGate(
             child: Text('signed-out-content'),
@@ -183,7 +183,7 @@ void main() {
           ),
         ],
         child: const MaterialApp(
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: appLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: ActiveAccountInitializationGate(
             child: Text('signed-in-content'),
@@ -246,7 +246,7 @@ void main() {
           authControllerProvider.overrideWith(_RecordingAuthController.new),
         ],
         child: const MaterialApp(
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: appLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: ActiveAccountInitializationGate(
             child: Text('signed-in-content'),
@@ -304,9 +304,9 @@ void main() {
 
     await tester.tap(find.widgetWithText(TextButton, 'Sign out'));
     await tester.pumpAndSettle();
-    final authController =
-        tester.container().read(authControllerProvider.notifier)
-            as _RecordingAuthController;
+    final authController = tester.container().read(
+      authControllerProvider.notifier,
+    ) as _RecordingAuthController;
     expect(authController.signOutCalls, 1);
   });
 
@@ -344,7 +344,7 @@ void main() {
           ),
         ],
         child: const MaterialApp(
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: appLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: ActiveAccountInitializationGate(
             child: Text('signed-in-content'),
@@ -394,7 +394,7 @@ void main() {
           _eligibilityOverride,
         ],
         child: const MaterialApp(
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: appLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: ActiveAccountInitializationGate(
             child: Text('signed-in-content'),

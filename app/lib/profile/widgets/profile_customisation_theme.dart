@@ -1,12 +1,12 @@
 import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Applies one fixed, audited profile colour bundle without generating hues
 /// at runtime. The caller controls the boundary by choosing where to insert
 /// this inherited theme.
 class ProfileCustomisationTheme extends StatelessWidget {
-  const ProfileCustomisationTheme({
+  const new({
     required this.child,
     this.customisation = ProfileCustomisation.defaults,
     super.key,

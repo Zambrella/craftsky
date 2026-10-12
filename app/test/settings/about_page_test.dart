@@ -1,11 +1,11 @@
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/settings/pages/about_page.dart';
 import 'package:craftsky_app/settings/settings_links.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../fakes/recording_messenger.dart';
 
@@ -17,7 +17,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         child: MaterialApp(
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: appLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: MessengerScope(
             messenger: RecordingMessenger(),

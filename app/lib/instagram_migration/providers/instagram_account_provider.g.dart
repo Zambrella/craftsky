@@ -50,7 +50,7 @@ final class InstagramAccountProvider
   }
 }
 
-String _$instagramAccountHash() => r'5d127e0bc959beab505eab7daa0b1826a8841ff7';
+String _$instagramAccountHash() => r'a5ad24e0973bfb4650612b8e22f12e3ce29c8e21';
 
 final class InstagramAccountFamily extends $Family
     with
@@ -85,7 +85,7 @@ abstract class _$InstagramAccount
   FutureOr<InstagramAccountStatus> build(ActiveAccountLease lease);
   @$mustCallSuper
   @override
-  void runBuild() {
+  WhenComplete runBuild() {
     final ref =
         this.ref
             as $Ref<AsyncValue<InstagramAccountStatus>, InstagramAccountStatus>;
@@ -100,6 +100,6 @@ abstract class _$InstagramAccount
               Object?,
               Object?
             >;
-    element.handleCreate(ref, () => build(_$args));
+    return element.handleCreate(ref, () => build(_$args));
   }
 }

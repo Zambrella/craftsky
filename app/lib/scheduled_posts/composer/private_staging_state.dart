@@ -7,7 +7,7 @@ enum PrivateStagingPhase { idle, staging, creating, failed, succeeded }
 enum PrivateStagingFailureStage { staging, creation }
 
 final class PrivateMediaSource {
-  const PrivateMediaSource({
+  const new({
     required this.id,
     required this.bytes,
     required this.mimeType,
@@ -22,7 +22,7 @@ final class PrivateMediaSource {
 }
 
 final class PrivateStagingProgress {
-  const PrivateStagingProgress({required this.sent, required this.total});
+  const new({required this.sent, required this.total});
 
   final int sent;
   final int total;
@@ -31,7 +31,7 @@ final class PrivateStagingProgress {
 }
 
 final class PrivateStagingState {
-  PrivateStagingState._({
+  new _({
     required this.operationId,
     required List<PrivateMediaSource> sources,
     required this.phase,
@@ -42,7 +42,7 @@ final class PrivateStagingState {
        progress = Map.unmodifiable(progress),
        stagedMediaIds = Map.unmodifiable(stagedMediaIds);
 
-  factory PrivateStagingState.initial({
+  factory initial({
     required String operationId,
     required List<PrivateMediaSource> sources,
   }) {

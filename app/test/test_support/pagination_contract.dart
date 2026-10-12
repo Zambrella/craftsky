@@ -3,14 +3,14 @@ import 'dart:async';
 import 'package:flutter_test/flutter_test.dart';
 
 final class PaginationContractPage<T> {
-  const PaginationContractPage({required this.items, this.cursor});
+  const new({required this.items, this.cursor});
 
   final List<T> items;
   final String? cursor;
 }
 
 final class PaginationContractSnapshot<T> {
-  const PaginationContractSnapshot({
+  const new({
     required this.items,
     required this.cursor,
     required this.hasMore,
@@ -24,7 +24,7 @@ final class PaginationContractSnapshot<T> {
 }
 
 final class PaginationContractSubject<T> {
-  const PaginationContractSubject({
+  const new({
     required this.initialize,
     required this.loadMore,
     required this.snapshot,
@@ -37,8 +37,9 @@ final class PaginationContractSubject<T> {
   final void Function() dispose;
 }
 
-typedef PaginationContractFetch<T> =
-    Future<PaginationContractPage<T>> Function(String? cursor);
+typedef PaginationContractFetch<T> = Future<PaginationContractPage<T>> Function(
+  String? cursor,
+);
 
 typedef PaginationContractSubjectFactory<T> =
     PaginationContractSubject<T> Function(PaginationContractFetch<T> fetch);

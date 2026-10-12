@@ -5,7 +5,7 @@ enum FollowerGrowthPeriod {
   thirtyDays('30d'),
   oneYear('1y');
 
-  const FollowerGrowthPeriod(this.wireValue);
+  new(this.wireValue);
 
   final String wireValue;
 
@@ -18,9 +18,9 @@ enum FollowerGrowthPeriod {
 }
 
 class FollowerGrowthPoint {
-  const FollowerGrowthPoint({required this.date, required this.count});
+  const new({required this.date, required this.count});
 
-  factory FollowerGrowthPoint.fromMap(Map<String, dynamic> map) {
+  factory fromMap(Map<String, dynamic> map) {
     return FollowerGrowthPoint(
       date: _parseDateOnly(map['date'], 'date'),
       count: _nullableNonNegativeInt(map['count'], 'count'),
@@ -32,7 +32,7 @@ class FollowerGrowthPoint {
 }
 
 class FollowerGrowth {
-  const FollowerGrowth({
+  const new({
     required this.period,
     required this.rangeStart,
     required this.rangeEnd,
@@ -44,7 +44,7 @@ class FollowerGrowth {
     required this.points,
   });
 
-  factory FollowerGrowth.fromMap(Map<String, dynamic> map) {
+  factory fromMap(Map<String, dynamic> map) {
     const requiredKeys = {
       'period',
       'rangeStart',

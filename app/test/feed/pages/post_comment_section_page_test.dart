@@ -4,7 +4,7 @@ import 'package:craftsky_app/feed/models/post_comment_section.dart';
 import 'package:craftsky_app/feed/pages/post_thread_page.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/feed/widgets/external_card.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/languages/models/language_preferences.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
 import 'package:craftsky_app/projects/models/project.dart';
@@ -20,9 +20,9 @@ import 'package:craftsky_app/theme/brand_text_field.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/form_factor.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../fakes/recording_messenger.dart';
 import '../../test_support/deterministic_pump.dart';
@@ -123,7 +123,7 @@ Future<void> _pumpCommentSection(
         messenger: messenger ?? RecordingMessenger(),
         child: MaterialApp(
           theme: AppTheme.lightThemeData,
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: appLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: FormFactorWidget(
             child: PostThreadPage(
@@ -229,7 +229,7 @@ void main() {
     late AppLocalizations l10n;
     await tester.pumpWidget(
       MaterialApp(
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        localizationsDelegates: appLocalizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         home: Builder(
           builder: (context) {
@@ -1267,7 +1267,13 @@ void main() {
 
       await _pumpCommentSection(tester, repo: repo);
       await tester.pumpAndSettle();
-      await tester.tap(find.byTooltip('Reply').last);
+      await tester.tap(
+        find
+            .byWidgetPredicate(
+              (widget) => widget is Tooltip && widget.message == 'Reply',
+            )
+            .last,
+      );
       await tester.pumpAndSettle();
       expect(find.byType(TextField), findsOneWidget);
       expect(
@@ -1318,8 +1324,7 @@ void main() {
                         post: deep,
                         flattened: true,
                         replyingTo: ReplyingToAuthor(
-                          uri:
-                              'at://did:plc:carol/social.craftsky.feed.post/reply',
+                          uri: 'at://did:plc:carol/social.craftsky.feed.post/reply',
                           did: 'did:plc:carol',
                           handle: 'carol.craftsky.social',
                         ),

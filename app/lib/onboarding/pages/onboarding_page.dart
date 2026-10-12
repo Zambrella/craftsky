@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/auth/providers/active_account_initialization_provider.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/onboarding/models/onboarding_action_state.dart';
 import 'package:craftsky_app/onboarding/models/onboarding_flow_state.dart';
 import 'package:craftsky_app/onboarding/providers/onboarding_flow_provider.dart';
@@ -20,12 +20,12 @@ import 'package:craftsky_app/shared/observability/error_reporting_consent_tile.d
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/form_factor.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:material_ui/material_ui.dart';
 
 class OnboardingPage extends ConsumerWidget {
-  const OnboardingPage({this.linkLauncher = launchExternalLink, super.key});
+  const new({this.linkLauncher = launchExternalLink, super.key});
 
   final ExternalLinkLauncher linkLauncher;
 
@@ -69,7 +69,7 @@ class OnboardingPage extends ConsumerWidget {
 }
 
 class _OnboardingFlowScaffold extends ConsumerWidget {
-  const _OnboardingFlowScaffold({
+  const new({
     required this.lease,
     required this.state,
     required this.linkLauncher,

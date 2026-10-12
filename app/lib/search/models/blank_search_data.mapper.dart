@@ -154,4 +154,3 @@ class _BlankSearchDataCopyWithImpl<$R, $Out>
     Then<$Out2, $R2> t,
   ) => _BlankSearchDataCopyWithImpl<$R2, $Out2>($value, $cast, t);
 }
-

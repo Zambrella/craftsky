@@ -53,7 +53,7 @@ final class AccountNotificationNewCountProvider
 }
 
 String _$accountNotificationNewCountHash() =>
-    r'd6a71bdf36c58bea0957358b882b8511a04bd9a6';
+    r'd89db434cc847e35d429b6e46adff699a281275b';
 
 final class AccountNotificationNewCountFamily extends $Family
     with
@@ -87,7 +87,7 @@ abstract class _$AccountNotificationNewCount extends $AsyncNotifier<int> {
   FutureOr<int> build(AccountKey account);
   @$mustCallSuper
   @override
-  void runBuild() {
+  WhenComplete runBuild() {
     final ref = this.ref as $Ref<AsyncValue<int>, int>;
     final element =
         ref.element
@@ -97,7 +97,7 @@ abstract class _$AccountNotificationNewCount extends $AsyncNotifier<int> {
               Object?,
               Object?
             >;
-    element.handleCreate(ref, () => build(_$args));
+    return element.handleCreate(ref, () => build(_$args));
   }
 }
 
@@ -132,7 +132,7 @@ abstract class _$NotificationNewCount extends $AsyncNotifier<int> {
   FutureOr<int> build();
   @$mustCallSuper
   @override
-  void runBuild() {
+  WhenComplete runBuild() {
     final ref = this.ref as $Ref<AsyncValue<int>, int>;
     final element =
         ref.element
@@ -142,6 +142,6 @@ abstract class _$NotificationNewCount extends $AsyncNotifier<int> {
               Object?,
               Object?
             >;
-    element.handleCreate(ref, build);
+    return element.handleCreate(ref, build);
   }
 }

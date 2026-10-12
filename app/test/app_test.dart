@@ -19,10 +19,10 @@ import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/shared/messaging/scaffold_messenger_impl.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_emitter.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:logging/logging.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:pub_semver/pub_semver.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -33,7 +33,7 @@ import 'feed/fakes/fake_post_repository.dart';
 import 'test_support/diagnostic_evidence.dart';
 
 final class _DelayedAuthSession extends AuthSession {
-  _DelayedAuthSession(this.result);
+  new(this.result);
 
   final Future<AuthState> result;
 

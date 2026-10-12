@@ -50,7 +50,7 @@ final class LocalPostDraftsProvider
   }
 }
 
-String _$localPostDraftsHash() => r'88bbab60e98b4b97e8967d8c9c6ff41f024700e2';
+String _$localPostDraftsHash() => r'e9d6a1bdc71ebcdc73109249a75364e73d454893';
 
 final class LocalPostDraftsFamily extends $Family
     with
@@ -85,7 +85,7 @@ abstract class _$LocalPostDrafts
   FutureOr<LocalPostDraftListState> build(AccountKey account);
   @$mustCallSuper
   @override
-  void runBuild() {
+  WhenComplete runBuild() {
     final ref =
         this.ref
             as $Ref<
@@ -103,6 +103,6 @@ abstract class _$LocalPostDrafts
               Object?,
               Object?
             >;
-    element.handleCreate(ref, () => build(_$args));
+    return element.handleCreate(ref, () => build(_$args));
   }
 }

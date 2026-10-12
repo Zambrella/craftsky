@@ -7,15 +7,15 @@ import 'package:flutter/foundation.dart';
 
 @immutable
 final class AccountDeletionLeaseFence {
-  const AccountDeletionLeaseFence._(this.lease);
+  const new _(this.lease);
 
-  factory AccountDeletionLeaseFence.capture(SessionRegistry registry) {
+  factory capture(SessionRegistry registry) {
     final active = registry.activeLease;
     if (active == null) throw DiagnosticStateError('No active account');
     return AccountDeletionLeaseFence._(active);
   }
 
-  factory AccountDeletionLeaseFence.fromPending(
+  factory fromPending(
     PendingAccountDeletion pending,
   ) => AccountDeletionLeaseFence._(pending.lease);
 

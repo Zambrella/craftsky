@@ -1,14 +1,14 @@
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/languages/data/language_catalogue.dart';
 import 'package:craftsky_app/languages/models/post_language_selection.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/craftsky_text_inputs.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 class PostLanguageSelector extends StatelessWidget {
-  const PostLanguageSelector({
+  const new({
     required this.selection,
     required this.onChanged,
     this.enabled = true,
@@ -70,7 +70,7 @@ Future<String?> showPostLanguagePicker(
 );
 
 class _LanguageSearchDialog extends StatefulWidget {
-  const _LanguageSearchDialog({required this.excluded});
+  const new({required this.excluded});
 
   final Set<String> excluded;
 

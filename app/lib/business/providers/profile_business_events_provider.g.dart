@@ -52,7 +52,7 @@ final class ProfileBusinessEventsProvider
 }
 
 String _$profileBusinessEventsHash() =>
-    r'04d53e8da32e9ba96747e5b0f751671e8d53c644';
+    r'2c016d9eb353c9a6500762bf09132b33abed92f8';
 
 final class ProfileBusinessEventsFamily extends $Family
     with
@@ -87,7 +87,7 @@ abstract class _$ProfileBusinessEvents
   FutureOr<BusinessEventListState> build(ProfileBusinessEventsTarget target);
   @$mustCallSuper
   @override
-  void runBuild() {
+  WhenComplete runBuild() {
     final ref =
         this.ref
             as $Ref<AsyncValue<BusinessEventListState>, BusinessEventListState>;
@@ -102,6 +102,6 @@ abstract class _$ProfileBusinessEvents
               Object?,
               Object?
             >;
-    element.handleCreate(ref, () => build(_$args));
+    return element.handleCreate(ref, () => build(_$args));
   }
 }

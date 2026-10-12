@@ -1,6 +1,6 @@
 import 'dart:math' as math;
 
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:craftsky_app/profile/models/profile_handle.dart';
 import 'package:craftsky_app/profile/widgets/profile_actions.dart';
@@ -13,7 +13,7 @@ import 'package:craftsky_app/router/app_shell_drawer.dart';
 import 'package:craftsky_app/shared/widgets/craft_icon.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Collapsing profile header styled like the compact profile card.
 ///
@@ -21,7 +21,7 @@ import 'package:flutter/material.dart';
 /// and centred identity. It collapses to the same compact identity and trailing
 /// action used by the rest of the app.
 class ProfileSliverAppBar extends StatelessWidget {
-  const ProfileSliverAppBar({
+  const new({
     required this.handle,
     required this.actions,
     this.crafts = const [],
@@ -218,7 +218,7 @@ class ProfileSliverAppBar extends StatelessWidget {
 }
 
 class _ProfileLeadingAction extends StatelessWidget {
-  const _ProfileLeadingAction({
+  const new({
     required this.showDrawer,
     required this.expandedHeight,
     required this.customisation,
@@ -262,7 +262,7 @@ class _ProfileLeadingAction extends StatelessWidget {
 }
 
 class _ProfileHeaderLayout {
-  const _ProfileHeaderLayout({
+  const new({
     required this.identityHeight,
     required this.craftsTop,
     required this.expandedHeight,
@@ -274,7 +274,7 @@ class _ProfileHeaderLayout {
 }
 
 class _ProfileFlexibleSpace extends StatelessWidget {
-  const _ProfileFlexibleSpace({
+  const new({
     required this.handle,
     required this.crafts,
     required this.displayName,
@@ -449,7 +449,7 @@ class _ProfileFlexibleSpace extends StatelessWidget {
 }
 
 class _CollapsedTrailingAction extends StatelessWidget {
-  const _CollapsedTrailingAction({required this.actions});
+  const new({required this.actions});
 
   final ProfileActionSet actions;
 
@@ -492,7 +492,7 @@ class _CollapsedTrailingAction extends StatelessWidget {
 }
 
 class _CollapsedTitle extends StatelessWidget {
-  const _CollapsedTitle({
+  const new({
     required this.handle,
     required this.displayName,
   });

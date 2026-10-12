@@ -1,4 +1,4 @@
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/subscriptions/models/billing_state.dart';
 import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
@@ -7,9 +7,9 @@ import 'package:craftsky_app/subscriptions/providers/subscription_page_model_pro
 import 'package:craftsky_app/subscriptions/services/revenuecat_service.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/craftsky_card.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 void main() {
   testWidgets('AT-004 beneficiary sees self access and no owner details', (
@@ -623,7 +623,7 @@ void main() {
         ],
         child: MaterialApp(
           theme: AppTheme.lightThemeData,
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: appLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: const SubscriptionPage(),
         ),
@@ -678,7 +678,7 @@ Future<void> _pump(WidgetTester tester, SubscriptionPageModel model) =>
     tester.pumpWidget(
       MaterialApp(
         theme: AppTheme.lightThemeData,
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        localizationsDelegates: appLocalizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         home: SubscriptionPageView(model: model),
       ),

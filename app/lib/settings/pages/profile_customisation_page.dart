@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/auth/providers/unsaved_work_guard_provider.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/profile/data/crafts_catalog.dart';
 import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:craftsky_app/profile/providers/profile_customisation_provider.dart';
@@ -14,11 +14,11 @@ import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:material_ui/material_ui.dart';
 
 class ProfileCustomisationPage extends ConsumerWidget {
-  const ProfileCustomisationPage({super.key});
+  const new({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -61,7 +61,7 @@ class ProfileCustomisationPage extends ConsumerWidget {
 }
 
 class _LoadedCustomisationPage extends ConsumerStatefulWidget {
-  const _LoadedCustomisationPage({required this.value, required this.isSaving});
+  const new({required this.value, required this.isSaving});
 
   final ProfileCustomisationEditorState value;
   final bool isSaving;
@@ -206,7 +206,7 @@ class _LoadedCustomisationPageState
 }
 
 class _ChoiceGroup extends StatelessWidget {
-  const _ChoiceGroup({
+  const new({
     required this.label,
     required this.values,
     required this.selected,

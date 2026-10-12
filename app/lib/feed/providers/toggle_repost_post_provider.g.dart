@@ -33,13 +33,13 @@ final class ToggleRepostPostProvider
   ToggleRepostPost create() => ToggleRepostPost();
 }
 
-String _$toggleRepostPostHash() => r'72576decf9ff12ae9348f5f4713af12274d6ac20';
+String _$toggleRepostPostHash() => r'd08d1f3c27a265aeb2c70622b8d09e7d34aa77e7';
 
 abstract class _$ToggleRepostPost extends $AsyncNotifier<Post?> {
   FutureOr<Post?> build();
   @$mustCallSuper
   @override
-  void runBuild() {
+  WhenComplete runBuild() {
     final ref = this.ref as $Ref<AsyncValue<Post?>, Post?>;
     final element =
         ref.element
@@ -49,6 +49,6 @@ abstract class _$ToggleRepostPost extends $AsyncNotifier<Post?> {
               Object?,
               Object?
             >;
-    element.handleCreate(ref, build);
+    return element.handleCreate(ref, build);
   }
 }

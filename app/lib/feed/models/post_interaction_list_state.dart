@@ -4,7 +4,7 @@ import 'package:flutter/foundation.dart';
 
 @immutable
 final class PostInteractionAccountsState {
-  PostInteractionAccountsState({
+  new({
     required List<ProfileAccountSummary> items,
     required this.totalCount,
     this.cursor,
@@ -19,7 +19,7 @@ final class PostInteractionAccountsState {
 
 @immutable
 final class PostQuotesState {
-  PostQuotesState({required List<Post> items, this.cursor})
+  new({required List<Post> items, this.cursor})
     : items = List.unmodifiable(items);
 
   final List<Post> items;

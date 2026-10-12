@@ -8,7 +8,7 @@ final unsavedWorkGuardProvider = Provider<UnsavedWorkGuard>(
 );
 
 final class UnsavedWorkRegistration {
-  const UnsavedWorkRegistration._(this.id);
+  const new _(this.id);
 
   final int id;
 
@@ -80,7 +80,7 @@ final class UnsavedWorkGuard {
 }
 
 final class _UnsavedWorkEntry {
-  const _UnsavedWorkEntry({
+  const new({
     required this.owner,
     required this.isDirty,
     required this.confirmAndClose,

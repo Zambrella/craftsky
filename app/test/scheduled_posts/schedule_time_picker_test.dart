@@ -1,6 +1,6 @@
 import 'package:craftsky_app/scheduled_posts/widgets/schedule_time_picker.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 void main() {
   testWidgets('AT-003 permits only the exact whole-minute schedule window', (
@@ -24,12 +24,11 @@ void main() {
     Future<DateTime?> pick(DateTime value) => pickScheduledLocalTime(
       context: context,
       now: now,
-      selectDate:
-          ({
-            required initialDate,
-            required firstDate,
-            required lastDate,
-          }) async => value,
+      selectDate: ({
+        required initialDate,
+        required firstDate,
+        required lastDate,
+      }) async => value,
       selectTime: ({required initialTime}) async =>
           TimeOfDay.fromDateTime(value),
       onOutOfRange: rejected.add,

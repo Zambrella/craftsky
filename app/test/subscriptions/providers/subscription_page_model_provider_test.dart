@@ -384,7 +384,7 @@ SessionRegistry _registry() => SessionRegistry.empty()
     );
 
 final class _Storage implements SessionRegistryStorage {
-  _Storage(this.value);
+  new(this.value);
   SessionRegistry value;
 
   @override
@@ -395,7 +395,7 @@ final class _Storage implements SessionRegistryStorage {
 }
 
 final class _Api implements SubscriptionApi {
-  _Api(
+  new(
     this.did,
     this.tier, {
     this.revenueCatAppUserId = '20000000-0000-4000-8000-000000000001',
@@ -444,7 +444,7 @@ final class _Api implements SubscriptionApi {
 }
 
 final class _RevenueCat implements RevenueCatService {
-  _RevenueCat({
+  new({
     this.appUserId = '20000000-0000-4000-8000-000000000001',
     this.identityError,
     this.prices = const {},
@@ -498,7 +498,7 @@ final class _RevenueCat implements RevenueCatService {
 }
 
 final class _Offering implements RevenueCatOffering {
-  const _Offering(this.identifier, this.price);
+  const new(this.identifier, this.price);
 
   @override
   final String identifier;

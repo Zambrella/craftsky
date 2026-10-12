@@ -12,15 +12,14 @@ import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
 import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
 
-typedef PreparedImageUpload =
-    Future<UploadedImageBlob> Function({
-      required List<int> bytes,
-      required String mimeType,
-      required CancelToken cancelToken,
-    });
+typedef PreparedImageUpload = Future<UploadedImageBlob> Function({
+  required List<int> bytes,
+  required String mimeType,
+  required CancelToken cancelToken,
+});
 
 final class ComposerMediaUploader {
-  ComposerMediaUploader({
+  new({
     this.transferBudget = const Duration(minutes: 1),
     this.mediaService = const ComposerImageMediaService(),
   });

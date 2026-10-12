@@ -1,15 +1,15 @@
 import 'dart:async';
 
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/shared/observability/error_reporting_provider.dart';
 import 'package:craftsky_app/shared/widgets/action_progress.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:material_ui/material_ui.dart';
 
 class ErrorReportingConsentTile extends ConsumerWidget {
-  const ErrorReportingConsentTile({this.onboarding = false, super.key});
+  const new({this.onboarding = false, super.key});
 
   final bool onboarding;
 

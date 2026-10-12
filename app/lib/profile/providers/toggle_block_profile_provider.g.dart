@@ -34,13 +34,13 @@ final class ToggleBlockProfileProvider
 }
 
 String _$toggleBlockProfileHash() =>
-    r'9b80922e80a5ad7c6e9f2f15262923bd5b7783a4';
+    r'f78d6b0a7988b69a881eab656e31e2013a8f34fa';
 
 abstract class _$ToggleBlockProfile extends $AsyncNotifier<bool?> {
   FutureOr<bool?> build();
   @$mustCallSuper
   @override
-  void runBuild() {
+  WhenComplete runBuild() {
     final ref = this.ref as $Ref<AsyncValue<bool?>, bool?>;
     final element =
         ref.element
@@ -50,6 +50,6 @@ abstract class _$ToggleBlockProfile extends $AsyncNotifier<bool?> {
               Object?,
               Object?
             >;
-    element.handleCreate(ref, build);
+    return element.handleCreate(ref, build);
   }
 }

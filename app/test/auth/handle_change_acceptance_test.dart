@@ -15,7 +15,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http_mock_adapter/http_mock_adapter.dart';
 
 final class _RegistryStorage implements SessionRegistryStorage {
-  _RegistryStorage(this.value);
+  new(this.value);
 
   SessionRegistry value;
   int writes = 0;

@@ -9,7 +9,7 @@ import 'package:craftsky_app/auth/providers/unsaved_work_guard_provider.dart';
 import 'package:craftsky_app/business/models/business_drafts.dart';
 import 'package:craftsky_app/business/models/business_profile.dart';
 import 'package:craftsky_app/business/widgets/business_profile_fields.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/profile/data/crafts_catalog.dart';
 import 'package:craftsky_app/profile/data/profile_field_constraints.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
@@ -36,11 +36,11 @@ import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_form_builder/flutter_form_builder.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:form_builder_validators/form_builder_validators.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Field names used by the [FormBuilder] state. Centralised so the
 /// build site, the validators, and the save-time reads can't drift
@@ -98,7 +98,7 @@ Future<void> showEditProfileDialog(
 /// from `fullscreenDialog: true`) is reachable even before the profile
 /// resolves.
 class EditProfileDialog extends ConsumerWidget {
-  const EditProfileDialog({
+  const new({
     this.linkLauncher = launchExternalLink,
     this.confirmOpenLink = showOpenLinkDialog,
     super.key,
@@ -150,7 +150,7 @@ class EditProfileDialog extends ConsumerWidget {
 }
 
 class _EditProfileLoadingScaffold extends StatelessWidget {
-  const _EditProfileLoadingScaffold();
+  const new();
 
   @override
   Widget build(BuildContext context) {
@@ -166,7 +166,7 @@ class _EditProfileLoadingScaffold extends StatelessWidget {
 /// dirty tracking, and read-time access all flow through a single
 /// [GlobalKey<FormBuilderState>].
 class _EditProfileForm extends ConsumerStatefulWidget {
-  const _EditProfileForm({
+  const new({
     required this.profile,
     required this.linkLauncher,
     required this.confirmOpenLink,
@@ -398,7 +398,7 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
 
   Future<bool> _confirmDiscard() async {
     final l10n = AppLocalizations.of(context);
-    return showCraftskyConfirmDialog(
+    return await showCraftskyConfirmDialog(
       context,
       title: l10n.editProfileDiscardTitle,
       message: l10n.editProfileDiscardMessage,
@@ -792,7 +792,7 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
 /// colour on the child Text overrides the resolver and the disabled
 /// state ends up looking identical to the enabled one.
 class _SaveAction extends StatelessWidget {
-  const _SaveAction({required this.onPressed, required this.isSaving});
+  const new({required this.onPressed, required this.isSaving});
 
   final VoidCallback? onPressed;
   final bool isSaving;
@@ -814,25 +814,25 @@ class _SaveAction extends StatelessWidget {
 }
 
 class _ProfileImageDraft {
-  const _ProfileImageDraft({
+  const new({
     this.previewBytes,
     this.uploaded,
     this.isUploading = false,
     this.hasError = false,
   });
 
-  factory _ProfileImageDraft.uploading(Uint8List previewBytes) {
+  factory uploading(Uint8List previewBytes) {
     return _ProfileImageDraft(previewBytes: previewBytes, isUploading: true);
   }
 
-  factory _ProfileImageDraft.uploaded(
+  factory uploaded(
     Uint8List previewBytes,
     UploadedImageBlob uploaded,
   ) {
     return _ProfileImageDraft(previewBytes: previewBytes, uploaded: uploaded);
   }
 
-  factory _ProfileImageDraft.failed() {
+  factory failed() {
     return const _ProfileImageDraft(hasError: true);
   }
 

@@ -8,7 +8,7 @@ import 'package:craftsky_app/shared/api/pds_mutation_contract.dart';
 import 'package:dio/dio.dart';
 
 final class InstagramMigrationApiClient {
-  const InstagramMigrationApiClient(this._dio);
+  const new(this._dio);
 
   final Dio _dio;
 
@@ -19,7 +19,7 @@ final class InstagramMigrationApiClient {
         data: <String, Object?>{},
       );
       _requireStatus(response, 201);
-      return _decodeMap(
+      return await _decodeMap(
         response.data,
         InstagramVerificationAttempt.fromCreationMap,
       );
@@ -34,7 +34,10 @@ final class InstagramMigrationApiClient {
       '${Uri.encodeComponent(verificationId)}',
     );
     _requireStatus(response, 200);
-    return _decodeMap(response.data, InstagramVerificationAttempt.fromMap);
+    return await _decodeMap(
+      response.data,
+      InstagramVerificationAttempt.fromMap,
+    );
   });
 
   Future<InstagramVerificationAttempt?> getCurrentVerification() => unwrapApi(
@@ -43,7 +46,7 @@ final class InstagramMigrationApiClient {
         '/v1/migrations/instagram/verifications/current',
       );
       _requireStatus(response, 200);
-      return _decode(() {
+      return await _decode(() {
         final data = response.data;
         if (data is! Map<String, dynamic>) {
           throw const FormatException('invalid_instagram_current_verification');
@@ -78,7 +81,7 @@ final class InstagramMigrationApiClient {
       data: {'discoverable': discoverable},
     );
     _requireStatus(response, 200);
-    return _decodeMap(
+    return await _decodeMap(
       response.data,
       InstagramVerificationConfirmation.fromMap,
     );
@@ -89,7 +92,7 @@ final class InstagramMigrationApiClient {
       '/v1/migrations/instagram/account',
     );
     _requireStatus(response, 200);
-    return _decodeMap(response.data, InstagramAccountStatus.fromMap);
+    return await _decodeMap(response.data, InstagramAccountStatus.fromMap);
   });
 
   Future<InstagramAccountStatus> updateSettings(
@@ -100,7 +103,7 @@ final class InstagramMigrationApiClient {
       data: patch.toMap(),
     );
     _requireStatus(response, 200);
-    return _decodeMap(response.data, InstagramAccountStatus.fromMap);
+    return await _decodeMap(response.data, InstagramAccountStatus.fromMap);
   });
 
   Future<void> revokeAccount() => unwrapApi(() async {
@@ -118,7 +121,7 @@ final class InstagramMigrationApiClient {
       data: request.toMap(),
     );
     _requireStatus(response, 201);
-    return _decodeMap(response.data, InstagramImportCreateResult.fromMap);
+    return await _decodeMap(response.data, InstagramImportCreateResult.fromMap);
   });
 
   Future<InstagramImportPage> listImports({int? limit, String? cursor}) =>
@@ -128,7 +131,7 @@ final class InstagramMigrationApiClient {
           queryParameters: {'limit': ?limit, 'cursor': ?cursor},
         );
         _requireStatus(response, 200);
-        return _decodeMap(response.data, InstagramImportPage.fromMap);
+        return await _decodeMap(response.data, InstagramImportPage.fromMap);
       });
 
   Future<InstagramImportSummary> getImport(String importId) => unwrapApi(
@@ -137,7 +140,7 @@ final class InstagramMigrationApiClient {
         '/v1/migrations/instagram/imports/${Uri.encodeComponent(importId)}',
       );
       _requireStatus(response, 200);
-      return _decodeMap(response.data, InstagramImportSummary.fromMap);
+      return await _decodeMap(response.data, InstagramImportSummary.fromMap);
     },
   );
 
@@ -150,7 +153,7 @@ final class InstagramMigrationApiClient {
       data: patch.toMap(),
     );
     _requireStatus(response, 200);
-    return _decodeMap(response.data, InstagramImportSummary.fromMap);
+    return await _decodeMap(response.data, InstagramImportSummary.fromMap);
   });
 
   Future<void> deleteImport(String importId) => unwrapApi(() async {
@@ -169,7 +172,7 @@ final class InstagramMigrationApiClient {
       queryParameters: {'limit': ?limit, 'cursor': ?cursor},
     );
     _requireStatus(response, 200);
-    return _decodeMap(response.data, InstagramSuggestionPage.fromMap);
+    return await _decodeMap(response.data, InstagramSuggestionPage.fromMap);
   });
 
   Future<InstagramSuggestionActionResult> acceptSuggestion(
@@ -186,7 +189,7 @@ final class InstagramMigrationApiClient {
             status != null && status >= 200 && status < 300,
       ),
     );
-    return parsePdsMutationResponse(
+    return await parsePdsMutationResponse(
       response,
       accepted: (data) => _decode(() {
         _requireStatus(response, 200);

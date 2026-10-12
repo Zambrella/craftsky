@@ -13,7 +13,7 @@ part 'profile_customisation_provider.g.dart';
 
 /// Loaded server value and the user's editable local draft.
 final class ProfileCustomisationEditorState {
-  const ProfileCustomisationEditorState({
+  const new({
     required this.confirmed,
     required this.draft,
     required this.previewSeed,

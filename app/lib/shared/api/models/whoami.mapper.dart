@@ -121,4 +121,3 @@ class _WhoAmICopyWithImpl<$R, $Out> extends ClassCopyWithBase<$R, WhoAmI, $Out>
   WhoAmICopyWith<$R2, WhoAmI, $Out2> $chain<$R2, $Out2>(Then<$Out2, $R2> t) =>
       _WhoAmICopyWithImpl<$R2, $Out2>($value, $cast, t);
 }
-

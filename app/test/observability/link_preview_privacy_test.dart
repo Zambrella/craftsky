@@ -88,7 +88,7 @@ final class _RecordingErrorReporter implements ErrorReporter {
 }
 
 final class _FailingRepository implements LinkPreviewRepository {
-  const _FailingRepository(this.canary);
+  const new(this.canary);
 
   final String canary;
 

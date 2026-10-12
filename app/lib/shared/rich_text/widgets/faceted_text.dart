@@ -2,13 +2,13 @@ import 'package:craftsky_app/shared/rich_text/faceted_text_model.dart';
 import 'package:craftsky_app/shared/rich_text/faceted_text_span_builder.dart';
 import 'package:craftsky_app/shared/rich_text/providers/facet_action_providers.dart';
 import 'package:flutter/gestures.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Render-safe rich text for AT Protocol facet metadata.
 class FacetedText extends ConsumerStatefulWidget {
   /// Creates faceted text from raw AT Protocol facet JSON.
-  const FacetedText({
+  const new({
     required this.text,
     super.key,
     this.facets,

@@ -206,7 +206,7 @@ BusinessEvent _event({required String cid, required String name}) =>
     );
 
 final class _DetailRepository extends Fake implements BusinessRepository {
-  _DetailRepository(this.result);
+  new(this.result);
 
   final Future<BusinessEvent> result;
   final started = Completer<void>();

@@ -10,7 +10,7 @@ part 'saved_post_folder.mapper.dart';
 )
 @immutable
 final class SavedPostFolder with SavedPostFolderMappable {
-  const SavedPostFolder({
+  const new({
     required this.id,
     required this.name,
     required this.createdAt,
@@ -40,7 +40,7 @@ final class SavedPostFolder with SavedPostFolderMappable {
       GenerateMethods.equals,
 )
 final class SavedPostFolderPage with SavedPostFolderPageMappable {
-  const SavedPostFolderPage({required this.items, this.cursor});
+  const new({required this.items, this.cursor});
 
   final List<SavedPostFolder> items;
   final String? cursor;
@@ -49,7 +49,7 @@ final class SavedPostFolderPage with SavedPostFolderPageMappable {
 enum SavedPostFolderNameError { empty, tooLong, slash, control }
 
 final class SavedPostFolderNameException implements Exception {
-  const SavedPostFolderNameException(this.error);
+  const new(this.error);
 
   final SavedPostFolderNameError error;
 

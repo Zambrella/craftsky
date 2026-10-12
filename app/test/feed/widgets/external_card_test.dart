@@ -2,12 +2,12 @@ import 'package:craftsky_app/feed/media/youtube_consent.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/widgets/external_card.dart';
 import 'package:craftsky_app/feed/widgets/youtube_inline_player.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/shared/image/image_cache_providers.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../fakes/image_cache_fakes.dart';
 
@@ -320,13 +320,13 @@ Widget _app(Widget child) => ProviderScope(child: _materialApp(child));
 
 Widget _materialApp(Widget child) => MaterialApp(
   theme: AppTheme.lightThemeData,
-  localizationsDelegates: AppLocalizations.localizationsDelegates,
+  localizationsDelegates: appLocalizationsDelegates,
   supportedLocales: AppLocalizations.supportedLocales,
   home: Scaffold(body: child),
 );
 
 final class _FakeYouTubeConsent implements YouTubeConsentPreferences {
-  _FakeYouTubeConsent({this.alwaysAllow = false});
+  new({this.alwaysAllow = false});
 
   @override
   bool alwaysAllow;

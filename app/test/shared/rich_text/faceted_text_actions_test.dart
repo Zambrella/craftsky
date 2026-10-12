@@ -1,11 +1,11 @@
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/shared/rich_text/providers/facet_action_providers.dart';
 import 'package:craftsky_app/shared/rich_text/widgets/faceted_text.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:material_ui/material_ui.dart';
 
 void main() {
   group('FacetedText actions', () {
@@ -140,7 +140,7 @@ Future<void> _pump(
       overrides: List.from(overrides),
       child: MaterialApp.router(
         theme: AppTheme.lightThemeData,
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        localizationsDelegates: appLocalizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         routerConfig: router,
       ),

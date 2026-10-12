@@ -11,7 +11,7 @@ import 'package:craftsky_app/shared/media/uploaded_image_blob.dart';
 
 /// Production [ProfileRepository] backed by the AppView HTTP API.
 class ApiProfileRepository implements ProfileRepository {
-  const ApiProfileRepository(this._api);
+  const new(this._api);
 
   final ProfileApiClient _api;
 

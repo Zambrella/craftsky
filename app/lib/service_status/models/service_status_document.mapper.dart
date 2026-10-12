@@ -154,4 +154,3 @@ mixin ServiceStatusDocumentMappable {
         .encodeMap<ServiceStatusDocument>(this as ServiceStatusDocument);
   }
 }
-

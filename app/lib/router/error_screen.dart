@@ -1,12 +1,12 @@
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/shared/errors/app_error.dart';
 import 'package:craftsky_app/shared/errors/app_error_mapper.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 class ErrorScreen extends StatelessWidget {
-  const ErrorScreen({required this.error, super.key});
+  const new({required this.error, super.key});
 
   /// Type is `Object` rather than `Exception` because `GoRouterState.error`
   /// is `Object?` in go_router 17 — routing errors are not always exceptions.

@@ -8,7 +8,7 @@ import 'package:uuid/uuid.dart';
 /// Navigation continues to be derived from [NotificationOpenAttempt]'s
 /// validated routing facts and account binding.
 final class NotificationDeliveryEnvelope {
-  NotificationDeliveryEnvelope._({
+  new _({
     required this.notificationId,
     required this.title,
     required this.body,

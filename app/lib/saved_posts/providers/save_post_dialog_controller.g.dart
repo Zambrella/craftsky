@@ -95,7 +95,7 @@ abstract class _$SavePostDialogController
   SavePostDialogState build(SavePostDialogKey key);
   @$mustCallSuper
   @override
-  void runBuild() {
+  WhenComplete runBuild() {
     final ref = this.ref as $Ref<SavePostDialogState, SavePostDialogState>;
     final element =
         ref.element
@@ -105,6 +105,6 @@ abstract class _$SavePostDialogController
               Object?,
               Object?
             >;
-    element.handleCreate(ref, () => build(_$args));
+    return element.handleCreate(ref, () => build(_$args));
   }
 }

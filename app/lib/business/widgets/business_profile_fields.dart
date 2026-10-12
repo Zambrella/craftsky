@@ -3,12 +3,12 @@ import 'dart:convert';
 import 'package:craftsky_app/business/models/business_drafts.dart';
 import 'package:craftsky_app/business/models/business_labels.dart';
 import 'package:craftsky_app/business/models/business_profile.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/theme/craftsky_form_builder_select_fields.dart';
 import 'package:craftsky_app/theme/craftsky_text_inputs.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_form_builder/flutter_form_builder.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:sealed_countries/sealed_countries.dart';
 
 abstract final class BusinessProfileFieldNames {
@@ -24,7 +24,7 @@ abstract final class BusinessProfileFieldNames {
 }
 
 class BusinessProfileFields extends StatelessWidget {
-  const BusinessProfileFields({
+  const new({
     required this.initial,
     required this.enabled,
     super.key,
@@ -343,7 +343,7 @@ class BusinessProfileFields extends StatelessWidget {
 }
 
 class _TextField extends StatelessWidget {
-  const _TextField({
+  const new({
     required this.name,
     required this.label,
     required this.enabled,

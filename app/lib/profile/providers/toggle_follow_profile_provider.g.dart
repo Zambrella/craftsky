@@ -34,13 +34,13 @@ final class ToggleFollowProfileProvider
 }
 
 String _$toggleFollowProfileHash() =>
-    r'f266055988b11b4e9116d45047fa706ad156e070';
+    r'effa3b5245c28e65cd4362e90eeb1237ae70bcac';
 
 abstract class _$ToggleFollowProfile extends $AsyncNotifier<Profile?> {
   FutureOr<Profile?> build();
   @$mustCallSuper
   @override
-  void runBuild() {
+  WhenComplete runBuild() {
     final ref = this.ref as $Ref<AsyncValue<Profile?>, Profile?>;
     final element =
         ref.element
@@ -50,6 +50,6 @@ abstract class _$ToggleFollowProfile extends $AsyncNotifier<Profile?> {
               Object?,
               Object?
             >;
-    element.handleCreate(ref, build);
+    return element.handleCreate(ref, build);
   }
 }

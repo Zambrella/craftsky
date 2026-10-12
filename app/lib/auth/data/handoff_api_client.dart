@@ -8,7 +8,7 @@ import 'package:dio/dio.dart';
 /// only to the direct confirmation request and is never embedded in a provider
 /// key, URL, or diagnostic representation.
 class HandoffApiClient {
-  const HandoffApiClient(this._dio);
+  const new(this._dio);
   final Dio _dio;
 
   Future<PendingHandoff> exchange({required String code}) =>

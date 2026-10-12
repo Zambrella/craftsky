@@ -1,7 +1,7 @@
 import 'package:craftsky_app/business/models/business_drafts.dart';
 import 'package:craftsky_app/business/models/event_diagnostics.dart';
 import 'package:craftsky_app/business/services/business_time_zone_service.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 

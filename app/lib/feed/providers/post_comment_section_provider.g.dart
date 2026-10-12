@@ -104,7 +104,7 @@ abstract class _$PostCommentSection
   });
   @$mustCallSuper
   @override
-  void runBuild() {
+  WhenComplete runBuild() {
     final ref =
         this.ref
             as $Ref<
@@ -122,7 +122,7 @@ abstract class _$PostCommentSection
               Object?,
               Object?
             >;
-    element.handleCreate(
+    return element.handleCreate(
       ref,
       () => build(_$args.$1, _$args.$2, sort: _$args.sort, focus: _$args.focus),
     );
@@ -172,7 +172,7 @@ final class PostCommentPageLoaderProvider
 }
 
 String _$postCommentPageLoaderHash() =>
-    r'ae9d1aede145dbd8adf019236e2287553cdd86ce';
+    r'47cc15006ece5cad6a2ba5c33d37675f6a0c082e';
 
 final class PostCommentPageLoaderFamily extends $Family
     with
@@ -222,7 +222,7 @@ abstract class _$PostCommentPageLoader extends $AsyncNotifier<void> {
   });
   @$mustCallSuper
   @override
-  void runBuild() {
+  WhenComplete runBuild() {
     final ref = this.ref as $Ref<AsyncValue<void>, void>;
     final element =
         ref.element
@@ -232,7 +232,7 @@ abstract class _$PostCommentPageLoader extends $AsyncNotifier<void> {
               Object?,
               Object?
             >;
-    element.handleCreate(
+    return element.handleCreate(
       ref,
       () => build(_$args.$1, _$args.$2, sort: _$args.sort, focus: _$args.focus),
     );
@@ -289,7 +289,7 @@ final class PostCommentRepliesLoaderProvider
 }
 
 String _$postCommentRepliesLoaderHash() =>
-    r'd1ad1993cdd4abf5b90021775e5be31cdd572260';
+    r'dacd0e85679781e04e2554a2270be1b321b877c8';
 
 final class PostCommentRepliesLoaderFamily extends $Family
     with
@@ -355,7 +355,7 @@ abstract class _$PostCommentRepliesLoader extends $AsyncNotifier<void> {
   });
   @$mustCallSuper
   @override
-  void runBuild() {
+  WhenComplete runBuild() {
     final ref = this.ref as $Ref<AsyncValue<void>, void>;
     final element =
         ref.element
@@ -365,7 +365,7 @@ abstract class _$PostCommentRepliesLoader extends $AsyncNotifier<void> {
               Object?,
               Object?
             >;
-    element.handleCreate(
+    return element.handleCreate(
       ref,
       () => build(
         _$args.$1,

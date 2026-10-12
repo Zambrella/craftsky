@@ -1,8 +1,8 @@
 import 'package:craftsky_app/business/models/business_profile.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/theme/craftsky_divider.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// The top-level profile tabs. Sealed in an enum so the page,
 /// the tab bar delegate, and the tab content list all reference the
@@ -82,7 +82,7 @@ extension ProfileTabLabel on ProfileTab {
 /// [SliverPersistentHeader] above the [TabBarView] body so tabs stay
 /// reachable while the post list scrolls under them.
 class ProfileTabBarDelegate extends SliverPersistentHeaderDelegate {
-  const ProfileTabBarDelegate({
+  const new({
     this.tabs = ProfileTabPolicy.ordinaryTabs,
     this.controller,
     this.projectsCountLabel,
@@ -125,7 +125,7 @@ class ProfileTabBarDelegate extends SliverPersistentHeaderDelegate {
 /// The reusable visual tab bar used by the full profile and its expanding
 /// presentation.
 class ProfileTabBar extends StatelessWidget {
-  const ProfileTabBar({
+  const new({
     this.tabs = ProfileTabPolicy.ordinaryTabs,
     this.controller,
     this.projectsCountLabel,

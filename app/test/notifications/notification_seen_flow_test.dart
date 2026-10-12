@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:craftsky_app/bootstrap.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/notifications/data/notification_repository.dart';
 import 'package:craftsky_app/notifications/models/craftsky_notification.dart';
 import 'package:craftsky_app/notifications/models/notification_category.dart';
@@ -12,9 +12,9 @@ import 'package:craftsky_app/notifications/providers/notification_new_count_prov
 import 'package:craftsky_app/notifications/providers/notification_repository_provider.dart';
 import 'package:craftsky_app/notifications/providers/notifications_provider.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 void main() {
   setUpAll(initializeMappers);
@@ -42,7 +42,7 @@ void main() {
         container: container,
         child: MaterialApp(
           theme: AppTheme.lightThemeData,
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: appLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: const NotificationsPage(),
         ),
@@ -80,7 +80,7 @@ void main() {
           container: container,
           child: MaterialApp(
             theme: AppTheme.lightThemeData,
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            localizationsDelegates: appLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             home: const NotificationsPage(),
           ),
@@ -112,25 +112,23 @@ void main() {
   );
 }
 
-FollowNotification _follow(String rkey) =>
-    CraftskyNotification.fromMap({
-          'id': '00000000-0000-0000-0000-000000000001',
-          'uri': 'at://did:plc:alice/app.bsky.graph.follow/$rkey',
-          'cid': 'bafy$rkey',
-          'rkey': rkey,
-          'type': 'follow',
-          'actor': {
-            'did': 'did:plc:alice',
-            'handle': 'alice.craftsky.social',
-            'displayName': 'Alice',
-          },
-          'createdAt': '2026-05-28T13:00:00Z',
-          'indexedAt': '2026-05-28T13:00:01Z',
-        })
-        as FollowNotification;
+FollowNotification _follow(String rkey) => CraftskyNotification.fromMap({
+  'id': '00000000-0000-0000-0000-000000000001',
+  'uri': 'at://did:plc:alice/app.bsky.graph.follow/$rkey',
+  'cid': 'bafy$rkey',
+  'rkey': rkey,
+  'type': 'follow',
+  'actor': {
+    'did': 'did:plc:alice',
+    'handle': 'alice.craftsky.social',
+    'displayName': 'Alice',
+  },
+  'createdAt': '2026-05-28T13:00:00Z',
+  'indexedAt': '2026-05-28T13:00:01Z',
+}) as FollowNotification;
 
 final class _QueuedNotificationRepository implements NotificationRepository {
-  _QueuedNotificationRepository(this.responses);
+  new(this.responses);
 
   final List<Future<NotificationPage>> responses;
 

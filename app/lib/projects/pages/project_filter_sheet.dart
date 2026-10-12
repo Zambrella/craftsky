@@ -1,7 +1,7 @@
 part of 'projects_page.dart';
 
 class _ProjectFilterSheet extends StatefulWidget {
-  const _ProjectFilterSheet({
+  const new({
     required this.craftType,
     required this.initialFilters,
   });
@@ -203,7 +203,7 @@ class _ProjectFilterSheetState extends State<_ProjectFilterSheet> {
 }
 
 class _OptionFilterGroup extends StatelessWidget {
-  const _OptionFilterGroup({
+  const new({
     required this.title,
     required this.options,
     required this.selectedValues,
@@ -240,7 +240,7 @@ class _OptionFilterGroup extends StatelessWidget {
 }
 
 class _FilterFieldPadding extends StatelessWidget {
-  const _FilterFieldPadding({required this.child});
+  const new({required this.child});
 
   final Widget child;
 

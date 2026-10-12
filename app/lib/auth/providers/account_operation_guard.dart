@@ -4,19 +4,19 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// Internal control flow for work whose original account authority has ended.
 final class AccountOperationDiscarded implements Exception {
-  const AccountOperationDiscarded();
+  const new();
 }
 
 /// Captured activation authority shared by dependency acquisition, async steps,
 /// retries and publication. Feature callers capture their dependencies;
 /// this object never stores credentials or selects another account.
 final class ActiveAccountOperation {
-  ActiveAccountOperation._(this.ownership, this._isCurrent);
+  new _(this.ownership, this._isCurrent);
 
-  factory ActiveAccountOperation.capture(Ref ref) =>
+  factory capture(Ref ref) =>
       ActiveAccountOperation.fromLease(ref, captureActiveAccountOperation(ref));
 
-  factory ActiveAccountOperation.fromLease(
+  factory fromLease(
     Ref ref,
     ActiveAccountLease? ownership,
   ) => ActiveAccountOperation._(
@@ -24,7 +24,7 @@ final class ActiveAccountOperation {
     () => isActiveAccountOperationCurrent(ref, ownership),
   );
 
-  factory ActiveAccountOperation.fromWidget(
+  factory fromWidget(
     WidgetRef ref,
     ActiveAccountLease? ownership,
   ) => ActiveAccountOperation._(ownership, () {
@@ -36,7 +36,7 @@ final class ActiveAccountOperation {
 
   /// Widgets supply their own lifetime check; pure services can use the same
   /// authority without holding a Riverpod reference.
-  factory ActiveAccountOperation.withGuard({
+  factory withGuard({
     required ActiveAccountLease? ownership,
     required bool Function() isCurrent,
   }) => ActiveAccountOperation._(ownership, isCurrent);

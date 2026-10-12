@@ -5,9 +5,9 @@ part 'account_moderation.mapper.dart';
 
 @immutable
 final class ModerationCaseReference {
-  const ModerationCaseReference._(this.value);
+  const new _(this.value);
 
-  factory ModerationCaseReference.parse(String value) {
+  factory parse(String value) {
     final match = _pattern.firstMatch(value);
     if (match == null) {
       throw const FormatException('Invalid moderation case reference');
@@ -38,7 +38,7 @@ final class ModerationCaseReference {
 
 @MappableClass()
 final class AccountStanding with AccountStandingMappable {
-  const AccountStanding({
+  const new({
     required this.activeStrikeCount,
     required this.strikeThreshold,
     required this.thresholdSuspended,
@@ -91,7 +91,7 @@ enum ModerationAppealState { none, pending, upheld, changed, unknown }
 
 @MappableClass()
 final class ModerationSafeSnapshot with ModerationSafeSnapshotMappable {
-  const ModerationSafeSnapshot({
+  const new({
     required this.type,
     required this.did,
     this.collection,
@@ -119,7 +119,7 @@ final class ModerationSafeSnapshot with ModerationSafeSnapshotMappable {
 
 @MappableClass()
 final class ModerationHistoryEffect with ModerationHistoryEffectMappable {
-  const ModerationHistoryEffect({
+  const new({
     required this.type,
     required this.action,
     this.dueAt,
@@ -132,7 +132,7 @@ final class ModerationHistoryEffect with ModerationHistoryEffectMappable {
 
 @MappableClass()
 final class ModerationHistoryEntry with ModerationHistoryEntryMappable {
-  ModerationHistoryEntry({
+  new({
     required String caseReference,
     required this.eventType,
     required this.effects,
@@ -161,7 +161,7 @@ final class ModerationHistoryEntry with ModerationHistoryEntryMappable {
 
 @MappableClass()
 final class ModerationHistoryPage with ModerationHistoryPageMappable {
-  const ModerationHistoryPage({required this.items, this.cursor});
+  const new({required this.items, this.cursor});
 
   final List<ModerationHistoryEntry> items;
   final String? cursor;

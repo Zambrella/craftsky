@@ -368,9 +368,11 @@ class ComposerImages extends _$ComposerImages {
 
   void retry(String imageId) {
     final image = state.images.firstWhere((image) => image.id == imageId);
-    if (image.phase case ImageFailed(
-      :final failure,
-    ) when failure.canRetry && image.previewBytes != null) {
+    if (image.phase
+        case ImageFailed(
+          :final failure,
+        )
+        when failure.canRetry && image.previewBytes != null) {
       final operation = _ImageOperation(_existingOperationAccountDid());
       _operations[image.id] = operation;
       _updateImage(
@@ -808,7 +810,7 @@ class ComposerImages extends _$ComposerImages {
 }
 
 final class _SelectedComposerImage {
-  const _SelectedComposerImage({
+  const new({
     required this.id,
     required this.file,
     required this.fileName,
@@ -822,7 +824,7 @@ final class _SelectedComposerImage {
 }
 
 final class _ComposerImagePipelineItem {
-  const _ComposerImagePipelineItem({
+  const new({
     required this.id,
     required this.file,
     required this.fileName,
@@ -867,26 +869,26 @@ abstract final class _ImagePipelineStepNames {
 }
 
 final class _PreparedImageTooLarge implements Exception {
-  const _PreparedImageTooLarge();
+  const new();
 }
 
 final class _OriginalImageTooLarge implements Exception {
-  const _OriginalImageTooLarge();
+  const new();
 }
 
 final class _UnsupportedOriginalImage implements Exception {
-  const _UnsupportedOriginalImage();
+  const new();
 }
 
 final class _SelectionPair {
-  const _SelectionPair(this.image, this.selection);
+  const new(this.image, this.selection);
 
   final _SelectedComposerImage image;
   final LocalImageSelection selection;
 }
 
 final class _ImageOperation {
-  _ImageOperation(this.accountDid);
+  new(this.accountDid);
   final String? accountDid;
   ImageInspectionJob? inspectionJob;
   ImagePreparationJob? preparationJob;

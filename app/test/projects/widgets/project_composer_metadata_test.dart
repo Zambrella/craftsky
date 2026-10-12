@@ -4,7 +4,7 @@ import 'package:craftsky_app/drafts/models/draft_media_descriptor.dart';
 import 'package:craftsky_app/drafts/models/local_post_draft.dart';
 import 'package:craftsky_app/feed/providers/composer_image_state.dart';
 import 'package:craftsky_app/feed/providers/composer_images_provider.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/languages/models/language_preferences.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
 import 'package:craftsky_app/projects/composer/project_composer_fields.dart';
@@ -17,12 +17,12 @@ import 'package:craftsky_app/shared/rich_text/data/mock_facet_suggestion_reposit
 import 'package:craftsky_app/shared/rich_text/providers/facet_suggestion_providers.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:crypto/crypto.dart';
-import 'package:flutter/cupertino.dart';
-import 'package:flutter/material.dart';
+import 'package:cupertino_ui/cupertino_ui.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
+import 'package:material_ui/material_ui.dart';
 
 import '../../fakes/recording_messenger.dart';
 
@@ -44,7 +44,7 @@ void main() {
           messenger: RecordingMessenger(),
           child: MaterialApp(
             theme: AppTheme.lightThemeData,
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            localizationsDelegates: appLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             home: ProjectComposerSheet(
               composerId: 'pattern-draft-composer',
@@ -86,7 +86,7 @@ void main() {
           messenger: RecordingMessenger(),
           child: MaterialApp(
             theme: AppTheme.lightThemeData,
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            localizationsDelegates: appLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             home: ProjectComposerSheet(
               composerId: composerId,
@@ -136,7 +136,7 @@ void main() {
               theme: AppTheme.lightThemeData.copyWith(
                 platform: TargetPlatform.iOS,
               ),
-              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              localizationsDelegates: appLocalizationsDelegates,
               supportedLocales: AppLocalizations.supportedLocales,
               home: const ProjectComposerSheet(),
             ),
@@ -209,7 +209,7 @@ void main() {
           messenger: RecordingMessenger(),
           child: MaterialApp(
             theme: AppTheme.lightThemeData,
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            localizationsDelegates: appLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             home: const ProjectComposerSheet(
               composerId: 'metadata-colours-composer',
@@ -301,7 +301,7 @@ void main() {
             messenger: RecordingMessenger(),
             child: MaterialApp(
               theme: AppTheme.lightThemeData,
-              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              localizationsDelegates: appLocalizationsDelegates,
               supportedLocales: AppLocalizations.supportedLocales,
               home: const ProjectComposerSheet(),
             ),

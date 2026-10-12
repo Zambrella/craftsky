@@ -1,10 +1,10 @@
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/settings/widgets/clear_image_cache_tile.dart';
 import 'package:craftsky_app/shared/image/image_cache_providers.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../fakes/image_cache_fakes.dart';
 import '../fakes/recording_messenger.dart';
@@ -35,7 +35,7 @@ Future<_PumpResult> _pump(
       child: MessengerScope(
         messenger: messenger,
         child: const MaterialApp(
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: appLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: Scaffold(body: ClearImageCacheTile()),
         ),

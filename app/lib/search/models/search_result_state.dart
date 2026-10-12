@@ -7,7 +7,7 @@ part 'search_result_state.mapper.dart';
 
 @MappableClass()
 class SearchPostResultsState with SearchPostResultsStateMappable {
-  const SearchPostResultsState({
+  const new({
     required this.items,
     this.cursor,
     this.hashtag,
@@ -25,7 +25,7 @@ class SearchPostResultsState with SearchPostResultsStateMappable {
 
 @MappableClass()
 class ProfileSearchResultsState with ProfileSearchResultsStateMappable {
-  const ProfileSearchResultsState({required this.items, this.cursor});
+  const new({required this.items, this.cursor});
 
   final List<ProfileSearchResult> items;
   final String? cursor;
@@ -39,7 +39,7 @@ class ProfileSearchResultsState with ProfileSearchResultsStateMappable {
 
 @MappableClass()
 class HashtagSearchResultsState with HashtagSearchResultsStateMappable {
-  const HashtagSearchResultsState({required this.items, this.cursor});
+  const new({required this.items, this.cursor});
 
   final List<HashtagSearchResult> items;
   final String? cursor;

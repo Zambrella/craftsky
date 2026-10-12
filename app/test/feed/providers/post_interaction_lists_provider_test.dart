@@ -763,7 +763,7 @@ final class _TestLanguagePreferences extends Notifier<LanguagePreferences> {
 }
 
 final class _RegistryStorage implements SessionRegistryStorage {
-  _RegistryStorage(this.value);
+  new(this.value);
 
   SessionRegistry value;
 

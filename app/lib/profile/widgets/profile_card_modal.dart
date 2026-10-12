@@ -1,7 +1,7 @@
 import 'package:craftsky_app/profile/widgets/profile_presentation_page.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Opens a profile route in its compact summary-card presentation.
 ///

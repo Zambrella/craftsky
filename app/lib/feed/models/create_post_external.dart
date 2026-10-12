@@ -1,7 +1,7 @@
 import 'package:craftsky_app/feed/models/create_post_image.dart';
 
 class CreatePostExternal {
-  const CreatePostExternal({
+  const new({
     required this.uri,
     required this.title,
     required this.description,

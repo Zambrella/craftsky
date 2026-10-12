@@ -1,11 +1,11 @@
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/shared/errors/app_error.dart';
 import 'package:craftsky_app/shared/errors/app_error_mapper.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 class InitializationErrorScreen extends StatelessWidget {
-  const InitializationErrorScreen({
+  const new({
     required this.error,
     required this.onRetry,
     super.key,

@@ -1,10 +1,10 @@
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// A floating action button with CraftSky's hard-offset paper-cutout shadow.
 class CraftskyFloatingActionButton extends StatelessWidget {
-  const CraftskyFloatingActionButton.extended({
+  const new extended({
     required this.onPressed,
     required this.icon,
     required this.label,

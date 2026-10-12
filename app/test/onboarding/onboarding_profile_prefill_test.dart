@@ -12,7 +12,7 @@ import 'package:flutter_test/flutter_test.dart';
 import '../profile/fakes/fake_profile_repository.dart';
 
 final class _Storage implements SessionRegistryStorage {
-  _Storage(this.registry);
+  new(this.registry);
   SessionRegistry registry;
   @override
   Future<SessionRegistry> read() async => registry;

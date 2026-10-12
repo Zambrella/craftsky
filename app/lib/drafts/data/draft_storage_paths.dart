@@ -4,7 +4,7 @@ import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:path/path.dart' as p;
 
 final class DraftPathException implements Exception {
-  const DraftPathException();
+  const new();
 
   @override
   String toString() => 'DraftPathException(invalidComponent)';
@@ -12,7 +12,7 @@ final class DraftPathException implements Exception {
 
 /// Owns all path construction for one account's private draft namespace.
 final class DraftStoragePaths {
-  DraftStoragePaths({required String documentsRoot, required AccountKey owner})
+  new({required String documentsRoot, required AccountKey owner})
     : documentsRoot = p.normalize(documentsRoot),
       accountRoot = p.join(
         p.normalize(documentsRoot),

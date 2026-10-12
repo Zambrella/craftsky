@@ -4,15 +4,15 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/widgets/caption_uri_resource.dart';
 import 'package:craftsky_app/feed/widgets/native_video_controller.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/shared/errors/app_error_mapper.dart';
 import 'package:craftsky_app/shared/image/image_cache_providers.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_emitter.dart';
 import 'package:craftsky_app/shared/observability/error_reporter.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:logging/logging.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 
 const _playbackStartupGracePeriod = Duration(seconds: 1);
@@ -25,7 +25,7 @@ double nativeVideoAspectRatio({required int? width, required int? height}) {
 }
 
 final class NativeVideoPlayer extends StatefulWidget {
-  const NativeVideoPlayer({
+  const new({
     required this.video,
     super.key,
     this.loadCaption,
@@ -350,7 +350,7 @@ final class _NativeVideoPlayerState extends State<NativeVideoPlayer>
 }
 
 class _NativeVideoThumbnail extends ConsumerWidget {
-  const _NativeVideoThumbnail({
+  const new({
     required this.thumbnail,
     required this.loading,
     required this.onPlay,

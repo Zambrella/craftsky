@@ -1,5 +1,5 @@
 import 'package:craftsky_app/theme/form_factor.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Returns the navigator that should present a full-screen modal.
 ///
@@ -14,8 +14,7 @@ NavigatorState responsiveModalNavigator(BuildContext context) => Navigator.of(
 /// Full-screen task route: Android's default Material transition is
 /// horizontal, so use the same bottom-up modal presentation on both platforms.
 class FullscreenModalRoute<T> extends MaterialPageRoute<T> {
-  FullscreenModalRoute({required super.builder})
-    : super(fullscreenDialog: true);
+  new({required super.builder}) : super(fullscreenDialog: true);
 
   @override
   Widget buildTransitions(

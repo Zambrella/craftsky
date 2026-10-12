@@ -6,7 +6,7 @@ part 'blank_search_data.mapper.dart';
 
 @MappableClass()
 class BlankSearchData with BlankSearchDataMappable {
-  const BlankSearchData({
+  const new({
     required this.recentSearches,
     required this.topHashtags,
   });

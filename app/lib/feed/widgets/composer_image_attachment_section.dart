@@ -3,19 +3,19 @@ import 'dart:async';
 import 'package:animated_list_plus/animated_list_plus.dart';
 import 'package:animated_list_plus/transitions.dart';
 import 'package:craftsky_app/feed/providers/composer_image_state.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/shared/image/craftsky_image_attachment_preview.dart';
 import 'package:craftsky_app/shared/media/image_source_menu.dart';
 import 'package:craftsky_app/theme/brand_text_field.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show ProviderListenable;
 import 'package:image_picker/image_picker.dart';
+import 'package:material_ui/material_ui.dart';
 
 class ComposerImageAttachmentSection extends StatefulWidget {
-  const ComposerImageAttachmentSection({
+  const new({
     required this.imagesState,
     required this.enabled,
     required this.onAddImages,
@@ -479,7 +479,7 @@ class _ComposerImageAttachmentSectionState
 }
 
 class _PhotosHeader extends StatelessWidget {
-  const _PhotosHeader({
+  const new({
     required this.imageCount,
     required this.describedImageCount,
     required this.required,
@@ -556,7 +556,7 @@ class _PhotosHeader extends StatelessWidget {
 }
 
 class _DraftImageTile extends StatelessWidget {
-  const _DraftImageTile({
+  const new({
     required this.image,
     required this.index,
     required this.enabled,
@@ -743,7 +743,7 @@ class _DraftImageTile extends StatelessWidget {
 }
 
 class _ImageStatus extends StatelessWidget {
-  const _ImageStatus({required this.image});
+  const new({required this.image});
 
   final ComposerImageDraft image;
 
@@ -777,7 +777,7 @@ class _ImageStatus extends StatelessWidget {
 }
 
 class _ImageNumberBadge extends StatelessWidget {
-  const _ImageNumberBadge({required this.index});
+  const new({required this.index});
 
   final int index;
 
@@ -809,7 +809,7 @@ class _ImageNumberBadge extends StatelessWidget {
 }
 
 class _CircleIconButton extends StatelessWidget {
-  const _CircleIconButton({
+  const new({
     required this.icon,
     required this.tooltip,
     required this.onPressed,
@@ -851,7 +851,7 @@ class _CircleIconButton extends StatelessWidget {
 }
 
 class _AddPhotoCard extends StatelessWidget {
-  const _AddPhotoCard({
+  const new({
     required this.remainingCount,
     required this.hasImages,
     required this.onPressed,
@@ -952,7 +952,7 @@ class _AddPhotoCard extends StatelessWidget {
 }
 
 class _DashedBorderPainter extends CustomPainter {
-  const _DashedBorderPainter({
+  const new({
     required this.color,
     required this.radius,
     required this.strokeWidth,
@@ -1094,7 +1094,7 @@ bool _isProcessingUpload(ImageTransferProgress progress) {
 }
 
 class _PreviewLoadingOverlay {
-  const _PreviewLoadingOverlay({required this.label, this.value});
+  const new({required this.label, this.value});
 
   final String label;
   final double? value;

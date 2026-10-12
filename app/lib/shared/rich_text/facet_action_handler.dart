@@ -3,7 +3,7 @@ import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/link/external_link.dart';
 import 'package:craftsky_app/shared/rich_text/faceted_text_model.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Launches a URL for a link facet. Tests override this seam.
 typedef FacetUrlLauncher = ExternalLinkLauncher;
@@ -11,7 +11,7 @@ typedef FacetUrlLauncher = ExternalLinkLauncher;
 /// Dispatches supported rich-text facet tap actions safely.
 class FacetActionHandler {
   /// Creates a facet action handler.
-  const FacetActionHandler({
+  const new({
     required this.launchUrl,
     this.confirmOpenLink = showOpenLinkDialog,
   });

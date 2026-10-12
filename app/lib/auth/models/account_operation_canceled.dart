@@ -3,5 +3,5 @@
 /// Keeps StateError catch semantics for callers while allowing diagnostics to
 /// distinguish normal account transitions from broken application invariants.
 final class AccountOperationCanceled extends StateError {
-  AccountOperationCanceled() : super('Account operation canceled');
+  new() : super('Account operation canceled');
 }

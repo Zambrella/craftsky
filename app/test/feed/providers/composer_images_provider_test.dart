@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/drafts/composer/draft_composer_hydrator.dart';
 import 'package:craftsky_app/drafts/models/draft_media_descriptor.dart';
@@ -725,18 +727,25 @@ Future<ComposerImagesState> _waitForState(
   bool Function(ComposerImagesState state) predicate,
 ) async {
   final provider = composerImagesProvider('composer');
-  for (var i = 0; i < 50; i += 1) {
-    final state = container.read(provider);
-    if (predicate(state)) return state;
-    await Future<void>.delayed(const Duration(milliseconds: 10));
+  final completed = Completer<ComposerImagesState>();
+  final subscription = container.listen(provider, (_, state) {
+    if (predicate(state) && !completed.isCompleted) completed.complete(state);
+  }, fireImmediately: true);
+  try {
+    return await completed.future.timeout(
+      const Duration(seconds: 10),
+      onTimeout: () => throw StateError(
+        'Timed out waiting for composer image state: '
+        '${container.read(provider)}',
+      ),
+    );
+  } finally {
+    subscription.close();
   }
-  fail(
-    'Timed out waiting for composer image state: ${container.read(provider)}',
-  );
 }
 
 class _FakeImagePicker extends ImagePicker {
-  _FakeImagePicker(this._pick, {this.pickSingle});
+  new(this._pick, {this.pickSingle});
 
   final Future<List<XFile>> Function() _pick;
   final Future<XFile?> Function()? pickSingle;
@@ -778,7 +787,7 @@ class _FakeImagePicker extends ImagePicker {
 }
 
 class _FakePostApiClient extends PostApiClient {
-  _FakePostApiClient()
+  new()
     : _uploadHandler = null,
       super(Dio(BaseOptions(baseUrl: 'https://example.com')));
 
@@ -810,7 +819,7 @@ class _FakePostApiClient extends PostApiClient {
 
     final handler = _uploadHandler;
     if (handler != null) {
-      return handler(
+      return await handler(
         bytes: bytes,
         mimeType: mimeType,
         onSendProgress: onSendProgress,
@@ -825,7 +834,7 @@ class _FakePostApiClient extends PostApiClient {
 }
 
 class _PreparedTooLargeMediaService extends ComposerImageMediaService {
-  const _PreparedTooLargeMediaService();
+  const new();
 
   @override
   PreparedUploadValidationResult validatePreparedUploadBytes({
@@ -842,7 +851,7 @@ class _PreparedTooLargeMediaService extends ComposerImageMediaService {
 }
 
 class _UnsupportedOriginalMediaService extends ComposerImageMediaService {
-  const _UnsupportedOriginalMediaService();
+  const new();
 
   @override
   OriginalImageValidationResult validateOriginalImage({
@@ -859,7 +868,7 @@ class _UnsupportedOriginalMediaService extends ComposerImageMediaService {
 }
 
 class _NoSlotsMediaService extends ComposerImageMediaService {
-  const _NoSlotsMediaService();
+  const new();
 
   @override
   int get maxImages => 0;

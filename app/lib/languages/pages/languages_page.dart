@@ -1,6 +1,6 @@
 import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/auth/providers/active_account_initialization_provider.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/languages/data/language_catalogue.dart';
 import 'package:craftsky_app/languages/models/language_preferences.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
@@ -12,8 +12,8 @@ import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/craftsky_select_inputs.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:material_ui/material_ui.dart';
 
 final List<CraftskySelectOption<String>> _languageOptions = List.unmodifiable(
   <CraftskySelectOption<String>>[
@@ -29,7 +29,7 @@ final List<CraftskySelectOption<String>> _languageOptions = List.unmodifiable(
 enum _LanguageAction { primary, content }
 
 class LanguagesPage extends ConsumerWidget {
-  const LanguagesPage({super.key});
+  const new({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -73,7 +73,7 @@ class LanguagesPage extends ConsumerWidget {
 }
 
 class _AccountLanguageSections extends ConsumerWidget {
-  const _AccountLanguageSections({required this.lease});
+  const new({required this.lease});
 
   final ActiveAccountLease lease;
 
@@ -197,7 +197,7 @@ class _AccountLanguageSections extends ConsumerWidget {
 }
 
 class _AppLanguageField extends StatelessWidget {
-  const _AppLanguageField();
+  const new();
 
   @override
   Widget build(BuildContext context) {

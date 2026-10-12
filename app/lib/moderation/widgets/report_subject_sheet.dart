@@ -1,19 +1,19 @@
 import 'dart:async';
 
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/moderation/models/report_reason.dart';
 import 'package:craftsky_app/moderation/models/report_submission.dart';
 import 'package:craftsky_app/theme/brand_text_field.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_form_builder/flutter_form_builder.dart';
 import 'package:form_builder_validators/form_builder_validators.dart';
+import 'package:material_ui/material_ui.dart';
 
 enum ReportSubjectType { post, comment, reply, profile, event }
 
 class ReportSubjectSheet extends StatefulWidget {
-  const ReportSubjectSheet({
+  const new({
     required this.subjectType,
     required this.onSubmit,
     super.key,
@@ -260,7 +260,7 @@ class _ReportSubjectSheetState extends State<ReportSubjectSheet> {
 }
 
 class _ReportSubmitAction extends StatelessWidget {
-  const _ReportSubmitAction({
+  const new({
     required this.isSubmitting,
     required this.onPressed,
   });

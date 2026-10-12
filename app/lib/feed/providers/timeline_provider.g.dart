@@ -36,7 +36,7 @@ final class TimelineProvider
   Timeline create() => Timeline();
 }
 
-String _$timelineHash() => r'8f27463fcbb1bfcf3c3a13335772c566b1c4ac9d';
+String _$timelineHash() => r'b566d70a8779fe0fd5ba219d453963ea32a490c1';
 
 /// Cursor-accumulating authenticated home timeline provider.
 
@@ -44,7 +44,7 @@ abstract class _$Timeline extends $AsyncNotifier<TimelineState> {
   FutureOr<TimelineState> build();
   @$mustCallSuper
   @override
-  void runBuild() {
+  WhenComplete runBuild() {
     final ref = this.ref as $Ref<AsyncValue<TimelineState>, TimelineState>;
     final element =
         ref.element
@@ -54,6 +54,6 @@ abstract class _$Timeline extends $AsyncNotifier<TimelineState> {
               Object?,
               Object?
             >;
-    element.handleCreate(ref, build);
+    return element.handleCreate(ref, build);
   }
 }

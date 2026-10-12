@@ -4,7 +4,7 @@ import 'package:craftsky_app/subscriptions/models/billing_state.dart';
 import 'package:craftsky_app/subscriptions/services/revenuecat_identity_guard.dart';
 
 final class BillingOwnerLease {
-  const BillingOwnerLease({
+  const new({
     required this.activeLease,
     required this.revenueCatAppUserId,
   });
@@ -17,7 +17,7 @@ final class BillingOwnerLease {
 }
 
 final class BillingOwnerGuard {
-  const BillingOwnerGuard(this._readRegistry);
+  const new(this._readRegistry);
 
   final SessionRegistry Function() _readRegistry;
 
@@ -100,7 +100,7 @@ final class BillingOwnerGuard {
 }
 
 final class BillingOwnerGuardException implements Exception {
-  const BillingOwnerGuardException(this.code);
+  const new(this.code);
 
   final String code;
 

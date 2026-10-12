@@ -5,7 +5,7 @@ import 'package:craftsky_app/shared/rich_text/faceted_text_model.dart';
 
 /// Plain-text token detected by CraftSky's supported facet rules.
 sealed class FacetToken {
-  const FacetToken({
+  const new({
     required this.charStart,
     required this.charEnd,
   });
@@ -40,7 +40,7 @@ sealed class FacetToken {
 /// Plain-text mention token detected before the handle is resolved to a DID.
 final class MentionFacetToken extends FacetToken {
   /// Creates a plain-text mention token.
-  const MentionFacetToken({
+  const new({
     required super.charStart,
     required super.charEnd,
     required this.handle,
@@ -53,7 +53,7 @@ final class MentionFacetToken extends FacetToken {
 /// Plain-text link token detected before publish.
 final class LinkFacetToken extends FacetToken {
   /// Creates a plain-text link token.
-  const LinkFacetToken({
+  const new({
     required super.charStart,
     required super.charEnd,
     required this.uri,
@@ -66,7 +66,7 @@ final class LinkFacetToken extends FacetToken {
 /// Plain-text hashtag token detected before publish.
 final class TagFacetToken extends FacetToken {
   /// Creates a plain-text hashtag token.
-  const TagFacetToken({
+  const new({
     required super.charStart,
     required super.charEnd,
     required this.tag,

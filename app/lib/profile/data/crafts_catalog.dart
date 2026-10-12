@@ -1,4 +1,4 @@
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 
 /// Canonical list of craft tags users can pick on their profile.
 ///
@@ -35,7 +35,7 @@ enum Craft {
   candleMaking('candlemaking'),
   soapMaking('soapmaking');
 
-  const Craft(this.id);
+  new(this.id);
 
   /// Wire identifier persisted on the profile and round-tripped to the
   /// AppView. Stable across releases — renaming would orphan stored

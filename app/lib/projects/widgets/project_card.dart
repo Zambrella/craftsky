@@ -1,4 +1,4 @@
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/projects/models/project.dart';
 import 'package:craftsky_app/projects/options/project_option.dart';
 import 'package:craftsky_app/projects/options/project_option_catalogs.dart';
@@ -7,14 +7,14 @@ import 'package:craftsky_app/shared/rich_text/widgets/faceted_text.dart';
 import 'package:craftsky_app/shared/widgets/craft_icon.dart';
 import 'package:craftsky_app/theme/craftsky_divider.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 typedef ProjectLinkLauncher = ExternalLinkLauncher;
 
 enum ProjectCardVariant { summary, detail }
 
 class ProjectCard extends StatelessWidget {
-  const ProjectCard({
+  const new({
     required this.project,
     this.variant = ProjectCardVariant.summary,
     this.launchUrl,
@@ -38,7 +38,7 @@ class ProjectCard extends StatelessWidget {
 }
 
 class _ProjectSummary extends StatelessWidget {
-  const _ProjectSummary({required this.project});
+  const new({required this.project});
 
   final Project project;
 
@@ -101,7 +101,7 @@ class _ProjectSummary extends StatelessWidget {
 }
 
 class _ProjectDetail extends StatelessWidget {
-  const _ProjectDetail({required this.project, required this.launchUrl});
+  const new({required this.project, required this.launchUrl});
 
   final Project project;
   final ProjectLinkLauncher launchUrl;
@@ -179,7 +179,7 @@ class _ProjectDetail extends StatelessWidget {
 }
 
 class _ProjectChipSection extends StatelessWidget {
-  const _ProjectChipSection({required this.section});
+  const new({required this.section});
 
   final _ProjectChipSectionData section;
 
@@ -211,7 +211,7 @@ class _ProjectChipSection extends StatelessWidget {
 }
 
 class _ProjectMaterialChipSection extends StatelessWidget {
-  const _ProjectMaterialChipSection({required this.materials});
+  const new({required this.materials});
 
   final List<ProjectMaterial> materials;
 
@@ -242,7 +242,7 @@ class _ProjectMaterialChipSection extends StatelessWidget {
 }
 
 class _ProjectMaterialChip extends StatelessWidget {
-  const _ProjectMaterialChip(this.material);
+  const new(this.material);
 
   final ProjectMaterial material;
 
@@ -286,7 +286,7 @@ class _ProjectMaterialChip extends StatelessWidget {
 enum _ProjectChipTone { finished, wip, outlined }
 
 class _ProjectChip extends StatelessWidget {
-  const _ProjectChip({required this.label, required this.tone, this.craft});
+  const new({required this.label, required this.tone, this.craft});
 
   final String label;
   final _ProjectChipTone tone;
@@ -353,7 +353,7 @@ class _ProjectChip extends StatelessWidget {
 }
 
 class _ProjectMetadataRow extends StatelessWidget {
-  const _ProjectMetadataRow({
+  const new({
     required this.label,
     required this.value,
     this.linkUri,
@@ -404,7 +404,7 @@ class _ProjectMetadataRow extends StatelessWidget {
 }
 
 class _ProjectLinkValue extends StatelessWidget {
-  const _ProjectLinkValue({
+  const new({
     required this.label,
     required this.uri,
     required this.launchUrl,
@@ -439,7 +439,7 @@ class _ProjectLinkValue extends StatelessWidget {
 }
 
 class _ProjectPatternMetadataRow extends StatelessWidget {
-  const _ProjectPatternMetadataRow({required this.pattern});
+  const new({required this.pattern});
 
   final ProjectPattern pattern;
 
@@ -512,7 +512,7 @@ class _ProjectPatternMetadataRow extends StatelessWidget {
 }
 
 class _ProjectSizeMetadata {
-  const _ProjectSizeMetadata({
+  const new({
     required this.label,
     required this.value,
     this.linkUri,
@@ -524,7 +524,7 @@ class _ProjectSizeMetadata {
 }
 
 class _ProjectChipSectionData {
-  const _ProjectChipSectionData({required this.label, required this.values});
+  const new({required this.label, required this.values});
 
   final String label;
   final List<String> values;
@@ -703,7 +703,7 @@ List<String> _listLabels(List<String>? values, [List<ProjectOption>? options]) {
   return [
     for (final value in values ?? const <String>[])
       if (_nonBlank(value) case final clean?)
-        options == null ? clean : _optionLabel(clean, options),
+        if (options == null) clean else _optionLabel(clean, options),
   ];
 }
 

@@ -3,7 +3,7 @@ import 'package:dio/dio.dart';
 
 /// A public actor result; identity resolution still belongs to sign-in.
 class HandleSuggestion {
-  const HandleSuggestion({
+  const new({
     required this.handle,
     this.displayName,
     this.avatarUrl,
@@ -16,7 +16,7 @@ class HandleSuggestion {
 
 /// Public discovery, deliberately independent of AppView session transports.
 class HandleTypeaheadService {
-  HandleTypeaheadService({Dio? dio}) : _dio = dio ?? createDio();
+  new({Dio? dio}) : _dio = dio ?? createDio();
 
   static const endpoint =
       'https://typeahead.waow.tech/xrpc/tech.waow.typeahead.searchActors';

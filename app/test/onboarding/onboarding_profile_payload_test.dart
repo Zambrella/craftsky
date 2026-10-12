@@ -16,7 +16,7 @@ import 'package:flutter_test/flutter_test.dart';
 import '../profile/fakes/fake_profile_repository.dart';
 
 final class _Storage implements SessionRegistryStorage {
-  _Storage(this.value);
+  new(this.value);
   SessionRegistry value;
 
   @override
@@ -27,7 +27,7 @@ final class _Storage implements SessionRegistryStorage {
 }
 
 final class _Update {
-  const _Update({
+  const new({
     required this.displayName,
     required this.pronouns,
     required this.description,

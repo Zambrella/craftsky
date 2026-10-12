@@ -4,14 +4,14 @@ part 'top_hashtags.mapper.dart';
 
 @MappableClass()
 class TopHashtagsResponse with TopHashtagsResponseMappable {
-  const TopHashtagsResponse({required this.groups});
+  const new({required this.groups});
 
   final List<TopHashtagGroup> groups;
 }
 
 @MappableClass()
 class TopHashtagGroup with TopHashtagGroupMappable {
-  const TopHashtagGroup({required this.craftType, required this.items});
+  const new({required this.craftType, required this.items});
 
   final String craftType;
   final List<TopHashtagItem> items;
@@ -19,7 +19,7 @@ class TopHashtagGroup with TopHashtagGroupMappable {
 
 @MappableClass()
 class TopHashtagItem with TopHashtagItemMappable {
-  const TopHashtagItem({required this.tag, required this.count});
+  const new({required this.tag, required this.count});
 
   final String tag;
   final int count;

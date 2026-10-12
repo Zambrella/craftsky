@@ -1,7 +1,7 @@
 import 'package:craftsky_app/settings/models/settings_row.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 void main() {
   test('canonical Settings sections and rows remain in the agreed order', () {

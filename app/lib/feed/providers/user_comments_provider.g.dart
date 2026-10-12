@@ -53,7 +53,7 @@ final class UserCommentsProvider
   }
 }
 
-String _$userCommentsHash() => r'035cdcd2007bbc146824b85517e68df79975d50c';
+String _$userCommentsHash() => r'8db7378eeb9fdf23426f6e49647a97a4f1fa3eb7';
 
 /// Cursor-accumulating authored comments/replies list, keyed by DID.
 
@@ -93,7 +93,7 @@ abstract class _$UserComments extends $AsyncNotifier<UserPostsState> {
   FutureOr<UserPostsState> build(Did did);
   @$mustCallSuper
   @override
-  void runBuild() {
+  WhenComplete runBuild() {
     final ref = this.ref as $Ref<AsyncValue<UserPostsState>, UserPostsState>;
     final element =
         ref.element
@@ -103,6 +103,6 @@ abstract class _$UserComments extends $AsyncNotifier<UserPostsState> {
               Object?,
               Object?
             >;
-    element.handleCreate(ref, () => build(_$args));
+    return element.handleCreate(ref, () => build(_$args));
   }
 }

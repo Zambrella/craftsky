@@ -3,15 +3,14 @@ import 'package:uuid/uuid.dart';
 
 /// Permanent, install-scoped billing ownership reserved before provider setup.
 class BillingOwnerBinding {
-  BillingOwnerBinding({required String did, this.revenueCatAppUserId})
-    : did = Did.parse(did) {
+  new({required String did, this.revenueCatAppUserId}) : did = Did.parse(did) {
     final appUserId = revenueCatAppUserId;
     if (appUserId != null && !Uuid.isValidUUID(fromString: appUserId)) {
       throw const FormatException('Invalid RevenueCat app user ID');
     }
   }
 
-  factory BillingOwnerBinding.fromMap(Map<String, Object?> map) {
+  factory fromMap(Map<String, Object?> map) {
     if (map.keys.any(
       (key) => key != 'did' && key != 'revenueCatAppUserId',
     )) {

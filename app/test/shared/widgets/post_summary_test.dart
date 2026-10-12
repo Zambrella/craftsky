@@ -2,7 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:craftsky_app/bootstrap.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/widgets/external_card.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
 import 'package:craftsky_app/projects/models/project.dart';
@@ -11,9 +11,9 @@ import 'package:craftsky_app/shared/time/relative_time_text.dart';
 import 'package:craftsky_app/shared/widgets/post_summary.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../fakes/image_cache_fakes.dart';
 
@@ -77,7 +77,7 @@ void main() {
         ],
         child: MaterialApp(
           theme: AppTheme.lightThemeData,
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: appLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: Scaffold(
             body: PostSummary(
@@ -159,7 +159,7 @@ void main() {
         ],
         child: MaterialApp(
           theme: AppTheme.lightThemeData,
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: appLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: Scaffold(body: PostSummary(data: data)),
         ),
@@ -211,7 +211,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         theme: AppTheme.lightThemeData,
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        localizationsDelegates: appLocalizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         home: Scaffold(
           body: Column(
@@ -268,7 +268,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         theme: AppTheme.lightThemeData,
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        localizationsDelegates: appLocalizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         home: Scaffold(
           body: PostSummary(data: PostSummaryData.fromQuoteView(quote)),
@@ -286,7 +286,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           theme: AppTheme.lightThemeData,
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: appLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: Scaffold(
             body: PostSummary(

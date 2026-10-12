@@ -1,7 +1,5 @@
-import 'dart:async';
-
 import 'package:craftsky_app/theme/theme_extensions.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 enum ChunkyButtonVariant { primary, secondary }
 
@@ -11,7 +9,7 @@ enum ChunkyButtonVariant { primary, secondary }
 /// replace every interaction state without changing controls elsewhere.
 @immutable
 class ChunkyButtonColourTheme extends ThemeExtension<ChunkyButtonColourTheme> {
-  const ChunkyButtonColourTheme({
+  const new({
     required this.base,
     required this.foreground,
     required this.hover,
@@ -72,7 +70,7 @@ class ChunkyButtonColourTheme extends ThemeExtension<ChunkyButtonColourTheme> {
 /// and shadow defaults come from `Theme.of(context)` and [BrandShadowTheme] —
 /// callers can still override everything via `style:`.
 class ChunkyButton extends ButtonStyleButton {
-  const ChunkyButton({
+  const new({
     required super.onPressed,
     required Widget super.child,
     super.key,
@@ -248,7 +246,7 @@ class ChunkyButton extends ButtonStyleButton {
 }
 
 class _ChunkyBackground extends StatefulWidget {
-  const _ChunkyBackground({
+  const new({
     required this.shadowOffset,
     required this.shadowColor,
     required this.restSurfaceColor,
@@ -330,21 +328,21 @@ class _ChunkyBackgroundState extends State<_ChunkyBackground>
     // start reversing as soon as the forward completes — this guarantees
     // the full press-down frame is seen even for very brief taps.
     if (status == AnimationStatus.completed && !_pointerDown) {
-      unawaited(_press.reverse());
+      _press.reverse();
     }
   }
 
   void _handlePointerDown(PointerDownEvent _) {
     if (widget.disabled) return;
     _pointerDown = true;
-    unawaited(_press.forward());
+    _press.forward();
   }
 
   void _handlePointerUpOrCancel() {
     if (!_pointerDown) return;
     _pointerDown = false;
     if (_press.status == AnimationStatus.completed) {
-      unawaited(_press.reverse());
+      _press.reverse();
     }
     // Otherwise wait for _onStatus to trigger the reverse on completion.
   }

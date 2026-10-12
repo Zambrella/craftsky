@@ -51,7 +51,7 @@ final class DraftSaveControllerProvider
 }
 
 String _$draftSaveControllerHash() =>
-    r'489f88152e4f4a59e84f241628d06ed1b09df87f';
+    r'ab05bf8cb6763b9c6631e7941756152ccd70a023';
 
 final class DraftSaveControllerFamily extends $Family
     with
@@ -85,7 +85,7 @@ abstract class _$DraftSaveController extends $AsyncNotifier<LocalPostDraft?> {
   FutureOr<LocalPostDraft?> build(AccountKey account);
   @$mustCallSuper
   @override
-  void runBuild() {
+  WhenComplete runBuild() {
     final ref = this.ref as $Ref<AsyncValue<LocalPostDraft?>, LocalPostDraft?>;
     final element =
         ref.element
@@ -95,6 +95,6 @@ abstract class _$DraftSaveController extends $AsyncNotifier<LocalPostDraft?> {
               Object?,
               Object?
             >;
-    element.handleCreate(ref, () => build(_$args));
+    return element.handleCreate(ref, () => build(_$args));
   }
 }

@@ -12,7 +12,7 @@ enum DraftRepositoryFailureReason {
 }
 
 final class DraftRepositoryException implements Exception {
-  const DraftRepositoryException(this.reason);
+  const new(this.reason);
 
   final DraftRepositoryFailureReason reason;
 
@@ -21,14 +21,14 @@ final class DraftRepositoryException implements Exception {
 }
 
 sealed class DraftMediaWrite {
-  const DraftMediaWrite({required this.mediaId, required this.altText});
+  const new({required this.mediaId, required this.altText});
 
   final String mediaId;
   final String altText;
 }
 
 final class ExistingStoredMedia extends DraftMediaWrite {
-  const ExistingStoredMedia({
+  const new({
     required super.mediaId,
     required this.storageRevision,
     required this.expectedSha256,
@@ -53,7 +53,7 @@ final class ExistingStoredMedia extends DraftMediaWrite {
 }
 
 final class PreparedDraftMedia extends DraftMediaWrite {
-  const PreparedDraftMedia({
+  const new({
     required super.mediaId,
     required this.displayFileName,
     required this.mimeType,
@@ -74,11 +74,11 @@ final class PreparedDraftMedia extends DraftMediaWrite {
 }
 
 sealed class DraftVideoWrite {
-  const DraftVideoWrite();
+  const new();
 }
 
 final class ExistingStoredVideo extends DraftVideoWrite {
-  const ExistingStoredVideo({
+  const new({
     required this.storageRevision,
     required this.expectedSourceSha256,
     required this.expectedPosterSha256,
@@ -92,7 +92,7 @@ final class ExistingStoredVideo extends DraftVideoWrite {
 }
 
 final class PreparedDraftVideo extends DraftVideoWrite {
-  const PreparedDraftVideo({
+  const new({
     required this.displayFileName,
     required this.mimeType,
     required this.byteLength,
@@ -121,7 +121,7 @@ final class PreparedDraftVideo extends DraftVideoWrite {
 }
 
 final class DraftWriteRequest {
-  DraftWriteRequest({
+  new({
     required this.id,
     required this.owner,
     required this.kind,

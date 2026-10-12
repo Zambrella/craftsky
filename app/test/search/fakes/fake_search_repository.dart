@@ -8,7 +8,7 @@ import 'package:craftsky_app/search/models/search_suggestions.dart';
 import 'package:craftsky_app/search/models/top_hashtags.dart';
 
 class FakeSearchRepository implements SearchRepository {
-  FakeSearchRepository({
+  new({
     this.onSearchSuggestions,
     this.onSearchHashtags,
     this.onSearchHashtagPosts,

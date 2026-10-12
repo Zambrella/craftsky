@@ -13,7 +13,7 @@ part 'profile_business_events_provider.g.dart';
 
 @immutable
 final class ProfileBusinessEventsTarget {
-  const ProfileBusinessEventsTarget({
+  const new({
     required this.account,
     required this.owner,
   });
@@ -36,7 +36,7 @@ final class ProfileBusinessEventsTarget {
 
 @immutable
 final class BusinessEventListState {
-  const BusinessEventListState({
+  const new({
     required this.items,
     required this.cursor,
     this.isLoadingMore = false,

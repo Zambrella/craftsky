@@ -1,11 +1,11 @@
 import 'dart:io';
 
 final class DartSourceFile {
-  DartSourceFile(File file)
+  new(File file)
     : path = file.path.replaceAll(Platform.pathSeparator, '/'),
       source = file.readAsStringSync();
 
-  DartSourceFile.fromSource(this.path, this.source);
+  new fromSource(this.path, this.source);
 
   final String path;
   final String source;

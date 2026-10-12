@@ -1,11 +1,11 @@
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/settings/models/settings_row.dart';
 import 'package:craftsky_app/shared/widgets/action_progress.dart';
 import 'package:craftsky_app/subscriptions/widgets/plus_action_icon.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 class SettingsRowTile extends StatelessWidget {
-  const SettingsRowTile({
+  const new({
     required this.descriptor,
     required this.label,
     required this.leading,

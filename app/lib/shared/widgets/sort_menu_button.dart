@@ -3,10 +3,10 @@ import 'dart:async';
 import 'package:craftsky_app/theme/craftsky_context_menu.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 class SortMenuOption<T> {
-  const SortMenuOption({
+  const new({
     required this.value,
     required this.label,
     this.description,
@@ -20,7 +20,7 @@ class SortMenuOption<T> {
 }
 
 class SortMenuButton<T> extends StatelessWidget {
-  const SortMenuButton({
+  const new({
     required this.selectedValue,
     required this.options,
     required this.onChanged,

@@ -1,5 +1,5 @@
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/profile/models/follower_growth.dart';
 import 'package:craftsky_app/profile/providers/follower_growth_provider.dart';
 import 'package:craftsky_app/settings/widgets/follower_growth_chart.dart';
@@ -7,11 +7,11 @@ import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:material_ui/material_ui.dart';
 
 class FollowerGrowthPage extends ConsumerStatefulWidget {
-  const FollowerGrowthPage({super.key});
+  const new({super.key});
 
   @override
   ConsumerState<FollowerGrowthPage> createState() => _FollowerGrowthPageState();
@@ -97,7 +97,7 @@ class _FollowerGrowthPageState extends ConsumerState<FollowerGrowthPage> {
 }
 
 class _PeriodSelector extends StatelessWidget {
-  const _PeriodSelector({
+  const new({
     required this.selectedPeriod,
     required this.onPeriodChanged,
   });
@@ -131,7 +131,7 @@ class _PeriodSelector extends StatelessWidget {
 }
 
 class _FollowerTotal extends StatelessWidget {
-  const _FollowerTotal({required this.growth});
+  const new({required this.growth});
 
   final FollowerGrowth growth;
 
@@ -176,7 +176,7 @@ class _FollowerTotal extends StatelessWidget {
 }
 
 class _GrowthContent extends StatelessWidget {
-  const _GrowthContent({required this.growth});
+  const new({required this.growth});
 
   final FollowerGrowth growth;
 
@@ -230,7 +230,7 @@ class _GrowthContent extends StatelessWidget {
 }
 
 class _GrowthError extends StatelessWidget {
-  const _GrowthError({required this.onRetry});
+  const new({required this.onRetry});
 
   final VoidCallback? onRetry;
 

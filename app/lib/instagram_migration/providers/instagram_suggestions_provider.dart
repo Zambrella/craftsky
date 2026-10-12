@@ -16,7 +16,7 @@ part 'instagram_suggestions_provider.g.dart';
 
 @immutable
 final class InstagramSuggestionReviewState {
-  InstagramSuggestionReviewState({
+  new({
     required List<InstagramSuggestion> items,
     required this.cursor,
     Set<String> busyIds = const {},

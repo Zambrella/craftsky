@@ -164,4 +164,3 @@ class _UserPostsStateCopyWithImpl<$R, $Out>
     Then<$Out2, $R2> t,
   ) => _UserPostsStateCopyWithImpl<$R2, $Out2>($value, $cast, t);
 }
-

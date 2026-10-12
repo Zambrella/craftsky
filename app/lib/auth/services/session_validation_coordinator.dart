@@ -13,15 +13,14 @@ enum SessionValidationResult {
   identityMismatch,
 }
 
-typedef SessionValidationLauncher =
-    Future<void> Function(
-      AccountSessionLease active,
-    );
+typedef SessionValidationLauncher = Future<void> Function(
+  AccountSessionLease active,
+);
 
 /// Validates only the account currently being used. Retained inactive
 /// accounts are validated lazily when activation makes them current.
 class AppSessionValidationLauncher {
-  AppSessionValidationLauncher(this.ref);
+  new(this.ref);
 
   final Ref ref;
 

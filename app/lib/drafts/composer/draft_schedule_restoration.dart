@@ -3,7 +3,7 @@ import 'package:craftsky_app/scheduled_posts/composer/schedule_composer_state.da
 import 'package:craftsky_app/scheduled_posts/widgets/schedule_time_picker.dart';
 
 final class RestoredDraftSchedule {
-  const RestoredDraftSchedule({
+  const new({
     required this.choice,
     required this.scheduledAtLocal,
     required this.needsExplanation,

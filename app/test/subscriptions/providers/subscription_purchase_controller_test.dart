@@ -588,7 +588,7 @@ BillingState _state(
 }
 
 final class _ScriptedApi implements SubscriptionApi {
-  _ScriptedApi(
+  new(
     this.states, {
     this.failReadNumbers = const {},
     this.failReconciliationNumbers = const {},

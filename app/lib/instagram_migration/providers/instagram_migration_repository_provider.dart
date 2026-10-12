@@ -11,7 +11,7 @@ part 'instagram_migration_repository_provider.g.dart';
 /// Internal signal used to discard a completion owned by a departed account
 /// activation. It intentionally carries no account or Instagram data.
 final class InstagramOperationDiscarded implements Exception {
-  const InstagramOperationDiscarded();
+  const new();
 
   @override
   String toString() => 'InstagramOperationDiscarded()';

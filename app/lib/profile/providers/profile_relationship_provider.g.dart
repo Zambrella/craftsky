@@ -134,7 +134,7 @@ abstract class _$ProfileRelationshipController
   ProfileRelationship build(AccountKey account, Did did);
   @$mustCallSuper
   @override
-  void runBuild() {
+  WhenComplete runBuild() {
     final ref = this.ref as $Ref<ProfileRelationship, ProfileRelationship>;
     final element =
         ref.element
@@ -144,6 +144,6 @@ abstract class _$ProfileRelationshipController
               Object?,
               Object?
             >;
-    element.handleCreate(ref, () => build(_$args.$1, _$args.$2));
+    return element.handleCreate(ref, () => build(_$args.$1, _$args.$2));
   }
 }

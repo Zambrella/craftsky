@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/notifications/models/craftsky_notification.dart';
 import 'package:craftsky_app/notifications/providers/notification_filter_provider.dart';
 import 'package:craftsky_app/notifications/providers/notification_seen_provider.dart';
@@ -15,11 +15,11 @@ import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:material_ui/material_ui.dart';
 
 class NotificationsPage extends ConsumerWidget {
-  const NotificationsPage({super.key});
+  const new({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -98,7 +98,7 @@ Widget _buildActivitySkeleton(BuildContext context, int index) =>
     const ActivityRowSkeleton();
 
 class _NotificationsLoadedSlivers extends ConsumerWidget {
-  const _NotificationsLoadedSlivers({
+  const new({
     required this.items,
     required this.hasMore,
     required this.isLoadingMore,
@@ -202,7 +202,7 @@ class _NotificationsLoadedSlivers extends ConsumerWidget {
 }
 
 class _NotificationsErrorSliver extends StatelessWidget {
-  const _NotificationsErrorSliver({required this.onRetry});
+  const new({required this.onRetry});
 
   final VoidCallback onRetry;
 

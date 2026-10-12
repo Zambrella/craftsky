@@ -6,7 +6,7 @@ import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
 import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
 import 'package:craftsky_app/bootstrap.dart';
 import 'package:craftsky_app/feed/models/post.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/saved_posts/data/saved_post_repository.dart';
 import 'package:craftsky_app/saved_posts/models/saved_post.dart';
 import 'package:craftsky_app/saved_posts/models/saved_post_folder.dart';
@@ -21,9 +21,9 @@ import 'package:craftsky_app/subscriptions/providers/subscription_access_provide
 import 'package:craftsky_app/subscriptions/subscription_build_config.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:sliver_tools/sliver_tools.dart';
 
 import '../../fakes/auth_session_fakes.dart';
@@ -56,6 +56,7 @@ void main() {
   testWidgets('AT-004 renders folders before the Unfiled collection', (
     tester,
   ) async {
+    final semantics = tester.ensureSemantics();
     final repository = _OverviewRepository(
       folders: SavedPostFolderPage(
         items: [_folder('folder-a', 'Ideas'), _folder('folder-b', 'Later')],
@@ -67,6 +68,14 @@ void main() {
 
     expect(find.text('Saved posts'), findsOneWidget);
     expect(find.text('Folders'), findsOneWidget);
+    expect(
+      tester.getSemantics(find.text('Folders')).getSemanticsData().headingLevel,
+      2,
+    );
+    expect(
+      tester.getSemantics(find.text('Unfiled')).getSemanticsData().headingLevel,
+      2,
+    );
     expect(find.text('Ideas'), findsOneWidget);
     expect(find.text('Later'), findsOneWidget);
     expect(find.text('Unfiled'), findsOneWidget);
@@ -85,6 +94,7 @@ void main() {
       lessThan(tester.getTopLeft(find.text('Unfiled')).dy),
     );
     expect(find.textContaining(RegExp(r'\d+ posts')), findsNothing);
+    semantics.dispose();
   });
 
   testWidgets('AT-004 shows full empty state only when both sections empty', (
@@ -350,7 +360,7 @@ Future<void> _pump(
               child: child!,
             )
           : null,
-      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      localizationsDelegates: appLocalizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
       home: const SavedPostsPage(),
     ),
@@ -420,7 +430,7 @@ SavedPostItem _itemAt(String rkey, DateTime savedAt) =>
     });
 
 final class _OverviewRepository implements SavedPostRepository {
-  _OverviewRepository({required this.folders, required this.unfiled});
+  new({required this.folders, required this.unfiled});
 
   final SavedPostFolderPage folders;
   final SavedPostPage unfiled;
@@ -492,7 +502,7 @@ final class _PartialLoadingRepository extends Fake
 }
 
 final class _SavedRegistryStorage implements SessionRegistryStorage {
-  _SavedRegistryStorage(this.registry);
+  new(this.registry);
   SessionRegistry registry;
   @override
   Future<SessionRegistry> read() async => registry;

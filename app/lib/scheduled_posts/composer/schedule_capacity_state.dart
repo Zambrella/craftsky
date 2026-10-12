@@ -1,7 +1,7 @@
 import 'package:craftsky_app/scheduled_posts/composer/schedule_composer_state.dart';
 
 final class ScheduleCapacityState {
-  const ScheduleCapacityState._({
+  const new _({
     required this.selectedChoice,
     required this.scheduleVisible,
     required this.scheduleEnabled,
@@ -10,7 +10,7 @@ final class ScheduleCapacityState {
     required this.showCapacityWarning,
   });
 
-  factory ScheduleCapacityState.derive({
+  factory derive({
     required int scheduledCount,
     required ScheduleChoice choice,
     bool ownsExistingSlot = false,

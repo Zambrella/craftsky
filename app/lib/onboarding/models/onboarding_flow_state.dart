@@ -12,7 +12,7 @@ extension OnboardingStepProgress on OnboardingStep {
 }
 
 final class OnboardingIdentityDraft {
-  const OnboardingIdentityDraft({
+  const new({
     required this.displayName,
     required this.pronouns,
     required this.bio,
@@ -34,7 +34,7 @@ final class OnboardingIdentityDraft {
 }
 
 final class OnboardingFlowState {
-  OnboardingFlowState({
+  new({
     required this.step,
     required this.baseline,
     required this.identity,
@@ -50,7 +50,7 @@ final class OnboardingFlowState {
   }) : selectedCraftIds = Set.unmodifiable(selectedCraftIds),
        unknownCraftIds = List.unmodifiable(unknownCraftIds);
 
-  factory OnboardingFlowState.fromProfile(Profile profile) {
+  factory fromProfile(Profile profile) {
     final known = <String>{};
     final unknown = <String>[];
     for (final id in profile.crafts) {

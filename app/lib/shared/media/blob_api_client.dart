@@ -4,7 +4,7 @@ import 'package:dio/dio.dart';
 
 /// Shared AppView blob upload endpoint.
 class BlobApiClient {
-  const BlobApiClient(this._dio);
+  const new(this._dio);
 
   final Dio _dio;
 

@@ -16,7 +16,7 @@ ProfilePinSlot? classifyProfilePinSlot({
 
 @MappableClass()
 class ProfilePinState with ProfilePinStateMappable {
-  const ProfilePinState({this.standardPostUri, this.projectPostUri});
+  const new({this.standardPostUri, this.projectPostUri});
 
   final String? standardPostUri;
   final String? projectPostUri;

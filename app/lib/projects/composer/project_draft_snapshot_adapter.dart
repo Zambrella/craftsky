@@ -9,7 +9,7 @@ import 'package:craftsky_app/projects/models/project.dart';
 /// Converts the project composer's partial form state to and from draft-safe
 /// values. Only fields owned by the composer are persisted.
 class ProjectDraftSnapshotAdapter {
-  const ProjectDraftSnapshotAdapter();
+  const new();
 
   DraftWriteRequest toWriteRequest({
     required String id,

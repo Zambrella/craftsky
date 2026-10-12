@@ -1,12 +1,12 @@
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/moderation/models/account_moderation.dart';
 import 'package:craftsky_app/theme/craftsky_card.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 class ModerationHistoryEntryCard extends StatelessWidget {
-  const ModerationHistoryEntryCard({
+  const new({
     required this.entry,
     required this.onAppeal,
     required this.onCopyAddress,
@@ -142,7 +142,7 @@ class ModerationHistoryEntryCard extends StatelessWidget {
 }
 
 class _EffectRow extends StatelessWidget {
-  const _EffectRow({required this.effect});
+  const new({required this.effect});
 
   final ModerationHistoryEffect effect;
 

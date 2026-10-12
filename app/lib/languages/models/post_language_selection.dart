@@ -3,8 +3,7 @@ import 'package:flutter/foundation.dart';
 
 @immutable
 final class PostLanguageSelection {
-  PostLanguageSelection._(List<String> values)
-    : values = List.unmodifiable(values) {
+  new _(List<String> values) : values = List.unmodifiable(values) {
     if (values.isEmpty ||
         values.length > 3 ||
         values.toSet().length != values.length) {
@@ -14,11 +13,10 @@ final class PostLanguageSelection {
     }
   }
 
-  factory PostLanguageSelection.fromPrimary(String primaryLanguage) =>
+  factory fromPrimary(String primaryLanguage) =>
       PostLanguageSelection._([primaryLanguage]);
 
-  factory PostLanguageSelection.fromValues(List<String> values) =>
-      PostLanguageSelection._(values);
+  factory fromValues(List<String> values) => PostLanguageSelection._(values);
 
   final List<String> values;
 

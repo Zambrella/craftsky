@@ -1,7 +1,7 @@
 const defaultMaxImageAspectRatio = 20;
 
 class MediaConfig {
-  const MediaConfig({
+  const new({
     required this.maxImages,
     required this.maxImageBytes,
     required this.maxAltTextCharacters,

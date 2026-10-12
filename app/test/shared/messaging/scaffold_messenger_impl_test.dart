@@ -1,11 +1,11 @@
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/shared/messaging/message_action.dart';
 import 'package:craftsky_app/shared/messaging/scaffold_messenger_impl.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/brand_colors.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 Future<({GlobalKey<ScaffoldMessengerState> key, ScaffoldMessengerImpl impl})>
 _pumpHarness(WidgetTester tester) async {
@@ -16,7 +16,7 @@ _pumpHarness(WidgetTester tester) async {
     MaterialApp(
       scaffoldMessengerKey: key,
       theme: AppTheme.lightThemeData,
-      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      localizationsDelegates: appLocalizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
       home: const Scaffold(body: SizedBox()),
     ),

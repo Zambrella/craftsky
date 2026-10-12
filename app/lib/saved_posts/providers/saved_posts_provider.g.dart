@@ -84,7 +84,7 @@ abstract class _$SavedPosts extends $AsyncNotifier<SavedPostListState> {
   FutureOr<SavedPostListState> build(SavedPostListKey key);
   @$mustCallSuper
   @override
-  void runBuild() {
+  WhenComplete runBuild() {
     final ref =
         this.ref as $Ref<AsyncValue<SavedPostListState>, SavedPostListState>;
     final element =
@@ -95,6 +95,6 @@ abstract class _$SavedPosts extends $AsyncNotifier<SavedPostListState> {
               Object?,
               Object?
             >;
-    element.handleCreate(ref, () => build(_$args));
+    return element.handleCreate(ref, () => build(_$args));
   }
 }

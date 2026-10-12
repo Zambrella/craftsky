@@ -65,7 +65,7 @@ final class InstagramVerificationProvider
 }
 
 String _$instagramVerificationHash() =>
-    r'990ddf1041be8d88ba8404dfe2d587932a39f040';
+    r'ef7c6051cb6dcf46a87b5b88737270a350b3c133';
 
 final class InstagramVerificationFamily extends $Family
     with
@@ -100,7 +100,7 @@ abstract class _$InstagramVerification
   InstagramVerificationViewState build(ActiveAccountLease lease);
   @$mustCallSuper
   @override
-  void runBuild() {
+  WhenComplete runBuild() {
     final ref =
         this.ref
             as $Ref<
@@ -118,6 +118,6 @@ abstract class _$InstagramVerification
               Object?,
               Object?
             >;
-    element.handleCreate(ref, () => build(_$args));
+    return element.handleCreate(ref, () => build(_$args));
   }
 }

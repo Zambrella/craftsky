@@ -6,7 +6,7 @@ import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart'
     show sessionRegistryProvider;
 import 'package:craftsky_app/feed/widgets/post_composer_sheet.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/scheduled_posts/data/scheduled_post_repository.dart';
 import 'package:craftsky_app/scheduled_posts/models/schedule_time.dart';
 import 'package:craftsky_app/scheduled_posts/models/scheduled_post.dart';
@@ -14,9 +14,9 @@ import 'package:craftsky_app/scheduled_posts/pages/scheduled_posts_page.dart';
 import 'package:craftsky_app/scheduled_posts/providers/scheduled_post_repository_provider.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 void main() {
   testWidgets('AT-009 owner sees pending and missed subscription notices', (
@@ -24,7 +24,7 @@ void main() {
   ) async {
     await tester.pumpWidget(
       MaterialApp(
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        localizationsDelegates: appLocalizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         home: Scaffold(
           body: ScheduledPostsPageContent(
@@ -78,7 +78,7 @@ void main() {
     ];
     await tester.pumpWidget(
       MaterialApp(
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        localizationsDelegates: appLocalizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         home: Scaffold(
           body: ScheduledPostsPageContent(
@@ -153,7 +153,7 @@ void main() {
           child: MaterialApp(
             theme: AppTheme.lightThemeData,
             navigatorObservers: [observer],
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            localizationsDelegates: appLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             home: const ScheduledPostsPage(),
           ),
@@ -192,7 +192,7 @@ void main() {
 }
 
 final class _PageRepository implements ScheduledPostRepository {
-  _PageRepository({required this.items, this.detail});
+  new({required this.items, this.detail});
 
   final List<ScheduledPostSummary> items;
   final Completer<ScheduledPostDetail>? detail;
@@ -212,7 +212,7 @@ final class _PageRepository implements ScheduledPostRepository {
 }
 
 final class _RegistryStorage implements SessionRegistryStorage {
-  _RegistryStorage(this.value);
+  new(this.value);
 
   SessionRegistry value;
 

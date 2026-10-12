@@ -1,4 +1,4 @@
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 
 abstract final class EventDiagnostics {
   static List<String> localized(

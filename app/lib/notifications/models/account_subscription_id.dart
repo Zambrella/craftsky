@@ -2,14 +2,14 @@ import 'package:flutter/foundation.dart';
 
 @immutable
 final class AccountSubscriptionId {
-  factory AccountSubscriptionId.parse(String value) {
+  factory parse(String value) {
     if (!_identifierPattern.hasMatch(value)) {
       throw const FormatException('Invalid account subscription ID');
     }
     return AccountSubscriptionId._(value);
   }
 
-  const AccountSubscriptionId._(this.wireValue);
+  const new _(this.wireValue);
 
   static final _identifierPattern = RegExp(r'^[A-Za-z0-9_-]{1,128}$');
 

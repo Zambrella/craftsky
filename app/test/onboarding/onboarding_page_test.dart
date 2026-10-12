@@ -4,7 +4,7 @@ import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/auth/models/active_account_initialization.dart';
 import 'package:craftsky_app/auth/providers/active_account_initialization_provider.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/languages/models/language_preferences.dart';
 import 'package:craftsky_app/onboarding/models/onboarding_flow_state.dart';
 import 'package:craftsky_app/onboarding/pages/onboarding_page.dart';
@@ -13,10 +13,10 @@ import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../fakes/recording_messenger.dart';
@@ -30,7 +30,7 @@ final _lease = ActiveAccountLease(
 );
 
 final class _Flow extends OnboardingFlow {
-  _Flow(this.initial);
+  new(this.initial);
   final OnboardingFlowState initial;
   int completionCalls = 0;
   ImageSource? avatarSource;
@@ -90,7 +90,7 @@ void main() {
         ],
         child: MaterialApp(
           theme: AppTheme.lightThemeData,
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: appLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: const OnboardingPage(),
         ),
@@ -138,7 +138,7 @@ void main() {
         ],
         child: MaterialApp(
           theme: AppTheme.lightThemeData,
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: appLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: const OnboardingPage(),
         ),
@@ -189,7 +189,7 @@ void main() {
         ],
         child: MaterialApp(
           theme: AppTheme.lightThemeData,
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: appLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: const OnboardingPage(),
         ),
@@ -230,7 +230,7 @@ void main() {
         ],
         child: MaterialApp(
           theme: AppTheme.lightThemeData,
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: appLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: const OnboardingPage(),
         ),
@@ -275,7 +275,7 @@ void main() {
         ],
         child: MaterialApp(
           theme: AppTheme.lightThemeData,
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: appLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: OnboardingPage(
             linkLauncher: (uri) async {
@@ -328,7 +328,7 @@ void main() {
             messenger: messenger,
             child: MaterialApp(
               theme: AppTheme.lightThemeData,
-              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              localizationsDelegates: appLocalizationsDelegates,
               supportedLocales: AppLocalizations.supportedLocales,
               home: OnboardingPage(
                 linkLauncher: (uri) async {

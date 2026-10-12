@@ -2,8 +2,8 @@ import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:craftsky_app/profile/widgets/profile_header_background.dart';
 import 'package:craftsky_app/shared/widgets/craft_icon.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 void main() {
   test('every texture background key maps to one bundled local PNG', () {

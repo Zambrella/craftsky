@@ -33,13 +33,13 @@ final class ReportProfileProvider
   ReportProfile create() => ReportProfile();
 }
 
-String _$reportProfileHash() => r'12bcc64a5d4c7d3c0c135ba67e4dc0326078e8ca';
+String _$reportProfileHash() => r'602a338f21ae448d97283e508c8fdb1f387b40a7';
 
 abstract class _$ReportProfile extends $AsyncNotifier<ReportResult?> {
   FutureOr<ReportResult?> build();
   @$mustCallSuper
   @override
-  void runBuild() {
+  WhenComplete runBuild() {
     final ref = this.ref as $Ref<AsyncValue<ReportResult?>, ReportResult?>;
     final element =
         ref.element
@@ -49,6 +49,6 @@ abstract class _$ReportProfile extends $AsyncNotifier<ReportResult?> {
               Object?,
               Object?
             >;
-    element.handleCreate(ref, build);
+    return element.handleCreate(ref, build);
   }
 }

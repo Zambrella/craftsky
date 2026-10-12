@@ -27,7 +27,7 @@ import 'package:flutter_test/flutter_test.dart';
 import '../../feed/fakes/fake_post_repository.dart';
 
 final class _RegistryStorage implements SessionRegistryStorage {
-  _RegistryStorage(this.value);
+  new(this.value);
 
   SessionRegistry value;
 

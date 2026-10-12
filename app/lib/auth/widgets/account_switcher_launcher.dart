@@ -6,8 +6,8 @@ import 'package:craftsky_app/auth/providers/account_activation_coordinator.dart'
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/auth/widgets/account_switcher_content.dart';
 import 'package:craftsky_app/subscriptions/widgets/subscription_tier_badge.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:material_ui/material_ui.dart';
 
 Future<void> showAccountSwitcherSheet({
   required BuildContext context,
@@ -26,7 +26,7 @@ Future<void> showAccountSwitcherSheet({
 );
 
 class LiveAccountSwitcherContent extends ConsumerStatefulWidget {
-  const LiveAccountSwitcherContent({
+  const new({
     required this.fallbackState,
     required this.onSelect,
     required this.onAddAccount,

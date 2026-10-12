@@ -15,7 +15,7 @@ final _log = Logger('SecureTokenStorage');
 
 class SessionRegistryStorageException
     implements Exception, DiagnosticFailureCause {
-  const SessionRegistryStorageException(
+  const new(
     this.outcome, {
     this.diagnosticCause,
     this.diagnosticStack,
@@ -44,7 +44,7 @@ abstract interface class SessionRegistryStorage {
 }
 
 class _FlutterSecureStorageBackend implements SessionRegistryStorageBackend {
-  const _FlutterSecureStorageBackend(this._storage);
+  const new(this._storage);
 
   final FlutterSecureStorage _storage;
 
@@ -58,13 +58,13 @@ class _FlutterSecureStorageBackend implements SessionRegistryStorageBackend {
 
 /// Persists the complete account registry as one fail-closed secure snapshot.
 class SecureSessionRegistryStorage implements SessionRegistryStorage {
-  SecureSessionRegistryStorage(
+  new(
     FlutterSecureStorage storage, {
     ErrorReporter reporter = const NoopErrorReporter(),
   }) : _backend = _FlutterSecureStorageBackend(storage),
        _reporter = GuardedErrorReporter(reporter);
 
-  SecureSessionRegistryStorage.withBackend(
+  new withBackend(
     this._backend, {
     ErrorReporter reporter = const NoopErrorReporter(),
   }) : _reporter = GuardedErrorReporter(reporter);

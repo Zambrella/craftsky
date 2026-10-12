@@ -11,7 +11,7 @@ import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
 
 class AccountLimitReached implements Exception {
-  const AccountLimitReached();
+  const new();
 
   @override
   String toString() => 'AccountLimitReached';
@@ -22,7 +22,7 @@ class AccountLimitReached implements Exception {
 /// The codec is intentionally strict: a malformed snapshot is unusable as a
 /// whole, so secure-storage callers fail closed to a signed-out registry.
 class SessionRegistry {
-  SessionRegistry({
+  new({
     required this.nextSessionGeneration,
     required this.nextUseOrdinal,
     required this.activationGeneration,
@@ -43,7 +43,7 @@ class SessionRegistry {
            Did.parse(did): binding,
        });
 
-  factory SessionRegistry.empty() => SessionRegistry(
+  factory empty() => SessionRegistry(
     nextSessionGeneration: 1,
     nextUseOrdinal: 1,
     activationGeneration: 0,
@@ -51,7 +51,7 @@ class SessionRegistry {
     sessions: const {},
   );
 
-  factory SessionRegistry.fromJson(String source) {
+  factory fromJson(String source) {
     final decoded = jsonDecode(source);
     if (decoded is! Map<String, Object?>) {
       throw const FormatException('Invalid session registry');

@@ -1,15 +1,14 @@
 import 'dart:async';
 
 /// Function run for one ordered pipeline step.
-typedef PipelineStepFunction<T> =
-    Future<T> Function(
-      T item,
-      PipelineStepContext<T> context,
-    );
+typedef PipelineStepFunction<T> = Future<T> Function(
+  T item,
+  PipelineStepContext<T> context,
+);
 
 /// One named step in an ordered per-item pipeline.
 final class PipelineStep<T> {
-  const PipelineStep({required this.name, required this.run});
+  const new({required this.name, required this.run});
 
   /// Stable step name emitted in pipeline events.
   final String name;
@@ -21,7 +20,7 @@ final class PipelineStep<T> {
 
 /// Context passed to a step so it can emit progress without mutating state.
 final class PipelineStepContext<T> {
-  const PipelineStepContext._({
+  const new _({
     required this.originalItem,
     required this.stepName,
     required this._emit,
@@ -43,7 +42,7 @@ final class PipelineStepContext<T> {
 
 /// Event emitted by a pipeline item as it moves through ordered steps.
 sealed class PipelineEvent<T> {
-  const PipelineEvent(this.item);
+  const new(this.item);
 
   /// Original item for this pipeline run.
   final T item;
@@ -51,7 +50,7 @@ sealed class PipelineEvent<T> {
 
 /// A step has started for an item.
 final class StepStarted<T> extends PipelineEvent<T> {
-  const StepStarted(super.item, this.stepName);
+  const new(super.item, this.stepName);
 
   /// Step that just started.
   final String stepName;
@@ -59,7 +58,7 @@ final class StepStarted<T> extends PipelineEvent<T> {
 
 /// A step emitted progress for an item.
 final class StepProgress<T> extends PipelineEvent<T> {
-  const StepProgress(super.item, this.stepName, this.progress);
+  const new(super.item, this.stepName, this.progress);
 
   /// Step that emitted progress.
   final String stepName;
@@ -70,7 +69,7 @@ final class StepProgress<T> extends PipelineEvent<T> {
 
 /// A step completed successfully for an item.
 final class StepCompleted<T> extends PipelineEvent<T> {
-  const StepCompleted(super.item, this.stepName, this.result);
+  const new(super.item, this.stepName, this.result);
 
   /// Step that completed.
   final String stepName;
@@ -81,7 +80,7 @@ final class StepCompleted<T> extends PipelineEvent<T> {
 
 /// A step failed for an item. Other items may continue processing.
 final class StepFailed<T> extends PipelineEvent<T> {
-  const StepFailed(super.item, this.stepName, this.error, this.stackTrace);
+  const new(super.item, this.stepName, this.error, this.stackTrace);
 
   /// Step that failed.
   final String stepName;
@@ -95,7 +94,7 @@ final class StepFailed<T> extends PipelineEvent<T> {
 
 /// All steps completed for an item.
 final class ItemCompleted<T> extends PipelineEvent<T> {
-  const ItemCompleted(super.item, this.result);
+  const new(super.item, this.result);
 
   /// Final item result after the last step.
   final T result;

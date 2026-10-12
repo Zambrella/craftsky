@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/widgets/post_card.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/profile/models/profile_account_summary.dart';
 import 'package:craftsky_app/profile/models/profile_handle.dart';
 import 'package:craftsky_app/profile/widgets/profile_account_list_tile.dart';
@@ -35,8 +35,8 @@ import 'package:craftsky_app/theme/brand_text_field.dart';
 import 'package:craftsky_app/theme/craftsky_divider.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:material_ui/material_ui.dart';
 
 part 'blank_search_view.dart';
 part 'search_results_tabs.dart';
@@ -45,7 +45,7 @@ part 'suggestion_list.dart';
 const _suggestionDebounce = Duration(milliseconds: 300);
 
 class SearchPage extends ConsumerStatefulWidget {
-  const SearchPage({super.key, this.q, this.tab});
+  const new({super.key, this.q, this.tab});
 
   final String? q;
   final SearchResultsTab? tab;
@@ -312,7 +312,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
 }
 
 class _SearchInputHeaderDelegate extends SliverPersistentHeaderDelegate {
-  const _SearchInputHeaderDelegate({required this.child});
+  const new({required this.child});
 
   final Widget child;
 
@@ -340,7 +340,7 @@ class _SearchInputHeaderDelegate extends SliverPersistentHeaderDelegate {
 }
 
 class _SearchInputHeader extends StatelessWidget {
-  const _SearchInputHeader({
+  const new({
     required this.l10n,
     required this.spacing,
     required this.controller,
@@ -412,7 +412,7 @@ class _SearchInputHeader extends StatelessWidget {
 }
 
 class _PostList extends StatelessWidget {
-  const _PostList({
+  const new({
     required this.posts,
     required this.emptyState,
     required this.isLoadingMore,
@@ -452,7 +452,7 @@ class _PostList extends StatelessWidget {
 }
 
 class _ProfileResultTile extends StatelessWidget {
-  const _ProfileResultTile({required this.profile, required this.onTap});
+  const new({required this.profile, required this.onTap});
 
   final ProfileSearchResult profile;
   final VoidCallback onTap;
@@ -467,7 +467,7 @@ class _ProfileResultTile extends StatelessWidget {
 }
 
 class _HashtagResultTile extends StatelessWidget {
-  const _HashtagResultTile({required this.hashtag, required this.onTap});
+  const new({required this.hashtag, required this.onTap});
 
   final HashtagSearchResult hashtag;
   final VoidCallback onTap;
@@ -486,7 +486,7 @@ class _HashtagResultTile extends StatelessWidget {
 }
 
 class _ErrorView extends StatelessWidget {
-  const _ErrorView({required this.message, required this.onRetry});
+  const new({required this.message, required this.onRetry});
 
   final String message;
   final VoidCallback onRetry;

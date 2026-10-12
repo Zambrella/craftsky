@@ -8,7 +8,7 @@ const maxVideoDuration = Duration(seconds: 600);
 enum VideoSourceRejection { unsupportedType, tooLarge, tooLong }
 
 final class VideoSourceValidationResult {
-  const VideoSourceValidationResult({
+  const new({
     required this.canUpload,
     required this.rejectedReason,
   });

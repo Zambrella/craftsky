@@ -9,7 +9,7 @@ part 'composer_image_state.mapper.dart';
 /// Complete image attachment state for a single post composer instance.
 @MappableClass()
 class ComposerImagesState with ComposerImagesStateMappable {
-  const ComposerImagesState({required this.images, this.notice});
+  const new({required this.images, this.notice});
 
   /// Images currently attached to the composer, in display/submission order.
   final List<ComposerImageDraft> images;
@@ -82,7 +82,7 @@ class ComposerImagesState with ComposerImagesStateMappable {
 /// A single selected image and its current lifecycle state.
 @MappableClass()
 class ComposerImageDraft with ComposerImageDraftMappable {
-  const ComposerImageDraft({
+  const new({
     required this.id,
     required this.fileName,
     required this.mimeType,
@@ -120,32 +120,32 @@ class ComposerImageDraft with ComposerImageDraftMappable {
 /// Sealed lifecycle phase for a selected composer image.
 @MappableClass(discriminatorKey: 'type')
 sealed class ComposerImagePhase with ComposerImagePhaseMappable {
-  const ComposerImagePhase();
+  const new();
 }
 
 /// Image was accepted and is waiting for the local pipeline to start.
 @MappableClass()
 final class ImageQueued extends ComposerImagePhase with ImageQueuedMappable {
-  const ImageQueued();
+  const new();
 }
 
 /// Original bytes are being read from the picked file.
 @MappableClass()
 final class ImageReading extends ComposerImagePhase with ImageReadingMappable {
-  const ImageReading();
+  const new();
 }
 
 /// Image bytes are being decoded, stripped, and re-encoded off the UI isolate.
 @MappableClass()
 final class ImagePreparing extends ComposerImagePhase
     with ImagePreparingMappable {
-  const ImagePreparing();
+  const new();
 }
 
 /// Image preparation succeeded and publishable bytes are ready locally.
 @MappableClass()
 final class ImageReady extends ComposerImagePhase with ImageReadyMappable {
-  const ImageReady({
+  const new({
     required this.bytes,
     required this.mimeType,
     required this.width,
@@ -170,7 +170,7 @@ final class ImageReady extends ComposerImagePhase with ImageReadyMappable {
 
 @MappableClass()
 final class StoredDraftMediaOrigin with StoredDraftMediaOriginMappable {
-  const StoredDraftMediaOrigin({
+  const new({
     required this.mediaId,
     required this.storageRevision,
     required this.sha256,
@@ -190,7 +190,7 @@ final class StoredDraftMediaOrigin with StoredDraftMediaOriginMappable {
 @MappableClass()
 final class ImageUnavailable extends ComposerImagePhase
     with ImageUnavailableMappable {
-  const ImageUnavailable({required this.width, required this.height});
+  const new({required this.width, required this.height});
 
   final int width;
   final int height;
@@ -200,7 +200,7 @@ final class ImageUnavailable extends ComposerImagePhase
 @MappableClass()
 final class ImageUploading extends ComposerImagePhase
     with ImageUploadingMappable {
-  const ImageUploading(this.progress);
+  const new(this.progress);
 
   /// Combined send/receive transfer progress for this upload.
   final ImageTransferProgress progress;
@@ -210,7 +210,7 @@ final class ImageUploading extends ComposerImagePhase
 @MappableClass()
 final class ImageUploaded extends ComposerImagePhase
     with ImageUploadedMappable {
-  const ImageUploaded(this.uploaded);
+  const new(this.uploaded);
 
   /// Uploaded blob returned by the AppView.
   final UploadedDraftImage uploaded;
@@ -220,7 +220,7 @@ final class ImageUploaded extends ComposerImagePhase
 @MappableClass()
 final class ScheduledImageReady extends ComposerImagePhase
     with ScheduledImageReadyMappable {
-  const ScheduledImageReady({required this.width, required this.height});
+  const new({required this.width, required this.height});
 
   final int width;
   final int height;
@@ -229,7 +229,7 @@ final class ScheduledImageReady extends ComposerImagePhase
 /// Image processing or upload failed.
 @MappableClass()
 final class ImageFailed extends ComposerImagePhase with ImageFailedMappable {
-  const ImageFailed(this.failure);
+  const new(this.failure);
 
   /// Structured failure reason for UI copy and retry behavior.
   final ComposerImageFailure failure;
@@ -238,7 +238,7 @@ final class ImageFailed extends ComposerImagePhase with ImageFailedMappable {
 /// Uploaded image blob metadata used when creating the final post.
 @MappableClass()
 class UploadedDraftImage with UploadedDraftImageMappable {
-  const UploadedDraftImage({
+  const new({
     required this.cid,
     required this.mime,
     required this.size,
@@ -261,7 +261,7 @@ class UploadedDraftImage with UploadedDraftImageMappable {
 /// Structured image failure used instead of stringly-typed lifecycle errors.
 @MappableClass(discriminatorKey: 'type')
 sealed class ComposerImageFailure with ComposerImageFailureMappable {
-  const ComposerImageFailure();
+  const new();
 
   /// User-facing failure copy.
   String get message;
@@ -274,7 +274,7 @@ sealed class ComposerImageFailure with ComposerImageFailureMappable {
 @MappableClass()
 final class UnsupportedImageType extends ComposerImageFailure
     with UnsupportedImageTypeMappable {
-  const UnsupportedImageType();
+  const new();
 
   @override
   String get message => 'Unsupported image type';
@@ -284,7 +284,7 @@ final class UnsupportedImageType extends ComposerImageFailure
 @MappableClass()
 final class ImagePreparationFailed extends ComposerImageFailure
     with ImagePreparationFailedMappable {
-  const ImagePreparationFailed({this.retryable = false});
+  const new({this.retryable = false});
 
   final bool retryable;
 
@@ -299,7 +299,7 @@ final class ImagePreparationFailed extends ComposerImageFailure
 @MappableClass()
 final class ImageSourceDimensionsTooLarge extends ComposerImageFailure
     with ImageSourceDimensionsTooLargeMappable {
-  const ImageSourceDimensionsTooLarge();
+  const new();
 
   @override
   String get message => 'This image is too large to process';
@@ -309,7 +309,7 @@ final class ImageSourceDimensionsTooLarge extends ComposerImageFailure
 @MappableClass()
 final class ImageTooLarge extends ComposerImageFailure
     with ImageTooLargeMappable {
-  const ImageTooLarge(this.maxBytes, {this.source = false});
+  const new(this.maxBytes, {this.source = false});
 
   /// Maximum allowed prepared image size in bytes.
   final int maxBytes;
@@ -328,7 +328,7 @@ final class ImageTooLarge extends ComposerImageFailure
 @MappableClass()
 final class ImageUploadFailed extends ComposerImageFailure
     with ImageUploadFailedMappable {
-  const ImageUploadFailed();
+  const new();
 
   @override
   String get message => 'Upload failed';
@@ -340,7 +340,7 @@ final class ImageUploadFailed extends ComposerImageFailure
 /// Combined upload/download progress for an image upload request.
 @MappableClass(discriminatorKey: 'type')
 sealed class ImageTransferProgress with ImageTransferProgressMappable {
-  const ImageTransferProgress();
+  const new();
 
   /// Progress value for Flutter indicators; `null` means indeterminate.
   double? get indicatorValue;
@@ -350,7 +350,7 @@ sealed class ImageTransferProgress with ImageTransferProgressMappable {
 @MappableClass()
 final class TransferStarting extends ImageTransferProgress
     with TransferStartingMappable {
-  const TransferStarting();
+  const new();
 
   @override
   double? get indicatorValue => null;
@@ -360,7 +360,7 @@ final class TransferStarting extends ImageTransferProgress
 @MappableClass()
 final class TransferBytes extends ImageTransferProgress
     with TransferBytesMappable {
-  const TransferBytes({
+  const new({
     required this.sent,
     required this.sendTotal,
     required this.received,
@@ -393,7 +393,7 @@ final class TransferBytes extends ImageTransferProgress
 @MappableClass()
 final class TransferFinalizing extends ImageTransferProgress
     with TransferFinalizingMappable {
-  const TransferFinalizing();
+  const new();
 
   @override
   double? get indicatorValue => null;
@@ -402,7 +402,7 @@ final class TransferFinalizing extends ImageTransferProgress
 /// One-shot notice emitted by image selection/processing state.
 @MappableClass(discriminatorKey: 'type')
 sealed class ComposerImageNotice with ComposerImageNoticeMappable {
-  const ComposerImageNotice({required this.id});
+  const new({required this.id});
 
   /// Monotonic id used by listeners to clear only the notice they consumed.
   final int id;
@@ -412,7 +412,7 @@ sealed class ComposerImageNotice with ComposerImageNoticeMappable {
 @MappableClass()
 final class ImageSelectionLimitNotice extends ComposerImageNotice
     with ImageSelectionLimitNoticeMappable {
-  const ImageSelectionLimitNotice({
+  const new({
     required super.id,
     required this.maxImages,
     required this.acceptedCount,
@@ -429,7 +429,7 @@ final class ImageSelectionLimitNotice extends ComposerImageNotice
 @MappableClass()
 final class UnsupportedImagesNotice extends ComposerImageNotice
     with UnsupportedImagesNoticeMappable {
-  const UnsupportedImagesNotice({required super.id, required this.count});
+  const new({required super.id, required this.count});
 
   /// Number of rejected unsupported images.
   final int count;
@@ -439,5 +439,5 @@ final class UnsupportedImagesNotice extends ComposerImageNotice
 @MappableClass()
 final class ImagePickerFailedNotice extends ComposerImageNotice
     with ImagePickerFailedNoticeMappable {
-  const ImagePickerFailedNotice({required super.id});
+  const new({required super.id});
 }

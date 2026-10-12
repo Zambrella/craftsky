@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/profile/models/profile_handle.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
 import 'package:craftsky_app/shared/rich_text/data/facet_suggestion_repository.dart';
@@ -10,14 +10,14 @@ import 'package:craftsky_app/shared/rich_text/facet_syntax.dart';
 import 'package:craftsky_app/shared/rich_text/providers/facet_suggestion_providers.dart';
 import 'package:craftsky_app/theme/brand_text_field.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Text controller that colors the active editable mention/hashtag token.
 class FacetTextEditingController extends TextEditingController {
   /// Creates a facet-aware editing controller.
-  FacetTextEditingController({super.text});
+  new({super.text});
 
   @override
   TextSpan buildTextSpan({
@@ -62,7 +62,7 @@ class FacetTextEditingController extends TextEditingController {
 }
 
 class _EditableFacetTokenRange {
-  const _EditableFacetTokenRange({required this.start, required this.end});
+  const new({required this.start, required this.end});
 
   final int start;
   final int end;
@@ -138,7 +138,7 @@ int _editableTokenEnd(String text, int start, String trigger) {
 /// Reusable editor with mention/hashtag autocomplete support.
 class FacetAutocompleteEditor extends ConsumerStatefulWidget {
   /// Creates an autocomplete editor around the app's branded text field.
-  const FacetAutocompleteEditor({
+  const new({
     required this.label,
     required this.controller,
     super.key,
@@ -531,7 +531,7 @@ RenderEditable? _findRenderEditable(RenderObject root) {
 }
 
 class _SuggestionOverlayGeometry {
-  const _SuggestionOverlayGeometry({
+  const new({
     required this.left,
     required this.top,
     required this.width,
@@ -545,7 +545,7 @@ class _SuggestionOverlayGeometry {
 }
 
 class _SuggestionOverlay extends StatelessWidget {
-  const _SuggestionOverlay({required this.geometry, required this.child});
+  const new({required this.geometry, required this.child});
 
   final _SuggestionOverlayGeometry geometry;
   final Widget child;
@@ -565,7 +565,7 @@ class _SuggestionOverlay extends StatelessWidget {
 }
 
 class _MentionSuggestionList extends StatelessWidget {
-  const _MentionSuggestionList({
+  const new({
     required this.suggestions,
     required this.onSelected,
   });
@@ -661,7 +661,7 @@ class _MentionSuggestionList extends StatelessWidget {
 }
 
 class _HashtagSuggestionList extends StatelessWidget {
-  const _HashtagSuggestionList({
+  const new({
     required this.suggestions,
     required this.onSelected,
   });

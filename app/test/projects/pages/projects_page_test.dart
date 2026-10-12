@@ -6,7 +6,7 @@ import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/post_page.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/feed/widgets/post_card.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/languages/models/language_preferences.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
@@ -24,9 +24,9 @@ import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/craftsky_floating_action_button.dart';
 import 'package:craftsky_app/theme/craftsky_form_builder_select_fields.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:phosphor_icons/phosphor_icons.dart';
 
 import '../../fakes/auth_session_fakes.dart';
@@ -81,7 +81,7 @@ Future<void> _pumpProjects(
       ],
       child: MaterialApp(
         theme: AppTheme.lightThemeData,
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        localizationsDelegates: appLocalizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         home: const ProjectsPage(),
       ),
@@ -241,7 +241,7 @@ void main() {
           messenger: RecordingMessenger(),
           child: MaterialApp(
             theme: AppTheme.lightThemeData,
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            localizationsDelegates: appLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             home: const ProjectsPage(),
           ),
@@ -483,7 +483,7 @@ void main() {
         ],
         child: MaterialApp(
           theme: AppTheme.lightThemeData,
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: appLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: const ProjectsPage(),
         ),
@@ -558,7 +558,7 @@ void main() {
         ],
         child: MaterialApp(
           theme: AppTheme.lightThemeData,
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: appLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: const ProjectsPage(),
         ),
@@ -576,7 +576,7 @@ void main() {
 }
 
 class _TestUserProfile extends UserProfile {
-  _TestUserProfile(this.profile);
+  new(this.profile);
   final Future<Profile> profile;
   @override
   Future<Profile> build(Did did) => profile;

@@ -1,9 +1,9 @@
 import 'package:craftsky_app/auth/models/session_registry.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../fakes/recording_messenger.dart';
 import 'language_overrides.dart';

@@ -14,7 +14,7 @@ import 'package:craftsky_app/auth/widgets/account_avatar.dart';
 import 'package:craftsky_app/auth/widgets/account_switcher_content.dart';
 import 'package:craftsky_app/feed/models/timeline_page.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/languages/models/language_preferences.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
 import 'package:craftsky_app/notifications/data/notification_repository.dart';
@@ -30,17 +30,17 @@ import 'package:craftsky_app/subscriptions/providers/subscription_access_provide
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/form_factor.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../fakes/auth_session_fakes.dart';
 import '../feed/fakes/fake_post_repository.dart';
 import '../profile/fakes/fake_profile_repository.dart';
 
 final class _RegistryStorage implements SessionRegistryStorage {
-  _RegistryStorage(this.value);
+  new(this.value);
   SessionRegistry value;
 
   @override
@@ -166,7 +166,7 @@ Future<ProviderContainer> _pumpShell(
       container: container,
       child: MaterialApp.router(
         theme: AppTheme.lightThemeData,
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        localizationsDelegates: appLocalizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         routerConfig: router,
         builder: (context, child) =>
@@ -308,7 +308,7 @@ void main() {
         size: const Size(500, 800),
         profileRepository: FakeProfileRepository(
           onFetch: (id) async => id == 'bob.test'
-              ? bobProfile.future
+              ? await bobProfile.future
               : Profile(
                   did: 'did:plc:alice',
                   handle: 'alice.test',
@@ -406,7 +406,7 @@ void main() {
 
       await tester.pumpWidget(
         MaterialApp(
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: appLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: Scaffold(
             body: AccountSwitcherContent(
@@ -447,7 +447,7 @@ void main() {
 
     await tester.pumpWidget(
       MaterialApp(
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        localizationsDelegates: appLocalizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         home: Scaffold(
           body: AccountSwitcherContent(
@@ -491,7 +491,7 @@ void main() {
 
     await tester.pumpWidget(
       MaterialApp(
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        localizationsDelegates: appLocalizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         home: Scaffold(
           body: AccountSwitcherContent(

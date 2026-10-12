@@ -14,7 +14,7 @@ enum InstagramImportParseErrorCode {
 }
 
 final class InstagramImportParseException implements Exception {
-  const InstagramImportParseException(this.code);
+  const new(this.code);
 
   final InstagramImportParseErrorCode code;
 
@@ -23,7 +23,7 @@ final class InstagramImportParseException implements Exception {
 }
 
 final class InstagramImportParser {
-  const InstagramImportParser();
+  const new();
 
   static const int maxFileBytes = 20 * 1024 * 1024;
   static const int maxEntries = 10000;

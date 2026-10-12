@@ -17,7 +17,7 @@ import 'package:craftsky_app/business/providers/business_repository_provider.dar
 import 'package:craftsky_app/business/providers/products_controller.dart';
 import 'package:craftsky_app/feed/models/post_page.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/onboarding/providers/onboarding_status_provider.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
@@ -30,11 +30,11 @@ import 'package:craftsky_app/subscriptions/providers/subscription_access_provide
 import 'package:craftsky_app/subscriptions/subscription_build_config.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/form_factor.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../fakes/auth_session_fakes.dart';
@@ -338,7 +338,7 @@ Future<_RouterHarness> _pumpRouter(
       child: MaterialApp.router(
         routerConfig: router,
         theme: AppTheme.lightThemeData,
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        localizationsDelegates: appLocalizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         builder: (context, child) =>
             FormFactorWidget(child: child ?? const SizedBox.shrink()),
@@ -354,7 +354,7 @@ Future<_RouterHarness> _pumpRouter(
 }
 
 final class _BusinessRegistryStorage implements SessionRegistryStorage {
-  _BusinessRegistryStorage(this.registry);
+  new(this.registry);
   SessionRegistry registry;
   @override
   Future<SessionRegistry> read() async => registry;
@@ -364,7 +364,7 @@ final class _BusinessRegistryStorage implements SessionRegistryStorage {
 }
 
 final class _RouterHarness {
-  const _RouterHarness({
+  const new({
     required this.router,
     required this.container,
     required this.identity,
@@ -448,7 +448,7 @@ final _ownerRoutes = <_OwnerRoute>[
 ];
 
 final class _OwnerRoute {
-  const _OwnerRoute({
+  const new({
     required this.label,
     required this.location,
     required this.pageType,

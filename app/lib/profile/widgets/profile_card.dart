@@ -3,7 +3,7 @@ import 'dart:ui' as ui;
 
 import 'package:craftsky_app/business/models/business_profile.dart';
 import 'package:craftsky_app/business/widgets/business_profile_summary.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/models/profile_handle.dart';
 import 'package:craftsky_app/profile/widgets/profile_actions.dart';
@@ -25,7 +25,7 @@ import 'package:craftsky_app/theme/chunky_icon_button.dart';
 import 'package:craftsky_app/theme/craftsky_context_menu.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Compact profile summary shown from identity taps throughout the app.
 ///
@@ -33,7 +33,7 @@ import 'package:flutter/material.dart';
 /// full-screen profile geometry. Loading, navigation, and mutations stay with
 /// its route presentation.
 class ProfileCard extends StatelessWidget {
-  const ProfileCard({
+  const new({
     required this.profile,
     required this.isOwnProfile,
     required this.onClose,
@@ -79,7 +79,7 @@ class ProfileCard extends StatelessWidget {
 }
 
 class _ProfileCardSurface extends StatelessWidget {
-  const _ProfileCardSurface({
+  const new({
     required this.profile,
     required this.isOwnProfile,
     required this.isPrimaryActionBusy,
@@ -449,7 +449,7 @@ class _ProfileCardSurface extends StatelessWidget {
 }
 
 class _ProfileCardActions extends StatelessWidget {
-  const _ProfileCardActions({
+  const new({
     required this.did,
     required this.isOwnProfile,
     required this.isFollowing,

@@ -13,7 +13,7 @@ import 'package:craftsky_app/feed/providers/post_comment_section_provider.dart'
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/feed/widgets/post_card.dart';
 import 'package:craftsky_app/feed/widgets/post_interaction_summary.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
@@ -25,17 +25,17 @@ import 'package:craftsky_app/theme/craftsky_card.dart';
 import 'package:craftsky_app/theme/craftsky_context_menu.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/form_factor.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../fakes/auth_session_fakes.dart';
 import '../../fakes/recording_messenger.dart';
 import '../fakes/fake_post_repository.dart';
 
 final class _ThreadPinRegistryStorage implements SessionRegistryStorage {
-  _ThreadPinRegistryStorage()
+  new()
     : value = SessionRegistry.empty().upsertAndActivate(
         token: 'token-alice',
         did: 'did:plc:alice',
@@ -187,7 +187,7 @@ Future<GoRouter> _pumpThreadRoute(
         messenger: messenger,
         child: MaterialApp.router(
           theme: AppTheme.lightThemeData,
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: appLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           routerConfig: router,
         ),
@@ -302,7 +302,7 @@ void main() {
         overrides: [postRepositoryProvider.overrideWithValue(repository)],
         child: MaterialApp(
           theme: AppTheme.lightThemeData,
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: appLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: FormFactorWidget(
             child: PostThreadPage(
@@ -1082,7 +1082,7 @@ void main() {
           messenger: messenger,
           child: MaterialApp(
             theme: AppTheme.lightThemeData,
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            localizationsDelegates: appLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             home: FormFactorWidget(
               child: PostThreadPage(
@@ -1157,7 +1157,7 @@ void main() {
             messenger: RecordingMessenger(),
             child: MaterialApp(
               theme: AppTheme.lightThemeData,
-              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              localizationsDelegates: appLocalizationsDelegates,
               supportedLocales: AppLocalizations.supportedLocales,
               home: FormFactorWidget(
                 child: PostThreadPage(
@@ -1251,7 +1251,7 @@ void main() {
         overrides: [postRepositoryProvider.overrideWithValue(repo)],
         child: MaterialApp(
           theme: AppTheme.lightThemeData,
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: appLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: FormFactorWidget(
             child: PostThreadPage(
@@ -1306,7 +1306,7 @@ void main() {
         container: container,
         child: MaterialApp(
           theme: AppTheme.lightThemeData,
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: appLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: FormFactorWidget(
             child: PostThreadPage(did: did, rkey: rkey),
@@ -1353,7 +1353,7 @@ void main() {
         container: container,
         child: MaterialApp(
           theme: AppTheme.lightThemeData,
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: appLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: FormFactorWidget(
             child: PostThreadPage(did: did, rkey: rkey),
@@ -1414,7 +1414,7 @@ void main() {
           overrides: [postRepositoryProvider.overrideWithValue(repo)],
           child: MaterialApp.router(
             theme: AppTheme.lightThemeData,
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            localizationsDelegates: appLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             routerConfig: router,
           ),
@@ -1454,7 +1454,7 @@ void main() {
           retry: (_, _) => null,
           child: MaterialApp(
             theme: AppTheme.lightThemeData,
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            localizationsDelegates: appLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             home: FormFactorWidget(
               child: PostThreadPage(
@@ -1499,7 +1499,7 @@ void main() {
           retry: (_, _) => null,
           child: MaterialApp(
             theme: AppTheme.lightThemeData,
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            localizationsDelegates: appLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             home: FormFactorWidget(
               child: PostThreadPage(
@@ -1529,7 +1529,7 @@ Future<void> _pumpThread(
       overrides: [postRepositoryProvider.overrideWithValue(repository)],
       child: MaterialApp(
         theme: AppTheme.lightThemeData,
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        localizationsDelegates: appLocalizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         home: FormFactorWidget(
           child: PostThreadPage(
@@ -1553,7 +1553,7 @@ Future<void> _pumpThreadRouter(
       overrides: [postRepositoryProvider.overrideWithValue(repository)],
       child: MaterialApp.router(
         theme: AppTheme.lightThemeData,
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        localizationsDelegates: appLocalizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         routerConfig: router,
       ),

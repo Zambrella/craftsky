@@ -5,7 +5,7 @@ import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart'
     show sessionRegistryProvider;
 import 'package:craftsky_app/feed/widgets/post_composer_sheet.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/languages/models/language_preferences.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
 import 'package:craftsky_app/scheduled_posts/data/scheduled_post_repository.dart';
@@ -20,9 +20,9 @@ import 'package:craftsky_app/subscriptions/subscription_build_config.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:dio/dio.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../fakes/recording_messenger.dart';
 
@@ -77,7 +77,7 @@ void main() {
             messenger: RecordingMessenger(),
             child: MaterialApp(
               theme: AppTheme.lightThemeData,
-              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              localizationsDelegates: appLocalizationsDelegates,
               supportedLocales: AppLocalizations.supportedLocales,
               home: const PostComposerSheet(composerId: 'capacity'),
             ),
@@ -149,7 +149,7 @@ ScheduledPostSummary _summary(
 );
 
 final class _CapacityRepository implements ScheduledPostRepository {
-  _CapacityRepository(this.items);
+  new(this.items);
 
   final List<ScheduledPostSummary> items;
 
@@ -195,7 +195,7 @@ final class _CapacityRepository implements ScheduledPostRepository {
 }
 
 final class _RegistryStorage implements SessionRegistryStorage {
-  _RegistryStorage(this.registry);
+  new(this.registry);
 
   SessionRegistry registry;
 

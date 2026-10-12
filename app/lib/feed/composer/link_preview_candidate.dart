@@ -1,10 +1,10 @@
 final class LinkPreviewCandidate {
-  const LinkPreviewCandidate._({
+  const new _({
     required this.identity,
     required this.sourceFragment,
   });
 
-  factory LinkPreviewCandidate.parse(String source) {
+  factory parse(String source) {
     final trimmed = source.trim();
     final withScheme =
         RegExp(

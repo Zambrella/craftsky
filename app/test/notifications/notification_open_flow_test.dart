@@ -340,9 +340,11 @@ NotificationRuntime _runtime({
   final registration = NotificationRegistrationCoordinator(
     service: service,
     platform: NotificationPlatform.ios,
-    registerAccount:
-        ({required lease, required platform, required token}) async =>
-            AccountSubscriptionId.parse('unused'),
+    registerAccount: ({
+      required lease,
+      required platform,
+      required token,
+    }) async => AccountSubscriptionId.parse('unused'),
     saveBindingForLease: ({required lease, required binding}) async {},
   );
   return NotificationRuntime(

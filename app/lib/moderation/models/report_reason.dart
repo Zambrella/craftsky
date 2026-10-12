@@ -1,4 +1,4 @@
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 
 enum ReportDestination { inApp, intellectualPropertyEmail }
 
@@ -67,7 +67,7 @@ enum ReportReason {
   ),
   other('other', ReportGroup.other);
 
-  const ReportReason(
+  new(
     this.reasonType,
     this.group, {
     this.destination = ReportDestination.inApp,

@@ -103,7 +103,7 @@ void main() {
 }
 
 final class _NoopScreenAwake implements SubmissionScreenAwake {
-  const _NoopScreenAwake();
+  const new();
 
   @override
   Future<void> enable() async {}

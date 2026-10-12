@@ -6,16 +6,16 @@ import 'package:craftsky_app/auth/models/stored_session.dart';
 import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart'
     show sessionRegistryProvider;
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/profile/models/follower_growth.dart';
 import 'package:craftsky_app/profile/providers/follower_growth_provider.dart';
 import 'package:craftsky_app/settings/pages/follower_growth_page.dart';
 import 'package:craftsky_app/settings/widgets/follower_growth_chart.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 void main() {
   testWidgets(
@@ -67,7 +67,7 @@ void main() {
           container: container,
           child: MaterialApp(
             theme: AppTheme.lightThemeData,
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            localizationsDelegates: appLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             home: const FollowerGrowthPage(),
           ),
@@ -409,7 +409,7 @@ Widget _app({
   ]),
   child: MaterialApp(
     theme: dark ? AppTheme.darkThemeData : AppTheme.lightThemeData,
-    localizationsDelegates: AppLocalizations.localizationsDelegates,
+    localizationsDelegates: appLocalizationsDelegates,
     supportedLocales: AppLocalizations.supportedLocales,
     builder: textScaler == null
         ? null
@@ -438,7 +438,7 @@ final _registry = SessionRegistry(
 );
 
 final class _RegistryStorage implements SessionRegistryStorage {
-  const _RegistryStorage(this.value);
+  const new(this.value);
 
   final SessionRegistry value;
 

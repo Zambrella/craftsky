@@ -291,7 +291,7 @@ Future<void> _flush() async {
 }
 
 final class _PendingFetch {
-  _PendingFetch(this.url, this.token);
+  new(this.url, this.token);
 
   final Uri url;
   final CancelToken token;

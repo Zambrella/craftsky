@@ -1,12 +1,12 @@
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/projects/models/project.dart';
 import 'package:craftsky_app/projects/options/project_option_catalogs.dart';
 import 'package:craftsky_app/projects/widgets/project_card.dart';
 import 'package:craftsky_app/shared/widgets/craft_icon.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 Future<void> _pump(
   WidgetTester tester,
@@ -17,7 +17,7 @@ Future<void> _pump(
     ProviderScope(
       child: MaterialApp(
         theme: AppTheme.lightThemeData,
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        localizationsDelegates: appLocalizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         builder: (context, routeChild) {
           if (textScaler == null) return routeChild!;

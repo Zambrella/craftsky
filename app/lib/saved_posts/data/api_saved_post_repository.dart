@@ -6,7 +6,7 @@ import 'package:craftsky_app/saved_posts/models/saved_post_folder.dart';
 
 /// Production repository backed by the fixed-account saved-post API client.
 final class ApiSavedPostRepository implements SavedPostRepository {
-  const ApiSavedPostRepository(this._api);
+  const new(this._api);
 
   final SavedPostApi _api;
 

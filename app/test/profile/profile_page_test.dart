@@ -5,7 +5,7 @@ import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
 import 'package:craftsky_app/feed/models/post_page.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/feed/widgets/post_image_gallery.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/languages/models/language_preferences.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
 import 'package:craftsky_app/moderation/models/moderation_metadata.dart';
@@ -40,10 +40,10 @@ import 'package:craftsky_app/shared/widgets/notification_destination_error_state
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../fakes/auth_session_fakes.dart';
 import '../fakes/image_cache_fakes.dart';
@@ -71,7 +71,7 @@ void main() {
           overrides: [profileRepositoryProvider.overrideWithValue(repo)],
           child: MaterialApp(
             theme: AppTheme.lightThemeData,
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            localizationsDelegates: appLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             home: ProfilePage(did: Did.parse('did:plc:alice')),
           ),
@@ -137,7 +137,7 @@ void main() {
           ],
           child: MaterialApp(
             theme: AppTheme.lightThemeData,
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            localizationsDelegates: appLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             home: ProfilePage(did: Did.parse('did:plc:alice')),
           ),
@@ -203,7 +203,7 @@ void main() {
           ],
           child: MaterialApp(
             theme: AppTheme.lightThemeData,
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            localizationsDelegates: appLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             home: const ProfilePage(),
           ),
@@ -256,7 +256,7 @@ void main() {
             ],
             child: MaterialApp(
               theme: AppTheme.lightThemeData,
-              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              localizationsDelegates: appLocalizationsDelegates,
               supportedLocales: AppLocalizations.supportedLocales,
               home: ProfilePage(did: Did.parse('did:plc:test')),
             ),
@@ -294,7 +294,7 @@ void main() {
           ],
           child: MaterialApp(
             theme: AppTheme.lightThemeData,
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            localizationsDelegates: appLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             home: ProfilePage(did: Did.parse('did:plc:other')),
           ),
@@ -336,7 +336,7 @@ void main() {
             messenger: RecordingMessenger(),
             child: MaterialApp(
               theme: AppTheme.lightThemeData,
-              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              localizationsDelegates: appLocalizationsDelegates,
               supportedLocales: AppLocalizations.supportedLocales,
               home: ProfilePage(did: Did.parse('did:plc:alice')),
             ),
@@ -389,7 +389,7 @@ void main() {
           ],
           child: MaterialApp(
             theme: AppTheme.lightThemeData,
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            localizationsDelegates: appLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             home: ProfilePage(did: Did.parse('did:plc:other')),
           ),
@@ -430,7 +430,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           theme: AppTheme.lightThemeData,
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: appLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           builder: (context, child) => MediaQuery(
             data: MediaQuery.of(
@@ -477,7 +477,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           theme: AppTheme.lightThemeData,
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: appLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: Scaffold(
             body: CustomScrollView(
@@ -531,7 +531,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           theme: AppTheme.lightThemeData,
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: appLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: Scaffold(
             body: CustomScrollView(
@@ -569,7 +569,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           theme: AppTheme.lightThemeData,
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: appLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: Scaffold(
             body: CustomScrollView(
@@ -621,7 +621,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           theme: AppTheme.lightThemeData,
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: appLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: Scaffold(
             body: CustomScrollView(
@@ -672,7 +672,7 @@ void main() {
           theme: AppTheme.lightThemeData,
           darkTheme: AppTheme.darkThemeData,
           themeMode: ThemeMode.dark,
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: appLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: AppShellDrawerScope(
             openDrawer: () {},
@@ -748,7 +748,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           theme: AppTheme.lightThemeData,
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: appLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: Builder(
             builder: (context) => Scaffold(
@@ -837,7 +837,7 @@ void main() {
           ],
           child: MaterialApp(
             theme: AppTheme.lightThemeData,
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            localizationsDelegates: appLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             home: ProfilePage(did: Did.parse('did:plc:other')),
           ),
@@ -888,7 +888,7 @@ void main() {
             ],
             child: MaterialApp(
               theme: AppTheme.lightThemeData,
-              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              localizationsDelegates: appLocalizationsDelegates,
               supportedLocales: AppLocalizations.supportedLocales,
               home: ProfilePage(did: Did.parse('did:plc:alice')),
             ),
@@ -963,7 +963,7 @@ void main() {
             ],
             child: MaterialApp(
               theme: AppTheme.lightThemeData,
-              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              localizationsDelegates: appLocalizationsDelegates,
               supportedLocales: AppLocalizations.supportedLocales,
               home: ProfilePage(did: Did.parse('did:plc:alice')),
             ),
@@ -1025,7 +1025,7 @@ void main() {
             messenger: RecordingMessenger(),
             child: MaterialApp(
               theme: AppTheme.lightThemeData,
-              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              localizationsDelegates: appLocalizationsDelegates,
               supportedLocales: AppLocalizations.supportedLocales,
               home: ProfilePage(did: Did.parse('did:plc:alice')),
             ),
@@ -1087,7 +1087,7 @@ void main() {
             messenger: RecordingMessenger(),
             child: MaterialApp(
               theme: AppTheme.lightThemeData,
-              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              localizationsDelegates: appLocalizationsDelegates,
               supportedLocales: AppLocalizations.supportedLocales,
               home: ProfilePage(did: Did.parse('did:plc:alice')),
             ),
@@ -1124,7 +1124,7 @@ void main() {
           ],
           child: MaterialApp(
             theme: AppTheme.lightThemeData,
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            localizationsDelegates: appLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             home: ProfilePage(did: Did.parse('did:plc:alice')),
           ),
@@ -1156,7 +1156,7 @@ void main() {
           ],
           child: MaterialApp(
             theme: AppTheme.lightThemeData,
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            localizationsDelegates: appLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             home: ProfilePage(did: Did.parse('did:plc:alice')),
           ),
@@ -1189,7 +1189,7 @@ void main() {
           ],
           child: MaterialApp(
             theme: AppTheme.lightThemeData,
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            localizationsDelegates: appLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             home: ProfilePage(did: Did.parse('did:plc:missing')),
           ),
@@ -1241,7 +1241,7 @@ void main() {
           container: container,
           child: MaterialApp(
             theme: AppTheme.lightThemeData,
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            localizationsDelegates: appLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             home: ProfilePage(did: Did.parse('did:plc:alice')),
           ),
@@ -1284,7 +1284,7 @@ void main() {
           retry: (_, _) => null,
           child: MaterialApp(
             theme: AppTheme.lightThemeData,
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            localizationsDelegates: appLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             home: ProfilePage(did: Did.parse('did:plc:alice')),
           ),
@@ -1341,7 +1341,7 @@ void main() {
           container: container,
           child: MaterialApp(
             theme: AppTheme.lightThemeData,
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            localizationsDelegates: appLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             home: ProfilePage(did: Did.parse('did:plc:alice')),
           ),
@@ -1380,19 +1380,17 @@ void main() {
           ],
           child: MaterialApp(
             theme: AppTheme.lightThemeData,
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            localizationsDelegates: appLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             home: Builder(
               builder: (context) => Scaffold(
                 body: Center(
                   child: ElevatedButton(
                     onPressed: () {
-                      unawaited(
-                        Navigator.of(context).push<void>(
-                          MaterialPageRoute(
-                            builder: (_) =>
-                                ProfilePage(did: Did.parse('did:plc:missing')),
-                          ),
+                      Navigator.of(context).push<void>(
+                        MaterialPageRoute(
+                          builder: (_) =>
+                              ProfilePage(did: Did.parse('did:plc:missing')),
                         ),
                       );
                     },
@@ -1451,7 +1449,7 @@ void main() {
             messenger: messenger,
             child: MaterialApp(
               theme: AppTheme.lightThemeData,
-              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              localizationsDelegates: appLocalizationsDelegates,
               supportedLocales: AppLocalizations.supportedLocales,
               home: ProfilePage(did: Did.parse('did:plc:alice')),
             ),
@@ -1557,7 +1555,7 @@ void main() {
             ],
             child: MaterialApp.router(
               theme: AppTheme.lightThemeData,
-              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              localizationsDelegates: appLocalizationsDelegates,
               supportedLocales: AppLocalizations.supportedLocales,
               routerConfig: router,
             ),
@@ -1619,7 +1617,7 @@ void main() {
           ],
           child: MaterialApp(
             theme: AppTheme.lightThemeData,
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            localizationsDelegates: appLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             home: ProfilePage(did: Did.parse('did:plc:other')),
           ),
@@ -1652,7 +1650,7 @@ void main() {
           ],
           child: MaterialApp(
             theme: AppTheme.lightThemeData,
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            localizationsDelegates: appLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             home: ProfilePage(did: Did.parse('did:plc:carol')),
           ),
@@ -1695,7 +1693,7 @@ void main() {
           ],
           child: MaterialApp(
             theme: AppTheme.lightThemeData,
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            localizationsDelegates: appLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             home: ProfilePage(did: Did.parse('did:plc:other')),
           ),
@@ -1740,7 +1738,7 @@ void main() {
           ],
           child: MaterialApp(
             theme: AppTheme.lightThemeData,
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            localizationsDelegates: appLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             home: ProfilePage(did: Did.parse('did:plc:other')),
           ),
@@ -1785,7 +1783,7 @@ void main() {
           ],
           child: MaterialApp(
             theme: AppTheme.lightThemeData,
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            localizationsDelegates: appLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             home: ProfilePage(did: Did.parse('did:plc:other')),
           ),
@@ -1831,7 +1829,7 @@ void main() {
             messenger: messenger,
             child: MaterialApp(
               theme: AppTheme.lightThemeData,
-              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              localizationsDelegates: appLocalizationsDelegates,
               supportedLocales: AppLocalizations.supportedLocales,
               home: ProfilePage(did: Did.parse('did:plc:other')),
             ),
@@ -1871,7 +1869,7 @@ void main() {
             messenger: messenger,
             child: MaterialApp(
               theme: AppTheme.lightThemeData,
-              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              localizationsDelegates: appLocalizationsDelegates,
               supportedLocales: AppLocalizations.supportedLocales,
               home: ProfilePage(did: Did.parse('did:plc:alice')),
             ),
@@ -1912,7 +1910,7 @@ void main() {
           ],
           child: MaterialApp(
             theme: AppTheme.lightThemeData,
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            localizationsDelegates: appLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             home: const ProfilePage(),
           ),
@@ -1952,7 +1950,7 @@ void main() {
           ],
           child: MaterialApp(
             theme: AppTheme.lightThemeData,
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            localizationsDelegates: appLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             home: const ProfilePage(),
           ),

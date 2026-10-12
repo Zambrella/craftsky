@@ -15,7 +15,7 @@ import 'package:craftsky_app/feed/pages/post_thread_page.dart';
 import 'package:craftsky_app/feed/providers/post_interaction_lists_provider.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/feed/widgets/post_card.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/languages/models/language_preferences.dart';
 import 'package:craftsky_app/profile/models/profile_account_page.dart';
 import 'package:craftsky_app/router/router.dart';
@@ -23,9 +23,9 @@ import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/form_factor.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../fakes/auth_session_fakes.dart';
 import '../feed/fakes/fake_post_repository.dart';
@@ -189,7 +189,7 @@ Future<void> _pumpRouter(
       container: container,
       child: MaterialApp.router(
         theme: AppTheme.lightThemeData,
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        localizationsDelegates: appLocalizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         routerConfig: router,
         builder: (context, child) =>

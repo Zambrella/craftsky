@@ -13,10 +13,10 @@ import 'package:craftsky_app/shared/observability/diagnostic_emitter.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_summary.dart';
 import 'package:craftsky_app/shared/observability/error_reporter.dart';
 import 'package:craftsky_app/shared/observability/sentry_error_reporter.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:logging/logging.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 
 import '../test_support/diagnostic_evidence.dart';
@@ -158,8 +158,7 @@ void main() {
       await Sentry.init((options) {
         options
           ..dsn = 'https://public@example.invalid/1'
-          ..transport = transport
-          ..enableLogs = true;
+          ..transport = transport;
         configureDiagnosticOptions(options);
       });
       addTearDown(Sentry.close);
@@ -500,9 +499,8 @@ void main() {
         await Sentry.init((options) {
           options
             ..dsn = 'https://public@example.invalid/1'
-            ..transport = transport
-            ..enableLogs = logsEnabled;
-          configureDiagnosticOptions(options);
+            ..transport = transport;
+          configureDiagnosticOptions(options, enableLogs: logsEnabled);
         });
         final subscription = configureRootLogForwarding(
           platformSink: local.add,
@@ -690,8 +688,7 @@ void main() {
       await Sentry.init((options) {
         options
           ..dsn = 'https://public@example.invalid/1'
-          ..transport = transport
-          ..enableLogs = true;
+          ..transport = transport;
         configureDiagnosticOptions(options);
       });
       addTearDown(Sentry.close);
@@ -880,9 +877,8 @@ void main() {
     await Sentry.init((options) {
       options
         ..dsn = 'https://public@example.invalid/1'
-        ..transport = transport
-        ..enableLogs = false;
-      configureDiagnosticOptions(options);
+        ..transport = transport;
+      configureDiagnosticOptions(options, enableLogs: false);
     });
     addTearDown(Sentry.close);
     final local = <String>[];
@@ -908,8 +904,7 @@ void main() {
       await Sentry.init((options) {
         options
           ..dsn = 'https://public@example.invalid/1'
-          ..transport = transport
-          ..enableLogs = true;
+          ..transport = transport;
         configureDiagnosticOptions(options);
       });
       addTearDown(Sentry.close);
@@ -998,12 +993,11 @@ void main() {
         options
           ..dsn = 'https://public@example.invalid/1'
           ..transport = transport
-          ..enableLogs = true
           ..tracesSampleRate = 1;
         configureDiagnosticOptions(options);
       });
       addTearDown(Sentry.close);
-      await Sentry.logger.error(
+      Sentry.logger.error(
         'SDK log token=private-log-canary',
         attributes: {'password': SentryAttribute.string('password-canary')},
       );
@@ -1099,8 +1093,7 @@ void main() {
             ),
           ],
           request: SentryRequest(
-            url:
-                'https://user:password-canary@example.invalid/capability-canary?code=code-canary',
+            url: 'https://user:password-canary@example.invalid/capability-canary?code=code-canary',
             headers: {'Cookie': 'cookie-canary'},
           ),
         ),

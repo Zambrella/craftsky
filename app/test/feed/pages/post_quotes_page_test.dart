@@ -10,7 +10,7 @@ import 'package:craftsky_app/feed/pages/post_quotes_page.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/feed/providers/toggle_repost_post_provider.dart';
 import 'package:craftsky_app/feed/widgets/post_card.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/languages/models/language_preferences.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
 import 'package:craftsky_app/profile/widgets/profile_presentation_page.dart';
@@ -21,10 +21,10 @@ import 'package:craftsky_app/shared/widgets/auto_paginated_list_view.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../fakes/auth_session_fakes.dart';
 import '../../fakes/recording_messenger.dart';
@@ -517,7 +517,7 @@ Future<void> _pumpPage(
       messenger: messenger ?? RecordingMessenger(),
       child: MaterialApp(
         theme: AppTheme.lightThemeData,
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        localizationsDelegates: appLocalizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         home: PostQuotesPage(
           did: Did.parse(_subjectDid),
@@ -540,7 +540,7 @@ Future<void> _pumpRouter(
       messenger: RecordingMessenger(),
       child: MaterialApp.router(
         theme: AppTheme.lightThemeData,
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        localizationsDelegates: appLocalizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         routerConfig: router,
       ),
@@ -563,7 +563,7 @@ List<dynamic> _overrides(FakePostRepository repository, String signedInDid) => [
 ];
 
 final class _MemoryRegistryStorage implements SessionRegistryStorage {
-  _MemoryRegistryStorage(String did)
+  new(String did)
     : registry = SessionRegistry.empty().upsertAndActivate(
         token: 'token-$did',
         did: did,

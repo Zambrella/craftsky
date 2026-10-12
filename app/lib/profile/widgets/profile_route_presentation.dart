@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:craftsky_app/auth/models/auth_state.dart';
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/pages/profile_page.dart';
 import 'package:craftsky_app/profile/providers/toggle_follow_profile_provider.dart';
@@ -14,12 +14,12 @@ import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Owns both visual states of a profile route.
 class ProfileRoutePresentation extends ConsumerStatefulWidget {
-  const ProfileRoutePresentation({
+  const new({
     required this.did,
     required this.startsCompact,
     super.key,
@@ -192,7 +192,7 @@ class _ProfileRoutePresentationState
       _expanded = true;
       _transitioning = true;
     });
-    unawaited(_controller.forward());
+    _controller.forward();
   }
 
   bool _isOwnProfile(AuthState? auth, Did profileDid) {

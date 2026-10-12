@@ -1,7 +1,7 @@
 part of '../craftsky_select_inputs.dart';
 
 class CraftskyTokenInput extends StatefulWidget {
-  const CraftskyTokenInput({
+  const new({
     required this.label,
     super.key,
     this.values = const [],

@@ -102,7 +102,7 @@ void main() {
       current,
       loader: () async {
         reloads++;
-        return reloadCompleter.future;
+        return await reloadCompleter.future;
       },
     );
     addTearDown(container.dispose);
@@ -405,7 +405,7 @@ final class _Repository extends Fake implements BusinessRepository {
 }
 
 final class _ProfileRepository extends Fake implements ProfileRepository {
-  _ProfileRepository(this.initial, this.laggingRead);
+  new(this.initial, this.laggingRead);
 
   final Profile initial;
   final Completer<Profile> laggingRead;
@@ -425,7 +425,7 @@ final class _ProfileRepository extends Fake implements ProfileRepository {
 }
 
 final class _RegistryStorage implements SessionRegistryStorage {
-  _RegistryStorage(this.value);
+  new(this.value);
 
   SessionRegistry value;
 

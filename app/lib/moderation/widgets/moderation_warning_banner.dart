@@ -1,10 +1,10 @@
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 class ModerationWarningBanner extends StatelessWidget {
-  const ModerationWarningBanner({required this.warningKind, super.key});
+  const new({required this.warningKind, super.key});
 
   final String warningKind;
 

@@ -6,8 +6,8 @@ import 'package:craftsky_app/profile/models/profile_account_summary.dart';
 import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:craftsky_app/search/models/profile_search_page.dart';
 import 'package:craftsky_app/theme/brand_colors.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 void main() {
   setUpAll(initializeMappers);

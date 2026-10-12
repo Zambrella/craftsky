@@ -52,7 +52,7 @@ final class OwnerBusinessEventsProvider
 }
 
 String _$ownerBusinessEventsHash() =>
-    r'0d30251aaa480502efb4a96ab646c4dc891ba8a4';
+    r'23eb8f6f1202f00e9751cafab0a9625df26a6027';
 
 final class OwnerBusinessEventsFamily extends $Family
     with
@@ -87,7 +87,7 @@ abstract class _$OwnerBusinessEvents
   FutureOr<BusinessEventListState> build(OwnerEventFilter filter);
   @$mustCallSuper
   @override
-  void runBuild() {
+  WhenComplete runBuild() {
     final ref =
         this.ref
             as $Ref<AsyncValue<BusinessEventListState>, BusinessEventListState>;
@@ -102,6 +102,6 @@ abstract class _$OwnerBusinessEvents
               Object?,
               Object?
             >;
-    element.handleCreate(ref, () => build(_$args));
+    return element.handleCreate(ref, () => build(_$args));
   }
 }

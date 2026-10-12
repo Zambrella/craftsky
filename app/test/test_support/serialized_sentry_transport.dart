@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+
 import 'package:sentry_flutter/sentry_flutter.dart';
 
 class SerializedTransport implements Transport {

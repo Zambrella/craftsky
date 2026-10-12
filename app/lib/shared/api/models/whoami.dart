@@ -5,7 +5,7 @@ part 'whoami.mapper.dart';
 
 @MappableClass(includeCustomMappers: [DidMapper(), HandleMapper()])
 class WhoAmI with WhoAmIMappable {
-  WhoAmI({required String did, required String handle})
+  new({required String did, required String handle})
     : did = Did.parse(did),
       handle = Handle.parse(handle);
 

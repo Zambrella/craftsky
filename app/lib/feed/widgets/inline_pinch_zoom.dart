@@ -1,12 +1,12 @@
 import 'dart:async';
 
 import 'package:flutter/gestures.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Lets a scrollable containing inline images suspend pull-to-refresh during a
 /// pinch without changing ordinary one-finger drag behavior.
 class InlinePinchZoomScope extends InheritedWidget {
-  const InlinePinchZoomScope({
+  const new({
     required this.onPinchChanged,
     required super.child,
     super.key,
@@ -26,7 +26,7 @@ class InlinePinchZoomScope extends InheritedWidget {
 /// Pointer events are used deliberately: a scrollable may have already won the
 /// gesture arena before the second finger arrives.
 class InlinePinchZoom extends StatefulWidget {
-  const InlinePinchZoom({
+  const new({
     required this.child,
     this.overlayContext,
     this.maxScale = 4,
@@ -202,7 +202,7 @@ class _InlinePinchZoomState extends State<InlinePinchZoom>
         .animate(
           CurvedAnimation(parent: _reset, curve: Curves.fastOutSlowIn),
         );
-    unawaited(_reset.forward(from: 0));
+    _reset.forward(from: 0);
   }
 
   void _stopRouting() {
@@ -249,7 +249,7 @@ class _InlinePinchZoomState extends State<InlinePinchZoom>
 }
 
 class _InlinePinchZoomOverlay extends StatelessWidget {
-  const _InlinePinchZoomOverlay({
+  const new({
     required this.barrierColor,
     required this.origin,
     required this.size,

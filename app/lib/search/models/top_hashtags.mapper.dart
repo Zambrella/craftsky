@@ -422,4 +422,3 @@ class _TopHashtagItemCopyWithImpl<$R, $Out>
     Then<$Out2, $R2> t,
   ) => _TopHashtagItemCopyWithImpl<$R2, $Out2>($value, $cast, t);
 }
-

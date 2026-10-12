@@ -13,16 +13,16 @@ const _pendingBearerPaths = <String>{'/v1/auth/handoffs/confirm'};
 class SessionAuthInterceptor extends Interceptor {
   /// Account-bound constructor. The bearer is captured once and cannot change
   /// if another account becomes active while a request is in flight.
-  SessionAuthInterceptor.fixed({
+  new fixed({
     required String token,
     required Future<String> Function() readDeviceId,
   }) : this._(() => token, readDeviceId);
 
-  SessionAuthInterceptor.anonymous({
+  new anonymous({
     required Future<String> Function() readDeviceId,
   }) : this._(() => null, readDeviceId);
 
-  SessionAuthInterceptor._(this._readToken, this._readDeviceId);
+  new _(this._readToken, this._readDeviceId);
 
   final String? Function() _readToken;
   final Future<String> Function() _readDeviceId;
@@ -41,17 +41,22 @@ class SessionAuthInterceptor extends Interceptor {
     RequestInterceptorHandler handler,
   ) async {
     String? requestBearer;
-    options.headers.removeWhere((name, value) {
-      final normalized = name.toLowerCase();
+    final headers = <String, dynamic>{};
+    for (final entry in options.headers.entries) {
+      final normalized = entry.key.toLowerCase();
+      final value = entry.value;
       if (normalized == 'authorization') {
         if (value is String && value.startsWith('Bearer ')) {
           requestBearer = value;
         }
       }
-      return normalized == 'authorization' ||
-          normalized == 'dpop' ||
-          normalized.startsWith('x-pds-');
-    });
+      if (normalized != 'authorization' &&
+          normalized != 'dpop' &&
+          !normalized.startsWith('x-pds-')) {
+        headers[entry.key] = value;
+      }
+    }
+    options.headers = headers;
     final deviceId = await _readDeviceId();
     options.headers['X-Craftsky-Device-Id'] = deviceId;
 

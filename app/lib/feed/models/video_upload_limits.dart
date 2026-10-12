@@ -6,27 +6,26 @@ enum VideoUploadIneligibilityReason {
 }
 
 final class VideoUploadLimits {
-  const VideoUploadLimits({
+  const new({
     required this.canUpload,
     this.remainingDailyVideos,
     this.remainingDailyBytes,
     this.reason,
   });
 
-  factory VideoUploadLimits.fromMap(Map<String, dynamic> map) =>
-      VideoUploadLimits(
-        canUpload: map['canUpload'] as bool,
-        remainingDailyVideos: map['remainingDailyVideos'] as int?,
-        remainingDailyBytes: map['remainingDailyBytes'] as int?,
-        reason: switch (map['reason']) {
-          'email_unverified' => VideoUploadIneligibilityReason.emailUnverified,
-          'quota_exhausted' => VideoUploadIneligibilityReason.quotaExhausted,
-          'provider_unsupported' =>
-            VideoUploadIneligibilityReason.providerUnsupported,
-          'unknown' => VideoUploadIneligibilityReason.unknown,
-          _ => null,
-        },
-      );
+  factory fromMap(Map<String, dynamic> map) => VideoUploadLimits(
+    canUpload: map['canUpload'] as bool,
+    remainingDailyVideos: map['remainingDailyVideos'] as int?,
+    remainingDailyBytes: map['remainingDailyBytes'] as int?,
+    reason: switch (map['reason']) {
+      'email_unverified' => VideoUploadIneligibilityReason.emailUnverified,
+      'quota_exhausted' => VideoUploadIneligibilityReason.quotaExhausted,
+      'provider_unsupported' =>
+        VideoUploadIneligibilityReason.providerUnsupported,
+      'unknown' => VideoUploadIneligibilityReason.unknown,
+      _ => null,
+    },
+  );
 
   final bool canUpload;
   final int? remainingDailyVideos;
@@ -40,9 +39,9 @@ final class VideoUploadLimits {
 }
 
 final class VideoUploadAuthorization {
-  const VideoUploadAuthorization._(this._token, this.expiresAt);
+  const new _(this._token, this.expiresAt);
 
-  factory VideoUploadAuthorization.fromMap(Map<String, dynamic> map) {
+  factory fromMap(Map<String, dynamic> map) {
     final token = map['token'];
     final expiresAt = map['expiresAt'];
     if (token is! String || token.isEmpty || expiresAt is! String) {

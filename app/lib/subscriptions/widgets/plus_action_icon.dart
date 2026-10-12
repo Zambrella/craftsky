@@ -1,10 +1,10 @@
 import 'package:craftsky_app/subscriptions/subscription_build_config.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Keeps an action recognizable while marking its icon as Plus-only.
 class PlusActionIcon extends StatelessWidget {
-  const PlusActionIcon({required this.icon, this.size = 24, super.key});
+  const new({required this.icon, this.size = 24, super.key});
 
   final IconData icon;
   final double size;

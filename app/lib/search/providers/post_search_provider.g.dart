@@ -50,7 +50,7 @@ final class PostSearchProvider
   }
 }
 
-String _$postSearchHash() => r'19483be6404f76048a895d0bc4350cb7e37d26e9';
+String _$postSearchHash() => r'8a499babbfcf2819eb1ccf0f59938de300f88711';
 
 final class PostSearchFamily extends $Family
     with
@@ -84,7 +84,7 @@ abstract class _$PostSearch extends $AsyncNotifier<SearchPostResultsState> {
   FutureOr<SearchPostResultsState> build(PostSearchQuery query);
   @$mustCallSuper
   @override
-  void runBuild() {
+  WhenComplete runBuild() {
     final ref =
         this.ref
             as $Ref<AsyncValue<SearchPostResultsState>, SearchPostResultsState>;
@@ -99,6 +99,6 @@ abstract class _$PostSearch extends $AsyncNotifier<SearchPostResultsState> {
               Object?,
               Object?
             >;
-    element.handleCreate(ref, () => build(_$args));
+    return element.handleCreate(ref, () => build(_$args));
   }
 }

@@ -13,7 +13,7 @@ bool isCanonicalPdsMutationOperationKey(String value) =>
     _canonicalUuid.hasMatch(value);
 
 final class PdsMutationAmbiguousException implements Exception {
-  const PdsMutationAmbiguousException({required this.retryAfterSeconds});
+  const new({required this.retryAfterSeconds});
 
   final int retryAfterSeconds;
 
@@ -24,7 +24,7 @@ final class PdsMutationAmbiguousException implements Exception {
 /// The automatic retry budget ended before the PDS outcome became definite.
 /// Repeating the same feature action retries the frozen command unchanged.
 final class PdsMutationUnresolvedException implements Exception {
-  const PdsMutationUnresolvedException();
+  const new();
 
   @override
   String toString() => 'PdsMutationUnresolvedException(<retryable>)';

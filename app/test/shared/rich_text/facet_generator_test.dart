@@ -229,7 +229,7 @@ void main() {
 }
 
 class _MapMentionResolver implements MentionResolver {
-  const _MapMentionResolver(this._didsByHandle);
+  const new(this._didsByHandle);
 
   final Map<String, String> _didsByHandle;
 

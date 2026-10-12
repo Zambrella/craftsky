@@ -13,14 +13,14 @@ import 'package:craftsky_app/settings/services/account_deletion_acceptance_coord
 import 'package:craftsky_app/settings/services/account_product_data_cleaner.dart';
 import 'package:craftsky_app/shared/api/providers/dio_provider.dart';
 import 'package:dio/dio.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:http_mock_adapter/http_mock_adapter.dart';
+import 'package:material_ui/material_ui.dart';
 
 final class _DeletionRegistryStorage implements SessionRegistryStorage {
-  _DeletionRegistryStorage(this.value);
+  new(this.value);
 
   SessionRegistry value;
 

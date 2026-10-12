@@ -10,7 +10,7 @@ ServiceStatusRepository createServiceStatusRepository(Uri uri) =>
 bool isExpectedStatusPlatformFailure(Object error) => error is IOException;
 
 final class NativeServiceStatusRepository extends ServiceStatusRepository {
-  NativeServiceStatusRepository(this.uri);
+  new(this.uri);
   final Uri uri;
   final _client = Dio(
     BaseOptions(

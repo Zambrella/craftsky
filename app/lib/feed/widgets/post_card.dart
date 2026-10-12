@@ -18,7 +18,7 @@ import 'package:craftsky_app/feed/widgets/external_card.dart';
 import 'package:craftsky_app/feed/widgets/native_video_player.dart';
 import 'package:craftsky_app/feed/widgets/post_image_carousel.dart';
 import 'package:craftsky_app/feed/widgets/post_image_gallery.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/moderation/widgets/moderation_warning_banner.dart';
 import 'package:craftsky_app/profile/models/profile_handle.dart';
 import 'package:craftsky_app/profile/models/profile_relationship.dart';
@@ -47,9 +47,9 @@ import 'package:craftsky_app/theme/craftsky_context_menu.dart';
 import 'package:craftsky_app/theme/craftsky_divider.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:material_ui/material_ui.dart';
 
 const _postCardMenuWidth = 48.0;
 const _postCardActionIconSize = 22.0;
@@ -101,7 +101,7 @@ Post _postWithInteractionState(WidgetRef ref, Post post) {
 
 /// Card-shaped post row used by the feed and the profile Posts tab.
 class PostCard extends ConsumerWidget {
-  const PostCard({
+  const new({
     required this.post,
     super.key,
     this.onReply,
@@ -833,7 +833,7 @@ class PostCard extends ConsumerWidget {
 }
 
 class _ExpandablePostBody extends StatefulWidget {
-  const _ExpandablePostBody({
+  const new({
     required this.postIdentity,
     required this.text,
     required this.facets,
@@ -917,7 +917,7 @@ class _ExpandablePostBodyState extends State<_ExpandablePostBody> {
 }
 
 class _RepostAttribution extends StatelessWidget {
-  const _RepostAttribution({required this.reason, required this.onTap});
+  const new({required this.reason, required this.onTap});
 
   final RepostReason reason;
   final VoidCallback? onTap;
@@ -952,7 +952,7 @@ class _RepostAttribution extends StatelessWidget {
 }
 
 class _PinnedPostAttribution extends StatelessWidget {
-  const _PinnedPostAttribution();
+  const new();
 
   @override
   Widget build(BuildContext context) {
@@ -981,7 +981,7 @@ class _PinnedPostAttribution extends StatelessWidget {
 }
 
 class _PostCardHeader extends StatelessWidget {
-  const _PostCardHeader({
+  const new({
     required this.displayName,
     required this.handle,
     required this.onTap,
@@ -1018,7 +1018,7 @@ class _PostCardHeader extends StatelessWidget {
 }
 
 class _PostCardAuthorTapTarget extends StatelessWidget {
-  const _PostCardAuthorTapTarget({required this.onTap, required this.child});
+  const new({required this.onTap, required this.child});
 
   final VoidCallback? onTap;
   final Widget child;
@@ -1038,7 +1038,7 @@ class _PostCardAuthorTapTarget extends StatelessWidget {
 }
 
 class _PostCardMenu extends StatelessWidget {
-  const _PostCardMenu({
+  const new({
     required this.url,
     required this.onViewLikes,
     required this.pinLabel,
@@ -1147,7 +1147,7 @@ class _PostCardMenu extends StatelessWidget {
 }
 
 class _QuotePreviewCard extends StatelessWidget {
-  const _QuotePreviewCard({
+  const new({
     required this.quoteView,
     required this.onPostTap,
     required this.onAuthorTap,
@@ -1183,7 +1183,7 @@ class _QuotePreviewCard extends StatelessWidget {
 }
 
 class _ProtectedPostCard extends StatelessWidget {
-  const _ProtectedPostCard({
+  const new({
     required this.post,
     required this.onReveal,
     required this.style,
@@ -1266,7 +1266,7 @@ class _ProtectedPostCard extends StatelessWidget {
 }
 
 class _PostCardShareAction extends StatelessWidget {
-  const _PostCardShareAction({
+  const new({
     required this.count,
     required this.selectedColor,
     required this.tooltip,
@@ -1372,7 +1372,7 @@ class _PostCardShareAction extends StatelessWidget {
 }
 
 class _PostCardAction extends StatelessWidget {
-  const _PostCardAction({
+  const new({
     required this.icon,
     required this.count,
     required this.selectedColor,

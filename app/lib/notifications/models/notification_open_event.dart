@@ -13,11 +13,11 @@ enum NotificationFactFailureClass {
 }
 
 sealed class NotificationFactOutcome {
-  const NotificationFactOutcome();
+  const new();
 }
 
 final class ValidNotificationFacts extends NotificationFactOutcome {
-  const ValidNotificationFacts._({
+  const new _({
     required this.category,
     this.actorDid,
     this.subjectUri,
@@ -38,14 +38,14 @@ final class ValidNotificationFacts extends NotificationFactOutcome {
 }
 
 final class UnknownNotificationFacts extends NotificationFactOutcome {
-  const UnknownNotificationFacts();
+  const new();
 
   @override
   String toString() => 'UnknownNotificationFacts()';
 }
 
 final class InvalidNotificationFacts extends NotificationFactOutcome {
-  const InvalidNotificationFacts(this.failureClass);
+  const new(this.failureClass);
 
   final NotificationFactFailureClass failureClass;
 
@@ -54,13 +54,13 @@ final class InvalidNotificationFacts extends NotificationFactOutcome {
 }
 
 final class NotificationOpenAttempt {
-  const NotificationOpenAttempt({
+  const new({
     required this.accountSubscriptionId,
     required this.facts,
     required this.source,
   });
 
-  factory NotificationOpenAttempt.fromProviderData(
+  factory fromProviderData(
     Map<String, Object?> data, {
     NotificationOpenSource source = NotificationOpenSource.backgroundOpen,
   }) {

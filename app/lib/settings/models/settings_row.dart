@@ -1,5 +1,5 @@
 import 'package:craftsky_app/theme/craftsky_icons.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 enum SettingsSectionId {
   preferences,
@@ -43,7 +43,7 @@ enum SettingsRowKind {
 }
 
 final class SettingsRowDescriptor {
-  const SettingsRowDescriptor({required this.id, required this.kind});
+  const new({required this.id, required this.kind});
 
   final SettingsRowId id;
   final SettingsRowKind kind;
@@ -61,7 +61,7 @@ final class SettingsRowDescriptor {
 }
 
 final class SettingsSectionDescriptor {
-  const SettingsSectionDescriptor({required this.id, required this.rows});
+  const new({required this.id, required this.rows});
 
   final SettingsSectionId id;
   final List<SettingsRowDescriptor> rows;

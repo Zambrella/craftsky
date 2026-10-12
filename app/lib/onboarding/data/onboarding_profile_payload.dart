@@ -3,7 +3,7 @@ import 'package:craftsky_app/profile/data/crafts_catalog.dart';
 import 'package:craftsky_app/shared/media/uploaded_image_blob.dart';
 
 final class OnboardingProfilePayload {
-  const OnboardingProfilePayload({
+  const new({
     required this.displayName,
     required this.pronouns,
     required this.description,
@@ -13,7 +13,7 @@ final class OnboardingProfilePayload {
     this.clearBanner = false,
   });
 
-  factory OnboardingProfilePayload.fromState(
+  factory fromState(
     OnboardingFlowState state, {
     UploadedBlob? avatar,
   }) {

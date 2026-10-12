@@ -3,10 +3,10 @@ import 'dart:typed_data';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 class CraftskyImageAttachmentPreview extends StatelessWidget {
-  const CraftskyImageAttachmentPreview({
+  const new({
     required this.aspectRatio,
     super.key,
     this.bytes,
@@ -93,7 +93,7 @@ class CraftskyImageAttachmentPreview extends StatelessWidget {
 }
 
 class _ImageBusyOverlay extends StatelessWidget {
-  const _ImageBusyOverlay({
+  const new({
     required this.label,
     required this.progress,
     required this.overlayKey,

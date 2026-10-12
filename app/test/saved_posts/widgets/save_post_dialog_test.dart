@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/bootstrap.dart';
 import 'package:craftsky_app/feed/models/post.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/saved_posts/data/saved_post_repository.dart';
 import 'package:craftsky_app/saved_posts/models/saved_post.dart';
 import 'package:craftsky_app/saved_posts/models/saved_post_folder.dart';
@@ -17,9 +17,9 @@ import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:craftsky_app/theme/craftsky_select_inputs.dart';
 import 'package:craftsky_app/theme/craftsky_text_inputs.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 void main() {
   setUpAll(initializeMappers);
@@ -388,7 +388,7 @@ Future<void> _pumpDialog(
         ],
         child: MaterialApp(
           theme: AppTheme.lightThemeData,
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: appLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: Scaffold(
             body: Builder(
@@ -442,7 +442,7 @@ Post _post() => PostMapper.fromMap({
 });
 
 final class _DialogSavedPostRepository implements SavedPostRepository {
-  _DialogSavedPostRepository({
+  new({
     this.folderPages = const {},
     this.folderError,
     this.createdFolder,

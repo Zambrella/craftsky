@@ -1,12 +1,12 @@
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/onboarding/models/onboarding_action_state.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 class OnboardingBottomAction extends StatelessWidget {
-  const OnboardingBottomAction({
+  const new({
     required this.state,
     required this.onPressed,
     super.key,

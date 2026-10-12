@@ -13,7 +13,7 @@ const _maxResponseBytes = 65536;
 const _freeBoxLength = 16;
 
 final class VideoUploadSource {
-  const VideoUploadSource({required this.length, required this.openRead});
+  const new({required this.length, required this.openRead});
 
   final int length;
   final Stream<List<int>> Function() openRead;
@@ -24,7 +24,7 @@ final class VideoUploadSource {
 
 final class VideoTransportException
     implements Exception, DiagnosticFailureCause {
-  const VideoTransportException(
+  const new(
     this.kind, {
     this.diagnosticCause,
     this.diagnosticStack,
@@ -50,11 +50,11 @@ enum VideoTransportFailure {
 }
 
 final class VideoServiceConfiguration {
-  VideoServiceConfiguration({required this.uploadEndpoint}) {
+  new({required this.uploadEndpoint}) {
     _requireApprovedEndpoint(uploadEndpoint);
   }
 
-  factory VideoServiceConfiguration.bluesky() => VideoServiceConfiguration(
+  factory bluesky() => VideoServiceConfiguration(
     uploadEndpoint: Uri.parse(
       'https://video.bsky.app/xrpc/app.bsky.video.uploadVideo',
     ),
@@ -64,7 +64,7 @@ final class VideoServiceConfiguration {
 }
 
 final class VideoServiceClient {
-  factory VideoServiceClient({required Uri uploadEndpoint}) {
+  factory({required Uri uploadEndpoint}) {
     _requireApprovedEndpoint(uploadEndpoint);
     return VideoServiceClient._(
       uploadEndpoint,
@@ -81,11 +81,11 @@ final class VideoServiceClient {
     );
   }
 
-  factory VideoServiceClient.fromConfiguration(
+  factory fromConfiguration(
     VideoServiceConfiguration configuration,
   ) => VideoServiceClient(uploadEndpoint: configuration.uploadEndpoint);
 
-  factory VideoServiceClient.forTesting({
+  factory forTesting({
     required Uri uploadEndpoint,
     required Dio dio,
   }) {
@@ -93,7 +93,7 @@ final class VideoServiceClient {
     return VideoServiceClient._(uploadEndpoint, dio);
   }
 
-  VideoServiceClient._(this._uploadEndpoint, this._dio);
+  new _(this._uploadEndpoint, this._dio);
 
   final Uri _uploadEndpoint;
   final Dio _dio;

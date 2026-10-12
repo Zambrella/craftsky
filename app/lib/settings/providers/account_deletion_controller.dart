@@ -14,7 +14,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 part 'account_deletion_controller.g.dart';
 
 final class AccountDeletionFlowException implements Exception {
-  const AccountDeletionFlowException(this.reason);
+  const new(this.reason);
 
   final String reason;
 

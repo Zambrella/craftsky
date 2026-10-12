@@ -1,8 +1,8 @@
 import 'package:craftsky_app/theme/theme_extensions.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 class CraftskyEmptyState extends StatelessWidget {
-  const CraftskyEmptyState({
+  const new({
     required this.icon,
     required this.title,
     required this.subtitle,

@@ -1,12 +1,12 @@
 import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Generic empty/placeholder body for tabs that don't have data wiring
 /// yet (Projects, Reposts, Saved). Returns a [SliverFillRemaining] so
 /// it fills whatever scrollable space is left below the header chrome.
 /// Per the design-system voice, copy is warm rather than apologetic.
 class ProfileEmptyTab extends StatelessWidget {
-  const ProfileEmptyTab({
+  const new({
     required this.icon,
     required this.title,
     required this.subtitle,

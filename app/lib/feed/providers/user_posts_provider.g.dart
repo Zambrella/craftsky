@@ -53,7 +53,7 @@ final class UserPostsProvider
   }
 }
 
-String _$userPostsHash() => r'e4d5ddd772af6c803f8d76d22d10b782a5b57ab3';
+String _$userPostsHash() => r'd4d7624700b1079ef766dc57cd178f10ad26c272';
 
 /// Cursor-accumulating list-by-author provider, keyed by DID.
 
@@ -93,7 +93,7 @@ abstract class _$UserPosts extends $AsyncNotifier<UserPostsState> {
   FutureOr<UserPostsState> build(Did did);
   @$mustCallSuper
   @override
-  void runBuild() {
+  WhenComplete runBuild() {
     final ref = this.ref as $Ref<AsyncValue<UserPostsState>, UserPostsState>;
     final element =
         ref.element
@@ -103,6 +103,6 @@ abstract class _$UserPosts extends $AsyncNotifier<UserPostsState> {
               Object?,
               Object?
             >;
-    element.handleCreate(ref, () => build(_$args));
+    return element.handleCreate(ref, () => build(_$args));
   }
 }

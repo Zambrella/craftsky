@@ -32,13 +32,13 @@ final serviceStatusRouterConfigProvider =
     );
 
 class _StatusBackDispatcher extends RootBackButtonDispatcher {
-  _StatusBackDispatcher(this.maintenance, this.dismissAnnouncement);
+  new(this.maintenance, this.dismissAnnouncement);
   final bool Function() maintenance;
   final Future<bool> Function()? dismissAnnouncement;
   @override
   Future<bool> didPopRoute() async {
     if (maintenance()) return true;
     if (await dismissAnnouncement?.call() ?? false) return true;
-    return super.didPopRoute();
+    return await super.didPopRoute();
   }
 }

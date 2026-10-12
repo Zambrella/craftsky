@@ -7,7 +7,7 @@ import 'package:craftsky_app/instagram_migration/models/instagram_verification.d
 
 final class ApiInstagramMigrationRepository
     implements InstagramMigrationRepository {
-  const ApiInstagramMigrationRepository(this._api);
+  const new(this._api);
 
   final InstagramMigrationApiClient _api;
 

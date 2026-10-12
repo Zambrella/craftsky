@@ -14,11 +14,19 @@ persisted.
 
 ## Development
 
+The repository pins Flutter **3.47.7** (Dart **3.13.5**) in `.fvmrc` and CI.
+With FVM, run `fvm install` from the repository root, then use the pinned SDK:
+
 ```bash
 cd app
-flutter pub get
-flutter run
+fvm flutter pub get
+fvm flutter run
 ```
+
+The app requires Android API 26+, iOS 15+, and macOS 12+.
+Apple builds use Swift Package Manager; keep it enabled in `pubspec.yaml`.
+See [the Flutter 3.47 upgrade notes](../docs/development/flutter-3.47-upgrade.md)
+for migration details and validation.
 
 Point the app at a local App View (`http://localhost:8080` by default) once `appview/` is running.
 

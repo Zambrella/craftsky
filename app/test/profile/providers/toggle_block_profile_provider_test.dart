@@ -230,7 +230,7 @@ CraftskyNotification _followFrom(String did) => CraftskyNotification.fromMap({
 });
 
 final class _StaticNotificationRepository implements NotificationRepository {
-  const _StaticNotificationRepository(this.page);
+  const new(this.page);
 
   final NotificationPage page;
 
@@ -243,7 +243,7 @@ final class _StaticNotificationRepository implements NotificationRepository {
 }
 
 final class _RegistryStorage implements SessionRegistryStorage {
-  _RegistryStorage(this.registry);
+  new(this.registry);
 
   SessionRegistry registry;
 

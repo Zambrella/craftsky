@@ -10,7 +10,7 @@ part 'timeline_state.mapper.dart';
 /// `AsyncValue`, matching the existing profile-post provider pattern.
 @MappableClass()
 class TimelineState with TimelineStateMappable {
-  const TimelineState({required this.items, this.cursor});
+  const new({required this.items, this.cursor});
 
   final List<TimelineItem> items;
   final String? cursor;

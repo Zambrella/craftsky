@@ -22,14 +22,14 @@ enum InstagramSuggestionState {
 
 @immutable
 final class InstagramSuggestionTarget {
-  const InstagramSuggestionTarget({
+  const new({
     required this.did,
     required this.handle,
     this.displayName,
     this.avatar,
   });
 
-  factory InstagramSuggestionTarget.fromMap(Map<String, dynamic> map) {
+  factory fromMap(Map<String, dynamic> map) {
     final did = map['did'];
     final handle = map['handle'];
     final displayName = map['displayName'];
@@ -64,13 +64,13 @@ final class InstagramSuggestionTarget {
 
 @immutable
 final class InstagramSuggestion {
-  const InstagramSuggestion({
+  const new({
     required this.suggestionId,
     required this.target,
     required this.createdAt,
   });
 
-  factory InstagramSuggestion.fromMap(Map<String, dynamic> map) {
+  factory fromMap(Map<String, dynamic> map) {
     final suggestionId = map['suggestionId'];
     final target = map['target'];
     final createdAt = map['createdAt'];
@@ -97,12 +97,12 @@ final class InstagramSuggestion {
 
 @immutable
 final class InstagramSuggestionPage {
-  InstagramSuggestionPage({
+  new({
     required List<InstagramSuggestion> items,
     required this.cursor,
   }) : items = List.unmodifiable(items);
 
-  factory InstagramSuggestionPage.fromMap(Map<String, dynamic> map) {
+  factory fromMap(Map<String, dynamic> map) {
     final items = map['items'];
     final cursor = map['cursor'];
     if (items is! List<dynamic> || cursor is! String?) {
@@ -130,12 +130,12 @@ final class InstagramSuggestionPage {
 
 @immutable
 final class InstagramSuggestionActionResult {
-  const InstagramSuggestionActionResult({
+  const new({
     required this.suggestionId,
     required this.state,
   });
 
-  factory InstagramSuggestionActionResult.fromMap(Map<String, dynamic> map) {
+  factory fromMap(Map<String, dynamic> map) {
     final suggestionId = map['suggestionId'];
     final state = map['state'];
     if (suggestionId is! String || suggestionId.isEmpty || state is! String) {

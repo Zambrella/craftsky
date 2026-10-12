@@ -7,7 +7,7 @@ enum ActiveFacetTokenKind { mention, hashtag }
 /// A mention or hashtag token currently under the caret.
 class ActiveFacetToken {
   /// Creates an active token.
-  const ActiveFacetToken({
+  const new({
     required this.kind,
     required this.start,
     required this.end,
@@ -94,7 +94,7 @@ class FacetAutocompleteController {
 /// Debounces autocomplete lookups and ignores superseded scheduled queries.
 class DebouncedFacetLookup<T> {
   /// Creates a lookup debouncer with injectable [debounce].
-  DebouncedFacetLookup({required this.debounce});
+  new({required this.debounce});
 
   /// Delay before invoking the scheduled lookup.
   final Duration debounce;
@@ -108,6 +108,6 @@ class DebouncedFacetLookup<T> {
     if (generation != _generation) {
       return null;
     }
-    return lookup();
+    return await lookup();
   }
 }

@@ -14,7 +14,7 @@ part 'user_posts_state.mapper.dart';
 /// "full-page spinner" and "list + bottom spinner".
 @MappableClass()
 class UserPostsState with UserPostsStateMappable {
-  const UserPostsState({
+  const new({
     required this.items,
     this.cursor,
     this.pinnedPostUri,

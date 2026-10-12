@@ -3,7 +3,7 @@ import 'package:craftsky_app/shared/atproto/identifiers.dart';
 
 /// One retained account entry inside the secure session-registry snapshot.
 class StoredSession {
-  StoredSession({
+  new({
     required this.token,
     required String did,
     required String handle,

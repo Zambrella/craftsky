@@ -3,7 +3,7 @@ import 'package:craftsky_app/business/models/business_profile.dart';
 import 'package:craftsky_app/business/widgets/business_profile_summary.dart';
 import 'package:craftsky_app/feed/models/post_page.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
@@ -24,12 +24,12 @@ import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/widgets/craft_icon.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
-import 'package:flutter/cupertino.dart'
+import 'package:cupertino_ui/cupertino_ui.dart'
     show CupertinoPageTransition, CupertinoPageTransitionsBuilder;
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../fakes/auth_session_fakes.dart';
 import '../../feed/fakes/fake_post_repository.dart';
@@ -44,7 +44,7 @@ final _emptyPostRepository = FakePostRepository(
 );
 
 class _MarkedPageTransitionsBuilder extends CupertinoPageTransitionsBuilder {
-  const _MarkedPageTransitionsBuilder();
+  const new();
 
   @override
   Widget buildTransitions<T>(
@@ -87,7 +87,7 @@ Widget _wrap(
       theme: AppTheme.lightThemeData,
       darkTheme: AppTheme.darkThemeData,
       themeMode: themeMode,
-      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      localizationsDelegates: appLocalizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
       home: Scaffold(body: Center(child: child)),
     ),
@@ -741,7 +741,7 @@ void main() {
           ],
           child: MaterialApp.router(
             theme: AppTheme.lightThemeData,
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            localizationsDelegates: appLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             routerConfig: router,
           ),
@@ -817,7 +817,7 @@ void main() {
                   },
                 ),
               ),
-              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              localizationsDelegates: appLocalizationsDelegates,
               supportedLocales: AppLocalizations.supportedLocales,
               routerConfig: router,
             ),
@@ -1041,7 +1041,7 @@ void main() {
         ],
         child: MaterialApp(
           theme: AppTheme.lightThemeData,
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: appLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: ProfileRoutePresentation(
             did: Did.parse('did:plc:alice'),
@@ -1090,7 +1090,7 @@ void main() {
           ],
           child: MaterialApp(
             theme: AppTheme.lightThemeData,
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            localizationsDelegates: appLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             home: ProfileRoutePresentation(
               did: Did.parse('did:plc:alice'),
@@ -1166,7 +1166,7 @@ void main() {
         ],
         child: MaterialApp(
           theme: AppTheme.lightThemeData,
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: appLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           builder: (context, child) => MediaQuery(
             data: MediaQuery.of(

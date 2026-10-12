@@ -169,7 +169,7 @@ SessionRegistry _ownerRegistry() => SessionRegistry.empty()
     );
 
 final class _Offering implements RevenueCatOffering {
-  const _Offering(this.identifier, this.packages);
+  const new(this.identifier, this.packages);
 
   @override
   final String identifier;
@@ -183,7 +183,7 @@ final class _Offering implements RevenueCatOffering {
 }
 
 final class _PaywallService implements RevenueCatService {
-  _PaywallService({
+  new({
     required this.offerings,
     required this.result,
     this.failPresentation = false,

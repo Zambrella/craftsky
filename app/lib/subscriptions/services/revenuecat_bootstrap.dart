@@ -5,7 +5,6 @@ enum RevenueCatPlatform { ios, android, web, macos, windows, linux }
 enum RevenueCatSdkLogLevel { debug, info }
 
 // Kept as an interface so native setup can be replaced in tests and bootstrap.
-// ignore: one_member_abstracts
 abstract interface class RevenueCatConfigurator {
   Future<RevenueCatService> configure({
     required String publicKey,

@@ -50,7 +50,7 @@ final class ProfilePinsProvider
   }
 }
 
-String _$profilePinsHash() => r'315e4ba20f46c3ee919a2dde22e6bfbcdf4495e4';
+String _$profilePinsHash() => r'19c597bf56ee47042dd720f48395188174a0d4ee';
 
 final class ProfilePinsFamily extends $Family
     with
@@ -84,7 +84,7 @@ abstract class _$ProfilePins extends $AsyncNotifier<ProfilePinsPresentation> {
   FutureOr<ProfilePinsPresentation> build(ActiveAccountLease accountLease);
   @$mustCallSuper
   @override
-  void runBuild() {
+  WhenComplete runBuild() {
     final ref =
         this.ref
             as $Ref<
@@ -102,6 +102,6 @@ abstract class _$ProfilePins extends $AsyncNotifier<ProfilePinsPresentation> {
               Object?,
               Object?
             >;
-    element.handleCreate(ref, () => build(_$args));
+    return element.handleCreate(ref, () => build(_$args));
   }
 }

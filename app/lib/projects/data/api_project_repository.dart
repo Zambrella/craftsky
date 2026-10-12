@@ -4,7 +4,7 @@ import 'package:craftsky_app/projects/data/project_repository.dart';
 import 'package:craftsky_app/projects/models/project_browse_filters.dart';
 
 class ApiProjectRepository implements ProjectRepository {
-  const ApiProjectRepository(this._api);
+  const new(this._api);
 
   final ProjectApiClient _api;
 

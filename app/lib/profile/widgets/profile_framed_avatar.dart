@@ -1,11 +1,11 @@
 import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Compatibility wrapper that centres the standard large profile avatar in
 /// the existing 124 px profile-header positioning box.
 class ProfileFramedAvatar extends StatelessWidget {
-  const ProfileFramedAvatar({
+  const new({
     required this.seed,
     this.avatarUrl,
     this.customisation = ProfileCustomisation.defaults,

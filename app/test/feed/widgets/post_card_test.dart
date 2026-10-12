@@ -17,7 +17,7 @@ import 'package:craftsky_app/feed/widgets/external_card.dart';
 import 'package:craftsky_app/feed/widgets/post_card.dart';
 import 'package:craftsky_app/feed/widgets/post_image_gallery.dart';
 import 'package:craftsky_app/feed/widgets/post_interaction_summary.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/moderation/models/moderation_metadata.dart';
 import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:craftsky_app/profile/models/profile_relationship.dart';
@@ -48,11 +48,11 @@ import 'package:craftsky_app/theme/craftsky_card.dart';
 import 'package:craftsky_app/theme/craftsky_context_menu.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../fakes/auth_session_fakes.dart';
 import '../../fakes/recording_messenger.dart';
@@ -135,7 +135,7 @@ InteractionWriteResponse _interaction(Post post) => InteractionWriteResponse(
 );
 
 final class _PinRegistryStorage implements SessionRegistryStorage {
-  _PinRegistryStorage()
+  new()
     : value = SessionRegistry.empty().upsertAndActivate(
         token: 'token-alice',
         did: 'did:plc:alice',
@@ -175,7 +175,7 @@ Future<void> _pump(
         messenger: RecordingMessenger(),
         child: MaterialApp(
           theme: theme ?? AppTheme.lightThemeData,
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: appLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: Scaffold(body: child),
         ),
@@ -207,8 +207,7 @@ void main() {
                   parent: kind == 'comment'
                       ? root
                       : PostRef(
-                          uri:
-                              'at://did:plc:carol/social.craftsky.feed.post/comment',
+                          uri: 'at://did:plc:carol/social.craftsky.feed.post/comment',
                           cid: 'comment-cid',
                         ),
                 ),
@@ -563,7 +562,7 @@ void main() {
           ],
           child: MaterialApp.router(
             theme: AppTheme.lightThemeData,
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            localizationsDelegates: appLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             routerConfig: router,
           ),
@@ -1050,7 +1049,11 @@ void main() {
         tester,
         PostCard(post: _post(), onLike: () => request.future),
       );
-      await tester.tap(find.byTooltip('Like'));
+      await tester.tap(
+        find.byWidgetPredicate(
+          (widget) => widget is Tooltip && widget.message == 'Like',
+        ),
+      );
       await tester.pump();
       expect(find.byType(StitchProgressIndicator), findsNothing);
       expect(find.byIcon(CraftskyIconsBold.like), findsOneWidget);
@@ -1082,7 +1085,11 @@ void main() {
         overrides: [postRepositoryProvider.overrideWithValue(fake)],
       );
 
-      await tester.tap(find.byTooltip('Like'));
+      await tester.tap(
+        find.byWidgetPredicate(
+          (widget) => widget is Tooltip && widget.message == 'Like',
+        ),
+      );
       await tester.pump();
 
       expect(find.byIcon(CraftskyIcons.liked), findsOneWidget);

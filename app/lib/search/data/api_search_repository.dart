@@ -9,7 +9,7 @@ import 'package:craftsky_app/search/models/search_suggestions.dart';
 import 'package:craftsky_app/search/models/top_hashtags.dart';
 
 class ApiSearchRepository implements SearchRepository {
-  const ApiSearchRepository(this._api);
+  const new(this._api);
 
   final SearchApiClient _api;
 

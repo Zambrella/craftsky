@@ -347,4 +347,3 @@ class _HashtagSuggestionCopyWithImpl<$R, $Out>
     Then<$Out2, $R2> t,
   ) => _HashtagSuggestionCopyWithImpl<$R2, $Out2>($value, $cast, t);
 }
-

@@ -463,4 +463,3 @@ class _ProfileCopyWithImpl<$R, $Out>
   ProfileCopyWith<$R2, Profile, $Out2> $chain<$R2, $Out2>(Then<$Out2, $R2> t) =>
       _ProfileCopyWithImpl<$R2, $Out2>($value, $cast, t);
 }
-

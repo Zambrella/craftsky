@@ -8,7 +8,7 @@ part 'interaction_write_response.mapper.dart';
   includeCustomMappers: [AtUriMapper(), CidMapper(), RecordKeyMapper()],
 )
 class InteractionWriteResponse with InteractionWriteResponseMappable {
-  InteractionWriteResponse({
+  new({
     required String uri,
     required String cid,
     required String rkey,
