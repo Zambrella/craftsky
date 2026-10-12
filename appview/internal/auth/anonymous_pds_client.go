@@ -3,10 +3,12 @@ package auth
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
+	"social.craftsky/appview/internal/recordjson"
 
 	"github.com/bluesky-social/indigo/atproto/atclient"
 	"github.com/bluesky-social/indigo/atproto/identity"
@@ -80,9 +82,9 @@ func (c *AnonymousPDSClient) GetRecord(ctx context.Context, repo syntax.DID, col
 		return "", fmt.Errorf("parse nsid: %w", err)
 	}
 	var resp struct {
-		URI   string `json:"uri"`
-		CID   string `json:"cid"`
-		Value any    `json:"value"`
+		URI   string          `json:"uri"`
+		CID   string          `json:"cid"`
+		Value json.RawMessage `json:"value"`
 	}
 	params := map[string]any{
 		"repo":       repo.String(),
@@ -95,13 +97,16 @@ func (c *AnonymousPDSClient) GetRecord(ctx context.Context, repo syntax.DID, col
 	if resp.CID == "" {
 		return "", fmt.Errorf("getRecord: PDS returned empty cid for %s/%s", collection, rkey)
 	}
-	if m, ok := out.(*map[string]any); ok {
-		if v, ok := resp.Value.(map[string]any); ok {
-			*m = v
-			return resp.CID, nil
+	if target, ok := out.(*map[string]any); ok {
+		if err := recordjson.Unmarshal(resp.Value, target); err != nil {
+			return "", fmt.Errorf("decode getRecord value: %w", err)
 		}
-		return "", fmt.Errorf("getRecord value has unexpected type %T", resp.Value)
+		if *target == nil {
+			return "", errors.New("getRecord value must be an object")
+		}
+		return resp.CID, nil
 	}
+
 	return "", fmt.Errorf("unsupported out type %T", out)
 }
 

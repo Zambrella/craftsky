@@ -60,7 +60,17 @@ class ErrorMappingInterceptor extends Interceptor {
     // Server prose and resource paths stay out of diagnostics.
     // Validation fields are retained separately for UI validation.
     // Codes are a bounded API contract, not a catalogue of server wording.
+    final retryAfter = int.tryParse(
+      err.response?.headers.value('retry-after') ?? '',
+    );
     return ApiFailureDetails(
+      retryAfterSeconds:
+          statusCode == 429 &&
+              retryAfter != null &&
+              retryAfter > 0 &&
+              retryAfter <= 2147483647
+          ? retryAfter
+          : null,
       statusCode: err.response?.statusCode,
       appViewError: field('error', RegExp(r'^[a-z][a-z0-9_]{0,79}$')),
       requestId: field('requestId', RegExp(r'^[A-Za-z0-9_-]{1,160}$')),

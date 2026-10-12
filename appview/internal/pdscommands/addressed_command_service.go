@@ -314,6 +314,10 @@ func (service *AddressedCommandService) deleteFenced(
 			continue
 		}
 		if err != nil {
+			var limited *auth.RateLimitError
+			if errors.As(err, &limited) {
+				return CommandResult{}, service.store.CompleteRateLimitedDispatch(ctx, attempt.ID, err)
+			}
 			if errors.Is(err, ErrDispatchRejected) {
 				return service.rejectDeleteDispatch(ctx, attempt.ID, command.ID, request, "rejected", err)
 			}
@@ -429,6 +433,10 @@ func (service *AddressedCommandService) putFenced(
 			continue
 		}
 		if err != nil {
+			var limited *auth.RateLimitError
+			if errors.As(err, &limited) {
+				return CommandResult{}, service.store.CompleteRateLimitedDispatch(ctx, attempt.ID, err)
+			}
 			if errors.Is(err, ErrAtomicWritesUnsupported) || errors.Is(err, ErrDispatchRejected) {
 				errorClass := "rejected"
 				if errors.Is(err, ErrAtomicWritesUnsupported) {

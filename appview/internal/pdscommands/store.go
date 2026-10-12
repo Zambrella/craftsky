@@ -14,6 +14,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"social.craftsky/appview/internal/auth"
 	"social.craftsky/appview/internal/ownerlifecycle"
 )
 
@@ -426,7 +427,16 @@ func (store *Store) BeginDispatch(ctx context.Context, commandID uuid.UUID, plan
 			`, commandID).Scan(&lastOutcome); err != nil {
 				return fmt.Errorf("read previous PDS dispatch outcome: %w", err)
 			}
-			canDispatch = lastOutcome == string(DispatchInvalidSwap)
+			canDispatch = lastOutcome == string(DispatchInvalidSwap) || lastOutcome == string(DispatchRateLimited)
+			if lastOutcome == string(DispatchRateLimited) {
+				var retryAt time.Time
+				if err := tx.QueryRow(ctx, `SELECT retry_not_before FROM pds_command_dispatches WHERE command_id=$1 ORDER BY attempt_ordinal DESC LIMIT 1`, commandID).Scan(&retryAt); err != nil {
+					return err
+				}
+				if now.Before(retryAt) {
+					return &auth.RateLimitError{RetryAfter: retryAt.Sub(now)}
+				}
+			}
 		}
 		if !canDispatch || plan.Version < activePlanVersion {
 			return ErrIllegalTransition
@@ -484,7 +494,7 @@ func (store *Store) BeginDispatch(ctx context.Context, commandID uuid.UUID, plan
 }
 
 func (store *Store) CompleteDispatch(ctx context.Context, attemptID uuid.UUID, completion DispatchCompletion) error {
-	if completion.Outcome != CommandAccepted && completion.Outcome != CommandAmbiguous && completion.Outcome != CommandRejected && completion.Outcome != DispatchInvalidSwap {
+	if completion.Outcome != CommandAccepted && completion.Outcome != CommandAmbiguous && completion.Outcome != CommandRejected && completion.Outcome != DispatchInvalidSwap && completion.Outcome != DispatchRateLimited {
 		return errors.New("invalid dispatch completion outcome")
 	}
 	if completion.Outcome == CommandAmbiguous && (completion.RetryAfterSeconds < 1 || completion.RetryAfterSeconds > 5) {
@@ -543,7 +553,7 @@ func (store *Store) completeDispatchTx(
 		return fmt.Errorf("lock PDS dispatch completion: %w", err)
 	}
 	validTransition := CanTransition(CommandState(rawState), completion.Outcome)
-	if completion.Outcome == DispatchInvalidSwap {
+	if completion.Outcome == DispatchInvalidSwap || completion.Outcome == DispatchRateLimited {
 		validTransition = CommandState(rawState) == CommandDispatching
 	}
 	if dispatchOutcome != "dispatching" || !validTransition {
@@ -551,10 +561,10 @@ func (store *Store) completeDispatchTx(
 	}
 	if _, err := tx.Exec(ctx, `
 			UPDATE pds_command_dispatches
-			SET outcome=$2,error_class=$3,result_commit_cid=$4,result_records=$5,completed_at=$6
+			SET outcome=$2,error_class=$3,result_commit_cid=$4,result_records=$5,completed_at=$6,retry_not_before=$7
 			WHERE id=$1
 		`, attemptID, completion.Outcome, nullableCommandString(completion.ErrorClass),
-		nullableCommandString(completion.ResultCommitCID.String()), nullableCommandJSON(completion.ResultRecords), now); err != nil {
+		nullableCommandString(completion.ResultCommitCID.String()), nullableCommandJSON(completion.ResultRecords), now, dispatchRetryAt(completion, now)); err != nil {
 		return fmt.Errorf("complete PDS dispatch: %w", err)
 	}
 	if completion.Outcome == CommandAmbiguous {
@@ -625,32 +635,55 @@ func (store *Store) UnresolvedResult(ctx context.Context, command PreparedComman
 	return store.Result(ctx, command.ID)
 }
 
-// ResumeKnownInvalidSwap permits a fresh head-bound plan only when the last
-// dispatch was definitively rejected by the repository-head guard. Uncertain
-// remote outcomes must continue through read-only reconciliation.
+// ResumeKnownInvalidSwap permits a fresh head-bound plan only after a definite
+// non-application response (head conflict or rate limit). Uncertain outcomes
+// continue through read-only reconciliation. Rate limits do not use the swap budget.
 func (store *Store) ResumeKnownInvalidSwap(ctx context.Context, command PreparedCommand) (PreparedCommand, int, error) {
 	if command.State == CommandPrepared {
 		return command, 1, nil
 	}
-	var ordinal int
+	var swaps int
 	var outcome string
+	var retryAt *time.Time
 	err := store.withTransaction(ctx, func(tx pgx.Tx) error {
-		return tx.QueryRow(ctx, `
-			SELECT attempt_ordinal,outcome FROM pds_command_dispatches
-			WHERE command_id=$1 ORDER BY attempt_ordinal DESC LIMIT 1
-		`, command.ID).Scan(&ordinal, &outcome)
+		return tx.QueryRow(ctx, `SELECT outcome,retry_not_before,
+   (SELECT count(*) FROM pds_command_dispatches WHERE command_id=$1 AND outcome='invalid_swap')
+   FROM pds_command_dispatches WHERE command_id=$1 ORDER BY attempt_ordinal DESC LIMIT 1`, command.ID).Scan(&outcome, &retryAt, &swaps)
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return command, 1, nil
 	}
 	if err != nil {
-		return command, 0, fmt.Errorf("read last PDS dispatch for swap recovery: %w", err)
+		return command, 0, fmt.Errorf("read last PDS dispatch for recovery: %w", err)
 	}
-	if outcome == string(DispatchInvalidSwap) {
-		command.State = CommandPrepared // only the local planning decision; durable state is unchanged
-		return command, ordinal + 1, nil
+	if outcome == string(DispatchRateLimited) && retryAt != nil && store.now().Before(*retryAt) {
+		return command, 0, &auth.RateLimitError{RetryAfter: retryAt.Sub(store.now())}
+	}
+	if outcome == string(DispatchInvalidSwap) || outcome == string(DispatchRateLimited) {
+		command.State = CommandPrepared // local planning only; durable state remains dispatching
+		return command, swaps + 1, nil
 	}
 	return command, 1, nil
+}
+
+func dispatchRetryAt(completion DispatchCompletion, now time.Time) *time.Time {
+	if completion.Outcome != DispatchRateLimited {
+		return nil
+	}
+	retryAt := now.Add(time.Duration(max(1, completion.RetryAfterSeconds)) * time.Second)
+	return &retryAt
+}
+
+func (store *Store) CompleteRateLimitedDispatch(ctx context.Context, attemptID uuid.UUID, err error) error {
+	var limited *auth.RateLimitError
+	if !errors.As(err, &limited) {
+		return err
+	}
+	if completeErr := store.CompleteDispatch(ctx, attemptID, DispatchCompletion{Outcome: DispatchRateLimited, ErrorClass: "rate_limited", RetryAfterSeconds: limited.RetrySeconds()}); completeErr != nil {
+		// Persistence failure must surface as unavailable, not as an upstream throttle.
+		return completeErr
+	}
+	return err
 }
 
 func (store *Store) CompleteCommand(ctx context.Context, commandID uuid.UUID, result TerminalResult) error {

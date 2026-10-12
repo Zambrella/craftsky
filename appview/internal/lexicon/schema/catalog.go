@@ -7,11 +7,11 @@ import (
 	"regexp"
 	"strconv"
 
-	"github.com/bluesky-social/indigo/atproto/atdata"
 	indigolexicon "github.com/bluesky-social/indigo/atproto/lexicon"
+	"social.craftsky/appview/internal/recordjson"
 )
 
-//go:embed actor/*.json business/*.json
+//go:embed actor business feed project standard
 var craftskySchemas embed.FS
 
 var craftskyCatalog = func() *indigolexicon.BaseCatalog {
@@ -31,7 +31,7 @@ func ValidateCraftskyRecord(raw json.RawMessage, nsid string) error {
 }
 
 func validateRecord(raw json.RawMessage, nsid, kind string) error {
-	decoded, err := atdata.UnmarshalJSON(raw)
+	decoded, err := recordjson.Parse(raw)
 	if err != nil {
 		return &ValidationError{Cause: fmt.Errorf("decode %s record: %w", kind, err)}
 	}
@@ -39,8 +39,8 @@ func validateRecord(raw json.RawMessage, nsid, kind string) error {
 	if record == nil {
 		return &ValidationError{Cause: fmt.Errorf("decode %s record: expected object", kind)}
 	}
-	if _, ok := record["$type"]; !ok {
-		record["$type"] = nsid
+	if record["$type"] != nsid {
+		return &ValidationError{Cause: fmt.Errorf("record type must match collection")}
 	}
 	if err := indigolexicon.ValidateRecord(craftskyCatalog, record, nsid, 0); err != nil {
 		failure := &ValidationError{Cause: err}

@@ -354,6 +354,10 @@ func (service *SetCommandService) dispatch(
 		return CommandResult{}, true, nil
 	}
 	if err != nil {
+		var limited *auth.RateLimitError
+		if errors.As(err, &limited) {
+			return CommandResult{}, false, service.store.CompleteRateLimitedDispatch(ctx, attempt.ID, err)
+		}
 		if errors.Is(err, ErrAtomicWritesUnsupported) || errors.Is(err, ErrDispatchRejected) {
 			errorClass := "rejected"
 			if errors.Is(err, ErrAtomicWritesUnsupported) {

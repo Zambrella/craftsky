@@ -674,6 +674,10 @@ func (service *OAuthFlowService) processInitialCallback(
 	); err != nil {
 		return OAuthCallbackResult{}, fmt.Errorf("quarantine initial OAuth credential: %w", err)
 	}
+	if !validRegistrationTokenScopes(tokenResponse.Scope, service.app.Config.Scopes) {
+		service.markCallbackCredentialForCleanup(ctx, attempt.State, attempt.AttemptID)
+		return OAuthCallbackResult{}, ErrOAuthFlowInvalid
+	}
 	authorityStarted := time.Now()
 	currentAuthority, err := service.authorityVerifier.ResolveCurrent(ctx, metadata.Owner)
 	if err != nil {

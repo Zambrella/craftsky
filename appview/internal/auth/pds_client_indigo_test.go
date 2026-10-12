@@ -104,7 +104,7 @@ func TestTranslateGetRecordError_RecordNotFoundByName(t *testing.T) {
 	}
 }
 
-func TestIndigoPDSClientListRecordsReturnsTypedPaginatedBlocks(t *testing.T) {
+func TestIndigoPDSClientListRecordsPreservesPaginatedRecordData(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/xrpc/com.atproto.repo.listRecords" || r.Method != http.MethodGet {
 			t.Fatalf("unexpected request: %s %s", r.Method, r.URL.Path)
@@ -119,7 +119,7 @@ func TestIndigoPDSClientListRecordsReturnsTypedPaginatedBlocks(t *testing.T) {
 			"records":[{
 				"uri":"at://did:plc:alice/app.bsky.graph.block/one",
 				"cid":"bafy-one",
-				"value":{"$type":"app.bsky.graph.block","subject":"did:plc:bob","createdAt":"2026-07-19T12:00:00Z"}
+				"value":{"$type":"app.bsky.graph.block","subject":"did:plc:bob","createdAt":"2026-07-19T12:00:00Z","futureCount":9007199254740993}
 			}]
 		}`))
 	}))
@@ -133,10 +133,18 @@ func TestIndigoPDSClientListRecordsReturnsTypedPaginatedBlocks(t *testing.T) {
 	if cursor != "page-2" || len(records) != 1 || records[0].URI.String() != "at://did:plc:alice/app.bsky.graph.block/one" || records[0].CID != syntax.CID("bafy-one") {
 		t.Fatalf("records/cursor = %+v/%q", records, cursor)
 	}
-	block, ok := records[0].Value.(*bsky.GraphBlock)
-	if !ok || block.Subject != "did:plc:bob" {
-		t.Fatalf("record value = %#v (%T), want typed block", records[0].Value, records[0].Value)
+	raw, err := json.Marshal(records[0].Value)
+	if err != nil {
+		t.Fatal(err)
 	}
+	if !strings.Contains(string(raw), "9007199254740993") {
+		t.Fatal("listRecords lost an extension integer")
+	}
+	var block bsky.GraphBlock
+	if err := json.Unmarshal(raw, &block); err != nil || block.Subject != "did:plc:bob" {
+		t.Fatalf("record = %s, error = %v", raw, err)
+	}
+
 }
 
 func TestIndigoPDSClientRepositoryCommandProtocol(t *testing.T) {

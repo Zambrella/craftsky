@@ -272,10 +272,7 @@ lexgen:
       ../lexicon/social/craftsky \
       cmd/lexgen/external/community.lexicon.location.address.bafyreicdvexolyvp6j6yksqiib7hihwktt6ogalbvyzvtkj6ecrtqqw5fq.json
     go run ./cmd/lexgen/cborgen
-    cp ../lexicon/social/craftsky/business/defs.json internal/lexicon/schema/business/defs.json
-    cp ../lexicon/social/craftsky/business/profile.json internal/lexicon/schema/business/profile.json
-    cp ../lexicon/social/craftsky/business/event.json internal/lexicon/schema/business/event.json
-    cp cmd/lexgen/external/community.lexicon.location.address.bafyreicdvexolyvp6j6yksqiib7hihwktt6ogalbvyzvtkj6ecrtqqw5fq.json internal/lexicon/schema/business/address.json
+    ../scripts/lexicon-catalog-sync "$INDIGO_DIR"
     gofmt -w internal/lexicon/craftsky internal/lexicon/community
 
 # Drift guard: snapshot generated outputs, regenerate, and fail on any change.

@@ -35,7 +35,7 @@ func TestProjectSetSourceReplacesValidFactWithLatestValidationState(t *testing.T
 	event := tap.Event{
 		ID: 1, URI: uri, DID: actor, Collection: blueskyFollowNSID, Rkey: "3aaaaaaaaaaa2",
 		Rev: "3aaaaaaaaaaa2", CID: "bafy-follow-valid", Action: "create",
-		Record: json.RawMessage(`{"subject":"did:plc:target","createdAt":"2026-09-23T14:00:00Z"}`),
+		Record: json.RawMessage(`{"$type":"app.bsky.graph.follow","subject":"did:plc:target","createdAt":"2026-09-23T14:00:00Z"}`),
 	}
 	ingestAndProjectSetSource(t, store, pool, event, now)
 	assertSetFactCounts(t, pool, uri, 1, 1)
@@ -44,14 +44,14 @@ func TestProjectSetSourceReplacesValidFactWithLatestValidationState(t *testing.T
 	event.Rev = "3aaaaaaaaaaa3"
 	event.CID = "bafy-follow-invalid"
 	event.Action = "update"
-	event.Record = json.RawMessage(`{"subject":"not-a-did","createdAt":"2026-09-23T14:00:00Z"}`)
+	event.Record = json.RawMessage(`{"$type":"app.bsky.graph.follow","subject":"not-a-did","createdAt":"2026-09-23T14:00:00Z"}`)
 	ingestAndProjectSetSource(t, store, pool, event, now.Add(time.Minute))
 	assertSetFactCounts(t, pool, uri, 0, 0)
 
 	event.ID = 3
 	event.Rev = "3aaaaaaaaaaa4"
 	event.CID = "bafy-follow-restored"
-	event.Record = json.RawMessage(`{"subject":"did:plc:target","createdAt":"2026-09-23T14:02:00Z"}`)
+	event.Record = json.RawMessage(`{"$type":"app.bsky.graph.follow","subject":"did:plc:target","createdAt":"2026-09-23T14:02:00Z"}`)
 	ingestAndProjectSetSource(t, store, pool, event, now.Add(2*time.Minute))
 	assertSetFactCounts(t, pool, uri, 1, 1)
 }
@@ -177,7 +177,7 @@ func TestProjectSetSourceWakesBlockedDependencyWithoutTapReplay(t *testing.T) {
 		ID: 10, URI: "at://did:plc:blocked-like-actor/social.craftsky.feed.like/3aaaaaaaaaaa4",
 		DID: actor, Collection: craftskyLikeNSID, Rkey: "3aaaaaaaaaaa4",
 		Rev: "3aaaaaaaaaaa4", CID: "bafy-like", Action: "create",
-		Record: json.RawMessage(`{"subject":{"uri":"` + subject.String() + `","cid":"bafysubject"},"createdAt":"2026-09-23T15:00:00Z"}`),
+		Record: json.RawMessage(`{"$type":"social.craftsky.feed.like","subject":{"uri":"` + subject.String() + `","cid":"bafyreig7k3sfss7d4efoww2cirg3gfkaglujbqxvxl7p6xwtfwswet7jby"},"createdAt":"2026-09-23T15:00:00Z"}`),
 	}
 	if _, err := store.IngestRecord(ctx, event); err != nil {
 		t.Fatalf("ingest like: %v", err)

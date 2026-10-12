@@ -199,7 +199,7 @@ func (c *CraftskyPost) handleUpsert(ctx context.Context, ev tap.Event) error {
 			 quote_uri, quote_cid, tags, langs, is_project, project_craft_type, record, created_at,
 			 external_import_source, profile_sort_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20,
-		        $21, COALESCE($22::timestamptz, now()))
+		        $21, LEAST(COALESCE($22::timestamptz, now()), now()))
 		ON CONFLICT (uri) DO UPDATE SET
 			cid              = EXCLUDED.cid,
 			text             = EXCLUDED.text,

@@ -262,7 +262,7 @@ Every error response (any 4xx or 5xx) uses the same JSON body shape:
 - `404` — resource doesn't exist or isn't visible to caller.
 - `409` — conflict (e.g. duplicate handle).
 - `422` — semantically invalid (`validation_failed` with `fields`).
-- `429` — rate-limited. (Rate limiting itself is future work; status code is reserved.)
+- `429` — rate-limited. Keyed PDS writes return `pds_rate_limited` with integer `Retry-After` seconds when the upstream PDS refuses a dispatch. Retry the unchanged endpoint, body, and idempotency key after that delay.
 - `500` — unexpected server error.
 - `502` — downstream dependency (PDS, Authorization Server) failed.
 - `503` — temporary, retryable (migrations running, overloaded).

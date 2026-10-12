@@ -14,10 +14,10 @@ func TestAuthoritativeSetValidationMatchesIngestionAcrossCollections(t *testing.
 		collection syntax.NSID
 		body       string
 	}{
-		{"app.bsky.graph.follow", `{"subject":"did:plc:target","createdAt":"2026-09-24T12:00:00Z"}`},
-		{"app.bsky.graph.block", `{"subject":"did:plc:target","createdAt":"2026-09-24T12:00:00Z"}`},
-		{"social.craftsky.feed.like", `{"subject":{"uri":"at://did:plc:target/social.craftsky.feed.post/3aaaaaaaaaaa1","cid":"bafy-subject"},"createdAt":"2026-09-24T12:00:00Z"}`},
-		{"social.craftsky.feed.repost", `{"subject":{"uri":"at://did:plc:target/social.craftsky.feed.post/3aaaaaaaaaaa1","cid":"bafy-subject"},"createdAt":"2026-09-24T12:00:00Z"}`},
+		{"app.bsky.graph.follow", `{"$type":"app.bsky.graph.follow","subject":"did:plc:target","createdAt":"2026-09-24T12:00:00Z"}`},
+		{"app.bsky.graph.block", `{"$type":"app.bsky.graph.block","subject":"did:plc:target","createdAt":"2026-09-24T12:00:00Z"}`},
+		{"social.craftsky.feed.like", `{"$type":"social.craftsky.feed.like","subject":{"uri":"at://did:plc:target/social.craftsky.feed.post/3aaaaaaaaaaa1","cid":"bafyreig7k3sfss7d4efoww2cirg3gfkaglujbqxvxl7p6xwtfwswet7jby"},"createdAt":"2026-09-24T12:00:00Z"}`},
+		{"social.craftsky.feed.repost", `{"$type":"social.craftsky.feed.repost","subject":{"uri":"at://did:plc:target/social.craftsky.feed.post/3aaaaaaaaaaa1","cid":"bafyreig7k3sfss7d4efoww2cirg3gfkaglujbqxvxl7p6xwtfwswet7jby"},"createdAt":"2026-09-24T12:00:00Z"}`},
 	} {
 		t.Run(test.collection.String(), func(t *testing.T) {
 			record := pdscommands.AuthoritativeRecord{
@@ -25,7 +25,7 @@ func TestAuthoritativeSetValidationMatchesIngestionAcrossCollections(t *testing.
 				CID: "bafy-source", Record: json.RawMessage(test.body),
 			}
 			if !validAuthoritativeSetRecord(record, test.collection) {
-				t.Fatal("valid external record without $type was ignored")
+				t.Fatal("valid external record was ignored")
 			}
 			record.URI = syntax.ATURI("at://did:plc:actor/" + test.collection.String() + "/invalid-key")
 			if validAuthoritativeSetRecord(record, test.collection) {

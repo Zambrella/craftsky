@@ -59,7 +59,7 @@ func TestTransactionalDispatcherRegisterRejectsDuplicateWithoutReplacingOriginal
 	outcome, err := dispatcher.Project(context.Background(), nil, ingestion.SourceRecord{
 		URI: "at://did:plc:actor/app.bsky.actor.profile/self",
 		DID: "did:plc:actor", Collection: collection, Rkey: "self",
-		Action: "create", Record: json.RawMessage(`{"displayName":"Actor"}`),
+		Action: "create", Record: json.RawMessage(`{"$type":"app.bsky.actor.profile","displayName":"Actor"}`),
 	})
 	if err != nil || outcome.Kind != tap.OutcomeApplied {
 		t.Fatalf("original registration was replaced: outcome=%+v err=%v", outcome, err)
@@ -146,7 +146,7 @@ func TestTransactionalDispatcherRoutesValidatedSource(t *testing.T) {
 		URI: "at://did:plc:actor/app.bsky.actor.profile/self",
 		DID: "did:plc:actor", Collection: blueskyProfileNSID, Rkey: "self",
 		SourceEventID: 8, Revision: "3aaaaaaaaaaa3", CID: "bafy-profile", Action: "create",
-		Record: json.RawMessage(`{"displayName":"Actor"}`),
+		Record: json.RawMessage(`{"$type":"app.bsky.actor.profile","displayName":"Actor"}`),
 	})
 	if err != nil || outcome.Kind != tap.OutcomeApplied {
 		t.Fatalf("outcome=%+v err=%v", outcome, err)
@@ -162,7 +162,7 @@ func TestTransactionalDispatcherPreservesDurableSourceMetadata(t *testing.T) {
 		URI: "at://did:plc:actor/app.bsky.actor.profile/self",
 		DID: "did:plc:actor", Collection: blueskyProfileNSID, Rkey: "self",
 		SourceEventID: 8, Revision: "3aaaaaaaaaaa3", CID: "bafy-profile", Action: "create",
-		Record: json.RawMessage(`{"displayName":"Actor"}`), OrderingStatus: "authoritative",
+		Record: json.RawMessage(`{"$type":"app.bsky.actor.profile","displayName":"Actor"}`), OrderingStatus: "authoritative",
 		StructuralValidationStatus: sourcevalidation.Valid, SemanticValidationStatus: sourcevalidation.Valid,
 		UpdatedAt: updatedAt,
 	}
@@ -192,8 +192,8 @@ func TestTransactionalDispatcherRoutesBusinessRecordsWithSourceRevision(t *testi
 		rkey   syntax.RecordKey
 		record json.RawMessage
 	}{
-		businessProfileCollection: {rkey: "self", record: json.RawMessage(`{"tagline":"Independent","products":[{"title":"Yarn","uri":"https://shop.example/yarn","image":{"image":{"$type":"blob","ref":{"$link":"bafyreicdvexolyvp6j6yksqiib7hihwktt6ogalbvyzvtkj6ecrtqqw5fq"},"mimeType":"image/jpeg","size":1024},"aspectRatio":{"width":4,"height":3}}}],"futureExtension":true}`)},
-		businessEventCollection:   {rkey: "3meventrecord", record: json.RawMessage(`{"name":"Market","startsAt":"2026-09-10T10:00:00Z","endsAt":"2026-09-10T12:00:00Z","roles":["vendor"],"createdAt":"2026-09-01T00:00:00Z","futureExtension":true}`)},
+		businessProfileCollection: {rkey: "self", record: json.RawMessage(`{"$type":"social.craftsky.business.profile","tagline":"Independent","products":[{"title":"Yarn","uri":"https://shop.example/yarn","image":{"image":{"$type":"blob","ref":{"$link":"bafyreicdvexolyvp6j6yksqiib7hihwktt6ogalbvyzvtkj6ecrtqqw5fq"},"mimeType":"image/jpeg","size":1024},"aspectRatio":{"width":4,"height":3}}}],"futureExtension":true}`)},
+		businessEventCollection:   {rkey: "3meventrecord", record: json.RawMessage(`{"$type":"social.craftsky.business.event","name":"Market","startsAt":"2026-09-10T10:00:00Z","endsAt":"2026-09-10T12:00:00Z","roles":["vendor"],"createdAt":"2026-09-01T00:00:00Z","futureExtension":true}`)},
 	}
 	for collection, fixture := range records {
 		outcome, err := dispatcher.Project(context.Background(), nil, ingestion.SourceRecord{

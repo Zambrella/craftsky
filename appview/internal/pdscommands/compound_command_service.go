@@ -254,6 +254,10 @@ func (service *CompoundCommandService) putFenced(
 			continue
 		}
 		if err != nil {
+			var limited *auth.RateLimitError
+			if errors.As(err, &limited) {
+				return CommandResult{}, service.store.CompleteRateLimitedDispatch(ctx, attempt.ID, err)
+			}
 			if errors.Is(err, ErrAtomicWritesUnsupported) || errors.Is(err, ErrDispatchRejected) {
 				errorClass := "rejected"
 				if errors.Is(err, ErrAtomicWritesUnsupported) {

@@ -199,7 +199,7 @@ func TestCraftskyLikeProjectMaintainsLogicalAggregateAcrossDuplicateSources(t *t
 		event := tap.Event{
 			ID: uint64(index + 1), URI: uri, DID: actor, Collection: craftskyLikeNSID,
 			Rkey: rkey, Rev: syntax.TID(rkey), CID: syntax.CID(fmt.Sprintf("bafy-like-%d", index)), Action: "create",
-			Record: json.RawMessage(`{"$type":"social.craftsky.feed.like","subject":{"uri":"` + subject.String() + `","cid":"bafy-subject"},"createdAt":"2026-09-24T08:00:00Z"}`),
+			Record: json.RawMessage(`{"$type":"social.craftsky.feed.like","subject":{"uri":"` + subject.String() + `","cid":"bafyreig7k3sfss7d4efoww2cirg3gfkaglujbqxvxl7p6xwtfwswet7jby"},"createdAt":"2026-09-24T08:00:00Z"}`),
 		}
 		if _, err := store.IngestRecord(ctx, event); err != nil {
 			t.Fatalf("ingest like %d: %v", index, err)
@@ -363,7 +363,7 @@ func TestCraftskyRepostProjectMaintainsLogicalAggregateAcrossDuplicateSources(t 
 		event := tap.Event{
 			ID: uint64(index + 1), URI: uri, DID: actor, Collection: craftskyRepostNSID,
 			Rkey: uri.RecordKey(), Rev: syntax.TID(uri.RecordKey()), CID: syntax.CID(fmt.Sprintf("bafy-repost-%d", index)), Action: "create",
-			Record: json.RawMessage(`{"$type":"social.craftsky.feed.repost","subject":{"uri":"` + subject.String() + `","cid":"bafy-subject"},"createdAt":"2026-09-24T08:00:00Z"}`),
+			Record: json.RawMessage(`{"$type":"social.craftsky.feed.repost","subject":{"uri":"` + subject.String() + `","cid":"bafyreig7k3sfss7d4efoww2cirg3gfkaglujbqxvxl7p6xwtfwswet7jby"},"createdAt":"2026-09-24T08:00:00Z"}`),
 		}
 		if _, err := store.IngestRecord(ctx, event); err != nil {
 			t.Fatalf("ingest repost %d: %v", index, err)
@@ -733,7 +733,7 @@ func TestCraftskyLikeProjectPersistsMissingSubjectFactUntilDependencyWakeup(t *t
 	event := tap.Event{
 		ID: 1, URI: uri, DID: actor, Collection: craftskyLikeNSID,
 		Rkey: uri.RecordKey(), Rev: syntax.TID("3aaaaaaaaaaa3"), CID: syntax.CID("bafy-like"), Action: "create",
-		Record: json.RawMessage(`{"$type":"social.craftsky.feed.like","subject":{"uri":"` + subject.String() + `","cid":"bafy-subject"},"createdAt":"2026-09-24T09:00:00Z"}`),
+		Record: json.RawMessage(`{"$type":"social.craftsky.feed.like","subject":{"uri":"` + subject.String() + `","cid":"bafyreig7k3sfss7d4efoww2cirg3gfkaglujbqxvxl7p6xwtfwswet7jby"},"createdAt":"2026-09-24T09:00:00Z"}`),
 	}
 	if _, err := store.IngestRecord(ctx, event); err != nil {
 		t.Fatal(err)

@@ -103,7 +103,7 @@ func (s *SearchStore) searchPosts(ctx context.Context, req searchPostQuery) ([]S
 				COALESCE(r.repost_count, 0)::int AS repost_count,
 				COALESCE(re.reply_count, 0)::int AS reply_count,
 				(COALESCE(l.like_count, 0) + (2 * COALESCE(re.reply_count, 0)) + (3 * COALESCE(r.repost_count, 0))) /
-					pow(1 + greatest(extract(epoch from ($3::timestamptz - p.created_at)) / 3600, 0) / 72, 1.5) AS popularity_score
+					pow(1 + greatest(extract(epoch from ($3::timestamptz - LEAST(p.created_at, p.indexed_at))) / 3600, 0) / 72, 1.5) AS popularity_score
 			FROM craftsky_posts p
 			LEFT JOIN craftsky_project_posts pp ON pp.uri = p.uri
 			LEFT JOIN bluesky_profiles bp ON bp.did = p.did
@@ -140,8 +140,8 @@ func (s *SearchStore) searchPosts(ctx context.Context, req searchPostQuery) ([]S
 		FROM candidate p
 		LEFT JOIN craftsky_project_posts pp ON pp.uri = p.uri
 		LEFT JOIN bluesky_profiles bp ON bp.did = p.did
-		WHERE ($4::double precision IS NULL OR (popularity_score, p.created_at, p.uri) < ($4::double precision, $5::timestamptz, $6::text))
-		ORDER BY popularity_score DESC, p.created_at DESC, p.uri DESC
+		WHERE ($4::double precision IS NULL OR (popularity_score, LEAST(p.created_at, p.indexed_at), p.uri) < ($4::double precision, $5::timestamptz, $6::text))
+		ORDER BY popularity_score DESC, LEAST(p.created_at, p.indexed_at) DESC, p.uri DESC
 		LIMIT $2`
 		var queryErr error
 		rows, queryErr = s.pool.Query(ctx, q, req.Tag, queryLimit, req.Now, cur.ScorePtr(), cur.CreatedAtPtr(), cur.URIPtr(), strings.ToLower(req.Query), req.ViewerDID, req.ContentLanguages)
@@ -168,9 +168,9 @@ func (s *SearchStore) searchPosts(ctx context.Context, req searchPostQuery) ([]S
 		  )
 		` + relationshipTopLevelPredicate("$6") + `
 		` + languageVisibilityPredicate("p", "$6", "$7") + `
-		  AND ($3::timestamptz IS NULL OR (p.created_at, p.uri) < ($3::timestamptz, $4::text))
+		  AND ($3::timestamptz IS NULL OR (LEAST(p.created_at, p.indexed_at), p.uri) < ($3::timestamptz, $4::text))
 		` + postVisibleModerationPredicate + `
-		ORDER BY p.created_at DESC, p.uri DESC
+		ORDER BY LEAST(p.created_at, p.indexed_at) DESC, p.uri DESC
 		LIMIT $2`
 		var queryErr error
 		rows, queryErr = s.pool.Query(ctx, q, req.Tag, queryLimit, curCreatedAt, curURI, strings.ToLower(req.Query), req.ViewerDID, req.ContentLanguages)
@@ -197,10 +197,10 @@ func (s *SearchStore) searchPosts(ctx context.Context, req searchPostQuery) ([]S
 	out = out[:req.Limit]
 	last := out[len(out)-1]
 	if req.Sort == SearchSortPopular {
-		next, err := EncodePopularityCursor(req.Now, last.Score, last.Post.CreatedAt, last.Post.URI)
+		next, err := EncodePopularityCursor(req.Now, last.Score, last.Post.SortAt(), last.Post.URI)
 		return out, next, err
 	}
-	next, err := EncodeChronologicalSearchCursor(last.Post.CreatedAt, last.Post.URI)
+	next, err := EncodeChronologicalSearchCursor(last.Post.SortAt(), last.Post.URI)
 	return out, next, err
 }
 

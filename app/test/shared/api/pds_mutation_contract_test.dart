@@ -4,6 +4,34 @@ import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test(
+    'rate-limited keyed write preserves server cooldown for retries',
+    () async {
+      const failure = ApiBadRequest(
+        'pds_rate_limited',
+        details: ApiFailureDetails(statusCode: 429, retryAfterSeconds: 120),
+      );
+      await expectLater(
+        unwrapPdsMutationApi<void>(() async => throw failure),
+        throwsA(
+          isA<PdsMutationAmbiguousException>()
+              .having((e) => e.rateLimited, 'rateLimited', true)
+              .having((e) => e.retryAfterSeconds, 'retryAfterSeconds', 120),
+        ),
+      );
+    },
+  );
+  test('ordinary permission rejection stays definitive', () async {
+    const failure = ApiBadRequest(
+      'pds_write_rejected',
+      details: ApiFailureDetails(statusCode: 403),
+    );
+    await expectLater(
+      unwrapPdsMutationApi<void>(() async => throw failure),
+      throwsA(same(failure)),
+    );
+  });
+
   test('preserves a definitive missing-video-blob response', () async {
     const failure = ApiServerError(
       'http_502',

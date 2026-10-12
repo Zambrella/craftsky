@@ -3,6 +3,7 @@ package app
 import (
 	"fmt"
 	"os"
+	"social.craftsky/appview/internal/auth"
 	"strings"
 	"testing"
 	"time"
@@ -1022,7 +1023,7 @@ func TestLoadConfig_OAuthDevDefaults(t *testing.T) {
 	if got := cfg.OAuth.CallbackURL.String(); got != "http://127.0.0.1:18080/oauth/callback" {
 		t.Errorf("OAuth.CallbackURL = %q, want localhost default", got)
 	}
-	want := []string{"atproto", "transition:generic"}
+	want := auth.DefaultScopes()
 	if len(cfg.OAuth.Scopes) != len(want) {
 		t.Errorf("OAuth.Scopes = %v, want %v", cfg.OAuth.Scopes, want)
 	} else {

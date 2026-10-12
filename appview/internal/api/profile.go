@@ -20,6 +20,7 @@ import (
 	"social.craftsky/appview/internal/ownerlifecycle"
 	"social.craftsky/appview/internal/pdscommands"
 	"social.craftsky/appview/internal/pdseffects"
+	"social.craftsky/appview/internal/recordjson"
 )
 
 // ProfileReader is the read surface the profile GET handlers use. The
@@ -433,17 +434,20 @@ func PutMeProfileHandler(
 					{URI: uri(blueskyProfileNSID), BuildRecord: func(current pdscommands.AuthoritativeRecord) (json.RawMessage, error) {
 						bsky := map[string]any{}
 						if len(current.Record) > 0 {
-							if err := json.Unmarshal(current.Record, &bsky); err != nil {
+							if err := recordjson.Unmarshal(current.Record, &bsky); err != nil {
 								return nil, err
 							}
 						}
 						return json.Marshal(mergeBlueskyRecord(bsky, reqBody))
 					}},
-					{URI: uri(craftskyProfileNSID), BuildRecord: func(pdscommands.AuthoritativeRecord) (json.RawMessage, error) {
-						return json.Marshal(map[string]any{
-							"$type":  craftskyProfileNSID,
-							"crafts": nonNilStrings(reqBody.Crafts),
-						})
+					{URI: uri(craftskyProfileNSID), BuildRecord: func(current pdscommands.AuthoritativeRecord) (json.RawMessage, error) {
+						craftsky := map[string]any{}
+						if len(current.Record) > 0 {
+							if err := recordjson.Unmarshal(current.Record, &craftsky); err != nil {
+								return nil, err
+							}
+						}
+						return json.Marshal(mergeCraftskyRecord(craftsky, reqBody))
 					}},
 				},
 				Accepted: func(records []pdscommands.AuthoritativeRecord) (pdscommands.TerminalResult, error) {
@@ -451,7 +455,7 @@ func PutMeProfileHandler(
 						return pdscommands.TerminalResult{}, errors.New("compound profile result is incomplete")
 					}
 					var bsky map[string]any
-					if err := json.Unmarshal(records[0].Record, &bsky); err != nil {
+					if err := recordjson.Unmarshal(records[0].Record, &bsky); err != nil {
 						return pdscommands.TerminalResult{}, err
 					}
 					handle, err := resolver.ResolveHandle(r.Context(), did)
@@ -536,10 +540,7 @@ func PutMeProfileHandler(
 			return
 		}
 		mergedBsky := mergeBlueskyRecord(bsky, reqBody)
-		cskyBody := map[string]any{
-			"$type":  craftskyProfileNSID,
-			"crafts": nonNilStrings(reqBody.Crafts),
-		}
+		cskyBody := mergeCraftskyRecord(craftsky, reqBody)
 		logger.Debug("profile put: prepared PDS records",
 			pdsLogAttrs(runID, pdsOperationProfilePutBsky, pdsStageRequestBuild)...)
 
@@ -732,4 +733,14 @@ func okOrFailed(err error) string {
 		return "ok"
 	}
 	return "failed"
+}
+
+func mergeCraftskyRecord(existing map[string]any, request ProfilePutRequest) map[string]any {
+	out := make(map[string]any, len(existing)+2)
+	for key, value := range existing {
+		out[key] = value
+	}
+	out["$type"] = craftskyProfileNSID
+	out["crafts"] = nonNilStrings(request.Crafts)
+	return out
 }

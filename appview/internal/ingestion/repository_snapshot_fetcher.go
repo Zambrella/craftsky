@@ -14,10 +14,10 @@ import (
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/atcrypto"
+	"github.com/bluesky-social/indigo/atproto/atdata"
 	"github.com/bluesky-social/indigo/atproto/identity"
 	atrepo "github.com/bluesky-social/indigo/atproto/repo"
 	"github.com/bluesky-social/indigo/atproto/syntax"
-	lexutil "github.com/bluesky-social/indigo/lex/util"
 	"github.com/ipfs/go-cid"
 	"github.com/ipld/go-car"
 
@@ -230,7 +230,7 @@ func verifyRepositoryCAR(
 		if _, wanted := registered[collection]; !wanted {
 			return nil
 		}
-		decoded, err := lexutil.CborDecodeValue(block.RawData())
+		decoded, err := atdata.UnmarshalCBOR(block.RawData())
 		if err != nil {
 			return err
 		}

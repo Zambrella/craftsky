@@ -33,8 +33,8 @@ func TestLexiconRejectionWarnsWithUsefulReasonWithoutIssue(t *testing.T) {
 		record      json.RawMessage
 		explanation string
 	}{
-		{"missing sponsorship", "social.craftsky.feed.post", "3aaaaaaaaaaa2", json.RawMessage(`{"text":"private-canary","createdAt":"2026-10-07T00:00:00Z"}`), "missing required field: sponsored"},
-		{"oversized business image", "social.craftsky.business.profile", "self", json.RawMessage(`{"products":[{"title":"private-canary","uri":"https://shop.example/yarn","image":{"image":{"$type":"blob","ref":{"$link":"bafyreicdvexolyvp6j6yksqiib7hihwktt6ogalbvyzvtkj6ecrtqqw5fq"},"mimeType":"image/jpeg","size":11189477}}}]}`), "lexicon size limit (11189477 bytes)"},
+		{"missing sponsorship", "social.craftsky.feed.post", "3aaaaaaaaaaa2", json.RawMessage(`{"$type":"social.craftsky.feed.post","text":"private-canary","createdAt":"2026-10-07T00:00:00Z"}`), "missing required field: sponsored"},
+		{"oversized business image", "social.craftsky.business.profile", "self", json.RawMessage(`{"$type":"social.craftsky.business.profile","products":[{"title":"private-canary","uri":"https://shop.example/yarn","image":{"image":{"$type":"blob","ref":{"$link":"bafyreicdvexolyvp6j6yksqiib7hihwktt6ogalbvyzvtkj6ecrtqqw5fq"},"mimeType":"image/jpeg","size":11189477}}}]}`), "lexicon size limit (11189477 bytes)"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

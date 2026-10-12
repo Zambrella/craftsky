@@ -172,6 +172,10 @@ func (service *OnboardingProfileService) putFenced(
 			continue
 		}
 		if err != nil {
+			var limited *auth.RateLimitError
+			if errors.As(err, &limited) {
+				return "", service.store.CompleteRateLimitedDispatch(ctx, attempt.ID, err)
+			}
 			if errors.Is(err, ErrDispatchRejected) || errors.Is(err, ErrAtomicWritesUnsupported) {
 				if completeErr := service.store.CompleteDispatchAndCommand(ctx, attempt.ID,
 					DispatchCompletion{Outcome: CommandRejected, ErrorClass: "rejected"},

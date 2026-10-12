@@ -1,0 +1,55 @@
+#!/usr/bin/env python3
+"""Copy the checked-in schemas and pinned Indigo dependency closure for validation."""
+import json
+import shutil
+import sys
+from pathlib import Path
+
+root = Path(__file__).resolve().parent.parent
+indigo = Path(sys.argv[1])
+catalog = root / 'appview/internal/lexicon/schema'
+custom = root / 'lexicon/social/craftsky'
+external = root / 'appview/cmd/lexgen/external/community.lexicon.location.address.bafyreicdvexolyvp6j6yksqiib7hihwktt6ogalbvyzvtkj6ecrtqqw5fq.json'
+all_files = {json.loads(p.read_text())['id']: p for p in (indigo / 'lexicons').rglob('*.json')}
+all_files.update({json.loads(p.read_text())['id']: p for p in custom.rglob('*.json')})
+all_files[json.loads(external.read_text())['id']] = external
+
+def references(value):
+    if isinstance(value, dict):
+        for key, child in value.items():
+            if key == 'ref' and isinstance(child, str) and not child.startswith('#'):
+                yield child.split('#')[0]
+            elif key == 'refs':
+                yield from (ref.split('#')[0] for ref in child if not ref.startswith('#'))
+            else:
+                yield from references(child)
+    elif isinstance(value, list):
+        for child in value:
+            yield from references(child)
+
+pending = [json.loads(p.read_text())['id'] for p in custom.rglob('*.json')]
+pending += ['app.bsky.actor.profile', 'app.bsky.graph.follow', 'app.bsky.graph.block']
+seen = set()
+while pending:
+    nsid = pending.pop()
+    if nsid in seen:
+        continue
+    seen.add(nsid)
+    source = all_files[nsid]
+    schema = json.loads(source.read_text())
+    pending.extend(references(schema))
+# Resolve every dependency before replacing any catalog JSON.
+for directory in ('actor', 'business', 'feed', 'project', 'standard'):
+    for path in (catalog / directory).rglob('*.json'):
+        path.unlink()
+for nsid in sorted(seen):
+    source = all_files[nsid]
+    if nsid.startswith('social.craftsky.'):
+        target = catalog / source.relative_to(custom)
+    elif source == external:
+        target = catalog / 'business/address.json'
+    else:
+        target = catalog / 'standard' / source.relative_to(indigo / 'lexicons')
+    target.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(source, target)
+print(f'Synchronized {len(seen)} runtime schemas from pinned sources')
