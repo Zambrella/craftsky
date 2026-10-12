@@ -89,8 +89,8 @@ func (s *SearchStore) searchSubmittedByRelevance(ctx context.Context, viewer str
  )
  SELECT ` + postSelectColumns + `,relevance_score,match_tier
  FROM ranked p LEFT JOIN craftsky_project_posts pp ON pp.uri=p.uri LEFT JOIN bluesky_profiles bp ON bp.did=p.did
- WHERE relevance_score IS NOT NULL AND ($15::integer IS NULL OR (match_tier,relevance_score,p.created_at,p.uri)<($15::integer,$3::double precision,$4::timestamptz,$5::text))
- ORDER BY match_tier DESC,relevance_score DESC,p.created_at DESC,p.uri DESC LIMIT $2`
+ WHERE relevance_score IS NOT NULL AND ($15::integer IS NULL OR (match_tier,relevance_score,LEAST(p.created_at,p.indexed_at),p.uri)<($15::integer,$3::double precision,$4::timestamptz,$5::text))
+ ORDER BY match_tier DESC,relevance_score DESC,LEAST(p.created_at,p.indexed_at) DESC,p.uri DESC LIMIT $2`
 
 	args := []any{plan, req.Limit + 1, cur.ScorePtr(), cur.CreatedAtPtr(), cur.URIPtr(), viewer, languages}
 	for _, key := range []string{"craftType", "patternDifficulty", "projectType", "color", "material", "designTag", "projectTag"} {
@@ -121,6 +121,6 @@ func (s *SearchStore) searchSubmittedByRelevance(ctx context.Context, viewer str
 	}
 	out = out[:req.Limit]
 	last := out[len(out)-1]
-	next, err := encodeTieredRelevanceSearchCursor(kind, normalized, tiers[req.Limit-1], last.Score, last.Post.CreatedAt, last.Post.URI)
+	next, err := encodeTieredRelevanceSearchCursor(kind, normalized, tiers[req.Limit-1], last.Score, last.Post.SortAt(), last.Post.URI)
 	return out, next, err
 }

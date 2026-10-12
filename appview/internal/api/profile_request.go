@@ -8,7 +8,6 @@ import (
 	"io"
 	"math"
 	"strings"
-	"unicode/utf8"
 
 	"github.com/rivo/uniseg"
 )
@@ -162,12 +161,12 @@ func ValidateProfilePutWithLimits(req ProfilePutRequest, limits MediaLimits) err
 	limits = normalizeMediaLimits(limits)
 	fields := map[string]string{}
 	if req.DisplayName != nil {
-		if len(*req.DisplayName) > 640 || utf8.RuneCountInString(*req.DisplayName) > 64 {
+		if len(*req.DisplayName) > 640 || uniseg.GraphemeClusterCount(*req.DisplayName) > 64 {
 			fields["displayName"] = "exceeds 64 graphemes / 640 bytes"
 		}
 	}
 	if req.Description != nil {
-		if len(*req.Description) > 2560 || utf8.RuneCountInString(*req.Description) > 256 {
+		if len(*req.Description) > 2560 || uniseg.GraphemeClusterCount(*req.Description) > 256 {
 			fields["description"] = "exceeds 256 graphemes / 2560 bytes"
 		}
 	}
@@ -181,7 +180,7 @@ func ValidateProfilePutWithLimits(req ProfilePutRequest, limits MediaLimits) err
 			fields["crafts"] = "exceeds maximum of 10 entries"
 		}
 		for i, c := range req.Crafts {
-			if len(c) > 50 || utf8.RuneCountInString(c) > 50 {
+			if len(c) > 50 || uniseg.GraphemeClusterCount(c) > 50 {
 				fields[fmt.Sprintf("crafts[%d]", i)] = "exceeds 50 graphemes / 50 bytes"
 			}
 		}

@@ -31,7 +31,7 @@ func TestFollowCommandMatchesEveryIngestionValidExternalRecord(t *testing.T) {
 	}
 	record := pdscommands.AuthoritativeRecord{
 		URI: "at://did:plc:alice/app.bsky.graph.follow/3aaaaaaaaaaa2", CID: "bafy-external",
-		Record: json.RawMessage(`{"subject":"did:plc:bob","createdAt":"2026-09-24T12:00:00Z"}`),
+		Record: json.RawMessage(`{"$type":"app.bsky.graph.follow","subject":"did:plc:bob","createdAt":"2026-09-24T12:00:00Z"}`),
 	}
 	valid := sourcevalidation.Validate(tap.Event{Collection: "app.bsky.graph.follow", Rkey: "3aaaaaaaaaaa2", Action: "create", Record: record.Record})
 	if valid.StructuralStatus != sourcevalidation.Valid || valid.SemanticStatus != sourcevalidation.Valid {

@@ -12,6 +12,7 @@ sealed class ApiException implements Exception {
 final class ApiFailureDetails {
   const new({
     this.statusCode,
+    this.retryAfterSeconds,
     this.appViewError,
     this.requestId,
     this.method,
@@ -21,6 +22,7 @@ final class ApiFailureDetails {
   });
 
   final int? statusCode;
+  final int? retryAfterSeconds;
   final String? appViewError;
 
   final String? requestId;

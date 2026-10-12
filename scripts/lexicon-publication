@@ -1,0 +1,105 @@
+#!/usr/bin/env python3
+"""Manifest, publish, and verify CraftSky's public Lexicon authority."""
+import argparse
+import json
+import re
+import subprocess
+import sys
+import urllib.parse
+import urllib.request
+from pathlib import Path
+
+DID = 'did:plc:lmmx63zcns6gewgxqfdt4kof'
+ROOT = Path(__file__).resolve().parent.parent
+SCHEMAS = sorted((ROOT / 'lexicon/social/craftsky').rglob('*.json'))
+
+def read(url, accept="application/json"):
+    request = urllib.request.Request(url, headers={"Accept": accept})
+    with urllib.request.urlopen(request, timeout=30) as response:
+        return json.load(response)
+
+def manifest():
+    names = {json.loads(path.read_text())['id'] for path in SCHEMAS}
+    if not names or not all(name.startswith('social.craftsky.') for name in names):
+        raise RuntimeError('Publication source must contain only CraftSky schemas')
+    authorities = sorted({'_lexicon.' + '.'.join(reversed(nsid.split('.')[:-1])) for nsid in names})
+    return {'did': DID, 'dnsRecords': [{'type': 'TXT', 'name': name, 'content': 'did=' + DID, 'ttl': 300} for name in authorities],
+            'schemaRecords': ['at://' + DID + '/com.atproto.lexicon.schema/' + nsid for nsid in sorted(names)]}
+
+def verify(schemas_only):
+    identity = read('https://plc.directory/' + DID)
+    if identity['id'] != DID or 'at://craftsky.social' not in identity.get('alsoKnownAs', []):
+        raise RuntimeError('Publishing identity no longer matches craftsky.social')
+    pds = next(service['serviceEndpoint'] for service in identity['service'] if service['id'].endswith('#atproto_pds'))
+    for path in SCHEMAS:
+        local = json.loads(path.read_text())
+        params = urllib.parse.urlencode({'repo': DID, 'collection': 'com.atproto.lexicon.schema', 'rkey': local['id']})
+        remote = read(pds + '/xrpc/com.atproto.repo.getRecord?' + params)['value']
+        if remote.pop('$type', None) != 'com.atproto.lexicon.schema':
+            raise RuntimeError('Published record has incorrect type: ' + local['id'])
+        if remote != local:
+            raise RuntimeError('Published schema differs from checkout: ' + local['id'])
+        print('Verified schema:', local['id'])
+    if schemas_only:
+        return
+    for record in manifest()['dnsRecords']:
+        params = urllib.parse.urlencode({'name': record['name'], 'type': 'TXT'})
+        answer = read('https://cloudflare-dns.com/dns-query?' + params, 'application/dns-json')
+        values = [entry['data'].strip('"') for entry in answer.get('Answer', []) if entry['type'] == 16]
+        if values != [record['content']]:
+            raise RuntimeError('DNS authority mismatch: ' + record['name'])
+        print('Verified DNS:', record['name'])
+
+def configure_dns(dry_run):
+    # Verify every published schema before advertising this account as authority.
+    verify(True)
+    completed = subprocess.run(['cf', 'dns', 'records', 'list', '--zone', 'craftsky.social', '--type', 'TXT', '--name-startswith', '_lexicon.', '--per-page', '1000'], check=True, capture_output=True, text=True)
+    existing = json.loads(completed.stdout)
+    if not isinstance(existing, list):
+        raise RuntimeError('Unexpected Cloudflare DNS list response')
+    desired = manifest()['dnsRecords']
+    missing = []
+    for record in desired:
+        matches = [item for item in existing if item['name'] == record['name']]
+        if matches:
+            if len(matches) != 1 or matches[0]['content'].strip('"') != record['content']:
+                raise RuntimeError('Existing DNS authority conflicts: ' + record['name'])
+            print('Unchanged DNS:', record['name'])
+        else:
+            missing.append(record)
+    for record in missing:
+        command = ['cf', 'dns', 'records', 'create', '--zone', 'craftsky.social', '--body', json.dumps(record)]
+        if dry_run:
+            command.append('--dry-run')
+        subprocess.run(command, check=True, stdout=subprocess.DEVNULL)
+        print(('Planned DNS:' if dry_run else 'Created DNS:'), record['name'], record['content'])
+
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument('action', choices=['manifest', 'publish', 'verify', 'configure-dns'])
+parser.add_argument('--bootstrap', action='store_true', help='Publish before DNS exists; never update existing schemas')
+parser.add_argument('--dry-run', action='store_true', help='Preview DNS creation without changing records')
+parser.add_argument('--schemas-only', action='store_true', help='Verify published schemas before DNS setup')
+args = parser.parse_args()
+try:
+    if args.action == 'manifest':
+        print(json.dumps(manifest(), indent=2))
+    elif args.action == 'publish':
+        account = subprocess.run(['goat', 'account', 'check-auth'], check=True, capture_output=True, text=True)
+        match = re.search(r'^DID: (\S+)$', account.stdout, re.MULTILINE)
+        if not match or match[1] != DID:
+            raise RuntimeError('goat must be authenticated as official craftsky.social publishing DID')
+        for path in SCHEMAS:
+            subprocess.run(['goat', 'lex', 'parse', str(path)], check=True, stdout=subprocess.DEVNULL)
+        command = ['goat', 'lex', 'publish']
+        if args.bootstrap:
+            command.append('--skip-dns-check')
+        # No --update: changed existing schemas require separate review.
+        subprocess.run(command + [str(ROOT / 'lexicon/social/craftsky')], check=True)
+        verify(True)
+    elif args.action == 'configure-dns':
+        configure_dns(args.dry_run)
+    else:
+        verify(args.schemas_only)
+except Exception as failure:
+    print('lexicon-publication:', failure, file=sys.stderr)
+    sys.exit(1)

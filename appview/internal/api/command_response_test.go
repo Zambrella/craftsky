@@ -5,8 +5,11 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
+	"time"
 
+	"social.craftsky/appview/internal/auth"
 	"social.craftsky/appview/internal/pdscommands"
 )
 
@@ -86,5 +89,13 @@ func TestWriteCommandErrorUsesStandardEnvelopeAndStableCodes(t *testing.T) {
 	WriteCommandError(recorder, "request-command", errors.New("network secret must not escape"))
 	if recorder.Code != http.StatusServiceUnavailable || !json.Valid(recorder.Body.Bytes()) {
 		t.Fatalf("unknown response = %d %q", recorder.Code, recorder.Body.String())
+	}
+}
+
+func TestRateLimitedCommandReturnsRetryGuidance(t *testing.T) {
+	response := httptest.NewRecorder()
+	WriteCommandError(response, "request-id", &auth.RateLimitError{RetryAfter: 120 * time.Second})
+	if response.Code != http.StatusTooManyRequests || response.Header().Get("Retry-After") != "120" || !strings.Contains(response.Body.String(), "pds_rate_limited") {
+		t.Fatalf("response=%d %s %s", response.Code, response.Header(), response.Body.String())
 	}
 }

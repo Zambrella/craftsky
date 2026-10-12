@@ -35,15 +35,15 @@ func TestBusinessProjectionPreservesFederatedSourceAndConverges(t *testing.T) {
 	dispatcher.Register("social.craftsky.business.profile", index.NewCraftskyBusinessProfile())
 	dispatcher.Register("social.craftsky.business.event", index.NewCraftskyBusinessEvent())
 
-	profileR1 := json.RawMessage(`{"tagline":"First"}`)
-	profileR2 := json.RawMessage(`{
+	profileR1 := json.RawMessage(`{"$type":"social.craftsky.business.profile","tagline":"First"}`)
+	profileR2 := json.RawMessage(`{"$type":"social.craftsky.business.profile",
 		"tagline":"Newest","businessTypes":["future-business-type","dyer"],
 		"primaryAction":{"type":"shop","destination":"http://unsafe.example"},
 		"products":[{"title":"Kit","uri":"https://example.com/kit","price":{"amount":"12.00","currency":"ZZZ"}}],
 		"futureExtension":{"version":2}
 	}`)
-	eventR1 := json.RawMessage(`{"name":"First market","startsAt":"2026-09-10T10:00:00Z","endsAt":"2026-09-10T12:00:00Z","roles":["vendor"],"createdAt":"2026-09-01T00:00:00Z"}`)
-	eventR2 := json.RawMessage(`{"name":"Newest market","startsAt":"2026-09-11T10:00:00Z","endsAt":"2026-09-11T12:00:00Z","roles":["future-role"],"status":"future-status","createdAt":"2026-09-01T00:00:00Z","futureExtension":{"version":2}}`)
+	eventR1 := json.RawMessage(`{"$type":"social.craftsky.business.event","name":"First market","startsAt":"2026-09-10T10:00:00Z","endsAt":"2026-09-10T12:00:00Z","roles":["vendor"],"createdAt":"2026-09-01T00:00:00Z"}`)
+	eventR2 := json.RawMessage(`{"$type":"social.craftsky.business.event","name":"Newest market","startsAt":"2026-09-11T10:00:00Z","endsAt":"2026-09-11T12:00:00Z","roles":["future-role"],"status":"future-status","createdAt":"2026-09-01T00:00:00Z","futureExtension":{"version":2}}`)
 	cases := []struct {
 		collection syntax.NSID
 		rkey       syntax.RecordKey

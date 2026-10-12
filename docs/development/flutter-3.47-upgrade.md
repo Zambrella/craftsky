@@ -135,3 +135,28 @@ Validated locally on October 12, 2026:
 
 Native builds are compilation checks; store signing, device purchase/video/push
 flows, and production deployment are separate release checks.
+
+### Integration with the AT Protocol audit fixes
+
+The upgrade branch at `cc5b94d8` was merged into the audit branch at `6cf80fe1`.
+The two conflicts were the mutation exception constructor and scheduler typedef.
+Both use the new Dart syntax while retaining the audit's rate-limit classification,
+server cooldown, and frozen operation-key behavior. The upgrade's compound-write
+fix also remains: unchanged records are omitted from `applyWrites` so Tap does
+not reject commits with identical old and new CIDs.
+
+Post-merge validation on Flutter 3.47.7 / Dart 3.13.5:
+
+- Dependency resolution passed with `--enforce-lockfile` and no lockfile changes.
+- Full Flutter suite: 2,912 passed, 38 skipped; analysis reported no issues.
+- Formatting checked 1,412 files. Code generation reproduced the checked-in code
+  apart from extra trailing blank lines in generated model files, which were
+  removed to avoid unrelated formatting changes.
+- Release web build passed for JavaScript and WebAssembly.
+- The complete `scripts/appview-check` gate passed, including generated-code
+  checks, Go analysis, full PostgreSQL-backed tests and race tests, source and
+  binary vulnerability scans, Docker builds, source-free media probes,
+  migration rollback/reapply and failure handling, and the pinned Tap handshake.
+- Workflow lint, Apple project syntax, mirrored SwiftPM lockfiles, and merge
+  whitespace checks passed. Native builds above were performed on the upgrade
+  branch before integration; they were not repeated for this merge.

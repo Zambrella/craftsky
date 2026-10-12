@@ -59,6 +59,14 @@ type PostRow struct {
 	Project *Project
 }
 
+// SortAt bounds an author-controlled creation time by the AppView's observation.
+func (row *PostRow) SortAt() time.Time {
+	if row.IndexedAt.IsZero() || !row.CreatedAt.After(row.IndexedAt) {
+		return row.CreatedAt
+	}
+	return row.IndexedAt
+}
+
 func (row *PostRow) IsRoot() bool {
 	return row != nil && row.ReplyRootURI == nil && row.ReplyParentURI == nil
 }

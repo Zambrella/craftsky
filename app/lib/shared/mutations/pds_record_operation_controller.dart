@@ -193,11 +193,14 @@ final class PdsRecordOperationController {
   bool markAmbiguous(
     PdsMutationToken token, {
     required int retryAfterSeconds,
+    bool rateLimited = false,
   }) {
     if (!_isCurrent(token)) return false;
     _operations[token.scope] = _operations[token.scope]!.copyWith(
       status: PdsMutationStatus.ambiguous,
-      retryAfterSeconds: retryAfterSeconds.clamp(1, 5),
+      retryAfterSeconds: rateLimited
+          ? math.max(1, retryAfterSeconds)
+          : retryAfterSeconds.clamp(1, 5),
     );
     return true;
   }
@@ -393,6 +396,7 @@ final class PdsMutationRetry {
     final marked = _controller.markAmbiguous(
       _token,
       retryAfterSeconds: error.retryAfterSeconds,
+      rateLimited: error.rateLimited,
     );
     if (requireCurrentToken && !marked) {
       return PdsMutationRetryDecision.obsolete;
@@ -400,6 +404,7 @@ final class PdsMutationRetry {
     final delay = const PdsMutationRetryPolicy().nextDelay(
       retryIndex: _retryIndex,
       retryAfterSeconds: error.retryAfterSeconds,
+      rateLimited: error.rateLimited,
       elapsed: _ref.read(pdsMutationNowProvider)().difference(_startedAt),
       jitterMillis: _ref.read(pdsMutationJitterProvider),
     );
@@ -464,6 +469,7 @@ final class PdsMutationRetryPolicy {
     required int? retryAfterSeconds,
     required Duration elapsed,
     required int Function(int maximumExclusive) jitterMillis,
+    bool rateLimited = false,
   }) {
     if (retryIndex < 0 || retryIndex >= _localBackoffSeconds.length) {
       return null;
@@ -471,7 +477,12 @@ final class PdsMutationRetryPolicy {
     final localSeconds = _localBackoffSeconds[retryIndex];
     final seconds = retryAfterSeconds == null
         ? localSeconds
-        : math.max(localSeconds, retryAfterSeconds.clamp(1, 5));
+        : math.max(
+            localSeconds,
+            rateLimited
+                ? math.max(1, retryAfterSeconds)
+                : retryAfterSeconds.clamp(1, 5),
+          );
     final jitter = math.max(0, jitterMillis(251)).clamp(0, 250);
     final delay = Duration(seconds: seconds, milliseconds: jitter);
     if (elapsed + delay > _maximumElapsed) return null;

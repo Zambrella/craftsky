@@ -41,7 +41,7 @@ func TestProfileSourceWinnerAndLifecycleTransitionCommitAtomically(t *testing.T)
 		ID: 20, URI: "at://did:plc:profile-owner/social.craftsky.actor.profile/self",
 		DID: owner, Collection: "social.craftsky.actor.profile", Rkey: "self",
 		Rev: "3aaaaaaaaaaa4", CID: "bafy-profile", Action: "create",
-		Record: json.RawMessage(`{"crafts":["sewing"]}`),
+		Record: json.RawMessage(`{"$type":"social.craftsky.actor.profile","crafts":["sewing"]}`),
 	}
 
 	failingService := newLifecycleIngestionService(t, store, lifecycles,
@@ -73,7 +73,7 @@ func TestProfileSourceWinnerAndLifecycleTransitionCommitAtomically(t *testing.T)
 
 	conflictWhileActive := profile
 	conflictWhileActive.CID = "bafy-conflicting-profile"
-	conflictWhileActive.Record = json.RawMessage(`{"crafts":["quilting"]}`)
+	conflictWhileActive.Record = json.RawMessage(`{"$type":"social.craftsky.actor.profile","crafts":["quilting"]}`)
 	if outcome, err := service.IngestRecord(context.Background(), conflictWhileActive); err != nil ||
 		outcome.Kind != tap.OutcomeBlocked || outcome.Reason != tap.ReasonSourceOrderUncertain {
 		t.Fatalf("active conflicting profile outcome=%+v err=%v", outcome, err)
@@ -128,7 +128,7 @@ func TestProfileSourceWinnerAndLifecycleTransitionCommitAtomically(t *testing.T)
 	conflictWhileDeparted := deleted
 	conflictWhileDeparted.Action = "create"
 	conflictWhileDeparted.CID = "bafy-departed-conflict"
-	conflictWhileDeparted.Record = json.RawMessage(`{"crafts":["weaving"]}`)
+	conflictWhileDeparted.Record = json.RawMessage(`{"$type":"social.craftsky.actor.profile","crafts":["weaving"]}`)
 	if outcome, err := service.IngestRecord(context.Background(), conflictWhileDeparted); err != nil ||
 		outcome.Kind != tap.OutcomeBlocked || outcome.Reason != tap.ReasonSourceOrderUncertain {
 		t.Fatalf("departed conflicting profile outcome=%+v err=%v", outcome, err)
@@ -193,7 +193,7 @@ func TestProfileSourceWinnerAndLifecycleTransitionCommitAtomically(t *testing.T)
 
 	conflictingBody := recreatedAfterTapReset
 	conflictingBody.ID = 102
-	conflictingBody.Record = json.RawMessage(`{"crafts":["knitting"]}`)
+	conflictingBody.Record = json.RawMessage(`{"$type":"social.craftsky.actor.profile","crafts":["knitting"]}`)
 	if outcome, err := service.IngestRecord(context.Background(), conflictingBody); err != nil ||
 		outcome.Kind != tap.OutcomeBlocked || outcome.Reason != tap.ReasonSourceOrderUncertain {
 		t.Fatalf("same tuple with different body outcome=%+v err=%v", outcome, err)
@@ -234,7 +234,7 @@ func TestInvalidProfileSourceDoesNotActivateMembership(t *testing.T) {
 		ID: 120, URI: "at://did:plc:invalid-profile-owner/social.craftsky.actor.profile/self",
 		DID: owner, Collection: "social.craftsky.actor.profile", Rkey: "self",
 		Rev: "3aaaaaaaaaab2", CID: "bafy-invalid-profile", Action: "create",
-		Record: json.RawMessage(`{"crafts":["1","2","3","4","5","6","7","8","9","10","11"]}`),
+		Record: json.RawMessage(`{"$type":"social.craftsky.actor.profile","crafts":["1","2","3","4","5","6","7","8","9","10","11"]}`),
 	}
 	service := newLifecycleIngestionService(t, store, lifecycles, nil, nil)
 	if outcome, err := service.IngestRecord(context.Background(), event); err != nil || outcome.Kind != tap.OutcomeApplied {

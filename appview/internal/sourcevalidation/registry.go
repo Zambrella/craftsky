@@ -2,7 +2,6 @@ package sourcevalidation
 
 import (
 	"encoding/json"
-	"time"
 
 	comatproto "github.com/bluesky-social/indigo/api/atproto"
 	"github.com/bluesky-social/indigo/api/bsky"
@@ -202,6 +201,11 @@ func validateRecordBody(event tap.Event) Result {
 	default:
 		return invalid("unsupported_collection")
 	}
+	if err := lexiconschema.ValidateCraftskyRecord(event.Record, event.Collection.String()); err != nil {
+		result := invalid("invalid_lexicon")
+		result.Cause = err
+		return result
+	}
 	return valid()
 }
 
@@ -238,14 +242,14 @@ func matchesExplicitType(raw json.RawMessage, collection syntax.NSID) bool {
 	}
 	rawType, ok := object["$type"]
 	if !ok {
-		return true
+		return false
 	}
 	var recordType string
 	return json.Unmarshal(rawType, &recordType) == nil && recordType == collection.String()
 }
 
 func validTimestamp(value string) bool {
-	_, err := time.Parse(time.RFC3339Nano, value)
+	_, err := syntax.ParseDatetime(value)
 	return err == nil
 }
 

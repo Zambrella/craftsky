@@ -13,9 +13,13 @@ bool isCanonicalPdsMutationOperationKey(String value) =>
     _canonicalUuid.hasMatch(value);
 
 final class PdsMutationAmbiguousException implements Exception {
-  const new({required this.retryAfterSeconds});
+  const new({
+    required this.retryAfterSeconds,
+    this.rateLimited = false,
+  });
 
   final int retryAfterSeconds;
+  final bool rateLimited;
 
   @override
   String toString() => 'PdsMutationAmbiguousException(<retryable>)';
@@ -35,6 +39,14 @@ final class PdsMutationUnresolvedException implements Exception {
 Future<T> unwrapPdsMutationApi<T>(Future<T> Function() request) async {
   try {
     return await unwrapApi(request);
+  } on ApiBadRequest catch (error) {
+    if (error.details.statusCode != 429 || error.code != 'pds_rate_limited') {
+      rethrow;
+    }
+    throw PdsMutationAmbiguousException(
+      retryAfterSeconds: error.details.retryAfterSeconds ?? 5,
+      rateLimited: true,
+    );
   } on ApiNetworkError {
     throw const PdsMutationAmbiguousException(retryAfterSeconds: 1);
   } on ApiServerError catch (error) {

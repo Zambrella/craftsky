@@ -7,6 +7,80 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test(
+    'rate-limit guidance is never shortened to the ambiguous retry ceiling',
+    () {
+      const policy = PdsMutationRetryPolicy();
+      expect(
+        policy.nextDelay(
+          retryIndex: 0,
+          retryAfterSeconds: 20,
+          rateLimited: true,
+          elapsed: Duration.zero,
+          jitterMillis: (_) => 0,
+        ),
+        const Duration(seconds: 20),
+      );
+      expect(
+        policy.nextDelay(
+          retryIndex: 0,
+          retryAfterSeconds: 120,
+          rateLimited: true,
+          elapsed: Duration.zero,
+          jitterMillis: (_) => 0,
+        ),
+        isNull,
+      );
+    },
+  );
+  test(
+    'long cooldown retains the frozen operation without another automatic send',
+    () async {
+      final controller = PdsRecordOperationController();
+      final token = controller.begin(
+        scope: PdsMutationScope(
+          lease: AccountSessionLease(
+            account: AccountKey('did:plc:alice'),
+            sessionGeneration: 1,
+          ),
+          identity: 'like:post',
+        ),
+        operationKey: newPdsMutationOperationKey(),
+        endpoint: '/v1/likes',
+        immutableBody: 'POST',
+      );
+      var sends = 0;
+      final provider = Provider<Future<void>>(
+        (ref) => runPdsMutation<void>(
+          ref: ref,
+          controller: controller,
+          token: token,
+          isCurrent: () => true,
+          send: () async {
+            sends++;
+            throw const PdsMutationAmbiguousException(
+              retryAfterSeconds: 120,
+              rateLimited: true,
+            );
+          },
+        ),
+      );
+      final container = ProviderContainer.test(
+        overrides: [pdsMutationJitterProvider.overrideWithValue((_) => 0)],
+      );
+      await expectLater(
+        container.read(provider),
+        throwsA(isA<PdsMutationUnresolvedException>()),
+      );
+      expect(sends, 1);
+      expect(
+        controller.operationFor(token.scope)?.token.operationKey,
+        token.operationKey,
+      );
+      expect(controller.operationFor(token.scope)?.retryAfterSeconds, 120);
+    },
+  );
+
+  test(
     'shared runner retries ambiguous responses with one frozen token',
     () async {
       final controller = PdsRecordOperationController();

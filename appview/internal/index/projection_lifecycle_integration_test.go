@@ -31,22 +31,22 @@ func TestTransactionalDispatcherConvertsTerminalRelationTargetsToCleanupDeletes(
 		{
 			name:       "follow target",
 			collection: blueskyFollowNSID,
-			record:     json.RawMessage(`{"subject":"did:plc:projection-terminal-target","createdAt":"2026-08-14T10:00:00Z"}`),
+			record:     json.RawMessage(`{"$type":"app.bsky.graph.follow","subject":"did:plc:projection-terminal-target","createdAt":"2026-08-14T10:00:00Z"}`),
 		},
 		{
 			name:       "block target",
 			collection: blueskyBlockNSID,
-			record:     json.RawMessage(`{"subject":"did:plc:projection-terminal-target","createdAt":"2026-08-14T10:00:00Z"}`),
+			record:     json.RawMessage(`{"$type":"app.bsky.graph.block","subject":"did:plc:projection-terminal-target","createdAt":"2026-08-14T10:00:00Z"}`),
 		},
 		{
 			name:       "like subject owner",
 			collection: craftskyLikeNSID,
-			record:     json.RawMessage(`{"subject":{"uri":"at://did:plc:projection-terminal-target/social.craftsky.feed.post/one","cid":"bafy-subject"},"createdAt":"2026-08-14T10:00:00Z"}`),
+			record:     json.RawMessage(`{"$type":"social.craftsky.feed.like","subject":{"uri":"at://did:plc:projection-terminal-target/social.craftsky.feed.post/one","cid":"bafyreig7k3sfss7d4efoww2cirg3gfkaglujbqxvxl7p6xwtfwswet7jby"},"createdAt":"2026-08-14T10:00:00Z"}`),
 		},
 		{
 			name:       "repost subject owner",
 			collection: craftskyRepostNSID,
-			record:     json.RawMessage(`{"subject":{"uri":"at://did:plc:projection-terminal-target/social.craftsky.feed.post/one","cid":"bafy-subject"},"createdAt":"2026-08-14T10:00:00Z"}`),
+			record:     json.RawMessage(`{"$type":"social.craftsky.feed.repost","subject":{"uri":"at://did:plc:projection-terminal-target/social.craftsky.feed.post/one","cid":"bafyreig7k3sfss7d4efoww2cirg3gfkaglujbqxvxl7p6xwtfwswet7jby"},"createdAt":"2026-08-14T10:00:00Z"}`),
 		},
 	}
 	for _, test := range tests {
@@ -92,7 +92,7 @@ func TestTransactionalDispatcherAllowsUnknownAndDepartedRelationTargets(t *testi
 				called = true
 				return tap.Applied(), nil
 			}))
-			record := json.RawMessage(`{"subject":"` + target.String() + `","createdAt":"2026-08-14T10:00:00Z"}`)
+			record := json.RawMessage(`{"$type":"app.bsky.graph.follow","subject":"` + target.String() + `","createdAt":"2026-08-14T10:00:00Z"}`)
 			tx, err := pool.Begin(ctx)
 			if err != nil {
 				t.Fatal(err)
@@ -116,7 +116,7 @@ func TestTransactionalDispatcherRechecksActorGenerationAndState(t *testing.T) {
 	seedProjectionLifecycle(t, pool, departed, "departed", 5)
 	seedProjectionLifecycle(t, pool, terminal, "terminal", 8)
 
-	profileRecord := json.RawMessage(`{"displayName":"Projector"}`)
+	profileRecord := json.RawMessage(`{"$type":"app.bsky.actor.profile","displayName":"Projector"}`)
 	tests := []struct {
 		name       string
 		actor      syntax.DID
@@ -180,6 +180,7 @@ func TestTransactionalDispatcherOmitsOnlyTerminalPostMentions(t *testing.T) {
 		return tap.Applied(), nil
 	}))
 	record := json.RawMessage(`{
+		"$type":"social.craftsky.feed.post",
 		"text":"terminal active unknown",
 		"sponsored":false,
 		"createdAt":"2026-08-14T10:00:00Z",

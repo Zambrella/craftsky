@@ -461,7 +461,7 @@ func LoadConfig(env Env, envFilePath string) (Config, error) {
 	if _, legacy := os.LookupEnv("OAUTH_HOSTNAME"); legacy {
 		return Config{}, fmt.Errorf("OAUTH_HOSTNAME has been removed; set OAUTH_PUBLIC_ORIGIN")
 	}
-	oauthScopes, err := parseOAuthScopes(getEnvWithDefault("OAUTH_SCOPES", "atproto transition:generic"))
+	oauthScopes, err := parseOAuthScopes(getEnvWithDefault("OAUTH_SCOPES", strings.Join(auth.DefaultScopes(), " ")))
 	if err != nil {
 		return Config{}, err
 	}
