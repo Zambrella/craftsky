@@ -68,6 +68,8 @@ import 'package:craftsky_app/shared/rich_text/widgets/facet_autocomplete_editor.
 import 'package:craftsky_app/shared/rich_text/widgets/faceted_text.dart';
 import 'package:craftsky_app/shared/widgets/action_progress.dart';
 import 'package:craftsky_app/shared/widgets/craft_icon.dart';
+import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
+import 'package:craftsky_app/subscriptions/providers/subscription_access_provider.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:craftsky_app/theme/craftsky_form_builder_select_fields.dart';
@@ -439,6 +441,13 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
       });
     }
     final account = activeLease?.session.account;
+    final scheduleAccess = activeLease == null
+        ? const AsyncLoading<SubscriptionAccess>()
+        : ref.watch(subscriptionAccessProvider(activeLease.session));
+    final maySchedule = switch (scheduleAccess) {
+      AsyncData(:final value) => value.allowsPlus,
+      _ => false,
+    };
     if (account != null) {
       ref.listen(draftSaveControllerProvider(account), (_, _) {});
     }
@@ -469,7 +478,8 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
         _languages != null &&
         (selectedVideo != null || imagesState.canSubmitImages()) &&
         (selectedVideo == null || _scheduleChoice == ScheduleChoice.now) &&
-        (_scheduleChoice == ScheduleChoice.now || capacity.scheduleEnabled);
+        (_scheduleChoice == ScheduleChoice.now ||
+            (capacity.scheduleEnabled && maySchedule));
     final bodyErrorText = switch ((_attemptedSubmit, trimmedBody.isEmpty)) {
       (true, true) => l10n.projectComposerBodyRequiredError,
       _ when tooLong => l10n.postComposeTooLong,
@@ -663,6 +673,14 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
                                             setState(() => _sponsored = value)
                                       : null,
                                   scheduledAtLocal: _scheduledAtLocal,
+                                  scheduleAccess: scheduleAccess,
+                                  onScheduleAccessRetry: activeLease == null
+                                      ? null
+                                      : () => ref.invalidate(
+                                          subscriptionAccessProvider(
+                                            activeLease.session,
+                                          ),
+                                        ),
                                   onSchedulePressed: controlsEnabled
                                       ? (menuContext) => _chooseWhen(
                                           menuContext,
