@@ -4559,4 +4559,14 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get recordCopyLinkFailed => 'Could not copy link. Please try again.';
+
+  @override
+  String get postComposePhotoDetailsTitle => 'Photo details';
+
+  @override
+  String get postComposeEditPhotosHelper =>
+      'Reorder photos, remove them or add alt text';
+
+  @override
+  String get postComposeClearPhotos => 'Clear all';
 }

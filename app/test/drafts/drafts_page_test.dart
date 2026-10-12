@@ -184,6 +184,8 @@ void main() {
 
       expect(find.byType(PostComposerSheet), findsOneWidget);
       expect(find.text('Recover this work'), findsOneWidget);
+      await tester.tap(find.byKey(const Key('composer-edit-images')));
+      await tester.pumpAndSettle();
       expect(find.text('Image unavailable'), findsOneWidget);
       expect(find.text('Replace image'), findsOneWidget);
       expect(find.text('Preserved description'), findsOneWidget);

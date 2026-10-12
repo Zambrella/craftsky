@@ -1412,6 +1412,8 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
           )
         else
           ComposerImageAttachmentSection(
+            useDetailsRoute: true,
+            imagesProvider: composerImagesProvider(_composerId),
             imagesState: imagesState,
             enabled: controlsEnabled,
             validationErrorText: photoErrorText,
@@ -2694,8 +2696,14 @@ class _ProjectComposerDetailPage extends StatelessWidget {
         onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
         child: SafeArea(
           top: false,
+          bottom: false,
           child: SingleChildScrollView(
-            padding: EdgeInsets.all(spacing.sp4),
+            padding: EdgeInsets.fromLTRB(
+              spacing.sp4,
+              spacing.sp4,
+              spacing.sp4,
+              spacing.sp4 + MediaQuery.paddingOf(context).bottom,
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
