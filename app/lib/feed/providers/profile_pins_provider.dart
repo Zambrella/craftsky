@@ -90,7 +90,8 @@ class ProfilePins extends _$ProfilePins {
   }) async {
     final current = state.value;
     if (current == null || current.isPending(slot)) return null;
-    final ownership = captureActiveAccountOperation(ref);
+    final accountOperation = ActiveAccountOperation.capture(ref);
+    final ownership = accountOperation.ownership;
     if (ownership != null && ownership != accountLease) {
       return ProfilePinMutationOutcome.staleCompletion;
     }
@@ -103,7 +104,7 @@ class ProfilePins extends _$ProfilePins {
       final confirmed = isPin
           ? await repository.pin(did, rkey)
           : await repository.unpin(did, rkey);
-      if (!isActiveAccountOperationCurrent(ref, ownership)) {
+      if (!accountOperation.isCurrent) {
         return ProfilePinMutationOutcome.staleCompletion;
       }
       final latest = state.value ?? current;
@@ -122,7 +123,7 @@ class ProfilePins extends _$ProfilePins {
           ? ProfilePinMutationOutcome.pinned
           : ProfilePinMutationOutcome.unpinned;
     } on Object {
-      if (!isActiveAccountOperationCurrent(ref, ownership)) {
+      if (!accountOperation.isCurrent) {
         return ProfilePinMutationOutcome.staleCompletion;
       }
       final latest = state.value ?? current;

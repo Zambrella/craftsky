@@ -1,4 +1,3 @@
-import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/auth/providers/account_operation_guard.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/feed/models/post.dart';
@@ -33,12 +32,12 @@ class PostInteractionAccounts extends _$PostInteractionAccounts {
     PostInteractionAccountKind kind,
   ) async {
     final generation = ++_generation;
-    final ownership = (await ref.watch(
-      sessionRegistryProvider.future,
-    )).activeLease;
+    final ownership = ActiveAccountOperation.fromLease(
+      ref,
+      (await ref.watch(sessionRegistryProvider.future)).activeLease,
+    );
     final page = await _list();
-    if (generation != _generation ||
-        !isActiveAccountOperationCurrent(ref, ownership)) {
+    if (generation != _generation || !ownership.isCurrent) {
       throw DiagnosticStateError('Active account changed');
     }
     return _accountState(page);
@@ -50,7 +49,7 @@ class PostInteractionAccounts extends _$PostInteractionAccounts {
 
     _continuationInFlight = true;
     final generation = _generation;
-    final ownership = captureActiveAccountOperation(ref);
+    final ownership = ActiveAccountOperation.capture(ref);
     final cursor = current.cursor!;
     state = const AsyncLoading<PostInteractionAccountsState>();
     try {
@@ -91,7 +90,7 @@ class PostInteractionAccounts extends _$PostInteractionAccounts {
 
   Future<void> _restart(PostInteractionAccountsState current) async {
     final generation = ++_generation;
-    final ownership = captureActiveAccountOperation(ref);
+    final ownership = ActiveAccountOperation.capture(ref);
     state = const AsyncLoading<PostInteractionAccountsState>();
     try {
       final page = await _list();
@@ -124,9 +123,8 @@ class PostInteractionAccounts extends _$PostInteractionAccounts {
           ),
   };
 
-  bool _isCurrent(int generation, ActiveAccountLease? ownership) =>
-      generation == _generation &&
-      isActiveAccountOperationCurrent(ref, ownership);
+  bool _isCurrent(int generation, ActiveAccountOperation ownership) =>
+      generation == _generation && ownership.isCurrent;
 }
 
 @riverpod
@@ -138,12 +136,12 @@ class PostQuotes extends _$PostQuotes {
   Future<PostQuotesState> build(Did did, RecordKey rkey) async {
     ref.watch(activeContentLanguagePolicyProvider);
     final generation = ++_generation;
-    final ownership = (await ref.watch(
-      sessionRegistryProvider.future,
-    )).activeLease;
+    final ownership = ActiveAccountOperation.fromLease(
+      ref,
+      (await ref.watch(sessionRegistryProvider.future)).activeLease,
+    );
     final page = await _list();
-    if (generation != _generation ||
-        !isActiveAccountOperationCurrent(ref, ownership)) {
+    if (generation != _generation || !ownership.isCurrent) {
       throw DiagnosticStateError('Active account changed');
     }
     return _quoteState(ref, did, rkey, page);
@@ -155,7 +153,7 @@ class PostQuotes extends _$PostQuotes {
 
     _continuationInFlight = true;
     final generation = _generation;
-    final ownership = captureActiveAccountOperation(ref);
+    final ownership = ActiveAccountOperation.capture(ref);
     final cursor = current.cursor!;
     state = const AsyncLoading<PostQuotesState>();
     try {
@@ -213,7 +211,7 @@ class PostQuotes extends _$PostQuotes {
 
   Future<void> _restart(PostQuotesState current) async {
     final generation = ++_generation;
-    final ownership = captureActiveAccountOperation(ref);
+    final ownership = ActiveAccountOperation.capture(ref);
     state = const AsyncLoading<PostQuotesState>();
     try {
       final page = await _list();
@@ -234,9 +232,8 @@ class PostQuotes extends _$PostQuotes {
         limit: postInteractionListPageLimit,
       );
 
-  bool _isCurrent(int generation, ActiveAccountLease? ownership) =>
-      generation == _generation &&
-      isActiveAccountOperationCurrent(ref, ownership);
+  bool _isCurrent(int generation, ActiveAccountOperation ownership) =>
+      generation == _generation && ownership.isCurrent;
 }
 
 PostInteractionAccountsState _accountState(ProfileAccountPage page) =>

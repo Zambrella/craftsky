@@ -18,12 +18,13 @@ class OwnerBusinessEvents extends _$OwnerBusinessEvents {
   @override
   Future<BusinessEventListState> build(OwnerEventFilter filter) async {
     _generation = 0;
-    final ownership = captureActiveAccountOperation(ref);
+    final accountOperation = ActiveAccountOperation.capture(ref);
+    final ownership = accountOperation.ownership;
     final read = _captureRead(ownership, const []);
     final page = await ref
         .watch(businessRepositoryProvider)
         .listOwnerEvents(filter);
-    if (!isActiveAccountOperationCurrent(ref, ownership)) {
+    if (!accountOperation.isCurrent) {
       throw DiagnosticStateError('Active account changed');
     }
     if (read != null && !_isReadCurrent(read)) {
@@ -58,7 +59,8 @@ class OwnerBusinessEvents extends _$OwnerBusinessEvents {
       return;
     }
     final generation = _generation;
-    final ownership = captureActiveAccountOperation(ref);
+    final accountOperation = ActiveAccountOperation.capture(ref);
+    final ownership = accountOperation.ownership;
     final read = _captureRead(ownership, current.items);
     state = AsyncData(
       current.copyWith(isLoadingMore: true, incrementalError: null),
@@ -67,8 +69,7 @@ class OwnerBusinessEvents extends _$OwnerBusinessEvents {
       final page = await ref
           .read(businessRepositoryProvider)
           .listOwnerEvents(filter, cursor: current.cursor);
-      if (generation != _generation ||
-          !isActiveAccountOperationCurrent(ref, ownership)) {
+      if (generation != _generation || !accountOperation.isCurrent) {
         return;
       }
       if (read != null && !_isReadCurrent(read)) {
@@ -92,8 +93,7 @@ class OwnerBusinessEvents extends _$OwnerBusinessEvents {
         ),
       );
     } on Object catch (error) {
-      if (generation != _generation ||
-          !isActiveAccountOperationCurrent(ref, ownership)) {
+      if (generation != _generation || !accountOperation.isCurrent) {
         return;
       }
       if (read != null && !_isReadCurrent(read)) {
@@ -119,7 +119,8 @@ class OwnerBusinessEvents extends _$OwnerBusinessEvents {
   Future<void> _restart(BusinessEventListState? current) async {
     if (current == null || current.isRefreshing) return;
     final generation = ++_generation;
-    final ownership = captureActiveAccountOperation(ref);
+    final accountOperation = ActiveAccountOperation.capture(ref);
+    final ownership = accountOperation.ownership;
     final read = _captureRead(ownership, current.items);
     state = AsyncData(
       current.copyWith(
@@ -134,8 +135,7 @@ class OwnerBusinessEvents extends _$OwnerBusinessEvents {
       final page = await ref
           .read(businessRepositoryProvider)
           .listOwnerEvents(filter);
-      if (generation != _generation ||
-          !isActiveAccountOperationCurrent(ref, ownership)) {
+      if (generation != _generation || !accountOperation.isCurrent) {
         return;
       }
       if (read != null && !_isReadCurrent(read)) {
@@ -149,8 +149,7 @@ class OwnerBusinessEvents extends _$OwnerBusinessEvents {
       }
       state = AsyncData(result.state);
     } on Object catch (error) {
-      if (generation != _generation ||
-          !isActiveAccountOperationCurrent(ref, ownership)) {
+      if (generation != _generation || !accountOperation.isCurrent) {
         return;
       }
       if (read != null && !_isReadCurrent(read)) {

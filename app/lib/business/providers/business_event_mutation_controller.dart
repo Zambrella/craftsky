@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/auth/providers/account_operation_guard.dart';
+import 'package:craftsky_app/business/data/business_repository.dart';
 import 'package:craftsky_app/business/models/business_drafts.dart';
 import 'package:craftsky_app/business/models/business_event.dart';
 import 'package:craftsky_app/business/models/business_profile.dart';
@@ -49,23 +50,20 @@ class BusinessEventMutationController extends Notifier<EventMutationState> {
 
   Future<bool> create(BusinessEventDraft draft) => _mutateDraft(
     draft,
-    (operationKey) => ref
-        .read(businessRepositoryProvider)
-        .createEvent(draft, operationKey: operationKey),
+    (operationKey, repository) =>
+        repository.createEvent(draft, operationKey: operationKey),
   );
 
   Future<bool> update(BusinessEvent event, BusinessEventDraft draft) =>
       _mutateDraft(
         draft,
-        (operationKey) => ref
-            .read(businessRepositoryProvider)
-            .updateEvent(
-              event.did,
-              event.rkey,
-              event.cid,
-              draft,
-              operationKey: operationKey,
-            ),
+        (operationKey, repository) => repository.updateEvent(
+          event.did,
+          event.rkey,
+          event.cid,
+          draft,
+          operationKey: operationKey,
+        ),
         event: event,
       );
 
@@ -76,15 +74,13 @@ class BusinessEventMutationController extends Notifier<EventMutationState> {
     ).copyWith(status: status);
     return _mutateDraft(
       draft,
-      (operationKey) => ref
-          .read(businessRepositoryProvider)
-          .updateEvent(
-            event.did,
-            event.rkey,
-            event.cid,
-            draft,
-            operationKey: operationKey,
-          ),
+      (operationKey, repository) => repository.updateEvent(
+        event.did,
+        event.rkey,
+        event.cid,
+        draft,
+        operationKey: operationKey,
+      ),
       event: event,
       retryOnConflict: (current) => changeStatus(current, status),
     );
@@ -92,7 +88,8 @@ class BusinessEventMutationController extends Notifier<EventMutationState> {
 
   Future<bool> delete(BusinessEvent event, {required bool confirmed}) async {
     if (!confirmed || state.status == EventMutationStatus.saving) return false;
-    final ownership = captureActiveAccountOperation(ref);
+    final accountOperation = ActiveAccountOperation.capture(ref);
+    final ownership = accountOperation.ownership;
     final lease = ownership?.session ?? _testLease(event.did);
     final endpoint = '/v1/events/${event.did}/${event.rkey}';
     final immutableBody = 'DELETE\nIf-Match:${event.cid}\n';
@@ -104,51 +101,39 @@ class BusinessEventMutationController extends Notifier<EventMutationState> {
       newOperationKey: newPdsMutationOperationKey,
     );
     final operationKey = commandToken.operationKey;
-    final startedAt = ref.read(pdsMutationNowProvider)();
-    var retryIndex = 0;
+    final retry = PdsMutationRetry(
+      ref: ref,
+      controller: commandController,
+      token: commandToken,
+      isCurrent: () => accountOperation.isCurrent,
+      requireCurrentToken: false,
+    );
     state = const EventMutationState(status: EventMutationStatus.saving);
+    late final repository = ref.read(businessRepositoryProvider);
     while (true) {
       try {
-        await ref
-            .read(businessRepositoryProvider)
-            .deleteEvent(
-              event.did,
-              event.rkey,
-              event.cid,
-              operationKey: operationKey,
-            );
+        await repository.deleteEvent(
+          event.did,
+          event.rkey,
+          event.cid,
+          operationKey: operationKey,
+        );
       } on PdsMutationAmbiguousException catch (error) {
-        if (!isActiveAccountOperationCurrent(ref, ownership)) return false;
-        commandController.markAmbiguous(
-          commandToken,
-          retryAfterSeconds: error.retryAfterSeconds,
-        );
-        final delay = const PdsMutationRetryPolicy().nextDelay(
-          retryIndex: retryIndex,
-          retryAfterSeconds: error.retryAfterSeconds,
-          elapsed: ref.read(pdsMutationNowProvider)().difference(startedAt),
-          jitterMillis: ref.read(pdsMutationJitterProvider),
-        );
-        if (delay == null) {
-          state = const EventMutationState(
-            status: EventMutationStatus.ambiguous,
-          );
-          return false;
+        final decision = await retry.wait(error);
+        if (!accountOperation.isCurrent) return false;
+        switch (decision) {
+          case PdsMutationRetryDecision.obsolete:
+            return false;
+          case PdsMutationRetryDecision.exhausted:
+            state = const EventMutationState(
+              status: EventMutationStatus.ambiguous,
+            );
+            return false;
+          case PdsMutationRetryDecision.retry:
+            continue;
         }
-        retryIndex++;
-        await ref.read(pdsMutationDelayProvider)(delay);
-        if (!isActiveAccountOperationCurrent(ref, ownership) ||
-            !commandController.canRetry(
-              commandToken,
-              operationKey: operationKey,
-              endpoint: endpoint,
-              immutableBody: immutableBody,
-            )) {
-          return false;
-        }
-        continue;
       } on Object catch (error) {
-        if (!isActiveAccountOperationCurrent(ref, ownership)) return false;
+        if (!accountOperation.isCurrent) return false;
         commandController.markFailed(commandToken);
         _setFailure(
           error,
@@ -157,7 +142,7 @@ class BusinessEventMutationController extends Notifier<EventMutationState> {
         );
         return false;
       }
-      if (!isActiveAccountOperationCurrent(ref, ownership)) return false;
+      if (!accountOperation.isCurrent) return false;
       final reconciliation = PdsAddressedDeleteReconciliation(
         uri: event.uri.toString(),
       );
@@ -211,7 +196,11 @@ class BusinessEventMutationController extends Notifier<EventMutationState> {
 
   Future<bool> _mutateDraft(
     BusinessEventDraft draft,
-    Future<RecordMutationResult> Function(String operationKey) operation, {
+    Future<RecordMutationResult> Function(
+      String operationKey,
+      BusinessRepository repository,
+    )
+    operation, {
     BusinessEvent? event,
     Future<bool> Function(BusinessEvent current)? retryOnConflict,
   }) async {
@@ -236,7 +225,8 @@ class BusinessEventMutationController extends Notifier<EventMutationState> {
     final endpoint = event == null
         ? '/v1/events'
         : '/v1/events/${event.did}/${event.rkey}';
-    final ownership = captureActiveAccountOperation(ref);
+    final accountOperation = ActiveAccountOperation.capture(ref);
+    final ownership = accountOperation.ownership;
     final lease =
         ownership?.session ?? (event == null ? null : _testLease(event.did));
     final commandLease = lease ?? _testLease(Did.parse('did:plc:local-test'));
@@ -250,45 +240,38 @@ class BusinessEventMutationController extends Notifier<EventMutationState> {
       newOperationKey: newPdsMutationOperationKey,
     );
     final operationKey = commandToken.operationKey;
-    final startedAt = ref.read(pdsMutationNowProvider)();
-    var retryIndex = 0;
+    final retry = PdsMutationRetry(
+      ref: ref,
+      controller: commandController,
+      token: commandToken,
+      isCurrent: () => accountOperation.isCurrent,
+      requireCurrentToken: false,
+    );
     state = const EventMutationState(status: EventMutationStatus.saving);
+    late final repository = ref.read(businessRepositoryProvider);
     while (true) {
       late final RecordMutationResult result;
       try {
-        result = await operation(operationKey);
+        result = await operation(
+          operationKey,
+          repository,
+        );
       } on PdsMutationAmbiguousException catch (error) {
-        if (!isActiveAccountOperationCurrent(ref, ownership)) return false;
-        commandController.markAmbiguous(
-          commandToken,
-          retryAfterSeconds: error.retryAfterSeconds,
-        );
-        final delay = const PdsMutationRetryPolicy().nextDelay(
-          retryIndex: retryIndex,
-          retryAfterSeconds: error.retryAfterSeconds,
-          elapsed: ref.read(pdsMutationNowProvider)().difference(startedAt),
-          jitterMillis: ref.read(pdsMutationJitterProvider),
-        );
-        if (delay == null) {
-          state = const EventMutationState(
-            status: EventMutationStatus.ambiguous,
-          );
-          return false;
+        final decision = await retry.wait(error);
+        if (!accountOperation.isCurrent) return false;
+        switch (decision) {
+          case PdsMutationRetryDecision.obsolete:
+            return false;
+          case PdsMutationRetryDecision.exhausted:
+            state = const EventMutationState(
+              status: EventMutationStatus.ambiguous,
+            );
+            return false;
+          case PdsMutationRetryDecision.retry:
+            continue;
         }
-        retryIndex++;
-        await ref.read(pdsMutationDelayProvider)(delay);
-        if (!isActiveAccountOperationCurrent(ref, ownership) ||
-            !commandController.canRetry(
-              commandToken,
-              operationKey: operationKey,
-              endpoint: endpoint,
-              immutableBody: immutableBody,
-            )) {
-          return false;
-        }
-        continue;
       } on Object catch (error) {
-        if (!isActiveAccountOperationCurrent(ref, ownership)) return false;
+        if (!accountOperation.isCurrent) return false;
         commandController.markFailed(commandToken);
         _setFailure(
           error,
@@ -301,7 +284,7 @@ class BusinessEventMutationController extends Notifier<EventMutationState> {
         );
         return false;
       }
-      if (!isActiveAccountOperationCurrent(ref, ownership)) return false;
+      if (!accountOperation.isCurrent) return false;
       final accepted = _acceptedEvent(result, frozenDraft, event: event);
       if (accepted != null) {
         final acceptedLease = lease ?? _testLease(accepted.did);

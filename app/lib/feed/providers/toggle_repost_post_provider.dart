@@ -25,7 +25,7 @@ class ToggleRepostPost extends _$ToggleRepostPost {
   FutureOr<Post?> build() => null;
 
   Future<void> toggle({required Post post}) async {
-    final ownership = captureActiveAccountOperation(ref);
+    final operation = ActiveAccountOperation.capture(ref);
     final desiredReposted = !post.viewerHasReposted;
     final next = post.copyWith(
       viewerHasReposted: desiredReposted,
@@ -44,6 +44,7 @@ class ToggleRepostPost extends _$ToggleRepostPost {
       newOperationKey: newPdsMutationOperationKey,
     );
     final operationKey = token.operationKey;
+    late final repo = ref.read(postRepositoryProvider);
 
     state = AsyncData(next);
     try {
@@ -51,9 +52,8 @@ class ToggleRepostPost extends _$ToggleRepostPost {
         ref: ref,
         controller: controller,
         token: token,
-        isCurrent: () => isActiveAccountOperationCurrent(ref, ownership),
+        isCurrent: () => operation.isCurrent,
         send: () async {
-          final repo = ref.read(postRepositoryProvider);
           if (desiredReposted) {
             await repo.repost(
               post.author.did,
@@ -72,17 +72,17 @@ class ToggleRepostPost extends _$ToggleRepostPost {
     } on PdsMutationObsoleteException {
       return;
     } on PdsMutationUnresolvedException catch (error, stackTrace) {
-      state = AsyncError<Post?>(error, stackTrace);
+      operation.publish(() => state = AsyncError<Post?>(error, stackTrace));
       return;
     } on Object catch (error, stackTrace) {
-      if (!isActiveAccountOperationCurrent(ref, ownership)) return;
+      if (!operation.isCurrent) return;
       controller.markFailed(token);
       state = const AsyncData(null);
       state = AsyncError<Post?>(error, stackTrace);
       return;
     }
 
-    if (!isActiveAccountOperationCurrent(ref, ownership)) return;
+    if (!operation.isCurrent) return;
     final reconciliation = PdsSetReconciliation(active: desiredReposted);
     if (!controller.markAccepted(
       token,

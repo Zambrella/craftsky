@@ -21,21 +21,24 @@ class DraftSaveController extends _$DraftSaveController {
         DraftRepositoryFailureReason.invalidRequest,
       );
     }
-    final ownership = captureActiveAccountOperation(ref);
+    final accountOperation = ActiveAccountOperation.capture(ref);
     state = const AsyncLoading();
     try {
-      final repository = await ref.read(
-        accountLocalPostDraftRepositoryProvider(account).future,
+      final repository = await accountOperation.step(
+        () => ref.read(accountLocalPostDraftRepositoryProvider(account).future),
       );
-      if (!isActiveAccountOperationCurrent(ref, ownership)) return null;
-      final saved = await repository.save(request);
-      if (!isActiveAccountOperationCurrent(ref, ownership)) return null;
-      await ref.read(localPostDraftsProvider(account).notifier).refresh();
-      if (!isActiveAccountOperationCurrent(ref, ownership)) return null;
-      state = AsyncData(saved);
+      final saved = await accountOperation.step(() => repository.save(request));
+      await accountOperation.step(
+        () => ref.read(localPostDraftsProvider(account).notifier).refresh(),
+      );
+      if (!accountOperation.publish(() => state = AsyncData(saved))) {
+        return null;
+      }
       return saved;
+    } on AccountOperationDiscarded {
+      return null;
     } on Object catch (error, stackTrace) {
-      if (isActiveAccountOperationCurrent(ref, ownership)) {
+      if (accountOperation.isCurrent) {
         state = AsyncError(error, stackTrace);
       }
       rethrow;

@@ -58,7 +58,8 @@ class BusinessEventDetail extends _$BusinessEventDetail {
   Future<BusinessEventDetailState> build(
     BusinessEventDetailTarget target,
   ) async {
-    final ownership = captureActiveAccountOperation(ref);
+    final accountOperation = ActiveAccountOperation.capture(ref);
+    final ownership = accountOperation.ownership;
     if (ownership != null && ownership.session.account != target.account) {
       throw DiagnosticStateError('Active account changed');
     }
@@ -72,7 +73,7 @@ class BusinessEventDetail extends _$BusinessEventDetail {
       final event = await ref
           .watch(businessRepositoryProvider)
           .getEvent(target.owner, target.rkey);
-      if (!isActiveAccountOperationCurrent(ref, ownership)) {
+      if (!accountOperation.isCurrent) {
         throw DiagnosticStateError('Active account changed');
       }
       if (!isBusinessRecordReadCurrent(ref, readFence) &&

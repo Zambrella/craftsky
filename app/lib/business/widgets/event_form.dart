@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:craftsky_app/auth/models/account_session_lease.dart';
+import 'package:craftsky_app/auth/providers/account_operation_guard.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/business/models/business_drafts.dart';
 import 'package:craftsky_app/business/models/business_labels.dart';
@@ -666,12 +667,8 @@ class EventFormState extends ConsumerState<EventForm> {
     });
   }
 
-  bool _isCurrent(ActiveAccountLease? ownership) {
-    if (!mounted) return false;
-    if (ownership == null) return true;
-    return ref.read(sessionRegistryProvider).value?.isCurrent(ownership) ??
-        false;
-  }
+  bool _isCurrent(ActiveAccountLease? ownership) =>
+      ActiveAccountOperation.fromWidget(ref, ownership).isCurrent;
 
   ActiveAccountLease? _captureOwnership() {
     return ref.read(sessionRegistryProvider).value?.activeLease;

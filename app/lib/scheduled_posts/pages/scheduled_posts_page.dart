@@ -1,4 +1,5 @@
 import 'package:craftsky_app/auth/models/account_session_lease.dart';
+import 'package:craftsky_app/auth/providers/account_operation_guard.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/feed/widgets/post_composer_sheet.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
@@ -116,7 +117,7 @@ Widget _buildScheduledPostSkeleton(BuildContext context, int index) =>
     const ManagementRowSkeleton();
 
 bool _isActiveLeaseCurrent(WidgetRef ref, ActiveAccountLease lease) =>
-    ref.read(sessionRegistryProvider).value?.isCurrent(lease) ?? false;
+    ActiveAccountOperation.fromWidget(ref, lease).isCurrent;
 
 class ScheduledPostsPageContent extends StatelessWidget {
   const ScheduledPostsPageContent({

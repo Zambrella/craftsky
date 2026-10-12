@@ -23,7 +23,8 @@ part 'user_profile_provider.g.dart';
 class UserProfile extends _$UserProfile {
   @override
   Future<Profile> build(Did did) async {
-    final ownership = captureActiveAccountOperation(ref);
+    final accountOperation = ActiveAccountOperation.capture(ref);
+    final ownership = accountOperation.ownership;
     final lease = ownership?.session;
     final readFence = lease == null
         ? null
@@ -44,7 +45,7 @@ class UserProfile extends _$UserProfile {
       }
       rethrow;
     }
-    if (!isActiveAccountOperationCurrent(ref, ownership)) {
+    if (!accountOperation.isCurrent) {
       throw AccountOperationCanceled();
     }
     var reconciledProfile = profile;

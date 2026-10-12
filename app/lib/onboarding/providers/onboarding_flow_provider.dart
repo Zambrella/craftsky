@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:craftsky_app/auth/models/account_session_lease.dart';
+import 'package:craftsky_app/auth/providers/account_operation_guard.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/onboarding/data/onboarding_profile_payload.dart';
 import 'package:craftsky_app/onboarding/models/onboarding_flow_state.dart';
@@ -298,8 +299,13 @@ class OnboardingFlow extends _$OnboardingFlow {
     required PdsRecordOperationController controller,
     required PdsMutationToken token,
   }) async {
-    final startedAt = ref.read(pdsMutationNowProvider)();
-    var retryIndex = 0;
+    final retry = PdsMutationRetry(
+      ref: ref,
+      controller: controller,
+      token: token,
+      isCurrent: _isCurrent,
+      requireCurrentToken: false,
+    );
     while (true) {
       try {
         return await repository.updateMe(
@@ -311,28 +317,15 @@ class OnboardingFlow extends _$OnboardingFlow {
           avatar: payload.avatar,
         );
       } on PdsMutationAmbiguousException catch (error) {
+        final decision = await retry.wait(error);
         if (!_isCurrent()) throw const _OnboardingMutationSuperseded();
-        controller.markAmbiguous(
-          token,
-          retryAfterSeconds: error.retryAfterSeconds,
-        );
-        final delay = const PdsMutationRetryPolicy().nextDelay(
-          retryIndex: retryIndex,
-          retryAfterSeconds: error.retryAfterSeconds,
-          elapsed: ref.read(pdsMutationNowProvider)().difference(startedAt),
-          jitterMillis: ref.read(pdsMutationJitterProvider),
-        );
-        if (delay == null) rethrow;
-        retryIndex++;
-        await ref.read(pdsMutationDelayProvider)(delay);
-        if (!_isCurrent() ||
-            !controller.canRetry(
-              token,
-              operationKey: operationKey,
-              endpoint: endpoint,
-              immutableBody: immutableBody,
-            )) {
-          throw const _OnboardingMutationSuperseded();
+        switch (decision) {
+          case PdsMutationRetryDecision.obsolete:
+            throw const _OnboardingMutationSuperseded();
+          case PdsMutationRetryDecision.exhausted:
+            rethrow;
+          case PdsMutationRetryDecision.retry:
+            continue;
         }
       } on Object {
         controller.markFailed(token);
@@ -346,9 +339,7 @@ class OnboardingFlow extends _$OnboardingFlow {
     ref.invalidate(userProfileProvider);
   }
 
-  bool _isCurrent() =>
-      ref.mounted &&
-      ref.read(sessionRegistryProvider).value?.activeLease == lease;
+  bool _isCurrent() => ActiveAccountOperation.fromLease(ref, lease).isCurrent;
 
   static bool _hasIdentity(Profile profile) =>
       (profile.displayName?.isNotEmpty ?? false) ||

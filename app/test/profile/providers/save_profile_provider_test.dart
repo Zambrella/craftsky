@@ -1,3 +1,9 @@
+import 'dart:async';
+
+import 'package:craftsky_app/auth/models/session_registry.dart';
+import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
+import 'package:craftsky_app/auth/providers/session_registry_provider.dart'
+    show sessionRegistryProvider;
 import 'package:craftsky_app/business/data/business_repository.dart';
 import 'package:craftsky_app/business/models/business_drafts.dart';
 import 'package:craftsky_app/business/models/business_event.dart';
@@ -256,6 +262,72 @@ void main() {
       );
     },
   );
+
+  for (final replaceSession in [false, true]) {
+    test(
+      'both profile retries stop after '
+      '${replaceSession ? 'session replacement' : 'account switch'}',
+      () async {
+        final profileRepository = _ProfileRepository()..ambiguousResponses = 1;
+        final businessRepository = _BusinessRepository()
+          ..ambiguousResponses = 1;
+        final delaysEntered = Completer<void>();
+        final resumeRetries = Completer<void>();
+        var delayCount = 0;
+        final controller = PdsRecordOperationController(schedule: (_, _) {});
+        final storage = _RegistryStorage(
+          SessionRegistry.empty().upsertAndActivate(
+            token: 'alice-session',
+            did: 'did:plc:alice',
+            handle: 'alice.test',
+          ),
+        );
+        final container = ProviderContainer.test(
+          overrides: [
+            secureSessionRegistryStorageProvider.overrideWithValue(storage),
+            profileRepositoryProvider.overrideWithValue(profileRepository),
+            businessRepositoryProvider.overrideWithValue(businessRepository),
+            pdsMutationDelayProvider.overrideWithValue((_) {
+              if (++delayCount == 2) delaysEntered.complete();
+              return resumeRetries.future;
+            }),
+            pdsMutationJitterProvider.overrideWithValue((_) => 0),
+            pdsRecordOperationControllerProvider.overrideWithValue(controller),
+          ],
+        );
+        final subscription = container.listen(saveProfileProvider, (_, _) {});
+        addTearDown(subscription.close);
+        await container.read(sessionRegistryProvider.future);
+        await container.read(saveProfileProvider.future);
+        final pending = container
+            .read(saveProfileProvider.notifier)
+            .save(
+              currentProfile: _profile,
+              displayName: 'Renamed',
+              businessChanged: true,
+              businessDraft: BusinessDeclarationDraft.fromProfile(
+                _businessProfile,
+              ),
+            );
+
+        await delaysEntered.future;
+        await container
+            .read(sessionRegistryProvider.notifier)
+            .upsertAndActivate(
+              token: 'replacement-session',
+              did: replaceSession ? 'did:plc:alice' : 'did:plc:bob',
+              handle: replaceSession ? 'alice.test' : 'bob.test',
+            );
+        resumeRetries.complete();
+
+        expect(await pending, isNull);
+        expect(profileRepository.updateCalls, 1);
+        expect(businessRepository.putCalls, 1);
+        expect(controller.activeOverlays, isEmpty);
+        expect(container.read(saveProfileProvider).isLoading, isTrue);
+      },
+    );
+  }
 }
 
 ProviderContainer _container(
@@ -349,4 +421,16 @@ final class _BusinessRepository extends Fake implements BusinessRepository {
       cid: 'bafyreifbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
     );
   }
+}
+
+final class _RegistryStorage implements SessionRegistryStorage {
+  _RegistryStorage(this.value);
+
+  SessionRegistry value;
+
+  @override
+  Future<SessionRegistry> read() async => value;
+
+  @override
+  Future<void> write(SessionRegistry registry) async => value = registry;
 }

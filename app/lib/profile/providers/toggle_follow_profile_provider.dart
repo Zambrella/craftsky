@@ -24,7 +24,7 @@ class ToggleFollowProfile extends _$ToggleFollowProfile {
     required Did cacheKey,
     required Profile profile,
   }) async {
-    final ownership = captureActiveAccountOperation(ref);
+    final operation = ActiveAccountOperation.capture(ref);
     final desiredFollowing = !profile.viewerIsFollowing;
     final endpoint = '/v1/profiles/@$cacheKey/follows';
     final immutableBody = desiredFollowing ? 'POST\n' : 'DELETE\n';
@@ -37,6 +37,7 @@ class ToggleFollowProfile extends _$ToggleFollowProfile {
       newOperationKey: newPdsMutationOperationKey,
     );
     final operationKey = token.operationKey;
+    late final repo = ref.read(profileRepositoryProvider);
 
     state = const AsyncLoading<Profile?>();
     late final Profile updated;
@@ -45,9 +46,8 @@ class ToggleFollowProfile extends _$ToggleFollowProfile {
         ref: ref,
         controller: controller,
         token: token,
-        isCurrent: () => isActiveAccountOperationCurrent(ref, ownership),
+        isCurrent: () => operation.isCurrent,
         send: () async {
-          final repo = ref.read(profileRepositoryProvider);
           return desiredFollowing
               ? await repo.follow(cacheKey, operationKey: operationKey)
               : await repo.unfollow(cacheKey, operationKey: operationKey);
@@ -56,16 +56,16 @@ class ToggleFollowProfile extends _$ToggleFollowProfile {
     } on PdsMutationObsoleteException {
       return;
     } on PdsMutationUnresolvedException catch (error, stackTrace) {
-      state = AsyncError<Profile?>(error, stackTrace);
+      operation.publish(() => state = AsyncError<Profile?>(error, stackTrace));
       return;
     } on Object catch (error, stackTrace) {
-      if (!isActiveAccountOperationCurrent(ref, ownership)) return;
+      if (!operation.isCurrent) return;
       controller.markFailed(token);
       state = AsyncError<Profile?>(error, stackTrace);
       return;
     }
 
-    if (!isActiveAccountOperationCurrent(ref, ownership)) return;
+    if (!operation.isCurrent) return;
     final reconciliation = PdsSetReconciliation(active: desiredFollowing);
     if (!controller.markAccepted(
       token,

@@ -1,6 +1,6 @@
 import 'package:craftsky_app/auth/models/account_session_lease.dart';
+import 'package:craftsky_app/auth/providers/account_operation_guard.dart';
 import 'package:craftsky_app/auth/providers/active_account_initialization_provider.dart';
-import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/drafts/composer/draft_composer_hydrator.dart';
 import 'package:craftsky_app/drafts/data/local_post_draft_repository.dart';
 import 'package:craftsky_app/drafts/models/local_post_draft.dart';
@@ -144,7 +144,7 @@ Widget _buildDraftSkeleton(BuildContext context, int index) =>
     const ManagementRowSkeleton();
 
 bool _isActiveLeaseCurrent(WidgetRef ref, ActiveAccountLease lease) =>
-    ref.read(sessionRegistryProvider).value?.isCurrent(lease) ?? false;
+    ActiveAccountOperation.fromWidget(ref, lease).isCurrent;
 
 final class DraftsPageContent extends StatelessWidget {
   const DraftsPageContent({

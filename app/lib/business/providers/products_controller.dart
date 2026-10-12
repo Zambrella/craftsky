@@ -203,7 +203,8 @@ class ProductsController extends _$ProductsController {
       return false;
     }
 
-    final ownership = captureActiveAccountOperation(ref);
+    final accountOperation = ActiveAccountOperation.capture(ref);
+    final ownership = accountOperation.ownership;
     final lease =
         ownership?.session ??
         AccountSessionLease(
@@ -231,56 +232,44 @@ class ProductsController extends _$ProductsController {
       newOperationKey: newPdsMutationOperationKey,
     );
     final operationKey = commandToken.operationKey;
-    final startedAt = ref.read(pdsMutationNowProvider)();
-    var retryIndex = 0;
+    final retry = PdsMutationRetry(
+      ref: ref,
+      controller: commandController,
+      token: commandToken,
+      isCurrent: () => accountOperation.isCurrent,
+      requireCurrentToken: false,
+    );
     state = AsyncData(
       current.copyWith(
         status: ProductsStatus.saving,
         validationErrors: const {},
       ),
     );
+    late final repository = ref.read(businessRepositoryProvider);
     while (true) {
       late final RecordMutationResult result;
       try {
-        result = await ref
-            .read(businessRepositoryProvider)
-            .putBusinessProfile(
-              body,
-              operationKey: operationKey,
-              expectedCid: current.declaration.expectedCid,
-            );
+        result = await repository.putBusinessProfile(
+          body,
+          operationKey: operationKey,
+          expectedCid: current.declaration.expectedCid,
+        );
       } on PdsMutationAmbiguousException catch (error) {
-        if (!isActiveAccountOperationCurrent(ref, ownership)) return false;
-        commandController.markAmbiguous(
-          commandToken,
-          retryAfterSeconds: error.retryAfterSeconds,
-        );
-        final delay = const PdsMutationRetryPolicy().nextDelay(
-          retryIndex: retryIndex,
-          retryAfterSeconds: error.retryAfterSeconds,
-          elapsed: ref.read(pdsMutationNowProvider)().difference(startedAt),
-          jitterMillis: ref.read(pdsMutationJitterProvider),
-        );
-        if (delay == null) {
-          state = AsyncData(
-            current.copyWith(status: ProductsStatus.ambiguous),
-          );
-          return false;
+        final decision = await retry.wait(error);
+        if (!accountOperation.isCurrent) return false;
+        switch (decision) {
+          case PdsMutationRetryDecision.obsolete:
+            return false;
+          case PdsMutationRetryDecision.exhausted:
+            state = AsyncData(
+              current.copyWith(status: ProductsStatus.ambiguous),
+            );
+            return false;
+          case PdsMutationRetryDecision.retry:
+            continue;
         }
-        retryIndex++;
-        await ref.read(pdsMutationDelayProvider)(delay);
-        if (!isActiveAccountOperationCurrent(ref, ownership) ||
-            !commandController.canRetry(
-              commandToken,
-              operationKey: operationKey,
-              endpoint: endpoint,
-              immutableBody: immutableBody,
-            )) {
-          return false;
-        }
-        continue;
       } on ApiBadRequest catch (error) {
-        if (!isActiveAccountOperationCurrent(ref, ownership)) return false;
+        if (!accountOperation.isCurrent) return false;
         commandController.markFailed(commandToken);
         state = AsyncData(
           current.copyWith(
@@ -293,12 +282,12 @@ class ProductsController extends _$ProductsController {
         );
         return false;
       } on Object {
-        if (!isActiveAccountOperationCurrent(ref, ownership)) return false;
+        if (!accountOperation.isCurrent) return false;
         commandController.markFailed(commandToken);
         state = AsyncData(current.copyWith(status: ProductsStatus.error));
         return false;
       }
-      if (!isActiveAccountOperationCurrent(ref, ownership)) return false;
+      if (!accountOperation.isCurrent) return false;
       final declaration = current.declaration.withExpectedCid(result.cid);
       final accepted = _acceptedProfile(
         declaration,

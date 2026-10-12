@@ -18,12 +18,12 @@ class SaveRecentSearch extends _$SaveRecentSearch {
   FutureOr<RecentSearchItem?> build() => null;
 
   Future<RecentSearchItem> save(SaveRecentSearchRequest request) async {
-    final ownership = captureActiveAccountOperation(ref);
+    final accountOperation = ActiveAccountOperation.capture(ref);
     state = const AsyncLoading();
     final saved = await ref
         .read(searchRepositoryProvider)
         .saveRecentSearch(request);
-    if (!isActiveAccountOperationCurrent(ref, ownership)) return saved;
+    if (!accountOperation.isCurrent) return saved;
     ref
       ..invalidate(recentSearchPageProvider)
       ..invalidate(blankSearchProvider);
@@ -38,10 +38,10 @@ class DeleteRecentSearch extends _$DeleteRecentSearch {
   FutureOr<void> build() => null;
 
   Future<void> delete(String id) async {
-    final ownership = captureActiveAccountOperation(ref);
+    final accountOperation = ActiveAccountOperation.capture(ref);
     state = const AsyncLoading();
     await ref.read(searchRepositoryProvider).deleteRecentSearch(id);
-    if (!isActiveAccountOperationCurrent(ref, ownership)) return;
+    if (!accountOperation.isCurrent) return;
     ref
       ..invalidate(recentSearchPageProvider)
       ..invalidate(blankSearchProvider);

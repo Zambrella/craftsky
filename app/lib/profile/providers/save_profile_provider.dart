@@ -9,6 +9,7 @@ import 'package:craftsky_app/business/models/business_event.dart';
 import 'package:craftsky_app/business/models/business_profile.dart';
 import 'package:craftsky_app/business/providers/business_record_overlay.dart';
 import 'package:craftsky_app/business/providers/business_repository_provider.dart';
+import 'package:craftsky_app/profile/data/profile_repository.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/models/profile_save_result.dart';
 import 'package:craftsky_app/profile/providers/profile_record_overlay.dart';
@@ -56,7 +57,8 @@ class SaveProfile extends _$SaveProfile {
     UploadedBlob? banner,
     bool clearBanner = false,
   }) async {
-    final ownership = captureActiveAccountOperation(ref);
+    final accountOperation = ActiveAccountOperation.capture(ref);
+    final ownership = accountOperation.ownership;
     state = const AsyncLoading();
     if (businessChanged && businessDraft == null) {
       throw ArgumentError.notNull('businessDraft');
@@ -130,58 +132,50 @@ class SaveProfile extends _$SaveProfile {
 
     // Start both requested writes before awaiting either. Each future captures
     // its own error, so one record can never cancel or hide the other's result.
+    late final ordinaryRepository = ref.read(profileRepositoryProvider);
+    late final businessRepository = ref.read(businessRepositoryProvider);
+    Future<Profile> writeOrdinary() => _updateProfileOnce(
+      repository: ordinaryRepository,
+      operationKey: ordinaryOperationKey!,
+      displayName: displayName,
+      pronouns: pronouns,
+      description: description,
+      crafts: crafts,
+      avatar: avatar,
+      clearAvatar: clearAvatar,
+      banner: banner,
+      clearBanner: clearBanner,
+    );
     final ordinaryFuture = ordinaryChanged
         ? _capture(
             () => ordinaryToken == null
-                ? _updateProfileOnce(
-                    operationKey: ordinaryOperationKey!,
-                    displayName: displayName,
-                    pronouns: pronouns,
-                    description: description,
-                    crafts: crafts,
-                    avatar: avatar,
-                    clearAvatar: clearAvatar,
-                    banner: banner,
-                    clearBanner: clearBanner,
-                  )
-                : _updateProfileWithRetry(
-                    ownership: ownership,
-                    operationKey: ordinaryOperationKey!,
-                    endpoint: ordinaryEndpoint,
-                    immutableBody: ordinaryImmutableBody!,
+                ? writeOrdinary()
+                : _writeWithRetry(
+                    accountOperation: accountOperation,
                     controller: commandController,
                     token: ordinaryToken,
-                    displayName: displayName,
-                    pronouns: pronouns,
-                    description: description,
-                    crafts: crafts,
-                    avatar: avatar,
-                    clearAvatar: clearAvatar,
-                    banner: banner,
-                    clearBanner: clearBanner,
+                    write: writeOrdinary,
+                    superseded: const _ProfileMutationSuperseded(),
                   ),
           )
         : null;
     final businessFuture = businessChanged
         ? _capture(() async {
             final draft = businessDraft!;
+            Future<RecordMutationResult> writeBusiness() =>
+                businessRepository.putBusinessProfile(
+                  businessBody!,
+                  operationKey: businessOperationKey!,
+                  expectedCid: draft.expectedCid,
+                );
             final mutation = commandToken == null
-                ? await ref
-                      .read(businessRepositoryProvider)
-                      .putBusinessProfile(
-                        businessBody!,
-                        operationKey: businessOperationKey!,
-                        expectedCid: draft.expectedCid,
-                      )
-                : await _putBusinessProfileWithRetry(
-                    ownership: ownership,
-                    body: businessBody!,
-                    expectedCid: draft.expectedCid,
-                    operationKey: businessOperationKey!,
-                    endpoint: businessEndpoint,
-                    immutableBody: businessImmutableBody!,
+                ? await writeBusiness()
+                : await _writeWithRetry(
+                    accountOperation: accountOperation,
                     controller: commandController,
                     token: commandToken,
+                    write: writeBusiness,
+                    superseded: const _BusinessProfileMutationSuperseded(),
                   );
             return draft.toProfile(mutation.cid);
           })
@@ -193,7 +187,7 @@ class SaveProfile extends _$SaveProfile {
     final business = businessFuture == null
         ? const PerRecordSaveOutcome<BusinessProfile>.skipped()
         : await businessFuture;
-    if (!isActiveAccountOperationCurrent(ref, ownership)) return null;
+    if (!accountOperation.isCurrent) return null;
 
     if (ordinary.value case final accepted? when mutationLease != null) {
       final projection = personalProfileProjection(accepted);
@@ -231,9 +225,8 @@ class SaveProfile extends _$SaveProfile {
       if (!commandController.markAccepted(
         commandToken!,
         optimisticValue: accepted,
-        agrees: (value) => reconciliation.agrees(
-          value is PdsRecordProjection ? value : null,
-        ),
+        agrees: (value) =>
+            reconciliation.agrees(value is PdsRecordProjection ? value : null),
         refresh: _invalidateBusinessProfileReads,
       )) {
         return null;
@@ -262,62 +255,35 @@ class SaveProfile extends _$SaveProfile {
     }
   }
 
-  Future<Profile> _updateProfileWithRetry({
-    required ActiveAccountLease? ownership,
-    required String operationKey,
-    required String endpoint,
-    required String immutableBody,
+  /// Keeps both profile records on the same retry and ownership policy while
+  /// callers retain their separate write results and superseded errors.
+  Future<T> _writeWithRetry<T>({
+    required ActiveAccountOperation accountOperation,
     required PdsRecordOperationController controller,
     required PdsMutationToken token,
-    String? displayName,
-    String? pronouns,
-    String? description,
-    List<String>? crafts,
-    UploadedBlob? avatar,
-    bool clearAvatar = false,
-    UploadedBlob? banner,
-    bool clearBanner = false,
+    required Future<T> Function() write,
+    required Exception superseded,
   }) async {
-    final startedAt = ref.read(pdsMutationNowProvider)();
-    var retryIndex = 0;
+    final retry = PdsMutationRetry(
+      ref: ref,
+      controller: controller,
+      token: token,
+      isCurrent: () => accountOperation.isCurrent,
+      requireCurrentToken: false,
+    );
     while (true) {
       try {
-        return await _updateProfileOnce(
-          operationKey: operationKey,
-          displayName: displayName,
-          pronouns: pronouns,
-          description: description,
-          crafts: crafts,
-          avatar: avatar,
-          clearAvatar: clearAvatar,
-          banner: banner,
-          clearBanner: clearBanner,
-        );
+        return await write();
       } on PdsMutationAmbiguousException catch (error) {
-        if (!isActiveAccountOperationCurrent(ref, ownership)) {
-          throw const _ProfileMutationSuperseded();
-        }
-        controller.markAmbiguous(
-          token,
-          retryAfterSeconds: error.retryAfterSeconds,
-        );
-        final delay = const PdsMutationRetryPolicy().nextDelay(
-          retryIndex: retryIndex,
-          retryAfterSeconds: error.retryAfterSeconds,
-          elapsed: ref.read(pdsMutationNowProvider)().difference(startedAt),
-          jitterMillis: ref.read(pdsMutationJitterProvider),
-        );
-        if (delay == null) rethrow;
-        retryIndex++;
-        await ref.read(pdsMutationDelayProvider)(delay);
-        if (!isActiveAccountOperationCurrent(ref, ownership) ||
-            !controller.canRetry(
-              token,
-              operationKey: operationKey,
-              endpoint: endpoint,
-              immutableBody: immutableBody,
-            )) {
-          throw const _ProfileMutationSuperseded();
+        final decision = await retry.wait(error);
+        if (!accountOperation.isCurrent) throw superseded;
+        switch (decision) {
+          case PdsMutationRetryDecision.obsolete:
+            throw superseded;
+          case PdsMutationRetryDecision.exhausted:
+            rethrow;
+          case PdsMutationRetryDecision.retry:
+            continue;
         }
       } on Object {
         controller.markFailed(token);
@@ -327,6 +293,7 @@ class SaveProfile extends _$SaveProfile {
   }
 
   Future<Profile> _updateProfileOnce({
+    required ProfileRepository repository,
     required String operationKey,
     String? displayName,
     String? pronouns,
@@ -336,73 +303,17 @@ class SaveProfile extends _$SaveProfile {
     bool clearAvatar = false,
     UploadedBlob? banner,
     bool clearBanner = false,
-  }) => ref
-      .read(profileRepositoryProvider)
-      .updateMe(
-        operationKey: operationKey,
-        displayName: displayName,
-        pronouns: pronouns,
-        description: description,
-        crafts: crafts,
-        avatar: avatar,
-        clearAvatar: clearAvatar,
-        banner: banner,
-        clearBanner: clearBanner,
-      );
-
-  Future<RecordMutationResult> _putBusinessProfileWithRetry({
-    required ActiveAccountLease? ownership,
-    required Map<String, dynamic> body,
-    required Cid? expectedCid,
-    required String operationKey,
-    required String endpoint,
-    required String immutableBody,
-    required PdsRecordOperationController controller,
-    required PdsMutationToken token,
-  }) async {
-    final startedAt = ref.read(pdsMutationNowProvider)();
-    var retryIndex = 0;
-    while (true) {
-      try {
-        return await ref
-            .read(businessRepositoryProvider)
-            .putBusinessProfile(
-              body,
-              operationKey: operationKey,
-              expectedCid: expectedCid,
-            );
-      } on PdsMutationAmbiguousException catch (error) {
-        if (!isActiveAccountOperationCurrent(ref, ownership)) {
-          throw const _BusinessProfileMutationSuperseded();
-        }
-        controller.markAmbiguous(
-          token,
-          retryAfterSeconds: error.retryAfterSeconds,
-        );
-        final delay = const PdsMutationRetryPolicy().nextDelay(
-          retryIndex: retryIndex,
-          retryAfterSeconds: error.retryAfterSeconds,
-          elapsed: ref.read(pdsMutationNowProvider)().difference(startedAt),
-          jitterMillis: ref.read(pdsMutationJitterProvider),
-        );
-        if (delay == null) rethrow;
-        retryIndex++;
-        await ref.read(pdsMutationDelayProvider)(delay);
-        if (!isActiveAccountOperationCurrent(ref, ownership) ||
-            !controller.canRetry(
-              token,
-              operationKey: operationKey,
-              endpoint: endpoint,
-              immutableBody: immutableBody,
-            )) {
-          throw const _BusinessProfileMutationSuperseded();
-        }
-      } on Object {
-        controller.markFailed(token);
-        rethrow;
-      }
-    }
-  }
+  }) => repository.updateMe(
+    operationKey: operationKey,
+    displayName: displayName,
+    pronouns: pronouns,
+    description: description,
+    crafts: crafts,
+    avatar: avatar,
+    clearAvatar: clearAvatar,
+    banner: banner,
+    clearBanner: clearBanner,
+  );
 
   void _invalidateBusinessProfileReads() {
     if (!ref.mounted) return;

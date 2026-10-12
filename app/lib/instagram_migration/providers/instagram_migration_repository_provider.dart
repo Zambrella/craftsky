@@ -18,9 +18,9 @@ final class InstagramOperationDiscarded implements Exception {
 }
 
 void ensureInstagramOperationCurrent(Ref ref, ActiveAccountLease lease) {
-  if (!isActiveAccountOperationCurrent(ref, lease)) {
-    throw const InstagramOperationDiscarded();
-  }
+  ActiveAccountOperation.fromLease(ref, lease).requireCurrent(
+    discarded: const InstagramOperationDiscarded(),
+  );
 }
 
 @riverpod

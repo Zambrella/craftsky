@@ -348,6 +348,75 @@ final class PdsMutationObsoleteException implements Exception {
   const PdsMutationObsoleteException();
 }
 
+enum PdsMutationRetryDecision { retry, obsolete, exhausted }
+
+/// One retry budget and ownership boundary for both the shared runner and
+/// feature adapters with distinct exhausted/obsolete outcome presentation.
+final class PdsMutationRetry {
+  PdsMutationRetry({
+    required Ref ref,
+    required PdsRecordOperationController controller,
+    required PdsMutationToken token,
+    required bool Function() isCurrent,
+    this.requireCurrentToken = true,
+  }) : _ref = ref,
+       // Public constructor names intentionally differ from private fields.
+       // ignore: prefer_initializing_formals
+       _controller = controller,
+       // Keep the public constructor name separate from the private field.
+       // ignore: prefer_initializing_formals
+       _token = token,
+       // Keep the public constructor name separate from the private field.
+       // ignore: prefer_initializing_formals
+       _isCurrent = isCurrent,
+       _startedAt = ref.read(pdsMutationNowProvider)();
+
+  final Ref _ref;
+  final PdsRecordOperationController _controller;
+  final PdsMutationToken _token;
+  final bool Function() _isCurrent;
+  final DateTime _startedAt;
+
+  /// Some existing adapters ignore markAmbiguous's result until canRetry.
+  /// Preserve that distinction while sharing the delay and authority checks.
+  final bool requireCurrentToken;
+  var _retryIndex = 0;
+
+  int get attempt => _retryIndex + 1;
+
+  Future<PdsMutationRetryDecision> wait(
+    PdsMutationAmbiguousException error,
+  ) async {
+    if (!_isCurrent()) return PdsMutationRetryDecision.obsolete;
+    final marked = _controller.markAmbiguous(
+      _token,
+      retryAfterSeconds: error.retryAfterSeconds,
+    );
+    if (requireCurrentToken && !marked) {
+      return PdsMutationRetryDecision.obsolete;
+    }
+    final delay = const PdsMutationRetryPolicy().nextDelay(
+      retryIndex: _retryIndex,
+      retryAfterSeconds: error.retryAfterSeconds,
+      elapsed: _ref.read(pdsMutationNowProvider)().difference(_startedAt),
+      jitterMillis: _ref.read(pdsMutationJitterProvider),
+    );
+    if (delay == null) return PdsMutationRetryDecision.exhausted;
+    _retryIndex++;
+    await _ref.read(pdsMutationDelayProvider)(delay);
+    if (!_isCurrent() ||
+        !_controller.canRetry(
+          _token,
+          operationKey: _token.operationKey,
+          endpoint: _token.endpoint,
+          immutableBody: _token.immutableBody,
+        )) {
+      return PdsMutationRetryDecision.obsolete;
+    }
+    return PdsMutationRetryDecision.retry;
+  }
+}
+
 /// Shared retry budget for keyed PDS writes. Feature adapters dispatch their
 /// frozen request and present the final outcome.
 Future<T> runPdsMutation<T>({
@@ -357,36 +426,25 @@ Future<T> runPdsMutation<T>({
   required bool Function() isCurrent,
   required Future<T> Function() send,
 }) async {
-  final startedAt = ref.read(pdsMutationNowProvider)();
-  var retryIndex = 0;
+  final retry = PdsMutationRetry(
+    ref: ref,
+    controller: controller,
+    token: token,
+    isCurrent: isCurrent,
+  );
   while (true) {
     try {
       return await send();
     } on PdsMutationAmbiguousException catch (error) {
-      if (!isCurrent() ||
-          !controller.markAmbiguous(
-            token,
-            retryAfterSeconds: error.retryAfterSeconds,
-          )) {
-        throw const PdsMutationObsoleteException();
-      }
-      final delay = const PdsMutationRetryPolicy().nextDelay(
-        retryIndex: retryIndex,
-        retryAfterSeconds: error.retryAfterSeconds,
-        elapsed: ref.read(pdsMutationNowProvider)().difference(startedAt),
-        jitterMillis: ref.read(pdsMutationJitterProvider),
-      );
-      if (delay == null) throw const PdsMutationUnresolvedException();
-      retryIndex++;
-      await ref.read(pdsMutationDelayProvider)(delay);
-      if (!isCurrent() ||
-          !controller.canRetry(
-            token,
-            operationKey: token.operationKey,
-            endpoint: token.endpoint,
-            immutableBody: token.immutableBody,
-          )) {
-        throw const PdsMutationObsoleteException();
+      final decision = await retry.wait(error);
+      if (!isCurrent()) throw const PdsMutationObsoleteException();
+      switch (decision) {
+        case PdsMutationRetryDecision.obsolete:
+          throw const PdsMutationObsoleteException();
+        case PdsMutationRetryDecision.exhausted:
+          throw const PdsMutationUnresolvedException();
+        case PdsMutationRetryDecision.retry:
+          continue;
       }
     }
   }

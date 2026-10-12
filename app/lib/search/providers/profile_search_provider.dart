@@ -25,7 +25,7 @@ class ProfileSearch extends _$ProfileSearch {
     if (!state.hasValue || state.isLoading) return;
     final current = state.requireValue;
     if (!current.hasMore) return;
-    final ownership = captureActiveAccountOperation(ref);
+    final accountOperation = ActiveAccountOperation.capture(ref);
     state = const AsyncLoading<ProfileSearchResultsState>();
     final next = await AsyncValue.guard(() async {
       final page = await ref
@@ -40,7 +40,6 @@ class ProfileSearch extends _$ProfileSearch {
         cursor: page.cursor,
       );
     });
-    if (!isActiveAccountOperationCurrent(ref, ownership)) return;
-    state = next;
+    accountOperation.publish(() => state = next);
   }
 }

@@ -20,10 +20,10 @@ class Timeline extends _$Timeline {
   @override
   Future<TimelineState> build() async {
     ref.watch(activeContentLanguagePolicyProvider);
-    final ownership = captureActiveAccountOperation(ref);
+    final accountOperation = ActiveAccountOperation.capture(ref);
     final repo = ref.watch(postRepositoryProvider);
     final page = await repo.listTimeline(limit: timelinePageLimit);
-    if (!isActiveAccountOperationCurrent(ref, ownership)) {
+    if (!accountOperation.isCurrent) {
       throw const ApiCanceled();
     }
     return TimelineState(
@@ -35,7 +35,7 @@ class Timeline extends _$Timeline {
   Future<void> loadMore() async {
     final current = state.value;
     if (current == null || !current.hasMore || state.isLoading) return;
-    final ownership = captureActiveAccountOperation(ref);
+    final accountOperation = ActiveAccountOperation.capture(ref);
 
     state = const AsyncLoading<TimelineState>();
 
@@ -45,7 +45,7 @@ class Timeline extends _$Timeline {
         cursor: current.cursor,
         limit: timelinePageLimit,
       );
-      if (!isActiveAccountOperationCurrent(ref, ownership)) {
+      if (!accountOperation.isCurrent) {
         throw const ApiCanceled();
       }
       return TimelineState(
@@ -57,8 +57,7 @@ class Timeline extends _$Timeline {
       );
     });
 
-    if (!isActiveAccountOperationCurrent(ref, ownership)) return;
-    state = next;
+    accountOperation.publish(() => state = next);
   }
 
   int suppressActor(String did) {

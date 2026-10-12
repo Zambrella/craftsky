@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:craftsky_app/auth/models/account_session_lease.dart';
+import 'package:craftsky_app/auth/providers/account_operation_guard.dart';
 import 'package:craftsky_app/instagram_migration/data/instagram_migration_repository.dart';
 import 'package:craftsky_app/instagram_migration/data/instagram_verification_storage.dart';
 import 'package:craftsky_app/instagram_migration/models/instagram_verification.dart';
@@ -68,11 +69,16 @@ class InstagramVerification extends _$InstagramVerification {
     state = state.copyWith(isBusy: true, hasError: false, attempt: null);
     try {
       final repository = await _repository();
-      final attempt = await repository.createVerification();
-      ensureInstagramOperationCurrent(ref, lease);
+      final attempt = await _operation.step(
+        repository.createVerification,
+        discarded: const InstagramOperationDiscarded(),
+      );
+      _operation.requireCurrent(discarded: const InstagramOperationDiscarded());
       await _persistSnapshot(attempt);
       try {
-        ensureInstagramOperationCurrent(ref, lease);
+        _operation.requireCurrent(
+          discarded: const InstagramOperationDiscarded(),
+        );
       } on InstagramOperationDiscarded {
         await _deleteSnapshot(verificationId: attempt.verificationId);
         rethrow;
@@ -97,14 +103,19 @@ class InstagramVerification extends _$InstagramVerification {
     _pollInFlight = true;
     try {
       final repository = await _repository();
-      final status = await repository.getVerification(current.verificationId);
-      ensureInstagramOperationCurrent(ref, lease);
+      final status = await _operation.step(
+        () => repository.getVerification(current.verificationId),
+        discarded: const InstagramOperationDiscarded(),
+      );
+      _operation.requireCurrent(discarded: const InstagramOperationDiscarded());
       final merged = _mergeStatus(current, status);
       state = state.copyWith(attempt: merged, hasError: false);
       if (_isTerminal(merged.state)) {
         _stopTimers();
         await _deleteSnapshot(verificationId: merged.verificationId);
-        ensureInstagramOperationCurrent(ref, lease);
+        _operation.requireCurrent(
+          discarded: const InstagramOperationDiscarded(),
+        );
       } else if (!_shouldPoll(merged.state)) {
         _pollTimer?.cancel();
         _pollTimer = null;
@@ -128,10 +139,16 @@ class InstagramVerification extends _$InstagramVerification {
     state = state.copyWith(isBusy: true, hasError: false);
     try {
       final repository = await _repository();
-      await repository.cancelVerification(current.verificationId);
-      ensureInstagramOperationCurrent(ref, lease);
-      await _deleteSnapshot(verificationId: current.verificationId);
-      ensureInstagramOperationCurrent(ref, lease);
+      await _operation.step(
+        () => repository.cancelVerification(current.verificationId),
+        discarded: const InstagramOperationDiscarded(),
+      );
+      _operation.requireCurrent(discarded: const InstagramOperationDiscarded());
+      await _operation.step(
+        () => _deleteSnapshot(verificationId: current.verificationId),
+        discarded: const InstagramOperationDiscarded(),
+      );
+      _operation.requireCurrent(discarded: const InstagramOperationDiscarded());
       _stopTimers();
       state = InstagramVerificationViewState(
         attempt: _withState(current, InstagramVerificationState.cancelled),
@@ -155,13 +172,19 @@ class InstagramVerification extends _$InstagramVerification {
     state = state.copyWith(isBusy: true, hasError: false);
     try {
       final repository = await _repository();
-      final confirmation = await repository.confirmVerification(
-        current.verificationId,
-        discoverable: discoverable,
+      final confirmation = await _operation.step(
+        () => repository.confirmVerification(
+          current.verificationId,
+          discoverable: discoverable,
+        ),
+        discarded: const InstagramOperationDiscarded(),
       );
-      ensureInstagramOperationCurrent(ref, lease);
-      await _deleteSnapshot(verificationId: current.verificationId);
-      ensureInstagramOperationCurrent(ref, lease);
+      _operation.requireCurrent(discarded: const InstagramOperationDiscarded());
+      await _operation.step(
+        () => _deleteSnapshot(verificationId: current.verificationId),
+        discarded: const InstagramOperationDiscarded(),
+      );
+      _operation.requireCurrent(discarded: const InstagramOperationDiscarded());
       _stopTimers();
       state = InstagramVerificationViewState(
         attempt: _withState(current, confirmation.state),
@@ -177,23 +200,26 @@ class InstagramVerification extends _$InstagramVerification {
     }
   }
 
-  Future<InstagramMigrationRepository> _repository() async {
-    final repository = await ref.read(
-      instagramMigrationRepositoryProvider(lease).future,
-    );
-    ensureInstagramOperationCurrent(ref, lease);
-    return repository;
-  }
+  Future<InstagramMigrationRepository> _repository() => _operation.step(
+    () => ref.read(instagramMigrationRepositoryProvider(lease).future),
+    discarded: const InstagramOperationDiscarded(),
+  );
 
   Future<void> _restoreCurrent(int generation) async {
     try {
       final repository = await _repository();
       if (generation != _operationGeneration) return;
-      final current = await repository.getCurrentVerification();
-      ensureInstagramOperationCurrent(ref, lease);
+      final current = await _operation.step(
+        repository.getCurrentVerification,
+        discarded: const InstagramOperationDiscarded(),
+      );
+      _operation.requireCurrent(discarded: const InstagramOperationDiscarded());
       if (generation != _operationGeneration) return;
-      final snapshot = await _storage.read(lease.session.account);
-      ensureInstagramOperationCurrent(ref, lease);
+      final snapshot = await _operation.step(
+        () => _storage.read(lease.session.account),
+        discarded: const InstagramOperationDiscarded(),
+      );
+      _operation.requireCurrent(discarded: const InstagramOperationDiscarded());
       if (generation != _operationGeneration) return;
 
       if (current == null ||
@@ -202,7 +228,9 @@ class InstagramVerification extends _$InstagramVerification {
               ) <=
               0) {
         if (snapshot != null) await _deleteSnapshot();
-        ensureInstagramOperationCurrent(ref, lease);
+        _operation.requireCurrent(
+          discarded: const InstagramOperationDiscarded(),
+        );
         if (generation != _operationGeneration) return;
         state = const InstagramVerificationViewState();
         return;
@@ -229,7 +257,9 @@ class InstagramVerification extends _$InstagramVerification {
         );
       } else if (snapshot != null) {
         await _deleteSnapshot(verificationId: snapshot.verificationId);
-        ensureInstagramOperationCurrent(ref, lease);
+        _operation.requireCurrent(
+          discarded: const InstagramOperationDiscarded(),
+        );
         if (generation != _operationGeneration) return;
       }
       state = InstagramVerificationViewState(attempt: restored);
@@ -309,15 +339,10 @@ class InstagramVerification extends _$InstagramVerification {
     _expiryTimer = null;
   }
 
-  bool get _isCurrent {
-    if (!ref.mounted) return false;
-    try {
-      ensureInstagramOperationCurrent(ref, lease);
-      return true;
-    } on InstagramOperationDiscarded {
-      return false;
-    }
-  }
+  ActiveAccountOperation get _operation =>
+      ActiveAccountOperation.fromLease(ref, lease);
+
+  bool get _isCurrent => _operation.isCurrent;
 }
 
 InstagramVerificationAttempt _mergeStatus(

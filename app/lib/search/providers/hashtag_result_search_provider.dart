@@ -24,7 +24,7 @@ class HashtagResultSearch extends _$HashtagResultSearch {
     if (!state.hasValue || state.isLoading) return;
     final current = state.requireValue;
     if (!current.hasMore) return;
-    final ownership = captureActiveAccountOperation(ref);
+    final accountOperation = ActiveAccountOperation.capture(ref);
     state = const AsyncLoading<HashtagSearchResultsState>();
     final next = await AsyncValue.guard(() async {
       final page = await ref
@@ -39,7 +39,6 @@ class HashtagResultSearch extends _$HashtagResultSearch {
         cursor: page.cursor,
       );
     });
-    if (!isActiveAccountOperationCurrent(ref, ownership)) return;
-    state = next;
+    accountOperation.publish(() => state = next);
   }
 }

@@ -32,7 +32,7 @@ class DeletePost extends _$DeletePost {
   FutureOr<Post?> build() => null;
 
   Future<void> delete({required Post post}) async {
-    final ownership = captureActiveAccountOperation(ref);
+    final accountOperation = ActiveAccountOperation.capture(ref);
     final endpoint = '/v1/posts/${post.author.did}/${post.rkey}';
     final immutableBody = 'DELETE\nIf-Match:${post.cid}\n';
     final controller = ref.read(pdsRecordOperationControllerProvider);
@@ -44,58 +44,46 @@ class DeletePost extends _$DeletePost {
       newOperationKey: newPdsMutationOperationKey,
     );
     final operationKey = token.operationKey;
-    final startedAt = ref.read(pdsMutationNowProvider)();
-    var retryIndex = 0;
+    final retry = PdsMutationRetry(
+      ref: ref,
+      controller: controller,
+      token: token,
+      isCurrent: () => accountOperation.isCurrent,
+      requireCurrentToken: false,
+    );
 
     state = const AsyncLoading<Post?>();
+    late final repository = ref.read(postRepositoryProvider);
     while (true) {
       try {
-        await ref
-            .read(postRepositoryProvider)
-            .delete(
-              post.author.did,
-              post.rkey,
-              operationKey: operationKey,
-              expectedCid: post.cid.toString(),
-            );
+        await repository.delete(
+          post.author.did,
+          post.rkey,
+          operationKey: operationKey,
+          expectedCid: post.cid.toString(),
+        );
       } on PdsMutationAmbiguousException catch (error) {
-        if (!isActiveAccountOperationCurrent(ref, ownership)) return;
-        controller.markAmbiguous(
-          token,
-          retryAfterSeconds: error.retryAfterSeconds,
-        );
-        final delay = const PdsMutationRetryPolicy().nextDelay(
-          retryIndex: retryIndex,
-          retryAfterSeconds: error.retryAfterSeconds,
-          elapsed: ref.read(pdsMutationNowProvider)().difference(startedAt),
-          jitterMillis: ref.read(pdsMutationJitterProvider),
-        );
-        if (delay == null) {
-          state = AsyncError<Post?>(
-            const PdsMutationUnresolvedException(),
-            StackTrace.current,
-          );
-          return;
+        final decision = await retry.wait(error);
+        if (!accountOperation.isCurrent) return;
+        switch (decision) {
+          case PdsMutationRetryDecision.obsolete:
+            return;
+          case PdsMutationRetryDecision.exhausted:
+            state = AsyncError<Post?>(
+              const PdsMutationUnresolvedException(),
+              StackTrace.current,
+            );
+            return;
+          case PdsMutationRetryDecision.retry:
+            continue;
         }
-        retryIndex++;
-        await ref.read(pdsMutationDelayProvider)(delay);
-        if (!isActiveAccountOperationCurrent(ref, ownership) ||
-            !controller.canRetry(
-              token,
-              operationKey: operationKey,
-              endpoint: endpoint,
-              immutableBody: immutableBody,
-            )) {
-          return;
-        }
-        continue;
       } on Object catch (error, stackTrace) {
-        if (!isActiveAccountOperationCurrent(ref, ownership)) return;
+        if (!accountOperation.isCurrent) return;
         controller.markFailed(token);
         state = AsyncError<Post?>(error, stackTrace);
         return;
       }
-      if (!isActiveAccountOperationCurrent(ref, ownership)) return;
+      if (!accountOperation.isCurrent) return;
 
       final reconciliation = PdsAddressedDeleteReconciliation(
         uri: post.uri.toString(),

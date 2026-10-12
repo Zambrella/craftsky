@@ -43,7 +43,7 @@ class RelationshipList extends _$RelationshipList {
     if (!state.hasValue || state.isLoading) return;
     final current = state.requireValue;
     if (!current.hasMore) return;
-    final ownership = captureActiveAccountOperation(ref);
+    final accountOperation = ActiveAccountOperation.capture(ref);
 
     state = const AsyncLoading<RelationshipListState>();
     final next = await AsyncValue.guard(() async {
@@ -56,8 +56,7 @@ class RelationshipList extends _$RelationshipList {
       );
     });
 
-    if (!isActiveAccountOperationCurrent(ref, ownership)) return;
-    state = next;
+    accountOperation.publish(() => state = next);
   }
 
   Future<void> reverse(ProfileAccountSummary account) async {
@@ -65,7 +64,8 @@ class RelationshipList extends _$RelationshipList {
     if (current == null) return;
     final did = account.did.toString();
     if (current.mutatingDids.contains(did)) return;
-    final ownership = captureActiveAccountOperation(ref);
+    final accountOperation = ActiveAccountOperation.capture(ref);
+    final ownership = accountOperation.ownership;
 
     state = AsyncData(
       current.copyWith(mutatingDids: {...current.mutatingDids, did}),
@@ -75,7 +75,7 @@ class RelationshipList extends _$RelationshipList {
       switch (kind) {
         case RelationshipListKind.muted:
           final result = await repository.unmute(did);
-          if (!isActiveAccountOperationCurrent(ref, ownership)) return;
+          if (!accountOperation.isCurrent) return;
           if (ownership != null) {
             ref
                 .read(
@@ -94,7 +94,7 @@ class RelationshipList extends _$RelationshipList {
           if (result.hasError) throw Exception(result.error);
           if (result.value != false) return;
       }
-      if (!isActiveAccountOperationCurrent(ref, ownership)) return;
+      if (!accountOperation.isCurrent) return;
       final latest = state.value;
       if (latest == null) return;
       state = AsyncData(
@@ -104,7 +104,7 @@ class RelationshipList extends _$RelationshipList {
         ),
       );
     } on Object {
-      if (isActiveAccountOperationCurrent(ref, ownership)) {
+      if (accountOperation.isCurrent) {
         final latest = state.value;
         if (latest != null) {
           state = AsyncData(

@@ -1,4 +1,5 @@
 import 'package:craftsky_app/auth/models/account_session_lease.dart';
+import 'package:craftsky_app/auth/providers/account_operation_guard.dart';
 import 'package:craftsky_app/instagram_migration/data/instagram_migration_repository.dart';
 import 'package:craftsky_app/instagram_migration/models/instagram_account.dart';
 import 'package:craftsky_app/instagram_migration/providers/instagram_migration_repository_provider.dart';
@@ -13,9 +14,12 @@ class InstagramAccount extends _$InstagramAccount {
     final repository = await ref.watch(
       instagramMigrationRepositoryProvider(lease).future,
     );
-    ensureInstagramOperationCurrent(ref, lease);
-    final result = await repository.getAccount();
-    ensureInstagramOperationCurrent(ref, lease);
+    _operation.requireCurrent(discarded: const InstagramOperationDiscarded());
+    final result = await _operation.step(
+      repository.getAccount,
+      discarded: const InstagramOperationDiscarded(),
+    );
+    _operation.requireCurrent(discarded: const InstagramOperationDiscarded());
     return result;
   }
 
@@ -38,8 +42,11 @@ class InstagramAccount extends _$InstagramAccount {
     state = const AsyncLoading();
     try {
       final repository = await _repository();
-      await repository.revokeAccount();
-      ensureInstagramOperationCurrent(ref, lease);
+      await _operation.step(
+        repository.revokeAccount,
+        discarded: const InstagramOperationDiscarded(),
+      );
+      _operation.requireCurrent(discarded: const InstagramOperationDiscarded());
       state = AsyncData(
         InstagramAccountStatus(
           integrationAvailable: previous.value?.integrationAvailable ?? true,
@@ -65,8 +72,11 @@ class InstagramAccount extends _$InstagramAccount {
     state = const AsyncLoading();
     try {
       final repository = await _repository();
-      final result = await action(repository);
-      ensureInstagramOperationCurrent(ref, lease);
+      final result = await _operation.step(
+        () => action(repository),
+        discarded: const InstagramOperationDiscarded(),
+      );
+      _operation.requireCurrent(discarded: const InstagramOperationDiscarded());
       state = AsyncData(result);
       return true;
     } on InstagramOperationDiscarded {
@@ -78,20 +88,13 @@ class InstagramAccount extends _$InstagramAccount {
     }
   }
 
-  Future<InstagramMigrationRepository> _repository() async {
-    final repository = await ref.read(
-      instagramMigrationRepositoryProvider(lease).future,
-    );
-    ensureInstagramOperationCurrent(ref, lease);
-    return repository;
-  }
+  Future<InstagramMigrationRepository> _repository() => _operation.step(
+    () => ref.read(instagramMigrationRepositoryProvider(lease).future),
+    discarded: const InstagramOperationDiscarded(),
+  );
 
-  bool get _isCurrent {
-    try {
-      ensureInstagramOperationCurrent(ref, lease);
-      return true;
-    } on InstagramOperationDiscarded {
-      return false;
-    }
-  }
+  ActiveAccountOperation get _operation =>
+      ActiveAccountOperation.fromLease(ref, lease);
+
+  bool get _isCurrent => _operation.isCurrent;
 }
