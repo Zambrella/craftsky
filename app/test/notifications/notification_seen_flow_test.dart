@@ -4,8 +4,10 @@ import 'package:craftsky_app/bootstrap.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/notifications/data/notification_repository.dart';
 import 'package:craftsky_app/notifications/models/craftsky_notification.dart';
+import 'package:craftsky_app/notifications/models/notification_category.dart';
 import 'package:craftsky_app/notifications/models/notification_page.dart';
 import 'package:craftsky_app/notifications/pages/notifications_page.dart';
+import 'package:craftsky_app/notifications/providers/notification_filter_provider.dart';
 import 'package:craftsky_app/notifications/providers/notification_new_count_provider.dart';
 import 'package:craftsky_app/notifications/providers/notification_repository_provider.dart';
 import 'package:craftsky_app/notifications/providers/notifications_provider.dart';
@@ -16,6 +18,42 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   setUpAll(initializeMappers);
+
+  testWidgets('a filtered render does not clear the account-wide badge', (
+    tester,
+  ) async {
+    final newness = _RecordingNewnessRepository();
+    final container = ProviderContainer.test(
+      overrides: [
+        notificationRepositoryProvider.overrideWithValue(
+          _QueuedNotificationRepository([
+            Future.value(const NotificationPage(items: [])),
+            Future.value(const NotificationPage(items: [])),
+          ]),
+        ),
+        notificationNewnessRepositoryProvider.overrideWithValue(newness),
+      ],
+    );
+    container
+        .read(notificationFilterProvider.notifier)
+        .select(NotificationCategory.mention);
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          theme: AppTheme.lightThemeData,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: const NotificationsPage(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(newness.seenCalls, 0);
+    await tester.tap(find.text('Show all notifications'));
+    await tester.pumpAndSettle();
+    expect(newness.seenCalls, 1);
+  });
 
   testWidgets(
     'IT-005 / REG-008 marks seen only after successful first-page renders',
@@ -97,8 +135,11 @@ final class _QueuedNotificationRepository implements NotificationRepository {
   final List<Future<NotificationPage>> responses;
 
   @override
-  Future<NotificationPage> list({String? cursor, int? limit}) =>
-      responses.removeAt(0);
+  Future<NotificationPage> list({
+    String? cursor,
+    int? limit,
+    NotificationCategory? category,
+  }) => responses.removeAt(0);
 }
 
 final class _RecordingNewnessRepository

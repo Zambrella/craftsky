@@ -160,6 +160,9 @@
   "notificationDeviceDisabled": "Notifications are disabled on this device",
   "notificationDeviceDisabledDescription": "Account preferences still apply. Enable alerts in system settings.",
   "notificationOpenSettings": "Open settings",
+  "notificationFilterAll": "All categories",
+  "notificationFilterEmpty": "No notifications in this category yet.",
+  "notificationFilterShowAll": "Show all notifications",
   "notificationCategoryLikes": "Likes",
   "notificationCategoryFollows": "Follows",
   "notificationCategoryReplies": "Comments & replies",
@@ -2763,6 +2766,10 @@
   "onboardingGuidelinesCheckHeading": "A useful check",
   "onboardingGuidelinesCheckBody": "If you are unsure whether something belongs on CraftSky, ask: Does this make the community a better place? If the answer is yes, you are probably on the right track.",
   "onboardingGuidelinesViewFull": "View full guidelines",
+  "errorReportingTitle": "Error reporting",
+  "errorReportingOptIn": "Enable error reporting (optional)",
+  "errorReportingDescription": "Send crash reports and diagnostic logs to help improve CraftSky.",
+  "errorReportingSaveError": "Could not update error reporting. Please try again.",
   "onboardingMinimumAgeDeclaration": "I confirm that I am at least 16 years old and accept the current CraftSky policies.",
   "accountEligibilityTitle": "Account eligibility",
   "accountEligibilityHeading": "Your account access is limited",
@@ -3463,5 +3470,8 @@
   "serviceStatusDismiss": "Dismiss",
   "@serviceStatusDismiss": {"description": "Dismiss the current general announcement."},
   "serviceStatusEstimatedRecovery": "Estimated recovery: {time}",
-  "@serviceStatusEstimatedRecovery": {"description": "Informational local-time recovery estimate.", "placeholders": {"time": {"type": "String"}}}
+  "@serviceStatusEstimatedRecovery": {"description": "Informational local-time recovery estimate.", "placeholders": {"time": {"type": "String"}}},
+  "recordCopyLinkAction": "Copy link",
+  "recordLinkCopied": "Link copied",
+  "recordCopyLinkFailed": "Could not copy link. Please try again."
 }

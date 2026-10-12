@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:craftsky_app/auth/models/account_operation_canceled.dart';
 import 'package:craftsky_app/auth/models/session_registry.dart';
 import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart'
@@ -24,6 +27,53 @@ final class _RegistryStorage implements SessionRegistryStorage {
 }
 
 void main() {
+  test(
+    'profile completion after disposal cancels without reading overlays',
+    () async {
+      final started = Completer<void>();
+      final response = Completer<Profile>();
+      var delay = false;
+      final container = ProviderContainer.test(
+        overrides: [
+          profileRepositoryProvider.overrideWithValue(
+            FakeProfileRepository(
+              onFetch: (_) {
+                if (!delay) {
+                  return Future.value(
+                    _profile(did: 'did:plc:alice', handle: 'alice.test'),
+                  );
+                }
+                started.complete();
+                return response.future;
+              },
+            ),
+          ),
+        ],
+      );
+      final did = Did.parse('did:plc:alice');
+      final subscription = container.listen(
+        userProfileProvider(did),
+        (_, _) {},
+      );
+      await container.read(userProfileProvider(did).future);
+      delay = true;
+      // Exercise the build itself; Riverpod's notifier future independently
+      // reports disposal before the suspended build resumes.
+      final result = container
+          .read(userProfileProvider(did).notifier)
+          .build(did);
+      final assertion = expectLater(
+        result,
+        throwsA(isA<AccountOperationCanceled>()),
+      );
+      await started.future;
+      subscription.close();
+      container.dispose();
+      response.complete(_profile(did: 'did:plc:alice', handle: 'alice.test'));
+      await assertion;
+    },
+  );
+
   test(
     'profiles with the same historical handle retain distinct DID state',
     () async {

@@ -1,6 +1,7 @@
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/saved_posts/models/saved_post.dart';
 import 'package:craftsky_app/shared/widgets/sort_menu_button.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:flutter/material.dart';
 
 class SavedPostSortButton extends StatelessWidget {
@@ -22,11 +23,13 @@ class SavedPostSortButton extends StatelessWidget {
       options: [
         SortMenuOption(
           value: SavedPostSort.newest,
+          icon: CraftskyIcons.schedule,
           label: l10n.searchSortNewest,
           description: l10n.savedPostsSortNewestDescription,
         ),
         SortMenuOption(
           value: SavedPostSort.oldest,
+          icon: CraftskyIcons.history,
           label: l10n.savedPostsSortOldest,
           description: l10n.savedPostsSortOldestDescription,
         ),

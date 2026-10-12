@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:craftsky_app/auth/models/account_operation_canceled.dart';
 import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/auth/providers/account_operation_guard.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
@@ -10,7 +11,6 @@ import 'package:craftsky_app/profile/providers/follow_profile_overlay.dart';
 import 'package:craftsky_app/profile/providers/profile_record_overlay.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
-import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'user_profile_provider.g.dart';
@@ -37,7 +37,8 @@ class UserProfile extends _$UserProfile {
           ? await repository.fetchMe()
           : await repository.fetch(did);
     } on Object {
-      if (readFence != null &&
+      if (ref.mounted &&
+          readFence != null &&
           !isBusinessRecordReadCurrent(ref, readFence) &&
           state.value != null) {
         return state.value!;
@@ -45,7 +46,7 @@ class UserProfile extends _$UserProfile {
       rethrow;
     }
     if (!accountOperation.isCurrent) {
-      throw DiagnosticStateError('Active account changed');
+      throw AccountOperationCanceled();
     }
     var reconciledProfile = profile;
     if (lease != null) {

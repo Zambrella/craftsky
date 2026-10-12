@@ -9,9 +9,11 @@ import 'package:craftsky_app/onboarding/pages/onboarding_page.dart';
 import 'package:craftsky_app/onboarding/providers/onboarding_flow_provider.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
+import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 final _lease = ActiveAccountLease(
   session: AccountSessionLease(
@@ -34,13 +36,43 @@ final class _Flow extends OnboardingFlow {
 }
 
 void main() {
-  testWidgets('Finish completes onboarding from the guidelines step', (
+  setUp(() => SharedPreferences.setMockInitialValues({}));
+  testWidgets('Finish stays disabled until age and policy agreement', (
     tester,
   ) async {
     final flow = _Flow(
       OnboardingFlowState.fromProfile(
         Profile(did: 'did:plc:alice', handle: 'alice.test', crafts: const []),
       ).copyWith(step: OnboardingStep.guidelines),
+    );
+    await _pump(tester, flow);
+    ChunkyButton button() => tester.widget(find.byType(ChunkyButton));
+    expect(button().onPressed, isNull);
+    await tester.tap(find.text('Finish'));
+    expect(flow.completionCalls, 0);
+    final declaration = find.byKey(
+      const Key('onboarding-minimum-age-declaration'),
+    );
+    await tester.ensureVisible(declaration);
+    await tester.tap(declaration);
+    await tester.pumpAndSettle();
+    expect(button().onPressed, isNotNull);
+    final optional = tester.widget<CheckboxListTile>(
+      find.byKey(const Key('onboarding-error-reporting')),
+    );
+    expect(optional.value, isFalse);
+    await tester.tap(declaration);
+    await tester.pumpAndSettle();
+    expect(button().onPressed, isNull);
+  });
+
+  testWidgets('Finish completes onboarding from the guidelines step', (
+    tester,
+  ) async {
+    final flow = _Flow(
+      OnboardingFlowState.fromProfile(
+        Profile(did: 'did:plc:alice', handle: 'alice.test', crafts: const []),
+      ).copyWith(step: OnboardingStep.guidelines, meetsMinimumAge: true),
     );
     await _pump(tester, flow);
 

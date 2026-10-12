@@ -16,6 +16,7 @@ import 'package:craftsky_app/settings/settings_links.dart';
 import 'package:craftsky_app/shared/link/external_link.dart';
 import 'package:craftsky_app/shared/media/image_source_menu.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
+import 'package:craftsky_app/shared/observability/error_reporting_consent_tile.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/form_factor.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
@@ -185,6 +186,10 @@ class _OnboardingFlowScaffold extends ConsumerWidget {
                               ),
                               OnboardingStep.guidelines =>
                                 OnboardingGuidelinesStep(
+                                  errorReportingConsent:
+                                      const ErrorReportingConsentTile(
+                                        onboarding: true,
+                                      ),
                                   meetsMinimumAge: state.meetsMinimumAge,
                                   onMeetsMinimumAgeChanged:
                                       notifier.setMeetsMinimumAge,

@@ -358,6 +358,24 @@ abstract class AppLocalizations {
   /// **'Open settings'**
   String get notificationOpenSettings;
 
+  /// No description provided for @notificationFilterAll.
+  ///
+  /// In en, this message translates to:
+  /// **'All categories'**
+  String get notificationFilterAll;
+
+  /// No description provided for @notificationFilterEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No notifications in this category yet.'**
+  String get notificationFilterEmpty;
+
+  /// No description provided for @notificationFilterShowAll.
+  ///
+  /// In en, this message translates to:
+  /// **'Show all notifications'**
+  String get notificationFilterShowAll;
+
   /// No description provided for @notificationCategoryLikes.
   ///
   /// In en, this message translates to:
@@ -5877,6 +5895,30 @@ abstract class AppLocalizations {
   /// **'View full guidelines'**
   String get onboardingGuidelinesViewFull;
 
+  /// No description provided for @errorReportingTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Error reporting'**
+  String get errorReportingTitle;
+
+  /// No description provided for @errorReportingOptIn.
+  ///
+  /// In en, this message translates to:
+  /// **'Enable error reporting (optional)'**
+  String get errorReportingOptIn;
+
+  /// No description provided for @errorReportingDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Send crash reports and diagnostic logs to help improve CraftSky.'**
+  String get errorReportingDescription;
+
+  /// No description provided for @errorReportingSaveError.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not update error reporting. Please try again.'**
+  String get errorReportingSaveError;
+
   /// No description provided for @onboardingMinimumAgeDeclaration.
   ///
   /// In en, this message translates to:
@@ -7994,6 +8036,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Estimated recovery: {time}'**
   String serviceStatusEstimatedRecovery(String time);
+
+  /// No description provided for @recordCopyLinkAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy link'**
+  String get recordCopyLinkAction;
+
+  /// No description provided for @recordLinkCopied.
+  ///
+  /// In en, this message translates to:
+  /// **'Link copied'**
+  String get recordLinkCopied;
+
+  /// No description provided for @recordCopyLinkFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not copy link. Please try again.'**
+  String get recordCopyLinkFailed;
 }
 
 class _AppLocalizationsDelegate

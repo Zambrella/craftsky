@@ -175,6 +175,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String get notificationOpenSettings => 'Open settings';
 
   @override
+  String get notificationFilterAll => 'All categories';
+
+  @override
+  String get notificationFilterEmpty =>
+      'No notifications in this category yet.';
+
+  @override
+  String get notificationFilterShowAll => 'Show all notifications';
+
+  @override
   String get notificationCategoryLikes => 'Likes';
 
   @override
@@ -3324,6 +3334,20 @@ class AppLocalizationsEn extends AppLocalizations {
   String get onboardingGuidelinesViewFull => 'View full guidelines';
 
   @override
+  String get errorReportingTitle => 'Error reporting';
+
+  @override
+  String get errorReportingOptIn => 'Enable error reporting (optional)';
+
+  @override
+  String get errorReportingDescription =>
+      'Send crash reports and diagnostic logs to help improve CraftSky.';
+
+  @override
+  String get errorReportingSaveError =>
+      'Could not update error reporting. Please try again.';
+
+  @override
   String get onboardingMinimumAgeDeclaration =>
       'I confirm that I am at least 16 years old and accept the current CraftSky policies.';
 
@@ -4526,4 +4550,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String serviceStatusEstimatedRecovery(String time) {
     return 'Estimated recovery: $time';
   }
+
+  @override
+  String get recordCopyLinkAction => 'Copy link';
+
+  @override
+  String get recordLinkCopied => 'Link copied';
+
+  @override
+  String get recordCopyLinkFailed => 'Could not copy link. Please try again.';
 }

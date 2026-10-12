@@ -3,6 +3,7 @@ package api_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -11,6 +12,7 @@ import (
 	"time"
 
 	"social.craftsky/appview/internal/api"
+	"social.craftsky/appview/internal/api/envelope"
 	"social.craftsky/appview/internal/testdb"
 )
 
@@ -48,20 +50,44 @@ func TestNotificationStoreListsOnlyActiveDurableEventsWithStablePagination(t *te
 	}
 
 	store := api.NewPostStore(pool)
-	first, cursor, err := store.ListNotifications(context.Background(), "did:plc:viewer", 1, "")
+	first, cursor, err := store.ListNotifications(context.Background(), "did:plc:viewer", 1, "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(first) != 1 || first[0].ID != "00000000-0000-0000-0000-000000000003" || !first[0].ActorViewerIsFollowing || cursor == "" {
 		t.Fatalf("first=%+v cursor=%q", first, cursor)
 	}
-	second, finalCursor, err := store.ListNotifications(context.Background(), "did:plc:viewer", 1, cursor)
+	second, finalCursor, err := store.ListNotifications(context.Background(), "did:plc:viewer", 1, cursor, "")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(second) != 1 || second[0].ID != "00000000-0000-0000-0000-000000000002" || !second[0].ActorViewerIsFollowing || finalCursor != "" {
 		t.Fatalf("second=%+v cursor=%q", second, finalCursor)
 	}
+	// A newer unrelated category must not consume a filtered page slot.
+	if _, err := pool.Exec(context.Background(), `UPDATE notification_events SET category='like' WHERE id='00000000-0000-0000-0000-000000000003'`); err != nil {
+		t.Fatal(err)
+	}
+	filtered, next, err := store.ListNotifications(context.Background(), "did:plc:viewer", 1, "", "follow")
+	if err != nil || len(filtered) != 1 || filtered[0].ID != "00000000-0000-0000-0000-000000000002" || next != "" {
+		t.Fatalf("filtered=%+v next=%q err=%v", filtered, next, err)
+	}
+	if _, _, err := store.ListNotifications(context.Background(), "did:plc:viewer", 1, cursor, "follow"); !errors.Is(err, envelope.ErrInvalidCursor) {
+		t.Fatalf("cross-category cursor: %v", err)
+	}
+	// Restore both follows and prove filtered pagination reaches the second row.
+	if _, err := pool.Exec(context.Background(), `UPDATE notification_events SET category='follow'`); err != nil {
+		t.Fatal(err)
+	}
+	_, next, err = store.ListNotifications(context.Background(), "did:plc:viewer", 1, "", "follow")
+	if err != nil || next == "" {
+		t.Fatalf("filtered first page: cursor=%q err=%v", next, err)
+	}
+	filtered, next, err = store.ListNotifications(context.Background(), "did:plc:viewer", 1, next, "follow")
+	if err != nil || len(filtered) != 1 || filtered[0].ID != "00000000-0000-0000-0000-000000000002" || next != "" {
+		t.Fatalf("filtered second page=%+v next=%q err=%v", filtered, next, err)
+	}
+
 }
 
 func TestNotificationListHydratesImportedSubjectProvenanceForLaterEngagement(t *testing.T) {
@@ -228,7 +254,7 @@ func TestNotificationListAndNewCountDynamicallySuppressAndRestoreRelationships(t
 	store := api.NewPostStore(pool)
 	assertState := func(wantRows int, wantCount int64) {
 		t.Helper()
-		rows, _, err := store.ListNotifications(context.Background(), "did:plc:viewer", 20, "")
+		rows, _, err := store.ListNotifications(context.Background(), "did:plc:viewer", 20, "", "")
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -270,7 +296,7 @@ func TestNotificationStoreKeepsDurableRowButWithholdsTakenDownContent(t *testing
 	if _, err := pool.Exec(context.Background(), `INSERT INTO notification_events(id,recipient_did,actor_did,category,subject_key,source_uri,source_cid,source_rkey,subject_uri,eligibility_scope,recipient_followed_actor,push_enabled_snapshot,state,first_activity_at,activity_at,indexed_at,initial_push_evaluated_at)VALUES('00000000-0000-0000-0000-000000000001','did:plc:viewer','did:plc:actor','like',$1,'source','cid','r',$1,'everyone',false,true,'active',now(),now(),now(),now())`, post); err != nil {
 		t.Fatal(err)
 	}
-	rows, _, err := api.NewPostStore(pool).ListNotifications(context.Background(), "did:plc:viewer", 20, "")
+	rows, _, err := api.NewPostStore(pool).ListNotifications(context.Background(), "did:plc:viewer", 20, "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -383,7 +409,7 @@ func TestNotificationListHidesThirdPartyBlockedReferenceGraph(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	rows, _, err := api.NewPostStore(pool).ListNotifications(context.Background(), "did:plc:carol", 20, "")
+	rows, _, err := api.NewPostStore(pool).ListNotifications(context.Background(), "did:plc:carol", 20, "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -514,7 +540,7 @@ func TestNotificationStoreModeratesEveryReferenceRoleAcrossStates(t *testing.T) 
 		}
 	}
 
-	rows, _, err := api.NewPostStore(pool).ListNotifications(context.Background(), "did:plc:viewer", 50, "")
+	rows, _, err := api.NewPostStore(pool).ListNotifications(context.Background(), "did:plc:viewer", 50, "", "")
 	if err != nil {
 		t.Fatal(err)
 	}

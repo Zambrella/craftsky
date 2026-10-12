@@ -14,10 +14,11 @@ import (
 
 	"social.craftsky/appview/internal/api/envelope"
 	"social.craftsky/appview/internal/middleware"
+	"social.craftsky/appview/internal/notifications"
 )
 
 type NotificationReader interface {
-	ListNotifications(ctx context.Context, viewerDID string, limit int, cursor string) ([]*NotificationRow, string, error)
+	ListNotifications(ctx context.Context, viewerDID string, limit int, cursor string, category notifications.Category) ([]*NotificationRow, string, error)
 	NotificationHandles(ctx context.Context, dids []string) (map[string]syntax.Handle, error)
 	EngagementSummaries(ctx context.Context, viewerDID string, contentLanguages, postURIs []string) (map[string]EngagementSummary, error)
 }
@@ -65,9 +66,14 @@ func ListNotificationsHandler(store NotificationReader, _ HandleResolver, logger
 			return
 		}
 
+		category := notifications.Category(r.URL.Query().Get("category"))
+		if category != "" && !category.Valid() {
+			envelope.WriteError(w, http.StatusBadRequest, "invalid_category", "unknown notification category", runID, nil)
+			return
+		}
 		limit := parseNotificationLimit(r.URL.Query().Get("limit"))
 		cursor := r.URL.Query().Get("cursor")
-		rows, nextCursor, err := store.ListNotifications(r.Context(), viewerDID.String(), limit, cursor)
+		rows, nextCursor, err := store.ListNotifications(r.Context(), viewerDID.String(), limit, cursor, category)
 		if err != nil {
 			if errors.Is(err, envelope.ErrInvalidCursor) {
 				envelope.WriteError(w, http.StatusBadRequest, "invalid_cursor", "cursor could not be decoded", runID, nil)

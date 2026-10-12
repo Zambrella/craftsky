@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/auth/models/session_registry.dart';
@@ -7,22 +8,28 @@ import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart'
     show sessionRegistryProvider;
 import 'package:craftsky_app/auth/services/session_validation_coordinator.dart';
+import 'package:craftsky_app/bootstrap.dart';
 import 'package:craftsky_app/profile/models/profile_customisation.dart';
+import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/api/providers/dio_provider.dart';
 import 'package:craftsky_app/shared/api/providers/session_auth_interceptor.dart';
 import 'package:craftsky_app/shared/api/providers/sign_out_on_401_interceptor.dart';
 import 'package:craftsky_app/shared/device/device_id_provider.dart';
+import 'package:craftsky_app/shared/observability/diagnostic_emitter.dart';
+import 'package:craftsky_app/shared/observability/error_reporter.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:logging/logging.dart';
 
 final class _RegistryStorage implements SessionRegistryStorage {
-  _RegistryStorage(this.value);
+  _RegistryStorage(this.value, {this.pendingRead});
 
   SessionRegistry value;
+  final Future<SessionRegistry>? pendingRead;
 
   @override
-  Future<SessionRegistry> read() async => value;
+  Future<SessionRegistry> read() async => pendingRead ?? value;
 
   @override
   Future<void> write(SessionRegistry registry) async => value = registry;
@@ -41,6 +48,152 @@ final class _ErrorHandler extends ErrorInterceptorHandler {
 }
 
 void main() {
+  test(
+    'account client disposed during device lookup cancels construction',
+    () async {
+      final started = Completer<void>();
+      final device = Completer<String>();
+      final container = ProviderContainer.test(
+        overrides: [
+          secureSessionRegistryStorageProvider.overrideWithValue(
+            _RegistryStorage(
+              SessionRegistry.empty().upsertAndActivate(
+                token: 'token',
+                did: 'did:plc:alice',
+                handle: 'alice.test',
+              ),
+            ),
+          ),
+          deviceIdProvider.overrideWith((ref) {
+            started.complete();
+            return device.future;
+          }),
+        ],
+      );
+      await container.read(sessionRegistryProvider.future);
+      final result = container.read(
+        accountDioProvider(AccountKey('did:plc:alice')).future,
+      );
+      final assertion = expectLater(
+        result,
+        throwsA(isA<ApiCanceled>()),
+      );
+      await started.future;
+      container.dispose();
+      device.complete('device-id');
+      await assertion;
+    },
+  );
+
+  test(
+    'registry loading supersedes a client build without unexpected failures',
+    () async {
+      final initial = SessionRegistry.empty().upsertAndActivate(
+        token: 'token-a',
+        did: 'did:plc:alice',
+        handle: 'alice.test',
+      );
+      final registry = Completer<SessionRegistry>();
+      final reporter = _RecordingReporter();
+      final container = ProviderContainer.test(
+        retry: appProviderRetry,
+        observers: [ProviderLogger(reporter: reporter)],
+        overrides: [
+          secureSessionRegistryStorageProvider.overrideWithValue(
+            _RegistryStorage(initial, pendingRead: registry.future),
+          ),
+          deviceIdProvider.overrideWith((ref) async => 'device-id'),
+        ],
+      );
+      final account = AccountKey('did:plc:alice');
+      final subscription = container.listen(
+        accountDioProvider(account),
+        (_, _) {},
+      );
+      addTearDown(subscription.close);
+      final client = container.read(accountDioProvider(account).future);
+      // Rebuild while the old build is still waiting for secure storage.
+      container
+        ..invalidate(accountDioProvider(account))
+        ..read(accountDioProvider(account));
+      registry.complete(initial);
+      expect(await _bearerFrom(await client), 'Bearer token-a');
+      await container.pump();
+      expect(reporter.errors, isEmpty);
+    },
+  );
+
+  test(
+    'session invalidation during client build is expected cancellation',
+    () async {
+      final initial = SessionRegistry.empty().upsertAndActivate(
+        token: 'private-token-canary',
+        did: 'did:plc:alice',
+        handle: 'alice.test',
+      );
+      final deviceId = Completer<String>();
+      final deviceStarted = Completer<void>();
+      final reporter = _RecordingReporter();
+      final local = <String>[];
+      final emitter = DiagnosticEmitter(platformSink: local.add);
+      final previousLevel = Logger.root.level;
+      Logger.root.level = Level.ALL;
+      final logs = Logger.root.onRecord.listen(emitter.emitLocal);
+      addTearDown(() async {
+        await logs.cancel();
+        Logger.root.level = previousLevel;
+      });
+      final container = ProviderContainer.test(
+        retry: appProviderRetry,
+        observers: [ProviderLogger(reporter: reporter)],
+        overrides: [
+          secureSessionRegistryStorageProvider.overrideWithValue(
+            _RegistryStorage(initial),
+          ),
+          deviceIdProvider.overrideWith((ref) {
+            deviceStarted.complete();
+            return deviceId.future;
+          }),
+        ],
+      );
+      await container.read(sessionRegistryProvider.future);
+      final account = AccountKey('did:plc:alice');
+      final subscription = container.listen(
+        accountDioProvider(account),
+        (_, _) {},
+      );
+      addTearDown(subscription.close);
+      final pending = container.read(accountDioProvider(account).future);
+      final expectation = expectLater(pending, throwsA(isA<ApiCanceled>()));
+      await deviceStarted.future;
+      await container
+          .read(sessionRegistryProvider.notifier)
+          .invalidate(
+            initial.leaseFor(account)!,
+          );
+      // Resolve the old build only after the session has been removed.
+      deviceId.complete('private-device-canary');
+      await expectation;
+      await container.pump();
+      expect(reporter.errors, isEmpty);
+      final records = local.map(
+        (line) => jsonDecode(line) as Map<String, Object?>,
+      );
+      final failures = records.where(
+        (record) => record['message'] == 'provider failed',
+      );
+      expect(failures, isNotEmpty);
+      for (final record in failures) {
+        final cause = record['cause']! as Map<String, Object?>;
+        expect(cause['type'], 'ApiCanceled');
+        expect(record['appErrorKind'], isNot('backgroundLoadFailed'));
+      }
+      expect(local.join(' '), contains('did:plc:alice'));
+      expect(local.join(' '), isNot(contains('private-token-canary')));
+      expect(local.join(' '), isNot(contains('private-device-canary')));
+    },
+  );
+
   test('dioProvider builds with the debug-default base URL', () {
     final container = ProviderContainer.test();
 
@@ -199,6 +352,23 @@ void main() {
       expect(await _bearerFrom(accountBefore), 'Bearer token-a');
     },
   );
+}
+
+final class _RecordingReporter implements ErrorReporter {
+  final errors = <Object>[];
+
+  @override
+  bool get enabled => true;
+
+  @override
+  Future<String?> captureException(
+    Object error, {
+    required ReportContext context,
+    StackTrace? stackTrace,
+  }) async {
+    errors.add(error);
+    return null;
+  }
 }
 
 Future<String?> _bearerFrom(Dio dio) async {

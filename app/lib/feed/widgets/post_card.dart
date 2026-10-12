@@ -35,6 +35,8 @@ import 'package:craftsky_app/shared/mutations/pds_record_operation_controller.da
 import 'package:craftsky_app/shared/observability/error_reporter_provider.dart';
 import 'package:craftsky_app/shared/rich_text/faceted_text_model.dart';
 import 'package:craftsky_app/shared/rich_text/widgets/faceted_text.dart';
+import 'package:craftsky_app/shared/sharing/copy_link_menu_item.dart';
+import 'package:craftsky_app/shared/sharing/record_links.dart';
 import 'package:craftsky_app/shared/time/relative_time_text.dart';
 import 'package:craftsky_app/shared/widgets/post_summary.dart';
 import 'package:craftsky_app/subscriptions/providers/subscription_access_provider.dart';
@@ -606,6 +608,7 @@ class PostCard extends ConsumerWidget {
                         if (account != null)
                           SavedPostBookmarkButton(account: account, post: post),
                         _PostCardMenu(
+                          url: RecordLinks.post(post),
                           onViewLikes:
                               post.reply != null &&
                                   post.likeCount > 0 &&
@@ -1036,6 +1039,7 @@ class _PostCardAuthorTapTarget extends StatelessWidget {
 
 class _PostCardMenu extends StatelessWidget {
   const _PostCardMenu({
+    required this.url,
     required this.onViewLikes,
     required this.pinLabel,
     required this.isPinned,
@@ -1054,6 +1058,7 @@ class _PostCardMenu extends StatelessWidget {
     this.reportLabel,
   });
 
+  final String url;
   final VoidCallback? onViewLikes;
   final String? pinLabel;
   final bool isPinned;
@@ -1091,6 +1096,7 @@ class _PostCardMenu extends StatelessWidget {
                 ),
               ],
             ),
+          CraftskyContextMenuGroup(items: [copyLinkMenuItem(context, url)]),
           CraftskyContextMenuGroup(
             items: [
               if (pinLabel != null)

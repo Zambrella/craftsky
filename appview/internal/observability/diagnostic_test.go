@@ -791,3 +791,41 @@ func TestExhaustedValidationRemainsActionable(t *testing.T) {
 		t.Error("validator prose leaked")
 	}
 }
+
+func TestExpectedPrivateFailureLogsWithoutCreatingIssue(t *testing.T) {
+	for _, outcome := range []string{"expected", "retry", "terminal"} {
+		t.Run(outcome, func(t *testing.T) {
+			transport := &sentry.MockTransport{}
+			var local bytes.Buffer
+			observer := New(Config{
+				Env: "test", SentryDSN: "https://public@example.invalid/1",
+				SentryTransport: transport,
+				Logger:          slog.New(slog.NewJSONHandler(&local, nil)),
+			})
+			cause := errors.New("PRIVATE_PROVIDER_PAYLOAD")
+			observer.ObservePrivateFailure(context.Background(), cause,
+				syntax.DID("did:plc:initiator"), "40000000-0000-4000-8000-000000000001",
+				"push.send", "provider", outcome, 1)
+			observer.Flush(time.Second)
+			wantIssues := 0
+			if outcome == "terminal" {
+				wantIssues = 1
+			}
+			if got := len(transport.Events()); got != wantIssues {
+				t.Fatalf("issues = %d, want %d for %s", got, wantIssues, outcome)
+			}
+			payload, err := json.Marshal(transport.Events())
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, selected := range []string{"push.send", "provider", outcome, "did:plc:initiator", "40000000-0000-4000-8000-000000000001", "errorString"} {
+				if !strings.Contains(local.String(), selected) {
+					t.Errorf("local log missing %s", selected)
+				}
+			}
+			if strings.Contains(local.String()+string(payload), "PRIVATE_PROVIDER_PAYLOAD") {
+				t.Fatal("provider payload leaked")
+			}
+		})
+	}
+}

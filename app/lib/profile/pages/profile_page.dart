@@ -41,6 +41,8 @@ import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/errors/notification_destination_error.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
+import 'package:craftsky_app/shared/sharing/copy_link_menu_item.dart';
+import 'package:craftsky_app/shared/sharing/record_links.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/shared/widgets/notification_destination_error_state.dart';
 import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
@@ -376,6 +378,8 @@ class _ProfileBody extends ConsumerWidget {
     final l10n = AppLocalizations.of(context);
     if (isOwnProfile) {
       return SelfProfileActionSet(
+        onCopyLink: () =>
+            copyRecordLink(context, RecordLinks.profile(profile.did)),
         onEdit: () => showEditProfileDialog(context),
         onSettings: () => const SettingsRoute().go(context),
       );
@@ -384,6 +388,8 @@ class _ProfileBody extends ConsumerWidget {
     final toggleState = ref.watch(toggleFollowProfileProvider);
     final blockState = ref.watch(toggleBlockProfileProvider);
     return VisitorProfileActionSet(
+      onCopyLink: () =>
+          copyRecordLink(context, RecordLinks.profile(profile.did)),
       isFollowing: profile.viewerIsFollowing,
       isFollowingBusy: toggleState.isLoading,
       isBlockingBusy: blockState.isLoading,
@@ -868,7 +874,14 @@ class _ProfileTabScrollView extends ConsumerWidget {
     final scrollView = CustomScrollView(
       key: PageStorageKey<String>(tab.storageKey),
       physics: onRefresh == null ? null : const AlwaysScrollableScrollPhysics(),
-      slivers: [_sliverForTab(context, tab, profile, l10n)],
+      slivers: [
+        SliverPadding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.paddingOf(context).bottom,
+          ),
+          sliver: _sliverForTab(context, tab, profile, l10n),
+        ),
+      ],
     );
     return onRefresh == null
         ? scrollView

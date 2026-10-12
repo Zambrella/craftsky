@@ -195,6 +195,7 @@ void main() {
       await tester.tap(manageHistory);
       await tester.pumpAndSettle();
       expect(find.byType(CraftskyContextMenuButton), findsWidgets);
+      await tester.ensureVisible(find.text('Delete event'));
       await tester.tap(find.text('Delete event'));
       await tester.pumpAndSettle();
       expect(find.text('Delete this event?'), findsOneWidget);
@@ -398,6 +399,7 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.byTooltip('Manage Event managed'));
       await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('Delete event'));
       await tester.tap(find.text('Delete event'));
       await tester.pumpAndSettle();
       expect(find.text('Delete this event?'), findsOneWidget);

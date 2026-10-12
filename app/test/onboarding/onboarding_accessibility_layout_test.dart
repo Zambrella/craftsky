@@ -16,6 +16,7 @@ import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 final _lease = ActiveAccountLease(
   session: AccountSessionLease(
@@ -44,6 +45,7 @@ final class _Flow extends OnboardingFlow {
 }
 
 void main() {
+  setUp(() => SharedPreferences.setMockInitialValues({}));
   testWidgets('AT-014 busy primary action preserves purpose and state', (
     tester,
   ) async {

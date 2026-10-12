@@ -1,5 +1,25 @@
 # Logging and Error Reporting Validation Evidence
 
+## Login timeline lifecycle — 2026-10-11
+
+Timeline initial loading now checks `ref.mounted` after fetching, before reading overlays. Pagination checks the captured account operation at the same point. The late-fetch regression first reproduced `UnmountedRefException`, then passed with `ApiCanceled` and no issue capture.
+
+Riverpod `StateError` and `UnmountedRefException` reporting remains unchanged. A regression reproduces a loading auto-dispose provider whose future was retained by a read-only consumer, requires its original `StateError` to remain reportable, and verifies retained type/origin stack plus excluded provider-prose canary in serialized local output. Auth startup's manual providers now have stable names to identify previously anonymous failures; the original unnamed loading-disposal warning's application source has not been established.
+
+- Focused timeline, account-boundary, client, provider-logger and observability suites: **106 passed / 1 skipped** (`/private/tmp/craftsky-login-disposal-focused.log`). Analysis: **No issues found** (`/private/tmp/craftsky-login-disposal-analyze.log`).
+- Full Flutter suite: **2,844 passed / 38 skipped** (`/private/tmp/craftsky-login-disposal-full.log`). Diff whitespace check passed.
+- No iPhone simulator relaunch, physical release-device check, deployment or production mutation was performed. Backend code is unchanged; the full Go race suite passed earlier in this session, as recorded below.
+
+## Account-client startup disposal — 2026-10-11
+
+Account-client initialization now checks whether its build is still mounted after registry and device-ID loading. A disposed build or removed session exits with `ApiCanceled`, using the existing expected-cancellation classifier rather than reporting an unexpected provider failure.
+
+- The session-invalidation regression first failed with `DiagnosticStateError: Account session unavailable`, then passed after the correction. Regressions cover delayed registry loading and session removal during device-ID loading, the replacement client's bearer header, no issue capture, retained public actor DID, and token/device-ID canaries excluded from serialized local output.
+- Focused client, provider-logger, session-validation and language-provider suites: **23 passed**.
+- Full Flutter suite: **2,842 passed / 38 skipped** (`/private/tmp/craftsky-disposal-flutter.log`). Flutter analysis: **No issues found** (`/private/tmp/craftsky-disposal-analyze.log`). Diff whitespace check passed.
+- Full Go `just test`: passed all packages with race detection against local PostgreSQL/MinIO (`/private/tmp/craftsky-disposal-go.log`).
+- iPhone simulator relaunch, physical release-device diagnostics and production retrieval were not performed for this correction. No deployment or production mutation was performed.
+
 ## PR 127 CI repair — 2026-10-08
 
 GitHub run 37761501772 on 37294149: Flutter failed only SDK-T05's enabled-log case (expected three serialized Logs, received zero); AppView release gate failed Staticcheck S1034 for repeated type assertions and U1000 for the unused capture wrapper. Aggregate PR check failed because these jobs failed. Read run/job logs and check annotations before changes.
@@ -234,3 +254,25 @@ IR-003 / UT-013 / FR-010, NFR-002 / AC-013:
 - Full `cd app && flutter test --no-pub`: **2712 passed / 38 skipped**. Transcript: `/private/tmp/craftsky-logging-budget-flutter-full.txt`. Runtime source was unchanged after this run; equivalent generic fixture typedefs/style cleanup were followed by a final platform-file rerun: **7 passed**, transcript `/private/tmp/craftsky-logging-budget-platform-final.txt`.
 - Final `flutter analyze --no-pub`: **No issues found**. Transcript: `/private/tmp/craftsky-logging-budget-analysis.txt`. Three initial test-only style infos were corrected. `git diff --check` passed.
 - Go source/tests are unchanged in this pass; preceding full Go/race and second-review scheduled regression results remain applicable. MAN-001 physical device and MAN-004 live production checks remain Pending; no commit/push/deployment/live telemetry action. Implementation completion awaits another review; no review approval is claimed.
+
+## Recent Sentry account-lifecycle corrections (2026-10-11)
+
+- Read recent issues and latest events using the authenticated Sentry CLI. Flutter issues FLUTTER-APP-P/Q/S/T reported ended account authority or provider disposal as StateErrors; FLUTTER-APP-R accessed timeline overlays through a disposed Ref.
+- AccountOperationCanceled retains StateError catch semantics and original typed cause, but is expected cancellation in explicit and automatic reporting. Timeline build/pagination check account authority before reading overlays. Account Dio checks disposal after registry loading; profile error recovery checks mounting before reading its fence. Subscription response identity mismatches remain reportable.
+- Focused Flutter provider and observability suites: **104 passed / 1 skipped**. Transcript: `/private/tmp/craftsky-sentry-focused.log`. Explicit serialized SDK tests and the automatic event hook suppress account cancellation while existing positive/error and protected-value checks remain green.
+- Full Flutter suite: **2847 passed / 38 skipped**. Transcript: `/private/tmp/craftsky-sentry-full.log`.
+- Flutter analysis: **No issues found**. Transcript: `/private/tmp/craftsky-sentry-analyze.log`.
+- AppView issue APP-VIEW-6 was a development repository reconciliation attempt with `reason=source_changed`, `result=exhausted`, `attempt=10`; the checked-in retry escalation policy intentionally retains these issues. APP-VIEW-7 was a production Firebase push failure with `result=expected`. A regression reproduced one unwanted issue for that outcome. ExpectedDiagnostic now suppresses `expected` as well as `retry`, retaining local failure logs and terminal issue capture. APP-VIEW-5 was a production PDS repository-head failure without a retained specific cause/status, so no speculative backend fix was made.
+- Physical-device validation of these fixes and post-release Sentry recurrence checks remain **Pending**. No production failures were injected. No deployment, production configuration change or Sentry issue-status mutation was performed. The backend classifier regression failed before the fix (`issues = 1, want 0 for expected`); the complete observability package passed with the race detector (`go test -race ./internal/observability -count=1`, transcript `/private/tmp/craftsky-sentry-go-green.log`). The complete `./scripts/appview-check` gate passed, including full PostgreSQL/MinIO integration and race runs, module/codegen/lint/source and binary vulnerability checks, Docker builds, migration-failure checks and service smoke tests. Transcript: `/private/tmp/craftsky-sentry-appview-check.log`; artifacts: `/private/tmp/craftsky-sentry-appview-check`. Pinned Tap handshake passed; deterministic event injection remains unavailable in Tap v0.1.10, as recorded by the gate.
+
+- Main synchronization: fast-forwarded to `1d897590` and resolved four conflicts restoring local work. Retained main's ApiCanceled behavior and earlier session check in account Dio, both sets of lifecycle regression tests, and the additional account-authority fence in timeline build. Post-integration provider/observability suites: **188 passed / 1 skipped** (`/private/tmp/craftsky-main-sync-tests.log`); analysis: **No issues found** (`/private/tmp/craftsky-main-sync-analysis.log`); `git diff --check` passed. Backend source and tests did not change during integration; the preceding complete AppView gate remains the backend evidence. The earlier full Flutter result predates this synchronization; the full Flutter suite was not repeated.
+
+## Device error-reporting consent (2026-10-11)
+
+- Error reporting is off by default. The persisted device preference is loaded before Sentry initialization and shared between onboarding and Settings → Preferences. A stable reporter applies runtime opt-in/opt-out to existing explicit error owners; SDK shutdown also stops automatic integrations.
+- Local SDK transport regressions verify no initialization/export without consent, protected exception export after opt-in, no direct or reporter export after opt-out, persisted choices after restart, re-enabling, missing-DSN configuration, and storage-write rejection without starting the SDK. Shared-control tests verify both onboarding and settings reflect and persist the same preference.
+- Onboarding tests verify Finish is disabled until the mandatory age-and-policy declaration is selected, returns to disabled when unchecked, and does not require optional error-reporting consent.
+- Full Flutter suite: 2847 passed / 38 skipped (`/private/tmp/craftsky-flutter-full-tests.log`). Final consent-specific tests: 5 passed, covering the final persistence guard (`/private/tmp/craftsky-consent-final-tests.log`). `flutter analyze --no-pub`: no issues found. `git diff --check`: passed.
+- Physical iOS/Android SDK startup/shutdown, native crash collection, release console retrieval, and live Sentry delivery remain unexecuted. No production telemetry was injected or inspected, and no deployment, server telemetry configuration, retention, or access controls changed. Go source/tests are unchanged.
+
+- Consent branch main synchronization: merged `origin/main` at `04e144b9`, preserving both independently appended validation sections. Code merged without conflicts. Post-merge onboarding/settings/observability and affected account-lifecycle suites: **267 passed / 5 skipped** (`/private/tmp/craftsky-onboarding-main-merge-tests.log`); Flutter analysis: **No issues found** (`/private/tmp/craftsky-onboarding-main-merge-analysis.log`); Go observability package with race detector: **passed** (`/private/tmp/craftsky-onboarding-main-merge-go.log`). `git diff --check` passed. The full Flutter suite and full AppView gate were not repeated for this documentation-only conflict resolution; preceding full-suite results describe their respective pre-merge states.

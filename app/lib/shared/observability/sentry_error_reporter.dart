@@ -18,6 +18,9 @@ import 'package:logging/logging.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 import 'package:sentry_logging/sentry_logging.dart';
 
+/// Shuts down automatic SDK integrations as well as explicit reporting.
+Future<void> closeSentrySdk() => Sentry.close();
+
 final class SentryFlutterBootstrapAdapter implements SentryBootstrapAdapter {
   const SentryFlutterBootstrapAdapter({this.appRunner});
   final Future<void> Function(ErrorReporter)? appRunner;

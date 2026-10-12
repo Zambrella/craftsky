@@ -81,3 +81,9 @@ observer.CaptureDiagnostic(ctx, input)
 - Verify serialized local and SDK output with both retained positive fields and protected-value canaries, safe breadcrumb timelines and isolated request scopes. Verify production release symbolication separately; upload configuration alone is not proof.
 - Run focused suites, `just test`, Flutter tests and analysis. Preserve response/UI/retry/fencing/ACK behavior.
 - Record unexecuted device/production checks in [validation evidence](../changes/2026-10-02-logging-error-reporting/06-validation-evidence.md). Mock envelopes do not prove production retrieval; do not inject synthetic production failures.
+
+## Flutter error-reporting consent
+
+Error reporting is an optional, device-wide preference, off until explicitly enabled in onboarding or Settings → Preferences → Error reporting. Load the persisted choice before SDK initialization on every platform. Enabling starts Sentry with the existing diagnostic privacy filters and build configuration; disabling closes the SDK and its automatic integrations. Existing explicit error owners use the same stable reporter so preference changes apply without restarting the app. Protected local diagnostics remain available regardless of consent.
+
+The onboarding age-and-policy declaration remains mandatory and independent of error-reporting consent. Do not send app diagnostics merely because onboarding is complete or a user changes accounts.

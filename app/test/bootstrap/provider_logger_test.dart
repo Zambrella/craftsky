@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/auth/models/account_session_lease.dart';
@@ -13,6 +14,67 @@ import 'package:logging/logging.dart';
 
 void main() {
   group('ProviderLogger', () {
+    test('framework disposal during loading remains reportable', () async {
+      final reporter = _RecordingReporter();
+      final gate = Completer<int>();
+      final pending = FutureProvider<int>((ref) => gate.future);
+      final loading = FutureProvider.autoDispose<int>(
+        (ref) => ref.watch(pending).requireValue,
+        name: 'private-provider-canary',
+      );
+      final consumer = FutureProvider<int>(
+        name: 'loadingConsumer',
+        (ref) async => ref.read(loading.future),
+      );
+      final records = <LogRecord>[];
+      final previousLevel = Logger.root.level;
+      Logger.root.level = Level.ALL;
+      final logs = Logger.root.onRecord.listen(records.add);
+      addTearDown(() async {
+        await logs.cancel();
+        Logger.root.level = previousLevel;
+      });
+      final container = ProviderContainer(
+        retry: appProviderRetry,
+        observers: [ProviderLogger(reporter: reporter)],
+      );
+      addTearDown(container.dispose);
+      final result = container.read(consumer.future);
+      final expectation = expectLater(result, throwsStateError);
+      // The read-only async consumer does not keep the loading provider alive.
+      await container.pump();
+      await expectation;
+      expect(reporter.errors, hasLength(1));
+      final failures = records.where(
+        (record) => record.object is DiagnosticMessage,
+      );
+      expect(failures, isNotEmpty);
+      expect(
+        (failures.last.object! as DiagnosticMessage).context.classification,
+        'provider.failed',
+      );
+      // Preserve the native error and stack without exporting provider prose.
+      expect(
+        (failures.last.error! as StateError).message,
+        contains('private-provider-canary'),
+      );
+      final local = <String>[];
+      final emitter = DiagnosticEmitter(platformSink: local.add);
+      failures.forEach(emitter.emitLocal);
+      final serialized = jsonDecode(local.last) as Map<String, Object?>;
+      expect(serialized['feature'], 'loadingConsumer');
+      expect(serialized['severity'], 'WARNING');
+      expect(serialized['message'], 'provider failed');
+      expect(serialized['appErrorKind'], 'backgroundLoadFailed');
+      expect(
+        (serialized['cause']! as Map<String, Object?>)['type'],
+        'StateError',
+      );
+      expect(local.join(' '), contains('ElementWithFuture.dispose'));
+      expect(local.join(' '), isNot(contains('private-provider-canary')));
+      gate.complete(1);
+    });
+
     test('reports provider failures classified as reportable', () async {
       final reporter = _RecordingReporter();
       final provider = FutureProvider<int>(

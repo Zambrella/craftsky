@@ -1,3 +1,4 @@
+import 'package:craftsky_app/auth/models/account_operation_canceled.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/errors/app_error.dart';
 import 'package:craftsky_app/shared/errors/app_error_mapper.dart';
@@ -18,7 +19,8 @@ bool isExpectedDiagnostic(Object sourceError, ReportContext context) {
     }
     error = error.diagnosticCause!;
   }
-  if (error is ApiCanceled ||
+  if (error is AccountOperationCanceled ||
+      error is ApiCanceled ||
       (error is DioException &&
           (error.type == DioExceptionType.cancel ||
               error.error is ApiCanceled))) {

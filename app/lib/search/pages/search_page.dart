@@ -135,7 +135,12 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     if (query.isEmpty) return;
     await _saveQueryRecent(query);
     if (!mounted) return;
-    SearchRoute(q: query).go(context);
+    final tab = switch (query[0]) {
+      '@' => SearchResultsTab.profiles,
+      '#' => SearchResultsTab.tags,
+      _ => null,
+    };
+    SearchRoute(q: query, tab: tab).go(context);
   }
 
   Future<void> _saveQueryRecent(String query) {

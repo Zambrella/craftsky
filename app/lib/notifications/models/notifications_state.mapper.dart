@@ -15,6 +15,7 @@ class NotificationsStateMapper extends ClassMapperBase<NotificationsState> {
   static NotificationsStateMapper ensureInitialized() {
     if (_instance == null) {
       MapperContainer.globals.use(_instance = NotificationsStateMapper._());
+      NotificationCategoryMapper.ensureInitialized();
     }
     return _instance!;
   }
@@ -42,6 +43,9 @@ class NotificationsStateMapper extends ClassMapperBase<NotificationsState> {
     _$owner,
     opt: true,
   );
+  static NotificationCategory? _$category(NotificationsState v) => v.category;
+  static const Field<NotificationsState, NotificationCategory> _f$category =
+      Field('category', _$category, opt: true);
 
   @override
   final MappableFields<NotificationsState> fields = const {
@@ -49,6 +53,7 @@ class NotificationsStateMapper extends ClassMapperBase<NotificationsState> {
     #renderToken: _f$renderToken,
     #cursor: _f$cursor,
     #owner: _f$owner,
+    #category: _f$category,
   };
 
   static NotificationsState _instantiate(DecodingData data) {
@@ -57,6 +62,7 @@ class NotificationsStateMapper extends ClassMapperBase<NotificationsState> {
       renderToken: data.dec(_f$renderToken),
       cursor: data.dec(_f$cursor),
       owner: data.dec(_f$owner),
+      category: data.dec(_f$category),
     );
   }
 
@@ -117,6 +123,7 @@ abstract class NotificationsStateCopyWith<
     int? renderToken,
     String? cursor,
     AccountSessionLease? owner,
+    NotificationCategory? category,
   });
   NotificationsStateCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(
     Then<$Out2, $R2> t,
@@ -148,12 +155,14 @@ class _NotificationsStateCopyWithImpl<$R, $Out>
     int? renderToken,
     Object? cursor = $none,
     Object? owner = $none,
+    Object? category = $none,
   }) => $apply(
     FieldCopyWithData({
       if (items != null) #items: items,
       if (renderToken != null) #renderToken: renderToken,
       if (cursor != $none) #cursor: cursor,
       if (owner != $none) #owner: owner,
+      if (category != $none) #category: category,
     }),
   );
   @override
@@ -162,6 +171,7 @@ class _NotificationsStateCopyWithImpl<$R, $Out>
     renderToken: data.get(#renderToken, or: $value.renderToken),
     cursor: data.get(#cursor, or: $value.cursor),
     owner: data.get(#owner, or: $value.owner),
+    category: data.get(#category, or: $value.category),
   );
 
   @override
