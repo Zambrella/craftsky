@@ -719,6 +719,8 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
                             )
                           else
                             ComposerImageAttachmentSection(
+                              useDetailsRoute: true,
+                              imagesProvider: imagesProvider,
                               imagesState: imagesState,
                               enabled:
                                   !createState.isLoading &&

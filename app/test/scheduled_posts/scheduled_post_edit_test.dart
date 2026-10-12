@@ -977,6 +977,8 @@ void main() {
           .onPressed,
       isNotNull,
     );
+    await tester.tap(find.byKey(const Key('composer-edit-images')));
+    await tester.pumpAndSettle();
     expect(find.byKey(const Key('composer-alt-old-1')), findsOneWidget);
     expect(find.byKey(const Key('composer-alt-old-2')), findsOneWidget);
     await tester.enterText(
@@ -990,6 +992,8 @@ void main() {
       find.byKey(const Key('composer-move-down-old-1')),
     );
     await tester.tap(find.byKey(const Key('composer-move-down-old-1')));
+    await tester.pumpAndSettle();
+    await tester.pageBack();
     await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(ChunkyButton, 'Schedule'));
     await tester.pumpAndSettle();
@@ -1046,6 +1050,8 @@ void main() {
       );
       await tester.pumpAndSettle();
 
+      await tester.tap(find.byKey(const Key('composer-edit-images')));
+      await tester.pumpAndSettle();
       await tester.enterText(
         find.descendant(
           of: find.byKey(const Key('composer-alt-old-1')),
@@ -1053,6 +1059,8 @@ void main() {
         ),
         'published front',
       );
+      await tester.pageBack();
+      await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('composer-schedule-control')));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Now').last);
@@ -1386,7 +1394,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Save draft'), findsNothing);
-    expect(find.byKey(const Key('composer-alt-old-1')), findsOneWidget);
+    expect(find.byKey(const Key('composer-edit-images')), findsOneWidget);
     final patternDetails = find.byKey(
       const Key('project-composer-pattern-details-action'),
     );
@@ -1488,7 +1496,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.byKey(const Key('composer-alt-old-1')), findsOneWidget);
+      expect(find.byKey(const Key('composer-edit-images')), findsOneWidget);
       final patternDetails = find.byKey(
         const Key('project-composer-pattern-details-action'),
       );

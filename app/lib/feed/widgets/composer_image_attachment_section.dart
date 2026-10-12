@@ -10,9 +10,11 @@ import 'package:craftsky_app/theme/brand_text_field.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show ProviderListenable;
 import 'package:image_picker/image_picker.dart';
 
-class ComposerImageAttachmentSection extends StatelessWidget {
+class ComposerImageAttachmentSection extends StatefulWidget {
   const ComposerImageAttachmentSection({
     required this.imagesState,
     required this.enabled,
@@ -29,6 +31,8 @@ class ComposerImageAttachmentSection extends StatelessWidget {
     this.imageUrlFor,
     this.onReplace,
     this.keyPrefix = 'composer',
+    this.useDetailsRoute = false,
+    this.imagesProvider,
     this.supportsVideo = false,
     this.onAddVideo,
     this.onTakePhoto,
@@ -52,13 +56,31 @@ class ComposerImageAttachmentSection extends StatelessWidget {
   final String? Function(ComposerImageDraft image)? imageUrlFor;
   final Future<void> Function(String imageId, ImageSource source)? onReplace;
   final String keyPrefix;
+
+  /// Project/post composers use a thumbnail summary with a separate editor.
+  /// Single-image business forms retain their inline attachment controls.
+  final bool useDetailsRoute;
+
+  /// Watched directly by the visible details route.
+  /// Updates continue while the underlying composer is covered.
+  final ProviderListenable<ComposerImagesState>? imagesProvider;
   final bool supportsVideo;
   final Future<void> Function()? onAddVideo;
   final Future<void> Function()? onTakePhoto;
   final bool? cameraSupported;
 
   @override
-  Widget build(BuildContext context) {
+  State<ComposerImageAttachmentSection> createState() =>
+      _ComposerImageAttachmentSectionState();
+
+  Widget _buildDetails(
+    BuildContext context, {
+    Future<void> Function()? addImages,
+    Future<void> Function()? takePhoto,
+    bool allowVideo = true,
+    ComposerImagesState? currentImagesState,
+  }) {
+    final imagesState = currentImagesState ?? this.imagesState;
     final theme = Theme.of(context);
     final spacing = theme.extension<SpacingTheme>()!;
     final describedImageCount = imagesState.images
@@ -163,10 +185,18 @@ class ComposerImageAttachmentSection extends StatelessWidget {
             maxImages: maxImages,
             addKey: Key('$keyPrefix-add-image'),
             hasImages: imagesState.images.isNotEmpty,
-            supportsVideo: supportsVideo && imagesState.images.isEmpty,
+            supportsVideo:
+                allowVideo && supportsVideo && imagesState.images.isEmpty,
             onPressed: enabled && onAddImages != null
                 ? () => unawaited(
-                    _hasSourceChoice ? _chooseMedia(context) : onAddImages!(),
+                    _hasSourceChoice
+                        ? _chooseMedia(
+                            context,
+                            addImages: addImages,
+                            takePhoto: takePhoto,
+                            allowVideo: allowVideo,
+                          )
+                        : (addImages ?? onAddImages)!(),
                   )
                 : null,
           ),
@@ -183,14 +213,19 @@ class ComposerImageAttachmentSection extends StatelessWidget {
     );
   }
 
-  Future<void> _chooseMedia(BuildContext context) async {
+  Future<void> _chooseMedia(
+    BuildContext context, {
+    Future<void> Function()? addImages,
+    Future<void> Function()? takePhoto,
+    bool allowVideo = true,
+  }) async {
     await showImageSourceMenu(
       context,
       keyPrefix: keyPrefix,
       cameraSupported: cameraSupported,
-      onChoosePhotos: onAddImages,
-      onTakePhoto: onTakePhoto,
-      onChooseVideo: supportsVideo && imagesState.images.isEmpty
+      onChoosePhotos: addImages ?? onAddImages,
+      onTakePhoto: takePhoto ?? onTakePhoto,
+      onChooseVideo: allowVideo && supportsVideo && imagesState.images.isEmpty
           ? onAddVideo
           : null,
     );
@@ -212,6 +247,235 @@ class ComposerImageAttachmentSection extends StatelessWidget {
       ((cameraSupported ?? cameraImageSourceSupported) &&
           onTakePhoto != null) ||
       (supportsVideo && imagesState.images.isEmpty && onAddVideo != null);
+}
+
+/// Subscribes the details route to the composer-owned image state.
+class _ComposerImageAttachmentSectionState
+    extends State<ComposerImageAttachmentSection> {
+  late final ValueNotifier<ComposerImageAttachmentSection> _details =
+      ValueNotifier(widget);
+  final _summaryFocusNode = FocusNode();
+  bool _detailsOpen = false;
+
+  @override
+  void didUpdateWidget(covariant ComposerImageAttachmentSection oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Avoid notifying the details route during the composer's build.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _details.value = widget;
+    });
+  }
+
+  @override
+  void dispose() {
+    _details.dispose();
+    _summaryFocusNode.dispose();
+    super.dispose();
+  }
+
+  Future<void> _selectPhotos(Future<void> Function() select) async {
+    await select();
+    // Let the composer receive the selection, including queued images.
+    await WidgetsBinding.instance.endOfFrame;
+    if (mounted && widget.imagesState.images.isNotEmpty) {
+      await _openDetails();
+    }
+  }
+
+  Future<void> _openDetails() async {
+    if (_detailsOpen || !widget.enabled) return;
+    _detailsOpen = true;
+    _details.value = widget;
+    final container = widget.imagesProvider == null
+        ? null
+        : ProviderScope.containerOf(context);
+    try {
+      await Navigator.of(context).push<void>(
+        MaterialPageRoute<void>(
+          builder: (context) {
+            final page = ValueListenableBuilder(
+              valueListenable: _details,
+              builder: (context, section, _) {
+                final provider = section.imagesProvider;
+                if (provider == null) {
+                  return _buildDetailsPage(
+                    context,
+                    section,
+                    section.imagesState,
+                  );
+                }
+                return Consumer(
+                  builder: (context, ref, _) =>
+                      _buildDetailsPage(context, section, ref.watch(provider)),
+                );
+              },
+            );
+            return container == null
+                ? page
+                : UncontrolledProviderScope(
+                    container: container,
+                    child: page,
+                  );
+          },
+        ),
+      );
+    } finally {
+      _detailsOpen = false;
+      if (mounted) _summaryFocusNode.requestFocus();
+    }
+  }
+
+  Widget _buildDetailsPage(
+    BuildContext context,
+    ComposerImageAttachmentSection section,
+    ComposerImagesState imagesState,
+  ) {
+    final theme = Theme.of(context);
+    final spacing = theme.extension<SpacingTheme>()!;
+    return Scaffold(
+      key: Key('${section.keyPrefix}-photo-details'),
+      backgroundColor: theme.extension<BrandSwatchTheme>()!.paper,
+      appBar: AppBar(
+        title: Text(
+          AppLocalizations.of(context).postComposePhotoDetailsTitle,
+          style: theme.textTheme.titleLarge,
+        ),
+      ),
+      body: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
+        child: SafeArea(
+          top: false,
+          bottom: false,
+          child: SingleChildScrollView(
+            padding: EdgeInsets.fromLTRB(
+              spacing.sp4,
+              spacing.sp4,
+              spacing.sp4,
+              spacing.sp4 + MediaQuery.paddingOf(context).bottom,
+            ),
+            child: section._buildDetails(
+              context,
+              allowVideo: false,
+              currentImagesState: imagesState,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final section = widget;
+    if (!section.useDetailsRoute) return section._buildDetails(context);
+    if (section.imagesState.images.isEmpty) {
+      return section._buildDetails(
+        context,
+        addImages: section.onAddImages == null
+            ? null
+            : () => _selectPhotos(section.onAddImages!),
+        takePhoto: section.onTakePhoto == null
+            ? null
+            : () => _selectPhotos(section.onTakePhoto!),
+      );
+    }
+    final theme = Theme.of(context);
+    final spacing = theme.extension<SpacingTheme>()!;
+    final radii = theme.extension<RadiusTheme>()!;
+    final l10n = AppLocalizations.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Material(
+          color: theme.extension<BrandSwatchTheme>()!.paper3,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(radii.r3),
+            side: BorderSide(color: theme.colorScheme.onSurface, width: 1.5),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: InkWell(
+            key: Key('${section.keyPrefix}-edit-images'),
+            focusNode: _summaryFocusNode,
+            onTap: section.enabled ? _openDetails : null,
+            child: Padding(
+              padding: EdgeInsets.all(spacing.sp4),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          l10n.postComposePhotosTitle,
+                          style: theme.textTheme.titleMedium,
+                        ),
+                      ),
+                      const Icon(CraftskyIcons.edit),
+                    ],
+                  ),
+                  SizedBox(height: spacing.sp3),
+                  Wrap(
+                    spacing: spacing.sp2,
+                    runSpacing: spacing.sp2,
+                    children: [
+                      for (final image in section.imagesState.images)
+                        SizedBox.square(
+                          dimension: 64,
+                          child: CraftskyImageAttachmentPreview(
+                            bytes: image.previewBytes,
+                            imageUrl: section.imageUrlFor?.call(image),
+                            aspectRatio: 1,
+                            unavailable: image.phase is ImageUnavailable,
+                            placeholderIcon: CraftskyIcons.image,
+                            imageKey: Key(
+                              '${section.keyPrefix}-thumbnail-${image.id}',
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                  SizedBox(height: spacing.sp2),
+                  Text(l10n.postComposeEditPhotosHelper),
+                  Text(
+                    l10n.postComposeImagesDescribed(
+                      section.imagesState.images
+                          .where((image) => image.altText.trim().isNotEmpty)
+                          .length,
+                      section.imagesState.images.length,
+                    ),
+                    style: theme.textTheme.bodySmall,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        Align(
+          alignment: AlignmentDirectional.centerEnd,
+          child: TextButton.icon(
+            key: Key('${section.keyPrefix}-clear-images'),
+            onPressed: section.enabled
+                ? () {
+                    for (final image in section.imagesState.images) {
+                      section.onRemove(image.id);
+                    }
+                  }
+                : null,
+            icon: const Icon(CraftskyIcons.delete),
+            label: Text(l10n.postComposeClearPhotos),
+          ),
+        ),
+        if (section.validationErrorText case final message?)
+          Text(
+            message,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.error,
+            ),
+          ),
+      ],
+    );
+  }
 }
 
 class _PhotosHeader extends StatelessWidget {

@@ -3473,5 +3473,11 @@
   "@serviceStatusEstimatedRecovery": {"description": "Informational local-time recovery estimate.", "placeholders": {"time": {"type": "String"}}},
   "recordCopyLinkAction": "Copy link",
   "recordLinkCopied": "Link copied",
-  "recordCopyLinkFailed": "Could not copy link. Please try again."
+  "recordCopyLinkFailed": "Could not copy link. Please try again.",
+  "postComposePhotoDetailsTitle": "Photo details",
+  "@postComposePhotoDetailsTitle": { "description": "Title of the photo attachment editing page." },
+  "postComposeEditPhotosHelper": "Reorder photos, remove them or add alt text",
+  "@postComposeEditPhotosHelper": { "description": "Hint on the attached photo thumbnail card." },
+  "postComposeClearPhotos": "Clear all",
+  "@postComposeClearPhotos": { "description": "Action to remove all attached photos from the composer." }
 }
