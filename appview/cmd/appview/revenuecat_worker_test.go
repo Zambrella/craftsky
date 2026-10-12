@@ -37,16 +37,36 @@ func (processor *recordingRevenueCatProcessor) ProcessOne(context.Context) (bool
 	return false, processor.err
 }
 
+type recordingRevenueCatLogWriter struct {
+	bytes.Buffer
+	written chan struct{}
+}
+
+func (writer *recordingRevenueCatLogWriter) Write(data []byte) (int, error) {
+	n, err := writer.Buffer.Write(data)
+	if err == nil {
+		select {
+		case writer.written <- struct{}{}:
+		default:
+		}
+	}
+	return n, err
+}
+
 func TestRevenueCatProcessorLogsOnlyBoundedProviderFailure(t *testing.T) {
 	const canary = "provider-private-customer-secret-canary"
 	ctx, cancel := context.WithCancel(context.Background())
-	processor := &recordingRevenueCatProcessor{called: make(chan struct{}, 1), err: errors.New(canary)}
-	var output bytes.Buffer
+	processor := &recordingRevenueCatProcessor{err: errors.New(canary)}
+	output := recordingRevenueCatLogWriter{written: make(chan struct{}, 1)}
 	done := startRevenueCatProcessor(ctx, processor, slog.New(slog.NewJSONHandler(&output, nil)), time.Hour, time.Hour)
+	t.Cleanup(func() {
+		cancel()
+		<-done
+	})
 	select {
-	case <-processor.called:
+	case <-output.written:
 	case <-time.After(time.Second):
-		t.Fatal("RevenueCat processor did not report provider failure")
+		t.Fatal("RevenueCat processor did not log provider failure")
 	}
 	cancel()
 	<-done

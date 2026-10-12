@@ -3,6 +3,8 @@ import 'package:craftsky_app/feed/providers/composer_images_provider.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/languages/models/language_preferences.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
+import 'package:craftsky_app/projects/options/project_option_catalogs.dart';
+import 'package:craftsky_app/projects/providers/preferred_project_crafts_provider.dart';
 import 'package:craftsky_app/projects/widgets/project_composer_sheet.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/shared/widgets/craft_icon.dart';
@@ -82,7 +84,11 @@ void main() {
   testWidgets('craft selector shows branded icons in options and selection', (
     tester,
   ) async {
-    await _pumpComposer(tester, 'craft-icon-composer');
+    await _pumpComposer(
+      tester,
+      'craft-icon-composer',
+      crafts: ['quilting', 'sewing'],
+    );
 
     final craft = find.byKey(const Key('craftType-select-button'));
     await tester.ensureVisible(craft);
@@ -91,6 +97,11 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(CraftIcon), findsNWidgets(5));
+    final labels = tester
+        .widgetList<CraftIcon>(find.byType(CraftIcon))
+        .map((widget) => widget.craft.split('#').last)
+        .toList();
+    expect(labels, ['sewing', 'quilting', 'knitting', 'crochet', 'embroidery']);
 
     await tester.tap(find.text('Knitting').last);
     await tester.pumpAndSettle();
@@ -133,10 +144,14 @@ Future<void> _pumpComposer(
   WidgetTester tester,
   String composerId, {
   double bottomInset = 0,
+  List<String> crafts = const [],
 }) async {
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
+        preferredProjectCraftsProvider.overrideWithValue(
+          ProjectOptionCatalogs.craftTypesForPreferences(crafts),
+        ),
         activeLanguagePreferencesProvider.overrideWith(
           (ref) => const LanguagePreferences(
             primaryLanguage: 'en',

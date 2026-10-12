@@ -9,10 +9,16 @@ import 'package:craftsky_app/feed/widgets/post_card.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/languages/models/language_preferences.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
+import 'package:craftsky_app/profile/models/profile.dart';
+import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
+import 'package:craftsky_app/projects/options/project_option.dart';
 import 'package:craftsky_app/projects/options/project_option_catalogs.dart';
 import 'package:craftsky_app/projects/pages/projects_page.dart';
+import 'package:craftsky_app/projects/providers/preferred_project_crafts_provider.dart';
 import 'package:craftsky_app/projects/providers/project_repository_provider.dart';
+import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
+import 'package:craftsky_app/shared/widgets/craft_icon.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/craftsky_floating_action_button.dart';
@@ -49,12 +55,20 @@ Post _post(int index) => PostMapper.fromMap({
 
 Future<void> _pumpProjects(
   WidgetTester tester,
-  FakeProjectRepository repository,
-) async {
+  FakeProjectRepository repository, {
+  List<ProjectOption>? craftTypes,
+  Future<Profile>? profile,
+}) async {
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
-        authSessionProvider.overrideWith(SignedOutAuthSession.new),
+        authSessionProvider.overrideWith(
+          profile == null ? SignedOutAuthSession.new : SignedInAuthSession.new,
+        ),
+        if (profile != null)
+          userProfileProvider(Did.parse('did:plc:test')).overrideWith(
+            () => _TestUserProfile(profile),
+          ),
         activeLanguagePreferencesProvider.overrideWith(
           (ref) => const LanguagePreferences(
             primaryLanguage: 'en',
@@ -62,6 +76,8 @@ Future<void> _pumpProjects(
           ),
         ),
         projectRepositoryProvider.overrideWithValue(repository),
+        if (craftTypes != null)
+          preferredProjectCraftsProvider.overrideWithValue(craftTypes),
       ],
       child: MaterialApp(
         theme: AppTheme.lightThemeData,
@@ -75,6 +91,59 @@ Future<void> _pumpProjects(
 
 void main() {
   setUpAll(initializeMappers);
+
+  testWidgets('preferred tabs drive the project query and filter craft', (
+    tester,
+  ) async {
+    final gate = Completer<Profile>();
+    final requestedCrafts = <String>[];
+    final repository = FakeProjectRepository(
+      onListProjects: ({required query, limit, cursor}) async {
+        requestedCrafts.add(query.craftTypes.single);
+        return const PostPage(items: []);
+      },
+    );
+    await _pumpProjects(tester, repository, profile: gate.future);
+    await tester.pumpAndSettle();
+    gate.complete(
+      Profile(
+        did: 'did:plc:test',
+        handle: 'test.bsky.social',
+        crafts: ['quilting', 'sewing'],
+      ),
+    );
+    await tester.pumpAndSettle();
+    final tabs = tester.widget<TabBar>(find.byType(TabBar));
+    expect(
+      tabs.tabs.map((tab) => ((tab as Tab).child! as CraftIconLabel).label),
+      ['Sewing', 'Quilting', 'Knitting', 'Crochet', 'Embroidery'],
+    );
+    expect(tabs.controller!.index, 0);
+    expect(requestedCrafts, contains(ProjectOptionCatalogs.sewingCraftToken));
+    await tester.tap(find.text('Quilting'));
+    await tester.pumpAndSettle();
+    expect(tabs.controller!.index, 1);
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ProjectsPage)),
+    );
+    container
+        .read(userProfileProvider(Did.parse('did:plc:test')).notifier)
+        .setCached(
+          Profile(
+            did: 'did:plc:test',
+            handle: 'test.bsky.social',
+            crafts: ['quilting'],
+          ),
+        );
+    await tester.pumpAndSettle();
+    expect(tabs.controller!.index, 0);
+    expect(requestedCrafts, contains(ProjectOptionCatalogs.quiltingCraftToken));
+    await tester.tap(
+      find.widgetWithText(CraftskyFloatingActionButton, 'Filters'),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Filter Quilting projects'), findsOneWidget);
+  });
 
   testWidgets('shows three project post skeletons while initially loading', (
     tester,
@@ -504,4 +573,11 @@ void main() {
 
     expect(find.textContaining('Crochet', findRichText: true), findsOneWidget);
   });
+}
+
+class _TestUserProfile extends UserProfile {
+  _TestUserProfile(this.profile);
+  final Future<Profile> profile;
+  @override
+  Future<Profile> build(Did did) => profile;
 }

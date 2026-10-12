@@ -46,6 +46,7 @@ import 'package:craftsky_app/projects/composer/project_draft_snapshot_adapter.da
 import 'package:craftsky_app/projects/models/project.dart';
 import 'package:craftsky_app/projects/options/project_option.dart';
 import 'package:craftsky_app/projects/options/project_option_catalogs.dart';
+import 'package:craftsky_app/projects/providers/preferred_project_crafts_provider.dart';
 import 'package:craftsky_app/router/responsive_modal_navigation.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/scheduled_posts/composer/schedule_capacity_state.dart';
@@ -1437,8 +1438,9 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
           required: true,
           requiredLabel: l10n.projectComposerRequiredLabel,
           options: _selectOptions(
-            ProjectOptionCatalogs.craftTypes,
+            ref.watch(preferredProjectCraftsProvider),
             includeCraftIcons: true,
+            alphabetize: false,
           ),
           enabled: controlsEnabled,
           validator: (value) =>
