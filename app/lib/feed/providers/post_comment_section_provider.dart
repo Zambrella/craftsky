@@ -106,7 +106,7 @@ class PostCommentPageLoader extends _$PostCommentPageLoader {
         .read(postCommentSectionProvider(did, rkey, sort: sort, focus: focus))
         .value;
     if (current == null || current.comments.cursor == null) return;
-    final ownership = captureActiveAccountOperation(ref);
+    final accountOperation = ActiveAccountOperation.capture(ref);
 
     state = const AsyncLoading();
     final result = await AsyncValue.guard(() async {
@@ -118,7 +118,7 @@ class PostCommentPageLoader extends _$PostCommentPageLoader {
             cursor: current.comments.cursor,
             sort: current.sort,
           );
-      if (!isActiveAccountOperationCurrent(ref, ownership)) return;
+      if (!accountOperation.isCurrent) return;
       ref
           .read(
             postCommentSectionProvider(
@@ -130,8 +130,7 @@ class PostCommentPageLoader extends _$PostCommentPageLoader {
           )
           .appendCommentPage(page.comments);
     });
-    if (!isActiveAccountOperationCurrent(ref, ownership)) return;
-    state = result;
+    accountOperation.publish(() => state = result);
   }
 }
 
@@ -167,7 +166,7 @@ class PostCommentRepliesLoader extends _$PostCommentRepliesLoader {
         .firstOrNull;
     if (comment == null) return;
     if (comment.replies.loaded && comment.replies.cursor == null) return;
-    final ownership = captureActiveAccountOperation(ref);
+    final accountOperation = ActiveAccountOperation.capture(ref);
 
     state = const AsyncLoading();
     final result = await AsyncValue.guard(() async {
@@ -186,7 +185,7 @@ class PostCommentRepliesLoader extends _$PostCommentRepliesLoader {
             limit: 10,
           );
       final replies = [...comment.replies.items, ...page.items];
-      if (!isActiveAccountOperationCurrent(ref, ownership)) return;
+      if (!accountOperation.isCurrent) return;
       if (revealed != null) {
         ref
             .read(
@@ -214,7 +213,6 @@ class PostCommentRepliesLoader extends _$PostCommentRepliesLoader {
             cursor: page.cursor,
           );
     });
-    if (!isActiveAccountOperationCurrent(ref, ownership)) return;
-    state = result;
+    accountOperation.publish(() => state = result);
   }
 }

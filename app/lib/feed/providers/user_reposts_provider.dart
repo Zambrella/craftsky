@@ -34,7 +34,7 @@ class UserReposts extends _$UserReposts {
     if (!state.hasValue || state.isLoading) return;
     final current = state.requireValue;
     if (!current.hasMore) return;
-    final ownership = captureActiveAccountOperation(ref);
+    final accountOperation = ActiveAccountOperation.capture(ref);
 
     state = const AsyncLoading<UserPostsState>();
     final next = await AsyncValue.guard(() async {
@@ -57,8 +57,7 @@ class UserReposts extends _$UserReposts {
       );
     });
 
-    if (!isActiveAccountOperationCurrent(ref, ownership)) return;
-    state = next;
+    accountOperation.publish(() => state = next);
   }
 
   UserPostsState _stateFor(PostPage page) {

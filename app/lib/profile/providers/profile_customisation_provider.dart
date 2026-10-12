@@ -76,7 +76,8 @@ class ProfileCustomisationEditor extends _$ProfileCustomisationEditor {
     final current = state.value;
     if (current == null || !current.isDirty || state.isLoading) return;
 
-    final ownership = captureActiveAccountOperation(ref);
+    final accountOperation = ActiveAccountOperation.capture(ref);
+    final ownership = accountOperation.ownership;
     state = const AsyncLoading();
     try {
       final saved = await ref
@@ -88,7 +89,7 @@ class ProfileCustomisationEditor extends _$ProfileCustomisationEditor {
             .read(sessionRegistryProvider.notifier)
             .updateCachedCustomisation(ownership.session, saved);
       }
-      if (!isActiveAccountOperationCurrent(ref, ownership)) return;
+      if (!accountOperation.isCurrent) return;
 
       state = AsyncData(current.copyWith(confirmed: saved, draft: saved));
       for (final id in <Did?>{_profileDid}) {
@@ -105,7 +106,7 @@ class ProfileCustomisationEditor extends _$ProfileCustomisationEditor {
       }
       ref.read(profileIdentityCacheInvalidatorProvider)();
     } on Object catch (error, stackTrace) {
-      if (!isActiveAccountOperationCurrent(ref, ownership)) return;
+      if (!accountOperation.isCurrent) return;
       state = AsyncError(error, stackTrace);
     }
   }

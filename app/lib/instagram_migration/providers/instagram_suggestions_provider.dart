@@ -1,4 +1,5 @@
 import 'package:craftsky_app/auth/models/account_session_lease.dart';
+import 'package:craftsky_app/auth/providers/account_operation_guard.dart';
 import 'package:craftsky_app/instagram_migration/data/instagram_migration_repository.dart';
 import 'package:craftsky_app/instagram_migration/models/instagram_suggestion.dart';
 import 'package:craftsky_app/instagram_migration/providers/instagram_migration_repository_provider.dart';
@@ -53,9 +54,12 @@ class InstagramSuggestions extends _$InstagramSuggestions {
     final repository = await ref.watch(
       instagramMigrationRepositoryProvider(lease).future,
     );
-    ensureInstagramOperationCurrent(ref, lease);
-    final page = await repository.listSuggestions();
-    ensureInstagramOperationCurrent(ref, lease);
+    _operation.requireCurrent(discarded: const InstagramOperationDiscarded());
+    final page = await _operation.step(
+      repository.listSuggestions,
+      discarded: const InstagramOperationDiscarded(),
+    );
+    _operation.requireCurrent(discarded: const InstagramOperationDiscarded());
     return _fromPage(page);
   }
 
@@ -63,8 +67,11 @@ class InstagramSuggestions extends _$InstagramSuggestions {
     state = const AsyncLoading<InstagramSuggestionReviewState>();
     try {
       final repository = await _repository();
-      final page = await repository.listSuggestions();
-      ensureInstagramOperationCurrent(ref, lease);
+      final page = await _operation.step(
+        repository.listSuggestions,
+        discarded: const InstagramOperationDiscarded(),
+      );
+      _operation.requireCurrent(discarded: const InstagramOperationDiscarded());
       state = AsyncData(_fromPage(page));
     } on InstagramOperationDiscarded {
       return;
@@ -76,11 +83,14 @@ class InstagramSuggestions extends _$InstagramSuggestions {
 
   Future<bool> loadMore() async {
     final current = state.value;
-    if (current?.cursor == null) return false;
+    if (current == null || current.cursor == null) return false;
     try {
       final repository = await _repository();
-      final page = await repository.listSuggestions(cursor: current!.cursor);
-      ensureInstagramOperationCurrent(ref, lease);
+      final page = await _operation.step(
+        () => repository.listSuggestions(cursor: current.cursor),
+        discarded: const InstagramOperationDiscarded(),
+      );
+      _operation.requireCurrent(discarded: const InstagramOperationDiscarded());
       final seen = current.items.map((item) => item.suggestionId).toSet();
       state = AsyncData(
         InstagramSuggestionReviewState(
@@ -107,7 +117,7 @@ class InstagramSuggestions extends _$InstagramSuggestions {
         .firstOrNull;
     if (suggestion == null) return false;
 
-    ensureInstagramOperationCurrent(ref, lease);
+    _operation.requireCurrent(discarded: const InstagramOperationDiscarded());
     final targetDid = Did.parse(suggestion.target.did);
     final endpoint =
         '/v1/migrations/instagram/suggestions/'
@@ -121,8 +131,13 @@ class InstagramSuggestions extends _$InstagramSuggestions {
       newOperationKey: newPdsMutationOperationKey,
     );
     final operationKey = token.operationKey;
-    final startedAt = ref.read(pdsMutationNowProvider)();
-    var retryIndex = 0;
+    final retry = PdsMutationRetry(
+      ref: ref,
+      controller: controller,
+      token: token,
+      isCurrent: () => _isCurrent,
+    );
+    late final repositoryFuture = _repository();
 
     state = AsyncData(
       current.copyWith(
@@ -133,43 +148,27 @@ class InstagramSuggestions extends _$InstagramSuggestions {
     while (true) {
       late final InstagramSuggestionActionResult result;
       try {
-        final repository = await _repository();
+        final repository = await repositoryFuture;
+        _operation.requireCurrent(
+          discarded: const InstagramOperationDiscarded(),
+        );
         result = await repository.acceptSuggestion(
           suggestionId,
           operationKey: operationKey,
         );
       } on PdsMutationAmbiguousException catch (error) {
+        final decision = await retry.wait(error);
         if (!_isCurrent) return false;
-        if (!controller.markAmbiguous(
-          token,
-          retryAfterSeconds: error.retryAfterSeconds,
-        )) {
-          _clearBusy(suggestionId);
-          return false;
+        switch (decision) {
+          case PdsMutationRetryDecision.obsolete:
+            if (_isCurrent) _clearBusy(suggestionId);
+            return false;
+          case PdsMutationRetryDecision.exhausted:
+            _completeAction(suggestionId, accepted: false);
+            return false;
+          case PdsMutationRetryDecision.retry:
+            continue;
         }
-        final delay = const PdsMutationRetryPolicy().nextDelay(
-          retryIndex: retryIndex,
-          retryAfterSeconds: error.retryAfterSeconds,
-          elapsed: ref.read(pdsMutationNowProvider)().difference(startedAt),
-          jitterMillis: ref.read(pdsMutationJitterProvider),
-        );
-        if (delay == null) {
-          _completeAction(suggestionId, accepted: false);
-          return false;
-        }
-        retryIndex++;
-        await ref.read(pdsMutationDelayProvider)(delay);
-        if (!_isCurrent) return false;
-        if (!controller.canRetry(
-          token,
-          operationKey: operationKey,
-          endpoint: endpoint,
-          immutableBody: immutableBody,
-        )) {
-          _clearBusy(suggestionId);
-          return false;
-        }
-        continue;
       } on InstagramOperationDiscarded {
         return false;
       } on Object {
@@ -231,8 +230,11 @@ class InstagramSuggestions extends _$InstagramSuggestions {
     );
     try {
       final repository = await _repository();
-      final completed = await action(repository);
-      ensureInstagramOperationCurrent(ref, lease);
+      final completed = await _operation.step(
+        () => action(repository),
+        discarded: const InstagramOperationDiscarded(),
+      );
+      _operation.requireCurrent(discarded: const InstagramOperationDiscarded());
       if (!completed) {
         await refresh();
         return _isCurrent;
@@ -266,13 +268,10 @@ class InstagramSuggestions extends _$InstagramSuggestions {
     }
   }
 
-  Future<InstagramMigrationRepository> _repository() async {
-    final repository = await ref.read(
-      instagramMigrationRepositoryProvider(lease).future,
-    );
-    ensureInstagramOperationCurrent(ref, lease);
-    return repository;
-  }
+  Future<InstagramMigrationRepository> _repository() => _operation.step(
+    () => ref.read(instagramMigrationRepositoryProvider(lease).future),
+    discarded: const InstagramOperationDiscarded(),
+  );
 
   void _completeAction(String suggestionId, {required bool accepted}) {
     final latest = state.value;
@@ -300,15 +299,10 @@ class InstagramSuggestions extends _$InstagramSuggestions {
     );
   }
 
-  bool get _isCurrent {
-    if (!ref.mounted) return false;
-    try {
-      ensureInstagramOperationCurrent(ref, lease);
-      return true;
-    } on InstagramOperationDiscarded {
-      return false;
-    }
-  }
+  ActiveAccountOperation get _operation =>
+      ActiveAccountOperation.fromLease(ref, lease);
+
+  bool get _isCurrent => _operation.isCurrent;
 }
 
 InstagramSuggestionReviewState _fromPage(InstagramSuggestionPage page) =>

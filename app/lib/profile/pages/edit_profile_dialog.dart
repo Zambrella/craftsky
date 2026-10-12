@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/auth/models/auth_state.dart';
+import 'package:craftsky_app/auth/providers/account_operation_guard.dart';
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/auth/providers/unsaved_work_guard_provider.dart';
@@ -687,6 +688,7 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
     AppLocalizations l10n,
   ) async {
     final ownership = ref.read(sessionRegistryProvider).value?.activeLease;
+    final operation = ActiveAccountOperation.fromWidget(ref, ownership);
     final before = BusinessProfileFields.valuesFrom(_businessBaseline);
     final edited = BusinessProfileFields.valuesFrom(_currentBusinessDraft);
     setState(() => _refreshingBusiness = true);
@@ -694,9 +696,7 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
     try {
       final profile = await ref.read(profileRepositoryProvider).fetchMe();
       if (!mounted ||
-          (ownership != null &&
-              !(ref.read(sessionRegistryProvider).value?.isCurrent(ownership) ??
-                  false)) ||
+          !operation.isCurrent ||
           profile.did != _ordinaryBaseline.did) {
         return;
       }
@@ -726,10 +726,7 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
     } finally {
       if (mounted) setState(() => _refreshingBusiness = false);
     }
-    if (!mounted ||
-        (ownership != null &&
-            !(ref.read(sessionRegistryProvider).value?.isCurrent(ownership) ??
-                false))) {
+    if (!mounted || !operation.isCurrent) {
       return;
     }
     context.showError(

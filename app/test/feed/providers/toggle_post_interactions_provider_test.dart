@@ -18,6 +18,7 @@ import 'package:craftsky_app/shared/api/pds_mutation_contract.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/mutations/pds_record_operation_controller.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show ProviderException;
 import 'package:flutter_test/flutter_test.dart';
 
 import '../fakes/fake_post_repository.dart';
@@ -135,6 +136,71 @@ void main() {
   );
 
   group('ToggleLikePost', () {
+    test('V-06 dependency failures retain the mutation error state', () async {
+      final cause = StateError('repository unavailable');
+      final container = ProviderContainer.test(
+        overrides: [
+          postRepositoryProvider.overrideWith((ref) => throw cause),
+        ],
+      );
+      final subscription = container.listen(toggleLikePostProvider, (_, _) {});
+      addTearDown(subscription.close);
+      await container
+          .read(toggleLikePostProvider.notifier)
+          .toggle(
+            post: _post(rkey: 'dependency-failure'),
+          );
+      expect(
+        container.read(toggleLikePostProvider).error,
+        isA<ProviderException>().having(
+          (error) => error.exception,
+          'cause',
+          same(cause),
+        ),
+      );
+    });
+
+    test('V-04 retries retain the initiating repository', () async {
+      final post = _post(rkey: 'captured-repository');
+      var originalCalls = 0;
+      var replacementCalls = 0;
+      final original = FakePostRepository(
+        onLike: (did, rkey) async {
+          if (++originalCalls == 1) {
+            throw const PdsMutationAmbiguousException(retryAfterSeconds: 1);
+          }
+          return _interaction(post);
+        },
+      );
+      final replacement = FakePostRepository(
+        onLike: (did, rkey) async {
+          replacementCalls++;
+          return _interaction(post);
+        },
+      );
+      var selected = original;
+      late ProviderContainer container;
+      container = ProviderContainer.test(
+        overrides: [
+          postRepositoryProvider.overrideWith((ref) => selected),
+          pdsMutationDelayProvider.overrideWithValue((_) async {
+            selected = replacement;
+            container.invalidate(postRepositoryProvider);
+          }),
+          pdsMutationJitterProvider.overrideWithValue((_) => 0),
+        ],
+      );
+      final subscription = container.listen(toggleLikePostProvider, (_, _) {});
+      addTearDown(subscription.close);
+      await container.read(toggleLikePostProvider.notifier).toggle(post: post);
+      expect(originalCalls, 2);
+      expect(replacementCalls, 0);
+      expect(
+        container.read(toggleLikePostProvider).value?.viewerHasLiked,
+        isTrue,
+      );
+    });
+
     test(
       'publishes the optimistic like before the request completes',
       () async {

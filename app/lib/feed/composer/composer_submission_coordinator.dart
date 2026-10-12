@@ -1,5 +1,5 @@
+import 'package:craftsky_app/feed/composer/composer_ownership.dart';
 import 'package:craftsky_app/feed/composer/submission_screen_awake.dart';
-import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
 
 typedef SubmissionStep = Future<void> Function();
 typedef SubmissionRunningChanged = void Function({required bool running});
@@ -38,12 +38,12 @@ final class ComposerSubmissionCoordinator {
     onRunningChanged(running: true);
     try {
       await presentOverlay();
-      _requireCurrentOwnership(ownershipIsCurrent);
+      requireComposerOwnership(ownershipIsCurrent);
       await _lifecycle.run(() async {
         await saveOriginSnapshot();
-        _requireCurrentOwnership(ownershipIsCurrent);
+        requireComposerOwnership(ownershipIsCurrent);
         await operation();
-        _requireCurrentOwnership(ownershipIsCurrent);
+        requireComposerOwnership(ownershipIsCurrent);
         if (didSucceed()) await deleteOriginAfterSuccess();
       });
     } on Object {
@@ -55,10 +55,4 @@ final class ComposerSubmissionCoordinator {
   }
 
   Future<void> dispose() => _lifecycle.dispose();
-}
-
-void _requireCurrentOwnership(SubmissionOwnershipCheck ownershipIsCurrent) {
-  if (!ownershipIsCurrent()) {
-    throw DiagnosticStateError('submission ownership changed');
-  }
 }

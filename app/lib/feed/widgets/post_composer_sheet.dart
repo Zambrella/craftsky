@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/auth/models/account_session_lease.dart';
+import 'package:craftsky_app/auth/providers/account_operation_guard.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/auth/providers/unsaved_work_guard_provider.dart';
 import 'package:craftsky_app/drafts/composer/draft_composer_hydrator.dart';
@@ -1303,12 +1304,16 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
     _submissionSucceeded = false;
     _pendingPublishedDraftPost = null;
     _videoFailure = null;
+    final accountOperation = ActiveAccountOperation.withGuard(
+      ownership: submissionOwner,
+      isCurrent: () => _submissionOwnershipIsCurrent(submissionOwner),
+    );
     await _submissionCoordinator.run(
       presentOverlay: () async {
         await WidgetsBinding.instance.endOfFrame;
         if (!mounted) throw DiagnosticStateError('composer disposed');
       },
-      ownershipIsCurrent: () => _submissionOwnershipIsCurrent(submissionOwner),
+      ownershipIsCurrent: () => accountOperation.isCurrent,
       saveOriginSnapshot: _saveOriginSnapshot,
       operation: () async {
         try {
@@ -1487,6 +1492,10 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
     final scheduledAt = _scheduledAtLocal;
     if (owner == null || scheduledAt == null) return;
     final account = owner.session.account;
+    final accountOperation = ActiveAccountOperation.withGuard(
+      ownership: owner,
+      isCurrent: () => _scheduledOperationIsCurrent(owner),
+    );
     setState(() {
       _isScheduling = true;
       _stagedImageCount = 0;
@@ -1496,26 +1505,28 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
       _isSavingSchedule = _stagedImageTotal == 0;
     });
     try {
-      final repository = await ref.read(
-        accountScheduledPostRepositoryProvider(account).future,
+      final repository = await accountOperation.step(
+        () => ref.read(accountScheduledPostRepositoryProvider(account).future),
       );
-      if (!mounted || !_scheduledOperationIsCurrent(owner)) return;
+      if (!mounted || !accountOperation.isCurrent) return;
       final media = await ref.read(scheduledComposerMediaMaterializerProvider)(
         imagesState.images,
         stageMedia: repository.stageMedia,
         onStaged: (_) {
-          if (mounted && _scheduledOperationIsCurrent(owner)) {
+          if (mounted && accountOperation.isCurrent) {
             setState(() => _stagedImageCount++);
           }
         },
       );
-      if (!mounted || !_scheduledOperationIsCurrent(owner)) return;
-      final external = await _scheduledExternalForSave(
-        previewSelection,
-        disposition: externalDisposition,
-        stageMedia: repository.stageMedia,
+      if (!accountOperation.isCurrent) return;
+      final external = await accountOperation.step(
+        () => _scheduledExternalForSave(
+          previewSelection,
+          disposition: externalDisposition,
+          stageMedia: repository.stageMedia,
+        ),
       );
-      if (!mounted || !_scheduledOperationIsCurrent(owner)) return;
+      if (!mounted || !accountOperation.isCurrent) return;
       final payload = <String, dynamic>{
         'kind': 'standard',
         'text': trimmedText,
@@ -1540,14 +1551,15 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
           payload: payload,
         );
       }
-      if (!mounted || !_scheduledOperationIsCurrent(owner)) return;
+      if (!accountOperation.isCurrent) return;
       await ref.read(scheduledPostsProvider(account).notifier).refresh();
-      if (!mounted || !_scheduledOperationIsCurrent(owner)) return;
+      if (!accountOperation.isCurrent) return;
+      if (!mounted) return;
       _submissionSucceeded = true;
       Navigator.of(context).pop();
       context.showInfo(AppLocalizations.of(context).scheduledPostSaved);
     } on Object {
-      if (mounted && _scheduledOperationIsCurrent(owner)) {
+      if (mounted && accountOperation.isCurrent) {
         context.showError(
           AppLocalizations.of(context).scheduledPostSaveError,
         );
@@ -1575,6 +1587,10 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
     final owner = _captureScheduledOperationOwner();
     if (existing == null || owner == null) return;
     final account = owner.session.account;
+    final accountOperation = ActiveAccountOperation.withGuard(
+      ownership: owner,
+      isCurrent: () => _scheduledOperationIsCurrent(owner),
+    );
     setState(() {
       _isScheduling = true;
       _stagedImageCount = 0;
@@ -1584,46 +1600,53 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
       _isSavingSchedule = _stagedImageTotal == 0;
     });
     try {
-      final repository = await ref.read(
-        accountScheduledPostRepositoryProvider(account).future,
+      final repository = await accountOperation.step(
+        () => ref.read(accountScheduledPostRepositoryProvider(account).future),
       );
-      if (!mounted || !_scheduledOperationIsCurrent(owner)) return;
+      if (!mounted || !accountOperation.isCurrent) return;
       final media = await ref.read(scheduledComposerMediaMaterializerProvider)(
         imagesState.images,
         stageMedia: repository.stageMedia,
         onStaged: (_) {
-          if (mounted && _scheduledOperationIsCurrent(owner)) {
+          if (mounted && accountOperation.isCurrent) {
             setState(() => _stagedImageCount++);
           }
         },
       );
-      if (!mounted || !_scheduledOperationIsCurrent(owner)) return;
-      final external = await _scheduledExternalForSave(
-        previewSelection,
-        disposition: externalDisposition,
-        stageMedia: repository.stageMedia,
+      if (!accountOperation.isCurrent) return;
+      final external = await accountOperation.step(
+        () => _scheduledExternalForSave(
+          previewSelection,
+          disposition: externalDisposition,
+          stageMedia: repository.stageMedia,
+        ),
       );
-      if (!mounted || !_scheduledOperationIsCurrent(owner)) return;
+      if (!mounted || !accountOperation.isCurrent) return;
       if (mounted) setState(() => _isSavingSchedule = true);
-      await repository.publishNow(
-        id: existing.id,
-        payload: {
-          ...existing.payload,
-          'text': trimmedText,
-          'langs': _languages!.values,
-          'sponsored': _sponsored,
-          'facets': ?facets.isEmpty ? null : facets,
-          'media': media,
-          'external': ?external,
-        },
+      await accountOperation.step(
+        () => repository.publishNow(
+          id: existing.id,
+          payload: {
+            ...existing.payload,
+            'text': trimmedText,
+            'langs': _languages!.values,
+            'sponsored': _sponsored,
+            'facets': ?facets.isEmpty ? null : facets,
+            'media': media,
+            'external': ?external,
+          },
+        ),
       );
-      if (!mounted || !_scheduledOperationIsCurrent(owner)) return;
-      await ref.read(scheduledPostsProvider(account).notifier).refresh();
-      if (!mounted || !_scheduledOperationIsCurrent(owner)) return;
+      if (!mounted || !accountOperation.isCurrent) return;
+      await accountOperation.step(
+        () => ref.read(scheduledPostsProvider(account).notifier).refresh(),
+      );
+      if (!mounted || !accountOperation.isCurrent) return;
+      if (!mounted) return;
       _submissionSucceeded = true;
       Navigator.of(context).pop();
     } on Object {
-      if (mounted && _scheduledOperationIsCurrent(owner)) {
+      if (mounted && accountOperation.isCurrent) {
         context.showError(AppLocalizations.of(context).scheduledPostNowError);
       }
     } finally {

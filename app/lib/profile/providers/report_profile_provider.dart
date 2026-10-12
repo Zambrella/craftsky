@@ -19,14 +19,13 @@ class ReportProfile extends _$ReportProfile {
     required ReportSubmission submission,
   }) async {
     if (state.isLoading) return;
-    final ownership = captureActiveAccountOperation(ref);
+    final accountOperation = ActiveAccountOperation.capture(ref);
     state = const AsyncLoading();
     final result = await AsyncValue.guard(() async {
       final repo = ref.read(profileRepositoryProvider);
       return repo.report(did.toString(), submission);
     });
-    if (!isActiveAccountOperationCurrent(ref, ownership)) return;
-    state = result;
+    accountOperation.publish(() => state = result);
   }
 
   void reset() => state = const AsyncData(null);

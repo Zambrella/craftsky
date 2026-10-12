@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:craftsky_app/auth/models/account_session_lease.dart';
+import 'package:craftsky_app/auth/providers/account_operation_guard.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/instagram_migration/models/instagram_account.dart';
 import 'package:craftsky_app/instagram_migration/models/instagram_import.dart';
@@ -1284,7 +1285,7 @@ class _CenteredMessage extends StatelessWidget {
 }
 
 bool _current(WidgetRef ref, ActiveAccountLease lease) =>
-    ref.read(sessionRegistryProvider).value?.isCurrent(lease) ?? false;
+    ActiveAccountOperation.fromWidget(ref, lease).isCurrent;
 
 Future<void> _runImportAction(
   BuildContext context,

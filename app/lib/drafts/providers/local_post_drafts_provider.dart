@@ -1,5 +1,4 @@
 import 'package:craftsky_app/auth/models/account_key.dart';
-import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/auth/providers/account_operation_guard.dart';
 import 'package:craftsky_app/drafts/models/local_post_draft.dart';
 import 'package:craftsky_app/drafts/providers/local_post_draft_repository_provider.dart';
@@ -31,8 +30,7 @@ class LocalPostDrafts extends _$LocalPostDrafts {
   Future<void> refresh() async {
     final ownership = _captureOwnership();
     final result = await _load();
-    if (!isActiveAccountOperationCurrent(ref, ownership)) return;
-    state = AsyncData(result);
+    ownership.publish(() => state = AsyncData(result));
   }
 
   Future<void> delete(String draftId) async {
@@ -44,20 +42,20 @@ class LocalPostDrafts extends _$LocalPostDrafts {
     await repository.delete(draftId);
     _assertCurrent(ownership);
     final result = await _load();
-    if (!isActiveAccountOperationCurrent(ref, ownership)) return;
-    state = AsyncData(result);
+    ownership.publish(() => state = AsyncData(result));
   }
 
-  ActiveAccountLease? _captureOwnership() {
-    final ownership = captureActiveAccountOperation(ref);
+  ActiveAccountOperation _captureOwnership() {
+    final operation = ActiveAccountOperation.capture(ref);
+    final ownership = operation.ownership;
     if (ownership != null && ownership.session.account != account) {
       throw DiagnosticStateError('local-draft account changed');
     }
-    return ownership;
+    return operation;
   }
 
-  void _assertCurrent(ActiveAccountLease? ownership) {
-    if (!isActiveAccountOperationCurrent(ref, ownership)) {
+  void _assertCurrent(ActiveAccountOperation ownership) {
+    if (!ownership.isCurrent) {
       throw DiagnosticStateError('local-draft account changed');
     }
   }

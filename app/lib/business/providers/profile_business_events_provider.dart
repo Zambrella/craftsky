@@ -90,7 +90,8 @@ class ProfileBusinessEvents extends _$ProfileBusinessEvents {
     ProfileBusinessEventsTarget target,
   ) async {
     _generation = 0;
-    final ownership = captureActiveAccountOperation(ref);
+    final accountOperation = ActiveAccountOperation.capture(ref);
+    final ownership = accountOperation.ownership;
     if (ownership != null && ownership.session.account != target.account) {
       throw DiagnosticStateError('Active account changed');
     }
@@ -99,7 +100,7 @@ class ProfileBusinessEvents extends _$ProfileBusinessEvents {
     final page = await ref
         .watch(businessRepositoryProvider)
         .listProfileEvents(target.owner);
-    if (!isActiveAccountOperationCurrent(ref, ownership)) {
+    if (!accountOperation.isCurrent) {
       throw DiagnosticStateError('Active account changed');
     }
     if (!_isReadCurrent(readFence)) {
@@ -139,7 +140,8 @@ class ProfileBusinessEvents extends _$ProfileBusinessEvents {
       return;
     }
     final generation = _generation;
-    final ownership = captureActiveAccountOperation(ref);
+    final accountOperation = ActiveAccountOperation.capture(ref);
+    final ownership = accountOperation.ownership;
     final lease = _lease(ownership);
     final readFence = captureBusinessEventListRead(ref, lease);
     state = AsyncData(
@@ -149,8 +151,7 @@ class ProfileBusinessEvents extends _$ProfileBusinessEvents {
       final page = await ref
           .read(businessRepositoryProvider)
           .listProfileEvents(target.owner, cursor: current.cursor);
-      if (generation != _generation ||
-          !isActiveAccountOperationCurrent(ref, ownership)) {
+      if (generation != _generation || !accountOperation.isCurrent) {
         return;
       }
       if (!_isReadCurrent(readFence)) {
@@ -177,8 +178,7 @@ class ProfileBusinessEvents extends _$ProfileBusinessEvents {
         ),
       );
     } on Object catch (error) {
-      if (generation != _generation ||
-          !isActiveAccountOperationCurrent(ref, ownership)) {
+      if (generation != _generation || !accountOperation.isCurrent) {
         return;
       }
       if (!_isReadCurrent(readFence)) {
@@ -195,7 +195,8 @@ class ProfileBusinessEvents extends _$ProfileBusinessEvents {
     final current = state.value;
     if (current == null || current.isRefreshing) return;
     final generation = ++_generation;
-    final ownership = captureActiveAccountOperation(ref);
+    final accountOperation = ActiveAccountOperation.capture(ref);
+    final ownership = accountOperation.ownership;
     final lease = _lease(ownership);
     final readFence = captureBusinessEventListRead(ref, lease);
     state = AsyncData(
@@ -209,8 +210,7 @@ class ProfileBusinessEvents extends _$ProfileBusinessEvents {
       final page = await ref
           .read(businessRepositoryProvider)
           .listProfileEvents(target.owner);
-      if (generation != _generation ||
-          !isActiveAccountOperationCurrent(ref, ownership)) {
+      if (generation != _generation || !accountOperation.isCurrent) {
         return;
       }
       if (!_isReadCurrent(readFence)) {
@@ -230,8 +230,7 @@ class ProfileBusinessEvents extends _$ProfileBusinessEvents {
         ),
       );
     } on Object catch (error) {
-      if (generation != _generation ||
-          !isActiveAccountOperationCurrent(ref, ownership)) {
+      if (generation != _generation || !accountOperation.isCurrent) {
         return;
       }
       if (!_isReadCurrent(readFence)) {

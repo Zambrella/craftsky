@@ -60,7 +60,11 @@ class CreatePost extends _$CreatePost {
   }) async {
     final reporter = GuardedErrorReporter(ref.read(errorReporterProvider));
     final operationOwnership = ownership ?? captureActiveAccountOperation(ref);
-    if (!isActiveAccountOperationCurrent(ref, operationOwnership)) return null;
+    final accountOperation = ActiveAccountOperation.fromLease(
+      ref,
+      operationOwnership,
+    );
+    if (!accountOperation.isCurrent) return null;
     final frozenLangs = List<String>.unmodifiable(langs);
     final frozenImages = images == null
         ? null
@@ -91,14 +95,20 @@ class CreatePost extends _$CreatePost {
       newOperationKey: newPdsMutationOperationKey,
     );
     final operationKey = token.operationKey;
-    final startedAt = ref.read(pdsMutationNowProvider)();
-    var retryIndex = 0;
+    final retry = PdsMutationRetry(
+      ref: ref,
+      controller: controller,
+      token: token,
+      isCurrent: () => accountOperation.isCurrent,
+      requireCurrentToken: false,
+    );
 
     state = const AsyncLoading<Post?>();
+    late final repository = ref.read(postRepositoryProvider);
     while (true) {
       late Post created;
       try {
-        final repo = ref.read(postRepositoryProvider);
+        final repo = repository;
         assert(
           project == null || reply == null,
           'Project posts cannot be replies',
@@ -125,43 +135,22 @@ class CreatePost extends _$CreatePost {
           facets: frozenFacets,
         );
       } on PdsMutationAmbiguousException catch (error) {
-        if (!isActiveAccountOperationCurrent(ref, operationOwnership)) {
-          return null;
+        final decision = await retry.wait(error);
+        if (!accountOperation.isCurrent) return null;
+        switch (decision) {
+          case PdsMutationRetryDecision.obsolete:
+            return null;
+          case PdsMutationRetryDecision.exhausted:
+            state = AsyncError<Post?>(
+              const PdsMutationUnresolvedException(),
+              StackTrace.current,
+            );
+            return null;
+          case PdsMutationRetryDecision.retry:
+            continue;
         }
-        controller.markAmbiguous(
-          token,
-          retryAfterSeconds: error.retryAfterSeconds,
-        );
-        final delay = const PdsMutationRetryPolicy().nextDelay(
-          retryIndex: retryIndex,
-          retryAfterSeconds: error.retryAfterSeconds,
-          elapsed: ref.read(pdsMutationNowProvider)().difference(startedAt),
-          jitterMillis: ref.read(pdsMutationJitterProvider),
-        );
-        if (delay == null) {
-          state = AsyncError<Post?>(
-            const PdsMutationUnresolvedException(),
-            StackTrace.current,
-          );
-          return null;
-        }
-        retryIndex++;
-        await ref.read(pdsMutationDelayProvider)(delay);
-        if (!isActiveAccountOperationCurrent(ref, operationOwnership) ||
-            !controller.canRetry(
-              token,
-              operationKey: operationKey,
-              endpoint: endpoint,
-              immutableBody: immutableBody,
-            )) {
-          return null;
-        }
-        continue;
       } on Object catch (error, stackTrace) {
-        final current = isActiveAccountOperationCurrent(
-          ref,
-          operationOwnership,
-        );
+        final current = accountOperation.isCurrent;
         final mapped = AppErrorMapper.map(
           error,
           source: 'post_mutation',
@@ -174,7 +163,7 @@ class CreatePost extends _$CreatePost {
           safeDiagnostics: {
             ...mapped.safeDiagnostics,
             'failureStage': 'pds_write',
-            'attempt': retryIndex + 1,
+            'attempt': retry.attempt,
           },
           workflow: operationOwnership == null
               ? null
@@ -231,7 +220,7 @@ class CreatePost extends _$CreatePost {
       if (post.langs.isEmpty) {
         post = post.copyWith(langs: frozenLangs);
       }
-      if (!isActiveAccountOperationCurrent(ref, operationOwnership)) {
+      if (!accountOperation.isCurrent) {
         return null;
       }
 

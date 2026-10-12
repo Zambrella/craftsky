@@ -33,7 +33,7 @@ class HashtagSearch extends _$HashtagSearch {
     if (!state.hasValue || state.isLoading) return;
     final current = state.requireValue;
     if (!current.hasMore) return;
-    final ownership = captureActiveAccountOperation(ref);
+    final accountOperation = ActiveAccountOperation.capture(ref);
     state = const AsyncLoading<SearchPostResultsState>();
     final next = await AsyncValue.guard(() async {
       final page = await ref
@@ -50,7 +50,6 @@ class HashtagSearch extends _$HashtagSearch {
         hashtag: page.hashtag ?? current.hashtag,
       );
     });
-    if (!isActiveAccountOperationCurrent(ref, ownership)) return;
-    state = next;
+    accountOperation.publish(() => state = next);
   }
 }

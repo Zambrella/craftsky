@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:craftsky_app/feed/composer/composer_ownership.dart';
 import 'package:craftsky_app/feed/composer/link_preview_controller.dart';
 import 'package:craftsky_app/feed/composer/prepared_media_validation.dart';
 import 'package:craftsky_app/feed/media/composer_image_media_service.dart';
@@ -40,7 +41,7 @@ final class ComposerMediaUploader {
     final currentKeys = <_UploadKey>{};
     final materialized = <CreatePostImage>[];
     for (final image in images) {
-      _requireCurrentOwnership(ownershipIsCurrent);
+      requireComposerOwnership(ownershipIsCurrent);
       final phase = image.phase;
       if (phase case ImageUploaded(:final uploaded)) {
         materialized.add(
@@ -92,7 +93,7 @@ final class ComposerMediaUploader {
                 );
               },
             );
-        _requireCurrentOwnership(ownershipIsCurrent);
+        requireComposerOwnership(ownershipIsCurrent);
         _successfulUploads[key] = uploaded;
       }
       materialized.add(
@@ -122,7 +123,7 @@ final class ComposerMediaUploader {
     required bool Function() ownershipIsCurrent,
     required PreparedImageUpload upload,
   }) async {
-    _requireCurrentOwnership(ownershipIsCurrent);
+    requireComposerOwnership(ownershipIsCurrent);
     final thumbnail = selection.preview.thumbnail;
     UploadedImageBlob? uploaded;
     if (thumbnail != null) {
@@ -149,7 +150,7 @@ final class ComposerMediaUploader {
                 );
               },
             );
-        _requireCurrentOwnership(ownershipIsCurrent);
+        requireComposerOwnership(ownershipIsCurrent);
         _successfulExternalUploads[key] = uploaded;
       }
     }
@@ -181,9 +182,3 @@ typedef _ExternalUploadKey = ({
   String identity,
   String digest,
 });
-
-void _requireCurrentOwnership(bool Function() ownershipIsCurrent) {
-  if (!ownershipIsCurrent()) {
-    throw DiagnosticStateError('submission ownership changed');
-  }
-}

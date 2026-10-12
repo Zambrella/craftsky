@@ -25,7 +25,7 @@ class ToggleBlockProfile extends _$ToggleBlockProfile {
     required Did targetDid,
     required bool isBlocking,
   }) async {
-    final ownership = captureActiveAccountOperation(ref);
+    final operation = ActiveAccountOperation.capture(ref);
     final desiredBlocking = !isBlocking;
     final endpoint = '/v1/profiles/@$targetDid/blocks';
     final immutableBody = desiredBlocking ? 'POST\n' : 'DELETE\n';
@@ -38,6 +38,7 @@ class ToggleBlockProfile extends _$ToggleBlockProfile {
       newOperationKey: newPdsMutationOperationKey,
     );
     final operationKey = token.operationKey;
+    late final repository = ref.read(profileRepositoryProvider);
 
     state = const AsyncLoading<bool?>();
     try {
@@ -45,9 +46,8 @@ class ToggleBlockProfile extends _$ToggleBlockProfile {
         ref: ref,
         controller: controller,
         token: token,
-        isCurrent: () => isActiveAccountOperationCurrent(ref, ownership),
+        isCurrent: () => operation.isCurrent,
         send: () async {
-          final repository = ref.read(profileRepositoryProvider);
           if (desiredBlocking) {
             await repository.block(targetDid, operationKey: operationKey);
           } else {
@@ -58,16 +58,16 @@ class ToggleBlockProfile extends _$ToggleBlockProfile {
     } on PdsMutationObsoleteException {
       return;
     } on PdsMutationUnresolvedException catch (error, stackTrace) {
-      state = AsyncError<bool?>(error, stackTrace);
+      operation.publish(() => state = AsyncError<bool?>(error, stackTrace));
       return;
     } on Object catch (error, stackTrace) {
-      if (!isActiveAccountOperationCurrent(ref, ownership)) return;
+      if (!operation.isCurrent) return;
       controller.markFailed(token);
       state = AsyncError<bool?>(error, stackTrace);
       return;
     }
 
-    if (!isActiveAccountOperationCurrent(ref, ownership)) return;
+    if (!operation.isCurrent) return;
     final reconciliation = PdsSetReconciliation(active: desiredBlocking);
     if (!controller.markAccepted(
       token,
@@ -76,7 +76,7 @@ class ToggleBlockProfile extends _$ToggleBlockProfile {
       refresh: () => _invalidateBlockReads(
         ref,
         targetDid,
-        ownership?.session.account,
+        operation.ownership?.session.account,
       ),
     )) {
       return;

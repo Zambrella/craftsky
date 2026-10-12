@@ -30,7 +30,7 @@ class Timeline extends _$Timeline {
   Future<void> loadMore() async {
     final current = state.value;
     if (current == null || !current.hasMore || state.isLoading) return;
-    final ownership = captureActiveAccountOperation(ref);
+    final accountOperation = ActiveAccountOperation.capture(ref);
 
     state = const AsyncLoading<TimelineState>();
 
@@ -49,8 +49,7 @@ class Timeline extends _$Timeline {
       );
     });
 
-    if (!isActiveAccountOperationCurrent(ref, ownership)) return;
-    state = next;
+    accountOperation.publish(() => state = next);
   }
 
   int suppressActor(String did) {

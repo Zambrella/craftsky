@@ -24,7 +24,8 @@ class ReportBusinessEvent extends _$ReportBusinessEvent {
     required ReportSubmission submission,
   }) async {
     if (state.isLoading) return;
-    final ownership = captureActiveAccountOperation(ref);
+    final accountOperation = ActiveAccountOperation.capture(ref);
+    final ownership = accountOperation.ownership;
     if (ownership != null && ownership.session.account != account) {
       throw DiagnosticStateError('Active account changed');
     }
@@ -34,7 +35,7 @@ class ReportBusinessEvent extends _$ReportBusinessEvent {
           .read(businessRepositoryProvider)
           .reportEvent(owner, rkey, submission),
     );
-    if (!isActiveAccountOperationCurrent(ref, ownership)) return;
+    if (!accountOperation.isCurrent) return;
     if (result case AsyncError(
       :final error,
     ) when error is ApiBadRequest && error.code == 'event_not_found') {

@@ -1,6 +1,10 @@
+import 'dart:async';
+
 import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/auth/models/account_session_lease.dart';
+import 'package:craftsky_app/shared/api/pds_mutation_contract.dart';
 import 'package:craftsky_app/shared/mutations/pds_record_operation_controller.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -10,6 +14,46 @@ void main() {
   );
   final scope = PdsMutationScope(lease: lease, identity: 'like:post-1');
   final start = DateTime.utc(2026, 9, 23, 12);
+
+  test('V-04 shared retry rejects an account change during delay', () async {
+    final delayEntered = Completer<void>();
+    final release = Completer<void>();
+    var current = true;
+    final controller = PdsRecordOperationController(now: () => start);
+    final token = controller.begin(
+      scope: scope,
+      operationKey: 'retry-authority',
+      endpoint: '/mutation',
+      immutableBody: '{}',
+    );
+    final retryProvider = Provider(
+      (ref) => PdsMutationRetry(
+        ref: ref,
+        controller: controller,
+        token: token,
+        isCurrent: () => current,
+      ),
+    );
+    final container = ProviderContainer.test(
+      overrides: [
+        pdsMutationNowProvider.overrideWithValue(() => start),
+        pdsMutationJitterProvider.overrideWithValue((_) => 0),
+        pdsMutationDelayProvider.overrideWithValue((_) {
+          delayEntered.complete();
+          return release.future;
+        }),
+      ],
+    );
+    final retry = container.read(retryProvider);
+    final pending = retry.wait(
+      const PdsMutationAmbiguousException(retryAfterSeconds: 1),
+    );
+    await delayEntered.future;
+    current = false;
+    release.complete();
+    expect(await pending, PdsMutationRetryDecision.obsolete);
+    expect(retry.attempt, 2);
+  });
 
   test('ambiguous operation freezes immutable input and same-key retry', () {
     final controller = PdsRecordOperationController(now: () => start);

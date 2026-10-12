@@ -1,4 +1,5 @@
 import 'package:craftsky_app/auth/models/account_session_lease.dart';
+import 'package:craftsky_app/auth/providers/account_operation_guard.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/business/models/business_drafts.dart';
 import 'package:craftsky_app/feed/models/create_post_image.dart';
@@ -449,12 +450,8 @@ class _ProductEditorState extends ConsumerState<ProductEditor> {
     });
   }
 
-  bool _isCurrent(ActiveAccountLease? ownership) {
-    if (!mounted) return false;
-    if (ownership == null) return true;
-    return ref.read(sessionRegistryProvider).value?.isCurrent(ownership) ??
-        false;
-  }
+  bool _isCurrent(ActiveAccountLease? ownership) =>
+      ActiveAccountOperation.fromWidget(ref, ownership).isCurrent;
 
   Future<void> _save() async {
     if (!_isCurrent(_owner)) return;
