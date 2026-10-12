@@ -123,7 +123,7 @@ void main() {
 }
 
 final class _ThrowingReporter implements ErrorReporter {
-  _ThrowingReporter({this.throwOnEnabled = false});
+  new({this.throwOnEnabled = false});
   final bool throwOnEnabled;
   @override
   bool get enabled {

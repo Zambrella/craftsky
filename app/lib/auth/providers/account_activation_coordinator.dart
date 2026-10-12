@@ -7,7 +7,7 @@ enum AccountActivationResult { activated, alreadyActive, stale, cancelled }
 
 /// Enforces the local account boundary independently of network availability.
 class AccountActivationCoordinator {
-  AccountActivationCoordinator({
+  new({
     required this.readRegistry,
     required this.commitActivation,
     required this.invalidateAccountState,

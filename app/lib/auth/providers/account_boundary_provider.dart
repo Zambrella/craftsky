@@ -68,12 +68,13 @@ import 'package:craftsky_app/subscriptions/providers/subscription_repository_pro
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 typedef AccountBoundaryAction = Future<void> Function();
-typedef AccountSessionInvalidator =
-    Future<void> Function(AccountSessionLease lease);
+typedef AccountSessionInvalidator = Future<void> Function(
+  AccountSessionLease lease,
+);
 typedef RecoveryLeaseProtection = bool Function(AccountSessionLease lease);
 
 class AccountSessionInvalidationCoordinator {
-  AccountSessionInvalidationCoordinator({
+  new({
     required this.readRegistry,
     required this.clearSessionState,
     required this.invalidateLease,

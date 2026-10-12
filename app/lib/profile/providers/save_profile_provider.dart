@@ -90,14 +90,13 @@ class SaveProfile extends _$SaveProfile {
     final businessBody = businessChanged
         ? Map<String, dynamic>.from(
             jsonDecode(
-                  jsonEncode(
-                    businessDraft!.toJson(
-                      preserveProducts: true,
-                      preserveUnknownCatalogValues: true,
-                    ),
-                  ),
-                )
-                as Map,
+              jsonEncode(
+                businessDraft!.toJson(
+                  preserveProducts: true,
+                  preserveUnknownCatalogValues: true,
+                ),
+              ),
+            ) as Map,
           )
         : null;
     const businessEndpoint = '/v1/profiles/me/business';
@@ -368,9 +367,9 @@ Map<String, dynamic> _uploadedBlobMap(UploadedBlob blob) => {
 };
 
 final class _BusinessProfileMutationSuperseded implements Exception {
-  const _BusinessProfileMutationSuperseded();
+  const new();
 }
 
 final class _ProfileMutationSuperseded implements Exception {
-  const _ProfileMutationSuperseded();
+  const new();
 }

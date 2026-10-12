@@ -2,19 +2,19 @@ import 'dart:async';
 
 import 'package:craftsky_app/auth/providers/handle_typeahead_provider.dart';
 import 'package:craftsky_app/auth/services/handle_typeahead_service.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
 import 'package:craftsky_app/theme/brand_text_field.dart';
 import 'package:craftsky_app/theme/craftsky_select_inputs.dart';
 import 'package:dio/dio.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Optional public identity suggestions; never resolves or authenticates users.
 class HandleTypeaheadField extends ConsumerStatefulWidget {
-  const HandleTypeaheadField({
+  const new({
     required this.controller,
     required this.onSubmitted,
     super.key,
@@ -198,12 +198,10 @@ class _HandleTypeaheadFieldState extends ConsumerState<HandleTypeaheadField> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final optionContext = key.currentContext;
       if (!mounted || optionContext == null) return;
-      unawaited(
-        Scrollable.ensureVisible(
-          optionContext,
-          duration: const Duration(milliseconds: 100),
-          alignment: 0.5,
-        ),
+      Scrollable.ensureVisible(
+        optionContext,
+        duration: const Duration(milliseconds: 100),
+        alignment: 0.5,
       );
     });
   }

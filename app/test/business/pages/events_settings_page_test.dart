@@ -17,7 +17,7 @@ import 'package:craftsky_app/business/pages/event_editor_dialog.dart';
 import 'package:craftsky_app/business/pages/events_settings_page.dart';
 import 'package:craftsky_app/business/providers/business_repository_provider.dart';
 import 'package:craftsky_app/business/services/business_time_zone_service.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
@@ -30,13 +30,12 @@ import 'package:craftsky_app/theme/craftsky_context_menu.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:craftsky_app/theme/craftsky_floating_action_button.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../test_support/deterministic_pump.dart';
-
 import '../accessibility_test_helpers.dart';
 
 void main() {
@@ -546,14 +545,14 @@ Widget _app(
   ],
   child: MaterialApp(
     theme: AppTheme.lightThemeData,
-    localizationsDelegates: AppLocalizations.localizationsDelegates,
+    localizationsDelegates: appLocalizationsDelegates,
     supportedLocales: AppLocalizations.supportedLocales,
     home: const EventsSettingsPage(),
   ),
 );
 
 final class _EventsRegistryStorage implements SessionRegistryStorage {
-  _EventsRegistryStorage(this.registry);
+  new(this.registry);
   SessionRegistry registry;
   @override
   Future<SessionRegistry> read() async => registry;
@@ -592,13 +591,13 @@ BusinessEvent _event(
 );
 
 final class _Update {
-  const _Update(this.expectedCid, this.draft);
+  const new(this.expectedCid, this.draft);
   final Cid expectedCid;
   final BusinessEventDraft draft;
 }
 
 final class _Repository extends Fake implements BusinessRepository {
-  _Repository({required this.pages});
+  new({required this.pages});
 
   final Map<OwnerEventFilter, List<Object>> pages;
   final indices = <OwnerEventFilter, int>{};

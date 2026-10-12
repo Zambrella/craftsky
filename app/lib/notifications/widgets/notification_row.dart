@@ -5,7 +5,7 @@ import 'package:craftsky_app/auth/models/session_registry.dart' as auth_model;
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/post_uri.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/notifications/models/craftsky_notification.dart';
 import 'package:craftsky_app/notifications/widgets/notification_category_icon.dart';
 import 'package:craftsky_app/profile/models/profile_relationship.dart';
@@ -25,8 +25,8 @@ import 'package:craftsky_app/shared/widgets/post_summary.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/gestures.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:material_ui/material_ui.dart';
 
 bool canOpenNotificationRow(
   AccountSessionLease owner,
@@ -34,7 +34,7 @@ bool canOpenNotificationRow(
 ) => registry.activeLease?.session == owner;
 
 class NotificationRow extends ConsumerWidget {
-  const NotificationRow({required this.notification, this.owner, super.key});
+  const new({required this.notification, this.owner, super.key});
 
   final CraftskyNotification notification;
   final AccountSessionLease? owner;
@@ -346,7 +346,7 @@ class NotificationRow extends ConsumerWidget {
 }
 
 class _NotificationFollowButton extends ConsumerStatefulWidget {
-  const _NotificationFollowButton({required this.actor, required this.owner});
+  const new({required this.actor, required this.owner});
 
   final NotificationActor actor;
   final AccountSessionLease? owner;
@@ -466,7 +466,7 @@ Color _actionColor(
 };
 
 class _NotificationTitleText extends StatefulWidget {
-  const _NotificationTitleText({
+  const new({
     required this.title,
     required this.actor,
     required this.onActorTap,

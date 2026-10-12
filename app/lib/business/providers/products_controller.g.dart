@@ -34,13 +34,13 @@ final class ProductsControllerProvider
 }
 
 String _$productsControllerHash() =>
-    r'32c40e7716c7640a49e2cd6fd08dd3b35e2c33c7';
+    r'bef25b177fc7fad84b30e89207d57e601015cef4';
 
 abstract class _$ProductsController extends $AsyncNotifier<ProductsState> {
   FutureOr<ProductsState> build();
   @$mustCallSuper
   @override
-  void runBuild() {
+  WhenComplete runBuild() {
     final ref = this.ref as $Ref<AsyncValue<ProductsState>, ProductsState>;
     final element =
         ref.element
@@ -50,6 +50,6 @@ abstract class _$ProductsController extends $AsyncNotifier<ProductsState> {
               Object?,
               Object?
             >;
-    element.handleCreate(ref, build);
+    return element.handleCreate(ref, build);
   }
 }

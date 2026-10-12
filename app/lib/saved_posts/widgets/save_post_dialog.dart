@@ -1,6 +1,6 @@
 import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/feed/models/post.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/saved_posts/models/saved_post.dart';
 import 'package:craftsky_app/saved_posts/models/saved_post_error.dart';
 import 'package:craftsky_app/saved_posts/models/saved_post_keys.dart';
@@ -13,8 +13,8 @@ import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:craftsky_app/theme/craftsky_select_inputs.dart';
 import 'package:craftsky_app/theme/craftsky_text_inputs.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:material_ui/material_ui.dart';
 
 Future<bool?> showSavePostDialog(
   BuildContext context, {
@@ -45,7 +45,7 @@ Future<bool?> showMoveSavedPostDialog(
 );
 
 class SavePostDialog extends ConsumerWidget {
-  const SavePostDialog({
+  const new({
     required this.account,
     required this.post,
     this.initialFolderId,
@@ -228,7 +228,7 @@ class SavePostDialog extends ConsumerWidget {
 }
 
 class _FolderPaginationControls extends ConsumerWidget {
-  const _FolderPaginationControls({
+  const new({
     required this.account,
     required this.state,
   });
@@ -265,7 +265,7 @@ class _FolderPaginationControls extends ConsumerWidget {
 }
 
 class _FolderFailure extends StatelessWidget {
-  const _FolderFailure({required this.failure, required this.onRetry});
+  const new({required this.failure, required this.onRetry});
 
   final SavedPostFailure failure;
   final VoidCallback onRetry;

@@ -15,16 +15,16 @@ abstract final class FacetFeatureType {
 /// A supported facet feature selected from raw incoming facet metadata.
 sealed class FacetFeature {
   /// Creates a supported facet feature.
-  const FacetFeature();
+  const new();
 
   /// Creates a mention feature.
-  const factory FacetFeature.mention(String did) = MentionFacetFeature;
+  const factory mention(String did) = MentionFacetFeature;
 
   /// Creates a link feature.
-  const factory FacetFeature.link(String uri) = LinkFacetFeature;
+  const factory link(String uri) = LinkFacetFeature;
 
   /// Creates a hashtag feature.
-  const factory FacetFeature.tag(String tag) = TagFacetFeature;
+  const factory tag(String tag) = TagFacetFeature;
 
   /// Creates the first supported feature represented by [raw], or `null`.
   static FacetFeature? fromRaw(Map<dynamic, dynamic> raw) {
@@ -70,7 +70,7 @@ sealed class FacetFeature {
 /// Mention facet feature data.
 final class MentionFacetFeature extends FacetFeature {
   /// Creates mention facet feature data.
-  const MentionFacetFeature(this.did);
+  const new(this.did);
 
   /// Mention DID.
   final String did;
@@ -79,7 +79,7 @@ final class MentionFacetFeature extends FacetFeature {
 /// Link facet feature data.
 final class LinkFacetFeature extends FacetFeature {
   /// Creates link facet feature data.
-  const LinkFacetFeature(this.uri);
+  const new(this.uri);
 
   /// Link URI.
   final String uri;
@@ -88,7 +88,7 @@ final class LinkFacetFeature extends FacetFeature {
 /// Hashtag facet feature data.
 final class TagFacetFeature extends FacetFeature {
   /// Creates hashtag facet feature data.
-  const TagFacetFeature(this.tag);
+  const new(this.tag);
 
   /// Hashtag value.
   final String tag;
@@ -97,7 +97,7 @@ final class TagFacetFeature extends FacetFeature {
 /// A facet range normalized to Dart string character indices.
 class NormalizedFacetRange {
   /// Creates a normalized range.
-  const NormalizedFacetRange({
+  const new({
     required this.charStart,
     required this.charEnd,
     required this.feature,
@@ -217,7 +217,7 @@ Map<int, int> _byteToCharIndexMap(String text) {
 }
 
 class _OrderedRange {
-  const _OrderedRange({required this.order, required this.range});
+  const new({required this.order, required this.range});
 
   final int order;
   final NormalizedFacetRange range;

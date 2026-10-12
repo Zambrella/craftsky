@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 final class AsyncSubmitContractSubject<T> {
-  const AsyncSubmitContractSubject({
+  const new({
     required this.submit,
     required this.state,
     required this.dispose,

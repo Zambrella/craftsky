@@ -1,9 +1,9 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Wraps [child] in a [MediaQuery] that clamps the text scaler to
 /// `[minTextScaleFactor, maxTextScaleFactor]`.
 class TextScaleFactorClamper extends StatelessWidget {
-  const TextScaleFactorClamper({
+  const new({
     required this.child,
     this.minTextScaleFactor = 1.0,
     this.maxTextScaleFactor = 1.5,

@@ -1,7 +1,7 @@
 part of '../craftsky_select_inputs.dart';
 
 class CraftskySelectOption<T> {
-  const CraftskySelectOption({
+  const new({
     required this.value,
     required this.label,
     this.description,

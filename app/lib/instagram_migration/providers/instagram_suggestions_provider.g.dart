@@ -55,7 +55,7 @@ final class InstagramSuggestionsProvider
 }
 
 String _$instagramSuggestionsHash() =>
-    r'84d6d39af833f164ab980fe7d19d3b0a0cf4ca25';
+    r'c43b5b506ed66c5c2e2226b25c69015dc1532dda';
 
 final class InstagramSuggestionsFamily extends $Family
     with
@@ -90,7 +90,7 @@ abstract class _$InstagramSuggestions
   FutureOr<InstagramSuggestionReviewState> build(ActiveAccountLease lease);
   @$mustCallSuper
   @override
-  void runBuild() {
+  WhenComplete runBuild() {
     final ref =
         this.ref
             as $Ref<
@@ -108,6 +108,6 @@ abstract class _$InstagramSuggestions
               Object?,
               Object?
             >;
-    element.handleCreate(ref, () => build(_$args));
+    return element.handleCreate(ref, () => build(_$args));
   }
 }

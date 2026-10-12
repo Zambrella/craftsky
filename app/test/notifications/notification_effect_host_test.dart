@@ -6,7 +6,7 @@ import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
 import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart'
     show sessionRegistryProvider;
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/notifications/data/notification_repository.dart';
 import 'package:craftsky_app/notifications/models/account_subscription_id.dart';
 import 'package:craftsky_app/notifications/models/foreground_notification_event.dart';
@@ -29,10 +29,10 @@ import 'package:craftsky_app/notifications/widgets/notification_effect_host.dart
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../fakes/auth_session_fakes.dart';
 import '../fakes/recording_messenger.dart';
@@ -93,7 +93,7 @@ void main() {
         UncontrolledProviderScope(
           container: container,
           child: MaterialApp.router(
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            localizationsDelegates: appLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             routerConfig: router,
             builder: (_, child) => NotificationEffectHost(
@@ -154,7 +154,7 @@ void main() {
         UncontrolledProviderScope(
           container: container,
           child: const MaterialApp(
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            localizationsDelegates: appLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             home: NotificationEffectHost(child: Text('Welcome')),
           ),
@@ -206,7 +206,7 @@ void main() {
       UncontrolledProviderScope(
         container: container,
         child: const MaterialApp(
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: appLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: NotificationEffectHost(child: Text('Feed')),
         ),
@@ -257,7 +257,7 @@ void main() {
           child: MessengerScope(
             messenger: messenger,
             child: const MaterialApp(
-              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              localizationsDelegates: appLocalizationsDelegates,
               supportedLocales: AppLocalizations.supportedLocales,
               home: NotificationEffectHost(child: Text('Welcome')),
             ),
@@ -308,9 +308,11 @@ NotificationRuntime _runtime(
   final registration = NotificationRegistrationCoordinator(
     service: service,
     platform: NotificationPlatform.ios,
-    registerAccount:
-        ({required lease, required platform, required token}) async =>
-            AccountSubscriptionId.parse('binding'),
+    registerAccount: ({
+      required lease,
+      required platform,
+      required token,
+    }) async => AccountSubscriptionId.parse('binding'),
     saveBindingForLease: ({required lease, required binding}) async {},
   );
   return NotificationRuntime(
@@ -369,7 +371,7 @@ final class _FakeNotificationService implements NotificationService {
 
 final class _RecordingNewnessRepository
     implements NotificationNewnessRepository {
-  _RecordingNewnessRepository({this.initialCount = 0});
+  new({this.initialCount = 0});
 
   final int initialCount;
   int countCalls = 0;
@@ -399,7 +401,7 @@ final class _RecordingNotificationRepository implements NotificationRepository {
 }
 
 final class _RegistryStorage implements SessionRegistryStorage {
-  _RegistryStorage(this.registry);
+  new(this.registry);
 
   SessionRegistry registry;
 

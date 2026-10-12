@@ -13,7 +13,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 final class _Storage implements SessionRegistryStorage {
-  _Storage(this.value);
+  new(this.value);
   SessionRegistry value;
 
   @override
@@ -24,7 +24,7 @@ final class _Storage implements SessionRegistryStorage {
 }
 
 final class _Repository implements OnboardingRepository {
-  _Repository({required this.status, required this.completions});
+  new({required this.status, required this.completions});
 
   final OnboardingCompletion status;
   final List<Future<OnboardingCompletion> Function()> completions;

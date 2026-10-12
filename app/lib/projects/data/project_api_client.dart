@@ -6,7 +6,7 @@ import 'package:dio/dio.dart';
 /// Project discovery AppView endpoints. Assumes the attached [Dio] has the
 /// auth + error interceptors installed; each call is wrapped in [unwrapApi].
 class ProjectApiClient {
-  const ProjectApiClient(this._dio);
+  const new(this._dio);
 
   final Dio _dio;
 

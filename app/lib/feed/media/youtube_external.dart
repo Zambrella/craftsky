@@ -1,5 +1,5 @@
 final class YouTubeExternal {
-  const YouTubeExternal({
+  const new({
     required this.videoId,
     required this.isShort,
     this.startSeconds = 0,

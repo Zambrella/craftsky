@@ -181,7 +181,7 @@ NotificationRegistrationCoordinator _coordinator(
 );
 
 final class _FakeService implements NotificationService {
-  _FakeService({required this.permission, this.token});
+  new({required this.permission, this.token});
 
   NotificationPermission permission;
   String? token;

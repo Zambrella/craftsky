@@ -1,6 +1,6 @@
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 const businessAccessibilityMatrix = <({Size size, double textScale})>[
   (size: Size(320, 568), textScale: 1),

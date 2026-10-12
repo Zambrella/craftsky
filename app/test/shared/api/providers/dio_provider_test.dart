@@ -23,13 +23,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:logging/logging.dart';
 
 final class _RegistryStorage implements SessionRegistryStorage {
-  _RegistryStorage(this.value, {this.pendingRead});
+  new(this.value, {this.pendingRead});
 
   SessionRegistry value;
   final Future<SessionRegistry>? pendingRead;
 
   @override
-  Future<SessionRegistry> read() async => pendingRead ?? value;
+  Future<SessionRegistry> read() async => await pendingRead ?? value;
 
   @override
   Future<void> write(SessionRegistry registry) async => value = registry;

@@ -24,7 +24,7 @@ void main() {
       );
       final consumer = FutureProvider<int>(
         name: 'loadingConsumer',
-        (ref) async => ref.read(loading.future),
+        (ref) async => await ref.read(loading.future),
       );
       final records = <LogRecord>[];
       final previousLevel = Logger.root.level;

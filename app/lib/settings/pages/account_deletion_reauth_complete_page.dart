@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/settings/models/delete_account_confirmation.dart';
 import 'package:craftsky_app/settings/providers/account_deletion_controller.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
@@ -8,11 +8,11 @@ import 'package:craftsky_app/theme/brand_text_field.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/form_factor.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:material_ui/material_ui.dart';
 
 class AccountDeletionReauthCompletePage extends ConsumerStatefulWidget {
-  const AccountDeletionReauthCompletePage({
+  const new({
     required this.jobId,
     required this.proof,
     this.onCancel,
@@ -154,7 +154,7 @@ class _AccountDeletionReauthCompletePageState
 }
 
 class _BoundedConfirmationContent extends StatelessWidget {
-  const _BoundedConfirmationContent({required this.child});
+  const new({required this.child});
 
   final Widget child;
 

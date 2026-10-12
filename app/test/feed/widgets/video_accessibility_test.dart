@@ -1,8 +1,8 @@
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/widgets/native_video_player.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
-import 'package:flutter/material.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 void main() {
   testWidgets('AT-011 exposes video alt text only through semantics', (
@@ -12,7 +12,7 @@ void main() {
 
     await tester.pumpWidget(
       MaterialApp(
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        localizationsDelegates: appLocalizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         home: Scaffold(
           body: NativeVideoPlayer(

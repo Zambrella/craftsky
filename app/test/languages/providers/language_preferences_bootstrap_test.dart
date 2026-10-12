@@ -11,7 +11,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 final class _BootstrapRepository implements LanguagePreferencesRepository {
-  _BootstrapRepository({this.stored});
+  new({this.stored});
 
   final LanguagePreferences? stored;
   LanguagePreferences? initializedWith;

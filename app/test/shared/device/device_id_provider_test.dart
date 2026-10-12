@@ -10,7 +10,7 @@ import 'package:logging/logging.dart';
 import '../../test_support/recording_error_reporter.dart';
 
 class _FakeSecureStorage implements FlutterSecureStorage {
-  _FakeSecureStorage();
+  new();
   bool failRead = false;
   final Map<String, String> _map = <String, String>{};
 

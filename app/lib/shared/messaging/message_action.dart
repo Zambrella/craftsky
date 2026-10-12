@@ -11,7 +11,7 @@ part 'message_action.mapper.dart';
 /// operation and lets the same message reflect the next outcome).
 @MappableClass()
 class MessageAction with MessageActionMappable {
-  const MessageAction({
+  const new({
     required this.label,
     required this.onPressed,
     this.dismissOnTap = true,

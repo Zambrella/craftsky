@@ -1,7 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/widgets/external_card.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/profile/models/profile_handle.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
 import 'package:craftsky_app/shared/image/image_cache_providers.dart';
@@ -9,8 +9,8 @@ import 'package:craftsky_app/shared/time/relative_time_text.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:dart_mappable/dart_mappable.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:material_ui/material_ui.dart';
 
 part 'post_summary.mapper.dart';
 
@@ -19,7 +19,7 @@ enum PostSummaryState { visible, muted, hidden, blocked, unavailable }
 @immutable
 @MappableClass(generateMethods: GenerateMethods.copy | GenerateMethods.equals)
 final class PostSummaryData with PostSummaryDataMappable {
-  const PostSummaryData({
+  const new({
     required this.state,
     this.author,
     this.text,
@@ -32,7 +32,7 @@ final class PostSummaryData with PostSummaryDataMappable {
     this.revealable = false,
   });
 
-  factory PostSummaryData.fromPost(Post post) {
+  factory fromPost(Post post) {
     if (post.availability == 'muted') {
       return PostSummaryData(
         state: PostSummaryState.muted,
@@ -54,7 +54,7 @@ final class PostSummaryData with PostSummaryDataMappable {
     );
   }
 
-  factory PostSummaryData.fromQuoteView(QuoteView quote) => switch ((
+  factory fromQuoteView(QuoteView quote) => switch ((
     quote.state,
     quote.post,
   )) {
@@ -77,12 +77,12 @@ final class PostSummaryData with PostSummaryDataMappable {
     _ => const PostSummaryData(state: PostSummaryState.unavailable),
   };
 
-  factory PostSummaryData.notificationSubject(Post post) => PostSummaryData(
+  factory notificationSubject(Post post) => PostSummaryData(
     state: PostSummaryState.visible,
     text: post.text,
   );
 
-  factory PostSummaryData.savedPost(Post post) {
+  factory savedPost(Post post) {
     if (post.availability == 'muted') {
       return PostSummaryData(
         state: PostSummaryState.muted,
@@ -104,7 +104,7 @@ final class PostSummaryData with PostSummaryDataMappable {
     );
   }
 
-  factory PostSummaryData._visible({
+  factory _visible({
     required PostAuthor author,
     required String text,
     required String? projectTitle,
@@ -158,7 +158,7 @@ final class PostSummaryData with PostSummaryDataMappable {
 }
 
 class PostSummary extends StatelessWidget {
-  const PostSummary({
+  const new({
     required this.data,
     this.onTap,
     this.onAuthorTap,
@@ -277,7 +277,7 @@ class PostSummary extends StatelessWidget {
 }
 
 class ImportedPostLabel extends StatelessWidget {
-  const ImportedPostLabel({super.key});
+  const new({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -300,7 +300,7 @@ class ImportedPostLabel extends StatelessWidget {
 }
 
 class SponsoredLabel extends StatelessWidget {
-  const SponsoredLabel({super.key});
+  const new({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -344,7 +344,7 @@ class SponsoredLabel extends StatelessWidget {
 }
 
 class _PostSummaryAuthor extends StatelessWidget {
-  const _PostSummaryAuthor({required this.author});
+  const new({required this.author});
 
   final PostAuthor author;
 
@@ -394,7 +394,7 @@ class _PostSummaryAuthor extends StatelessWidget {
 }
 
 class _PostSummaryImage extends ConsumerWidget {
-  const _PostSummaryImage({required this.image});
+  const new({required this.image});
 
   final PostImage image;
 
@@ -433,7 +433,7 @@ class _PostSummaryImage extends ConsumerWidget {
 }
 
 class _PostSummaryPlaceholder extends StatelessWidget {
-  const _PostSummaryPlaceholder(this.text, {required this.padding});
+  const new(this.text, {required this.padding});
 
   final String text;
   final EdgeInsetsGeometry padding;

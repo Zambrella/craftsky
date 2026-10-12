@@ -50,7 +50,7 @@ final class ProjectSearchProvider
   }
 }
 
-String _$projectSearchHash() => r'639626a5a405187914bc52d0b33f2e4a93e9bb96';
+String _$projectSearchHash() => r'0512b8c7c3fcc2966ba984daabfe095ef147f749';
 
 final class ProjectSearchFamily extends $Family
     with
@@ -84,7 +84,7 @@ abstract class _$ProjectSearch extends $AsyncNotifier<SearchPostResultsState> {
   FutureOr<SearchPostResultsState> build(ProjectSearchQuery query);
   @$mustCallSuper
   @override
-  void runBuild() {
+  WhenComplete runBuild() {
     final ref =
         this.ref
             as $Ref<AsyncValue<SearchPostResultsState>, SearchPostResultsState>;
@@ -99,6 +99,6 @@ abstract class _$ProjectSearch extends $AsyncNotifier<SearchPostResultsState> {
               Object?,
               Object?
             >;
-    element.handleCreate(ref, () => build(_$args));
+    return element.handleCreate(ref, () => build(_$args));
   }
 }

@@ -18,7 +18,7 @@ final _log = Logger('AppDependencies');
 
 @MappableClass()
 class CraftskyDeviceInfo with CraftskyDeviceInfoMappable {
-  CraftskyDeviceInfo({
+  new({
     required this.platform,
     required this.deviceId,
     required this.model,
@@ -36,7 +36,7 @@ class CraftskyDeviceInfo with CraftskyDeviceInfoMappable {
 
 @MappableClass()
 class AppDependencies with AppDependenciesMappable {
-  AppDependencies({
+  new({
     required this.packageInfo,
     required this.deviceInfo,
     required this.sharedPreferences,

@@ -20,6 +20,7 @@ List<RouteBase> get $appRoutes => [
 RouteBase get $accountDeletionReauthCompleteRoute => GoRouteData.$route(
   path: '/account-deletion/reauth-complete',
   name: 'account-deletion-reauth-complete',
+  hasOverriddenOnExit: false,
   factory: $AccountDeletionReauthCompleteRoute._fromState,
 );
 
@@ -56,6 +57,7 @@ mixin $AccountDeletionReauthCompleteRoute on GoRouteData {
 RouteBase get $accountEligibilityRoute => GoRouteData.$route(
   path: '/account-eligibility',
   name: 'account-eligibility',
+  hasOverriddenOnExit: false,
   factory: $AccountEligibilityRoute._fromState,
 );
 
@@ -95,6 +97,7 @@ RouteBase get $authenticatedShellRoute => ShellRouteData.$route(
             GoRouteData.$route(
               path: '/feed',
               name: 'feed',
+              hasOverriddenOnExit: false,
               factory: $FeedRoute._fromState,
             ),
           ],
@@ -106,6 +109,7 @@ RouteBase get $authenticatedShellRoute => ShellRouteData.$route(
             GoRouteData.$route(
               path: '/projects',
               name: 'projects',
+              hasOverriddenOnExit: false,
               factory: $ProjectsRoute._fromState,
             ),
           ],
@@ -117,11 +121,13 @@ RouteBase get $authenticatedShellRoute => ShellRouteData.$route(
             GoRouteData.$route(
               path: '/search',
               name: 'search',
+              hasOverriddenOnExit: false,
               factory: $SearchRoute._fromState,
               routes: [
                 GoRouteData.$route(
                   path: 'tags',
                   name: 'search-tag',
+                  hasOverriddenOnExit: false,
                   factory: $TagSearchRoute._fromState,
                 ),
               ],
@@ -135,11 +141,13 @@ RouteBase get $authenticatedShellRoute => ShellRouteData.$route(
             GoRouteData.$route(
               path: '/notifications',
               name: 'notifications',
+              hasOverriddenOnExit: false,
               factory: $NotificationsRoute._fromState,
               routes: [
                 GoRouteData.$route(
                   path: 'settings',
                   name: 'notification-settings',
+                  hasOverriddenOnExit: false,
                   parentNavigatorKey:
                       NotificationSettingsRoute.$parentNavigatorKey,
                   factory: $NotificationSettingsRoute._fromState,
@@ -155,23 +163,27 @@ RouteBase get $authenticatedShellRoute => ShellRouteData.$route(
             GoRouteData.$route(
               path: '/profile',
               name: 'profile',
+              hasOverriddenOnExit: false,
               factory: $ProfileRoute._fromState,
               routes: [
                 GoRouteData.$route(
                   path: 'settings',
                   name: 'settings',
+                  hasOverriddenOnExit: false,
                   parentNavigatorKey: SettingsRoute.$parentNavigatorKey,
                   factory: $SettingsRoute._fromState,
                   routes: [
                     GoRouteData.$route(
                       path: 'appearance',
                       name: 'appearance',
+                      hasOverriddenOnExit: false,
                       parentNavigatorKey: AppearanceRoute.$parentNavigatorKey,
                       factory: $AppearanceRoute._fromState,
                     ),
                     GoRouteData.$route(
                       path: 'growth',
                       name: 'follower-growth',
+                      hasOverriddenOnExit: false,
                       parentNavigatorKey:
                           FollowerGrowthRoute.$parentNavigatorKey,
                       factory: $FollowerGrowthRoute._fromState,
@@ -179,6 +191,7 @@ RouteBase get $authenticatedShellRoute => ShellRouteData.$route(
                     GoRouteData.$route(
                       path: 'customisation',
                       name: 'profile-customisation',
+                      hasOverriddenOnExit: false,
                       parentNavigatorKey:
                           ProfileCustomisationRoute.$parentNavigatorKey,
                       factory: $ProfileCustomisationRoute._fromState,
@@ -186,12 +199,14 @@ RouteBase get $authenticatedShellRoute => ShellRouteData.$route(
                     GoRouteData.$route(
                       path: 'account',
                       name: 'settings-account',
+                      hasOverriddenOnExit: false,
                       parentNavigatorKey: AccountRoute.$parentNavigatorKey,
                       factory: $AccountRoute._fromState,
                     ),
                     GoRouteData.$route(
                       path: 'subscriptions',
                       name: 'settings-subscriptions',
+                      hasOverriddenOnExit: false,
                       parentNavigatorKey:
                           SubscriptionsRoute.$parentNavigatorKey,
                       factory: $SubscriptionsRoute._fromState,
@@ -199,6 +214,7 @@ RouteBase get $authenticatedShellRoute => ShellRouteData.$route(
                     GoRouteData.$route(
                       path: 'moderation',
                       name: 'account-standing',
+                      hasOverriddenOnExit: false,
                       parentNavigatorKey:
                           AccountStandingRoute.$parentNavigatorKey,
                       factory: $AccountStandingRoute._fromState,
@@ -206,12 +222,14 @@ RouteBase get $authenticatedShellRoute => ShellRouteData.$route(
                     GoRouteData.$route(
                       path: 'about',
                       name: 'settings-about',
+                      hasOverriddenOnExit: false,
                       parentNavigatorKey: AboutRoute.$parentNavigatorKey,
                       factory: $AboutRoute._fromState,
                     ),
                     GoRouteData.$route(
                       path: 'products',
                       name: 'settings-business-products',
+                      hasOverriddenOnExit: false,
                       parentNavigatorKey:
                           BusinessProductsRoute.$parentNavigatorKey,
                       factory: $BusinessProductsRoute._fromState,
@@ -219,6 +237,7 @@ RouteBase get $authenticatedShellRoute => ShellRouteData.$route(
                     GoRouteData.$route(
                       path: 'events',
                       name: 'settings-business-events',
+                      hasOverriddenOnExit: false,
                       parentNavigatorKey:
                           BusinessEventsRoute.$parentNavigatorKey,
                       factory: $BusinessEventsRoute._fromState,
@@ -226,12 +245,14 @@ RouteBase get $authenticatedShellRoute => ShellRouteData.$route(
                     GoRouteData.$route(
                       path: 'languages',
                       name: 'languages',
+                      hasOverriddenOnExit: false,
                       parentNavigatorKey: LanguagesRoute.$parentNavigatorKey,
                       factory: $LanguagesRoute._fromState,
                     ),
                     GoRouteData.$route(
                       path: 'instagram',
                       name: 'instagram-migration',
+                      hasOverriddenOnExit: false,
                       parentNavigatorKey:
                           InstagramMigrationRoute.$parentNavigatorKey,
                       factory: $InstagramMigrationRoute._fromState,
@@ -239,18 +260,21 @@ RouteBase get $authenticatedShellRoute => ShellRouteData.$route(
                     GoRouteData.$route(
                       path: 'followers',
                       name: 'settings-followers',
+                      hasOverriddenOnExit: false,
                       parentNavigatorKey: FollowersRoute.$parentNavigatorKey,
                       factory: $FollowersRoute._fromState,
                     ),
                     GoRouteData.$route(
                       path: 'following',
                       name: 'settings-following',
+                      hasOverriddenOnExit: false,
                       parentNavigatorKey: FollowingRoute.$parentNavigatorKey,
                       factory: $FollowingRoute._fromState,
                     ),
                     GoRouteData.$route(
                       path: 'muted',
                       name: 'settings-muted-accounts',
+                      hasOverriddenOnExit: false,
                       parentNavigatorKey:
                           MutedAccountsRoute.$parentNavigatorKey,
                       factory: $MutedAccountsRoute._fromState,
@@ -258,6 +282,7 @@ RouteBase get $authenticatedShellRoute => ShellRouteData.$route(
                     GoRouteData.$route(
                       path: 'blocked',
                       name: 'settings-blocked-accounts',
+                      hasOverriddenOnExit: false,
                       parentNavigatorKey:
                           BlockedAccountsRoute.$parentNavigatorKey,
                       factory: $BlockedAccountsRoute._fromState,
@@ -267,6 +292,7 @@ RouteBase get $authenticatedShellRoute => ShellRouteData.$route(
                 GoRouteData.$route(
                   path: 'playground',
                   name: 'playground',
+                  hasOverriddenOnExit: false,
                   parentNavigatorKey: PlaygroundRoute.$parentNavigatorKey,
                   factory: $PlaygroundRoute._fromState,
                 ),
@@ -279,24 +305,28 @@ RouteBase get $authenticatedShellRoute => ShellRouteData.$route(
     GoRouteData.$route(
       path: '/scheduled',
       name: 'scheduled-posts',
+      hasOverriddenOnExit: false,
       parentNavigatorKey: ScheduledPostsRoute.$parentNavigatorKey,
       factory: $ScheduledPostsRoute._fromState,
     ),
     GoRouteData.$route(
       path: '/drafts',
       name: 'drafts',
+      hasOverriddenOnExit: false,
       parentNavigatorKey: DraftsRoute.$parentNavigatorKey,
       factory: $DraftsRoute._fromState,
     ),
     GoRouteData.$route(
       path: '/saved',
       name: 'saved-posts',
+      hasOverriddenOnExit: false,
       parentNavigatorKey: SavedPostsRoute.$parentNavigatorKey,
       factory: $SavedPostsRoute._fromState,
       routes: [
         GoRouteData.$route(
           path: 'folder',
           name: 'saved-post-folder',
+          hasOverriddenOnExit: false,
           parentNavigatorKey: SavedPostFolderRoute.$parentNavigatorKey,
           factory: $SavedPostFolderRoute._fromState,
         ),
@@ -305,21 +335,25 @@ RouteBase get $authenticatedShellRoute => ShellRouteData.$route(
     GoRouteData.$route(
       path: '/posts/:did/:rkey',
       name: 'post-thread',
+      hasOverriddenOnExit: false,
       factory: $PostThreadRoute._fromState,
       routes: [
         GoRouteData.$route(
           path: 'likes',
           name: 'post-likes',
+          hasOverriddenOnExit: false,
           factory: $PostLikesRoute._fromState,
         ),
         GoRouteData.$route(
           path: 'reposts',
           name: 'post-reposts',
+          hasOverriddenOnExit: false,
           factory: $PostRepostsRoute._fromState,
         ),
         GoRouteData.$route(
           path: 'quotes',
           name: 'post-quotes',
+          hasOverriddenOnExit: false,
           factory: $PostQuotesRoute._fromState,
         ),
       ],
@@ -327,21 +361,25 @@ RouteBase get $authenticatedShellRoute => ShellRouteData.$route(
     GoRouteData.$route(
       path: '/events/:did/:rkey',
       name: 'business-event',
+      hasOverriddenOnExit: false,
       factory: $BusinessEventRoute._fromState,
     ),
     GoRouteData.$route(
       path: '/profiles/@:handle',
       name: 'profile-alias',
+      hasOverriddenOnExit: false,
       factory: $ProfileAliasRoute._fromState,
     ),
     GoRouteData.$route(
       path: '/profiles/:did',
       name: 'user-profile',
+      hasOverriddenOnExit: false,
       factory: $UserProfileRoute._fromState,
       routes: [
         GoRouteData.$route(
           path: 'mutual-followers',
           name: 'profile-mutual-followers',
+          hasOverriddenOnExit: false,
           factory: $ProfileMutualFollowersRoute._fromState,
         ),
       ],
@@ -1209,6 +1247,7 @@ extension<T extends Enum> on Map<T, String> {
 RouteBase get $welcomeRoute => GoRouteData.$route(
   path: '/welcome',
   name: 'welcome',
+  hasOverriddenOnExit: false,
   parentNavigatorKey: WelcomeRoute.$parentNavigatorKey,
   factory: $WelcomeRoute._fromState,
 );
@@ -1236,6 +1275,7 @@ mixin $WelcomeRoute on GoRouteData {
 RouteBase get $signInRoute => GoRouteData.$route(
   path: '/sign-in',
   name: 'sign-in',
+  hasOverriddenOnExit: false,
   parentNavigatorKey: SignInRoute.$parentNavigatorKey,
   factory: $SignInRoute._fromState,
 );
@@ -1263,6 +1303,7 @@ mixin $SignInRoute on GoRouteData {
 RouteBase get $addAccountRoute => GoRouteData.$route(
   path: '/add-account',
   name: 'add-account',
+  hasOverriddenOnExit: false,
   parentNavigatorKey: AddAccountRoute.$parentNavigatorKey,
   factory: $AddAccountRoute._fromState,
 );
@@ -1291,6 +1332,7 @@ mixin $AddAccountRoute on GoRouteData {
 RouteBase get $authCompleteRoute => GoRouteData.$route(
   path: '/auth/complete',
   name: 'auth-complete',
+  hasOverriddenOnExit: false,
   parentNavigatorKey: AuthCompleteRoute.$parentNavigatorKey,
   factory: $AuthCompleteRoute._fromState,
 );
@@ -1329,6 +1371,7 @@ mixin $AuthCompleteRoute on GoRouteData {
 RouteBase get $onboardingRoute => GoRouteData.$route(
   path: '/onboarding',
   name: 'onboarding',
+  hasOverriddenOnExit: false,
   parentNavigatorKey: OnboardingRoute.$parentNavigatorKey,
   factory: $OnboardingRoute._fromState,
 );

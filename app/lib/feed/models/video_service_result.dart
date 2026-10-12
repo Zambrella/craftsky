@@ -9,13 +9,13 @@ enum VideoServiceOutcome {
 }
 
 final class VideoServiceBlob {
-  const VideoServiceBlob({
+  const new({
     required this.cid,
     required this.mimeType,
     required this.size,
   });
 
-  factory VideoServiceBlob.fromJson(Map<String, Object?> json) {
+  factory fromJson(Map<String, Object?> json) {
     final ref = json['ref'];
     if (json[r'$type'] != 'blob' || ref is! Map<String, Object?>) {
       throw const FormatException('Invalid video blob');
@@ -48,7 +48,7 @@ final class VideoServiceBlob {
 }
 
 final class VideoServiceResult {
-  const VideoServiceResult({
+  const new({
     required this.outcome,
     required this.jobId,
     this.blob,
@@ -56,7 +56,7 @@ final class VideoServiceResult {
     this.retryAfter,
   });
 
-  factory VideoServiceResult.fromJson(Map<String, Object?> json) {
+  factory fromJson(Map<String, Object?> json) {
     final state = json['state'];
     final error = json['error'];
     final jobId = json['jobId'];

@@ -11,7 +11,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 class _FakeRegistryStorage implements SessionRegistryStorage {
-  _FakeRegistryStorage(this.value);
+  new(this.value);
 
   SessionRegistry value;
 

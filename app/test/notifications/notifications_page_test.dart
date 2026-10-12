@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/bootstrap.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/moderation/models/account_moderation.dart';
 import 'package:craftsky_app/notifications/data/notification_repository.dart';
 import 'package:craftsky_app/notifications/models/craftsky_notification.dart';
@@ -25,10 +25,10 @@ import 'package:craftsky_app/shared/widgets/sort_menu_button.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../fakes/recording_messenger.dart';
 import '../profile/fakes/fake_profile_repository.dart';
@@ -570,7 +570,7 @@ void main() {
           crafts: const [],
         );
         final repository = FakeProfileRepository(
-          onFetch: (_) async => delayedLookup ? lookup.future : profile,
+          onFetch: (_) async => delayedLookup ? await lookup.future : profile,
           onFollow: (_) => pending.future,
         );
         await tester.pumpWidget(
@@ -813,7 +813,7 @@ void main() {
         ],
         child: MaterialApp.router(
           theme: AppTheme.lightThemeData,
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: appLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           routerConfig: router,
         ),
@@ -887,7 +887,7 @@ void main() {
       ProviderScope(
         child: MaterialApp.router(
           theme: AppTheme.lightThemeData,
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: appLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           routerConfig: router,
         ),
@@ -926,7 +926,7 @@ void main() {
             messenger: messenger,
             child: MaterialApp(
               theme: AppTheme.lightThemeData,
-              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              localizationsDelegates: appLocalizationsDelegates,
               supportedLocales: AppLocalizations.supportedLocales,
               home: Scaffold(
                 body: Column(
@@ -1010,7 +1010,7 @@ void main() {
       ProviderScope(
         child: MaterialApp.router(
           theme: AppTheme.lightThemeData,
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: appLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           routerConfig: router,
         ),
@@ -1062,7 +1062,7 @@ void main() {
       ProviderScope(
         child: MaterialApp.router(
           theme: AppTheme.lightThemeData,
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: appLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           routerConfig: router,
         ),
@@ -1086,7 +1086,7 @@ void main() {
 }
 
 class _TestApp extends StatelessWidget {
-  const _TestApp({required this.home, this.topPadding = 0});
+  const new({required this.home, this.topPadding = 0});
 
   final Widget home;
   final double topPadding;
@@ -1095,7 +1095,7 @@ class _TestApp extends StatelessWidget {
   Widget build(BuildContext context) => ProviderScope(
     child: MaterialApp(
       theme: AppTheme.lightThemeData,
-      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      localizationsDelegates: appLocalizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
       home: Builder(
         builder: (context) => MediaQuery(
@@ -1115,106 +1115,91 @@ FollowNotification _follow(
   bool includeAvatarUrl = true,
   String avatarCid = 'bafyavatar',
   bool viewerIsFollowing = false,
-}) =>
-    CraftskyNotification.fromMap({
-          'uri': 'at://did:plc:alice/app.bsky.graph.follow/$rkey',
-          'cid': 'bafy$rkey',
-          'rkey': rkey,
-          'type': 'follow',
-          'actor': {
-            'did': 'did:plc:alice',
-            'handle': 'alice.craftsky.social',
-            'displayName': ?displayName,
-            if (includeAvatarUrl)
-              'avatar': 'https://cdn.example/avatar/alice.jpg',
-            'avatarCid': avatarCid,
-            'viewerIsFollowing': viewerIsFollowing,
-          },
-          'createdAt': '2026-05-28T13:00:00Z',
-          'indexedAt': '2026-05-28T13:00:01Z',
-        })
-        as FollowNotification;
+}) => CraftskyNotification.fromMap({
+  'uri': 'at://did:plc:alice/app.bsky.graph.follow/$rkey',
+  'cid': 'bafy$rkey',
+  'rkey': rkey,
+  'type': 'follow',
+  'actor': {
+    'did': 'did:plc:alice',
+    'handle': 'alice.craftsky.social',
+    'displayName': ?displayName,
+    if (includeAvatarUrl) 'avatar': 'https://cdn.example/avatar/alice.jpg',
+    'avatarCid': avatarCid,
+    'viewerIsFollowing': viewerIsFollowing,
+  },
+  'createdAt': '2026-05-28T13:00:00Z',
+  'indexedAt': '2026-05-28T13:00:01Z',
+}) as FollowNotification;
 
-InstagramMatchNotification _instagramMatch() =>
-    CraftskyNotification.fromMap({
-          'id': '00000000-0000-0000-0000-000000000031',
-          'type': 'instagramMatch',
-          'actor': {
-            'did': 'did:plc:alice',
-            'handle': 'alice.craftsky.social',
-            'displayName': 'Alice',
-            'avatar': 'https://cdn.example/avatar/alice.jpg',
-            'viewerIsFollowing': false,
-          },
-          'createdAt': '2026-05-28T13:00:00Z',
-          'indexedAt': '2026-05-28T13:00:01Z',
-        })
-        as InstagramMatchNotification;
+InstagramMatchNotification _instagramMatch() => CraftskyNotification.fromMap({
+  'id': '00000000-0000-0000-0000-000000000031',
+  'type': 'instagramMatch',
+  'actor': {
+    'did': 'did:plc:alice',
+    'handle': 'alice.craftsky.social',
+    'displayName': 'Alice',
+    'avatar': 'https://cdn.example/avatar/alice.jpg',
+    'viewerIsFollowing': false,
+  },
+  'createdAt': '2026-05-28T13:00:00Z',
+  'indexedAt': '2026-05-28T13:00:01Z',
+}) as InstagramMatchNotification;
 
 LikeNotification _like(String rkey, {Map<String, dynamic>? subjectPost}) =>
     CraftskyNotification.fromMap({
-          ..._baseNotification('like', rkey),
-          'subjectPost': subjectPost ?? _post(),
-        })
-        as LikeNotification;
+      ..._baseNotification('like', rkey),
+      'subjectPost': subjectPost ?? _post(),
+    }) as LikeNotification;
 
 RepostNotification _repost(String rkey, {Map<String, dynamic>? subjectPost}) =>
     CraftskyNotification.fromMap({
-          ..._baseNotification('repost', rkey),
-          'subjectPost': subjectPost ?? _post(),
-        })
-        as RepostNotification;
+      ..._baseNotification('repost', rkey),
+      'subjectPost': subjectPost ?? _post(),
+    }) as RepostNotification;
 
 ReplyNotification _reply(
   String rkey, {
   bool includeFocus = true,
   Map<String, dynamic>? subjectPost,
-}) =>
-    CraftskyNotification.fromMap({
-          ..._baseNotification('reply', rkey),
-          'uri': 'at://did:plc:alice/social.craftsky.feed.post/$rkey',
-          'subjectPost': subjectPost ?? _post(),
-          if (includeFocus)
-            'reply': {
-              'uri': 'at://did:plc:alice/social.craftsky.feed.post/$rkey',
-              'cid': 'bafy$rkey',
-              'rkey': rkey,
-            },
-        })
-        as ReplyNotification;
+}) => CraftskyNotification.fromMap({
+  ..._baseNotification('reply', rkey),
+  'uri': 'at://did:plc:alice/social.craftsky.feed.post/$rkey',
+  'subjectPost': subjectPost ?? _post(),
+  if (includeFocus)
+    'reply': {
+      'uri': 'at://did:plc:alice/social.craftsky.feed.post/$rkey',
+      'cid': 'bafy$rkey',
+      'rkey': rkey,
+    },
+}) as ReplyNotification;
 
-MentionNotification _mention(String rkey) =>
-    CraftskyNotification.fromMap({
-          ..._baseNotification('mention', rkey),
-          'subjectPost': _post(),
-        })
-        as MentionNotification;
+MentionNotification _mention(String rkey) => CraftskyNotification.fromMap({
+  ..._baseNotification('mention', rkey),
+  'subjectPost': _post(),
+}) as MentionNotification;
 
-QuoteNotification _quote(String rkey) =>
-    CraftskyNotification.fromMap({
-          ..._baseNotification('quote', rkey),
-          'subjectPost': _post(),
-        })
-        as QuoteNotification;
+QuoteNotification _quote(String rkey) => CraftskyNotification.fromMap({
+  ..._baseNotification('quote', rkey),
+  'subjectPost': _post(),
+}) as QuoteNotification;
 
 GenericNotification _generic(String id, {required String type}) =>
     CraftskyNotification.fromMap({
-          ..._baseNotification(type, 'generic'),
-          'id': id,
-        })
-        as GenericNotification;
+      ..._baseNotification(type, 'generic'),
+      'id': id,
+    }) as GenericNotification;
 
 UnavailableNotification _unavailable(String id) =>
     CraftskyNotification.fromMap({
-          ..._baseNotification('like', 'unavailable'),
-          'id': id,
-          'actor': {
-            'did': 'did:plc:alice',
-            'handle': 'alice.craftsky.social',
-            'available': false,
-          },
-        })
-        as UnavailableNotification;
+      ..._baseNotification('like', 'unavailable'),
+      'id': id,
+      'actor': {
+        'did': 'did:plc:alice',
+        'handle': 'alice.craftsky.social',
+        'available': false,
+      },
+    }) as UnavailableNotification;
 
 Map<String, dynamic> _baseNotification(String type, String rkey) => {
   'uri': 'at://did:plc:alice/social.craftsky.feed.$type/$rkey',
@@ -1288,7 +1273,7 @@ Map<String, dynamic> _replyPost() => {
 };
 
 class _FakeNotificationRepository implements NotificationRepository {
-  const _FakeNotificationRepository(this.page);
+  const new(this.page);
 
   final NotificationPage page;
 
@@ -1301,7 +1286,7 @@ class _FakeNotificationRepository implements NotificationRepository {
 }
 
 class _QueueNotificationRepository implements NotificationRepository {
-  _QueueNotificationRepository(this.responses);
+  new(this.responses);
 
   final List<Future<NotificationPage>> responses;
   final calls = <_Call>[];
@@ -1318,7 +1303,7 @@ class _QueueNotificationRepository implements NotificationRepository {
 }
 
 final class _Call {
-  const _Call({this.cursor, this.limit, this.category});
+  const new({this.cursor, this.limit, this.category});
   final NotificationCategory? category;
 
   final String? cursor;

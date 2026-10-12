@@ -1,7 +1,7 @@
 import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:craftsky_app/profile/widgets/profile_customisation_theme.dart';
 import 'package:craftsky_app/shared/widgets/craft_icon.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 const profileBackgroundAssets = <String, String>{
   'bayerdark': 'assets/profile_backgrounds/bayerdark.png',
@@ -14,7 +14,7 @@ const profileBackgroundAssets = <String, String>{
 
 /// A bounded local texture layer for compact and full profile headers.
 class ProfileHeaderBackground extends StatelessWidget {
-  const ProfileHeaderBackground({
+  const new({
     this.customisation = ProfileCustomisation.defaults,
     this.backgroundKey = const Key('profile-header-background'),
     this.textureKey = const Key('profile-header-background-texture'),
@@ -62,7 +62,7 @@ class ProfileHeaderBackground extends StatelessWidget {
 }
 
 class _CraftIconTile extends StatelessWidget {
-  const _CraftIconTile({
+  const new({
     required this.craft,
     required this.color,
     super.key,

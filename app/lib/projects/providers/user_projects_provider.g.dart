@@ -50,7 +50,7 @@ final class UserProjectsProvider
   }
 }
 
-String _$userProjectsHash() => r'3b95db35b5593898103eb938eae9bde1abdc8583';
+String _$userProjectsHash() => r'31da72ba4cd738f25bd1f5d91c6a20542cc918f5';
 
 final class UserProjectsFamily extends $Family
     with
@@ -84,7 +84,7 @@ abstract class _$UserProjects extends $AsyncNotifier<UserProjectsState> {
   FutureOr<UserProjectsState> build(Did did);
   @$mustCallSuper
   @override
-  void runBuild() {
+  WhenComplete runBuild() {
     final ref =
         this.ref as $Ref<AsyncValue<UserProjectsState>, UserProjectsState>;
     final element =
@@ -95,6 +95,6 @@ abstract class _$UserProjects extends $AsyncNotifier<UserProjectsState> {
               Object?,
               Object?
             >;
-    element.handleCreate(ref, () => build(_$args));
+    return element.handleCreate(ref, () => build(_$args));
   }
 }

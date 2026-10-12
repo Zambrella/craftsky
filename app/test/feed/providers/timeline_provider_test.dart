@@ -84,7 +84,7 @@ PaginationContractSubject<TimelineItem> _paginationSubject(
   final subscription = container.listen(timelineProvider, (_, _) {});
 
   return PaginationContractSubject(
-    initialize: () async => container.read(timelineProvider.future),
+    initialize: () async => await container.read(timelineProvider.future),
     loadMore: () => container.read(timelineProvider.notifier).loadMore(),
     snapshot: () {
       final asyncState = container.read(timelineProvider);

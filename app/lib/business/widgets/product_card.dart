@@ -3,15 +3,15 @@ import 'dart:async';
 import 'package:craftsky_app/business/models/business_formatters.dart';
 import 'package:craftsky_app/business/models/business_profile.dart';
 import 'package:craftsky_app/business/widgets/business_image.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/shared/link/external_link.dart';
 import 'package:craftsky_app/theme/craftsky_card.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 class ProductCard extends StatelessWidget {
-  const ProductCard({
+  const new({
     required this.product,
     this.launchExternal = launchExternalLink,
     this.confirmExternal = showOpenLinkDialog,

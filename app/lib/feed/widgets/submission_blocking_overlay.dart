@@ -1,12 +1,12 @@
 import 'package:craftsky_app/feed/composer/video_publication_coordinator.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 enum SubmissionKind { post, comment, reply }
 
 final class SubmissionBlockingOverlay extends StatelessWidget {
-  const SubmissionBlockingOverlay({
+  const new({
     required this.scheduling,
     super.key,
     this.kind = SubmissionKind.post,

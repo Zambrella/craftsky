@@ -30,7 +30,7 @@ final productsProfileLoaderProvider = Provider<ProductsProfileLoader>((ref) {
   return () async {
     final identity = await ref.read(activeAccountIdentityProvider.future);
     if (identity == null) throw const ProductsUnavailableException();
-    return ref
+    return await ref
         .read(profileRepositoryProvider)
         .fetch(identity.profile.did.toString());
   };
@@ -40,7 +40,7 @@ enum ProductsStatus { ready, saving, ambiguous, conflict, error }
 
 @immutable
 class ProductsState {
-  const ProductsState({
+  const new({
     required this.declaration,
     required this.products,
     this.status = ProductsStatus.ready,
@@ -74,7 +74,7 @@ class ProductsState {
 const _unset = Object();
 
 class ProductsUnavailableException implements Exception {
-  const ProductsUnavailableException();
+  const new();
 }
 
 @Riverpod(keepAlive: true)
@@ -213,14 +213,13 @@ class ProductsController extends _$ProductsController {
         );
     final body = Map<String, dynamic>.from(
       jsonDecode(
-            jsonEncode(
-              current.declaration.toJson(
-                productDrafts: products,
-                preserveUnknownCatalogValues: true,
-              ),
-            ),
-          )
-          as Map,
+        jsonEncode(
+          current.declaration.toJson(
+            productDrafts: products,
+            preserveUnknownCatalogValues: true,
+          ),
+        ),
+      ) as Map,
     );
     const endpoint = '/v1/profiles/me/business';
     final immutableBody = jsonEncode(body);

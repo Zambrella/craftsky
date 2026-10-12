@@ -33,7 +33,7 @@ void main() {
 }
 
 final class _IdentityService implements RevenueCatIdentityService {
-  const _IdentityService(this.identity);
+  const new(this.identity);
 
   final RevenueCatIdentity identity;
 

@@ -207,4 +207,3 @@ class _InteractionWriteResponseCopyWithImpl<$R, $Out>
   $chain<$R2, $Out2>(Then<$Out2, $R2> t) =>
       _InteractionWriteResponseCopyWithImpl<$R2, $Out2>($value, $cast, t);
 }
-

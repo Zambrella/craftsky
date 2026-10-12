@@ -12,7 +12,7 @@ import 'package:craftsky_app/auth/widgets/account_switcher_launcher.dart';
 import 'package:craftsky_app/feed/providers/profile_pins_provider.dart';
 import 'package:craftsky_app/feed/widgets/post_composer_sheet.dart';
 import 'package:craftsky_app/feed/widgets/post_type_chooser.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/notifications/models/notification_badge.dart';
 import 'package:craftsky_app/notifications/providers/notification_new_count_provider.dart';
 import 'package:craftsky_app/profile/models/profile_customisation.dart';
@@ -34,16 +34,16 @@ import 'package:craftsky_app/theme/craftsky_floating_action_button.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/form_factor.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:material_ui/material_ui.dart';
 
 export 'package:craftsky_app/router/app_shell_drawer.dart';
 
 /// Paired icon + label spec for a shell branch destination.
 class _DestinationSpec {
-  const _DestinationSpec({
+  const new({
     required this.icon,
     required this.selectedIcon,
   });
@@ -146,7 +146,7 @@ BorderDirectional _navigationRailBorder(ThemeData theme) => BorderDirectional(
 /// Compact routes remain full-screen because their navigator is returned
 /// unchanged.
 class AuthenticatedShell extends StatefulWidget {
-  const AuthenticatedShell({
+  const new({
     required this.child,
     this.navigatorKey,
     super.key,
@@ -213,7 +213,7 @@ class _AuthenticatedShellState extends State<AuthenticatedShell> {
 }
 
 class _AuthenticatedShellNavigationScope extends InheritedWidget {
-  const _AuthenticatedShellNavigationScope({
+  const new({
     required this.registerComposerContext,
     required super.child,
   });
@@ -231,7 +231,7 @@ class _AuthenticatedShellNavigationScope extends InheritedWidget {
 }
 
 class _LargeShellNavigationFrame extends ConsumerStatefulWidget {
-  const _LargeShellNavigationFrame({
+  const new({
     required this.selectedIndex,
     required this.onDestinationSelected,
     required this.composerContext,
@@ -453,7 +453,7 @@ class _LargeShellNavigationFrameState
 }
 
 class _DesktopSidebarPlaceholder extends StatelessWidget {
-  const _DesktopSidebarPlaceholder();
+  const new();
 
   @override
   Widget build(BuildContext context) {
@@ -476,7 +476,7 @@ class _DesktopSidebarPlaceholder extends StatelessWidget {
 }
 
 class AppShell extends ConsumerStatefulWidget {
-  const AppShell({
+  const new({
     required this.navigationShell,
     this.linkLauncher = launchExternalLink,
     this.confirmOpenLink = showOpenLinkDialog,
@@ -756,7 +756,7 @@ class _AppShellState extends ConsumerState<AppShell> {
 }
 
 class _ShellDrawer extends StatefulWidget {
-  const _ShellDrawer({
+  const new({
     required this.selectedIndex,
     required this.onDestinationSelected,
     required this.notificationBadge,
@@ -968,7 +968,7 @@ class _ShellDrawerState extends State<_ShellDrawer> {
 }
 
 class _ShellNavigationBar extends StatelessWidget {
-  const _ShellNavigationBar({
+  const new({
     required this.selectedIndex,
     required this.onDestinationSelected,
     required this.notificationBadge,
@@ -1052,7 +1052,7 @@ class _ShellNavigationBar extends StatelessWidget {
 }
 
 class _ShellNavigationRail extends StatelessWidget {
-  const _ShellNavigationRail({
+  const new({
     required this.selectedIndex,
     required this.onDestinationSelected,
     required this.notificationBadge,
@@ -1220,7 +1220,7 @@ class _ShellNavigationRail extends StatelessWidget {
 }
 
 class _BuildVersionText extends StatelessWidget {
-  const _BuildVersionText(this.label);
+  const new(this.label);
 
   final String label;
 
@@ -1238,7 +1238,7 @@ class _BuildVersionText extends StatelessWidget {
 }
 
 class _ProfileRailLabel extends StatelessWidget {
-  const _ProfileRailLabel({
+  const new({
     required this.anchorKey,
     required this.label,
     required this.focusNode,
@@ -1277,7 +1277,7 @@ class _ProfileRailLabel extends StatelessWidget {
 }
 
 class _AccountSwitcherButton extends StatelessWidget {
-  const _AccountSwitcherButton({
+  const new({
     required this.focusNode,
     required this.onPressed,
     super.key,
@@ -1344,7 +1344,7 @@ String _destinationSemanticsLabel(
 }
 
 class _DestinationIcon extends StatelessWidget {
-  const _DestinationIcon({
+  const new({
     required this.icon,
     this.badge,
     this.profileAvatarUrl,

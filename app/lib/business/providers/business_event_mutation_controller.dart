@@ -25,7 +25,7 @@ enum EventMutationStatus { ready, saving, ambiguous, conflict, error }
 
 @immutable
 class EventMutationState {
-  const EventMutationState({
+  const new({
     this.status = EventMutationStatus.ready,
     this.serverEvent,
     this.validationErrors = const {},

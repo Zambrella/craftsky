@@ -16,7 +16,7 @@ enum ProfileRelationshipKind { none, muted, blocking, blockedBy, mutualBlock }
       GenerateMethods.decode | GenerateMethods.copy | GenerateMethods.equals,
 )
 class ProfileRelationship with ProfileRelationshipMappable {
-  const ProfileRelationship({
+  const new({
     this.muted = false,
     this.blocking = false,
     this.blockedBy = false,
@@ -29,7 +29,7 @@ class ProfileRelationship with ProfileRelationshipMappable {
     this.initialized = false,
   });
 
-  factory ProfileRelationship.fromProfileFlags({
+  factory fromProfileFlags({
     required bool muted,
     required bool blocking,
     required bool blockedBy,
@@ -68,7 +68,7 @@ class ProfileRelationship with ProfileRelationshipMappable {
 }
 
 class ProfileRelationshipWireHook extends MappingHook {
-  const ProfileRelationshipWireHook();
+  const new();
 
   @override
   Object? beforeDecode(Object? value) {

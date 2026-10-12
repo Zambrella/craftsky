@@ -29,7 +29,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'loopback_service_status.dart';
 
 final class CriticalJourneyHarness {
-  CriticalJourneyHarness._({
+  new _({
     required this.server,
     required this.status,
     required this.storage,
@@ -149,7 +149,7 @@ model.SessionRegistry _initialRegistry() {
 }
 
 final class InMemorySessionRegistryStorage implements SessionRegistryStorage {
-  InMemorySessionRegistryStorage(this.value);
+  new(this.value);
 
   model.SessionRegistry value;
 
@@ -213,7 +213,7 @@ final class IntegrationNotificationService implements NotificationService {
 }
 
 final class RecordedRequest {
-  const RecordedRequest({
+  const new({
     required this.method,
     required this.path,
     required this.authorization,
@@ -227,7 +227,7 @@ final class RecordedRequest {
 }
 
 final class LoopbackAppView {
-  LoopbackAppView._(this._server);
+  new _(this._server);
 
   final HttpServer _server;
   final requests = <RecordedRequest>[];

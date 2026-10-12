@@ -54,7 +54,7 @@ final class CreatePostProvider
   CreatePost create() => CreatePost();
 }
 
-String _$createPostHash() => r'6891144aa078e6e4f37c5d30eab173a235e0c415';
+String _$createPostHash() => r'b005fa63504122406201b3349f3f9298b76f4ea1';
 
 /// Standalone create-a-post mutation notifier. Idle until [create] runs,
 /// then transitions `AsyncLoading` -> `AsyncData(post)` on success, or
@@ -68,7 +68,7 @@ abstract class _$CreatePost extends $AsyncNotifier<Post?> {
   FutureOr<Post?> build();
   @$mustCallSuper
   @override
-  void runBuild() {
+  WhenComplete runBuild() {
     final ref = this.ref as $Ref<AsyncValue<Post?>, Post?>;
     final element =
         ref.element
@@ -78,6 +78,6 @@ abstract class _$CreatePost extends $AsyncNotifier<Post?> {
               Object?,
               Object?
             >;
-    element.handleCreate(ref, build);
+    return element.handleCreate(ref, build);
   }
 }

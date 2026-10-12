@@ -4,7 +4,7 @@ import 'package:craftsky_app/notifications/services/notification_routing_storage
 enum NotificationOpenReadiness { transient, ready, requiresSignIn }
 
 final class PendingNotificationOpenWork {
-  const PendingNotificationOpenWork({
+  const new({
     required this.attempt,
     required this.resolution,
     this.sequence = 0,

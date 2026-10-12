@@ -5,7 +5,7 @@ part 'project_search_filters.mapper.dart';
 /// Supported repeated project search filter families.
 @MappableClass()
 class ProjectSearchFilters with ProjectSearchFiltersMappable {
-  const ProjectSearchFilters({
+  const new({
     this.craftType = const [],
     this.projectType = const [],
     this.patternDifficulty = const [],
@@ -15,16 +15,15 @@ class ProjectSearchFilters with ProjectSearchFiltersMappable {
     this.projectTag = const [],
   });
 
-  factory ProjectSearchFilters.fromMap(Map<String, dynamic> map) =>
-      ProjectSearchFilters(
-        craftType: _strings(map['craftType']),
-        projectType: _strings(map['projectType']),
-        patternDifficulty: _strings(map['patternDifficulty']),
-        color: _strings(map['color']),
-        material: _strings(map['material']),
-        designTag: _strings(map['designTag']),
-        projectTag: _strings(map['projectTag']),
-      );
+  factory fromMap(Map<String, dynamic> map) => ProjectSearchFilters(
+    craftType: _strings(map['craftType']),
+    projectType: _strings(map['projectType']),
+    patternDifficulty: _strings(map['patternDifficulty']),
+    color: _strings(map['color']),
+    material: _strings(map['material']),
+    designTag: _strings(map['designTag']),
+    projectTag: _strings(map['projectTag']),
+  );
 
   final List<String> craftType;
   final List<String> projectType;

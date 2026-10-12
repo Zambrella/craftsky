@@ -2,20 +2,20 @@ import 'dart:async';
 
 import 'package:craftsky_app/business/providers/profile_business_events_provider.dart';
 import 'package:craftsky_app/business/widgets/event_card.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:material_ui/material_ui.dart';
 
 typedef OpenBusinessEvent = void Function(Did did, RecordKey rkey);
 
 class ProfileEventsTab extends ConsumerWidget {
-  const ProfileEventsTab({
+  const new({
     required this.target,
     required this.isOwnProfile,
     required this.onOpen,
@@ -176,7 +176,7 @@ class ProfileEventsTab extends ConsumerWidget {
 }
 
 class _RetryRow extends StatelessWidget {
-  const _RetryRow({required this.message, required this.onRetry});
+  const new({required this.message, required this.onRetry});
 
   final String message;
   final VoidCallback onRetry;

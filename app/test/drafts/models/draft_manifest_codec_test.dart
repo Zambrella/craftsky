@@ -149,9 +149,9 @@ void main() {
   });
 
   test('defaults sponsorship to false when reading an older draft', () {
-    final manifest =
-        jsonDecode(DraftManifestCodec.encode(_emptyDraft()))
-            as Map<String, Object?>;
+    final manifest = jsonDecode(
+      DraftManifestCodec.encode(_emptyDraft()),
+    ) as Map<String, Object?>;
     (manifest['content']! as Map<String, Object?>).remove('sponsored');
 
     final decoded = DraftManifestCodec.decode(jsonEncode(manifest));
@@ -186,11 +186,9 @@ void main() {
   });
 
   test('validates persisted media before returning a draft', () {
-    final manifest =
-        jsonDecode(
-              DraftManifestCodec.encode(_emptyDraft()),
-            )
-            as Map<String, Object?>;
+    final manifest = jsonDecode(
+      DraftManifestCodec.encode(_emptyDraft()),
+    ) as Map<String, Object?>;
     manifest['media'] = [
       {
         'mediaId': '00000000-0000-4000-8000-000000000002',
@@ -222,11 +220,9 @@ void main() {
   });
 
   test('rejects duplicate media identities in a manifest', () {
-    final manifest =
-        jsonDecode(
-              DraftManifestCodec.encode(_emptyDraft()),
-            )
-            as Map<String, Object?>;
+    final manifest = jsonDecode(
+      DraftManifestCodec.encode(_emptyDraft()),
+    ) as Map<String, Object?>;
     manifest['media'] = [
       _validMediaMap(order: 0),
       _validMediaMap(order: 1),

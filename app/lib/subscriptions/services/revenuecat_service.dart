@@ -18,12 +18,11 @@ abstract interface class RevenueCatOffering {
 }
 
 class RevenueCatIdentity {
-  const RevenueCatIdentity._(this.kind, this.appUserId);
+  const new _(this.kind, this.appUserId);
 
-  const RevenueCatIdentity.anonymous()
-    : this._(RevenueCatIdentityKind.anonymous, null);
+  const new anonymous() : this._(RevenueCatIdentityKind.anonymous, null);
 
-  const RevenueCatIdentity.identified(String appUserId)
+  const new identified(String appUserId)
     : this._(RevenueCatIdentityKind.identified, appUserId);
 
   final RevenueCatIdentityKind kind;
@@ -47,7 +46,7 @@ abstract interface class RevenueCatService
 }
 
 final class UnavailableRevenueCatService implements RevenueCatService {
-  const UnavailableRevenueCatService();
+  const new();
 
   @override
   BillingAvailability get availability => BillingAvailability.unavailable;
@@ -79,7 +78,7 @@ final class UnavailableRevenueCatService implements RevenueCatService {
 }
 
 final class RevenueCatUnavailableException implements Exception {
-  const RevenueCatUnavailableException();
+  const new();
 
   @override
   String toString() => 'RevenueCatUnavailableException()';

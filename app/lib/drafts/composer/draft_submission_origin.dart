@@ -3,7 +3,7 @@ import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
 
 /// Tracks the authoritative revision of an already-saved composer origin.
 final class DraftSubmissionOrigin {
-  DraftSubmissionOrigin(this._draft);
+  new(this._draft);
 
   LocalPostDraft? _draft;
 

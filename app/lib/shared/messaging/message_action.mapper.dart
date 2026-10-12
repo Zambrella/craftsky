@@ -150,4 +150,3 @@ class _MessageActionCopyWithImpl<$R, $Out>
     Then<$Out2, $R2> t,
   ) => _MessageActionCopyWithImpl<$R2, $Out2>($value, $cast, t);
 }
-

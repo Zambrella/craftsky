@@ -1,10 +1,10 @@
 import 'package:craftsky_app/theme/theme_extensions.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Banner-overlay status chip ("JACKET WEATHER" in the design mockup).
 /// Currently a passive label; user-settable status is future work.
 class ProfileBannerChip extends StatelessWidget {
-  const ProfileBannerChip({required this.label, super.key});
+  const new({required this.label, super.key});
 
   final String label;
 

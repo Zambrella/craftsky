@@ -81,7 +81,7 @@ void main() {
                 cursor: 'c1',
               );
             }
-            return secondPage.future;
+            return await secondPage.future;
           },
         );
         final container = ProviderContainer.test(

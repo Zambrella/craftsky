@@ -8,7 +8,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 part 'scheduled_posts_provider.g.dart';
 
 final class ScheduledPostListState {
-  ScheduledPostListState(List<ScheduledPostSummary> items)
+  new(List<ScheduledPostSummary> items)
     : items = List.unmodifiable(_sortAndDeduplicate(items));
 
   final List<ScheduledPostSummary> items;

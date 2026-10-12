@@ -4,7 +4,7 @@ import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/business/providers/report_business_event_provider.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/providers/report_post_provider.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/moderation/models/report_result.dart';
 import 'package:craftsky_app/moderation/providers/moderation_providers.dart';
 import 'package:craftsky_app/moderation/widgets/report_subject_sheet.dart';
@@ -13,8 +13,8 @@ import 'package:craftsky_app/router/responsive_modal_navigation.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:material_ui/material_ui.dart';
 
 Future<void> showPostReportSheet(
   BuildContext context,
@@ -75,7 +75,7 @@ Future<void> showBusinessEventReportSheet(
 }
 
 class _PostReportRouteBody extends ConsumerWidget {
-  const _PostReportRouteBody({
+  const new({
     required this.parentContext,
     required this.successMessage,
     required this.post,
@@ -129,7 +129,7 @@ class _PostReportRouteBody extends ConsumerWidget {
 }
 
 class _ProfileReportRouteBody extends ConsumerWidget {
-  const _ProfileReportRouteBody({
+  const new({
     required this.parentContext,
     required this.successMessage,
     required this.did,
@@ -174,7 +174,7 @@ class _ProfileReportRouteBody extends ConsumerWidget {
 }
 
 class _BusinessEventReportRouteBody extends ConsumerWidget {
-  const _BusinessEventReportRouteBody({
+  const new({
     required this.parentContext,
     required this.successMessage,
     required this.account,
@@ -193,9 +193,11 @@ class _BusinessEventReportRouteBody extends ConsumerWidget {
     final provider = reportBusinessEventProvider(account);
     final submitState = ref.watch(provider);
     ref.listen<AsyncValue<ReportResult?>>(provider, (_, next) {
-      if (next case AsyncError(
-        :final error,
-      ) when error is ApiBadRequest && error.code == 'event_not_found') {
+      if (next
+          case AsyncError(
+            :final error,
+          )
+          when error is ApiBadRequest && error.code == 'event_not_found') {
         ref.read(provider.notifier).reset();
         _dismissReportRoute(context);
         return;

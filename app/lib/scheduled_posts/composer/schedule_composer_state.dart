@@ -3,24 +3,24 @@ import 'package:craftsky_app/scheduled_posts/models/schedule_time.dart';
 enum ScheduleChoice { now, later }
 
 final class ScheduleComposerState {
-  const ScheduleComposerState._({
+  const new _({
     required this.choice,
     this.scheduledAt,
     this.missedScheduledAt,
   });
 
-  factory ScheduleComposerState.newPost() {
+  factory newPost() {
     return const ScheduleComposerState._(choice: ScheduleChoice.now);
   }
 
-  factory ScheduleComposerState.futureEdit(ScheduledInstant scheduledAt) {
+  factory futureEdit(ScheduledInstant scheduledAt) {
     return ScheduleComposerState._(
       choice: ScheduleChoice.later,
       scheduledAt: scheduledAt,
     );
   }
 
-  factory ScheduleComposerState.needsAttentionEdit(
+  factory needsAttentionEdit(
     ScheduledInstant missedScheduledAt,
   ) {
     return ScheduleComposerState._(

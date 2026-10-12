@@ -3,7 +3,7 @@ import 'package:craftsky_app/shared/atproto/identifiers.dart';
 /// A server-issued session that remains unusable until the client confirms
 /// that this complete receipt has been durably stored.
 final class PendingHandoff {
-  PendingHandoff({
+  new({
     required this.token,
     required String did,
     required String handle,
@@ -16,7 +16,7 @@ final class PendingHandoff {
     }
   }
 
-  factory PendingHandoff.fromMap(Map<String, dynamic> map) {
+  factory fromMap(Map<String, dynamic> map) {
     final confirmBy = DateTime.tryParse(_requiredString(map, 'confirmBy'));
     if (confirmBy == null) {
       throw const FormatException('Invalid confirmBy');

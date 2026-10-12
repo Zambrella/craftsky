@@ -6,15 +6,17 @@ import 'package:craftsky_app/service_status/data/service_status_repository.dart'
 import 'package:craftsky_app/service_status/models/service_status_document.dart';
 import 'package:web/web.dart' as web;
 
-typedef StatusFetch =
-    Future<web.Response> Function(String uri, web.RequestInit init);
+typedef StatusFetch = Future<web.Response> Function(
+  String uri,
+  web.RequestInit init,
+);
 
 ServiceStatusRepository createServiceStatusRepository(Uri uri) =>
     WebServiceStatusRepository(uri);
 bool isExpectedStatusPlatformFailure(Object error) => false;
 
 final class WebServiceStatusRepository extends ServiceStatusRepository {
-  WebServiceStatusRepository(this.uri, {StatusFetch? fetch})
+  new(this.uri, {StatusFetch? fetch})
     : _fetch =
           fetch ?? ((uri, init) => web.window.fetch(uri.toJS, init).toDart);
   final Uri uri;

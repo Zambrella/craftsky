@@ -5,7 +5,7 @@ part 'profile_account_page.mapper.dart';
 
 @MappableClass()
 class ProfileAccountPage with ProfileAccountPageMappable {
-  const ProfileAccountPage({
+  const new({
     required this.items,
     required this.totalCount,
     this.cursor,

@@ -1,7 +1,7 @@
 import 'package:craftsky_app/subscriptions/services/revenuecat_service.dart';
 
 final class RevenueCatIdentityGuard {
-  const RevenueCatIdentityGuard(this._service);
+  const new(this._service);
 
   final RevenueCatIdentityService _service;
 
@@ -10,7 +10,7 @@ final class RevenueCatIdentityGuard {
     Future<T> Function() operation,
   ) async {
     await requireExact(expectedAppUserId);
-    return operation();
+    return await operation();
   }
 
   Future<void> requireExact(String expectedAppUserId) async {
@@ -26,7 +26,7 @@ final class RevenueCatIdentityGuard {
 }
 
 final class RevenueCatIdentityException implements Exception {
-  const RevenueCatIdentityException(this.code);
+  const new(this.code);
 
   final String code;
 

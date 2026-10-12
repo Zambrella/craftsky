@@ -32,75 +32,81 @@ class DeletePost extends _$DeletePost {
   FutureOr<Post?> build() => null;
 
   Future<void> delete({required Post post}) async {
-    final accountOperation = ActiveAccountOperation.capture(ref);
-    final endpoint = '/v1/posts/${post.author.did}/${post.rkey}';
-    final immutableBody = 'DELETE\nIf-Match:${post.cid}\n';
-    final controller = ref.read(pdsRecordOperationControllerProvider);
-    final scope = postRecordMutationScope(ref, post);
-    final token = controller.beginOrRetry(
-      scope: scope,
-      endpoint: endpoint,
-      immutableBody: immutableBody,
-      newOperationKey: newPdsMutationOperationKey,
-    );
-    final operationKey = token.operationKey;
-    final retry = PdsMutationRetry(
-      ref: ref,
-      controller: controller,
-      token: token,
-      isCurrent: () => accountOperation.isCurrent,
-      requireCurrentToken: false,
-    );
-
-    state = const AsyncLoading<Post?>();
-    late final repository = ref.read(postRepositoryProvider);
-    while (true) {
-      try {
-        await repository.delete(
-          post.author.did,
-          post.rkey,
-          operationKey: operationKey,
-          expectedCid: post.cid.toString(),
-        );
-      } on PdsMutationAmbiguousException catch (error) {
-        final decision = await retry.wait(error);
-        if (!accountOperation.isCurrent) return;
-        switch (decision) {
-          case PdsMutationRetryDecision.obsolete:
-            return;
-          case PdsMutationRetryDecision.exhausted:
-            state = AsyncError<Post?>(
-              const PdsMutationUnresolvedException(),
-              StackTrace.current,
-            );
-            return;
-          case PdsMutationRetryDecision.retry:
-            continue;
-        }
-      } on Object catch (error, stackTrace) {
-        if (!accountOperation.isCurrent) return;
-        controller.markFailed(token);
-        state = AsyncError<Post?>(error, stackTrace);
-        return;
-      }
-      if (!accountOperation.isCurrent) return;
-
-      final reconciliation = PdsAddressedDeleteReconciliation(
-        uri: post.uri.toString(),
+    // This command can be invoked without a widget listening to its state.
+    final lifetime = ref.keepAlive();
+    try {
+      final accountOperation = ActiveAccountOperation.capture(ref);
+      final endpoint = '/v1/posts/${post.author.did}/${post.rkey}';
+      final immutableBody = 'DELETE\nIf-Match:${post.cid}\n';
+      final controller = ref.read(pdsRecordOperationControllerProvider);
+      final scope = postRecordMutationScope(ref, post);
+      final token = controller.beginOrRetry(
+        scope: scope,
+        endpoint: endpoint,
+        immutableBody: immutableBody,
+        newOperationKey: newPdsMutationOperationKey,
       );
-      if (!controller.markAccepted(
-        token,
-        optimisticValue: null,
-        agrees: (value) => reconciliation.agrees(
-          value is PdsRecordProjection ? value : null,
-        ),
-        refresh: () => _invalidateDeletePostReads(ref, post),
-      )) {
+      final operationKey = token.operationKey;
+      final retry = PdsMutationRetry(
+        ref: ref,
+        controller: controller,
+        token: token,
+        isCurrent: () => accountOperation.isCurrent,
+        requireCurrentToken: false,
+      );
+
+      state = const AsyncLoading<Post?>();
+      late final repository = ref.read(postRepositoryProvider);
+      while (true) {
+        try {
+          await repository.delete(
+            post.author.did,
+            post.rkey,
+            operationKey: operationKey,
+            expectedCid: post.cid.toString(),
+          );
+        } on PdsMutationAmbiguousException catch (error) {
+          final decision = await retry.wait(error);
+          if (!accountOperation.isCurrent) return;
+          switch (decision) {
+            case PdsMutationRetryDecision.obsolete:
+              return;
+            case PdsMutationRetryDecision.exhausted:
+              state = AsyncError<Post?>(
+                const PdsMutationUnresolvedException(),
+                StackTrace.current,
+              );
+              return;
+            case PdsMutationRetryDecision.retry:
+              continue;
+          }
+        } on Object catch (error, stackTrace) {
+          if (!accountOperation.isCurrent) return;
+          controller.markFailed(token);
+          state = AsyncError<Post?>(error, stackTrace);
+          return;
+        }
+        if (!accountOperation.isCurrent) return;
+
+        final reconciliation = PdsAddressedDeleteReconciliation(
+          uri: post.uri.toString(),
+        );
+        if (!controller.markAccepted(
+          token,
+          optimisticValue: null,
+          agrees: (value) => reconciliation.agrees(
+            value is PdsRecordProjection ? value : null,
+          ),
+          refresh: () => _invalidateDeletePostReads(ref, post),
+        )) {
+          return;
+        }
+
+        state = AsyncData<Post?>(post);
         return;
       }
-
-      state = AsyncData<Post?>(post);
-      return;
+    } finally {
+      lifetime.close();
     }
   }
 

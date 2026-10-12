@@ -15,14 +15,16 @@ import 'package:craftsky_app/notifications/services/pending_notification_open.da
 typedef NotificationRecipientResolver =
     NotificationRecipientResolution Function(AccountSubscriptionId? binding);
 typedef NotificationLeaseGuard = bool Function(AccountSessionLease lease);
-typedef NotificationAccountActivator =
-    Future<AccountActivationResult> Function(AccountSessionLease lease);
-typedef NotificationOutcomeCallback =
-    FutureOr<void> Function(NotificationOpenOutcome outcome);
+typedef NotificationAccountActivator = Future<AccountActivationResult> Function(
+  AccountSessionLease lease,
+);
+typedef NotificationOutcomeCallback = FutureOr<void> Function(
+  NotificationOpenOutcome outcome,
+);
 typedef NotificationUnavailableCallback = FutureOr<void> Function();
 
 final class NotificationOpenCoordinator {
-  const NotificationOpenCoordinator({
+  const new({
     required NotificationRecipientResolver resolveRecipient,
     required NotificationLeaseGuard isCurrentLease,
     required NotificationAccountActivator activate,

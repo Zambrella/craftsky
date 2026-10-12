@@ -38,7 +38,7 @@ final serviceStatusControllerProvider =
     );
 
 final class ServiceStatusState {
-  const ServiceStatusState({
+  const new({
     this.document,
     this.fetching = false,
     this.dismissalReady = false,
@@ -321,13 +321,12 @@ class ServiceStatusController extends Notifier<ServiceStatusState> {
 }
 
 // Injectable clock boundary for deterministic freshness tests.
-// ignore: one_member_abstracts
 abstract interface class ServiceStatusClock {
   StatusAgeSample sample();
 }
 
 final class StatusAgeSample {
-  const StatusAgeSample(this.elapsed, this.wall);
+  const new(this.elapsed, this.wall);
   final Duration elapsed;
   final DateTime wall;
 }

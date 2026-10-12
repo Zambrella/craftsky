@@ -219,7 +219,7 @@ CraftskyNotification _followFrom(String did) => CraftskyNotification.fromMap({
 });
 
 final class _StaticNotificationRepository implements NotificationRepository {
-  const _StaticNotificationRepository(this.page);
+  const new(this.page);
 
   final NotificationPage page;
 
@@ -232,7 +232,7 @@ final class _StaticNotificationRepository implements NotificationRepository {
 }
 
 final class _StaticNewnessRepository implements NotificationNewnessRepository {
-  const _StaticNewnessRepository(this.value);
+  const new(this.value);
 
   final int value;
 
@@ -245,7 +245,7 @@ final class _StaticNewnessRepository implements NotificationNewnessRepository {
 
 final class _CountingNewnessRepository
     implements NotificationNewnessRepository {
-  _CountingNewnessRepository(this.value);
+  new(this.value);
 
   final int value;
   int countCalls = 0;

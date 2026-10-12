@@ -166,7 +166,7 @@ SubscriptionAccess _access(String did, SubscriptionTier tier) =>
     );
 
 final class _RegistryStorage implements SessionRegistryStorage {
-  _RegistryStorage(this.registry);
+  new(this.registry);
   SessionRegistry registry;
 
   @override
@@ -178,7 +178,7 @@ final class _RegistryStorage implements SessionRegistryStorage {
 }
 
 final class _AccessApi implements SubscriptionApi {
-  _AccessApi(this.result);
+  new(this.result);
   final Future<SubscriptionAccess> result;
   int accessCalls = 0;
   int ownerCalls = 0;

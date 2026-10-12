@@ -8,7 +8,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 part 'local_post_drafts_provider.g.dart';
 
 final class LocalPostDraftListState {
-  LocalPostDraftListState(List<LocalPostDraft> items)
+  new(List<LocalPostDraft> items)
     : items = List.unmodifiable(_sortAndDeduplicate(items));
 
   final List<LocalPostDraft> items;

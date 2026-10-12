@@ -1,7 +1,7 @@
 import 'package:craftsky_app/theme/craftsky_text_inputs.dart';
 
 class CraftskyFormBuilderTextField extends CraftskyFormTextField {
-  const CraftskyFormBuilderTextField({
+  const new({
     required super.name,
     required super.label,
     super.key,
@@ -27,7 +27,7 @@ class CraftskyFormBuilderTextField extends CraftskyFormTextField {
 
 class CraftskyFormBuilderMultilineTextField
     extends CraftskyFormMultilineTextField {
-  const CraftskyFormBuilderMultilineTextField({
+  const new({
     required super.name,
     required super.label,
     super.key,

@@ -53,7 +53,7 @@ final class UserRepostsProvider
   }
 }
 
-String _$userRepostsHash() => r'5236f147b42318baa531f1b33b8952a574234a26';
+String _$userRepostsHash() => r'c69c8087f73e185bc76ad4d85f03dcb2b14aab3c';
 
 /// Cursor-accumulating active repost subjects, keyed by the reposter DID.
 
@@ -93,7 +93,7 @@ abstract class _$UserReposts extends $AsyncNotifier<UserPostsState> {
   FutureOr<UserPostsState> build(Did did);
   @$mustCallSuper
   @override
-  void runBuild() {
+  WhenComplete runBuild() {
     final ref = this.ref as $Ref<AsyncValue<UserPostsState>, UserPostsState>;
     final element =
         ref.element
@@ -103,6 +103,6 @@ abstract class _$UserReposts extends $AsyncNotifier<UserPostsState> {
               Object?,
               Object?
             >;
-    element.handleCreate(ref, () => build(_$args));
+    return element.handleCreate(ref, () => build(_$args));
   }
 }

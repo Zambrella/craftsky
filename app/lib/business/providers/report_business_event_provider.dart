@@ -36,9 +36,11 @@ class ReportBusinessEvent extends _$ReportBusinessEvent {
           .reportEvent(owner, rkey, submission),
     );
     if (!accountOperation.isCurrent) return;
-    if (result case AsyncError(
-      :final error,
-    ) when error is ApiBadRequest && error.code == 'event_not_found') {
+    if (result
+        case AsyncError(
+          :final error,
+        )
+        when error is ApiBadRequest && error.code == 'event_not_found') {
       final target = BusinessEventDetailTarget(
         account: account,
         owner: owner,

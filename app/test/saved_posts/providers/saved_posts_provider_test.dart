@@ -366,7 +366,7 @@ void main() {
 }
 
 final class _ListCall {
-  const _ListCall(this.key, this.cursor);
+  const new(this.key, this.cursor);
   final SavedPostListKey key;
   final String? cursor;
 }

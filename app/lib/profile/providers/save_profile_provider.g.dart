@@ -75,7 +75,7 @@ final class SaveProfileProvider
   SaveProfile create() => SaveProfile();
 }
 
-String _$saveProfileHash() => r'f18cf7336c5749730b548bd73d45ba2ff60c91eb';
+String _$saveProfileHash() => r'd74dbe514b05db49337b05bef157f7dd998609a6';
 
 /// Mutation notifier for the profile-edit page.
 ///
@@ -97,7 +97,7 @@ abstract class _$SaveProfile
   FutureOr<CombinedProfileSaveResult?> build();
   @$mustCallSuper
   @override
-  void runBuild() {
+  WhenComplete runBuild() {
     final ref =
         this.ref
             as $Ref<
@@ -115,6 +115,6 @@ abstract class _$SaveProfile
               Object?,
               Object?
             >;
-    element.handleCreate(ref, build);
+    return element.handleCreate(ref, build);
   }
 }

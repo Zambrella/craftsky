@@ -2,7 +2,7 @@ import 'package:craftsky_app/shared/observability/diagnostic_text.dart';
 import 'package:craftsky_app/shared/observability/error_reporter.dart';
 
 final class SentrySanitizer {
-  const SentrySanitizer._();
+  const new _();
 
   static const _allowedContextKeys = {
     'appErrorKind',

@@ -3,7 +3,7 @@ import 'package:craftsky_app/onboarding/data/onboarding_repository.dart';
 import 'package:craftsky_app/onboarding/models/onboarding_completion.dart';
 
 final class ApiOnboardingRepository implements OnboardingRepository {
-  const ApiOnboardingRepository(this._client);
+  const new(this._client);
 
   final OnboardingApiClient _client;
 

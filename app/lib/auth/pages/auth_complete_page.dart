@@ -5,15 +5,15 @@ import 'package:craftsky_app/auth/models/auth_state.dart';
 import 'package:craftsky_app/auth/providers/auth_controller.dart';
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
 import 'package:craftsky_app/auth/providers/pending_auth_provider.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:material_ui/material_ui.dart';
 
 class AuthCompletePage extends ConsumerStatefulWidget {
-  const AuthCompletePage({this.code, this.error, super.key});
+  const new({this.code, this.error, super.key});
 
   final String? code;
   final String? error;
@@ -145,7 +145,7 @@ class _AuthCompletePageState extends ConsumerState<AuthCompletePage> {
 }
 
 class _AuthCompleteLoading extends StatelessWidget {
-  const _AuthCompleteLoading();
+  const new();
 
   @override
   Widget build(BuildContext context) {
@@ -164,7 +164,7 @@ class _AuthCompleteLoading extends StatelessWidget {
 }
 
 class _AuthCompleteError extends StatelessWidget {
-  const _AuthCompleteError({required this.error, this.onRetry, this.onSignIn});
+  const new({required this.error, this.onRetry, this.onSignIn});
 
   final Object error;
   final VoidCallback? onRetry;
@@ -211,6 +211,6 @@ class _AuthCompleteError extends StatelessWidget {
 
 /// Stand-in for non-AuthError failures so the switch stays exhaustive.
 class GenericAuthError implements Exception {
-  const GenericAuthError(this.cause);
+  const new(this.cause);
   final Object cause;
 }

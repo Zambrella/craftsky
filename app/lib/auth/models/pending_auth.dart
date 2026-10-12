@@ -12,13 +12,13 @@ enum PendingAuthPurpose { signIn, registration }
 /// for exchange-code expiry.
 @MappableClass(includeCustomMappers: [HandleMapper()])
 class PendingAuth with PendingAuthMappable {
-  PendingAuth({
+  new({
     required this.purpose,
     required String? handle,
     required this.startedAt,
   }) : handle = _parseHandle(purpose, handle);
 
-  factory PendingAuth.signIn({
+  factory signIn({
     required String handle,
     required DateTime startedAt,
   }) => PendingAuth(
@@ -27,12 +27,11 @@ class PendingAuth with PendingAuthMappable {
     startedAt: startedAt,
   );
 
-  factory PendingAuth.registration({required DateTime startedAt}) =>
-      PendingAuth(
-        purpose: PendingAuthPurpose.registration,
-        handle: null,
-        startedAt: startedAt,
-      );
+  factory registration({required DateTime startedAt}) => PendingAuth(
+    purpose: PendingAuthPurpose.registration,
+    handle: null,
+    startedAt: startedAt,
+  );
 
   final PendingAuthPurpose purpose;
   final Handle? handle;

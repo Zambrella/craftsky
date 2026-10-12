@@ -12,7 +12,7 @@ part 'profile_account_summary.mapper.dart';
   ],
 )
 class ProfileAccountSummary with ProfileAccountSummaryMappable {
-  ProfileAccountSummary({
+  new({
     required String did,
     required String handle,
     required this.isCraftskyProfile,

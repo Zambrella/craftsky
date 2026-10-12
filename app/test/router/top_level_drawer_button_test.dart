@@ -1,5 +1,5 @@
 import 'package:craftsky_app/feed/pages/feed_page.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/notifications/data/notification_repository.dart';
 import 'package:craftsky_app/notifications/models/notification_category.dart';
 import 'package:craftsky_app/notifications/models/notification_page.dart';
@@ -13,9 +13,9 @@ import 'package:craftsky_app/search/pages/search_page.dart';
 import 'package:craftsky_app/search/providers/search_repository_provider.dart';
 import 'package:craftsky_app/shared/widgets/craft_icon.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../search/fakes/fake_search_repository.dart';
 
@@ -64,7 +64,7 @@ void main() {
           ],
           child: MaterialApp(
             theme: AppTheme.lightThemeData,
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            localizationsDelegates: appLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             home: AppShellDrawerScope(
               openDrawer: () => openCount += 1,
@@ -91,7 +91,7 @@ void _doNothing() {}
 
 final class _EmptyNotificationRepository
     implements NotificationRepository, NotificationNewnessRepository {
-  const _EmptyNotificationRepository();
+  const new();
 
   @override
   Future<NotificationPage> list({

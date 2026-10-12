@@ -7,20 +7,20 @@ enum ProfileSaveOutcomeStatus { skipped, succeeded, failed }
 enum ProfileSaveFailureKind { general, conflict }
 
 class PerRecordSaveOutcome<T> {
-  const PerRecordSaveOutcome.skipped()
+  const new skipped()
     : status = ProfileSaveOutcomeStatus.skipped,
       value = null,
       error = null,
       stackTrace = null,
       failureKind = null;
 
-  const PerRecordSaveOutcome.success(T this.value)
+  const new success(T this.value)
     : status = ProfileSaveOutcomeStatus.succeeded,
       error = null,
       stackTrace = null,
       failureKind = null;
 
-  factory PerRecordSaveOutcome.failure(Object error, [StackTrace? stackTrace]) {
+  factory failure(Object error, [StackTrace? stackTrace]) {
     return PerRecordSaveOutcome._failure(
       error,
       stackTrace,
@@ -30,7 +30,7 @@ class PerRecordSaveOutcome<T> {
     );
   }
 
-  const PerRecordSaveOutcome._failure(
+  const new _failure(
     this.error,
     this.stackTrace,
     this.failureKind,
@@ -49,7 +49,7 @@ class PerRecordSaveOutcome<T> {
 }
 
 class CombinedProfileSaveResult {
-  const CombinedProfileSaveResult({
+  const new({
     required this.ordinary,
     required this.business,
   });

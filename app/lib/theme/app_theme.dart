@@ -1,10 +1,10 @@
 import 'package:craftsky_app/theme/brand_colors.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
+import 'package:cupertino_ui/cupertino_ui.dart';
 import 'package:flex_color_scheme/flex_color_scheme.dart';
-import 'package:flutter/cupertino.dart';
-import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// CraftSky theme — paper-cutout direction. Warm cream paper, ink-black rules,
 /// cobalt + electric red accents. See `docs/design/design-system.md` and
@@ -12,7 +12,7 @@ import 'package:google_fonts/google_fonts.dart';
 ///
 /// Dark mode translates the same paper-cutout system onto warm charcoal paper.
 class AppTheme {
-  AppTheme._();
+  new _();
 
   static final ThemeData lightThemeData = _buildLight();
   static final ThemeData darkThemeData = _buildDark();

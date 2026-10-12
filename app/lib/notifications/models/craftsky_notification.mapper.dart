@@ -899,4 +899,3 @@ class _NotificationCommonCopyWithImpl<$R, $Out>
     Then<$Out2, $R2> t,
   ) => _NotificationCommonCopyWithImpl<$R2, $Out2>($value, $cast, t);
 }
-

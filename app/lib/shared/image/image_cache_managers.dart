@@ -6,9 +6,9 @@ import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 /// are safe and avoid re-downloading reusable identity images under
 /// LRU pressure from larger feed media.
 class ProfileImageCacheManager extends CacheManager {
-  factory ProfileImageCacheManager() => _instance;
+  factory() => _instance;
 
-  ProfileImageCacheManager._()
+  new _()
     : super(
         Config(
           _key,
@@ -26,9 +26,9 @@ class ProfileImageCacheManager extends CacheManager {
 /// in v1 — wired up so adding feed-image call sites later is a one-line
 /// change.
 class FeedImageCacheManager extends CacheManager {
-  factory FeedImageCacheManager() => _instance;
+  factory() => _instance;
 
-  FeedImageCacheManager._()
+  new _()
     : super(
         Config(
           _key,

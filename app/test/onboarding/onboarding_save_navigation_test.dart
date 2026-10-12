@@ -4,21 +4,21 @@ import 'package:craftsky_app/auth/models/active_account_initialization.dart';
 import 'package:craftsky_app/auth/models/session_registry.dart';
 import 'package:craftsky_app/auth/providers/active_account_initialization_provider.dart';
 import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/languages/models/language_preferences.dart';
 import 'package:craftsky_app/onboarding/pages/onboarding_page.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/shared/mutations/pds_record_operation_controller.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../profile/fakes/fake_profile_repository.dart';
 
 final class _Storage implements SessionRegistryStorage {
-  _Storage(this.value);
+  new(this.value);
   SessionRegistry value;
 
   @override
@@ -101,17 +101,16 @@ Future<void> _pumpPage(
   );
   final repository = FakeProfileRepository(
     onFetchMe: () async => _profile(displayName: 'Alice'),
-    onUpdateMe:
-        ({
-          displayName,
-          pronouns,
-          description,
-          crafts,
-          avatar,
-          clearAvatar = false,
-          banner,
-          clearBanner = false,
-        }) => onUpdate(),
+    onUpdateMe: ({
+      displayName,
+      pronouns,
+      description,
+      crafts,
+      avatar,
+      clearAvatar = false,
+      banner,
+      clearBanner = false,
+    }) => onUpdate(),
   );
   final container = ProviderContainer.test(
     overrides: [
@@ -142,7 +141,7 @@ Future<void> _pumpPage(
       container: container,
       child: MaterialApp(
         theme: AppTheme.lightThemeData,
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        localizationsDelegates: appLocalizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         home: const OnboardingPage(),
       ),

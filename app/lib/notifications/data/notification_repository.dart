@@ -7,7 +7,6 @@ import 'package:craftsky_app/notifications/services/notification_registration_co
 // Repository interfaces are intentionally one-method seams for AppView-backed
 // notification data sources and test fakes.
 // Ignored because this boundary intentionally remains a one-method seam.
-// ignore: one_member_abstracts
 abstract interface class NotificationRepository {
   Future<NotificationPage> list({
     String? cursor,
@@ -17,7 +16,6 @@ abstract interface class NotificationRepository {
 }
 
 // Ignored because registration is a deliberately narrow adapter boundary.
-// ignore: one_member_abstracts
 abstract interface class NotificationDeviceRepository {
   Future<AccountSubscriptionId> register({
     required NotificationPlatform platform,

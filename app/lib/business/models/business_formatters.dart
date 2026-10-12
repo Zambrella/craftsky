@@ -1,6 +1,6 @@
 import 'package:craftsky_app/business/models/business_event.dart';
 import 'package:craftsky_app/business/models/business_profile.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:intl/intl.dart';
 import 'package:l10n_countries/l10n_countries.dart';
 import 'package:sealed_countries/sealed_countries.dart';
@@ -81,7 +81,7 @@ abstract final class BusinessFormatters {
 }
 
 final class BusinessEventDisplay {
-  const BusinessEventDisplay({required this.date, required this.time});
+  const new({required this.date, required this.time});
 
   final String date;
   final String time;

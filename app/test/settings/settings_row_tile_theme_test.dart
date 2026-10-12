@@ -3,8 +3,8 @@ import 'package:craftsky_app/settings/widgets/settings_row_tile.dart';
 import 'package:craftsky_app/subscriptions/subscription_build_config.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 void main() {
   for (final variant in ['ordinary', 'locked', 'disabled', 'destructive']) {

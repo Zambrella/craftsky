@@ -44,7 +44,7 @@ enum EventDraftError {
 
 @immutable
 class BusinessEventUtcRange {
-  const BusinessEventUtcRange({required this.startsAt, required this.endsAt});
+  const new({required this.startsAt, required this.endsAt});
 
   final String startsAt;
   final String endsAt;
@@ -52,7 +52,7 @@ class BusinessEventUtcRange {
 
 @immutable
 class BusinessEventDraft {
-  const BusinessEventDraft({
+  const new({
     required this.name,
     required this.startsAt,
     required this.endsAt,
@@ -68,7 +68,7 @@ class BusinessEventDraft {
     this.image = const MissingBusinessImageDraft(),
   });
 
-  factory BusinessEventDraft.fromEvent(
+  factory fromEvent(
     BusinessEvent event, {
     BusinessTimeZoneService? timeZones,
   }) {
@@ -242,7 +242,7 @@ class BusinessEventDraft {
 }
 
 class BusinessEventDraftValidationException implements Exception {
-  const BusinessEventDraftValidationException(this.errors);
+  const new(this.errors);
 
   final Set<EventDraftError> errors;
 }
@@ -276,7 +276,7 @@ String _canonicalUtc(DateTime value) {
 /// cannot erase values authored by another client.
 @immutable
 class BusinessDeclarationDraft {
-  const BusinessDeclarationDraft({
+  const new({
     required this.businessTypes,
     required this.offerings,
     required this.products,
@@ -288,13 +288,13 @@ class BusinessDeclarationDraft {
     this.primaryAction,
   });
 
-  factory BusinessDeclarationDraft.empty() => const BusinessDeclarationDraft(
+  factory empty() => const BusinessDeclarationDraft(
     businessTypes: [],
     offerings: [],
     products: [],
   );
 
-  factory BusinessDeclarationDraft.fromProfile(BusinessProfile? profile) {
+  factory fromProfile(BusinessProfile? profile) {
     if (profile == null) return BusinessDeclarationDraft.empty();
     return BusinessDeclarationDraft(
       expectedCid: profile.cid,
@@ -487,7 +487,7 @@ enum ProductDraftError {
 
 @immutable
 sealed class BusinessImageDraft {
-  const BusinessImageDraft();
+  const new();
 
   String get alt;
   bool get hasImage;
@@ -499,7 +499,7 @@ sealed class BusinessImageDraft {
 }
 
 final class MissingBusinessImageDraft extends BusinessImageDraft {
-  const MissingBusinessImageDraft();
+  const new();
 
   @override
   String get alt => '';
@@ -515,7 +515,7 @@ final class MissingBusinessImageDraft extends BusinessImageDraft {
 }
 
 final class RemovedBusinessImageDraft extends BusinessImageDraft {
-  const RemovedBusinessImageDraft();
+  const new();
 
   @override
   String get alt => '';
@@ -531,7 +531,7 @@ final class RemovedBusinessImageDraft extends BusinessImageDraft {
 }
 
 final class ExistingBusinessImageDraft extends BusinessImageDraft {
-  ExistingBusinessImageDraft(BusinessImageView image, {String? alt})
+  new(BusinessImageView image, {String? alt})
     : cid = image.cid.toString(),
       mime = image.mime,
       size = image.size,
@@ -539,7 +539,7 @@ final class ExistingBusinessImageDraft extends BusinessImageDraft {
       aspectRatio = image.aspectRatio,
       previewUrl = image.thumb;
 
-  const ExistingBusinessImageDraft._({
+  const new _({
     required this.cid,
     required this.mime,
     required this.size,
@@ -584,7 +584,7 @@ final class ExistingBusinessImageDraft extends BusinessImageDraft {
 }
 
 final class UploadedBusinessImageDraft extends BusinessImageDraft {
-  const UploadedBusinessImageDraft({
+  const new({
     required this.cid,
     required this.mime,
     required this.size,
@@ -593,7 +593,7 @@ final class UploadedBusinessImageDraft extends BusinessImageDraft {
     this.localPreviewBytes,
   });
 
-  factory UploadedBusinessImageDraft.fromUpload(
+  factory fromUpload(
     UploadedImageBlob upload, {
     String alt = '',
     BusinessImageAspectRatio? aspectRatio,
@@ -646,7 +646,7 @@ final class UploadedBusinessImageDraft extends BusinessImageDraft {
 
 @immutable
 class ProductDraft {
-  const ProductDraft({
+  const new({
     required this.id,
     required this.title,
     required this.destination,
@@ -655,17 +655,16 @@ class ProductDraft {
     this.currency = '',
   });
 
-  factory ProductDraft.fromView(BusinessProductView product, String id) =>
-      ProductDraft(
-        id: id,
-        title: product.title,
-        destination: product.uri ?? '',
-        image: product.image == null
-            ? const MissingBusinessImageDraft()
-            : ExistingBusinessImageDraft(product.image!),
-        amount: product.price?.amount ?? '',
-        currency: product.price?.currency ?? '',
-      );
+  factory fromView(BusinessProductView product, String id) => ProductDraft(
+    id: id,
+    title: product.title,
+    destination: product.uri ?? '',
+    image: product.image == null
+        ? const MissingBusinessImageDraft()
+        : ExistingBusinessImageDraft(product.image!),
+    amount: product.price?.amount ?? '',
+    currency: product.price?.currency ?? '',
+  );
 
   final String id;
   final String title;

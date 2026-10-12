@@ -2,8 +2,8 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:craftsky_app/shared/image/image_cache_providers.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Circular paper-cutout avatar with the selected custom inside border and
 /// hard-offset drop shadow that are signature to the design system.
@@ -16,7 +16,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// person glyph because the brand voice prefers a warm, hand-cut
 /// character.
 class ProfileAvatar extends ConsumerWidget {
-  const ProfileAvatar({
+  const new({
     required this.seed,
     this.avatarUrl,
     this.imageProvider,
@@ -134,7 +134,7 @@ Color _fallbackBackgroundFor(String seed, BrandSwatchTheme swatches) {
 }
 
 class _AvatarInitialFallback extends StatelessWidget {
-  const _AvatarInitialFallback({
+  const new({
     required this.seed,
     required this.dimension,
     required this.backgroundColor,
@@ -170,7 +170,7 @@ enum ProfileAvatarSize {
   medium(dimension: 48),
   large(dimension: 96);
 
-  const ProfileAvatarSize({required this.dimension});
+  new({required this.dimension});
 
   final double dimension;
 

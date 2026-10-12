@@ -41,8 +41,7 @@ void main() {
           'mode': 'maintenance',
           'revision': 'plain',
           'title': '<script>alert(1)</script>',
-          'message':
-              '[Open](https://example.invalid) <a href="https://example.invalid">link</a>',
+          'message': '[Open](https://example.invalid) <a href="https://example.invalid">link</a>',
           'apiUrl': 'https://example.invalid',
           'action': {'url': 'https://example.invalid'},
           'featureFlags': {'skipAuth': true},
@@ -107,13 +106,11 @@ void main() {
     );
   });
   test('shared literal contract corpus', () {
-    final corpus =
-        jsonDecode(
-              File(
-                '../service-status/contract-fixtures.json',
-              ).readAsStringSync(),
-            )
-            as List<dynamic>;
+    final corpus = jsonDecode(
+      File(
+        '../service-status/contract-fixtures.json',
+      ).readAsStringSync(),
+    ) as List<dynamic>;
     for (final entry in corpus.cast<Map<String, dynamic>>()) {
       final bytes = utf8.encode(jsonEncode(entry['document']));
       if (entry['accepted'] == true) {

@@ -1,13 +1,13 @@
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/notifications/data/notification_repository.dart';
 import 'package:craftsky_app/notifications/providers/notification_repository_provider.dart';
 import 'package:craftsky_app/router/app_shell.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/form_factor.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:material_ui/material_ui.dart';
 
 void main() {
   testWidgets(
@@ -84,7 +84,7 @@ Future<void> _pumpShell(WidgetTester tester, Size size) async {
       child: MaterialApp.router(
         routerConfig: router,
         theme: AppTheme.lightThemeData,
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        localizationsDelegates: appLocalizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         builder: (context, child) => FormFactorWidget(child: child!),
       ),
@@ -121,7 +121,7 @@ GoRouter _buildRouter() => GoRouter(
 );
 
 final class _NewnessRepository implements NotificationNewnessRepository {
-  const _NewnessRepository(this.value);
+  const new(this.value);
 
   final int value;
 

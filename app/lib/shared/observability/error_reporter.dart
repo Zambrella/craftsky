@@ -15,7 +15,7 @@ abstract interface class ErrorReporter {
 }
 
 final class NoopErrorReporter implements ErrorReporter {
-  const NoopErrorReporter();
+  const new();
 
   @override
   bool get enabled => false;
@@ -31,7 +31,7 @@ final class NoopErrorReporter implements ErrorReporter {
 }
 
 final class GuardedErrorReporter implements ErrorReporter {
-  const GuardedErrorReporter(this._delegate, {this._fallbackSink});
+  const new(this._delegate, {this._fallbackSink});
   final PlatformLogSink? _fallbackSink;
 
   final ErrorReporter _delegate;
@@ -102,7 +102,7 @@ void emitLocalTelemetryFailure(
 enum DiagnosticOutcome { automatic, expected, retry, terminal }
 
 final class ReportContext {
-  const ReportContext({
+  const new({
     required this.feature,
     required this.operation,
     required this.classification,
@@ -123,7 +123,7 @@ final class ReportContext {
 
 @immutable
 final class SafeBreadcrumb {
-  const SafeBreadcrumb({
+  const new({
     required this.category,
     required this.message,
     this.data = const {},
@@ -157,12 +157,12 @@ bool _mapEquals(Map<String, Object?> a, Map<String, Object?> b) {
 
 /// Workflow visibility never grants permission to format arbitrary errors.
 sealed class DiagnosticWorkflow {
-  const DiagnosticWorkflow();
+  const new();
   Map<String, Object?> get selectedFields;
 }
 
 final class PublicRecordContext extends DiagnosticWorkflow {
-  const PublicRecordContext({
+  const new({
     this.actorDid,
     this.targetDid,
     this.recordUri,
@@ -191,7 +191,7 @@ final class PublicRecordContext extends DiagnosticWorkflow {
 }
 
 final class AttemptedPublicDidContext extends DiagnosticWorkflow {
-  const AttemptedPublicDidContext(this.value);
+  const new(this.value);
   static final _attemptedDid = RegExp(r'^did:[a-z0-9]+:[A-Za-z0-9._:!-]+$');
   final String value;
   @override
@@ -206,7 +206,7 @@ final class AttemptedPublicDidContext extends DiagnosticWorkflow {
 
 /// Construct only from an already published record failing decode/indexing.
 final class PublishedRecordParseFailureContext extends DiagnosticWorkflow {
-  const PublishedRecordParseFailureContext({
+  const new({
     required this.record,
     required this.text,
   });
@@ -222,7 +222,7 @@ final class PublishedRecordParseFailureContext extends DiagnosticWorkflow {
 /// Explicit summary adapter for selected public model references and bounded
 /// coarse state. Callers must declare a public workflow before passing record.
 final class ModelDiagnosticSummary extends DiagnosticWorkflow {
-  const ModelDiagnosticSummary({
+  const new({
     required this.model,
     required this.state,
     this.record,
@@ -272,7 +272,7 @@ enum DiagnosticModelState {
 /// Construct at the operational failure boundary using its initiating account
 /// and an existing non-capability workflow ID, never a target or receipt.
 final class PrivateOperationalFailureContext extends DiagnosticWorkflow {
-  const PrivateOperationalFailureContext({
+  const new({
     required this.accountDid,
     this.workflowRef,
   });

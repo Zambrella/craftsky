@@ -17,7 +17,7 @@ import 'package:craftsky_app/shared/atproto/identifiers.dart';
 
 /// Production [PostRepository] backed by the AppView HTTP API.
 class ApiPostRepository implements PostRepository {
-  const ApiPostRepository(this._api);
+  const new(this._api);
 
   final PostApiClient _api;
 

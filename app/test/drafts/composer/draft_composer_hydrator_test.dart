@@ -76,7 +76,7 @@ const _missing = DraftMediaDescriptor(
 );
 
 final class _MediaRepository implements LocalPostDraftRepository {
-  _MediaRepository(this.bytes);
+  new(this.bytes);
 
   final Map<String, Uint8List> bytes;
 

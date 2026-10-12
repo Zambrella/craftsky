@@ -64,7 +64,7 @@ final class FollowerGrowthProvider
   }
 }
 
-String _$followerGrowthHash() => r'13e051e7ca998805204da9b32f134386bdd18bff';
+String _$followerGrowthHash() => r'd7f0b92bb9dcb397f746aca91b79d8aac2187b0c';
 
 final class FollowerGrowthFamily extends $Family
     with

@@ -9,7 +9,7 @@ part 'notifications_state.mapper.dart';
   generateMethods: GenerateMethods.copy | GenerateMethods.equals,
 )
 final class NotificationsState with NotificationsStateMappable {
-  const NotificationsState({
+  const new({
     required this.items,
     required this.renderToken,
     this.cursor,

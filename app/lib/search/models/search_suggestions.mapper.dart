@@ -547,4 +547,3 @@ class _SearchSuggestionHashtagSectionCopyWithImpl<$R, $Out>
   $chain<$R2, $Out2>(Then<$Out2, $R2> t) =>
       _SearchSuggestionHashtagSectionCopyWithImpl<$R2, $Out2>($value, $cast, t);
 }
-

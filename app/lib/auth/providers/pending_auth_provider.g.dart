@@ -60,7 +60,7 @@ abstract class _$PendingAuth extends $Notifier<model.PendingAuth?> {
   model.PendingAuth? build();
   @$mustCallSuper
   @override
-  void runBuild() {
+  WhenComplete runBuild() {
     final ref = this.ref as $Ref<model.PendingAuth?, model.PendingAuth?>;
     final element =
         ref.element
@@ -70,6 +70,6 @@ abstract class _$PendingAuth extends $Notifier<model.PendingAuth?> {
               Object?,
               Object?
             >;
-    element.handleCreate(ref, build);
+    return element.handleCreate(ref, build);
   }
 }

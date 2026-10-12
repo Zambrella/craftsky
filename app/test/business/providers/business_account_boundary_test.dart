@@ -25,7 +25,7 @@ import 'package:craftsky_app/business/providers/profile_business_events_provider
 import 'package:craftsky_app/business/providers/report_business_event_provider.dart';
 import 'package:craftsky_app/business/services/business_time_zone_service.dart';
 import 'package:craftsky_app/business/widgets/product_editor.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/moderation/models/report_result.dart';
 import 'package:craftsky_app/moderation/models/report_submission.dart';
 import 'package:craftsky_app/profile/data/profile_repository.dart';
@@ -37,9 +37,9 @@ import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/media/uploaded_image_blob.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 void main() {
   setUpAll(initializeMappers);
@@ -427,7 +427,7 @@ void main() {
           container: container,
           child: MaterialApp(
             theme: AppTheme.lightThemeData,
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            localizationsDelegates: appLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             home: Scaffold(
               body: ProductEditor(
@@ -504,7 +504,7 @@ SessionRegistry _registry() => SessionRegistry.empty()
     );
 
 final class _RegistryStorage implements SessionRegistryStorage {
-  _RegistryStorage(this.value);
+  new(this.value);
 
   SessionRegistry value;
 
@@ -516,7 +516,7 @@ final class _RegistryStorage implements SessionRegistryStorage {
 }
 
 final class _ReadBusinessRepository extends Fake implements BusinessRepository {
-  _ReadBusinessRepository({
+  new({
     required this.alicePublicMore,
     required this.aliceOwnerMore,
     required this.aliceDetail,
@@ -599,7 +599,7 @@ final class _ReadBusinessRepository extends Fake implements BusinessRepository {
 }
 
 final class _ReadProfileRepository extends Fake implements ProfileRepository {
-  _ReadProfileRepository(this.aliceProfile);
+  new(this.aliceProfile);
 
   final Completer<Profile> aliceProfile;
   int aliceCalls = 0;

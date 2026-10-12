@@ -3,7 +3,7 @@ import 'package:craftsky_app/shared/api/api_unwrap.dart';
 import 'package:dio/dio.dart';
 
 final class LanguagePreferencesApiClient {
-  const LanguagePreferencesApiClient(this._dio);
+  const new(this._dio);
 
   final Dio _dio;
 

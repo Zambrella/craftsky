@@ -8,7 +8,7 @@ import 'package:craftsky_app/moderation/models/report_submission.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 
 class ApiBusinessRepository implements BusinessRepository {
-  const ApiBusinessRepository(this._api, this._timeZones);
+  const new(this._api, this._timeZones);
 
   final BusinessApiClient _api;
   final BusinessTimeZoneService _timeZones;

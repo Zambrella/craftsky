@@ -8,7 +8,7 @@ import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 
 final class VideoProbeResult {
-  const VideoProbeResult({
+  const new({
     required this.duration,
     required this.width,
     required this.height,
@@ -22,7 +22,7 @@ final class VideoProbeResult {
 }
 
 final class ImagePickerExistingVideo implements ExistingVideoPicker {
-  ImagePickerExistingVideo({
+  new({
     Future<XFile?> Function()? pick,
     Future<VideoProbeResult> Function(XFile file)? probe,
   }) : _pick =

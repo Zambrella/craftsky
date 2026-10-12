@@ -36,7 +36,7 @@ enum InstagramVerificationRetryCode {
 @MappableClass(generateMethods: _instagramVerificationValueMethods)
 final class InstagramVerificationAttempt
     with InstagramVerificationAttemptMappable {
-  const InstagramVerificationAttempt({
+  const new({
     required this.verificationId,
     required this.state,
     required this.expiresAt,
@@ -46,7 +46,7 @@ final class InstagramVerificationAttempt
     this.retryCode,
   });
 
-  factory InstagramVerificationAttempt.fromMap(Map<String, dynamic> map) {
+  factory fromMap(Map<String, dynamic> map) {
     final attempt = InstagramVerificationAttempt._decode(map);
     final candidateRequired =
         attempt.state == InstagramVerificationState.pendingConfirmation;
@@ -60,7 +60,7 @@ final class InstagramVerificationAttempt
     return attempt;
   }
 
-  factory InstagramVerificationAttempt.fromCreationMap(
+  factory fromCreationMap(
     Map<String, dynamic> map,
   ) {
     final attempt = InstagramVerificationAttempt._decode(map);
@@ -76,7 +76,7 @@ final class InstagramVerificationAttempt
     return attempt;
   }
 
-  factory InstagramVerificationAttempt._decode(Map<String, dynamic> map) {
+  factory _decode(Map<String, dynamic> map) {
     final verificationId = map['verificationId'];
     final state = map['state'];
     final expiresAt = map['expiresAt'];

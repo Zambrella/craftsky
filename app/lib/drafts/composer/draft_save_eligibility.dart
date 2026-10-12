@@ -3,7 +3,7 @@ enum DraftComposerKind { standard, project, quote, reply }
 
 /// Deliberate differences from the composer's initial editable state.
 class DraftComposerChanges {
-  const DraftComposerChanges({
+  const new({
     this.textChanged = false,
     this.attachmentChanged = false,
     this.altTextChanged = false,

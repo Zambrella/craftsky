@@ -187,4 +187,3 @@ class _SavedPostPresentationCopyWithImpl<$R, $Out>
   $chain<$R2, $Out2>(Then<$Out2, $R2> t) =>
       _SavedPostPresentationCopyWithImpl<$R2, $Out2>($value, $cast, t);
 }
-

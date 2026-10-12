@@ -12,7 +12,7 @@ import 'package:craftsky_app/feed/models/post_page.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/feed/widgets/post_composer_sheet.dart';
 import 'package:craftsky_app/instagram_migration/pages/instagram_migration_page.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/languages/data/language_preferences_repository.dart';
 import 'package:craftsky_app/languages/models/language_preferences.dart';
 import 'package:craftsky_app/languages/pages/languages_page.dart';
@@ -42,9 +42,9 @@ import 'package:craftsky_app/subscriptions/subscription_build_config.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/form_factor.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../fakes/auth_session_fakes.dart';
@@ -125,7 +125,7 @@ void main() {
         child: MaterialApp.router(
           routerConfig: router,
           theme: AppTheme.lightThemeData,
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: appLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           builder: (context, child) => MessengerScope(
             messenger: RecordingMessenger(),
@@ -187,7 +187,7 @@ void main() {
             child: MaterialApp.router(
               routerConfig: router,
               theme: AppTheme.lightThemeData,
-              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              localizationsDelegates: appLocalizationsDelegates,
               supportedLocales: AppLocalizations.supportedLocales,
               builder: (context, child) => MessengerScope(
                 messenger: RecordingMessenger(),
@@ -249,7 +249,7 @@ void main() {
         child: MaterialApp.router(
           routerConfig: router,
           theme: AppTheme.lightThemeData,
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: appLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           builder: (context, child) => MessengerScope(
             messenger: RecordingMessenger(),
@@ -313,7 +313,7 @@ void main() {
             child: MaterialApp.router(
               routerConfig: router,
               theme: AppTheme.lightThemeData,
-              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              localizationsDelegates: appLocalizationsDelegates,
               supportedLocales: AppLocalizations.supportedLocales,
               builder: (context, child) => MessengerScope(
                 messenger: RecordingMessenger(),
@@ -382,7 +382,7 @@ void main() {
         child: MaterialApp.router(
           routerConfig: router,
           theme: AppTheme.lightThemeData,
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: appLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           builder: (context, child) => MessengerScope(
             messenger: RecordingMessenger(),
@@ -451,7 +451,7 @@ void main() {
             child: MaterialApp.router(
               routerConfig: router,
               theme: AppTheme.lightThemeData,
-              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              localizationsDelegates: appLocalizationsDelegates,
               supportedLocales: AppLocalizations.supportedLocales,
               builder: (context, child) => MessengerScope(
                 messenger: RecordingMessenger(),
@@ -511,7 +511,7 @@ void main() {
         child: MaterialApp.router(
           routerConfig: router,
           theme: AppTheme.lightThemeData,
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: appLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           builder: (context, child) => FormFactorWidget(child: child!),
         ),
@@ -588,7 +588,7 @@ ProviderContainer _container() => ProviderContainer.test(
 );
 
 final class _SettingsRouteRegistryStorage implements SessionRegistryStorage {
-  _SettingsRouteRegistryStorage(this.registry);
+  new(this.registry);
   SessionRegistry registry;
   @override
   Future<SessionRegistry> read() async => registry;
@@ -598,7 +598,7 @@ final class _SettingsRouteRegistryStorage implements SessionRegistryStorage {
 }
 
 final class _LanguageRepository implements LanguagePreferencesRepository {
-  const _LanguageRepository();
+  const new();
 
   static const value = LanguagePreferences(
     primaryLanguage: 'en',
@@ -704,7 +704,7 @@ final _routeCases = <_SettingsRouteCase>[
 ];
 
 final class _SettingsRouteCase {
-  const _SettingsRouteCase({
+  const new({
     required this.label,
     required this.location,
     required this.matchesPage,

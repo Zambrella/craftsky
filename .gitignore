@@ -25,6 +25,7 @@ appview/devmedia/*
 .DS_Store
 
 # Flutter ignores are in app/.gitignore (created by `flutter create`)
+.fvm/
 
 # Standalone Instagram importer
 instagram-importer/node_modules/

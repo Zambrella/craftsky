@@ -156,4 +156,3 @@ class _PostPageCopyWithImpl<$R, $Out>
     Then<$Out2, $R2> t,
   ) => _PostPageCopyWithImpl<$R2, $Out2>($value, $cast, t);
 }
-

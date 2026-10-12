@@ -10,7 +10,7 @@ import 'package:craftsky_app/feed/providers/toggle_like_post_provider.dart';
 import 'package:craftsky_app/feed/providers/toggle_repost_post_provider.dart';
 import 'package:craftsky_app/feed/widgets/post_card.dart';
 import 'package:craftsky_app/feed/widgets/post_composer_sheet.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/moderation/widgets/report_flow.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
@@ -22,11 +22,11 @@ import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:material_ui/material_ui.dart';
 
 class PostQuotesPage extends ConsumerWidget {
-  const PostQuotesPage({required this.did, required this.rkey, super.key});
+  const new({required this.did, required this.rkey, super.key});
 
   final Did did;
   final RecordKey rkey;
@@ -203,7 +203,7 @@ class PostQuotesPage extends ConsumerWidget {
 }
 
 class _InitialError extends StatelessWidget {
-  const _InitialError({required this.error, required this.onRetry});
+  const new({required this.error, required this.onRetry});
 
   final Object error;
   final VoidCallback onRetry;

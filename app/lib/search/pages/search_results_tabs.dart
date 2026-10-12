@@ -1,7 +1,7 @@
 part of 'search_page.dart';
 
 class _SearchResultsTabs extends StatefulWidget {
-  const _SearchResultsTabs({
+  const new({
     required this.query,
     required this.initialTab,
     required this.onOpenHashtag,
@@ -85,7 +85,7 @@ class _SearchResultsTabsState extends State<_SearchResultsTabs>
 }
 
 class _SearchResultsTabBarDelegate extends SliverPersistentHeaderDelegate {
-  const _SearchResultsTabBarDelegate({required this.controller});
+  const new({required this.controller});
 
   final TabController controller;
 
@@ -136,7 +136,7 @@ class _SearchResultsTabBarDelegate extends SliverPersistentHeaderDelegate {
 }
 
 class _SearchResultTabScrollView extends ConsumerWidget {
-  const _SearchResultTabScrollView({
+  const new({
     required this.tab,
     required this.query,
     required this.onOpenHashtag,
@@ -187,7 +187,7 @@ class _SearchResultTabScrollView extends ConsumerWidget {
 }
 
 class _SubmittedPostResults extends ConsumerWidget {
-  const _SubmittedPostResults({required this.query});
+  const new({required this.query});
 
   final String query;
 
@@ -223,7 +223,7 @@ class _SubmittedPostResults extends ConsumerWidget {
 }
 
 class _SubmittedProjectResults extends ConsumerWidget {
-  const _SubmittedProjectResults({required this.query});
+  const new({required this.query});
 
   final String query;
 
@@ -259,7 +259,7 @@ class _SubmittedProjectResults extends ConsumerWidget {
 }
 
 class _ProfileResultsSliver extends ConsumerWidget {
-  const _ProfileResultsSliver({required this.query});
+  const new({required this.query});
 
   final String query;
 
@@ -304,7 +304,7 @@ class _ProfileResultsSliver extends ConsumerWidget {
 }
 
 class _HashtagResultsSliver extends ConsumerWidget {
-  const _HashtagResultsSliver({
+  const new({
     required this.query,
     required this.onOpenHashtag,
   });

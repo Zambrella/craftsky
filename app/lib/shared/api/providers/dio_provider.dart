@@ -167,7 +167,7 @@ Duration _durationFromMilliseconds(int milliseconds) =>
 /// Delays outgoing AppView requests to make transient loading UI inspectable.
 @visibleForTesting
 final class DebugApiDelayInterceptor extends Interceptor {
-  DebugApiDelayInterceptor(
+  new(
     this.delay, {
     Future<void> Function(Duration)? wait,
   }) : _wait = wait ?? Future<void>.delayed;

@@ -5,7 +5,7 @@ import 'package:craftsky_app/business/data/business_repository.dart';
 import 'package:craftsky_app/business/models/business_event.dart';
 import 'package:craftsky_app/business/models/business_profile.dart';
 import 'package:craftsky_app/business/providers/business_repository_provider.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/pages/edit_profile_dialog.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
@@ -20,10 +20,10 @@ import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
 import 'package:craftsky_app/subscriptions/providers/subscription_access_provider.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../business/accessibility_test_helpers.dart';
 import '../fakes/auth_session_fakes.dart';
@@ -91,7 +91,7 @@ Future<void> _pumpEditDialog(
         child: MaterialApp(
           scaffoldMessengerKey: scaffoldMessengerKey,
           theme: AppTheme.lightThemeData,
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: appLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: Builder(
             builder: (context) {
@@ -118,7 +118,7 @@ Future<void> _pumpEditDialog(
 }
 
 final class _EditRegistryStorage implements SessionRegistryStorage {
-  _EditRegistryStorage(this.registry);
+  new(this.registry);
   SessionRegistry registry;
   @override
   Future<SessionRegistry> read() async => registry;
@@ -1071,7 +1071,7 @@ final _businessDeclaration = BusinessProfile(
 
 final class _RecordingBusinessRepository extends Fake
     implements BusinessRepository {
-  _RecordingBusinessRepository({this.failFirst = false, this.firstError});
+  new({this.failFirst = false, this.firstError});
 
   final bool failFirst;
   final Exception? firstError;

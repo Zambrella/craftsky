@@ -50,7 +50,7 @@ void main() {
 }
 
 final class _FakeRepository implements ModerationRepository {
-  const _FakeRepository({required this.strikes});
+  const new({required this.strikes});
 
   final int strikes;
 

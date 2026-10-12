@@ -20,7 +20,7 @@ part 'profile.mapper.dart';
   ],
 )
 class Profile with ProfileMappable {
-  Profile({
+  new({
     required String did,
     required String handle,
     required this.crafts,

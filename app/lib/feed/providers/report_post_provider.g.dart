@@ -33,13 +33,13 @@ final class ReportPostProvider
   ReportPost create() => ReportPost();
 }
 
-String _$reportPostHash() => r'0f54b13775824b22096eb46df9a7b16db8ce6ff9';
+String _$reportPostHash() => r'ba50e0ae1673f5a0e6148704816994d65f2d86fa';
 
 abstract class _$ReportPost extends $AsyncNotifier<ReportResult?> {
   FutureOr<ReportResult?> build();
   @$mustCallSuper
   @override
-  void runBuild() {
+  WhenComplete runBuild() {
     final ref = this.ref as $Ref<AsyncValue<ReportResult?>, ReportResult?>;
     final element =
         ref.element
@@ -49,6 +49,6 @@ abstract class _$ReportPost extends $AsyncNotifier<ReportResult?> {
               Object?,
               Object?
             >;
-    element.handleCreate(ref, build);
+    return element.handleCreate(ref, build);
   }
 }

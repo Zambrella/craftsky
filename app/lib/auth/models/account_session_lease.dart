@@ -4,7 +4,7 @@ import 'package:flutter/foundation.dart';
 /// Immutable authority for async work started by one stored session.
 @immutable
 final class AccountSessionLease {
-  const AccountSessionLease({
+  const new({
     required this.account,
     required this.sessionGeneration,
   });
@@ -27,7 +27,7 @@ final class AccountSessionLease {
 
 @immutable
 final class ActiveAccountLease {
-  const ActiveAccountLease({
+  const new({
     required this.session,
     required this.activationGeneration,
   });

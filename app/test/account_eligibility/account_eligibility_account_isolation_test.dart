@@ -12,7 +12,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 final class _Storage implements SessionRegistryStorage {
-  _Storage(this.value);
+  new(this.value);
   SessionRegistry value;
 
   @override
@@ -23,7 +23,7 @@ final class _Storage implements SessionRegistryStorage {
 }
 
 final class _Repository implements AccountEligibilityRepository {
-  _Repository(this.result);
+  new(this.result);
   final Future<AccountEligibilityStatus> result;
 
   @override

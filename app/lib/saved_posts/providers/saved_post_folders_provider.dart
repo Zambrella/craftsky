@@ -19,7 +19,7 @@ part 'saved_post_folders_provider.mapper.dart';
 @immutable
 @MappableClass(generateMethods: GenerateMethods.copy | GenerateMethods.equals)
 final class SavedPostFolderListState with SavedPostFolderListStateMappable {
-  SavedPostFolderListState({
+  new({
     required List<SavedPostFolder> items,
     this.cursor,
     this.isLoadingMore = false,
@@ -30,7 +30,7 @@ final class SavedPostFolderListState with SavedPostFolderListStateMappable {
   }) : items = List.unmodifiable(items),
        retainedFolders = Map.unmodifiable(retainedFolders);
 
-  factory SavedPostFolderListState.fromPage(SavedPostFolderPage page) =>
+  factory fromPage(SavedPostFolderPage page) =>
       SavedPostFolderListState(items: page.items, cursor: page.cursor);
 
   final List<SavedPostFolder> items;
@@ -106,7 +106,8 @@ final class SavedPostFolderListState with SavedPostFolderListStateMappable {
     final existsInItems = items.any((item) => item.id == folder.id);
     return SavedPostFolderListState(
       items: [
-        for (final item in items) item.id == folder.id ? folder : item,
+        for (final item in items)
+          if (item.id == folder.id) folder else item,
       ],
       retainedFolders: {
         ...retainedFolders,

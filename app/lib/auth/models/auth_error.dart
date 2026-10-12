@@ -4,24 +4,24 @@ import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
 /// User-actionable auth errors surfaced by `AuthController`. Sealed so
 /// call sites can exhaustively switch on them.
 sealed class AuthError implements Exception {
-  const AuthError();
+  const new();
 }
 
 /// User submitted an empty handle.
 final class HandleRequired extends AuthError {
-  const HandleRequired();
+  const new();
 }
 
 /// Server rejected the handle (e.g. malformed). Mapped from any
 /// non-specific 4xx from `/v1/auth/login`.
 final class InvalidHandle extends AuthError {
-  const InvalidHandle();
+  const new();
 }
 
 /// AppView is unreachable or returned 5xx, or the device is offline.
 final class ServerUnavailable extends AuthError
     implements DiagnosticFailureCause {
-  const ServerUnavailable({this.cause, this.stackTrace});
+  const new({this.cause, this.stackTrace});
   final Object? cause;
   final StackTrace? stackTrace;
   @override
@@ -32,19 +32,19 @@ final class ServerUnavailable extends AuthError
 
 /// `url_launcher` failed to open the system browser.
 final class BrowserLaunchFailed extends AuthError {
-  const BrowserLaunchFailed();
+  const new();
 }
 
 /// The AppView rejected an absent, expired, or already-consumed handoff code or
 /// confirmation receipt. The server clock is authoritative for expiry.
 final class SignInTimedOut extends AuthError {
-  const SignInTimedOut();
+  const new();
 }
 
 /// `flutter_secure_storage` read/write failed (Android keystore issues,
 /// platform quirks).
 final class StorageFailure extends AuthError implements DiagnosticFailureCause {
-  const StorageFailure(this.cause, {this.stackTrace});
+  const new(this.cause, {this.stackTrace});
   final StackTrace? stackTrace;
   @override
   Object get diagnosticCause => cause;

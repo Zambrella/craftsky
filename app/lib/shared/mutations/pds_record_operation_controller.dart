@@ -7,14 +7,16 @@ import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-typedef PdsMutationScheduler =
-    void Function(Duration delay, void Function() callback);
+typedef PdsMutationScheduler = void Function(
+  Duration delay,
+  void Function() callback,
+);
 
 enum PdsMutationStatus { inFlight, ambiguous, failed }
 
 @immutable
 final class PdsMutationScope {
-  const PdsMutationScope({required this.lease, required this.identity});
+  const new({required this.lease, required this.identity});
 
   final AccountSessionLease lease;
   final String identity;
@@ -34,7 +36,7 @@ final class PdsMutationScope {
 
 @immutable
 final class PdsMutationToken {
-  const PdsMutationToken._({
+  const new _({
     required this.scope,
     required this.operationKey,
     required this.endpoint,
@@ -53,7 +55,7 @@ final class PdsMutationToken {
 
 @immutable
 final class PdsMutationOperation {
-  const PdsMutationOperation({
+  const new({
     required this.token,
     required this.status,
     this.retryAfterSeconds,
@@ -74,7 +76,7 @@ final class PdsMutationOperation {
 }
 
 final class PdsMutationOverlay {
-  PdsMutationOverlay({
+  new({
     required this.token,
     required this.optimisticValue,
     required this.acceptedAt,
@@ -97,7 +99,7 @@ final class PdsMutationOverlay {
 }
 
 final class PdsRecordOperationController {
-  PdsRecordOperationController({
+  new({
     DateTime Function()? now,
     void Function(PdsMutationScope scope)? refreshScope,
     PdsMutationScheduler? schedule,
@@ -345,7 +347,7 @@ final pdsMutationJitterProvider = Provider<int Function(int)>(
 
 /// A late result belongs to a discarded account session or a newer operation.
 final class PdsMutationObsoleteException implements Exception {
-  const PdsMutationObsoleteException();
+  const new();
 }
 
 enum PdsMutationRetryDecision { retry, obsolete, exhausted }
@@ -353,7 +355,7 @@ enum PdsMutationRetryDecision { retry, obsolete, exhausted }
 /// One retry budget and ownership boundary for both the shared runner and
 /// feature adapters with distinct exhausted/obsolete outcome presentation.
 final class PdsMutationRetry {
-  PdsMutationRetry({
+  new({
     required Ref ref,
     required PdsRecordOperationController controller,
     required PdsMutationToken token,
@@ -452,7 +454,7 @@ Future<T> runPdsMutation<T>({
 
 @immutable
 final class PdsMutationRetryPolicy {
-  const PdsMutationRetryPolicy();
+  const new();
 
   static const _localBackoffSeconds = <int>[1, 2, 4, 5, 5, 5];
   static const _maximumElapsed = Duration(seconds: 30);

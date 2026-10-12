@@ -15,7 +15,7 @@ const int _notificationValueMethods =
     GenerateMethods.copy;
 
 sealed class CraftskyNotification {
-  const CraftskyNotification({
+  const new({
     required this.id,
     required this.createdAt,
     required this.indexedAt,
@@ -146,7 +146,7 @@ sealed class CraftskyNotification {
 }
 
 sealed class ActorNotification extends CraftskyNotification {
-  ActorNotification({
+  new({
     required super.id,
     required this.actor,
     required super.createdAt,
@@ -157,7 +157,7 @@ sealed class ActorNotification extends CraftskyNotification {
 }
 
 sealed class SocialNotification extends ActorNotification {
-  SocialNotification(NotificationCommon common)
+  new(NotificationCommon common)
     : uri = common.uri,
       cid = common.cid,
       rkey = common.rkey,
@@ -174,14 +174,14 @@ sealed class SocialNotification extends ActorNotification {
 }
 
 final class FollowNotification extends SocialNotification {
-  FollowNotification(super.common);
+  new(super.common);
 
   @override
   NotificationCategory get type => NotificationCategory.follow;
 }
 
 sealed class SubjectPostNotification extends SocialNotification {
-  SubjectPostNotification(
+  new(
     super.common, {
     required this.subjectPost,
   });
@@ -190,21 +190,21 @@ sealed class SubjectPostNotification extends SocialNotification {
 }
 
 final class LikeNotification extends SubjectPostNotification {
-  LikeNotification(super.common, {required super.subjectPost});
+  new(super.common, {required super.subjectPost});
 
   @override
   NotificationCategory get type => NotificationCategory.like;
 }
 
 final class RepostNotification extends SubjectPostNotification {
-  RepostNotification(super.common, {required super.subjectPost});
+  new(super.common, {required super.subjectPost});
 
   @override
   NotificationCategory get type => NotificationCategory.repost;
 }
 
 final class ReplyNotification extends SubjectPostNotification {
-  ReplyNotification(super.common, {required super.subjectPost, this.reply});
+  new(super.common, {required super.subjectPost, this.reply});
 
   final NotificationReplyRef? reply;
 
@@ -213,21 +213,21 @@ final class ReplyNotification extends SubjectPostNotification {
 }
 
 final class MentionNotification extends SubjectPostNotification {
-  MentionNotification(super.common, {required super.subjectPost});
+  new(super.common, {required super.subjectPost});
 
   @override
   NotificationCategory get type => NotificationCategory.mention;
 }
 
 final class QuoteNotification extends SubjectPostNotification {
-  QuoteNotification(super.common, {required super.subjectPost});
+  new(super.common, {required super.subjectPost});
 
   @override
   NotificationCategory get type => NotificationCategory.quote;
 }
 
 final class GenericNotification extends SocialNotification {
-  GenericNotification(
+  new(
     super.common, {
     required this.originalType,
   });
@@ -239,7 +239,7 @@ final class GenericNotification extends SocialNotification {
 }
 
 final class UnavailableNotification extends SocialNotification {
-  UnavailableNotification(
+  new(
     super.common, {
     required this.originalType,
   });
@@ -251,7 +251,7 @@ final class UnavailableNotification extends SocialNotification {
 }
 
 sealed class SystemNotification extends CraftskyNotification {
-  SystemNotification(SystemNotificationCommon common)
+  new(SystemNotificationCommon common)
     : super(
         id: common.id,
         createdAt: common.createdAt,
@@ -260,7 +260,7 @@ sealed class SystemNotification extends CraftskyNotification {
 }
 
 final class InstagramMatchNotification extends ActorNotification {
-  InstagramMatchNotification(ActorNotificationCommon common)
+  new(ActorNotificationCommon common)
     : super(
         id: common.id,
         actor: common.actor,
@@ -277,14 +277,14 @@ final class InstagramMatchNotification extends ActorNotification {
       GenerateMethods.decode | GenerateMethods.copy | GenerateMethods.equals,
 )
 final class ActorNotificationCommon with ActorNotificationCommonMappable {
-  const ActorNotificationCommon({
+  const new({
     required this.id,
     required this.actor,
     required this.createdAt,
     required this.indexedAt,
   });
 
-  factory ActorNotificationCommon.fromMap(Map<String, dynamic> map) =>
+  factory fromMap(Map<String, dynamic> map) =>
       ActorNotificationCommonMapper.fromMap(map);
 
   final String id;
@@ -294,7 +294,7 @@ final class ActorNotificationCommon with ActorNotificationCommonMappable {
 }
 
 final class GenericSystemNotification extends SystemNotification {
-  GenericSystemNotification(
+  new(
     super.common, {
     required this.originalType,
   });
@@ -306,7 +306,7 @@ final class GenericSystemNotification extends SystemNotification {
 }
 
 final class ModerationNotification extends SystemNotification {
-  ModerationNotification(super.common, {required this.caseReference});
+  new(super.common, {required this.caseReference});
 
   final ModerationCaseReference caseReference;
 
@@ -319,13 +319,13 @@ final class ModerationNotification extends SystemNotification {
       GenerateMethods.decode | GenerateMethods.copy | GenerateMethods.equals,
 )
 final class SystemNotificationCommon with SystemNotificationCommonMappable {
-  const SystemNotificationCommon({
+  const new({
     required this.id,
     required this.createdAt,
     required this.indexedAt,
   });
 
-  factory SystemNotificationCommon.fromMap(Map<String, dynamic> map) =>
+  factory fromMap(Map<String, dynamic> map) =>
       SystemNotificationCommonMapper.fromMap(map);
 
   final String id;
@@ -343,7 +343,7 @@ final class SystemNotificationCommon with SystemNotificationCommonMappable {
   ],
 )
 final class NotificationActor with NotificationActorMappable {
-  const NotificationActor({
+  const new({
     required this.did,
     required this.handle,
     this.displayName,
@@ -357,17 +357,16 @@ final class NotificationActor with NotificationActorMappable {
     this.customisation = ProfileCustomisation.defaults,
   });
 
-  factory NotificationActor.fromMap(Map<String, dynamic> map) =>
-      NotificationActorMapper.fromMap({
-        ...map,
-        'did': (map['did'] as String?)?.isNotEmpty == true
-            ? map['did']
-            : 'did:plc:unavailable',
-        'handle': (map['handle'] as String?)?.isNotEmpty == true
-            ? map['handle']
-            : 'unavailable.invalid',
-        'available': map['available'] as bool? ?? true,
-      });
+  factory fromMap(Map<String, dynamic> map) => NotificationActorMapper.fromMap({
+    ...map,
+    'did': (map['did'] as String?)?.isNotEmpty == true
+        ? map['did']
+        : 'did:plc:unavailable',
+    'handle': (map['handle'] as String?)?.isNotEmpty == true
+        ? map['handle']
+        : 'unavailable.invalid',
+    'available': map['available'] as bool? ?? true,
+  });
 
   final Did did;
   final Handle handle;
@@ -407,13 +406,13 @@ final class NotificationActor with NotificationActorMappable {
   includeCustomMappers: [AtUriMapper(), CidMapper(), RecordKeyMapper()],
 )
 final class NotificationReplyRef with NotificationReplyRefMappable {
-  const NotificationReplyRef({
+  const new({
     required this.uri,
     required this.cid,
     required this.rkey,
   });
 
-  factory NotificationReplyRef.fromMap(Map<String, dynamic> map) =>
+  factory fromMap(Map<String, dynamic> map) =>
       NotificationReplyRefMapper.fromMap(map);
 
   final AtUri uri;
@@ -426,7 +425,7 @@ final class NotificationReplyRef with NotificationReplyRefMappable {
   includeCustomMappers: [AtUriMapper(), CidMapper(), RecordKeyMapper()],
 )
 final class NotificationCommon with NotificationCommonMappable {
-  const NotificationCommon({
+  const new({
     required this.id,
     required this.uri,
     required this.cid,
@@ -436,7 +435,7 @@ final class NotificationCommon with NotificationCommonMappable {
     required this.indexedAt,
   });
 
-  factory NotificationCommon.fromMap(Map<String, dynamic> map) {
+  factory fromMap(Map<String, dynamic> map) {
     final uri =
         map['uri'] as String? ??
         'at://did:plc:unavailable/social.craftsky.notification/unavailable';

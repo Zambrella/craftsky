@@ -4,13 +4,13 @@ import 'package:flutter/foundation.dart';
 
 @immutable
 final class SavedPostsOverview {
-  SavedPostsOverview._({
+  new _({
     required List<SavedPostFolder> folders,
     required List<SavedPostItem> unfiledItems,
   }) : folders = List.unmodifiable(folders),
        unfiledItems = List.unmodifiable(unfiledItems);
 
-  factory SavedPostsOverview.project({
+  factory project({
     required List<SavedPostFolder> folders,
     required List<SavedPostItem> items,
     required SavedPostSort sort,

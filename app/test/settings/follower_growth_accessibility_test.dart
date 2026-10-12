@@ -1,11 +1,11 @@
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations_en.dart';
 import 'package:craftsky_app/profile/models/follower_growth.dart';
 import 'package:craftsky_app/settings/widgets/follower_growth_chart.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:fl_chart/fl_chart.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 void main() {
   testWidgets('chart preserves null gaps and exposes one textual summary', (
@@ -30,7 +30,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         theme: AppTheme.lightThemeData,
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        localizationsDelegates: appLocalizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         home: Scaffold(
           body: FollowerGrowthChart(
@@ -85,7 +85,7 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           theme: AppTheme.darkThemeData,
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: appLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: Scaffold(
             body: FollowerGrowthChart(
@@ -146,7 +146,7 @@ void main() {
           supportedLocales: const [Locale('de')],
           localizationsDelegates: const [
             _TestAppLocalizationsDelegate(),
-            ...AppLocalizations.localizationsDelegates,
+            ...appLocalizationsDelegates,
           ],
           builder: (context, child) => MediaQuery(
             data: MediaQuery.of(
@@ -252,7 +252,7 @@ Future<void> _pumpChart(WidgetTester tester, FollowerGrowth growth) async {
   await tester.pumpWidget(
     MaterialApp(
       theme: AppTheme.lightThemeData,
-      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      localizationsDelegates: appLocalizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
       home: Scaffold(
         body: FollowerGrowthChart(growth: growth, period: growth.period),
@@ -264,7 +264,7 @@ Future<void> _pumpChart(WidgetTester tester, FollowerGrowth growth) async {
 
 class _TestAppLocalizationsDelegate
     extends LocalizationsDelegate<AppLocalizations> {
-  const _TestAppLocalizationsDelegate();
+  const new();
 
   @override
   bool isSupported(Locale locale) => true;

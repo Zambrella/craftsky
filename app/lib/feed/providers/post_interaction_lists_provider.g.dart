@@ -56,7 +56,7 @@ final class PostInteractionAccountsProvider
 }
 
 String _$postInteractionAccountsHash() =>
-    r'b43f4ddcdea1c5327ad01222e221c9a84cff562b';
+    r'acac46c088e019f0003c879d89966a338a9416dc';
 
 final class PostInteractionAccountsFamily extends $Family
     with
@@ -103,7 +103,7 @@ abstract class _$PostInteractionAccounts
   );
   @$mustCallSuper
   @override
-  void runBuild() {
+  WhenComplete runBuild() {
     final ref =
         this.ref
             as $Ref<
@@ -121,7 +121,10 @@ abstract class _$PostInteractionAccounts
               Object?,
               Object?
             >;
-    element.handleCreate(ref, () => build(_$args.$1, _$args.$2, _$args.$3));
+    return element.handleCreate(
+      ref,
+      () => build(_$args.$1, _$args.$2, _$args.$3),
+    );
   }
 }
 
@@ -166,7 +169,7 @@ final class PostQuotesProvider
   }
 }
 
-String _$postQuotesHash() => r'199908b8e77a32684912573857f30e39bf73846c';
+String _$postQuotesHash() => r'b2dcaa4e3c281a6daf230e5846279c95ec396746';
 
 final class PostQuotesFamily extends $Family
     with
@@ -201,7 +204,7 @@ abstract class _$PostQuotes extends $AsyncNotifier<PostQuotesState> {
   FutureOr<PostQuotesState> build(Did did, RecordKey rkey);
   @$mustCallSuper
   @override
-  void runBuild() {
+  WhenComplete runBuild() {
     final ref = this.ref as $Ref<AsyncValue<PostQuotesState>, PostQuotesState>;
     final element =
         ref.element
@@ -211,6 +214,6 @@ abstract class _$PostQuotes extends $AsyncNotifier<PostQuotesState> {
               Object?,
               Object?
             >;
-    element.handleCreate(ref, () => build(_$args.$1, _$args.$2));
+    return element.handleCreate(ref, () => build(_$args.$1, _$args.$2));
   }
 }

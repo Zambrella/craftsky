@@ -1308,4 +1308,3 @@ class _FocusContextCopyWithImpl<$R, $Out>
     Then<$Out2, $R2> t,
   ) => _FocusContextCopyWithImpl<$R2, $Out2>($value, $cast, t);
 }
-

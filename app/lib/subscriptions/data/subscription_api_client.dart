@@ -13,7 +13,7 @@ abstract interface class SubscriptionApi {
 }
 
 final class SubscriptionApiClient implements SubscriptionApi {
-  const SubscriptionApiClient(this._dio);
+  const new(this._dio);
 
   final Dio _dio;
 

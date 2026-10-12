@@ -24,7 +24,7 @@ class ReportPost extends _$ReportPost {
     state = const AsyncLoading();
     final result = await AsyncValue.guard(() async {
       final repo = ref.read(postRepositoryProvider);
-      return repo.report(did, rkey, submission);
+      return await repo.report(did, rkey, submission);
     });
     accountOperation.publish(() => state = result);
   }

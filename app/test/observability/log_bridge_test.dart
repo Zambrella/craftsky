@@ -18,9 +18,8 @@ void main() {
         await Sentry.init((options) {
           options
             ..dsn = 'https://public@example.invalid/1'
-            ..transport = transport
-            ..enableLogs = enabled;
-          configureDiagnosticOptions(options);
+            ..transport = transport;
+          configureDiagnosticOptions(options, enableLogs: enabled);
         });
         addTearDown(Sentry.close);
         final local = <String>[];

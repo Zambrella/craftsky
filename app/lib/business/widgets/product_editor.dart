@@ -5,7 +5,7 @@ import 'package:craftsky_app/business/models/business_drafts.dart';
 import 'package:craftsky_app/feed/models/create_post_image.dart';
 import 'package:craftsky_app/feed/providers/composer_image_state.dart';
 import 'package:craftsky_app/feed/widgets/composer_image_attachment_section.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/profile/providers/profile_image_picker_provider.dart';
 import 'package:craftsky_app/router/responsive_modal_navigation.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
@@ -13,19 +13,18 @@ import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:craftsky_app/theme/craftsky_select_inputs.dart';
 import 'package:craftsky_app/theme/craftsky_text_inputs.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:l10n_currencies/l10n_currencies.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:sealed_countries/sealed_countries.dart';
 import 'package:uuid/uuid.dart';
 
-typedef ProductImagePicker =
-    Future<ProfileImagePickResult?> Function(
-      ImageSource source,
-      void Function(Uint8List bytes) onPreviewReady,
-    );
+typedef ProductImagePicker = Future<ProfileImagePickResult?> Function(
+  ImageSource source,
+  void Function(Uint8List bytes) onPreviewReady,
+);
 
 Future<ProductDraft?> showProductEditorSheet(
   BuildContext context, {
@@ -49,7 +48,7 @@ Future<ProductDraft?> showProductEditorSheet(
 }
 
 class ProductEditor extends ConsumerStatefulWidget {
-  const ProductEditor({
+  const new({
     required this.onSave,
     this.initial,
     this.pickImage,

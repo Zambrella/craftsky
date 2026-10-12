@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:craftsky_app/app_dependencies.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/settings/about_version.dart';
 import 'package:craftsky_app/settings/models/settings_row.dart';
 import 'package:craftsky_app/settings/settings_links.dart';
@@ -10,11 +10,11 @@ import 'package:craftsky_app/settings/widgets/settings_row_tile.dart';
 import 'package:craftsky_app/shared/link/external_link.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:material_ui/material_ui.dart';
 
 class AboutPage extends ConsumerWidget {
-  const AboutPage({
+  const new({
     this.linkLauncher = launchExternalLink,
     this.version,
     this.buildNumber,

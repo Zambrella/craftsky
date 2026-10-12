@@ -1,7 +1,7 @@
 part of '../craftsky_select_inputs.dart';
 
 class CraftskySearchableMultiSelectInput<T> extends StatefulWidget {
-  const CraftskySearchableMultiSelectInput({
+  const new({
     required this.label,
     required this.options,
     super.key,

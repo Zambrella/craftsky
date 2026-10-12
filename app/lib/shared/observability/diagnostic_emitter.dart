@@ -1,4 +1,5 @@
 import 'dart:convert';
+
 import 'package:craftsky_app/shared/observability/diagnostic_details.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_text.dart';
 import 'package:craftsky_app/shared/observability/error_reporter.dart';
@@ -9,7 +10,7 @@ import 'package:logging/logging.dart';
 
 /// Static developer message plus a few operational fields; never a payload.
 final class DiagnosticMessage {
-  const DiagnosticMessage(
+  const new(
     this.message, {
     required this.context,
     this.significant = false,
@@ -23,7 +24,7 @@ final class DiagnosticMessage {
 
 /// One brief console record. Sentry retains the richer exception and stack.
 final class DiagnosticEmitter {
-  DiagnosticEmitter({
+  new({
     PlatformLogSink? platformSink,
     this.debugLogs = const bool.fromEnvironment(
       'CRAFTSKY_DEBUG_LOGS',

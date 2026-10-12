@@ -19,7 +19,7 @@ enum AssignmentMutationOutcome {
 }
 
 final class AssignmentMutationResult {
-  const AssignmentMutationResult({
+  const new({
     required this.outcome,
     this.ownerState,
     this.targetAccess,
@@ -31,7 +31,7 @@ final class AssignmentMutationResult {
 }
 
 final class SubscriptionAssignmentController {
-  SubscriptionAssignmentController({
+  new({
     required this.ownerGuard,
     required this.readRegistry,
     required this.api,

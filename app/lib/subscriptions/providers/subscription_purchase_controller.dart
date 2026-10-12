@@ -20,7 +20,7 @@ enum SubscriptionPurchaseOutcome {
 }
 
 final class SubscriptionPurchaseResult {
-  const SubscriptionPurchaseResult({
+  const new({
     required this.outcome,
     this.state,
     this.assignmentLicense,
@@ -36,7 +36,7 @@ final class SubscriptionPurchaseResult {
 }
 
 final class SubscriptionPurchaseController {
-  const SubscriptionPurchaseController({
+  const new({
     required this.ownerGuard,
     required this.api,
     required this.presentPaywall,
@@ -113,7 +113,7 @@ final class SubscriptionPurchaseController {
     }
     if (!isForeground()) return _pendingRetry(tier, beforeProvider);
 
-    return _reconcilePurchase(owner, tier, beforeProvider);
+    return await _reconcilePurchase(owner, tier, beforeProvider);
   }
 
   Future<SubscriptionPurchaseResult> _reconcilePurchase(
@@ -226,7 +226,7 @@ final class SubscriptionPurchaseController {
     } on BillingOwnerGuardException {
       return _pendingRetry(tier, beforeProvider);
     }
-    return _reconcilePurchase(owner, tier, beforeProvider);
+    return await _reconcilePurchase(owner, tier, beforeProvider);
   }
 
   SubscriptionPurchaseResult _pendingRetry(

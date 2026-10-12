@@ -23,7 +23,7 @@ class ReportProfile extends _$ReportProfile {
     state = const AsyncLoading();
     final result = await AsyncValue.guard(() async {
       final repo = ref.read(profileRepositoryProvider);
-      return repo.report(did.toString(), submission);
+      return await repo.report(did.toString(), submission);
     });
     accountOperation.publish(() => state = result);
   }

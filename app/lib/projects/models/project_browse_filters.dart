@@ -4,25 +4,25 @@ import 'package:dart_mappable/dart_mappable.dart';
 part 'project_browse_filters.mapper.dart';
 
 final class CraftTypeFilterToken {
-  const CraftTypeFilterToken(this.value);
+  const new(this.value);
 
   final String value;
 }
 
 final class ProjectTypeFilterToken {
-  const ProjectTypeFilterToken(this.value);
+  const new(this.value);
 
   final String value;
 }
 
 final class PatternDifficultyFilterToken {
-  const PatternDifficultyFilterToken(this.value);
+  const new(this.value);
 
   final String value;
 }
 
 final class DesignTagFilterToken {
-  const DesignTagFilterToken(this.value);
+  const new(this.value);
 
   final String value;
 }
@@ -42,13 +42,13 @@ enum ProjectBrowseFilterFamily {
 
 @MappableClass()
 class ProjectBrowseQuery with ProjectBrowseQueryMappable {
-  const ProjectBrowseQuery({
+  const new({
     this.craftTypes = const [],
     this.filters = const ProjectBrowseFilters(),
     this.sort = SearchSort.chronological,
   });
 
-  factory ProjectBrowseQuery.tokens({
+  factory tokens({
     List<CraftTypeFilterToken> craftTypes = const [],
     ProjectBrowseFilters filters = const ProjectBrowseFilters(),
     SearchSort sort = SearchSort.chronological,
@@ -65,7 +65,7 @@ class ProjectBrowseQuery with ProjectBrowseQueryMappable {
 
 @MappableClass()
 class ProjectBrowseFilters with ProjectBrowseFiltersMappable {
-  const ProjectBrowseFilters({
+  const new({
     this.status = const [],
     this.projectType = const [],
     this.projectSubtype = const [],
@@ -78,7 +78,7 @@ class ProjectBrowseFilters with ProjectBrowseFiltersMappable {
     this.selfDrafted = false,
   });
 
-  factory ProjectBrowseFilters.tokens({
+  factory tokens({
     List<ProjectTypeFilterToken> projectType = const [],
     List<PatternDifficultyFilterToken> patternDifficulty = const [],
     List<String> color = const [],

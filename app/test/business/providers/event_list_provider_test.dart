@@ -363,7 +363,7 @@ BusinessEvent _event(
 );
 
 final class _EventRepository extends Fake implements BusinessRepository {
-  _EventRepository(this.results);
+  new(this.results);
 
   final List<Object> results;
   final List<String?> cursors = [];
@@ -378,7 +378,7 @@ final class _EventRepository extends Fake implements BusinessRepository {
     cursors.add(cursor);
     final result = results[_index++];
     if (result is BusinessEventPage) return result;
-    if (result is Completer<BusinessEventPage>) return result.future;
+    if (result is Completer<BusinessEventPage>) return await result.future;
     _throwResult(result);
   }
 }

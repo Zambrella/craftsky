@@ -11,7 +11,7 @@ part 'active_account_initialization.mapper.dart';
 @MappableClass(generateMethods: GenerateMethods.copy | GenerateMethods.equals)
 final class ActiveAccountInitialization
     with ActiveAccountInitializationMappable {
-  const ActiveAccountInitialization({
+  const new({
     required this.lease,
     required this.languagePreferences,
     required this.onboardingComplete,

@@ -10,7 +10,7 @@ import 'package:craftsky_app/feed/providers/toggle_repost_post_provider.dart';
 import 'package:craftsky_app/feed/providers/user_comments_provider.dart';
 import 'package:craftsky_app/feed/widgets/post_card.dart';
 import 'package:craftsky_app/feed/widgets/post_composer_sheet.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/moderation/widgets/report_flow.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
@@ -21,13 +21,13 @@ import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:material_ui/material_ui.dart';
 
 const _autoLoadMoreThreshold = 3;
 
 class ProfileCommentsTab extends ConsumerWidget {
-  const ProfileCommentsTab({
+  const new({
     required this.did,
     required this.isOwnProfile,
     super.key,
@@ -95,7 +95,7 @@ class ProfileCommentsTab extends ConsumerWidget {
 }
 
 class _ProfileCommentsLoadedSlivers extends ConsumerWidget {
-  const _ProfileCommentsLoadedSlivers({
+  const new({
     required this.did,
     required this.comments,
     required this.hasMore,
@@ -240,7 +240,7 @@ class _ProfileCommentsLoadedSlivers extends ConsumerWidget {
 }
 
 class _ProfileCommentsErrorSliver extends StatelessWidget {
-  const _ProfileCommentsErrorSliver({
+  const new({
     required this.error,
     required this.onRetry,
   });

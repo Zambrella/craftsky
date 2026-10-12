@@ -1,13 +1,13 @@
 enum AccountEligibilityState { eligible, restricted }
 
 final class AccountEligibilityStatus {
-  const AccountEligibilityStatus({
+  const new({
     required this.state,
     required this.appealable,
     this.appealGuidance,
   });
 
-  factory AccountEligibilityStatus.fromJson(Map<String, dynamic> json) {
+  factory fromJson(Map<String, dynamic> json) {
     final state = switch (json['state']) {
       'eligible' => AccountEligibilityState.eligible,
       'restricted' => AccountEligibilityState.restricted,

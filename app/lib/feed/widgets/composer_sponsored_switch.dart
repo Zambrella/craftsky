@@ -1,7 +1,7 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 class ComposerSponsoredSwitch extends StatelessWidget {
-  const ComposerSponsoredSwitch({
+  const new({
     required this.value,
     required this.title,
     required this.description,

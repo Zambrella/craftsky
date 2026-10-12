@@ -8,9 +8,9 @@ part 'saved_post_destination.mapper.dart';
 @immutable
 @MappableClass(generateMethods: GenerateMethods.copy | GenerateMethods.equals)
 final class SavedPostDestination with SavedPostDestinationMappable {
-  const SavedPostDestination({required this.threadUri, this.focusUri});
+  const new({required this.threadUri, this.focusUri});
 
-  factory SavedPostDestination.forItem(SavedPostItem item) {
+  factory forItem(SavedPostItem item) {
     final post = item.post;
     final root = post.reply?.root.uri;
     return SavedPostDestination(

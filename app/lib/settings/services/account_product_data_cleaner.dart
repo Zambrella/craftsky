@@ -6,13 +6,15 @@ import 'package:craftsky_app/shared/image/image_cache_providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 
-typedef AccountProductDataCleanup =
-    Future<void> Function(AccountSessionLease lease);
-typedef AccountProductDataCleanupStep =
-    Future<void> Function(AccountSessionLease lease);
+typedef AccountProductDataCleanup = Future<void> Function(
+  AccountSessionLease lease,
+);
+typedef AccountProductDataCleanupStep = Future<void> Function(
+  AccountSessionLease lease,
+);
 
 final class AccountProductDataCleaner {
-  AccountProductDataCleaner(List<AccountProductDataCleanupStep> steps)
+  new(List<AccountProductDataCleanupStep> steps)
     : _steps = List.unmodifiable(steps);
 
   final List<AccountProductDataCleanupStep> _steps;

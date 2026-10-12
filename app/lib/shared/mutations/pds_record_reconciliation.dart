@@ -2,7 +2,7 @@ import 'package:flutter/foundation.dart';
 
 @immutable
 final class PdsRecordProjection {
-  const PdsRecordProjection({
+  const new({
     required this.uri,
     required this.cid,
     required this.content,
@@ -15,7 +15,7 @@ final class PdsRecordProjection {
 
 @immutable
 final class PdsCompoundProfileProjection {
-  const PdsCompoundProfileProjection({
+  const new({
     required this.bluesky,
     required this.craftsky,
   });
@@ -26,7 +26,6 @@ final class PdsCompoundProfileProjection {
 
 // A common generic contract keeps branch-selected reconciliation predicates
 // strongly typed at their call sites.
-// ignore: one_member_abstracts
 abstract interface class PdsReconciliation<T> {
   bool agrees(T authoritativeValue);
 }
@@ -34,7 +33,7 @@ abstract interface class PdsReconciliation<T> {
 @immutable
 final class PdsAppendReconciliation
     implements PdsReconciliation<PdsRecordProjection?> {
-  const PdsAppendReconciliation({
+  const new({
     required this.selectedUri,
     required this.acceptedCid,
     required this.controlledContent,
@@ -58,7 +57,7 @@ final class PdsAppendReconciliation
 @immutable
 final class PdsAddressedUpdateReconciliation
     implements PdsReconciliation<PdsRecordProjection?> {
-  const PdsAddressedUpdateReconciliation({
+  const new({
     required this.uri,
     required this.acceptedCid,
     required this.controlledContent,
@@ -82,7 +81,7 @@ final class PdsAddressedUpdateReconciliation
 @immutable
 final class PdsAddressedDeleteReconciliation
     implements PdsReconciliation<PdsRecordProjection?> {
-  const PdsAddressedDeleteReconciliation({required this.uri});
+  const new({required this.uri});
 
   final String uri;
 
@@ -93,7 +92,7 @@ final class PdsAddressedDeleteReconciliation
 
 @immutable
 final class PdsSetReconciliation implements PdsReconciliation<bool> {
-  const PdsSetReconciliation({required this.active});
+  const new({required this.active});
 
   final bool active;
 
@@ -104,7 +103,7 @@ final class PdsSetReconciliation implements PdsReconciliation<bool> {
 @immutable
 final class PdsFixedKeyReconciliation
     implements PdsReconciliation<PdsRecordProjection?> {
-  const PdsFixedKeyReconciliation({
+  const new({
     required this.uri,
     required this.controlledContent,
   });
@@ -125,7 +124,7 @@ final class PdsFixedKeyReconciliation
 @immutable
 final class PdsCompoundProfileReconciliation
     implements PdsReconciliation<PdsCompoundProfileProjection?> {
-  const PdsCompoundProfileReconciliation({
+  const new({
     required this.bluesky,
     required this.craftsky,
   });

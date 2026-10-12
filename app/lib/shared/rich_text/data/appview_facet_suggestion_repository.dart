@@ -15,7 +15,7 @@ final _log = Logger('AppViewFacetSuggestionRepository');
 class AppViewAccountSuggestionRepository
     implements AccountSuggestionRepository {
   /// Creates a repository using the app's authenticated Dio instance.
-  const AppViewAccountSuggestionRepository(
+  const new(
     this._dio, {
     this.reporter = const NoopErrorReporter(),
   });
@@ -116,7 +116,7 @@ class AppViewAccountSuggestionRepository
 class AppViewHashtagSuggestionRepository
     implements HashtagSuggestionRepository {
   /// Creates a repository using the app's authenticated Dio instance.
-  const AppViewHashtagSuggestionRepository(
+  const new(
     this._dio, {
     this.reporter = const NoopErrorReporter(),
   });

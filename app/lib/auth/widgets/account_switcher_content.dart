@@ -1,12 +1,12 @@
 import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/auth/models/account_switcher_state.dart';
 import 'package:craftsky_app/auth/widgets/account_avatar.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 class AccountSwitcherContent extends StatelessWidget {
-  const AccountSwitcherContent({
+  const new({
     required this.state,
     required this.onSelect,
     required this.onAddAccount,
@@ -67,7 +67,7 @@ class AccountSwitcherContent extends StatelessWidget {
 }
 
 class AccountSwitcherRowTile extends StatelessWidget {
-  const AccountSwitcherRowTile({
+  const new({
     required this.row,
     required this.onTap,
     this.selected = false,

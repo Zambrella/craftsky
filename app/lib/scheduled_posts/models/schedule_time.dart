@@ -1,5 +1,5 @@
 final class ScheduledInstant {
-  ScheduledInstant(DateTime instant) : utc = instant.toUtc();
+  new(DateTime instant) : utc = instant.toUtc();
 
   final DateTime utc;
 
@@ -18,7 +18,7 @@ final class ScheduledInstant {
 }
 
 final class ScheduleTimeDisplay {
-  const ScheduleTimeDisplay({
+  const new({
     required this.instantUtc,
     required this.wallTime,
     required this.zoneLabel,

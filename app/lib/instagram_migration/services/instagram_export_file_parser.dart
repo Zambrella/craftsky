@@ -5,12 +5,12 @@ import 'package:craftsky_app/instagram_migration/services/instagram_export_file_
 import 'package:craftsky_app/instagram_migration/services/instagram_export_limits.dart';
 
 final class InstagramExportFileParser {
-  const InstagramExportFileParser()
+  const new()
     : _maxArchiveEntries = instagramMaxArchiveEntries,
       _maxCentralDirectoryBytes = instagramMaxCentralDirectoryBytes;
 
   /// Tightens, but can never loosen, the production limits for boundary tests.
-  const InstagramExportFileParser.withLimits({
+  const new withLimits({
     required int maxArchiveEntries,
     required int maxCentralDirectoryBytes,
   }) : _maxArchiveEntries = maxArchiveEntries < 1

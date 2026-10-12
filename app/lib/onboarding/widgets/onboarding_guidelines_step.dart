@@ -1,9 +1,9 @@
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 class OnboardingGuidelinesStep extends StatelessWidget {
-  const OnboardingGuidelinesStep({
+  const new({
     required this.onViewFullGuidelines,
     required this.meetsMinimumAge,
     required this.onMeetsMinimumAgeChanged,
@@ -72,7 +72,7 @@ class OnboardingGuidelinesStep extends StatelessWidget {
 }
 
 class _GuidelineSection extends StatelessWidget {
-  const _GuidelineSection({required this.heading, required this.body});
+  const new({required this.heading, required this.body});
 
   final String heading;
   final String body;

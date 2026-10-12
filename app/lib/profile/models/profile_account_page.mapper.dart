@@ -191,4 +191,3 @@ class _ProfileAccountPageCopyWithImpl<$R, $Out>
     Then<$Out2, $R2> t,
   ) => _ProfileAccountPageCopyWithImpl<$R2, $Out2>($value, $cast, t);
 }
-

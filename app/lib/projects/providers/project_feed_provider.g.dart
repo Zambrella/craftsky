@@ -50,7 +50,7 @@ final class ProjectFeedProvider
   }
 }
 
-String _$projectFeedHash() => r'64d02beeaa99e223bc553ea41b5a41fd29f26e7f';
+String _$projectFeedHash() => r'3af80c9439bda8eb5245c8ad8a7897bdcfd435f2';
 
 final class ProjectFeedFamily extends $Family
     with
@@ -84,7 +84,7 @@ abstract class _$ProjectFeed extends $AsyncNotifier<UserProjectsState> {
   FutureOr<UserProjectsState> build(ProjectBrowseQuery query);
   @$mustCallSuper
   @override
-  void runBuild() {
+  WhenComplete runBuild() {
     final ref =
         this.ref as $Ref<AsyncValue<UserProjectsState>, UserProjectsState>;
     final element =
@@ -95,6 +95,6 @@ abstract class _$ProjectFeed extends $AsyncNotifier<UserProjectsState> {
               Object?,
               Object?
             >;
-    element.handleCreate(ref, () => build(_$args));
+    return element.handleCreate(ref, () => build(_$args));
   }
 }

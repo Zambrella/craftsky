@@ -115,8 +115,8 @@ void main() {
       'lib/subscriptions/services/revenuecat_service_native.dart',
     ).readAsStringSync();
 
-    expect(pubspec, contains('purchases_flutter: ^10.12.0'));
-    expect(pubspec, contains('purchases_ui_flutter: ^10.12.0'));
+    expect(pubspec, contains('purchases_flutter: ^10.15.2'));
+    expect(pubspec, contains('purchases_ui_flutter: ^10.15.2'));
     expect(podfile, contains("platform :ios, '15.0'"));
     expect(config, contains('REVENUECAT_IOS_PUBLIC_KEY='));
     expect(config, contains('REVENUECAT_ANDROID_PUBLIC_KEY='));
@@ -145,7 +145,7 @@ final class _RecordingConfigurator implements RevenueCatConfigurator {
 }
 
 final class _AvailableRevenueCat implements RevenueCatService {
-  const _AvailableRevenueCat();
+  const new();
 
   @override
   BillingAvailability get availability => BillingAvailability.available;

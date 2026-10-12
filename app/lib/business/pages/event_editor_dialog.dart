@@ -10,7 +10,7 @@ import 'package:craftsky_app/business/models/business_profile.dart';
 import 'package:craftsky_app/business/providers/business_event_mutation_controller.dart';
 import 'package:craftsky_app/business/services/business_time_zone_service.dart';
 import 'package:craftsky_app/business/widgets/event_form.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/profile/providers/profile_image_picker_provider.dart';
 import 'package:craftsky_app/router/responsive_modal_navigation.dart';
 import 'package:craftsky_app/shared/media/blob_api_client_provider.dart';
@@ -19,12 +19,13 @@ import 'package:craftsky_app/shared/widgets/action_progress.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:material_ui/material_ui.dart';
 
 typedef EventDraftSubmit = Future<bool> Function(BusinessEventDraft draft);
-typedef EventImageUpload =
-    Future<UploadedImageBlob> Function(PreparedProfileImage image);
+typedef EventImageUpload = Future<UploadedImageBlob> Function(
+  PreparedProfileImage image,
+);
 
 Future<void> showEventEditorSheet(
   BuildContext context, {
@@ -38,7 +39,7 @@ Future<void> showEventEditorSheet(
 }
 
 class EventEditorDialog extends ConsumerStatefulWidget {
-  const EventEditorDialog({
+  const new({
     this.event,
     this.initialDraft,
     this.onSubmit,
@@ -300,9 +301,9 @@ class _EventEditorDialogState extends ConsumerState<EventEditorDialog> {
 
   Future<bool> _confirmDiscard() async {
     final injected = widget.confirmDiscard;
-    if (injected != null) return injected();
+    if (injected != null) return await injected();
     final l10n = AppLocalizations.of(context);
-    return showCraftskyConfirmDialog(
+    return await showCraftskyConfirmDialog(
       context,
       title: l10n.businessEventDiscardTitle,
       message: l10n.businessEventDiscardMessage,

@@ -7,11 +7,9 @@ void main() {
   test(
     'AT-001 / REG-006 uses the shared native identity and Firebase project',
     () {
-      final androidConfig =
-          jsonDecode(
-                File('android/app/google-services.json').readAsStringSync(),
-              )
-              as Map<String, dynamic>;
+      final androidConfig = jsonDecode(
+        File('android/app/google-services.json').readAsStringSync(),
+      ) as Map<String, dynamic>;
       final projectInfo = androidConfig['project_info'] as Map<String, dynamic>;
       final clients = androidConfig['client'] as List<dynamic>;
       final androidClient = clients.single as Map<String, dynamic>;

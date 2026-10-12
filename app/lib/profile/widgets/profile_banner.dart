@@ -1,7 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:craftsky_app/shared/image/image_cache_providers.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Flat coloured banner that sits behind the profile header. Renders a
 /// user-supplied banner image on top of the colour swatch when one is
@@ -11,7 +11,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// Height is fixed so the avatar overlap math in `ProfileHeaderHero`
 /// stays predictable.
 class ProfileBanner extends ConsumerWidget {
-  const ProfileBanner({
+  const new({
     required this.color,
     this.bannerUrl,
     this.height = ProfileBanner.defaultHeight,
