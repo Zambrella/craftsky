@@ -135,10 +135,15 @@ void main() {
       final deviceStarted = Completer<void>();
       final reporter = _RecordingReporter();
       final local = <String>[];
-      final emitter = DiagnosticEmitter(platformSink: local.add);
+      final emitter = DiagnosticEmitter(
+        platformSink: local.add,
+        debugLogs: true,
+      );
       final previousLevel = Logger.root.level;
       Logger.root.level = Level.ALL;
-      final logs = Logger.root.onRecord.listen(emitter.emitLocal);
+      final logs = Logger.root.onRecord
+          .where((record) => record.object is DiagnosticMessage)
+          .listen(emitter.emitLocal);
       addTearDown(() async {
         await logs.cancel();
         Logger.root.level = previousLevel;
@@ -184,6 +189,7 @@ void main() {
       );
       expect(failures, isNotEmpty);
       for (final record in failures) {
+        expect(record['severity'], 'FINE');
         final cause = record['cause']! as Map<String, Object?>;
         expect(cause['type'], 'ApiCanceled');
         expect(record['appErrorKind'], isNot('backgroundLoadFailed'));

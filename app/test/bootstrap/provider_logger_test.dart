@@ -2,18 +2,90 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:craftsky_app/auth/models/account_key.dart';
+import 'package:craftsky_app/auth/models/account_operation_canceled.dart';
 import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/bootstrap.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
+import 'package:craftsky_app/shared/errors/app_error_mapper.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_details.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_emitter.dart';
 import 'package:craftsky_app/shared/observability/error_reporter.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:logging/logging.dart';
 
 void main() {
   group('ProviderLogger', () {
+    for (final error in <Object>[
+      AccountOperationCanceled(),
+      const ApiCanceled(),
+      AppErrorMapper.map(AccountOperationCanceled()),
+      AppErrorMapper.map(const ApiCanceled()),
+      DioException(
+        requestOptions: RequestOptions(path: '/private-path-canary'),
+        type: DioExceptionType.cancel,
+      ),
+      DioException(
+        requestOptions: RequestOptions(path: '/private-path-canary'),
+        error: const ApiCanceled(),
+      ),
+      const ApiNetworkError('private-offline-canary'),
+    ]) {
+      test('logs ${error.runtimeType} at the appropriate level', () async {
+        final cancellation = error is! ApiNetworkError;
+        final reporter = _RecordingReporter();
+        final records = <LogRecord>[];
+        final previousLevel = Logger.root.level;
+        Logger.root.level = Level.ALL;
+        final logs = Logger.root.onRecord.listen(records.add);
+        addTearDown(() async {
+          await logs.cancel();
+          Logger.root.level = previousLevel;
+        });
+        final provider = FutureProvider<int>(
+          name: 'accountLoad',
+          // Exercise provider failures wrapped in AppError as well.
+          // ignore: only_throw_errors
+          (ref) => throw error,
+        );
+        final container = ProviderContainer(
+          retry: appProviderRetry,
+          observers: [ProviderLogger(reporter: reporter)],
+        );
+        addTearDown(container.dispose);
+        await expectLater(
+          container.read(provider.future),
+          throwsA(same(error)),
+        );
+
+        final failure = records.singleWhere(
+          (record) => record.object is DiagnosticMessage,
+        );
+        expect(failure.level, cancellation ? Level.FINE : Level.WARNING);
+        expect(failure.error, same(error));
+        expect(reporter.errors, isEmpty);
+
+        final normal = <String>[];
+        DiagnosticEmitter(platformSink: normal.add).emitLocal(failure);
+        expect(normal, cancellation ? isEmpty : hasLength(1));
+        final debug = <String>[];
+        DiagnosticEmitter(
+          platformSink: debug.add,
+          debugLogs: true,
+        ).emitLocal(failure);
+        final serialized = jsonDecode(debug.single) as Map<String, Object?>;
+        expect(serialized['severity'], cancellation ? 'FINE' : 'WARNING');
+        expect(serialized['feature'], 'accountLoad');
+        expect(
+          (serialized['cause']! as Map<String, Object?>)['type'],
+          error.runtimeType.toString(),
+        );
+        expect(debug.single, isNot(contains('private-path-canary')));
+        expect(debug.single, isNot(contains('private-offline-canary')));
+      });
+    }
+
     test('framework disposal during loading remains reportable', () async {
       final reporter = _RecordingReporter();
       final gate = Completer<int>();

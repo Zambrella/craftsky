@@ -150,11 +150,9 @@ final class ProviderLogger extends ProviderObserver {
           },
           workflow: workflow,
         );
-    _log.warning(
-      DiagnosticMessage(
-        'provider failed',
-        context: diagnosticContext,
-      ),
+    _log.log(
+      isCanceledDiagnostic(error) ? Level.FINE : Level.WARNING,
+      DiagnosticMessage('provider failed', context: diagnosticContext),
       error,
       stackTrace,
     );
