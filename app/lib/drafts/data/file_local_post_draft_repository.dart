@@ -21,7 +21,7 @@ import 'package:uuid/uuid.dart';
 
 final class FileLocalPostDraftRepository
     implements LocalPostDraftRepository, LocalVideoDraftRepository {
-  FileLocalPostDraftRepository({
+  new({
     required String documentsRoot,
     required AccountKey owner,
     DraftFileStore? fileStore,
@@ -195,7 +195,7 @@ final class FileLocalPostDraftRepository
           DraftRepositoryFailureReason.unavailable,
         );
       }
-      return _withVerifiedMedia(draft);
+      return await _withVerifiedMedia(draft);
     } on DraftRepositoryException {
       rethrow;
     } on Object {
@@ -301,7 +301,7 @@ final class FileLocalPostDraftRepository
           DraftRepositoryFailureReason.unavailable,
         );
       }
-      return _files.readBytes(
+      return await _files.readBytes(
         await _verifiedMediaPath(draftId, descriptor.posterStorageFileName),
       );
     } on DraftRepositoryException {
@@ -329,7 +329,7 @@ final class FileLocalPostDraftRepository
 
   Future<LocalPostDraft?> _readExisting(String manifestPath) async {
     if (!await _files.fileExists(manifestPath)) return null;
-    return _readManifest(manifestPath);
+    return await _readManifest(manifestPath);
   }
 
   Future<LocalPostDraft> _readManifest(String path) async {

@@ -16,7 +16,7 @@ import 'package:craftsky_app/feed/providers/post_api_client_provider.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/feed/providers/video_service_client_provider.dart';
 import 'package:craftsky_app/feed/widgets/post_composer_sheet.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/languages/models/language_preferences.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
 import 'package:craftsky_app/projects/widgets/project_composer_sheet.dart';
@@ -24,9 +24,9 @@ import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:dio/dio.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../fakes/recording_messenger.dart';
 import '../fakes/fake_post_repository.dart';
@@ -277,7 +277,7 @@ Future<void> _pumpComposer(
         messenger: RecordingMessenger(),
         child: MaterialApp(
           theme: AppTheme.lightThemeData,
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: appLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: child,
         ),
@@ -374,7 +374,7 @@ Future<void> _selectCraft(WidgetTester tester, String craftLabel) async {
 }
 
 final class _VideoPostApiClient extends PostApiClient {
-  _VideoPostApiClient() : super(Dio());
+  new() : super(Dio());
 
   @override
   Future<VideoUploadLimits> getVideoUploadLimits() async =>
@@ -389,7 +389,7 @@ final class _VideoPostApiClient extends PostApiClient {
 }
 
 final class _BlockingAuthorizationPostApiClient extends PostApiClient {
-  _BlockingAuthorizationPostApiClient() : super(Dio());
+  new() : super(Dio());
 
   final _authorizationGate = Completer<void>();
   bool authorizationStarted = false;
@@ -476,7 +476,7 @@ final class _NoopPicker implements ExistingVideoPicker {
 }
 
 final class _RegistryStorage implements SessionRegistryStorage {
-  _RegistryStorage(this.registry);
+  new(this.registry);
 
   SessionRegistry registry;
   final List<String> writes = [];

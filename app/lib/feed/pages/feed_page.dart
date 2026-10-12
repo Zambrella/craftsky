@@ -12,7 +12,7 @@ import 'package:craftsky_app/feed/widgets/inline_pinch_zoom.dart';
 import 'package:craftsky_app/feed/widgets/post_card.dart';
 import 'package:craftsky_app/feed/widgets/post_composer_sheet.dart';
 import 'package:craftsky_app/feed/widgets/post_type_chooser.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/moderation/widgets/report_flow.dart';
 import 'package:craftsky_app/router/app_shell_drawer.dart';
 import 'package:craftsky_app/router/router.dart';
@@ -27,13 +27,13 @@ import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/form_factor.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:material_ui/material_ui.dart';
 
 const _autoLoadMoreThreshold = 3;
 
 class FeedPage extends ConsumerStatefulWidget {
-  const FeedPage({super.key});
+  const new({super.key});
 
   @override
   ConsumerState<FeedPage> createState() => _FeedPageState();
@@ -199,18 +199,16 @@ class _FeedPageState extends ConsumerState<FeedPage> {
       return;
     }
     final durations = Theme.of(context).extension<DurationTheme>()!;
-    unawaited(
-      _scrollController.animateTo(
-        _scrollController.position.minScrollExtent,
-        duration: durations.medium,
-        curve: durations.ease,
-      ),
+    _scrollController.animateTo(
+      _scrollController.position.minScrollExtent,
+      duration: durations.medium,
+      curve: durations.ease,
     );
   }
 }
 
 class _FeedLoadedSlivers extends ConsumerWidget {
-  const _FeedLoadedSlivers({
+  const new({
     required this.items,
     required this.hasMore,
     required this.isLoadingMore,
@@ -342,7 +340,7 @@ class _FeedLoadedSlivers extends ConsumerWidget {
 }
 
 class _FeedErrorSliver extends StatelessWidget {
-  const _FeedErrorSliver({required this.onRetry});
+  const new({required this.onRetry});
 
   final VoidCallback onRetry;
 

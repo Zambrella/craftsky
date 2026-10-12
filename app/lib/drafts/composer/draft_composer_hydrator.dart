@@ -5,7 +5,7 @@ import 'package:craftsky_app/drafts/models/draft_media_descriptor.dart';
 import 'package:craftsky_app/drafts/models/local_post_draft.dart';
 
 final class HydratedDraftMedia {
-  const HydratedDraftMedia({required this.descriptor, required this.bytes});
+  const new({required this.descriptor, required this.bytes});
 
   final DraftMediaDescriptor descriptor;
   final Uint8List? bytes;
@@ -17,7 +17,7 @@ final class HydratedDraftMedia {
 }
 
 final class LocalPostDraftSeed {
-  LocalPostDraftSeed({
+  new({
     required this.draft,
     required List<HydratedDraftMedia> media,
   }) : media = List.unmodifiable(media);
@@ -32,7 +32,7 @@ final class LocalPostDraftSeed {
 }
 
 final class DraftComposerHydrator {
-  const DraftComposerHydrator();
+  const new();
 
   Future<LocalPostDraftSeed> hydrate({
     required LocalPostDraftRepository repository,

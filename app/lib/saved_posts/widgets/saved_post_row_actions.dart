@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/feed/models/post_uri.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/saved_posts/models/saved_post.dart';
 import 'package:craftsky_app/saved_posts/models/saved_post_error.dart';
@@ -11,8 +11,8 @@ import 'package:craftsky_app/saved_posts/navigation/saved_post_destination.dart'
 import 'package:craftsky_app/saved_posts/providers/account_saved_post_state_provider.dart';
 import 'package:craftsky_app/saved_posts/providers/saved_posts_provider.dart';
 import 'package:craftsky_app/saved_posts/widgets/save_post_dialog.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:material_ui/material_ui.dart';
 
 void openSavedPost(BuildContext context, SavedPostItem item) {
   final destination = SavedPostDestination.forItem(item);

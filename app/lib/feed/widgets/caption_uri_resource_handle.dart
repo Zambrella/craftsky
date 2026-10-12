@@ -4,7 +4,7 @@ abstract interface class CaptionUriResource {
 }
 
 final class ManagedCaptionUriResource implements CaptionUriResource {
-  ManagedCaptionUriResource(this.uri, this._dispose);
+  new(this.uri, this._dispose);
 
   @override
   final Uri uri;

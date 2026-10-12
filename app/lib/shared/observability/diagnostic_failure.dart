@@ -8,5 +8,5 @@ abstract interface class DiagnosticFailureCause {
 /// A reviewed developer-written StateError explanation, never user input,
 /// dependency prose or interpolated payloads. Keeps StateError catch semantics.
 final class DiagnosticStateError extends StateError {
-  DiagnosticStateError(super.message);
+  new(super.message);
 }

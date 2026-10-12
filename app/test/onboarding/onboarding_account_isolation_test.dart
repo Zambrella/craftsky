@@ -24,7 +24,7 @@ import 'package:image_picker/image_picker.dart';
 import '../profile/fakes/fake_profile_repository.dart';
 
 final class _Storage implements SessionRegistryStorage {
-  _Storage(this.value);
+  new(this.value);
   SessionRegistry value;
 
   @override
@@ -51,7 +51,7 @@ final class _InstagramRepository implements InstagramMigrationRepository {
 }
 
 final class _CompletionRepository implements OnboardingRepository {
-  _CompletionRepository({required this.completion});
+  new({required this.completion});
 
   final Completer<OnboardingCompletion>? completion;
 
@@ -318,17 +318,16 @@ void main() {
                 displayName: isAlice ? 'Alice' : 'Bob',
                 crafts: const [],
               ),
-              onUpdateMe:
-                  ({
-                    displayName,
-                    pronouns,
-                    description,
-                    crafts,
-                    avatar,
-                    clearAvatar = false,
-                    banner,
-                    clearBanner = false,
-                  }) => save.future,
+              onUpdateMe: ({
+                displayName,
+                pronouns,
+                description,
+                crafts,
+                avatar,
+                clearAvatar = false,
+                banner,
+                clearBanner = false,
+              }) => save.future,
             );
           }),
         ],

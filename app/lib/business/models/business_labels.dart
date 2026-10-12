@@ -1,6 +1,6 @@
 import 'package:craftsky_app/business/models/business_formatters.dart';
 import 'package:craftsky_app/business/models/business_profile.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 
 abstract final class BusinessLabels {
   static const businessTypes = <BusinessOpenValue>[

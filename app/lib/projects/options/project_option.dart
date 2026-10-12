@@ -4,7 +4,7 @@
 /// only used by Flutter controls to pair a user-facing label with a known token
 /// or bounded string value.
 class ProjectOption {
-  const ProjectOption({
+  const new({
     required this.value,
     required this.label,
     this.description,

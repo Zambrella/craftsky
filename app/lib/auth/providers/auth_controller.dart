@@ -23,11 +23,11 @@ import 'package:url_launcher/url_launcher.dart' as url_launcher;
 part 'auth_controller.g.dart';
 
 class SignOutResult {
-  const SignOutResult._({this.activeHandle});
+  const new _({this.activeHandle});
 
-  const SignOutResult.signedOut() : this._();
+  const new signedOut() : this._();
 
-  const SignOutResult.switchedTo(String handle) : this._(activeHandle: handle);
+  const new switchedTo(String handle) : this._(activeHandle: handle);
 
   final String? activeHandle;
 

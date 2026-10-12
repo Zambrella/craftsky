@@ -365,5 +365,5 @@ Map<String, dynamic> _profileMutationBody(
 };
 
 final class _OnboardingMutationSuperseded implements Exception {
-  const _OnboardingMutationSuperseded();
+  const new();
 }

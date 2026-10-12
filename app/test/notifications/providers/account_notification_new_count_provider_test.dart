@@ -82,7 +82,7 @@ void main() {
 }
 
 final class _CountRepository implements NotificationNewnessRepository {
-  _CountRepository(this.responses);
+  new(this.responses);
 
   final List<Object> responses;
   int countCalls = 0;

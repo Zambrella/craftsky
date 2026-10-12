@@ -12,7 +12,7 @@ import 'package:craftsky_app/notifications/services/notification_service.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 
 final class FirebaseNotificationService implements NotificationService {
-  FirebaseNotificationService(this._messaging);
+  new(this._messaging);
 
   final FirebaseMessaging _messaging;
 
@@ -90,7 +90,8 @@ final class FirebaseNotificationService implements NotificationService {
       switch (status) {
         AuthorizationStatus.authorized ||
         AuthorizationStatus.provisional => NotificationPermission.authorized,
-        AuthorizationStatus.denied => NotificationPermission.denied,
+        AuthorizationStatus.denied ||
+        AuthorizationStatus.deniedPermanently => NotificationPermission.denied,
         AuthorizationStatus.notDetermined =>
           NotificationPermission.notDetermined,
       };

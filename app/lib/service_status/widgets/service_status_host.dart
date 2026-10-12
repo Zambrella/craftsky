@@ -3,12 +3,12 @@ import 'dart:async';
 import 'package:craftsky_app/service_status/providers/service_status_controller.dart';
 import 'package:craftsky_app/service_status/widgets/announcement_modal.dart';
 import 'package:craftsky_app/service_status/widgets/maintenance_screen.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:material_ui/material_ui.dart';
 
 class ServiceStatusHost extends ConsumerStatefulWidget {
-  const ServiceStatusHost({required this.child, super.key});
+  const new({required this.child, super.key});
   final Widget child;
 
   @override

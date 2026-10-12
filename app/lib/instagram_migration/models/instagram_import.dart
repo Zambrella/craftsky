@@ -42,7 +42,7 @@ enum InstagramImportState {
       GenerateMethods.encode | GenerateMethods.copy | GenerateMethods.equals,
 )
 final class InstagramImportEntry with InstagramImportEntryMappable {
-  const InstagramImportEntry({required this.username});
+  const new({required this.username});
 
   final String username;
 
@@ -52,7 +52,7 @@ final class InstagramImportEntry with InstagramImportEntryMappable {
 
 @MappableClass(generateMethods: _instagramImportValueMethods)
 final class InstagramImportParseResult with InstagramImportParseResultMappable {
-  const InstagramImportParseResult({
+  const new({
     required this.entries,
     this.ignoredEntryCount = 0,
     this.duplicateEntryCount = 0,
@@ -68,7 +68,7 @@ final class InstagramImportParseResult with InstagramImportParseResultMappable {
 
 @MappableClass(generateMethods: _instagramImportValueMethods)
 final class InstagramImportRequest with InstagramImportRequestMappable {
-  InstagramImportRequest({
+  new({
     required this.sourceType,
     required List<InstagramImportEntry> entries,
   }) : entries = List.unmodifiable(entries);
@@ -87,7 +87,7 @@ final class InstagramImportRequest with InstagramImportRequestMappable {
 
 @MappableClass(generateMethods: _instagramImportDecodeMethods)
 final class InstagramImportSummary with InstagramImportSummaryMappable {
-  const InstagramImportSummary({
+  const new({
     required this.importId,
     required this.state,
     required this.sourceType,
@@ -95,7 +95,7 @@ final class InstagramImportSummary with InstagramImportSummaryMappable {
     required this.createdAt,
   });
 
-  factory InstagramImportSummary.fromMap(Map<String, dynamic> map) =>
+  factory fromMap(Map<String, dynamic> map) =>
       InstagramImportSummaryMapper.fromMap(map);
 
   final String importId;
@@ -111,12 +111,12 @@ final class InstagramImportSummary with InstagramImportSummaryMappable {
 @MappableClass(generateMethods: _instagramImportValueMethods)
 final class InstagramImportCreateResult
     with InstagramImportCreateResultMappable {
-  const InstagramImportCreateResult({
+  const new({
     required this.import,
     required this.followingCount,
   });
 
-  factory InstagramImportCreateResult.fromMap(Map<String, dynamic> map) {
+  factory fromMap(Map<String, dynamic> map) {
     final import = map['import'];
     final counts = map['counts'];
     if (import is! Map<String, dynamic> ||
@@ -139,12 +139,12 @@ final class InstagramImportCreateResult
 
 @MappableClass(generateMethods: _instagramImportDecodeMethods)
 final class InstagramImportPage with InstagramImportPageMappable {
-  InstagramImportPage({
+  new({
     required List<InstagramImportSummary> items,
     required this.cursor,
   }) : items = List.unmodifiable(items);
 
-  factory InstagramImportPage.fromMap(Map<String, dynamic> map) =>
+  factory fromMap(Map<String, dynamic> map) =>
       InstagramImportPageMapper.fromMap(map);
 
   final List<InstagramImportSummary> items;
@@ -159,7 +159,7 @@ final class InstagramImportPage with InstagramImportPageMappable {
       GenerateMethods.encode | GenerateMethods.copy | GenerateMethods.equals,
 )
 final class InstagramImportPatch with InstagramImportPatchMappable {
-  const InstagramImportPatch({required this.reactivate})
+  const new({required this.reactivate})
     : assert(reactivate, 'Only import reactivation is supported.');
 
   final bool reactivate;

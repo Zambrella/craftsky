@@ -238,7 +238,7 @@ BillingState _state(
 );
 
 final class _CustomerCenterService implements RevenueCatService {
-  _CustomerCenterService({
+  new({
     this.event,
     this.appUserId = '20000000-0000-4000-8000-000000000001',
     this.onPresent,
@@ -281,7 +281,7 @@ final class _CustomerCenterService implements RevenueCatService {
 }
 
 final class _ScriptedApi implements SubscriptionApi {
-  _ScriptedApi(this.states, {this.onRead});
+  new(this.states, {this.onRead});
 
   final List<BillingState> states;
   final void Function(int read)? onRead;

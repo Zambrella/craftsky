@@ -1,9 +1,9 @@
 import 'dart:async';
 
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 
@@ -31,7 +31,7 @@ List<DeviceOrientation> nativeVideoRestoreOrientations(
       ];
 
 class NativeVideoTapSurface extends StatelessWidget {
-  const NativeVideoTapSurface({
+  const new({
     required this.onTap,
     required this.child,
     super.key,
@@ -49,7 +49,7 @@ class NativeVideoTapSurface extends StatelessWidget {
 }
 
 class NativeVideoControlsVisibility extends StatefulWidget {
-  const NativeVideoControlsVisibility({
+  const new({
     required this.controls,
     this.hideAfter = const Duration(seconds: 3),
     super.key,
@@ -143,7 +143,7 @@ TextStyle nativeVideoTimestampStyle(TextStyle? base) =>
     );
 
 class _NativeVideoControls extends StatelessWidget {
-  const _NativeVideoControls({required this.state, required this.fullscreen});
+  const new({required this.state, required this.fullscreen});
 
   final VideoState state;
   final bool fullscreen;
@@ -205,7 +205,7 @@ class _NativeVideoControls extends StatelessWidget {
 }
 
 class _NativeVideoInlineControlLayout extends StatelessWidget {
-  const _NativeVideoInlineControlLayout({
+  const new({
     required this.playing,
     required this.completed,
     required this.position,
@@ -327,7 +327,7 @@ String _formatVideoTime(Duration value) {
 }
 
 final class NativeVideoCaptionTrack {
-  const NativeVideoCaptionTrack({
+  const new({
     required this.language,
     required this.label,
     required this.uri,
@@ -372,7 +372,7 @@ final class NativeVideoPlaybackCoordinator {
 }
 
 final class NativeVideoController {
-  NativeVideoController(
+  new(
     this._adapter, {
     NativeVideoPlaybackCoordinator? playbackCoordinator,
   }) : _playbackCoordinator =
@@ -412,7 +412,7 @@ final class NativeVideoController {
 }
 
 final class MediaKitNativeVideoAdapter implements NativeVideoViewAdapter {
-  MediaKitNativeVideoAdapter({Player? player}) : _player = player ?? Player();
+  new({Player? player}) : _player = player ?? Player();
 
   final Player _player;
   Orientation? _orientationBeforeFullscreen;
@@ -449,7 +449,7 @@ final class MediaKitNativeVideoAdapter implements NativeVideoViewAdapter {
     if (kIsWeb ||
         (defaultTargetPlatform != TargetPlatform.android &&
             defaultTargetPlatform != TargetPlatform.iOS)) {
-      return defaultEnterNativeFullscreen();
+      return await defaultEnterNativeFullscreen();
     }
     try {
       _orientationBeforeFullscreen = MediaQuery.orientationOf(context);
@@ -470,7 +470,7 @@ final class MediaKitNativeVideoAdapter implements NativeVideoViewAdapter {
     if (kIsWeb ||
         (defaultTargetPlatform != TargetPlatform.android &&
             defaultTargetPlatform != TargetPlatform.iOS)) {
-      return defaultExitNativeFullscreen();
+      return await defaultExitNativeFullscreen();
     }
     try {
       final orientation = _orientationBeforeFullscreen;

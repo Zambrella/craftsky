@@ -1,7 +1,7 @@
 import 'package:craftsky_app/notifications/models/notification_open_event.dart';
 
 final class ForegroundNotificationEvent {
-  const ForegroundNotificationEvent({
+  const new({
     required this.title,
     required this.body,
     required this.openAttempt,

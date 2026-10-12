@@ -54,6 +54,16 @@ abstract final class ProjectOptionCatalogs {
     ProjectOption(value: quiltingCraftToken, label: 'Quilting'),
   ];
 
+  static List<ProjectOption> craftTypesForPreferences(Iterable<String> crafts) {
+    final preferred = crafts.toSet();
+    bool isPreferred(ProjectOption option) =>
+        preferred.contains(option.value.split('#').last);
+    return [
+      ...craftTypes.where(isPreferred),
+      ...craftTypes.where((option) => !isPreferred(option)),
+    ];
+  }
+
   static const statuses = <ProjectOption>[
     ProjectOption(value: finishedStatusToken, label: 'Finished'),
     ProjectOption(value: wipStatusToken, label: 'Work in progress'),

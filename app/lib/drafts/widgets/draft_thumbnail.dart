@@ -1,10 +1,10 @@
 import 'package:craftsky_app/drafts/data/local_post_draft_repository.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 final class DraftThumbnail extends StatelessWidget {
-  const DraftThumbnail({
+  const new({
     required this.repository,
     required this.draftId,
     required this.mediaId,

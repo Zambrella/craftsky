@@ -1,7 +1,7 @@
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 void main() {
   group('StitchProgressIndicator', () {
@@ -9,7 +9,7 @@ void main() {
       await tester.pumpWidget(
         const MaterialApp(
           locale: Locale('en'),
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: appLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: Scaffold(
             body: Center(child: StitchProgressIndicator(size: 48)),
@@ -29,17 +29,15 @@ void main() {
       await tester.pumpWidget(
         const MaterialApp(
           locale: Locale('en'),
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: appLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: Scaffold(body: Center(child: StitchProgressIndicator())),
         ),
       );
 
-      final initialState =
-          tester.state<State<StitchProgressIndicator>>(
-                find.byType(StitchProgressIndicator),
-              )
-              as StitchProgressIndicatorStateForTesting;
+      final initialState = tester.state<State<StitchProgressIndicator>>(
+        find.byType(StitchProgressIndicator),
+      ) as StitchProgressIndicatorStateForTesting;
       expect(initialState.rotationTurns, 0);
 
       // Advance well past zero but less than a full cycle so we can assert
@@ -54,7 +52,7 @@ void main() {
       await tester.pumpWidget(
         const MaterialApp(
           locale: Locale('en'),
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: appLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: Scaffold(body: StitchProgressIndicator()),
         ),
@@ -72,7 +70,7 @@ void main() {
             data: MediaQueryData(disableAnimations: true),
             child: MaterialApp(
               locale: Locale('en'),
-              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              localizationsDelegates: appLocalizationsDelegates,
               supportedLocales: AppLocalizations.supportedLocales,
               home: Scaffold(
                 body: Center(child: StitchProgressIndicator()),
@@ -81,11 +79,9 @@ void main() {
           ),
         );
 
-        final state =
-            tester.state<State<StitchProgressIndicator>>(
-                  find.byType(StitchProgressIndicator),
-                )
-                as StitchProgressIndicatorStateForTesting;
+        final state = tester.state<State<StitchProgressIndicator>>(
+          find.byType(StitchProgressIndicator),
+        ) as StitchProgressIndicatorStateForTesting;
 
         expect(state.rotationTurns, 0);
         await tester.pump(const Duration(milliseconds: 1000));
@@ -101,7 +97,7 @@ void main() {
       await tester.pumpWidget(
         const MaterialApp(
           locale: Locale('en'),
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: appLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: Scaffold(body: Center(child: StitchProgressIndicator())),
         ),

@@ -6,7 +6,7 @@ enum PdsMutationMigration { pending, migrated, notApplicable }
 
 @immutable
 final class PdsMutationMatrixRow {
-  const PdsMutationMatrixRow({
+  const new({
     required this.name,
     required this.disposition,
     required this.operationKeyRequired,

@@ -159,7 +159,7 @@ final class _DrainingAdapter implements HttpClientAdapter {
 }
 
 final class _FailingAdapter implements HttpClientAdapter {
-  _FailingAdapter(this.type);
+  new(this.type);
 
   final DioExceptionType type;
 

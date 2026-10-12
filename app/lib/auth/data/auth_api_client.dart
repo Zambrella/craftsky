@@ -9,7 +9,7 @@ import 'package:dio/dio.dart';
 /// is wrapped in `unwrapApi` so consumers see sealed `ApiException`
 /// subtypes instead of raw `DioException`s.
 class AuthApiClient {
-  const AuthApiClient(this._dio);
+  const new(this._dio);
 
   final Dio _dio;
 

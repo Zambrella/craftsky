@@ -92,7 +92,7 @@ abstract class _$ComposerImages extends $Notifier<ComposerImagesState> {
   ComposerImagesState build(String composerId);
   @$mustCallSuper
   @override
-  void runBuild() {
+  WhenComplete runBuild() {
     final ref = this.ref as $Ref<ComposerImagesState, ComposerImagesState>;
     final element =
         ref.element
@@ -102,6 +102,6 @@ abstract class _$ComposerImages extends $Notifier<ComposerImagesState> {
               Object?,
               Object?
             >;
-    element.handleCreate(ref, () => build(_$args));
+    return element.handleCreate(ref, () => build(_$args));
   }
 }

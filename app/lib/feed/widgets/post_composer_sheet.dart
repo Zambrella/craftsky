@@ -39,7 +39,7 @@ import 'package:craftsky_app/feed/widgets/composer_link_preview_carousel.dart';
 import 'package:craftsky_app/feed/widgets/composer_metadata_controls.dart';
 import 'package:craftsky_app/feed/widgets/composer_video_attachment_card.dart';
 import 'package:craftsky_app/feed/widgets/submission_blocking_overlay.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/languages/models/post_language_selection.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
 import 'package:craftsky_app/profile/models/profile_handle.dart';
@@ -69,8 +69,8 @@ import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:uuid/uuid.dart';
 
 // TODO(Agent): Does this need to be a provider?
@@ -102,7 +102,7 @@ Future<Post?> showPostComposerSheet(
 }
 
 class PostComposerSheet extends ConsumerStatefulWidget {
-  const PostComposerSheet({
+  const new({
     super.key,
     this.replyTarget,
     this.quoteTarget,
@@ -719,6 +719,8 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
                             )
                           else
                             ComposerImageAttachmentSection(
+                              useDetailsRoute: true,
+                              imagesProvider: imagesProvider,
                               imagesState: imagesState,
                               enabled:
                                   !createState.isLoading &&
@@ -1004,7 +1006,7 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
         widget.replyTarget == null &&
         widget.quoteTarget == null &&
         widget.scheduledPost == null;
-    if (!eligible) return _confirmDiscard();
+    if (!eligible) return await _confirmDiscard();
     final choice = await showDraftCloseDialog(
       context,
       existingDraft: widget.draftSeed != null,
@@ -1416,7 +1418,7 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
           )
           .toList(growable: false);
     }
-    return ref.read(facetGeneratorProvider).generate(text);
+    return await ref.read(facetGeneratorProvider).generate(text);
   }
 
   String _localTimeLabel(BuildContext context, DateTime value) {
@@ -1874,7 +1876,7 @@ PostRef? _quoteFor(Post? target) {
 }
 
 class _ComposerTargetPreview extends StatelessWidget {
-  const _ComposerTargetPreview({required this.post});
+  const new({required this.post});
 
   final Post post;
 
@@ -1921,7 +1923,7 @@ class _ComposerTargetPreview extends StatelessWidget {
 }
 
 class _PostAction extends StatelessWidget {
-  const _PostAction({
+  const new({
     required this.actionKey,
     required this.isSaving,
     required this.label,

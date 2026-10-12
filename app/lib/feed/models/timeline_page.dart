@@ -8,7 +8,7 @@ part 'timeline_page.mapper.dart';
 /// items with stable identities and optional reasons.
 @MappableClass(ignoreNull: true)
 class TimelinePage with TimelinePageMappable {
-  const TimelinePage({required this.items, this.cursor});
+  const new({required this.items, this.cursor});
 
   final List<TimelineItem> items;
   final String? cursor;
@@ -16,7 +16,7 @@ class TimelinePage with TimelinePageMappable {
 
 @MappableClass(ignoreNull: true)
 class TimelineItem with TimelineItemMappable {
-  const TimelineItem({
+  const new({
     required this.itemKey,
     required this.post,
     this.reason,
@@ -35,7 +35,7 @@ enum RepostReasonType { repost }
   includeCustomMappers: [AtUriMapper(), CidMapper()],
 )
 class RepostReason with RepostReasonMappable {
-  RepostReason({
+  new({
     required this.type,
     required this.by,
     required String uri,

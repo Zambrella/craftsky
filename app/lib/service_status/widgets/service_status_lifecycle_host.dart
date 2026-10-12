@@ -5,7 +5,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 class ServiceStatusLifecycleHost extends ConsumerStatefulWidget {
-  const ServiceStatusLifecycleHost({required this.child, super.key});
+  const new({required this.child, super.key});
   final Widget child;
   @override
   ConsumerState<ServiceStatusLifecycleHost> createState() => _LifecycleState();

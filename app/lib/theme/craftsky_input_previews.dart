@@ -1,7 +1,7 @@
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/craftsky_text_inputs.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter/widget_previews.dart';
+import 'package:material_ui/material_ui.dart';
 
 @Preview(name: 'Text inputs', group: 'CraftSky inputs', size: Size(420, 520))
 Widget craftskyTextInputsPreview() {
@@ -102,7 +102,7 @@ Widget craftskyTextInputsLargeTypePreview() {
 }
 
 class _InputPreviewFrame extends StatelessWidget {
-  const _InputPreviewFrame({required this.child});
+  const new({required this.child});
 
   final Widget child;
 

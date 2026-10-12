@@ -5,7 +5,7 @@ part 'user_projects_state.mapper.dart';
 
 @MappableClass()
 class UserProjectsState with UserProjectsStateMappable {
-  const UserProjectsState({
+  const new({
     required this.items,
     this.cursor,
     this.pinnedPostUri,

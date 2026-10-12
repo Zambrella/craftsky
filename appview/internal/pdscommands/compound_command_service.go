@@ -191,6 +191,7 @@ func (service *CompoundCommandService) putFenced(
 			return CommandResult{}, errors.Join(ErrDispatchUnavailable, err)
 		}
 		desired := make([]json.RawMessage, len(request.Records))
+		unchanged := make([]bool, len(request.Records))
 		allMatch := true
 		for index, record := range request.Records {
 			desired[index], err = record.BuildRecord(current[index])
@@ -205,6 +206,7 @@ func (service *CompoundCommandService) putFenced(
 			if compareErr != nil {
 				return CommandResult{}, compareErr
 			}
+			unchanged[index] = matches
 			allMatch = allMatch && matches
 		}
 		if allMatch {
@@ -213,15 +215,20 @@ func (service *CompoundCommandService) putFenced(
 		if command.State != CommandPrepared {
 			return service.store.UnresolvedResult(ctx, command)
 		}
-		steps := make([]DispatchStep, len(request.Records))
+		steps := make([]DispatchStep, 0, len(request.Records))
 		for index, record := range request.Records {
+			// A no-op update can produce a commit operation whose old and new
+			// CIDs are identical, causing Tap to reject the whole commit.
+			if unchanged[index] {
+				continue
+			}
 			action := "update"
 			if current[index].CID == "" {
 				action = "create"
 			}
-			steps[index] = DispatchStep{
+			steps = append(steps, DispatchStep{
 				Action: action, URI: record.URI, Body: desired[index], ExpectedCID: current[index].CID,
-			}
+			})
 		}
 		dispatchFingerprint, err := DispatchFingerprint(DispatchFingerprintInput{
 			AlgorithmVersion: 1, RequestFingerprint: requestFingerprint, RepositoryHead: head, Steps: steps,

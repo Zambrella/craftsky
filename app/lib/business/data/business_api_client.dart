@@ -7,7 +7,7 @@ import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:dio/dio.dart';
 
 class BusinessApiClient {
-  const BusinessApiClient(this._dio);
+  const new(this._dio);
 
   final Dio _dio;
 
@@ -29,7 +29,7 @@ class BusinessApiClient {
             status != null && status >= 200 && status < 300,
       ),
     );
-    return parsePdsMutationResponse(
+    return await parsePdsMutationResponse(
       response,
       accepted: (data) => RecordMutationResultMapper.fromMap(
         Map<String, dynamic>.from(data! as Map),
@@ -113,7 +113,7 @@ class BusinessApiClient {
             status != null && status >= 200 && status < 300,
       ),
     );
-    return parsePdsMutationResponse(
+    return await parsePdsMutationResponse(
       response,
       accepted: (data) => RecordMutationResultMapper.fromMap(
         Map<String, dynamic>.from(data! as Map),
@@ -141,7 +141,7 @@ class BusinessApiClient {
             status != null && status >= 200 && status < 300,
       ),
     );
-    return parsePdsMutationResponse(
+    return await parsePdsMutationResponse(
       response,
       accepted: (data) => RecordMutationResultMapper.fromMap(
         Map<String, dynamic>.from(data! as Map),

@@ -30,7 +30,7 @@ final instagramVerificationNowProvider = Provider<DateTime Function()>(
 )
 final class InstagramVerificationViewState
     with InstagramVerificationViewStateMappable {
-  const InstagramVerificationViewState({
+  const new({
     this.attempt,
     this.isBusy = false,
     this.hasError = false,

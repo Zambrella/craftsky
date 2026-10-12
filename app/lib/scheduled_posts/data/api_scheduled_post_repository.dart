@@ -6,7 +6,7 @@ import 'package:craftsky_app/scheduled_posts/models/scheduled_post.dart';
 import 'package:dio/dio.dart';
 
 final class ApiScheduledPostRepository implements ScheduledPostRepository {
-  const ApiScheduledPostRepository(this._api);
+  const new(this._api);
 
   final ScheduledPostApiClient _api;
 

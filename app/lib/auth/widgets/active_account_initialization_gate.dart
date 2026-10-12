@@ -13,18 +13,18 @@ import 'package:craftsky_app/auth/providers/unsaved_work_guard_provider.dart';
 import 'package:craftsky_app/auth/widgets/account_switcher_content.dart';
 import 'package:craftsky_app/auth/widgets/active_account_initialization_error_screen.dart';
 import 'package:craftsky_app/initialization_loading_screen.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/languages/providers/account_language_preferences_provider.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_repository_provider.dart';
 import 'package:craftsky_app/onboarding/providers/onboarding_repository_provider.dart';
 import 'package:craftsky_app/onboarding/providers/onboarding_status_provider.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Mounts signed-in UI only after account-critical state is ready for the
 /// registry's exact active lease.
 class ActiveAccountInitializationGate extends ConsumerStatefulWidget {
-  const ActiveAccountInitializationGate({
+  const new({
     required this.child,
     super.key,
   });

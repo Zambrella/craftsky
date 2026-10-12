@@ -1,11 +1,11 @@
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/profile/models/profile_handle.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Display name (DM Serif Display) + optional pronouns + `@handle` block,
 /// matching the order from the design mockup.
 class ProfileIdentity extends StatelessWidget {
-  const ProfileIdentity({
+  const new({
     required this.handle,
     this.displayName,
     this.pronouns,

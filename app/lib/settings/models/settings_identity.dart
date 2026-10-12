@@ -5,7 +5,7 @@ import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:craftsky_app/profile/models/profile_handle.dart';
 
 final class SettingsIdentity {
-  const SettingsIdentity({
+  const new({
     required this.primaryLabel,
     required this.handleLabel,
     required this.avatarSeed,

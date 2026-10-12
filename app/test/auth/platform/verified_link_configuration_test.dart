@@ -80,13 +80,11 @@ void main() {
   test(
     'domain associations authorize the production application identities',
     () {
-      final assetLinks =
-          jsonDecode(
-                File(
-                  '../verified-links/.well-known/assetlinks.json',
-                ).readAsStringSync(),
-              )
-              as List<dynamic>;
+      final assetLinks = jsonDecode(
+        File(
+          '../verified-links/.well-known/assetlinks.json',
+        ).readAsStringSync(),
+      ) as List<dynamic>;
       final androidTarget =
           (assetLinks.single as Map<String, dynamic>)['target']
               as Map<String, dynamic>;
@@ -97,13 +95,11 @@ void main() {
       expect(androidTarget['package_name'], 'social.craftsky.app');
       expect(androidTarget['sha256_cert_fingerprints'], [androidFingerprint]);
 
-      final association =
-          jsonDecode(
-                File(
-                  '../verified-links/.well-known/apple-app-site-association',
-                ).readAsStringSync(),
-              )
-              as Map<String, dynamic>;
+      final association = jsonDecode(
+        File(
+          '../verified-links/.well-known/apple-app-site-association',
+        ).readAsStringSync(),
+      ) as Map<String, dynamic>;
       final applinks = association['applinks'] as Map<String, dynamic>;
       final details =
           (applinks['details'] as List<dynamic>).single as Map<String, dynamic>;

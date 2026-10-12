@@ -189,4 +189,3 @@ class _ProfilePinStateCopyWithImpl<$R, $Out>
     Then<$Out2, $R2> t,
   ) => _ProfilePinStateCopyWithImpl<$R2, $Out2>($value, $cast, t);
 }
-

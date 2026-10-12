@@ -5,7 +5,7 @@ import 'package:craftsky_app/feed/media/video_source_validator.dart';
 import 'package:craftsky_app/feed/models/video_upload_limits.dart';
 
 final class LocalVideoSelection {
-  const LocalVideoSelection({
+  const new({
     required this.displayName,
     required this.mimeType,
     required this.byteLength,
@@ -47,18 +47,17 @@ final class LocalVideoSelection {
 }
 
 // The interface gives platform pickers a replaceable test seam.
-// ignore: one_member_abstracts
 abstract interface class ExistingVideoPicker {
   Future<LocalVideoSelection?> pickExisting();
 }
 
 final class ComposerVideoController {
-  factory ComposerVideoController({
+  factory({
     required ExistingVideoPicker picker,
     Future<VideoUploadLimits> Function()? checkEligibility,
   }) => ComposerVideoController._(picker, checkEligibility);
 
-  ComposerVideoController._(
+  new _(
     this._picker,
     this._checkEligibility,
   );
@@ -101,5 +100,5 @@ final class ComposerVideoController {
   }
 
   Future<VideoUploadLimits?> recheckEligibility() async =>
-      _checkEligibility?.call();
+      await _checkEligibility?.call();
 }

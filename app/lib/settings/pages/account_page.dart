@@ -4,7 +4,7 @@ import 'package:craftsky_app/auth/providers/active_account_initialization_provid
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/business/models/business_profile.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/settings/models/delete_account_confirmation.dart';
 import 'package:craftsky_app/settings/models/settings_row.dart';
 import 'package:craftsky_app/settings/providers/account_deletion_controller.dart';
@@ -16,13 +16,13 @@ import 'package:craftsky_app/theme/brand_colors.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:material_ui/material_ui.dart';
 
 enum _AccountAction { delete }
 
 class AccountPage extends ConsumerWidget {
-  const AccountPage({this.onDeleteConfirmed, super.key});
+  const new({this.onDeleteConfirmed, super.key});
 
   final Future<void> Function(String did)? onDeleteConfirmed;
 
@@ -146,7 +146,7 @@ class AccountPage extends ConsumerWidget {
 }
 
 class _DidConfirmationDialog extends StatefulWidget {
-  const _DidConfirmationDialog({required this.confirmationDid});
+  const new({required this.confirmationDid});
 
   final String confirmationDid;
 

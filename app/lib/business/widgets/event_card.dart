@@ -2,14 +2,14 @@ import 'package:craftsky_app/business/models/business_event.dart';
 import 'package:craftsky_app/business/models/business_formatters.dart';
 import 'package:craftsky_app/business/models/business_labels.dart';
 import 'package:craftsky_app/business/widgets/business_image.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/theme/craftsky_card.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 class EventCard extends StatelessWidget {
-  const EventCard({
+  const new({
     required this.event,
     required this.onTap,
     this.trailing,
@@ -121,7 +121,7 @@ class EventCard extends StatelessWidget {
 }
 
 class _EventCardLine extends StatelessWidget {
-  const _EventCardLine({required this.icon, required this.text});
+  const new({required this.icon, required this.text});
 
   final IconData icon;
   final String text;

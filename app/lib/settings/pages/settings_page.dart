@@ -10,7 +10,7 @@ import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/auth/providers/unsaved_work_guard_provider.dart';
 import 'package:craftsky_app/auth/widgets/account_avatar.dart';
 import 'package:craftsky_app/auth/widgets/account_switcher_launcher.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:craftsky_app/profile/models/profile_handle.dart';
 import 'package:craftsky_app/router/router.dart';
@@ -25,11 +25,11 @@ import 'package:craftsky_app/subscriptions/widgets/plus_feature_lock.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:craftsky_app/theme/theme_notifier.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:material_ui/material_ui.dart';
 
 class SettingsPage extends ConsumerWidget {
-  const SettingsPage({super.key});
+  const new({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -315,7 +315,7 @@ class SettingsPage extends ConsumerWidget {
 }
 
 class _SubscriptionCallout extends StatelessWidget {
-  const _SubscriptionCallout({required this.hasPaidAccess});
+  const new({required this.hasPaidAccess});
 
   final bool hasPaidAccess;
 
@@ -413,7 +413,7 @@ class _SubscriptionCallout extends StatelessWidget {
 }
 
 class _SettingsIdentityHeader extends StatelessWidget {
-  const _SettingsIdentityHeader({required this.identity});
+  const new({required this.identity});
 
   final SettingsIdentity identity;
 
@@ -436,7 +436,7 @@ class _SettingsIdentityHeader extends StatelessWidget {
 }
 
 class _SectionLabel extends StatelessWidget {
-  const _SectionLabel(this.label);
+  const new(this.label);
 
   final String label;
 

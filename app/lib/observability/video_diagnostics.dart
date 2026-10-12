@@ -10,7 +10,7 @@ enum VideoOperation {
 enum VideoOperationOutcome { succeeded, rejected, canceled, retrying, failed }
 
 final class VideoDiagnosticEvent {
-  const VideoDiagnosticEvent({
+  const new({
     required this.operation,
     required this.outcome,
     this.byteCount,

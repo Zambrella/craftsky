@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 enum FormFactor {
   mobile(breakpoint: 600),
@@ -6,7 +6,7 @@ enum FormFactor {
   laptop(breakpoint: 1200),
   desktop(breakpoint: double.infinity);
 
-  const FormFactor({required this.breakpoint});
+  new({required this.breakpoint});
 
   final double breakpoint;
 
@@ -25,7 +25,7 @@ enum FormFactor {
 ///
 /// Recomputes on every build so orientation and resize changes propagate.
 class FormFactorWidget extends StatelessWidget {
-  const FormFactorWidget({required this.child, super.key});
+  const new({required this.child, super.key});
 
   final Widget child;
 
@@ -45,7 +45,7 @@ class FormFactorWidget extends StatelessWidget {
 }
 
 class _FormFactorScope extends InheritedWidget {
-  const _FormFactorScope({required this.formFactor, required super.child});
+  const new({required this.formFactor, required super.child});
 
   final FormFactor formFactor;
 

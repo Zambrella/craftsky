@@ -16,7 +16,7 @@ enum CustomerCenterOutcome {
 }
 
 final class CustomerCenterResult {
-  const CustomerCenterResult({required this.outcome, this.state, this.retry});
+  const new({required this.outcome, this.state, this.retry});
 
   final CustomerCenterOutcome outcome;
   final BillingState? state;
@@ -24,7 +24,7 @@ final class CustomerCenterResult {
 }
 
 final class CustomerCenterCoordinator {
-  const CustomerCenterCoordinator({
+  const new({
     required this.ownerGuard,
     required this.api,
     required this.revenueCat,
@@ -96,7 +96,9 @@ final class CustomerCenterCoordinator {
         outcome: CustomerCenterOutcome.cancelled,
       );
     }
-    return providerMutationPossible ? _reconcile(owner) : _refreshOwner(owner);
+    return providerMutationPossible
+        ? await _reconcile(owner)
+        : await _refreshOwner(owner);
   }
 
   Future<CustomerCenterResult> _refreshOwner(BillingOwnerLease owner) async {
@@ -182,7 +184,7 @@ final class CustomerCenterCoordinator {
     } on BillingOwnerGuardException {
       return _pending(reconcilePending);
     }
-    return _reconcile(owner);
+    return await _reconcile(owner);
   }
 
   CustomerCenterResult _pending(

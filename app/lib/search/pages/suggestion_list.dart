@@ -1,7 +1,7 @@
 part of 'search_page.dart';
 
 class _SuggestionList {
-  const _SuggestionList._();
+  const new _();
 
   static List<Widget> slivers({
     required BuildContext context,
@@ -70,7 +70,7 @@ class _SuggestionList {
 }
 
 class _SuggestionProfileSection extends StatelessWidget {
-  const _SuggestionProfileSection({
+  const new({
     required this.suggestions,
     required this.onOpenProfile,
     required this.onViewAll,
@@ -99,7 +99,7 @@ class _SuggestionProfileSection extends StatelessWidget {
 }
 
 class _SuggestionHashtagSection extends StatelessWidget {
-  const _SuggestionHashtagSection({
+  const new({
     required this.suggestions,
     required this.onOpenHashtag,
     required this.onViewAll,
@@ -128,7 +128,7 @@ class _SuggestionHashtagSection extends StatelessWidget {
 }
 
 class _SuggestionSectionScaffold extends StatelessWidget {
-  const _SuggestionSectionScaffold({
+  const new({
     required this.title,
     required this.hasMore,
     required this.onViewAll,

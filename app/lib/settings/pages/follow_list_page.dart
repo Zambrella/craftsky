@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/profile/models/profile_account_page.dart';
 import 'package:craftsky_app/profile/models/profile_account_summary.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
@@ -9,13 +9,13 @@ import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:material_ui/material_ui.dart';
 
 enum FollowListKind { followers, following }
 
 class FollowListPage extends ConsumerStatefulWidget {
-  const FollowListPage({required this.kind, super.key});
+  const new({required this.kind, super.key});
 
   final FollowListKind kind;
 
@@ -145,7 +145,7 @@ Widget _buildAccountSkeleton(BuildContext context, int index) =>
     const AccountRowSkeleton();
 
 class _FollowListError extends StatelessWidget {
-  const _FollowListError({required this.onRetry});
+  const new({required this.onRetry});
 
   final VoidCallback onRetry;
 
@@ -165,7 +165,7 @@ class _FollowListError extends StatelessWidget {
 }
 
 class _FollowListBody extends StatelessWidget {
-  const _FollowListBody({
+  const new({
     required this.kind,
     required this.items,
     required this.hasMore,

@@ -1,7 +1,7 @@
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/craftsky_select_inputs.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter/widget_previews.dart';
+import 'package:material_ui/material_ui.dart';
 
 const List<CraftskySelectOption<String>> _craftOptions = [
   CraftskySelectOption(value: 'knitting', label: 'Knitting'),
@@ -82,7 +82,7 @@ Widget craftskyTokenInputPreview() {
 }
 
 class _SelectPreviewFrame extends StatelessWidget {
-  const _SelectPreviewFrame({required this.child});
+  const new({required this.child});
 
   final Widget child;
 

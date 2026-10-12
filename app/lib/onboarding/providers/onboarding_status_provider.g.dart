@@ -50,7 +50,7 @@ final class OnboardingStatusProvider
   }
 }
 
-String _$onboardingStatusHash() => r'efcf4ff621f5c6eec8a39d34f14441a056f3b103';
+String _$onboardingStatusHash() => r'ab53817f826014f22b07c8aff0c395f33b65631d';
 
 final class OnboardingStatusFamily extends $Family
     with
@@ -84,7 +84,7 @@ abstract class _$OnboardingStatus extends $AsyncNotifier<OnboardingCompletion> {
   FutureOr<OnboardingCompletion> build(AccountSessionLease lease);
   @$mustCallSuper
   @override
-  void runBuild() {
+  WhenComplete runBuild() {
     final ref =
         this.ref
             as $Ref<AsyncValue<OnboardingCompletion>, OnboardingCompletion>;
@@ -99,6 +99,6 @@ abstract class _$OnboardingStatus extends $AsyncNotifier<OnboardingCompletion> {
               Object?,
               Object?
             >;
-    element.handleCreate(ref, () => build(_$args));
+    return element.handleCreate(ref, () => build(_$args));
   }
 }

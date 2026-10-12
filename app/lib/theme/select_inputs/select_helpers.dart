@@ -1,7 +1,7 @@
 part of '../craftsky_select_inputs.dart';
 
 class _SelectedChips<T> extends StatelessWidget {
-  const _SelectedChips({
+  const new({
     required this.name,
     required this.keyPrefix,
     required this.values,
@@ -40,7 +40,7 @@ class _SelectedChips<T> extends StatelessWidget {
 
 /// Shared dropdown surface for select inputs and asynchronous suggestions.
 class CraftskyOptionsPanel extends StatelessWidget {
-  const CraftskyOptionsPanel({
+  const new({
     required this.child,
     super.key,
     this.scrollable = true,
@@ -84,7 +84,7 @@ class CraftskyOptionsPanel extends StatelessWidget {
 
 /// Positions a dropdown against its field within the keyboard-safe viewport.
 class CraftskyAnchoredSelectOverlay extends StatelessWidget {
-  const CraftskyAnchoredSelectOverlay({
+  const new({
     required this.anchorKey,
     required this.onDismiss,
     required this.onEscape,

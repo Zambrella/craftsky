@@ -175,7 +175,7 @@ void main() {
 }
 
 class _Reporter implements ErrorReporter {
-  _Reporter(this.delegate);
+  new(this.delegate);
   final ErrorReporter delegate;
   final errors = <Object>[];
   final stacks = <StackTrace?>[];
@@ -191,7 +191,7 @@ class _Reporter implements ErrorReporter {
     errors.add(error);
     stacks.add(stackTrace);
     if (fail) throw StateError('reporter-failure-canary');
-    return delegate.captureException(
+    return await delegate.captureException(
       error,
       context: context,
       stackTrace: stackTrace,

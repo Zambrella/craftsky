@@ -2,12 +2,12 @@ import 'package:flutter/foundation.dart';
 
 @immutable
 final class LanguagePreferences {
-  const LanguagePreferences({
+  const new({
     required this.primaryLanguage,
     required this.contentLanguages,
   });
 
-  factory LanguagePreferences.fromJson(Map<String, dynamic> json) {
+  factory fromJson(Map<String, dynamic> json) {
     if (!json.containsKey('primaryLanguage') ||
         !json.containsKey('contentLanguages') ||
         json.length != 2) {

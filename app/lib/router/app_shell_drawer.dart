@@ -1,10 +1,10 @@
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Gives top-level branch app bars access to the compact shell's drawer.
 class AppShellDrawerScope extends InheritedWidget {
-  const AppShellDrawerScope({
+  const new({
     required this.openDrawer,
     required this.isDrawerOpen,
     required super.child,
@@ -27,7 +27,7 @@ class AppShellDrawerScope extends InheritedWidget {
 
 /// Leading action used by each compact top-level branch app bar.
 class AppShellDrawerButton extends StatelessWidget {
-  const AppShellDrawerButton({super.key, this.style});
+  const new({super.key, this.style});
 
   final ButtonStyle? style;
 

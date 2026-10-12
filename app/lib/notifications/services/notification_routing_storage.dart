@@ -5,7 +5,7 @@ import 'package:craftsky_app/auth/models/stored_session.dart';
 import 'package:craftsky_app/notifications/models/account_subscription_id.dart';
 
 sealed class NotificationRecipientResolution {
-  const NotificationRecipientResolution();
+  const new();
 
   @override
   String toString() => switch (this) {
@@ -16,19 +16,19 @@ sealed class NotificationRecipientResolution {
 }
 
 final class ExactNotificationRecipient extends NotificationRecipientResolution {
-  const ExactNotificationRecipient(this.lease);
+  const new(this.lease);
 
   final AccountSessionLease lease;
 }
 
 final class InvalidNotificationRecipient
     extends NotificationRecipientResolution {
-  const InvalidNotificationRecipient();
+  const new();
 }
 
 final class RemovedNotificationRecipient
     extends NotificationRecipientResolution {
-  const RemovedNotificationRecipient();
+  const new();
 }
 
 /// Registry-backed adapter for the secure DID-to-routing-ID binding map.
@@ -36,7 +36,7 @@ final class RemovedNotificationRecipient
 /// Resolution returns a session-generation lease rather than a DID so an open
 /// cannot cross account removal or reauthentication while it is in flight.
 final class NotificationRoutingStorage {
-  const NotificationRoutingStorage(this._readRegistry);
+  const new(this._readRegistry);
 
   final SessionRegistry Function() _readRegistry;
 

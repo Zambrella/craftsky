@@ -5,7 +5,7 @@ import 'package:craftsky_app/drafts/models/local_post_draft.dart';
 import 'package:craftsky_app/feed/providers/composer_image_state.dart';
 
 final class StandardDraftSnapshotAdapter {
-  const StandardDraftSnapshotAdapter();
+  const new();
 
   DraftWriteRequest toWriteRequest({
     required String id,

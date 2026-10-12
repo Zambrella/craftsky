@@ -1,14 +1,14 @@
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/profile/data/crafts_catalog.dart';
 import 'package:craftsky_app/shared/widgets/craft_icon.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Multi-select chip grid backed by the [Craft] catalog. Tapping a chip
 /// toggles its presence in [selected] via [onToggle]. Renders every
 /// currently selectable catalog entry in canonical order.
 class EditProfileCraftsPicker extends StatelessWidget {
-  const EditProfileCraftsPicker({
+  const new({
     required this.selected,
     required this.onToggle,
     required this.onRequestMore,
@@ -49,7 +49,7 @@ class EditProfileCraftsPicker extends StatelessWidget {
 }
 
 class _CraftChoiceChip extends StatelessWidget {
-  const _CraftChoiceChip({
+  const new({
     required this.craft,
     required this.isSelected,
     required this.onTap,

@@ -86,4 +86,3 @@ extension NotificationCategoryMapperExtension on NotificationCategory {
         as String;
   }
 }
-

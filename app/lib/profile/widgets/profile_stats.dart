@@ -1,8 +1,8 @@
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 String formatJoinedAge(DateTime createdAt, {DateTime? now}) {
   final elapsed = (now ?? DateTime.now()).difference(createdAt);
@@ -17,7 +17,7 @@ String formatJoinedAge(DateTime createdAt, {DateTime? now}) {
 /// do not render here; those counts remain available in the API but are shown
 /// only one tap deeper from Settings.
 class ProfileStats extends StatelessWidget {
-  const ProfileStats({required this.profile, super.key});
+  const new({required this.profile, super.key});
 
   final Profile profile;
 
@@ -79,7 +79,7 @@ class ProfileStats extends StatelessWidget {
 }
 
 class _ProfileStatData {
-  const _ProfileStatData({
+  const new({
     required this.icon,
     required this.value,
     required this.label,
@@ -91,7 +91,7 @@ class _ProfileStatData {
 }
 
 class _ProfileStat extends StatelessWidget {
-  const _ProfileStat({required this.stat});
+  const new({required this.stat});
 
   final _ProfileStatData stat;
 

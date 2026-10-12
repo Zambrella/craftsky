@@ -4,7 +4,7 @@ enum DraftMediaAvailability { available, unavailable }
 
 /// Persisted metadata for one immutable, app-owned draft image.
 final class DraftMediaDescriptor {
-  const DraftMediaDescriptor({
+  const new({
     required this.mediaId,
     required this.storageRevision,
     required this.storageFileName,

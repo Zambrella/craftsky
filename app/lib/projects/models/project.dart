@@ -9,7 +9,7 @@ const quiltingProjectDetailsType = 'social.craftsky.project.quilting#details';
 
 @MappableClass(ignoreNull: true, includeCustomMappers: [ProjectDetailsMapper()])
 class Project with ProjectMappable {
-  const Project({required this.common, this.details});
+  const new({required this.common, this.details});
 
   final ProjectCommon common;
   @MappableField(hook: ProjectDetailsFieldHook())
@@ -20,7 +20,7 @@ class Project with ProjectMappable {
 
 @MappableClass(ignoreNull: true)
 class ProjectCommon with ProjectCommonMappable {
-  const ProjectCommon({
+  const new({
     required this.craftType,
     this.status,
     this.title,
@@ -45,7 +45,7 @@ class ProjectCommon with ProjectCommonMappable {
 
 @MappableClass(ignoreNull: true)
 class ProjectMaterial with ProjectMaterialMappable {
-  const ProjectMaterial({required this.text, this.facets});
+  const new({required this.text, this.facets});
 
   final String text;
   final List<Map<String, dynamic>>? facets;
@@ -53,7 +53,7 @@ class ProjectMaterial with ProjectMaterialMappable {
 
 @MappableClass(ignoreNull: true)
 class ProjectPattern with ProjectPatternMappable {
-  const ProjectPattern({
+  const new({
     this.url,
     this.name,
     this.nameFacets,
@@ -78,7 +78,7 @@ class ProjectPattern with ProjectPatternMappable {
 
 @MappableClass(ignoreNull: true)
 class ProjectGauge with ProjectGaugeMappable {
-  const ProjectGauge({
+  const new({
     required this.stitches,
     required this.measurement,
     required this.unit,
@@ -92,13 +92,13 @@ class ProjectGauge with ProjectGaugeMappable {
 }
 
 sealed class ProjectDetails {
-  const ProjectDetails();
+  const new();
 }
 
 @MappableClass(ignoreNull: true)
 final class KnittingProjectDetails extends ProjectDetails
     with KnittingProjectDetailsMappable {
-  const KnittingProjectDetails({
+  const new({
     this.projectType,
     this.projectSubtype,
     this.yarnWeight,
@@ -118,7 +118,7 @@ final class KnittingProjectDetails extends ProjectDetails
 @MappableClass(ignoreNull: true)
 final class CrochetProjectDetails extends ProjectDetails
     with CrochetProjectDetailsMappable {
-  const CrochetProjectDetails({
+  const new({
     this.projectType,
     this.projectSubtype,
     this.yarnWeight,
@@ -138,7 +138,7 @@ final class CrochetProjectDetails extends ProjectDetails
 @MappableClass(ignoreNull: true)
 final class SewingProjectDetails extends ProjectDetails
     with SewingProjectDetailsMappable {
-  const SewingProjectDetails({
+  const new({
     this.projectType,
     this.projectSubtype,
     this.sizeMade,
@@ -154,7 +154,7 @@ final class SewingProjectDetails extends ProjectDetails
 @MappableClass(ignoreNull: true)
 final class QuiltingProjectDetails extends ProjectDetails
     with QuiltingProjectDetailsMappable {
-  const QuiltingProjectDetails({
+  const new({
     this.projectType,
     this.projectSubtype,
     this.size,
@@ -172,14 +172,14 @@ final class QuiltingProjectDetails extends ProjectDetails
 @MappableClass(ignoreNull: true)
 final class UnknownProjectDetails extends ProjectDetails
     with UnknownProjectDetailsMappable {
-  const UnknownProjectDetails({required this.raw, this.type});
+  const new({required this.raw, this.type});
 
   final String? type;
   final Map<String, dynamic> raw;
 }
 
 class ProjectDetailsMapper extends SimpleMapper<ProjectDetails> {
-  const ProjectDetailsMapper();
+  const new();
 
   @override
   ProjectDetails decode(Object value) {
@@ -225,7 +225,7 @@ class ProjectDetailsMapper extends SimpleMapper<ProjectDetails> {
 }
 
 class ProjectDetailsFieldHook extends MappingHook {
-  const ProjectDetailsFieldHook();
+  const new();
 
   @override
   Object? beforeEncode(Object? value) {

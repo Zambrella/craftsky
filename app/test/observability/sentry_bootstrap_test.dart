@@ -68,7 +68,7 @@ void main() {
 }
 
 final class _FakeSentryBootstrapAdapter implements SentryBootstrapAdapter {
-  _FakeSentryBootstrapAdapter({this.throwOnInitialize = false});
+  new({this.throwOnInitialize = false});
 
   final bool throwOnInitialize;
   final calls = <SentryConfig>[];

@@ -1,16 +1,16 @@
 import 'dart:typed_data';
 
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Centered avatar editor for the profile-edit page.
 class EditProfileBannerAvatar extends StatelessWidget {
-  const EditProfileBannerAvatar({
+  const new({
     required this.profile,
     this.avatarPreviewBytes,
     this.onPickAvatar,
@@ -57,7 +57,7 @@ class EditProfileBannerAvatar extends StatelessWidget {
 }
 
 class _EditableAvatar extends StatelessWidget {
-  const _EditableAvatar({
+  const new({
     required this.seed,
     required this.avatarUrl,
     required this.customisation,

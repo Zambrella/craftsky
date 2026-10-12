@@ -1,7 +1,7 @@
 part of 'search_page.dart';
 
 class _BlankSearchView {
-  const _BlankSearchView._();
+  const new _();
 
   static List<Widget> slivers({
     required BuildContext context,
@@ -53,7 +53,7 @@ class _BlankSearchView {
 }
 
 class _RecentSearchSection extends ConsumerWidget {
-  const _RecentSearchSection({
+  const new({
     required this.data,
     required this.onOpenQuery,
     required this.onOpenHashtag,
@@ -137,7 +137,7 @@ class _RecentSearchSection extends ConsumerWidget {
 }
 
 class _TopHashtagSection extends StatelessWidget {
-  const _TopHashtagSection({required this.data, required this.onOpenHashtag});
+  const new({required this.data, required this.onOpenHashtag});
 
   final BlankSearchData data;
   final ValueChanged<String> onOpenHashtag;

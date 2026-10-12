@@ -4,7 +4,7 @@ import 'package:craftsky_app/scheduled_posts/models/scheduled_post.dart';
 const scheduledPostPreviewCharacters = 120;
 
 final class ScheduledPostRowModel {
-  const ScheduledPostRowModel({
+  const new({
     required this.id,
     required this.kind,
     required this.status,
@@ -14,7 +14,7 @@ final class ScheduledPostRowModel {
     this.firstMediaId,
   });
 
-  factory ScheduledPostRowModel.fromSummary(
+  factory fromSummary(
     ScheduledPostSummary summary, {
     required String zoneName,
     required Duration offset,

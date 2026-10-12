@@ -47,9 +47,11 @@ void main() {
       registration: NotificationRegistrationCoordinator(
         service: service,
         platform: NotificationPlatform.ios,
-        registerAccount:
-            ({required lease, required platform, required token}) async =>
-                binding,
+        registerAccount: ({
+          required lease,
+          required platform,
+          required token,
+        }) async => binding,
         saveBindingForLease: ({required lease, required binding}) async {},
       ),
       routingStorage: NotificationRoutingStorage(() => registry),
@@ -106,9 +108,11 @@ void main() {
       registration: NotificationRegistrationCoordinator(
         service: service,
         platform: NotificationPlatform.ios,
-        registerAccount:
-            ({required lease, required platform, required token}) async =>
-                binding,
+        registerAccount: ({
+          required lease,
+          required platform,
+          required token,
+        }) async => binding,
         saveBindingForLease: ({required lease, required binding}) async {},
       ),
       routingStorage: routing,
@@ -155,7 +159,7 @@ NotificationOpenAttempt _attempt(NotificationOpenSource source) =>
     );
 
 final class _RecordingService implements NotificationService {
-  _RecordingService({required this.initialOpen});
+  new({required this.initialOpen});
 
   final NotificationOpenAttempt initialOpen;
   final openController = StreamController<NotificationOpenAttempt>.broadcast();

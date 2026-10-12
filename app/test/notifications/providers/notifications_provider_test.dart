@@ -273,36 +273,32 @@ void main() {
 String _socialRkey(CraftskyNotification notification) =>
     (notification as SocialNotification).rkey.toString();
 
-InstagramMatchNotification _instagramMatch() =>
-    CraftskyNotification.fromMap({
-          'id': 'instagram-match',
-          'type': 'instagramMatch',
-          'actor': {
-            'available': true,
-            'did': 'did:plc:instagram-match',
-            'handle': 'instagram-match.test',
-            'viewerIsFollowing': true,
-          },
-          'createdAt': '2026-05-28T13:00:00Z',
-          'indexedAt': '2026-05-28T13:00:01Z',
-        })
-        as InstagramMatchNotification;
+InstagramMatchNotification _instagramMatch() => CraftskyNotification.fromMap({
+  'id': 'instagram-match',
+  'type': 'instagramMatch',
+  'actor': {
+    'available': true,
+    'did': 'did:plc:instagram-match',
+    'handle': 'instagram-match.test',
+    'viewerIsFollowing': true,
+  },
+  'createdAt': '2026-05-28T13:00:00Z',
+  'indexedAt': '2026-05-28T13:00:01Z',
+}) as InstagramMatchNotification;
 
 FollowNotification _follow(
   String rkey, {
   String actorDid = 'did:plc:alice',
-}) =>
-    CraftskyNotification.fromMap({
-          'id': 'notification-$rkey',
-          'uri': 'at://did:plc:alice/app.bsky.graph.follow/$rkey',
-          'cid': 'bafy$rkey',
-          'rkey': rkey,
-          'type': 'follow',
-          'actor': {'did': actorDid, 'handle': 'actor.craftsky.social'},
-          'createdAt': '2026-05-28T13:00:00Z',
-          'indexedAt': '2026-05-28T13:00:01Z',
-        })
-        as FollowNotification;
+}) => CraftskyNotification.fromMap({
+  'id': 'notification-$rkey',
+  'uri': 'at://did:plc:alice/app.bsky.graph.follow/$rkey',
+  'cid': 'bafy$rkey',
+  'rkey': rkey,
+  'type': 'follow',
+  'actor': {'did': actorDid, 'handle': 'actor.craftsky.social'},
+  'createdAt': '2026-05-28T13:00:00Z',
+  'indexedAt': '2026-05-28T13:00:01Z',
+}) as FollowNotification;
 
 class _FakeNotificationRepository implements NotificationRepository {
   final responses = <Future<NotificationPage>>[];
@@ -320,14 +316,14 @@ class _FakeNotificationRepository implements NotificationRepository {
 }
 
 final class _Call {
-  const _Call({this.cursor, this.limit, this.category});
+  const new({this.cursor, this.limit, this.category});
   final NotificationCategory? category;
   final String? cursor;
   final int? limit;
 }
 
 final class _RegistryStorage implements SessionRegistryStorage {
-  _RegistryStorage(this.registry);
+  new(this.registry);
 
   auth_model.SessionRegistry registry;
 

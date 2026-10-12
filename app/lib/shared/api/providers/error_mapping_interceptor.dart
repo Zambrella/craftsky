@@ -5,7 +5,7 @@ import 'package:dio/dio.dart';
 /// Dio attach this interceptor; the session Dio additionally installs
 /// `_SignOutOn401Interceptor` (see Task 14b).
 class ErrorMappingInterceptor extends Interceptor {
-  const ErrorMappingInterceptor();
+  const new();
 
   @override
   void onError(DioException err, ErrorInterceptorHandler handler) {
@@ -26,6 +26,7 @@ class ErrorMappingInterceptor extends Interceptor {
       DioExceptionType.connectionTimeout ||
       DioExceptionType.sendTimeout ||
       DioExceptionType.receiveTimeout ||
+      DioExceptionType.transformTimeout ||
       DioExceptionType.connectionError => ApiNetworkError(
         err.message ?? err.type.name,
         details: details,

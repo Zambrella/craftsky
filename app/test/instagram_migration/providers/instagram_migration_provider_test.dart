@@ -680,7 +680,7 @@ Future<void> _waitUntil(bool Function() condition) async {
 }
 
 final class _RegistryStorage implements SessionRegistryStorage {
-  _RegistryStorage(this.value);
+  new(this.value);
 
   registry.SessionRegistry value;
 
@@ -693,7 +693,7 @@ final class _RegistryStorage implements SessionRegistryStorage {
 }
 
 final class _Repository implements InstagramMigrationRepository {
-  const _Repository({
+  const new({
     required this.onGetAccount,
     this.onCreateVerification,
     this.onListImports,

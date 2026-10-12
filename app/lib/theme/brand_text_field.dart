@@ -1,7 +1,7 @@
 import 'package:craftsky_app/theme/craftsky_field_scaffold.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// A text field dressed in the CraftSky paper-cutout style: heavy label
 /// above the field, chunky ink-black outline, and a hard-offset shadow
@@ -14,7 +14,7 @@ import 'package:flutter/services.dart';
 /// adds the shadow and positions the label and helper outside the
 /// decorated area.
 class BrandTextField extends StatefulWidget {
-  const BrandTextField({
+  const new({
     required this.label,
     super.key,
     this.controller,

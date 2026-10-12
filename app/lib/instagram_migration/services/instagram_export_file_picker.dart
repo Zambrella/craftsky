@@ -24,6 +24,6 @@ final instagramExportFilePickerProvider = Provider<InstagramExportFilePicker>(
       acceptedTypeGroups: const [exportFiles],
     );
     if (file == null) return null;
-    return platform.parseSelectedInstagramExport(file);
+    return await platform.parseSelectedInstagramExport(file);
   },
 );

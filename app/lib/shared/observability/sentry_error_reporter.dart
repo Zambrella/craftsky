@@ -22,7 +22,7 @@ import 'package:sentry_logging/sentry_logging.dart';
 Future<void> closeSentrySdk() => Sentry.close();
 
 final class SentryFlutterBootstrapAdapter implements SentryBootstrapAdapter {
-  const SentryFlutterBootstrapAdapter({this.appRunner});
+  const new({this.appRunner});
   final Future<void> Function(ErrorReporter)? appRunner;
 
   @override
@@ -35,7 +35,6 @@ final class SentryFlutterBootstrapAdapter implements SentryBootstrapAdapter {
           ..release = config.release
           ..dist = config.dist
           ..sendDefaultPii = false
-          ..enableLogs = true
           ..tracesSampleRate = null
           ..enableAutoPerformanceTracing = false
           ..captureFailedRequests = false
@@ -54,7 +53,7 @@ final class SentryFlutterBootstrapAdapter implements SentryBootstrapAdapter {
 }
 
 final class SentryErrorReporter implements ErrorReporter {
-  const SentryErrorReporter();
+  const new();
 
   @override
   bool get enabled => true;
@@ -157,7 +156,10 @@ NavigatorObserver diagnosticNavigationObserver() => SentryNavigatorObserver(
   routeNameExtractor: (settings) => RouteSettings(name: settings?.name),
 );
 
-void configureDiagnosticOptions(SentryOptions options) {
+void configureDiagnosticOptions(
+  SentryOptions options, {
+  bool enableLogs = true,
+}) {
   // Install after the client chooses its HTTP/native transport, before other
   // integrations run. Scope attachments are assembled after beforeSend.
   <ExceptionCauseExtractor<dynamic>>[
@@ -170,13 +172,20 @@ void configureDiagnosticOptions(SentryOptions options) {
     _DiagnosticCauseExtractor<DioException>(),
   ].forEach(options.addExceptionCauseExtractor);
   options
+    // Retain the filtered transaction path; production tracing is disabled.
+    ..traceLifecycle = SentryTraceLifecycle.static
     ..addIntegrationByIndex(0, _AttachmentPrivacyIntegration())
     ..addIntegration(
       LoggingIntegration(
         minEventLevel: Level.OFF,
+        minSentryLogLevel: enableLogs ? Level.INFO : Level.OFF,
       ),
     )
     ..maxBreadcrumbs = 50
+    // Sentry 10 enables metrics by default; this app only exports diagnostics.
+    ..beforeSendMetric = (metric, hint) {
+      return null;
+    }
     ..beforeBreadcrumb = (breadcrumb, hint) {
       if (breadcrumb == null) return null;
       final safe = _protectBreadcrumb(breadcrumb);
@@ -188,13 +197,16 @@ void configureDiagnosticOptions(SentryOptions options) {
         };
         if (record.object case final DiagnosticMessage message) {
           safe.data!.addAll(
-            _breadcrumbContext(message.context, failure: record.error != null),
+            _breadcrumbContext(
+              message.context,
+              failure: record.error != null,
+            ),
           );
         }
       }
       return safe;
     }
-    ..beforeSendLog = (log) {
+    ..beforeSendLog = (log, hint) {
       log.body = boundDiagnosticText(log.body, 512);
       final fields = {
         for (final entry in log.attributes.entries)
@@ -244,7 +256,9 @@ void configureDiagnosticOptions(SentryOptions options) {
     ..beforeSend = (event, hint) {
       // SDK automatic integrations decorate the original typed throwable.
       // Explicit owners already classify with their terminal/retry context.
-      if (event.throwableMechanism case ThrowableMechanism(:final throwable)) {
+      if (event.throwableMechanism case ThrowableMechanism(
+        :final throwable,
+      )) {
         if (throwable is Object &&
             isExpectedDiagnostic(
               throwable,
@@ -289,7 +303,7 @@ final class _AttachmentPrivacyIntegration extends Integration<SentryOptions> {
 }
 
 final class _WithoutAttachmentsTransport implements Transport {
-  const _WithoutAttachmentsTransport(this.delegate);
+  const new(this.delegate);
   final Transport delegate;
 
   @override
@@ -311,7 +325,6 @@ SentryEvent _protectEvent(SentryEvent event) {
     ..serverName = null
     ..threads = null;
   // Filter tags separately from the private-field clearing cascade above.
-  // ignore: cascade_invocations
   event.tags = {
     for (final entry in SentrySanitizer.sanitizeContext(
       Map<String, Object?>.from(event.tags ?? {}),

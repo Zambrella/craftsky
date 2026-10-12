@@ -11,7 +11,7 @@ import 'package:dio/dio.dart';
 /// Search-related AppView endpoints. Assumes the attached [Dio] has the
 /// auth + error interceptors installed; each call is wrapped in [unwrapApi].
 class SearchApiClient {
-  const SearchApiClient(this._dio);
+  const new(this._dio);
 
   final Dio _dio;
 

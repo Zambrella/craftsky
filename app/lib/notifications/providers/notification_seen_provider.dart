@@ -27,7 +27,7 @@ NotificationSeenCoordinator notificationSeen(Ref ref) =>
     );
 
 final class NotificationSeenCoordinator {
-  NotificationSeenCoordinator({
+  new({
     required this._repository,
     required this._refreshCount,
   });

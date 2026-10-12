@@ -10,7 +10,7 @@ import 'package:craftsky_app/auth/providers/auth_controller.dart';
 import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
 import 'package:craftsky_app/auth/services/session_validation_coordinator.dart';
 import 'package:craftsky_app/bootstrap.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/shared/api/providers/error_mapping_interceptor.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/shared/widgets/craft_icon.dart';
@@ -20,10 +20,10 @@ import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/gestures.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http_mock_adapter/http_mock_adapter.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../fakes/recording_messenger.dart';
 
@@ -71,7 +71,7 @@ void main() {
         ],
         child: MaterialApp(
           theme: AppTheme.lightThemeData,
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: appLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: const WelcomePage(),
         ),
@@ -112,7 +112,7 @@ void main() {
           messenger: messenger,
           child: MaterialApp(
             theme: AppTheme.lightThemeData,
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            localizationsDelegates: appLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             home: const WelcomePage(),
           ),
@@ -159,7 +159,7 @@ void main() {
           messenger: messenger,
           child: MaterialApp(
             theme: AppTheme.lightThemeData,
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            localizationsDelegates: appLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             home: const WelcomePage(),
           ),
@@ -187,7 +187,7 @@ void main() {
         ],
         child: MaterialApp(
           theme: AppTheme.lightThemeData,
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: appLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: const WelcomePage(),
         ),
@@ -207,9 +207,9 @@ void main() {
     await tester.tap(find.text('Register'));
     await tester.pump();
 
-    final controller =
-        tester.container().read(authControllerProvider.notifier)
-            as _RecordingAuthController;
+    final controller = tester.container().read(
+      authControllerProvider.notifier,
+    ) as _RecordingAuthController;
     expect(controller.registrationCalls, 1);
     expect(find.byType(Dialog), findsNothing);
     expect(find.byType(WelcomePage), findsOneWidget);
@@ -225,7 +225,7 @@ void main() {
         ],
         child: MaterialApp(
           theme: AppTheme.lightThemeData,
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: appLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: const WelcomePage(),
         ),
@@ -238,9 +238,9 @@ void main() {
     await tester.tap(signInButton);
     await tester.pump();
 
-    final controller =
-        tester.container().read(authControllerProvider.notifier)
-            as _RecordingAuthController;
+    final controller = tester.container().read(
+      authControllerProvider.notifier,
+    ) as _RecordingAuthController;
     expect(controller.signInCalls, ['alice.bsky.social']);
   });
 
@@ -256,7 +256,7 @@ void main() {
           ],
           child: MaterialApp(
             theme: AppTheme.lightThemeData,
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            localizationsDelegates: appLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             home: const WelcomePage(),
           ),
@@ -286,7 +286,7 @@ void main() {
         ],
         child: MaterialApp(
           theme: AppTheme.lightThemeData,
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: appLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: const WelcomePage(),
         ),
@@ -313,9 +313,9 @@ void main() {
     await tester.tap(find.text('Register'));
     await tester.pump();
 
-    final controller =
-        tester.container().read(authControllerProvider.notifier)
-            as _RecordingAuthController;
+    final controller = tester.container().read(
+      authControllerProvider.notifier,
+    ) as _RecordingAuthController;
     expect(controller.registrationCalls, 2);
   });
 
@@ -329,7 +329,7 @@ void main() {
         ],
         child: MaterialApp(
           theme: AppTheme.lightThemeData,
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: appLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: const WelcomePage(),
         ),
@@ -358,7 +358,7 @@ void main() {
         ],
         child: MaterialApp(
           theme: AppTheme.lightThemeData,
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: appLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: WelcomePage(
             linkLauncher: (uri) async {
@@ -398,7 +398,7 @@ void main() {
         ],
         child: MaterialApp(
           theme: AppTheme.lightThemeData,
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: appLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: const WelcomePage(),
         ),

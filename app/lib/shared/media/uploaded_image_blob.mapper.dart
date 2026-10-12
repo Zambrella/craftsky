@@ -433,4 +433,3 @@ class _UploadedBlobRefCopyWithImpl<$R, $Out>
     Then<$Out2, $R2> t,
   ) => _UploadedBlobRefCopyWithImpl<$R2, $Out2>($value, $cast, t);
 }
-

@@ -4,14 +4,14 @@ import 'dart:typed_data';
 const maxLinkPreviewThumbnailBytes = 1000000;
 
 class LinkPreview {
-  const LinkPreview({
+  const new({
     required this.url,
     required this.title,
     required this.description,
     this.thumbnail,
   });
 
-  factory LinkPreview.fromMap(Map<String, dynamic> map) {
+  factory fromMap(Map<String, dynamic> map) {
     final url = map['url'];
     final title = map['title'];
     final description = map['description'];
@@ -42,14 +42,14 @@ class LinkPreview {
 }
 
 class LinkPreviewThumbnail {
-  const LinkPreviewThumbnail({
+  const new({
     required this.bytes,
     required this.mimeType,
     required this.width,
     required this.height,
   });
 
-  factory LinkPreviewThumbnail.fromMap(Map<String, dynamic> map) {
+  factory fromMap(Map<String, dynamic> map) {
     final encoded = map['bytes'];
     final mimeType = map['mimeType'];
     final width = map['width'];

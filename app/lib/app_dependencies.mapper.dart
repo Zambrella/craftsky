@@ -358,4 +358,3 @@ class _AppDependenciesCopyWithImpl<$R, $Out>
     Then<$Out2, $R2> t,
   ) => _AppDependenciesCopyWithImpl<$R2, $Out2>($value, $cast, t);
 }
-

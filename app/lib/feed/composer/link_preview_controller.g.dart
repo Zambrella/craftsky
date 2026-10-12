@@ -148,7 +148,7 @@ abstract class _$LinkPreviewController
   LinkPreviewSessionState build(String composerId, AccountKey accountKey);
   @$mustCallSuper
   @override
-  void runBuild() {
+  WhenComplete runBuild() {
     final ref =
         this.ref as $Ref<LinkPreviewSessionState, LinkPreviewSessionState>;
     final element =
@@ -159,6 +159,6 @@ abstract class _$LinkPreviewController
               Object?,
               Object?
             >;
-    element.handleCreate(ref, () => build(_$args.$1, _$args.$2));
+    return element.handleCreate(ref, () => build(_$args.$1, _$args.$2));
   }
 }

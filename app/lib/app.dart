@@ -6,7 +6,7 @@ import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/auth/widgets/active_account_initialization_gate.dart';
 import 'package:craftsky_app/initialization_error_screen.dart';
 import 'package:craftsky_app/initialization_loading_screen.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/languages/providers/app_language_provider.dart';
 import 'package:craftsky_app/notifications/widgets/notification_effect_host.dart';
 import 'package:craftsky_app/service_status/providers/service_status_controller.dart';
@@ -19,15 +19,15 @@ import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/form_factor.dart';
 import 'package:craftsky_app/theme/text_scale_factor_clamper.dart';
 import 'package:craftsky_app/theme/theme_notifier.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:logging/logging.dart';
+import 'package:material_ui/material_ui.dart';
 
 final _log = Logger('App');
 
 class App extends ConsumerStatefulWidget {
-  const App({
+  const new({
     this.onInitializationResolved = FlutterNativeSplash.remove,
     super.key,
   });
@@ -127,7 +127,7 @@ class _AppState extends ConsumerState<App> {
 }
 
 class _ReadyApp extends ConsumerWidget {
-  const _ReadyApp();
+  const new();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -147,17 +147,21 @@ class _ReadyApp extends ConsumerWidget {
         darkTheme: AppTheme.darkThemeData,
         themeMode: themeMode,
         debugShowCheckedModeBanner: false,
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        localizationsDelegates: appLocalizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         locale: appLanguage,
         routerConfig: router,
         builder: (context, child) {
-          return TextScaleFactorClamper(
-            child: FormFactorWidget(
-              child: ServiceStatusHost(
-                child: NotificationEffectHost(
-                  child: ActiveAccountInitializationGate(
-                    child: child ?? const SizedBox.shrink(),
+          // Media and billing plugins still read the SDK's design state.
+          // ignore: deprecated_member_use
+          return MaterialUiCompatibilityBridge(
+            child: TextScaleFactorClamper(
+              child: FormFactorWidget(
+                child: ServiceStatusHost(
+                  child: NotificationEffectHost(
+                    child: ActiveAccountInitializationGate(
+                      child: child ?? const SizedBox.shrink(),
+                    ),
                   ),
                 ),
               ),
@@ -170,7 +174,7 @@ class _ReadyApp extends ConsumerWidget {
 }
 
 class _LoadingApp extends StatelessWidget {
-  const _LoadingApp();
+  const new();
 
   @override
   Widget build(BuildContext context) {
@@ -181,10 +185,13 @@ class _LoadingApp extends StatelessWidget {
         theme: AppTheme.lightThemeData,
         darkTheme: AppTheme.darkThemeData,
         debugShowCheckedModeBanner: false,
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        localizationsDelegates: appLocalizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
-        builder: (context, child) =>
-            ServiceStatusHost(child: child ?? const SizedBox.shrink()),
+        // Keep SDK-based plugin themes and localizations available.
+        // ignore: deprecated_member_use
+        builder: (context, child) => MaterialUiCompatibilityBridge(
+          child: ServiceStatusHost(child: child ?? const SizedBox.shrink()),
+        ),
         home: const InitializationLoadingScreen(),
       ),
     );
@@ -192,7 +199,7 @@ class _LoadingApp extends StatelessWidget {
 }
 
 class _ErrorApp extends ConsumerWidget {
-  const _ErrorApp({required this.error});
+  const new({required this.error});
 
   final Object error;
 
@@ -205,10 +212,13 @@ class _ErrorApp extends ConsumerWidget {
         theme: AppTheme.lightThemeData,
         darkTheme: AppTheme.darkThemeData,
         debugShowCheckedModeBanner: false,
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        localizationsDelegates: appLocalizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
-        builder: (context, child) =>
-            ServiceStatusHost(child: child ?? const SizedBox.shrink()),
+        // Keep SDK-based plugin themes and localizations available.
+        // ignore: deprecated_member_use
+        builder: (context, child) => MaterialUiCompatibilityBridge(
+          child: ServiceStatusHost(child: child ?? const SizedBox.shrink()),
+        ),
         home: InitializationErrorScreen(
           error: error,
           onRetry: () => ref.invalidate(appDependenciesProvider),

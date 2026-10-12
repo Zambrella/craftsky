@@ -4,7 +4,7 @@ import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
 import 'package:crypto/crypto.dart';
 
 final class VideoDraftStreamResult {
-  const VideoDraftStreamResult({
+  const new({
     required this.byteLength,
     required this.sha256,
   });
@@ -14,7 +14,7 @@ final class VideoDraftStreamResult {
 }
 
 final class VideoDraftStreamException implements Exception {
-  const VideoDraftStreamException();
+  const new();
 }
 
 Future<VideoDraftStreamResult> writeVideoDraftStream({

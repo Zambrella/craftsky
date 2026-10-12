@@ -14,14 +14,14 @@ part 'instagram_verification_storage.mapper.dart';
 )
 final class InstagramVerificationSnapshot
     with InstagramVerificationSnapshotMappable {
-  const InstagramVerificationSnapshot({
+  const new({
     required this.verificationId,
     required this.challenge,
     required this.dmUrl,
     required this.expiresAt,
   });
 
-  factory InstagramVerificationSnapshot.fromMap(Map<String, dynamic> map) {
+  factory fromMap(Map<String, dynamic> map) {
     final verificationId = map['verificationId'];
     final challenge = map['challenge'];
     final rawDmUrl = map['dmUrl'];
@@ -84,7 +84,7 @@ abstract interface class InstagramVerificationStorage {
 
 final class _FlutterInstagramVerificationStorageBackend
     implements InstagramVerificationStorageBackend {
-  const _FlutterInstagramVerificationStorageBackend(this._storage);
+  const new(this._storage);
 
   final FlutterSecureStorage _storage;
 
@@ -101,10 +101,10 @@ final class _FlutterInstagramVerificationStorageBackend
 
 final class SecureInstagramVerificationStorage
     implements InstagramVerificationStorage {
-  SecureInstagramVerificationStorage(FlutterSecureStorage storage)
+  new(FlutterSecureStorage storage)
     : _backend = _FlutterInstagramVerificationStorageBackend(storage);
 
-  SecureInstagramVerificationStorage.withBackend(this._backend);
+  new withBackend(this._backend);
 
   static const _keyPrefix = 'craftsky_instagram_verification_v1_';
 

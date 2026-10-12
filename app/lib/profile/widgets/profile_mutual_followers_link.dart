@@ -2,10 +2,10 @@ import 'dart:async';
 
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 class ProfileMutualFollowersLink extends StatelessWidget {
-  const ProfileMutualFollowersLink({
+  const new({
     required this.count,
     required this.targetDid,
     super.key,

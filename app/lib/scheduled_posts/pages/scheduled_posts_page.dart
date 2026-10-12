@@ -2,7 +2,7 @@ import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/auth/providers/account_operation_guard.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/feed/widgets/post_composer_sheet.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/projects/widgets/project_composer_sheet.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/scheduled_posts/models/scheduled_post.dart';
@@ -16,13 +16,13 @@ import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:material_ui/material_ui.dart';
 
 enum _ScheduledPostAction { edit, delete }
 
 class ScheduledPostsPage extends ConsumerWidget {
-  const ScheduledPostsPage({super.key});
+  const new({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -120,7 +120,7 @@ bool _isActiveLeaseCurrent(WidgetRef ref, ActiveAccountLease lease) =>
     ActiveAccountOperation.fromWidget(ref, lease).isCurrent;
 
 class ScheduledPostsPageContent extends StatelessWidget {
-  const ScheduledPostsPageContent({
+  const new({
     required this.items,
     required this.onRefresh,
     required this.onEdit,
@@ -175,7 +175,7 @@ class ScheduledPostsPageContent extends StatelessWidget {
 }
 
 class _ScheduledPostTile extends StatelessWidget {
-  const _ScheduledPostTile({
+  const new({
     required this.item,
     required this.onEdit,
     required this.onDelete,
@@ -312,7 +312,7 @@ String _statusLabel(AppLocalizations l10n, ScheduledPostStatus status) =>
     };
 
 class _ScheduledPostsError extends StatelessWidget {
-  const _ScheduledPostsError({required this.onRetry});
+  const new({required this.onRetry});
   final Future<void> Function() onRetry;
 
   @override

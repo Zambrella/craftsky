@@ -1,7 +1,7 @@
 part of '../craftsky_select_inputs.dart';
 
 class CraftskySingleSelectInput<T> extends StatefulWidget {
-  const CraftskySingleSelectInput({
+  const new({
     required this.label,
     required this.options,
     super.key,
@@ -257,12 +257,10 @@ class _CraftskySingleSelectInputState<T>
                     ? estimatedBottom - viewportHeight
                     : estimatedTop - panelPadding)
                 .clamp(position.minScrollExtent, position.maxScrollExtent);
-        unawaited(
-          _optionsScrollController.animateTo(
-            targetOffset,
-            duration: const Duration(milliseconds: 100),
-            curve: Curves.easeOut,
-          ),
+        _optionsScrollController.animateTo(
+          targetOffset,
+          duration: const Duration(milliseconds: 100),
+          curve: Curves.easeOut,
         );
         return;
       }
@@ -282,12 +280,10 @@ class _CraftskySingleSelectInputState<T>
         position.minScrollExtent,
         position.maxScrollExtent,
       );
-      unawaited(
-        _optionsScrollController.animateTo(
-          targetOffset,
-          duration: const Duration(milliseconds: 100),
-          curve: Curves.easeOut,
-        ),
+      _optionsScrollController.animateTo(
+        targetOffset,
+        duration: const Duration(milliseconds: 100),
+        curve: Curves.easeOut,
       );
     });
   }

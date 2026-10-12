@@ -1,8 +1,8 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Describes a profile route that should initially appear as a summary card.
 class ProfilePresentationRequest {
-  const ProfilePresentationRequest.compact();
+  const new compact();
 
   bool get startsCompact => true;
 }
@@ -13,7 +13,7 @@ class ProfilePresentationRequest {
 /// the compact card. Its expanded child paints an ordinary full-screen
 /// scaffold over that screen.
 class ProfilePresentationPage extends Page<void> {
-  const ProfilePresentationPage({
+  const new({
     required this.startsCompact,
     required this.child,
     super.key,
@@ -38,7 +38,7 @@ class ProfilePresentationPage extends Page<void> {
 
 class _ProfilePresentationRoute extends PageRoute<void>
     with MaterialRouteTransitionMixin<void> {
-  _ProfilePresentationRoute({required ProfilePresentationPage settings})
+  new({required ProfilePresentationPage settings})
     : _usesMaterialTransition = !settings.startsCompact,
       super(settings: settings);
 

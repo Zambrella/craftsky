@@ -19,8 +19,10 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'profile_relationship_provider.g.dart';
 
-typedef RelationshipReconciliationScheduler =
-    void Function() Function(Duration delay, void Function() callback);
+typedef RelationshipReconciliationScheduler = void Function() Function(
+  Duration delay,
+  void Function() callback,
+);
 
 const relationshipReconciliationDelay = Duration(seconds: 2);
 

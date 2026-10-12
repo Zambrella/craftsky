@@ -4,7 +4,7 @@ import 'package:flutter/foundation.dart';
 /// A provider-family key whose diagnostics never expose account identity.
 @immutable
 final class AccountKey {
-  AccountKey(String did) : did = Did.parse(did);
+  new(String did) : did = Did.parse(did);
 
   final Did did;
 

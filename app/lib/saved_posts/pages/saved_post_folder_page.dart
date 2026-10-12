@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:craftsky_app/auth/models/account_key.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/saved_posts/models/saved_post.dart';
 import 'package:craftsky_app/saved_posts/models/saved_post_error.dart';
 import 'package:craftsky_app/saved_posts/models/saved_post_folder.dart';
@@ -17,11 +17,11 @@ import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/theme/craftsky_context_menu.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:material_ui/material_ui.dart';
 
 class SavedPostFolderScreen extends ConsumerStatefulWidget {
-  const SavedPostFolderScreen({
+  const new({
     required this.account,
     required this.folder,
     super.key,
@@ -169,7 +169,7 @@ Widget _buildSavedPostSkeleton(BuildContext context, int index) =>
     const ManagementRowSkeleton();
 
 class _SavedPostListFailure extends StatelessWidget {
-  const _SavedPostListFailure({required this.error, required this.onRetry});
+  const new({required this.error, required this.onRetry});
 
   final Object error;
   final VoidCallback onRetry;

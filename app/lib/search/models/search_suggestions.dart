@@ -13,9 +13,9 @@ enum SearchSuggestionType {
 
 @MappableClass()
 class SearchSuggestions with SearchSuggestionsMappable {
-  const SearchSuggestions({required this.profiles, required this.hashtags});
+  const new({required this.profiles, required this.hashtags});
 
-  factory SearchSuggestions.empty() => const SearchSuggestions(
+  factory empty() => const SearchSuggestions(
     profiles: SearchSuggestionProfileSection(items: [], hasMore: false),
     hashtags: SearchSuggestionHashtagSection(items: [], hasMore: false),
   );
@@ -27,7 +27,7 @@ class SearchSuggestions with SearchSuggestionsMappable {
 @MappableClass()
 class SearchSuggestionProfileSection
     with SearchSuggestionProfileSectionMappable {
-  const SearchSuggestionProfileSection({
+  const new({
     required this.items,
     required this.hasMore,
   });
@@ -39,7 +39,7 @@ class SearchSuggestionProfileSection
 @MappableClass()
 class SearchSuggestionHashtagSection
     with SearchSuggestionHashtagSectionMappable {
-  const SearchSuggestionHashtagSection({
+  const new({
     required this.items,
     required this.hasMore,
   });

@@ -1,8 +1,8 @@
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/shared/messaging/message_action.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Severity levels surfaced by `AppMessenger`. Drives the leading icon and
 /// (in the impl) the snackbar's lifetime.
@@ -17,7 +17,7 @@ enum MessageSeverity { info, warning, error }
 /// `onDismiss` (which the impl wires to
 /// `messengerState.hideCurrentSnackBar()`).
 class CraftskySnackBarContent extends StatelessWidget {
-  const CraftskySnackBarContent({
+  const new({
     required this.severity,
     required this.message,
     this.action,
@@ -79,7 +79,7 @@ class CraftskySnackBarContent extends StatelessWidget {
 }
 
 class _MessageActionButton extends StatelessWidget {
-  const _MessageActionButton({required this.action});
+  const new({required this.action});
 
   final MessageAction action;
 

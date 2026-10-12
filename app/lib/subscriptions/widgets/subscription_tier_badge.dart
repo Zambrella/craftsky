@@ -1,13 +1,13 @@
 import 'package:craftsky_app/auth/models/account_session_lease.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
 import 'package:craftsky_app/subscriptions/providers/subscription_access_provider.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:material_ui/material_ui.dart';
 
 class LeaseSubscriptionTierBadge extends ConsumerWidget {
-  const LeaseSubscriptionTierBadge({required this.lease, super.key});
+  const new({required this.lease, super.key});
 
   final AccountSessionLease lease;
 
@@ -18,16 +18,18 @@ class LeaseSubscriptionTierBadge extends ConsumerWidget {
 }
 
 class SubscriptionTierBadge extends StatelessWidget {
-  const SubscriptionTierBadge({required this.state, super.key});
+  const new({required this.state, super.key});
 
   final AsyncValue<SubscriptionAccess> state;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    if (state case AsyncData(
-      :final value,
-    ) when value.effectiveTier == SubscriptionTier.free) {
+    if (state
+        case AsyncData(
+          :final value,
+        )
+        when value.effectiveTier == SubscriptionTier.free) {
       return const SizedBox.shrink();
     }
     final label = switch (state) {
@@ -53,9 +55,11 @@ class SubscriptionTierBadge extends StatelessWidget {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                if (state case AsyncData(
-                  :final value,
-                ) when value.effectiveTier == SubscriptionTier.plus) ...[
+                if (state
+                    case AsyncData(
+                      :final value,
+                    )
+                    when value.effectiveTier == SubscriptionTier.plus) ...[
                   Icon(
                     CraftskyIcons.plusTier,
                     size: 14,

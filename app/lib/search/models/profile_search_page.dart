@@ -13,7 +13,7 @@ part 'profile_search_page.mapper.dart';
   ],
 )
 class ProfileSearchResult with ProfileSearchResultMappable {
-  ProfileSearchResult({
+  new({
     required String did,
     required String handle,
     required this.isCraftskyProfile,
@@ -50,7 +50,7 @@ class ProfileSearchResult with ProfileSearchResultMappable {
 
 @MappableClass(ignoreNull: true)
 class ProfileSearchPage with ProfileSearchPageMappable {
-  const ProfileSearchPage({required this.items, this.cursor});
+  const new({required this.items, this.cursor});
 
   final List<ProfileSearchResult> items;
   final String? cursor;

@@ -10,7 +10,7 @@ import 'package:craftsky_app/business/providers/business_event_mutation_controll
 import 'package:craftsky_app/business/providers/owner_business_events_provider.dart';
 import 'package:craftsky_app/business/providers/profile_business_events_provider.dart';
 import 'package:craftsky_app/business/widgets/event_card.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/shared/sharing/copy_link_menu_item.dart';
 import 'package:craftsky_app/shared/sharing/record_links.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
@@ -21,11 +21,11 @@ import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:craftsky_app/theme/craftsky_floating_action_button.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:material_ui/material_ui.dart';
 
 class EventsSettingsPage extends ConsumerWidget {
-  const EventsSettingsPage({super.key});
+  const new({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -92,7 +92,7 @@ class EventsSettingsPage extends ConsumerWidget {
 }
 
 class _EventsManager extends StatefulWidget {
-  const _EventsManager();
+  const new();
 
   @override
   State<_EventsManager> createState() => _EventsManagerState();
@@ -141,7 +141,7 @@ class _EventsManagerState extends State<_EventsManager>
 }
 
 class _EventView extends ConsumerWidget {
-  const _EventView({required this.filter});
+  const new({required this.filter});
 
   final OwnerEventFilter filter;
 
@@ -168,7 +168,7 @@ Widget _buildEventSkeleton(BuildContext context, int index) =>
     EventCardSkeleton(showMedia: index == 0);
 
 class _EventList extends ConsumerWidget {
-  const _EventList({required this.filter, required this.state});
+  const new({required this.filter, required this.state});
 
   final OwnerEventFilter filter;
   final BusinessEventListState state;
@@ -268,7 +268,7 @@ class _EventList extends ConsumerWidget {
 enum _EventAction { edit, cancel, postpone, delete }
 
 class _OwnerEventCard extends ConsumerWidget {
-  const _OwnerEventCard({required this.event});
+  const new({required this.event});
 
   final BusinessEvent event;
 
@@ -410,7 +410,7 @@ Future<void> _openEditor(BuildContext context, [BusinessEvent? event]) =>
 
 Future<bool> _confirmDelete(BuildContext context) async {
   final l10n = AppLocalizations.of(context);
-  return showCraftskyDestructiveConfirmDialog(
+  return await showCraftskyDestructiveConfirmDialog(
     context,
     title: l10n.businessEventDeleteConfirmTitle,
     message: l10n.businessEventDeleteConfirmMessage,
@@ -420,7 +420,7 @@ Future<bool> _confirmDelete(BuildContext context) async {
 }
 
 class _InitialError extends StatelessWidget {
-  const _InitialError({required this.onRetry});
+  const new({required this.onRetry});
 
   final VoidCallback onRetry;
 
@@ -443,7 +443,7 @@ class _InitialError extends StatelessWidget {
 }
 
 class _InlineError extends StatelessWidget {
-  const _InlineError({required this.message, required this.onRetry});
+  const new({required this.message, required this.onRetry});
 
   final String message;
   final VoidCallback onRetry;

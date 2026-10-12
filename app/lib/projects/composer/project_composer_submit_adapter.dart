@@ -3,16 +3,15 @@ import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/providers/composer_image_state.dart';
 import 'package:craftsky_app/projects/models/project.dart';
 
-typedef ProjectFacetGenerator =
-    Future<List<Map<String, dynamic>>> Function(
-      String text, {
-      bool includeMentions,
-      bool includeLinks,
-      bool includeTags,
-    });
+typedef ProjectFacetGenerator = Future<List<Map<String, dynamic>>> Function(
+  String text, {
+  bool includeMentions,
+  bool includeLinks,
+  bool includeTags,
+});
 
 class ProjectComposerSubmitArguments {
-  const ProjectComposerSubmitArguments({
+  const new({
     required this.text,
     required this.langs,
     required this.project,

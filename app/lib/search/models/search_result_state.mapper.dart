@@ -510,4 +510,3 @@ class _HashtagSearchResultsStateCopyWithImpl<$R, $Out>
   $chain<$R2, $Out2>(Then<$Out2, $R2> t) =>
       _HashtagSearchResultsStateCopyWithImpl<$R2, $Out2>($value, $cast, t);
 }
-

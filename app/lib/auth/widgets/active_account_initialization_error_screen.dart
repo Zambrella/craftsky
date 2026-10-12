@@ -1,10 +1,10 @@
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/shared/widgets/action_progress.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 class ActiveAccountInitializationErrorScreen extends StatelessWidget {
-  const ActiveAccountInitializationErrorScreen({
+  const new({
     required this.onRetry,
     required this.onSignOut,
     required this.busy,

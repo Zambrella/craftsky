@@ -1,14 +1,14 @@
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/theme/craftsky_card.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:skeletonizer/skeletonizer.dart';
 
 const _shimmerDuration = Duration(milliseconds: 1400);
 
 /// Applies CraftSky's loading treatment to a box widget subtree.
 class CraftskySkeleton extends StatelessWidget {
-  const CraftskySkeleton({required this.child, super.key});
+  const new({required this.child, super.key});
 
   final Widget child;
 
@@ -29,7 +29,7 @@ class CraftskySkeleton extends StatelessWidget {
 
 /// A finite, non-interactive skeleton list for box-based page bodies.
 class CraftskySkeletonList extends StatelessWidget {
-  const CraftskySkeletonList({
+  const new({
     required this.itemBuilder,
     super.key,
     this.itemCount = 6,
@@ -55,7 +55,7 @@ class CraftskySkeletonList extends StatelessWidget {
 
 /// A finite skeleton list that can be inserted directly into a scroll view.
 class CraftskySkeletonSliverList extends StatelessWidget {
-  const CraftskySkeletonSliverList({
+  const new({
     required this.itemBuilder,
     super.key,
     this.itemCount = 6,
@@ -112,7 +112,7 @@ PaintingEffect craftskySkeletonEffect(BuildContext context) {
 
 /// Placeholder for post and project cards used by feeds and search results.
 class PostCardSkeleton extends StatelessWidget {
-  const PostCardSkeleton({super.key, this.showMedia = false});
+  const new({super.key, this.showMedia = false});
 
   final bool showMedia;
 
@@ -174,7 +174,7 @@ class PostCardSkeleton extends StatelessWidget {
 
 /// Placeholder for profile, hashtag, and relationship rows.
 class AccountRowSkeleton extends StatelessWidget {
-  const AccountRowSkeleton({super.key, this.showTrailing = true});
+  const new({super.key, this.showTrailing = true});
 
   final bool showTrailing;
 
@@ -210,7 +210,7 @@ class AccountRowSkeleton extends StatelessWidget {
 
 /// Placeholder for notifications and other activity rows.
 class ActivityRowSkeleton extends StatelessWidget {
-  const ActivityRowSkeleton({super.key});
+  const new({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -239,7 +239,7 @@ class ActivityRowSkeleton extends StatelessWidget {
 
 /// Placeholder for comment and reply rows.
 class CommentRowSkeleton extends StatelessWidget {
-  const CommentRowSkeleton({super.key, this.indent = 0});
+  const new({super.key, this.indent = 0});
 
   final double indent;
 
@@ -279,7 +279,7 @@ class CommentRowSkeleton extends StatelessWidget {
 
 /// Placeholder for drafts, saved posts, products, and events.
 class ManagementRowSkeleton extends StatelessWidget {
-  const ManagementRowSkeleton({super.key, this.imageSize = 72});
+  const new({super.key, this.imageSize = 72});
 
   final double imageSize;
 
@@ -318,7 +318,7 @@ class ManagementRowSkeleton extends StatelessWidget {
 
 /// Placeholder for event cards with optional hero media and metadata rows.
 class EventCardSkeleton extends StatelessWidget {
-  const EventCardSkeleton({super.key, this.showMedia = false});
+  const new({super.key, this.showMedia = false});
 
   final bool showMedia;
 

@@ -25,63 +25,69 @@ class ToggleBlockProfile extends _$ToggleBlockProfile {
     required Did targetDid,
     required bool isBlocking,
   }) async {
-    final operation = ActiveAccountOperation.capture(ref);
-    final desiredBlocking = !isBlocking;
-    final endpoint = '/v1/profiles/@$targetDid/blocks';
-    final immutableBody = desiredBlocking ? 'POST\n' : 'DELETE\n';
-    final controller = ref.read(pdsRecordOperationControllerProvider);
-    final scope = blockProfileMutationScope(ref.read, targetDid);
-    final token = controller.beginOrRetry(
-      scope: scope,
-      endpoint: endpoint,
-      immutableBody: immutableBody,
-      newOperationKey: newPdsMutationOperationKey,
-    );
-    final operationKey = token.operationKey;
-    late final repository = ref.read(profileRepositoryProvider);
-
-    state = const AsyncLoading<bool?>();
+    // This command can be invoked without a widget listening to its state.
+    final lifetime = ref.keepAlive();
     try {
-      await runPdsMutation<void>(
-        ref: ref,
-        controller: controller,
-        token: token,
-        isCurrent: () => operation.isCurrent,
-        send: () async {
-          if (desiredBlocking) {
-            await repository.block(targetDid, operationKey: operationKey);
-          } else {
-            await repository.unblock(targetDid, operationKey: operationKey);
-          }
-        },
+      final operation = ActiveAccountOperation.capture(ref);
+      final desiredBlocking = !isBlocking;
+      final endpoint = '/v1/profiles/@$targetDid/blocks';
+      final immutableBody = desiredBlocking ? 'POST\n' : 'DELETE\n';
+      final controller = ref.read(pdsRecordOperationControllerProvider);
+      final scope = blockProfileMutationScope(ref.read, targetDid);
+      final token = controller.beginOrRetry(
+        scope: scope,
+        endpoint: endpoint,
+        immutableBody: immutableBody,
+        newOperationKey: newPdsMutationOperationKey,
       );
-    } on PdsMutationObsoleteException {
-      return;
-    } on PdsMutationUnresolvedException catch (error, stackTrace) {
-      operation.publish(() => state = AsyncError<bool?>(error, stackTrace));
-      return;
-    } on Object catch (error, stackTrace) {
-      if (!operation.isCurrent) return;
-      controller.markFailed(token);
-      state = AsyncError<bool?>(error, stackTrace);
-      return;
-    }
+      final operationKey = token.operationKey;
+      late final repository = ref.read(profileRepositoryProvider);
 
-    if (!operation.isCurrent) return;
-    final reconciliation = PdsSetReconciliation(active: desiredBlocking);
-    if (!controller.markAccepted(
-      token,
-      optimisticValue: desiredBlocking,
-      agrees: (value) => value is bool && reconciliation.agrees(value),
-      refresh: () => _invalidateBlockReads(
-        ref,
-        targetDid,
-        operation.ownership?.session.account,
-      ),
-    )) {
-      return;
+      state = const AsyncLoading<bool?>();
+      try {
+        await runPdsMutation<void>(
+          ref: ref,
+          controller: controller,
+          token: token,
+          isCurrent: () => operation.isCurrent,
+          send: () async {
+            if (desiredBlocking) {
+              await repository.block(targetDid, operationKey: operationKey);
+            } else {
+              await repository.unblock(targetDid, operationKey: operationKey);
+            }
+          },
+        );
+      } on PdsMutationObsoleteException {
+        return;
+      } on PdsMutationUnresolvedException catch (error, stackTrace) {
+        operation.publish(() => state = AsyncError<bool?>(error, stackTrace));
+        return;
+      } on Object catch (error, stackTrace) {
+        if (!operation.isCurrent) return;
+        controller.markFailed(token);
+        state = AsyncError<bool?>(error, stackTrace);
+        return;
+      }
+
+      if (!operation.isCurrent) return;
+      final reconciliation = PdsSetReconciliation(active: desiredBlocking);
+      if (!controller.markAccepted(
+        token,
+        optimisticValue: desiredBlocking,
+        agrees: (value) => value is bool && reconciliation.agrees(value),
+        refresh: () => _invalidateBlockReads(
+          ref,
+          targetDid,
+          operation.ownership?.session.account,
+        ),
+      )) {
+        return;
+      }
+      state = AsyncData<bool?>(desiredBlocking);
+    } finally {
+      lifetime.close();
     }
-    state = AsyncData<bool?>(desiredBlocking);
   }
 
   void reset() => state = const AsyncData(null);

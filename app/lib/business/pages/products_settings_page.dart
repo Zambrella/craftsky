@@ -6,7 +6,7 @@ import 'package:craftsky_app/business/models/business_drafts.dart';
 import 'package:craftsky_app/business/models/business_profile.dart';
 import 'package:craftsky_app/business/providers/products_controller.dart';
 import 'package:craftsky_app/business/widgets/product_editor.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/shared/image/craftsky_image_attachment_preview.dart';
 import 'package:craftsky_app/shared/widgets/async_action_builder.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
@@ -18,13 +18,13 @@ import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:craftsky_app/theme/craftsky_floating_action_button.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:material_ui/material_ui.dart';
 
 enum _ProductAction { reorder }
 
 class ProductsSettingsPage extends ConsumerWidget {
-  const ProductsSettingsPage({super.key});
+  const new({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -81,7 +81,7 @@ class ProductsSettingsPage extends ConsumerWidget {
 }
 
 class _ProductsManager extends ConsumerWidget {
-  const _ProductsManager();
+  const new();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -103,7 +103,7 @@ Widget _buildProductSkeleton(BuildContext context, int index) =>
     const ManagementRowSkeleton(imageSize: 88);
 
 class _ProductsContent extends ConsumerWidget {
-  const _ProductsContent({required this.state});
+  const new({required this.state});
 
   final ProductsState state;
 
@@ -393,7 +393,7 @@ class _ProductsContent extends ConsumerWidget {
 }
 
 class _ProductActions extends ConsumerWidget {
-  const _ProductActions();
+  const new();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -427,7 +427,7 @@ class _ProductActions extends ConsumerWidget {
 }
 
 class _LoadError extends StatelessWidget {
-  const _LoadError({required this.onRetry});
+  const new({required this.onRetry});
 
   final VoidCallback onRetry;
 

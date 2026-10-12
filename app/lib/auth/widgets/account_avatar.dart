@@ -1,10 +1,10 @@
 import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Navigation/account-switcher adapter around the shared 36 px profile avatar.
 class AccountAvatar extends StatelessWidget {
-  const AccountAvatar({
+  const new({
     required this.avatarUrl,
     this.seed = '',
     this.customisation = ProfileCustomisation.defaults,

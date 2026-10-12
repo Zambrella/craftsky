@@ -12,7 +12,7 @@ enum ServiceStatusMode { normal, announcement, maintenance }
   generateMethods: GenerateMethods.decode | GenerateMethods.encode,
 )
 final class ServiceStatusDocument with ServiceStatusDocumentMappable {
-  const ServiceStatusDocument({
+  const new({
     required this.mode,
     required this.revision,
     this.schemaVersion = 1,
@@ -21,7 +21,7 @@ final class ServiceStatusDocument with ServiceStatusDocumentMappable {
     this.estimatedRecoveryAt,
   });
 
-  factory ServiceStatusDocument.decode(List<int> bytes) {
+  factory decode(List<int> bytes) {
     if (bytes.length > maxBytes) throw const FormatException('Status size');
     final value = jsonDecode(utf8.decode(bytes));
     if (value is! Map<String, dynamic> ||

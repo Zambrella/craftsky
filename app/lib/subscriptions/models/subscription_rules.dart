@@ -14,7 +14,7 @@ enum PurchaseEligibilityReason {
 }
 
 final class PurchaseEligibility {
-  PurchaseEligibility({
+  new({
     required this.reason,
     Iterable<Did> dormantAssignedDids = const [],
   }) : dormantAssignedDids = List.unmodifiable(dormantAssignedDids);

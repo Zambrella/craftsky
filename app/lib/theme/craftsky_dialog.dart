@@ -1,10 +1,10 @@
 import 'dart:async';
 
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/theme/brand_colors.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// A branded confirm/alert dialog. Paper-cutout aesthetic: thick ink border,
 /// chunky `r3` corners, hard-offset drop shadow drawn via stacked layers (the
@@ -14,7 +14,7 @@ import 'package:flutter/material.dart';
 /// [showCraftskyDestructiveConfirmDialog], or [showCraftskyAlertDialog]
 /// rather than constructing this widget directly.
 class CraftskyDialog extends StatelessWidget {
-  const CraftskyDialog({
+  const new({
     required this.title,
     required this.body,
     required this.actions,
@@ -112,7 +112,7 @@ class CraftskyDialog extends StatelessWidget {
 /// Configuration for a single button on a [CraftskyDialog]. Used by the
 /// `show…Dialog` helpers; not consumed by [CraftskyDialog] itself.
 class CraftskyDialogAction {
-  const CraftskyDialogAction({
+  const new({
     required this.label,
     this.onPressed,
     this.isPrimary = false,
@@ -300,7 +300,7 @@ Future<bool> _showConfirmDialog(
 }
 
 class _AsyncConfirmDialogHost extends StatefulWidget {
-  const _AsyncConfirmDialogHost({
+  const new({
     required this.title,
     required this.message,
     required this.confirmLabel,

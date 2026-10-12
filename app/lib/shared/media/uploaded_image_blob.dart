@@ -5,14 +5,14 @@ part 'uploaded_image_blob.mapper.dart';
 /// Response payload returned from `POST /v1/blobs/images`.
 @MappableClass()
 class UploadedImageBlob with UploadedImageBlobMappable {
-  const UploadedImageBlob({
+  const new({
     required this.blob,
     required this.cid,
     required this.mime,
     required this.size,
   });
 
-  factory UploadedImageBlob.fromMap(Map<String, dynamic> json) {
+  factory fromMap(Map<String, dynamic> json) {
     return UploadedImageBlobMapper.fromMap(json);
   }
 
@@ -32,14 +32,14 @@ class UploadedImageBlob with UploadedImageBlobMappable {
 /// Canonical blob representation from AppView upload endpoints.
 @MappableClass()
 class UploadedBlob with UploadedBlobMappable {
-  const UploadedBlob({
+  const new({
     required this.type,
     required this.ref,
     required this.mimeType,
     required this.size,
   });
 
-  factory UploadedBlob.fromMap(Map<String, dynamic> json) {
+  factory fromMap(Map<String, dynamic> json) {
     return UploadedBlobMapper.fromMap(json);
   }
 
@@ -60,9 +60,9 @@ class UploadedBlob with UploadedBlobMappable {
 /// Link container for uploaded blob CIDs.
 @MappableClass()
 class UploadedBlobRef with UploadedBlobRefMappable {
-  const UploadedBlobRef({required this.link});
+  const new({required this.link});
 
-  factory UploadedBlobRef.fromMap(Map<String, dynamic> json) {
+  factory fromMap(Map<String, dynamic> json) {
     return UploadedBlobRefMapper.fromMap(json);
   }
 

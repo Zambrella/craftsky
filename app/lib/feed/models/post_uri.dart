@@ -1,7 +1,7 @@
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 
 class PostUriParts {
-  const PostUriParts({required this.did, required this.rkey});
+  const new({required this.did, required this.rkey});
 
   final Did did;
   final RecordKey rkey;

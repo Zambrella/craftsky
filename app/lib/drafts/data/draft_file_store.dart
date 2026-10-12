@@ -4,7 +4,7 @@ import 'dart:typed_data';
 enum DraftFileStoreFailureReason { notFound, accessDenied, ioFailure }
 
 final class DraftFileStoreException implements Exception {
-  const DraftFileStoreException(this.reason);
+  const new(this.reason);
 
   final DraftFileStoreFailureReason reason;
 
@@ -74,7 +74,7 @@ final class IoDraftFileStore implements DraftFileStore {
 
   @override
   Future<Uint8List> readBytes(String path) =>
-      _guard(() async => File(path).readAsBytes());
+      _guard(() async => await File(path).readAsBytes());
 
   @override
   Future<void> writeBytesFlushed(String path, Uint8List bytes) =>

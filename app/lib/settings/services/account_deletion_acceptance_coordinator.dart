@@ -7,7 +7,7 @@ enum DeletionAcceptanceResult { activeRemoved, inactiveRemoved, stale }
 /// Applies the irreversible client-side boundary only after AppView has
 /// durably accepted deletion. There is no client-side job/status state.
 final class AccountDeletionAcceptanceCoordinator {
-  const AccountDeletionAcceptanceCoordinator({
+  const new({
     required this.readRegistry,
     required this.invalidateActiveState,
     required this.cleanProductData,

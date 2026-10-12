@@ -3,17 +3,17 @@ import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/widgets/post_image_page_indicator.dart';
 import 'package:craftsky_app/shared/image/image_cache_providers.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:material_ui/material_ui.dart';
 
 const _galleryMinScale = 1.0;
 const _galleryMaxScale = 4.0;
 const _zoomedScaleEpsilon = 0.01;
 
 class GalleryImage {
-  const GalleryImage({required this.alt, this.thumb, this.fullsize});
+  const new({required this.alt, this.thumb, this.fullsize});
 
-  factory GalleryImage.fromPostImage(PostImage image) {
+  factory fromPostImage(PostImage image) {
     return GalleryImage(
       alt: image.alt,
       thumb: image.thumb,
@@ -95,14 +95,14 @@ Future<void> showPostImageGallery(
 }
 
 class PostImageGallery extends ConsumerStatefulWidget {
-  PostImageGallery({
+  new({
     required this.images,
     this.initialIndex = 0,
     this.heroTags,
     super.key,
   }) : galleryImages = images.map(GalleryImage.fromPostImage).toList();
 
-  const PostImageGallery.items({
+  const new items({
     required this.galleryImages,
     this.initialIndex = 0,
     this.heroTags,
@@ -319,7 +319,7 @@ class _PostImageGalleryState extends ConsumerState<PostImageGallery> {
 }
 
 class _ZoomableGalleryImage extends ConsumerStatefulWidget {
-  const _ZoomableGalleryImage({
+  const new({
     required this.image,
     required this.imageUrl,
     required this.heroTag,

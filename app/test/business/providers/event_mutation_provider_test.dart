@@ -403,13 +403,13 @@ BusinessEvent _event({
 );
 
 final class _UpdateCall {
-  const _UpdateCall(this.expectedCid, this.draft);
+  const new(this.expectedCid, this.draft);
   final Cid expectedCid;
   final BusinessEventDraft draft;
 }
 
 final class _DeleteCall {
-  const _DeleteCall(this.expectedCid);
+  const new(this.expectedCid);
   final Cid expectedCid;
 }
 

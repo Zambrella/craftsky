@@ -12,13 +12,13 @@ import 'package:craftsky_app/instagram_migration/models/instagram_suggestion.dar
 import 'package:craftsky_app/instagram_migration/pages/instagram_migration_page.dart';
 import 'package:craftsky_app/instagram_migration/providers/instagram_migration_repository_provider.dart';
 import 'package:craftsky_app/instagram_migration/providers/instagram_suggestions_provider.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/shared/api/pds_mutation_contract.dart';
 import 'package:craftsky_app/shared/mutations/pds_record_operation_controller.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 void main() {
   testWidgets(
@@ -71,7 +71,7 @@ void main() {
           ],
           child: MaterialApp(
             theme: AppTheme.lightThemeData,
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            localizationsDelegates: appLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             home: const InstagramMigrationPage(),
           ),
@@ -531,7 +531,7 @@ InstagramSuggestion _suggestion({
 );
 
 final class _SuggestionRepository implements InstagramMigrationRepository {
-  const _SuggestionRepository({
+  const new({
     required this.suggestions,
     this.onAccept,
     this.onDismiss,
@@ -584,7 +584,7 @@ final class _SuggestionRepository implements InstagramMigrationRepository {
 }
 
 final class _RegistryStorage implements SessionRegistryStorage {
-  _RegistryStorage(this.value);
+  new(this.value);
 
   auth.SessionRegistry value;
 

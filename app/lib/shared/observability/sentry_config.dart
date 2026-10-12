@@ -1,5 +1,5 @@
 final class SentryConfig {
-  const SentryConfig._({
+  const new _({
     required this.dsn,
     required this.environment,
     required this.release,
@@ -7,7 +7,7 @@ final class SentryConfig {
     required this.localOptIn,
   });
 
-  factory SentryConfig.fromEnvironment() => SentryConfig.fromValues(
+  factory fromEnvironment() => SentryConfig.fromValues(
     dsn: const String.fromEnvironment('SENTRY_DSN'),
     environment: const String.fromEnvironment('SENTRY_ENVIRONMENT'),
     release: const String.fromEnvironment('SENTRY_RELEASE'),
@@ -15,7 +15,7 @@ final class SentryConfig {
     localOptIn: _sentryLocalOptInFromEnvironment(),
   );
 
-  factory SentryConfig.fromValues({
+  factory fromValues({
     String? dsn,
     String? environment,
     String? release,

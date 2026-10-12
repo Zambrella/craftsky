@@ -2,7 +2,7 @@ import 'package:craftsky_app/shared/messaging/app_messenger.dart';
 import 'package:craftsky_app/shared/messaging/message_action.dart';
 import 'package:craftsky_app/shared/messaging/widgets/craftsky_snack_bar.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// The root ScaffoldMessenger key. Wired into every `MaterialApp` in
 /// `app/lib/app.dart` so messages always go through the same messenger
@@ -23,7 +23,7 @@ final AppMessenger defaultAppMessenger = ScaffoldMessengerImpl(
 /// (each call clears any current message before showing the new one), and
 /// supplies the lifetime semantics declared on [AppMessenger].
 class ScaffoldMessengerImpl implements AppMessenger {
-  ScaffoldMessengerImpl(this._key);
+  new(this._key);
 
   final GlobalKey<ScaffoldMessengerState> _key;
 

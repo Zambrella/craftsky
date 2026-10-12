@@ -39,14 +39,14 @@ final class ProfileCustomisationEditorProvider
 }
 
 String _$profileCustomisationEditorHash() =>
-    r'1bcd20d456162e1a81d765322419333ab5a84473';
+    r'2e1ef749f45564d611998401e05bbdd6f29c83e0';
 
 abstract class _$ProfileCustomisationEditor
     extends $AsyncNotifier<ProfileCustomisationEditorState> {
   FutureOr<ProfileCustomisationEditorState> build();
   @$mustCallSuper
   @override
-  void runBuild() {
+  WhenComplete runBuild() {
     final ref =
         this.ref
             as $Ref<
@@ -64,6 +64,6 @@ abstract class _$ProfileCustomisationEditor
               Object?,
               Object?
             >;
-    element.handleCreate(ref, build);
+    return element.handleCreate(ref, build);
   }
 }

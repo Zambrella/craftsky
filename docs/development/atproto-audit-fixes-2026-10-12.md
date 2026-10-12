@@ -46,10 +46,13 @@ Sources: [Lexicon](https://atproto.com/specs/lexicon),
 
 ## Verification
 
-- Flutter 3.44.9 (CI pin): full suite, 2,901 passed and 38 skipped; full
-  static analysis reports no issues. The machine's default Flutter 3.47.7
-  reproduces an existing pending-handoff interceptor test failure; no SDK or
-  dependency upgrade is included in these fixes.
+- Initial audit verification used Flutter 3.44.9 (the CI pin at that time):
+  full suite, 2,901 passed and 38 skipped; full static analysis reported no
+  issues. Flutter 3.47.7 initially reproduced an existing pending-handoff
+  interceptor test failure. The subsequent dependency-upgrade merge fixes
+  that failure and passes the full suite on Flutter 3.47.7: 2,912 passed,
+  38 skipped, and no analysis issues. Formatting, code generation, and the
+  JavaScript/WebAssembly release web build also pass on the upgraded SDK.
 - All 17 public schemas match their checked-in source; all eight DNS authorities
   resolve to the official DID. `goat lex check-dns` resolves every schema NSID,
   and `goat lex resolve social.craftsky.feed.post` succeeds through public discovery.

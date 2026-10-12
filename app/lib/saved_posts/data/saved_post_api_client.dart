@@ -30,7 +30,7 @@ abstract interface class SavedPostApi {
 }
 
 final class SavedPostApiClient implements SavedPostApi {
-  const SavedPostApiClient(this._dio);
+  const new(this._dio);
 
   final Dio _dio;
 

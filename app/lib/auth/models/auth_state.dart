@@ -4,15 +4,15 @@ import 'package:craftsky_app/shared/atproto/identifiers.dart';
 /// from the notifier class name (`AuthSession`) to avoid shadowing
 /// inside `AuthSession.build()`.
 sealed class AuthState {
-  const AuthState();
+  const new();
 }
 
 final class SignedOut extends AuthState {
-  const SignedOut();
+  const new();
 }
 
 final class SignedIn extends AuthState {
-  SignedIn({
+  new({
     required String did,
     required String handle,
   }) : did = Did.parse(did),

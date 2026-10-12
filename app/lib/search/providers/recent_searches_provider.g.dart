@@ -72,13 +72,13 @@ final class SaveRecentSearchProvider
   SaveRecentSearch create() => SaveRecentSearch();
 }
 
-String _$saveRecentSearchHash() => r'cc7a9e5bb3e9fb6eca4ad588c211a8e476f1a496';
+String _$saveRecentSearchHash() => r'94fc383df9c206ca473487b010219b8a603436b6';
 
 abstract class _$SaveRecentSearch extends $AsyncNotifier<RecentSearchItem?> {
   FutureOr<RecentSearchItem?> build();
   @$mustCallSuper
   @override
-  void runBuild() {
+  WhenComplete runBuild() {
     final ref =
         this.ref as $Ref<AsyncValue<RecentSearchItem?>, RecentSearchItem?>;
     final element =
@@ -89,7 +89,7 @@ abstract class _$SaveRecentSearch extends $AsyncNotifier<RecentSearchItem?> {
               Object?,
               Object?
             >;
-    element.handleCreate(ref, build);
+    return element.handleCreate(ref, build);
   }
 }
 
@@ -118,13 +118,13 @@ final class DeleteRecentSearchProvider
 }
 
 String _$deleteRecentSearchHash() =>
-    r'b4fec9fcf8d1a4b9db7f0347c91dc873c3d29004';
+    r'e5f5b25ad171deeca431eb396750b1bf9b817d4a';
 
 abstract class _$DeleteRecentSearch extends $AsyncNotifier<void> {
   FutureOr<void> build();
   @$mustCallSuper
   @override
-  void runBuild() {
+  WhenComplete runBuild() {
     final ref = this.ref as $Ref<AsyncValue<void>, void>;
     final element =
         ref.element
@@ -134,6 +134,6 @@ abstract class _$DeleteRecentSearch extends $AsyncNotifier<void> {
               Object?,
               Object?
             >;
-    element.handleCreate(ref, build);
+    return element.handleCreate(ref, build);
   }
 }

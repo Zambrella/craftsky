@@ -15,7 +15,7 @@ import 'package:dio/dio.dart';
 /// call is wrapped in `unwrapApi` so consumers see sealed
 /// `ApiException` subtypes instead of raw `DioException`s.
 class ProfileApiClient {
-  const ProfileApiClient(this._dio);
+  const new(this._dio);
 
   final Dio _dio;
 
@@ -98,7 +98,7 @@ class ProfileApiClient {
             status != null && status >= 200 && status < 300,
       ),
     );
-    return parsePdsMutationResponse(
+    return await parsePdsMutationResponse(
       res,
       accepted: (data) => ProfileMapper.fromMap(
         Map<String, dynamic>.from(data! as Map),
@@ -132,7 +132,7 @@ class ProfileApiClient {
             status != null && status >= 200 && status < 300,
       ),
     );
-    return parsePdsMutationResponse(
+    return await parsePdsMutationResponse(
       res,
       accepted: (data) => ProfileMapper.fromMap(
         Map<String, dynamic>.from(data! as Map),
@@ -154,7 +154,7 @@ class ProfileApiClient {
             status != null && status >= 200 && status < 300,
       ),
     );
-    return parsePdsMutationResponse(
+    return await parsePdsMutationResponse(
       res,
       accepted: (data) => ProfileMapper.fromMap(
         Map<String, dynamic>.from(data! as Map),
@@ -181,7 +181,7 @@ class ProfileApiClient {
             status != null && status >= 200 && status < 300,
       ),
     );
-    return parsePdsMutationResponse(
+    return await parsePdsMutationResponse(
       res,
       accepted: (data) => ProfileRelationshipMapper.fromMap(
         Map<String, dynamic>.from(data! as Map),

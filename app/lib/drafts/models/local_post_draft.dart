@@ -9,11 +9,11 @@ enum DraftScheduleChoice { now, later }
 enum LocalPostDraftAvailability { available, unavailable }
 
 sealed class LocalDraftContent {
-  const LocalDraftContent();
+  const new();
 }
 
 final class StandardDraftContent extends LocalDraftContent {
-  const StandardDraftContent({
+  const new({
     required this.text,
     required this.languages,
     this.sponsored = false,
@@ -29,7 +29,7 @@ final class StandardDraftContent extends LocalDraftContent {
 
 /// A whitelisted snapshot of the project composer's known editable fields.
 final class ProjectDraftContent extends LocalDraftContent {
-  const ProjectDraftContent({
+  const new({
     required this.body,
     required this.languages,
     required this.knownProjectFieldValues,
@@ -46,12 +46,12 @@ final class ProjectDraftContent extends LocalDraftContent {
 }
 
 final class DraftScheduleIntent {
-  const DraftScheduleIntent.now()
+  const new now()
     : choice = DraftScheduleChoice.now,
       scheduledAtUtc = null,
       savedOffsetMinutes = null;
 
-  const DraftScheduleIntent.later({
+  const new later({
     required this.scheduledAtUtc,
     required this.savedOffsetMinutes,
   }) : choice = DraftScheduleChoice.later;
@@ -65,7 +65,7 @@ final class DraftScheduleIntent {
 }
 
 final class LocalPostDraft {
-  LocalPostDraft({
+  new({
     required this.id,
     required this.owner,
     required this.kind,
@@ -79,7 +79,7 @@ final class LocalPostDraft {
     this.revision = 1,
   }) : media = List.unmodifiable(media);
 
-  factory LocalPostDraft.unavailable({
+  factory unavailable({
     required String id,
     required AccountKey owner,
   }) => LocalPostDraft(

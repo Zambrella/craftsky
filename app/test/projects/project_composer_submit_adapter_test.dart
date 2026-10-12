@@ -138,13 +138,12 @@ void main() {
       existingText: 'Hello @alice.example',
       existingFacets: bodyFacets,
       existingProject: project,
-      generateFacets:
-          (
-            _, {
-            includeMentions = true,
-            includeLinks = true,
-            includeTags = true,
-          }) => throw StateError('unchanged text must not regenerate facets'),
+      generateFacets: (
+        _, {
+        includeMentions = true,
+        includeLinks = true,
+        includeTags = true,
+      }) => throw StateError('unchanged text must not regenerate facets'),
     );
 
     expect(args.facets, bodyFacets);

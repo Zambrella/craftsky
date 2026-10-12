@@ -5,7 +5,7 @@ import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
 import 'package:dio/dio.dart';
 
 final class AppErrorMapper {
-  const AppErrorMapper._();
+  const new _();
 
   static AppError map(
     Object sourceError, {

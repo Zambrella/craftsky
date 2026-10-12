@@ -4,13 +4,13 @@ import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/widgets/caption_uri_resource.dart';
 import 'package:craftsky_app/feed/widgets/native_video_controller.dart';
 import 'package:craftsky_app/feed/widgets/native_video_player.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/shared/image/image_cache_providers.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_emitter.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:logging/logging.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 
@@ -35,7 +35,7 @@ void main() {
 
       await tester.pumpWidget(
         MaterialApp(
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: appLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: Scaffold(
             body: SingleChildScrollView(
@@ -59,8 +59,7 @@ void main() {
                     PostVideoCaption(
                       lang: 'es',
                       name: 'Español',
-                      uri:
-                          '/v1/posts/did:plc:alice/post/video-captions/bafycap2',
+                      uri: '/v1/posts/did:plc:alice/post/video-captions/bafycap2',
                     ),
                   ],
                 ),
@@ -159,7 +158,7 @@ void main() {
       final reporter = RecordingErrorReporter();
       await tester.pumpWidget(
         MaterialApp(
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: appLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: Scaffold(
             body: NativeVideoPlayer(
@@ -216,7 +215,7 @@ void main() {
     adapter.openFailure = failure;
     await tester.pumpWidget(
       MaterialApp(
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        localizationsDelegates: appLocalizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         home: Scaffold(
           body: NativeVideoPlayer(
@@ -262,7 +261,7 @@ void main() {
 
       await tester.pumpWidget(
         MaterialApp(
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: appLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: Scaffold(
             body: NativeVideoPlayer(
@@ -316,7 +315,7 @@ void main() {
           feedImageCacheManagerProvider.overrideWithValue(cache),
         ],
         child: MaterialApp(
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: appLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: Scaffold(
             body: NativeVideoPlayer(
@@ -401,7 +400,7 @@ final class _FakeViewAdapter implements NativeVideoViewAdapter {
 }
 
 final class _FakeCaptionResource implements CaptionUriResource {
-  _FakeCaptionResource(this.uri);
+  new(this.uri);
 
   @override
   final Uri uri;

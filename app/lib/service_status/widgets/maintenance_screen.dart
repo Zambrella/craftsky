@@ -1,12 +1,12 @@
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/service_status/models/service_status_document.dart';
 import 'package:craftsky_app/service_status/service_status_estimate_formatter.dart';
 import 'package:craftsky_app/shared/widgets/action_progress.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 class MaintenanceScreen extends StatelessWidget {
-  const MaintenanceScreen({
+  const new({
     required this.document,
     required this.onRetry,
     this.fetching = false,
@@ -42,7 +42,7 @@ class MaintenanceScreen extends StatelessWidget {
                         ),
                         const SizedBox(height: 24),
                         Semantics(
-                          header: true,
+                          headingLevel: 1,
                           child: Text(
                             document.title!,
                             textAlign: TextAlign.center,

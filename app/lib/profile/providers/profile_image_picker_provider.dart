@@ -35,7 +35,7 @@ Future<ProfileImagePicker> accountProfileImagePicker(
 );
 
 class ProfileImagePicker {
-  const ProfileImagePicker({
+  const new({
     required this._picker,
     required this._media,
     required this._blobApi,
@@ -125,7 +125,7 @@ class ProfileImagePicker {
 }
 
 class PreparedProfileImage {
-  const PreparedProfileImage({
+  const new({
     required this.bytes,
     required this.mimeType,
     required this.width,
@@ -139,7 +139,7 @@ class PreparedProfileImage {
 }
 
 class ProfileImagePickResult {
-  const ProfileImagePickResult({
+  const new({
     required this.previewBytes,
     required this.uploaded,
   });
@@ -149,5 +149,5 @@ class ProfileImagePickResult {
 }
 
 class ProfileImagePickException implements Exception {
-  const ProfileImagePickException();
+  const new();
 }

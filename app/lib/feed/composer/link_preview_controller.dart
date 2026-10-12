@@ -11,13 +11,12 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 part 'link_preview_controller.g.dart';
 
 // The interface keeps the controller independent from the AppView API client.
-// ignore: one_member_abstracts
 abstract interface class LinkPreviewRepository {
   Future<LinkPreview> fetch(Uri url, CancelToken cancelToken);
 }
 
 final class ApiLinkPreviewRepository implements LinkPreviewRepository {
-  const ApiLinkPreviewRepository(this._fetch);
+  const new(this._fetch);
 
   final Future<LinkPreview> Function(String, {CancelToken? cancelToken}) _fetch;
 
@@ -31,7 +30,7 @@ LinkPreviewRepository linkPreviewRepository(Ref ref) =>
     ApiLinkPreviewRepository(ref.watch(postApiClientProvider).fetchLinkPreview);
 
 final class LinkPreviewSessionState {
-  const LinkPreviewSessionState({
+  const new({
     this.candidates = const [],
     this.selectedIdentity,
     this.inFlightIdentity,
@@ -71,7 +70,7 @@ final class LinkPreviewSessionState {
 const _unset = Object();
 
 final class SelectedLinkPreview {
-  const SelectedLinkPreview({required this.candidate, required this.preview});
+  const new({required this.candidate, required this.preview});
 
   final LinkPreviewCandidate candidate;
   final LinkPreview preview;

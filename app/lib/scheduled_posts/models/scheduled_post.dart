@@ -5,7 +5,7 @@ enum ScheduledPostKind { standard, project }
 enum ScheduledPostStatus { scheduled, publishing, retrying, needsAttention }
 
 final class ScheduledPostExternal {
-  const ScheduledPostExternal({
+  const new({
     required this.sourceUri,
     required this.uri,
     required this.title,
@@ -13,7 +13,7 @@ final class ScheduledPostExternal {
     this.thumbMediaId,
   });
 
-  factory ScheduledPostExternal.fromMap(Map<String, dynamic> map) {
+  factory fromMap(Map<String, dynamic> map) {
     final sourceUri = map['sourceUri'];
     final uri = map['uri'];
     final title = map['title'];
@@ -61,7 +61,7 @@ ScheduledPostStatus? scheduledPostStatusFromWire(String value) {
 }
 
 final class ScheduledPostSummary {
-  const ScheduledPostSummary({
+  const new({
     required this.id,
     required this.kind,
     required this.status,
@@ -90,7 +90,7 @@ final class ScheduledPostSummary {
 }
 
 final class ScheduledPostDetail {
-  const ScheduledPostDetail({
+  const new({
     required this.id,
     required this.operationId,
     required this.status,

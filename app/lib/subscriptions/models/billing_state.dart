@@ -34,7 +34,7 @@ const int _billingDecodeMethods =
 
 @MappableClass(ignoreNull: true, generateMethods: _billingDecodeMethods)
 final class BillingSubscription with BillingSubscriptionMappable {
-  const BillingSubscription({
+  const new({
     required this.id,
     required this.productId,
     required this.store,
@@ -70,7 +70,7 @@ final class BillingSubscription with BillingSubscriptionMappable {
   generateMethods: _billingDecodeMethods,
 )
 final class BillingLicense with BillingLicenseMappable {
-  const BillingLicense({
+  const new({
     required this.id,
     required this.subscriptionId,
     required this.tier,
@@ -94,7 +94,7 @@ final class BillingLicense with BillingLicenseMappable {
 
 @MappableClass(ignoreNull: true, generateMethods: _billingDecodeMethods)
 final class BillingState with BillingStateMappable {
-  const BillingState({
+  const new({
     required this.billingAccountId,
     required this.revenueCatAppUserId,
     required this.requestedGeneration,
@@ -106,7 +106,7 @@ final class BillingState with BillingStateMappable {
     this.reconciledAt,
   });
 
-  factory BillingState.fromMap(Map<String, dynamic> map) {
+  factory fromMap(Map<String, dynamic> map) {
     _validateBillingStateMap(map);
     final state = BillingStateMapper.fromMap(map);
     _requireUuid(state.billingAccountId, 'billingAccountId');
@@ -157,13 +157,13 @@ final class BillingState with BillingStateMappable {
   generateMethods: _billingDecodeMethods,
 )
 final class BillingAssignment with BillingAssignmentMappable {
-  const BillingAssignment({
+  const new({
     required this.licenseId,
     required this.targetDid,
     required this.assignedAt,
   });
 
-  factory BillingAssignment.fromMap(Map<String, dynamic> map) {
+  factory fromMap(Map<String, dynamic> map) {
     _requireType<String>(map, 'licenseId');
     _requireType<String>(map, 'targetDid');
     _requireType<String>(map, 'assignedAt');

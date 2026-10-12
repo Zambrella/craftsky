@@ -1,11 +1,11 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Local pending state for a group of actions sharing an interaction lock.
 /// The caller keeps ownership of error presentation and operation semantics.
 class AsyncActionBuilder extends StatefulWidget {
-  const AsyncActionBuilder({required this.builder, super.key});
+  const new({required this.builder, super.key});
 
   final Widget Function(BuildContext context, AsyncActionState actions) builder;
 

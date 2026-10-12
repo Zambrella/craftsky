@@ -6,7 +6,7 @@ import 'package:flutter_riverpod/misc.dart' show FutureProviderFamily;
 
 @immutable
 final class ScheduledMediaKey {
-  const ScheduledMediaKey({required this.account, required this.mediaId});
+  const new({required this.account, required this.mediaId});
 
   final AccountKey account;
   final String mediaId;
@@ -30,5 +30,5 @@ scheduledMediaBytesProvider = FutureProvider.autoDispose
       final repository = await ref.watch(
         accountScheduledPostRepositoryProvider(key.account).future,
       );
-      return repository.mediaBytes(key.mediaId);
+      return await repository.mediaBytes(key.mediaId);
     });

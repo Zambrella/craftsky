@@ -13,7 +13,7 @@ enum NotificationPreferenceScope {
 
 @MappableClass()
 final class NotificationPreference with NotificationPreferenceMappable {
-  const NotificationPreference({
+  const new({
     required this.scope,
     required this.pushEnabled,
   });
@@ -23,9 +23,9 @@ final class NotificationPreference with NotificationPreferenceMappable {
 }
 
 final class NotificationPreferences {
-  const NotificationPreferences({required this.known, required this.unknown});
+  const new({required this.known, required this.unknown});
 
-  factory NotificationPreferences.fromMap(Map<String, dynamic> map) {
+  factory fromMap(Map<String, dynamic> map) {
     final raw = map['preferences'] as Map<String, dynamic>;
     final known = <NotificationCategory, NotificationPreference>{};
     final unknown = <String, Object?>{};
@@ -57,14 +57,14 @@ final class NotificationPreferences {
 enum NotificationPreferenceField { scope, pushEnabled }
 
 final class NotificationPreferencePatch {
-  const NotificationPreferencePatch._({
+  const new _({
     required this.category,
     required this.field,
     this.scopeValue,
     this.pushEnabledValue,
   });
 
-  factory NotificationPreferencePatch.scope(
+  factory scope(
     NotificationCategory category, {
     required NotificationPreferenceScope value,
   }) => NotificationPreferencePatch._(
@@ -73,7 +73,7 @@ final class NotificationPreferencePatch {
     scopeValue: value,
   );
 
-  factory NotificationPreferencePatch.pushEnabled(
+  factory pushEnabled(
     NotificationCategory category, {
     required bool value,
   }) => NotificationPreferencePatch._(

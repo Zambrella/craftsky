@@ -1,11 +1,11 @@
 final class NotificationBadge {
-  const NotificationBadge._({
+  const new _({
     required this.count,
     required this.visible,
     required this.label,
   });
 
-  factory NotificationBadge.fromCount(int count) {
+  factory fromCount(int count) {
     final safeCount = count < 0 ? 0 : count;
     return NotificationBadge._(
       count: safeCount,

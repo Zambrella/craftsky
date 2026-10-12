@@ -9,18 +9,18 @@ import 'package:craftsky_app/drafts/providers/local_post_drafts_provider.dart';
 import 'package:craftsky_app/drafts/widgets/draft_row.dart';
 import 'package:craftsky_app/drafts/widgets/draft_thumbnail.dart';
 import 'package:craftsky_app/feed/widgets/post_composer_sheet.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/projects/widgets/project_composer_sheet.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:material_ui/material_ui.dart';
 
 final class DraftsPage extends ConsumerWidget {
-  const DraftsPage({super.key});
+  const new({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -147,7 +147,7 @@ bool _isActiveLeaseCurrent(WidgetRef ref, ActiveAccountLease lease) =>
     ActiveAccountOperation.fromWidget(ref, lease).isCurrent;
 
 final class DraftsPageContent extends StatelessWidget {
-  const DraftsPageContent({
+  const new({
     required this.items,
     required this.onRefresh,
     required this.onEdit,
@@ -202,7 +202,7 @@ final class DraftsPageContent extends StatelessWidget {
 }
 
 final class _DraftsError extends StatelessWidget {
-  const _DraftsError({required this.onRetry});
+  const new({required this.onRetry});
 
   final Future<void> Function() onRetry;
 

@@ -1,6 +1,6 @@
 import 'package:craftsky_app/notifications/models/notification_category.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Shared outlined action glyphs for notification settings and activity rows.
 IconData notificationCategoryIcon(NotificationCategory category) =>

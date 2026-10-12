@@ -1,13 +1,13 @@
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 const autoLoadMoreExtent = 240.0;
 
 class AutoPaginatedListView extends StatelessWidget {
-  const AutoPaginatedListView({
+  const new({
     required this.itemCount,
     required this.emptyState,
     required this.isLoadingMore,
@@ -62,7 +62,7 @@ class AutoPaginatedListView extends StatelessWidget {
 }
 
 class AutoPaginatedSliverList extends StatelessWidget {
-  const AutoPaginatedSliverList({
+  const new({
     required this.itemCount,
     required this.emptyState,
     required this.isLoadingMore,

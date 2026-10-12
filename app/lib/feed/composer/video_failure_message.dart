@@ -1,7 +1,7 @@
 import 'package:craftsky_app/feed/composer/video_publication_coordinator.dart';
 import 'package:craftsky_app/feed/models/video_service_result.dart';
 import 'package:craftsky_app/feed/models/video_upload_limits.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 
 String videoPublicationFailureMessage(
   AppLocalizations l10n,

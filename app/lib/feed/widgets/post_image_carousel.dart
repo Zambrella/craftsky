@@ -8,8 +8,8 @@ import 'package:craftsky_app/shared/image/image_cache_providers.dart';
 import 'package:craftsky_app/shared/widgets/root_overlay_scope.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/gestures.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:material_ui/material_ui.dart';
 
 const _defaultFallbackHeight = 320.0;
 const _defaultMinHeight = 160.0;
@@ -60,7 +60,7 @@ BoxFit computePostImageFit({
 }
 
 class PostImageCarousel extends ConsumerStatefulWidget {
-  const PostImageCarousel({
+  const new({
     required this.images,
     this.onImageTap,
     this.onImageDoubleTap,

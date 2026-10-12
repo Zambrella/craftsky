@@ -10,7 +10,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 final class _AccountRepository implements LanguagePreferencesRepository {
-  _AccountRepository(this.loaded);
+  new(this.loaded);
 
   final Future<LanguagePreferences> loaded;
   Completer<LanguagePreferences>? replacement;

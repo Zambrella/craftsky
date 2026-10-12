@@ -1,13 +1,13 @@
 import 'dart:io';
 
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/service_status/providers/service_status_controller.dart';
 import 'package:craftsky_app/service_status/widgets/service_status_host.dart';
 import 'package:craftsky_app/service_status/widgets/service_status_lifecycle_host.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 import 'announcement_dismissal_test.dart' show FakeDismissalStore, announcement;
 import 'service_status_controller_test.dart'
@@ -33,7 +33,7 @@ void main() {
           child: ServiceStatusLifecycleHost(
             child: MaterialApp(
               theme: AppTheme.lightThemeData,
-              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              localizationsDelegates: appLocalizationsDelegates,
               supportedLocales: AppLocalizations.supportedLocales,
               builder: (context, child) => ServiceStatusHost(child: child!),
               home: const Scaffold(body: Text('Usable app')),

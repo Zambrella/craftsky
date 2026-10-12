@@ -20,7 +20,7 @@ import 'package:craftsky_app/feed/providers/composer_images_provider.dart';
 import 'package:craftsky_app/feed/providers/post_api_client_provider.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/feed/widgets/post_composer_sheet.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/languages/models/language_preferences.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
 import 'package:craftsky_app/service_status/models/service_status_document.dart';
@@ -33,9 +33,9 @@ import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../fakes/recording_messenger.dart';
 import '../../service_status/announcement_dismissal_test.dart'
@@ -435,7 +435,7 @@ Future<void> _pumpUntil(WidgetTester tester, bool Function() condition) async {
 }
 
 final class _GatedPostApiClient extends PostApiClient {
-  _GatedPostApiClient() : super(Dio());
+  new() : super(Dio());
 
   final _gate = Completer<void>();
   int uploadCalls = 0;
@@ -508,7 +508,7 @@ Future<void> _openComposer(
           builder: status == null
               ? null
               : (context, child) => ServiceStatusHost(child: child!),
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: appLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: Builder(
             builder: (context) {
@@ -520,15 +520,13 @@ Future<void> _openComposer(
                       const Text('Host'),
                       ElevatedButton(
                         onPressed: () {
-                          unawaited(
-                            Navigator.of(context).push<Post?>(
-                              MaterialPageRoute<Post?>(
-                                fullscreenDialog: true,
-                                builder: (_) => PostComposerSheet(
-                                  composerId: composerId,
-                                  draftSeed: draftSeed,
-                                  draftOwner: draftOwner,
-                                ),
+                          Navigator.of(context).push<Post?>(
+                            MaterialPageRoute<Post?>(
+                              fullscreenDialog: true,
+                              builder: (_) => PostComposerSheet(
+                                composerId: composerId,
+                                draftSeed: draftSeed,
+                                draftOwner: draftOwner,
                               ),
                             ),
                           );
@@ -558,7 +556,7 @@ Future<void> _openComposer(
 }
 
 final class _RevisionDraftRepository implements LocalPostDraftRepository {
-  _RevisionDraftRepository(this.current);
+  new(this.current);
 
   LocalPostDraft current;
   final List<int?> expectedRevisions = [];
@@ -648,7 +646,7 @@ LocalPostDraft _originDraft(AccountKey owner) => LocalPostDraft(
 );
 
 final class _RegistryStorage implements SessionRegistryStorage {
-  _RegistryStorage(this.registry);
+  new(this.registry);
 
   SessionRegistry registry;
 

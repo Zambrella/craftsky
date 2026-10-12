@@ -200,7 +200,7 @@ BillingState _billingState() => const BillingState(
 );
 
 final class _FakeRevenueCat implements RevenueCatIdentityService {
-  _FakeRevenueCat(this.events);
+  new(this.events);
 
   final List<String> events;
 
@@ -220,7 +220,7 @@ final class _FakeRevenueCat implements RevenueCatIdentityService {
 }
 
 final class _FakeSubscriptionApi implements SubscriptionApi {
-  _FakeSubscriptionApi({this.ensure, this.get});
+  new({this.ensure, this.get});
 
   final Future<BillingState> Function()? ensure;
   final Future<BillingState> Function()? get;

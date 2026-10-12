@@ -50,7 +50,12 @@ void main() {
     expect(preview.thumbnail?.bytes.last, 2);
     expect(preview.thumbnail?.mimeType, 'image/png');
 
-    for (final encoded in ['***=', 'AQI', base64Encode(Uint8List(1000001))]) {
+    for (final (index, encoded) in [
+      '***=',
+      'AQI',
+      base64Encode(Uint8List(1000001)),
+    ].indexed) {
+      final sourceUrl = 'https://source.example/invalid-thumbnail-$index';
       adapter.onPost(
         '/v1/link-previews',
         (server) => server.reply(200, {
@@ -64,12 +69,12 @@ void main() {
             'height': 1,
           },
         }),
-        data: {'url': 'https://source.example/$encoded'},
+        data: {'url': sourceUrl},
       );
-      expect(
+      await expectLater(
         () => PostApiClient(
           dio,
-        ).fetchLinkPreview('https://source.example/$encoded'),
+        ).fetchLinkPreview(sourceUrl),
         throwsA(isA<FormatException>()),
       );
     }
