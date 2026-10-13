@@ -19,6 +19,12 @@
   "feedConnectInstagramAction": "Connect Instagram",
   "@feedConnectInstagramAction": { "description": "Empty-feed action that opens Instagram migration." },
 
+  "feedSearchAction": "Search CraftSky",
+  "@feedSearchAction": { "description": "Empty-feed action that opens the Search page." },
+
+  "feedViewProjectsAction": "View projects",
+  "@feedViewProjectsAction": { "description": "Empty-feed action that opens the Projects page." },
+
   "navigationMenuTooltip": "Open navigation menu",
   "@navigationMenuTooltip": { "description": "Tooltip and accessible label for the button that opens the app navigation drawer." },
 
