@@ -38,7 +38,7 @@ class AccountNotificationPreferencesNotifier
     final repository = await ref.watch(
       accountNotificationPreferencesRepositoryProvider(account).future,
     );
-    return repository.load();
+    return await repository.load();
   }
 
   Future<bool> setPushEnabled(

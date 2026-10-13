@@ -5,7 +5,7 @@ import 'package:craftsky_app/projects/options/project_option_catalogs.dart';
 enum ProjectComposerValidationCode { required, invalidGauge, tooManyValues }
 
 class ProjectComposerValidationError {
-  const ProjectComposerValidationError({
+  const new({
     required this.fieldName,
     required this.code,
   });
@@ -15,8 +15,8 @@ class ProjectComposerValidationError {
 }
 
 class ProjectComposerPayloadResult {
-  const ProjectComposerPayloadResult.project(this.project) : errors = const [];
-  const ProjectComposerPayloadResult.errors(this.errors) : project = null;
+  const new project(this.project) : errors = const [];
+  const new errors(this.errors) : project = null;
 
   final Project? project;
   final List<ProjectComposerValidationError> errors;

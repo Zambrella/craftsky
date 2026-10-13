@@ -7,7 +7,7 @@ import 'package:craftsky_app/shared/rich_text/data/facet_suggestion_repository.d
 /// Mock account suggestions for the Flutter-only facets slice.
 class MockAccountSuggestionRepository implements AccountSuggestionRepository {
   /// Creates a repository with injectable [accounts].
-  const MockAccountSuggestionRepository({
+  const new({
     required List<AccountSuggestion> accounts,
   }) : _accounts = accounts;
 
@@ -48,7 +48,7 @@ class MockAccountSuggestionRepository implements AccountSuggestionRepository {
 /// Mock hashtag suggestions for the Flutter-only facets slice.
 class MockHashtagSuggestionRepository implements HashtagSuggestionRepository {
   /// Creates a repository with injectable [hashtags].
-  const MockHashtagSuggestionRepository({
+  const new({
     required List<HashtagSuggestion> hashtags,
   }) : _hashtags = hashtags;
 

@@ -269,7 +269,7 @@ void _preflightCentralDirectory(
 }
 
 final class _ZipMetadata {
-  const _ZipMetadata({
+  const new({
     required this.entryCount,
     required this.centralDirectoryOffset,
     required this.centralDirectorySize,
@@ -522,8 +522,7 @@ bool _bytesEqual(List<int> first, List<int> second) {
 }
 
 final class _BoundedOutputStream extends OutputStream {
-  _BoundedOutputStream(this.maximumLength)
-    : super(byteOrder: ByteOrder.littleEndian);
+  new(this.maximumLength) : super(byteOrder: ByteOrder.littleEndian);
 
   final int maximumLength;
   final BytesBuilder _bytes = BytesBuilder(copy: false);

@@ -1,10 +1,10 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// A branded craft glyph resolved from either a profile craft ID or lexicon
 /// token.
 class CraftIcon extends StatelessWidget {
-  const CraftIcon({
+  const new({
     required this.craft,
     this.size = 20,
     this.color,
@@ -52,7 +52,7 @@ class CraftIcon extends StatelessWidget {
 
 /// A craft label with its branded glyph when that craft has one.
 class CraftIconLabel extends StatelessWidget {
-  const CraftIconLabel({
+  const new({
     required this.craft,
     required this.label,
     this.iconSize = 18,

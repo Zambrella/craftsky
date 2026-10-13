@@ -12,7 +12,7 @@ import 'package:craftsky_app/feed/pages/feed_page.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/feed/providers/timeline_provider.dart';
 import 'package:craftsky_app/feed/widgets/post_card.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/languages/models/language_preferences.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
 import 'package:craftsky_app/moderation/models/report_result.dart';
@@ -25,10 +25,10 @@ import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/craftsky_floating_action_button.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../fakes/auth_session_fakes.dart';
 import '../fakes/recording_messenger.dart';
@@ -36,7 +36,7 @@ import '../test_support/deterministic_pump.dart';
 import 'fakes/fake_post_repository.dart';
 
 final class _FeedPinRegistryStorage implements SessionRegistryStorage {
-  _FeedPinRegistryStorage()
+  new()
     : value = SessionRegistry.empty().upsertAndActivate(
         token: 'token-alice',
         did: 'did:plc:alice',
@@ -160,7 +160,7 @@ Future<void> _pump(
         messenger: messenger ?? RecordingMessenger(),
         child: MaterialApp(
           theme: AppTheme.lightThemeData,
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: appLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: Builder(
             builder: (context) => Directionality(
@@ -560,7 +560,7 @@ void main() {
     expect(find.text('timeline post shared'), findsNWidgets(2));
   });
 
-  testWidgets('FeedPage renders empty state without suggestions', (
+  testWidgets('FeedPage renders empty state with discovery actions', (
     tester,
   ) async {
     await _pump(
@@ -574,9 +574,76 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Your feed is quiet.'), findsOneWidget);
+    expect(find.text('Connect Instagram'), findsOneWidget);
+    expect(find.text('Search CraftSky'), findsOneWidget);
+    expect(find.text('View projects'), findsOneWidget);
     expect(find.textContaining('recommend'), findsNothing);
     expect(find.textContaining('Discover'), findsNothing);
   });
+
+  for (final (label, path) in [
+    ('Connect Instagram', '/profile/settings/instagram'),
+    ('Search CraftSky', '/search'),
+    ('View projects', '/projects'),
+  ]) {
+    testWidgets('empty Feed $label opens $path on a narrow screen', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(320, 568);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      String? destinationPath;
+      final router = GoRouter(
+        initialLocation: '/feed',
+        routes: [
+          GoRoute(path: '/feed', builder: (context, state) => const FeedPage()),
+          GoRoute(
+            path: path,
+            builder: (context, state) {
+              destinationPath = state.uri.path;
+              return const Scaffold(body: Text('Destination page'));
+            },
+          ),
+        ],
+      );
+      addTearDown(router.dispose);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            activeLanguagePreferencesProvider.overrideWith(
+              (ref) => const LanguagePreferences(
+                primaryLanguage: 'en',
+                contentLanguages: ['en'],
+              ),
+            ),
+            postRepositoryProvider.overrideWithValue(
+              FakePostRepository(
+                onListTimeline: ({cursor, limit}) async =>
+                    const TimelinePage(items: []),
+              ),
+            ),
+          ],
+          child: MaterialApp.router(
+            theme: AppTheme.lightThemeData,
+            localizationsDelegates: appLocalizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            routerConfig: router,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isNull);
+      await tester.tap(find.widgetWithText(TextButton, label));
+      await tester.pumpAndSettle();
+
+      expect(destinationPath, path);
+      expect(find.text('Destination page'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  }
 
   testWidgets('FeedPage initial error can retry first page', (tester) async {
     var calls = 0;
@@ -737,7 +804,7 @@ void main() {
         ],
         child: MaterialApp.router(
           theme: AppTheme.lightThemeData,
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: appLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           routerConfig: router,
         ),
@@ -895,7 +962,7 @@ void main() {
           messenger: RecordingMessenger(),
           child: MaterialApp.router(
             theme: AppTheme.lightThemeData,
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            localizationsDelegates: appLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             routerConfig: router,
           ),
@@ -964,7 +1031,7 @@ void main() {
           messenger: RecordingMessenger(),
           child: MaterialApp(
             theme: AppTheme.lightThemeData,
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            localizationsDelegates: appLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             home: const FeedPage(),
           ),

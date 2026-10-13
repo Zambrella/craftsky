@@ -144,7 +144,7 @@ final class AccountStandingProvider
   }
 }
 
-String _$accountStandingHash() => r'3194c279825d2a59acfcbb19ac3b42a9b26fb35a';
+String _$accountStandingHash() => r'1d8e2511ac1626c2e010eb31b0db2bb5cf267d96';
 
 final class AccountStandingFamily extends $Family
     with $FunctionalFamilyOverride<FutureOr<AccountStanding>, AccountKey> {
@@ -246,7 +246,7 @@ abstract class _$AccountModerationHistory
   FutureOr<ModerationHistoryState> build(AccountKey account);
   @$mustCallSuper
   @override
-  void runBuild() {
+  WhenComplete runBuild() {
     final ref =
         this.ref
             as $Ref<AsyncValue<ModerationHistoryState>, ModerationHistoryState>;
@@ -261,7 +261,7 @@ abstract class _$AccountModerationHistory
               Object?,
               Object?
             >;
-    element.handleCreate(ref, () => build(_$args));
+    return element.handleCreate(ref, () => build(_$args));
   }
 }
 
@@ -325,7 +325,7 @@ final class AccountModerationHistoryEntryProvider
 }
 
 String _$accountModerationHistoryEntryHash() =>
-    r'684ad4e52cee79348b4bdf004f7abb15dee8815a';
+    r'f58cc0e0ca287f138bc68c7b5cb94bd826a404ed';
 
 final class AccountModerationHistoryEntryFamily extends $Family
     with

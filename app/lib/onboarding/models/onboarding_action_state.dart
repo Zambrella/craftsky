@@ -3,7 +3,7 @@ import 'package:craftsky_app/onboarding/models/onboarding_flow_state.dart';
 enum OnboardingActionKind { next, saveAndNext, finish }
 
 final class OnboardingActionState {
-  const OnboardingActionState({
+  const new({
     required this.kind,
     required this.canSubmit,
     required this.canGoBack,

@@ -16,14 +16,14 @@ part 'saved_posts_provider.mapper.dart';
 @immutable
 @MappableClass(generateMethods: GenerateMethods.copy | GenerateMethods.equals)
 final class SavedPostListState with SavedPostListStateMappable {
-  SavedPostListState({
+  new({
     required List<SavedPostItem> items,
     this.cursor,
     this.isLoadingMore = false,
     this.incrementalError,
   }) : items = List.unmodifiable(items);
 
-  factory SavedPostListState.fromPage(SavedPostPage page) =>
+  factory fromPage(SavedPostPage page) =>
       SavedPostListState(items: page.items, cursor: page.cursor);
 
   final List<SavedPostItem> items;

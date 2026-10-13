@@ -79,14 +79,14 @@ func (f *notificationPipeline) drain() {
 }
 
 func notificationEvent(id uint64, actor, key, extra string) tap.Event {
-	return tap.Event{ID: id, URI: syntax.ATURI("at://" + actor + "/social.craftsky.feed.post/" + key), DID: syntax.DID(actor), Rkey: syntax.RecordKey(key), Collection: "social.craftsky.feed.post", Rev: "3aaaaaaaaaaa2", CID: syntax.CID(fmt.Sprintf("cid-%d", id)), Action: "create", Record: json.RawMessage(`{"text":"hello recipient","sponsored":false,"createdAt":"2026-05-04T12:00:00Z"` + extra + `}`)}
+	return tap.Event{ID: id, URI: syntax.ATURI("at://" + actor + "/social.craftsky.feed.post/" + key), DID: syntax.DID(actor), Rkey: syntax.RecordKey(key), Collection: "social.craftsky.feed.post", Rev: "3aaaaaaaaaaa2", CID: syntax.CID(fmt.Sprintf("cid-%d", id)), Action: "create", Record: json.RawMessage(`{"$type":"social.craftsky.feed.post","text":"hello recipient","sponsored":false,"createdAt":"2026-05-04T12:00:00Z"` + extra + `}`)}
 }
 
 func replyExtra(target string) string {
-	return `,"reply":{"root":{"uri":"` + target + `","cid":"originalcid"},"parent":{"uri":"` + target + `","cid":"originalcid"}}`
+	return `,"reply":{"root":{"uri":"` + target + `","cid":"bafyreig7k3sfss7d4efoww2cirg3gfkaglujbqxvxl7p6xwtfwswet7jby"},"parent":{"uri":"` + target + `","cid":"bafyreig7k3sfss7d4efoww2cirg3gfkaglujbqxvxl7p6xwtfwswet7jby"}}`
 }
 func quoteExtra(target string) string {
-	return `,"embed":{"$type":"social.craftsky.feed.post#quoteEmbed","record":{"uri":"` + target + `","cid":"originalcid"}}`
+	return `,"embed":{"$type":"social.craftsky.feed.post#quoteEmbed","record":{"uri":"` + target + `","cid":"bafyreig7k3sfss7d4efoww2cirg3gfkaglujbqxvxl7p6xwtfwswet7jby"}}`
 }
 func mentionExtra(did string) string {
 	return `,"facets":[{"index":{"byteStart":6,"byteEnd":15},"features":[{"$type":"app.bsky.richtext.facet#mention","did":"` + did + `"}]}]`

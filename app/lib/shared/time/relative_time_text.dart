@@ -1,11 +1,11 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Compact relative timestamp used by posts and other chronological surfaces.
 ///
 /// The visible value stays deliberately terse (`now`, `3m`, `4h`, `2d`) while
 /// the tooltip preserves the complete localized timestamp.
 class RelativeTimeText extends StatelessWidget {
-  const RelativeTimeText({
+  const new({
     required this.timestamp,
     this.now,
     this.style,

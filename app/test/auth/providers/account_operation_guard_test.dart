@@ -155,7 +155,7 @@ void main() {
 }
 
 final class _Storage implements SessionRegistryStorage {
-  _Storage(this.value);
+  new(this.value);
 
   SessionRegistry value;
 

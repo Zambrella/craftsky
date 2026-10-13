@@ -11,22 +11,20 @@ import 'package:craftsky_app/notifications/services/notification_service.dart';
 
 enum NotificationPlatform { android, ios }
 
-typedef NotificationAccountRegistrar =
-    Future<AccountSubscriptionId> Function({
-      required AccountSessionLease lease,
-      required NotificationPlatform platform,
-      required String token,
-    });
-typedef NotificationLeaseBindingSaver =
-    Future<void> Function({
-      required AccountSessionLease lease,
-      required AccountSubscriptionId binding,
-    });
+typedef NotificationAccountRegistrar = Future<AccountSubscriptionId> Function({
+  required AccountSessionLease lease,
+  required NotificationPlatform platform,
+  required String token,
+});
+typedef NotificationLeaseBindingSaver = Future<void> Function({
+  required AccountSessionLease lease,
+  required AccountSubscriptionId binding,
+});
 
 /// Coordinates installation-scoped permission/token state with independent
 /// account-scoped registration work.
 final class NotificationRegistrationCoordinator {
-  NotificationRegistrationCoordinator({
+  new({
     required NotificationService service,
     required this.platform,
     required NotificationAccountRegistrar registerAccount,
@@ -118,7 +116,7 @@ final class NotificationRegistrationCoordinator {
 
   Future<void> _attemptRegistration() async {
     final existing = _inFlight;
-    if (existing != null) return existing;
+    if (existing != null) return await existing;
     if (!_authorized || _eligible.isEmpty || _latestToken == null) return;
 
     final attempt = _drainRegistrationChanges();

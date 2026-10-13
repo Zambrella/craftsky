@@ -1,13 +1,13 @@
 import 'package:craftsky_app/auth/providers/handle_typeahead_provider.dart';
 import 'package:craftsky_app/auth/services/handle_typeahead_service.dart';
 import 'package:craftsky_app/auth/widgets/handle_typeahead_field.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:dio/dio.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter/widget_previews.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:material_ui/material_ui.dart';
 
 @Preview(name: 'Login handle suggestions', group: 'Auth', size: Size(390, 600))
 Widget handleTypeaheadFieldPreview() => const _Preview();
@@ -30,7 +30,7 @@ class _PreviewSearch extends HandleTypeaheadService {
 }
 
 class _Preview extends StatefulWidget {
-  const _Preview();
+  const new();
 
   @override
   State<_Preview> createState() => _PreviewState();
@@ -52,7 +52,7 @@ class _PreviewState extends State<_Preview> {
     overrides: [handleTypeaheadServiceProvider.overrideWithValue(_search)],
     child: MaterialApp(
       theme: AppTheme.lightThemeData,
-      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      localizationsDelegates: appLocalizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
       home: Scaffold(
         body: SingleChildScrollView(

@@ -1,0 +1,184 @@
+{
+  "lexicon": 1,
+  "id": "social.craftsky.feed.post",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "A post on Craftsky. May be a general post or a craft project post; when the optional 'project' field is present the post is a project post. The optional open embed union supports quoted records, standard external cards, and standard video.",
+      "key": "tid",
+      "record": {
+        "type": "object",
+        "required": [
+          "text",
+          "sponsored",
+          "createdAt"
+        ],
+        "properties": {
+          "text": {
+            "type": "string",
+            "maxLength": 20000,
+            "maxGraphemes": 2000,
+            "description": "The primary text content of the post. Plain text; rich-text annotations live in 'facets'. Craftsky allows longer posts than Bluesky (2000 graphemes vs 300) because crafters write fuller project write-ups."
+          },
+          "sponsored": {
+            "type": "boolean",
+            "description": "Whether the author declares that this post was created with sponsorship or other commercial consideration. Disclosure metadata only; it does not affect distribution."
+          },
+          "facets": {
+            "type": "array",
+            "items": {
+              "type": "ref",
+              "ref": "app.bsky.richtext.facet"
+            },
+            "description": "Byte-range annotations over 'text' for mentions, links, and inline hashtags. Reuses app.bsky.richtext.facet so existing renderers Just Work. Inline hashtag facets are composer-merged into project.common.tags on project posts; see the post lexicon fields spec."
+          },
+          "project": {
+            "type": "ref",
+            "ref": "social.craftsky.project.defs#project",
+            "description": "If present, this post is a craft project post. Absence means it's a general social post."
+          },
+          "images": {
+            "type": "array",
+            "items": {
+              "type": "ref",
+              "ref": "#image"
+            },
+            "maxLength": 4,
+            "description": "Images attached to the post. Top-level (not inside 'embed') — a post may carry images alongside a quote embed without needing a wrapper variant."
+          },
+          "embed": {
+            "type": "union",
+            "refs": [
+              "#quoteEmbed",
+              "app.bsky.embed.external",
+              "app.bsky.embed.video"
+            ],
+            "description": "Optional embedded content. Open union supporting local quote embeds, standard external cards, and standard video."
+          },
+          "reply": {
+            "type": "ref",
+            "ref": "#replyRef",
+            "description": "If present, this post is a reply to another post."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "datetime",
+            "description": "Client-declared creation timestamp."
+          },
+          "langs": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "language"
+            },
+            "maxLength": 3,
+            "description": "Indicates human language of post primary text content."
+          },
+          "externalImport": {
+            "type": "ref",
+            "ref": "#externalImport",
+            "description": "Optional self-asserted provenance for content created by an external-history importer. This metadata does not verify ownership of an external account or grant trust."
+          }
+        }
+      }
+    },
+    "externalImport": {
+      "type": "object",
+      "description": "Minimal self-asserted external-import provenance. It is display and distribution metadata only and does not verify ownership of an external account.",
+      "required": [
+        "source"
+      ],
+      "properties": {
+        "source": {
+          "type": "string",
+          "maxLength": 64,
+          "knownValues": [
+            "instagram"
+          ],
+          "description": "Self-asserted source service token. The value does not verify account ownership; clients should apply source-specific behavior only to values they recognize."
+        }
+      }
+    },
+    "image": {
+      "type": "object",
+      "description": "An image blob with optional alt text.",
+      "required": [
+        "image"
+      ],
+      "properties": {
+        "image": {
+          "type": "blob",
+          "accept": [
+            "image/jpeg",
+            "image/png",
+            "image/webp"
+          ],
+          "maxSize": 2000000
+        },
+        "alt": {
+          "type": "string",
+          "maxLength": 1000,
+          "maxGraphemes": 1000,
+          "description": "Optional alt text describing the image for accessibility."
+        },
+        "aspectRatio": {
+          "type": "ref",
+          "ref": "#aspectRatio",
+          "description": "Optional aspect ratio metadata for rendering."
+        }
+      }
+    },
+    "aspectRatio": {
+      "type": "object",
+      "description": "Image aspect ratio metadata used for layout/render hints.",
+      "required": [
+        "width",
+        "height"
+      ],
+      "properties": {
+        "width": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "height": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "quoteEmbed": {
+      "type": "object",
+      "description": "Embed wrapping another record (typically a social.craftsky.feed.post) for a quote post.",
+      "required": [
+        "record"
+      ],
+      "properties": {
+        "record": {
+          "type": "ref",
+          "ref": "com.atproto.repo.strongRef",
+          "description": "Strong reference to the quoted record."
+        }
+      }
+    },
+    "replyRef": {
+      "type": "object",
+      "description": "Reference to the parent and root posts of a thread.",
+      "required": [
+        "root",
+        "parent"
+      ],
+      "properties": {
+        "root": {
+          "type": "ref",
+          "ref": "com.atproto.repo.strongRef",
+          "description": "The root post of the thread."
+        },
+        "parent": {
+          "type": "ref",
+          "ref": "com.atproto.repo.strongRef",
+          "description": "The immediate parent post being replied to."
+        }
+      }
+    }
+  }
+}

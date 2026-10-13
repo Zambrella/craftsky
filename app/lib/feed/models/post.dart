@@ -30,7 +30,7 @@ part 'post.mapper.dart';
   ],
 )
 class Post with PostMappable {
-  Post({
+  new({
     required String uri,
     required String cid,
     required String rkey,
@@ -107,7 +107,7 @@ class Post with PostMappable {
 /// account on the named service.
 @MappableClass()
 class ExternalImport with ExternalImportMappable {
-  const ExternalImport({required this.source});
+  const new({required this.source});
 
   final String source;
 
@@ -116,7 +116,7 @@ class ExternalImport with ExternalImportMappable {
 
 @MappableClass(ignoreNull: true, includeCustomMappers: [CidMapper()])
 class PostExternal with PostExternalMappable {
-  const PostExternal({
+  const new({
     required this.uri,
     required this.title,
     required this.description,
@@ -131,7 +131,7 @@ class PostExternal with PostExternalMappable {
 
 @MappableClass(includeCustomMappers: [CidMapper()])
 class PostExternalThumb with PostExternalThumbMappable {
-  PostExternalThumb({
+  new({
     required String cid,
     required this.mime,
     required this.size,
@@ -145,7 +145,7 @@ class PostExternalThumb with PostExternalThumbMappable {
 }
 
 class PostWireHook extends MappingHook {
-  const PostWireHook();
+  const new();
 
   @override
   Object? beforeDecode(Object? value) {
@@ -197,7 +197,7 @@ class PostWireHook extends MappingHook {
 
 @MappableClass()
 class ContentRelationship with ContentRelationshipMappable {
-  const ContentRelationship({required this.state, required this.revealable});
+  const new({required this.state, required this.revealable});
 
   final String state;
   final bool revealable;
@@ -208,7 +208,7 @@ class ContentRelationship with ContentRelationshipMappable {
 /// target is unavailable.
 @MappableClass(ignoreNull: true)
 class QuoteView with QuoteViewMappable {
-  const QuoteView({required this.state, this.revealable, this.post});
+  const new({required this.state, this.revealable, this.post});
 
   final String state;
   final bool? revealable;
@@ -220,7 +220,7 @@ class QuoteView with QuoteViewMappable {
   includeCustomMappers: [AtUriMapper(), CidMapper()],
 )
 class QuotePreviewPost with QuotePreviewPostMappable {
-  QuotePreviewPost({
+  new({
     required String uri,
     required String cid,
     required this.text,
@@ -248,7 +248,7 @@ class QuotePreviewPost with QuotePreviewPostMappable {
 
 @MappableClass(ignoreNull: true, includeCustomMappers: [CidMapper()])
 class PostImage with PostImageMappable {
-  PostImage({
+  new({
     required String cid,
     required this.mime,
     required this.size,
@@ -269,7 +269,7 @@ class PostImage with PostImageMappable {
 
 @MappableClass()
 class PostImageAspectRatio with PostImageAspectRatioMappable {
-  const PostImageAspectRatio({required this.width, required this.height});
+  const new({required this.width, required this.height});
 
   final int width;
   final int height;
@@ -277,7 +277,7 @@ class PostImageAspectRatio with PostImageAspectRatioMappable {
 
 @MappableClass(ignoreNull: true, includeCustomMappers: [CidMapper()])
 class PostVideo with PostVideoMappable {
-  PostVideo({
+  new({
     required String cid,
     required this.mime,
     required this.size,
@@ -300,7 +300,7 @@ class PostVideo with PostVideoMappable {
 
 @MappableClass()
 class PostVideoCaption with PostVideoCaptionMappable {
-  const PostVideoCaption({
+  const new({
     required this.lang,
     required this.name,
     required this.uri,
@@ -326,7 +326,7 @@ class PostVideoCaption with PostVideoCaptionMappable {
   ],
 )
 class PostAuthor with PostAuthorMappable {
-  PostAuthor({
+  new({
     required String did,
     required String handle,
     this.displayName,
@@ -358,7 +358,7 @@ class PostAuthor with PostAuthorMappable {
 /// roots/parents and embedded quotes.
 @MappableClass(includeCustomMappers: [AtUriMapper(), CidMapper()])
 class PostRef with PostRefMappable {
-  PostRef({required String uri, required String cid})
+  new({required String uri, required String cid})
     : uri = AtUri.parse(uri),
       cid = Cid.parse(cid);
   final AtUri uri;
@@ -368,7 +368,7 @@ class PostRef with PostRefMappable {
 /// Reply target, lexicon-shaped.
 @MappableClass()
 class PostReply with PostReplyMappable {
-  const PostReply({required this.root, required this.parent});
+  const new({required this.root, required this.parent});
   final PostRef root;
   final PostRef parent;
 }

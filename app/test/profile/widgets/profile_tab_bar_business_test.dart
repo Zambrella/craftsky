@@ -7,7 +7,7 @@ import 'package:craftsky_app/business/models/business_profile.dart';
 import 'package:craftsky_app/business/providers/business_repository_provider.dart';
 import 'package:craftsky_app/feed/models/post_page.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:craftsky_app/profile/pages/profile_page.dart';
@@ -17,9 +17,9 @@ import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
 import 'package:craftsky_app/subscriptions/providers/subscription_access_provider.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../fakes/auth_session_fakes.dart';
 import '../../feed/fakes/fake_post_repository.dart';
@@ -84,7 +84,7 @@ void main() {
           container: container,
           child: MaterialApp(
             theme: AppTheme.lightThemeData,
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            localizationsDelegates: appLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             home: ProfilePage(did: Did.parse('did:plc:maker')),
           ),
@@ -442,7 +442,7 @@ Future<void> _pumpProfile(
       ],
       child: MaterialApp(
         theme: AppTheme.lightThemeData,
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        localizationsDelegates: appLocalizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         home: ProfilePage(
           did: isOwnProfile ? null : Did.parse('did:plc:maker'),
@@ -454,7 +454,7 @@ Future<void> _pumpProfile(
 }
 
 final class _BusinessProfileRegistryStorage implements SessionRegistryStorage {
-  _BusinessProfileRegistryStorage(this.registry);
+  new(this.registry);
   SessionRegistry registry;
   @override
   Future<SessionRegistry> read() async => registry;

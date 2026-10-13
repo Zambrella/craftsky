@@ -3,7 +3,7 @@ import 'dart:typed_data';
 import 'package:image_picker/image_picker.dart';
 
 class ImageSourceTooLargeException implements Exception {
-  const ImageSourceTooLargeException();
+  const new();
 }
 
 Future<Uint8List> readBoundedImageFile(

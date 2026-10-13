@@ -1,8 +1,8 @@
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
-import 'package:flutter/material.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
+import 'package:material_ui/material_ui.dart';
 
 class ScheduledStagingProgress extends StatelessWidget {
-  const ScheduledStagingProgress({
+  const new({
     required this.completed,
     required this.total,
     this.creating = false,

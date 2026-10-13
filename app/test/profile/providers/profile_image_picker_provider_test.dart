@@ -72,7 +72,7 @@ void main() {
 }
 
 class _RecordingImagePicker extends ImagePicker {
-  _RecordingImagePicker(this.file);
+  new(this.file);
 
   final XFile? file;
   ImageSource? lastSource;

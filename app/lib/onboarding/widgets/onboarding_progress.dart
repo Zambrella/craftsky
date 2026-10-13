@@ -1,9 +1,9 @@
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/onboarding/models/onboarding_flow_state.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 class OnboardingProgress extends StatelessWidget {
-  const OnboardingProgress({required this.step, super.key});
+  const new({required this.step, super.key});
 
   final OnboardingStep step;
 

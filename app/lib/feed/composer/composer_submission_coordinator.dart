@@ -7,7 +7,7 @@ typedef SubmissionOwnershipCheck = bool Function();
 
 /// Content-free error passed across the UI failure boundary.
 final class ComposerSubmissionFailure implements Exception {
-  const ComposerSubmissionFailure();
+  const new();
 
   @override
   String toString() => 'ComposerSubmissionFailure';
@@ -15,7 +15,7 @@ final class ComposerSubmissionFailure implements Exception {
 
 /// Owns the lifecycle shared by standard and project composer submissions.
 final class ComposerSubmissionCoordinator {
-  ComposerSubmissionCoordinator({required SubmissionScreenAwake screenAwake})
+  new({required SubmissionScreenAwake screenAwake})
     : _lifecycle = ComposerSubmissionLifecycle(screenAwake);
 
   final ComposerSubmissionLifecycle _lifecycle;

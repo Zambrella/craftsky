@@ -1,7 +1,7 @@
 part of '../craftsky_select_inputs.dart';
 
 class CraftskyFormSingleSelectField<T> extends StatelessWidget {
-  const CraftskyFormSingleSelectField({
+  const new({
     required this.name,
     required this.label,
     required this.options,
@@ -63,7 +63,7 @@ class CraftskyFormSingleSelectField<T> extends StatelessWidget {
 }
 
 class CraftskyFormSearchableMultiSelectField<T> extends StatelessWidget {
-  const CraftskyFormSearchableMultiSelectField({
+  const new({
     required this.name,
     required this.label,
     required this.options,
@@ -125,7 +125,7 @@ class CraftskyFormSearchableMultiSelectField<T> extends StatelessWidget {
 }
 
 class CraftskyFormTokenField extends StatelessWidget {
-  const CraftskyFormTokenField({
+  const new({
     required this.name,
     required this.label,
     super.key,

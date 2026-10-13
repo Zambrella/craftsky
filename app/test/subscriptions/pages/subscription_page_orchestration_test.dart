@@ -6,7 +6,7 @@ import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart'
     show sessionRegistryProvider;
 import 'package:craftsky_app/auth/widgets/account_avatar.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/subscriptions/data/subscription_api_client.dart';
 import 'package:craftsky_app/subscriptions/models/billing_state.dart';
@@ -20,9 +20,9 @@ import 'package:craftsky_app/subscriptions/providers/subscription_repository_pro
 import 'package:craftsky_app/subscriptions/services/revenuecat_service.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 void main() {
   testWidgets('new phone reconnects the same owner and existing license', (
@@ -52,7 +52,7 @@ void main() {
         ],
         child: MaterialApp(
           theme: AppTheme.lightThemeData,
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: appLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: const SubscriptionPage(),
         ),
@@ -109,7 +109,7 @@ void main() {
           ],
           child: MaterialApp(
             theme: AppTheme.lightThemeData,
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            localizationsDelegates: appLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             home: const SubscriptionPage(),
           ),
@@ -181,7 +181,7 @@ void main() {
           ],
           child: MaterialApp(
             theme: AppTheme.lightThemeData,
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            localizationsDelegates: appLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             home: const SubscriptionPage(),
           ),
@@ -286,7 +286,7 @@ void main() {
           ],
           child: MaterialApp(
             theme: AppTheme.lightThemeData,
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            localizationsDelegates: appLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             home: const SubscriptionPage(),
           ),
@@ -389,7 +389,7 @@ void main() {
           container: container,
           child: MaterialApp(
             theme: AppTheme.lightThemeData,
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            localizationsDelegates: appLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             home: home,
           ),
@@ -471,7 +471,7 @@ void main() {
         ],
         child: MaterialApp(
           theme: AppTheme.lightThemeData,
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: appLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: const SubscriptionPage(),
         ),
@@ -528,7 +528,7 @@ void main() {
           container: container,
           child: MaterialApp(
             theme: AppTheme.lightThemeData,
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            localizationsDelegates: appLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             home: const SubscriptionPage(),
           ),
@@ -596,7 +596,7 @@ void main() {
           ],
           child: MaterialApp(
             theme: AppTheme.lightThemeData,
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            localizationsDelegates: appLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             home: const SubscriptionPage(),
           ),
@@ -656,7 +656,7 @@ void main() {
           ],
           child: MaterialApp(
             theme: AppTheme.lightThemeData,
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            localizationsDelegates: appLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             home: const SubscriptionPage(),
           ),
@@ -718,7 +718,7 @@ void main() {
         container: container,
         child: MaterialApp(
           theme: AppTheme.lightThemeData,
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: appLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: home,
         ),
@@ -784,7 +784,7 @@ void main() {
         container: container,
         child: MaterialApp(
           theme: AppTheme.lightThemeData,
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: appLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: home,
         ),
@@ -852,7 +852,7 @@ void main() {
         container: container,
         child: MaterialApp(
           theme: AppTheme.lightThemeData,
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: appLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: home,
         ),
@@ -917,7 +917,7 @@ void main() {
         container: container,
         child: MaterialApp(
           theme: AppTheme.lightThemeData,
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: appLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: home,
         ),
@@ -987,7 +987,7 @@ void main() {
         container: container,
         child: MaterialApp(
           theme: AppTheme.lightThemeData,
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: appLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: home,
         ),
@@ -1084,7 +1084,7 @@ void main() {
           container: container,
           child: MaterialApp(
             theme: AppTheme.lightThemeData,
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            localizationsDelegates: appLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             home: const SubscriptionPage(),
           ),
@@ -1167,7 +1167,7 @@ void main() {
           container: container,
           child: MaterialApp(
             theme: AppTheme.lightThemeData,
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            localizationsDelegates: appLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             home: const SubscriptionPage(),
           ),
@@ -1235,7 +1235,7 @@ void main() {
         ],
         child: MaterialApp(
           theme: AppTheme.lightThemeData,
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: appLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: const SubscriptionPage(),
         ),
@@ -1447,7 +1447,7 @@ Future<void> _tapVisible(WidgetTester tester, Finder finder) async {
 }
 
 final class _Storage implements SessionRegistryStorage {
-  _Storage(this.registry);
+  new(this.registry);
 
   SessionRegistry registry;
 
@@ -1460,7 +1460,7 @@ final class _Storage implements SessionRegistryStorage {
 }
 
 final class _OwnerApi implements SubscriptionApi {
-  _OwnerApi(
+  new(
     this.states, {
     this.failReadNumbers = const {},
     this.delayedReads = const {},
@@ -1580,7 +1580,7 @@ final class _RevenueCatOffering implements RevenueCatOffering {
 }
 
 final class _RevenueCat implements RevenueCatService {
-  _RevenueCat({this.anonymous = false, this.events});
+  new({this.anonymous = false, this.events});
 
   bool anonymous;
   final List<String>? events;
@@ -1615,7 +1615,7 @@ final class _RevenueCat implements RevenueCatService {
     RevenueCatOffering offering,
   ) async {
     presentations++;
-    return pendingPresentation?.future ?? DirectPaywallResult.purchased;
+    return await pendingPresentation?.future ?? DirectPaywallResult.purchased;
   }
 
   @override

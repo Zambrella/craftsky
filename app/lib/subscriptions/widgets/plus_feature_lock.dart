@@ -1,17 +1,17 @@
 import 'dart:async';
 
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
 import 'package:craftsky_app/subscriptions/subscription_build_config.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// A discoverable Plus control. The server remains the access authority.
 class PlusFeatureLock extends StatelessWidget {
-  const PlusFeatureLock({
+  const new({
     required this.feature,
     required this.access,
     required this.onUnlocked,
@@ -34,11 +34,13 @@ class PlusFeatureLock extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (access case AsyncData(
-      :final value,
-      isLoading: false,
-      hasError: false,
-    ) when subscriptionsEnabled && value.allowsPlus) {
+    if (access
+        case AsyncData(
+          :final value,
+          isLoading: false,
+          hasError: false,
+        )
+        when subscriptionsEnabled && value.allowsPlus) {
       return InkWell(onTap: onUnlocked, child: child);
     }
     final l10n = AppLocalizations.of(context);

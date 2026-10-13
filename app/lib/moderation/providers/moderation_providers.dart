@@ -46,11 +46,11 @@ Future<AccountStanding> accountStanding(Ref ref, AccountKey account) async {
   final repository = await ref.watch(
     accountModerationRepositoryProvider(account).future,
   );
-  return repository.getStanding();
+  return await repository.getStanding();
 }
 
 final class ModerationHistoryState {
-  const ModerationHistoryState({
+  const new({
     required this.items,
     this.cursor,
     this.loadingMore = false,
@@ -130,5 +130,5 @@ Future<ModerationHistoryPage> accountModerationHistoryEntry(
   final repository = await ref.watch(
     accountModerationRepositoryProvider(account).future,
   );
-  return repository.getHistoryEntry(reference);
+  return await repository.getHistoryEntry(reference);
 }

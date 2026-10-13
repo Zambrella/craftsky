@@ -1,4 +1,4 @@
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:dart_mappable/dart_mappable.dart';
 import 'package:flutter/foundation.dart';
@@ -27,9 +27,9 @@ enum SavedPostFailureKind {
 @immutable
 @MappableClass(generateMethods: GenerateMethods.copy | GenerateMethods.equals)
 final class SavedPostFailure with SavedPostFailureMappable {
-  const SavedPostFailure({required this.kind, required this.operation});
+  const new({required this.kind, required this.operation});
 
-  factory SavedPostFailure.from(
+  factory from(
     Object error, {
     required SavedPostOperation operation,
   }) => SavedPostFailure(

@@ -18,7 +18,7 @@ import 'package:craftsky_app/feed/providers/composer_image_state.dart';
 import 'package:craftsky_app/feed/providers/composer_images_provider.dart';
 import 'package:craftsky_app/feed/providers/post_api_client_provider.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/languages/models/language_preferences.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
 import 'package:craftsky_app/projects/composer/project_composer_fields.dart';
@@ -31,10 +31,10 @@ import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
+import 'package:material_ui/material_ui.dart';
 
 import '../../fakes/recording_messenger.dart';
 import '../../feed/fakes/fake_post_repository.dart';
@@ -94,7 +94,7 @@ void main() {
           messenger: RecordingMessenger(),
           child: MaterialApp(
             theme: AppTheme.lightThemeData,
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            localizationsDelegates: appLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             home: const ProjectComposerSheet(composerId: 'project-composer'),
           ),
@@ -199,7 +199,7 @@ void main() {
           messenger: RecordingMessenger(),
           child: MaterialApp(
             theme: AppTheme.lightThemeData,
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            localizationsDelegates: appLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             home: const ProjectComposerSheet(composerId: 'metadata-composer'),
           ),
@@ -354,7 +354,7 @@ void main() {
             messenger: RecordingMessenger(),
             child: MaterialApp(
               theme: AppTheme.lightThemeData,
-              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              localizationsDelegates: appLocalizationsDelegates,
               supportedLocales: AppLocalizations.supportedLocales,
               home: const ProjectComposerSheet(
                 composerId: 'project-account-switch',
@@ -446,7 +446,7 @@ void main() {
             messenger: RecordingMessenger(),
             child: MaterialApp(
               theme: AppTheme.lightThemeData,
-              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              localizationsDelegates: appLocalizationsDelegates,
               supportedLocales: AppLocalizations.supportedLocales,
               home: Builder(
                 builder: (context) => Scaffold(
@@ -524,7 +524,7 @@ Future<void> _pumpUntil(WidgetTester tester, bool Function() condition) async {
 }
 
 final class _RegistryStorage implements SessionRegistryStorage {
-  _RegistryStorage(this.registry);
+  new(this.registry);
 
   SessionRegistry registry;
 
@@ -538,7 +538,7 @@ final class _RegistryStorage implements SessionRegistryStorage {
 }
 
 final class _GatedPostApiClient extends PostApiClient {
-  _GatedPostApiClient() : super(Dio());
+  new() : super(Dio());
 
   final _gate = Completer<void>();
   int uploadCalls = 0;
@@ -570,7 +570,7 @@ final class _GatedPostApiClient extends PostApiClient {
 }
 
 final class _ImmediatePostApiClient extends PostApiClient {
-  _ImmediatePostApiClient() : super(Dio());
+  new() : super(Dio());
 
   int uploadCalls = 0;
 
@@ -598,7 +598,7 @@ final class _ImmediatePostApiClient extends PostApiClient {
 }
 
 final class _RevisionDraftRepository implements LocalPostDraftRepository {
-  _RevisionDraftRepository(this.current);
+  new(this.current);
 
   LocalPostDraft current;
   final List<int?> expectedRevisions = [];

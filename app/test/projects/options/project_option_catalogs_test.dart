@@ -7,13 +7,11 @@ import 'package:craftsky_app/projects/options/project_option_catalogs.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 Set<String> _knownSubtypeValues(String craft) {
-  final schema =
-      jsonDecode(
-            File(
-              '../lexicon/social/craftsky/project/$craft.json',
-            ).readAsStringSync(),
-          )
-          as Map<String, dynamic>;
+  final schema = jsonDecode(
+    File(
+      '../lexicon/social/craftsky/project/$craft.json',
+    ).readAsStringSync(),
+  ) as Map<String, dynamic>;
   final defs = schema['defs'] as Map<String, dynamic>;
   final details = defs['details'] as Map<String, dynamic>;
   final properties = details['properties'] as Map<String, dynamic>;

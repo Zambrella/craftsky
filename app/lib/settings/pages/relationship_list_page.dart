@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/profile/models/profile_account_summary.dart';
 import 'package:craftsky_app/profile/widgets/profile_account_list_tile.dart';
 import 'package:craftsky_app/settings/providers/relationship_list_provider.dart';
@@ -9,14 +9,14 @@ import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:material_ui/material_ui.dart';
 
 export 'package:craftsky_app/settings/providers/relationship_list_provider.dart'
     show RelationshipListKind;
 
 class RelationshipListPage extends ConsumerWidget {
-  const RelationshipListPage({required this.kind, super.key});
+  const new({required this.kind, super.key});
 
   final RelationshipListKind kind;
 
@@ -101,7 +101,7 @@ Widget _buildAccountSkeleton(BuildContext context, int index) =>
     const AccountRowSkeleton();
 
 class _RelationshipListBody extends StatelessWidget {
-  const _RelationshipListBody({
+  const new({
     required this.kind,
     required this.state,
     required this.isLoadingMore,
@@ -188,7 +188,7 @@ class _RelationshipListBody extends StatelessWidget {
 }
 
 class _RelationshipListError extends StatelessWidget {
-  const _RelationshipListError({required this.message, required this.onRetry});
+  const new({required this.message, required this.onRetry});
 
   final String message;
   final VoidCallback onRetry;

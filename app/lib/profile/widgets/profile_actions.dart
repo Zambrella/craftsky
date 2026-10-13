@@ -1,13 +1,13 @@
 import 'dart:async';
 
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/shared/widgets/action_progress.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/chunky_icon_button.dart';
 import 'package:craftsky_app/theme/craftsky_context_menu.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 const profileActionSectionMaxWidth = 420.0;
 
@@ -18,11 +18,11 @@ const profileActionSectionMaxWidth = 420.0;
 /// to its own user's `Edit`/`Settings` is a value swap, not a widget
 /// swap. New variants (e.g. blocked-user, suspended) slot in here.
 sealed class ProfileActionSet {
-  const ProfileActionSet();
+  const new();
 }
 
 final class SelfProfileActionSet extends ProfileActionSet {
-  const SelfProfileActionSet({
+  const new({
     required this.onEdit,
     required this.onSettings,
     this.onCopyLink,
@@ -35,7 +35,7 @@ final class SelfProfileActionSet extends ProfileActionSet {
 }
 
 final class VisitorProfileActionSet extends ProfileActionSet {
-  const VisitorProfileActionSet({
+  const new({
     required this.isFollowing,
     required this.isBusy,
     required this.onFollowToggle,
@@ -69,7 +69,7 @@ final class VisitorProfileActionSet extends ProfileActionSet {
 }
 
 class ProfileActions extends StatelessWidget {
-  const ProfileActions({required this.actions, super.key});
+  const new({required this.actions, super.key});
 
   final ProfileActionSet actions;
 
@@ -85,7 +85,7 @@ class ProfileActions extends StatelessWidget {
 /// Centres the richer full-page action row while keeping visitor actions
 /// bounded and responsive.
 class ProfileActionSection extends StatelessWidget {
-  const ProfileActionSection({required this.actions, super.key});
+  const new({required this.actions, super.key});
 
   final ProfileActionSet actions;
 
@@ -105,7 +105,7 @@ class ProfileActionSection extends StatelessWidget {
 }
 
 class _SelfActions extends StatelessWidget {
-  const _SelfActions({required this.actions});
+  const new({required this.actions});
 
   final SelfProfileActionSet actions;
 
@@ -160,7 +160,7 @@ class _SelfActions extends StatelessWidget {
 }
 
 class _VisitorActions extends StatelessWidget {
-  const _VisitorActions({required this.actions});
+  const new({required this.actions});
 
   final VisitorProfileActionSet actions;
 

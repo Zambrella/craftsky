@@ -424,7 +424,7 @@ final class _BusinessRepository extends Fake implements BusinessRepository {
 }
 
 final class _RegistryStorage implements SessionRegistryStorage {
-  _RegistryStorage(this.value);
+  new(this.value);
 
   SessionRegistry value;
 

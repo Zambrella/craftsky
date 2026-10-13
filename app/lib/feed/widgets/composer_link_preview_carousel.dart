@@ -1,11 +1,11 @@
 import 'package:craftsky_app/feed/composer/link_preview_controller.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 class ComposerLinkPreviewCarousel extends StatelessWidget {
-  const ComposerLinkPreviewCarousel({
+  const new({
     required this.selected,
     required this.current,
     required this.total,

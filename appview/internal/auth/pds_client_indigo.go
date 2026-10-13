@@ -7,10 +7,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
+	"time"
 
-	apiatproto "github.com/bluesky-social/indigo/api/atproto"
+	"social.craftsky/appview/internal/recordjson"
+
 	"github.com/bluesky-social/indigo/atproto/atclient"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 )
@@ -82,12 +85,12 @@ func (i *IndigoPDSClient) GetRecord(ctx context.Context, repo syntax.DID, collec
 		*target = append((*target)[:0], resp.Value...)
 		return resp.CID, nil
 	case *map[string]any:
-		if err := json.Unmarshal(resp.Value, target); err != nil {
+		if err := recordjson.Unmarshal(resp.Value, target); err != nil {
 			return "", fmt.Errorf("decode getRecord value: %w", err)
 		}
 		return resp.CID, nil
 	case *any:
-		if err := json.Unmarshal(resp.Value, target); err != nil {
+		if err := recordjson.Unmarshal(resp.Value, target); err != nil {
 			return "", fmt.Errorf("decode getRecord value: %w", err)
 		}
 		return resp.CID, nil
@@ -159,7 +162,7 @@ func (i *IndigoPDSClient) putRecord(
 		body["swapRecord"] = expectedCID.String()
 	}
 	var resp any
-	if err := i.client.Post(ctx, nsid, body, &resp); err != nil {
+	if err := i.post(ctx, nsid, body, &resp); err != nil {
 		return i.translateError(ctx, translateRecordMutationError(err))
 	}
 	return nil
@@ -187,7 +190,7 @@ func (i *IndigoPDSClient) CreateRecord(
 		URI string `json:"uri"`
 		CID string `json:"cid"`
 	}
-	if err := i.client.Post(ctx, nsid, body, &resp); err != nil {
+	if err := i.post(ctx, nsid, body, &resp); err != nil {
 		return "", "", i.translateError(ctx, err)
 	}
 	if resp.URI == "" || resp.CID == "" {
@@ -243,7 +246,7 @@ func (i *IndigoPDSClient) deleteRecord(
 		body["swapRecord"] = expectedCID.String()
 	}
 	var resp any
-	if err := i.client.Post(ctx, nsid, body, &resp); err != nil {
+	if err := i.post(ctx, nsid, body, &resp); err != nil {
 		return i.translateError(ctx, translateDeleteRecordError(err))
 	}
 	return nil
@@ -276,26 +279,30 @@ func (i *IndigoPDSClient) ListRecords(
 	cursor string,
 	limit int,
 ) ([]PDSRecord, string, error) {
-	out, err := apiatproto.RepoListRecords(ctx, i.client, collection, cursor, int64(limit), repo.String(), false)
-	if err != nil {
+	nsid := syntax.NSID("com.atproto.repo.listRecords")
+	var out struct {
+		Cursor  *string `json:"cursor"`
+		Records []struct {
+			URI   string          `json:"uri"`
+			CID   string          `json:"cid"`
+			Value json.RawMessage `json:"value"`
+		} `json:"records"`
+	}
+	if err := i.client.Get(ctx, nsid, map[string]any{"repo": repo.String(), "collection": collection, "cursor": cursor, "limit": limit, "reverse": false}, &out); err != nil {
 		return nil, "", i.translateError(ctx, err)
 	}
 	records := make([]PDSRecord, 0, len(out.Records))
 	for _, record := range out.Records {
-		if record == nil || record.Value == nil || record.Value.Val == nil || record.Cid == "" {
-			return nil, "", fmt.Errorf("listRecords: PDS returned incomplete record")
+		if record.CID == "" || len(record.Value) == 0 || string(record.Value) == "null" {
+			return nil, "", errors.New("listRecords: PDS returned incomplete record")
 		}
-		uri, err := syntax.ParseATURI(record.Uri)
+		uri, err := syntax.ParseATURI(record.URI)
 		if err != nil {
 			return nil, "", fmt.Errorf("listRecords: invalid uri: %w", err)
 		}
-		records = append(records, PDSRecord{
-			URI:   uri,
-			CID:   syntax.CID(record.Cid),
-			Value: record.Value.Val,
-		})
+		records = append(records, PDSRecord{URI: uri, CID: syntax.CID(record.CID), Value: append(json.RawMessage(nil), record.Value...)})
 	}
-	var next string
+	next := ""
 	if out.Cursor != nil {
 		next = *out.Cursor
 	}
@@ -358,7 +365,7 @@ func (i *IndigoPDSClient) ApplyWrites(
 		"repo": repo.String(), "swapCommit": swapCommit.String(), "writes": encoded,
 	}
 	var response any
-	if err := i.client.Post(ctx, nsid, body, &response); err != nil {
+	if err := i.post(ctx, nsid, body, &response); err != nil {
 		return i.translateError(ctx, translateRepositoryMutationError(err))
 	}
 	return nil
@@ -384,7 +391,7 @@ func (i *IndigoPDSClient) DeleteRecordWithRepositorySwap(
 		"swapCommit": swapCommit.String(), "swapRecord": swapRecord.String(),
 	}
 	var response any
-	if err := i.client.Post(ctx, nsid, body, &response); err != nil {
+	if err := i.post(ctx, nsid, body, &response); err != nil {
 		return i.translateError(ctx, translateRepositoryMutationError(err))
 	}
 	return nil
@@ -480,4 +487,37 @@ func parseBlobSize(v any) (int64, error) {
 	default:
 		return 0, fmt.Errorf("unexpected type %T", v)
 	}
+}
+
+// post retains Retry-After while using Indigo's authenticated request path.
+// A throttled request is never retried here; the durable command owns retries.
+func (i *IndigoPDSClient) post(ctx context.Context, endpoint syntax.NSID, body, out any) error {
+	raw, err := json.Marshal(body)
+	if err != nil {
+		return err
+	}
+	req := atclient.NewAPIRequest(http.MethodPost, endpoint, bytes.NewReader(raw))
+	req.Headers.Set("Accept", "application/json")
+	req.Headers.Set("Content-Type", "application/json")
+	response, err := i.client.Do(ctx, req)
+	if err != nil {
+		return err
+	}
+	defer response.Body.Close()
+	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		var body atclient.ErrorBody
+		var cause error = &atclient.APIError{StatusCode: response.StatusCode}
+		if json.NewDecoder(response.Body).Decode(&body) == nil {
+			cause = body.APIError(response.StatusCode)
+		}
+		if response.StatusCode == http.StatusTooManyRequests {
+			return &RateLimitError{RetryAfter: RetryAfter(response.Header.Get("Retry-After"), time.Now()), Cause: cause}
+		}
+		return cause
+	}
+	if out == nil {
+		_, err = io.Copy(io.Discard, response.Body)
+		return err
+	}
+	return json.NewDecoder(response.Body).Decode(out)
 }

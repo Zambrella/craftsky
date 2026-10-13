@@ -1,13 +1,13 @@
 import 'package:craftsky_app/business/models/business_labels.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
-import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Business details and member-since content for the business-only About tab.
 class ProfileAboutTab extends StatelessWidget {
-  const ProfileAboutTab({required this.profile, super.key});
+  const new({required this.profile, super.key});
 
   final Profile profile;
 
@@ -83,7 +83,7 @@ class ProfileAboutTab extends StatelessWidget {
 }
 
 class _BusinessDetailSection extends StatelessWidget {
-  const _BusinessDetailSection({required this.heading, required this.values});
+  const new({required this.heading, required this.values});
 
   final String heading;
   final List<String> values;
@@ -108,7 +108,7 @@ class _BusinessDetailSection extends StatelessWidget {
 }
 
 class _BusinessTextSection extends StatelessWidget {
-  const _BusinessTextSection({required this.heading, required this.value});
+  const new({required this.heading, required this.value});
 
   final String heading;
   final String value;

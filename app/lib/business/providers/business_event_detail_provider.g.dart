@@ -52,7 +52,7 @@ final class BusinessEventDetailProvider
 }
 
 String _$businessEventDetailHash() =>
-    r'2274d00ce3178193b97fda78272ac07a425a680a';
+    r'f923c765c244b0a10ecc8220f248ef0801f97596';
 
 final class BusinessEventDetailFamily extends $Family
     with
@@ -87,7 +87,7 @@ abstract class _$BusinessEventDetail
   FutureOr<BusinessEventDetailState> build(BusinessEventDetailTarget target);
   @$mustCallSuper
   @override
-  void runBuild() {
+  WhenComplete runBuild() {
     final ref =
         this.ref
             as $Ref<
@@ -105,6 +105,6 @@ abstract class _$BusinessEventDetail
               Object?,
               Object?
             >;
-    element.handleCreate(ref, () => build(_$args));
+    return element.handleCreate(ref, () => build(_$args));
   }
 }

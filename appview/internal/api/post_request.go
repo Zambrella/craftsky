@@ -158,7 +158,7 @@ func DecodePostCreate(body io.Reader) (PostCreateRequest, error) {
 }
 
 // ValidatePostCreate enforces lexicon rules: non-empty text, ≤ 2000
-// graphemes (approximated by rune count, matching profile_request),
+// graphemes,
 // image blob shape, and AT-URI parseability on reply/quote pointers.
 func ValidatePostCreate(req PostCreateRequest) error {
 	return ValidatePostCreateWithLimits(req, DefaultMediaLimits())
@@ -168,9 +168,13 @@ func ValidatePostCreate(req PostCreateRequest) error {
 func ValidatePostCreateWithLimits(req PostCreateRequest, limits MediaLimits) error {
 	limits = normalizeMediaLimits(limits)
 	fields := map[string]string{}
-	if req.Text == "" {
+	if !utf8.ValidString(req.Text) {
+		fields["text"] = "must be valid UTF-8"
+	} else if req.Text == "" {
 		fields["text"] = "must not be empty"
-	} else if utf8.RuneCountInString(req.Text) > 2000 {
+	} else if len(req.Text) > 20000 {
+		fields["text"] = "exceeds 20000 bytes"
+	} else if uniseg.GraphemeClusterCount(req.Text) > 2000 {
 		fields["text"] = "exceeds 2000 graphemes"
 	}
 	if err := languages.ValidatePostTags(req.Langs); err != nil {
@@ -245,7 +249,9 @@ func ValidatePostCreateWithLimits(req PostCreateRequest, limits MediaLimits) err
 			text := strings.TrimSpace(material.Text)
 			if text == "" {
 				fields[key] = "must not be empty"
-			} else if utf8.RuneCountInString(text) > maxProjectMaterialGraphemes {
+			} else if !utf8.ValidString(text) || len(material.Text) > 1000 {
+				fields[key] = "exceeds 1000 bytes or contains invalid UTF-8"
+			} else if uniseg.GraphemeClusterCount(text) > maxProjectMaterialGraphemes {
 				fields[key] = fmt.Sprintf("exceeds %d graphemes", maxProjectMaterialGraphemes)
 			} else if strings.ContainsAny(text, "\r\n") {
 				fields[key] = "must be a single line"
@@ -281,8 +287,8 @@ func validateVideoEmbed(fields map[string]string, video VideoEmbedRequest) {
 	if video.Blob.Size <= 0 || video.Blob.Size > maxVideoBlobBytes {
 		fields["embed.video.blob.size"] = "must be a positive integer no greater than 300000000"
 	}
-	if !utf8.ValidString(video.Alt) || uniseg.GraphemeClusterCount(video.Alt) > maxVideoAltGraphemes {
-		fields["embed.video.alt"] = "exceeds 1000 graphemes"
+	if !utf8.ValidString(video.Alt) || len(video.Alt) > 10000 || uniseg.GraphemeClusterCount(video.Alt) > maxVideoAltGraphemes {
+		fields["embed.video.alt"] = "exceeds 1000 graphemes / 10000 bytes"
 	}
 	if video.AspectRatio != nil {
 		if video.AspectRatio.Width <= 0 {

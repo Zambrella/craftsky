@@ -1,6 +1,6 @@
 import 'package:craftsky_app/auth/providers/active_account_initialization_provider.dart';
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/notifications/data/notification_repository.dart';
 import 'package:craftsky_app/notifications/models/notification_category.dart';
 import 'package:craftsky_app/notifications/models/notification_page.dart';
@@ -12,10 +12,10 @@ import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/form_factor.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../fakes/auth_session_fakes.dart';
 import '../fakes/recording_messenger.dart';
@@ -58,7 +58,7 @@ void main() {
         child: MaterialApp.router(
           routerConfig: router,
           theme: AppTheme.lightThemeData,
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: appLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           builder: (context, child) => MessengerScope(
             messenger: RecordingMessenger(),
@@ -117,7 +117,7 @@ final class _NotificationsRepository implements NotificationRepository {
 }
 
 final class _NewnessRepository implements NotificationNewnessRepository {
-  const _NewnessRepository();
+  const new();
 
   @override
   Future<int> count() async => 0;
@@ -128,7 +128,7 @@ final class _NewnessRepository implements NotificationNewnessRepository {
 
 final class _PreferencesRepository
     implements NotificationPreferencesRepository {
-  const _PreferencesRepository();
+  const new();
 
   NotificationPreferences get preferences => NotificationPreferences(
     known: {

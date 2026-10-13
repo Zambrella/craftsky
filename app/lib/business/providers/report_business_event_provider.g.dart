@@ -51,7 +51,7 @@ final class ReportBusinessEventProvider
 }
 
 String _$reportBusinessEventHash() =>
-    r'c22b22c5d991ce01ed4b51703e7922b999154b3a';
+    r'3a73248786f3942529c02b2d4f262517c4bc5ad7';
 
 final class ReportBusinessEventFamily extends $Family
     with
@@ -85,7 +85,7 @@ abstract class _$ReportBusinessEvent extends $AsyncNotifier<ReportResult?> {
   FutureOr<ReportResult?> build(AccountKey account);
   @$mustCallSuper
   @override
-  void runBuild() {
+  WhenComplete runBuild() {
     final ref = this.ref as $Ref<AsyncValue<ReportResult?>, ReportResult?>;
     final element =
         ref.element
@@ -95,6 +95,6 @@ abstract class _$ReportBusinessEvent extends $AsyncNotifier<ReportResult?> {
               Object?,
               Object?
             >;
-    element.handleCreate(ref, () => build(_$args));
+    return element.handleCreate(ref, () => build(_$args));
   }
 }

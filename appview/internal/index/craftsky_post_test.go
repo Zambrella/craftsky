@@ -2032,9 +2032,18 @@ func TestCraftskyPost_HashtagFieldCasing(t *testing.T) {
 			now := time.Date(2026, 10, 9, 12, 0, 0, 0, time.UTC)
 			raw := json.RawMessage(`{"$type":"social.craftsky.feed.post","text":"#MeMadeMay","sponsored":false,"createdAt":"2026-10-09T11:00:00Z",` + tc.source + `}`)
 			ev := tap.Event{URI: "at://did:plc:spelling/social.craftsky.feed.post/3m3m3m3m3m3m3", DID: "did:plc:spelling", Rkey: "3m3m3m3m3m3m3", Collection: "social.craftsky.feed.post", CID: "cid", Action: "create", Record: raw}
-			if result := sourcevalidation.Validate(ev); result.StructuralStatus != sourcevalidation.Valid || result.SemanticStatus != sourcevalidation.Valid {
-				t.Fatalf("fixture rejected by source validation: %+v", result)
+
+			result := sourcevalidation.Validate(ev)
+			if tc.name == "facet fields" {
+				if result.StructuralStatus != sourcevalidation.Invalid || result.Reason != "invalid_lexicon" {
+					t.Fatalf("malformed known facet accepted: %+v", result)
+				}
+				return
 			}
+			if result.StructuralStatus != sourcevalidation.Valid || result.SemanticStatus != sourcevalidation.Valid {
+				t.Fatalf("unknown optional fields rejected: %+v", result)
+			}
+
 			if err := index.NewCraftskyPost(pool, testLogger()).Handle(ctx, ev); err != nil {
 				t.Fatal(err)
 			}
@@ -2169,7 +2178,7 @@ func TestCraftskyPost_RejectsAmbiguousTagSources(t *testing.T) {
 	ctx := context.Background()
 	seedCraftskyMember(t, pool, "did:plc:ambiguous")
 	idx := index.NewCraftskyPost(pool, testLogger())
-	const prefix = `{"text":"#MeMadeMay","sponsored":false,"createdAt":"2026-10-09T11:00:00Z","facets":[{"index":{"byteStart":0,"byteEnd":10},"features":[{"$type":"app.bsky.richtext.facet#tag",`
+	const prefix = `{"$type":"social.craftsky.feed.post","text":"#MeMadeMay","sponsored":false,"createdAt":"2026-10-09T11:00:00Z","facets":[{"index":{"byteStart":0,"byteEnd":10},"features":[{"$type":"app.bsky.richtext.facet#tag",`
 	const suffix = `}]}]}`
 	ev := tap.Event{URI: "at://did:plc:ambiguous/social.craftsky.feed.post/3aaaaaaaaaaa2", DID: "did:plc:ambiguous", Rkey: "3aaaaaaaaaaa2", Collection: "social.craftsky.feed.post", CID: "valid", Action: "create", Record: json.RawMessage(prefix + `"Tag":"MeMadeMay"` + suffix)}
 	if err := idx.Handle(ctx, ev); err != nil {
@@ -2233,7 +2242,7 @@ func TestCraftskyPost_DurableAmbiguityRejection(t *testing.T) {
 		t.Fatal(err)
 	}
 	idx := index.NewCraftskyPost(pool, testLogger())
-	const prefix = `{"text":"#MeMadeMay","sponsored":false,"createdAt":"2026-10-09T11:00:00Z","facets":[{"index":{"byteStart":0,"byteEnd":10},"features":[{"$type":"app.bsky.richtext.facet#tag",`
+	const prefix = `{"$type":"social.craftsky.feed.post","text":"#MeMadeMay","sponsored":false,"createdAt":"2026-10-09T11:00:00Z","facets":[{"index":{"byteStart":0,"byteEnd":10},"features":[{"$type":"app.bsky.richtext.facet#tag",`
 	const suffix = `}]}]}`
 	ev := tap.Event{ID: 991, URI: "at://did:plc:ambiguous/social.craftsky.feed.post/3aaaaaaaaaaa2", DID: "did:plc:ambiguous", Rkey: "3aaaaaaaaaaa2", Collection: "social.craftsky.feed.post", CID: "valid", Rev: "3aaaaaaaaaaa2", Action: "create", Record: json.RawMessage(prefix + `"tag":"MeMadeMay"` + suffix)}
 	if err := idx.Handle(ctx, ev); err != nil {

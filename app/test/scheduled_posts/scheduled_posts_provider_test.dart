@@ -130,7 +130,7 @@ void main() {
 }
 
 final class _QueuedRepository implements ScheduledPostRepository {
-  _QueuedRepository(this.responses);
+  new(this.responses);
 
   final List<List<ScheduledPostSummary>> responses;
   int calls = 0;
@@ -147,7 +147,7 @@ final class _QueuedRepository implements ScheduledPostRepository {
 }
 
 final class _CompleterRepository implements ScheduledPostRepository {
-  _CompleterRepository(this.response);
+  new(this.response);
 
   final Completer<List<ScheduledPostSummary>> response;
   final started = Completer<void>();
@@ -163,7 +163,7 @@ final class _CompleterRepository implements ScheduledPostRepository {
 }
 
 final class _RegistryStorage implements SessionRegistryStorage {
-  _RegistryStorage(this.value);
+  new(this.value);
 
   SessionRegistry value;
 

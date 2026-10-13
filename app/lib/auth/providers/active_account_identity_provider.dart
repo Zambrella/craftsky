@@ -12,7 +12,7 @@ typedef _ActiveIdentityTarget = ({
 });
 
 final class ActiveAccountIdentity {
-  const ActiveAccountIdentity({required this.lease, required this.profile});
+  const new({required this.lease, required this.profile});
 
   final AccountSessionLease lease;
   final Profile profile;

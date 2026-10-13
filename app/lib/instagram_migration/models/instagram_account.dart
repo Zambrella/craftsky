@@ -23,7 +23,7 @@ enum InstagramAccountLinkState {
 
 @MappableClass(generateMethods: _instagramAccountDecodeMethods)
 final class InstagramAccountLink with InstagramAccountLinkMappable {
-  const InstagramAccountLink({
+  const new({
     required this.state,
     required this.username,
     required this.discoverable,
@@ -32,7 +32,7 @@ final class InstagramAccountLink with InstagramAccountLinkMappable {
     required this.verifiedAt,
   });
 
-  factory InstagramAccountLink.fromMap(Map<String, dynamic> map) =>
+  factory fromMap(Map<String, dynamic> map) =>
       InstagramAccountLinkMapper.fromMap(map);
 
   final InstagramAccountLinkState state;
@@ -48,12 +48,12 @@ final class InstagramAccountLink with InstagramAccountLinkMappable {
 
 @MappableClass(generateMethods: _instagramAccountDecodeMethods)
 final class InstagramAccountStatus with InstagramAccountStatusMappable {
-  const InstagramAccountStatus({
+  const new({
     required this.integrationAvailable,
     required this.account,
   });
 
-  factory InstagramAccountStatus.fromMap(Map<String, dynamic> map) =>
+  factory fromMap(Map<String, dynamic> map) =>
       InstagramAccountStatusMapper.fromMap(map);
 
   final bool integrationAvailable;
@@ -66,12 +66,12 @@ final class InstagramAccountStatus with InstagramAccountStatusMappable {
 @MappableClass(generateMethods: _instagramAccountDecodeMethods)
 final class InstagramVerificationConfirmation
     with InstagramVerificationConfirmationMappable {
-  const InstagramVerificationConfirmation({
+  const new({
     required this.state,
     required this.account,
   });
 
-  factory InstagramVerificationConfirmation.fromMap(
+  factory fromMap(
     Map<String, dynamic> map,
   ) => InstagramVerificationConfirmationMapper.fromMap(map);
 
@@ -89,7 +89,7 @@ final class InstagramVerificationConfirmation
 )
 final class InstagramAccountSettingsPatch
     with InstagramAccountSettingsPatchMappable {
-  const InstagramAccountSettingsPatch({this.discoverable, this.reactivate})
+  const new({this.discoverable, this.reactivate})
     : assert(
         discoverable != null || reactivate != null,
         'At least one account setting must be supplied.',

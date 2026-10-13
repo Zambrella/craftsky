@@ -1,4 +1,4 @@
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/settings/models/settings_row.dart';
 import 'package:craftsky_app/settings/widgets/settings_row_tile.dart';
 import 'package:craftsky_app/shared/errors/app_error.dart';
@@ -6,13 +6,13 @@ import 'package:craftsky_app/shared/errors/app_error_mapper.dart';
 import 'package:craftsky_app/shared/image/clear_image_cache_provider.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Settings tile that empties both image caches. The action is reversible
 /// (images re-download on next view) so there is no confirmation dialog.
 class ClearImageCacheTile extends ConsumerWidget {
-  const ClearImageCacheTile({super.key});
+  const new({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

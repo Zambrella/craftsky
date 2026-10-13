@@ -1,12 +1,12 @@
 import 'dart:async';
 
 import 'package:craftsky_app/auth/providers/auth_controller.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/settings/widgets/sign_out_tile.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../fakes/recording_messenger.dart';
 
@@ -48,7 +48,7 @@ void main() {
         child: MessengerScope(
           messenger: messenger,
           child: const MaterialApp(
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            localizationsDelegates: appLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             home: Material(child: SignOutTile()),
           ),
@@ -64,9 +64,9 @@ void main() {
     await tester.tap(find.byType(SignOutTile));
     await tester.pump();
 
-    final fake =
-        tester.container().read(authControllerProvider.notifier)
-            as _FakeAuthController;
+    final fake = tester.container().read(
+      authControllerProvider.notifier,
+    ) as _FakeAuthController;
     expect(fake.signOutCalls, 1);
   });
 
@@ -80,7 +80,7 @@ void main() {
         child: MessengerScope(
           messenger: messenger,
           child: const MaterialApp(
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            localizationsDelegates: appLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             home: Material(child: SignOutTile()),
           ),
@@ -109,7 +109,7 @@ void main() {
         child: MessengerScope(
           messenger: messenger,
           child: const MaterialApp(
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            localizationsDelegates: appLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             home: Material(child: SignOutTile()),
           ),
@@ -142,7 +142,7 @@ void main() {
         child: MessengerScope(
           messenger: messenger,
           child: const MaterialApp(
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            localizationsDelegates: appLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             home: Material(child: SignOutTile()),
           ),

@@ -1,7 +1,7 @@
 import 'package:craftsky_app/theme/craftsky_field_scaffold.dart';
 import 'package:craftsky_app/theme/craftsky_select_inputs.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_form_builder/flutter_form_builder.dart';
+import 'package:material_ui/material_ui.dart';
 
 export 'package:craftsky_app/theme/craftsky_select_inputs.dart'
     show
@@ -16,7 +16,7 @@ export 'package:craftsky_app/theme/craftsky_select_inputs.dart'
 
 class CraftskyFormBuilderDropdownField<T>
     extends CraftskyFormSingleSelectField<T> {
-  const CraftskyFormBuilderDropdownField({
+  const new({
     required super.name,
     required super.label,
     required super.options,
@@ -34,7 +34,7 @@ class CraftskyFormBuilderDropdownField<T>
 }
 
 class CraftskyFormBuilderMultiSelectField<T> extends StatelessWidget {
-  const CraftskyFormBuilderMultiSelectField({
+  const new({
     required this.name,
     required this.label,
     super.key,
@@ -112,7 +112,7 @@ class CraftskyFormBuilderMultiSelectField<T> extends StatelessWidget {
 }
 
 class CraftskyFormBuilderRadioField<T> extends StatelessWidget {
-  const CraftskyFormBuilderRadioField({
+  const new({
     required this.name,
     required this.label,
     required this.options,

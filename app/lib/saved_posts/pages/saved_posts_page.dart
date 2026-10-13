@@ -4,7 +4,7 @@ import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/auth/models/auth_state.dart';
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/saved_posts/models/saved_post.dart';
 import 'package:craftsky_app/saved_posts/models/saved_post_error.dart';
@@ -24,12 +24,12 @@ import 'package:craftsky_app/subscriptions/widgets/plus_action_icon.dart';
 import 'package:craftsky_app/subscriptions/widgets/plus_feature_lock.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:sliver_tools/sliver_tools.dart';
 
 class SavedPostsPage extends ConsumerStatefulWidget {
-  const SavedPostsPage({super.key});
+  const new({super.key});
 
   @override
   ConsumerState<SavedPostsPage> createState() => _SavedPostsPageState();
@@ -183,7 +183,7 @@ class _SavedPostsPageState extends ConsumerState<SavedPostsPage> {
 }
 
 class _FlatSavedBody extends ConsumerWidget {
-  const _FlatSavedBody({
+  const new({
     required this.account,
     required this.keyValue,
     required this.state,
@@ -279,7 +279,7 @@ class _FlatSavedBody extends ConsumerWidget {
 }
 
 class _OverviewBody extends ConsumerWidget {
-  const _OverviewBody({
+  const new({
     required this.account,
     required this.folderState,
     required this.postState,
@@ -505,7 +505,7 @@ Widget _buildSavedPostSkeleton(BuildContext context, int index) =>
     const ManagementRowSkeleton();
 
 class _SavedPostsSectionHeader extends StatelessWidget {
-  const _SavedPostsSectionHeader({required this.title, this.trailing});
+  const new({required this.title, this.trailing});
 
   final String title;
   final Widget? trailing;
@@ -527,7 +527,7 @@ class _SavedPostsSectionHeader extends StatelessWidget {
           children: [
             Expanded(
               child: Semantics(
-                header: true,
+                headingLevel: 2,
                 child: Text(title, style: theme.textTheme.titleMedium),
               ),
             ),
@@ -540,7 +540,7 @@ class _SavedPostsSectionHeader extends StatelessWidget {
 }
 
 class _InitialError extends StatelessWidget {
-  const _InitialError({required this.failure, required this.onRetry});
+  const new({required this.failure, required this.onRetry});
 
   final SavedPostFailure failure;
   final VoidCallback onRetry;
@@ -555,7 +555,7 @@ class _InitialError extends StatelessWidget {
 }
 
 class _SavedPostFailureControl extends StatelessWidget {
-  const _SavedPostFailureControl({
+  const new({
     required this.failure,
     required this.onPressed,
   });

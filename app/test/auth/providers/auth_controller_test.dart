@@ -37,7 +37,7 @@ import 'package:logging/logging.dart';
 // --- Fakes (services, not notifiers — per riverpod.md Testing rules) ---
 
 class _FakeRegistryStorage implements SessionRegistryStorage {
-  _FakeRegistryStorage(this.value);
+  new(this.value);
 
   SessionRegistry value;
   bool failWrites = false;
@@ -60,7 +60,7 @@ class _FakeRegistryStorage implements SessionRegistryStorage {
 class _FakeAuthApi implements AuthApiClient {
   // Allow current tests to omit onWhoami (the default in [whoami] covers
   // the AuthSession background-validation path); future tests can stub it.
-  _FakeAuthApi({
+  new({
     this.onLogin,
     this.onRegister,
     this.onLogout,
@@ -95,7 +95,7 @@ class _FakeAuthApi implements AuthApiClient {
 }
 
 class _FakeHandoffApi implements HandoffApiClient {
-  _FakeHandoffApi({this.onExchange, this.onConfirm});
+  new({this.onExchange, this.onConfirm});
 
   final Future<PendingHandoff> Function(String code)? onExchange;
   final Future<void> Function(String token, String receiptId)? onConfirm;

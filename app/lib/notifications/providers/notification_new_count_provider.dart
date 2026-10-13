@@ -11,7 +11,7 @@ class AccountNotificationNewCount extends _$AccountNotificationNewCount {
     final repository = await ref.watch(
       accountNotificationNewnessRepositoryProvider(account).future,
     );
-    return repository.count();
+    return await repository.count();
   }
 
   Future<void> refresh() async {

@@ -1,10 +1,8 @@
-import 'dart:async';
-
 import 'package:craftsky_app/theme/theme_extensions.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 class CraftskyFieldScaffold extends StatefulWidget {
-  const CraftskyFieldScaffold({
+  const new({
     required this.label,
     required this.child,
     super.key,
@@ -85,13 +83,11 @@ class _CraftskyFieldScaffoldState extends State<CraftskyFieldScaffold> {
     if (hasFocus) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted || !_focusNode.hasFocus) return;
-        unawaited(
-          Scrollable.ensureVisible(
-            context,
-            alignment: 0.08,
-            duration: const Duration(milliseconds: 180),
-            curve: Curves.easeOut,
-          ),
+        Scrollable.ensureVisible(
+          context,
+          alignment: 0.08,
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOut,
         );
       });
     }
@@ -239,7 +235,7 @@ class _CraftskyFieldScaffoldState extends State<CraftskyFieldScaffold> {
 }
 
 class CraftskyFocusLift extends StatelessWidget {
-  const CraftskyFocusLift({
+  const new({
     required this.lift,
     required this.shadowOffset,
     required this.shadowColor,

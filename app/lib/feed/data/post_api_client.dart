@@ -27,7 +27,7 @@ import 'package:dio/dio.dart';
 /// is wrapped in `unwrapApi` so consumers see sealed `ApiException`
 /// subtypes instead of raw `DioException`s.
 class PostApiClient {
-  const PostApiClient(this._dio, {this.blobClient});
+  const new(this._dio, {this.blobClient});
 
   final BlobApiClient? blobClient;
 
@@ -173,7 +173,7 @@ class PostApiClient {
             status != null && status >= 200 && status < 300,
       ),
     );
-    return parsePdsMutationResponse(
+    return await parsePdsMutationResponse(
       res,
       accepted: (data) => PostMapper.fromMap(
         Map<String, dynamic>.from(data! as Map),
@@ -301,7 +301,7 @@ class PostApiClient {
             status != null && status >= 200 && status < 300,
       ),
     );
-    return parsePdsMutationResponse(
+    return await parsePdsMutationResponse(
       res,
       accepted: (data) => InteractionWriteResponseMapper.fromMap(
         Map<String, dynamic>.from(data! as Map),
@@ -344,7 +344,7 @@ class PostApiClient {
             status != null && status >= 200 && status < 300,
       ),
     );
-    return parsePdsMutationResponse(
+    return await parsePdsMutationResponse(
       res,
       accepted: (data) => InteractionWriteResponseMapper.fromMap(
         Map<String, dynamic>.from(data! as Map),

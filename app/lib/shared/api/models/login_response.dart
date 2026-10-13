@@ -4,7 +4,7 @@ part 'login_response.mapper.dart';
 
 @MappableClass()
 class LoginResponse with LoginResponseMappable {
-  const LoginResponse({required this.authUrl});
+  const new({required this.authUrl});
 
   final String authUrl;
 }

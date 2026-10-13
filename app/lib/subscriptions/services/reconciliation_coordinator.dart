@@ -8,14 +8,14 @@ enum ReconciliationDecision { pending, completed, failed }
 enum ReconciliationOutcome { completed, failed, timedOut, cancelled }
 
 final class ReconciliationEvaluation {
-  const ReconciliationEvaluation(this.decision, this.state);
+  const new(this.decision, this.state);
 
   final ReconciliationDecision decision;
   final BillingState state;
 }
 
 final class ReconciliationResult {
-  const ReconciliationResult({
+  const new({
     required this.outcome,
     required this.targetGeneration,
     this.state,
@@ -27,7 +27,7 @@ final class ReconciliationResult {
 }
 
 final class ReconciliationTracker {
-  ReconciliationTracker({
+  new({
     required this.baseline,
     required this.intent,
     BillingState? comparisonBaseline,
@@ -140,7 +140,7 @@ final class ReconciliationTracker {
 typedef ReconciliationWait = Future<void> Function(Duration duration);
 
 final class ReconciliationCoordinator {
-  ReconciliationCoordinator({
+  new({
     required this.requestReconciliation,
     required this.readBillingState,
     ReconciliationWait? wait,

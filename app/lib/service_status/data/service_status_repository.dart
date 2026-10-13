@@ -6,14 +6,14 @@ export 'service_status_repository_stub.dart'
     if (dart.library.js_interop) 'service_status_repository_web.dart';
 
 final class StatusRequest {
-  const StatusRequest(this.result, this.cancel);
+  const new(this.result, this.cancel);
   final Future<ServiceStatusDocument> result;
   final void Function() cancel;
 }
 
 /// Anonymous status retrieval, independent of the authenticated API client.
 abstract class ServiceStatusRepository {
-  const ServiceStatusRepository();
+  const new();
   StatusRequest start();
   void close() {}
 }
@@ -35,7 +35,7 @@ Uri validateStatusEndpoint(String value, {required bool production}) {
 }
 
 final class StatusNetworkFailure implements Exception, DiagnosticFailureCause {
-  const StatusNetworkFailure(this.diagnosticCause, this.diagnosticStack);
+  const new(this.diagnosticCause, this.diagnosticStack);
   @override
   final Object diagnosticCause;
   @override

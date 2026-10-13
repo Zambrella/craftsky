@@ -1,13 +1,13 @@
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/shared/observability/error_reporting_consent_tile.dart';
 import 'package:craftsky_app/shared/observability/error_reporting_controller.dart';
 import 'package:craftsky_app/shared/observability/error_reporting_provider.dart';
 import 'package:craftsky_app/shared/observability/sentry_config.dart';
 import 'package:craftsky_app/shared/observability/sentry_error_reporter.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -33,7 +33,7 @@ void main() {
         ],
         child: MaterialApp(
           theme: AppTheme.lightThemeData,
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: appLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: const Scaffold(
             body: Column(

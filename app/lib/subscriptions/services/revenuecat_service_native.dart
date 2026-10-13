@@ -4,7 +4,7 @@ import 'package:purchases_flutter/purchases_flutter.dart';
 import 'package:purchases_ui_flutter/purchases_ui_flutter.dart';
 
 final class NativeRevenueCatConfigurator implements RevenueCatConfigurator {
-  const NativeRevenueCatConfigurator();
+  const new();
 
   @override
   Future<RevenueCatService> configure({
@@ -20,7 +20,7 @@ final class NativeRevenueCatConfigurator implements RevenueCatConfigurator {
 }
 
 final class NativeRevenueCatService implements RevenueCatService {
-  const NativeRevenueCatService();
+  const new();
 
   @override
   BillingAvailability get availability => BillingAvailability.available;
@@ -112,7 +112,7 @@ final class NativeRevenueCatService implements RevenueCatService {
 }
 
 final class _NativeRevenueCatOffering implements RevenueCatOffering {
-  const _NativeRevenueCatOffering(this.value);
+  const new(this.value);
 
   final Offering value;
 
@@ -128,7 +128,7 @@ final class _NativeRevenueCatOffering implements RevenueCatOffering {
 }
 
 final class RevenueCatServiceException implements Exception {
-  const RevenueCatServiceException(this.code);
+  const new(this.code);
 
   final String code;
 

@@ -18,7 +18,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http_mock_adapter/http_mock_adapter.dart';
 
 final class _RegistryStorage implements SessionRegistryStorage {
-  const _RegistryStorage(this.registry);
+  const new(this.registry);
 
   final SessionRegistry registry;
 
@@ -121,7 +121,7 @@ void main() {
 }
 
 final class _ColdStartHarness {
-  _ColdStartHarness._({
+  new _({
     required this.container,
     required this.dio,
     required this.lease,

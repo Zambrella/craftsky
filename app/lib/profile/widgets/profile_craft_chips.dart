@@ -1,11 +1,11 @@
 import 'package:craftsky_app/shared/widgets/craft_icon.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Pill chips listing the crafts a user works in. Renders nothing when
 /// the list is empty so callers don't need to gate visibility.
 class ProfileCraftChips extends StatelessWidget {
-  const ProfileCraftChips({
+  const new({
     required this.crafts,
     this.alignment = WrapAlignment.start,
     super.key,
@@ -31,7 +31,7 @@ class ProfileCraftChips extends StatelessWidget {
 
 /// A single craft pill using the active profile colour theme.
 class _CraftChip extends StatelessWidget {
-  const _CraftChip({required this.label});
+  const new({required this.label});
 
   final String label;
 

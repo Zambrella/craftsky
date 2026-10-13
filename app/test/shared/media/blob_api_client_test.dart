@@ -301,7 +301,7 @@ void main() {
 }
 
 class _Adapter implements HttpClientAdapter {
-  _Adapter(this.respond);
+  new(this.respond);
   final Future<ResponseBody> Function(
     RequestOptions,
     Stream<Uint8List>?,

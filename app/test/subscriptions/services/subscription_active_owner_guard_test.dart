@@ -150,7 +150,7 @@ SessionRegistry _ownerRegistry() => SessionRegistry.empty()
     );
 
 final class _PendingIdentityService implements RevenueCatIdentityService {
-  const _PendingIdentityService(this.identity);
+  const new(this.identity);
 
   final Future<RevenueCatIdentity> identity;
 

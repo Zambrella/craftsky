@@ -7,7 +7,7 @@ import 'package:craftsky_app/business/models/business_formatters.dart';
 import 'package:craftsky_app/business/models/business_labels.dart';
 import 'package:craftsky_app/business/providers/business_event_detail_provider.dart';
 import 'package:craftsky_app/business/widgets/business_image.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/moderation/widgets/report_flow.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/link/external_link.dart';
@@ -19,13 +19,13 @@ import 'package:craftsky_app/theme/craftsky_context_menu.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:material_ui/material_ui.dart';
 
 class EventDetailPage extends ConsumerWidget {
-  const EventDetailPage({
+  const new({
     required this.account,
     required this.owner,
     required this.rkey,
@@ -137,7 +137,7 @@ class EventDetailPage extends ConsumerWidget {
 }
 
 class _AvailableEventDetail extends StatefulWidget {
-  const _AvailableEventDetail({
+  const new({
     required this.event,
     required this.isOwner,
     required this.reportAction,
@@ -209,7 +209,7 @@ class _AvailableEventDetailState extends State<_AvailableEventDetail> {
 }
 
 class _EventDetailAppBar extends StatelessWidget {
-  const _EventDetailAppBar({
+  const new({
     required this.event,
     required this.expandedWidth,
     required this.collapsed,
@@ -285,7 +285,7 @@ class _EventDetailAppBar extends StatelessWidget {
 }
 
 class _EventDetail extends StatelessWidget {
-  const _EventDetail({
+  const new({
     required this.event,
     required this.isOwner,
     required this.launchExternal,
@@ -447,7 +447,7 @@ class _EventDetail extends StatelessWidget {
 }
 
 class _EventInfo extends StatelessWidget {
-  const _EventInfo({required this.icon, required this.title, this.subtitle});
+  const new({required this.icon, required this.title, this.subtitle});
 
   final IconData icon;
   final String title;
@@ -485,7 +485,7 @@ class _EventInfo extends StatelessWidget {
 }
 
 class _Unavailable extends StatelessWidget {
-  const _Unavailable();
+  const new();
 
   @override
   Widget build(BuildContext context) {
@@ -503,7 +503,7 @@ class _Unavailable extends StatelessWidget {
 }
 
 class _LoadError extends StatelessWidget {
-  const _LoadError({required this.onRetry});
+  const new({required this.onRetry});
 
   final VoidCallback onRetry;
 

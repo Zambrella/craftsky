@@ -22,25 +22,25 @@ const int _notificationDestinationMethods =
   generateMethods: _notificationDestinationMethods,
 )
 sealed class NotificationDestination with NotificationDestinationMappable {
-  const NotificationDestination();
+  const new();
 }
 
 @MappableClass(generateMethods: _notificationDestinationMethods)
 final class NotificationsDestination extends NotificationDestination
     with NotificationsDestinationMappable {
-  const NotificationsDestination();
+  const new();
 }
 
 @MappableClass(generateMethods: _notificationDestinationMethods)
 final class InstagramMigrationDestination extends NotificationDestination
     with InstagramMigrationDestinationMappable {
-  const InstagramMigrationDestination();
+  const new();
 }
 
 @MappableClass(generateMethods: _notificationDestinationMethods)
 final class ProfileDestination extends NotificationDestination
     with ProfileDestinationMappable {
-  const ProfileDestination(this.did);
+  const new(this.did);
 
   final Did did;
 }
@@ -48,7 +48,7 @@ final class ProfileDestination extends NotificationDestination
 @MappableClass(generateMethods: _notificationDestinationMethods)
 final class PostDestination extends NotificationDestination
     with PostDestinationMappable {
-  const PostDestination(this.subjectUri, {this.focusUri});
+  const new(this.subjectUri, {this.focusUri});
 
   final AtUri subjectUri;
   final AtUri? focusUri;
@@ -57,14 +57,14 @@ final class PostDestination extends NotificationDestination
 @MappableClass(generateMethods: _notificationDestinationMethods)
 final class ModerationHistoryDestination extends NotificationDestination
     with ModerationHistoryDestinationMappable {
-  const ModerationHistoryDestination(this.caseReference);
+  const new(this.caseReference);
 
   final ModerationCaseReference caseReference;
 }
 
 class ModerationCaseReferenceMapper
     extends SimpleMapper<ModerationCaseReference> {
-  const ModerationCaseReferenceMapper();
+  const new();
 
   @override
   ModerationCaseReference decode(Object value) =>
@@ -75,7 +75,7 @@ class ModerationCaseReferenceMapper
 }
 
 final class NotificationOpenOutcome {
-  const NotificationOpenOutcome({required this.destination, this.feedback});
+  const new({required this.destination, this.feedback});
 
   final NotificationDestination destination;
   final NotificationOpenFeedback? feedback;

@@ -111,7 +111,7 @@ LocalPostDraft _draft(String id, AccountKey owner, int hour) => LocalPostDraft(
 );
 
 final class _MemoryRepository implements LocalPostDraftRepository {
-  _MemoryRepository(this.items);
+  new(this.items);
 
   final List<LocalPostDraft> items;
   final List<String> deleted = [];

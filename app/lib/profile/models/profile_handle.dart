@@ -2,7 +2,7 @@ import 'package:craftsky_app/shared/atproto/identifiers.dart';
 
 /// Presentation and alias policy for an authoritative current handle.
 final class ProfileHandle {
-  const ProfileHandle(this.value);
+  const new(this.value);
 
   static const invalidSentinel = 'handle.invalid';
 

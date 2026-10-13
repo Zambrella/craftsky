@@ -1,13 +1,14 @@
 import 'package:craftsky_app/theme/theme_extensions.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 class CraftskyEmptyState extends StatelessWidget {
-  const CraftskyEmptyState({
+  const new({
     required this.icon,
     required this.title,
     required this.subtitle,
     this.actionLabel,
     this.onAction,
+    this.additionalActions = const [],
     super.key,
   }) : assert(
          (actionLabel == null) == (onAction == null),
@@ -19,6 +20,7 @@ class CraftskyEmptyState extends StatelessWidget {
   final String subtitle;
   final String? actionLabel;
   final VoidCallback? onAction;
+  final List<Widget> additionalActions;
 
   @override
   Widget build(BuildContext context) {
@@ -57,6 +59,7 @@ class CraftskyEmptyState extends StatelessWidget {
                 SizedBox(height: spacing.sp2),
                 TextButton(onPressed: onPressed, child: Text(actionLabel!)),
               ],
+              ...additionalActions,
             ],
           ),
         ),

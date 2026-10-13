@@ -13,7 +13,7 @@ class ApiNotificationRepository
         NotificationDeviceRepository,
         NotificationNewnessRepository,
         NotificationPreferencesRepository {
-  const ApiNotificationRepository(this._dio);
+  const new(this._dio);
 
   final Dio _dio;
 

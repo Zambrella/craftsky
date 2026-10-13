@@ -20,7 +20,7 @@ enum RecentSearchType {
 }
 
 sealed class RecentSearchPayload {
-  const RecentSearchPayload();
+  const new();
 
   Map<String, dynamic> toMap();
 
@@ -56,7 +56,7 @@ sealed class RecentSearchPayload {
 @MappableClass()
 class QueryRecentSearchPayload extends RecentSearchPayload
     with QueryRecentSearchPayloadMappable {
-  const QueryRecentSearchPayload({required this.q});
+  const new({required this.q});
 
   final String q;
 
@@ -67,7 +67,7 @@ class QueryRecentSearchPayload extends RecentSearchPayload
 @MappableClass()
 class HashtagRecentSearchPayload extends RecentSearchPayload
     with HashtagRecentSearchPayloadMappable {
-  const HashtagRecentSearchPayload({required this.tag});
+  const new({required this.tag});
 
   final String tag;
 
@@ -78,7 +78,7 @@ class HashtagRecentSearchPayload extends RecentSearchPayload
 @MappableClass()
 class ProfileRecentSearchPayload extends RecentSearchPayload
     with ProfileRecentSearchPayloadMappable {
-  const ProfileRecentSearchPayload({
+  const new({
     required this.did,
     required this.handle,
     this.displayName,
@@ -105,7 +105,7 @@ class ProfileRecentSearchPayload extends RecentSearchPayload
 @MappableClass()
 class PostRecentSearchPayload extends RecentSearchPayload
     with PostRecentSearchPayloadMappable {
-  const PostRecentSearchPayload({
+  const new({
     required this.q,
     this.sort = SearchSort.chronological,
   });
@@ -120,7 +120,7 @@ class PostRecentSearchPayload extends RecentSearchPayload
 @MappableClass()
 class ProjectRecentSearchPayload extends RecentSearchPayload
     with ProjectRecentSearchPayloadMappable {
-  const ProjectRecentSearchPayload({
+  const new({
     this.q,
     this.sort = SearchSort.chronological,
     this.filters = const ProjectSearchFilters(),
@@ -140,7 +140,7 @@ class ProjectRecentSearchPayload extends RecentSearchPayload
 
 @MappableClass()
 class SaveRecentSearchRequest with SaveRecentSearchRequestMappable {
-  const SaveRecentSearchRequest({
+  const new({
     required this.type,
     required this.displayLabel,
     required this.payload,
@@ -160,7 +160,7 @@ class SaveRecentSearchRequest with SaveRecentSearchRequestMappable {
 
 @MappableClass()
 class RecentSearchItem with RecentSearchItemMappable {
-  const RecentSearchItem({
+  const new({
     required this.id,
     required this.type,
     required this.displayLabel,
@@ -168,7 +168,7 @@ class RecentSearchItem with RecentSearchItemMappable {
     required this.updatedAt,
   });
 
-  factory RecentSearchItem.fromMap(Map<String, dynamic> map) {
+  factory fromMap(Map<String, dynamic> map) {
     final type = RecentSearchType.fromWire(map['type'] as String);
     return RecentSearchItem(
       id: map['id'] as String,
@@ -191,15 +191,14 @@ class RecentSearchItem with RecentSearchItemMappable {
 
 @MappableClass()
 class RecentSearchPage with RecentSearchPageMappable {
-  const RecentSearchPage({required this.items});
+  const new({required this.items});
 
-  factory RecentSearchPage.fromMap(Map<String, dynamic> map) =>
-      RecentSearchPage(
-        items: [
-          for (final item in map['items'] as List)
-            RecentSearchItem.fromMap(Map<String, dynamic>.from(item as Map)),
-        ],
-      );
+  factory fromMap(Map<String, dynamic> map) => RecentSearchPage(
+    items: [
+      for (final item in map['items'] as List)
+        RecentSearchItem.fromMap(Map<String, dynamic>.from(item as Map)),
+    ],
+  );
 
   final List<RecentSearchItem> items;
 }

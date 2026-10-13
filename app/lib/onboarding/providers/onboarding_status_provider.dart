@@ -38,7 +38,7 @@ class OnboardingStatus extends _$OnboardingStatus {
     final repository = await ref.watch(
       onboardingRepositoryProvider(lease).future,
     );
-    return repository.readStatus();
+    return await repository.readStatus();
   }
 
   Future<void> completeOptimistically({required bool meetsMinimumAge}) async {

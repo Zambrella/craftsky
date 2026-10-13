@@ -9,7 +9,7 @@ import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart'
     show sessionRegistryProvider;
 import 'package:craftsky_app/business/models/business_profile.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/settings/models/settings_row.dart';
 import 'package:craftsky_app/settings/pages/settings_page.dart';
@@ -24,10 +24,10 @@ import 'package:craftsky_app/subscriptions/widgets/plus_feature_lock.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -74,7 +74,7 @@ void main() {
           ],
           child: MaterialApp(
             theme: AppTheme.lightThemeData,
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            localizationsDelegates: appLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             home: const SettingsPage(),
           ),
@@ -142,7 +142,7 @@ void main() {
         ],
         child: MaterialApp(
           theme: AppTheme.lightThemeData,
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: appLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: const SettingsPage(),
         ),
@@ -188,7 +188,7 @@ void main() {
               ),
             ],
             child: const MaterialApp(
-              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              localizationsDelegates: appLocalizationsDelegates,
               supportedLocales: AppLocalizations.supportedLocales,
               home: SettingsPage(),
             ),
@@ -226,7 +226,7 @@ void main() {
             sharedPreferencesProvider.overrideWithValue(preferences),
           ],
           child: const MaterialApp(
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            localizationsDelegates: appLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             home: SettingsPage(),
           ),
@@ -320,7 +320,7 @@ void main() {
           child: MaterialApp.router(
             routerConfig: router,
             theme: AppTheme.lightThemeData,
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            localizationsDelegates: appLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
           ),
         ),
@@ -370,7 +370,7 @@ void main() {
         ProviderScope(
           overrides: [sharedPreferencesProvider.overrideWithValue(preferences)],
           child: MaterialApp(
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            localizationsDelegates: appLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             builder: (context, child) => MediaQuery(
               data: MediaQuery.of(context).copyWith(
@@ -415,7 +415,7 @@ void main() {
         ],
         child: MaterialApp.router(
           routerConfig: router,
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: appLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
         ),
       ),
@@ -454,7 +454,7 @@ void main() {
         overrides: [sharedPreferencesProvider.overrideWithValue(preferences)],
         child: MaterialApp.router(
           routerConfig: router,
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: appLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
         ),
       ),
@@ -516,7 +516,7 @@ void main() {
           ],
           child: MaterialApp.router(
             routerConfig: router,
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            localizationsDelegates: appLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
           ),
         ),
@@ -546,7 +546,7 @@ void main() {
         ProviderScope(
           overrides: [sharedPreferencesProvider.overrideWithValue(preferences)],
           child: const MaterialApp(
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            localizationsDelegates: appLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             home: SettingsPage(),
           ),
@@ -596,7 +596,7 @@ ActiveAccountIdentity _identity(AccountType type) => ActiveAccountIdentity(
 );
 
 final class _SettingsRegistryStorage implements SessionRegistryStorage {
-  _SettingsRegistryStorage(this.registry);
+  new(this.registry);
   SessionRegistry registry;
 
   @override

@@ -1,6 +1,6 @@
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/widgets/post_card.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/search/models/search_queries.dart';
 import 'package:craftsky_app/search/models/search_sort.dart';
@@ -11,11 +11,11 @@ import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/shared/widgets/sort_menu_button.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:material_ui/material_ui.dart';
 
 class TagSearchPage extends ConsumerStatefulWidget {
-  const TagSearchPage({required this.tag, super.key});
+  const new({required this.tag, super.key});
 
   final String tag;
 
@@ -92,7 +92,7 @@ class _TagSearchPageState extends ConsumerState<TagSearchPage> {
 }
 
 class _TagPostList extends StatelessWidget {
-  const _TagPostList({
+  const new({
     required this.posts,
     required this.isLoadingMore,
     required this.hasLoadMoreError,

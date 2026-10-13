@@ -8,14 +8,14 @@ import 'package:flutter/foundation.dart';
 /// absent and remains single-use server authority carried by the callback.
 @immutable
 final class PendingAccountDeletion {
-  const PendingAccountDeletion({
+  const new({
     required this.jobId,
     required this.lease,
     required this.confirmationDid,
     required this.expiresAt,
   });
 
-  factory PendingAccountDeletion.capture({
+  factory capture({
     required String jobId,
     required ActiveAccountLease lease,
     required String confirmationDid,
@@ -35,7 +35,7 @@ final class PendingAccountDeletion {
     );
   }
 
-  factory PendingAccountDeletion.fromMap(Map<String, Object?> map) {
+  factory fromMap(Map<String, Object?> map) {
     final jobId = _requiredString(map, 'jobId');
     final did = _requiredString(map, 'did');
     final confirmationDid = Did.parse(_requiredString(map, 'confirmationDid'));

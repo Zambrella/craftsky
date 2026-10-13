@@ -11,12 +11,10 @@ enum SavedPostScopeKind { all, unfiled, folder }
 /// List scope with a redacted string representation for private folder IDs.
 @immutable
 final class SavedPostScope {
-  const SavedPostScope.all() : kind = SavedPostScopeKind.all, folderId = null;
-  const SavedPostScope.unfiled()
-    : kind = SavedPostScopeKind.unfiled,
-      folderId = null;
+  const new all() : kind = SavedPostScopeKind.all, folderId = null;
+  const new unfiled() : kind = SavedPostScopeKind.unfiled, folderId = null;
 
-  const SavedPostScope.folder(this.folderId) : kind = SavedPostScopeKind.folder;
+  const new folder(this.folderId) : kind = SavedPostScopeKind.folder;
 
   final SavedPostScopeKind kind;
   final String? folderId;
@@ -45,7 +43,7 @@ final class SavedPostScope {
       GenerateMethods.equals,
 )
 final class SavedPostState with SavedPostStateMappable {
-  const SavedPostState({required this.savedAt, this.folderId});
+  const new({required this.savedAt, this.folderId});
 
   final DateTime savedAt;
   final String? folderId;
@@ -61,7 +59,7 @@ final class SavedPostState with SavedPostStateMappable {
       GenerateMethods.equals,
 )
 final class SavedPostItem with SavedPostItemMappable {
-  const SavedPostItem({
+  const new({
     required this.post,
     required this.savedAt,
     this.folderId,
@@ -82,7 +80,7 @@ final class SavedPostItem with SavedPostItemMappable {
       GenerateMethods.equals,
 )
 final class SavedPostPage with SavedPostPageMappable {
-  const SavedPostPage({required this.items, this.cursor});
+  const new({required this.items, this.cursor});
 
   final List<SavedPostItem> items;
   final String? cursor;

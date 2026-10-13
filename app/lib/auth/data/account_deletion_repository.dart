@@ -2,20 +2,19 @@ import 'package:craftsky_app/shared/api/api_unwrap.dart';
 import 'package:dio/dio.dart';
 
 final class AccountDeletionIntent {
-  const AccountDeletionIntent({
+  const new({
     required this.jobId,
     required this.authUrl,
     required this.confirmationDid,
     required this.expiresAt,
   });
 
-  factory AccountDeletionIntent.fromMap(Map<String, dynamic> map) =>
-      AccountDeletionIntent(
-        jobId: _requiredString(map, 'jobId'),
-        authUrl: Uri.parse(_requiredString(map, 'authUrl')),
-        confirmationDid: _requiredString(map, 'confirmationDid'),
-        expiresAt: DateTime.parse(_requiredString(map, 'expiresAt')).toUtc(),
-      );
+  factory fromMap(Map<String, dynamic> map) => AccountDeletionIntent(
+    jobId: _requiredString(map, 'jobId'),
+    authUrl: Uri.parse(_requiredString(map, 'authUrl')),
+    confirmationDid: _requiredString(map, 'confirmationDid'),
+    expiresAt: DateTime.parse(_requiredString(map, 'expiresAt')).toUtc(),
+  );
 
   final String jobId;
   final Uri authUrl;
@@ -27,7 +26,7 @@ final class AccountDeletionIntent {
 }
 
 final class AccountDeletionApiClient {
-  const AccountDeletionApiClient(this._dio);
+  const new(this._dio);
 
   final Dio _dio;
 

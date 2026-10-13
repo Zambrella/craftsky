@@ -1,10 +1,10 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:craftsky_app/business/models/business_profile.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 class BusinessImage extends StatelessWidget {
-  const BusinessImage({
+  const new({
     required this.image,
     required this.networkUrl,
     this.fit,

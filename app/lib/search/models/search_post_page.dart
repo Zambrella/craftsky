@@ -5,7 +5,7 @@ part 'search_post_page.mapper.dart';
 
 @MappableClass(ignoreNull: true)
 class SearchPostPage with SearchPostPageMappable {
-  const SearchPostPage({required this.items, this.cursor, this.hashtag});
+  const new({required this.items, this.cursor, this.hashtag});
 
   final List<Post> items;
   final String? cursor;

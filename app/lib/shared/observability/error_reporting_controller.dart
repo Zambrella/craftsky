@@ -6,7 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// Device-wide consent, shared by onboarding and settings. The stable reporter
 /// lets existing error owners observe SDK changes without rebuilding the app.
 final class ErrorReportingController implements ErrorReporter {
-  ErrorReportingController({
+  new({
     required this.preferences,
     required this.config,
     required this.adapter,
@@ -64,7 +64,7 @@ final class ErrorReportingController implements ErrorReporter {
     StackTrace? stackTrace,
   }) async {
     if (!enabled) return null;
-    return _reporter.captureException(
+    return await _reporter.captureException(
       error,
       context: context,
       stackTrace: stackTrace,

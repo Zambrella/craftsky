@@ -1,10 +1,10 @@
 import 'package:craftsky_app/theme/theme_extensions.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Shared paper-cutout card surface: white paper, chunky ink border,
 /// rounded corners, and a hard-offset shadow.
 class CraftskyCard extends StatelessWidget {
-  const CraftskyCard({
+  const new({
     required this.child,
     this.margin,
     this.padding,

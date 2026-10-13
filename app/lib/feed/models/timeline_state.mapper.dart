@@ -157,4 +157,3 @@ class _TimelineStateCopyWithImpl<$R, $Out>
     Then<$Out2, $R2> t,
   ) => _TimelineStateCopyWithImpl<$R2, $Out2>($value, $cast, t);
 }
-

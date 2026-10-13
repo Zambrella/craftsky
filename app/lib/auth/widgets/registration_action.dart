@@ -1,10 +1,10 @@
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 class RegistrationAction extends StatelessWidget {
-  const RegistrationAction({
+  const new({
     required this.onPressed,
     this.isLoading = false,
     this.enabled = true,

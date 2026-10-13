@@ -1,5 +1,5 @@
 import 'package:craftsky_app/app_dependencies.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
 import 'package:craftsky_app/theme/brand_text_field.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
@@ -7,11 +7,11 @@ import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:material_ui/material_ui.dart';
 
 class DesignPlaygroundPage extends ConsumerWidget {
-  const DesignPlaygroundPage({super.key});
+  const new({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -86,7 +86,7 @@ class DesignPlaygroundPage extends ConsumerWidget {
 }
 
 class _HomeHeader extends StatelessWidget {
-  const _HomeHeader({
+  const new({
     required this.subtitle,
     required this.versionLabel,
   });
@@ -128,7 +128,7 @@ class _HomeHeader extends StatelessWidget {
 }
 
 class _PlaygroundSection extends StatelessWidget {
-  const _PlaygroundSection({
+  const new({
     required this.eyebrow,
     required this.child,
   });
@@ -158,7 +158,7 @@ class _PlaygroundSection extends StatelessWidget {
 }
 
 class _TypographySample extends StatelessWidget {
-  const _TypographySample();
+  const new();
 
   @override
   Widget build(BuildContext context) {
@@ -185,7 +185,7 @@ class _TypographySample extends StatelessWidget {
 }
 
 class _ButtonsSample extends StatelessWidget {
-  const _ButtonsSample();
+  const new();
 
   @override
   Widget build(BuildContext context) {
@@ -220,7 +220,7 @@ class _ButtonsSample extends StatelessWidget {
 }
 
 class _ChipsSample extends StatelessWidget {
-  const _ChipsSample();
+  const new();
 
   @override
   Widget build(BuildContext context) {
@@ -278,7 +278,7 @@ class _ChipsSample extends StatelessWidget {
 }
 
 class _TextFieldsSample extends StatelessWidget {
-  const _TextFieldsSample();
+  const new();
 
   @override
   Widget build(BuildContext context) {
@@ -321,7 +321,7 @@ class _TextFieldsSample extends StatelessWidget {
 }
 
 class _CardsSample extends StatelessWidget {
-  const _CardsSample();
+  const new();
 
   @override
   Widget build(BuildContext context) {
@@ -372,7 +372,7 @@ class _CardsSample extends StatelessWidget {
 }
 
 class _HardShadowCard extends StatelessWidget {
-  const _HardShadowCard({
+  const new({
     required this.title,
     required this.meta,
     required this.body,
@@ -447,7 +447,7 @@ class _HardShadowCard extends StatelessWidget {
 }
 
 class _SwatchesSample extends StatelessWidget {
-  const _SwatchesSample();
+  const new();
 
   @override
   Widget build(BuildContext context) {
@@ -479,7 +479,7 @@ class _SwatchesSample extends StatelessWidget {
 }
 
 class _SwatchTile extends StatelessWidget {
-  const _SwatchTile({required this.label, required this.color});
+  const new({required this.label, required this.color});
 
   final String label;
   final Color color;
@@ -513,7 +513,7 @@ class _SwatchTile extends StatelessWidget {
 }
 
 class _DialogsSample extends StatelessWidget {
-  const _DialogsSample();
+  const new();
 
   @override
   Widget build(BuildContext context) {
@@ -600,7 +600,7 @@ class _DialogsSample extends StatelessWidget {
 }
 
 class _ProgressSample extends StatelessWidget {
-  const _ProgressSample();
+  const new();
 
   @override
   Widget build(BuildContext context) {
@@ -621,7 +621,7 @@ class _ProgressSample extends StatelessWidget {
 }
 
 class _ProgressSize extends StatelessWidget {
-  const _ProgressSize({
+  const new({
     required this.label,
     required this.size,
     required this.sp,

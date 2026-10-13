@@ -7,7 +7,7 @@ import 'package:craftsky_app/subscriptions/widgets/plus_action_icon.dart';
 import 'package:craftsky_app/theme/craftsky_divider.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 const _popupScreenPadding = 8.0;
 const _popupAnchorGap = 4.0;
@@ -21,7 +21,7 @@ enum CraftskyContextMenuItemStyle { normal, destructive }
 
 /// Configuration for a single row in a CraftSky context menu.
 class CraftskyContextMenuItem {
-  const CraftskyContextMenuItem({
+  const new({
     required this.text,
     required this.icon,
     required this.onPressed,
@@ -52,7 +52,7 @@ class CraftskyContextMenuItem {
 
 /// Logical grouping for context menu rows.
 class CraftskyContextMenuGroup {
-  const CraftskyContextMenuGroup({required this.items});
+  const new({required this.items});
 
   final List<CraftskyContextMenuItem> items;
 }
@@ -80,7 +80,7 @@ RelativeRect craftskyContextMenuAnchorPosition(BuildContext context) {
 
 /// Icon button that opens a responsive CraftSky context menu.
 class CraftskyContextMenuButton extends StatefulWidget {
-  const CraftskyContextMenuButton({
+  const new({
     required this.groups,
     this.icon = CraftskyIconsBold.more,
     this.tooltip,
@@ -325,7 +325,7 @@ RoundedRectangleBorder _contextMenuShape(
 );
 
 class _CraftskyContextPopoverEntry extends PopupMenuEntry<Object?> {
-  const _CraftskyContextPopoverEntry({required this.child});
+  const new({required this.child});
 
   final Widget child;
 
@@ -372,7 +372,7 @@ List<PopupMenuEntry<CraftskyContextMenuItem>> _popupEntries(
 }
 
 class _CraftskyContextMenuSheet extends StatelessWidget {
-  const _CraftskyContextMenuSheet({
+  const new({
     required this.groups,
     required this.onSelected,
   });
@@ -422,7 +422,7 @@ class _CraftskyContextMenuSheet extends StatelessWidget {
 }
 
 class _CraftskyContextMenuRow extends StatelessWidget {
-  const _CraftskyContextMenuRow({required this.item, this.onTap});
+  const new({required this.item, this.onTap});
 
   final CraftskyContextMenuItem item;
   final VoidCallback? onTap;

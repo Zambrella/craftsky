@@ -29,9 +29,9 @@ void main() {
   test(
     'IT-004 actual Go envelope links Flutter local Logs and issue',
     () async {
-      final fixture =
-          jsonDecode(await File(fixturePath!).readAsString())
-              as Map<String, dynamic>;
+      final fixture = jsonDecode(
+        await File(fixturePath!).readAsString(),
+      ) as Map<String, dynamic>;
       final envelope = fixture['envelope'] as Map<String, dynamic>;
       final id = envelope['requestId'] as String;
       expect(fixture['local'], contains(id));
@@ -61,8 +61,7 @@ void main() {
       await Sentry.init((options) {
         options
           ..dsn = 'https://public@example.invalid/1'
-          ..transport = transport
-          ..enableLogs = true;
+          ..transport = transport;
         configureDiagnosticOptions(options);
       });
       addTearDown(Sentry.close);

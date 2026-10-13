@@ -491,17 +491,20 @@ func TestPutProfile_CompoundCommandBuildsBothRecords(t *testing.T) {
 		}
 		bsky, err := request.Records[0].BuildRecord(pdscommands.AuthoritativeRecord{
 			URI: request.Records[0].URI, CID: "bafy-old-bsky",
-			Record: json.RawMessage(`{"$type":"app.bsky.actor.profile","displayName":"Before","labels":{"values":[]}}`),
+			Record: json.RawMessage(`{"$type":"app.bsky.actor.profile","displayName":"Before","labels":{"values":[]},"futureCount":9007199254740993}`),
 		})
 		if err != nil {
 			t.Fatal(err)
 		}
 		craftsky, err := request.Records[1].BuildRecord(pdscommands.AuthoritativeRecord{
 			URI: request.Records[1].URI, CID: "bafy-old-craftsky",
-			Record: json.RawMessage(`{"$type":"social.craftsky.actor.profile","crafts":["sewing"]}`),
+			Record: json.RawMessage(`{"$type":"social.craftsky.actor.profile","crafts":["sewing"],"futureExtension":{"counter":9007199254740993}}`),
 		})
 		if err != nil {
 			t.Fatal(err)
+		}
+		if !strings.Contains(string(bsky), "9007199254740993") || !strings.Contains(string(craftsky), `"futureExtension":{"counter":9007199254740993}`) {
+			t.Fatal("profile edit lost unknown data or integer precision")
 		}
 		var bskyBody map[string]any
 		if err := json.Unmarshal(bsky, &bskyBody); err != nil {

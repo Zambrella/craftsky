@@ -1,9 +1,9 @@
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/widgets/post_image_gallery.dart';
 import 'package:craftsky_app/shared/image/image_cache_providers.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:smooth_page_indicator/smooth_page_indicator.dart';
 
 import '../../fakes/image_cache_fakes.dart';

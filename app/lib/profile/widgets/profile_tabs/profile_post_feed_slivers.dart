@@ -8,7 +8,7 @@ import 'package:craftsky_app/feed/providers/toggle_like_post_provider.dart';
 import 'package:craftsky_app/feed/providers/toggle_repost_post_provider.dart';
 import 'package:craftsky_app/feed/widgets/post_card.dart';
 import 'package:craftsky_app/feed/widgets/post_composer_sheet.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/moderation/widgets/report_flow.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
@@ -17,8 +17,8 @@ import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:material_ui/material_ui.dart';
 
 const _autoLoadMoreThreshold = 3;
 
@@ -52,7 +52,7 @@ void listenToProfilePostActions(BuildContext context, WidgetRef ref) {
 }
 
 class ProfilePostFeedSlivers extends ConsumerWidget {
-  const ProfilePostFeedSlivers({
+  const new({
     required this.posts,
     required this.hasMore,
     required this.isLoadingMore,
@@ -185,7 +185,7 @@ class ProfilePostFeedSlivers extends ConsumerWidget {
 }
 
 class ProfileTabLoadingSliver extends StatelessWidget {
-  const ProfileTabLoadingSliver({super.key});
+  const new({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -199,7 +199,7 @@ class ProfileTabLoadingSliver extends StatelessWidget {
 }
 
 class ProfileTabErrorSliver extends StatelessWidget {
-  const ProfileTabErrorSliver({
+  const new({
     required this.message,
     required this.onRetry,
     super.key,

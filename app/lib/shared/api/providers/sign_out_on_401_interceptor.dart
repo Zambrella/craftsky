@@ -6,12 +6,12 @@ import 'package:dio/dio.dart';
 /// Invalidates only the captured session lease when an authenticated request
 /// returns 401. The interceptor never consults mutable active-account state.
 class SignOutOn401Interceptor extends Interceptor {
-  factory SignOutOn401Interceptor.withLease({
+  factory withLease({
     required AccountSessionLease lease,
     required FutureOr<void> Function(AccountSessionLease lease) invalidate,
   }) => SignOutOn401Interceptor._(() => invalidate(lease));
 
-  SignOutOn401Interceptor._(this._signOut);
+  new _(this._signOut);
 
   final FutureOr<void> Function() _signOut;
   Future<void>? _inFlight;

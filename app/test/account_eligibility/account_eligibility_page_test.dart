@@ -1,8 +1,8 @@
 import 'package:craftsky_app/account_eligibility/pages/account_eligibility_page.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
-import 'package:flutter/material.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 void main() {
   testWidgets('AT-011 exposes retained safety and account controls', (
@@ -11,7 +11,7 @@ void main() {
     await tester.pumpWidget(
       const ProviderScope(
         child: MaterialApp(
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: appLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: AccountEligibilityPage(appealGuidance: null),
         ),

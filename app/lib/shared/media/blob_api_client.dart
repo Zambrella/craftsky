@@ -16,7 +16,7 @@ const _imageMimeTypes = {'image/jpeg', 'image/png', 'image/webp'};
 /// Requests a short-lived capability from AppView, then sends prepared bytes
 /// to the exact PDS destination using an isolated client with no interceptors.
 class BlobApiClient {
-  BlobApiClient(
+  new(
     this._dio, {
     Dio Function()? pdsClientFactory,
     DateTime Function()? now,

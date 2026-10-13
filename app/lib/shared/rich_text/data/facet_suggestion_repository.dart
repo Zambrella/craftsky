@@ -1,6 +1,5 @@
 // Repository interfaces are intentionally one-method seams for future AppView
 // data sources.
-// ignore_for_file: one_member_abstracts
 
 import 'package:craftsky_app/shared/rich_text/facet_generator.dart';
 import 'package:dart_mappable/dart_mappable.dart';
@@ -24,7 +23,7 @@ abstract interface class HashtagSuggestionRepository {
 @MappableClass()
 class AccountSuggestion with AccountSuggestionMappable {
   /// Creates an account suggestion.
-  const AccountSuggestion({
+  const new({
     required this.did,
     required this.handle,
     required this.displayName,
@@ -56,7 +55,7 @@ class AccountSuggestion with AccountSuggestionMappable {
 @MappableClass()
 class HashtagSuggestion with HashtagSuggestionMappable {
   /// Creates a hashtag suggestion.
-  const HashtagSuggestion({required this.tag, this.postsLast28Days = 0});
+  const new({required this.tag, this.postsLast28Days = 0});
 
   /// Repository display/canonical tag casing, without leading `#`.
   final String tag;

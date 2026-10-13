@@ -199,4 +199,3 @@ class _PendingAuthCopyWithImpl<$R, $Out>
     Then<$Out2, $R2> t,
   ) => _PendingAuthCopyWithImpl<$R2, $Out2>($value, $cast, t);
 }
-

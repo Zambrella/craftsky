@@ -311,3 +311,20 @@ func assertStoredPostRecord(
 		t.Fatalf("stored record = %#v, want %#v", gotValue, wantValue)
 	}
 }
+
+func TestImportedPostFutureDateCannotPinAuthorProfile(t *testing.T) {
+	pool := testdb.WithSchema(t, craftskyPostsDDL)
+	seedCraftskyMember(t, pool, "did:plc:author")
+	event := tap.Event{URI: "at://did:plc:author/social.craftsky.feed.post/3aaaaaaaaaaa2", CID: "bafy-future-import", DID: "did:plc:author", Rkey: "3aaaaaaaaaaa2", Collection: "social.craftsky.feed.post", Action: "create", Record: json.RawMessage(`{"$type":"social.craftsky.feed.post","text":"future import","sponsored":false,"createdAt":"2050-01-01T00:00:00Z","externalImport":{"source":"instagram"}}`)}
+	if err := index.NewCraftskyPost(pool, testLogger()).Handle(context.Background(), event); err != nil {
+		t.Fatal(err)
+	}
+	assertPostImportClassification(t, pool, event.URI.String(), stringPointer("instagram"), time.Time{}, true)
+	var createdAt time.Time
+	if err := pool.QueryRow(context.Background(), `SELECT created_at FROM craftsky_posts WHERE uri=$1`, event.URI).Scan(&createdAt); err != nil {
+		t.Fatal(err)
+	}
+	if !createdAt.Equal(time.Date(2050, 1, 1, 0, 0, 0, 0, time.UTC)) {
+		t.Fatal("sorting changed the author's published timestamp")
+	}
+}

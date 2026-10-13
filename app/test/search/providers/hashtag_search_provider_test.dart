@@ -130,7 +130,7 @@ void main() {
         if (calls == 1) {
           return SearchPostPage(items: [_post('a')], cursor: 'c1');
         }
-        return gate.future;
+        return await gate.future;
       },
     );
     final container = ProviderContainer.test(

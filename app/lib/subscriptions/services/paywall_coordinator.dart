@@ -6,7 +6,7 @@ import 'package:craftsky_app/subscriptions/services/revenuecat_service.dart';
 enum PaywallOutcome { reconcile, cancelled, offeringUnavailable, providerError }
 
 final class PaywallCoordinator {
-  const PaywallCoordinator(
+  const new(
     this._service,
     this._ownerGuard,
     this._identityGuard,

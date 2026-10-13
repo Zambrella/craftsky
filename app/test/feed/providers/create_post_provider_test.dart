@@ -999,9 +999,13 @@ void main() {
           onListProjectsByAuthor: (id, {cursor, limit}) async => PostPage(
             items: [_post(rkey: 'old-project', project: _project)],
           ),
-          onCreateWithFacets:
-              ({required text, reply, project, images, facets}) async =>
-                  _post(rkey: 'new-project', project: project),
+          onCreateWithFacets: ({
+            required text,
+            reply,
+            project,
+            images,
+            facets,
+          }) async => _post(rkey: 'new-project', project: project),
         );
         final container = ProviderContainer.test(
           overrides: [
@@ -1091,9 +1095,13 @@ void main() {
       'UT-019 patches omitted project in synthetic create response',
       () async {
         final fake = FakePostRepository(
-          onCreateWithFacets:
-              ({required text, reply, project, images, facets}) async =>
-                  _post(rkey: 'new-project'),
+          onCreateWithFacets: ({
+            required text,
+            reply,
+            project,
+            images,
+            facets,
+          }) async => _post(rkey: 'new-project'),
           onListProjectsByAuthor: (id, {cursor, limit}) async =>
               const PostPage(items: []),
         );
@@ -1138,7 +1146,7 @@ void main() {
 }
 
 final class _RegistryStorage implements SessionRegistryStorage {
-  _RegistryStorage(this.registry);
+  new(this.registry);
 
   SessionRegistry registry;
 

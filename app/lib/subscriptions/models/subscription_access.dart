@@ -15,7 +15,7 @@ enum SubscriptionTier { free, plus, business }
   generateMethods: _subscriptionAccessMethods,
 )
 final class SubscriptionAccess with SubscriptionAccessMappable {
-  const SubscriptionAccess({
+  const new({
     required this.did,
     required this.effectiveTier,
     required this.givesAccess,
@@ -23,7 +23,7 @@ final class SubscriptionAccess with SubscriptionAccessMappable {
     this.assignedTier,
   });
 
-  factory SubscriptionAccess.fromMap(Map<String, dynamic> map) {
+  factory fromMap(Map<String, dynamic> map) {
     final access = SubscriptionAccessMapper.fromMap(map);
     final assignedTier = access.assignedTier;
     final valid = assignedTier == null

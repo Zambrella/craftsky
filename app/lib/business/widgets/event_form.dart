@@ -10,25 +10,24 @@ import 'package:craftsky_app/business/services/business_time_zone_service.dart';
 import 'package:craftsky_app/feed/models/create_post_image.dart';
 import 'package:craftsky_app/feed/providers/composer_image_state.dart';
 import 'package:craftsky_app/feed/widgets/composer_image_attachment_section.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/profile/providers/profile_image_picker_provider.dart';
 import 'package:craftsky_app/theme/craftsky_field_scaffold.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/craftsky_select_inputs.dart';
 import 'package:craftsky_app/theme/craftsky_text_inputs.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:material_ui/material_ui.dart';
 
-typedef EventImagePicker =
-    Future<PreparedProfileImage?> Function(
-      ImageSource source,
-      void Function(Uint8List bytes) onPreviewReady,
-    );
+typedef EventImagePicker = Future<PreparedProfileImage?> Function(
+  ImageSource source,
+  void Function(Uint8List bytes) onPreviewReady,
+);
 
 class EventFormSubmission {
-  const EventFormSubmission({
+  const new({
     required this.draft,
     required this.pendingImage,
     required this.imageAlt,
@@ -40,7 +39,7 @@ class EventFormSubmission {
 }
 
 class EventForm extends ConsumerStatefulWidget {
-  const EventForm({
+  const new({
     required this.onChanged,
     this.initial,
     this.pickImage,

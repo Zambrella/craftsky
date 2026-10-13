@@ -8,7 +8,7 @@ import 'package:craftsky_app/feed/providers/toggle_like_post_provider.dart';
 import 'package:craftsky_app/feed/providers/toggle_repost_post_provider.dart';
 import 'package:craftsky_app/feed/widgets/post_card.dart';
 import 'package:craftsky_app/feed/widgets/post_composer_sheet.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/moderation/widgets/report_flow.dart';
 import 'package:craftsky_app/projects/models/project_browse_filters.dart';
 import 'package:craftsky_app/projects/options/project_option.dart';
@@ -32,13 +32,13 @@ import 'package:craftsky_app/theme/craftsky_floating_action_button.dart';
 import 'package:craftsky_app/theme/craftsky_form_builder_select_fields.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:material_ui/material_ui.dart';
 
 part 'project_filter_sheet.dart';
 
 class ProjectsPage extends ConsumerStatefulWidget {
-  const ProjectsPage({super.key});
+  const new({super.key});
 
   @override
   ConsumerState<ProjectsPage> createState() => _ProjectsPageState();
@@ -283,12 +283,10 @@ class _ProjectsPageState extends ConsumerState<ProjectsPage>
     }
     final durations = Theme.of(context).extension<DurationTheme>()!;
     for (final controller in controllers) {
-      unawaited(
-        controller.animateTo(
-          0,
-          duration: durations.medium,
-          curve: durations.ease,
-        ),
+      controller.animateTo(
+        0,
+        duration: durations.medium,
+        curve: durations.ease,
       );
     }
   }
@@ -338,7 +336,7 @@ class _ProjectsPageState extends ConsumerState<ProjectsPage>
 }
 
 class _ProjectCraftTabBarDelegate extends SliverPersistentHeaderDelegate {
-  const _ProjectCraftTabBarDelegate({
+  const new({
     required this.controller,
     required this.craftTypes,
   });
@@ -398,7 +396,7 @@ class _ProjectCraftTabBarDelegate extends SliverPersistentHeaderDelegate {
 }
 
 class _ProjectTabScrollView extends ConsumerWidget {
-  const _ProjectTabScrollView({
+  const new({
     required this.craftType,
     required this.filters,
     required this.sort,
@@ -464,7 +462,7 @@ class _ProjectTabScrollView extends ConsumerWidget {
 }
 
 class _ProjectPostSlivers extends ConsumerWidget {
-  const _ProjectPostSlivers({
+  const new({
     required this.posts,
     required this.isLoadingMore,
     required this.hasLoadMoreError,
@@ -550,7 +548,7 @@ Future<void> _confirmProjectPostDelete(
 }
 
 class _ProjectErrorSliver extends StatelessWidget {
-  const _ProjectErrorSliver({required this.onRetry});
+  const new({required this.onRetry});
 
   final VoidCallback onRetry;
 
@@ -571,7 +569,7 @@ class _ProjectErrorSliver extends StatelessWidget {
 }
 
 class _ActiveFilterChips extends StatelessWidget {
-  const _ActiveFilterChips({
+  const new({
     required this.craftType,
     required this.filters,
     required this.onRemove,
@@ -619,7 +617,7 @@ class _ActiveFilterChips extends StatelessWidget {
 }
 
 class _FilterChipData {
-  const _FilterChipData({
+  const new({
     required this.family,
     required this.value,
     required this.label,

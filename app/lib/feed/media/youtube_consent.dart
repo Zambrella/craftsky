@@ -12,7 +12,7 @@ abstract interface class YouTubeConsentPreferences {
 
 final class SharedPreferencesYouTubeConsent
     implements YouTubeConsentPreferences {
-  const SharedPreferencesYouTubeConsent(this._preferences);
+  const new(this._preferences);
 
   final SharedPreferences _preferences;
 

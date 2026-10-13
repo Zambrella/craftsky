@@ -1,6 +1,6 @@
 import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/notifications/models/notification_category.dart';
 import 'package:craftsky_app/notifications/models/notification_permission.dart';
 import 'package:craftsky_app/notifications/models/notification_preferences.dart';
@@ -16,11 +16,11 @@ import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/craftsky_select_inputs.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:material_ui/material_ui.dart';
 
 class NotificationSettingsPage extends ConsumerWidget {
-  const NotificationSettingsPage({super.key});
+  const new({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -62,7 +62,7 @@ class NotificationSettingsPage extends ConsumerWidget {
 }
 
 class _SettingsContent extends ConsumerWidget {
-  const _SettingsContent({
+  const new({
     required this.preferences,
     required this.permission,
     required this.account,
@@ -123,7 +123,7 @@ class _SettingsContent extends ConsumerWidget {
 }
 
 class _PermissionWarning extends StatelessWidget {
-  const _PermissionWarning({required this.onOpenSettings});
+  const new({required this.onOpenSettings});
 
   final VoidCallback onOpenSettings;
 
@@ -181,7 +181,7 @@ class _PermissionWarning extends StatelessWidget {
 }
 
 class _PreferenceSection extends ConsumerWidget {
-  const _PreferenceSection({
+  const new({
     required this.category,
     required this.preference,
     required this.account,

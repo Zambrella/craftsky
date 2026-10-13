@@ -19,7 +19,7 @@ enum SavePostDialogError { invalidFolderName, createFailed, confirmFailed }
 @immutable
 @MappableClass(generateMethods: GenerateMethods.copy | GenerateMethods.equals)
 final class SavePostDialogState with SavePostDialogStateMappable {
-  const SavePostDialogState({
+  const new({
     required this.selectedFolderId,
     this.isCreatingFolder = false,
     this.createName = '',
@@ -199,5 +199,5 @@ class SavePostDialogController extends _$SavePostDialogController {
 }
 
 final class _FolderCreationFailed implements Exception {
-  const _FolderCreationFailed();
+  const new();
 }

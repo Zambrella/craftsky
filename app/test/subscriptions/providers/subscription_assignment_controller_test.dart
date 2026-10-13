@@ -333,7 +333,7 @@ SubscriptionAccess _access(SubscriptionTier tier) => SubscriptionAccess(
 );
 
 final class _AssignmentApi implements SubscriptionApi {
-  _AssignmentApi({
+  new({
     this.error,
     this.unassignError,
     this.pending,

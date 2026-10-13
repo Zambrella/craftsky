@@ -397,7 +397,7 @@ BillingState _state(
 }
 
 final class _RestoreService implements RevenueCatService {
-  _RestoreService({
+  new({
     this.appUserId = '20000000-0000-4000-8000-000000000001',
     this.onRestore,
   });
@@ -437,7 +437,7 @@ final class _RestoreService implements RevenueCatService {
 }
 
 final class _ScriptedApi implements SubscriptionApi {
-  _ScriptedApi(
+  new(
     this.states, {
     this.failReadNumbers = const {},
     this.failReconciliationNumbers = const {},

@@ -5,7 +5,7 @@ import 'package:craftsky_app/subscriptions/models/billing_state.dart';
 import 'package:craftsky_app/subscriptions/services/revenuecat_service.dart';
 
 class BillingOwnerSetupException implements Exception {
-  const BillingOwnerSetupException(this.code);
+  const new(this.code);
 
   final String code;
 
@@ -14,7 +14,7 @@ class BillingOwnerSetupException implements Exception {
 }
 
 final class BillingOwnerSetupCoordinator {
-  const BillingOwnerSetupCoordinator({
+  const new({
     required this.readRegistry,
     required this.reserveOwner,
     required this.completeOwner,

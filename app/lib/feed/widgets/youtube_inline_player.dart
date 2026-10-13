@@ -1,21 +1,20 @@
 import 'dart:async';
 
 import 'package:craftsky_app/feed/media/youtube_external.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:youtube_player_iframe/youtube_player_iframe.dart';
 
-typedef YouTubePlayerBuilder =
-    Widget Function(
-      BuildContext context,
-      YouTubeExternal external,
-      VoidCallback onPlaybackError,
-    );
+typedef YouTubePlayerBuilder = Widget Function(
+  BuildContext context,
+  YouTubeExternal external,
+  VoidCallback onPlaybackError,
+);
 
 final youtubePlayerBuilderProvider = Provider<YouTubePlayerBuilder>(
   (_) =>
@@ -27,7 +26,7 @@ final youtubePlayerBuilderProvider = Provider<YouTubePlayerBuilder>(
 );
 
 class YouTubeInlinePlayer extends StatefulWidget {
-  const YouTubeInlinePlayer({
+  const new({
     required this.external,
     required this.onPlaybackError,
     super.key,
@@ -120,7 +119,7 @@ class _YouTubeInlinePlayerState extends State<YouTubeInlinePlayer> {
 }
 
 class _FullscreenControl extends StatelessWidget {
-  const _FullscreenControl({required this.onPressed, this.close = false});
+  const new({required this.onPressed, this.close = false});
 
   final VoidCallback onPressed;
   final bool close;
@@ -149,7 +148,7 @@ class _FullscreenControl extends StatelessWidget {
 }
 
 class _YouTubeFullscreenPage extends StatefulWidget {
-  const _YouTubeFullscreenPage({
+  const new({
     required this.external,
     required this.startSeconds,
   });
@@ -252,14 +251,14 @@ class _YouTubeFullscreenPageState extends State<_YouTubeFullscreenPage> {
 }
 
 class _FullscreenResult {
-  const _FullscreenResult({required this.seconds, required this.failed});
+  const new({required this.seconds, required this.failed});
 
   final double seconds;
   final bool failed;
 }
 
 class _DownwardDismissGestureRecognizer extends OneSequenceGestureRecognizer {
-  _DownwardDismissGestureRecognizer({required this.onDismiss});
+  new({required this.onDismiss});
 
   static const _dismissDistance = 96;
 

@@ -1,5 +1,6 @@
 // ignore: unused_import
 import 'package:intl/intl.dart' as intl;
+
 import 'app_localizations.dart';
 
 // ignore_for_file: type=lint
@@ -24,6 +25,12 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get feedConnectInstagramAction => 'Connect Instagram';
+
+  @override
+  String get feedSearchAction => 'Search CraftSky';
+
+  @override
+  String get feedViewProjectsAction => 'View projects';
 
   @override
   String get navigationMenuTooltip => 'Open navigation menu';

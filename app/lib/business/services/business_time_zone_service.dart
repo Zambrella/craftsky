@@ -7,9 +7,9 @@ final businessTimeZoneServiceProvider = Provider<BusinessTimeZoneService>(
 );
 
 class BusinessTimeZoneService {
-  BusinessTimeZoneService._();
+  new _();
 
-  factory BusinessTimeZoneService.initialized() {
+  factory initialized() {
     timezone_data.initializeTimeZones();
     return BusinessTimeZoneService._();
   }

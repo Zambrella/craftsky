@@ -340,13 +340,20 @@ void main() {
       },
     );
 
-    test('timeout → ApiNetworkError', () {
-      const ErrorMappingInterceptor().onError(
-        _ex(type: DioExceptionType.connectionTimeout),
-        handler,
-      );
-      expect(handler.error, isA<ApiNetworkError>());
-    });
+    for (final type in [
+      DioExceptionType.connectionTimeout,
+      DioExceptionType.sendTimeout,
+      DioExceptionType.receiveTimeout,
+      DioExceptionType.transformTimeout,
+    ]) {
+      test('$type → ApiNetworkError', () {
+        const ErrorMappingInterceptor().onError(
+          _ex(type: type),
+          handler,
+        );
+        expect(handler.error, isA<ApiNetworkError>());
+      });
+    }
 
     test('connection error → ApiNetworkError', () {
       const ErrorMappingInterceptor().onError(

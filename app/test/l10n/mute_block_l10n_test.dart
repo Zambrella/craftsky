@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -43,13 +43,11 @@ void main() {
     ];
 
     for (final locale in AppLocalizations.supportedLocales) {
-      final arb =
-          jsonDecode(
-                File(
-                  'lib/l10n/app_${locale.languageCode}.arb',
-                ).readAsStringSync(),
-              )
-              as Map<String, Object?>;
+      final arb = jsonDecode(
+        File(
+          'lib/l10n/app_${locale.languageCode}.arb',
+        ).readAsStringSync(),
+      ) as Map<String, Object?>;
       for (final key in requiredKeys) {
         final value = arb[key];
         expect(

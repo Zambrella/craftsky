@@ -5,11 +5,9 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test('UT-016 project composer and chooser strings are localised', () {
-    final arb =
-        jsonDecode(
-              File('lib/l10n/app_en.arb').readAsStringSync(),
-            )
-            as Map<String, Object?>;
+    final arb = jsonDecode(
+      File('lib/l10n/app_en.arb').readAsStringSync(),
+    ) as Map<String, Object?>;
 
     const requiredKeys = [
       'postTypeRegularLabel',

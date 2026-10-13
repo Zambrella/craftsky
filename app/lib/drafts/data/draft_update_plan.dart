@@ -5,7 +5,7 @@ import 'package:craftsky_app/drafts/models/draft_media_descriptor.dart';
 import 'package:crypto/crypto.dart';
 
 final class PlannedDraftMediaWrite {
-  const PlannedDraftMediaWrite({required this.descriptor, required this.bytes});
+  const new({required this.descriptor, required this.bytes});
 
   final DraftMediaDescriptor descriptor;
   final Uint8List bytes;
@@ -18,7 +18,7 @@ final class PlannedDraftMediaWrite {
 
 /// Pure plan for the immutable-media portion of one draft save.
 final class DraftUpdatePlan {
-  DraftUpdatePlan._({
+  new _({
     required List<DraftMediaDescriptor> nextMedia,
     required List<PlannedDraftMediaWrite> mediaWrites,
     required List<String> cleanupFileNames,
@@ -26,7 +26,7 @@ final class DraftUpdatePlan {
        mediaWrites = List.unmodifiable(mediaWrites),
        cleanupFileNames = List.unmodifiable(cleanupFileNames);
 
-  factory DraftUpdatePlan.build({
+  factory build({
     required List<DraftMediaDescriptor> currentMedia,
     required List<DraftMediaWrite> orderedMedia,
     required String Function() nextStorageRevision,
@@ -104,8 +104,7 @@ final class DraftUpdatePlan {
             height: media.height,
             altText: media.altText,
             order: order,
-          );
-          descriptor.validate();
+          )..validate();
           retainedFileNames.add(descriptor.storageFileName);
           next.add(descriptor);
           writes.add(

@@ -4,7 +4,7 @@ enum DraftVideoAvailability { available, unavailable }
 
 /// Persisted metadata for an immutable video source and generated poster.
 final class VideoDraftDescriptor {
-  const VideoDraftDescriptor({
+  const new({
     required this.storageRevision,
     required this.sourceStorageFileName,
     required this.posterStorageFileName,

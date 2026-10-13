@@ -278,13 +278,12 @@ void main() {
         operationAccountDid: activeAccount,
         checkEligibility: () async => const VideoUploadLimits(canUpload: true),
         authorize: () async => _authorization(),
-        upload:
-            ({
-              required authorizationHeader,
-              required cancelToken,
-              required bypassDeduplication,
-              required onProgress,
-            }) => uploadDone.future,
+        upload: ({
+          required authorizationHeader,
+          required cancelToken,
+          required bypassDeduplication,
+          required onProgress,
+        }) => uploadDone.future,
         poll: (_, _) => throw StateError('poll must not run'),
         wait: (_) async {},
         publish: (_, {required allowBlobRecovery}) async {},

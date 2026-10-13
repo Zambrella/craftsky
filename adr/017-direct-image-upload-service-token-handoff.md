@@ -80,3 +80,11 @@ project immediate images use the shared transfer path.
   generated output churn was removed. `git diff --check` passed.
 - No deployment or live authenticated PDS upload was performed. Native and web
   uploads against supported deployed PDS hosts remain release checks.
+
+After merging main at `2a807fe6`, Flutter 3.47.7 validation passed: 2,936 full
+suite tests (38 skipped), clean analysis, and focused backend authorization,
+composition and route checks. Main's handoff header-map fix is retained alongside
+the direct-upload client. The full AppView release gate above was run before this
+main integration; it was not rerun after the merge.
+The 16 headless Chrome upload regressions also passed on Flutter 3.47.7 after
+the merge.

@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:craftsky_app/bootstrap.dart';
 import 'package:craftsky_app/feed/models/post.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/languages/models/language_preferences.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
 import 'package:craftsky_app/profile/models/profile_customisation.dart';
@@ -22,10 +22,10 @@ import 'package:craftsky_app/search/providers/search_repository_provider.dart';
 import 'package:craftsky_app/shared/widgets/craft_icon.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:material_ui/material_ui.dart';
 
 import 'fakes/fake_search_repository.dart';
 
@@ -364,7 +364,7 @@ void main() {
           onSearchProfiles: ({required q, limit, cursor}) async =>
               const ProfileSearchPage(items: []),
           onSearchHashtags: ({required q, limit, cursor}) async =>
-              Future<HashtagSearchPage>.error(StateError('boom')),
+              await Future<HashtagSearchPage>.error(StateError('boom')),
         ),
         home: const SearchPage(q: 'alpaca', tab: SearchResultsTab.tags),
       ),
@@ -626,7 +626,7 @@ void main() {
           child: MaterialApp.router(
             routerConfig: router,
             theme: AppTheme.lightThemeData,
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            localizationsDelegates: appLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
           ),
         ),
@@ -735,7 +735,7 @@ Post _post(String rkey) => PostMapper.fromMap({
 });
 
 class _LocalizedApp extends StatelessWidget {
-  const _LocalizedApp({required this.home, this.router});
+  const new({required this.home, this.router});
 
   final Widget home;
   final GoRouter? router;
@@ -745,14 +745,14 @@ class _LocalizedApp extends StatelessWidget {
     if (router != null) {
       return MaterialApp.router(
         theme: AppTheme.lightThemeData,
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        localizationsDelegates: appLocalizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         routerConfig: router,
       );
     }
     return MaterialApp(
       theme: AppTheme.lightThemeData,
-      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      localizationsDelegates: appLocalizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
       home: home,
     );

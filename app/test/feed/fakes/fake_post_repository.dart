@@ -32,7 +32,7 @@ import 'package:craftsky_app/shared/atproto/identifiers.dart';
 /// );
 /// ```
 class FakePostRepository implements PostRepository {
-  FakePostRepository({
+  new({
     this.onCreate,
     this.onCreateWithFacets,
     this.onFetch,

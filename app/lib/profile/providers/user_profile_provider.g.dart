@@ -62,7 +62,7 @@ final class UserProfileProvider
   }
 }
 
-String _$userProfileHash() => r'f419dab3ffc6cb1a5f43edd57a66237575f64abf';
+String _$userProfileHash() => r'aeb58268311b6a124aadae7edf29a5ae2958732e';
 
 /// Single source of truth for a user's profile, keyed by DID.
 ///
@@ -111,7 +111,7 @@ abstract class _$UserProfile extends $AsyncNotifier<Profile> {
   FutureOr<Profile> build(Did did);
   @$mustCallSuper
   @override
-  void runBuild() {
+  WhenComplete runBuild() {
     final ref = this.ref as $Ref<AsyncValue<Profile>, Profile>;
     final element =
         ref.element
@@ -121,6 +121,6 @@ abstract class _$UserProfile extends $AsyncNotifier<Profile> {
               Object?,
               Object?
             >;
-    element.handleCreate(ref, () => build(_$args));
+    return element.handleCreate(ref, () => build(_$args));
   }
 }

@@ -1,11 +1,11 @@
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/service_status/models/service_status_document.dart';
 import 'package:craftsky_app/service_status/providers/service_status_controller.dart';
 import 'package:craftsky_app/service_status/widgets/service_status_host.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 import 'announcement_dismissal_test.dart' show FakeDismissalStore;
 import 'service_status_controller_test.dart' show FakeStatusRepository;
@@ -33,7 +33,7 @@ void main() {
           container: container,
           child: MaterialApp(
             theme: AppTheme.lightThemeData,
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            localizationsDelegates: appLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             builder: (_, child) => ServiceStatusHost(child: child!),
             home: Scaffold(body: TextField(focusNode: editor)),
@@ -116,8 +116,7 @@ void main() {
                   theme: dark
                       ? AppTheme.darkThemeData
                       : AppTheme.lightThemeData,
-                  localizationsDelegates:
-                      AppLocalizations.localizationsDelegates,
+                  localizationsDelegates: appLocalizationsDelegates,
                   supportedLocales: AppLocalizations.supportedLocales,
                   builder: (context, child) => MediaQuery(
                     data: MediaQuery.of(
@@ -136,6 +135,15 @@ void main() {
             );
             await tester.pump();
             expect(tester.takeException(), isNull);
+            if (mode == ServiceStatusMode.maintenance) {
+              expect(
+                tester
+                    .getSemantics(find.text('Notice ${'x' * 153}'))
+                    .getSemanticsData()
+                    .headingLevel,
+                1,
+              );
+            }
             final action = find.text(
               mode == ServiceStatusMode.maintenance ? 'Try again' : 'Dismiss',
             );

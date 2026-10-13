@@ -17,7 +17,7 @@ abstract interface class NotificationService {
 }
 
 final class UnavailableNotificationService implements NotificationService {
-  const UnavailableNotificationService();
+  const new();
 
   @override
   Future<void> deleteToken() async {}

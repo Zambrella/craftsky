@@ -1,7 +1,7 @@
 const maxVideoDraftSourceBytesPerAccount = 1000000000;
 
 final class VideoDraftQuotaPlan {
-  const VideoDraftQuotaPlan({
+  const new({
     required this.allowed,
     required this.resultingSourceBytes,
   });
@@ -12,7 +12,7 @@ final class VideoDraftQuotaPlan {
 }
 
 final class VideoDraftQuota {
-  const VideoDraftQuota();
+  const new();
 
   bool canSave({
     required int existingSourceBytes,

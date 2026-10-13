@@ -96,7 +96,7 @@ void main() {
 
 final class _PreferencesRepository
     implements NotificationPreferencesRepository {
-  _PreferencesRepository({bool pushEnabled = true})
+  new({bool pushEnabled = true})
     : initial = NotificationPreferences(
         known: {
           for (final category in NotificationCategory.preferenceValues)

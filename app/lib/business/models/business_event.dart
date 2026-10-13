@@ -16,7 +16,7 @@ enum OwnerEventFilter { upcoming, history }
   ],
 )
 class BusinessEvent with BusinessEventMappable {
-  BusinessEvent({
+  new({
     required String did,
     required String rkey,
     required String uri,
@@ -68,7 +68,7 @@ class BusinessEvent with BusinessEventMappable {
 
 @MappableClass(ignoreNull: true)
 class BusinessEventPage with BusinessEventPageMappable {
-  const BusinessEventPage({required this.items, this.cursor});
+  const new({required this.items, this.cursor});
 
   final List<BusinessEvent> items;
   final String? cursor;
@@ -84,7 +84,7 @@ class BusinessEventPage with BusinessEventPageMappable {
   ],
 )
 class RecordMutationResult with RecordMutationResultMappable {
-  RecordMutationResult({
+  new({
     required String cid,
     String? did,
     String? rkey,

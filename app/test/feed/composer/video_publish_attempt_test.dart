@@ -90,13 +90,12 @@ VideoPublicationCoordinator _coordinator({
 }) => VideoPublicationCoordinator(
   checkEligibility: () async => const VideoUploadLimits(canUpload: true),
   authorize: authorize,
-  upload:
-      ({
-        required authorizationHeader,
-        required cancelToken,
-        required bypassDeduplication,
-        required onProgress,
-      }) => upload(),
+  upload: ({
+    required authorizationHeader,
+    required cancelToken,
+    required bypassDeduplication,
+    required onProgress,
+  }) => upload(),
   poll: poll,
   wait: (_) async {},
   publish: (_, {required allowBlobRecovery}) async {},

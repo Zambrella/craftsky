@@ -34,7 +34,7 @@ import 'package:craftsky_app/feed/widgets/composer_image_attachment_section.dart
 import 'package:craftsky_app/feed/widgets/composer_metadata_controls.dart';
 import 'package:craftsky_app/feed/widgets/composer_video_attachment_card.dart';
 import 'package:craftsky_app/feed/widgets/submission_blocking_overlay.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/languages/models/post_language_selection.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
 import 'package:craftsky_app/projects/composer/project_composer_draft_state.dart';
@@ -68,6 +68,8 @@ import 'package:craftsky_app/shared/rich_text/widgets/facet_autocomplete_editor.
 import 'package:craftsky_app/shared/rich_text/widgets/faceted_text.dart';
 import 'package:craftsky_app/shared/widgets/action_progress.dart';
 import 'package:craftsky_app/shared/widgets/craft_icon.dart';
+import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
+import 'package:craftsky_app/subscriptions/providers/subscription_access_provider.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:craftsky_app/theme/craftsky_form_builder_select_fields.dart';
@@ -76,10 +78,10 @@ import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/craftsky_text_inputs.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_form_builder/flutter_form_builder.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:uuid/uuid.dart';
 
 Future<Post?> showProjectComposerSheet(
@@ -109,7 +111,7 @@ String _projectOffsetLabel(Duration offset) {
 }
 
 class ProjectComposerSheet extends ConsumerStatefulWidget {
-  const ProjectComposerSheet({
+  const new({
     super.key,
     this.composerId,
     this.scheduledPost,
@@ -439,6 +441,13 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
       });
     }
     final account = activeLease?.session.account;
+    final scheduleAccess = activeLease == null
+        ? const AsyncLoading<SubscriptionAccess>()
+        : ref.watch(subscriptionAccessProvider(activeLease.session));
+    final maySchedule = switch (scheduleAccess) {
+      AsyncData(:final value) => value.allowsPlus,
+      _ => false,
+    };
     if (account != null) {
       ref.listen(draftSaveControllerProvider(account), (_, _) {});
     }
@@ -469,7 +478,8 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
         _languages != null &&
         (selectedVideo != null || imagesState.canSubmitImages()) &&
         (selectedVideo == null || _scheduleChoice == ScheduleChoice.now) &&
-        (_scheduleChoice == ScheduleChoice.now || capacity.scheduleEnabled);
+        (_scheduleChoice == ScheduleChoice.now ||
+            (capacity.scheduleEnabled && maySchedule));
     final bodyErrorText = switch ((_attemptedSubmit, trimmedBody.isEmpty)) {
       (true, true) => l10n.projectComposerBodyRequiredError,
       _ when tooLong => l10n.postComposeTooLong,
@@ -663,6 +673,14 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
                                             setState(() => _sponsored = value)
                                       : null,
                                   scheduledAtLocal: _scheduledAtLocal,
+                                  scheduleAccess: scheduleAccess,
+                                  onScheduleAccessRetry: activeLease == null
+                                      ? null
+                                      : () => ref.invalidate(
+                                          subscriptionAccessProvider(
+                                            activeLease.session,
+                                          ),
+                                        ),
                                   onSchedulePressed: controlsEnabled
                                       ? (menuContext) => _chooseWhen(
                                           menuContext,
@@ -880,7 +898,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
   }
 
   Future<bool> _confirmProjectClose(ComposerImagesState imagesState) async {
-    if (widget.scheduledPost != null) return _confirmDiscard();
+    if (widget.scheduledPost != null) return await _confirmDiscard();
     final choice = await showDraftCloseDialog(
       context,
       existingDraft: widget.draftSeed != null,
@@ -2630,7 +2648,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
 }
 
 class _ProjectDetailActionTile extends StatelessWidget {
-  const _ProjectDetailActionTile({
+  const new({
     required this.focusNode,
     required this.icon,
     required this.title,
@@ -2673,7 +2691,7 @@ class _ProjectDetailActionTile extends StatelessWidget {
 }
 
 class _ProjectComposerDetailPage extends StatelessWidget {
-  const _ProjectComposerDetailPage({
+  const new({
     required this.title,
     required this.child,
     this.errorText,
@@ -2727,7 +2745,7 @@ class _ProjectComposerDetailPage extends StatelessWidget {
 }
 
 class _MaterialsFormBuilderField extends StatelessWidget {
-  const _MaterialsFormBuilderField({
+  const new({
     required this.name,
     required this.label,
     required this.inputHintText,
@@ -2770,7 +2788,7 @@ class _MaterialsFormBuilderField extends StatelessWidget {
 }
 
 class _SelectCraftTypeEmptyState extends StatelessWidget {
-  const _SelectCraftTypeEmptyState({required this.text});
+  const new({required this.text});
 
   final String text;
 
@@ -2789,7 +2807,7 @@ class _SelectCraftTypeEmptyState extends StatelessWidget {
 }
 
 class _MaterialsInput extends ConsumerStatefulWidget {
-  const _MaterialsInput({
+  const new({
     required this.label,
     required this.values,
     required this.inputHintText,
@@ -2962,7 +2980,7 @@ class _MaterialsInputState extends ConsumerState<_MaterialsInput> {
 }
 
 class _MaterialEntryList extends StatelessWidget {
-  const _MaterialEntryList({
+  const new({
     required this.values,
     required this.enabled,
     required this.onRemove,
@@ -3034,7 +3052,7 @@ class _MaterialEntryList extends StatelessWidget {
 }
 
 class _FacetFormBuilderTextField extends StatefulWidget {
-  const _FacetFormBuilderTextField({
+  const new({
     required this.name,
     required this.label,
     required this.controller,

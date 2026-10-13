@@ -280,4 +280,3 @@ class _ProjectSearchFiltersCopyWithImpl<$R, $Out>
   $chain<$R2, $Out2>(Then<$Out2, $R2> t) =>
       _ProjectSearchFiltersCopyWithImpl<$R2, $Out2>($value, $cast, t);
 }
-

@@ -13,7 +13,7 @@ import 'package:craftsky_app/instagram_migration/providers/instagram_suggestions
 import 'package:craftsky_app/instagram_migration/providers/instagram_verification_provider.dart';
 import 'package:craftsky_app/instagram_migration/services/instagram_export_file_picker.dart';
 import 'package:craftsky_app/instagram_migration/services/instagram_import_parser.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
@@ -29,9 +29,9 @@ import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/craftsky_text_inputs.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:material_ui/material_ui.dart';
 
 final instagramDmLauncherProvider = Provider<ExternalLinkLauncher>(
   (_) => launchExternalLink,
@@ -49,7 +49,7 @@ enum _InstagramAction {
 }
 
 class InstagramMigrationPage extends ConsumerWidget {
-  const InstagramMigrationPage({super.key});
+  const new({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -76,7 +76,7 @@ class InstagramMigrationPage extends ConsumerWidget {
 }
 
 class _InstagramMigrationBody extends ConsumerWidget {
-  const _InstagramMigrationBody({required this.lease});
+  const new({required this.lease});
 
   final ActiveAccountLease lease;
 
@@ -165,7 +165,7 @@ class _InstagramMigrationBody extends ConsumerWidget {
 }
 
 class _AccountAndVerificationCard extends ConsumerStatefulWidget {
-  const _AccountAndVerificationCard({
+  const new({
     required this.lease,
     required this.status,
   });
@@ -371,7 +371,7 @@ class _AccountAndVerificationCardState
 }
 
 class _InstagramHandleText extends StatelessWidget {
-  const _InstagramHandleText({
+  const new({
     required this.username,
     required this.localizedText,
   });
@@ -402,7 +402,7 @@ class _InstagramHandleText extends StatelessWidget {
 }
 
 class _ChallengeControls extends ConsumerWidget {
-  const _ChallengeControls({
+  const new({
     required this.lease,
     required this.attempt,
     required this.isBusy,
@@ -499,7 +499,7 @@ class _ChallengeControls extends ConsumerWidget {
 }
 
 class _LinkedAccountControls extends ConsumerWidget {
-  const _LinkedAccountControls({required this.lease, required this.account});
+  const new({required this.lease, required this.account});
 
   final ActiveAccountLease lease;
   final InstagramAccountLink account;
@@ -555,7 +555,7 @@ class _LinkedAccountControls extends ConsumerWidget {
 }
 
 class _RevokeInstagramVerificationButton extends ConsumerWidget {
-  const _RevokeInstagramVerificationButton({required this.lease});
+  const new({required this.lease});
 
   final ActiveAccountLease lease;
 
@@ -593,7 +593,7 @@ class _RevokeInstagramVerificationButton extends ConsumerWidget {
 enum _ImportInputKind { manual, json }
 
 class _ImportComposerCard extends ConsumerStatefulWidget {
-  const _ImportComposerCard({required this.lease});
+  const new({required this.lease});
 
   final ActiveAccountLease lease;
 
@@ -819,7 +819,7 @@ class _ImportComposerCardState extends ConsumerState<_ImportComposerCard> {
 }
 
 class _ImportsCard extends ConsumerWidget {
-  const _ImportsCard({required this.lease});
+  const new({required this.lease});
 
   final ActiveAccountLease lease;
 
@@ -891,7 +891,7 @@ class _ImportsCard extends ConsumerWidget {
 }
 
 class _ImportRow extends ConsumerWidget {
-  const _ImportRow({required this.lease, required this.item});
+  const new({required this.lease, required this.item});
 
   final ActiveAccountLease lease;
   final InstagramImportSummary item;
@@ -982,7 +982,7 @@ class _ImportRow extends ConsumerWidget {
 }
 
 class _SuggestionsCard extends ConsumerWidget {
-  const _SuggestionsCard({required this.lease, this.onSuggestionTap});
+  const new({required this.lease, this.onSuggestionTap});
 
   final ActiveAccountLease lease;
   final ValueChanged<InstagramSuggestion>? onSuggestionTap;
@@ -1071,7 +1071,7 @@ class _SuggestionsCard extends ConsumerWidget {
 }
 
 class _SuggestionRow extends ConsumerWidget {
-  const _SuggestionRow({
+  const new({
     required this.lease,
     required this.suggestion,
     required this.busy,
@@ -1180,7 +1180,7 @@ class _SuggestionRow extends ConsumerWidget {
 }
 
 class _RetryVerification extends StatelessWidget {
-  const _RetryVerification({required this.message, required this.onRetry});
+  const new({required this.message, required this.onRetry});
 
   final String message;
   final VoidCallback onRetry;
@@ -1200,7 +1200,7 @@ class _RetryVerification extends StatelessWidget {
 }
 
 class _CardHeading extends StatelessWidget {
-  const _CardHeading({required this.icon, required this.title});
+  const new({required this.icon, required this.title});
 
   final IconData icon;
   final String title;
@@ -1220,7 +1220,7 @@ class _CardHeading extends StatelessWidget {
 }
 
 class _InlineRetry extends StatelessWidget {
-  const _InlineRetry({required this.message, required this.onRetry});
+  const new({required this.message, required this.onRetry});
 
   final String message;
   final VoidCallback onRetry;
@@ -1238,7 +1238,7 @@ class _InlineRetry extends StatelessWidget {
 }
 
 class _LoadingCard extends StatelessWidget {
-  const _LoadingCard();
+  const new();
 
   @override
   Widget build(BuildContext context) {
@@ -1252,7 +1252,7 @@ class _LoadingCard extends StatelessWidget {
 }
 
 class _ErrorCard extends StatelessWidget {
-  const _ErrorCard({required this.onRetry});
+  const new({required this.onRetry});
 
   final VoidCallback onRetry;
 
@@ -1271,7 +1271,7 @@ class _ErrorCard extends StatelessWidget {
 }
 
 class _CenteredMessage extends StatelessWidget {
-  const _CenteredMessage(this.message);
+  const new(this.message);
 
   final String message;
 

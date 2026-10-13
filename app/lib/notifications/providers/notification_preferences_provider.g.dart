@@ -59,7 +59,7 @@ final class AccountNotificationPreferencesNotifierProvider
 }
 
 String _$accountNotificationPreferencesNotifierHash() =>
-    r'2bdfdc5d2cbbbf9959b5d9071fc4efb2cf4cee4f';
+    r'b83f8bd40b651632714259e62f797652cc8c2d03';
 
 final class AccountNotificationPreferencesNotifierFamily extends $Family
     with
@@ -97,7 +97,7 @@ abstract class _$AccountNotificationPreferencesNotifier
   FutureOr<NotificationPreferences> build(AccountKey account);
   @$mustCallSuper
   @override
-  void runBuild() {
+  WhenComplete runBuild() {
     final ref =
         this.ref
             as $Ref<
@@ -115,7 +115,7 @@ abstract class _$AccountNotificationPreferencesNotifier
               Object?,
               Object?
             >;
-    element.handleCreate(ref, () => build(_$args));
+    return element.handleCreate(ref, () => build(_$args));
   }
 }
 
@@ -156,7 +156,7 @@ abstract class _$NotificationPreferencesNotifier
   FutureOr<NotificationPreferences> build();
   @$mustCallSuper
   @override
-  void runBuild() {
+  WhenComplete runBuild() {
     final ref =
         this.ref
             as $Ref<
@@ -174,6 +174,6 @@ abstract class _$NotificationPreferencesNotifier
               Object?,
               Object?
             >;
-    element.handleCreate(ref, build);
+    return element.handleCreate(ref, build);
   }
 }

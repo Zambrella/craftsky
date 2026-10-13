@@ -1924,4 +1924,3 @@ class _UnknownProjectDetailsCopyWithImpl<$R, $Out>
   $chain<$R2, $Out2>(Then<$Out2, $R2> t) =>
       _UnknownProjectDetailsCopyWithImpl<$R2, $Out2>($value, $cast, t);
 }
-

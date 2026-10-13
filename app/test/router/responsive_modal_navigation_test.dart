@@ -2,10 +2,10 @@ import 'package:craftsky_app/feed/widgets/post_image_gallery.dart';
 import 'package:craftsky_app/router/responsive_modal_navigation.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/form_factor.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:material_ui/material_ui.dart';
 
 void main() {
   testWidgets('system Back closes image gallery before underlying detail', (
@@ -205,7 +205,7 @@ GoRouter _overlayRouter() => GoRouter(
 );
 
 class _OverlayDetail extends StatelessWidget {
-  const _OverlayDetail();
+  const new();
 
   @override
   Widget build(BuildContext context) => Scaffold(
@@ -233,7 +233,7 @@ class _OverlayDetail extends StatelessWidget {
 }
 
 class _ModalNavigationHarness extends StatelessWidget {
-  const _ModalNavigationHarness();
+  const new();
 
   @override
   Widget build(BuildContext context) {

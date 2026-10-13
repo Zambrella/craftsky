@@ -12,7 +12,7 @@ import 'package:craftsky_app/feed/providers/composer_images_provider.dart';
 import 'package:craftsky_app/feed/providers/post_api_client_provider.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/feed/widgets/post_composer_sheet.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/languages/models/language_preferences.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
 import 'package:craftsky_app/scheduled_posts/data/scheduled_post_repository.dart';
@@ -31,10 +31,10 @@ import 'package:craftsky_app/theme/brand_colors.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:dio/dio.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
+import 'package:material_ui/material_ui.dart';
 
 import '../fakes/recording_messenger.dart';
 import '../feed/fakes/fake_post_repository.dart';
@@ -742,9 +742,13 @@ void main() {
     (tester) async {
       final previews = _PendingPreviewRepository();
       final publicPosts = FakePostRepository(
-        onCreateWithFacets:
-            ({required text, reply, project, images, facets}) async =>
-                throw StateError('publication failed'),
+        onCreateWithFacets: ({
+          required text,
+          reply,
+          project,
+          images,
+          facets,
+        }) async => throw StateError('publication failed'),
       );
       await tester.pumpWidget(
         _testApp(
@@ -850,7 +854,7 @@ Widget _testApp({
       messenger: messenger,
       child: MaterialApp(
         theme: _testTheme,
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        localizationsDelegates: appLocalizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         home: PostComposerSheet(
           composerId: composerId,
@@ -958,7 +962,7 @@ Uint8List _pngBytes({required int width, required int height}) =>
     Uint8List.fromList(img.encodePng(img.Image(width: width, height: height)));
 
 final class _SubmissionRepository implements ScheduledPostRepository {
-  _SubmissionRepository({
+  new({
     this.stageGate,
     bool failFirstCreate = false,
     this.createError,
@@ -1065,7 +1069,7 @@ final class _SubmissionRepository implements ScheduledPostRepository {
 }
 
 final class _PreviewRepository implements LinkPreviewRepository {
-  _PreviewRepository({this.thumbnail = true});
+  new({this.thumbnail = true});
 
   final bool thumbnail;
   int fetchCalls = 0;
@@ -1091,7 +1095,7 @@ final class _PreviewRepository implements LinkPreviewRepository {
 
 final class _ChangingThumbnailPreviewRepository
     implements LinkPreviewRepository {
-  _ChangingThumbnailPreviewRepository({
+  new({
     required this.firstBytes,
     required this.secondBytes,
   });
@@ -1244,7 +1248,7 @@ final class _ToggleComposerImages extends ComposerImages {
 }
 
 final class _FailingPostApiClient extends PostApiClient {
-  _FailingPostApiClient() : super(Dio());
+  new() : super(Dio());
 
   int uploadCalls = 0;
 
@@ -1262,7 +1266,7 @@ final class _FailingPostApiClient extends PostApiClient {
 }
 
 final class _RegistryStorage implements SessionRegistryStorage {
-  _RegistryStorage(this.registry);
+  new(this.registry);
 
   SessionRegistry registry;
 

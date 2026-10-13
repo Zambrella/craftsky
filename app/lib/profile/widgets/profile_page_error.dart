@@ -1,14 +1,14 @@
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/shared/errors/app_error.dart';
 import 'package:craftsky_app/shared/errors/app_error_mapper.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Full-screen error fallback for the profile page. Rendered when the
 /// initial profile fetch fails and there's no cached value to show.
 class ProfilePageError extends StatelessWidget {
-  const ProfilePageError({
+  const new({
     required this.error,
     required this.onRetry,
     super.key,

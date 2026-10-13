@@ -10,7 +10,7 @@ enum AccountType { regular, business }
 
 @MappableClass()
 class BusinessOpenValue with BusinessOpenValueMappable {
-  const BusinessOpenValue({required this.value, required this.known});
+  const new({required this.value, required this.known});
 
   final String value;
   final bool known;
@@ -18,7 +18,7 @@ class BusinessOpenValue with BusinessOpenValueMappable {
 
 @MappableClass()
 class BusinessLocation with BusinessLocationMappable {
-  const BusinessLocation({required this.country, this.locality});
+  const new({required this.country, this.locality});
 
   final String country;
   final String? locality;
@@ -26,7 +26,7 @@ class BusinessLocation with BusinessLocationMappable {
 
 @MappableClass()
 class BusinessAction with BusinessActionMappable {
-  const BusinessAction({required this.type, required this.destination});
+  const new({required this.type, required this.destination});
 
   final String type;
   final String destination;
@@ -34,7 +34,7 @@ class BusinessAction with BusinessActionMappable {
 
 @MappableClass()
 class BusinessPrice with BusinessPriceMappable {
-  const BusinessPrice({required this.amount, required this.currency});
+  const new({required this.amount, required this.currency});
 
   final String amount;
   final String currency;
@@ -42,7 +42,7 @@ class BusinessPrice with BusinessPriceMappable {
 
 @MappableClass()
 class BusinessImageAspectRatio with BusinessImageAspectRatioMappable {
-  BusinessImageAspectRatio({required this.width, required this.height}) {
+  new({required this.width, required this.height}) {
     if (width <= 0 || height <= 0) {
       throw const FormatException('Invalid business image aspect ratio');
     }
@@ -54,7 +54,7 @@ class BusinessImageAspectRatio with BusinessImageAspectRatioMappable {
 
 @MappableClass(includeCustomMappers: [CidMapper()])
 class BusinessImageView with BusinessImageViewMappable {
-  BusinessImageView({
+  new({
     required String cid,
     required this.mime,
     required this.size,
@@ -72,7 +72,7 @@ class BusinessImageView with BusinessImageViewMappable {
     }
   }
 
-  BusinessImageView.localPreview({
+  new localPreview({
     required String cid,
     required this.mime,
     required this.size,
@@ -107,7 +107,7 @@ class BusinessImageView with BusinessImageViewMappable {
 
 @MappableClass()
 class BusinessProductView with BusinessProductViewMappable {
-  const BusinessProductView({
+  const new({
     required this.title,
     this.uri,
     this.image,
@@ -122,7 +122,7 @@ class BusinessProductView with BusinessProductViewMappable {
 
 @MappableClass(includeCustomMappers: [CidMapper()])
 class BusinessProfile with BusinessProfileMappable {
-  BusinessProfile({
+  new({
     required String cid,
     this.businessTypes = const [],
     this.offerings = const [],

@@ -17,7 +17,7 @@ enum PendingSubscriptionOperationKind {
 enum PendingSubscriptionOperationPhase { nativeInFlight, reconciliationPending }
 
 final class PendingSubscriptionOperation {
-  const PendingSubscriptionOperation._({
+  const new _({
     required this.kind,
     required this.phase,
     required this.ownerDid,
@@ -26,7 +26,7 @@ final class PendingSubscriptionOperation {
     this.licenseId,
   });
 
-  const PendingSubscriptionOperation.purchaseInFlight(
+  const new purchaseInFlight(
     Did ownerDid,
     SubscriptionTier tier,
   ) : this._(
@@ -36,7 +36,7 @@ final class PendingSubscriptionOperation {
         tier: tier,
       );
 
-  const PendingSubscriptionOperation.purchasePending(
+  const new purchasePending(
     Did ownerDid,
     SubscriptionTier tier,
     BillingState beforeProvider,
@@ -48,14 +48,14 @@ final class PendingSubscriptionOperation {
         beforeProvider: beforeProvider,
       );
 
-  const PendingSubscriptionOperation.restoreInFlight(Did ownerDid)
+  const new restoreInFlight(Did ownerDid)
     : this._(
         kind: PendingSubscriptionOperationKind.restore,
         phase: PendingSubscriptionOperationPhase.nativeInFlight,
         ownerDid: ownerDid,
       );
 
-  const PendingSubscriptionOperation.restorePending(
+  const new restorePending(
     Did ownerDid,
     BillingState beforeProvider,
   ) : this._(
@@ -65,21 +65,21 @@ final class PendingSubscriptionOperation {
         beforeProvider: beforeProvider,
       );
 
-  const PendingSubscriptionOperation.customerCenterInFlight(Did ownerDid)
+  const new customerCenterInFlight(Did ownerDid)
     : this._(
         kind: PendingSubscriptionOperationKind.customerCenter,
         phase: PendingSubscriptionOperationPhase.nativeInFlight,
         ownerDid: ownerDid,
       );
 
-  const PendingSubscriptionOperation.customerCenterPending(Did ownerDid)
+  const new customerCenterPending(Did ownerDid)
     : this._(
         kind: PendingSubscriptionOperationKind.customerCenter,
         phase: PendingSubscriptionOperationPhase.reconciliationPending,
         ownerDid: ownerDid,
       );
 
-  const PendingSubscriptionOperation.assignmentInFlight(
+  const new assignmentInFlight(
     Did ownerDid,
     String licenseId,
   ) : this._(
@@ -89,7 +89,7 @@ final class PendingSubscriptionOperation {
         licenseId: licenseId,
       );
 
-  const PendingSubscriptionOperation.unassignmentInFlight(
+  const new unassignmentInFlight(
     Did ownerDid,
     String licenseId,
   ) : this._(

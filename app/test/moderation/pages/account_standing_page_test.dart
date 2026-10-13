@@ -1,5 +1,5 @@
 import 'package:craftsky_app/auth/models/account_key.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/moderation/data/moderation_repository.dart';
 import 'package:craftsky_app/moderation/models/account_moderation.dart';
 import 'package:craftsky_app/moderation/pages/account_standing_page.dart';
@@ -8,10 +8,10 @@ import 'package:craftsky_app/moderation/widgets/moderation_history_entry.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/craftsky_card.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:material_ui/material_ui.dart';
 
 void main() {
   final account = AccountKey('did:plc:owner');
@@ -19,9 +19,17 @@ void main() {
   testWidgets('shows standing and distinct owner-safe consequence states', (
     tester,
   ) async {
+    final semantics = tester.ensureSemantics();
     await _pumpPage(tester, account: account);
 
     expect(find.text('Your account has active moderation action'), findsOne);
+    expect(
+      tester
+          .getSemantics(find.text('Your account has active moderation action'))
+          .getSemanticsData()
+          .headingLevel,
+      2,
+    );
     expect(find.textContaining('Active strikes: 1 of the 3'), findsOne);
     expect(find.text('Spam'), findsOne);
     expect(find.textContaining('Formal warning · Applied'), findsOne);
@@ -34,6 +42,7 @@ void main() {
     expect(find.text('Post'), findsOne);
     expect(find.textContaining('remaining'), findsNothing);
     expect(find.textContaining('allowed'), findsNothing);
+    semantics.dispose();
   });
 
   testWidgets('uses CraftSky card and state-specific paper colour', (
@@ -161,7 +170,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         theme: AppTheme.lightThemeData,
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        localizationsDelegates: appLocalizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         home: Scaffold(
           body: ModerationHistoryEntryCard(
@@ -211,7 +220,7 @@ void main() {
         ],
         child: MaterialApp.router(
           theme: AppTheme.lightThemeData,
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: appLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           routerConfig: router,
         ),
@@ -398,7 +407,7 @@ Future<void> _pumpPage(
       ]),
       child: MaterialApp(
         theme: AppTheme.lightThemeData,
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        localizationsDelegates: appLocalizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         home: AccountStandingPage(account: account),
       ),
@@ -408,7 +417,7 @@ Future<void> _pumpPage(
 }
 
 final class _FakeModerationRepository implements ModerationRepository {
-  _FakeModerationRepository({
+  new({
     List<ModerationHistoryEntry>? entries,
     AccountStanding? standing,
   }) : _entries = entries ?? [_entry],

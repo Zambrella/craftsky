@@ -173,4 +173,3 @@ class _UserProjectsStateCopyWithImpl<$R, $Out>
     Then<$Out2, $R2> t,
   ) => _UserProjectsStateCopyWithImpl<$R2, $Out2>($value, $cast, t);
 }
-

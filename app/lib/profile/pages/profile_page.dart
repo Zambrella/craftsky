@@ -11,7 +11,7 @@ import 'package:craftsky_app/feed/providers/user_posts_provider.dart';
 import 'package:craftsky_app/feed/providers/user_reposts_provider.dart';
 import 'package:craftsky_app/feed/widgets/post_image_gallery.dart';
 import 'package:craftsky_app/feed/widgets/post_type_chooser.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/moderation/widgets/report_flow.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/models/profile_feature_access.dart';
@@ -52,8 +52,8 @@ import 'package:craftsky_app/theme/craftsky_floating_action_button.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/form_factor.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:skeletonizer/skeletonizer.dart';
 
 /// Unified profile screen. Used by the bottom-nav `Profile` branch
@@ -61,7 +61,7 @@ import 'package:skeletonizer/skeletonizer.dart';
 /// `/profiles/:did` deep links. Self-vs-visitor differs only in the
 /// action row and compose button — the rest of the chrome is shared.
 class ProfilePage extends ConsumerWidget {
-  const ProfilePage({
+  const new({
     this.did,
     super.key,
   });
@@ -101,7 +101,7 @@ class ProfilePage extends ConsumerWidget {
 }
 
 class _ProfileScaffold extends ConsumerWidget {
-  const _ProfileScaffold({
+  const new({
     required this.did,
     required this.viewerDid,
     required this.viewerAccount,
@@ -218,7 +218,7 @@ class _ProfileScaffold extends ConsumerWidget {
 }
 
 class _ProfileShellSkeleton extends StatelessWidget {
-  const _ProfileShellSkeleton();
+  const new();
 
   @override
   Widget build(BuildContext context) {
@@ -286,7 +286,7 @@ PreferredSizeWidget? _profileNavigationAppBar(BuildContext context) {
 }
 
 class _ProfileBody extends ConsumerWidget {
-  const _ProfileBody({
+  const new({
     required this.profile,
     required this.isOwnProfile,
     required this.viewerAccount,
@@ -505,7 +505,7 @@ class _ProfileBody extends ConsumerWidget {
 }
 
 class _ProfileTabbedBody extends StatefulWidget {
-  const _ProfileTabbedBody({
+  const new({
     required this.profile,
     required this.actions,
     required this.isOwnProfile,
@@ -569,7 +569,7 @@ class _ProfileTabbedBodyState extends State<_ProfileTabbedBody> {
 }
 
 class _ProfileTabControllerBody extends StatefulWidget {
-  const _ProfileTabControllerBody({
+  const new({
     required this.profile,
     required this.actions,
     required this.isOwnProfile,
@@ -641,7 +641,7 @@ class _ProfileTabControllerBodyState extends State<_ProfileTabControllerBody>
 /// the top, and the outer [ProfileSliverAppBar] keeps whatever
 /// collapse state the user established.
 class _ProfileScrollView extends StatelessWidget {
-  const _ProfileScrollView({
+  const new({
     required this.profile,
     required this.actions,
     required this.isOwnProfile,
@@ -751,7 +751,7 @@ class _ProfileScrollView extends StatelessWidget {
 }
 
 class _BlockedProfileView extends StatelessWidget {
-  const _BlockedProfileView({
+  const new({
     required this.profile,
     required this.actions,
     required this.relationship,
@@ -788,7 +788,7 @@ class _BlockedProfileView extends StatelessWidget {
 }
 
 class _RelationshipAnnotation extends StatelessWidget {
-  const _RelationshipAnnotation({required this.relationship});
+  const new({required this.relationship});
 
   final ProfileRelationship relationship;
 
@@ -819,7 +819,7 @@ class _RelationshipAnnotation extends StatelessWidget {
 /// [CustomScrollView] keyed by tab name so [PageStorage] retains the
 /// scroll offset when the user swipes back to it.
 class _ProfileTabScrollView extends ConsumerWidget {
-  const _ProfileTabScrollView({
+  const new({
     required this.tab,
     required this.profile,
     required this.isOwnProfile,

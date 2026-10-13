@@ -98,7 +98,7 @@ final class AccountDioProvider
   }
 }
 
-String _$accountDioHash() => r'a4e27df03f8ba141199258124a88ff6e89e39394';
+String _$accountDioHash() => r'b26ce2a68f11608b5f64e9b0ab8edd896aa39247';
 
 final class AccountDioFamily extends $Family
     with $FunctionalFamilyOverride<FutureOr<Dio>, AccountKey> {

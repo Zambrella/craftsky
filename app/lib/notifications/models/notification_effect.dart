@@ -4,11 +4,11 @@ import 'package:craftsky_app/notifications/models/notification_destination.dart'
 import 'package:craftsky_app/notifications/services/notification_routing_storage.dart';
 
 sealed class NotificationEffect {
-  const NotificationEffect();
+  const new();
 }
 
 final class NotificationBannerEffect extends NotificationEffect {
-  const NotificationBannerEffect(
+  const new(
     this.event, {
     required this.resolution,
     this.recipient,
@@ -22,7 +22,7 @@ final class NotificationBannerEffect extends NotificationEffect {
 }
 
 final class NotificationRecipientIdentity {
-  const NotificationRecipientIdentity({
+  const new({
     required this.lease,
     required this.handle,
     this.avatarUrl,
@@ -37,14 +37,14 @@ final class NotificationRecipientIdentity {
 }
 
 final class NotificationNavigationEffect extends NotificationEffect {
-  const NotificationNavigationEffect(this.outcome);
+  const new(this.outcome);
   final NotificationOpenOutcome outcome;
 }
 
 final class NotificationUnavailableEffect extends NotificationEffect {
-  const NotificationUnavailableEffect();
+  const new();
 }
 
 final class NotificationRemovedAccountEffect extends NotificationEffect {
-  const NotificationRemovedAccountEffect();
+  const new();
 }

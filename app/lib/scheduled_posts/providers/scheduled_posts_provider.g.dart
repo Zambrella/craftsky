@@ -50,7 +50,7 @@ final class ScheduledPostsProvider
   }
 }
 
-String _$scheduledPostsHash() => r'59fe8bce6fed141d26fdcff7bedad67a381f72bc';
+String _$scheduledPostsHash() => r'37b595c104fc9a255b487b3586f756e98bef70c8';
 
 final class ScheduledPostsFamily extends $Family
     with
@@ -84,7 +84,7 @@ abstract class _$ScheduledPosts extends $AsyncNotifier<ScheduledPostListState> {
   FutureOr<ScheduledPostListState> build(AccountKey account);
   @$mustCallSuper
   @override
-  void runBuild() {
+  WhenComplete runBuild() {
     final ref =
         this.ref
             as $Ref<AsyncValue<ScheduledPostListState>, ScheduledPostListState>;
@@ -99,6 +99,6 @@ abstract class _$ScheduledPosts extends $AsyncNotifier<ScheduledPostListState> {
               Object?,
               Object?
             >;
-    element.handleCreate(ref, () => build(_$args));
+    return element.handleCreate(ref, () => build(_$args));
   }
 }

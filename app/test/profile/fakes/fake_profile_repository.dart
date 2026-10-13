@@ -25,7 +25,7 @@ import 'package:craftsky_app/shared/media/uploaded_image_blob.dart';
 /// );
 /// ```
 class FakeProfileRepository implements ProfileRepository {
-  FakeProfileRepository({
+  new({
     this.onFetch,
     this.onFetchMe,
     this.onFetchFollowerGrowth,

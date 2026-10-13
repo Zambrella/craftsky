@@ -44,7 +44,7 @@ NotificationRuntime notificationRuntime(Ref ref) {
           final repository = await ref.read(
             accountNotificationDeviceRepositoryProvider(lease.account).future,
           );
-          return repository.register(platform: platform, token: token);
+          return await repository.register(platform: platform, token: token);
         },
     saveBindingForLease: ({required lease, required binding}) async {
       await ref

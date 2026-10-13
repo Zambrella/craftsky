@@ -16,7 +16,7 @@ typedef ImageUploadFetch =
 /// XHR follows redirects automatically. Fetch's redirect:error prevents even
 /// same-origin redirects from forwarding the upload capability to another path.
 class ImageUploadWebAdapter implements HttpClientAdapter {
-  ImageUploadWebAdapter({ImageUploadFetch? fetch})
+  new({ImageUploadFetch? fetch})
     : _fetch =
           fetch ?? ((uri, init) => web.window.fetch(uri.toJS, init).toDart);
   final ImageUploadFetch _fetch;

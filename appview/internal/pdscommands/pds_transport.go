@@ -6,11 +6,13 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/bluesky-social/indigo/atproto/atclient"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 
 	"social.craftsky/appview/internal/auth"
+	"social.craftsky/appview/internal/recordjson"
 )
 
 type PDSProtocol interface {
@@ -92,7 +94,7 @@ func (transport *PDSTransport) ApplyWrites(
 		write := auth.RepositoryWrite{Action: step.Action, Collection: collection, RKey: rkey, ExpectedCID: step.ExpectedCID}
 		if len(step.Body) > 0 {
 			var value any
-			if err := json.Unmarshal(step.Body, &value); err != nil {
+			if err := recordjson.Unmarshal(step.Body, &value); err != nil {
 				return fmt.Errorf("decode dispatch record: %w", err)
 			}
 			write.Record = value
@@ -128,7 +130,12 @@ func uriParts(uri syntax.ATURI) (syntax.NSID, syntax.RecordKey, error) {
 
 func translateProtocolError(err error) error {
 	var apiErr *atclient.APIError
+	var limited *auth.RateLimitError
 	switch {
+	case errors.As(err, &limited):
+		return err
+	case errors.As(err, &apiErr) && apiErr.StatusCode == http.StatusTooManyRequests:
+		return &auth.RateLimitError{RetryAfter: auth.RetryAfter("", time.Now()), Cause: err}
 	case errors.Is(err, auth.ErrRepositorySwapConflict):
 		return errors.Join(ErrRepositorySwapConflict, err)
 	case errors.Is(err, auth.ErrApplyWritesUnsupported):

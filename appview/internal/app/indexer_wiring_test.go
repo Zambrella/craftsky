@@ -235,11 +235,11 @@ func TestNewIndexerDispatcherRegistersBusinessRecordsWithoutMembership(t *testin
 	}{
 		{
 			collection: "social.craftsky.business.profile", rkey: "self", table: "craftsky_business_profiles",
-			record: json.RawMessage(`{"tagline":"Independent","futureExtension":true}`),
+			record: json.RawMessage(`{"$type":"social.craftsky.business.profile","tagline":"Independent","futureExtension":true}`),
 		},
 		{
 			collection: "social.craftsky.business.event", rkey: "3meventrecord", table: "craftsky_business_events",
-			record: json.RawMessage(`{"name":"Market","startsAt":"2026-09-10T10:00:00Z","endsAt":"2026-09-10T12:00:00Z","roles":["vendor"],"createdAt":"2026-09-01T00:00:00Z","futureExtension":true}`),
+			record: json.RawMessage(`{"$type":"social.craftsky.business.event","name":"Market","startsAt":"2026-09-10T10:00:00Z","endsAt":"2026-09-10T12:00:00Z","roles":["vendor"],"createdAt":"2026-09-01T00:00:00Z","futureExtension":true}`),
 		},
 	} {
 		projectIndexerWiringEvent(t, pool, dispatcher, tap.Event{
@@ -352,7 +352,7 @@ func TestTransactionalIndexerDispatcherRegistersCraftskyProfile(t *testing.T) {
 		Collection: "social.craftsky.actor.profile",
 		Rkey:       "self",
 		Action:     "create",
-		Record:     json.RawMessage(`{"crafts":["sewing"]}`),
+		Record:     json.RawMessage(`{"$type":"social.craftsky.actor.profile","crafts":["sewing"]}`),
 	}
 	projectIndexerWiringEvent(t, pool, dispatcher, ev)
 	var count int

@@ -1,10 +1,10 @@
 import 'package:craftsky_app/theme/brand_text_field.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_form_builder/flutter_form_builder.dart';
+import 'package:material_ui/material_ui.dart';
 
 class CraftskyTextInput extends StatelessWidget {
-  const CraftskyTextInput({
+  const new({
     required this.label,
     super.key,
     this.controller,
@@ -83,7 +83,7 @@ class CraftskyTextInput extends StatelessWidget {
 }
 
 class CraftskyMultilineTextInput extends CraftskyTextInput {
-  const CraftskyMultilineTextInput({
+  const new({
     required super.label,
     super.key,
     super.controller,
@@ -111,7 +111,7 @@ class CraftskyMultilineTextInput extends CraftskyTextInput {
 /// Use this in forms that do not use `flutter_form_builder`; it keeps the
 /// branded field presentation while participating in [FormState.validate].
 class CraftskyTextFormField extends StatelessWidget {
-  const CraftskyTextFormField({
+  const new({
     required this.label,
     super.key,
     this.controller,
@@ -198,7 +198,7 @@ class CraftskyTextFormField extends StatelessWidget {
 }
 
 class CraftskyMultilineTextFormField extends CraftskyTextFormField {
-  const CraftskyMultilineTextFormField({
+  const new({
     required super.label,
     super.key,
     super.controller,
@@ -227,7 +227,7 @@ class CraftskyMultilineTextFormField extends CraftskyTextFormField {
 enum CraftskyNumberInputMode { integer, decimal }
 
 class CraftskyNumberInput extends StatefulWidget {
-  const CraftskyNumberInput({
+  const new({
     required this.label,
     super.key,
     this.controller,
@@ -343,13 +343,13 @@ class _CraftskyNumberInputState extends State<CraftskyNumberInput> {
 }
 
 class _NumberTextInputFormatter extends TextInputFormatter {
-  _NumberTextInputFormatter._(this._pattern);
+  new _(this._pattern);
 
-  factory _NumberTextInputFormatter.integer() {
+  factory integer() {
     return _NumberTextInputFormatter._(RegExp(r'^-?\d*$'));
   }
 
-  factory _NumberTextInputFormatter.decimal() {
+  factory decimal() {
     return _NumberTextInputFormatter._(RegExp(r'^-?\d*\.?\d*$'));
   }
 
@@ -365,7 +365,7 @@ class _NumberTextInputFormatter extends TextInputFormatter {
 }
 
 class CraftskyFormTextField extends StatelessWidget {
-  const CraftskyFormTextField({
+  const new({
     required this.name,
     required this.label,
     super.key,
@@ -451,7 +451,7 @@ class CraftskyFormTextField extends StatelessWidget {
 }
 
 class CraftskyFormMultilineTextField extends CraftskyFormTextField {
-  const CraftskyFormMultilineTextField({
+  const new({
     required super.name,
     required super.label,
     super.key,
@@ -475,7 +475,7 @@ class CraftskyFormMultilineTextField extends CraftskyFormTextField {
 }
 
 class _CraftskyFormTextAdapter extends StatefulWidget {
-  const _CraftskyFormTextAdapter({
+  const new({
     required this.field,
     required this.label,
     required this.controller,
@@ -572,7 +572,7 @@ class _CraftskyFormTextAdapterState extends State<_CraftskyFormTextAdapter> {
 }
 
 class CraftskyFormNumberField extends StatelessWidget {
-  const CraftskyFormNumberField({
+  const new({
     required this.name,
     required this.label,
     super.key,
@@ -644,7 +644,7 @@ class CraftskyFormNumberField extends StatelessWidget {
 }
 
 class _CraftskyFormNumberAdapter extends StatefulWidget {
-  const _CraftskyFormNumberAdapter({
+  const new({
     required this.field,
     required this.label,
     required this.controller,

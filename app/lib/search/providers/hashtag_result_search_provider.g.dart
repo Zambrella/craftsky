@@ -52,7 +52,7 @@ final class HashtagResultSearchProvider
 }
 
 String _$hashtagResultSearchHash() =>
-    r'8f2067851f339122320d898d61864f81e06c88f8';
+    r'8e91a509a23a944911b07544a5c9c5f958664235';
 
 final class HashtagResultSearchFamily extends $Family
     with
@@ -87,7 +87,7 @@ abstract class _$HashtagResultSearch
   FutureOr<HashtagSearchResultsState> build(HashtagResultSearchQuery query);
   @$mustCallSuper
   @override
-  void runBuild() {
+  WhenComplete runBuild() {
     final ref =
         this.ref
             as $Ref<
@@ -105,6 +105,6 @@ abstract class _$HashtagResultSearch
               Object?,
               Object?
             >;
-    element.handleCreate(ref, () => build(_$args));
+    return element.handleCreate(ref, () => build(_$args));
   }
 }

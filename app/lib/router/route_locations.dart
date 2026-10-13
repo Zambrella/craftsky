@@ -1,7 +1,7 @@
 /// Canonical route path strings. Both the router definitions and the redirect
 /// logic reference these so the two can't drift.
 class RouteLocations {
-  RouteLocations._();
+  new _();
 
   static const welcome = '/welcome';
   static const signIn = '/sign-in';

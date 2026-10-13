@@ -1,7 +1,7 @@
 import 'package:flutter/widgets.dart';
 
 class RootOverlayScope extends InheritedWidget {
-  const RootOverlayScope({
+  const new({
     required this.overlayContext,
     required super.child,
     super.key,

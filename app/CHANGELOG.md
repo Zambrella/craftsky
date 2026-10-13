@@ -1,5 +1,38 @@
 # App Changelog
 
+## 1.4.0+4 - 2026-10-13
+
+- feat: add online safety launch readiness controls
+- feat(safety): allow private beta with documented safety gaps
+- chore(release): app 1.3.0+3
+- feat(web): add versioned Cloudflare Worker deployments
+- chore(ios): declare no non-exempt encryption
+- feat(service-status): add maintenance and announcement screens
+- feat(search): improve relevance and typo matching
+- feat(search): preserve representative hashtag spelling
+- feat(profile): show mutual followers on a full page
+- fix(profile): fit long display names in identity
+- feat(profile): add compact new post button
+- feat(app): show profile photos in mention suggestions
+- feat(app): show progress on async actions
+- fix(app): handle expected provider lifecycle cancellations
+- fix(observability): suppress expected account cancellations
+- feat(observability): add optional error reporting consent
+- feat(notifications): filter notifications by category
+- fix(profile): add bottom safe-area padding to tabs
+- feat(app): show sort option icons with checkmarks
+- fix(search): select results tab from query prefix
+- feat(sharing): add copy links for posts, profiles, and events
+- test(feed): cover copy link context menu item
+- refactor(auth): centralize account operation guards
+- feat(projects): prioritize preferred crafts
+- feat(composer): add photo details route
+- chore(app): upgrade Flutter and Dart dependencies
+- fix(atproto): align protocol handling and PDS retries
+- fix(observability): lower known cancellation log severity
+- feat(projects): gate scheduling behind Plus access
+- test(projects): expect scheduling subscription lock
+
 ## 1.3.0+3 - 2026-10-08
 
 - fix(release): push tagged releases without confirmation prompt

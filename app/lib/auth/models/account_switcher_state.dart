@@ -7,7 +7,7 @@ import 'package:flutter/foundation.dart';
 
 @immutable
 final class AccountSwitcherRow {
-  const AccountSwitcherRow({
+  const new({
     required this.lease,
     required this.handle,
     required this.displayName,
@@ -41,24 +41,23 @@ final class AccountSwitcherRow {
 
 @immutable
 final class AccountSwitcherState {
-  const AccountSwitcherState._({
+  const new _({
     required this.rows,
   });
 
-  factory AccountSwitcherState.fromRegistry(SessionRegistry registry) =>
-      AccountSwitcherState._(
-        rows: List.unmodifiable([
-          for (final session in registry.orderedSessions)
-            AccountSwitcherRow(
-              lease: registry.leaseFor(AccountKey(session.did.value))!,
-              handle: session.handle.value,
-              displayName: session.cachedDisplayName,
-              avatarUrl: session.cachedAvatarUrl,
-              customisation: session.cachedCustomisation,
-              isCurrent: session.did == registry.activeDid,
-            ),
-        ]),
-      );
+  factory fromRegistry(SessionRegistry registry) => AccountSwitcherState._(
+    rows: List.unmodifiable([
+      for (final session in registry.orderedSessions)
+        AccountSwitcherRow(
+          lease: registry.leaseFor(AccountKey(session.did.value))!,
+          handle: session.handle.value,
+          displayName: session.cachedDisplayName,
+          avatarUrl: session.cachedAvatarUrl,
+          customisation: session.cachedCustomisation,
+          isCurrent: session.did == registry.activeDid,
+        ),
+    ]),
+  );
 
   final List<AccountSwitcherRow> rows;
   bool get canAddAccount => rows.length < SessionRegistry.maxRetainedAccounts;

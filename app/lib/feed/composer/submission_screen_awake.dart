@@ -10,7 +10,7 @@ abstract interface class SubmissionScreenAwake {
 }
 
 final class WakelockSubmissionScreenAwake implements SubmissionScreenAwake {
-  const WakelockSubmissionScreenAwake();
+  const new();
 
   @override
   Future<void> enable() => Platform.isAndroid || Platform.isIOS
@@ -24,7 +24,7 @@ final class WakelockSubmissionScreenAwake implements SubmissionScreenAwake {
 }
 
 final class ComposerSubmissionLifecycle {
-  ComposerSubmissionLifecycle(this._screenAwake);
+  new(this._screenAwake);
 
   final SubmissionScreenAwake _screenAwake;
   bool _running = false;

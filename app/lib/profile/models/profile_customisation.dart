@@ -36,7 +36,7 @@ const profileCraftBackgrounds = <String, String>{
 
 @immutable
 class ProfileColourBundle {
-  const ProfileColourBundle({
+  const new({
     required this.base,
     required this.foreground,
     required this.hover,
@@ -190,12 +190,12 @@ const profileColourBundles = <String, ProfileColourBundle>{
 
 @immutable
 class ProfileCustomisation {
-  const ProfileCustomisation({
+  const new({
     this.colour = 'cobalt',
     this.background = 'none',
   });
 
-  factory ProfileCustomisation.fromMap(Map<String, dynamic>? map) {
+  factory fromMap(Map<String, dynamic>? map) {
     return ProfileCustomisation(
       colour: _effectiveKey(
         map?['colour'],
@@ -240,7 +240,7 @@ class ProfileCustomisation {
 }
 
 class ProfileCustomisationMapper extends SimpleMapper<ProfileCustomisation> {
-  const ProfileCustomisationMapper();
+  const new();
 
   @override
   ProfileCustomisation decode(dynamic value) {

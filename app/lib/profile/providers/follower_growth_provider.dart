@@ -14,5 +14,5 @@ Future<FollowerGrowth> followerGrowth(
   final repository = await ref.watch(
     accountFollowerGrowthRepositoryProvider(account).future,
   );
-  return repository.fetchFollowerGrowth(period);
+  return await repository.fetchFollowerGrowth(period);
 }

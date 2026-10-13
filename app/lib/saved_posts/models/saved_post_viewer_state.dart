@@ -11,7 +11,7 @@ enum SavedPostMutation { save, move, unsave }
 @immutable
 @MappableClass(generateMethods: GenerateMethods.copy | GenerateMethods.equals)
 final class SavedPostPresentation with SavedPostPresentationMappable {
-  const SavedPostPresentation({
+  const new({
     required this.initialized,
     required this.isSaved,
     required this.revision,
@@ -21,7 +21,7 @@ final class SavedPostPresentation with SavedPostPresentationMappable {
     this.lastError,
   });
 
-  const SavedPostPresentation.uninitialized()
+  const new uninitialized()
     : initialized = false,
       isSaved = false,
       revision = 0,
@@ -30,7 +30,7 @@ final class SavedPostPresentation with SavedPostPresentationMappable {
       pendingMutation = null,
       lastError = null;
 
-  factory SavedPostPresentation.fromPost(Post post) => SavedPostPresentation(
+  factory fromPost(Post post) => SavedPostPresentation(
     initialized: true,
     isSaved: post.viewerHasSaved,
     revision: 0,
@@ -55,11 +55,10 @@ final class SavedPostPresentation with SavedPostPresentationMappable {
 /// Immutable URI map with a deliberately redacted diagnostic representation.
 @immutable
 final class AccountSavedPostStateMap {
-  AccountSavedPostStateMap._(Map<AtUri, SavedPostPresentation> entries)
+  new _(Map<AtUri, SavedPostPresentation> entries)
     : _entries = Map.unmodifiable(entries);
 
-  factory AccountSavedPostStateMap.empty() =>
-      AccountSavedPostStateMap._(const {});
+  factory empty() => AccountSavedPostStateMap._(const {});
 
   final Map<AtUri, SavedPostPresentation> _entries;
 

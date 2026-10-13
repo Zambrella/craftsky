@@ -1,6 +1,6 @@
 // Interface and constructor shapes intentionally mirror future injectable
 // seams.
-// ignore_for_file: one_member_abstracts, prefer_initializing_formals
+// ignore_for_file: prefer_initializing_formals
 
 import 'package:craftsky_app/shared/rich_text/facet_token_parser.dart';
 
@@ -14,7 +14,7 @@ abstract interface class MentionResolver {
 /// Generates raw AT Protocol rich-text facet JSON from final submitted text.
 class FacetGenerator {
   /// Creates a generator backed by the injected local [mentionResolver].
-  const FacetGenerator({required MentionResolver mentionResolver})
+  const new({required MentionResolver mentionResolver})
     : _mentionResolver = mentionResolver;
 
   final MentionResolver _mentionResolver;

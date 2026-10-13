@@ -2,7 +2,7 @@ import 'dart:ui' show Tristate;
 
 import 'package:craftsky_app/auth/widgets/account_avatar.dart';
 import 'package:craftsky_app/feed/widgets/post_composer_sheet.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/languages/models/language_preferences.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
 import 'package:craftsky_app/notifications/data/notification_repository.dart';
@@ -19,11 +19,11 @@ import 'package:craftsky_app/theme/craftsky_floating_action_button.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/form_factor.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../fakes/recording_messenger.dart';
 import '../test_support/deterministic_pump.dart';
@@ -1107,7 +1107,7 @@ Future<GoRouter> _pumpShell(
         theme: AppTheme.lightThemeData,
         darkTheme: AppTheme.darkThemeData,
         themeMode: themeMode,
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        localizationsDelegates: appLocalizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         builder: (context, child) {
           Widget result = FormFactorWidget(child: child!);
@@ -1136,7 +1136,7 @@ Future<GoRouter> _pumpShell(
 }
 
 final class _ZeroNewnessRepository implements NotificationNewnessRepository {
-  const _ZeroNewnessRepository();
+  const new();
 
   @override
   Future<int> count() async => 0;

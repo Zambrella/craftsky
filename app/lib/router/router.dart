@@ -58,9 +58,9 @@ import 'package:craftsky_app/subscriptions/pages/subscription_page.dart';
 import 'package:craftsky_app/subscriptions/providers/subscription_access_provider.dart';
 import 'package:craftsky_app/subscriptions/subscription_build_config.dart';
 import 'package:dart_mappable/dart_mappable.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'router.g.dart';
@@ -70,7 +70,7 @@ part 'router.mapper.dart';
 /// go_router to crash; holding them behind a class means hot reload keeps
 /// the same instances.
 class _NavigatorKeys {
-  _NavigatorKeys._();
+  new _();
 
   static GlobalKey<NavigatorState>? _rootKey;
   static GlobalKey<NavigatorState>? _authenticatedShellKey;
@@ -195,7 +195,7 @@ bool isRestrictedAccountRetainedLocation(String location) =>
 )
 class AccountDeletionReauthCompleteRoute extends GoRouteData
     with $AccountDeletionReauthCompleteRoute {
-  const AccountDeletionReauthCompleteRoute({
+  const new({
     required this.jobId,
     required this.proof,
   });
@@ -214,7 +214,7 @@ class AccountDeletionReauthCompleteRoute extends GoRouteData
 )
 class AccountEligibilityRoute extends GoRouteData
     with $AccountEligibilityRoute {
-  const AccountEligibilityRoute();
+  const new();
 
   @override
   Widget build(BuildContext context, GoRouterState state) {
@@ -412,7 +412,7 @@ class AccountEligibilityRoute extends GoRouteData
   ],
 )
 class AuthenticatedShellRoute extends ShellRouteData {
-  const AuthenticatedShellRoute();
+  const new();
   static List<NavigatorObserver> get $observers => [
     diagnosticNavigationObserver(),
   ];
@@ -427,7 +427,7 @@ class AuthenticatedShellRoute extends ShellRouteData {
 }
 
 class AppShellRoute extends StatefulShellRouteData {
-  const AppShellRoute();
+  const new();
 
   @override
   Widget builder(
@@ -440,7 +440,7 @@ class AppShellRoute extends StatefulShellRouteData {
 }
 
 class FeedBranch extends StatefulShellBranchData {
-  const FeedBranch();
+  const new();
   static List<NavigatorObserver> get $observers => [
     diagnosticNavigationObserver(),
   ];
@@ -449,7 +449,7 @@ class FeedBranch extends StatefulShellBranchData {
 }
 
 class SearchBranch extends StatefulShellBranchData {
-  const SearchBranch();
+  const new();
   static List<NavigatorObserver> get $observers => [
     diagnosticNavigationObserver(),
   ];
@@ -458,7 +458,7 @@ class SearchBranch extends StatefulShellBranchData {
 }
 
 class ProjectsBranch extends StatefulShellBranchData {
-  const ProjectsBranch();
+  const new();
   static List<NavigatorObserver> get $observers => [
     diagnosticNavigationObserver(),
   ];
@@ -467,7 +467,7 @@ class ProjectsBranch extends StatefulShellBranchData {
 }
 
 class NotificationsBranch extends StatefulShellBranchData {
-  const NotificationsBranch();
+  const new();
   static List<NavigatorObserver> get $observers => [
     diagnosticNavigationObserver(),
   ];
@@ -476,7 +476,7 @@ class NotificationsBranch extends StatefulShellBranchData {
 }
 
 class ProfileBranch extends StatefulShellBranchData {
-  const ProfileBranch();
+  const new();
   static List<NavigatorObserver> get $observers => [
     diagnosticNavigationObserver(),
   ];
@@ -485,20 +485,20 @@ class ProfileBranch extends StatefulShellBranchData {
 }
 
 class FeedRoute extends GoRouteData with $FeedRoute {
-  const FeedRoute();
+  const new();
   @override
   Widget build(BuildContext context, GoRouterState state) => const FeedPage();
 }
 
 class ProjectsRoute extends GoRouteData with $ProjectsRoute {
-  const ProjectsRoute();
+  const new();
   @override
   Widget build(BuildContext context, GoRouterState state) =>
       const ProjectsPage();
 }
 
 class SearchRoute extends GoRouteData with $SearchRoute {
-  const SearchRoute({this.q, this.tab});
+  const new({this.q, this.tab});
 
   final String? q;
   final SearchResultsTab? tab;
@@ -509,7 +509,7 @@ class SearchRoute extends GoRouteData with $SearchRoute {
 }
 
 class TagSearchRoute extends GoRouteData with $TagSearchRoute {
-  const TagSearchRoute({required this.tag});
+  const new({required this.tag});
 
   final String tag;
 
@@ -519,7 +519,7 @@ class TagSearchRoute extends GoRouteData with $TagSearchRoute {
 }
 
 class NotificationsRoute extends GoRouteData with $NotificationsRoute {
-  const NotificationsRoute();
+  const new();
   @override
   Widget build(BuildContext context, GoRouterState state) =>
       const NotificationsPage();
@@ -527,7 +527,7 @@ class NotificationsRoute extends GoRouteData with $NotificationsRoute {
 
 class NotificationSettingsRoute extends GoRouteData
     with $NotificationSettingsRoute {
-  const NotificationSettingsRoute();
+  const new();
 
   static final GlobalKey<NavigatorState> $parentNavigatorKey =
       _NavigatorKeys.authenticatedShellNavigatorKey;
@@ -538,7 +538,7 @@ class NotificationSettingsRoute extends GoRouteData
 }
 
 class ProfileRoute extends GoRouteData with $ProfileRoute {
-  const ProfileRoute();
+  const new();
   @override
   Widget build(BuildContext context, GoRouterState state) =>
       const ProfilePage();
@@ -549,7 +549,7 @@ class ProfileRoute extends GoRouteData with $ProfileRoute {
 /// navigator key lifts it onto the authenticated shell navigator: it covers
 /// compact navigation while remaining beside the large-screen rail.
 class SettingsRoute extends GoRouteData with $SettingsRoute {
-  const SettingsRoute();
+  const new();
 
   static final GlobalKey<NavigatorState> $parentNavigatorKey =
       _NavigatorKeys.authenticatedShellNavigatorKey;
@@ -560,7 +560,7 @@ class SettingsRoute extends GoRouteData with $SettingsRoute {
 }
 
 class LanguagesRoute extends GoRouteData with $LanguagesRoute {
-  const LanguagesRoute();
+  const new();
 
   static final GlobalKey<NavigatorState> $parentNavigatorKey =
       _NavigatorKeys.authenticatedShellNavigatorKey;
@@ -571,7 +571,7 @@ class LanguagesRoute extends GoRouteData with $LanguagesRoute {
 }
 
 class AppearanceRoute extends GoRouteData with $AppearanceRoute {
-  const AppearanceRoute();
+  const new();
 
   static final GlobalKey<NavigatorState> $parentNavigatorKey =
       _NavigatorKeys.authenticatedShellNavigatorKey;
@@ -582,7 +582,7 @@ class AppearanceRoute extends GoRouteData with $AppearanceRoute {
 }
 
 class FollowerGrowthRoute extends GoRouteData with $FollowerGrowthRoute {
-  const FollowerGrowthRoute();
+  const new();
 
   static final GlobalKey<NavigatorState> $parentNavigatorKey =
       _NavigatorKeys.authenticatedShellNavigatorKey;
@@ -594,7 +594,7 @@ class FollowerGrowthRoute extends GoRouteData with $FollowerGrowthRoute {
 
 class ProfileCustomisationRoute extends GoRouteData
     with $ProfileCustomisationRoute {
-  const ProfileCustomisationRoute();
+  const new();
 
   static final GlobalKey<NavigatorState> $parentNavigatorKey =
       _NavigatorKeys.authenticatedShellNavigatorKey;
@@ -605,7 +605,7 @@ class ProfileCustomisationRoute extends GoRouteData
 }
 
 class AccountRoute extends GoRouteData with $AccountRoute {
-  const AccountRoute();
+  const new();
 
   static final GlobalKey<NavigatorState> $parentNavigatorKey =
       _NavigatorKeys.authenticatedShellNavigatorKey;
@@ -616,7 +616,7 @@ class AccountRoute extends GoRouteData with $AccountRoute {
 }
 
 class SubscriptionsRoute extends GoRouteData with $SubscriptionsRoute {
-  const SubscriptionsRoute();
+  const new();
 
   static final GlobalKey<NavigatorState> $parentNavigatorKey =
       _NavigatorKeys.authenticatedShellNavigatorKey;
@@ -627,7 +627,7 @@ class SubscriptionsRoute extends GoRouteData with $SubscriptionsRoute {
 }
 
 class AccountStandingRoute extends GoRouteData with $AccountStandingRoute {
-  const AccountStandingRoute();
+  const new();
 
   static final GlobalKey<NavigatorState> $parentNavigatorKey =
       _NavigatorKeys.authenticatedShellNavigatorKey;
@@ -638,7 +638,7 @@ class AccountStandingRoute extends GoRouteData with $AccountStandingRoute {
 }
 
 class AboutRoute extends GoRouteData with $AboutRoute {
-  const AboutRoute();
+  const new();
 
   static final GlobalKey<NavigatorState> $parentNavigatorKey =
       _NavigatorKeys.authenticatedShellNavigatorKey;
@@ -648,7 +648,7 @@ class AboutRoute extends GoRouteData with $AboutRoute {
 }
 
 class BusinessProductsRoute extends GoRouteData with $BusinessProductsRoute {
-  const BusinessProductsRoute();
+  const new();
 
   static final GlobalKey<NavigatorState> $parentNavigatorKey =
       _NavigatorKeys.authenticatedShellNavigatorKey;
@@ -663,7 +663,7 @@ class BusinessProductsRoute extends GoRouteData with $BusinessProductsRoute {
 }
 
 class BusinessEventsRoute extends GoRouteData with $BusinessEventsRoute {
-  const BusinessEventsRoute();
+  const new();
 
   static final GlobalKey<NavigatorState> $parentNavigatorKey =
       _NavigatorKeys.authenticatedShellNavigatorKey;
@@ -695,7 +695,7 @@ Future<String?> _businessOwnerRouteRedirect(BuildContext context) async {
 }
 
 class ScheduledPostsRoute extends GoRouteData with $ScheduledPostsRoute {
-  const ScheduledPostsRoute();
+  const new();
 
   static final GlobalKey<NavigatorState> $parentNavigatorKey =
       _NavigatorKeys.authenticatedShellNavigatorKey;
@@ -706,7 +706,7 @@ class ScheduledPostsRoute extends GoRouteData with $ScheduledPostsRoute {
 }
 
 class DraftsRoute extends GoRouteData with $DraftsRoute {
-  const DraftsRoute();
+  const new();
 
   static final GlobalKey<NavigatorState> $parentNavigatorKey =
       _NavigatorKeys.authenticatedShellNavigatorKey;
@@ -718,7 +718,7 @@ class DraftsRoute extends GoRouteData with $DraftsRoute {
 
 class InstagramMigrationRoute extends GoRouteData
     with $InstagramMigrationRoute {
-  const InstagramMigrationRoute();
+  const new();
 
   static final GlobalKey<NavigatorState> $parentNavigatorKey =
       _NavigatorKeys.authenticatedShellNavigatorKey;
@@ -729,7 +729,7 @@ class InstagramMigrationRoute extends GoRouteData
 }
 
 class FollowersRoute extends GoRouteData with $FollowersRoute {
-  const FollowersRoute();
+  const new();
 
   static final GlobalKey<NavigatorState> $parentNavigatorKey =
       _NavigatorKeys.authenticatedShellNavigatorKey;
@@ -740,7 +740,7 @@ class FollowersRoute extends GoRouteData with $FollowersRoute {
 }
 
 class FollowingRoute extends GoRouteData with $FollowingRoute {
-  const FollowingRoute();
+  const new();
 
   static final GlobalKey<NavigatorState> $parentNavigatorKey =
       _NavigatorKeys.authenticatedShellNavigatorKey;
@@ -751,7 +751,7 @@ class FollowingRoute extends GoRouteData with $FollowingRoute {
 }
 
 class MutedAccountsRoute extends GoRouteData with $MutedAccountsRoute {
-  const MutedAccountsRoute();
+  const new();
 
   static final GlobalKey<NavigatorState> $parentNavigatorKey =
       _NavigatorKeys.authenticatedShellNavigatorKey;
@@ -762,7 +762,7 @@ class MutedAccountsRoute extends GoRouteData with $MutedAccountsRoute {
 }
 
 class BlockedAccountsRoute extends GoRouteData with $BlockedAccountsRoute {
-  const BlockedAccountsRoute();
+  const new();
 
   static final GlobalKey<NavigatorState> $parentNavigatorKey =
       _NavigatorKeys.authenticatedShellNavigatorKey;
@@ -773,7 +773,7 @@ class BlockedAccountsRoute extends GoRouteData with $BlockedAccountsRoute {
 }
 
 class SavedPostsRoute extends GoRouteData with $SavedPostsRoute {
-  const SavedPostsRoute();
+  const new();
 
   static final GlobalKey<NavigatorState> $parentNavigatorKey =
       _NavigatorKeys.authenticatedShellNavigatorKey;
@@ -784,7 +784,7 @@ class SavedPostsRoute extends GoRouteData with $SavedPostsRoute {
 }
 
 class _ReturnToFeedOnBack extends StatelessWidget {
-  const _ReturnToFeedOnBack({required this.child});
+  const new({required this.child});
 
   final Widget child;
 
@@ -801,7 +801,7 @@ class _ReturnToFeedOnBack extends StatelessWidget {
 @immutable
 @MappableClass(generateMethods: GenerateMethods.copy | GenerateMethods.equals)
 final class SavedPostFolderRouteData with SavedPostFolderRouteDataMappable {
-  const SavedPostFolderRouteData({required this.folder});
+  const new({required this.folder});
 
   final SavedPostFolder folder;
 
@@ -810,7 +810,7 @@ final class SavedPostFolderRouteData with SavedPostFolderRouteDataMappable {
 }
 
 class SavedPostFolderRoute extends GoRouteData with $SavedPostFolderRoute {
-  const SavedPostFolderRoute({this.$extra});
+  const new({this.$extra});
 
   static final GlobalKey<NavigatorState> $parentNavigatorKey =
       _NavigatorKeys.authenticatedShellNavigatorKey;
@@ -837,7 +837,7 @@ class SavedPostFolderRoute extends GoRouteData with $SavedPostFolderRoute {
 /// profile for back-button semantics and pushed on the authenticated shell
 /// navigator for responsive navigation presentation.
 class PlaygroundRoute extends GoRouteData with $PlaygroundRoute {
-  const PlaygroundRoute();
+  const new();
 
   static final GlobalKey<NavigatorState> $parentNavigatorKey =
       _NavigatorKeys.authenticatedShellNavigatorKey;
@@ -851,7 +851,7 @@ class PlaygroundRoute extends GoRouteData with $PlaygroundRoute {
 
 @TypedGoRoute<WelcomeRoute>(path: RouteLocations.welcome, name: 'welcome')
 class WelcomeRoute extends GoRouteData with $WelcomeRoute {
-  const WelcomeRoute();
+  const new();
 
   static final GlobalKey<NavigatorState> $parentNavigatorKey =
       _NavigatorKeys.rootNavigatorKey;
@@ -863,7 +863,7 @@ class WelcomeRoute extends GoRouteData with $WelcomeRoute {
 
 @TypedGoRoute<SignInRoute>(path: RouteLocations.signIn, name: 'sign-in')
 class SignInRoute extends GoRouteData with $SignInRoute {
-  const SignInRoute();
+  const new();
 
   static final GlobalKey<NavigatorState> $parentNavigatorKey =
       _NavigatorKeys.rootNavigatorKey;
@@ -877,7 +877,7 @@ class SignInRoute extends GoRouteData with $SignInRoute {
   name: 'add-account',
 )
 class AddAccountRoute extends GoRouteData with $AddAccountRoute {
-  const AddAccountRoute();
+  const new();
 
   static final GlobalKey<NavigatorState> $parentNavigatorKey =
       _NavigatorKeys.rootNavigatorKey;
@@ -892,7 +892,7 @@ class AddAccountRoute extends GoRouteData with $AddAccountRoute {
   name: 'auth-complete',
 )
 class AuthCompleteRoute extends GoRouteData with $AuthCompleteRoute {
-  const AuthCompleteRoute({this.code, this.error});
+  const new({this.code, this.error});
 
   static final GlobalKey<NavigatorState> $parentNavigatorKey =
       _NavigatorKeys.rootNavigatorKey;
@@ -910,7 +910,7 @@ class AuthCompleteRoute extends GoRouteData with $AuthCompleteRoute {
   name: 'onboarding',
 )
 class OnboardingRoute extends GoRouteData with $OnboardingRoute {
-  const OnboardingRoute();
+  const new();
 
   static final GlobalKey<NavigatorState> $parentNavigatorKey =
       _NavigatorKeys.rootNavigatorKey;
@@ -923,7 +923,7 @@ class OnboardingRoute extends GoRouteData with $OnboardingRoute {
 // --- Authenticated detail routes ------------------------------------------
 
 class PostThreadRoute extends GoRouteData with $PostThreadRoute {
-  const PostThreadRoute({
+  const new({
     required this.did,
     required this.rkey,
     this.focus,
@@ -945,7 +945,7 @@ class PostThreadRoute extends GoRouteData with $PostThreadRoute {
 }
 
 class PostLikesRoute extends GoRouteData with $PostLikesRoute {
-  const PostLikesRoute({required this.did, required this.rkey});
+  const new({required this.did, required this.rkey});
 
   final String did;
   final String rkey;
@@ -960,7 +960,7 @@ class PostLikesRoute extends GoRouteData with $PostLikesRoute {
 }
 
 class PostRepostsRoute extends GoRouteData with $PostRepostsRoute {
-  const PostRepostsRoute({required this.did, required this.rkey});
+  const new({required this.did, required this.rkey});
 
   final String did;
   final String rkey;
@@ -975,7 +975,7 @@ class PostRepostsRoute extends GoRouteData with $PostRepostsRoute {
 }
 
 class PostQuotesRoute extends GoRouteData with $PostQuotesRoute {
-  const PostQuotesRoute({required this.did, required this.rkey});
+  const new({required this.did, required this.rkey});
 
   final String did;
   final String rkey;
@@ -988,7 +988,7 @@ class PostQuotesRoute extends GoRouteData with $PostQuotesRoute {
 }
 
 class BusinessEventRoute extends GoRouteData with $BusinessEventRoute {
-  BusinessEventRoute({required String did, required String rkey})
+  new({required String did, required String rkey})
     : did = Did.parse(did).toString(),
       rkey = _validatedEventRecordKey(rkey);
 
@@ -1021,7 +1021,7 @@ String _validatedEventRecordKey(String value) {
 }
 
 class UserProfileRoute extends GoRouteData with $UserProfileRoute {
-  const UserProfileRoute({
+  const new({
     @TypedQueryParameter<Did>(
       encoder: _encodeDidRouteParameter,
       decoder: _decodeDidRouteParameter,
@@ -1049,7 +1049,7 @@ class UserProfileRoute extends GoRouteData with $UserProfileRoute {
 
 class ProfileMutualFollowersRoute extends GoRouteData
     with $ProfileMutualFollowersRoute {
-  const ProfileMutualFollowersRoute({
+  const new({
     @TypedQueryParameter<Did>(
       encoder: _encodeDidRouteParameter,
       decoder: _decodeDidRouteParameter,
@@ -1065,7 +1065,7 @@ class ProfileMutualFollowersRoute extends GoRouteData
 }
 
 class ProfileAliasRoute extends GoRouteData with $ProfileAliasRoute {
-  const ProfileAliasRoute({
+  const new({
     @TypedQueryParameter<Handle>(
       encoder: _encodeHandleRouteParameter,
       decoder: _decodeHandleRouteParameter,

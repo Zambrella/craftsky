@@ -51,7 +51,7 @@ final class DeletePostProvider
   DeletePost create() => DeletePost();
 }
 
-String _$deletePostHash() => r'b168e6c52c661675e3c8d8f7a6588991f15d14c7';
+String _$deletePostHash() => r'a035e0cbb2ee2c46f640d3e21b96cce30c78ca52';
 
 /// Standalone delete-a-post mutation notifier. The caller supplies the [Post]
 /// so the command can retain its exact URI and expected CID.
@@ -64,7 +64,7 @@ abstract class _$DeletePost extends $AsyncNotifier<Post?> {
   FutureOr<Post?> build();
   @$mustCallSuper
   @override
-  void runBuild() {
+  WhenComplete runBuild() {
     final ref = this.ref as $Ref<AsyncValue<Post?>, Post?>;
     final element =
         ref.element
@@ -74,6 +74,6 @@ abstract class _$DeletePost extends $AsyncNotifier<Post?> {
               Object?,
               Object?
             >;
-    element.handleCreate(ref, build);
+    return element.handleCreate(ref, build);
   }
 }

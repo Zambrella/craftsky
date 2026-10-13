@@ -46,13 +46,12 @@ VideoPublicationCoordinator _coordinator({
     'token': 'service.jwt.secret',
     'expiresAt': '2030-01-01T00:00:00Z',
   }),
-  upload:
-      ({
-        required authorizationHeader,
-        required cancelToken,
-        required bypassDeduplication,
-        required onProgress,
-      }) => upload(),
+  upload: ({
+    required authorizationHeader,
+    required cancelToken,
+    required bypassDeduplication,
+    required onProgress,
+  }) => upload(),
   poll: (_, _) => throw StateError('unexpected poll'),
   wait: wait ?? (_) async {},
   publish: (_, {required allowBlobRecovery}) async {},

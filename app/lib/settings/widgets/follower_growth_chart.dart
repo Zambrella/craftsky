@@ -1,14 +1,14 @@
 import 'dart:math' as math;
 
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/profile/models/follower_growth.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:fl_chart/fl_chart.dart';
-import 'package:flutter/material.dart';
 import 'package:intl/intl.dart' show DateFormat;
+import 'package:material_ui/material_ui.dart';
 
 class FollowerGrowthChart extends StatelessWidget {
-  const FollowerGrowthChart({
+  const new({
     required this.growth,
     required this.period,
     super.key,
@@ -190,12 +190,13 @@ class FollowerGrowthChart extends StatelessWidget {
                       LineChartBarData(
                         spots: [
                           for (final (index, point) in chartPoints.indexed)
-                            point.count == null
-                                ? FlSpot.nullSpot
-                                : FlSpot(
-                                    index.toDouble(),
-                                    point.count!.toDouble(),
-                                  ),
+                            if (point.count == null)
+                              FlSpot.nullSpot
+                            else
+                              FlSpot(
+                                index.toDouble(),
+                                point.count!.toDouble(),
+                              ),
                         ],
                         color: lineColor,
                         barWidth: 3,

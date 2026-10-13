@@ -1,7 +1,7 @@
 /// Errors surfaced by the API client. Sealed so call sites can
 /// exhaustively switch.
 sealed class ApiException implements Exception {
-  const ApiException(this.message, {this.details = const ApiFailureDetails()});
+  const new(this.message, {this.details = const ApiFailureDetails()});
   final String message;
   final ApiFailureDetails details;
 
@@ -10,8 +10,9 @@ sealed class ApiException implements Exception {
 }
 
 final class ApiFailureDetails {
-  const ApiFailureDetails({
+  const new({
     this.statusCode,
+    this.retryAfterSeconds,
     this.appViewError,
     this.requestId,
     this.method,
@@ -21,6 +22,7 @@ final class ApiFailureDetails {
   });
 
   final int? statusCode;
+  final int? retryAfterSeconds;
   final String? appViewError;
 
   final String? requestId;
@@ -34,7 +36,7 @@ final class ApiFailureDetails {
 /// HTTP 401. The global 401 handler in `_ErrorMappingInterceptor`
 /// signs the user out before this is rethrown to the caller.
 final class ApiUnauthorized extends ApiException {
-  const ApiUnauthorized({super.details}) : super('unauthorized');
+  const new({super.details}) : super('unauthorized');
 
   @override
   String toString() => 'ApiUnauthorized: $message';
@@ -43,8 +45,7 @@ final class ApiUnauthorized extends ApiException {
 /// HTTP 4xx (non-401). [code] comes from the server's `{"error": "…"}`
 /// body when present, else null.
 final class ApiBadRequest extends ApiException {
-  const ApiBadRequest(this.code, {super.details})
-    : super(code ?? 'bad_request');
+  const new(this.code, {super.details}) : super(code ?? 'bad_request');
   final String? code;
 
   @override
@@ -53,7 +54,7 @@ final class ApiBadRequest extends ApiException {
 
 /// HTTP 5xx or any non-mapped error response.
 final class ApiServerError extends ApiException {
-  const ApiServerError(super.message, {super.details});
+  const new(super.message, {super.details});
 
   @override
   String toString() => 'ApiServerError: $message';
@@ -63,7 +64,7 @@ final class ApiServerError extends ApiException {
 /// [ApiServerError] so the background `whoami` validation can
 /// tolerate offline launches without signing the user out.
 final class ApiNetworkError extends ApiException {
-  const ApiNetworkError(super.message, {super.details});
+  const new(super.message, {super.details});
 
   @override
   String toString() => 'ApiNetworkError: $message';
@@ -71,7 +72,7 @@ final class ApiNetworkError extends ApiException {
 
 /// Request canceled by the caller. This is expected for removable uploads.
 final class ApiCanceled extends ApiException {
-  const ApiCanceled({super.details}) : super('canceled');
+  const new({super.details}) : super('canceled');
 
   @override
   String toString() => 'ApiCanceled: $message';

@@ -1,5 +1,5 @@
 final class CreatePostVideo {
-  const CreatePostVideo({
+  const new({
     required this.jobId,
     required this.blob,
     this.alt,
@@ -23,7 +23,7 @@ final class CreatePostVideo {
 }
 
 final class CreatePostVideoBlob {
-  const CreatePostVideoBlob({
+  const new({
     required this.cid,
     required this.mimeType,
     required this.size,
@@ -42,7 +42,7 @@ final class CreatePostVideoBlob {
 }
 
 final class CreatePostVideoAspectRatio {
-  const CreatePostVideoAspectRatio({required this.width, required this.height});
+  const new({required this.width, required this.height});
 
   final int width;
   final int height;

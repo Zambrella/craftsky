@@ -50,7 +50,7 @@ final class RelationshipListProvider
   }
 }
 
-String _$relationshipListHash() => r'658eb2dabbe43bec71ca737895cae6bfeb026529';
+String _$relationshipListHash() => r'6ac5a2ba7b2f2990487dfecbdc0606323584655d';
 
 final class RelationshipListFamily extends $Family
     with
@@ -85,7 +85,7 @@ abstract class _$RelationshipList
   FutureOr<RelationshipListState> build(RelationshipListKind kind);
   @$mustCallSuper
   @override
-  void runBuild() {
+  WhenComplete runBuild() {
     final ref =
         this.ref
             as $Ref<AsyncValue<RelationshipListState>, RelationshipListState>;
@@ -100,6 +100,6 @@ abstract class _$RelationshipList
               Object?,
               Object?
             >;
-    element.handleCreate(ref, () => build(_$args));
+    return element.handleCreate(ref, () => build(_$args));
   }
 }

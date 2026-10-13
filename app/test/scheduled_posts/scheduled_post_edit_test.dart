@@ -12,7 +12,7 @@ import 'package:craftsky_app/feed/models/link_preview.dart';
 import 'package:craftsky_app/feed/providers/composer_image_state.dart';
 import 'package:craftsky_app/feed/providers/composer_images_provider.dart';
 import 'package:craftsky_app/feed/widgets/post_composer_sheet.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/languages/models/language_preferences.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
 import 'package:craftsky_app/projects/composer/project_composer_fields.dart';
@@ -29,16 +29,17 @@ import 'package:craftsky_app/shared/rich_text/providers/facet_suggestion_provide
 import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
 import 'package:craftsky_app/subscriptions/providers/subscription_access_provider.dart';
 import 'package:craftsky_app/subscriptions/subscription_build_config.dart';
+import 'package:craftsky_app/subscriptions/widgets/plus_feature_lock.dart';
 import 'package:craftsky_app/theme/brand_colors.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
+import 'package:material_ui/material_ui.dart';
 
 import '../fakes/recording_messenger.dart';
 import '../test_support/deterministic_pump.dart';
@@ -55,6 +56,77 @@ final List<Override> _paidAccessOverrides = [
 ];
 
 void main() {
+  for (final tier in [SubscriptionTier.free, SubscriptionTier.plus]) {
+    testWidgets('project scheduling respects the subscription gate for $tier', (
+      tester,
+    ) async {
+      final registry = SessionRegistry.empty().upsertAndActivate(
+        token: 'alice-token',
+        did: 'did:plc:alice',
+        handle: 'alice.test',
+      );
+      final account = registry.activeLease!.session.account;
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            secureSessionRegistryStorageProvider.overrideWithValue(
+              _RegistryStorage(registry),
+            ),
+            subscriptionAccessProvider.overrideWith(
+              (ref, lease) async => SubscriptionAccess(
+                did: lease.account.did,
+                effectiveTier: tier,
+                givesAccess: tier == SubscriptionTier.plus,
+                assignedTier: tier == SubscriptionTier.plus ? tier : null,
+              ),
+            ),
+            activeLanguagePreferencesProvider.overrideWith(
+              (ref) => const LanguagePreferences(
+                primaryLanguage: 'en',
+                contentLanguages: ['en'],
+              ),
+            ),
+            accountScheduledPostRepositoryProvider(account).overrideWith(
+              (ref) async =>
+                  _ScheduledRepository(_pngBytes(width: 3, height: 2)),
+            ),
+          ],
+          child: MessengerScope(
+            messenger: RecordingMessenger(),
+            child: MaterialApp(
+              theme: _testTheme,
+              localizationsDelegates: appLocalizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
+              home: const ProjectComposerSheet(),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final schedule = find.byKey(const Key('composer-schedule-control'));
+      await tester.ensureVisible(schedule);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byType(PlusFeatureLock));
+      await tester.pumpAndSettle();
+
+      if (subscriptionsEnabled && tier == SubscriptionTier.plus) {
+        expect(find.text('Schedule for later'), findsOneWidget);
+      } else {
+        expect(
+          find.text(
+            subscriptionsEnabled
+                ? 'Scheduled posts requires Plus'
+                : 'Scheduled posts is coming soon',
+          ),
+          findsOneWidget,
+        );
+        expect(find.text('Schedule for later'), findsNothing);
+        expect(find.byType(DatePickerDialog), findsNothing);
+      }
+      expect(tester.takeException(), isNull);
+    });
+  }
+
   test(
     'new scheduled media gets a one-minute-style independent budget',
     () async {
@@ -252,7 +324,7 @@ void main() {
             messenger: RecordingMessenger(),
             child: MaterialApp(
               theme: _testTheme,
-              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              localizationsDelegates: appLocalizationsDelegates,
               supportedLocales: AppLocalizations.supportedLocales,
               home: PostComposerSheet(
                 composerId: composerId,
@@ -326,7 +398,7 @@ void main() {
             messenger: RecordingMessenger(),
             child: MaterialApp(
               theme: _testTheme,
-              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              localizationsDelegates: appLocalizationsDelegates,
               supportedLocales: AppLocalizations.supportedLocales,
               home: PostComposerSheet(
                 composerId: composerId,
@@ -415,7 +487,7 @@ void main() {
             messenger: RecordingMessenger(),
             child: MaterialApp(
               theme: _testTheme,
-              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              localizationsDelegates: appLocalizationsDelegates,
               supportedLocales: AppLocalizations.supportedLocales,
               home: PostComposerSheet(
                 composerId: composerId,
@@ -509,7 +581,7 @@ void main() {
             messenger: RecordingMessenger(),
             child: MaterialApp(
               theme: _testTheme,
-              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              localizationsDelegates: appLocalizationsDelegates,
               supportedLocales: AppLocalizations.supportedLocales,
               home: PostComposerSheet(
                 composerId: 'scheduled-external-remove',
@@ -590,7 +662,7 @@ void main() {
           messenger: RecordingMessenger(),
           child: MaterialApp(
             theme: _testTheme,
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            localizationsDelegates: appLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             home: PostComposerSheet(
               composerId: composerId,
@@ -659,7 +731,7 @@ void main() {
           messenger: RecordingMessenger(),
           child: MaterialApp(
             theme: _testTheme,
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            localizationsDelegates: appLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             home: PostComposerSheet(
               composerId: 'scheduled-external-source-remove',
@@ -722,7 +794,7 @@ void main() {
             messenger: RecordingMessenger(),
             child: MaterialApp(
               theme: _testTheme,
-              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              localizationsDelegates: appLocalizationsDelegates,
               supportedLocales: AppLocalizations.supportedLocales,
               home: PostComposerSheet(
                 composerId: 'scheduled-external-replace',
@@ -796,7 +868,7 @@ void main() {
             messenger: RecordingMessenger(),
             child: MaterialApp(
               theme: _testTheme,
-              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              localizationsDelegates: appLocalizationsDelegates,
               supportedLocales: AppLocalizations.supportedLocales,
               home: PostComposerSheet(
                 composerId: 'scheduled-external-stage-failure',
@@ -872,7 +944,7 @@ void main() {
             messenger: RecordingMessenger(),
             child: MaterialApp(
               theme: _testTheme,
-              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              localizationsDelegates: appLocalizationsDelegates,
               supportedLocales: AppLocalizations.supportedLocales,
               home: PostComposerSheet(
                 composerId: 'scheduled-external-update-retry',
@@ -957,7 +1029,7 @@ void main() {
           messenger: RecordingMessenger(),
           child: MaterialApp(
             theme: _testTheme,
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            localizationsDelegates: appLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             home: PostComposerSheet(
               composerId: 'scheduled-editor',
@@ -1038,7 +1110,7 @@ void main() {
             messenger: RecordingMessenger(),
             child: MaterialApp(
               theme: _testTheme,
-              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              localizationsDelegates: appLocalizationsDelegates,
               supportedLocales: AppLocalizations.supportedLocales,
               home: PostComposerSheet(
                 composerId: 'scheduled-publish-editor',
@@ -1121,7 +1193,7 @@ void main() {
             messenger: RecordingMessenger(),
             child: MaterialApp(
               theme: _testTheme,
-              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              localizationsDelegates: appLocalizationsDelegates,
               supportedLocales: AppLocalizations.supportedLocales,
               home: PostComposerSheet(
                 composerId: 'scheduled-delayed-media',
@@ -1196,7 +1268,7 @@ void main() {
             messenger: messenger,
             child: MaterialApp(
               theme: _testTheme,
-              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              localizationsDelegates: appLocalizationsDelegates,
               supportedLocales: AppLocalizations.supportedLocales,
               home: PostComposerSheet(
                 composerId: 'scheduled-delayed-update',
@@ -1262,7 +1334,7 @@ void main() {
           messenger: RecordingMessenger(),
           child: MaterialApp(
             theme: _testTheme,
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            localizationsDelegates: appLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             home: PostComposerSheet(
               composerId: 'scheduled-facet-update',
@@ -1321,7 +1393,7 @@ void main() {
             messenger: RecordingMessenger(),
             child: MaterialApp(
               theme: _testTheme,
-              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              localizationsDelegates: appLocalizationsDelegates,
               supportedLocales: AppLocalizations.supportedLocales,
               home: PostComposerSheet(
                 composerId: 'scheduled-facet-publish',
@@ -1381,7 +1453,7 @@ void main() {
           messenger: RecordingMessenger(),
           child: MaterialApp(
             theme: _testTheme,
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            localizationsDelegates: appLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             home: ProjectComposerSheet(
               composerId: 'scheduled-project-editor',
@@ -1484,7 +1556,7 @@ void main() {
             messenger: RecordingMessenger(),
             child: MaterialApp(
               theme: _testTheme,
-              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              localizationsDelegates: appLocalizationsDelegates,
               supportedLocales: AppLocalizations.supportedLocales,
               home: ProjectComposerSheet(
                 composerId: '${fixture.key}-scheduled-editor',
@@ -1729,7 +1801,7 @@ ScheduledPostDetail _projectFixture({
 );
 
 final class _ScheduledRepository implements ScheduledPostRepository {
-  _ScheduledRepository(
+  new(
     this.bytes, {
     this.detail,
     this.mediaResponse,
@@ -1792,7 +1864,7 @@ final class _ScheduledRepository implements ScheduledPostRepository {
       failUpdateCount -= 1;
       throw StateError('update failed');
     }
-    if (updateResponse != null) return updateResponse!.future;
+    if (updateResponse != null) return await updateResponse!.future;
     return detail ?? _scheduledDetail;
   }
 
@@ -1838,7 +1910,7 @@ final class _NoFetchPreviewRepository implements LinkPreviewRepository {
 }
 
 final class _ReplacementPreviewRepository implements LinkPreviewRepository {
-  _ReplacementPreviewRepository(this.bytes);
+  new(this.bytes);
 
   final Uint8List bytes;
   final urls = <String>[];
@@ -1862,7 +1934,7 @@ final class _ReplacementPreviewRepository implements LinkPreviewRepository {
 
 final class _ChangingReplacementPreviewRepository
     implements LinkPreviewRepository {
-  _ChangingReplacementPreviewRepository(this.bytes);
+  new(this.bytes);
 
   final List<Uint8List> bytes;
   int calls = 0;
@@ -1885,7 +1957,7 @@ final class _ChangingReplacementPreviewRepository
 }
 
 final class _RegistryStorage implements SessionRegistryStorage {
-  _RegistryStorage(this.registry);
+  new(this.registry);
 
   SessionRegistry registry;
 
@@ -1899,7 +1971,7 @@ final class _RegistryStorage implements SessionRegistryStorage {
 }
 
 final class _EmptyMentionResolver implements MentionResolver {
-  const _EmptyMentionResolver();
+  const new();
 
   @override
   Future<String?> didForHandle(String handle) async => null;

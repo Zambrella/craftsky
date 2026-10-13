@@ -1,8 +1,7 @@
-import 'dart:async';
 import 'dart:math' as math;
 
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
-import 'package:flutter/material.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Test-only view onto the private `_StitchProgressIndicatorState`. Lets
 /// widget tests read animation progress without exposing it on the public
@@ -22,7 +21,7 @@ abstract interface class StitchProgressIndicatorStateForTesting {
 /// accepted but currently has no visual effect. See
 /// `docs/superpowers/specs/2026-05-03-stitch-progress-indicator-design.md`.
 class StitchProgressIndicator extends StatefulWidget {
-  const StitchProgressIndicator({
+  const new({
     super.key,
     this.size = 36,
     this.strokeWidth,
@@ -91,7 +90,7 @@ class _StitchProgressIndicatorState extends State<StitchProgressIndicator>
           ..value = 0;
       }
     } else if (!_controller.isAnimating) {
-      unawaited(_controller.repeat());
+      _controller.repeat();
     }
   }
 
@@ -134,7 +133,7 @@ class _StitchProgressIndicatorState extends State<StitchProgressIndicator>
 }
 
 class _StitchPainter extends CustomPainter {
-  _StitchPainter({
+  new({
     required this.color,
     required this.strokeWidth,
     required this.dashCount,

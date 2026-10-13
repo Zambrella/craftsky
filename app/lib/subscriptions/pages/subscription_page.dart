@@ -5,7 +5,7 @@ import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/auth/models/account_switcher_state.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/auth/widgets/account_switcher_content.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
@@ -34,13 +34,13 @@ import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/craftsky_card.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:material_ui/material_ui.dart';
 
 export 'package:craftsky_app/subscriptions/models/subscription_page_model.dart';
 
 class SubscriptionPage extends ConsumerStatefulWidget {
-  const SubscriptionPage({super.key});
+  const new({super.key});
 
   @override
   ConsumerState<SubscriptionPage> createState() => _SubscriptionPageState();
@@ -251,7 +251,7 @@ class _SubscriptionPageState extends ConsumerState<SubscriptionPage>
                 .recordPurchase,
             readAccess: _readAssignedAccess,
           );
-          return _handlePurchaseResult(await controller.purchase(tier));
+          return await _handlePurchaseResult(await controller.purchase(tier));
         } on Object {
           ref.read(subscriptionPendingOperationProvider.notifier).clear();
           rethrow;
@@ -269,10 +269,10 @@ class _SubscriptionPageState extends ConsumerState<SubscriptionPage>
     final retry = result.retry;
     _pendingRetry = retry == null
         ? null
-        : () async => _handlePurchaseResult(await retry());
+        : () async => await _handlePurchaseResult(await retry());
     if (result.assignmentLicense case final license?) {
       _pendingRetry = null;
-      return _assignLicense(license, state: result.state);
+      return await _assignLicense(license, state: result.state);
     }
     return switch (result.outcome) {
       SubscriptionPurchaseOutcome.completed ||
@@ -315,7 +315,7 @@ class _SubscriptionPageState extends ConsumerState<SubscriptionPage>
                 .read(subscriptionPendingOperationProvider.notifier)
                 .recordRestore,
           );
-          return _handleRestoreResult(await controller.restore());
+          return await _handleRestoreResult(await controller.restore());
         } on Object {
           ref.read(subscriptionPendingOperationProvider.notifier).clear();
           rethrow;
@@ -333,10 +333,10 @@ class _SubscriptionPageState extends ConsumerState<SubscriptionPage>
     final retry = result.retry;
     _pendingRetry = retry == null
         ? null
-        : () async => _handleRestoreResult(await retry());
+        : () async => await _handleRestoreResult(await retry());
     if (result.assignmentLicense case final license?) {
       _pendingRetry = null;
-      return _assignLicense(license, state: result.state);
+      return await _assignLicense(license, state: result.state);
     }
     return switch (result.outcome) {
       SubscriptionRestoreOutcome.completed ||
@@ -355,7 +355,7 @@ class _SubscriptionPageState extends ConsumerState<SubscriptionPage>
     PendingSubscriptionOperation pending,
   ) async {
     final dependencies = await _ownerDependencies();
-    return switch (pending.kind) {
+    return await switch (pending.kind) {
       PendingSubscriptionOperationKind.purchase => _handlePurchaseResult(
         await SubscriptionPurchaseController(
           ownerGuard: dependencies.guard,
@@ -436,7 +436,7 @@ class _SubscriptionPageState extends ConsumerState<SubscriptionPage>
                 .read(subscriptionPendingOperationProvider.notifier)
                 .recordCustomerCenterMutation,
           );
-          return _handleCustomerCenterResult(await coordinator.present());
+          return await _handleCustomerCenterResult(await coordinator.present());
         } on Object {
           ref.read(subscriptionPendingOperationProvider.notifier).clear();
           rethrow;
@@ -454,7 +454,7 @@ class _SubscriptionPageState extends ConsumerState<SubscriptionPage>
     final retry = result.retry;
     _pendingRetry = retry == null
         ? null
-        : () async => _handleCustomerCenterResult(await retry());
+        : () async => await _handleCustomerCenterResult(await retry());
     return switch (result.outcome) {
       CustomerCenterOutcome.completed ||
       CustomerCenterOutcome.refreshed ||
@@ -523,7 +523,7 @@ class _SubscriptionPageState extends ConsumerState<SubscriptionPage>
           final api = await ref.read(
             subscriptionRepositoryProvider(lease.account).future,
           );
-          return api.getAccess();
+          return await api.getAccess();
         },
         isCurrent: () => _operationIsCurrent,
       ).assign(licenseId: license.id, target: target);
@@ -672,7 +672,7 @@ class _SubscriptionPageState extends ConsumerState<SubscriptionPage>
 }
 
 class SubscriptionPageView extends StatelessWidget {
-  const SubscriptionPageView({
+  const new({
     required this.model,
     this.pendingOperation,
     super.key,
@@ -816,7 +816,7 @@ class SubscriptionPageView extends StatelessWidget {
 }
 
 class _AccessCard extends StatelessWidget {
-  const _AccessCard({required this.access});
+  const new({required this.access});
 
   final SubscriptionAccess access;
 
@@ -846,7 +846,7 @@ class _AccessCard extends StatelessWidget {
 }
 
 class _TierCard extends StatelessWidget {
-  const _TierCard({
+  const new({
     required this.model,
     required this.state,
     required this.tier,
@@ -1209,7 +1209,7 @@ class _TierCard extends StatelessWidget {
 }
 
 class _MessageCard extends StatelessWidget {
-  const _MessageCard({
+  const new({
     required this.body,
     this.title,
     this.action,
@@ -1253,7 +1253,7 @@ class _MessageCard extends StatelessWidget {
 }
 
 class _OperationNotice extends StatelessWidget {
-  const _OperationNotice({required this.notice, required this.onRefresh});
+  const new({required this.notice, required this.onRefresh});
 
   final SubscriptionOperationNotice notice;
   final VoidCallback? onRefresh;
@@ -1294,7 +1294,7 @@ class _OperationNotice extends StatelessWidget {
 }
 
 class _ActionButton extends StatelessWidget {
-  const _ActionButton({
+  const new({
     required this.label,
     required this.onPressed,
     this.isLoading = false,
@@ -1316,7 +1316,7 @@ class _ActionButton extends StatelessWidget {
 }
 
 class _PrimaryActionButton extends StatelessWidget {
-  const _PrimaryActionButton({
+  const new({
     required this.label,
     required this.onPressed,
     this.isLoading = false,
@@ -1334,7 +1334,7 @@ class _PrimaryActionButton extends StatelessWidget {
 }
 
 class _TextActionButton extends StatelessWidget {
-  const _TextActionButton({
+  const new({
     required this.label,
     required this.onPressed,
     this.isLoading = false,
@@ -1353,7 +1353,7 @@ class _TextActionButton extends StatelessWidget {
 }
 
 class _ActionButtonChild extends StatelessWidget {
-  const _ActionButtonChild({required this.label, required this.isLoading});
+  const new({required this.label, required this.isLoading});
 
   final String label;
   final bool isLoading;

@@ -18,7 +18,7 @@ enum RelationshipListKind { muted, blocked }
   generateMethods: GenerateMethods.copy | GenerateMethods.equals,
 )
 class RelationshipListState with RelationshipListStateMappable {
-  const RelationshipListState({
+  const new({
     required this.items,
     this.cursor,
     this.mutatingDids = const {},

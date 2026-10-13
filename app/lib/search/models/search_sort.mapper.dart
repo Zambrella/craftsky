@@ -53,4 +53,3 @@ extension SearchSortMapperExtension on SearchSort {
     return MapperContainer.globals.toValue<SearchSort>(this) as String;
   }
 }
-

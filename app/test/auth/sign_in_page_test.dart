@@ -10,17 +10,17 @@ import 'package:craftsky_app/auth/providers/auth_controller.dart';
 import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
 import 'package:craftsky_app/auth/services/session_validation_coordinator.dart';
 import 'package:craftsky_app/auth/widgets/registration_action.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/shared/api/providers/error_mapping_interceptor.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/brand_text_field.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:dio/dio.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http_mock_adapter/http_mock_adapter.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../fakes/recording_messenger.dart';
 
@@ -43,7 +43,7 @@ class _RecordingAuthController extends AuthController {
 }
 
 final class _RegistryStorage implements SessionRegistryStorage {
-  _RegistryStorage(this.value);
+  new(this.value);
 
   SessionRegistry value;
 
@@ -97,7 +97,7 @@ void main() {
         ],
         child: MaterialApp(
           theme: AppTheme.lightThemeData,
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: appLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: const SignInPage(),
         ),
@@ -117,7 +117,7 @@ void main() {
           ],
           child: MaterialApp(
             theme: AppTheme.lightThemeData,
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            localizationsDelegates: appLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             home: const SignInPage(),
           ),
@@ -130,9 +130,9 @@ void main() {
       await tester.tap(find.widgetWithText(ChunkyButton, 'Continue'));
       await tester.pump();
 
-      final fake =
-          tester.container().read(authControllerProvider.notifier)
-              as _RecordingAuthController;
+      final fake = tester.container().read(
+        authControllerProvider.notifier,
+      ) as _RecordingAuthController;
       expect(fake.signInCalls, ['  @alice.bsky.social ']);
       // (Controller trims — that's unit-tested in auth_controller_test.dart.)
     },
@@ -169,7 +169,7 @@ void main() {
             messenger: messenger,
             child: MaterialApp(
               theme: AppTheme.lightThemeData,
-              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              localizationsDelegates: appLocalizationsDelegates,
               supportedLocales: AppLocalizations.supportedLocales,
               home: const SignInPage(mode: SignInMode.addAccount),
             ),
@@ -212,7 +212,7 @@ void main() {
           messenger: messenger,
           child: MaterialApp(
             theme: AppTheme.lightThemeData,
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            localizationsDelegates: appLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             home: const SignInPage(mode: SignInMode.addAccount),
           ),
@@ -242,7 +242,7 @@ void main() {
             messenger: messenger,
             child: MaterialApp(
               theme: AppTheme.lightThemeData,
-              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              localizationsDelegates: appLocalizationsDelegates,
               supportedLocales: AppLocalizations.supportedLocales,
               home: const SignInPage(),
             ),
@@ -275,7 +275,7 @@ void main() {
           ],
           child: MaterialApp(
             theme: AppTheme.lightThemeData,
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            localizationsDelegates: appLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             home: const SignInPage(mode: SignInMode.addAccount),
           ),
@@ -300,9 +300,9 @@ void main() {
         await tester.tap(find.widgetWithText(ChunkyButton, 'Continue'));
         await tester.tap(find.text('Create an account'));
         await tester.pump();
-        final controller =
-            tester.container().read(authControllerProvider.notifier)
-                as _RecordingAuthController;
+        final controller = tester.container().read(
+          authControllerProvider.notifier,
+        ) as _RecordingAuthController;
         expect(controller.signInCalls, ['alice.test']);
         expect(controller.registrationCalls, 1);
       } else {
@@ -326,7 +326,7 @@ void main() {
           ],
           child: MaterialApp(
             theme: AppTheme.lightThemeData,
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            localizationsDelegates: appLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             home: const SignInPage(mode: SignInMode.addAccount),
           ),

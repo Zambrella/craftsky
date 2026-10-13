@@ -15,7 +15,7 @@ enum SubscriptionRestoreOutcome {
 }
 
 final class SubscriptionRestoreResult {
-  const SubscriptionRestoreResult({
+  const new({
     required this.outcome,
     this.state,
     this.assignmentLicense,
@@ -31,7 +31,7 @@ final class SubscriptionRestoreResult {
 }
 
 final class SubscriptionRestoreController {
-  const SubscriptionRestoreController({
+  const new({
     required this.ownerGuard,
     required this.api,
     required this.revenueCat,
@@ -100,7 +100,7 @@ final class SubscriptionRestoreController {
     }
     if (!isForeground()) return _pendingRetry(beforeProvider);
 
-    return _reconcileRestore(owner, beforeProvider);
+    return await _reconcileRestore(owner, beforeProvider);
   }
 
   Future<SubscriptionRestoreResult> _reconcileRestore(
@@ -173,7 +173,7 @@ final class SubscriptionRestoreController {
     } on BillingOwnerGuardException {
       return _pendingRetry(beforeProvider);
     }
-    return _reconcileRestore(owner, beforeProvider);
+    return await _reconcileRestore(owner, beforeProvider);
   }
 
   SubscriptionRestoreResult _pendingRetry(

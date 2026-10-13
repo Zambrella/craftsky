@@ -37,35 +37,33 @@ bool shouldCancelVideoPublicationOnLifecycleInterruption(
     stage == VideoPublicationStage.processing;
 
 final class VideoPublicationProgress {
-  const VideoPublicationProgress(this.stage, {this.fraction});
+  const new(this.stage, {this.fraction});
 
   final VideoPublicationStage stage;
   final double? fraction;
 }
 
 final class VideoPublicationException implements Exception {
-  const VideoPublicationException(this.outcome, {this.ineligibilityReason});
+  const new(this.outcome, {this.ineligibilityReason});
 
   final VideoServiceOutcome? outcome;
   final VideoUploadIneligibilityReason? ineligibilityReason;
 }
 
-typedef VideoUploadOperation =
-    Future<VideoServiceResult> Function({
-      required String authorizationHeader,
-      required CancelToken cancelToken,
-      required bool bypassDeduplication,
-      required void Function(int sent, int total) onProgress,
-    });
+typedef VideoUploadOperation = Future<VideoServiceResult> Function({
+  required String authorizationHeader,
+  required CancelToken cancelToken,
+  required bool bypassDeduplication,
+  required void Function(int sent, int total) onProgress,
+});
 
-typedef VideoPublishOperation =
-    Future<void> Function(
-      CreatePostVideo proof, {
-      required bool allowBlobRecovery,
-    });
+typedef VideoPublishOperation = Future<void> Function(
+  CreatePostVideo proof, {
+  required bool allowBlobRecovery,
+});
 
 final class VideoPublicationCoordinator {
-  factory VideoPublicationCoordinator({
+  factory({
     required Future<VideoUploadLimits> Function() checkEligibility,
     required Future<VideoUploadAuthorization> Function() authorize,
     required VideoUploadOperation upload,
@@ -91,7 +89,7 @@ final class VideoPublicationCoordinator {
     operationAccountDid,
   );
 
-  VideoPublicationCoordinator._(
+  new _(
     this._checkEligibility,
     this._authorize,
     this._upload,

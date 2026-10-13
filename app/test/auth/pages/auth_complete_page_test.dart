@@ -4,17 +4,17 @@ import 'package:craftsky_app/auth/models/auth_error.dart';
 import 'package:craftsky_app/auth/pages/auth_complete_page.dart';
 import 'package:craftsky_app/auth/providers/auth_controller.dart';
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../fakes/auth_session_fakes.dart';
 
 class _FakeAuthController extends AuthController {
-  _FakeAuthController({required this.onComplete, this.onStartRegistration});
+  new({required this.onComplete, this.onStartRegistration});
   final Future<void> Function(String code) onComplete;
   final Future<void> Function()? onStartRegistration;
 
@@ -67,7 +67,7 @@ Future<GoRouter> _pumpCompletionRouter(
       ],
       child: MaterialApp.router(
         routerConfig: router,
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        localizationsDelegates: appLocalizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
       ),
     ),
@@ -183,7 +183,7 @@ void main() {
           ),
         ],
         child: const MaterialApp(
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: appLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: AuthCompletePage(code: 'code-123'),
         ),
@@ -205,7 +205,7 @@ void main() {
           ),
         ],
         child: const MaterialApp(
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: appLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: AuthCompletePage(code: 'code'),
         ),
@@ -235,7 +235,7 @@ void main() {
           ),
         ],
         child: const MaterialApp(
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: appLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: AuthCompletePage(code: 'retry-code'),
         ),
@@ -279,7 +279,7 @@ void main() {
               ),
             ],
             child: MaterialApp(
-              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              localizationsDelegates: appLocalizationsDelegates,
               supportedLocales: AppLocalizations.supportedLocales,
               home: AuthCompletePage(
                 code: 'must-not-exchange',
@@ -315,7 +315,7 @@ void main() {
             ),
           ],
           child: const MaterialApp(
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            localizationsDelegates: appLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             home: AuthCompletePage(error: internalValue),
           ),
@@ -368,7 +368,7 @@ void main() {
           ),
         ],
         child: const MaterialApp(
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          localizationsDelegates: appLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: AuthCompletePage(error: 'account_deletion_pending'),
         ),

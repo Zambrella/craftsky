@@ -6,7 +6,7 @@ import 'package:craftsky_app/service_status/data/service_status_repository.dart'
 
 /// Independent anonymous origin; never shares AppView clients or headers.
 final class LoopbackServiceStatus {
-  LoopbackServiceStatus._(this.server, this.repository);
+  new _(this.server, this.repository);
   final HttpServer server;
   final ServiceStatusRepository repository;
   final requests = <Map<String, List<String>>>[];

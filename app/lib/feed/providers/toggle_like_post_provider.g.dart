@@ -33,13 +33,13 @@ final class ToggleLikePostProvider
   ToggleLikePost create() => ToggleLikePost();
 }
 
-String _$toggleLikePostHash() => r'69b89cb663a0ea31bc0de233f3d2532d2c6c0e50';
+String _$toggleLikePostHash() => r'8da7ece607dd328099c4239bedf90917fef7cacd';
 
 abstract class _$ToggleLikePost extends $AsyncNotifier<Post?> {
   FutureOr<Post?> build();
   @$mustCallSuper
   @override
-  void runBuild() {
+  WhenComplete runBuild() {
     final ref = this.ref as $Ref<AsyncValue<Post?>, Post?>;
     final element =
         ref.element
@@ -49,6 +49,6 @@ abstract class _$ToggleLikePost extends $AsyncNotifier<Post?> {
               Object?,
               Object?
             >;
-    element.handleCreate(ref, build);
+    return element.handleCreate(ref, build);
   }
 }

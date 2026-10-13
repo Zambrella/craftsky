@@ -14,7 +14,7 @@ import 'package:craftsky_app/feed/providers/toggle_repost_post_provider.dart';
 import 'package:craftsky_app/feed/widgets/post_card.dart';
 import 'package:craftsky_app/feed/widgets/post_composer_sheet.dart';
 import 'package:craftsky_app/feed/widgets/post_interaction_summary.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/moderation/widgets/report_flow.dart';
 import 'package:craftsky_app/profile/models/profile_handle.dart';
 import 'package:craftsky_app/projects/widgets/project_card.dart';
@@ -31,12 +31,12 @@ import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/form_factor.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:material_ui/material_ui.dart';
 
 class PostThreadPage extends ConsumerStatefulWidget {
-  const PostThreadPage({
+  const new({
     required this.did,
     required this.rkey,
     this.focus,
@@ -358,7 +358,7 @@ class _PostThreadPageState extends ConsumerState<PostThreadPage> {
 }
 
 class _CommentSectionBody extends ConsumerStatefulWidget {
-  const _CommentSectionBody({
+  const new({
     required this.section,
     required this.did,
     required this.rkey,
@@ -656,7 +656,7 @@ class _CommentSectionBodyState extends ConsumerState<_CommentSectionBody> {
 }
 
 class _CommentCard extends ConsumerWidget {
-  const _CommentCard({
+  const new({
     required this.item,
     required this.did,
     required this.rkey,
@@ -855,7 +855,7 @@ class _CommentCard extends ConsumerWidget {
 }
 
 class _ReplyBranchBox extends StatelessWidget {
-  const _ReplyBranchBox({required this.children, super.key});
+  const new({required this.children, super.key});
 
   final List<Widget> children;
 
@@ -913,7 +913,7 @@ List<SortMenuOption<CommentSort>> _commentSortOptions(AppLocalizations l10n) =>
     ];
 
 class _FocusedTargetWrapper extends StatelessWidget {
-  const _FocusedTargetWrapper({
+  const new({
     required this.focusTargetKey,
     required this.isFocused,
     required this.child,
@@ -931,7 +931,7 @@ class _FocusedTargetWrapper extends StatelessWidget {
 }
 
 class _CommentReplyControls extends StatelessWidget {
-  const _CommentReplyControls({
+  const new({
     required this.commentUri,
     required this.repliesCursor,
     required this.replyCount,
@@ -1023,7 +1023,7 @@ class _CommentReplyControls extends StatelessWidget {
 }
 
 class _ThreadError extends StatelessWidget {
-  const _ThreadError({required this.error, required this.onRetry});
+  const new({required this.error, required this.onRetry});
 
   final Object error;
   final VoidCallback onRetry;
@@ -1047,7 +1047,7 @@ class _ThreadError extends StatelessWidget {
 }
 
 class _ReplyPrompt extends StatelessWidget {
-  const _ReplyPrompt({
+  const new({
     required this.post,
     this.isRootPrompt = false,
     super.key,

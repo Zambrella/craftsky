@@ -1,20 +1,19 @@
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:url_launcher/url_launcher.dart' as url_launcher;
 
 /// Opens an external link.
 typedef ExternalLinkLauncher = Future<bool> Function(Uri uri);
 
 /// Confirms whether an external link should open.
-typedef ExternalLinkConfirmer =
-    Future<bool> Function(
-      BuildContext context,
-      Uri uri,
-    );
+typedef ExternalLinkConfirmer = Future<bool> Function(
+  BuildContext context,
+  Uri uri,
+);
 
 /// Parses user-provided link text into an HTTP(S) URI CraftSky can open.
 Uri? normalizeExternalLinkUri(String? value) {

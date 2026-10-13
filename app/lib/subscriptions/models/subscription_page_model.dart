@@ -2,7 +2,7 @@ import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/subscriptions/models/billing_state.dart';
 import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
 import 'package:craftsky_app/subscriptions/services/revenuecat_service.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 enum SubscriptionPageRole {
   neverReserved,
@@ -26,7 +26,7 @@ enum SubscriptionOperationNotice {
 }
 
 final class SubscriptionPageModel {
-  const SubscriptionPageModel({
+  const new({
     required this.role,
     required this.access,
     required this.billingAvailability,

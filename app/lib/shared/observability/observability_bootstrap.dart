@@ -4,13 +4,12 @@ import 'package:craftsky_app/shared/observability/sentry_config.dart';
 
 // The adapter keeps SDK initialization testable without importing Sentry in
 // bootstrap tests.
-// ignore: one_member_abstracts
 abstract interface class SentryBootstrapAdapter {
   Future<ErrorReporter> initialize(SentryConfig config);
 }
 
 final class ObservabilityBootstrap {
-  const ObservabilityBootstrap._();
+  const new _();
 
   static Future<ErrorReporter> initialize({
     required SentryConfig config,

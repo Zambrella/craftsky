@@ -44,7 +44,7 @@ void main() {
 
 final class _RecordingNewnessRepository
     implements NotificationNewnessRepository {
-  _RecordingNewnessRepository({this.initialCount});
+  new({this.initialCount});
 
   final int? initialCount;
   int countCalls = 0;

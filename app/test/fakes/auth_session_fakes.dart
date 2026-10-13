@@ -13,7 +13,7 @@ class SignedOutAuthSession extends AuthSession {
 }
 
 class SignedInAuthSession extends AuthSession {
-  SignedInAuthSession({this.did = 'did:plc:test'});
+  new({this.did = 'did:plc:test'});
   final String did;
 
   @override

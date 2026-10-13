@@ -99,7 +99,7 @@ void main() {
 }
 
 final class _RecordingScreenAwake implements SubmissionScreenAwake {
-  const _RecordingScreenAwake(this.events);
+  const new(this.events);
 
   final List<String> events;
 

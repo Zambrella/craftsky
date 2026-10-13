@@ -1,11 +1,11 @@
 import 'package:craftsky_app/feed/providers/composer_video_controller.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/theme/brand_text_field.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 final class ComposerVideoAttachmentCard extends StatelessWidget {
-  const ComposerVideoAttachmentCard({
+  const new({
     required this.selection,
     required this.enabled,
     required this.onAltTextChanged,

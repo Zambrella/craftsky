@@ -48,9 +48,9 @@ The minimum we need to ship a first usable Craftsky Flutter app with a real AppV
 - [x] Make sure to handle PDS migration
 - [x] Video posts (including Instagram post importer)
 - [x] Update to latest version of `Indigo` package and `Tap` service
-- [ ] Pro and Business subscriptions (Revenue Cat)
-  - [ ] Webhooks
-  - [ ] Backend tracking against accounts
+- [x] Pro and Business subscriptions (Revenue Cat)
+  - [x] Webhooks
+  - [x] Backend tracking against accounts
 - [x] Moderation communication (3 strikes? Push notifications for warnings? A way to appeal decisions?)
 
 ### Flutter app
@@ -88,19 +88,19 @@ The minimum we need to ship a first usable Craftsky Flutter app with a real AppV
 - [x] Iconography
 - [x] Be able to see who liked, reposted and quote reposted a post
 - [x] App icon and splash screen
-- [ ] Pro and Business subscriptions (Revenue Cat)
-  - [ ] Front-end logic
-  - [ ] Paywall
-  - [ ] Locking content
-- [ ] Add the correct OAuth scopes
-- [ ] Make sure OAuth and lexicons are broadcast to the network
+- [x] Pro and Business subscriptions (Revenue Cat)
+  - [x] Front-end logic
+  - [x] Paywall
+  - [x] Locking content
+- [x] Add the correct OAuth scopes
+- [x] Make sure OAuth and lexicons are broadcast to the network
 
 ### Lexicons
 
 - [x] `social.craftsky.feed.post`, `.feed.like`, `.feed.repost`, `.actor.profile` defined
-- [ ] Verify lexicons against real Flutter composer requirements before first real PDS writes happen — any missing/wrong field now is painful to fix later
-- [ ] Project-post field set validation with real crafters — the reference doc flags this as the most important early decision; first real users will tell us what's missing
-- [ ] Pattern/material/technique taxonomy — controlled vocabularies or free-form? If controlled, who maintains them?
+- [x] Verify lexicons against real Flutter composer requirements before first real PDS writes happen — any missing/wrong field now is painful to fix later
+- [x] Project-post field set validation with real crafters — the reference doc flags this as the most important early decision; first real users will tell us what's missing
+- [x] Pattern/material/technique taxonomy — controlled vocabularies or free-form? If controlled, who maintains them?
 
 ### Web / marketing
 
@@ -108,17 +108,17 @@ The minimum we need to ship a first usable Craftsky Flutter app with a real AppV
 
 ### Ops / infra
 
-- [ ] Production deploy (Render AppView + Tap + managed Postgres, external managed S3-compatible storage) → [ADR 016](../adr/016-render-managed-production-infrastructure.md), own implementation spec
-- [ ] Backup strategy
-- [ ] Monitoring / alerting for Tap connection health, firehose lag, indexer errors
-- [ ] App store distribution — Apple Developer + Google Play accounts, bundle/app IDs, signing keys, TestFlight + Play internal track, store listings, review submission → own spec
-- [ ] Secrets management for local dev — `.env` handling conventions, `.env.example`, what's safe to commit
-- [ ] Correct Sentry config for production AppView
-- [ ] Correct Sentry config for App (including automated debug symbol uploads)
+- [x] Production deploy (Render AppView + Tap + managed Postgres, external managed S3-compatible storage) → [ADR 016](../adr/016-render-managed-production-infrastructure.md), own implementation spec
+- [x] Backup strategy
+- [x] Monitoring / alerting for Tap connection health, firehose lag, indexer errors
+- [x] App store distribution — Apple Developer + Google Play accounts, bundle/app IDs, signing keys, TestFlight + Play internal track, store listings, review submission → own spec
+- [x] Secrets management for local dev — `.env` handling conventions, `.env.example`, what's safe to commit
+- [x] Correct Sentry config for production AppView
+- [x] Correct Sentry config for App (including automated debug symbol uploads)
 
 ### Product / community
 
-- [ ] Handle suffix decision (users get `<name>.craftsky.social`? Some other domain? Use bsky.social handles?)
+- [x] Handle suffix decision (users get `<name>.craftsky.social`? Some other domain? Use bsky.social handles?)
 - [x] Initial moderation plan — even MVP needs a "report a post" path, even if the backend is just "email an inbox"
 - [ ] Ozone moderation backend — self-hosted Ozone instance for triaging reports, labelling, and takedowns (see https://atproto.com/guides/using-ozone) → own spec
 - [x] Legal read (UK Online Safety Act implications per reference doc)

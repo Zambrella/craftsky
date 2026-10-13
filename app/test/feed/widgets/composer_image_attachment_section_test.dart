@@ -1,9 +1,9 @@
 import 'package:craftsky_app/feed/providers/composer_image_state.dart';
 import 'package:craftsky_app/feed/widgets/composer_image_attachment_section.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 ComposerImageDraft _image(String id) => ComposerImageDraft(
   id: id,
@@ -137,7 +137,7 @@ Future<void> _pump(
 }) => tester.pumpWidget(
   MaterialApp(
     theme: AppTheme.lightThemeData,
-    localizationsDelegates: AppLocalizations.localizationsDelegates,
+    localizationsDelegates: appLocalizationsDelegates,
     supportedLocales: AppLocalizations.supportedLocales,
     home: Scaffold(
       body: SingleChildScrollView(

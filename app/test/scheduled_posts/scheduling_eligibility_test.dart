@@ -2,15 +2,18 @@ import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/providers/composer_image_state.dart';
 import 'package:craftsky_app/feed/providers/composer_images_provider.dart';
 import 'package:craftsky_app/feed/widgets/post_composer_sheet.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/languages/models/language_preferences.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
 import 'package:craftsky_app/projects/widgets/project_composer_sheet.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
+import 'package:craftsky_app/subscriptions/subscription_build_config.dart';
+import 'package:craftsky_app/subscriptions/widgets/plus_feature_lock.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
-import 'package:flutter/material.dart';
+import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../fakes/recording_messenger.dart';
 
@@ -34,45 +37,58 @@ void main() {
     expect(find.text('Schedule for later'), findsOneWidget);
   });
 
-  testWidgets('AT-002 scheduling is available for project posts', (
-    tester,
-  ) async {
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          activeLanguagePreferencesProvider.overrideWith(
-            (ref) => const LanguagePreferences(
-              primaryLanguage: 'en',
-              contentLanguages: ['en'],
+  testWidgets(
+    'AT-002 project scheduling is locked without subscription access',
+    (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            activeLanguagePreferencesProvider.overrideWith(
+              (ref) => const LanguagePreferences(
+                primaryLanguage: 'en',
+                contentLanguages: ['en'],
+              ),
+            ),
+            composerImagesProvider('project').overrideWithValue(
+              _readyProjectImage,
+            ),
+          ],
+          child: MessengerScope(
+            messenger: RecordingMessenger(),
+            child: MaterialApp(
+              theme: AppTheme.lightThemeData,
+              localizationsDelegates: appLocalizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
+              home: const ProjectComposerSheet(composerId: 'project'),
             ),
           ),
-          composerImagesProvider('project').overrideWithValue(
-            _readyProjectImage,
-          ),
-        ],
-        child: MessengerScope(
-          messenger: RecordingMessenger(),
-          child: MaterialApp(
-            theme: AppTheme.lightThemeData,
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
-            supportedLocales: AppLocalizations.supportedLocales,
-            home: const ProjectComposerSheet(composerId: 'project'),
-          ),
         ),
-      ),
-    );
-    await tester.pumpAndSettle();
+      );
+      await tester.pumpAndSettle();
 
-    final when = find.byKey(const Key('composer-schedule-control'));
-    expect(when, findsOneWidget);
-    await tester.ensureVisible(when);
-    await tester.pumpAndSettle();
-    await tester.tap(when);
-    await tester.pumpAndSettle();
-    expect(find.byType(SimpleDialog), findsNothing);
-    expect(find.byType(BottomSheet), findsOneWidget);
-    expect(find.text('Schedule for later'), findsOneWidget);
-  });
+      final when = find.byKey(const Key('composer-schedule-control'));
+      expect(when, findsOneWidget);
+      await tester.ensureVisible(when);
+      await tester.pumpAndSettle();
+      final l10n = AppLocalizations.of(tester.element(when));
+      await tester.tap(find.byType(PlusFeatureLock));
+      await tester.pumpAndSettle();
+      expect(find.byType(SimpleDialog), findsNothing);
+      expect(find.byType(BottomSheet), findsNothing);
+      expect(find.byType(CraftskyDialog), findsOneWidget);
+      expect(
+        find.text(
+          subscriptionsEnabled
+              ? l10n.subscriptionsTierUnavailable
+              : l10n.plusFeatureComingSoon(l10n.scheduledPostsTitle),
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('Schedule for later'), findsNothing);
+    },
+  );
 
   testWidgets('AT-002 scheduling is unavailable for replies and quotes', (
     tester,
@@ -113,7 +129,7 @@ Widget _postApp(Widget home) => ProviderScope(
     messenger: RecordingMessenger(),
     child: MaterialApp(
       theme: AppTheme.lightThemeData,
-      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      localizationsDelegates: appLocalizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
       home: home,
     ),

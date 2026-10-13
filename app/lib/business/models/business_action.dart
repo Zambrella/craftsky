@@ -1,8 +1,8 @@
 import 'package:craftsky_app/business/models/business_labels.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/shared/link/external_link.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 abstract final class BusinessActionFormatter {
   static const List<String> knownTypes = BusinessLabels.actions;
@@ -22,7 +22,7 @@ abstract final class BusinessActionFormatter {
 }
 
 final class BusinessActionPresentation {
-  const BusinessActionPresentation({required this.label, required this.icon});
+  const new({required this.label, required this.icon});
 
   final String label;
   final IconData icon;

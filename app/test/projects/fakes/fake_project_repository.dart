@@ -3,7 +3,7 @@ import 'package:craftsky_app/projects/data/project_repository.dart';
 import 'package:craftsky_app/projects/models/project_browse_filters.dart';
 
 class FakeProjectRepository implements ProjectRepository {
-  FakeProjectRepository({this.onListProjects});
+  new({this.onListProjects});
 
   final Future<PostPage> Function({
     required ProjectBrowseQuery query,

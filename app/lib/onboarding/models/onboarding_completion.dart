@@ -2,7 +2,7 @@ import 'package:flutter/foundation.dart';
 
 @immutable
 final class OnboardingCompletion {
-  const OnboardingCompletion({
+  const new({
     required this.completed,
     this.requiredPolicyVersion = '1',
     this.completedAt,
@@ -10,7 +10,7 @@ final class OnboardingCompletion {
     this.acceptedAt,
   });
 
-  factory OnboardingCompletion.fromJson(Map<String, dynamic> json) {
+  factory fromJson(Map<String, dynamic> json) {
     final completed = json['completed'];
     if (completed is! bool) {
       throw const FormatException('Invalid onboarding completion');

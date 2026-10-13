@@ -23,6 +23,10 @@ type CommandHTTPResult struct {
 
 func WriteCommandError(writer http.ResponseWriter, requestID string, err error, contexts ...context.Context) {
 	status, code, message := commandError(err)
+	var limited *auth.RateLimitError
+	if errors.As(err, &limited) {
+		writer.Header().Set("Retry-After", strconv.Itoa(limited.RetrySeconds()))
+	}
 	if len(contexts) > 0 && status >= 500 {
 		observability.ReportRequestFailure(contexts[0], err, "pds.command", "dispatch")
 	}
@@ -53,7 +57,10 @@ func commandError(err error) (int, string, string) {
 	status := http.StatusServiceUnavailable
 	code := "pds_dispatch_unavailable"
 	message := "The PDS command could not be dispatched safely."
+	var limited *auth.RateLimitError
 	switch {
+	case errors.As(err, &limited):
+		status, code, message = http.StatusTooManyRequests, "pds_rate_limited", "The PDS is busy; retry this command after the indicated delay."
 	case errors.Is(err, pdscommands.ErrIdempotencyConflict):
 		status, code, message = http.StatusConflict, "idempotency_conflict", "The idempotency key was already used for a different command."
 	case errors.Is(err, pdscommands.ErrRecordConflict):

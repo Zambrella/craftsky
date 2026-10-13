@@ -5,7 +5,7 @@ part 'create_post_image.mapper.dart';
 /// Image payload for top-level `POST /v1/posts` create requests.
 @MappableClass(ignoreNull: true)
 class CreatePostImage with CreatePostImageMappable {
-  const CreatePostImage({
+  const new({
     required this.blob,
     this.alt = '',
     this.aspectRatio,
@@ -32,7 +32,7 @@ class CreatePostImage with CreatePostImageMappable {
 /// AT Protocol blob object embedded in a create-post request.
 @MappableClass()
 class CreatePostBlob with CreatePostBlobMappable {
-  const CreatePostBlob({
+  const new({
     required this.ref,
     required this.mimeType,
     required this.size,
@@ -67,7 +67,7 @@ class CreatePostBlob with CreatePostBlobMappable {
 /// AT Protocol `$link` wrapper for uploaded blob CIDs.
 @MappableClass()
 class CreatePostBlobRef with CreatePostBlobRefMappable {
-  const CreatePostBlobRef({required this.link});
+  const new({required this.link});
 
   /// CID link value for the uploaded blob.
   @MappableField(key: r'$link')
@@ -77,7 +77,7 @@ class CreatePostBlobRef with CreatePostBlobRefMappable {
 /// Optional aspect-ratio metadata attached to an uploaded image.
 @MappableClass()
 class CreatePostImageAspectRatio with CreatePostImageAspectRatioMappable {
-  const CreatePostImageAspectRatio({required this.width, required this.height});
+  const new({required this.width, required this.height});
 
   /// Image width in pixels.
   final int width;

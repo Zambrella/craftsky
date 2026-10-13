@@ -4,7 +4,7 @@ part 'hashtag_search_page.mapper.dart';
 
 @MappableClass(ignoreNull: true)
 class HashtagSearchPage with HashtagSearchPageMappable {
-  const HashtagSearchPage({required this.items, this.cursor});
+  const new({required this.items, this.cursor});
 
   final List<HashtagSearchResult> items;
   final String? cursor;
@@ -12,7 +12,7 @@ class HashtagSearchPage with HashtagSearchPageMappable {
 
 @MappableClass()
 class HashtagSearchResult with HashtagSearchResultMappable {
-  const HashtagSearchResult({
+  const new({
     required this.tag,
     required this.postsLast28Days,
   });

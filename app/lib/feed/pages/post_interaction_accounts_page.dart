@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:craftsky_app/feed/providers/post_interaction_lists_provider.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/profile/widgets/profile_account_list_tile.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
@@ -11,11 +11,11 @@ import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:material_ui/material_ui.dart';
 
 class PostInteractionAccountsPage extends ConsumerWidget {
-  const PostInteractionAccountsPage({
+  const new({
     required this.did,
     required this.rkey,
     required this.kind,
@@ -94,7 +94,7 @@ class PostInteractionAccountsPage extends ConsumerWidget {
 }
 
 class _InitialError extends StatelessWidget {
-  const _InitialError({required this.error, required this.onRetry});
+  const new({required this.error, required this.onRetry});
 
   final Object error;
   final VoidCallback onRetry;

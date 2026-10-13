@@ -14,7 +14,7 @@ import 'package:craftsky_app/business/models/business_profile.dart';
 import 'package:craftsky_app/business/pages/event_detail_page.dart';
 import 'package:craftsky_app/business/providers/business_event_detail_provider.dart';
 import 'package:craftsky_app/business/providers/business_repository_provider.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/moderation/models/report_result.dart';
 import 'package:craftsky_app/moderation/models/report_submission.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
@@ -25,11 +25,11 @@ import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/craftsky_card.dart';
 import 'package:craftsky_app/theme/craftsky_context_menu.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../accessibility_test_helpers.dart';
 
@@ -621,7 +621,7 @@ Future<void> _pump(
           (ref, lease) async {
             final currentTier = ref.watch(ownerTier);
             if (refreshAccess != null && ref.watch(refreshAccess)) {
-              return pendingAccess!.future;
+              return await pendingAccess!.future;
             }
             return SubscriptionAccess(
               did: lease.account.did,
@@ -637,7 +637,7 @@ Future<void> _pump(
     ],
     child: MaterialApp(
       theme: AppTheme.lightThemeData,
-      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      localizationsDelegates: appLocalizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
       home: page,
     ),
@@ -645,7 +645,7 @@ Future<void> _pump(
 );
 
 final class _EventRegistryStorage implements SessionRegistryStorage {
-  _EventRegistryStorage(this.registry);
+  new(this.registry);
   SessionRegistry registry;
 
   @override
@@ -657,7 +657,7 @@ final class _EventRegistryStorage implements SessionRegistryStorage {
 }
 
 final class _Repository extends Fake implements BusinessRepository {
-  _Repository(this.result, {this.reportResult});
+  new(this.result, {this.reportResult});
 
   final Object result;
   final Object? reportResult;
@@ -686,13 +686,15 @@ final class _Repository extends Fake implements BusinessRepository {
     if (reportResult case final Exception error) throw error;
     if (reportResult case final Error error) throw error;
     if (reportResult case final ReportResult result) return result;
-    if (reportResult case final Future<ReportResult> result) return result;
+    if (reportResult case final Future<ReportResult> result) {
+      return await result;
+    }
     return const ReportResult(reportId: 'report-event-1', status: 'accepted');
   }
 }
 
 final class _SequenceRepository extends Fake implements BusinessRepository {
-  _SequenceRepository(this.results);
+  new(this.results);
 
   final List<Object> results;
 

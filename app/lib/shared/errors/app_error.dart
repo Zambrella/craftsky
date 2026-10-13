@@ -1,4 +1,4 @@
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
 
 enum AppErrorKind {
@@ -18,7 +18,7 @@ enum AppErrorKind {
 enum AppErrorSeverity { info, warning, error }
 
 final class AppError implements DiagnosticFailureCause {
-  const AppError(
+  const new(
     this.kind, {
     this.safeDiagnostics = const {},
     this.reportableOverride,
@@ -43,7 +43,7 @@ final class AppError implements DiagnosticFailureCause {
 }
 
 final class AppErrorMetadata {
-  const AppErrorMetadata({
+  const new({
     required this.severity,
     required this.reportableByDefault,
     required this.sentryClassification,

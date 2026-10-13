@@ -1,12 +1,12 @@
 import 'dart:ui' show lerpDouble;
 
 import 'package:craftsky_app/theme/brand_colors.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// 8-point grid with a 4-point half-step — `--sp-1` through `--sp-9` in the
 /// CraftSky design system.
 class SpacingTheme extends ThemeExtension<SpacingTheme> {
-  const SpacingTheme({
+  const new({
     this.sp1 = 4,
     this.sp2 = 8,
     this.sp3 = 12,
@@ -73,7 +73,7 @@ class SpacingTheme extends ThemeExtension<SpacingTheme> {
 /// Corner radii — mostly square, chunky-rounded for signature moments.
 /// `r0` = full-bleed photos, `r4` = statement buttons, `rPill` = chips/avatars.
 class RadiusTheme extends ThemeExtension<RadiusTheme> {
-  const RadiusTheme({
+  const new({
     this.r0 = 0,
     this.r1 = 2,
     this.r2 = 6,
@@ -125,7 +125,7 @@ class RadiusTheme extends ThemeExtension<RadiusTheme> {
 /// Motion durations from the design system.
 /// Default ease is out; `ease-pop` is a springy bounce for buttons and likes.
 class DurationTheme extends ThemeExtension<DurationTheme> {
-  const DurationTheme({
+  const new({
     this.fast = const Duration(milliseconds: 120),
     this.medium = const Duration(milliseconds: 220),
     this.modal = const Duration(milliseconds: 320),
@@ -167,7 +167,7 @@ class DurationTheme extends ThemeExtension<DurationTheme> {
 /// Hard-offset "paper-on-paper" drop shadows — the signature CraftSky move.
 /// `sm` = buttons/small chips, `md` = cards/hero elements, `lg` = posters.
 class BrandShadowTheme extends ThemeExtension<BrandShadowTheme> {
-  const BrandShadowTheme({
+  const new({
     this.drop = const [BoxShadow(color: BrandColors.ink, offset: Offset(6, 6))],
     this.dropSm = const [
       BoxShadow(color: BrandColors.ink, offset: Offset(3, 3)),
@@ -228,7 +228,7 @@ class BrandShadowTheme extends ThemeExtension<BrandShadowTheme> {
 /// Background swatches are never text colours. Explicit `on*` slots provide
 /// the corresponding foreground contract when a swatch contains content.
 class BrandSwatchTheme extends ThemeExtension<BrandSwatchTheme> {
-  const BrandSwatchTheme({
+  const new({
     this.paper = BrandColors.paper,
     this.paper2 = BrandColors.paper2,
     this.paper3 = BrandColors.paper3,
@@ -323,7 +323,7 @@ class BrandSwatchTheme extends ThemeExtension<BrandSwatchTheme> {
 /// used as SnackBar or container backgrounds — light enough to keep dark
 /// ink text readable while still communicating severity by colour.
 class SemanticColorsTheme extends ThemeExtension<SemanticColorsTheme> {
-  const SemanticColorsTheme({
+  const new({
     required this.error,
     required this.warning,
     required this.success,

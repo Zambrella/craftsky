@@ -1,10 +1,10 @@
 import 'package:craftsky_app/feed/models/post.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 class PostInteractionSummary extends StatelessWidget {
-  const PostInteractionSummary({
+  const new({
     required this.post,
     required this.onLikes,
     required this.onReposts,

@@ -7,7 +7,7 @@ import 'package:flutter/widgets.dart';
 /// Tests override the messenger by wrapping the widget under test in a
 /// `MessengerScope` whose [messenger] is a recording fake.
 class MessengerScope extends InheritedWidget {
-  const MessengerScope({
+  const new({
     required this.messenger,
     required super.child,
     super.key,

@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:craftsky_app/auth/providers/active_account_initialization_provider.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/notifications/models/notification_effect.dart';
 import 'package:craftsky_app/notifications/providers/notification_new_count_provider.dart';
 import 'package:craftsky_app/notifications/providers/notification_permission_provider.dart';
@@ -14,11 +14,11 @@ import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/shared/messaging/message_action.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:material_ui/material_ui.dart';
 
 class NotificationEffectHost extends ConsumerStatefulWidget {
-  const NotificationEffectHost({required this.child, super.key});
+  const new({required this.child, super.key});
   final Widget child;
 
   @override

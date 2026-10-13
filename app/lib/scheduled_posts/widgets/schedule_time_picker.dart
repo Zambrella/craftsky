@@ -1,14 +1,14 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
-typedef ScheduleDateSelector =
-    Future<DateTime?> Function({
-      required DateTime initialDate,
-      required DateTime firstDate,
-      required DateTime lastDate,
-    });
+typedef ScheduleDateSelector = Future<DateTime?> Function({
+  required DateTime initialDate,
+  required DateTime firstDate,
+  required DateTime lastDate,
+});
 
-typedef ScheduleTimeSelector =
-    Future<TimeOfDay?> Function({required TimeOfDay initialTime});
+typedef ScheduleTimeSelector = Future<TimeOfDay?> Function({
+  required TimeOfDay initialTime,
+});
 
 Future<DateTime?> pickScheduledLocalTime({
   required BuildContext context,
@@ -69,9 +69,9 @@ Future<DateTime?> pickScheduledLocalTime({
 }
 
 final class ScheduleTimeWindow {
-  const ScheduleTimeWindow({required this.earliest, required this.latest});
+  const new({required this.earliest, required this.latest});
 
-  factory ScheduleTimeWindow.fromNow(DateTime now) => ScheduleTimeWindow(
+  factory fromNow(DateTime now) => ScheduleTimeWindow(
     earliest: _ceilToMinute(now.add(const Duration(minutes: 5))),
     latest: _floorToMinute(now.add(const Duration(days: 28))),
   );

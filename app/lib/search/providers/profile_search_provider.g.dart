@@ -50,7 +50,7 @@ final class ProfileSearchProvider
   }
 }
 
-String _$profileSearchHash() => r'a263cddc8a5e4890b71a8f198f3f70f100ac299c';
+String _$profileSearchHash() => r'e9e1475dbc886f7e463c64d77739013db725f83e';
 
 final class ProfileSearchFamily extends $Family
     with
@@ -85,7 +85,7 @@ abstract class _$ProfileSearch
   FutureOr<ProfileSearchResultsState> build(ProfileSearchQuery query);
   @$mustCallSuper
   @override
-  void runBuild() {
+  WhenComplete runBuild() {
     final ref =
         this.ref
             as $Ref<
@@ -103,6 +103,6 @@ abstract class _$ProfileSearch
               Object?,
               Object?
             >;
-    element.handleCreate(ref, () => build(_$args));
+    return element.handleCreate(ref, () => build(_$args));
   }
 }

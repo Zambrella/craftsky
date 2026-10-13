@@ -15,6 +15,7 @@ const (
 	CommandAmbiguous    CommandState = "ambiguous"
 	CommandRejected     CommandState = "rejected"
 	DispatchInvalidSwap CommandState = "invalid_swap"
+	DispatchRateLimited CommandState = "rate_limited"
 	ReplayRetention                  = 24 * time.Hour
 )
 

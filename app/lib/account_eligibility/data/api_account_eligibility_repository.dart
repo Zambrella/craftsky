@@ -5,7 +5,7 @@ import 'package:dio/dio.dart';
 
 final class ApiAccountEligibilityRepository
     implements AccountEligibilityRepository {
-  const ApiAccountEligibilityRepository(this._dio);
+  const new(this._dio);
 
   final Dio _dio;
 

@@ -20,7 +20,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 final class _RegistryStorage implements SessionRegistryStorage {
-  _RegistryStorage(this.value);
+  new(this.value);
 
   SessionRegistry value;
 
@@ -32,7 +32,7 @@ final class _RegistryStorage implements SessionRegistryStorage {
 }
 
 final class _PreferencesRepository implements LanguagePreferencesRepository {
-  _PreferencesRepository(this.loaded);
+  new(this.loaded);
 
   final Future<LanguagePreferences> loaded;
 
@@ -52,7 +52,7 @@ final class _PreferencesRepository implements LanguagePreferencesRepository {
 
 final class _SequencedPreferencesRepository
     implements LanguagePreferencesRepository {
-  _SequencedPreferencesRepository(this.loads);
+  new(this.loads);
 
   final List<Completer<LanguagePreferences>> loads;
   var _nextLoad = 0;
@@ -72,7 +72,7 @@ final class _SequencedPreferencesRepository
 }
 
 final class _OnboardingRepository implements OnboardingRepository {
-  const _OnboardingRepository();
+  const new();
   @override
   Future<OnboardingCompletion> readStatus() async =>
       const OnboardingCompletion(completed: false);

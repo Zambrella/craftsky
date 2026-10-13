@@ -86,7 +86,7 @@ abstract class _$AccountNotifications
   FutureOr<NotificationsState> build(AccountKey account);
   @$mustCallSuper
   @override
-  void runBuild() {
+  WhenComplete runBuild() {
     final ref =
         this.ref as $Ref<AsyncValue<NotificationsState>, NotificationsState>;
     final element =
@@ -97,7 +97,7 @@ abstract class _$AccountNotifications
               Object?,
               Object?
             >;
-    element.handleCreate(ref, () => build(_$args));
+    return element.handleCreate(ref, () => build(_$args));
   }
 }
 
@@ -131,7 +131,7 @@ abstract class _$Notifications extends $AsyncNotifier<NotificationsState> {
   FutureOr<NotificationsState> build();
   @$mustCallSuper
   @override
-  void runBuild() {
+  WhenComplete runBuild() {
     final ref =
         this.ref as $Ref<AsyncValue<NotificationsState>, NotificationsState>;
     final element =
@@ -142,6 +142,6 @@ abstract class _$Notifications extends $AsyncNotifier<NotificationsState> {
               Object?,
               Object?
             >;
-    element.handleCreate(ref, build);
+    return element.handleCreate(ref, build);
   }
 }

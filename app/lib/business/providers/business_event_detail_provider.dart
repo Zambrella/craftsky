@@ -14,7 +14,7 @@ part 'business_event_detail_provider.g.dart';
 
 @immutable
 final class BusinessEventDetailTarget {
-  const BusinessEventDetailTarget({
+  const new({
     required this.account,
     required this.owner,
     required this.rkey,
@@ -39,17 +39,17 @@ final class BusinessEventDetailTarget {
 }
 
 sealed class BusinessEventDetailState {
-  const BusinessEventDetailState();
+  const new();
 }
 
 final class BusinessEventDetailAvailable extends BusinessEventDetailState {
-  const BusinessEventDetailAvailable(this.event);
+  const new(this.event);
 
   final BusinessEvent event;
 }
 
 final class BusinessEventDetailUnavailable extends BusinessEventDetailState {
-  const BusinessEventDetailUnavailable();
+  const new();
 }
 
 @riverpod

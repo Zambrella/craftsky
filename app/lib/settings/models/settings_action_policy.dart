@@ -1,5 +1,5 @@
 final class SettingsActionPolicy {
-  const SettingsActionPolicy({
+  const new({
     required this.requiresConfirmation,
     required this.invokesSessionSignOut,
     required this.startsAccountDeletion,

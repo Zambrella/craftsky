@@ -12,7 +12,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 part 'profile_pins_provider.g.dart';
 
 final class ProfilePinsPresentation {
-  ProfilePinsPresentation({
+  new({
     required this.confirmed,
     Set<ProfilePinSlot> pendingSlots = const {},
   }) : pendingSlots = UnmodifiableSetView(Set.of(pendingSlots));

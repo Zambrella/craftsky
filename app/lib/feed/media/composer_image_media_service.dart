@@ -9,7 +9,7 @@ import 'package:image_size_getter/image_size_getter.dart' as image_size;
 import 'package:mime/mime.dart';
 
 final class ImageSourceDimensionsTooLargeException implements Exception {
-  const ImageSourceDimensionsTooLargeException({
+  const new({
     required this.width,
     required this.height,
     required this.maxSide,
@@ -46,7 +46,7 @@ const defaultScheduledImageLimits = ScheduledImageLimits(
 
 /// Coordinates image-related logic used by the composer pipeline.
 class ComposerImageMediaService {
-  const ComposerImageMediaService({
+  const new({
     this.config = mediaConfig,
     this.scheduledImageLimits = defaultScheduledImageLimits,
   });
@@ -669,7 +669,7 @@ class ComposerImageMediaService {
 /// Scheduled-image geometry limits mirrored from AppView's non-disableable
 /// server policy. Tests may use lower limits to exercise resize behavior.
 class ScheduledImageLimits {
-  const ScheduledImageLimits({
+  const new({
     required this.maxWidth,
     required this.maxHeight,
     required this.maxPixels,
@@ -734,7 +734,7 @@ class ScheduledImageLimits {
 
 /// Integer dimensions selected for a proportional scheduled-image resize.
 class ImageDimensions {
-  const ImageDimensions({required this.width, required this.height});
+  const new({required this.width, required this.height});
 
   final int width;
   final int height;
@@ -745,7 +745,7 @@ enum ImageSelectionRejection { unsupportedType, imageLimitExceeded }
 
 /// Lightweight image identity used while validating a picker selection.
 class LocalImageSelection {
-  const LocalImageSelection({required this.name, required this.mimeType});
+  const new({required this.name, required this.mimeType});
 
   final String name;
   final String mimeType;
@@ -753,7 +753,7 @@ class LocalImageSelection {
 
 /// A selected image rejected before entering the upload pipeline.
 class RejectedImageSelection {
-  const RejectedImageSelection({required this.image, required this.reason});
+  const new({required this.image, required this.reason});
 
   final LocalImageSelection image;
   final ImageSelectionRejection reason;
@@ -761,7 +761,7 @@ class RejectedImageSelection {
 
 /// Result of validating a local multi-image selection.
 class ImageSelectionValidationResult {
-  const ImageSelectionValidationResult({
+  const new({
     required this.accepted,
     required this.rejected,
   });
@@ -778,7 +778,7 @@ enum OriginalImageRejection { unsupportedType, tooLarge }
 
 /// Result of original local file validation before decode/re-encode.
 class OriginalImageValidationResult {
-  const OriginalImageValidationResult({
+  const new({
     required this.canPrepare,
     required this.rejectedReason,
   });
@@ -789,7 +789,7 @@ class OriginalImageValidationResult {
 
 /// Result of final upload-size validation.
 class PreparedUploadValidationResult {
-  const PreparedUploadValidationResult({
+  const new({
     required this.canUpload,
     required this.rejectedReason,
   });
@@ -803,7 +803,7 @@ enum SupportedImageFormat { jpeg, png }
 
 /// Sendable request object for off-main-isolate image preparation.
 class ImagePreparationRequest {
-  const ImagePreparationRequest({
+  const new({
     required this.bytes,
     required this.fileName,
     required this.mimeType,
@@ -820,7 +820,7 @@ class ImagePreparationRequest {
 
 /// Prepared image data returned from the isolate.
 class PreparedImagePayload {
-  const PreparedImagePayload({
+  const new({
     required this.bytes,
     required this.mimeType,
     required this.width,
@@ -839,7 +839,7 @@ class PreparedImagePayload {
 
 /// Lightweight image data needed before rendering the local preview.
 class ImageInspectionPayload {
-  const ImageInspectionPayload({required this.width, required this.height});
+  const new({required this.width, required this.height});
 
   final int width;
   final int height;
@@ -847,7 +847,7 @@ class ImageInspectionPayload {
 
 /// Handle for an in-flight image inspection task.
 class ImageInspectionJob {
-  ImageInspectionJob._(this.future);
+  new _(this.future);
 
   final Future<ImageInspectionPayload> future;
 
@@ -856,7 +856,7 @@ class ImageInspectionJob {
 
 /// Handle for an in-flight image preparation task.
 class ImagePreparationJob {
-  ImagePreparationJob._(this.future);
+  new _(this.future);
 
   final Future<PreparedImagePayload> future;
 

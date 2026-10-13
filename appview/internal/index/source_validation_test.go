@@ -116,21 +116,21 @@ func TestSourceValidatorEnforcesCollectionKeyPolicyForEveryAction(t *testing.T) 
 }
 
 func TestSourceValidatorAcceptsSupportedCreateAndUpdateRecords(t *testing.T) {
-	const subject = `{"uri":"at://did:plc:subject/social.craftsky.feed.post/3aaaaaaaaaaa2","cid":"bafysubject"}`
+	const subject = `{"uri":"at://did:plc:subject/social.craftsky.feed.post/3aaaaaaaaaaa2","cid":"bafyreig7k3sfss7d4efoww2cirg3gfkaglujbqxvxl7p6xwtfwswet7jby"}`
 	records := []struct {
 		collection syntax.NSID
 		rkey       syntax.RecordKey
 		record     json.RawMessage
 	}{
-		{collection: craftskyProfileNSID, rkey: "self", record: json.RawMessage(`{"crafts":["knitting"]}`)},
-		{collection: craftskyPostNSID, rkey: "3aaaaaaaaaaa2", record: json.RawMessage(`{"text":"hello","sponsored":false,"createdAt":"2026-09-03T12:00:00Z"}`)},
-		{collection: craftskyLikeNSID, rkey: "3aaaaaaaaaaa2", record: json.RawMessage(`{"subject":` + subject + `,"createdAt":"2026-09-03T12:00:00Z"}`)},
-		{collection: craftskyRepostNSID, rkey: "3aaaaaaaaaaa2", record: json.RawMessage(`{"subject":` + subject + `,"createdAt":"2026-09-03T12:00:00Z"}`)},
-		{collection: businessProfileCollection, rkey: "self", record: json.RawMessage(`{"tagline":"Independent"}`)},
-		{collection: businessEventCollection, rkey: "3aaaaaaaaaaa2", record: json.RawMessage(`{"name":"Market","startsAt":"2026-09-10T10:00:00Z","endsAt":"2026-09-10T12:00:00Z","roles":["vendor"],"createdAt":"2026-09-01T00:00:00Z"}`)},
-		{collection: blueskyProfileNSID, rkey: "self", record: json.RawMessage(`{"displayName":"Actor"}`)},
-		{collection: blueskyFollowNSID, rkey: "3aaaaaaaaaaa2", record: json.RawMessage(`{"subject":"did:plc:subject","createdAt":"2026-09-03T12:00:00Z"}`)},
-		{collection: blueskyBlockNSID, rkey: "3aaaaaaaaaaa2", record: json.RawMessage(`{"subject":"did:plc:subject","createdAt":"2026-09-03T12:00:00Z"}`)},
+		{collection: craftskyProfileNSID, rkey: "self", record: json.RawMessage(`{"$type":"social.craftsky.actor.profile","crafts":["knitting"]}`)},
+		{collection: craftskyPostNSID, rkey: "3aaaaaaaaaaa2", record: json.RawMessage(`{"$type":"social.craftsky.feed.post","text":"hello","sponsored":false,"createdAt":"2026-09-03T12:00:00Z"}`)},
+		{collection: craftskyLikeNSID, rkey: "3aaaaaaaaaaa2", record: json.RawMessage(`{"$type":"social.craftsky.feed.like","subject":` + subject + `,"createdAt":"2026-09-03T12:00:00Z"}`)},
+		{collection: craftskyRepostNSID, rkey: "3aaaaaaaaaaa2", record: json.RawMessage(`{"$type":"social.craftsky.feed.repost","subject":` + subject + `,"createdAt":"2026-09-03T12:00:00Z"}`)},
+		{collection: businessProfileCollection, rkey: "self", record: json.RawMessage(`{"$type":"social.craftsky.business.profile","tagline":"Independent"}`)},
+		{collection: businessEventCollection, rkey: "3aaaaaaaaaaa2", record: json.RawMessage(`{"$type":"social.craftsky.business.event","name":"Market","startsAt":"2026-09-10T10:00:00Z","endsAt":"2026-09-10T12:00:00Z","roles":["vendor"],"createdAt":"2026-09-01T00:00:00Z"}`)},
+		{collection: blueskyProfileNSID, rkey: "self", record: json.RawMessage(`{"$type":"app.bsky.actor.profile","displayName":"Actor"}`)},
+		{collection: blueskyFollowNSID, rkey: "3aaaaaaaaaaa2", record: json.RawMessage(`{"$type":"app.bsky.graph.follow","subject":"did:plc:subject","createdAt":"2026-09-03T12:00:00Z"}`)},
+		{collection: blueskyBlockNSID, rkey: "3aaaaaaaaaaa2", record: json.RawMessage(`{"$type":"app.bsky.graph.block","subject":"did:plc:subject","createdAt":"2026-09-03T12:00:00Z"}`)},
 	}
 	for _, record := range records {
 		for _, action := range []string{"create", "update"} {
@@ -158,14 +158,14 @@ func TestSourceValidatorRejectsInvalidShapeIdentifiersAndSemantics(t *testing.T)
 		status     ValidationStatus
 		reason     string
 	}{
-		{name: "post missing required sponsored", collection: craftskyPostNSID, rkey: "3aaaaaaaaaaa2", record: json.RawMessage(`{"text":"hello","createdAt":"2026-09-03T12:00:00Z"}`), status: ValidationInvalid, reason: "invalid_lexicon"},
-		{name: "post invalid language", collection: craftskyPostNSID, rkey: "3aaaaaaaaaaa2", record: json.RawMessage(`{"text":"hello","sponsored":false,"createdAt":"2026-09-03T12:00:00Z","langs":["not_a_language"]}`), status: ValidationInvalid, reason: "invalid_language"},
-		{name: "like missing subject", collection: craftskyLikeNSID, rkey: "3aaaaaaaaaaa2", record: json.RawMessage(`{"createdAt":"2026-09-03T12:00:00Z"}`), status: ValidationInvalid, reason: "missing_subject"},
-		{name: "repost invalid subject URI", collection: craftskyRepostNSID, rkey: "3aaaaaaaaaaa2", record: json.RawMessage(`{"subject":{"uri":"not-an-at-uri","cid":"bafysubject"},"createdAt":"2026-09-03T12:00:00Z"}`), status: ValidationInvalid, reason: "invalid_subject"},
-		{name: "business event invalid timestamp", collection: businessEventCollection, rkey: "3aaaaaaaaaaa2", record: json.RawMessage(`{"name":"Market","startsAt":"nope","endsAt":"2026-09-10T12:00:00Z","roles":["vendor"],"createdAt":"2026-09-01T00:00:00Z"}`), status: ValidationInvalid, reason: "invalid_lexicon"},
-		{name: "Bluesky profile invalid timestamp", collection: blueskyProfileNSID, rkey: "self", record: json.RawMessage(`{"createdAt":"nope"}`), status: ValidationInvalid, reason: "invalid_timestamp"},
-		{name: "follow invalid DID", collection: blueskyFollowNSID, rkey: "3aaaaaaaaaaa2", record: json.RawMessage(`{"subject":"not-a-did","createdAt":"2026-09-03T12:00:00Z"}`), status: ValidationInvalid, reason: "invalid_subject"},
-		{name: "block invalid timestamp", collection: blueskyBlockNSID, rkey: "3aaaaaaaaaaa2", record: json.RawMessage(`{"subject":"did:plc:subject","createdAt":"nope"}`), status: ValidationInvalid, reason: "invalid_timestamp"},
+		{name: "post missing required sponsored", collection: craftskyPostNSID, rkey: "3aaaaaaaaaaa2", record: json.RawMessage(`{"$type":"social.craftsky.feed.post","text":"hello","createdAt":"2026-09-03T12:00:00Z"}`), status: ValidationInvalid, reason: "invalid_lexicon"},
+		{name: "post invalid language", collection: craftskyPostNSID, rkey: "3aaaaaaaaaaa2", record: json.RawMessage(`{"$type":"social.craftsky.feed.post","text":"hello","sponsored":false,"createdAt":"2026-09-03T12:00:00Z","langs":["not_a_language"]}`), status: ValidationInvalid, reason: "invalid_language"},
+		{name: "like missing subject", collection: craftskyLikeNSID, rkey: "3aaaaaaaaaaa2", record: json.RawMessage(`{"$type":"social.craftsky.feed.like","createdAt":"2026-09-03T12:00:00Z"}`), status: ValidationInvalid, reason: "missing_subject"},
+		{name: "repost invalid subject URI", collection: craftskyRepostNSID, rkey: "3aaaaaaaaaaa2", record: json.RawMessage(`{"$type":"social.craftsky.feed.repost","subject":{"uri":"not-an-at-uri","cid":"bafyreig7k3sfss7d4efoww2cirg3gfkaglujbqxvxl7p6xwtfwswet7jby"},"createdAt":"2026-09-03T12:00:00Z"}`), status: ValidationInvalid, reason: "invalid_subject"},
+		{name: "business event invalid timestamp", collection: businessEventCollection, rkey: "3aaaaaaaaaaa2", record: json.RawMessage(`{"$type":"social.craftsky.business.event","name":"Market","startsAt":"nope","endsAt":"2026-09-10T12:00:00Z","roles":["vendor"],"createdAt":"2026-09-01T00:00:00Z"}`), status: ValidationInvalid, reason: "invalid_lexicon"},
+		{name: "Bluesky profile invalid timestamp", collection: blueskyProfileNSID, rkey: "self", record: json.RawMessage(`{"$type":"app.bsky.actor.profile","createdAt":"nope"}`), status: ValidationInvalid, reason: "invalid_timestamp"},
+		{name: "follow invalid DID", collection: blueskyFollowNSID, rkey: "3aaaaaaaaaaa2", record: json.RawMessage(`{"$type":"app.bsky.graph.follow","subject":"not-a-did","createdAt":"2026-09-03T12:00:00Z"}`), status: ValidationInvalid, reason: "invalid_subject"},
+		{name: "block invalid timestamp", collection: blueskyBlockNSID, rkey: "3aaaaaaaaaaa2", record: json.RawMessage(`{"$type":"app.bsky.graph.block","subject":"did:plc:subject","createdAt":"nope"}`), status: ValidationInvalid, reason: "invalid_timestamp"},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -200,7 +200,7 @@ func TestSourceValidatorEnforcesAuthoritativeStringLimits(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			record, err := json.Marshal(test.record)
+			record, err := json.Marshal(func() map[string]any { test.record["$type"] = test.collection.String(); return test.record }())
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -232,7 +232,7 @@ func TestSourceValidatorRejectsMismatchedExplicitType(t *testing.T) {
 // UT-007 / FR-006, FR-004 / AC-012: preserve raw field order and duplicates.
 func TestSourceValidatorRejectsAmbiguousHashtagFields(t *testing.T) {
 	const feature = `"$type":"app.bsky.richtext.facet#tag",`
-	const prefix = `{"text":"#MeMadeMay","sponsored":false,"createdAt":"2026-10-09T11:00:00Z",`
+	const prefix = `{"$type":"social.craftsky.feed.post","text":"#MeMadeMay","sponsored":false,"createdAt":"2026-10-09T11:00:00Z",`
 	facet := func(fields string) string {
 		return `"facets":[{"index":{"byteStart":0,"byteEnd":10},"features":[{` + feature + fields + `}]}]`
 	}
@@ -273,16 +273,23 @@ func TestSourceValidatorRejectsAmbiguousHashtagFields(t *testing.T) {
 		}
 	}
 	for _, fields := range []string{
-		facet(`"Tag":"MeMadeMay"`),
-		`"facets":[{"Index":{"byteſtart":0,"ByteEnd":10},"Features":[{` + feature + `"Tag":"MeMadeMay"}]}]`,
 		`"facets":[{"index":{"byteStart":0,"byteEnd":10},"features":[{` + feature + `"tag":"MeMadeMay"},{` + feature + `"tag":"memademay"}]}]`,
 		`"future":{"tag":"one","Tag":"two"}`, // Unknown payload is not a tag source.
-		`"facets":[{"features":[{"$type":"future#tag","tag":"one","Tag":"two"}]}]`,
 		facet(`"tag":"MeMadeMay","future":1,"Future":2`),
 	} {
 		result := validateSourceRecord(tap.Event{Collection: craftskyPostNSID, Rkey: "3aaaaaaaaaaa2", Action: "create", Record: json.RawMessage(prefix + fields + `}`)})
 		if result.StructuralStatus != ValidationValid || result.SemanticStatus != ValidationValid {
 			t.Fatalf("unambiguous/unknown payload rejected: %s: %+v", fields, result)
+		}
+	}
+	for _, fields := range []string{
+		facet(`"Tag":"MeMadeMay"`),
+		`"facets":[{"Index":{"byteſtart":0,"ByteEnd":10},"Features":[{` + feature + `"Tag":"MeMadeMay"}]}]`,
+		`"facets":[{"features":[{"$type":"future#tag","tag":"one","Tag":"two"}]}]`,
+	} {
+		result := validateSourceRecord(tap.Event{Collection: craftskyPostNSID, Rkey: "3aaaaaaaaaaa2", Action: "create", Record: json.RawMessage(prefix + fields + `}`)})
+		if result.StructuralStatus != ValidationInvalid || result.Reason != "invalid_lexicon" {
+			t.Fatalf("schema-invalid payload accepted: %+v", result)
 		}
 	}
 	if result := validateSourceRecord(tap.Event{Collection: craftskyPostNSID, Rkey: "3aaaaaaaaaaa2", Action: "delete"}); result.StructuralStatus != ValidationValid {

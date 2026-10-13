@@ -6,11 +6,9 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test('AT-012 every business copy category is generated', () {
-    final arb =
-        jsonDecode(
-              File('lib/l10n/app_en.arb').readAsStringSync(),
-            )
-            as Map<String, dynamic>;
+    final arb = jsonDecode(
+      File('lib/l10n/app_en.arb').readAsStringSync(),
+    ) as Map<String, dynamic>;
     final generated = AppLocalizationsEn();
 
     for (final key in [

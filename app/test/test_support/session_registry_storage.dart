@@ -2,7 +2,7 @@ import 'package:craftsky_app/auth/models/session_registry.dart';
 import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
 
 final class InMemorySessionRegistryStorage implements SessionRegistryStorage {
-  InMemorySessionRegistryStorage([SessionRegistry? initialRegistry])
+  new([SessionRegistry? initialRegistry])
     : registry = initialRegistry ?? SessionRegistry.empty();
 
   SessionRegistry registry;

@@ -351,7 +351,7 @@ BusinessEvent _event(String rkey, {String status = 'scheduled'}) =>
     );
 
 final class _Repository extends Fake implements BusinessRepository {
-  _Repository(this.results);
+  new(this.results);
 
   final Map<OwnerEventFilter, List<Object>> results;
   final calls = <({OwnerEventFilter filter, String? cursor})>[];
@@ -371,7 +371,7 @@ final class _Repository extends Fake implements BusinessRepository {
     );
     final result = results[filter]![index];
     if (result is BusinessEventPage) return result;
-    if (result is Completer<BusinessEventPage>) return result.future;
+    if (result is Completer<BusinessEventPage>) return await result.future;
     if (result is Exception) throw result;
     if (result is Error) throw result;
     throw StateError('Unexpected fake result');

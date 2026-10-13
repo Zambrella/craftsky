@@ -5,14 +5,14 @@ import 'package:craftsky_app/feed/media/youtube_consent.dart';
 import 'package:craftsky_app/feed/media/youtube_external.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/widgets/youtube_inline_player.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/shared/image/image_cache_providers.dart';
 import 'package:craftsky_app/shared/link/external_link.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:material_ui/material_ui.dart';
 
 enum ExternalCardVariant { full, compact }
 
@@ -21,7 +21,7 @@ final externalCardLauncherProvider = Provider<ExternalLinkLauncher>(
 );
 
 class ExternalCard extends ConsumerStatefulWidget {
-  const ExternalCard({
+  const new({
     required this.external,
     this.variant = ExternalCardVariant.full,
     this.launchUrl,
@@ -249,7 +249,7 @@ class _ExternalCardState extends ConsumerState<ExternalCard> {
 }
 
 class _ExternalCardCopy extends StatelessWidget {
-  const _ExternalCardCopy({
+  const new({
     required this.title,
     required this.description,
     required this.host,
@@ -315,7 +315,7 @@ class _ExternalCardCopy extends StatelessWidget {
 }
 
 class _ExternalCardImage extends StatelessWidget {
-  const _ExternalCardImage({
+  const new({
     required this.external,
     required this.cacheManager,
   });
@@ -347,7 +347,7 @@ class _ExternalCardImage extends StatelessWidget {
 enum _YouTubeConsentChoice { allowOnce, alwaysAllow }
 
 class _YouTubeConsentDialog extends StatelessWidget {
-  const _YouTubeConsentDialog();
+  const new();
 
   @override
   Widget build(BuildContext context) {
@@ -376,7 +376,7 @@ class _YouTubeConsentDialog extends StatelessWidget {
 }
 
 class _YouTubePlaybackError extends StatelessWidget {
-  const _YouTubePlaybackError();
+  const new();
 
   @override
   Widget build(BuildContext context) {

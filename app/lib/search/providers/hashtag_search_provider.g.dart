@@ -50,7 +50,7 @@ final class HashtagSearchProvider
   }
 }
 
-String _$hashtagSearchHash() => r'1cfe526de38111f28c1b4640c28df968371183b7';
+String _$hashtagSearchHash() => r'516b0c33c4382f50e3d67bd8120319ad91b31a01';
 
 final class HashtagSearchFamily extends $Family
     with
@@ -84,7 +84,7 @@ abstract class _$HashtagSearch extends $AsyncNotifier<SearchPostResultsState> {
   FutureOr<SearchPostResultsState> build(HashtagSearchQuery query);
   @$mustCallSuper
   @override
-  void runBuild() {
+  WhenComplete runBuild() {
     final ref =
         this.ref
             as $Ref<AsyncValue<SearchPostResultsState>, SearchPostResultsState>;
@@ -99,6 +99,6 @@ abstract class _$HashtagSearch extends $AsyncNotifier<SearchPostResultsState> {
               Object?,
               Object?
             >;
-    element.handleCreate(ref, () => build(_$args));
+    return element.handleCreate(ref, () => build(_$args));
   }
 }

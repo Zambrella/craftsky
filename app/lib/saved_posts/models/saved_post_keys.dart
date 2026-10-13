@@ -10,7 +10,7 @@ part 'saved_post_keys.mapper.dart';
 @immutable
 @MappableClass(generateMethods: GenerateMethods.copy | GenerateMethods.equals)
 final class SavedPostKey with SavedPostKeyMappable {
-  const SavedPostKey({required this.account, required this.uri});
+  const new({required this.account, required this.uri});
 
   final AccountKey account;
   final AtUri uri;
@@ -24,7 +24,7 @@ final class SavedPostKey with SavedPostKeyMappable {
 @immutable
 @MappableClass(generateMethods: GenerateMethods.copy | GenerateMethods.equals)
 final class SavePostDialogKey with SavePostDialogKeyMappable {
-  const SavePostDialogKey({
+  const new({
     required this.account,
     required this.uri,
     this.initialFolderId,
@@ -42,7 +42,7 @@ final class SavePostDialogKey with SavePostDialogKeyMappable {
 @immutable
 @MappableClass(generateMethods: GenerateMethods.copy | GenerateMethods.equals)
 final class SavedPostListKey with SavedPostListKeyMappable {
-  const SavedPostListKey({
+  const new({
     required this.account,
     required this.scope,
     required this.sort,

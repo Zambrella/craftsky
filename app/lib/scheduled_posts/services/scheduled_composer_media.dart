@@ -15,13 +15,12 @@ import 'package:image/image.dart' as img;
 import 'package:mime/mime.dart';
 
 typedef ScheduledMediaBytesLoader = Future<Uint8List> Function(String id);
-typedef ScheduledMediaStager =
-    Future<void> Function({
-      required String id,
-      required List<int> bytes,
-      required String mimeType,
-      CancelToken? cancelToken,
-    });
+typedef ScheduledMediaStager = Future<void> Function({
+  required String id,
+  required List<int> bytes,
+  required String mimeType,
+  CancelToken? cancelToken,
+});
 typedef ScheduledComposerMediaMaterializer =
     Future<List<Map<String, dynamic>>> Function(
       List<ComposerImageDraft> images, {

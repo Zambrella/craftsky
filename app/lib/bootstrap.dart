@@ -73,20 +73,19 @@ import 'package:craftsky_app/subscriptions/services/revenuecat_bootstrap.dart';
 import 'package:craftsky_app/subscriptions/services/revenuecat_service_native.dart';
 import 'package:craftsky_app/subscriptions/subscription_build_config.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 // flutter_web_plugins ships with Flutter but is not declared in pubspec;
 // it's the only place usePathUrlStrategy() lives.
-// ignore: depend_on_referenced_packages
 import 'package:flutter_web_plugins/url_strategy.dart';
 import 'package:intl/intl.dart';
 import 'package:logging/logging.dart';
+import 'package:material_ui/material_ui.dart';
 
 final _log = Logger('bootstrap');
 
 final class RedactedProviderFailure implements Exception {
-  const RedactedProviderFailure();
+  const new();
 
   @override
   String toString() => 'RedactedProviderFailure()';
@@ -95,7 +94,7 @@ final class RedactedProviderFailure implements Exception {
 Duration? appProviderRetry(int retryCount, Object error) => null;
 
 final class ProviderLogger extends ProviderObserver {
-  const ProviderLogger({this.reporter = const NoopErrorReporter()});
+  const new({this.reporter = const NoopErrorReporter()});
 
   final ErrorReporter reporter;
 
@@ -151,11 +150,9 @@ final class ProviderLogger extends ProviderObserver {
           },
           workflow: workflow,
         );
-    _log.warning(
-      DiagnosticMessage(
-        'provider failed',
-        context: diagnosticContext,
-      ),
+    _log.log(
+      isCanceledDiagnostic(error) ? Level.FINE : Level.WARNING,
+      DiagnosticMessage('provider failed', context: diagnosticContext),
       error,
       stackTrace,
     );

@@ -26,7 +26,7 @@ enum BranchControl { viewReplies, hideReplies }
 @MappableClass()
 /// Root-post comment-section response consumed by the post route.
 class PostCommentSection with PostCommentSectionMappable {
-  const PostCommentSection({
+  const new({
     required this.post,
     required this.comments,
     required this.sort,
@@ -114,22 +114,23 @@ class PostCommentSection with PostCommentSectionMappable {
         items: [
           for (final item in comments.items)
             if (item.post.uri != uri)
-              item.replies.items.any((reply) => reply.post.uri == uri)
-                  ? item.copyWith(
-                      post: item.post.copyWith(
-                        replyCount: (item.post.replyCount - 1).clamp(
-                          0,
-                          item.post.replyCount,
-                        ),
-                      ),
-                      replies: item.replies.copyWith(
-                        items: [
-                          for (final reply in item.replies.items)
-                            if (reply.post.uri != uri) reply,
-                        ],
-                      ),
-                    )
-                  : item,
+              if (item.replies.items.any((reply) => reply.post.uri == uri))
+                item.copyWith(
+                  post: item.post.copyWith(
+                    replyCount: (item.post.replyCount - 1).clamp(
+                      0,
+                      item.post.replyCount,
+                    ),
+                  ),
+                  replies: item.replies.copyWith(
+                    items: [
+                      for (final reply in item.replies.items)
+                        if (reply.post.uri != uri) reply,
+                    ],
+                  ),
+                )
+              else
+                item,
         ],
       ),
     );
@@ -204,11 +205,12 @@ class PostCommentSection with PostCommentSectionMappable {
             [
               for (final reply in comment.replies.items)
                 if (reply.post.uri != item.post.uri)
-                  reply.post.uri == parentUri
-                      ? reply.copyWith(
-                          post: reply.post.copyWith(viewerHasReplied: true),
-                        )
-                      : reply,
+                  if (reply.post.uri == parentUri)
+                    reply.copyWith(
+                      post: reply.post.copyWith(viewerHasReplied: true),
+                    )
+                  else
+                    reply,
               item,
             ]..sort(
               (left, right) => left.post.createdAt.compareTo(
@@ -317,7 +319,7 @@ class PostCommentSection with PostCommentSectionMappable {
 @MappableClass()
 /// Opaque-cursor page of top-level comments in render order.
 class CommentPage with CommentPageMappable {
-  const CommentPage({required this.items, this.cursor});
+  const new({required this.items, this.cursor});
 
   final List<CommentItem> items;
   final String? cursor;
@@ -333,7 +335,7 @@ class CommentPage with CommentPageMappable {
 @MappableClass()
 /// A top-level comment plus placement and child-reply loaded state.
 class CommentItem with CommentItemMappable {
-  const CommentItem({
+  const new({
     required this.post,
     required this.placement,
     required this.replies,
@@ -354,7 +356,7 @@ class CommentItem with CommentItemMappable {
 @MappableClass()
 /// Loaded or collapsed child-reply page for one comment branch.
 class ReplyPage with ReplyPageMappable {
-  const ReplyPage({required this.loaded, required this.items, this.cursor});
+  const new({required this.loaded, required this.items, this.cursor});
 
   final bool loaded;
   final List<ReplyItem> items;
@@ -372,7 +374,7 @@ class ReplyPage with ReplyPageMappable {
 @MappableClass()
 /// Visual reply item rendered under a top-level comment.
 class ReplyItem with ReplyItemMappable {
-  const ReplyItem({
+  const new({
     required this.post,
     required this.flattened,
     this.replyingTo,
@@ -388,7 +390,7 @@ class ReplyItem with ReplyItemMappable {
 )
 /// Author metadata for the true parent when a deeper reply is flattened.
 class ReplyingToAuthor with ReplyingToAuthorMappable {
-  ReplyingToAuthor({
+  new({
     required String uri,
     required String did,
     required String handle,
@@ -406,7 +408,7 @@ class ReplyingToAuthor with ReplyingToAuthorMappable {
 @MappableClass(includeCustomMappers: [AtUriMapper()])
 /// Focus metadata returned with a comment-section response.
 class FocusContext with FocusContextMappable {
-  FocusContext({
+  new({
     required String uri,
     required this.status,
     this.kind,
@@ -422,7 +424,7 @@ class FocusContext with FocusContextMappable {
 
 /// Reply graph edge used by state helpers to flatten backend nesting.
 class ReplyTreeEdge {
-  const ReplyTreeEdge({required this.item, required this.parentUri});
+  const new({required this.item, required this.parentUri});
 
   final ReplyItem item;
   final AtUri parentUri;

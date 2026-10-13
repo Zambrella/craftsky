@@ -4,7 +4,7 @@ import 'package:craftsky_app/auth/models/auth_error.dart';
 import 'package:craftsky_app/auth/models/session_registry.dart';
 import 'package:craftsky_app/auth/providers/auth_controller.dart';
 import 'package:craftsky_app/auth/widgets/handle_typeahead_field.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/shared/link/external_link.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/shared/widgets/action_progress.dart';
@@ -13,13 +13,13 @@ import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/craftsky_divider.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/gestures.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:material_ui/material_ui.dart';
 
 enum _WelcomeAction { signIn, register }
 
 class WelcomePage extends ConsumerStatefulWidget {
-  const WelcomePage({this.linkLauncher = launchExternalLink, super.key});
+  const new({this.linkLauncher = launchExternalLink, super.key});
 
   final ExternalLinkLauncher linkLauncher;
 
@@ -207,7 +207,7 @@ class _WelcomePageState extends ConsumerState<WelcomePage> {
 }
 
 class _CraftScaffoldBackground extends StatelessWidget {
-  const _CraftScaffoldBackground();
+  const new();
 
   static const List<({Alignment alignment, double angle, String craft})>
   _icons = [
@@ -259,7 +259,7 @@ class _CraftScaffoldBackground extends StatelessWidget {
 }
 
 class _OrDivider extends StatelessWidget {
-  const _OrDivider({required this.label});
+  const new({required this.label});
 
   final String label;
 
@@ -280,7 +280,7 @@ class _OrDivider extends StatelessWidget {
 }
 
 class _AtmosphereExplainer extends StatelessWidget {
-  const _AtmosphereExplainer({required this.l10n});
+  const new({required this.l10n});
 
   final AppLocalizations l10n;
 
@@ -315,7 +315,7 @@ class _AtmosphereExplainer extends StatelessWidget {
 }
 
 class _LegalLinks extends StatefulWidget {
-  const _LegalLinks({
+  const new({
     required this.l10n,
     required this.onTerms,
     required this.onPrivacy,

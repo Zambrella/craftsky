@@ -1,9 +1,9 @@
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 class ScrollToTopButton extends StatelessWidget {
-  const ScrollToTopButton({
+  const new({
     required this.visible,
     required this.onPressed,
     required this.tooltip,
