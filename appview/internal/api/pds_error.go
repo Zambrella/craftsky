@@ -11,6 +11,11 @@ import (
 const pdsSessionExpiredMessage = "PDS session expired; please sign in again"
 
 func writePDSError(w http.ResponseWriter, fallbackStatus int, fallbackCode, fallbackMessage, runID string, err error) {
+	if errors.Is(err, auth.ErrPDSPermissionsRequired) {
+		envelope.WriteError(w, http.StatusUnauthorized,
+			"pds_permissions_required", "Please sign in again to approve CraftSky permissions", runID, nil)
+		return
+	}
 	if errors.Is(err, auth.ErrPDSSessionExpired) {
 		envelope.WriteError(w, http.StatusUnauthorized,
 			"pds_session_expired", pdsSessionExpiredMessage, runID, nil)

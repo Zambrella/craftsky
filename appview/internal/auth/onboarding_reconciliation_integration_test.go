@@ -204,7 +204,7 @@ func newRecoveryFixture(t *testing.T) *recoveryFixture {
 	if err != nil {
 		t.Fatal(err)
 	}
-	oauthConfig := oauth.NewPublicConfig("https://appview.example/oauth/client-metadata.json", "https://appview.example/oauth/callback", []string{"atproto"})
+	oauthConfig := oauth.NewPublicConfig("https://appview.example/oauth-client-metadata.json", "https://appview.example/oauth/callback", []string{"atproto"})
 	f.reconciler = reconciler
 	app := &oauth.ClientApp{Config: &oauthConfig, Resolver: oauth.NewResolver(),
 		Dir: &callbackDirectory{identity: &identity.Identity{DID: f.owner, Handle: "recover.example"}},

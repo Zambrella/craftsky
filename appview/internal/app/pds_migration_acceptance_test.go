@@ -365,7 +365,7 @@ func phase10AuthStore(t *testing.T, pool *pgxpool.Pool, owners *ownerlifecycle.S
 	config.EndpointValidator = phase10EndpointValidator{}
 	store := auth.NewPostgresAuthStore(pool, config)
 	publicConfig := oauth.NewPublicConfig(
-		"https://appview.example/oauth/client-metadata.json",
+		"https://appview.example/oauth-client-metadata.json",
 		"https://appview.example/oauth/callback",
 		[]string{"atproto"},
 	)

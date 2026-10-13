@@ -87,6 +87,8 @@ type publicOAuthRouteBundle struct {
 }
 
 func registerPublicOAuthRoutes(routes publicOAuthRouteBundle) {
+	routes.mux.Handle("GET /oauth-client-metadata.json", routes.inFlight(routes.handlers.ClientMetadataHandler()))
+	// Retain the former endpoint for provider caches during client-ID migration.
 	routes.mux.Handle("GET /oauth/client-metadata.json", routes.inFlight(routes.handlers.ClientMetadataHandler()))
 	routes.mux.Handle("GET /oauth/jwks.json", routes.inFlight(routes.handlers.JWKSHandler()))
 	routes.mux.Handle("GET /oauth/callback", routes.inFlight(routes.handlers.CallbackHandler()))

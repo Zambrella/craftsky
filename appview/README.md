@@ -394,7 +394,7 @@ for the full design rationale.
 
 | Method | Path | Audience |
 |---|---|---|
-| GET | `/oauth/client-metadata.json` | Authorization Servers |
+| GET | `/oauth-client-metadata.json` | Authorization Servers |
 | GET | `/oauth/jwks.json` | Authorization Servers (empty in dev) |
 | GET | `/oauth/callback` | Authorization Server → user browser |
 | POST | `/auth/login` | Craftsky clients (Flutter/CLI) |

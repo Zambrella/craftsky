@@ -74,6 +74,10 @@ func profileInitializationFailureStage(err error) string {
 // Only fixed classifications are emitted; upstream error text may contain
 // credentials, callback parameters, or private provider response bodies.
 func callbackFailureReason(err error) string {
+	var diagnostic *OAuthCallbackDiagnostic
+	if errors.As(err, &diagnostic) {
+		return diagnostic.Reason()
+	}
 	switch {
 	case errors.Is(err, ownerlifecycle.ErrOwnerNotOnboarding):
 		return "owner_not_onboarding"

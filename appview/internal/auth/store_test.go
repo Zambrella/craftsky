@@ -184,6 +184,7 @@ func (v testOAuthEndpointValidator) ValidateOAuthEndpoint(
 func validOAuthSession(owner syntax.DID, sessionID string) oauth.ClientSessionData {
 	return oauth.ClientSessionData{
 		AccountDID:                   owner,
+		Scopes:                       []string{"atproto"},
 		SessionID:                    sessionID,
 		HostURL:                      "https://pds.example.com",
 		AuthServerURL:                "https://auth.example.com",

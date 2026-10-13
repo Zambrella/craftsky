@@ -207,7 +207,7 @@ func testHandoffProfileActivation(t *testing.T, confirmFirst bool) {
 		t.Fatalf("confirmed child lookup = %+v, %v", info, err)
 	}
 	config := oauth.NewPublicConfig(
-		"https://appview.example/oauth/client-metadata.json",
+		"https://appview.example/oauth-client-metadata.json",
 		"https://appview.example/oauth/callback", []string{"atproto"},
 	)
 	coordinator, err := auth.NewOAuthSessionCoordinator(auth.OAuthSessionCoordinatorOptions{
@@ -324,7 +324,7 @@ func TestProfileActivationDoesNotReviveObsoleteOAuthSessions(t *testing.T) {
 			}, sessions.ProfileActivationParticipant()); err != nil {
 				t.Fatal(err)
 			}
-			config := oauth.NewPublicConfig("https://appview.example/oauth/client-metadata.json",
+			config := oauth.NewPublicConfig("https://appview.example/oauth-client-metadata.json",
 				"https://appview.example/oauth/callback", []string{"atproto"})
 			coordinator, err := auth.NewOAuthSessionCoordinator(auth.OAuthSessionCoordinatorOptions{
 				App:   &oauth.ClientApp{Client: http.DefaultClient, Config: &config},

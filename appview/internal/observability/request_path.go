@@ -61,7 +61,7 @@ func ConservativeRequestDiagnostic(value *url.URL) RequestDiagnosticContext {
 		return result
 	}
 	switch value.Path {
-	case "/health", "/healthz", "/oauth/callback", "/oauth/client-metadata.json", "/oauth/jwks.json":
+	case "/health", "/healthz", "/oauth/callback", "/oauth-client-metadata.json", "/oauth/client-metadata.json", "/oauth/jwks.json":
 		result.Path = value.Path
 		return result
 	}

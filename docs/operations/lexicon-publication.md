@@ -20,10 +20,11 @@ review and ADR process. `publish --bootstrap` allows initial publication before
 DNS exists, without changing the schema-update policy.
 
 DNS authority is assigned separately for each NSID group. The manifest lists
-all eight TXT records with value `did=did:plc:lmmx63zcns6gewgxqfdt4kof`:
+all nine TXT records with value `did=did:plc:lmmx63zcns6gewgxqfdt4kof`:
 
 | Authority name |
 | --- |
+| `_lexicon.craftsky.social` |
 | `_lexicon.actor.craftsky.social` |
 | `_lexicon.business.craftsky.social` |
 | `_lexicon.feed.craftsky.social` |
@@ -58,3 +59,6 @@ and the Indigo version in `go.mod`; `just lexgen-check` checks for drift.
 
 References: [Lexicon publication and resolution](https://atproto.com/specs/lexicon#lexicon-publication-and-resolution),
 [Cloudflare CLI](https://github.com/cloudflare/cf/blob/main/packages/cli/README.md).
+
+The root authority serves `social.craftsky.authFull`, the OAuth permission set.
+See [OAuth permission rollout](oauth-permissions.md) before activating it.

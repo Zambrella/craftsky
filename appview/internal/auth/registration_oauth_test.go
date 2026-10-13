@@ -127,7 +127,7 @@ func TestRegistrationOAuthPromptedPARDoesNotDowngrade(t *testing.T) {
 			}
 			metadata := registrationTestMetadata(test.prompted)
 
-			_, err = adapter.SendAuthorizationRequest(context.Background(), metadata, []string{"atproto", "transition:generic"})
+			_, err = adapter.SendAuthorizationRequest(context.Background(), metadata, []string{"atproto", "include:social.craftsky.authFull"})
 			if err == nil {
 				t.Fatal("SendAuthorizationRequest succeeded for failed PAR")
 			}
@@ -185,7 +185,7 @@ func TestRegistrationOAuthPromptedPARDoesNotDowngrade(t *testing.T) {
 		}
 
 		info, err := adapter.SendAuthorizationRequest(
-			context.Background(), registrationTestMetadata(true), []string{"atproto", "transition:generic"},
+			context.Background(), registrationTestMetadata(true), []string{"atproto", "include:social.craftsky.authFull"},
 		)
 		if err != nil {
 			t.Fatalf("SendAuthorizationRequest: %v", err)
@@ -222,7 +222,7 @@ func registrationTestClientApp(t *testing.T, transport http.RoundTripper) *oauth
 	config := oauth.NewPublicConfig(
 		"https://craftsky.test/oauth-client-metadata.json",
 		"https://craftsky.test/oauth/callback",
-		[]string{"atproto", "transition:generic"},
+		[]string{"atproto", "include:social.craftsky.authFull"},
 	)
 	if err := config.SetClientSecret(privateKey, "registration-test-key"); err != nil {
 		t.Fatalf("SetClientSecret: %v", err)

@@ -1,0 +1,16 @@
+#!/usr/bin/env python3
+"""Stage record/type schemas for Indigo's record-only Go generator."""
+import json
+import shutil
+import sys
+from pathlib import Path
+
+source = Path(__file__).resolve().parent.parent / 'lexicon/social/craftsky'
+target = Path(sys.argv[1])
+for path in source.rglob('*.json'):
+    schema = json.loads(path.read_text())
+    if schema.get('defs', {}).get('main', {}).get('type') == 'permission-set':
+        continue
+    destination = target / path.relative_to(source)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(path, destination)

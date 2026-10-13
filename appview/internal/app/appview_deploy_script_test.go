@@ -23,6 +23,8 @@ func TestAppViewDeployScriptDeploysExactTaggedCommit(t *testing.T) {
 	}
 	for _, expected := range []string{
 		"AppView deployment succeeded.",
+		"OAuth publication verified",
+		"OAuth metadata verified",
 		"Tag: prod-v1.0.4",
 		"Commit: " + commit,
 		"Render deploy: dep-test",
@@ -128,6 +130,23 @@ func repositoryScript(t *testing.T, name string) string {
 func fakeRenderCurl(t *testing.T, status, deployedCommit string) string {
 	t.Helper()
 	binDir := t.TempDir()
+	// Mock the permission verifier separately from Render/public health.
+	// Its Python tests exercise real publication/metadata parsing.
+	verifier := `#!/bin/sh
+case "$1" in */oauth-permissions-check) ;; *) exit 1 ;; esac
+[ "$2" = --release ] && [ "$3" = "$EXPECTED_COMMIT" ] || exit 1
+phase=metadata
+[ "$4" != --publication-only ] || phase=publication
+fail_file="$(dirname "$0")/oauth-check-fail-phase"
+if [ -f "$fail_file" ] && [ "$(cat "$fail_file")" = "$phase" ]; then
+  printf 'OAuth %s verification rejected\n' "$phase" >&2
+  exit 1
+fi
+printf 'OAuth %s verified\n' "$phase"
+`
+	if err := os.WriteFile(filepath.Join(binDir, "python3"), []byte(verifier), 0o755); err != nil {
+		t.Fatal(err)
+	}
 	path := filepath.Join(binDir, "curl")
 	script := `#!/bin/sh
 method=GET
@@ -214,4 +233,27 @@ func runDeployWithHealthAttempts(repo, script, binDir string, stdin *strings.Rea
 	)
 	output, err := command.CombinedOutput()
 	return string(output), err
+}
+
+func TestAppViewDeployScriptRejectsUnverifiedOAuthPermissions(t *testing.T) {
+	for _, phase := range []string{"publication", "metadata"} {
+		t.Run(phase, func(t *testing.T) {
+			repo, _, releaseScript := newReleaseTestRepo(t)
+			notes := writeNotes(t, "- Ready for production.\n")
+			runRelease(t, repo, releaseScript, nil, "create", "appview", "--version", "1.0.4", "--notes", notes)
+			runRelease(t, repo, releaseScript, strings.NewReader("y\n"), "push", "appview", "prod-v1.0.4")
+			commit := runGit(t, repo, "rev-parse", "HEAD")
+			binDir := fakeRenderCurl(t, "live", commit)
+			if err := os.WriteFile(filepath.Join(binDir, "oauth-check-fail-phase"), []byte(phase), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			output, err := runDeploy(repo, repositoryScript(t, "appview-deploy"), binDir, strings.NewReader("y\n"), commit)
+			if err == nil || !strings.Contains(output, "OAuth "+phase+" verification rejected") || strings.Contains(output, "deployment succeeded") {
+				t.Fatalf("unverified OAuth deploy: %v %s", err, output)
+			}
+			if phase == "publication" && strings.Contains(output, "Triggered Render deploy") {
+				t.Fatal("deployed before permission publication passed")
+			}
+		})
+	}
 }

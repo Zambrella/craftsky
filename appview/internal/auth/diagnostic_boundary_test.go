@@ -2,11 +2,13 @@ package auth_test
 
 import (
 	"bytes"
+	"context"
 	"github.com/getsentry/sentry-go"
 	"github.com/jackc/pgx/v5/pgconn"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"social.craftsky/appview/internal/auth"
 	"social.craftsky/appview/internal/middleware"
 	"social.craftsky/appview/internal/observability"
@@ -44,4 +46,44 @@ func TestAuthDiagnosticRetainsUnderlyingCause(t *testing.T) {
 			t.Fatal("protected data leaked")
 		}
 	}
+}
+
+// Exercise the actual HTTP diagnostic boundary and serialized sinks with the
+// error produced by the real callback service above, including protected values.
+func verifyCallbackDiagnosticSink(t *testing.T, cause error) {
+	t.Helper()
+	var local bytes.Buffer
+	transport := &sentry.MockTransport{}
+	logger := slog.New(observability.NewDiagnosticHandler(slog.NewJSONHandler(&local, nil)))
+	observer := observability.New(observability.Config{Env: "test", Logger: logger, SentryDSN: "https://public@example.invalid/1", SentryTransport: transport})
+	handlers := &auth.HTTPHandlers{Logger: logger, OAuthFlow: &callbackDiagnosticFlow{cause: cause}}
+	request := httptest.NewRequest("GET", "/oauth/callback?state=oauth-state-canary&code=authorization-code-canary&iss=https://private-issuer-canary", nil)
+	recorder := httptest.NewRecorder()
+	middleware.Logging(logger)(middleware.HTTPMetrics(observer)(handlers.CallbackHandler())).ServeHTTP(recorder, request)
+	observer.Flush(time.Second)
+	if recorder.Code != 400 {
+		t.Fatalf("diagnostics changed callback status: %d", recorder.Code)
+	}
+	for _, expected := range []string{`"failure_reason":"scope_required_missing"`, "missing=craftsky", "required=8 granted=1", "alternate_forms=0", `"run_id"`, "OAuthCallbackDiagnostic"} {
+		if !strings.Contains(local.String(), expected) {
+			t.Fatalf("missing %q in serialized diagnostics: %s", expected, local.String())
+		}
+	}
+	if len(transport.Events()) != 0 {
+		t.Fatal("expected scope refusal created a Sentry issue")
+	}
+	for _, protected := range []string{"oauth-state-canary", "authorization-code-canary", "private-issuer-canary", "old-access-token", "old-refresh-token", "pkce-verifier", "callback-device"} {
+		if strings.Contains(local.String(), protected) || strings.Contains(recorder.Body.String(), protected) {
+			t.Fatalf("protected callback value %q escaped", protected)
+		}
+	}
+}
+
+type callbackDiagnosticFlow struct {
+	registrationValidationFlow
+	cause error
+}
+
+func (f *callbackDiagnosticFlow) CompleteCallback(context.Context, url.Values, auth.OAuthCallbackFinalizer) error {
+	return f.cause
 }

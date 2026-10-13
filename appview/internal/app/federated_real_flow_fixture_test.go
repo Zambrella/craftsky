@@ -335,11 +335,11 @@ func newRealFlowServer(t *testing.T, owner syntax.DID) *realFlowServer {
 		listener: base, done: make(chan error, 1), roots: roots,
 		connections:     make(map[net.Conn]http.ConnState),
 		endpoints:       defaultRealFlowOAuthEndpoints(),
-		metadataScopes:  []string{"atproto", "transition:generic"},
+		metadataScopes:  []string{"atproto", "include:social.craftsky.authFull"},
 		protectedIssuer: realFlowAuthOrigin,
 		protectedStatus: http.StatusOK,
 		tokenResponse: map[string]any{
-			"sub": owner.String(), "scope": "atproto transition:generic",
+			"sub": owner.String(), "scope": "atproto include:social.craftsky.authFull",
 			"access_token": "access-real-flow", "refresh_token": "refresh-real-flow",
 		},
 		tokenStatus: http.StatusOK,

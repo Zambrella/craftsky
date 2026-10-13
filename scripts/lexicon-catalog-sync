@@ -39,13 +39,15 @@ while pending:
     schema = json.loads(source.read_text())
     pending.extend(references(schema))
 # Resolve every dependency before replacing any catalog JSON.
-for directory in ('actor', 'business', 'feed', 'project', 'standard'):
+for directory in ('auth', 'actor', 'business', 'feed', 'project', 'standard'):
     for path in (catalog / directory).rglob('*.json'):
         path.unlink()
 for nsid in sorted(seen):
     source = all_files[nsid]
     if nsid.startswith('social.craftsky.'):
         target = catalog / source.relative_to(custom)
+        if json.loads(source.read_text()).get('defs', {}).get('main', {}).get('type') == 'permission-set':
+            target = catalog / 'auth' / source.name
     elif source == external:
         target = catalog / 'business/address.json'
     else:

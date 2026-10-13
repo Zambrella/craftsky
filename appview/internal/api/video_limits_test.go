@@ -12,6 +12,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 
 	"social.craftsky/appview/internal/api"
+	"social.craftsky/appview/internal/auth"
 	"social.craftsky/appview/internal/middleware"
 	"social.craftsky/appview/internal/video"
 )
@@ -76,5 +77,17 @@ func TestVideoUploadLimitsHandler_UsesStandardUnavailableError(t *testing.T) {
 	if body := recorder.Body.String(); !strings.Contains(body, `"error":"video_service_unavailable"`) ||
 		strings.Contains(body, "limits-token") || strings.Contains(body, "oauth-token") || strings.Contains(body, "provider detail") {
 		t.Fatalf("response = %s", body)
+	}
+}
+
+func TestVideoUploadLimitsHandler_PermissionsRequireSignIn(t *testing.T) {
+	service := &fakeUploadLimitsService{err: errors.Join(auth.ErrPDSSessionExpired, auth.ErrPDSPermissionsRequired, errors.New("Bearer video-consent-canary"))}
+	request := httptest.NewRequest("GET", "/v1/blobs/videos/limits", nil)
+	ctx := middleware.WithDID(request.Context(), syntax.DID("did:plc:alice"))
+	ctx = middleware.WithOAuthSessionID(ctx, "session-alice")
+	recorder := httptest.NewRecorder()
+	api.VideoUploadLimitsHandler(service, nilLogger()).ServeHTTP(recorder, request.WithContext(ctx))
+	if recorder.Code != 401 || !strings.Contains(recorder.Body.String(), `"error":"pds_permissions_required"`) || strings.Contains(recorder.Body.String(), "video-consent-canary") {
+		t.Fatalf("response = %d %s", recorder.Code, recorder.Body.String())
 	}
 }

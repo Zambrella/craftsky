@@ -41,7 +41,7 @@ type ClientArtifacts struct {
 // BuildClientArtifacts constructs and validates every OAuth discovery
 // artifact before the HTTP listener or background workers start.
 func BuildClientArtifacts(input ClientConfigInput) (ClientArtifacts, error) {
-	if err := validateClientScopes(input.Scopes); err != nil {
+	if err := ValidateClientScopes(input.Scopes); err != nil {
 		return ClientArtifacts{}, err
 	}
 	var cfg oauth.ClientConfig
@@ -87,7 +87,8 @@ func BuildClientArtifacts(input ClientConfigInput) (ClientArtifacts, error) {
 	return ClientArtifacts{Config: cfg, Metadata: metadata, JWKS: cfg.PublicJWKS()}, nil
 }
 
-func validateClientScopes(scopes []string) error {
+// ValidateClientScopes rejects malformed and transitional broad permissions.
+func ValidateClientScopes(scopes []string) error {
 	seen := make(map[string]struct{}, len(scopes))
 	hasATProto := false
 	for _, scope := range scopes {
@@ -101,6 +102,9 @@ func validateClientScopes(scopes []string) error {
 		}
 		if _, exists := seen[scope]; exists {
 			return errors.New("OAUTH_SCOPES contains a duplicate scope")
+		}
+		if usesBroadOAuthAuthority(scope) {
+			return errors.New("OAUTH_SCOPES must use granular permissions")
 		}
 		seen[scope] = struct{}{}
 		hasATProto = hasATProto || scope == "atproto"
@@ -123,7 +127,7 @@ func validateLocalhostCallback(callback url.URL) error {
 }
 
 func validateConfidentialURLs(input ClientConfigInput) error {
-	if !isExactConfidentialEndpoint(input.ClientID, "/oauth/client-metadata.json") ||
+	if !isExactConfidentialEndpoint(input.ClientID, "/oauth-client-metadata.json") ||
 		!isExactConfidentialEndpoint(input.CallbackURL, "/oauth/callback") ||
 		!isExactConfidentialEndpoint(input.JWKSURL, "/oauth/jwks.json") ||
 		input.ClientID.Host != input.CallbackURL.Host || input.ClientID.Host != input.JWKSURL.Host {

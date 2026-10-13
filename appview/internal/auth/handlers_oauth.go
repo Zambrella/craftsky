@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
@@ -70,7 +71,7 @@ func NewHTTPHandlers(
 	return handlers
 }
 
-// ClientMetadataHandler serves /oauth/client-metadata.json — the
+// ClientMetadataHandler serves /oauth-client-metadata.json — the
 // discovery document Authorization Servers fetch to learn about our
 // client.
 func (h *HTTPHandlers) ClientMetadataHandler() http.Handler {
@@ -88,7 +89,12 @@ func (h *HTTPHandlers) ClientMetadataHandler() http.Handler {
 			return
 		}
 		setOAuthDiscoveryHeaders(w)
-		_ = json.NewEncoder(w).Encode(h.ClientMetadata)
+		metadata := h.ClientMetadata
+		if r.URL.Path == "/oauth/client-metadata.json" && strings.HasPrefix(metadata.ClientID, "https://") {
+			// Keep the former client's discovery identity valid for revocation.
+			metadata.ClientID = strings.TrimSuffix(metadata.ClientID, "/oauth-client-metadata.json") + "/oauth/client-metadata.json"
+		}
+		_ = json.NewEncoder(w).Encode(metadata)
 	})
 }
 

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -164,6 +165,15 @@ func (coordinator *OAuthSessionCoordinator) withFencedSession(
 				coordinator.observeAuthority("mismatch", "already_stale", 0)
 			}
 			return err
+		}
+		// Providers resolve include scopes into granular token permissions. Check
+		// effective authority; broad or incomplete grants require fresh consent.
+		if !validRegistrationTokenScopes(strings.Join(record.Data.Scopes, " "), coordinator.app.Config.Scopes) {
+			terminalErr := coordinator.markTerminalVersion(ctx, authority, sessionID, record.RowVersion)
+			if errors.Is(terminalErr, ErrSessionVersionChanged) && attempt == 0 {
+				continue
+			}
+			return errors.Join(ErrPDSSessionExpired, ErrPDSPermissionsRequired, terminalErr)
 		}
 		if err := coordinator.store.validateSessionEndpoints(ctx, record.Data); err != nil {
 			if errors.Is(err, ErrOAuthSessionEndpointInvalid) {

@@ -18,9 +18,11 @@ version=${tag#prod-v}
 require_command git
 require_command curl
 require_command jq
+require_command python3
 : "${RENDER_API_KEY:?Set RENDER_API_KEY to deploy AppView.}"
 : "${RENDER_SERVICE_ID:?Set RENDER_SERVICE_ID to deploy AppView.}"
 
+script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 repo_root=$(git rev-parse --show-toplevel 2>/dev/null) || die "not inside a Git repository"
 cd "$repo_root"
 [[ -z $(git status --porcelain) ]] || die "working tree must be clean"
@@ -44,6 +46,9 @@ health_sleep=${APPVIEW_HEALTH_SLEEP_SECONDS:-10}
 [[ "$health_attempts" =~ ^[1-9][0-9]*$ ]] || die "APPVIEW_HEALTH_ATTEMPTS must be positive"
 [[ "$poll_sleep" =~ ^[0-9]+$ ]] || die "RENDER_DEPLOY_POLL_SLEEP_SECONDS must be nonnegative"
 [[ "$health_sleep" =~ ^[0-9]+$ ]] || die "APPVIEW_HEALTH_SLEEP_SECONDS must be nonnegative"
+
+# New include scopes must resolve before a release can accept sign-ins.
+"$script_dir/oauth-permissions-check" --release "$tag_commit" --publication-only
 
 printf 'Deploy AppView %s at %s to Render? [y/N] ' "$tag" "$tag_commit" >&2
 read -r response
@@ -113,6 +118,9 @@ while (( attempt <= health_attempts )); do
   attempt=$((attempt + 1))
 done
 [[ -n "$health" ]] || die "AppView did not reach full production health after $health_attempts polls (check /health, /healthz and Render logs)"
+
+# Health alone cannot detect an unsynchronized production OAUTH_SCOPES override.
+"$script_dir/oauth-permissions-check" --release "$tag_commit" --origin "$public_origin"
 
 migration=$(git ls-tree -r --name-only "$tag_commit" appview/migrations | awk '/\.up\.sql$/ { value=$0 } END { print value }')
 migration=${migration##*/}

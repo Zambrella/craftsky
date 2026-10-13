@@ -31,6 +31,7 @@ var allowedEventContextKeys = map[string]struct{}{
 	"error_category":    {},
 	"error_code":        {},
 	"failure_stage":     {},
+	"failure_reason":    {},
 	"duration":          {},
 	"result":            {},
 	"reason":            {},
@@ -137,6 +138,8 @@ func sanitizeEventContextValue(key string, value any) any {
 	case "error_category":
 		return safeMetricCategory(fmt.Sprint(value))
 	case "error_code":
+		return safeMetricOperation(fmt.Sprint(value))
+	case "failure_reason":
 		return safeMetricOperation(fmt.Sprint(value))
 	case "failure_stage":
 		return safeMetricStage(fmt.Sprint(value))
