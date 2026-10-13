@@ -24,6 +24,7 @@ jobs:
       app: ${{ steps.paths.outputs.app }}
       workflows: ${{ steps.paths.outputs.workflows }}
       status: ${{ steps.paths.outputs.status }}
+      app_profile: ${{ steps.paths.outputs.app_profile }}
     steps:
       - name: Check out repository
         uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
@@ -41,6 +42,7 @@ jobs:
           app=false
           workflows=false
           status=false
+          app_profile=false
           while IFS= read -r path; do
             case "$path" in
               appview/*|lexicon/*|scripts/app-release-preflight|scripts/appview-check|scripts/appview-check-*|scripts/appview-deploy|scripts/appview-test|scripts/release|docker-compose.yml|docker-compose.push.yml|render.yaml|.github/workflows/*)
@@ -66,9 +68,14 @@ jobs:
               appview=true
               app=true
             fi
+            case "$path" in
+              metadata/app-profile/*|scripts/app-profile-publication|scripts/app_profile_publication.py|scripts/test_app_profile_publication.py|appview/internal/app/deps.go|appview/internal/auth/scopes.go|app/assets/app-icon/app-icon-light.png|.github/workflows/*)
+                app_profile=true
+                ;;
+            esac
           done < <(git diff --name-only "$BASE_SHA...HEAD")
-          printf 'appview=%s\napp=%s\nworkflows=%s\nstatus=%s\n' \
-            "$appview" "$app" "$workflows" "$status" >>"$GITHUB_OUTPUT"
+          printf 'appview=%s\napp=%s\nworkflows=%s\nstatus=%s\napp_profile=%s\n' \
+            "$appview" "$app" "$workflows" "$status" "$app_profile" >>"$GITHUB_OUTPUT"
 
   appview-unit-feedback:
     name: AppView unit feedback
@@ -176,6 +183,18 @@ jobs:
       - name: Validate anonymous Worker
         run: node --test service-status/test/worker.test.js
 
+  app-profile:
+    name: App profile publication checks
+    needs: changes
+    if: needs.changes.outputs.app_profile == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+      - name: Test publication boundaries and metadata consistency
+        run: python3 -m unittest discover -s scripts -p test_app_profile_publication.py
+
   workflow-lint:
     name: Workflow lint
     needs: changes
@@ -268,7 +287,7 @@ jobs:
   required:
     name: PR checks
     if: always() && github.event_name == 'pull_request'
-    needs: [changes, appview-unit-feedback, appview, app, status, workflow-lint]
+    needs: [changes, appview-unit-feedback, appview, app, status, app-profile, workflow-lint]
     runs-on: ubuntu-24.04
     steps:
       - name: Require applicable checks
@@ -278,11 +297,12 @@ jobs:
           APPVIEW_RESULT: ${{ needs.appview.result }}
           APP_RESULT: ${{ needs.app.result }}
           STATUS_RESULT: ${{ needs.status.result }}
+          APP_PROFILE_RESULT: ${{ needs.app-profile.result }}
           WORKFLOW_RESULT: ${{ needs.workflow-lint.result }}
         shell: bash
         run: |
           set -euo pipefail
           [[ "$CHANGES_RESULT" == success ]]
-          for result in "$APPVIEW_UNIT_RESULT" "$APPVIEW_RESULT" "$APP_RESULT" "$STATUS_RESULT" "$WORKFLOW_RESULT"; do
+          for result in "$APPVIEW_UNIT_RESULT" "$APPVIEW_RESULT" "$APP_RESULT" "$STATUS_RESULT" "$APP_PROFILE_RESULT" "$WORKFLOW_RESULT"; do
             [[ "$result" == success || "$result" == skipped ]]
           done

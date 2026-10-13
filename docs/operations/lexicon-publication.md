@@ -1,5 +1,9 @@
 # CraftSky Lexicon publication
 
+For the app's directory description, see
+[app profile publication](app-profile-publication.md). That publishes a separate
+`community.lexicon.app.profile/self` record; it does not change any schemas.
+
 The official publishing account is `craftsky.social`, DID
 `did:plc:lmmx63zcns6gewgxqfdt4kof`. Schemas live in its
 `com.atproto.lexicon.schema` collection, keyed by their NSID.

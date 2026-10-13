@@ -1,0 +1,6 @@
+#!/usr/bin/env python3
+"""Validate, publish, or verify the official CraftSky app directory profile."""
+from app_profile_publication import main
+
+if __name__ == "__main__":
+    raise SystemExit(main())

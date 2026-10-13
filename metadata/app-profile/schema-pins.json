@@ -1,0 +1,14 @@
+[
+  {
+    "nsid": "community.lexicon.app.profile",
+    "uri": "at://did:plc:mtr7qrqtcyseedx3jyr5o7db/com.atproto.lexicon.schema/community.lexicon.app.profile",
+    "cid": "bafyreig42v4tqfwivlc7rzxanw5jsfjrfuffyo74fmcwdbddmga3jpn3w4",
+    "file": "schemas/community.lexicon.app.profile.bafyreig42v4tqfwivlc7rzxanw5jsfjrfuffyo74fmcwdbddmga3jpn3w4.json"
+  },
+  {
+    "nsid": "community.lexicon.app.defs",
+    "uri": "at://did:plc:mtr7qrqtcyseedx3jyr5o7db/com.atproto.lexicon.schema/community.lexicon.app.defs",
+    "cid": "bafyreigi7u6nky267cylfqj3gltaetnktjkhj7z5cneed74vnc7qrp2zu4",
+    "file": "schemas/community.lexicon.app.defs.bafyreigi7u6nky267cylfqj3gltaetnktjkhj7z5cneed74vnc7qrp2zu4.json"
+  }
+]
