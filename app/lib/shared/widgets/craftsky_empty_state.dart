@@ -8,6 +8,7 @@ class CraftskyEmptyState extends StatelessWidget {
     required this.subtitle,
     this.actionLabel,
     this.onAction,
+    this.additionalActions = const [],
     super.key,
   }) : assert(
          (actionLabel == null) == (onAction == null),
@@ -19,6 +20,7 @@ class CraftskyEmptyState extends StatelessWidget {
   final String subtitle;
   final String? actionLabel;
   final VoidCallback? onAction;
+  final List<Widget> additionalActions;
 
   @override
   Widget build(BuildContext context) {
@@ -57,6 +59,7 @@ class CraftskyEmptyState extends StatelessWidget {
                 SizedBox(height: spacing.sp2),
                 TextButton(onPressed: onPressed, child: Text(actionLabel!)),
               ],
+              ...additionalActions,
             ],
           ),
         ),

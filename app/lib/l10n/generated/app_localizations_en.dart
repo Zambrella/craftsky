@@ -27,6 +27,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get feedConnectInstagramAction => 'Connect Instagram';
 
   @override
+  String get feedSearchAction => 'Search CraftSky';
+
+  @override
+  String get feedViewProjectsAction => 'View projects';
+
+  @override
   String get navigationMenuTooltip => 'Open navigation menu';
 
   @override

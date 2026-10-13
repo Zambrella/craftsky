@@ -236,6 +236,16 @@ class _FeedLoadedSlivers extends ConsumerWidget {
               actionLabel: l10n.feedConnectInstagramAction,
               onAction: () =>
                   const InstagramMigrationRoute().push<void>(context),
+              additionalActions: [
+                TextButton(
+                  onPressed: () => const SearchRoute().go(context),
+                  child: Text(l10n.feedSearchAction),
+                ),
+                TextButton(
+                  onPressed: () => const ProjectsRoute().go(context),
+                  child: Text(l10n.feedViewProjectsAction),
+                ),
+              ],
             ),
           )
         else

@@ -124,6 +124,18 @@ abstract class AppLocalizations {
   /// **'Connect Instagram'**
   String get feedConnectInstagramAction;
 
+  /// Empty-feed action that opens the Search page.
+  ///
+  /// In en, this message translates to:
+  /// **'Search CraftSky'**
+  String get feedSearchAction;
+
+  /// Empty-feed action that opens the Projects page.
+  ///
+  /// In en, this message translates to:
+  /// **'View projects'**
+  String get feedViewProjectsAction;
+
   /// Tooltip and accessible label for the button that opens the app navigation drawer.
   ///
   /// In en, this message translates to:
