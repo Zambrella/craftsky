@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/feed/media/bounded_image_file_reader.dart';
 import 'package:craftsky_app/feed/media/composer_image_media_service.dart';
+import 'package:craftsky_app/feed/media/media_config.dart';
 import 'package:craftsky_app/feed/providers/composer_images_provider.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/api/providers/dio_provider.dart';
@@ -15,10 +16,22 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'profile_image_picker_provider.g.dart';
 
+// app.bsky.actor.profile limits both avatars and banners to 1 MB.
+final profileImageMediaServiceProvider = Provider<ComposerImageMediaService>(
+  (ref) => const ComposerImageMediaService(
+    config: MediaConfig(
+      maxImages: 1,
+      maxImageBytes: 1000000,
+      targetImageBytes: 950000,
+      maxAltTextCharacters: 0,
+    ),
+  ),
+);
+
 final profileImagePickerProvider = Provider<ProfileImagePicker>((ref) {
   return ProfileImagePicker(
     picker: ref.watch(imagePickerProvider),
-    media: ref.watch(composerImageMediaServiceProvider),
+    media: ref.watch(profileImageMediaServiceProvider),
     blobApi: ref.watch(blobApiClientProvider),
   );
 });
@@ -32,7 +45,7 @@ Future<ProfileImagePicker> accountProfileImagePicker(
   if (!ref.mounted) throw const ApiCanceled();
   return ProfileImagePicker(
     picker: ref.watch(imagePickerProvider),
-    media: ref.watch(composerImageMediaServiceProvider),
+    media: ref.watch(profileImageMediaServiceProvider),
     blobApi: managedBlobApiClient(ref, dio),
   );
 }

@@ -775,6 +775,30 @@ func TestPutProfile_ClearsAvatarWithNull(t *testing.T) {
 	}
 }
 
+func TestPutProfile_RejectsOversizeAvatarBeforePDSCommand(t *testing.T) {
+	t.Parallel()
+	commands := &fakeCompoundProfileCommands{}
+	h := newPutHandler(t, &fakeStore{}, &fakePDSForPut{}, fakeResolver{}, commands)
+	body := `{"avatar":{"$type":"blob","ref":{"$link":"bafavatar"},"mimeType":"image/jpeg","size":1371384}}`
+	req := httptest.NewRequest(http.MethodPut, "/v1/profiles/me", strings.NewReader(body))
+	req = req.WithContext(middleware.WithDID(req.Context(), "did:plc:me"))
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	if rr.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+	}
+	var env envelope.Error
+	if err := json.Unmarshal(rr.Body.Bytes(), &env); err != nil {
+		t.Fatal(err)
+	}
+	if env.Error != "validation_failed" || env.Fields["avatar.size"] != "must be <= 1000000 bytes" || env.Message != "Profile images must be JPEG or PNG and no larger than 1 MB." {
+		t.Fatalf("unexpected error: %+v", env)
+	}
+	if commands.request.Owner != "" {
+		t.Fatal("invalid avatar reached PDS command executor")
+	}
+}
+
 func TestPutProfile_RejectsMalformedAvatarBlob(t *testing.T) {
 	t.Parallel()
 	pds := &fakePDSForPut{}

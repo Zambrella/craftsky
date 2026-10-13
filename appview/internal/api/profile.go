@@ -396,8 +396,15 @@ func PutMeProfileHandler(
 		}
 		if err := ValidateProfilePutWithLimits(reqBody, limits); err != nil {
 			if fe, ok := err.(*FieldError); ok {
+				message := "validation failed"
+				for _, field := range []string{"avatar", "banner"} {
+					if fe.Fields[field+".size"] != "" || fe.Fields[field+".mimeType"] != "" {
+						message = "Profile images must be JPEG or PNG and no larger than 1 MB."
+						break
+					}
+				}
 				envelope.WriteError(w, http.StatusUnprocessableEntity,
-					fe.Code, "validation failed", runID, fe.Fields)
+					fe.Code, message, runID, fe.Fields)
 				return
 			}
 			envelope.WriteError(w, http.StatusUnprocessableEntity,

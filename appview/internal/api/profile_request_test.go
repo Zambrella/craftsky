@@ -130,6 +130,39 @@ func TestValidateProfilePut_RejectsUnsupportedAvatarMIME(t *testing.T) {
 	}
 }
 
+func TestValidateProfilePut_ProfileImageLimits(t *testing.T) {
+	for _, field := range []string{"avatar", "banner"} {
+		for _, size := range []int{1000000, 1000001, 1371384} {
+			blob := api.ProfileImageUpdate{Present: true, Blob: map[string]any{"$type": "blob", "ref": map[string]any{"$link": "bafimage"}, "mimeType": "image/jpeg", "size": size}}
+			req := api.ProfilePutRequest{}
+			if field == "avatar" {
+				req.Avatar = blob
+			} else {
+				req.Banner = blob
+			}
+			err := api.ValidateProfilePut(req)
+			if size <= 1000000 {
+				if err != nil {
+					t.Fatalf("%s at limit: %v", field, err)
+				}
+				continue
+			}
+			var fe *api.FieldError
+			if !asFieldErr(err, &fe) || fe.Fields[field+".size"] != "must be <= 1000000 bytes" {
+				t.Fatalf("%s size %d: %v", field, size, err)
+			}
+		}
+	}
+}
+
+func TestValidateProfilePut_RejectsWebPProfileImages(t *testing.T) {
+	req := api.ProfilePutRequest{Avatar: api.ProfileImageUpdate{Present: true, Blob: map[string]any{"$type": "blob", "ref": map[string]any{"$link": "bafimage"}, "mimeType": "image/webp", "size": 1}}}
+	var fe *api.FieldError
+	if !asFieldErr(api.ValidateProfilePut(req), &fe) || fe.Fields["avatar.mimeType"] != "must be one of image/jpeg, image/png" {
+		t.Fatalf("expected profile MIME validation: %v", fe)
+	}
+}
+
 // asFieldErr is a tiny helper mirroring errors.As for our concrete type.
 func asFieldErr(err error, out **api.FieldError) bool {
 	if err == nil {
