@@ -147,10 +147,13 @@ class OnboardingFlow extends _$OnboardingFlow {
   Future<void> pickAvatar(ImageSource source) async {
     final current = state.value;
     if (current == null || current.saving || current.uploadingAvatar) return;
+    // Selection can span many frames. Retain the provider that owns the upload
+    // client until the operation finishes; ref disposal still cancels it.
+    final pickerProvider = accountProfileImagePickerProvider(lease);
+    final pickerSubscription = ref.listen(pickerProvider, (_, _) {});
     try {
-      final picker = await ref.read(
-        accountProfileImagePickerProvider(lease).future,
-      );
+      final picker = await ref.read(pickerProvider.future);
+      if (!_isCurrent()) return;
       final result = await picker.pickAndUpload(
         source: source,
         onPreviewReady: (bytes) {
@@ -181,6 +184,8 @@ class OnboardingFlow extends _$OnboardingFlow {
           avatarUploadFailed: true,
         ),
       );
+    } finally {
+      pickerSubscription.close();
     }
   }
 
