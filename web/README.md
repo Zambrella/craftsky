@@ -85,7 +85,8 @@ just web-check
 ```
 
 `web-build` creates a fresh `web/dist/` with the homepage, waitlist, all five
-policy pages, JavaScript, CSS, robots.txt and image/font assets. It excludes
+policy pages, the Instagram import help article at `/instagram-import`,
+JavaScript, CSS, robots.txt and image/font assets. It excludes
 packages, tests, email templates, documentation, configuration and policy
 approval metadata. New public pages must be added to `ROUTES` in
 `scripts/cloudflare_pages_build.py`; other root files must be added to

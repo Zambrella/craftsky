@@ -12,6 +12,7 @@ ROUTES = {
     "/community-guidelines": "community-guidelines.html",
     "/reporting": "reporting.html",
     "/copyright": "copyright.html",
+    "/instagram-import": "instagram-import.html",
 }
 
 
