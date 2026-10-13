@@ -48,4 +48,4 @@ final class PostApiClientProvider
   }
 }
 
-String _$postApiClientHash() => r'4dbc67f5712b3ed1cf079d4543148015f7cdbf26';
+String _$postApiClientHash() => r'26c40c5db3daa8186b28a397ae29546d36f27b2c';

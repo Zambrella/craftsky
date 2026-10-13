@@ -258,3 +258,15 @@ Before release, operators must also:
 
 No custom authentication URL scheme or bearer-in-browser compatibility path is
 permitted.
+
+
+## Direct immediate image upload amendment (ADR 017)
+
+Authenticated, device-bound `POST /v1/blobs/images/authorization` returns only
+`{token, expiresAt, uploadEndpoint}`. The fenced server-held OAuth session obtains
+a five-minute PDS-audience service JWT scoped to `com.atproto.repo.uploadBlob`.
+Flutter uses an isolated, redirect-rejecting transport for the direct image
+transfer. OAuth credentials and record creation remain server-side. Immediate
+image preparation/validation is client-side plus PDS enforcement; scheduled
+private media continue to use S3 and server-side validation. See ADR 017 for
+capability limitations and release checks.

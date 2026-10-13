@@ -415,6 +415,7 @@ func AddRoutes(_ context.Context, mux Registrar, deps *Dependencies) {
 		evidence: deps.SafetyEvidence, holds: deps.SafetyHolds, workflows: deps.SafetyWorkflows, csea: deps.SafetyCSEA,
 		eligibility: ageEligibility, now: deps.Now,
 	})
+	registerImageUploadRoutes(imageUploadRouteBundle{mux: mux, middleware: v1mw, authorization: deps.ImageUploadAuthorization})
 	registerVideoRoutes(videoRouteBundle{
 		mux: mux, middleware: v1mw, authorization: deps.VideoUploadAuthorization,
 		limits: deps.VideoUploadLimits, logger: deps.Logger, observer: observer,

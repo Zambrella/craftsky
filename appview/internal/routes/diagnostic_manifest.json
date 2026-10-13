@@ -739,6 +739,12 @@
   },
   {
     "method": "POST",
+    "path": "/v1/blobs/images/authorization",
+    "category": "appview.blobs.images.authorization",
+    "public": false
+  },
+  {
+    "method": "POST",
     "path": "/v1/blobs/images",
     "category": "appview.blobs.images",
     "public": false

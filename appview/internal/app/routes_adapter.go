@@ -58,6 +58,7 @@ func RouteDependencies(deps *Deps) *routes.Dependencies {
 		RateLimiter:                 deps.RateLimiter,
 		Observability:               deps.Observability,
 		LinkPreviews:                deps.LinkPreviews,
+		ImageUploadAuthorization:    deps.ImageUploadAuthorization,
 		VideoUploadAuthorization:    deps.VideoUploadAuthorization,
 		VideoUploadLimits:           deps.VideoUploadLimits,
 		VideoCompletionVerifier:     deps.VideoCompletionVerifier,

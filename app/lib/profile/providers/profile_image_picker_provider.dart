@@ -4,6 +4,7 @@ import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/feed/media/bounded_image_file_reader.dart';
 import 'package:craftsky_app/feed/media/composer_image_media_service.dart';
 import 'package:craftsky_app/feed/providers/composer_images_provider.dart';
+import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/api/providers/dio_provider.dart';
 import 'package:craftsky_app/shared/media/blob_api_client.dart';
 import 'package:craftsky_app/shared/media/blob_api_client_provider.dart';
@@ -26,13 +27,15 @@ final profileImagePickerProvider = Provider<ProfileImagePicker>((ref) {
 Future<ProfileImagePicker> accountProfileImagePicker(
   Ref ref,
   ActiveAccountLease lease,
-) async => ProfileImagePicker(
-  picker: ref.watch(imagePickerProvider),
-  media: ref.watch(composerImageMediaServiceProvider),
-  blobApi: BlobApiClient(
-    await ref.watch(accountDioProvider(lease.session.account).future),
-  ),
-);
+) async {
+  final dio = await ref.watch(accountDioProvider(lease.session.account).future);
+  if (!ref.mounted) throw const ApiCanceled();
+  return ProfileImagePicker(
+    picker: ref.watch(imagePickerProvider),
+    media: ref.watch(composerImageMediaServiceProvider),
+    blobApi: managedBlobApiClient(ref, dio),
+  );
+}
 
 class ProfileImagePicker {
   const new({

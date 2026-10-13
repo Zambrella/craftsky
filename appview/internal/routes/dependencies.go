@@ -100,6 +100,7 @@ type Dependencies struct {
 	RateLimiter              *middleware.LocalRateLimiter
 	Observability            *observability.Observer
 	LinkPreviews             api.LinkPreviewService
+	ImageUploadAuthorization api.ImageUploadAuthorizationIssuer
 	VideoUploadAuthorization api.VideoUploadAuthorizationIssuer
 	VideoUploadLimits        api.VideoUploadLimitsService
 	VideoCompletionVerifier  api.VideoCompletionVerifier

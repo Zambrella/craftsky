@@ -48,4 +48,4 @@ final class BlobApiClientProvider
   }
 }
 
-String _$blobApiClientHash() => r'08d89a2c5a96dfe773a19d78314c7d197094a562';
+String _$blobApiClientHash() => r'0585099a302f46430f85227a2811eed7b5841c21';

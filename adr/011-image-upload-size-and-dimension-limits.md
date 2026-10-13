@@ -35,6 +35,13 @@ Not chosen because custom AppView clients could bypass size and dimension checks
 
 Not chosen because server-side image encoding would add CPU and memory load, change blob CIDs, and duplicate client work.
 
+### Subsequent decision
+
+ADR 017 supersedes AppView decoding for immediate image uploads: Flutter prepares
+and validates images and uploads directly to the PDS using a short-lived scoped
+service JWT. Scheduled/private media retain the server-side checks below. The
+encoded size and decoded dimension policy is unchanged.
+
 ### What I decided
 
 Adopt Option 1 with these exact limits:

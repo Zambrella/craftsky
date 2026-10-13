@@ -108,7 +108,8 @@ The recommended approach for a Flutter app is to use your backend as a **Token M
 - **OAuth token refresh** is handled transparently by AppView. Flutter never
   receives OAuth access/refresh tokens or DPoP keys. ADR 012 permits one
   separate, memory-only PDS-signed service JWT for the exact Bluesky video
-  upload operation.
+  upload operation. ADR 017 also permits a five-minute, memory-only service JWT
+  for immediate image uploads to the session-authorized PDS blob endpoint.
 
 ### Login UX
 
@@ -325,6 +326,7 @@ moderation_actions (
 |---|---|---|
 | PDS OAuth access + refresh tokens | `sessions` table in Postgres | Your backend only |
 | OAuth DPoP keypair | `sessions` table in Postgres | Your backend only |
+| Image upload service JWT | Flutter memory only, never persistent storage | Flutter → exact session-authorized PDS blob upload endpoint; see ADR 017 |
 | Video upload service JWT | Flutter memory only, never persistent storage | Flutter → exact configured Bluesky video upload endpoint; see ADR 012 |
 | Your app's session token | Flutter device (secure storage) | Flutter app → your backend |
 | Client metadata JSON | Static file at public URL | PDS fetches during OAuth |

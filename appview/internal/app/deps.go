@@ -53,6 +53,7 @@ type Deps struct {
 	RateLimiter                 *middleware.LocalRateLimiter
 	Observability               *observability.Observer
 	LinkPreviews                api.LinkPreviewService
+	ImageUploadAuthorization    api.ImageUploadAuthorizationIssuer
 	VideoUploadAuthorization    api.VideoUploadAuthorizationIssuer
 	VideoUploadLimits           api.VideoUploadLimitsService
 	VideoCompletionVerifier     api.VideoCompletionVerifier
@@ -355,6 +356,10 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (
 		return nil, nil, err
 	}
 	linkPreviews := newLinkPreviewDependencies()
+	imageUploadAuthorization, err := newImageUploadDependencies(authCapability, federated)
+	if err != nil {
+		return nil, nil, err
+	}
 	videoCapability, err := newVideoDependencies(authCapability, federated, cfg, observer)
 	if err != nil {
 		return nil, nil, err
@@ -371,6 +376,7 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (
 		RateLimiter:                 admission.rateLimiter,
 		Observability:               observer,
 		LinkPreviews:                linkPreviews,
+		ImageUploadAuthorization:    imageUploadAuthorization,
 		VideoUploadAuthorization:    videoCapability.uploadAuthorization,
 		VideoUploadLimits:           videoCapability.uploadLimits,
 		VideoCompletionVerifier:     videoCapability.completionVerifier,

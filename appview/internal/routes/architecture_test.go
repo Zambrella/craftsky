@@ -24,6 +24,7 @@ func TestAddRoutesDelegatesToNarrowCapabilityRegistrars(t *testing.T) {
 		"registerMigrationRoutes":           false,
 		"registerProfileRelationshipRoutes": false,
 		"registerNotificationRoutes":        false,
+		"registerImageUploadRoutes":         false,
 		"registerScheduledPostRoutes":       false,
 		"registerPostRoutes":                false,
 	}
