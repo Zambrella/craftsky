@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:craftsky_app/feed/providers/composer_images_provider.dart';
@@ -100,6 +101,48 @@ void main() {
       expect(prepared.height, 1);
     });
   }
+
+  test(
+    'compresses a large profile photo below the PDS profile limit',
+    () async {
+      final image = img.Image(width: 1200, height: 1200);
+      final random = Random(42);
+      for (final pixel in image) {
+        pixel.setRgb(
+          random.nextInt(256),
+          random.nextInt(256),
+          random.nextInt(256),
+        );
+      }
+      final original = Uint8List.fromList(img.encodeJpg(image, quality: 95));
+      expect(original.length, greaterThan(1000000));
+      final container = ProviderContainer.test(
+        overrides: [
+          imagePickerProvider.overrideWithValue(
+            _RecordingImagePicker(
+              XFile.fromData(
+                original,
+                name: 'photo.jpg',
+                mimeType: 'image/jpeg',
+              ),
+            ),
+          ),
+          blobApiClientProvider.overrideWithValue(BlobApiClient(Dio())),
+        ],
+      );
+      addTearDown(container.dispose);
+      final prepared = await container
+          .read(profileImagePickerProvider)
+          .pickAndPrepare(
+            source: ImageSource.gallery,
+            onPreviewReady: (_) {},
+          );
+      expect(prepared, isNotNull);
+      expect(prepared!.bytes.length, lessThanOrEqualTo(1000000));
+      expect(prepared.mimeType, 'image/jpeg');
+      expect(img.decodeImage(prepared.bytes), isNotNull);
+    },
+  );
 
   test('returns null when camera capture is cancelled', () async {
     final picker = _RecordingImagePicker(null);
