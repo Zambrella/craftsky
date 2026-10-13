@@ -2,7 +2,7 @@ import 'package:dart_mappable/dart_mappable.dart';
 
 part 'uploaded_image_blob.mapper.dart';
 
-/// Response payload returned from `POST /v1/blobs/images`.
+/// Prepared image blob returned after a direct PDS upload.
 @MappableClass()
 class UploadedImageBlob with UploadedImageBlobMappable {
   const UploadedImageBlob({
@@ -29,7 +29,7 @@ class UploadedImageBlob with UploadedImageBlobMappable {
   final int size;
 }
 
-/// Canonical blob representation from AppView upload endpoints.
+/// Canonical AT Protocol blob representation.
 @MappableClass()
 class UploadedBlob with UploadedBlobMappable {
   const UploadedBlob({

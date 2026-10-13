@@ -68,6 +68,7 @@ func TestRouteInventoryAndV1PoliciesStayExact(t *testing.T) {
 		"POST /v1/admin/moderation/cases/{caseReference}/appeal-resolutions",
 		"POST /v1/admin/moderation/cases/{caseReference}/effect-changes",
 		"POST /v1/admin/moderation/cases/{caseReference}/restorations",
+		"POST /v1/blobs/images/authorization",
 		"POST /v1/blobs/videos/authorization",
 		"GET /v1/blobs/videos/limits",
 		"GET /v1/whoami",

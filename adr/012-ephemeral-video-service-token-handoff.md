@@ -90,6 +90,11 @@ The authenticated limits endpoint uses a separate method-bound service
 authorization for `app.bsky.video.getUploadLimits` only inside AppView. That
 credential is never returned to Flutter or persisted.
 
+### Subsequent decision
+
+ADR 017 adds a separately authorized direct PDS image-upload exception. The
+video destination, lifetime, verification, and feature gate below are unchanged.
+
 ### Compatibility and evolution
 
 - This is not a general TMB migration. OAuth access/refresh tokens and DPoP keys

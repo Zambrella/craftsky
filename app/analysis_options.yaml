@@ -6,6 +6,12 @@ analyzer:
   exclude:
     - build/**
     - lib/l10n/generated/**
+    - android/**
+    - ios/**
+    - web/**
+    - windows/**
+    - macos/**
+    - linux/**
 
 formatter:
   trailing_commas: preserve

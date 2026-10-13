@@ -27,7 +27,9 @@ import 'package:dio/dio.dart';
 /// is wrapped in `unwrapApi` so consumers see sealed `ApiException`
 /// subtypes instead of raw `DioException`s.
 class PostApiClient {
-  const PostApiClient(this._dio);
+  const PostApiClient(this._dio, {this.blobClient});
+
+  final BlobApiClient? blobClient;
 
   final Dio _dio;
 
@@ -89,14 +91,14 @@ class PostApiClient {
     return LinkPreview.fromMap(response.data!);
   });
 
-  /// POST /v1/blobs/images — uploads prepared image bytes.
+  /// Authorizes with AppView, then uploads prepared image bytes to the PDS.
   Future<UploadedImageBlob> uploadImage({
     required List<int> bytes,
     required String mimeType,
     ProgressCallback? onSendProgress,
     ProgressCallback? onReceiveProgress,
     CancelToken? cancelToken,
-  }) => BlobApiClient(_dio).uploadImage(
+  }) => (blobClient ?? BlobApiClient(_dio)).uploadImage(
     bytes: bytes,
     mimeType: mimeType,
     onSendProgress: onSendProgress,
