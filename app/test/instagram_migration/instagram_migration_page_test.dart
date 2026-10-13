@@ -41,10 +41,15 @@ void main() {
       imports: InstagramImportPage(items: const [], cursor: null),
     );
     final semantics = tester.ensureSemantics();
+    Uri? helpUri;
 
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          instagramHelpLauncherProvider.overrideWithValue((uri) async {
+            helpUri = uri;
+            return true;
+          }),
           secureSessionRegistryStorageProvider.overrideWithValue(
             _RegistryStorage(initial),
           ),
@@ -93,6 +98,10 @@ void main() {
     );
     expect(find.byKey(const Key('instagram-imports-card')), findsNothing);
     expect(find.byKey(const Key('instagram-suggestions-card')), findsNothing);
+    await tester.ensureVisible(find.byKey(const Key('instagram-import-help')));
+    await tester.tap(find.byKey(const Key('instagram-import-help')));
+    await tester.pump();
+    expect(helpUri, Uri.https('craftsky.social', '/instagram-import'));
     expect(
       tester.widget<ListView>(find.byType(ListView)).physics,
       isA<AlwaysScrollableScrollPhysics>(),
@@ -177,9 +186,10 @@ void main() {
       'Enter the Instagram handles of accounts you follow, one per line.',
     );
     final jsonDescription = find.text(
-      'Choose an Instagram export containing Accounts you follow. CraftSky '
-      'processes it on this device and uploads only those usernames. If you '
-      'select an all-information ZIP, everything else stays on your device.',
+      'Choose JSON format and All time when exporting from Instagram, then '
+      'select the downloaded ZIP here. CraftSky processes it on this device '
+      'and uploads only the usernames of accounts you follow. Everything '
+      'else stays on your device.',
     );
     expect(manualDescription, findsNothing);
     expect(jsonDescription, findsOneWidget);

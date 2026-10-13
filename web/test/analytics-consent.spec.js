@@ -8,6 +8,7 @@ const publicRoutes = [
   '/community-guidelines',
   '/reporting',
   '/copyright',
+  '/instagram-import',
 ];
 const postHogHost = 'https://t.craftsky.social';
 const consentKey = 'craftsky.analytics-consent';

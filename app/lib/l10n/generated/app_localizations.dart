@@ -4315,8 +4315,14 @@ abstract class AppLocalizations {
   /// No description provided for @instagramImportJsonDescription.
   ///
   /// In en, this message translates to:
-  /// **'Choose an Instagram export containing Accounts you follow. CraftSky processes it on this device and uploads only those usernames. If you select an all-information ZIP, everything else stays on your device.'**
+  /// **'Choose JSON format and All time when exporting from Instagram, then select the downloaded ZIP here. CraftSky processes it on this device and uploads only the usernames of accounts you follow. Everything else stays on your device.'**
   String get instagramImportJsonDescription;
+
+  /// Link to CraftSky's website guide for exporting Instagram following data.
+  ///
+  /// In en, this message translates to:
+  /// **'How to export your Instagram following'**
+  String get instagramImportHelp;
 
   /// No description provided for @instagramImportHandles.
   ///

@@ -37,6 +37,10 @@ final instagramDmLauncherProvider = Provider<ExternalLinkLauncher>(
   (_) => launchExternalLink,
 );
 
+final instagramHelpLauncherProvider = Provider<ExternalLinkLauncher>(
+  (_) => launchExternalLink,
+);
+
 enum _InstagramAction {
   create,
   confirm,
@@ -123,6 +127,27 @@ class _InstagramMigrationBody extends ConsumerWidget {
                     ),
                   ),
                   SizedBox(height: spacing.sp4),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: TextButton(
+                      key: const Key('instagram-import-help'),
+                      onPressed: () => unawaited(
+                        confirmAndLaunchExternalLink(
+                          context,
+                          uri: Uri.https(
+                            'craftsky.social',
+                            '/instagram-import',
+                          ),
+                          launchUrl: ref.read(instagramHelpLauncherProvider),
+                          confirmOpenLink: (_, _) async => true,
+                        ),
+                      ),
+                      child: Text(
+                        AppLocalizations.of(context).instagramImportHelp,
+                      ),
+                    ),
+                  ),
+                  SizedBox(height: spacing.sp2),
                   account.when(
                     loading: () => const SizedBox.shrink(),
                     error: (_, _) => const SizedBox.shrink(),

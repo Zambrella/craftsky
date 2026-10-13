@@ -15,6 +15,7 @@ ROUTES = {
     "/privacy": "privacy.html", "/terms": "terms.html",
     "/community-guidelines": "community-guidelines.html",
     "/reporting": "reporting.html", "/copyright": "copyright.html",
+    "/instagram-import": "instagram-import.html",
 }
 PUBLIC_FILES = (*ROUTES.values(), "styles.css", "main.js", "waitlist.js", "robots.txt")
 ASSET_EXTENSIONS = {".svg", ".png", ".jpg", ".jpeg", ".webp", ".gif", ".ico", ".woff", ".woff2"}
