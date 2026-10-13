@@ -29,6 +29,7 @@ import 'package:craftsky_app/shared/rich_text/providers/facet_suggestion_provide
 import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
 import 'package:craftsky_app/subscriptions/providers/subscription_access_provider.dart';
 import 'package:craftsky_app/subscriptions/subscription_build_config.dart';
+import 'package:craftsky_app/subscriptions/widgets/plus_feature_lock.dart';
 import 'package:craftsky_app/theme/brand_colors.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
@@ -55,6 +56,77 @@ final List<Override> _paidAccessOverrides = [
 ];
 
 void main() {
+  for (final tier in [SubscriptionTier.free, SubscriptionTier.plus]) {
+    testWidgets('project scheduling respects the subscription gate for $tier', (
+      tester,
+    ) async {
+      final registry = SessionRegistry.empty().upsertAndActivate(
+        token: 'alice-token',
+        did: 'did:plc:alice',
+        handle: 'alice.test',
+      );
+      final account = registry.activeLease!.session.account;
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            secureSessionRegistryStorageProvider.overrideWithValue(
+              _RegistryStorage(registry),
+            ),
+            subscriptionAccessProvider.overrideWith(
+              (ref, lease) async => SubscriptionAccess(
+                did: lease.account.did,
+                effectiveTier: tier,
+                givesAccess: tier == SubscriptionTier.plus,
+                assignedTier: tier == SubscriptionTier.plus ? tier : null,
+              ),
+            ),
+            activeLanguagePreferencesProvider.overrideWith(
+              (ref) => const LanguagePreferences(
+                primaryLanguage: 'en',
+                contentLanguages: ['en'],
+              ),
+            ),
+            accountScheduledPostRepositoryProvider(account).overrideWith(
+              (ref) async =>
+                  _ScheduledRepository(_pngBytes(width: 3, height: 2)),
+            ),
+          ],
+          child: MessengerScope(
+            messenger: RecordingMessenger(),
+            child: MaterialApp(
+              theme: _testTheme,
+              localizationsDelegates: appLocalizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
+              home: const ProjectComposerSheet(),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final schedule = find.byKey(const Key('composer-schedule-control'));
+      await tester.ensureVisible(schedule);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byType(PlusFeatureLock));
+      await tester.pumpAndSettle();
+
+      if (subscriptionsEnabled && tier == SubscriptionTier.plus) {
+        expect(find.text('Schedule for later'), findsOneWidget);
+      } else {
+        expect(
+          find.text(
+            subscriptionsEnabled
+                ? 'Scheduled posts requires Plus'
+                : 'Scheduled posts is coming soon',
+          ),
+          findsOneWidget,
+        );
+        expect(find.text('Schedule for later'), findsNothing);
+        expect(find.byType(DatePickerDialog), findsNothing);
+      }
+      expect(tester.takeException(), isNull);
+    });
+  }
+
   test(
     'new scheduled media gets a one-minute-style independent budget',
     () async {
