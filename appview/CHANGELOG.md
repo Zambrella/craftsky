@@ -1,5 +1,23 @@
 # AppView Changelog
 
+## 1.0.14 - 2026-10-13
+
+- feat: add online safety launch readiness controls
+- feat(safety): allow private beta with documented safety gaps
+- feat(web): add versioned Cloudflare Worker deployments
+- feat(service-status): add maintenance and announcement screens
+- build(appview): update Go toolchain and check tools
+- feat(search): improve relevance and typo matching
+- test(api): load search migrations lazily
+- feat(search): preserve representative hashtag spelling
+- test(scheduledposts): stabilize concurrent reupload cleanup test
+- fix(observability): suppress expected account cancellations
+- feat(notifications): filter notifications by category
+- feat(ingestion): project post notifications independently
+- feat(projects): prioritize preferred crafts
+- test(appview): verify RevenueCat provider failure logging
+- fix(atproto): align protocol handling and PDS retries
+
 ## 1.0.13 - 2026-10-08
 
 - chore(release): AppView 1.0.11
