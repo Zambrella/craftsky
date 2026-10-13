@@ -1,0 +1,110 @@
+{
+  "$type": "community.lexicon.app.profile",
+  "name": "CraftSky",
+  "description": "A social platform for textile crafters. Share sewing, knitting, crochet and quilting projects, discover patterns and techniques, and follow makers and shops. No ads, a chronological home feed, and portable posts and social connections on the AT Protocol.",
+  "createdAt": "2026-10-13T15:20:00Z",
+  "status": "community.lexicon.app.defs#unreleased",
+  "platforms": [
+    "community.lexicon.app.defs#platformIOS",
+    "community.lexicon.app.defs#platformAndroid"
+  ],
+  "tags": [
+    "textile-crafts",
+    "sewing",
+    "knitting",
+    "crochet",
+    "quilting",
+    "embroidery",
+    "social"
+  ],
+  "links": [
+    {
+      "uri": "https://craftsky.social",
+      "role": "community.lexicon.app.defs#linkRoleWebsite",
+      "label": "Website and waiting list"
+    },
+    {
+      "uri": "https://apps.apple.com/app/id6812428632",
+      "role": "community.lexicon.app.defs#linkRoleAppStore",
+      "label": "Apple App Store"
+    },
+    {
+      "uri": "https://play.google.com/store/apps/details?id=social.craftsky.app",
+      "role": "community.lexicon.app.defs#linkRolePlayStore",
+      "label": "Google Play"
+    },
+    {
+      "uri": "https://github.com/Zambrella/craftsky",
+      "role": "community.lexicon.app.defs#linkRoleSourceCode",
+      "label": "Source code"
+    },
+    {
+      "uri": "https://github.com/Zambrella/craftsky/tree/main/lexicon",
+      "role": "community.lexicon.app.defs#linkRoleDocs",
+      "label": "CraftSky Lexicons"
+    },
+    {
+      "uri": "https://craftsky.social/privacy",
+      "role": "community.lexicon.app.defs#linkRolePrivacyPolicy",
+      "label": "Privacy policy"
+    },
+    {
+      "uri": "https://craftsky.social/terms",
+      "role": "community.lexicon.app.defs#linkRoleTermsOfService",
+      "label": "Terms of service"
+    },
+    {
+      "uri": "mailto:support@craftsky.social",
+      "role": "community.lexicon.app.defs#linkRoleSupport",
+      "label": "Support"
+    }
+  ],
+  "images": [
+    {
+      "image": {
+        "$type": "blob",
+        "ref": {
+          "$link": "bafkreigpdyhi4iee4juvratbhsynrgzktm2riuwfjyeul2exs4qxrdjvdi"
+        },
+        "mimeType": "image/png",
+        "size": 47086
+      },
+      "alt": "CraftSky icon: a blue hand with a red C on a cream background.",
+      "purpose": "community.lexicon.app.defs#purposeIcon",
+      "aspectRatio": {
+        "width": 1,
+        "height": 1
+      }
+    }
+  ],
+  "lexicons": {
+    "produces": [
+      "social.craftsky.actor.profile",
+      "social.craftsky.feed.post",
+      "social.craftsky.feed.like",
+      "social.craftsky.feed.repost",
+      "social.craftsky.business.profile",
+      "social.craftsky.business.event",
+      "app.bsky.actor.profile",
+      "app.bsky.graph.follow",
+      "app.bsky.graph.block"
+    ],
+    "consumes": [
+      "social.craftsky.actor.profile",
+      "social.craftsky.feed.post",
+      "social.craftsky.feed.like",
+      "social.craftsky.feed.repost",
+      "social.craftsky.business.profile",
+      "social.craftsky.business.event",
+      "app.bsky.actor.profile",
+      "app.bsky.graph.follow",
+      "app.bsky.graph.block"
+    ]
+  },
+  "accountIndicators": [
+    {
+      "collection": "social.craftsky.actor.profile",
+      "rkey": "self"
+    }
+  ]
+}
