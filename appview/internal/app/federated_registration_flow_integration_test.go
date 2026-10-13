@@ -66,7 +66,7 @@ func newRealRegistrationFlowForProvider(
 	store := auth.NewPostgresAuthStore(pool, storeConfig)
 	artifacts, err := auth.BuildClientArtifacts(auth.ClientConfigInput{
 		Mode: auth.ClientModeLocalhost, CallbackURL: realFlowURL(t, "http://127.0.0.1:18080/oauth/callback"),
-		Scopes: []string{"atproto", "transition:generic"},
+		Scopes: []string{"atproto", "include:social.craftsky.authFull"},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -140,7 +140,7 @@ func TestProviderRegistrationStartFailureClassificationDoesNotFallback(t *testin
 			}
 			upstream.setRegistrationPAR(promptValues, status, body)
 			if test.invalidMetadata {
-				upstream.setRegistrationMetadataScopes([]string{"transition:generic"})
+				upstream.setRegistrationMetadataScopes([]string{"include:social.craftsky.authFull"})
 			}
 			if test.invalidEndpoint {
 				endpoints := defaultRealFlowOAuthEndpoints()
@@ -261,7 +261,7 @@ func TestProviderRegistrationAdvertisedCreatePromptDoesNotDowngrade(t *testing.T
 			store := auth.NewPostgresAuthStore(pool, storeConfig)
 			artifacts, err := auth.BuildClientArtifacts(auth.ClientConfigInput{
 				Mode: auth.ClientModeLocalhost, CallbackURL: realFlowURL(t, "http://127.0.0.1:18080/oauth/callback"),
-				Scopes: []string{"atproto", "transition:generic"},
+				Scopes: []string{"atproto", "include:social.craftsky.authFull"},
 			})
 			if err != nil {
 				t.Fatal(err)
@@ -356,7 +356,7 @@ func TestProviderRegistrationServerFirstDiscoveryAndPAR(t *testing.T) {
 	artifacts, err := auth.BuildClientArtifacts(auth.ClientConfigInput{
 		Mode:        auth.ClientModeLocalhost,
 		CallbackURL: realFlowURL(t, "http://127.0.0.1:18080/oauth/callback"),
-		Scopes:      []string{"atproto", "transition:generic"},
+		Scopes:      []string{"atproto", "include:social.craftsky.authFull"},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -413,7 +413,7 @@ func TestProviderRegistrationServerFirstDiscoveryAndPAR(t *testing.T) {
 		t.Fatal("PAR request was not sent")
 	}
 	if par.form.Get("client_id") != artifacts.Config.ClientID ||
-		par.form.Get("scope") != "atproto transition:generic" || par.form.Get("state") == "" ||
+		par.form.Get("scope") != "atproto include:social.craftsky.authFull" || par.form.Get("state") == "" ||
 		par.form.Get("code_challenge") == "" || par.form.Get("code_challenge_method") != "S256" ||
 		par.dpop == "" {
 		t.Fatal("PAR omitted required client, scope, state, PKCE, or DPoP protection")
@@ -731,7 +731,7 @@ func TestProviderRegistrationMalformedSuccessQuarantinesRecoverableTokens(t *tes
 	owner := syntax.DID("did:plc:registrationmalformedsuccess")
 	upstream := newRealFlowServer(t, owner)
 	upstream.setTokenResponse(map[string]any{
-		"sub": 17, "scope": "atproto transition:generic",
+		"sub": 17, "scope": "atproto include:social.craftsky.authFull",
 		"access_token": accessToken, "refresh_token": refreshToken,
 		"raw_marker": rawMarker,
 	})
@@ -887,7 +887,7 @@ func TestProviderRegistrationCallbackFaultBoundariesConverge(t *testing.T) {
 	owner := syntax.DID("did:plc:registrationfault")
 	validToken := func() map[string]any {
 		return map[string]any{
-			"sub": owner.String(), "scope": "atproto transition:generic",
+			"sub": owner.String(), "scope": "atproto include:social.craftsky.authFull",
 			"access_token": "access-registration-fault", "refresh_token": "refresh-registration-fault",
 		}
 	}
@@ -901,8 +901,8 @@ func TestProviderRegistrationCallbackFaultBoundariesConverge(t *testing.T) {
 		{name: "missing access token", mutateToken: func(token map[string]any) { delete(token, "access_token") }},
 		{name: "missing refresh token", mutateToken: func(token map[string]any) { delete(token, "refresh_token") }},
 		{name: "missing mandatory scope", mutateToken: func(token map[string]any) { token["scope"] = "atproto" }},
-		{name: "duplicate scope", mutateToken: func(token map[string]any) { token["scope"] = "atproto atproto transition:generic" }},
-		{name: "blank scope element", mutateToken: func(token map[string]any) { token["scope"] = "atproto  transition:generic" }},
+		{name: "duplicate scope", mutateToken: func(token map[string]any) { token["scope"] = "atproto atproto include:social.craftsky.authFull" }},
+		{name: "blank scope element", mutateToken: func(token map[string]any) { token["scope"] = "atproto  include:social.craftsky.authFull" }},
 		{name: "malformed scope element", mutateToken: func(token map[string]any) { token["scope"] = "atproto transition:\ngeneric" }},
 		{name: "malformed DID", mutateToken: func(token map[string]any) { token["sub"] = "not-a-did" }},
 		{name: "DID lookup failure", lookupError: true},
@@ -1740,7 +1740,7 @@ func TestProviderRegistrationCredentialBoundaryInventory(t *testing.T) {
 	owner := syntax.DID("did:plc:registrationboundary")
 	upstream := newRealFlowServer(t, owner)
 	upstream.setTokenResponse(map[string]any{
-		"sub": owner.String(), "scope": "atproto transition:generic",
+		"sub": owner.String(), "scope": "atproto include:social.craftsky.authFull",
 		"access_token": accessToken, "refresh_token": refreshToken,
 	})
 	clients, _, _ := newRealFlowClients(t, upstream)

@@ -262,6 +262,10 @@ lexgen:
     INDIGO_INFO=$(go list -m github.com/bluesky-social/indigo)
     INDIGO_VERSION=$(echo "$INDIGO_INFO" | awk '{print $2}')
     INDIGO_DIR=$(go env GOMODCACHE)/github.com/bluesky-social/indigo@$INDIGO_VERSION
+    # Permission sets are published Lexicons, but have no record Go/CBOR types.
+    codegen_source=$(mktemp -d)
+    trap 'rm -rf "$codegen_source"' EXIT
+    ../scripts/lexicon-codegen-source "$codegen_source"
     go run github.com/bluesky-social/indigo/cmd/lexgen@$INDIGO_VERSION \
       --build-file cmd/lexgen/build.json \
       --external-lexicons "$INDIGO_DIR/lexicons/app/bsky/embed/external.json" \
@@ -269,7 +273,7 @@ lexgen:
       --external-lexicons "$INDIGO_DIR/lexicons/app/bsky/embed/defs.json" \
       --external-lexicons "$INDIGO_DIR/lexicons/app/bsky/richtext/facet.json" \
       --external-lexicons "$INDIGO_DIR/lexicons/com/atproto/repo/strongRef.json" \
-      ../lexicon/social/craftsky \
+      "$codegen_source" \
       cmd/lexgen/external/community.lexicon.location.address.bafyreicdvexolyvp6j6yksqiib7hihwktt6ogalbvyzvtkj6ecrtqqw5fq.json
     go run ./cmd/lexgen/cborgen
     ../scripts/lexicon-catalog-sync "$INDIGO_DIR"

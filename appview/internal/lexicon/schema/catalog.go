@@ -11,7 +11,7 @@ import (
 	"social.craftsky/appview/internal/recordjson"
 )
 
-//go:embed actor business feed project standard
+//go:embed auth actor business feed project standard
 var craftskySchemas embed.FS
 
 var craftskyCatalog = func() *indigolexicon.BaseCatalog {

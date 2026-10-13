@@ -13,6 +13,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 
 	"social.craftsky/appview/internal/api"
+	"social.craftsky/appview/internal/auth"
 	"social.craftsky/appview/internal/middleware"
 	"social.craftsky/appview/internal/video"
 )
@@ -100,5 +101,17 @@ func TestVideoUploadAuthorizationHandler_FailsClosed(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestVideoUploadAuthorizationHandler_PermissionsRequireSignIn(t *testing.T) {
+	service := &fakeUploadAuthorizationIssuer{err: errors.Join(auth.ErrPDSSessionExpired, auth.ErrPDSPermissionsRequired, errors.New("Bearer video-consent-canary"))}
+	request := httptest.NewRequest("POST", "/v1/blobs/videos/authorization", nil)
+	ctx := middleware.WithDID(request.Context(), syntax.DID("did:plc:alice"))
+	ctx = middleware.WithOAuthSessionID(ctx, "session-alice")
+	recorder := httptest.NewRecorder()
+	api.VideoUploadAuthorizationHandler(service, nilLogger()).ServeHTTP(recorder, request.WithContext(ctx))
+	if recorder.Code != 401 || !strings.Contains(recorder.Body.String(), `"error":"pds_permissions_required"`) || strings.Contains(recorder.Body.String(), "video-consent-canary") {
+		t.Fatalf("response = %d %s", recorder.Code, recorder.Body.String())
 	}
 }

@@ -115,7 +115,7 @@ func TestHandleFirstOAuthRejectsMismatchedTokenSubject(t *testing.T) {
 	handle := syntax.Handle("handle-first.real-flow.test")
 	upstream := newRealFlowServer(t, owner)
 	upstream.setTokenResponse(map[string]any{
-		"sub": "did:plc:differentowner", "scope": "atproto transition:generic",
+		"sub": "did:plc:differentowner", "scope": "atproto include:social.craftsky.authFull",
 		"access_token": "mismatched-access", "refresh_token": "mismatched-refresh",
 	})
 	clients, _, _ := newRealFlowClients(t, upstream)
@@ -136,7 +136,7 @@ func TestHandleFirstOAuthRejectsMismatchedTokenSubject(t *testing.T) {
 	store := auth.NewPostgresAuthStore(pool, storeConfig)
 	artifacts, err := auth.BuildClientArtifacts(auth.ClientConfigInput{
 		Mode: auth.ClientModeLocalhost, CallbackURL: realFlowURL(t, "http://127.0.0.1:18080/oauth/callback"),
-		Scopes: []string{"atproto", "transition:generic"},
+		Scopes: []string{"atproto", "include:social.craftsky.authFull"},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -214,7 +214,7 @@ func TestRealFederatedOAuthSessionAndPDSFlowsUsePurposeClients(t *testing.T) {
 	artifacts, err := auth.BuildClientArtifacts(auth.ClientConfigInput{
 		Mode:        auth.ClientModeLocalhost,
 		CallbackURL: realFlowURL(t, "http://127.0.0.1:18080/oauth/callback"),
-		Scopes:      []string{"atproto", "transition:generic"},
+		Scopes:      []string{"atproto", "include:social.craftsky.authFull"},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -515,7 +515,7 @@ func TestOAuthAuthorityMetadataCacheLeavesOAuthFlowsFresh(t *testing.T) {
 	artifacts, err := auth.BuildClientArtifacts(auth.ClientConfigInput{
 		Mode:        auth.ClientModeLocalhost,
 		CallbackURL: realFlowURL(t, "http://127.0.0.1:18080/oauth/callback"),
-		Scopes:      []string{"atproto", "transition:generic"},
+		Scopes:      []string{"atproto", "include:social.craftsky.authFull"},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -692,7 +692,7 @@ func TestAuthoritativeOAuthVerifierProtectsFederatedEffect(t *testing.T) {
 			t.Fatal(err)
 		}
 		config := oauth.NewPublicConfig(
-			"https://appview.example/oauth/client-metadata.json",
+			"https://appview.example/oauth-client-metadata.json",
 			"https://appview.example/oauth/callback",
 			[]string{"atproto"},
 		)
@@ -826,7 +826,7 @@ func TestAuthoritativeOAuthVerifierProtectsFederatedEffect(t *testing.T) {
 		storeConfig.EndpointValidator = f.clients.boundary
 		store := auth.NewPostgresAuthStore(f.pool, storeConfig)
 		config := oauth.NewPublicConfig(
-			"https://appview.example/oauth/client-metadata.json",
+			"https://appview.example/oauth-client-metadata.json",
 			"https://appview.example/oauth/callback",
 			[]string{"atproto"},
 		)

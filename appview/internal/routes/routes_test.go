@@ -708,10 +708,10 @@ func TestAddRoutes_OAuthClientMetadataStaysUnprefixed(t *testing.T) {
 	mux := http.NewServeMux()
 	AddRoutes(context.Background(), mux, testDeps())
 
-	req := httptest.NewRequest("GET", "/oauth/client-metadata.json", nil)
+	req := httptest.NewRequest("GET", "/oauth-client-metadata.json", nil)
 	_, pattern := mux.Handler(req)
 	if pattern == "/" || pattern == "" {
-		t.Errorf("pattern = %q; /oauth/client-metadata.json must be registered", pattern)
+		t.Errorf("pattern = %q; /oauth-client-metadata.json must be registered", pattern)
 	}
 }
 

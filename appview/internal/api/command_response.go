@@ -71,6 +71,8 @@ func commandError(err error) (int, string, string) {
 		status, code, message = http.StatusUnprocessableEntity, "pds_atomic_mutation_too_large", "The mutation exceeds the PDS atomic write limit."
 	case errors.Is(err, pdscommands.ErrMalformedCommand):
 		status, code, message = http.StatusBadRequest, "invalid_request", "The mutation request is invalid."
+	case errors.Is(err, auth.ErrPDSPermissionsRequired):
+		status, code, message = http.StatusUnauthorized, "pds_permissions_required", "Please sign in again to approve CraftSky permissions."
 	case errors.Is(err, auth.ErrPDSSessionExpired):
 		status, code, message = http.StatusUnauthorized, "pds_session_expired", "PDS session expired; sign in again."
 	case errors.Is(err, pdscommands.ErrDispatchRejected):

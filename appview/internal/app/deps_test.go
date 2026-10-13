@@ -30,7 +30,7 @@ func testOAuthDeployment(t *testing.T, env Env) OAuthDeployment {
 	}
 	return OAuthDeployment{
 		Mode: OAuthModeConfidential, PublicOrigin: origin,
-		ClientID:        resolveOriginPath(origin, "/oauth/client-metadata.json"),
+		ClientID:        resolveOriginPath(origin, "/oauth-client-metadata.json"),
 		CallbackURL:     resolveOriginPath(origin, "/oauth/callback"),
 		JWKSURL:         resolveOriginPath(origin, "/oauth/jwks.json"),
 		ClientSecretKey: Secret(privateKey.Multibase()), ClientKeyID: "primary",

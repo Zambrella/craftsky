@@ -67,7 +67,7 @@ func TestExpectedHostAuthorityMatrix(t *testing.T) {
 					w.WriteHeader(http.StatusNoContent)
 				}),
 			)
-			request := httptest.NewRequest("GET", "https://appview.craftsky.social/oauth/client-metadata.json", nil)
+			request := httptest.NewRequest("GET", "https://appview.craftsky.social/oauth-client-metadata.json", nil)
 			request.Host = test.host
 			request.Header.Set("Forwarded", "host=attacker.invalid")
 			request.Header.Set("X-Forwarded-Host", "attacker.invalid")
@@ -98,7 +98,7 @@ func TestExpectedHostBypassesOnlyConfiguredExactPaths(t *testing.T) {
 		{path: "/health", status: http.StatusNoContent},
 		{path: "/healthz", status: http.StatusMisdirectedRequest},
 		{path: "/health/", status: http.StatusMisdirectedRequest},
-		{path: "/oauth/client-metadata.json", status: http.StatusMisdirectedRequest},
+		{path: "/oauth-client-metadata.json", status: http.StatusMisdirectedRequest},
 		{path: "/v1/whoami", status: http.StatusMisdirectedRequest},
 	} {
 		t.Run(test.path, func(t *testing.T) {

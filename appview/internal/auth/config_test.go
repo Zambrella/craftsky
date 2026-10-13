@@ -26,12 +26,12 @@ func TestBuildClientArtifactsProduction(t *testing.T) {
 	}
 	artifacts, err := auth.BuildClientArtifacts(auth.ClientConfigInput{
 		Mode:            auth.ClientModeConfidential,
-		ClientID:        mustURL(t, "https://appview.craftsky.social/oauth/client-metadata.json"),
+		ClientID:        mustURL(t, "https://appview.craftsky.social/oauth-client-metadata.json"),
 		CallbackURL:     mustURL(t, "https://appview.craftsky.social/oauth/callback"),
 		JWKSURL:         mustURL(t, "https://appview.craftsky.social/oauth/jwks.json"),
 		ClientSecretKey: priv.Multibase(),
 		ClientKeyID:     "primary",
-		Scopes:          []string{"atproto", "transition:generic"},
+		Scopes:          []string{"atproto", "include:social.craftsky.authFull"},
 	})
 	if err != nil {
 		t.Fatalf("BuildClientArtifacts: %v", err)
@@ -74,7 +74,7 @@ func TestBuildClientArtifactsLocalhost(t *testing.T) {
 func TestBuildClientArtifactsRejectsInvalidConfidentialKey(t *testing.T) {
 	_, err := auth.BuildClientArtifacts(auth.ClientConfigInput{
 		Mode:            auth.ClientModeConfidential,
-		ClientID:        mustURL(t, "https://appview.craftsky.social/oauth/client-metadata.json"),
+		ClientID:        mustURL(t, "https://appview.craftsky.social/oauth-client-metadata.json"),
 		CallbackURL:     mustURL(t, "https://appview.craftsky.social/oauth/callback"),
 		JWKSURL:         mustURL(t, "https://appview.craftsky.social/oauth/jwks.json"),
 		ClientSecretKey: "not-a-private-key",
@@ -107,7 +107,7 @@ func TestBuildClientArtifactsRejectsAmbiguousTypedURLs(t *testing.T) {
 			name: "confidential endpoint query",
 			input: auth.ClientConfigInput{
 				Mode:            auth.ClientModeConfidential,
-				ClientID:        mustURL(t, "https://appview.craftsky.social/oauth/client-metadata.json?poison=true"),
+				ClientID:        mustURL(t, "https://appview.craftsky.social/oauth-client-metadata.json?poison=true"),
 				CallbackURL:     mustURL(t, "https://appview.craftsky.social/oauth/callback"),
 				JWKSURL:         mustURL(t, "https://appview.craftsky.social/oauth/jwks.json"),
 				ClientSecretKey: privateKey.Multibase(),

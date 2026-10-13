@@ -84,7 +84,7 @@ func TestOAuthCallbackRejectsMissingRequiredScopesBeforePersistence(t *testing.T
 		}, nil
 	})}
 	config := oauth.NewPublicConfig(
-		"https://appview.example/oauth/client-metadata.json",
+		"https://appview.example/oauth-client-metadata.json",
 		"https://appview.example/oauth/callback",
 		auth.DefaultScopes(),
 	)
@@ -114,6 +114,11 @@ func TestOAuthCallbackRejectsMissingRequiredScopesBeforePersistence(t *testing.T
 	if !errors.Is(err, auth.ErrOAuthFlowInvalid) {
 		t.Fatalf("callback error = %v, want invalid scope grant", err)
 	}
+	var diagnostic *auth.OAuthCallbackDiagnostic
+	if !errors.As(err, &diagnostic) || diagnostic.Reason() != "scope_required_missing" {
+		t.Fatalf("missing scope rejection diagnostic: %T", err)
+	}
+	verifyCallbackDiagnosticSink(t, err)
 	if observer.calls != 0 {
 		t.Fatal("scope refusal should precede authority verification")
 	}
@@ -186,4 +191,116 @@ func TestOAuthCallbackRejectsMissingRequiredScopesBeforePersistence(t *testing.T
 		t.Fatalf("outbound requests after cleanup = %v, want token and two revocations only at original issuer", requests)
 	}
 
+}
+
+const resolvedCraftskyScopeFixture = "atproto repo?collection=social.craftsky.actor.profile&collection=social.craftsky.feed.post&collection=social.craftsky.feed.like&collection=social.craftsky.feed.repost&collection=social.craftsky.business.profile&collection=social.craftsky.business.event repo:app.bsky.actor.profile?action=create&action=update repo:app.bsky.graph.follow repo:app.bsky.graph.block blob?accept=image/jpeg&accept=image/png&accept=image/webp&accept=video/mp4&accept=text/vtt rpc:com.atproto.repo.uploadBlob?aud=* rpc:app.bsky.video.getUploadLimits?aud=*"
+
+func TestOAuthCallbackAcceptsProviderResolvedPermissionSet(t *testing.T) {
+	pool := withAuthSchema(t)
+	owners := newAuthOwnerStore(t, pool)
+	storeConfig := testStoreConfig()
+	storeConfig.OwnerLifecycles = owners
+	store := auth.NewPostgresAuthStore(pool, storeConfig)
+	owner := syntax.DID("did:plc:callback-migration")
+	seedAuthOwner(t, pool, owner)
+
+	privateKey, err := atcrypto.GeneratePrivateKeyP256()
+	if err != nil {
+		t.Fatal(err)
+	}
+	const (
+		state        = "callback-migration-state"
+		resourceA    = "https://pds-a.example"
+		issuerA      = "https://issuer-a.example"
+		accessToken  = "old-access-token"
+		refreshToken = "old-refresh-token"
+	)
+	requestInfo := oauth.AuthRequestData{
+		State: state, AccountDID: &owner, Scopes: []string{"atproto"},
+		RequestURI: "urn:request:callback-migration", AuthServerURL: issuerA,
+		AuthServerTokenEndpoint:      issuerA + "/oauth/token",
+		AuthServerRevocationEndpoint: issuerA + "/oauth/revoke",
+		PKCEVerifier:                 "pkce-verifier", DPoPPrivateKeyMultibase: privateKey.Multibase(),
+	}
+	err = owners.WithOnboardingAuth(context.Background(), owner, func(authContext context.Context, authority ownerlifecycle.Lifecycle) error {
+		requestContext := auth.WithLoginAuthRequest(
+			authContext, owner, authority.Generation, authority.AuthEpoch, resourceA, issuerA,
+			auth.HandoffVerifiedLink, "callback-device", "",
+		)
+		return store.SaveAuthRequestInfo(requestContext, requestInfo)
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var requests []string
+	client := &http.Client{Transport: callbackRoundTripFunc(func(request *http.Request) (*http.Response, error) {
+		requests = append(requests, request.URL.String())
+		switch request.URL.String() {
+		case issuerA + "/oauth/token":
+		case issuerA + "/oauth/revoke":
+			return &http.Response{
+				StatusCode: http.StatusOK, Header: make(http.Header),
+				Body: io.NopCloser(strings.NewReader("")), Request: request,
+			}, nil
+		default:
+			return nil, errors.New("unexpected outbound request")
+		}
+		body, err := json.Marshal(oauth.TokenResponse{
+			Subject: owner.String(), Scope: resolvedCraftskyScopeFixture,
+			AccessToken: accessToken, RefreshToken: refreshToken,
+		})
+		if err != nil {
+			return nil, err
+		}
+		return &http.Response{
+			StatusCode: http.StatusOK, Header: make(http.Header),
+			Body: io.NopCloser(strings.NewReader(string(body))), Request: request,
+		}, nil
+	})}
+	config := oauth.NewPublicConfig(
+		"https://appview.example/oauth-client-metadata.json",
+		"https://appview.example/oauth/callback",
+		auth.DefaultScopes(),
+	)
+	current := &fakeOAuthAuthorityVerifier{authority: auth.OAuthAuthority{
+		DID: owner, PDSOrigin: resourceA, IssuerOrigin: issuerA,
+	}}
+	app := &oauth.ClientApp{
+		Client: client, Config: &config, Resolver: oauth.NewResolver(),
+		Dir: &callbackDirectory{identity: &identity.Identity{DID: owner, Handle: "migrated.example"}},
+	}
+	observer := &recordingAuthorityObserver{}
+	service, err := auth.NewOAuthFlowService(auth.OAuthFlowServiceOptions{
+		App:   app,
+		Store: store, Owners: owners, AuthorityVerifier: current,
+		Observer: observer,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	finalized := false
+	err = service.CompleteCallback(context.Background(), url.Values{
+		"state": {state}, "iss": {issuerA}, "code": {"authorization-code"},
+	}, func(context.Context, auth.OAuthCallbackResult) error {
+		finalized = true
+		return nil
+	})
+	if err != nil || !finalized {
+		t.Fatalf("resolved callback failed: finalized=%t error=%v", finalized, err)
+	}
+	if current.calls.Load() != 1 || observer.result != "success" {
+		t.Fatal("resolved callback did not verify authority")
+	}
+	var scopes []byte
+	if err := pool.QueryRow(context.Background(), `SELECT data->'scopes' FROM oauth_sessions WHERE account_did=$1 AND session_id=$2`, owner, state).Scan(&scopes); err != nil {
+		t.Fatal(err)
+	}
+	var stored []string
+	if err := json.Unmarshal(scopes, &stored); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(stored, " ") != resolvedCraftskyScopeFixture {
+		t.Fatal("resolved grants were not persisted for subsequent PDS operations")
+	}
 }

@@ -160,7 +160,7 @@ func TestPutProfileMapsOnlyConfirmedStaleAuthorityToExpiredSession(t *testing.T)
 		EndpointValidator: pdsMigrationEndpointValidator{},
 	})
 	config := oauth.NewPublicConfig(
-		"https://appview.example/oauth/client-metadata.json",
+		"https://appview.example/oauth-client-metadata.json",
 		"https://appview.example/oauth/callback",
 		[]string{"atproto"},
 	)
@@ -178,6 +178,7 @@ func TestPutProfileMapsOnlyConfirmedStaleAuthorityToExpiredSession(t *testing.T)
 		}
 		data := oauth.ClientSessionData{
 			AccountDID: owner, SessionID: sessionID, HostURL: pds, AuthServerURL: issuer,
+			Scopes:                       []string{"atproto"},
 			AuthServerTokenEndpoint:      issuer + "/oauth/token",
 			AuthServerRevocationEndpoint: issuer + "/oauth/revoke",
 		}

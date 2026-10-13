@@ -12,6 +12,10 @@ import (
 // no longer be resumed/refreshed. Callers should require a fresh sign-in.
 var ErrPDSSessionExpired = errors.New("pds session expired")
 
+// ErrPDSPermissionsRequired identifies missing consent. Translation joins it
+// with ErrPDSSessionExpired so existing account-safe sign-in recovery applies.
+var ErrPDSPermissionsRequired = errors.New("pds permissions require fresh consent")
+
 // TranslatePDSError wraps known terminal OAuth/PDS auth failures in
 // ErrPDSSessionExpired while preserving unrelated upstream errors.
 func TranslatePDSError(err error) error {
@@ -28,6 +32,12 @@ func TranslatePDSError(err error) error {
 		return errors.Join(ErrPDSSessionExpired, err)
 	}
 	var apiErr *atclient.APIError
+	if errors.As(err, &apiErr) {
+		switch strings.ToLower(strings.TrimSpace(apiErr.Name)) {
+		case "insufficient_scope", "insufficientscope", "authmissingpermission":
+			return errors.Join(ErrPDSSessionExpired, ErrPDSPermissionsRequired, err)
+		}
+	}
 	if errors.As(err, &apiErr) && isPDSAuthAPIError(apiErr) {
 		return errors.Join(ErrPDSSessionExpired, err)
 	}

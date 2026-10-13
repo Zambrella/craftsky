@@ -548,7 +548,7 @@ func LoadConfig(env Env, envFilePath string) (Config, error) {
 		cfg.OAuth = OAuthDeployment{
 			Mode:            OAuthModeConfidential,
 			PublicOrigin:    origin,
-			ClientID:        resolveOriginPath(origin, "/oauth/client-metadata.json"),
+			ClientID:        resolveOriginPath(origin, "/oauth-client-metadata.json"),
 			CallbackURL:     resolveOriginPath(origin, "/oauth/callback"),
 			JWKSURL:         resolveOriginPath(origin, "/oauth/jwks.json"),
 			ClientSecretKey: Secret(os.Getenv("OAUTH_CLIENT_SECRET_KEY")),
@@ -1442,6 +1442,9 @@ func parseOAuthScopes(raw string) ([]string, error) {
 	}
 	if !hasATProto {
 		return nil, fmt.Errorf("OAUTH_SCOPES must include atproto")
+	}
+	if err := auth.ValidateClientScopes(scopes); err != nil {
+		return nil, err
 	}
 	return scopes, nil
 }

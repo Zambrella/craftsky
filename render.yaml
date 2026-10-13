@@ -37,7 +37,7 @@ projects:
               - key: OAUTH_CLIENT_SECRET_KEY_ID
                 value: primary
               - key: OAUTH_SCOPES
-                value: "atproto repo:social.craftsky.actor.profile repo:social.craftsky.feed.post repo:social.craftsky.feed.like repo:social.craftsky.feed.repost repo:social.craftsky.business.profile repo:social.craftsky.business.event repo:app.bsky.actor.profile?action=create&action=update repo:app.bsky.graph.follow repo:app.bsky.graph.block blob?accept=image/jpeg&accept=image/png&accept=image/webp&accept=video/mp4&accept=text/vtt rpc:com.atproto.repo.uploadBlob?aud=* rpc:app.bsky.video.getUploadLimits?aud=*"
+                value: "atproto include:social.craftsky.authFull repo:app.bsky.actor.profile?action=create&action=update repo:app.bsky.graph.follow repo:app.bsky.graph.block blob?accept=image/jpeg&accept=image/png&accept=image/webp&accept=video/mp4&accept=text/vtt rpc:com.atproto.repo.uploadBlob?aud=* rpc:app.bsky.video.getUploadLimits?aud=*"
               - key: OAUTH_SESSION_ABSOLUTE_LIFETIME
                 value: 4320h
               - key: CRAFTSKY_SESSION_INACTIVITY

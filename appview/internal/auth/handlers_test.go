@@ -53,7 +53,7 @@ func handlersFixture(t *testing.T, hostname string) *auth.HTTPHandlers {
 	input := auth.ClientConfigInput{
 		Mode:        auth.ClientModeLocalhost,
 		CallbackURL: mustURL(t, "http://127.0.0.1:18080/oauth/callback"),
-		Scopes:      []string{"atproto", "transition:generic"},
+		Scopes:      []string{"atproto", "include:social.craftsky.authFull"},
 	}
 	if hostname != "" {
 		privateKey, err := atcrypto.GeneratePrivateKeyP256()
@@ -63,12 +63,12 @@ func handlersFixture(t *testing.T, hostname string) *auth.HTTPHandlers {
 		origin := "https://" + hostname
 		input = auth.ClientConfigInput{
 			Mode:            auth.ClientModeConfidential,
-			ClientID:        mustURL(t, origin+"/oauth/client-metadata.json"),
+			ClientID:        mustURL(t, origin+"/oauth-client-metadata.json"),
 			CallbackURL:     mustURL(t, origin+"/oauth/callback"),
 			JWKSURL:         mustURL(t, origin+"/oauth/jwks.json"),
 			ClientSecretKey: privateKey.Multibase(),
 			ClientKeyID:     "primary",
-			Scopes:          []string{"atproto", "transition:generic"},
+			Scopes:          []string{"atproto", "include:social.craftsky.authFull"},
 		}
 	}
 	artifacts, err := auth.BuildClientArtifacts(input)
@@ -98,12 +98,12 @@ func TestClientMetadataDoesNotReflectRequestHost(t *testing.T) {
 	}
 	artifacts, err := auth.BuildClientArtifacts(auth.ClientConfigInput{
 		Mode:            auth.ClientModeConfidential,
-		ClientID:        mustURL(t, "https://appview.craftsky.social/oauth/client-metadata.json"),
+		ClientID:        mustURL(t, "https://appview.craftsky.social/oauth-client-metadata.json"),
 		CallbackURL:     mustURL(t, "https://appview.craftsky.social/oauth/callback"),
 		JWKSURL:         mustURL(t, "https://appview.craftsky.social/oauth/jwks.json"),
 		ClientSecretKey: privateKey.Multibase(),
 		ClientKeyID:     "primary",
-		Scopes:          []string{"atproto", "transition:generic"},
+		Scopes:          []string{"atproto", "include:social.craftsky.authFull"},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -114,7 +114,7 @@ func TestClientMetadataDoesNotReflectRequestHost(t *testing.T) {
 		PublicJWKS:     artifacts.JWKS,
 		Logger:         testlog.Discard(),
 	}
-	request := httptest.NewRequest("GET", "/oauth/client-metadata.json", nil)
+	request := httptest.NewRequest("GET", "/oauth-client-metadata.json", nil)
 	request.Host = "attacker.invalid"
 	request.Header.Set("Forwarded", "host=forwarded-attacker.invalid")
 	request.Header.Set("X-Forwarded-Host", "proxy-attacker.invalid")
@@ -143,7 +143,7 @@ func TestClientMetadataDoesNotReflectRequestHost(t *testing.T) {
 func TestClientMetadata_Localhost(t *testing.T) {
 	h := handlersFixture(t, "")
 	rr := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/oauth/client-metadata.json", nil)
+	req := httptest.NewRequest("GET", "/oauth-client-metadata.json", nil)
 	h.ClientMetadataHandler().ServeHTTP(rr, req)
 	if rr.Code != 200 {
 		t.Fatalf("status: %d body=%s", rr.Code, rr.Body.String())
@@ -763,5 +763,60 @@ func TestInitializeProfile_BlueskyErrorPropagates(t *testing.T) {
 	)
 	if !errors.Is(err, auth.ErrProfileInitFailed) {
 		t.Fatalf("want ErrProfileInitFailed; got %v", err)
+	}
+}
+
+func TestLegacyClientMetadataPreservesDiscoveryIdentity(t *testing.T) {
+	privateKey, err := atcrypto.GeneratePrivateKeyP256()
+	if err != nil {
+		t.Fatal(err)
+	}
+	artifacts, err := auth.BuildClientArtifacts(auth.ClientConfigInput{
+		Mode:            auth.ClientModeConfidential,
+		ClientID:        mustURL(t, "https://appview.craftsky.social/oauth-client-metadata.json"),
+		CallbackURL:     mustURL(t, "https://appview.craftsky.social/oauth/callback"),
+		JWKSURL:         mustURL(t, "https://appview.craftsky.social/oauth/jwks.json"),
+		ClientSecretKey: privateKey.Multibase(),
+		ClientKeyID:     "primary",
+		Scopes:          []string{"atproto", "include:social.craftsky.authFull"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := &auth.HTTPHandlers{
+		OAuth:          oauth.NewClientApp(&artifacts.Config, nil),
+		ClientMetadata: artifacts.Metadata,
+		PublicJWKS:     artifacts.JWKS,
+		Logger:         testlog.Discard(),
+	}
+	request := httptest.NewRequest("GET", "/oauth/client-metadata.json", nil)
+	request.Host = "attacker.invalid"
+	request.Header.Set("Forwarded", "host=forwarded-attacker.invalid")
+	request.Header.Set("X-Forwarded-Host", "proxy-attacker.invalid")
+	recorder := httptest.NewRecorder()
+
+	h.ClientMetadataHandler().ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d; body=%s", recorder.Code, recorder.Body.String())
+	}
+	if recorder.Header().Get("Cache-Control") != "no-store" || recorder.Header().Get("X-Content-Type-Options") != "nosniff" {
+		t.Fatalf("discovery security headers = %#v", recorder.Header())
+	}
+	var metadata oauth.ClientMetadata
+	if err := json.NewDecoder(recorder.Body).Decode(&metadata); err != nil {
+		t.Fatal(err)
+	}
+	if metadata.ClientID != "https://appview.craftsky.social/oauth/client-metadata.json" {
+		t.Fatalf("legacy client identity = %q", metadata.ClientID)
+	}
+	if err := metadata.Validate(metadata.ClientID); err != nil {
+		t.Fatal(err)
+	}
+	if metadata.JWKSURI == nil || *metadata.JWKSURI != "https://appview.craftsky.social/oauth/jwks.json" {
+		t.Fatalf("jwks_uri = %v, want canonical origin", metadata.JWKSURI)
+	}
+	if strings.Contains(recorder.Body.String(), "attacker") {
+		t.Fatalf("metadata reflected hostile host: %s", recorder.Body.String())
 	}
 }

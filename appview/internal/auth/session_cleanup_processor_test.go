@@ -100,7 +100,7 @@ func TestIndigoOAuthCredentialRevokerUsesValidatedHardenedClientForBothTokens(t 
 		}, nil
 	})}
 	config := oauth.NewPublicConfig(
-		"https://appview.example/oauth/client-metadata.json",
+		"https://appview.example/oauth-client-metadata.json",
 		"https://appview.example/oauth/callback",
 		[]string{"atproto"},
 	)

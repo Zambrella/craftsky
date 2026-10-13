@@ -13,6 +13,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 
 	"social.craftsky/appview/internal/auth"
+	"social.craftsky/appview/internal/observability"
 )
 
 const (
@@ -79,16 +80,22 @@ func (issuer *UploadAuthorizationIssuer) IssueUpload(ctx context.Context, owner 
 			return ErrServiceAuthorizationUnavailable
 		}
 		token, err = issuer.request(operationCtx, session, audience.String(), expiresAt.Unix(), videoUploadMethod)
-		if err != nil || strings.TrimSpace(token) == "" {
+		if err != nil {
+			return auth.TranslatePDSError(err)
+		}
+		if strings.TrimSpace(token) == "" {
 			return ErrServiceAuthorizationUnavailable
 		}
 		return nil
 	})
 	if err != nil {
+		if errors.Is(err, auth.ErrPDSSessionExpired) {
+			return UploadAuthorization{}, err
+		}
 		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 			return UploadAuthorization{}, err
 		}
-		return UploadAuthorization{}, ErrServiceAuthorizationUnavailable
+		return UploadAuthorization{}, observability.WrapError("video service authorization unavailable", errors.Join(ErrServiceAuthorizationUnavailable, err))
 	}
 	return UploadAuthorization{Token: token, ExpiresAt: expiresAt}, nil
 }
@@ -110,7 +117,10 @@ func requestServiceAuthorization(client *http.Client) serviceAuthRequest {
 		apiClient := session.APIClient()
 		apiClient.Client = client
 		output, err := apiatproto.ServerGetServiceAuth(ctx, apiClient, audience, expiry, method)
-		if err != nil || output == nil {
+		if err != nil {
+			return "", auth.TranslatePDSError(err)
+		}
+		if output == nil {
 			return "", ErrServiceAuthorizationUnavailable
 		}
 		return output.Token, nil

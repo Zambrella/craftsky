@@ -2,8 +2,10 @@ package api
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net/http"
+	"social.craftsky/appview/internal/auth"
 	"social.craftsky/appview/internal/observability"
 	"time"
 
@@ -58,6 +60,11 @@ func VideoUploadLimitsHandler(service VideoUploadLimitsService, _ *slog.Logger, 
 		}
 		limits, err := service.Get(r.Context(), owner, sessionID)
 		if err != nil {
+			if errors.Is(err, auth.ErrPDSSessionExpired) {
+				result, reason = "rejected", "authentication"
+				writePDSError(w, http.StatusUnauthorized, "pds_session_expired", pdsSessionExpiredMessage, runID, err)
+				return
+			}
 			result, reason = "unavailable", "upstream"
 			observability.ReportRequestFailure(r.Context(), err, "api.VideoUploadLimitsHandler", "handler")
 			envelope.WriteError(w, http.StatusBadGateway,

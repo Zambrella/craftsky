@@ -32,3 +32,16 @@ func TestPDSSessionExpiredEnvelopeRedactsJoinedMigrationError(t *testing.T) {
 		t.Fatalf("migration API envelope=%#v", body)
 	}
 }
+
+func TestPDSPermissionsEnvelopeRequiresSignInAndRedactsCause(t *testing.T) {
+	err := errors.Join(auth.ErrPDSSessionExpired, auth.ErrPDSPermissionsRequired, errors.New("Bearer permissions-canary"))
+	recorder := httptest.NewRecorder()
+	writePDSError(recorder, 502, "pds_failed", "PDS request failed", "permissions-request", err)
+	if recorder.Code != 401 || !strings.Contains(recorder.Body.String(), `"error":"pds_permissions_required"`) || strings.Contains(recorder.Body.String(), "permissions-canary") {
+		t.Fatalf("unsafe consent response: %d %s", recorder.Code, recorder.Body.String())
+	}
+	status, code, _ := commandError(err)
+	if status != 401 || code != "pds_permissions_required" {
+		t.Fatalf("command response = %d %q", status, code)
+	}
+}

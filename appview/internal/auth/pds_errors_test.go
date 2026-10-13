@@ -88,3 +88,19 @@ func TestTranslatePDSError_GenericErrorPassesThrough(t *testing.T) {
 		t.Fatalf("TranslatePDSError = %v, want original error", got)
 	}
 }
+
+func TestTranslatePDSError_MissingPermissionRequiresConsent(t *testing.T) {
+	for _, name := range []string{"AuthMissingPermission", "insufficient_scope", "InsufficientScope"} {
+		cause := &atclient.APIError{StatusCode: 403, Name: name, Message: "provider-private-canary"}
+		got := auth.TranslatePDSError(fmt.Errorf("PDS operation: %w", cause))
+		if !errors.Is(got, auth.ErrPDSPermissionsRequired) || !errors.Is(got, auth.ErrPDSSessionExpired) || !errors.Is(got, cause) {
+			t.Fatalf("missing consent classification did not preserve typed cause: %T", got)
+		}
+	}
+	for _, name := range []string{"Forbidden", "AccountTakedown", "InvalidRequest"} {
+		cause := &atclient.APIError{StatusCode: 403, Name: name, Message: "insufficient_scope"}
+		if got := auth.TranslatePDSError(cause); got != cause {
+			t.Fatalf("unrelated rejection %q forced reauthentication", name)
+		}
+	}
+}

@@ -3,11 +3,14 @@ package video
 import (
 	"context"
 	"errors"
+	"io"
 	"net/http"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/bluesky-social/indigo/atproto/atclient"
+	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 
@@ -106,5 +109,49 @@ func TestUploadAuthorizationIssuer_FailsClosedWithoutSensitiveDetail(t *testing.
 				}
 			}
 		})
+	}
+}
+
+func TestVideoServiceAuthorizationPreservesMissingConsent(t *testing.T) {
+	cause := &atclient.APIError{StatusCode: 403, Name: "AuthMissingPermission"}
+	runner := &fakeSessionRunner{session: &oauth.ClientSession{Data: &oauth.ClientSessionData{HostURL: "https://pds.example"}}}
+	request := func(context.Context, *oauth.ClientSession, string, int64, string) (string, error) { return "", cause }
+	issuer, err := NewUploadAuthorizationIssuer(UploadAuthorizationIssuerOptions{Sessions: runner, PDSClient: &http.Client{}, request: request})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = issuer.IssueUpload(context.Background(), "did:plc:alice", "session")
+	if !errors.Is(err, auth.ErrPDSPermissionsRequired) || !errors.Is(err, cause) {
+		t.Fatalf("upload lost permission cause: %v", err)
+	}
+	limits, err := NewUploadLimitsService(UploadLimitsServiceOptions{Sessions: runner, PDSClient: &http.Client{}, VideoClient: &http.Client{}, ServiceDID: "did:web:video.bsky.app", ServiceURL: "https://video.bsky.app", authorize: request})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = limits.Get(context.Background(), "did:plc:alice", "session")
+	if !errors.Is(err, auth.ErrPDSPermissionsRequired) || !errors.Is(err, cause) {
+		t.Fatalf("limits lost permission cause: %v", err)
+	}
+}
+
+func TestRequestServiceAuthorizationPreservesRealPDSMissingConsent(t *testing.T) {
+	key, err := atcrypto.GeneratePrivateKeyP256()
+	if err != nil {
+		t.Fatal(err)
+	}
+	config := oauth.NewPublicConfig("https://appview.example/oauth-client-metadata.json", "https://appview.example/oauth/callback", auth.DefaultScopes())
+	session := &oauth.ClientSession{Config: &config, DPoPPrivateKey: key, Data: &oauth.ClientSessionData{AccountDID: "did:plc:alice", HostURL: "https://pds.example", AccessToken: "access-canary"}}
+	calls := 0
+	client := &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		calls++
+		if request.URL.Path != "/xrpc/com.atproto.server.getServiceAuth" {
+			t.Fatalf("wrong service-auth endpoint: %s", request.URL.Path)
+		}
+		return &http.Response{StatusCode: 403, Header: http.Header{"Content-Type": {"application/json"}}, Body: io.NopCloser(strings.NewReader(`{"error":"AuthMissingPermission","message":"private-provider-canary"}`)), Request: request}, nil
+	})}
+	_, err = requestServiceAuthorization(client)(context.Background(), session, "did:web:pds.example", time.Now().Add(time.Minute).Unix(), videoUploadMethod)
+	var cause *atclient.APIError
+	if calls != 1 || !errors.Is(err, auth.ErrPDSPermissionsRequired) || !errors.As(err, &cause) || cause.Name != "AuthMissingPermission" {
+		t.Fatalf("real service auth lost typed permissions error: calls=%d error=%T", calls, err)
 	}
 }

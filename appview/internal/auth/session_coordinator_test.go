@@ -7,6 +7,7 @@ import (
 	"errors"
 	"net/http"
 	"net/url"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -164,7 +165,7 @@ func TestOAuthSessionCoordinatorVerifiesCurrentAuthorityBeforeOperation(t *testi
 				err: test.verifyErr,
 			}
 			config := oauth.NewPublicConfig(
-				"https://appview.example/oauth/client-metadata.json",
+				"https://appview.example/oauth-client-metadata.json",
 				"https://appview.example/oauth/callback",
 				[]string{"atproto"},
 			)
@@ -315,7 +316,7 @@ func TestOAuthSessionCoordinatorFencesOnlyExactStaleParentUnderConcurrentRetries
 	}
 
 	config := oauth.NewPublicConfig(
-		"https://appview.example/oauth/client-metadata.json",
+		"https://appview.example/oauth-client-metadata.json",
 		"https://appview.example/oauth/callback",
 		[]string{"atproto"},
 	)
@@ -563,7 +564,7 @@ func TestOAuthSessionCoordinatorTerminalizesInvalidOrdinarySessionWithoutNetwork
 
 	var networkCalls atomic.Int64
 	config := oauth.NewPublicConfig(
-		"https://appview.example/oauth/client-metadata.json",
+		"https://appview.example/oauth-client-metadata.json",
 		"https://appview.example/oauth/callback",
 		[]string{"atproto"},
 	)
@@ -663,7 +664,7 @@ func TestOAuthSessionCoordinatorPreservesOrdinarySessionOnTransientEndpointValid
 
 	var networkCalls atomic.Int64
 	config := oauth.NewPublicConfig(
-		"https://appview.example/oauth/client-metadata.json",
+		"https://appview.example/oauth-client-metadata.json",
 		"https://appview.example/oauth/callback",
 		[]string{"atproto"},
 	)
@@ -772,7 +773,7 @@ func TestOAuthSessionCoordinatorDoesNotTerminalizeCorrectedConcurrentSessionVers
 
 	var networkCalls atomic.Int64
 	config := oauth.NewPublicConfig(
-		"https://appview.example/oauth/client-metadata.json",
+		"https://appview.example/oauth-client-metadata.json",
 		"https://appview.example/oauth/callback",
 		[]string{"atproto"},
 	)
@@ -881,7 +882,7 @@ func TestOAuthSessionCoordinatorInvalidDeletionEndpointRequiresReauthenticationW
 
 	var networkCalls atomic.Int64
 	config := oauth.NewPublicConfig(
-		"https://appview.example/oauth/client-metadata.json",
+		"https://appview.example/oauth-client-metadata.json",
 		"https://appview.example/oauth/callback",
 		[]string{"atproto"},
 	)
@@ -1012,7 +1013,7 @@ func TestOAuthSessionCoordinatorPreservesDeletionCredentialOnTransientEndpointVa
 
 	var networkCalls atomic.Int64
 	config := oauth.NewPublicConfig(
-		"https://appview.example/oauth/client-metadata.json",
+		"https://appview.example/oauth-client-metadata.json",
 		"https://appview.example/oauth/callback",
 		[]string{"atproto"},
 	)
@@ -1156,7 +1157,7 @@ func TestOAuthSessionCoordinatorDoesNotCorruptCorrectedDeletionCredentialVersion
 
 	var networkCalls atomic.Int64
 	config := oauth.NewPublicConfig(
-		"https://appview.example/oauth/client-metadata.json",
+		"https://appview.example/oauth-client-metadata.json",
 		"https://appview.example/oauth/callback",
 		[]string{"atproto"},
 	)
@@ -1295,7 +1296,7 @@ func TestOAuthSessionCoordinatorCombinesActiveEffectsAndSessionPersistence(t *te
 		t.Fatal(err)
 	}
 	config := oauth.NewPublicConfig(
-		"https://appview.example/oauth/client-metadata.json",
+		"https://appview.example/oauth-client-metadata.json",
 		"https://appview.example/oauth/callback",
 		[]string{"atproto"},
 	)
@@ -1389,7 +1390,7 @@ func TestOAuthSessionCoordinatorSerializesRefreshPersistenceAcrossPools(t *testi
 		t.Fatal(err)
 	}
 	config := oauth.NewPublicConfig(
-		"https://appview.example/oauth/client-metadata.json",
+		"https://appview.example/oauth-client-metadata.json",
 		"https://appview.example/oauth/callback",
 		[]string{"atproto"},
 	)
@@ -1507,7 +1508,7 @@ func TestOAuthSessionCoordinatorResumesOnlyExactDeletionCredential(t *testing.T)
 		t.Fatal(err)
 	}
 	config := oauth.NewPublicConfig(
-		"https://appview.example/oauth/client-metadata.json",
+		"https://appview.example/oauth-client-metadata.json",
 		"https://appview.example/oauth/callback",
 		[]string{"atproto"},
 	)
@@ -1565,5 +1566,55 @@ func TestOAuthSessionCoordinatorResumesOnlyExactDeletionCredential(t *testing.T)
 	)
 	if !errors.Is(err, auth.ErrOAuthSessionNotFound) || called {
 		t.Fatalf("mismatched deletion binding = called %t error %v", called, err)
+	}
+}
+
+func TestOAuthSessionCoordinatorRejectsOldGrantsBeforeAnyRemoteOperation(t *testing.T) {
+	for _, grant := range [][]string{{"atproto", "transition:generic"}, {"atproto"}, {"atproto", "include:social.craftsky.authFull"}, strings.Split(resolvedCraftskyScopeFixture, " ")} {
+		t.Run(strings.Join(grant, " "), func(t *testing.T) {
+			pool := withAuthSchema(t)
+			owners := newAuthOwnerStore(t, pool)
+			storeConfig := testStoreConfig()
+			storeConfig.OwnerLifecycles = owners
+			store := auth.NewPostgresAuthStore(pool, storeConfig)
+			owner := syntax.DID("did:plc:consent-owner")
+			data := validOAuthSession(owner, "consent-parent")
+			data.Scopes = grant
+			key, err := atcrypto.GeneratePrivateKeyP256()
+			if err != nil {
+				t.Fatal(err)
+			}
+			data.DPoPPrivateKeyMultibase = key.Multibase()
+			seedActiveAuthOwner(t, pool, owner)
+			_, err = pool.Exec(context.Background(), `INSERT INTO oauth_sessions(account_did,session_id,data,lifecycle_state,owner_generation,auth_epoch,row_version,absolute_expires_at,created_at,updated_at) VALUES($1,$2,$3,'active',1,1,1,now()+interval '1 day',now(),now())`, owner, data.SessionID, data)
+			if err != nil {
+				t.Fatal(err)
+			}
+			config := oauth.NewPublicConfig("https://appview.example/oauth-client-metadata.json", "https://appview.example/oauth/callback", []string{"atproto", "include:social.craftsky.authFull"})
+			verifier := &fakeOAuthAuthorityVerifier{authority: auth.OAuthAuthority{DID: owner, PDSOrigin: data.HostURL, IssuerOrigin: data.AuthServerURL}}
+			coordinator, err := auth.NewOAuthSessionCoordinator(auth.OAuthSessionCoordinatorOptions{App: &oauth.ClientApp{Client: http.DefaultClient, Config: &config}, Store: store, Owners: owners, AuthorityVerifier: verifier})
+			if err != nil {
+				t.Fatal(err)
+			}
+			called := false
+			err = coordinator.WithActiveSession(context.Background(), owner, data.SessionID, func(context.Context, *oauth.ClientSession) error { called = true; return nil })
+			current := len(grant) > 2 || (len(grant) == 2 && grant[1] == "include:social.craftsky.authFull")
+			if called != current {
+				t.Fatalf("remote operation called = %t, current grant = %t", called, current)
+			}
+			if !current && (!errors.Is(err, auth.ErrPDSPermissionsRequired) || verifier.calls.Load() != 0) {
+				t.Fatalf("old grant reached network or did not require consent: %v", err)
+			}
+			var state string
+			if err := pool.QueryRow(context.Background(), `SELECT lifecycle_state FROM oauth_sessions WHERE account_did=$1 AND session_id=$2`, owner, data.SessionID).Scan(&state); err != nil {
+				t.Fatal(err)
+			}
+			if current && (err != nil || state != "active") {
+				t.Fatalf("current grant rejected: %v state=%s", err, state)
+			}
+			if !current && state != "revocation_pending" {
+				t.Fatalf("old grant state = %s", state)
+			}
+		})
 	}
 }

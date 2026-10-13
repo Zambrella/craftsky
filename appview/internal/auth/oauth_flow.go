@@ -328,22 +328,22 @@ func (service *OAuthFlowService) CompleteCallback(
 	ctx = operationCtx
 	state, ok := exactOAuthCallbackParam(params, "state")
 	if !ok || state == "" || finalize == nil {
-		return ErrOAuthFlowInvalid
+		return callbackDiagnostic("callback_state_missing", ErrOAuthFlowInvalid)
 	}
 	metadata, err := service.store.LoadAuthRequestMetadata(ctx, state)
 	if err != nil || !metadata.valid() || metadata.RequestState != AuthRequestReady {
-		return ErrOAuthFlowInvalid
+		return callbackDiagnostic("callback_request_unavailable", errors.Join(ErrOAuthFlowInvalid, err))
 	}
 	if metadata.Purpose == RegistrationOAuthPurpose {
 		return service.completeRegistrationCallback(ctx, params, metadata, finalize)
 	}
 	return service.owners.WithExistingAuth(ctx, metadata.Owner, func(authCtx context.Context, authority ownerlifecycle.Lifecycle) error {
 		if authority.Generation != metadata.OwnerGeneration || authority.AuthEpoch != metadata.AuthEpoch {
-			return ErrOAuthFlowInvalid
+			return callbackDiagnostic("callback_owner_generation_changed", ErrOAuthFlowInvalid)
 		}
 		attemptID, err := service.store.BeginExchange(authCtx, state)
 		if err != nil {
-			return err
+			return callbackDiagnostic("exchange_claim_failed", err)
 		}
 		attempt := CallbackAttempt{
 			State: state, AttemptID: attemptID, Owner: metadata.Owner,
@@ -619,10 +619,13 @@ func validRegistrationTokenScopes(raw string, required []string) bool {
 		if _, duplicate := seen[scope]; duplicate {
 			return false
 		}
+		if usesBroadOAuthAuthority(scope) {
+			return false
+		}
 		seen[scope] = struct{}{}
 	}
 	for _, scope := range required {
-		if _, ok := seen[scope]; !ok {
+		if !requiredScopeGranted(scope, fields, seen) {
 			return false
 		}
 	}
@@ -639,25 +642,25 @@ func (service *OAuthFlowService) processInitialCallback(
 	info, err := service.store.GetAuthRequestInfo(ctx, attempt.State)
 	if err != nil || info.State != attempt.State || info.AccountDID == nil || *info.AccountDID != metadata.Owner {
 		_ = service.store.MarkExchangeFailed(ctx, attempt.State, attempt.AttemptID)
-		return OAuthCallbackResult{}, ErrOAuthFlowInvalid
+		return OAuthCallbackResult{}, callbackDiagnostic("request_metadata_invalid", errors.Join(ErrOAuthFlowInvalid, err))
 	}
 	if callbackError := params.Get("error"); callbackError != "" {
 		_ = service.store.MarkExchangeFailed(ctx, attempt.State, attempt.AttemptID)
-		return OAuthCallbackResult{}, ErrOAuthFlowInvalid
+		return OAuthCallbackResult{}, callbackDiagnostic("provider_callback_error", ErrOAuthFlowInvalid)
 	}
 	issuer, authorizationCode := params.Get("iss"), params.Get("code")
 	if issuer == "" || authorizationCode == "" || issuer != info.AuthServerURL {
 		_ = service.store.MarkExchangeFailed(ctx, attempt.State, attempt.AttemptID)
-		return OAuthCallbackResult{}, ErrOAuthFlowInvalid
+		return OAuthCallbackResult{}, callbackDiagnostic("callback_issuer_or_code_invalid", ErrOAuthFlowInvalid)
 	}
 	tokenResponse, err := service.app.SendInitialTokenRequest(ctx, authorizationCode, *info)
 	if err != nil {
 		_ = service.store.MarkExchangeFailed(ctx, attempt.State, attempt.AttemptID)
-		return OAuthCallbackResult{}, fmt.Errorf("initial OAuth token request: %w", err)
+		return OAuthCallbackResult{}, callbackDiagnostic("token_exchange_failed", fmt.Errorf("initial OAuth token request: %w", err))
 	}
 	if tokenResponse.Subject != metadata.Owner.String() {
 		_ = service.store.MarkExchangeAmbiguous(ctx, attempt.State, attempt.AttemptID)
-		return OAuthCallbackResult{}, ErrOAuthFlowInvalid
+		return OAuthCallbackResult{}, callbackDiagnostic("token_subject_mismatch", ErrOAuthFlowInvalid)
 	}
 	session := oauth.ClientSessionData{
 		AccountDID: metadata.Owner, SessionID: attempt.State,
@@ -672,18 +675,18 @@ func (service *OAuthFlowService) processInitialCallback(
 	if err := service.store.QuarantineCallbackCredential(
 		ctx, attempt.State, attempt.AttemptID, session, time.Now().Add(service.callbackOperationTimeout),
 	); err != nil {
-		return OAuthCallbackResult{}, fmt.Errorf("quarantine initial OAuth credential: %w", err)
+		return OAuthCallbackResult{}, callbackDiagnostic("credential_quarantine_failed", fmt.Errorf("quarantine initial OAuth credential: %w", err))
 	}
 	if !validRegistrationTokenScopes(tokenResponse.Scope, service.app.Config.Scopes) {
 		service.markCallbackCredentialForCleanup(ctx, attempt.State, attempt.AttemptID)
-		return OAuthCallbackResult{}, ErrOAuthFlowInvalid
+		return OAuthCallbackResult{}, scopeGrantDiagnostic(tokenResponse.Scope, service.app.Config.Scopes)
 	}
 	authorityStarted := time.Now()
 	currentAuthority, err := service.authorityVerifier.ResolveCurrent(ctx, metadata.Owner)
 	if err != nil {
 		service.observeAuthority("error", "resolve_failed", time.Since(authorityStarted))
 		service.markCallbackCredentialForCleanup(ctx, attempt.State, attempt.AttemptID)
-		return OAuthCallbackResult{}, err
+		return OAuthCallbackResult{}, callbackDiagnostic("authority_resolution_failed", err)
 	}
 	expectedAuthority := OAuthAuthority{
 		DID: metadata.Owner, PDSOrigin: metadata.ResourceServerOrigin,
@@ -692,17 +695,17 @@ func (service *OAuthFlowService) processInitialCallback(
 	if err := verifyOAuthAuthority(currentAuthority, expectedAuthority); err != nil {
 		service.observeAuthority("mismatch", oauthAuthorityMismatchReason(currentAuthority, expectedAuthority), time.Since(authorityStarted))
 		service.markCallbackCredentialForCleanup(ctx, attempt.State, attempt.AttemptID)
-		return OAuthCallbackResult{}, err
+		return OAuthCallbackResult{}, callbackDiagnostic("authority_mismatch", err)
 	}
 	service.observeAuthority("success", "none", time.Since(authorityStarted))
 	identity, err := service.app.Dir.LookupDID(ctx, metadata.Owner)
 	if err != nil || identity == nil || identity.Handle == "" {
 		service.markCallbackCredentialForCleanup(ctx, attempt.State, attempt.AttemptID)
-		return OAuthCallbackResult{}, ErrOAuthFlowInvalid
+		return OAuthCallbackResult{}, callbackDiagnostic("identity_handle_unavailable", errors.Join(ErrOAuthFlowInvalid, err))
 	}
 	if err := service.store.SaveSession(ctx, session); err != nil {
 		service.markCallbackCredentialForCleanup(ctx, attempt.State, attempt.AttemptID)
-		return OAuthCallbackResult{}, fmt.Errorf("persist initial OAuth session: %w", err)
+		return OAuthCallbackResult{}, callbackDiagnostic("credential_persistence_failed", fmt.Errorf("persist initial OAuth session: %w", err))
 	}
 	return OAuthCallbackResult{
 		Session: session, Metadata: metadata, Attempt: attempt, Handle: identity.Handle,

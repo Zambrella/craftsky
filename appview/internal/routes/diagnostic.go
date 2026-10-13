@@ -44,7 +44,7 @@ func (c *V1Catalogue) Resolve(method string, value *url.URL) observability.Reque
 		return result
 	}
 	switch value.Path {
-	case "/health", "/healthz", "/oauth/client-metadata.json", "/oauth/jwks.json", "/oauth/callback":
+	case "/health", "/healthz", "/oauth-client-metadata.json", "/oauth/client-metadata.json", "/oauth/jwks.json", "/oauth/callback":
 		// Non-v1 metadata/probes have no dynamic segments. Queries are never copied.
 		result.Path = value.Path
 		result.RoutePattern = value.Path

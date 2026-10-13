@@ -14,6 +14,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 
 	"social.craftsky/appview/internal/auth"
+	"social.craftsky/appview/internal/observability"
 )
 
 const (
@@ -97,7 +98,10 @@ func (service *UploadLimitsService) Get(ctx context.Context, owner syntax.DID, s
 		}
 		expiry := service.now().UTC().Add(limitsAuthorizationLife).Unix()
 		token, err := service.authorize(operationCtx, session, service.serviceDID.String(), expiry, videoLimitsMethod)
-		if err != nil || strings.TrimSpace(token) == "" {
+		if err != nil {
+			return auth.TranslatePDSError(err)
+		}
+		if strings.TrimSpace(token) == "" {
 			return ErrUploadLimitsUnavailable
 		}
 		response, err := service.requestLimits(operationCtx, service.videoClient, service.serviceURL, token)
@@ -108,10 +112,13 @@ func (service *UploadLimitsService) Get(ctx context.Context, owner syntax.DID, s
 		return nil
 	})
 	if err != nil {
+		if errors.Is(err, auth.ErrPDSSessionExpired) {
+			return UploadLimits{}, err
+		}
 		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 			return UploadLimits{}, err
 		}
-		return UploadLimits{}, ErrUploadLimitsUnavailable
+		return UploadLimits{}, observability.WrapError("video upload limits unavailable", errors.Join(ErrUploadLimitsUnavailable, err))
 	}
 	return limits, nil
 }

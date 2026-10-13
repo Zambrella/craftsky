@@ -1232,12 +1232,12 @@ func TestParseOAuthScopes(t *testing.T) {
 		want    []string
 		wantErr bool
 	}{
-		{name: "valid", raw: "atproto transition:generic", want: []string{"atproto", "transition:generic"}},
-		{name: "missing atproto", raw: "transition:generic", wantErr: true},
+		{name: "valid", raw: "atproto include:social.craftsky.authFull", want: []string{"atproto", "include:social.craftsky.authFull"}},
+		{name: "missing atproto", raw: "include:social.craftsky.authFull", wantErr: true},
 		{name: "empty", raw: "", wantErr: true},
 		{name: "duplicate", raw: "atproto atproto", wantErr: true},
-		{name: "control character", raw: "atproto transition:generic\u007f", wantErr: true},
-		{name: "control separator", raw: "atproto\ntransition:generic", wantErr: true},
+		{name: "control character", raw: "atproto include:social.craftsky.authFull\u007f", wantErr: true},
+		{name: "control separator", raw: "atproto\ninclude:social.craftsky.authFull", wantErr: true},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -1268,7 +1268,7 @@ func TestLoadConfigProductionOAuthCompleteness(t *testing.T) {
 		"OAUTH_PUBLIC_ORIGIN=https://appview.craftsky.social\n" +
 		"OAUTH_CLIENT_SECRET_KEY=test-private-key\n" +
 		"OAUTH_CLIENT_SECRET_KEY_ID=primary\n" +
-		"OAUTH_SCOPES=atproto transition:generic\n"
+		"OAUTH_SCOPES=atproto include:social.craftsky.authFull\n"
 
 	tests := []struct {
 		name    string
@@ -1278,7 +1278,7 @@ func TestLoadConfigProductionOAuthCompleteness(t *testing.T) {
 		{name: "missing origin", config: strings.Replace(complete, "OAUTH_PUBLIC_ORIGIN=https://appview.craftsky.social\n", "", 1), wantKey: "OAUTH_PUBLIC_ORIGIN"},
 		{name: "missing private key", config: strings.Replace(complete, "OAUTH_CLIENT_SECRET_KEY=test-private-key\n", "", 1), wantKey: "OAUTH_CLIENT_SECRET_KEY"},
 		{name: "missing key id", config: strings.Replace(complete, "OAUTH_CLIENT_SECRET_KEY_ID=primary\n", "", 1), wantKey: "OAUTH_CLIENT_SECRET_KEY_ID"},
-		{name: "missing atproto scope", config: strings.Replace(complete, "OAUTH_SCOPES=atproto transition:generic", "OAUTH_SCOPES=transition:generic", 1), wantKey: "OAUTH_SCOPES"},
+		{name: "missing atproto scope", config: strings.Replace(complete, "OAUTH_SCOPES=atproto include:social.craftsky.authFull", "OAUTH_SCOPES=include:social.craftsky.authFull", 1), wantKey: "OAUTH_SCOPES"},
 		{name: "legacy hostname", config: complete + "OAUTH_HOSTNAME=appview.craftsky.social\n", wantKey: "OAUTH_HOSTNAME"},
 		{name: "legacy callback", config: complete + "OAUTH_CALLBACK_URL=https://appview.craftsky.social/oauth/callback\n", wantKey: "OAUTH_CALLBACK_URL"},
 		{name: "empty legacy callback", config: complete + "OAUTH_CALLBACK_URL=\n", wantKey: "OAUTH_CALLBACK_URL"},
@@ -1302,7 +1302,7 @@ func TestLoadConfigProductionOAuthCompleteness(t *testing.T) {
 	if cfg.OAuth.Mode != OAuthModeConfidential {
 		t.Fatalf("OAuth mode = %q, want %q", cfg.OAuth.Mode, OAuthModeConfidential)
 	}
-	if got := cfg.OAuth.ClientID.String(); got != "https://appview.craftsky.social/oauth/client-metadata.json" {
+	if got := cfg.OAuth.ClientID.String(); got != "https://appview.craftsky.social/oauth-client-metadata.json" {
 		t.Fatalf("OAuth client ID = %q", got)
 	}
 	if got := cfg.OAuth.CallbackURL.String(); got != "https://appview.craftsky.social/oauth/callback" {
@@ -1330,7 +1330,7 @@ func TestLoadConfigExpectedHostPolicy(t *testing.T) {
 		"OAUTH_PUBLIC_ORIGIN=https://appview.craftsky.social\n" +
 		"OAUTH_CLIENT_SECRET_KEY=test-private-key\n" +
 		"OAUTH_CLIENT_SECRET_KEY_ID=primary\n" +
-		"OAUTH_SCOPES=atproto transition:generic\n"
+		"OAUTH_SCOPES=atproto include:social.craftsky.authFull\n"
 	prod, err := LoadConfig(EnvProd, testConfigFile(t, production))
 	if err != nil {
 		t.Fatalf("LoadConfig prod: %v", err)
@@ -1609,7 +1609,7 @@ func TestLoadConfig_OAuthCustomValues(t *testing.T) {
 	// Localhost mode accepts only its callback, scopes, and session budgets.
 	path := testConfigFile(t, "DATABASE_URL=postgres://dev\nALLOWED_ORIGINS=*\nCRAFTSKY_DEV_DID=did:plc:test\nTAP_WS_URL=ws://tap:2480/channel\n")
 	t.Setenv("OAUTH_CALLBACK_URL", "http://127.0.0.1:19090/oauth/callback")
-	t.Setenv("OAUTH_SCOPES", "atproto transition:chat.bsky")
+	t.Setenv("OAUTH_SCOPES", "atproto repo:app.bsky.graph.follow")
 	t.Setenv("OAUTH_SESSION_ABSOLUTE_LIFETIME", "720h")
 	t.Setenv("CRAFTSKY_SESSION_INACTIVITY", "48h")
 	t.Setenv("OAUTH_AUTH_REQUEST_EXPIRY", "15m")
@@ -1622,7 +1622,7 @@ func TestLoadConfig_OAuthCustomValues(t *testing.T) {
 	if got := cfg.OAuth.CallbackURL.String(); got != "http://127.0.0.1:19090/oauth/callback" {
 		t.Errorf("OAuth.CallbackURL = %q", got)
 	}
-	wantScopes := []string{"atproto", "transition:chat.bsky"}
+	wantScopes := []string{"atproto", "repo:app.bsky.graph.follow"}
 	if len(cfg.OAuth.Scopes) != len(wantScopes) {
 		t.Errorf("OAuth.Scopes = %v, want %v", cfg.OAuth.Scopes, wantScopes)
 	} else {

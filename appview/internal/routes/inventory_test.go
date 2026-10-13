@@ -30,6 +30,7 @@ func TestRouteInventoryAndV1PoliciesStayExact(t *testing.T) {
 		"GET /healthz",
 		"GET /v1/dev/media/{name}",
 		"GET /v1/dev/panic",
+		"GET /oauth-client-metadata.json",
 		"GET /oauth/client-metadata.json",
 		"GET /oauth/jwks.json",
 		"GET /oauth/callback",
