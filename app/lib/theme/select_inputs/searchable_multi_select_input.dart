@@ -47,6 +47,7 @@ class _CraftskySearchableMultiSelectInputState<T>
   OverlayEntry? _overlayEntry;
   ScrollPosition? _overlayScrollPosition;
   bool _open = false;
+  bool _hovered = false;
   String _query = '';
   String? _limitText;
   late List<T> _values;
@@ -259,6 +260,8 @@ class _CraftskySearchableMultiSelectInputState<T>
                   color: Colors.transparent,
                   child: InkWell(
                     key: Key('$keyPrefix-select-button'),
+                    hoverColor: Colors.transparent,
+                    onHover: (hovered) => setState(() => _hovered = hovered),
                     canRequestFocus: false,
                     onTap: widget.enabled
                         ? () {
@@ -267,6 +270,7 @@ class _CraftskySearchableMultiSelectInputState<T>
                           }
                         : null,
                     child: InputDecorator(
+                      isHovering: widget.enabled && _hovered,
                       isFocused: _searchFocusNode.hasFocus,
                       decoration: InputDecoration(
                         enabled: widget.enabled,
