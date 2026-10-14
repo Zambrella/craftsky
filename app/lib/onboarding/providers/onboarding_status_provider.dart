@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:craftsky_app/auth/models/account_operation_canceled.dart';
 import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/onboarding/models/onboarding_completion.dart';
@@ -31,8 +32,17 @@ final _log = Logger('OnboardingStatus');
 class OnboardingStatus extends _$OnboardingStatus {
   @override
   Future<OnboardingCompletion> build(AccountSessionLease lease) async {
-    final registry = await ref.watch(sessionRegistryProvider.future);
-    if (registry.leaseFor(lease.account) != lease) {
+    await ref.read(sessionRegistryProvider.future);
+    if (!ref.mounted) throw AccountOperationCanceled();
+    final currentLease = ref
+        .watch(
+          sessionRegistryProvider.select(
+            (state) =>
+                state.whenData((registry) => registry.leaseFor(lease.account)),
+          ),
+        )
+        .requireValue;
+    if (currentLease != lease) {
       throw DiagnosticStateError('Account session unavailable');
     }
     final repository = await ref.watch(

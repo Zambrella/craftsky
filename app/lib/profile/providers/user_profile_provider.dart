@@ -11,6 +11,7 @@ import 'package:craftsky_app/profile/providers/follow_profile_overlay.dart';
 import 'package:craftsky_app/profile/providers/profile_record_overlay.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'user_profile_provider.g.dart';
@@ -32,7 +33,9 @@ class UserProfile extends _$UserProfile {
     late final Profile profile;
     try {
       final repository = ref.watch(profileRepositoryProvider);
-      final activeDid = ref.watch(sessionRegistryProvider).value?.activeDid;
+      final activeDid = ref.watch(
+        sessionRegistryProvider.select((state) => state.value?.activeDid),
+      );
       profile = activeDid == did
           ? await repository.fetchMe()
           : await repository.fetch(did);
@@ -63,8 +66,8 @@ class UserProfile extends _$UserProfile {
     );
   }
 
-  /// Publishes completed AppView-private profile mutations. Public PDS record
-  /// mutations use the shared operation overlay instead.
+  /// Publishes completed mutations locally. Public record saves also retain
+  /// their shared overlay to protect this value from stale projection reads.
   void setCached(Profile profile) => state = AsyncData(profile);
 }
 

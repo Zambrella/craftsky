@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:craftsky_app/auth/models/account_operation_canceled.dart';
 import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/auth/providers/account_operation_guard.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
@@ -10,12 +11,11 @@ import 'package:craftsky_app/onboarding/providers/onboarding_status_provider.dar
 import 'package:craftsky_app/profile/data/profile_repository.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/providers/profile_image_picker_provider.dart';
+import 'package:craftsky_app/profile/providers/profile_mutation_publication.dart';
 import 'package:craftsky_app/profile/providers/profile_record_overlay.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
-import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
 import 'package:craftsky_app/shared/api/pds_mutation_contract.dart';
 import 'package:craftsky_app/shared/mutations/pds_record_operation_controller.dart';
-import 'package:craftsky_app/shared/mutations/pds_record_reconciliation.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
@@ -45,7 +45,13 @@ final onboardingPrefillClockProvider = Provider<DateTime Function()>(
 class OnboardingFlow extends _$OnboardingFlow {
   @override
   Future<OnboardingFlowState> build(ActiveAccountLease lease) async {
-    final registry = await ref.watch(sessionRegistryProvider.future);
+    // Cached identity changes must not reset the in-progress onboarding draft.
+    await ref.read(sessionRegistryProvider.future);
+    if (!ref.mounted) throw AccountOperationCanceled();
+    ref.watch(
+      sessionRegistryProvider.select((state) => state.value?.activeLease),
+    );
+    final registry = ref.read(sessionRegistryProvider).requireValue;
     if (registry.activeLease != lease) {
       throw DiagnosticStateError('Active account changed');
     }
@@ -244,28 +250,19 @@ class OnboardingFlow extends _$OnboardingFlow {
         token: token,
       );
       if (!_isCurrent()) return;
-      final projection = personalProfileProjection(updated);
-      final reconciliation = PdsCompoundProfileReconciliation(
-        bluesky: PdsFixedKeyReconciliation(
-          uri: projection.bluesky!.uri,
-          controlledContent: projection.bluesky!.content,
-        ),
-        craftsky: PdsFixedKeyReconciliation(
-          uri: projection.craftsky!.uri,
-          controlledContent: projection.craftsky!.content,
-        ),
-      );
-      if (!controller.markAccepted(
-        token,
-        optimisticValue: updated,
-        agrees: (value) => reconciliation.agrees(
-          value is PdsCompoundProfileProjection ? value : null,
-        ),
-        refresh: _invalidatePersonalProfileReads,
-      )) {
+      if (!ref
+          .read(profileMutationPublicationProvider)
+          .acceptPersonal(
+            token: token,
+            profile: updated,
+            previous: current.baseline,
+            avatar: payload.avatar,
+          )) {
         return;
       }
-      final saved = OnboardingFlowState.fromProfile(updated);
+      final saved = OnboardingFlowState.fromProfile(
+        AcceptedPersonalProfile(updated).applyTo(current.baseline),
+      );
       final next = switch (current.step) {
         OnboardingStep.profile => saved.copyWith(
           step: OnboardingStep.crafts,
@@ -337,11 +334,6 @@ class OnboardingFlow extends _$OnboardingFlow {
         rethrow;
       }
     }
-  }
-
-  void _invalidatePersonalProfileReads() {
-    if (!ref.mounted) return;
-    ref.invalidate(userProfileProvider);
   }
 
   bool _isCurrent() => ActiveAccountOperation.fromLease(ref, lease).isCurrent;

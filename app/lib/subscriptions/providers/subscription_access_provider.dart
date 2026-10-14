@@ -4,6 +4,7 @@ import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
 import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
 import 'package:craftsky_app/subscriptions/providers/subscription_repository_provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'subscription_access_provider.g.dart';
@@ -30,8 +31,17 @@ Future<void> _requireLease(Ref ref, AccountSessionLease lease) async {
   if (!ref.mounted) {
     throw AccountOperationCanceled();
   }
-  final registry = await ref.watch(sessionRegistryProvider.future);
-  if (!ref.mounted || registry.leaseFor(lease.account) != lease) {
+  await ref.read(sessionRegistryProvider.future);
+  if (!ref.mounted) throw AccountOperationCanceled();
+  final currentLease = ref
+      .watch(
+        sessionRegistryProvider.select(
+          (state) =>
+              state.whenData((registry) => registry.leaseFor(lease.account)),
+        ),
+      )
+      .requireValue;
+  if (currentLease != lease) {
     throw AccountOperationCanceled();
   }
 }

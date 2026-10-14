@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:craftsky_app/account_eligibility/data/account_eligibility_repository.dart';
 import 'package:craftsky_app/account_eligibility/models/account_eligibility_status.dart';
 import 'package:craftsky_app/account_eligibility/providers/account_eligibility_provider.dart';
 import 'package:craftsky_app/auth/models/session_registry.dart';
@@ -17,6 +18,7 @@ import 'package:craftsky_app/languages/providers/language_preferences_repository
 import 'package:craftsky_app/onboarding/data/onboarding_repository.dart';
 import 'package:craftsky_app/onboarding/models/onboarding_completion.dart';
 import 'package:craftsky_app/onboarding/providers/onboarding_repository_provider.dart';
+import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_emitter.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -135,6 +137,69 @@ final _eligibilityOverride = accountEligibilityProvider.overrideWith(
 );
 
 void main() {
+  testWidgets('cached profile updates preserve mounted signed-in content', (
+    tester,
+  ) async {
+    final registry = SessionRegistry.empty().upsertAndActivate(
+      token: 'token-a',
+      did: 'did:plc:alice',
+      handle: 'alice.test',
+    );
+    final onboarding = _ProfileUpdateOnboardingRepository();
+    final eligibility = _ProfileUpdateEligibilityRepository();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          secureSessionRegistryStorageProvider.overrideWithValue(
+            _RegistryStorage(registry),
+          ),
+          languagePreferencesRepositoryProvider.overrideWith(
+            (ref, account) async => _PreferencesRepository(
+              Future.value(
+                const LanguagePreferences(
+                  primaryLanguage: 'en',
+                  contentLanguages: ['en'],
+                ),
+              ),
+            ),
+          ),
+          onboardingRepositoryProvider.overrideWith(
+            (ref, lease) async => onboarding,
+          ),
+          accountEligibilityRepositoryProvider.overrideWith(
+            (ref, lease) async => eligibility,
+          ),
+        ],
+        child: const MaterialApp(
+          localizationsDelegates: appLocalizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: ActiveAccountInitializationGate(child: Text('profile-page')),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final mountedProfile = tester.element(find.text('profile-page'));
+    final container = ProviderScope.containerOf(mountedProfile);
+    final update = container
+        .read(sessionRegistryProvider.notifier)
+        .updateCachedIdentity(
+          registry.activeLease!.session,
+          displayName: 'Updated profile',
+          avatarUrl: 'https://example.com/new.jpg',
+          customisation: const ProfileCustomisation(colour: 'teal'),
+        );
+    await tester.pump();
+    await update;
+    await tester.pump();
+    expect(onboarding.reads, 1);
+    expect(eligibility.reads, 1);
+    expect(find.text('profile-page'), findsOneWidget);
+    expect(tester.element(find.text('profile-page')), same(mountedProfile));
+    expect(find.byType(StitchProgressIndicator), findsNothing);
+    onboarding.pending.complete(const OnboardingCompletion(completed: true));
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
   testWidgets('signed-out content remains available', (tester) async {
     await tester.pumpWidget(
       ProviderScope(
@@ -411,4 +476,35 @@ void main() {
     expect(onboarding.readAttempts, 2);
     expect(find.text('signed-in-content'), findsOneWidget);
   });
+}
+
+class _ProfileUpdateOnboardingRepository implements OnboardingRepository {
+  int reads = 0;
+  final pending = Completer<OnboardingCompletion>();
+  @override
+  Future<OnboardingCompletion> readStatus() {
+    reads++;
+    return reads == 1
+        ? Future.value(const OnboardingCompletion(completed: true))
+        : pending.future;
+  }
+
+  @override
+  Future<OnboardingCompletion> complete({
+    required bool meetsMinimumAge,
+    required String policyVersion,
+  }) async => const OnboardingCompletion(completed: true);
+}
+
+class _ProfileUpdateEligibilityRepository
+    implements AccountEligibilityRepository {
+  int reads = 0;
+  @override
+  Future<AccountEligibilityStatus> readStatus() async {
+    reads++;
+    return const AccountEligibilityStatus(
+      state: AccountEligibilityState.eligible,
+      appealable: false,
+    );
+  }
 }

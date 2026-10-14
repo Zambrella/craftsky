@@ -7,6 +7,7 @@ import 'package:craftsky_app/shared/errors/app_error.dart';
 import 'package:craftsky_app/shared/errors/app_error_mapper.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_emitter.dart';
 import 'package:craftsky_app/shared/observability/error_reporter.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:logging/logging.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -54,8 +55,13 @@ void logActiveAccountInitializationFailure(
 /// Loading and failures from either dependency remain visible to the gate.
 @Riverpod(keepAlive: true)
 FutureOr<ActiveAccountInitialization?> activeAccountInitialization(Ref ref) {
-  final registry = ref.watch(sessionRegistryProvider).requireValue;
-  final lease = registry.activeLease;
+  final lease = ref
+      .watch(
+        sessionRegistryProvider.select(
+          (state) => state.whenData((registry) => registry.activeLease),
+        ),
+      )
+      .requireValue;
   if (lease == null) return null;
 
   final preferences = ref

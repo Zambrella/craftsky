@@ -7,6 +7,7 @@ import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart'
     show sessionRegistryProvider;
 import 'package:craftsky_app/bootstrap.dart';
+import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:craftsky_app/shared/api/providers/dio_provider.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/subscriptions/data/subscription_api_client.dart';
@@ -21,6 +22,32 @@ import 'package:http_mock_adapter/http_mock_adapter.dart';
 
 void main() {
   setUpAll(initializeMappers);
+
+  test('profile cache changes do not reload subscription access', () async {
+    final registry = _registry();
+    final lease = registry.activeLease!.session;
+    final api = _AccessApi(
+      Future.value(_access('did:plc:alice', SubscriptionTier.plus)),
+    );
+    final container = _container(registry, api);
+    addTearDown(container.dispose);
+    final provider = subscriptionAccessProvider(lease);
+    final subscription = container.listen(provider, (_, _) {});
+    addTearDown(subscription.close);
+    final access = await container.read(provider.future);
+    await container
+        .read(sessionRegistryProvider.notifier)
+        .updateCachedIdentity(
+          lease,
+          displayName: 'Updated name',
+          avatarUrl: 'new.jpg',
+          customisation: const ProfileCustomisation(colour: 'teal'),
+        );
+    await container.pump();
+    expect(api.accessCalls, 1);
+    expect(container.read(provider).requireValue, same(access));
+    expect(container.read(provider).isLoading, isFalse);
+  });
 
   test(
     'IT-002 inactive account access uses its lease without activation',

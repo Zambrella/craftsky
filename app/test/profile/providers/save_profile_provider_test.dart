@@ -11,6 +11,7 @@ import 'package:craftsky_app/business/models/business_profile.dart';
 import 'package:craftsky_app/business/providers/business_repository_provider.dart';
 import 'package:craftsky_app/profile/data/profile_repository.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
+import 'package:craftsky_app/profile/providers/profile_record_overlay.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/profile/providers/save_profile_provider.dart';
 import 'package:craftsky_app/shared/api/pds_mutation_contract.dart';
@@ -252,13 +253,13 @@ void main() {
             .activeOverlays
             .single
             .optimisticValue,
-        isA<Profile>()
+        isA<AcceptedPersonalProfile>()
             .having(
-              (profile) => profile.displayName,
+              (value) => value.profile.displayName,
               'displayName',
               'Renamed',
             )
-            .having((profile) => profile.crafts, 'crafts', ['quilting']),
+            .having((value) => value.profile.crafts, 'crafts', ['quilting']),
       );
     },
   );
