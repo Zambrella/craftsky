@@ -13,7 +13,7 @@ Lexicons are JSON schemas that define the shape of records stored on user PDSes.
 | Lexicon | Purpose |
 |---|---|
 | `social.craftsky.authFull` | Readable OAuth permission set for the six CraftSky public record collections; see ADR 017. |
-| `social.craftsky.feed.post` | A post — general or a craft project (via optional `project` sub-object with `common` + open-union `details`). Supports replies, up to 4 images, rich-text facets, quote embeds, standard external cards, and standard video. |
+| `social.craftsky.feed.post` | A post — general or a craft project (via optional `project` sub-object with `common` + open-union `details`). Supports replies, up to 8 images, rich-text facets, quote embeds, standard external cards, and standard video. |
 | `social.craftsky.feed.defs` | Shared feed/project tokens for craft type, project status, and pattern difficulty. |
 | `social.craftsky.feed.repost` | A repost of a Craftsky post |
 | `social.craftsky.feed.like` | A like on a Craftsky post (distinct NSID for firehose-filter efficiency) |

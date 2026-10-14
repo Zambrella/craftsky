@@ -2389,7 +2389,7 @@ abstract class AppLocalizations {
   /// Media options shown by a video-capable composer.
   ///
   /// In en, this message translates to:
-  /// **'Choose up to 4 photos or a video.'**
+  /// **'Choose up to 8 photos or a video.'**
   String get postComposePhotosOrVideoHelper;
 
   /// Photo choice in the composer media picker.

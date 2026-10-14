@@ -991,7 +991,7 @@ func TestLoadConfig_MediaLimitOverrides(t *testing.T) {
 }
 
 func TestLoadConfig_MediaLimitOverridesCannotExceedContract(t *testing.T) {
-	path := testConfigFile(t, "DATABASE_URL=postgres://dev\nALLOWED_ORIGINS=*\nCRAFTSKY_DEV_DID=did:plc:test\nTAP_WS_URL=ws://tap:2480/channel\nMAX_POST_IMAGES=5\n")
+	path := testConfigFile(t, "DATABASE_URL=postgres://dev\nALLOWED_ORIGINS=*\nCRAFTSKY_DEV_DID=did:plc:test\nTAP_WS_URL=ws://tap:2480/channel\nMAX_POST_IMAGES=9\n")
 	_, err := LoadConfig(EnvDev, path)
 	if err == nil {
 		t.Fatal("expected MAX_POST_IMAGES error")

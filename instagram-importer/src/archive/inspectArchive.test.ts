@@ -555,7 +555,7 @@ describe('archive adapter integration (IT-002, IT-003)', () => {
     ).rejects.toThrow('browserMediaUnsupported')
   })
 
-  it('retains the first four usable images when an earlier source image is invalid', async () => {
+  it('retains the first eight usable images when an earlier source image is invalid', async () => {
     const sanitizeImage = vi
       .spyOn(imageSanitizer, 'sanitizeImage')
       .mockImplementation((bytes) => {
@@ -569,7 +569,7 @@ describe('archive adapter integration (IT-002, IT-003)', () => {
           height: 100,
         })
       })
-    const media = Array.from({ length: 5 }, (_, index) => ({
+    const media = Array.from({ length: 10 }, (_, index) => ({
       uri: `media/posts/${index + 1}.jpg`,
       creation_timestamp: 1_700_000_000,
     }))
@@ -590,8 +590,8 @@ describe('archive adapter integration (IT-002, IT-003)', () => {
       new AbortController().signal,
     )
     try {
-      expect(sanitizeImage).toHaveBeenCalledTimes(5)
-      expect(inspected.manifest.posts[0]?.media).toHaveLength(4)
+      expect(sanitizeImage).toHaveBeenCalledTimes(9)
+      expect(inspected.manifest.posts[0]?.media).toHaveLength(8)
       expect(inspected.manifest.posts[0]?.warnings).toEqual(
         expect.arrayContaining(['imagesOmitted', 'mediaUnavailable']),
       )

@@ -434,30 +434,30 @@ func TestDecodeAndValidatePostCreate_AcceptsImagesWithoutAltText(t *testing.T) {
 	}
 }
 
-func TestValidatePostCreate_RejectsMoreThanFourImages(t *testing.T) {
+func TestValidatePostCreate_ImageCountBoundary(t *testing.T) {
 	t.Parallel()
-	body := strings.NewReader(`{
-		"text":"hi",
-		"sponsored":false,
-		"images":[
-			{"image":{"$type":"blob","ref":{"$link":"bafk1"},"mimeType":"image/jpeg","size":1},"alt":"1"},
-			{"image":{"$type":"blob","ref":{"$link":"bafk2"},"mimeType":"image/jpeg","size":1},"alt":"2"},
-			{"image":{"$type":"blob","ref":{"$link":"bafk3"},"mimeType":"image/jpeg","size":1},"alt":"3"},
-			{"image":{"$type":"blob","ref":{"$link":"bafk4"},"mimeType":"image/jpeg","size":1},"alt":"4"},
-			{"image":{"$type":"blob","ref":{"$link":"bafk5"},"mimeType":"image/jpeg","size":1},"alt":"5"}
-		]
-	}`)
-	req, err := api.DecodePostCreate(body)
-	if err != nil {
-		t.Fatalf("DecodePostCreate: %v", err)
-	}
-	err = api.ValidatePostCreate(req)
-	var fe *api.FieldError
-	if !errors.As(err, &fe) || fe.Code != "validation_failed" {
-		t.Fatalf("want validation_failed, got %v", err)
-	}
-	if _, ok := fe.Fields["images"]; !ok {
-		t.Fatalf("fields=%v, want images", fe.Fields)
+	for _, count := range []int{8, 9} {
+		t.Run(fmt.Sprintf("%d images", count), func(t *testing.T) {
+			images := make([]string, count)
+			for i := range images {
+				images[i] = `{"image":{"$type":"blob","ref":{"$link":"bafkimage"},"mimeType":"image/jpeg","size":1}}`
+			}
+			req, err := api.DecodePostCreate(strings.NewReader(`{"text":"hi","sponsored":false,"images":[` + strings.Join(images, ",") + `]}`))
+			if err != nil {
+				t.Fatalf("DecodePostCreate: %v", err)
+			}
+			err = api.ValidatePostCreate(req)
+			if count == 8 {
+				if err != nil {
+					t.Fatalf("eight images must be accepted: %v", err)
+				}
+				return
+			}
+			var fe *api.FieldError
+			if !errors.As(err, &fe) || fe.Code != "validation_failed" || fe.Fields["images"] != "exceeds maximum of 8 entries" {
+				t.Fatalf("want image count validation failure, got %v", err)
+			}
+		})
 	}
 }
 

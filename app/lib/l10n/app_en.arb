@@ -1195,7 +1195,7 @@
   "@postComposeAddPhoto": { "description": "Label on the composer card for adding the first photo." },
   "postComposeAddPhotosOrVideo": "Add photos or a video",
   "@postComposeAddPhotosOrVideo": { "description": "Label on a video-capable empty composer attachment card." },
-  "postComposePhotosOrVideoHelper": "Choose up to 4 photos or a video.",
+  "postComposePhotosOrVideoHelper": "Choose up to 8 photos or a video.",
   "@postComposePhotosOrVideoHelper": { "description": "Media options shown by a video-capable composer." },
   "postComposeChoosePhotos": "Choose photos",
   "@postComposeChoosePhotos": { "description": "Photo choice in the composer media picker." },

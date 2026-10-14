@@ -1332,7 +1332,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get postComposePhotosOrVideoHelper =>
-      'Choose up to 4 photos or a video.';
+      'Choose up to 8 photos or a video.';
 
   @override
   String get postComposeChoosePhotos => 'Choose photos';

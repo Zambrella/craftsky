@@ -1,3 +1,4 @@
+const defaultMaxPostImages = 8;
 const defaultMaxImageAspectRatio = 20;
 
 class MediaConfig {
@@ -35,7 +36,7 @@ class MediaConfig {
 }
 
 const mediaConfig = MediaConfig(
-  maxImages: 4,
+  maxImages: defaultMaxPostImages,
   maxImageBytes: 2000000,
   maxAltTextCharacters: 300,
 );

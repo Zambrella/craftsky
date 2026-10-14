@@ -314,7 +314,7 @@ describe('virtualized review lists (AT-004, AC-006)', () => {
     expect(
       screen.getByRole('button', {
         name: 'Why?',
-        description: /up to four images/u,
+        description: /up to eight images/u,
       }),
     ).toBeVisible()
   })

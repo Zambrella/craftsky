@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:animated_list_plus/animated_list_plus.dart';
 import 'package:animated_list_plus/transitions.dart';
+import 'package:craftsky_app/feed/media/media_config.dart';
 import 'package:craftsky_app/feed/providers/composer_image_state.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/shared/image/craftsky_image_attachment_preview.dart';
@@ -27,7 +28,7 @@ class ComposerImageAttachmentSection extends StatefulWidget {
     this.validationErrorText,
     this.required = false,
     this.requiredLabel = 'required',
-    this.maxImages = 4,
+    this.maxImages = defaultMaxPostImages,
     this.imageUrlFor,
     this.onReplace,
     this.keyPrefix = 'composer',
