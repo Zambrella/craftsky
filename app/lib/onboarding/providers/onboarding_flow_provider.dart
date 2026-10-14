@@ -255,7 +255,6 @@ class OnboardingFlow extends _$OnboardingFlow {
           .acceptPersonal(
             token: token,
             profile: updated,
-            previous: current.baseline,
             avatar: payload.avatar,
           )) {
         return;

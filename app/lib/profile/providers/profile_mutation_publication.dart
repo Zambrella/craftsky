@@ -33,7 +33,6 @@ final class ProfileMutationPublication {
   bool acceptPersonal({
     required PdsMutationToken token,
     required Profile profile,
-    Profile? previous,
     UploadedBlob? avatar,
     UploadedBlob? banner,
     bool clearAvatar = false,
@@ -52,8 +51,6 @@ final class ProfileMutationPublication {
           clearBanner || (banner == null && prior?.clearBanner == true),
     );
     final refresh = refreshFor(token.scope.lease);
-    final provider = userProfileProvider(profile.did);
-    final cached = _ref.exists(provider) ? _ref.read(provider).value : null;
     if (!controller.markAccepted(
       token,
       optimisticValue: accepted,
@@ -61,15 +58,6 @@ final class ProfileMutationPublication {
       refresh: refresh,
     )) {
       return false;
-    }
-    // Preserve statistics, customisation and business fields omitted from the
-    // synthetic PUT response. The overlay also protects subsequent stale GETs.
-    if (_ref.exists(provider)) {
-      _ref
-          .read(provider.notifier)
-          .setCached(
-            accepted.applyTo(cached ?? previous ?? profile),
-          );
     }
     for (final seconds in const [5, 10, 20]) {
       controller.refreshAfter(token, Duration(seconds: seconds));

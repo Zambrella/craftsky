@@ -19,6 +19,7 @@ import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
 import 'package:craftsky_app/subscriptions/providers/subscription_access_provider.dart';
 import 'package:craftsky_app/subscriptions/subscription_build_config.dart';
+import 'package:craftsky_app/subscriptions/widgets/plus_feature_lock.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -182,7 +183,12 @@ void main() {
     await _pump(tester, repository);
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byTooltip('New folder'));
+    await tester.tap(
+      find.ancestor(
+        of: find.byTooltip('New folder'),
+        matching: find.byType(PlusFeatureLock),
+      ),
+    );
     await tester.pumpAndSettle();
     if (subscriptionsEnabled) {
       await tester.enterText(find.byType(TextField), '  Fresh ideas  ');

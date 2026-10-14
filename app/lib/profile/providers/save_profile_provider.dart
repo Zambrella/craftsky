@@ -206,7 +206,6 @@ class SaveProfile extends _$SaveProfile {
           .acceptPersonal(
             token: ordinaryToken!,
             profile: accepted,
-            previous: currentProfile,
             avatar: avatar,
             banner: banner,
             clearAvatar: clearAvatar,

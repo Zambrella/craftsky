@@ -35,7 +35,7 @@ final class _Storage implements SessionRegistryStorage {
 void main() {
   for (final onboarding in [true, false]) {
     test(
-      '${onboarding ? 'onboarding' : 'edit'} publishes locally and '
+      '${onboarding ? 'onboarding' : 'edit'} overlays stale reads and '
       'refreshes images after closing',
       () async {
         final registry = SessionRegistry.empty().upsertAndActivate(
@@ -174,7 +174,10 @@ void main() {
                 avatar: _blob('new'),
                 banner: _blob('new-banner'),
               );
-          expect(container.read(profileProvider).value?.displayName, 'After');
+          // Accepted writes invalidate ordinary reads; the overlay composes
+          // saved fields with their response instead of mutating the cache.
+          expect(container.read(profileProvider).isLoading, isTrue);
+          expect(container.read(profileProvider).value?.displayName, 'Before');
           expect(container.read(profileProvider).value?.followerCount, 12);
           expect(
             container.read(profileProvider).value?.customisation,
@@ -191,6 +194,9 @@ void main() {
         expect(accepted.pronouns, 'they/them');
         expect(accepted.description, 'New bio');
         expect(accepted.followerCount, 12);
+        expect(accepted.customisation, authoritative.customisation);
+        expect(accepted.avatar, authoritative.avatar);
+        expect(accepted.banner, authoritative.banner);
         final previousReads = reads;
         final previousInvalidations = invalidations;
         authoritative = authoritative.copyWith(

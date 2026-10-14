@@ -38,6 +38,7 @@ import 'package:craftsky_app/shared/mutations/pds_record_operation_controller.da
 import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/shared/widgets/notification_destination_error_state.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
+import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -1793,7 +1794,9 @@ void main() {
 
       await tester.tap(find.text('Follow'));
       await tester.pump();
-      await tester.tap(find.text('Follow'));
+      final followButton = find.widgetWithText(ChunkyButton, 'Follow');
+      expect(tester.widget<ChunkyButton>(followButton).onPressed, isNull);
+      await tester.tap(followButton);
       await tester.pump();
 
       expect(followCalls, 1);
