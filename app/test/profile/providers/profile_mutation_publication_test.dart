@@ -35,7 +35,7 @@ final class _Storage implements SessionRegistryStorage {
 void main() {
   for (final onboarding in [true, false]) {
     test(
-      '${onboarding ? 'onboarding' : 'edit'} overlays stale reads and '
+      '${onboarding ? 'onboarding' : 'edit'} publishes locally and '
       'refreshes images after closing',
       () async {
         final registry = SessionRegistry.empty().upsertAndActivate(
@@ -174,16 +174,24 @@ void main() {
                 avatar: _blob('new'),
                 banner: _blob('new-banner'),
               );
-          // Accepted writes invalidate ordinary reads; the overlay composes
-          // saved fields with their response instead of mutating the cache.
+          // Keep accepted fields visible even while the refresh is blocked.
           expect(container.read(profileProvider).isLoading, isTrue);
-          expect(container.read(profileProvider).value?.displayName, 'Before');
+          expect(container.read(profileProvider).value?.displayName, 'After');
+          expect(container.read(profileProvider).value?.pronouns, 'they/them');
+          expect(container.read(profileProvider).value?.description, 'New bio');
+          expect(controller.activeOverlays, hasLength(1));
           expect(container.read(profileProvider).value?.followerCount, 12);
           expect(
             container.read(profileProvider).value?.customisation,
             authoritative.customisation,
           );
+          final refresh = container.read(profileProvider.future);
+          var refreshCompleted = false;
+          unawaited(refresh.then((_) => refreshCompleted = true));
+          await Future<void>.delayed(Duration.zero);
+          expect(refreshCompleted, isFalse);
           blockedRead.complete(authoritative);
+          await refresh;
           blockedRead = null;
           saveSubscription.close();
           container.invalidate(saveProfileProvider);

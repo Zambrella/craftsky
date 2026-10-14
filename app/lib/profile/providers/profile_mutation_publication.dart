@@ -26,7 +26,12 @@ final class ProfileMutationPublication {
             lease) {
       return;
     }
-    _ref.invalidate(userProfileProvider);
+    final profile = userProfileProvider(lease.account.did);
+    if (_ref.exists(profile)) {
+      _ref.read(profile.notifier).refresh();
+    } else {
+      _ref.invalidate(profile);
+    }
     _ref.read(profileIdentityCacheInvalidatorProvider)();
   };
 
