@@ -1,5 +1,18 @@
 # App Changelog
 
+## 1.5.0+5 - 2026-10-14
+
+- feat(feed): add discovery actions to empty feed
+- feat: upload immediate images directly to PDS with scoped authorization
+- feat(instagram-migration): add export guide
+- chore(ios): update Firebase package pins
+- feat(auth): request granular OAuth permissions
+- fix(onboarding): retain image picker during avatar upload
+- fix(profile): enforce Bluesky profile image limits
+- fix(profile): preserve cached fields after profile saves
+- feat(media): allow up to eight photos per post
+- fix(app): show hover state on select inputs
+
 ## 1.4.0+4 - 2026-10-13
 
 - feat: add online safety launch readiness controls
