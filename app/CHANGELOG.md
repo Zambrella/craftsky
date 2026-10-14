@@ -1,5 +1,10 @@
 # App Changelog
 
+## 1.6.0+6 - 2026-10-14
+
+- fix(profile): avoid mutating cached profiles after save
+- fix(profile): retain accepted fields during refresh
+
 ## 1.5.0+5 - 2026-10-14
 
 - feat(feed): add discovery actions to empty feed
