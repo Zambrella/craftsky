@@ -1,6 +1,6 @@
 # Contributor License Agreement (Draft)
 
-> **Status: not yet active.** Craftsky isn't currently accepting outside code contributions (see the [Contributing](README.md#contributing) section of the README). This document is a placeholder for the CLA that will be required once contributions open up. Do not sign anything yet — there is nothing to sign.
+> **Status: inactive draft.** CraftSky accepts contributions under [AGPL-3.0](LICENSE), as described in [CONTRIBUTING.md](CONTRIBUTING.md). No CLA signature is required. This document records a possible future approach, not current contribution terms or an agreement to sign.
 
 ## Why a CLA?
 
@@ -11,9 +11,9 @@ Craftsky is licensed under [AGPL-3.0](LICENSE). By default, every contributor re
 
 A CLA addresses both by having each contributor grant the project maintainer a broad, perpetual license to their contribution (including the right to relicense). Contributors do **not** lose the right to use their own code elsewhere — they grant the project additional rights, they don't give up their own.
 
-## What the CLA will (likely) say
+## Possible terms
 
-The final wording will be based on a standard template — most likely the [Apache Individual CLA](https://www.apache.org/licenses/icla.pdf) or a Harmony-style agreement, possibly adapted. Expect it to cover:
+If a CLA is introduced, its wording would need to be finalized using a standard template — most likely the [Apache Individual CLA](https://www.apache.org/licenses/icla.pdf) or a Harmony-style agreement, possibly adapted. Expect it to cover:
 
 - Confirmation that the contributor has the right to submit the work (i.e. it's their own, or their employer has authorized it).
 - A copyright license to the project maintainer to use, modify, sublicense, and relicense the contribution.
@@ -21,12 +21,12 @@ The final wording will be based on a standard template — most likely the [Apac
 - No transfer of copyright — contributors keep ownership of their own work.
 - No warranty or liability obligations on the contributor.
 
-For corporate contributors there will also be a Corporate CLA covering employees.
+A future proposal could also include a Corporate CLA covering employee contributions.
 
-## How signing will work
+## Possible signing process
 
-When this is live, signing will be automated via a GitHub bot (e.g. [CLA Assistant](https://cla-assistant.io/) or [EasyCLA](https://lfx.linuxfoundation.org/tools/easycla/)). Opening a pull request will prompt you to sign once; subsequent PRs are covered automatically.
+If introduced, signing could be automated via a GitHub bot (e.g. [CLA Assistant](https://cla-assistant.io/) or [EasyCLA](https://lfx.linuxfoundation.org/tools/easycla/)). No signing process is required for current contributions. Any future requirement must be announced in the contribution guide before it takes effect.
 
 ## Questions
 
-Open a [GitHub Discussion](../../discussions) if you'd like to weigh in on the CLA terms before they're finalized.
+Open a [development question](https://github.com/Zambrella/craftsky/issues/new/choose) if you'd like to weigh in on the CLA terms before they're finalized.

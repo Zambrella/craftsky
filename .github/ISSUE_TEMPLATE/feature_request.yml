@@ -1,0 +1,32 @@
+name: Feature proposal
+description: Discuss a problem and proposed improvement before implementation.
+title: "[Feature]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Check the roadmap and existing issues first. Proposals are discussed before substantial implementation; opening an issue does not commit the project to shipping it.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+      description: Who encounters it, and what are they trying to do?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed outcome
+      description: Describe the experience or result you want. Implementation details are optional.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives and workarounds
+      description: What have you tried? Could a smaller change solve the problem?
+  - type: textarea
+    id: context
+    attributes:
+      label: Related work and contribution interest
+      description: Link relevant roadmap items or issues. Let us know if you would like to help; contributing code is optional.

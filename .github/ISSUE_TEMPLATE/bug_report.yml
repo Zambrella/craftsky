@@ -1,0 +1,54 @@
+name: Bug report
+description: Report a reproducible problem in CraftSky.
+title: "[Bug]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Search existing issues first. For security vulnerabilities, email support@craftsky.social privately; do not include exploit details here. Remove tokens, callback URLs, private content, and personal data from all attachments.
+  - type: dropdown
+    id: component
+    attributes:
+      label: Affected component
+      options:
+        - Flutter app
+        - AppView / API
+        - Website
+        - Instagram importer
+        - Service status / app links
+        - Local setup / tooling
+        - Other / unsure
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Version and environment
+      description: App version or Git commit, OS/device/browser, and whether this is local development or the hosted service. Include relevant tool versions for setup failures.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: Give numbered steps and a minimal synthetic example, if possible.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: What happened, how often, and how it affects you. Include a redacted error message if available.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Logs, screenshots, or workaround
+      description: Optional. Use synthetic content and redact sensitive values before posting.
