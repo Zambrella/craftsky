@@ -336,6 +336,52 @@ AppView. A quiet member feed can leave it unchanged even while Tap processes
 global relay events. Render's `/health` restart probe intentionally covers
 database readiness only; it cannot detect a live but under-delivering firehose.
 
+## Operational snapshot
+
+From the AppView service shell, run:
+
+```sh
+/app/cli --env prod ops status
+/app/cli --env prod ops status --json
+```
+
+For local development, use `just ops-status` (or `just ops-status --json`) after
+rebuilding the AppView image. The command constructs only a database pool. It
+does not start workers, contact a PDS, retry work, or change rows. Queue counts
+come from one repeatable, read-only transaction and remain available when
+Sentry metrics are disabled.
+
+The summary covers Tap projection/repository work, unresolved quarantine,
+image scanning, push delivery, scheduled publication/media cleanup, account
+deletion and terminal purge, auxiliary auth cleanup, open moderation cases,
+pending appeals and moderation restoration. It prints state counts, oldest
+unfinished work, due/overdue counts and repeated attempts without row IDs,
+account identities, private payloads, credentials or raw failure text.
+
+`due` means the dispatch or lease-recovery timestamp has passed. `overdue` means
+it passed at least 60 seconds ago; this is an inspection aid, not an outage
+verdict. Blocked/manual work, including quarantine awaiting operator replay,
+is listed but is not considered due. Future scheduled posts are pending without
+being overdue. Scheduled publication counts use the active owner generation,
+matching the publisher's operational metrics. Account-deletion state counts
+include unconfirmed intents. `--retry-threshold 5` highlights unfinished rows
+with at least five attempts; an attempt count alone does not prove failure.
+
+AppView health is read separately from `/healthz`. The default origin is
+`APPVIEW_URL`, then the configured OAuth public origin (required by production's
+Host policy), then loopback using `PORT` (8080 if unset) for local OAuth.
+Use `--url` to select an
+explicit HTTP(S) origin. Health requests follow no redirects and copy only
+selected public health fields. An unavailable/invalid health response is shown
+as `unavailable`, preserving the database summary. Tap cursor progress does not
+prove relay-head freshness. The total default budget is 10 seconds; use
+`--timeout 30s` for a larger database (maximum one minute).
+
+Exit zero means the snapshot was collected and written, even if health is
+degraded or queues need attention. Database/configuration/query/output failures
+exit nonzero. JSON consumers should inspect the health and queue fields rather
+than interpreting successful command execution as service readiness.
+
 ## Rollback
 
 1. Identify the last known-good commit from Render deploy history and release
