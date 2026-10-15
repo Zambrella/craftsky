@@ -27,16 +27,20 @@ to their `.html` files. Stop it with Ctrl+C. Python's built-in
 
 ## Check for token drift
 
+Run this comparison from `web/`:
+
 When the design system (`../docs/design/colors_and_type.css`) changes, re-copy the `:root` block into `styles.css`. Check for drift with:
 
-````bash
+```bash
 diff <(sed -n '/^:root {/,/^}/p' styles.css) \
      <(sed -n '/^:root {/,/^}/p' ../docs/design/colors_and_type.css)
-````
+```
 
 Expected: no output. If there's a diff, re-copy from the source file.
 
 ## Browser tests
+
+Run from `web/`:
 
 ```bash
 npm ci

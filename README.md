@@ -1,140 +1,84 @@
-# Craftsky
+# CraftSky
 
-A crafting-focused social platform built on the [AT Protocol](https://atproto.com).
+A crafting-focused social platform built on the [AT Protocol](https://atproto.com), where makers share projects, techniques, and works in progress while keeping ownership of their identity and public records.
 
-Craftsky lets makers — sewers, knitters, quilters, woodworkers, and others — share projects, techniques, and works-in-progress on a federated, user-owned protocol.
+CraftSky is being developed for private beta. The Flutter client and Go backend are implemented, and production infrastructure is deployed. Full public launch still has [readiness checks and approvals](docs/operations/releases.md#private-beta-and-full-public-launch) to complete.
 
-Domain: **craftsky.social** (app at **app.craftsky.social**). atproto namespace: `social.craftsky.*`.
+[Website](https://craftsky.social) · [Contribute](CONTRIBUTING.md) · [Roadmap](docs/roadmap.md) · [Documentation](docs/README.md) · [Report a bug](https://github.com/Zambrella/craftsky/issues/new/choose)
+
+## What we're building
+
+- A chronological feed for sharing craft projects, progress, and conversation.
+- Structured project posts for sewing, knitting, crochet, and quilting.
+- Portable public records on each member's Personal Data Server (PDS).
+- No ads, with transparent business accounts and optional paid features.
+
+The [product vision](https://docs.google.com/document/d/11wu5ZFifrhx3HwdqOR5-7WQiESq5MUKk7vTa_U8fl-c/edit?usp=sharing) explains the community principles and project-post field set. The [roadmap](docs/roadmap.md) records implemented work and future ideas; it is not a release schedule.
 
 ## Contributing
 
-Craftsky isn't ready for outside code contributions yet — the architecture is still settling and I'm not set up to review PRs. Please don't open one for now; it'll likely sit unmerged.
+Code, documentation, accessibility feedback, bug reports, and product ideas are welcome. Start with [CONTRIBUTING.md](CONTRIBUTING.md) for setup, checks, and the pull request process. For substantial work, open an issue to agree on scope before implementing it. Small fixes can go straight to a pull request.
 
-That said, **discussion is very welcome**. If you have ideas, questions, feedback on the [product vision doc](https://docs.google.com/document/d/11wu5ZFifrhx3HwdqOR5-7WQiESq5MUKk7vTa_U8fl-c/edit?usp=sharing), or want to flag something you'd like to see, please open a [GitHub Discussion](../../discussions) or an issue. I'll update this section once the project is ready for code contributions.
+Contributions use the repository's [AGPL-3.0 license](LICENSE). The [CLA proposal](CLA.md) is an inactive draft; no signature is required. Please follow the [Code of Conduct](CODE_OF_CONDUCT.md). Report vulnerabilities privately using [SECURITY.md](SECURITY.md).
 
-## Architecture
+## Run locally
 
-Craftsky follows the standard atproto App View pattern:
+For the backend, install Git, Docker with Compose v2, and [`just`](https://just.systems). Start Docker, then run:
 
-```
-User's PDS  →  Relay (bsky.network)  →  Craftsky App View  →  Flutter client
-   (writes)        (firehose)              (Go + Postgres)       (reads)
-```
-
-- **Writes** go through the user's PDS using the Craftsky lexicon.
-- **Reads** come from the Craftsky App View, which subscribes to the firehose and indexes relevant records.
-- Identity, auth, and data portability are handled by the atproto layer.
-
-See [atproto-craft-social-app-reference.md](atproto-craft-social-app-reference.md) for the full architectural reference.
-
-## Product Vision
-
-The community-facing vision doc — what we're building, what we believe in, and the open questions we want crafters to weigh in on — lives here:
-
-**[Building a Social Network for Textile Crafters](https://docs.google.com/document/d/11wu5ZFifrhx3HwdqOR5-7WQiESq5MUKk7vTa_U8fl-c/edit?usp=sharing)**
-
-It's an open, commentable doc covering the "why", the core post types (simple + structured project posts), principles (no ads, data portability, transparent business accounts), and specific questions the community is helping shape — including which project fields to capture and how monetisation should work.
-
-## Repository Layout
-
-| Directory | Purpose |
-|---|---|
-| [`app/`](app/) | Flutter client (Dart + `atproto.dart` SDK) |
-| [`appview/`](appview/) | Go App View — firehose indexer, HTTP API, OAuth TMB |
-| [`lexicon/`](lexicon/) | Craftsky atproto lexicon schemas (`social.craftsky.*`) |
-
-## Tech Stack
-
-- **Client:** Flutter + Dart, using [atproto.dart](https://atprotodart.com)
-- **App View:** Go, using [indigo](https://github.com/bluesky-social/indigo), `pgx`, and the standard library HTTP server
-- **Database:** Postgres 16
-- **Infrastructure:** Render (AppView, Tap, managed Postgres) + managed S3-compatible object storage; see [ADR 016](adr/016-render-managed-production-infrastructure.md)
-- **Push:** FCM
-
-## Getting started
-
-Prerequisites:
-
-- Docker (with Docker Compose v2)
-- [`just`](https://just.systems) (`brew install just` on macOS)
-
-Clone and run:
-
-```
-git clone <repo>
+```bash
+git clone https://github.com/Zambrella/craftsky.git
 cd craftsky
-just dev
+just dev-d
+just ping
+just tap-status
 ```
 
-This brings up the full compose stack — `postgres`, `migrate`, `tap`, `tap-bootstrap`, `appview`. Local Tap starts at the live firehose head instead of replaying a saved cursor. New tracked repos backfill from their PDS; an existing tracked repo that changed while Tap was offline resyncs when its next firehose event arrives. Production Tap still replays its durable cursor. Then verify:
+Compose starts PostgreSQL, MinIO, migrations, Tap, and AppView, including their bootstrap services. `just ping` checks database connectivity. `just tap-status` reports the firehose connection and may initially report no events while Tap connects. These checks do not prove every feature is working.
 
-```
-curl localhost:18080/healthz  # expect {"status":"ok",...} after the first Tap event
-just tap-status               # prints connection, last event, and durable firehose cursor
-just psql                     # psql shell; try: SELECT count(*) FROM bluesky_posts_sample;
-```
+The startup output prints the local AppView and storage addresses. AppView uses `http://localhost:18080` in the primary checkout; linked worktrees get isolated services and alternate ports. Services bind to loopback by default. See the [AppView guide](appview/README.md) for configuration, OAuth, tests, and protected remote-device access.
 
-Linked Git worktrees automatically get an isolated Compose project, database
-volume, Tap volume, and stable alternate host ports. `just dev` and `just dev-d`
-print the selected AppView, Postgres, MinIO API, and MinIO Console addresses.
-Open the printed MinIO Console URL to inspect the local
-`private-scheduled-media` bucket. This allows stacks from the primary checkout
-and multiple worktrees to run at the same time. To choose specific values, copy
-`.env.local.example` to the ignored `.env.local` and set
-`CRAFTSKY_COMPOSE_PROJECT_NAME`, `CRAFTSKY_POSTGRES_PORT`,
-`CRAFTSKY_APPVIEW_PORT`, `CRAFTSKY_MINIO_PORT`, or
-`CRAFTSKY_MINIO_CONSOLE_PORT`. Every published service binds to `127.0.0.1` by
-default. Separate `CRAFTSKY_APPVIEW_PUBLISH_HOST`,
-`CRAFTSKY_POSTGRES_PUBLISH_HOST`, and `CRAFTSKY_MINIO_PUBLISH_HOST` settings
-prevent an AppView-only remote override from exposing the data services. Remote
-AppView testing also requires a secret-protected external HTTPS/mTLS boundary;
-read the AppView README before changing a publish host. AppView's Compose memory
-limit defaults to 512 MiB. The `just app-run-*` recipes discover and inject the
-matching AppView address automatically. If you invoke `flutter run`
-directly, point `app/config/local.env` (or `local-android.env`) at the printed
-port.
+To run the client, install [FVM](https://fvm.app) and the platform tools for your target. From the repository root:
 
-See [`appview/README.md`](appview/README.md) for the full list of `just` recipes and the host-side test workflow.
-
-## Worktrees
-
-Use the repository helper to create local worktrees in the standard ignored location:
-
-```
-just worktree feature/my-change
-cd .worktrees/feature-my-change
+```bash
+fvm install
+(cd app && fvm flutter pub get)
+fvm exec just app-run
 ```
 
-The helper creates a new local branch from `main` by default, fetches `origin/main` first, and refuses to overwrite an existing branch or path. Pass extra options through `just` when needed:
+The repository pins Flutter in [.fvmrc](.fvmrc). `fvm exec` makes that SDK available to recipes that call `flutter`. `app-run` creates ignored local config files and discovers this checkout's AppView port. Choose a running Android emulator or iOS simulator for native development. See the [Flutter guide](app/README.md) for platform requirements and other targets.
 
+Stop the local stack with `just down`; its data volumes are preserved. Local setup does not require production credentials. OAuth testing uses a real PDS, so use a dedicated test account: records published there are public and persist after resetting the local database.
+
+## How it works
+
+```text
+Flutter client ── reads / write requests ──> AppView (Go + PostgreSQL)
+                                              │          ▲
+                                      record writes      │ indexed records
+                                              ▼          │
+                                         User's PDS → Relay → Tap
 ```
-just worktree fix/api-cursor --base origin/main
-just worktree threads-ux --path .worktrees/threads-ux
-```
 
-Clean up stale worktree metadata and empty directories with:
+AppView mediates record writes and keeps OAuth credentials server-side. Reads come from its PostgreSQL index. Public records live on the PDS; private data such as drafts and mutes stays in AppView. Narrow, temporary credentials permit direct image and video uploads under [ADR 017](adr/017-direct-image-upload-service-token-handoff.md) and [ADR 012](adr/012-ephemeral-video-service-token-handoff.md).
 
-```
-just worktree-cleanup
-just worktree-cleanup --dry-run
-```
+Read the [architecture reference](atproto-craft-social-app-reference.md) and [architecture decisions](adr/) before proposing architectural changes.
 
-Each subdirectory also has its own README:
+## Repository map
 
-- [`app/README.md`](app/README.md) — Flutter app setup
-- [`appview/README.md`](appview/README.md) — Go App View setup
-- [`lexicon/README.md`](lexicon/README.md) — Lexicon schema authoring
+| Path | Purpose |
+| --- | --- |
+| [app/](app/README.md) | Flutter client |
+| [appview/](appview/README.md) | Go API, OAuth backend, and firehose indexing |
+| [lexicon/](lexicon/README.md) | `social.craftsky.*` public record schemas |
+| [web/](web/README.md) | Public website and policy pages |
+| [instagram-importer/](instagram-importer/README.md) | Standalone browser importer |
+| [service-status/](service-status/README.md) | Public service-status Worker |
+| [verified-links/](verified-links/README.md) | Native app-link association files and OAuth fallbacks |
+| [docs/](docs/README.md) | Development guides, roadmap, and operations |
+| [online-safety/](online-safety/README.md) | Policy sources, assessments, and readiness records |
 
-## Status
-
-Early scaffolding. See [AGENTS.md](AGENTS.md) for agent/contributor guidance.
+[AGENTS.md](AGENTS.md) documents repository conventions for contributors and coding agents. Releases and production deployments are maintainer operations, described in the [release runbook](docs/operations/releases.md).
 
 ## License
 
-Craftsky is licensed under the [GNU Affero General Public License v3.0](LICENSE) (AGPL-3.0).
-
-Copyright (C) 2026 Doug Todd.
-
-In short: you're free to use, study, modify, and redistribute the code, including running it as a service. If you run a modified version as a network service, AGPL requires you to offer the source of your modifications to your users. See the [LICENSE](LICENSE) file for the full terms.
-
-If/when external code contributions open up, contributors will be asked to sign a Contributor License Agreement — see [CLA.md](CLA.md) for the current draft.
+[GNU Affero General Public License v3.0](LICENSE) (AGPL-3.0). Copyright © 2026 Doug Todd and contributors.

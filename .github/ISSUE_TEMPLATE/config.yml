@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security vulnerability privately
+    url: https://github.com/Zambrella/craftsky/blob/main/SECURITY.md
+    about: Do not disclose vulnerabilities or credentials in public issues.
+  - name: Service content reports and moderation appeals
+    url: https://craftsky.social/reporting
+    about: Use the service reporting process for content or account moderation concerns.
