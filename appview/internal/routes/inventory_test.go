@@ -116,6 +116,7 @@ func TestRouteInventoryAndV1PoliciesStayExact(t *testing.T) {
 		"GET /v1/onboarding/status",
 		"POST /v1/onboarding/completion",
 		"GET /v1/account/eligibility",
+		"GET /v1/profiles/recent",
 		"GET /v1/profiles/{handleOrDid}",
 		"GET /v1/profiles/me",
 		"GET /v1/profiles/me/follower-growth",

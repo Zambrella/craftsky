@@ -3,6 +3,7 @@ import 'package:craftsky_app/moderation/models/report_submission.dart';
 import 'package:craftsky_app/profile/models/follower_growth.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/models/profile_account_page.dart';
+import 'package:craftsky_app/profile/models/profile_account_summary.dart';
 import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:craftsky_app/profile/models/profile_relationship.dart';
 import 'package:craftsky_app/shared/api/api_unwrap.dart';
@@ -18,6 +19,16 @@ class ProfileApiClient {
   const new(this._dio);
 
   final Dio _dio;
+
+  Future<List<ProfileAccountSummary>> getRecentMembers() => unwrapApi(() async {
+    final res = await _dio.get<Map<String, dynamic>>('/v1/profiles/recent');
+    return (res.data!['items'] as List<dynamic>)
+        .map(
+          (item) =>
+              ProfileAccountSummaryMapper.fromMap(item as Map<String, dynamic>),
+        )
+        .toList(growable: false);
+  });
 
   /// GET /v1/profiles/@{handleOrDid} — fetches any user's profile.
   /// `handleOrDid` is interpolated raw; the AppView accepts either an

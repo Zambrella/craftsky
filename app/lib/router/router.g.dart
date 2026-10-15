@@ -417,10 +417,16 @@ mixin $FeedRoute on GoRouteData {
 }
 
 mixin $ProjectsRoute on GoRouteData {
-  static ProjectsRoute _fromState(GoRouterState state) => const ProjectsRoute();
+  static ProjectsRoute _fromState(GoRouterState state) =>
+      ProjectsRoute(craft: state.uri.queryParameters['craft']);
+
+  ProjectsRoute get _self => this as ProjectsRoute;
 
   @override
-  String get location => GoRouteData.$location('/projects');
+  String get location => GoRouteData.$location(
+    '/projects',
+    queryParams: {if (_self.craft != null) 'craft': _self.craft},
+  );
 
   @override
   void go(BuildContext context) => context.go(location);

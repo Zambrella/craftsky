@@ -4,6 +4,7 @@ import 'package:craftsky_app/profile/data/profile_repository.dart';
 import 'package:craftsky_app/profile/models/follower_growth.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/models/profile_account_page.dart';
+import 'package:craftsky_app/profile/models/profile_account_summary.dart';
 import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:craftsky_app/profile/models/profile_relationship.dart';
 import 'package:craftsky_app/shared/media/uploaded_image_blob.dart';
@@ -27,6 +28,7 @@ import 'package:craftsky_app/shared/media/uploaded_image_blob.dart';
 class FakeProfileRepository implements ProfileRepository {
   new({
     this.onFetch,
+    this.onFetchRecentMembers,
     this.onFetchMe,
     this.onFetchFollowerGrowth,
     this.onUpdateMe,
@@ -99,6 +101,13 @@ class FakeProfileRepository implements ProfileRepository {
   final updateOperationKeys = <String>[];
   final blockOperationKeys = <String>[];
   final unblockOperationKeys = <String>[];
+
+  final Future<List<ProfileAccountSummary>> Function()? onFetchRecentMembers;
+
+  @override
+  Future<List<ProfileAccountSummary>> fetchRecentMembers() =>
+      onFetchRecentMembers?.call() ??
+      Future.error(UnimplementedError('fetchRecentMembers not stubbed'));
 
   @override
   Future<Profile> fetch(String handleOrDid) =>

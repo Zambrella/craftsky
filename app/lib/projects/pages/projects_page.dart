@@ -33,12 +33,15 @@ import 'package:craftsky_app/theme/craftsky_form_builder_select_fields.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 
 part 'project_filter_sheet.dart';
 
 class ProjectsPage extends ConsumerStatefulWidget {
-  const new({super.key});
+  const new({this.craft, super.key});
+
+  final String? craft;
 
   @override
   ConsumerState<ProjectsPage> createState() => _ProjectsPageState();
@@ -63,7 +66,11 @@ class _ProjectsPageState extends ConsumerState<ProjectsPage>
   void initState() {
     super.initState();
     _craftTypes = ref.read(preferredProjectCraftsProvider);
+    final requested = _requestedIndex(widget.craft);
+    _selectedCraftIndex = requested ?? 0;
+    _hasSelectedCraft = requested != null;
     _tabController = TabController(
+      initialIndex: _selectedCraftIndex,
       length: _craftTypes.length,
       vsync: this,
     )..addListener(_handleTabChanged);
@@ -80,6 +87,25 @@ class _ProjectsPageState extends ConsumerState<ProjectsPage>
       });
     });
     _scrollController.addListener(_handleOuterScroll);
+  }
+
+  int? _requestedIndex(String? craft) {
+    final index = _craftTypes.indexWhere(
+      (option) => option.value.split('#').last == craft,
+    );
+    return index < 0 ? null : index;
+  }
+
+  @override
+  void didUpdateWidget(ProjectsPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.craft == widget.craft) return;
+    final requested = _requestedIndex(widget.craft);
+    _hasSelectedCraft = requested != null;
+    _selectedCraftIndex = requested ?? 0;
+    _reorderingCrafts = true;
+    _tabController.index = _selectedCraftIndex;
+    _reorderingCrafts = false;
   }
 
   @override
@@ -223,6 +249,11 @@ class _ProjectsPageState extends ConsumerState<ProjectsPage>
       _filters = const ProjectBrowseFilters();
       _isPastScrollThreshold = false;
     });
+    if (GoRouter.maybeOf(context) != null) {
+      ProjectsRoute(
+        craft: _craftTypes[_selectedCraftIndex].value.split('#').last,
+      ).replace(context);
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _updateScrollThreshold();
     });

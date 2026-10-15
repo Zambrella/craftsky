@@ -89,6 +89,10 @@ Future<ProviderContainer> _pumpShell(
       : registry.sessions[registry.activeDid];
   final container = ProviderContainer.test(
     overrides: [
+      accountProfileRepositoryProvider.overrideWith(
+        (ref, lease) async =>
+            FakeProfileRepository(onFetchRecentMembers: () async => []),
+      ),
       subscriptionAccessProvider.overrideWith(
         (ref, lease) async => SubscriptionAccess(
           did: lease.account.did,
