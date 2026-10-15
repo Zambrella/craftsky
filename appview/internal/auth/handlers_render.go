@@ -2,6 +2,7 @@ package auth
 
 import (
 	"crypto/rand"
+	_ "embed"
 	"encoding/base64"
 	"fmt"
 	"html/template"
@@ -122,7 +123,7 @@ func setCallbackSecurityHeaders(w http.ResponseWriter, nonce, connectSource stri
 	if connectSource == "" {
 		connectSource = "'none'"
 	}
-	w.Header().Set("Content-Security-Policy", "default-src 'none'; script-src "+scriptSource+"; style-src "+styleSource+"; connect-src "+connectSource+"; base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
+	w.Header().Set("Content-Security-Policy", "default-src 'none'; script-src "+scriptSource+"; style-src "+styleSource+"; connect-src "+connectSource+"; img-src data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
 }
 
 func exactLoopbackOrigin(raw string) (string, error) {
@@ -140,6 +141,12 @@ func exactLoopbackOrigin(raw string) (string, error) {
 	return parsed.Scheme + "://" + parsed.Host, nil
 }
 
+//go:embed assets/app-icon.png
+var callbackLogoPNG []byte
+
+// The URL contains only the checked-in logo, never request data.
+var callbackLogoURL = template.URL("data:image/png;base64," + base64.StdEncoding.EncodeToString(callbackLogoPNG))
+
 // callbackTmpl renders the post-OAuth landing page. Uses html/template's
 // contextual escaping so LoopbackURI inside the <script> body gets
 // JavaScript-string-context escaping automatically. The template's
@@ -151,7 +158,9 @@ func exactLoopbackOrigin(raw string) (string, error) {
 // loopback_redirect_uri could break out of the JS string literal even
 // when ingress validation lets it through. The TestCallbackTemplate_*
 // tests in handlers_test.go are regression tests against this swap.
-var callbackTmpl = template.Must(template.New("cb").Parse(`<!doctype html>
+var callbackTmpl = template.Must(template.New("cb").Funcs(template.FuncMap{
+	"brandLogo": func() template.URL { return callbackLogoURL },
+}).Parse(`<!doctype html>
 <html lang="en"><head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -201,11 +210,9 @@ main {
     letter-spacing: 0.04em;
 }
 .brand-mark {
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    background: var(--cobalt);
-    font-size: 0;
+    width: 40px;
+    height: 40px;
+    border-radius: 8px;
 }
 .eyebrow {
     margin: 0 0 8px;
@@ -266,7 +273,7 @@ h1 {
 </head><body>
 <main>
 <section class="card" aria-labelledby="page-title">
-<div class="brand"><span class="brand-mark" aria-hidden="true">CS</span><span>CraftSky</span></div>
+<div class="brand"><img class="brand-mark" src="{{brandLogo}}" alt="" width="40" height="40"><span>CraftSky</span></div>
 <p class="eyebrow">{{if .Failure}}One more step{{else}}All stitched up{{end}}</p>
 <h1 id="page-title">{{if .Failure}}Return to CraftSky.{{else}}You're signed in.{{end}}</h1>
 <p class="message">{{if .Failure}}Registration did not finish. Open CraftSky to continue.{{else if .VerifiedLinkURL}}Your session is ready. Open the app to continue.{{else if .DeepLinkURL}}Returning you to the app.{{else}}Authentication is complete. You can close this tab.{{end}}</p>
