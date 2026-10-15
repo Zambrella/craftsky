@@ -138,7 +138,7 @@ func validateRecordBody(event tap.Event) Result {
 		if len(record.Text) > 20000 || uniseg.GraphemeClusterCount(record.Text) > 2000 {
 			return invalid("invalid_lexicon")
 		}
-		if len(record.Images) > 4 || len(record.Langs) > 3 {
+		if len(record.Langs) > 3 {
 			return invalid("invalid_lexicon")
 		}
 		if err := languages.ValidatePostTags(record.Langs); err != nil {
