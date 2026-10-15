@@ -1,5 +1,17 @@
 {
   "@@locale": "en",
+  "discoveryYourCrafts": "Your crafts",
+  "@discoveryYourCrafts": {"description": "Desktop discovery sidebar section copy."},
+  "discoveryNewMembers": "New to CraftSky",
+  "@discoveryNewMembers": {"description": "Desktop discovery sidebar section copy."},
+  "discoveryCraftsError": "Couldn't load your crafts.",
+  "@discoveryCraftsError": {"description": "Desktop discovery sidebar section copy."},
+  "discoveryMembersError": "Couldn't load new members.",
+  "@discoveryMembersError": {"description": "Desktop discovery sidebar section copy."},
+  "discoveryMembersEmpty": "No new members to show yet.",
+  "@discoveryMembersEmpty": {"description": "Desktop discovery sidebar section copy."},
+  "discoveryChooseCrafts": "Choose your crafts",
+  "@discoveryChooseCrafts": {"description": "Sidebar action opening the existing profile craft editor."},
 
   "appTitle": "CraftSky",
   "@appTitle": { "description": "The app's title, used in MaterialApp.title and as an AppBar title." },

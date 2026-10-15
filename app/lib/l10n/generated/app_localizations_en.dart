@@ -10,6 +10,24 @@ class AppLocalizationsEn extends AppLocalizations {
   AppLocalizationsEn([String locale = 'en']) : super(locale);
 
   @override
+  String get discoveryYourCrafts => 'Your crafts';
+
+  @override
+  String get discoveryNewMembers => 'New to CraftSky';
+
+  @override
+  String get discoveryCraftsError => 'Couldn\'t load your crafts.';
+
+  @override
+  String get discoveryMembersError => 'Couldn\'t load new members.';
+
+  @override
+  String get discoveryMembersEmpty => 'No new members to show yet.';
+
+  @override
+  String get discoveryChooseCrafts => 'Choose your crafts';
+
+  @override
   String get appTitle => 'CraftSky';
 
   @override

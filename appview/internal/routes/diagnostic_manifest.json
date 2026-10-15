@@ -427,6 +427,12 @@
   },
   {
     "method": "GET",
+    "path": "/v1/profiles/recent",
+    "category": "appview.profiles.recent",
+    "public": false
+  },
+  {
+    "method": "GET",
     "path": "/v1/projects",
     "category": "appview.projects",
     "public": true

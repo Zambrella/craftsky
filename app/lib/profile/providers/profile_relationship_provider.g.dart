@@ -77,7 +77,7 @@ final class ProfileRelationshipControllerProvider
 }
 
 String _$profileRelationshipControllerHash() =>
-    r'c72ffe33a6a7a0e46591aa152f90f061ad83c0a5';
+    r'a5460396fe03dd804ead860d798f9603afd8a8d1';
 
 /// Account-owned relationship overlay for one target.
 ///

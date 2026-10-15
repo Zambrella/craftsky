@@ -131,10 +131,13 @@ func (m v1Middleware) wrap(policy RoutePolicy, handler http.Handler) http.Handle
 			visitorHandler.ServeHTTP(w, r)
 		})
 	}
-	if m.hydrator != nil {
+	// Discovery has a dedicated public-field allowlist, so identity decorators
+	// must not expand its summaries. All authorization wrappers still apply.
+	boundedDiscovery := policy.Method == http.MethodGet && policy.PathPattern == "/v1/profiles/recent"
+	if m.hydrator != nil && !boundedDiscovery {
 		wrapped = m.hydrator.Handler(wrapped)
 	}
-	if m.accountTypeHydrator != nil {
+	if m.accountTypeHydrator != nil && !boundedDiscovery {
 		wrapped = m.accountTypeHydrator.Handler(wrapped)
 	}
 	if m.folderRedactor != nil {

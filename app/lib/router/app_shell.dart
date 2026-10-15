@@ -21,6 +21,7 @@ import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
 import 'package:craftsky_app/projects/widgets/project_composer_sheet.dart';
 import 'package:craftsky_app/router/app_shell_drawer.dart';
 import 'package:craftsky_app/router/route_locations.dart';
+import 'package:craftsky_app/router/widgets/desktop_discovery_sidebar.dart';
 import 'package:craftsky_app/saved_posts/providers/saved_post_folders_provider.dart';
 import 'package:craftsky_app/saved_posts/providers/saved_posts_provider.dart';
 import 'package:craftsky_app/settings/settings_links.dart';
@@ -28,7 +29,6 @@ import 'package:craftsky_app/shared/link/external_link.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/shared/widgets/root_overlay_scope.dart';
 import 'package:craftsky_app/subscriptions/providers/subscription_access_provider.dart';
-import 'package:craftsky_app/theme/craftsky_card.dart';
 import 'package:craftsky_app/theme/craftsky_context_menu.dart';
 import 'package:craftsky_app/theme/craftsky_floating_action_button.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
@@ -100,7 +100,6 @@ const List<_DestinationSpec> _menuDestinations = [
 ];
 
 const _largeScreenContentMaxWidth = 800.0;
-const _desktopSidebarSize = 300.0;
 const _utilityLinkHeight = 40.0;
 const _profileRailLabelWidth = 168.0;
 
@@ -342,7 +341,7 @@ class _LargeShellNavigationFrameState
                         color: Theme.of(context).colorScheme.onSurface,
                       ),
                     ),
-                    const _DesktopSidebarPlaceholder(),
+                    const DesktopDiscoverySidebar(),
                   ],
                 ],
               ),
@@ -449,29 +448,6 @@ class _LargeShellNavigationFrameState
         ) +
         dividerHeight +
         (state.canAddAccount ? singleLineTileHeight : twoLineTileHeight);
-  }
-}
-
-class _DesktopSidebarPlaceholder extends StatelessWidget {
-  const new();
-
-  @override
-  Widget build(BuildContext context) {
-    final spacing = Theme.of(context).extension<SpacingTheme>()!;
-    return SizedBox(
-      width: _desktopSidebarSize + (spacing.sp5 * 2),
-      child: Align(
-        alignment: AlignmentDirectional.topCenter,
-        child: Padding(
-          padding: EdgeInsets.only(top: spacing.sp5),
-          child: const SizedBox.square(
-            key: Key('desktop-sidebar-placeholder'),
-            dimension: _desktopSidebarSize,
-            child: CraftskyCard(child: SizedBox.expand()),
-          ),
-        ),
-      ),
-    );
   }
 }
 

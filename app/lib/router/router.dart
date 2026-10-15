@@ -491,10 +491,12 @@ class FeedRoute extends GoRouteData with $FeedRoute {
 }
 
 class ProjectsRoute extends GoRouteData with $ProjectsRoute {
-  const new();
+  const new({this.craft});
+
+  final String? craft;
   @override
   Widget build(BuildContext context, GoRouterState state) =>
-      const ProjectsPage();
+      ProjectsPage(craft: craft);
 }
 
 class SearchRoute extends GoRouteData with $SearchRoute {
