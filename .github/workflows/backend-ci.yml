@@ -158,6 +158,10 @@ jobs:
         working-directory: app
         run: flutter analyze
 
+      - name: Set up Rive native test runtime
+        working-directory: app
+        run: dart run rive_native:setup --platform linux
+
       - name: Test
         working-directory: app
         run: flutter test

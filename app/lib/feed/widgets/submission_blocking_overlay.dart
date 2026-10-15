@@ -1,6 +1,6 @@
 import 'package:craftsky_app/feed/composer/video_publication_coordinator.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
-import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
+import 'package:craftsky_app/theme/publishing_progress_indicator.dart';
 import 'package:material_ui/material_ui.dart';
 
 enum SubmissionKind { post, comment, reply }
@@ -59,7 +59,7 @@ final class SubmissionBlockingOverlay extends StatelessWidget {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const StitchProgressIndicator(size: 48),
+                    const PublishingProgressIndicator(),
                     const SizedBox(height: 20),
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 32),
