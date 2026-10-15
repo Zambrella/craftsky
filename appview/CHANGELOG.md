@@ -1,5 +1,12 @@
 # AppView Changelog
 
+## 1.0.15 - 2026-10-15
+
+- feat: upload immediate images directly to PDS with scoped authorization
+- feat(auth): request granular OAuth permissions
+- fix(profile): enforce Bluesky profile image limits
+- feat(media): allow up to eight photos per post
+
 ## 1.0.14 - 2026-10-13
 
 - feat: add online safety launch readiness controls
