@@ -105,15 +105,16 @@ func TestSafetyExternalIntakeCorrespondenceAndAppealUsePathAndAuthenticatedActor
 	appealRequest := httptest.NewRequest(http.MethodPost, "/v1/admin/safety/external-intakes/"+intakeID.String()+"/appeal-link", strings.NewReader(`{
 		"caseId":"`+caseID.String()+`",
 		"verifiedOwnerDid":"did:plc:appeal-owner",
-		"replayId":"message-2",
 		"receivedAt":"2030-09-22T12:01:00Z"
 	}`))
+	appealRequest.Header.Set("Idempotency-Key", "external-appeal-link-1")
+	moderator.SourceSystem = "craftsky-console"
 	appealRequest.SetPathValue("intakeId", intakeID.String())
 	appealRequest = appealRequest.WithContext(ctxkeys.WithModerator(appealRequest.Context(), moderator))
 	appealRecorder := httptest.NewRecorder()
 	SafetyExternalAppealLinkHandler(store).ServeHTTP(appealRecorder, appealRequest)
 	if appealRecorder.Code != http.StatusCreated || store.appeal.IntakeID != intakeID || store.appeal.CaseID != caseID ||
-		store.appeal.ActorID != "appeal-operator" || store.appeal.SourceSystem != "externalEmail" {
+		store.appeal.ActorID != "appeal-operator" || store.appeal.SourceSystem != "craftsky-console" {
 		t.Fatalf("status=%d appeal=%+v body=%s", appealRecorder.Code, store.appeal, appealRecorder.Body.String())
 	}
 	if !store.appeal.ReceivedAt.Equal(time.Date(2030, 9, 22, 12, 1, 0, 0, time.UTC)) {

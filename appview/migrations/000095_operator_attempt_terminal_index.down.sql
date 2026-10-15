@@ -1,0 +1,1 @@
+DROP INDEX operator_oauth_attempts_did_state_idx;

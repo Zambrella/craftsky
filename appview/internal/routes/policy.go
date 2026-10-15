@@ -1,6 +1,9 @@
 package routes
 
-import "net/http"
+import (
+	"net/http"
+	"social.craftsky/appview/internal/safetyincident"
+)
 
 type RateClass string
 
@@ -52,11 +55,12 @@ const (
 	AccessAuthenticatedRecovery
 	AccessCurrentMember
 	AccessModerator
+	AccessOperatorLogin
 )
 
 func (c AccessClass) Valid() bool {
 	switch c {
-	case AccessAnonymous, AccessAuthenticatedRecovery, AccessCurrentMember, AccessModerator:
+	case AccessAnonymous, AccessAuthenticatedRecovery, AccessCurrentMember, AccessModerator, AccessOperatorLogin:
 		return true
 	default:
 		return false
@@ -64,20 +68,22 @@ func (c AccessClass) Valid() bool {
 }
 
 type RoutePolicy struct {
-	Method           string
-	PathPattern      string
-	RateClass        RateClass
-	BodyKind         BodyKind
-	AccessClass      AccessClass
-	SuspensionClass  SuspensionClass
-	EligibilityClass EligibilityClass
-	DevOnly          bool
+	Method             string
+	PathPattern        string
+	RateClass          RateClass
+	BodyKind           BodyKind
+	AccessClass        AccessClass
+	OperatorPermission safetyincident.Permission
+	SuspensionClass    SuspensionClass
+	EligibilityClass   EligibilityClass
+	DevOnly            bool
 }
 
 func V1RoutePolicies(env Environment, cfg Config) []RoutePolicy {
 	policies := baseV1RoutePolicies()
 	if cfg.ModerationAdminEnabled {
 		policies = append(policies, adminModerationRoutePolicies()...)
+		policies = append(policies, consoleAPIPolicies()...)
 	}
 	if env == EnvDev {
 		policies = append(policies, RoutePolicy{Method: "GET", PathPattern: "/v1/dev/media/{name}", RateClass: RateClassDevOnly, BodyKind: BodyNoBody, AccessClass: AccessAnonymous, DevOnly: true})
@@ -87,6 +93,9 @@ func V1RoutePolicies(env Environment, cfg Config) []RoutePolicy {
 		}
 	}
 	for index := range policies {
+		if policies[index].AccessClass == AccessModerator && policies[index].PathPattern != "/v1/admin/identity" && policies[index].PathPattern != "/v1/admin/auth/logout" && !safetyincident.RoleSafetyAdministrator.AllowsPermission(policies[index].OperatorPermission) {
+			panic("admin route must declare a known operator permission")
+		}
 		policies[index].SuspensionClass = suspensionClassFor(policies[index])
 		policies[index].EligibilityClass = eligibilityClassFor(policies[index])
 	}
@@ -157,7 +166,7 @@ func (class SuspensionClass) Valid() bool {
 func (class SuspensionClass) AllowedWhenSuspended() bool { return class == SuspensionAllowed }
 
 func suspensionClassFor(policy RoutePolicy) SuspensionClass {
-	if policy.Method == http.MethodGet || policy.AccessClass == AccessAnonymous || policy.AccessClass == AccessModerator {
+	if policy.Method == http.MethodGet || policy.AccessClass == AccessAnonymous || policy.AccessClass == AccessModerator || policy.AccessClass == AccessOperatorLogin {
 		return SuspensionAllowed
 	}
 	if retainedSuspendedMutations[policyKey(policy.Method, policy.PathPattern)] {
@@ -400,33 +409,38 @@ func baseV1RoutePolicies() []RoutePolicy {
 
 func adminModerationRoutePolicies() []RoutePolicy {
 	return []RoutePolicy{
-		{Method: "GET", PathPattern: "/v1/admin/safety/status", RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessModerator},
-		{Method: "GET", PathPattern: "/v1/admin/safety/incidents/{incidentReference}", RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessModerator},
-		{Method: "POST", PathPattern: "/v1/admin/safety/external-intakes", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessModerator},
-		{Method: "POST", PathPattern: "/v1/admin/safety/external-intakes/{intakeId}/correspondence", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessModerator},
-		{Method: "POST", PathPattern: "/v1/admin/safety/external-intakes/{intakeId}/appeal-link", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessModerator},
-		{Method: "POST", PathPattern: "/v1/admin/eligibility/reviews", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessModerator},
-		{Method: "POST", PathPattern: "/v1/admin/safety/incidents/{incidentReference}/evidence", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessModerator},
-		{Method: "POST", PathPattern: "/v1/admin/safety/evidence/{evidenceId}/access", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessModerator},
-		{Method: "POST", PathPattern: "/v1/admin/safety/incidents/{incidentReference}/holds", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessModerator},
-		{Method: "POST", PathPattern: "/v1/admin/safety/workflows/intimate-images", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessModerator},
-		{Method: "POST", PathPattern: "/v1/admin/safety/workflows/intimate-images/{workflowId}/outcome", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessModerator},
-		{Method: "POST", PathPattern: "/v1/admin/safety/workflows/credible-threats", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessModerator},
-		{Method: "POST", PathPattern: "/v1/admin/safety/workflows/authority-requests", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessModerator},
-		{Method: "POST", PathPattern: "/v1/admin/safety/workflows/authority-requests/{workflowId}/verification", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessModerator},
-		{Method: "POST", PathPattern: "/v1/admin/safety/workflows/authority-requests/{workflowId}/disclosures", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessModerator},
-		{Method: "POST", PathPattern: "/v1/admin/safety/workflows/authority-requests/{workflowId}/closure", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessModerator},
-		{Method: "POST", PathPattern: "/v1/admin/safety/incidents/{incidentReference}/csea-classification", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessModerator},
-		{Method: "POST", PathPattern: "/v1/admin/safety/incidents/{incidentReference}/authority-reports", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessModerator},
-		{Method: "POST", PathPattern: "/v1/admin/safety/incidents/{incidentReference}/information-requests", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessModerator},
-		{Method: "POST", PathPattern: "/v1/admin/safety/information-requests/{requestId}/response", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessModerator},
-		{Method: "POST", PathPattern: "/v1/admin/safety/incidents/{incidentReference}/resolution", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessModerator},
-		{Method: "GET", PathPattern: "/v1/admin/moderation/cases", RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessModerator},
-		{Method: "GET", PathPattern: "/v1/admin/moderation/cases/{caseReference}", RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessModerator},
-		{Method: "POST", PathPattern: "/v1/admin/moderation/cases/{caseReference}/decisions", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessModerator},
-		{Method: "POST", PathPattern: "/v1/admin/moderation/cases/{caseReference}/appeal-confirmations", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessModerator},
-		{Method: "POST", PathPattern: "/v1/admin/moderation/cases/{caseReference}/appeal-resolutions", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessModerator},
-		{Method: "POST", PathPattern: "/v1/admin/moderation/cases/{caseReference}/effect-changes", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessModerator},
-		{Method: "POST", PathPattern: "/v1/admin/moderation/cases/{caseReference}/restorations", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessModerator},
+		{Method: "GET", PathPattern: "/v1/admin/auth/csrf", RateClass: RateClassAuth, BodyKind: BodyNoBody, AccessClass: AccessOperatorLogin},
+		{Method: "POST", PathPattern: "/v1/admin/auth/login", RateClass: RateClassAuth, BodyKind: BodyDefaultJSON, AccessClass: AccessOperatorLogin},
+		{Method: "POST", PathPattern: "/v1/admin/auth/logout", RateClass: RateClassWrite, BodyKind: BodyNoBody, AccessClass: AccessModerator},
+		{Method: "GET", PathPattern: "/v1/admin/identity", RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessModerator},
+		{Method: "GET", PathPattern: "/v1/admin/safety/status", RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessModerator, OperatorPermission: safetyincident.PermissionSafetyRead},
+		{Method: "GET", PathPattern: "/v1/admin/safety/incidents/{incidentReference}", RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessModerator, OperatorPermission: safetyincident.PermissionIncidentReadSafe},
+		{Method: "POST", PathPattern: "/v1/admin/safety/external-intakes", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessModerator, OperatorPermission: safetyincident.PermissionIntakeManage},
+		{Method: "POST", PathPattern: "/v1/admin/safety/external-intakes/{intakeId}/correspondence", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessModerator, OperatorPermission: safetyincident.PermissionIntakeManage},
+		{Method: "POST", PathPattern: "/v1/admin/safety/external-intakes/{intakeId}/appeal-link", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessModerator, OperatorPermission: safetyincident.PermissionIntakeManage},
+		{Method: "POST", PathPattern: "/v1/admin/eligibility/reviews", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessModerator, OperatorPermission: safetyincident.PermissionEligibilityReview},
+		{Method: "POST", PathPattern: "/v1/admin/safety/incidents/{incidentReference}/evidence", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessModerator, OperatorPermission: safetyincident.PermissionEvidencePreserve},
+		{Method: "POST", PathPattern: "/v1/admin/safety/evidence/{evidenceId}/access", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessModerator, OperatorPermission: safetyincident.PermissionEvidenceAccess},
+		{Method: "POST", PathPattern: "/v1/admin/safety/incidents/{incidentReference}/holds", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessModerator, OperatorPermission: safetyincident.PermissionHoldManage},
+		{Method: "POST", PathPattern: "/v1/admin/safety/workflows/intimate-images", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessModerator, OperatorPermission: safetyincident.PermissionWorkflowManage},
+		{Method: "POST", PathPattern: "/v1/admin/safety/workflows/intimate-images/{workflowId}/outcome", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessModerator, OperatorPermission: safetyincident.PermissionWorkflowManage},
+		{Method: "POST", PathPattern: "/v1/admin/safety/workflows/credible-threats", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessModerator, OperatorPermission: safetyincident.PermissionWorkflowManage},
+		{Method: "POST", PathPattern: "/v1/admin/safety/workflows/credible-threats/{workflowId}/outcome", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessModerator, OperatorPermission: safetyincident.PermissionWorkflowManage},
+		{Method: "POST", PathPattern: "/v1/admin/safety/workflows/authority-requests", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessModerator, OperatorPermission: safetyincident.PermissionWorkflowManage},
+		{Method: "POST", PathPattern: "/v1/admin/safety/workflows/authority-requests/{workflowId}/verification", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessModerator, OperatorPermission: safetyincident.PermissionWorkflowManage},
+		{Method: "POST", PathPattern: "/v1/admin/safety/workflows/authority-requests/{workflowId}/disclosures", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessModerator, OperatorPermission: safetyincident.PermissionDisclosureApprove},
+		{Method: "POST", PathPattern: "/v1/admin/safety/workflows/authority-requests/{workflowId}/closure", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessModerator, OperatorPermission: safetyincident.PermissionWorkflowManage},
+		{Method: "POST", PathPattern: "/v1/admin/safety/incidents/{incidentReference}/csea-classification", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessModerator, OperatorPermission: safetyincident.PermissionAuthorityReport},
+		{Method: "POST", PathPattern: "/v1/admin/safety/incidents/{incidentReference}/authority-reports", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessModerator, OperatorPermission: safetyincident.PermissionAuthorityReport},
+		{Method: "POST", PathPattern: "/v1/admin/safety/incidents/{incidentReference}/information-requests", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessModerator, OperatorPermission: safetyincident.PermissionAuthorityReport},
+		{Method: "POST", PathPattern: "/v1/admin/safety/information-requests/{requestId}/response", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessModerator, OperatorPermission: safetyincident.PermissionAuthorityReport},
+		{Method: "POST", PathPattern: "/v1/admin/safety/incidents/{incidentReference}/resolution", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessModerator, OperatorPermission: safetyincident.PermissionAuthorityReport},
+		{Method: "GET", PathPattern: "/v1/admin/moderation/cases", RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessModerator, OperatorPermission: safetyincident.PermissionModerationRead},
+		{Method: "GET", PathPattern: "/v1/admin/moderation/cases/{caseReference}", RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessModerator, OperatorPermission: safetyincident.PermissionModerationRead},
+		{Method: "POST", PathPattern: "/v1/admin/moderation/cases/{caseReference}/decisions", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessModerator, OperatorPermission: safetyincident.PermissionModerationManage},
+		{Method: "POST", PathPattern: "/v1/admin/moderation/cases/{caseReference}/appeal-confirmations", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessModerator, OperatorPermission: safetyincident.PermissionModerationManage},
+		{Method: "POST", PathPattern: "/v1/admin/moderation/cases/{caseReference}/appeal-resolutions", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessModerator, OperatorPermission: safetyincident.PermissionModerationManage},
+		{Method: "POST", PathPattern: "/v1/admin/moderation/cases/{caseReference}/effect-changes", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessModerator, OperatorPermission: safetyincident.PermissionModerationManage},
+		{Method: "POST", PathPattern: "/v1/admin/moderation/cases/{caseReference}/restorations", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessModerator, OperatorPermission: safetyincident.PermissionModerationManage},
 	}
 }

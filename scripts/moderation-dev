@@ -11,30 +11,9 @@ require_command() {
   fi
 }
 
-dotenv_value() {
-  local key=$1
-  local value=""
-
-  if [[ -f "$repo_root/.env.local" ]]; then
-    value=$(sed -n "s/^${key}=//p" "$repo_root/.env.local" | tail -n 1)
-  fi
-
-  printf '%s' "$value"
-}
-
-configured_value() {
-  local key=$1
-  local fallback=$2
-  local value=""
-
-  value=$(dotenv_value "$key")
-
-  printf '%s' "${value:-$fallback}"
-}
-
 usage() {
   cat <<'EOF'
-Development moderation helper. Prefer the matching `just moderation-*` recipes.
+Development reporting/history helper. Admin case commands require browser login at /admin/.
 
 Commands:
   cases [QUERY]
@@ -67,18 +46,9 @@ fi
 require_command curl
 require_command jq
 
-base_url=""
-admin_token=""
-
 configure_admin() {
-  if [[ -n "$base_url" ]]; then
-    return
-  fi
-  local appview_address appview_port
-  appview_address=$(./scripts/compose-dev port appview 8080)
-  appview_port=${appview_address##*:}
-  base_url="http://127.0.0.1:${appview_port}"
-  admin_token=$(configured_value MODERATION_ADMIN_BEARER_TOKEN local-dev-moderation-admin-token)
+  printf 'Admin requests now require Atmosphere browser login. Open the local /admin/ console.\n' >&2
+  exit 1
 }
 
 print_json() {
@@ -89,46 +59,8 @@ print_json() {
   fi
 }
 
-admin_request() {
-  configure_admin
-  local method=$1
-  local path=$2
-  local body=${3:-}
-  local idempotency_key=${4:-}
-  local response status
-  local -a args=(
-    --silent
-    --show-error
-    --fail-with-body
-    --request "$method"
-    --header "Authorization: Bearer ${admin_token}"
-  )
-
-  if [[ -n "$body" ]]; then
-    args+=(
-      --header 'Content-Type: application/json'
-      --header "Idempotency-Key: ${idempotency_key}"
-      --data "$body"
-    )
-  fi
-
-  set +e
-  response=$(curl "${args[@]}" "${base_url}${path}")
-  status=$?
-  set -e
-  print_json "$response"
-  return "$status"
-}
-
-case_detail() {
-  configure_admin
-  curl \
-    --silent \
-    --show-error \
-    --fail-with-body \
-    --header "Authorization: Bearer ${admin_token}" \
-    "${base_url}/v1/admin/moderation/cases/$1"
-}
+admin_request() { configure_admin; }
+case_detail() { configure_admin; }
 
 case_revision() {
   local detail

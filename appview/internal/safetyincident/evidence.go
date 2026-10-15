@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgxpool"
+	"social.craftsky/appview/internal/dbx"
 )
 
 var (
@@ -105,18 +105,20 @@ type AccessCommand struct {
 }
 
 type EvidenceService struct {
-	pool    *pgxpool.Pool
-	objects EvidenceStore
-	reader  restrictedObjectReader
-	now     func() time.Time
+	pending       []ObjectRef
+	transactional bool
+	pool          dbx.DB
+	objects       EvidenceStore
+	reader        restrictedObjectReader
+	now           func() time.Time
 }
 
-func NewEvidenceService(pool *pgxpool.Pool, objects EvidenceStore, now func() time.Time) *EvidenceService {
+func NewEvidenceService(pool dbx.DB, objects EvidenceStore, now func() time.Time) *EvidenceService {
 	if now == nil {
 		now = time.Now
 	}
 	reader, _ := objects.(restrictedObjectReader)
-	return &EvidenceService{pool: pool, objects: objects, reader: reader, now: now}
+	return &EvidenceService{pool: dbx.Normalize(pool), objects: objects, reader: reader, now: now}
 }
 
 func (service *EvidenceService) Preserve(ctx context.Context, actor Actor, command PreserveCommand) (EvidenceRef, error) {
@@ -145,6 +147,9 @@ func (service *EvidenceService) Preserve(ctx context.Context, actor Actor, comma
 		_ = service.objects.Delete(ctx, object)
 		return EvidenceRef{}, fmt.Errorf("record restricted evidence: %w", err)
 	}
+	if service.transactional {
+		service.pending = append(service.pending, object)
+	}
 	return EvidenceRef{ID: id, ObjectKey: object.Key}, nil
 }
 
@@ -171,4 +176,13 @@ func (service *EvidenceService) Access(ctx context.Context, actor Actor, command
 		return nil, ErrEvidenceStoreBoundary
 	}
 	return service.reader.open(ctx, ObjectRef{Key: objectKey})
+}
+
+// AbortPreservations removes objects only after a known database rollback. An
+// ambiguous commit keeps them intact so a committed receipt can be replayed.
+func (service *EvidenceService) AbortPreservations(ctx context.Context) {
+	for _, ref := range service.pending {
+		_ = service.objects.Delete(ctx, ref)
+	}
+	service.pending = nil
 }

@@ -1,0 +1,46 @@
+/* Stage 1 scaffold theme: warm off-white background, green accents.
+   Doubled :root specificity so these override the base theme regardless of load order. */
+
+:root:root {
+  --background: 42 30% 96.5%; /* warm off-white */
+  --foreground: 30 10% 14%;
+  --card: 40 33% 99%;
+  --card-foreground: 30 10% 14%;
+  --popover: 40 33% 99%;
+  --popover-foreground: 30 10% 14%;
+  --primary: 146 45% 30%; /* deep green accent */
+  --primary-foreground: 0 0% 100%;
+  --secondary: 40 18% 92%;
+  --secondary-foreground: 30 8% 30%;
+  --muted: 40 16% 92%;
+  --muted-foreground: 30 5% 42%;
+  --accent: 146 25% 91%;
+  --accent-foreground: 146 45% 22%;
+  --ring: 146 45% 30%;
+  --border: 38 12% 85%;
+  --input: 38 12% 85%;
+  --success: 146 45% 32%;
+  --success-foreground: 0 0% 100%;
+}
+
+:root.dark {
+  --background: 30 8% 11%;
+  --foreground: 40 20% 92%;
+  --card: 30 8% 15%;
+  --card-foreground: 40 20% 92%;
+  --popover: 30 8% 15%;
+  --popover-foreground: 40 20% 92%;
+  --primary: 146 38% 55%;
+  --primary-foreground: 30 15% 10%;
+  --secondary: 30 6% 20%;
+  --secondary-foreground: 40 15% 85%;
+  --muted: 30 6% 20%;
+  --muted-foreground: 40 8% 65%;
+  --accent: 146 22% 22%;
+  --accent-foreground: 146 35% 80%;
+  --ring: 146 38% 55%;
+  --border: 30 6% 26%;
+  --input: 30 6% 26%;
+  --success: 146 38% 55%;
+  --success-foreground: 30 15% 10%;
+}

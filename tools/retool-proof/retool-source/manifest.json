@@ -1,0 +1,93 @@
+{
+  "appUuid": "b7ae1ec4-c7e7-11f1-802d-67bd3e9087bc",
+  "generationId": "38960467-bbcf-45e3-aa1c-6a11efc7a6c4",
+  "capturedAt": "2026-10-14T17:00:23.118844+00:00",
+  "writer": "Retool MCP",
+  "published": false,
+  "resourceBinding": "craftskySyntheticModerationProof",
+  "resourceEnvironment": "production",
+  "backend": "disposable synthetic fixture only",
+  "includes": "App-specific source and frontend dependency manifest; generated Retool runtime and resource credentials excluded",
+  "files": [
+    {
+      "path": "backend/craftsky/_access.ts",
+      "sha256": "9417fe4373967e8e9a9fa255c0e688f8048f5758b2624f2255f12a668a52cedd"
+    },
+    {
+      "path": "backend/craftsky/_errors.ts",
+      "sha256": "137e4e81500f82853b8487801869a279944bb6dcb15f16cd9321988367a36f1c"
+    },
+    {
+      "path": "backend/craftsky/applyDecision.ts",
+      "sha256": "2b498add9043026116803f56e54c7457d96785d9231446162b64959057173b6b"
+    },
+    {
+      "path": "backend/craftsky/checkEvidenceTransport.ts",
+      "sha256": "ebff4bec77110ec7e2e37ed6baf546f6d214eb419cf93a0746521d3e815b6241"
+    },
+    {
+      "path": "backend/craftsky/getCase.ts",
+      "sha256": "5a3203ec968392620465fc72c2a3d481c7945f136f08531b8379483ce9d0a4a5"
+    },
+    {
+      "path": "backend/craftsky/getIdentity.ts",
+      "sha256": "87e3bd07fce51d0784ee40a102b5ed1c50f7877a9023e915ce45527f549b0bf0"
+    },
+    {
+      "path": "backend/craftsky/listCases.ts",
+      "sha256": "e5bd8deec78fa88ec0b254ec2d2ca7756282cef4b1f57127aa425ef2de8c5883"
+    },
+    {
+      "path": "backend/craftsky/reverseEffects.ts",
+      "sha256": "39f51c3e3f399bb42b24e739896a0c66f85e5d48d41965a4f84386fa4d791226"
+    },
+    {
+      "path": "frontend/App.tsx",
+      "sha256": "834b5449859b66a1c8cbc38750a8190ddbadbf6aecf2bbe5529c580be27106d8"
+    },
+    {
+      "path": "frontend/appTheme.css",
+      "sha256": "13e4030e4802e3e4f656245f4086e8221c73690980f8fe5b9e2ff2be64d72ae8"
+    },
+    {
+      "path": "frontend/hooks/useModerationActions.ts",
+      "sha256": "7678d60dd84de6ce4e23131baa013a573cd0fe2ed775d82621531d84364947fa"
+    },
+    {
+      "path": "frontend/package.json",
+      "sha256": "434700da4525a41f2f58afeaf729eedf68ad82177a38b81eff2539abb7e977f8"
+    },
+    {
+      "path": "frontend/pages/ModerationProof.tsx",
+      "sha256": "279d91da7c568080f4705c91faa4c70360600072d290dc233cb87b36bd877e58"
+    },
+    {
+      "path": "frontend/pages/ui/ActionPanel.tsx",
+      "sha256": "738ea39fd0b2e31b3bd16110d70893883ac51215396656c0e4c6a4a7c7794095"
+    },
+    {
+      "path": "frontend/pages/ui/CaseDetailSection.tsx",
+      "sha256": "417178c8cf2255d621f651aa907f5acc11e7265d66445daf1ce4d51d281d91f6"
+    },
+    {
+      "path": "frontend/pages/ui/CaseQueueSection.tsx",
+      "sha256": "b42dd4333e2f397d77affe2e809c12f0eeef5f2393bc9d70b6729ec25f415ba2"
+    },
+    {
+      "path": "frontend/pages/ui/ConfirmDialog.tsx",
+      "sha256": "c0c281314af091969ef1ba66b1846f92a15655d519e451efd99c687f4967747c"
+    },
+    {
+      "path": "frontend/pages/ui/EvidenceCheck.tsx",
+      "sha256": "3cc6043ceab0c7cffd61b1d3082cdd30d3b81c033a3d469b920714612dd2a2f4"
+    },
+    {
+      "path": "frontend/pages/ui/OperatorIdentitySection.tsx",
+      "sha256": "bb9d24b3707f567e2c0b656de592996d66861d2da2205607da7b191d1fbb389e"
+    },
+    {
+      "path": "frontend/utils/craftskyTypes.ts",
+      "sha256": "171309f6a0c28b26db79a08ac92fa43c763f4bfd16a7ac5b1a12b75c071f42ee"
+    }
+  ]
+}

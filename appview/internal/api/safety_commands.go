@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 
 	"social.craftsky/appview/internal/ctxkeys"
+	"social.craftsky/appview/internal/observability"
 	"social.craftsky/appview/internal/safetyincident"
 )
 
@@ -32,6 +33,9 @@ func SafetyCommandHandler(services SafetyCommandServices, operation string) http
 			adminError(w, r, http.StatusUnauthorized, "moderator_authentication_failed", "moderator authentication failed")
 			return
 		}
+		moderator, _ := ctxkeys.GetModerator(r.Context())
+		sourceSystem := moderator.SourceSystem
+		replayID := actor.ID + ":" + r.Header.Get("Idempotency-Key")
 		now := services.Now().UTC()
 		if !safetyCommandAvailable(services, operation) {
 			writeSafetyCommandError(w, r, errors.New("safety command dependency unavailable"))
@@ -56,7 +60,7 @@ func SafetyCommandHandler(services SafetyCommandServices, operation string) http
 				ContentType: request.ContentType, Reason: request.Reason, ExpiresAt: request.ExpiresAt,
 			})
 			if commandErr == nil {
-				writeSafetyCommandJSON(w, http.StatusCreated, map[string]any{"id": result.ID, "objectKey": result.ObjectKey})
+				writeSafetyCommandJSON(w, http.StatusCreated, map[string]any{"id": result.ID})
 				return
 			}
 			err = commandErr
@@ -83,7 +87,6 @@ func SafetyCommandHandler(services SafetyCommandServices, operation string) http
 			var request struct {
 				EvidenceIDs []uuid.UUID `json:"evidenceIds"`
 				Basis       string      `json:"basis"`
-				ApprovedBy  string      `json:"approvedBy"`
 				ExpiresAt   time.Time   `json:"expiresAt"`
 			}
 			if parseErr != nil || decodeSafetyCommand(r, &request) != nil {
@@ -92,7 +95,7 @@ func SafetyCommandHandler(services SafetyCommandServices, operation string) http
 			}
 			id, commandErr := services.Holds.Create(r.Context(), actor, safetyincident.HoldRequest{
 				IncidentID: incidentID, EvidenceIDs: request.EvidenceIDs, Basis: request.Basis,
-				ApprovedBy: request.ApprovedBy, CreatedBy: actor.ID, CreatedAt: now, ExpiresAt: request.ExpiresAt,
+				ApprovedBy: actor.ID, CreatedBy: actor.ID, CreatedAt: now, ExpiresAt: request.ExpiresAt,
 			})
 			if commandErr == nil {
 				writeSafetyCommandJSON(w, http.StatusCreated, map[string]any{"id": id})
@@ -138,6 +141,16 @@ func SafetyCommandHandler(services SafetyCommandServices, operation string) http
 				SameImageSearchCode: request.SameImageSearchCode, SubstantiallySameSearchCode: request.SubstantiallySameSearchCode,
 				ActionCode: request.ActionCode, ExceptionCode: request.ExceptionCode, OutcomeCode: request.OutcomeCode,
 			})
+		case "completeCredibleThreat":
+			id, parseErr := uuid.Parse(r.PathValue("workflowId"))
+			var request struct {
+				OutcomeCode string `json:"outcomeCode"`
+			}
+			if parseErr != nil || decodeSafetyCommand(r, &request) != nil {
+				writeSafetyCommandError(w, r, safetyincident.ErrInvalidWorkflowTransition)
+				return
+			}
+			err = services.Workflows.ResolveCredibleThreat(r.Context(), id, actor, request.OutcomeCode)
 		case "openCredibleThreat":
 			var request struct {
 				ReceivedAt       time.Time `json:"receivedAt"`
@@ -206,8 +219,6 @@ func SafetyCommandHandler(services SafetyCommandServices, operation string) http
 				Priority          safetyincident.CSEAPriority `json:"priority"`
 				Assignee          string                      `json:"assignee"`
 				ReportingDeadline time.Time                   `json:"reportingDeadline"`
-				SourceSystem      string                      `json:"sourceSystem"`
-				ReplayID          string                      `json:"replayId"`
 			}
 			if parseErr != nil || decodeSafetyCommand(r, &request) != nil {
 				writeSafetyCommandError(w, r, safetyincident.ErrInvalidCSEAWorkflow)
@@ -215,8 +226,8 @@ func SafetyCommandHandler(services SafetyCommandServices, operation string) http
 			}
 			err = services.CSEA.ClassifyAndAssign(r.Context(), safetyincident.ClassificationCommand{
 				IncidentID: incidentID, Priority: request.Priority, Assignee: request.Assignee,
-				ReportingDeadline: request.ReportingDeadline, Actor: actor, SourceSystem: request.SourceSystem,
-				ReplayID: request.ReplayID, At: now,
+				ReportingDeadline: request.ReportingDeadline, Actor: actor, SourceSystem: sourceSystem,
+				ReplayID: replayID, At: now,
 			})
 		case "submitCSEAReport":
 			incidentID, parseErr := uuid.Parse(r.PathValue("incidentReference"))
@@ -225,8 +236,6 @@ func SafetyCommandHandler(services SafetyCommandServices, operation string) http
 				AuthorityReference string                    `json:"authorityReference"`
 				DuplicateOfID      uuid.UUID                 `json:"duplicateOfId"`
 				RetentionUntil     time.Time                 `json:"retentionUntil"`
-				SourceSystem       string                    `json:"sourceSystem"`
-				ReplayID           string                    `json:"replayId"`
 			}
 			if parseErr != nil || decodeSafetyCommand(r, &request) != nil {
 				writeSafetyCommandError(w, r, safetyincident.ErrInvalidCSEAWorkflow)
@@ -235,7 +244,7 @@ func SafetyCommandHandler(services SafetyCommandServices, operation string) http
 			result, commandErr := services.CSEA.SubmitReport(r.Context(), safetyincident.ReportCommand{
 				IncidentID: incidentID, Kind: request.Kind, AuthorityReference: request.AuthorityReference,
 				DuplicateOfID: request.DuplicateOfID, RetentionUntil: request.RetentionUntil,
-				Actor: actor, SourceSystem: request.SourceSystem, ReplayID: request.ReplayID, At: now,
+				Actor: actor, SourceSystem: sourceSystem, ReplayID: replayID, At: now,
 			})
 			if commandErr == nil {
 				writeSafetyCommandJSON(w, http.StatusCreated, map[string]any{"id": result.ID, "deadlineMet": result.DeadlineMet})
@@ -247,8 +256,6 @@ func SafetyCommandHandler(services SafetyCommandServices, operation string) http
 			var request struct {
 				AuthorityReference string    `json:"authorityReference"`
 				DueAt              time.Time `json:"dueAt"`
-				SourceSystem       string    `json:"sourceSystem"`
-				ReplayID           string    `json:"replayId"`
 			}
 			if parseErr != nil || decodeSafetyCommand(r, &request) != nil {
 				writeSafetyCommandError(w, r, safetyincident.ErrInvalidCSEAWorkflow)
@@ -256,7 +263,7 @@ func SafetyCommandHandler(services SafetyCommandServices, operation string) http
 			}
 			result, commandErr := services.CSEA.RecordInformationRequest(r.Context(), safetyincident.InformationRequestCommand{
 				IncidentID: incidentID, AuthorityReference: request.AuthorityReference, DueAt: request.DueAt,
-				Actor: actor, SourceSystem: request.SourceSystem, ReplayID: request.ReplayID, At: now,
+				Actor: actor, SourceSystem: sourceSystem, ReplayID: replayID, At: now,
 			})
 			if commandErr == nil {
 				writeSafetyCommandJSON(w, http.StatusCreated, map[string]any{"id": result.ID})
@@ -266,22 +273,18 @@ func SafetyCommandHandler(services SafetyCommandServices, operation string) http
 		case "respondCSEAInformationRequest":
 			requestID, parseErr := uuid.Parse(r.PathValue("requestId"))
 			var request struct {
-				SourceSystem string `json:"sourceSystem"`
-				ReplayID     string `json:"replayId"`
 			}
 			if parseErr != nil || decodeSafetyCommand(r, &request) != nil {
 				writeSafetyCommandError(w, r, safetyincident.ErrInvalidCSEAWorkflow)
 				return
 			}
 			err = services.CSEA.RespondToInformationRequest(r.Context(), safetyincident.InformationResponseCommand{
-				RequestID: requestID, Actor: actor, SourceSystem: request.SourceSystem, ReplayID: request.ReplayID, At: now,
+				RequestID: requestID, Actor: actor, SourceSystem: sourceSystem, ReplayID: replayID, At: now,
 			})
 		case "resolveCSEA":
 			incidentID, parseErr := uuid.Parse(r.PathValue("incidentReference"))
 			var request struct {
-				Outcome      safetyincident.ResolutionOutcome `json:"outcome"`
-				SourceSystem string                           `json:"sourceSystem"`
-				ReplayID     string                           `json:"replayId"`
+				Outcome safetyincident.ResolutionOutcome `json:"outcome"`
 			}
 			if parseErr != nil || decodeSafetyCommand(r, &request) != nil {
 				writeSafetyCommandError(w, r, safetyincident.ErrInvalidCSEAWorkflow)
@@ -289,7 +292,7 @@ func SafetyCommandHandler(services SafetyCommandServices, operation string) http
 			}
 			err = services.CSEA.Resolve(r.Context(), safetyincident.ResolutionCommand{
 				IncidentID: incidentID, Outcome: request.Outcome, Actor: actor,
-				SourceSystem: request.SourceSystem, ReplayID: request.ReplayID, At: now,
+				SourceSystem: sourceSystem, ReplayID: replayID, At: now,
 			})
 		default:
 			writeSafetyCommandError(w, r, safetyincident.ErrInvalidWorkflowTransition)
@@ -309,7 +312,7 @@ func safetyCommandAvailable(services SafetyCommandServices, operation string) bo
 		return services.Evidence != nil
 	case "createHold":
 		return services.Holds != nil
-	case "openIntimateImage", "completeIntimateImage", "openCredibleThreat", "openAuthorityRequest",
+	case "openIntimateImage", "completeIntimateImage", "openCredibleThreat", "completeCredibleThreat", "openAuthorityRequest",
 		"verifyAuthority", "discloseAuthority", "closeAuthority":
 		return services.Workflows != nil
 	case "classifyCSEA", "submitCSEAReport", "recordCSEAInformationRequest", "respondCSEAInformationRequest", "resolveCSEA":
@@ -368,6 +371,9 @@ func writeSafetyCommandError(w http.ResponseWriter, r *http.Request, err error) 
 		status, code, message = http.StatusBadRequest, "invalid_request", "invalid request"
 	} else if errors.Is(err, safetyincident.ErrAuthorityNotVerified) || errors.Is(err, safetyincident.ErrLawfulApprovalRequired) {
 		status, code, message = http.StatusConflict, "invalid_workflow_state", "invalid workflow state"
+	}
+	if status == http.StatusServiceUnavailable {
+		observability.ReportRequestFailure(r.Context(), err, "api.SafetyCommandHandler", "command")
 	}
 	adminError(w, r, status, code, message)
 }

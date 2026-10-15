@@ -9,7 +9,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
+	"social.craftsky/appview/internal/dbx"
 )
 
 var ErrLeaseLost = errors.New("image scan lease lost")
@@ -42,15 +42,15 @@ type QueueHealth struct {
 }
 
 type WorkerStore struct {
-	pool *pgxpool.Pool
+	pool dbx.DB
 	now  func() time.Time
 }
 
-func NewWorkerStore(pool *pgxpool.Pool, now func() time.Time) *WorkerStore {
+func NewWorkerStore(pool dbx.DB, now func() time.Time) *WorkerStore {
 	if now == nil {
 		now = time.Now
 	}
-	return &WorkerStore{pool: pool, now: now}
+	return &WorkerStore{pool: dbx.Normalize(pool), now: now}
 }
 
 func (store *WorkerStore) Claim(ctx context.Context, workerID string, leaseDuration time.Duration) (Claim, bool, error) {

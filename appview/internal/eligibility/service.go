@@ -10,7 +10,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
+	"social.craftsky/appview/internal/dbx"
 )
 
 type State string
@@ -70,9 +70,9 @@ func (kind EvidenceKind) Allowed() bool {
 	}
 }
 
-type Store struct{ pool *pgxpool.Pool }
+type Store struct{ pool dbx.DB }
 
-func NewStore(pool *pgxpool.Pool) *Store { return &Store{pool: pool} }
+func NewStore(pool dbx.DB) *Store { return &Store{pool: dbx.Normalize(pool)} }
 
 func (store *Store) Status(ctx context.Context, did syntax.DID) (Status, error) {
 	var status Status

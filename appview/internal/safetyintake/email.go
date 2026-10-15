@@ -13,7 +13,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
+	"social.craftsky/appview/internal/dbx"
 )
 
 var (
@@ -69,15 +69,15 @@ type Intake struct {
 }
 
 type Store struct {
-	pool *pgxpool.Pool
+	pool dbx.DB
 	now  func() time.Time
 }
 
-func NewStore(pool *pgxpool.Pool, now func() time.Time) *Store {
+func NewStore(pool dbx.DB, now func() time.Time) *Store {
 	if now == nil {
 		now = time.Now
 	}
-	return &Store{pool: pool, now: now}
+	return &Store{pool: dbx.Normalize(pool), now: now}
 }
 
 func (store *Store) AcceptEmail(ctx context.Context, metadata EmailMetadata) (Intake, error) {

@@ -27,6 +27,10 @@ type WorkItem struct {
 }
 
 type SafeDetail struct {
+	Revision                   int64          `json:"revision"`
+	Priority                   string         `json:"priority,omitempty"`
+	Owner                      string         `json:"owner,omitempty"`
+	Deadline                   *time.Time     `json:"deadlineAt,omitempty"`
 	Reference                  string         `json:"reference"`
 	Kind                       string         `json:"kind"`
 	State                      string         `json:"state"`
@@ -66,7 +70,7 @@ func (store *Store) RecordMatchTx(ctx context.Context, tx pgx.Tx, detection imag
 		detection.IntegrityMetadataReference, detection.DetectedAt.UTC()); err != nil {
 		return fmt.Errorf("insert safety incident: %w", err)
 	}
-	if err := tx.QueryRow(ctx, `SELECT id FROM safety_incidents WHERE scan_result_id=$1`, detection.ResultID).Scan(&incidentID); err != nil {
+	if err := tx.QueryRow(ctx, `SELECT id FROM safety_incidents WHERE scan_result_id=$1 FOR UPDATE`, detection.ResultID).Scan(&incidentID); err != nil {
 		return fmt.Errorf("resolve safety incident: %w", err)
 	}
 	if _, err := tx.Exec(ctx, `
@@ -92,8 +96,8 @@ func (store *Store) RecordMatchTx(ctx context.Context, tx pgx.Tx, detection imag
 	}
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO safety_incident_events(id,incident_id,event_type,created_at)
-		VALUES($1,$2,'detected',$3)
-		ON CONFLICT (incident_id,event_type) DO NOTHING
+		SELECT $1,$2,'detected',$3 WHERE NOT EXISTS (SELECT 1 FROM safety_incident_events WHERE incident_id=$2 AND event_type='detected')
+		ON CONFLICT DO NOTHING
 	`, uuid.New(), incidentID, detection.DetectedAt.UTC()); err != nil {
 		return fmt.Errorf("record safety incident detection: %w", err)
 	}
@@ -107,7 +111,7 @@ func (store *Store) SafeWork(ctx context.Context) ([]WorkItem, error) {
 	rows, err := store.pool.Query(ctx, `
 		SELECT id,state,detected_at
 		FROM safety_incidents
-		WHERE state IN ('detected','confirmed')
+		WHERE state IN ('detected','confirmed','caseCreated','reporting')
 		ORDER BY detected_at,id
 	`)
 	if err != nil {
@@ -137,13 +141,14 @@ func (store *Store) SafeDetail(ctx context.Context, incidentID uuid.UUID) (SafeD
 	if err := store.pool.QueryRow(ctx, `
 		SELECT incident.incident_kind,incident.state,incident.provider_reference,
 		       incident.integrity_metadata_reference,result.scanner_id,
-		       result.policy_version,result.corpus_version,incident.detected_at
+		       result.policy_version,result.corpus_version,incident.detected_at,
+ COALESCE((to_jsonb(incident)->>'revision')::bigint,0),COALESCE(to_jsonb(incident)->>'priority',''),COALESCE(to_jsonb(incident)->>'assigned_to',''),(to_jsonb(incident)->>'reporting_deadline')::timestamptz
 		FROM safety_incidents incident
 		JOIN image_scan_results result ON result.id=incident.scan_result_id
 		WHERE incident.id=$1
 	`, incidentID).Scan(&detail.Kind, &detail.State, &detail.ProviderReference,
 		&detail.IntegrityMetadataReference, &detail.ScannerID, &detail.PolicyVersion,
-		&detail.CorpusVersion, &detail.DetectedAt); err != nil {
+		&detail.CorpusVersion, &detail.DetectedAt, &detail.Revision, &detail.Priority, &detail.Owner, &detail.Deadline); err != nil {
 		return SafeDetail{}, err
 	}
 	rows, err := store.pool.Query(ctx, `

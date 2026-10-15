@@ -133,6 +133,36 @@
   },
   {
     "method": "GET",
+    "path": "/v1/admin/accounts/{did}/eligibility",
+    "category": "appview.admin.accounts.detail.eligibility",
+    "public": false
+  },
+  {
+    "method": "GET",
+    "path": "/v1/admin/accounts/{did}/moderation",
+    "category": "appview.admin.accounts.detail.moderation",
+    "public": false
+  },
+  {
+    "method": "GET",
+    "path": "/v1/admin/accounts/{did}/moderation/history",
+    "category": "appview.admin.accounts.detail.moderation.history",
+    "public": false
+  },
+  {
+    "method": "GET",
+    "path": "/v1/admin/auth/csrf",
+    "category": "appview.admin.auth.csrf",
+    "public": false
+  },
+  {
+    "method": "GET",
+    "path": "/v1/admin/identity",
+    "category": "appview.admin.identity",
+    "public": false
+  },
+  {
+    "method": "GET",
     "path": "/v1/admin/moderation/cases",
     "category": "appview.admin.moderation.cases",
     "public": false
@@ -145,14 +175,134 @@
   },
   {
     "method": "GET",
+    "path": "/v1/admin/moderation/cases/{caseReference}/preview",
+    "category": "appview.admin.moderation.cases.detail.preview",
+    "public": false
+  },
+  {
+    "method": "GET",
+    "path": "/v1/admin/moderation/cases/{caseReference}/provenance",
+    "category": "appview.admin.moderation.cases.detail.provenance",
+    "public": false
+  },
+  {
+    "method": "GET",
+    "path": "/v1/admin/operations",
+    "category": "appview.admin.operations",
+    "public": false
+  },
+  {
+    "method": "GET",
+    "path": "/v1/admin/safety/evidence",
+    "category": "appview.admin.safety.evidence",
+    "public": false
+  },
+  {
+    "method": "GET",
+    "path": "/v1/admin/safety/evidence/{evidenceId}",
+    "category": "appview.admin.safety.evidence.detail",
+    "public": false
+  },
+  {
+    "method": "GET",
+    "path": "/v1/admin/safety/external-intakes",
+    "category": "appview.admin.safety.external_intakes",
+    "public": false
+  },
+  {
+    "method": "GET",
+    "path": "/v1/admin/safety/external-intakes/{intakeId}",
+    "category": "appview.admin.safety.external_intakes.detail",
+    "public": false
+  },
+  {
+    "method": "GET",
+    "path": "/v1/admin/safety/external-intakes/{intakeId}/correspondence",
+    "category": "appview.admin.safety.external_intakes.detail.correspondence",
+    "public": false
+  },
+  {
+    "method": "GET",
+    "path": "/v1/admin/safety/holds",
+    "category": "appview.admin.safety.holds",
+    "public": false
+  },
+  {
+    "method": "GET",
+    "path": "/v1/admin/safety/holds/{holdId}",
+    "category": "appview.admin.safety.holds.detail",
+    "public": false
+  },
+  {
+    "method": "GET",
+    "path": "/v1/admin/safety/incidents",
+    "category": "appview.admin.safety.incidents",
+    "public": false
+  },
+  {
+    "method": "GET",
     "path": "/v1/admin/safety/incidents/{incidentReference}",
     "category": "appview.admin.safety.incidents.detail",
     "public": false
   },
   {
     "method": "GET",
+    "path": "/v1/admin/safety/incidents/{incidentReference}/events",
+    "category": "appview.admin.safety.incidents.detail.events",
+    "public": false
+  },
+  {
+    "method": "GET",
+    "path": "/v1/admin/safety/incidents/{incidentReference}/information-requests",
+    "category": "appview.admin.safety.incidents.detail.information_requests",
+    "public": false
+  },
+  {
+    "method": "GET",
+    "path": "/v1/admin/safety/incidents/{incidentReference}/reports",
+    "category": "appview.admin.safety.incidents.detail.reports",
+    "public": false
+  },
+  {
+    "method": "GET",
+    "path": "/v1/admin/safety/incidents/{incidentReference}/subjects",
+    "category": "appview.admin.safety.incidents.detail.subjects",
+    "public": false
+  },
+  {
+    "method": "GET",
+    "path": "/v1/admin/safety/scans",
+    "category": "appview.admin.safety.scans",
+    "public": false
+  },
+  {
+    "method": "GET",
+    "path": "/v1/admin/safety/scans/{scanId}",
+    "category": "appview.admin.safety.scans.detail",
+    "public": false
+  },
+  {
+    "method": "GET",
     "path": "/v1/admin/safety/status",
     "category": "appview.admin.safety.status",
+    "public": false
+  },
+  {
+    "method": "GET",
+    "path": "/v1/admin/safety/workflows",
+    "category": "appview.admin.safety.workflows",
+    "public": false
+  },
+  {
+    "method": "GET",
+    "path": "/v1/admin/safety/workflows/{workflowId}",
+    "category": "appview.admin.safety.workflows.detail",
+    "public": false
+  },
+  {
+    "method": "GET",
+    "path": "/v1/admin/safety/workflows/{workflowId}/events",
+    "category": "appview.admin.safety.workflows.detail.events",
     "public": false
   },
   {
@@ -559,8 +709,26 @@
   },
   {
     "method": "POST",
+    "path": "/v1/admin/auth/login",
+    "category": "appview.admin.auth.login",
+    "public": false
+  },
+  {
+    "method": "POST",
+    "path": "/v1/admin/auth/logout",
+    "category": "appview.admin.auth.logout",
+    "public": false
+  },
+  {
+    "method": "POST",
     "path": "/v1/admin/eligibility/reviews",
     "category": "appview.admin.eligibility.reviews",
+    "public": false
+  },
+  {
+    "method": "POST",
+    "path": "/v1/admin/moderation/cases",
+    "category": "appview.admin.moderation.cases",
     "public": false
   },
   {
@@ -619,8 +787,20 @@
   },
   {
     "method": "POST",
+    "path": "/v1/admin/safety/holds/{holdId}/releases",
+    "category": "appview.admin.safety.holds.detail.releases",
+    "public": false
+  },
+  {
+    "method": "POST",
     "path": "/v1/admin/safety/incidents/{incidentReference}/authority-reports",
     "category": "appview.admin.safety.incidents.detail.authority_reports",
+    "public": false
+  },
+  {
+    "method": "POST",
+    "path": "/v1/admin/safety/incidents/{incidentReference}/confirmations",
+    "category": "appview.admin.safety.incidents.detail.confirmations",
     "public": false
   },
   {
@@ -661,6 +841,12 @@
   },
   {
     "method": "POST",
+    "path": "/v1/admin/safety/scans/{scanId}/retries",
+    "category": "appview.admin.safety.scans.detail.retries",
+    "public": false
+  },
+  {
+    "method": "POST",
     "path": "/v1/admin/safety/workflows/authority-requests",
     "category": "appview.admin.safety.workflows.authority_requests",
     "public": false
@@ -687,6 +873,12 @@
     "method": "POST",
     "path": "/v1/admin/safety/workflows/credible-threats",
     "category": "appview.admin.safety.workflows.credible_threats",
+    "public": false
+  },
+  {
+    "method": "POST",
+    "path": "/v1/admin/safety/workflows/credible-threats/{workflowId}/outcome",
+    "category": "appview.admin.safety.workflows.credible_threats.detail.outcome",
     "public": false
   },
   {
@@ -739,14 +931,14 @@
   },
   {
     "method": "POST",
-    "path": "/v1/blobs/images/authorization",
-    "category": "appview.blobs.images.authorization",
+    "path": "/v1/blobs/images",
+    "category": "appview.blobs.images",
     "public": false
   },
   {
     "method": "POST",
-    "path": "/v1/blobs/images",
-    "category": "appview.blobs.images",
+    "path": "/v1/blobs/images/authorization",
+    "category": "appview.blobs.images.authorization",
     "public": false
   },
   {

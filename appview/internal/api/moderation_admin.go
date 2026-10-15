@@ -26,13 +26,14 @@ type ModerationCommander interface {
 }
 
 type adminDecisionRequest struct {
-	ExpectedRevision  *int64                  `json:"expectedRevision"`
-	Disposition       moderation.Disposition  `json:"disposition"`
-	Reason            moderation.Reason       `json:"reason"`
-	EvidenceNotes     string                  `json:"evidenceNotes"`
-	UserSafeDetail    string                  `json:"userSafeDetail"`
-	SeverityRationale string                  `json:"severityRationale"`
-	Consequences      []moderation.EffectType `json:"consequences"`
+	LegalClassification moderation.LegalClassification `json:"legalClassification"`
+	ExpectedRevision    *int64                         `json:"expectedRevision"`
+	Disposition         moderation.Disposition         `json:"disposition"`
+	Reason              moderation.Reason              `json:"reason"`
+	EvidenceNotes       string                         `json:"evidenceNotes"`
+	UserSafeDetail      string                         `json:"userSafeDetail"`
+	SeverityRationale   string                         `json:"severityRationale"`
+	Consequences        []moderation.EffectType        `json:"consequences"`
 }
 
 type adminAppealConfirmationRequest struct {
@@ -147,7 +148,7 @@ func ModerationAdminCommandHandler(commander ModerationCommander, sourceDID synt
 				replayID,
 				moderation.ResolveRequest{
 					CaseID: reference.UUID(), ExpectedRevision: *request.ExpectedRevision,
-					Decision: moderation.Decision{Disposition: request.Disposition, Reason: request.Reason, Evidence: request.EvidenceNotes, UserSafeDetail: request.UserSafeDetail, SeverityRationale: request.SeverityRationale, Consequences: request.Consequences},
+					Decision: moderation.Decision{Disposition: request.Disposition, Reason: request.Reason, Evidence: request.EvidenceNotes, UserSafeDetail: request.UserSafeDetail, SeverityRationale: request.SeverityRationale, LegalClassification: request.LegalClassification, Consequences: request.Consequences},
 				},
 			)
 			if err == nil {
@@ -249,5 +250,6 @@ func writeModerationCommandError(w http.ResponseWriter, r *http.Request, err err
 	}
 }
 func adminError(w http.ResponseWriter, r *http.Request, status int, code, message string) {
+	w.Header().Set("Cache-Control", "no-store")
 	envelope.WriteError(w, status, code, message, ctxkeys.GetRunID(r.Context()), nil)
 }

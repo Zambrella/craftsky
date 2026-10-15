@@ -1,4 +1,6 @@
 # Go
+appview/admin/node_modules/
+appview/admin/dist/
 appview/bin/
 appview/tmp/
 *.test

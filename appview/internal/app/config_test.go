@@ -672,16 +672,16 @@ func TestLoadConfig_DevModerationConfig(t *testing.T) {
 
 func TestLoadConfig_ValidatesEnabledModerationAdmin(t *testing.T) {
 	path := testConfigFile(t, withProductionOAuth("DATABASE_URL=postgres://prod\nALLOWED_ORIGINS=https://a.example\nTAP_WS_URL=ws://tap:2480/channel\nMODERATION_ADMIN_ENABLED=true\n"))
-	if _, err := LoadConfig(EnvProd, path); err == nil || !strings.Contains(err.Error(), "MODERATION_ADMIN_BEARER_TOKEN") {
-		t.Fatalf("error = %v, want missing moderation admin token", err)
+	if _, err := LoadConfig(EnvProd, path); err == nil || !strings.Contains(err.Error(), "MODERATION_SOURCE_DID") {
+		t.Fatalf("error = %v, want missing moderation source DID", err)
 	}
 
-	path = testConfigFile(t, withProductionOAuth("DATABASE_URL=postgres://prod\nALLOWED_ORIGINS=https://a.example\nTAP_WS_URL=ws://tap:2480/channel\nMODERATION_ADMIN_ENABLED=true\nMODERATION_ADMIN_BEARER_TOKEN=admin-secret\nMODERATION_ADMIN_ACTOR_ID=primary-moderator\nMODERATION_SOURCE_DID=did:plc:moderation\n"))
+	path = testConfigFile(t, withProductionOAuth("DATABASE_URL=postgres://prod\nALLOWED_ORIGINS=https://a.example\nTAP_WS_URL=ws://tap:2480/channel\nMODERATION_ADMIN_ENABLED=true\nMODERATION_SOURCE_DID=did:plc:moderation\n"))
 	cfg, err := LoadConfig(EnvProd, path)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !cfg.ModerationAdminEnabled || cfg.ModerationAdminBearerToken.Reveal() != "admin-secret" || cfg.ModerationAdminActorID != "primary-moderator" || cfg.ModerationSourceDID != "did:plc:moderation" {
+	if !cfg.ModerationAdminEnabled || cfg.ModerationSourceDID != "did:plc:moderation" {
 		t.Fatalf("moderation admin config = %+v", cfg)
 	}
 }

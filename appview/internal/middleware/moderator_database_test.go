@@ -17,6 +17,11 @@ func TestPostgresModeratorAuthenticatorUsesActiveDigestPermissionsAndAssignments
 	if err != nil {
 		t.Fatal(err)
 	}
+	accessMigration, err := os.ReadFile("../../migrations/000093_operator_access.up.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	migration = append(migration, accessMigration...)
 	pool := testdb.WithSchema(t, `CREATE TABLE safety_incidents (id UUID PRIMARY KEY);`+string(migration))
 	ctx := context.Background()
 	operatorID := uuid.New()

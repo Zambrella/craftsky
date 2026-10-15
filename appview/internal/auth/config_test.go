@@ -71,6 +71,23 @@ func TestBuildClientArtifactsLocalhost(t *testing.T) {
 	}
 }
 
+func TestOperatorClientUsesSeparateCallbackAndIdentityOnlyScope(t *testing.T) {
+	input := auth.ClientConfigInput{Mode: auth.ClientModeLocalhost, Purpose: auth.ClientPurposeOperator, CallbackURL: mustURL(t, "http://127.0.0.1:18350/oauth/admin/callback"), Scopes: []string{"atproto"}}
+	a, err := auth.BuildClientArtifacts(input)
+	if err != nil || a.Config.CallbackURL != "http://127.0.0.1:18350/oauth/admin/callback" {
+		t.Fatalf("operator config: %v", err)
+	}
+	input.Scopes = []string{"atproto", "include:social.craftsky.authFull"}
+	if _, err := auth.BuildClientArtifacts(input); err == nil {
+		t.Fatal("operator client requested consumer authority")
+	}
+	input.Scopes = []string{"atproto"}
+	input.Purpose = ""
+	if _, err := auth.BuildClientArtifacts(input); err == nil {
+		t.Fatal("consumer accepted operator callback")
+	}
+}
+
 func TestBuildClientArtifactsRejectsInvalidConfidentialKey(t *testing.T) {
 	_, err := auth.BuildClientArtifacts(auth.ClientConfigInput{
 		Mode:            auth.ClientModeConfidential,

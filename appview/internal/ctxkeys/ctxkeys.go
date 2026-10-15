@@ -5,8 +5,10 @@ package ctxkeys
 
 import (
 	"context"
+	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/google/uuid"
 )
 
 // contextKey is a private named type so these keys never collide with
@@ -24,6 +26,12 @@ const (
 // Moderator is the server-derived identity attached only by production
 // moderator authentication. Request bodies cannot supply these values.
 type Moderator struct {
+	DID                        syntax.DID
+	PermissionSet              string
+	OperatorID                 uuid.UUID
+	TokenID                    uuid.UUID
+	TokenExpiresAt             time.Time
+	RetoolUserID               *int64
 	ActorID                    string
 	SourceSystem               string
 	Role                       string

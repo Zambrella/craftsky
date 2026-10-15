@@ -15,6 +15,13 @@ finding-level plan is
 
 ## 1. Core rules
 
+The operator console addition in [ADR 018](../../../adr/018-atmosphere-operator-console-sessions.md)
+uses a separate identity-only OAuth client, pending-attempt storage and local
+cookie session. It does not run the consumer onboarding/handoff lifecycle
+described below or require consumer membership. Globally terminal DIDs remain
+denied. OAuth credentials are discarded after operator identity verification;
+consumer credentials and their revocation/refresh workflow remain unchanged.
+
 1. AppView is the confidential atproto OAuth client. OAuth access tokens,
    refresh tokens, DPoP private keys, nonces, and authorization-server session
    data are stored and used only by AppView.

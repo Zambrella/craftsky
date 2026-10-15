@@ -1,4 +1,6 @@
 .git
+admin/node_modules
+admin/dist
 *.test
 *.out
 coverage.*

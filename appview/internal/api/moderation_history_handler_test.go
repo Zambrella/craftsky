@@ -53,7 +53,7 @@ CREATE TABLE moderation_effect_events (
 );
 CREATE TABLE moderation_appeals (
  case_id UUID PRIMARY KEY REFERENCES moderation_cases(id), confirmed_event_id UUID NOT NULL,
- resolved_event_id UUID, status TEXT NOT NULL, confirmed_at TIMESTAMPTZ NOT NULL, resolved_at TIMESTAMPTZ
+ resolved_event_id UUID, status TEXT NOT NULL, confirmed_at TIMESTAMPTZ NOT NULL, resolved_at TIMESTAMPTZ, resolution_rationale TEXT
 );
 `
 

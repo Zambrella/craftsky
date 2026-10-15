@@ -79,7 +79,7 @@ CREATE TABLE moderation_appeals (
     case_id UUID PRIMARY KEY REFERENCES moderation_cases(id),
     confirmed_event_id UUID NOT NULL UNIQUE REFERENCES moderation_case_events(id),
     resolved_event_id UUID UNIQUE REFERENCES moderation_case_events(id), status TEXT NOT NULL,
-    confirmed_at TIMESTAMPTZ NOT NULL, resolved_at TIMESTAMPTZ
+    confirmed_at TIMESTAMPTZ NOT NULL, resolved_at TIMESTAMPTZ, resolution_rationale TEXT
 );
 CREATE TABLE moderation_notification_intents (
     event_id UUID PRIMARY KEY, case_id UUID NOT NULL, recipient_did TEXT NOT NULL,

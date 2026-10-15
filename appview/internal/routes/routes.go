@@ -163,6 +163,9 @@ func (m v1Middleware) wrap(policy RoutePolicy, handler http.Handler) http.Handle
 	}
 	switch accessClass {
 	case AccessModerator:
+		if policy.OperatorPermission != "" {
+			wrapped = api.RequireOperatorPermission(policy.OperatorPermission)(wrapped)
+		}
 		wrapped = m.moderator(wrapped)
 	case AccessAuthenticatedRecovery:
 		wrapped = m.deviceID(wrapped)
@@ -221,7 +224,7 @@ type middlewareDependencies struct {
 	BusinessStore             *business.Store
 	Suspension                middleware.SuspensionReader
 	Eligibility               middleware.AgeEligibilityReader
-	ModeratorAuthenticator    middleware.ModeratorAuthenticator
+	OperatorAuthentication    func(http.Handler) http.Handler
 	HandlerDecorator          func(RoutePolicy, http.Handler) http.Handler
 }
 
@@ -292,9 +295,9 @@ func buildV1Middleware(deps middlewareDependencies, observer *observability.Obse
 	} else if deps.BusinessStore != nil {
 		accountTypeHydrator = api.NewIdentityAccountTypeHydrator(deps.BusinessStore)
 	}
-	moderatorAuthentication := middleware.ModeratorAuthentication(deps.Config.ModerationAdminToken.reveal(), deps.Config.ModerationAdminActorID, deps.Config.ModerationAdminSourceSystem, deps.Logger, observer)
-	if deps.ModeratorAuthenticator != nil {
-		moderatorAuthentication = middleware.ModeratorDatabaseAuthentication(deps.ModeratorAuthenticator, deps.Logger, observer)
+	moderatorAuthentication := deps.OperatorAuthentication
+	if moderatorAuthentication == nil {
+		moderatorAuthentication = middleware.ModeratorDatabaseAuthentication(nil, deps.Logger, observer)
 	}
 	var subscriptionAccess subscriptionAccessReader
 	if deps.Subscriptions != nil {
@@ -397,7 +400,7 @@ func AddRoutes(_ context.Context, mux Registrar, deps *Dependencies) {
 		RateLimiter: deps.RateLimiter, ProfileCustomisationStore: profileCustomisationStore,
 		BusinessStore: businessStore, Suspension: suspension,
 		Eligibility:            eligibilityReader,
-		ModeratorAuthenticator: deps.ModeratorAuthenticator,
+		OperatorAuthentication: deps.OperatorAuthentication,
 		Subscriptions:          deps.Subscriptions,
 		HandlerDecorator:       deps.routeHandlerDecorator,
 	}, observer)
@@ -407,14 +410,16 @@ func AddRoutes(_ context.Context, mux Registrar, deps *Dependencies) {
 	}
 
 	registerAuthRoutes(authRouteBundle{mux: mux, middleware: v1mw, handlers: oauthHandlers})
+	registerOperatorConsole(mux, v1mw, deps)
 	registerModerationRoutes(moderationRouteBundle{
-		mux: mux, middleware: v1mw, store: moderationCases,
+		db: deps.DB, mux: mux, middleware: v1mw, store: moderationCases,
 		commands: deps.ModerationCommands, sourceDID: syntax.DID(deps.Config.ModerationSourceDID),
 		config: deps.Config, imageHealth: deps.ImageSafetyHealth, safetyWork: deps.SafetyWork,
 		incidents: deps.SafetyIncidents, intake: deps.SafetyIntake,
 		evidence: deps.SafetyEvidence, holds: deps.SafetyHolds, workflows: deps.SafetyWorkflows, csea: deps.SafetyCSEA,
 		eligibility: ageEligibility, now: deps.Now,
 	})
+	registerConsoleAPIRoutes(mux, v1mw, deps)
 	registerImageUploadRoutes(imageUploadRouteBundle{mux: mux, middleware: v1mw, authorization: deps.ImageUploadAuthorization})
 	registerVideoRoutes(videoRouteBundle{
 		mux: mux, middleware: v1mw, authorization: deps.VideoUploadAuthorization,

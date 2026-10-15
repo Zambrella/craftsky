@@ -9,7 +9,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
+	"social.craftsky/appview/internal/dbx"
 )
 
 var ErrInvalidHold = errors.New("invalid restricted evidence hold")
@@ -44,9 +44,9 @@ func ValidateHold(request HoldRequest) error {
 	return nil
 }
 
-type HoldService struct{ pool *pgxpool.Pool }
+type HoldService struct{ pool dbx.DB }
 
-func NewHoldService(pool *pgxpool.Pool) *HoldService { return &HoldService{pool: pool} }
+func NewHoldService(pool dbx.DB) *HoldService { return &HoldService{pool: dbx.Normalize(pool)} }
 
 func (service *HoldService) Create(ctx context.Context, actor Actor, request HoldRequest) (uuid.UUID, error) {
 	if err := ValidateHold(request); err != nil {
@@ -89,4 +89,25 @@ func (service *HoldService) Create(ctx context.Context, actor Actor, request Hol
 		return nil
 	})
 	return id, err
+}
+
+func (service *HoldService) Release(ctx context.Context, actor Actor, id uuid.UUID, reason string, at time.Time) error {
+	if id == uuid.Nil || strings.TrimSpace(reason) == "" || len(reason) > 512 || at.IsZero() {
+		return ErrInvalidHold
+	}
+	if !actor.HasPermission(PermissionHoldManage) {
+		return ErrUnauthorized
+	}
+	return pgx.BeginFunc(ctx, service.pool, func(tx pgx.Tx) error {
+		var incident uuid.UUID
+		err := tx.QueryRow(ctx, `UPDATE safety_legal_holds SET released_at=$2 WHERE id=$1 AND released_at IS NULL RETURNING incident_id`, id, at).Scan(&incident)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ErrInvalidHold
+		}
+		if err != nil {
+			return err
+		}
+		_, err = tx.Exec(ctx, `INSERT INTO safety_hold_releases(hold_id,actor_id,reason,released_at) VALUES($1,$2,$3,$4)`, id, actor.ID, reason, at)
+		return err
+	})
 }

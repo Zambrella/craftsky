@@ -42,13 +42,13 @@ func (authenticator *PostgresModeratorAuthenticator) Authenticate(ctx context.Co
 	var operatorID uuid.UUID
 	var moderator ctxkeys.Moderator
 	err := authenticator.pool.QueryRow(ctx, `
-		SELECT operator.id, operator.actor_id, operator.role
+		SELECT operator.id, operator.actor_id, operator.role,operator.retool_user_id,token.id,token.expires_at
 		FROM safety_operator_tokens token
 		JOIN safety_operators operator ON operator.id=token.operator_id
 		WHERE token.token_digest=$1
 		  AND token.active AND token.revoked_at IS NULL AND token.expires_at > $2
 		  AND operator.active AND operator.deactivated_at IS NULL
-	`, digest[:], now).Scan(&operatorID, &moderator.ActorID, &moderator.Role)
+	`, digest[:], now).Scan(&operatorID, &moderator.ActorID, &moderator.Role, &moderator.RetoolUserID, &moderator.TokenID, &moderator.TokenExpiresAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return ctxkeys.Moderator{}, ErrModeratorAuthentication
 	}
@@ -56,6 +56,7 @@ func (authenticator *PostgresModeratorAuthenticator) Authenticate(ctx context.Co
 		return ctxkeys.Moderator{}, fmt.Errorf("authenticate moderator: %w", err)
 	}
 	moderator.SourceSystem = authenticator.sourceSystem
+	moderator.OperatorID = operatorID
 	moderator.Permissions = map[string]bool{}
 	moderator.AssignedIncidentReferences = map[string]bool{}
 
@@ -103,12 +104,17 @@ func (authenticator *PostgresModeratorAuthenticator) Authenticate(ctx context.Co
 	}
 	assignmentRows.Close()
 
-	if _, err := authenticator.pool.Exec(ctx, `
-		UPDATE safety_operator_tokens
-		SET last_used_at=$2
-		WHERE operator_id=$1 AND token_digest=$3 AND active AND revoked_at IS NULL
-	`, operatorID, now, digest[:]); err != nil {
+	tag, err := authenticator.pool.Exec(ctx, `
+		UPDATE safety_operator_tokens AS token SET last_used_at=$2
+		FROM safety_operators AS operator
+		WHERE token.operator_id=$1 AND token.token_digest=$3 AND token.active AND token.revoked_at IS NULL AND token.expires_at>$2
+		AND operator.id=token.operator_id AND operator.active AND operator.deactivated_at IS NULL
+	`, operatorID, now, digest[:])
+	if err != nil {
 		return ctxkeys.Moderator{}, fmt.Errorf("record moderator token use: %w", err)
+	}
+	if tag.RowsAffected() != 1 {
+		return ctxkeys.Moderator{}, ErrModeratorAuthentication
 	}
 	return moderator, nil
 }

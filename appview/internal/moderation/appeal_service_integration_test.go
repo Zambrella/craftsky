@@ -2,7 +2,9 @@ package moderation
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -12,7 +14,11 @@ import (
 )
 
 func TestAppealCorrespondenceRequiresConfirmationAndUsesOneLifecycle(t *testing.T) {
-	pool := testdb.WithSchema(t, adjudicationTestDDL)
+	pool := testdb.WithSchema(t, adjudicationTestDDL+`
+        ALTER TABLE moderation_reports ADD COLUMN reporter_did TEXT NOT NULL DEFAULT 'did:example:reporter';
+        ALTER TABLE moderation_reports ADD COLUMN reason_type TEXT NOT NULL DEFAULT 'spam';
+        ALTER TABLE moderation_reports ADD COLUMN details TEXT;
+    `)
 	ctx := context.Background()
 	store := NewStore(pool)
 	now := time.Date(2026, 9, 10, 12, 0, 0, 0, time.UTC)
@@ -85,6 +91,32 @@ func TestAppealCorrespondenceRequiresConfirmationAndUsesOneLifecycle(t *testing.
 	}
 	if status != "upheld" || caseState != "resolved" || standingCount != 0 || notices != 0 {
 		t.Fatalf("appeal state=%s case=%s standing=%d notices=%d", status, caseState, standingCount, notices)
+	}
+	var wire []byte
+	if err := pool.QueryRow(ctx, `SELECT to_jsonb(a) FROM moderation_appeals a WHERE case_id=$1`, caseRow.ID).Scan(&wire); err != nil {
+		t.Fatal(err)
+	}
+	var persisted map[string]any
+	if err := json.Unmarshal(wire, &persisted); err != nil {
+		t.Fatal(err)
+	}
+	if persisted["resolution_rationale"] != "decision remains supported" {
+		t.Fatalf("upheld appeal rationale was not retained: %v", persisted["resolution_rationale"])
+	}
+	detail, err := store.AdminDetail(ctx, reference)
+	if err != nil || detail.AppealRationale != "decision remains supported" {
+		t.Fatalf("operator appeal rationale = %q, %v", detail.AppealRationale, err)
+	}
+	ownerHistory, err := store.OwnerHistory(ctx, owner, "", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ownerWire, err := json.Marshal(ownerHistory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(ownerWire), "decision remains supported") || strings.Contains(string(ownerWire), "appealRationale") {
+		t.Fatal("internal appeal rationale leaked into owner history")
 	}
 }
 

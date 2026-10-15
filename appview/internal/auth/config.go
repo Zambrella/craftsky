@@ -14,6 +14,10 @@ import (
 // ClientMode selects the explicit localhost or confidential OAuth client path.
 type ClientMode string
 
+type ClientPurpose string
+
+const ClientPurposeOperator ClientPurpose = "operator"
+
 const (
 	ClientModeLocalhost    ClientMode = "localhost"
 	ClientModeConfidential ClientMode = "confidential"
@@ -21,6 +25,7 @@ const (
 
 // ClientConfigInput is the validated deployment identity consumed at startup.
 type ClientConfigInput struct {
+	Purpose         ClientPurpose
 	Mode            ClientMode
 	ClientID        url.URL
 	CallbackURL     url.URL
@@ -41,13 +46,19 @@ type ClientArtifacts struct {
 // BuildClientArtifacts constructs and validates every OAuth discovery
 // artifact before the HTTP listener or background workers start.
 func BuildClientArtifacts(input ClientConfigInput) (ClientArtifacts, error) {
+	if input.Purpose != "" && input.Purpose != ClientPurposeOperator {
+		return ClientArtifacts{}, errors.New("unknown OAuth client purpose")
+	}
+	if input.Purpose == ClientPurposeOperator && (len(input.Scopes) != 1 || input.Scopes[0] != "atproto") {
+		return ClientArtifacts{}, errors.New("operator OAuth requires identity-only scope")
+	}
 	if err := ValidateClientScopes(input.Scopes); err != nil {
 		return ClientArtifacts{}, err
 	}
 	var cfg oauth.ClientConfig
 	switch input.Mode {
 	case ClientModeLocalhost:
-		if err := validateLocalhostCallback(input.CallbackURL); err != nil {
+		if err := validateLocalhostCallbackForPurpose(input.CallbackURL, input.Purpose); err != nil {
 			return ClientArtifacts{}, err
 		}
 		if input.ClientSecretKey != "" || input.ClientKeyID != "" || input.ClientID.String() != "" || input.JWKSURL.String() != "" {
@@ -115,10 +126,14 @@ func ValidateClientScopes(scopes []string) error {
 	return nil
 }
 
-func validateLocalhostCallback(callback url.URL) error {
+func validateLocalhostCallbackForPurpose(callback url.URL, purpose ClientPurpose) error {
+	path := "/oauth/callback"
+	if purpose == ClientPurposeOperator {
+		path = "/oauth/admin/callback"
+	}
 	port, err := strconv.Atoi(callback.Port())
 	if err != nil || port < 1 || port > 65535 || callback.Scheme != "http" ||
-		callback.Hostname() != "127.0.0.1" || callback.Path != "/oauth/callback" ||
+		callback.Hostname() != "127.0.0.1" || callback.Path != path ||
 		callback.Opaque != "" || callback.User != nil || callback.RawPath != "" ||
 		callback.RawQuery != "" || callback.ForceQuery || callback.Fragment != "" {
 		return errors.New("OAUTH_CALLBACK_URL is not a strict loopback callback")
@@ -127,9 +142,13 @@ func validateLocalhostCallback(callback url.URL) error {
 }
 
 func validateConfidentialURLs(input ClientConfigInput) error {
-	if !isExactConfidentialEndpoint(input.ClientID, "/oauth-client-metadata.json") ||
-		!isExactConfidentialEndpoint(input.CallbackURL, "/oauth/callback") ||
-		!isExactConfidentialEndpoint(input.JWKSURL, "/oauth/jwks.json") ||
+	client, callback, jwks := "/oauth-client-metadata.json", "/oauth/callback", "/oauth/jwks.json"
+	if input.Purpose == ClientPurposeOperator {
+		client, callback, jwks = "/oauth/admin/client-metadata.json", "/oauth/admin/callback", "/oauth/admin/jwks.json"
+	}
+	if !isExactConfidentialEndpoint(input.ClientID, client) ||
+		!isExactConfidentialEndpoint(input.CallbackURL, callback) ||
+		!isExactConfidentialEndpoint(input.JWKSURL, jwks) ||
 		input.ClientID.Host != input.CallbackURL.Host || input.ClientID.Host != input.JWKSURL.Host {
 		return errors.New("confidential OAuth URLs must share the canonical HTTPS origin")
 	}

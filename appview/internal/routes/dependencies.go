@@ -18,6 +18,7 @@ import (
 	"social.craftsky/appview/internal/middleware"
 	"social.craftsky/appview/internal/moderation"
 	"social.craftsky/appview/internal/observability"
+	"social.craftsky/appview/internal/operatorconsole"
 	"social.craftsky/appview/internal/ownerlifecycle"
 	"social.craftsky/appview/internal/relationships"
 	"social.craftsky/appview/internal/safetyincident"
@@ -81,9 +82,6 @@ type Config struct {
 	DevLabelerDID                 string
 	TrustedModerationSourceDIDs   []string
 	ModerationAdminEnabled        bool
-	ModerationAdminToken          Secret
-	ModerationAdminActorID        string
-	ModerationAdminSourceSystem   string
 	ModerationSourceDID           string
 	ImageSafetyAlertAge           time.Duration
 	RequiredPolicyVersion         string
@@ -93,6 +91,8 @@ type Config struct {
 // Dependencies is the route-composition boundary. AddRoutes is the only
 // consumer of the complete set; capability registrars receive smaller bundles.
 type Dependencies struct {
+	OperatorConsole          *operatorconsole.Handlers
+	OperatorAuthentication   func(http.Handler) http.Handler
 	Config                   Config
 	Logger                   *slog.Logger
 	DB                       *pgxpool.Pool
@@ -139,7 +139,6 @@ type Dependencies struct {
 	SafetyHolds                 *safetyincident.HoldService
 	SafetyWorkflows             *safetyincident.WorkflowService
 	SafetyCSEA                  *safetyincident.CSEAWorkflow
-	ModeratorAuthenticator      middleware.ModeratorAuthenticator
 
 	InstagramMembership   *instagram.MembershipStore
 	InstagramRateLimiter  *instagram.PostgresRateLimiter

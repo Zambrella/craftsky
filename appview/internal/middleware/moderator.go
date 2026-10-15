@@ -21,6 +21,9 @@ type ModeratorAuthSuccessObserver interface{ ObserveModeratorAuthSuccess(time.Ti
 
 func ModeratorDatabaseAuthentication(authenticator ModeratorAuthenticator, logger *slog.Logger, observers ...ModeratorAuthFailureObserver) func(http.Handler) http.Handler {
 	return moderatorAuthentication(logger, observers, func(ctx context.Context, provided string) (ctxkeys.Moderator, error) {
+		if authenticator == nil {
+			return ctxkeys.Moderator{}, ErrModeratorAuthentication
+		}
 		return authenticator.Authenticate(ctx, provided)
 	})
 }
@@ -45,6 +48,7 @@ func moderatorAuthentication(
 	}
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Cache-Control", "no-store")
 			authorization := r.Header.Get("Authorization")
 			provided := ""
 			if strings.HasPrefix(authorization, bearerPrefix) {

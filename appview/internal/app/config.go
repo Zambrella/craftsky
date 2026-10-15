@@ -344,8 +344,6 @@ type Config struct {
 	TrustedModerationSourceDIDs []string
 
 	ModerationAdminEnabled       bool
-	ModerationAdminBearerToken   Secret
-	ModerationAdminActorID       string
 	ModerationSourceDID          string
 	ModerationExpiryPollInterval time.Duration
 	ModerationExpiryBatchSize    int
@@ -1036,8 +1034,6 @@ func LoadConfig(env Env, envFilePath string) (Config, error) {
 	if cfg.ModerationAdminEnabled, err = boolEnv("MODERATION_ADMIN_ENABLED", false); err != nil {
 		return Config{}, err
 	}
-	cfg.ModerationAdminBearerToken = Secret(os.Getenv("MODERATION_ADMIN_BEARER_TOKEN"))
-	cfg.ModerationAdminActorID = os.Getenv("MODERATION_ADMIN_ACTOR_ID")
 	cfg.ModerationSourceDID = os.Getenv("MODERATION_SOURCE_DID")
 	if cfg.ModerationExpiryPollInterval, err = boundedPositiveDurationEnv("MODERATION_EXPIRY_POLL_INTERVAL", 5*time.Minute, maxModerationExpiryPollInterval); err != nil {
 		return Config{}, err
@@ -1087,12 +1083,6 @@ func LoadConfig(env Env, envFilePath string) (Config, error) {
 		return Config{}, fmt.Errorf("APPVIEW_DEV_MODERATION_TOKEN is required when APPVIEW_ENABLE_DEV_MODERATION=true")
 	}
 	if cfg.ModerationAdminEnabled {
-		if raw := cfg.ModerationAdminBearerToken.Reveal(); raw == "" || raw != strings.TrimSpace(raw) || containsControl(raw) {
-			return Config{}, fmt.Errorf("MODERATION_ADMIN_BEARER_TOKEN is required when MODERATION_ADMIN_ENABLED=true")
-		}
-		if cfg.ModerationAdminActorID == "" || cfg.ModerationAdminActorID != strings.TrimSpace(cfg.ModerationAdminActorID) || containsControl(cfg.ModerationAdminActorID) {
-			return Config{}, fmt.Errorf("MODERATION_ADMIN_ACTOR_ID is required when MODERATION_ADMIN_ENABLED=true")
-		}
 		if _, parseErr := syntax.ParseDID(cfg.ModerationSourceDID); parseErr != nil {
 			return Config{}, fmt.Errorf("MODERATION_SOURCE_DID must be a valid DID when MODERATION_ADMIN_ENABLED=true")
 		}
