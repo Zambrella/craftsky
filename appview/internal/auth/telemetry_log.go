@@ -27,7 +27,8 @@ func authLogErrorAttrs(ctx context.Context, runID, operation, category string, e
 	attrs := authLogAttrs(runID, operation)
 	fields := map[string]any{"component": "auth", "operation": operation, "error_category": category, "run_id": runID, "failure_stage": category}
 	var diagnostic *OAuthCallbackDiagnostic
-	if errors.As(err, &diagnostic) && errors.Is(err, ErrOAuthFlowInvalid) && strings.HasPrefix(diagnostic.Reason(), "scope_") {
+	if errors.As(err, &diagnostic) && errors.Is(err, ErrOAuthFlowInvalid) &&
+		(strings.HasPrefix(diagnostic.Reason(), "scope_") || diagnostic.Reason() == "callback_request_unavailable") {
 		fields["error_category"] = "validation"
 	}
 	for _, attr := range ctxkeys.DiagnosticFailureAttrs(ctx, err, fields) {

@@ -1,9 +1,11 @@
+import 'package:craftsky_app/auth/models/account_operation_canceled.dart';
 import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// Internal control flow for work whose original account authority has ended.
-final class AccountOperationDiscarded implements Exception {
+final class AccountOperationDiscarded
+    implements Exception, AccountOperationCancellation {
   const new();
 }
 

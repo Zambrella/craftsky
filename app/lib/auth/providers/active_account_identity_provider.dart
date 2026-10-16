@@ -36,6 +36,7 @@ final activeAccountIdentityProvider =
         final profile = await ref.watch(
           userProfileProvider(target.did).future,
         );
+        if (!ref.mounted) return null;
         final current = ref.read(sessionRegistryProvider).value;
         if (current?.activeLease?.session != target.lease) return null;
 
@@ -47,6 +48,7 @@ final activeAccountIdentityProvider =
               avatarUrl: profile.avatar,
               customisation: profile.customisation,
             );
+        if (!ref.mounted) return null;
         final afterUpdate = ref.read(sessionRegistryProvider).value;
         return ref.mounted && afterUpdate?.activeLease?.session == target.lease
             ? ActiveAccountIdentity(lease: target.lease, profile: profile)

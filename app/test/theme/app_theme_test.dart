@@ -1,9 +1,38 @@
+import 'dart:convert';
+
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 
 void main() {
+  testWidgets('brand fonts are bundled with every configured weight', (
+    tester,
+  ) async {
+    final manifest =
+        jsonDecode(await rootBundle.loadString('FontManifest.json')) as List;
+    for (final (family, count) in [('Outfit', 9), ('DMSerifDisplay', 2)]) {
+      final entry = manifest.cast<Map<String, dynamic>>().singleWhere(
+        (font) => font['family'] == family,
+      );
+      final fonts = entry['fonts'] as List;
+      expect(fonts, hasLength(count));
+      for (final font in fonts) {
+        expect(
+          (await rootBundle.load((font as Map)['asset'] as String))
+              .lengthInBytes,
+          greaterThan(40000),
+        );
+      }
+    }
+    expect(AppTheme.lightThemeData.textTheme.bodyLarge!.fontFamily, 'Outfit');
+    expect(
+      AppTheme.lightThemeData.textTheme.displayLarge!.fontFamily,
+      'DMSerifDisplay',
+    );
+  });
+
   for (final (:name, :loadTheme) in [
     (name: 'light', loadTheme: () => AppTheme.lightThemeData),
     (name: 'dark', loadTheme: () => AppTheme.darkThemeData),

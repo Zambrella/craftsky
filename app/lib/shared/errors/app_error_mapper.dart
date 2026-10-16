@@ -23,7 +23,7 @@ final class AppErrorMapper {
       error = error.diagnosticCause!;
     }
     return switch (error) {
-      AccountOperationCanceled() => AppError(
+      AccountOperationCancellation() => AppError(
         AppErrorKind.actionFailed,
         reportableOverride: false,
         sentryClassificationOverride: 'account.canceled',

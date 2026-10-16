@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:craftsky_app/bootstrap.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/post_page.dart';
@@ -93,6 +95,41 @@ void main() {
   );
 
   group('userPostsProvider build', () {
+    test(
+      'late build cancels before reading overlays on a disposed ref',
+      () async {
+        final late = Completer<PostPage>();
+        var calls = 0;
+        final container = ProviderContainer.test(
+          overrides: [
+            activeLanguagePreferencesProvider.overrideWith(
+              (ref) => const LanguagePreferences(
+                primaryLanguage: 'en',
+                contentLanguages: ['en'],
+              ),
+            ),
+            postRepositoryProvider.overrideWithValue(
+              FakePostRepository(
+                onListByAuthor: (id, {cursor, limit}) async {
+                  if (calls++ == 0) return const PostPage(items: []);
+                  return await late.future;
+                },
+              ),
+            ),
+          ],
+        );
+        final provider = userPostsProvider(_aliceDid);
+        final subscription = container.listen(provider, (_, _) {});
+        await container.read(provider.future);
+        final pending = container.read(provider.notifier).build(_aliceDid);
+        final canceled = expectLater(pending, throwsA(isA<ApiCanceled>()));
+        subscription.close();
+        await container.pump();
+        late.complete(PostPage(items: [_samplePost(rkey: 'late')]));
+        await canceled;
+      },
+    );
+
     test('first build with empty page yields hasMore == false', () async {
       final fake = FakePostRepository(
         onListByAuthor: (id, {cursor, limit}) async =>

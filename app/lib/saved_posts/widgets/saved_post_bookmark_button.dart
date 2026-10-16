@@ -29,9 +29,12 @@ class SavedPostBookmarkButton extends ConsumerWidget {
     if (!(presentation?.initialized ?? false)) {
       unawaited(
         Future<void>.microtask(
-          () => ref
-              .read(accountSavedPostStateProvider(account).notifier)
-              .seedIfAbsent(post),
+          () {
+            if (!context.mounted) return;
+            ref
+                .read(accountSavedPostStateProvider(account).notifier)
+                .seedIfAbsent(post);
+          },
         ),
       );
     }

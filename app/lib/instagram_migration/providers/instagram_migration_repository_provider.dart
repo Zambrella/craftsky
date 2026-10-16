@@ -1,3 +1,4 @@
+import 'package:craftsky_app/auth/models/account_operation_canceled.dart';
 import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/auth/providers/account_operation_guard.dart';
 import 'package:craftsky_app/instagram_migration/data/api_instagram_migration_repository.dart';
@@ -10,7 +11,8 @@ part 'instagram_migration_repository_provider.g.dart';
 
 /// Internal signal used to discard a completion owned by a departed account
 /// activation. It intentionally carries no account or Instagram data.
-final class InstagramOperationDiscarded implements Exception {
+final class InstagramOperationDiscarded
+    implements Exception, AccountOperationCancellation {
   const new();
 
   @override

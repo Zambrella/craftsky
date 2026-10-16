@@ -34,14 +34,19 @@ Future<AccountEligibilityStatus> accountEligibility(
       )
       .requireValue;
   if (activeLease != lease) {
-    throw StateError('Active account changed');
+    throw AccountOperationCanceled();
   }
   final repository = await ref.watch(
     accountEligibilityRepositoryProvider(lease).future,
   );
+  if (!ref.mounted ||
+      ref.read(sessionRegistryProvider).value?.activeLease != lease) {
+    throw AccountOperationCanceled();
+  }
   final status = await repository.readStatus();
-  if (ref.read(sessionRegistryProvider).value?.activeLease != lease) {
-    throw StateError('Active account changed');
+  if (!ref.mounted ||
+      ref.read(sessionRegistryProvider).value?.activeLease != lease) {
+    throw AccountOperationCanceled();
   }
   return status;
 }
