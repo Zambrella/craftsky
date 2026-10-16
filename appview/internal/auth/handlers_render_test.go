@@ -425,6 +425,12 @@ func TestCallbackRenderingCarriesOnlyCodeAndSecurityHeaders(t *testing.T) {
 		t.Fatalf("CSP=%q", csp)
 	}
 	body := recorder.Body.String()
+	if !strings.Contains(body, `src="data:image/png;base64,`) || strings.Contains(body, `>CS</span>`) {
+		t.Fatal("callback must show the embedded hand logo")
+	}
+	if !strings.Contains(recorder.Header().Get("Content-Security-Policy"), "img-src data:;") {
+		t.Fatal("callback CSP must allow its embedded logo")
+	}
 	if !strings.Contains(body, `JSON.stringify({code:`) || !strings.Contains(body, "short-lived-code") {
 		t.Fatalf("callback body does not post code: %s", body)
 	}
