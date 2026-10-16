@@ -89,6 +89,11 @@ These are container binary commands, not host development commands. Start the lo
 
 ### `cmd/cli` — ops and smoke-test CLI
 
+`cli ops status` prints a read-only health and background-queue summary;
+`--json` provides aggregate output for scripts. Locally, use `just ops-status`.
+See the [operational snapshot runbook](../docs/operations/production-render.md#operational-snapshot)
+for queue semantics, timeout/origin options and exit codes.
+
 ```
 cli ping --env dev              # pings the DB, prints pool stats
 cli migrate up|down|status|redo # wraps golang-migrate/v4

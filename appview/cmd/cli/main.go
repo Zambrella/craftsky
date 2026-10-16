@@ -31,6 +31,7 @@ var rootCmd = &cobra.Command{
   * request — hit the running server as the dev DID
   * seed    — populate local development data
   * sessions — revoke a user's sessions on all devices
+  * ops status — read-only health and background queue summary
   * did-resolve — stub pending real impl`,
 }
 

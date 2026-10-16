@@ -83,6 +83,37 @@ func TestAppViewDeployScriptRejectsUnhealthyAppView(t *testing.T) {
 	}
 }
 
+func TestAppViewDeployScriptUsesSemanticHealth(t *testing.T) {
+	for _, test := range []struct {
+		name   string
+		health string
+		ready  bool
+	}{
+		{"quiet progressing feed", `{"status":"ok","db":"ok","tap":{"connected":true,"last_event_at":"2020-01-01T00:00:00Z","telemetry":{"status":"progressing"}}}`, true},
+		{"progressing before first member event", `{"status":"ok","db":"ok","tap":{"connected":true,"last_event_at":"","telemetry":{"status":"progressing"}}}`, true},
+		{"stalled cursor", `{"status":"degraded","db":"ok","tap":{"connected":true,"last_event_at":"","telemetry":{"status":"stalled"}}}`, false},
+		{"unknown cursor", `{"status":"degraded","db":"ok","tap":{"connected":true,"last_event_at":"","telemetry":{"status":"unknown"}}}`, false},
+		{"missing status", `{"db":"ok","tap":{"connected":true,"last_event_at":""}}`, false},
+		{"disconnected", `{"status":"ok","db":"ok","tap":{"connected":false}}`, false},
+		{"database unavailable", `{"status":"ok","db":"error","tap":{"connected":true}}`, false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			repo, _, releaseScript := newReleaseTestRepo(t)
+			runRelease(t, repo, releaseScript, nil, "create", "appview", "--version", "1.0.4", "--notes", writeNotes(t, "- Ready for beta.\n"))
+			runRelease(t, repo, releaseScript, strings.NewReader("y\n"), "push", "appview", "prod-v1.0.4")
+			commit := runGit(t, repo, "rev-parse", "HEAD")
+			binDir := fakeRenderCurl(t, "live", commit)
+			if err := os.WriteFile(filepath.Join(binDir, "health"), []byte(test.health), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			output, err := runDeploy(repo, repositoryScript(t, "appview-deploy"), binDir, strings.NewReader("y\n"), commit)
+			if (err == nil) != test.ready {
+				t.Fatalf("ready=%t, deploy error=%v\n%s", test.ready, err, output)
+			}
+		})
+	}
+}
+
 func TestAppViewDeployScriptRetriesTransientPublic502(t *testing.T) {
 	repo, _, releaseScript := newReleaseTestRepo(t)
 	notes := writeNotes(t, "- Ready for production.\n")
@@ -199,7 +230,7 @@ esac
 	if err := os.WriteFile(filepath.Join(binDir, "commit"), []byte(deployedCommit+"\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(binDir, "health"), []byte(`{"db":"ok","tap":{"connected":true,"last_event_at":""}}`), 0o600); err != nil {
+	if err := os.WriteFile(filepath.Join(binDir, "health"), []byte(`{"status":"ok","db":"ok","tap":{"connected":true,"last_event_at":"","telemetry":{"status":"progressing"}}}`), 0o600); err != nil {
 		t.Fatal(err)
 	}
 	return binDir
