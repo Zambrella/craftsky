@@ -315,7 +315,7 @@ Not part of the system. Not in buttons, not in headings, not in empty states.
 
 ### Logo
 
-Placeholder only: a stylised "CS" set in DM Serif Display, cobalt, on a cream paper tape label with a thin black border. See `assets/logo/`. Treat as scaffolding until a proper wordmark is commissioned.
+Use the hand logo in `app/assets/app-icon/app-icon-light.png`. Preserve its proportions, cobalt hand, and red C accent.
 
 ---
 
