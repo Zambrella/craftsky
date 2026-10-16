@@ -32,6 +32,9 @@ var _ ConditionalPDSRecordPutter = (*IndigoPDSClient)(nil)
 var _ ConditionalPDSRecordDeleter = (*IndigoPDSClient)(nil)
 var _ RepositoryCommandPDSClient = (*IndigoPDSClient)(nil)
 
+// A fixed protocol validation failure, distinct from arbitrary provider prose.
+var ErrPDSLatestCommitMissingCID = errors.New("PDS repository head response is missing its CID")
+
 // NewIndigoPDSClient requires separate purpose-bound XRPC clients for JSON
 // requests and upload responses. Both may share the Boundary's connection
 // pool, but they must not share the purpose wrapper because their response
@@ -321,7 +324,7 @@ func (i *IndigoPDSClient) LatestCommit(ctx context.Context, repo syntax.DID) (sy
 		return "", i.translateError(ctx, err)
 	}
 	if response.CID == "" {
-		return "", errors.New("getLatestCommit: PDS returned empty cid")
+		return "", ErrPDSLatestCommitMissingCID
 	}
 	return syntax.CID(response.CID), nil
 }

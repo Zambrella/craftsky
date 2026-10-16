@@ -60,6 +60,9 @@ func (o *Observer) CaptureDiagnostic(ctx context.Context, input DiagnosticInput)
 	for key, value := range input.Context {
 		fields[key] = value
 	}
+	for key, value := range providerDiagnosticFields(DescribeError(input.Error, input.Context)) {
+		fields[key] = value
+	}
 	if o.sentryClient == nil {
 		return
 	}

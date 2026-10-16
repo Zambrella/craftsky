@@ -21,11 +21,13 @@ class UserPosts extends _$UserPosts {
   @override
   Future<UserPostsState> build(Did did) async {
     ref.watch(activeContentLanguagePolicyProvider);
+    final accountOperation = ActiveAccountOperation.capture(ref);
     final repo = ref.watch(postRepositoryProvider);
     final page = await repo.listByAuthor(
       did,
       limit: userPostsPageLimit,
     );
+    if (!accountOperation.isCurrent) throw const ApiCanceled();
     return UserPostsState(
       items: applyPostRecordListOverlays(
         ref,
@@ -67,10 +69,12 @@ class UserPosts extends _$UserPosts {
         );
       } on ApiBadRequest catch (error) {
         if (error.code != 'invalid_cursor') rethrow;
+        if (!accountOperation.isCurrent) throw const ApiCanceled();
         final restarted = await repo.listByAuthor(
           did,
           limit: userPostsPageLimit,
         );
+        if (!accountOperation.isCurrent) throw const ApiCanceled();
         return UserPostsState(
           items: applyPostRecordListOverlays(
             ref,
@@ -84,6 +88,7 @@ class UserPosts extends _$UserPosts {
           pinnedPostUri: restarted.pinnedPostUri,
         );
       }
+      if (!accountOperation.isCurrent) throw const ApiCanceled();
       return UserPostsState(
         items: applyPostRecordListOverlays(
           ref,

@@ -185,6 +185,9 @@ func selectSlogAttr(ctx context.Context, attr slog.Attr) (slog.Attr, bool) {
 			for i := range selected {
 				selected[i].Type = safeDiagnosticType(selected[i].Type)
 				selected[i].Message = boundDiagnosticText(selected[i].Message, 512)
+				if !knownProviderDiagnosticCode(selected[i].ProviderCode) {
+					selected[i].ProviderCode = ""
+				}
 			}
 			return slog.Any(attr.Key, selected), true
 		}

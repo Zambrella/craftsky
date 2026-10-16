@@ -81,7 +81,7 @@ func (adapter instagramSuggestionFollowAdapter) FollowSuggestion(
 			return accepted(instagram.SuggestionAlreadyFollowing)
 		},
 		Rejected: func(err error) pdscommands.TerminalResult {
-			return api.RejectedCommandResult(request.RequestID, err)
+			return api.RejectedCommandResult(request.RequestID, err, ctx)
 		},
 	})
 	return instagram.SuggestionCommandResult{

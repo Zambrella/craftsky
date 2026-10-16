@@ -1,22 +1,29 @@
 package app
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
+	"log/slog"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/bluesky-social/indigo/atproto/atclient"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/google/uuid"
 
 	"social.craftsky/appview/internal/instagram"
+	"social.craftsky/appview/internal/observability"
 	"social.craftsky/appview/internal/pdscommands"
 )
 
 type recordingSuggestionCommands struct {
-	request pdscommands.SetCommandRequest
-	result  pdscommands.CommandResult
-	err     error
+	request   pdscommands.SetCommandRequest
+	result    pdscommands.CommandResult
+	err       error
+	rejection error
 }
 
 func (commands *recordingSuggestionCommands) Execute(
@@ -24,7 +31,36 @@ func (commands *recordingSuggestionCommands) Execute(
 	request pdscommands.SetCommandRequest,
 ) (pdscommands.CommandResult, error) {
 	commands.request = request
+	if commands.rejection != nil {
+		return pdscommands.CommandResult{TerminalResult: request.Rejected(commands.rejection)}, nil
+	}
 	return commands.result, commands.err
+}
+
+func TestInstagramSuggestionRejectionLogsOriginalCauseOnRequestContext(t *testing.T) {
+	var local bytes.Buffer
+	observer := observability.New(observability.Config{Logger: slog.New(observability.NewDiagnosticHandler(slog.NewJSONHandler(&local, nil)))})
+	ctx := observability.WithRequestObserver(context.Background(), observer)
+	commands := &recordingSuggestionCommands{rejection: errors.Join(pdscommands.ErrDispatchRejected, &atclient.APIError{StatusCode: 400, Name: "InvalidRecord", Message: "PRIVATE_SUGGESTION_BODY"})}
+	adapter := instagramSuggestionFollowAdapter{commands: commands}
+	result, err := adapter.FollowSuggestion(ctx, instagram.SuggestionFollowRequest{
+		OperationKey: uuid.MustParse("018f4d5c-7a61-7d40-a1a2-0123456789ab"), RequestID: "request-one", SessionID: "PRIVATE_SESSION",
+		SuggestionID: uuid.MustParse("75000000-0000-4000-8000-000000000001"), Owner: "did:plc:importer", Target: "did:plc:private-target",
+		OwnerGeneration: 1, TargetGeneration: 1, Rkey: "3aaaaaaaaaaaa", CreatedAt: time.Now(),
+	})
+	if err != nil || result.HTTPStatus != 502 {
+		t.Fatalf("response changed: %d %v", result.HTTPStatus, err)
+	}
+	for _, want := range []string{"pds.InvalidRecord", "400", "pds.command", "rejection"} {
+		if !strings.Contains(local.String(), want) {
+			t.Fatalf("request log missing %s", want)
+		}
+	}
+	for _, private := range []string{"PRIVATE_", "did:plc:private-target", "75000000-0000-4000-8000-000000000001"} {
+		if strings.Contains(local.String(), private) {
+			t.Fatalf("private migration context escaped: %s", private)
+		}
+	}
 }
 
 func TestInstagramSuggestionFollowAdapterBuildsAuthoritativeSetCommand(t *testing.T) {

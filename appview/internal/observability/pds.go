@@ -10,6 +10,7 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/atclient"
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/getsentry/sentry-go"
 
 	"social.craftsky/appview/internal/auth"
 	"social.craftsky/appview/internal/ownerlifecycle"
@@ -520,6 +521,12 @@ func (o *Observer) observePDSWrite(ctx context.Context, operation PDSOperation, 
 	}
 	level := slog.LevelInfo
 	if err != nil {
+		for key, value := range providerDiagnosticFields(DescribeError(err, nil)) {
+			localOnlyAttrs = append(localOnlyAttrs, slog.Any(key, value))
+			if span := sentry.SpanFromContext(ctx); span != nil {
+				span.SetData(key, value)
+			}
+		}
 		level = slog.LevelWarn
 		if pdsCategoryCaptured(category) {
 			level = slog.LevelError

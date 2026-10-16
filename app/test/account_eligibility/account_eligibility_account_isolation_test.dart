@@ -4,6 +4,7 @@ import 'package:craftsky_app/account_eligibility/data/account_eligibility_reposi
 import 'package:craftsky_app/account_eligibility/models/account_eligibility_status.dart';
 import 'package:craftsky_app/account_eligibility/providers/account_eligibility_provider.dart';
 import 'package:craftsky_app/auth/models/account_key.dart';
+import 'package:craftsky_app/auth/models/account_operation_canceled.dart';
 import 'package:craftsky_app/auth/models/session_registry.dart';
 import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart'
@@ -71,6 +72,9 @@ void main() {
       ),
     );
 
-    await expectLater(container.read(provider.future), throwsStateError);
+    await expectLater(
+      container.read(provider.future),
+      throwsA(isA<AccountOperationCanceled>()),
+    );
   });
 }

@@ -39,7 +39,6 @@ dependencies:
     sdk: flutter
   form_builder_validators: ^11.3.0
   go_router: ^18.0.2
-  google_fonts: ^9.0.0
   image: ^4.12.0
   image_picker: ^1.2.4
   image_size_getter: ^2.4.1
@@ -104,6 +103,36 @@ flutter:
     - assets/animations/
     - assets/design/icons/
     - assets/profile_backgrounds/
+    - assets/fonts/Outfit-OFL.txt
+    - assets/fonts/DMSerifDisplay-OFL.txt
+  fonts:
+    - family: Outfit
+      fonts:
+        - asset: assets/fonts/Outfit-100.ttf
+          weight: 100
+        - asset: assets/fonts/Outfit-200.ttf
+          weight: 200
+        - asset: assets/fonts/Outfit-300.ttf
+          weight: 300
+        - asset: assets/fonts/Outfit-400.ttf
+          weight: 400
+        - asset: assets/fonts/Outfit-500.ttf
+          weight: 500
+        - asset: assets/fonts/Outfit-600.ttf
+          weight: 600
+        - asset: assets/fonts/Outfit-700.ttf
+          weight: 700
+        - asset: assets/fonts/Outfit-800.ttf
+          weight: 800
+        - asset: assets/fonts/Outfit-900.ttf
+          weight: 900
+    - family: DMSerifDisplay
+      fonts:
+        - asset: assets/fonts/DMSerifDisplay-400.ttf
+          weight: 400
+        - asset: assets/fonts/DMSerifDisplay-400-Italic.ttf
+          weight: 400
+          style: italic
 
 sentry:
   upload_debug_symbols: true

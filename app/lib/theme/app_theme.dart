@@ -3,7 +3,6 @@ import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:cupertino_ui/cupertino_ui.dart';
 import 'package:flex_color_scheme/flex_color_scheme.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:material_ui/material_ui.dart';
 
 /// CraftSky theme — paper-cutout direction. Warm cream paper, ink-black rules,
@@ -401,8 +400,10 @@ class AppTheme {
   /// for code-ish content. Weight, size, and letter-spacing follow the rhythm
   /// notes in `docs/design/design-system.md` ("Typography").
   static TextTheme _textTheme({required Color ink, required Color ink2}) {
-    final display = GoogleFonts.dmSerifDisplayTextTheme();
-    final ui = GoogleFonts.outfitTextTheme();
+    // Fonts ship with the app; building the theme must also work offline.
+    final baseline = ThemeData.light().textTheme;
+    final display = baseline.apply(fontFamily: 'DMSerifDisplay');
+    final ui = baseline.apply(fontFamily: 'Outfit');
 
     return TextTheme(
       // Display — chunky serif with tight line-height, editorial scale.

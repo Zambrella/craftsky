@@ -218,6 +218,16 @@ func TestIndigoPDSClientGetRecordDecodesGenericJSON(t *testing.T) {
 	}
 }
 
+func TestLatestCommitMissingCIDRetainsDiagnosticSentinel(t *testing.T) {
+	client := newTestIndigoPDSClientWithTransport(t, pdsRoundTripFunc(func(*http.Request) (*http.Response, error) {
+		return jsonPDSResponse(http.StatusOK, `{"private":"PRIVATE_RESPONSE_BODY"}`), nil
+	}))
+	_, err := client.LatestCommit(context.Background(), "did:plc:xyz")
+	if !errors.Is(err, ErrPDSLatestCommitMissingCID) || strings.Contains(err.Error(), "PRIVATE_RESPONSE_BODY") {
+		t.Fatal("repository-head protocol failure lost its fixed diagnostic reason")
+	}
+}
+
 func TestIndigoPDSClientApplyWritesTranslatesProtocolOutcomes(t *testing.T) {
 	tests := []struct {
 		name    string

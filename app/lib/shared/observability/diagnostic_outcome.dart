@@ -1,16 +1,22 @@
 import 'package:craftsky_app/auth/models/account_operation_canceled.dart';
+import 'package:craftsky_app/auth/models/auth_error.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/errors/app_error.dart';
 import 'package:craftsky_app/shared/errors/app_error_mapper.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
 import 'package:craftsky_app/shared/observability/error_reporter.dart';
 import 'package:dio/dio.dart';
+import 'package:flutter_riverpod/misc.dart' show ProviderException;
 
 /// Known cancellation control flow, including app-owned cause wrappers.
 bool isCanceledDiagnostic(Object sourceError) {
   var error = sourceError;
   final visited = Set<Object>.identity();
   for (var depth = 0; depth < 8 && visited.add(error); depth++) {
+    if (error is ProviderException) {
+      error = error.exception;
+      continue;
+    }
     if (error is! DiagnosticFailureCause || error.diagnosticCause == null) {
       break;
     }
@@ -20,7 +26,7 @@ bool isCanceledDiagnostic(Object sourceError) {
 }
 
 bool _isCancellation(Object error) =>
-    error is AccountOperationCanceled ||
+    error is AccountOperationCancellation ||
     error is ApiCanceled ||
     (error is DioException &&
         (error.type == DioExceptionType.cancel || error.error is ApiCanceled));
@@ -32,6 +38,10 @@ bool isExpectedDiagnostic(Object sourceError, ReportContext context) {
   final visited = Set<Object>.identity();
   AppError? appError;
   for (var depth = 0; depth < 8 && visited.add(error); depth++) {
+    if (error is ProviderException) {
+      error = error.exception;
+      continue;
+    }
     if (error is AppError) appError ??= error;
     if (error is! DiagnosticFailureCause || error.diagnosticCause == null) {
       break;
@@ -48,6 +58,12 @@ bool isExpectedDiagnostic(Object sourceError, ReportContext context) {
   }
   if (appError != null) return !appError.reportable;
   if (error is AppError) return !error.reportable;
+  if (error is HandleRequired ||
+      error is InvalidHandle ||
+      error is SignInTimedOut ||
+      error == RegistrationFailure.canceled) {
+    return true;
+  }
   if (error is ApiException ||
       (error is DioException && error.error is ApiException)) {
     return !AppErrorMapper.map(error).reportable;

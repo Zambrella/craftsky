@@ -479,7 +479,7 @@ func PutMeProfileHandler(
 					}, nil
 				},
 				Rejected: func(err error) pdscommands.TerminalResult {
-					return RejectedCommandResult(runID, err)
+					return RejectedCommandResult(runID, err, r.Context())
 				},
 			})
 			if err != nil {

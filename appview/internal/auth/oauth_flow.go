@@ -331,6 +331,9 @@ func (service *OAuthFlowService) CompleteCallback(
 		return callbackDiagnostic("callback_state_missing", ErrOAuthFlowInvalid)
 	}
 	metadata, err := service.store.LoadAuthRequestMetadata(ctx, state)
+	if err != nil && !errors.Is(err, ErrOAuthSessionNotFound) {
+		return callbackDiagnostic("callback_request_load_failed", err)
+	}
 	if err != nil || !metadata.valid() || metadata.RequestState != AuthRequestReady {
 		return callbackDiagnostic("callback_request_unavailable", errors.Join(ErrOAuthFlowInvalid, err))
 	}
