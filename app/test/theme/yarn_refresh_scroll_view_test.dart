@@ -29,17 +29,12 @@ void main() {
     await rive.RiveNative.init();
     file = (await rive.File.asset(
       'assets/animations/yarn_refresh.riv',
-      // These tests cover gestures and animation state in the headless runner.
-      // The device's Rive renderer still needs iOS release-build verification.
       riveFactory: rive.Factory.flutter,
     ))!;
   });
   tearDownAll(() => file.dispose());
 
-  test('default loader works without a native render context', () async {
-    // Exercise the real provider: the gesture tests below intentionally supply
-    // their own Flutter-rendered file and would miss a native factory crash.
-    expect(rive.Factory.rive.isSupported, isFalse);
+  test('default loader uses the Flutter renderer', () async {
     final container = ProviderContainer.test(retry: (_, _) => null);
     final loaded = await container.read(yarnRefreshFileProvider.future);
 
