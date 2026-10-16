@@ -160,7 +160,8 @@ jobs:
 
       - name: Set up Rive native test runtime
         working-directory: app
-        run: dart run rive_native:setup --platform linux
+        # A cached package marker skips copying libraries into this checkout.
+        run: dart run rive_native:setup --clean --platform linux
 
       - name: Test
         working-directory: app
