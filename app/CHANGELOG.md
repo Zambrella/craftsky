@@ -1,5 +1,12 @@
 # App Changelog
 
+## 1.7.3+10 - 2026-10-16
+
+- docs(release): separate tests from store builds
+- fix(ios): preserve Rive symbols and use Flutter renderer
+- chore(release): app 1.7.2+9
+- test(app): prepare Rive libraries before test runs
+
 ## 1.7.2+9 - 2026-10-16
 
 - fix(app): use Rive renderer for yarn refresh animation
