@@ -149,7 +149,7 @@ class ChunkyButton extends ButtonStyleButton {
     return ButtonStyle(
       textStyle: WidgetStatePropertyAll(
         (text.labelLarge ?? const TextStyle()).copyWith(
-          fontWeight: FontWeight.w800,
+          fontWeight: FontWeight.w700,
           letterSpacing: 0.2,
         ),
       ),

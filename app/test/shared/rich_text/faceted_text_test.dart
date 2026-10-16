@@ -188,7 +188,7 @@ void main() {
       ).style.merge(bodyStyle);
       expect(action.textScaler, TextScaler.noScaling);
       expect(action.style?.fontSize, bodyStyle.fontSize);
-      expect(action.style?.fontWeight, FontWeight.bold);
+      expect(action.style?.fontWeight, FontWeight.w600);
       expect(action.style?.color, effectiveBodyStyle.color);
       final actionFinder = find.text('Show more');
       final referenceFinder = find.text('Reference text');

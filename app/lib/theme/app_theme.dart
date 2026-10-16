@@ -250,7 +250,7 @@ class AppTheme {
       ),
       extendedTextStyle: base.textTheme.labelLarge?.copyWith(
         color: colors.onPrimary,
-        fontWeight: FontWeight.w800,
+        fontWeight: FontWeight.w700,
         letterSpacing: 0.2,
       ),
     );
@@ -429,21 +429,21 @@ class AppTheme {
       // Headlines — Outfit, heavy, tight tracking.
       headlineLarge: ui.headlineLarge?.copyWith(
         fontSize: 42,
-        fontWeight: FontWeight.w800,
+        fontWeight: FontWeight.w700,
         height: 1.1,
         letterSpacing: -0.03 * 42,
         color: ink,
       ),
       headlineMedium: ui.headlineMedium?.copyWith(
         fontSize: 30,
-        fontWeight: FontWeight.w700,
+        fontWeight: FontWeight.w600,
         height: 1.15,
         letterSpacing: -0.02 * 30,
         color: ink,
       ),
       headlineSmall: ui.headlineSmall?.copyWith(
         fontSize: 22,
-        fontWeight: FontWeight.w700,
+        fontWeight: FontWeight.w600,
         height: 1.2,
         letterSpacing: -0.015 * 22,
         color: ink,
@@ -452,7 +452,7 @@ class AppTheme {
       // Titles — for card titles, list section heads. Outfit, heavy.
       titleLarge: ui.titleLarge?.copyWith(
         fontSize: 20,
-        fontWeight: FontWeight.w700,
+        fontWeight: FontWeight.w600,
         height: 1.25,
         color: ink,
       ),
@@ -492,7 +492,7 @@ class AppTheme {
       // Labels — buttons (heavy) and eyebrow labels (uppercase, tracked).
       labelLarge: ui.labelLarge?.copyWith(
         fontSize: 15,
-        fontWeight: FontWeight.w700,
+        fontWeight: FontWeight.w600,
         height: 1.2,
         color: ink,
       ),
@@ -504,7 +504,7 @@ class AppTheme {
       ),
       labelSmall: ui.labelSmall?.copyWith(
         fontSize: 12,
-        fontWeight: FontWeight.w700,
+        fontWeight: FontWeight.w600,
         height: 1.2,
         letterSpacing: 0.14 * 12,
         color: ink2,

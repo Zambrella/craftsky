@@ -753,7 +753,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
                           Text(
                             l10n.projectComposerMoreDetailsHeading,
                             style: theme.textTheme.titleLarge?.copyWith(
-                              fontWeight: FontWeight.w900,
+                              fontWeight: FontWeight.w800,
                             ),
                           ),
                           SizedBox(height: spacing.sp2),

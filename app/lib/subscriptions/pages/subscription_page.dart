@@ -984,7 +984,7 @@ class _TierCard extends StatelessWidget {
                                 : l10n.subscriptionsTierPrice(price),
                             style: theme.textTheme.titleSmall?.copyWith(
                               color: accent,
-                              fontWeight: FontWeight.w800,
+                              fontWeight: FontWeight.w700,
                             ),
                           ),
                         ],

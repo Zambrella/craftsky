@@ -82,7 +82,7 @@ class _AccountDeletionReauthCompletePageState
                           ),
                           TextSpan(
                             text: confirmationDid,
-                            style: const TextStyle(fontWeight: FontWeight.bold),
+                            style: const TextStyle(fontWeight: FontWeight.w600),
                           ),
                           TextSpan(
                             text: confirmationPrompt.substring(

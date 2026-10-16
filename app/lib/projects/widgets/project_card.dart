@@ -423,7 +423,7 @@ class _ProjectLinkValue extends StatelessWidget {
         label,
         style: theme.textTheme.bodySmall?.copyWith(
           color: theme.colorScheme.primary,
-          fontWeight: FontWeight.w700,
+          fontWeight: FontWeight.w600,
         ),
       ),
     );

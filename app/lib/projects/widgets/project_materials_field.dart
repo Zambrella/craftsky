@@ -273,7 +273,7 @@ class _MaterialEntryList extends StatelessWidget {
                       text: material.text,
                       facets: material.facets,
                       style: theme.textTheme.bodyLarge?.copyWith(
-                        fontWeight: FontWeight.w700,
+                        fontWeight: FontWeight.w600,
                         color: colors.onSurface,
                       ),
                     ),

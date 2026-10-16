@@ -106,7 +106,7 @@ class _ReportSubjectSheetState extends State<ReportSubjectSheet> {
                       ? l10n.reportGroupTitle
                       : l10n.reportReasonTitle,
                   style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
                 SizedBox(height: spacing.sp2),
@@ -274,7 +274,7 @@ class _ReportSubmitAction extends StatelessWidget {
     return TextButton(
       onPressed: onPressed,
       style: TextButton.styleFrom(
-        textStyle: const TextStyle(fontWeight: FontWeight.w800),
+        textStyle: const TextStyle(fontWeight: FontWeight.w700),
       ),
       child: isSubmitting
           ? const StitchProgressIndicator(size: 18)

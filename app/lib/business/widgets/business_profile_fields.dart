@@ -134,7 +134,7 @@ class BusinessProfileFields extends StatelessWidget {
           l10n.editProfileBusinessHeading,
           style: Theme.of(
             context,
-          ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+          ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
         ),
         SizedBox(height: spacing.sp1),
         Text(l10n.editProfileBusinessHelper),

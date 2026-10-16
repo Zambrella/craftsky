@@ -549,7 +549,7 @@ TextSpan _titleSpan({
       children: [
         TextSpan(
           text: actor,
-          style: const TextStyle(fontWeight: FontWeight.bold),
+          style: const TextStyle(fontWeight: FontWeight.w600),
           recognizer: actorRecognizer,
         ),
         TextSpan(text: ' · $title'),
@@ -561,7 +561,7 @@ TextSpan _titleSpan({
       if (actorIndex > 0) TextSpan(text: title.substring(0, actorIndex)),
       TextSpan(
         text: actor,
-        style: const TextStyle(fontWeight: FontWeight.bold),
+        style: const TextStyle(fontWeight: FontWeight.w600),
         recognizer: actorRecognizer,
       ),
       if (actorIndex + actor.length < title.length)

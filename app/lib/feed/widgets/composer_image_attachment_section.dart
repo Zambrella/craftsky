@@ -502,7 +502,7 @@ class _PhotosHeader extends StatelessWidget {
     final colors = theme.colorScheme;
     final l10n = AppLocalizations.of(context);
     final titleStyle = theme.textTheme.titleMedium?.copyWith(
-      fontWeight: FontWeight.w800,
+      fontWeight: FontWeight.w700,
     );
     final requiredLabelStyle = theme.textTheme.labelSmall?.copyWith(
       color: colors.onSurfaceVariant,
@@ -536,7 +536,7 @@ class _PhotosHeader extends StatelessWidget {
                 describedLabel,
                 style: theme.textTheme.bodyMedium?.copyWith(
                   color: colors.outline,
-                  fontWeight: FontWeight.w800,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
             ),
@@ -549,7 +549,7 @@ class _PhotosHeader extends StatelessWidget {
               : l10n.postComposePhotosReorderHelper(imageCount, maxImages),
           style: theme.textTheme.bodyMedium?.copyWith(
             color: colors.outline,
-            fontWeight: FontWeight.w700,
+            fontWeight: FontWeight.w600,
           ),
         ),
       ],
@@ -726,7 +726,7 @@ class _DraftImageTile extends StatelessWidget {
                 labelStyle: theme.textTheme.labelSmall?.copyWith(
                   color: colors.onSurfaceVariant,
                   letterSpacing: 1.5,
-                  fontWeight: FontWeight.w900,
+                  fontWeight: FontWeight.w800,
                 ),
                 labelTrailing: Text(
                   hasAltText
@@ -734,7 +734,7 @@ class _DraftImageTile extends StatelessWidget {
                       : l10n.postComposeImageNeedsAltText,
                   style: theme.textTheme.labelMedium?.copyWith(
                     color: hasAltText ? semanticColors.success : colors.error,
-                    fontWeight: FontWeight.w800,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
               ),
@@ -765,7 +765,7 @@ class _ImageStatus extends StatelessWidget {
           _statusLabel(context, image),
           style: theme.textTheme.bodyMedium?.copyWith(
             color: failed ? colors.error : colors.outline,
-            fontWeight: FontWeight.w700,
+            fontWeight: FontWeight.w600,
           ),
         ),
         if (image.phase case ImageFailed(:final failure)) ...[
@@ -805,7 +805,7 @@ class _ImageNumberBadge extends StatelessWidget {
           color: isCover
               ? theme.colorScheme.onPrimary
               : theme.colorScheme.onSurface,
-          fontWeight: FontWeight.w900,
+          fontWeight: FontWeight.w800,
         ),
       ),
     );
@@ -932,14 +932,14 @@ class _AddPhotoCard extends StatelessWidget {
                         Text(
                           label,
                           style: theme.textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w900,
+                            fontWeight: FontWeight.w800,
                           ),
                         ),
                         Text(
                           subtitle,
                           style: theme.textTheme.bodyMedium?.copyWith(
                             color: colors.outline,
-                            fontWeight: FontWeight.w700,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
                       ],

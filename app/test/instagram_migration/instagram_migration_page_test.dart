@@ -766,7 +766,7 @@ void main() {
       accountSpan,
     ).singleWhere((span) => span.text == '@actual_maker');
     expect(handleSpan.text, '@actual_maker');
-    expect(handleSpan.style?.fontWeight, FontWeight.bold);
+    expect(handleSpan.style?.fontWeight, FontWeight.w600);
     expect(find.text('Allow discovery'), findsOneWidget);
     var selector = tester.widget<SegmentedButton<bool>>(
       find.byType(SegmentedButton<bool>),
@@ -974,7 +974,7 @@ void main() {
       final handleSpan = _textSpans(
         linkedText.text as TextSpan,
       ).singleWhere((span) => span.text == '@actual_maker');
-      expect(handleSpan.style?.fontWeight, FontWeight.bold);
+      expect(handleSpan.style?.fontWeight, FontWeight.w600);
 
       final theme = Theme.of(
         tester.element(find.byType(InstagramMigrationPage)),

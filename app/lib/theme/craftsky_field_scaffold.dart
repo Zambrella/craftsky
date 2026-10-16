@@ -113,7 +113,7 @@ class _CraftskyFieldScaffoldState extends State<CraftskyFieldScaffold> {
     final labelStyle =
         widget.labelStyle ??
         theme.textTheme.titleMedium?.copyWith(
-          fontWeight: FontWeight.w800,
+          fontWeight: FontWeight.w700,
           color: hasError ? colors.error : colors.onSurface,
         );
     final requiredLabelStyle = theme.textTheme.labelSmall?.copyWith(
