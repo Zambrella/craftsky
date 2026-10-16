@@ -150,6 +150,18 @@ For the first app release, or whenever curated store-facing wording is needed,
 pass a Markdown notes file as the second argument. Automatic generation fails
 closed when there is no prior stream tag or no relevant commit since that tag.
 
+### Run tests
+
+Run the Flutter test suite on the exact local release commit before building:
+
+```sh
+just app-test
+```
+
+Continue only after the tests pass. The store build commands do not run tests.
+
+### Build and publish
+
 Build the signed store artifacts before pushing the release:
 
 ```sh
@@ -161,8 +173,8 @@ just app-build-appbundle production
 ```
 
 Production IPA, APK, and app-bundle recipes require clean `main` at the matching
-annotated app tag. They run `flutter pub get`, `flutter analyze`, and
-`flutter test`, then build with obfuscation, upload matching Sentry symbols, and
+annotated app tag. They run `flutter pub get` and `flutter analyze`,
+then build with obfuscation, upload matching Sentry symbols, and
 print the artifact SHA-256 plus debug-info locations. `app-build-ios` is an
 unsigned smoke build and is not a store artifact.
 

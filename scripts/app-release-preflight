@@ -82,6 +82,5 @@ printf 'Running Flutter release checks for %s.\n' "$tag"
   cd app
   flutter pub get
   flutter analyze
-  flutter test
 )
 [[ -z $(git status --porcelain) ]] || die "Flutter release checks changed tracked files"
