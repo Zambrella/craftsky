@@ -1,2 +1,8 @@
 #include? "Pods/Target Support Files/Pods-Runner/Pods-Runner.release.xcconfig"
 #include "Generated.xcconfig"
+
+// Rive resolves native FFI entry points with dlsym. Keep global symbols in
+// archives; stripping all symbols breaks every Rive animation with SwiftPM.
+// This config is shared by Runner's Release and Profile configurations.
+// https://github.com/rive-app/rive-flutter/issues/617
+STRIP_STYLE = non-global
