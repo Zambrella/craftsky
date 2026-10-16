@@ -14,6 +14,7 @@ import 'package:craftsky_app/profile/providers/profile_relationship_provider.dar
 import 'package:craftsky_app/profile/providers/toggle_block_profile_provider.dart';
 import 'package:craftsky_app/profile/providers/toggle_follow_profile_provider.dart';
 import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
+import 'package:craftsky_app/profile/widgets/follow_reaction.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
 import 'package:craftsky_app/profile/widgets/profile_card_modal.dart';
 import 'package:craftsky_app/router/router.dart';
@@ -41,6 +42,19 @@ class NotificationRow extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    if (notification is! FollowNotification &&
+        notification is! InstagramMatchNotification) {
+      return _build(context, ref);
+    }
+    return FollowReactionScope(
+      identity: notification.id,
+      builder: (context) => Consumer(
+        builder: (context, ref, _) => _build(context, ref),
+      ),
+    );
+  }
+
+  Widget _build(BuildContext context, WidgetRef ref) {
     if (notification case final SystemNotification system) {
       return _buildSystem(context, ref, system);
     }
@@ -187,11 +201,14 @@ class NotificationRow extends ConsumerWidget {
                     GestureDetector(
                       behavior: HitTestBehavior.opaque,
                       onTap: onActorTap,
-                      child: ProfileAvatar(
-                        seed: actor,
-                        avatarUrl: actorNotification.actor.displayAvatarUrl,
-                        size: ProfileAvatarSize.small,
-                        customisation: actorNotification.actor.customisation,
+                      child: FollowReactionAvatar(
+                        compact: true,
+                        child: ProfileAvatar(
+                          seed: actor,
+                          avatarUrl: actorNotification.actor.displayAvatarUrl,
+                          size: ProfileAvatarSize.small,
+                          customisation: actorNotification.actor.customisation,
+                        ),
                       ),
                     ),
                     const SizedBox(height: 8),
@@ -400,8 +417,10 @@ class _NotificationFollowButtonState
     );
   }
 
-  Future<void> _toggle() async {
-    if (_isBusy || !_isOwnerCurrent()) return;
+  Future<void> _toggle() => FollowReactionScope.run(context, _toggleAndConfirm);
+
+  Future<bool> _toggleAndConfirm() async {
+    if (_isBusy || !_isOwnerCurrent()) return false;
     setState(() => _isBusy = true);
     // Keep auto-disposed providers alive across the profile read and mutation.
     final profileSubscription = ref.listenManual(
@@ -416,22 +435,25 @@ class _NotificationFollowButtonState
       final profile = await ref.read(
         userProfileProvider(widget.actor.did).future,
       );
-      if (!mounted || !_isOwnerCurrent()) return;
+      if (!mounted || !_isOwnerCurrent()) return false;
       await ref
           .read(toggleFollowProfileProvider.notifier)
           .toggle(cacheKey: widget.actor.did, profile: profile);
-      if (!mounted || !_isOwnerCurrent()) return;
+      if (!mounted || !_isOwnerCurrent()) return false;
       final result = ref.read(toggleFollowProfileProvider);
       if (result.hasError) throw Exception('Follow mutation failed');
       final updated = result.value;
       if (updated != null) {
         setState(() => _isFollowing = updated.viewerIsFollowing);
+        return !profile.viewerIsFollowing && updated.viewerIsFollowing;
       }
+      return false;
     } on Object {
-      if (!mounted || !_isOwnerCurrent()) return;
+      if (!mounted || !_isOwnerCurrent()) return false;
       context.showError(
         AppLocalizations.of(context).profileFollowToggleError,
       );
+      return false;
     } finally {
       profileSubscription.close();
       followSubscription.close();

@@ -23,6 +23,7 @@ import 'package:craftsky_app/profile/providers/profile_relationship_provider.dar
 import 'package:craftsky_app/profile/providers/toggle_block_profile_provider.dart';
 import 'package:craftsky_app/profile/providers/toggle_follow_profile_provider.dart';
 import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
+import 'package:craftsky_app/profile/widgets/follow_reaction.dart';
 import 'package:craftsky_app/profile/widgets/profile_actions.dart';
 import 'package:craftsky_app/profile/widgets/profile_customisation_theme.dart';
 import 'package:craftsky_app/profile/widgets/profile_meta_section.dart';
@@ -297,7 +298,14 @@ class _ProfileBody extends ConsumerWidget {
   final AccountKey? viewerAccount;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context, WidgetRef ref) => FollowReactionScope(
+    identity: profile.did,
+    builder: (context) => Consumer(
+      builder: (context, ref, _) => _build(context, ref),
+    ),
+  );
+
+  Widget _build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
     final activeLease = ref
         .watch(sessionRegistryProvider)
@@ -403,12 +411,19 @@ class _ProfileBody extends ConsumerWidget {
       canToggleMute: !relationship.hasBlock || relationship.muted,
       onFollowToggle: () {
         unawaited(
-          ref
-              .read(toggleFollowProfileProvider.notifier)
-              .toggle(
-                cacheKey: profile.did,
-                profile: profile,
-              ),
+          FollowReactionScope.run(context, () async {
+            await ref
+                .read(toggleFollowProfileProvider.notifier)
+                .toggle(
+                  cacheKey: profile.did,
+                  profile: profile,
+                );
+            if (!context.mounted) return false;
+            final result = ref.read(toggleFollowProfileProvider).asData?.value;
+            return !profile.viewerIsFollowing &&
+                result?.did == profile.did &&
+                result?.viewerIsFollowing == true;
+          }),
         );
       },
       onShare: () => context.showInfo(l10n.profileShareComingSoon),
