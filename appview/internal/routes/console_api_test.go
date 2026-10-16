@@ -1,6 +1,7 @@
 package routes
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -357,14 +358,16 @@ func TestConsoleEvidencePreservationNeverReturnsPrivateObjectKey(t *testing.T) {
 	deps.SafetyEvidence = safetyincident.NewEvidenceService(pool, safetyincident.NewMemoryEvidenceStore(), time.Now)
 	mux := http.NewServeMux()
 	AddRoutes(t.Context(), mux, deps)
-	body := `{"expectedRevision":0,"bytes":"YmVuaWdu","contentType":"image/png","reason":"review","expiresAt":"2031-01-01T00:00:00Z"}`
+	fixtureBytes := benignEvidencePNG(t)
+	encoded, _ := json.Marshal(map[string]any{"expectedRevision": 0, "bytes": fixtureBytes, "contentType": "image/png", "reason": "review", "expiresAt": "2031-01-01T00:00:00Z"})
+	body := string(encoded)
 	var prior string
 	for range 2 {
 		r := httptest.NewRequest("POST", "/v1/admin/safety/incidents/"+incident.String()+"/evidence", strings.NewReader(body))
 		r.Header.Set("Idempotency-Key", "preserve-evidence-key-1")
 		w := httptest.NewRecorder()
 		mux.ServeHTTP(w, r)
-		if w.Code != 201 || strings.Contains(w.Body.String(), "objectKey") || strings.Contains(w.Body.String(), "bytes") || strings.Contains(w.Body.String(), "YmVuaWdu") {
+		if w.Code != 201 || strings.Contains(w.Body.String(), "objectKey") || strings.Contains(w.Body.String(), "bytes") || strings.Contains(w.Body.String(), base64.StdEncoding.EncodeToString(fixtureBytes)) {
 			t.Fatalf("unsafe preservation=%d/%s", w.Code, w.Body)
 		}
 		if prior != "" && prior != w.Body.String() {
@@ -556,5 +559,29 @@ func TestConsoleEligibilityReviewsRejectStaleChangesAndReplay(t *testing.T) {
 	mux.ServeHTTP(w, httptest.NewRequest("GET", "/v1/admin/accounts/did:plc:eligibility/eligibility", nil))
 	if w.Code != 200 || !strings.Contains(w.Body.String(), `"revision":2`) {
 		t.Fatalf("eligibility read=%d/%s", w.Code, w.Body)
+	}
+}
+
+func TestConsoleIntimateImageRejectsUnconfiguredTargetWithoutCommitting(t *testing.T) {
+	pool := testdb.WithMigratedSchema(t)
+	deps := testDeps()
+	deps.DB = pool
+	deps.Config.ModerationAdminEnabled = true
+	deps.OperatorAuthentication = consoleTestAuthentication(safetyincident.RoleSafetyAdministrator)
+	policy, _ := safetyincident.NewDeadlinePolicy(nil)
+	deps.SafetyWorkflows = safetyincident.NewWorkflowService(pool, policy, time.Now)
+	mux := http.NewServeMux()
+	AddRoutes(t.Context(), mux, deps)
+	r := httptest.NewRequest("POST", "/v1/admin/safety/workflows/intimate-images", strings.NewReader(`{"receivedAt":"2026-10-15T08:00:00Z","standingCode":"synthetic-standing","declarationsCode":"synthetic-declarations"}`))
+	r.Header.Set("Idempotency-Key", "unconfigured-target-fixture")
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, r)
+	if w.Code != 422 || !strings.Contains(w.Body.String(), "deadline_target_not_configured") {
+		t.Fatalf("unconfigured target=%d %s", w.Code, w.Body)
+	}
+	list := httptest.NewRecorder()
+	mux.ServeHTTP(list, httptest.NewRequest("GET", "/v1/admin/safety/workflows?limit=10", nil))
+	if list.Code != 200 || strings.Contains(list.Body.String(), "intimateImage") {
+		t.Fatalf("rejected command committed: %s", list.Body)
 	}
 }

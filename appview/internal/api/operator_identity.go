@@ -57,15 +57,6 @@ func OperatorIdentityHandler() http.Handler {
 		if m.OperatorID != uuid.Nil {
 			body["operatorId"] = m.OperatorID
 		}
-		if m.TokenID != uuid.Nil {
-			body["tokenId"] = m.TokenID
-		}
-		if !m.TokenExpiresAt.IsZero() {
-			body["tokenExpiresAt"] = m.TokenExpiresAt
-		}
-		if m.RetoolUserID != nil {
-			body["retoolUserId"] = *m.RetoolUserID
-		}
 		writeModerationJSON(w, body)
 	})
 }

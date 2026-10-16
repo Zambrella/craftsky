@@ -19,7 +19,6 @@ import (
 	"social.craftsky/appview/internal/api"
 	"social.craftsky/appview/internal/operatorconsole"
 	"social.craftsky/appview/internal/ownerlifecycle"
-	"social.craftsky/appview/internal/retoolproof"
 	"social.craftsky/appview/internal/safetyincident"
 	"social.craftsky/appview/internal/testdb"
 )
@@ -109,7 +108,7 @@ func runConsoleFlow(t *testing.T, scenario string) {
 	}
 
 	if scenario == "legacy credentials" {
-		for _, credential := range []string{"legacy-human-token", "consumer-session-token", "retool-resource-token"} {
+		for _, credential := range []string{"legacy-human-token", "consumer-session-token", "external-resource-token"} {
 			r := httptest.NewRequest("GET", "http://127.0.0.1:18080/v1/admin/identity", nil)
 			r.Header.Set("Authorization", "Bearer "+credential)
 			r.Header.Set("X-Dev-DID", did.String())
@@ -265,17 +264,20 @@ func runConsoleFlow(t *testing.T, scenario string) {
 		if err := store.SetPermissionSet(t.Context(), op.ID, "helper"); err != nil {
 			t.Fatal(err)
 		}
-		fixture, err := retoolproof.Seed(t.Context(), pool, "helper-fixture-alpha", "helper-fixture-beta")
-		if err != nil {
+		incidentID, scanID := uuid.New(), uuid.New()
+		if _, err := pool.Exec(t.Context(), `INSERT INTO image_scan_results(id,blob_cid,scanner_id,policy_version,corpus_version,state) VALUES($1,'synthetic-helper-image','fixture','fixture','fixture','match')`, scanID); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := pool.Exec(t.Context(), `INSERT INTO safety_incidents(id,scan_result_id,provider_reference,integrity_metadata_reference,detected_at,updated_at) VALUES($1,$2,'synthetic-helper','synthetic-helper',now(),now())`, incidentID, scanID); err != nil {
 			t.Fatal(err)
 		}
 		assignmentID := uuid.New()
-		if _, err := pool.Exec(t.Context(), `INSERT INTO safety_operator_assignments(id,incident_id,operator_id,assignment_role,assigned_by,assigned_at) VALUES($1,$2,$3,'helper','test-fixture',now())`, assignmentID, fixture.IncidentID, op.ID); err != nil {
+		if _, err := pool.Exec(t.Context(), `INSERT INTO safety_operator_assignments(id,incident_id,operator_id,assignment_role,assigned_by,assigned_at) VALUES($1,$2,$3,'helper','test-fixture',now())`, assignmentID, incidentID, op.ID); err != nil {
 			t.Fatal(err)
 		}
 		mux := http.NewServeMux()
 		mux.Handle("GET /v1/admin/safety/incidents/{incidentReference}", h.Authentication()(api.RequireOperatorPermission(safetyincident.PermissionIncidentReadSafe)(api.RequireSafetyPermission(safetyincident.PermissionIncidentReadSafe)(api.SafetyIncidentDetailHandler(safetyincident.NewStore(pool, time.Now))))))
-		path := "/v1/admin/safety/incidents/" + fixture.IncidentID.String()
+		path := "/v1/admin/safety/incidents/" + incidentID.String()
 		if w := call("GET", path, mux); w.Code != 200 {
 			t.Fatalf("assigned incident: %d %s", w.Code, w.Body)
 		}

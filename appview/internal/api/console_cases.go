@@ -72,54 +72,6 @@ func ConsoleAccountStandingHandler(pool *pgxpool.Pool) http.Handler {
 	})
 }
 
-// Preview returns only indexed text from the captured version. No remote media,
-// raw records or restricted evidence is fetched or embedded.
-func ConsoleCasePreviewHandler(pool *pgxpool.Pool) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ref, err := moderation.ParseCaseReference(r.PathValue("caseReference"))
-		if err != nil {
-			adminError(w, r, 400, "invalid_request", "invalid case reference")
-			return
-		}
-		if pool == nil {
-			adminError(w, r, 503, "admin_read_unavailable", "admin read unavailable")
-			return
-		}
-		var kind, did, uri, cid string
-		var restricted bool
-		err = pool.QueryRow(r.Context(), `SELECT subject_type,subject_did,COALESCE(subject_uri,''),COALESCE(subject_cid_snapshot,''),origin='systemDetected' OR EXISTS(SELECT 1 FROM safety_incident_subjects s WHERE s.subject_uri=c.subject_uri OR (c.subject_type='account' AND s.owner_did=c.subject_did)) FROM moderation_cases c WHERE id=$1`, ref.UUID()).Scan(&kind, &did, &uri, &cid, &restricted)
-		if err != nil {
-			consoleReadError(w, r, err)
-			return
-		}
-		result := map[string]any{"state": "unavailable", "subjectType": kind, "subjectDid": did, "mediaAvailable": false}
-		if restricted {
-			result["state"] = "restricted"
-			writeSafetyCommandJSON(w, 200, result)
-			return
-		}
-		var text, title string
-		switch kind {
-		case "post":
-			err = pool.QueryRow(r.Context(), `SELECT text,'' FROM craftsky_posts p WHERE uri=$1 AND cid=$2 AND EXISTS(SELECT 1 FROM image_subject_states s WHERE s.subject_uri=p.uri AND s.source_cid=p.cid AND s.visibility_state='clear')`, uri, cid).Scan(&text, &title)
-		case "event":
-			err = pool.QueryRow(r.Context(), `SELECT COALESCE(raw_record->>'description',''),COALESCE(raw_record->>'name','') FROM craftsky_business_events e WHERE uri=$1 AND cid=$2 AND EXISTS(SELECT 1 FROM image_subject_states s WHERE s.subject_uri=e.uri AND s.source_cid=e.cid AND s.visibility_state='clear')`, uri, cid).Scan(&text, &title)
-		case "account":
-			err = pool.QueryRow(r.Context(), `SELECT COALESCE(description,''),COALESCE(display_name,'') FROM bluesky_profiles WHERE did=$1 AND ($2='' OR record_cid=$2)`, did, cid).Scan(&text, &title)
-		}
-		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-			consoleReadError(w, r, err)
-			return
-		}
-		if err == nil {
-			result["state"] = "available"
-			result["text"] = text
-			result["title"] = title
-		}
-		writeSafetyCommandJSON(w, 200, result)
-	})
-}
-
 func ConsoleAccountEligibilityHandler(pool *pgxpool.Pool) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		did, err := syntax.ParseDID(r.PathValue("did"))

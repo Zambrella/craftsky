@@ -26,7 +26,7 @@ func TestAppealCorrespondenceRequiresConfirmationAndUsesOneLifecycle(t *testing.
 	owner := syntax.DID("did:plc:appeal")
 	caseRow := seedAdjudicationCase(t, pool, store, "appeal-report", owner)
 	decision, err := service.ResolveCase(ctx, TrustedCommand{
-		CaseID: caseRow.ID, ExpectedRevision: 0, SourceSystem: "retool", ReplayID: "appeal-decision-01",
+		CaseID: caseRow.ID, ExpectedRevision: 0, SourceSystem: "moderation-console", ReplayID: "appeal-decision-01",
 		ActorID: "moderator", SourceDID: syntax.DID("did:plc:labeler"),
 		Decision: Decision{Disposition: DispositionViolation, Reason: ReasonSpam, Evidence: "evidence", Consequences: []EffectType{EffectFormalWarning}},
 	})
@@ -59,20 +59,20 @@ func TestAppealCorrespondenceRequiresConfirmationAndUsesOneLifecycle(t *testing.
 	}
 
 	confirmed, err := service.ConfirmAppeal(ctx, AppealCommand{
-		CaseID: caseRow.ID, ExpectedRevision: decision.Revision, SourceSystem: "retool", ReplayID: "appeal-confirm-001",
+		CaseID: caseRow.ID, ExpectedRevision: decision.Revision, SourceSystem: "moderation-console", ReplayID: "appeal-confirm-001",
 		ActorID: "moderator", CorrespondenceID: firstCorrespondence.ID,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if _, err := service.ConfirmAppeal(ctx, AppealCommand{
-		CaseID: caseRow.ID, ExpectedRevision: confirmed.Revision, SourceSystem: "retool", ReplayID: "appeal-confirm-002",
+		CaseID: caseRow.ID, ExpectedRevision: confirmed.Revision, SourceSystem: "moderation-console", ReplayID: "appeal-confirm-002",
 		ActorID: "moderator",
 	}); !errors.Is(err, ErrInvalidAppealTransition) {
 		t.Fatalf("second appeal confirmation error = %v", err)
 	}
 	resolved, err := service.ResolveAppeal(ctx, AppealResolutionCommand{
-		CaseID: caseRow.ID, ExpectedRevision: confirmed.Revision, SourceSystem: "retool", ReplayID: "appeal-uphold-0001",
+		CaseID: caseRow.ID, ExpectedRevision: confirmed.Revision, SourceSystem: "moderation-console", ReplayID: "appeal-uphold-0001",
 		ActorID: "moderator", Outcome: AppealStatusUpheld, Rationale: "decision remains supported",
 	})
 	if err != nil {
@@ -129,13 +129,13 @@ func TestChangedAppealRecordsEffectChangeWithoutReopening(t *testing.T) {
 	caseRow := seedAdjudicationCase(t, pool, store, "changed-appeal-report", owner)
 	decision := resolveStrike(t, service, caseRow, "changed-decision-01")
 	confirmed, err := service.ConfirmAppeal(ctx, AppealCommand{
-		CaseID: caseRow.ID, ExpectedRevision: decision.Revision, SourceSystem: "retool", ReplayID: "changed-confirm-01", ActorID: "moderator",
+		CaseID: caseRow.ID, ExpectedRevision: decision.Revision, SourceSystem: "moderation-console", ReplayID: "changed-confirm-01", ActorID: "moderator",
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	appeal, err := service.ResolveAppeal(ctx, AppealResolutionCommand{
-		CaseID: caseRow.ID, ExpectedRevision: confirmed.Revision, SourceSystem: "retool", ReplayID: "changed-resolve-01",
+		CaseID: caseRow.ID, ExpectedRevision: confirmed.Revision, SourceSystem: "moderation-console", ReplayID: "changed-resolve-01",
 		ActorID: "moderator", SourceDID: syntax.DID("did:plc:labeler"), Outcome: AppealStatusChanged,
 		Negate: []EffectType{EffectStrike}, Rationale: "appeal changed decision",
 	})
@@ -166,7 +166,7 @@ func TestNoActionCaseCannotCreateAppealLifecycle(t *testing.T) {
 	service := NewService(store, testVisibilityWriter{}, time.Now)
 	caseRow := seedAdjudicationCase(t, pool, store, "no-action-appeal-report", syntax.DID("did:plc:no-action-appeal"))
 	decision, err := service.ResolveCase(ctx, TrustedCommand{
-		CaseID: caseRow.ID, ExpectedRevision: 0, SourceSystem: "retool", ReplayID: "no-action-appeal-decision",
+		CaseID: caseRow.ID, ExpectedRevision: 0, SourceSystem: "moderation-console", ReplayID: "no-action-appeal-decision",
 		ActorID: "moderator", SourceDID: syntax.DID("did:plc:labeler"),
 		Decision: Decision{Disposition: DispositionNoAction},
 	})
@@ -174,7 +174,7 @@ func TestNoActionCaseCannotCreateAppealLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := service.ConfirmAppeal(ctx, AppealCommand{
-		CaseID: caseRow.ID, ExpectedRevision: decision.Revision, SourceSystem: "retool",
+		CaseID: caseRow.ID, ExpectedRevision: decision.Revision, SourceSystem: "moderation-console",
 		ReplayID: "no-action-appeal-confirm", ActorID: "moderator",
 	}); !errors.Is(err, ErrInvalidAppealTransition) {
 		t.Fatalf("no-action appeal confirmation error = %v", err)

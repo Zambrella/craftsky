@@ -7,12 +7,15 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
 	"social.craftsky/appview/internal/dbx"
 )
+
+const MaxEvidenceBytes = 512 * 1024
 
 var (
 	ErrUnauthorized          = errors.New("restricted safety action unauthorized")
@@ -101,6 +104,7 @@ type EvidenceRef struct {
 
 type AccessCommand struct {
 	EvidenceID uuid.UUID
+	IncidentID uuid.UUID
 	Reason     string
 }
 
@@ -122,9 +126,12 @@ func NewEvidenceService(pool dbx.DB, objects EvidenceStore, now func() time.Time
 }
 
 func (service *EvidenceService) Preserve(ctx context.Context, actor Actor, command PreserveCommand) (EvidenceRef, error) {
+	if service == nil {
+		return EvidenceRef{}, ErrInvalidEvidence
+	}
 	now := service.now().UTC().Truncate(time.Microsecond)
 	if service == nil || service.pool == nil || service.objects == nil || command.IncidentID == uuid.Nil ||
-		len(command.Bytes) == 0 || command.Reason == "" || !command.ExpiresAt.After(now) ||
+		len(command.Bytes) == 0 || len(command.Bytes) > MaxEvidenceBytes || strings.TrimSpace(command.Reason) == "" || len(command.Reason) > 512 || !command.ExpiresAt.After(now) ||
 		(command.ContentType != "image/jpeg" && command.ContentType != "image/png" && command.ContentType != "image/gif" && command.ContentType != "image/webp") ||
 		sha256.Sum256(command.Bytes) != command.SHA256 {
 		return EvidenceRef{}, ErrInvalidEvidence
@@ -154,7 +161,7 @@ func (service *EvidenceService) Preserve(ctx context.Context, actor Actor, comma
 }
 
 func (service *EvidenceService) Access(ctx context.Context, actor Actor, command AccessCommand) (io.ReadCloser, error) {
-	if service == nil || service.pool == nil || command.EvidenceID == uuid.Nil || command.Reason == "" {
+	if service == nil || service.pool == nil || command.EvidenceID == uuid.Nil || command.IncidentID == uuid.Nil || strings.TrimSpace(command.Reason) == "" || len(command.Reason) > 512 {
 		return nil, ErrInvalidEvidence
 	}
 	var incidentID uuid.UUID
@@ -162,7 +169,7 @@ func (service *EvidenceService) Access(ctx context.Context, actor Actor, command
 	if err := service.pool.QueryRow(ctx, `SELECT incident_id,object_key FROM safety_evidence WHERE id=$1 AND deleted_at IS NULL`, command.EvidenceID).Scan(&incidentID, &objectKey); err != nil {
 		return nil, err
 	}
-	allowed := actor.Allowed(PermissionEvidenceAccess, incidentID)
+	allowed := incidentID == command.IncidentID && actor.Allowed(PermissionEvidenceAccess, incidentID)
 	if _, err := service.pool.Exec(ctx, `INSERT INTO safety_evidence_accesses(
 		id,evidence_id,actor_id,action,reason,allowed,created_at
 	) VALUES($1,$2,$3,'access',$4,$5,$6)`, uuid.New(), command.EvidenceID,
@@ -185,4 +192,9 @@ func (service *EvidenceService) AbortPreservations(ctx context.Context) {
 		_ = service.objects.Delete(ctx, ref)
 	}
 	service.pending = nil
+}
+
+// Available reports configured storage boundaries, not live provider health.
+func (service *EvidenceService) Available() bool {
+	return service != nil && service.pool != nil && service.objects != nil && service.reader != nil
 }

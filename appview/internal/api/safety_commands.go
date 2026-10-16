@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 
 	"social.craftsky/appview/internal/ctxkeys"
 	"social.craftsky/appview/internal/observability"
@@ -51,7 +52,7 @@ func SafetyCommandHandler(services SafetyCommandServices, operation string) http
 				Reason      string    `json:"reason"`
 				ExpiresAt   time.Time `json:"expiresAt"`
 			}
-			if parseErr != nil || decodeSafetyCommand(r, &request) != nil {
+			if parseErr != nil || decodeSafetyCommand(r, &request) != nil || len(request.Bytes) > safetyincident.MaxEvidenceBytes || http.DetectContentType(request.Bytes) != request.ContentType {
 				writeSafetyCommandError(w, r, safetyincident.ErrInvalidEvidence)
 				return
 			}
@@ -67,16 +68,18 @@ func SafetyCommandHandler(services SafetyCommandServices, operation string) http
 		case "accessEvidence":
 			evidenceID, parseErr := uuid.Parse(r.PathValue("evidenceId"))
 			var request struct {
-				Reason string `json:"reason"`
+				Reason            string    `json:"reason"`
+				IncidentReference uuid.UUID `json:"incidentReference"`
 			}
 			if parseErr != nil || decodeSafetyCommand(r, &request) != nil {
 				writeSafetyCommandError(w, r, safetyincident.ErrInvalidEvidence)
 				return
 			}
-			reader, commandErr := services.Evidence.Access(r.Context(), actor, safetyincident.AccessCommand{EvidenceID: evidenceID, Reason: request.Reason})
+			reader, commandErr := services.Evidence.Access(r.Context(), actor, safetyincident.AccessCommand{EvidenceID: evidenceID, IncidentID: request.IncidentReference, Reason: request.Reason})
 			if commandErr == nil {
 				defer reader.Close()
 				w.Header().Set("Content-Type", "application/octet-stream")
+				w.Header().Set("X-Content-Type-Options", "nosniff")
 				w.Header().Set("Cache-Control", "no-store")
 				_, _ = io.Copy(w, reader)
 				return
@@ -364,7 +367,11 @@ func writeSafetyCommandJSON(w http.ResponseWriter, status int, value any) {
 
 func writeSafetyCommandError(w http.ResponseWriter, r *http.Request, err error) {
 	status, code, message := http.StatusServiceUnavailable, "safety_command_unavailable", "safety command unavailable"
-	if errors.Is(err, safetyincident.ErrUnauthorized) {
+	if errors.Is(err, pgx.ErrNoRows) {
+		status, code, message = http.StatusNotFound, "evidence_unavailable", "evidence unavailable"
+	} else if errors.Is(err, safetyincident.ErrDeadlineTargetNotConfigured) {
+		status, code, message = http.StatusUnprocessableEntity, "deadline_target_not_configured", "approved workflow response target is not configured"
+	} else if errors.Is(err, safetyincident.ErrUnauthorized) {
 		status, code, message = http.StatusForbidden, "safety_action_forbidden", "safety action forbidden"
 	} else if errors.Is(err, safetyincident.ErrInvalidEvidence) || errors.Is(err, safetyincident.ErrInvalidHold) ||
 		errors.Is(err, safetyincident.ErrInvalidWorkflowTransition) || errors.Is(err, safetyincident.ErrInvalidCSEAWorkflow) {

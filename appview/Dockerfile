@@ -4,7 +4,7 @@ WORKDIR /admin
 COPY admin/package.json admin/package-lock.json ./
 RUN npm ci --no-audit --no-fund
 COPY admin/ ./
-RUN npm run build
+RUN npm test && npm run build
 
 FROM golang:1.27.2-alpine@sha256:85dc1069ac644ea3c527b177303a406eb3358192816cd7f9e5848eb658851673 AS build-base
 WORKDIR /src

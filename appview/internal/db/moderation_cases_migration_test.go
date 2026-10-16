@@ -256,7 +256,7 @@ func assertModerationCaseConstraints(t *testing.T, pool *pgxpool.Pool) {
 		) VALUES (
 			'30000000-0000-4000-8000-000000000001',
 			'20000000-0000-4000-8000-000000000001','decision','moderator-one',
-			'retool','replay-one',decode(repeat('11',32),'hex'),0,1
+			'moderation-console','replay-one',decode(repeat('11',32),'hex'),0,1
 		)
 	`); err != nil {
 		t.Fatalf("insert valid case event: %v", err)
@@ -268,7 +268,7 @@ func assertModerationCaseConstraints(t *testing.T, pool *pgxpool.Pool) {
 		) VALUES (
 			'30000000-0000-4000-8000-000000000002',
 			'20000000-0000-4000-8000-000000000002','decision','moderator-one',
-			'retool','replay-one',decode(repeat('22',32),'hex'),0,1
+			'moderation-console','replay-one',decode(repeat('22',32),'hex'),0,1
 		)
 	`)
 
@@ -310,7 +310,7 @@ func assertModerationCaseConstraints(t *testing.T, pool *pgxpool.Pool) {
 		) VALUES (
 			'30000000-0000-4000-8000-000000000003',
 			'20000000-0000-4000-8000-000000000001','effectsChanged','moderator-one',
-			'retool','replay-two',decode(repeat('33',32),'hex'),1,2
+			'moderation-console','replay-two',decode(repeat('33',32),'hex'),1,2
 		);
 		INSERT INTO notification_events(
 			id,recipient_did,category,subject_key,moderation_case_reference,moderation_event_id,

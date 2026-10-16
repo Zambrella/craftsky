@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "CraftSky moderation console API",
-    "version": "0.2.0",
+    "version": "0.4.0",
     "description": "Private operator API served by AppView. Atmosphere login/bootstrap is specified separately in internal/operatorconsole/openapi.json. No operator bearer authentication, PDS writes, external transmission or unrestricted media fetch is provided. JSON uses camelCase. Safety command receipts store a digest and safe response, never raw requests or restricted bytes."
   },
   "servers": [
@@ -805,6 +805,14 @@
                 "schema": {
                   "type": "boolean"
                 }
+              },
+              "X-Content-Type-Options": {
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "nosniff"
+                  ]
+                }
               }
             },
             "content": {
@@ -827,7 +835,7 @@
             }
           }
         },
-        "description": "Unsafe requests require the exact console Origin and X-CSRF-Token. Actor and source are server-derived. An existing resource requires expectedRevision. Successful safety commands replay their original response with Idempotent-Replayed: true; changed keys after conflict require a fresh review."
+        "description": "Unsafe requests require the exact console Origin and X-CSRF-Token. Actor and source are server-derived. An existing resource requires expectedRevision. Successful safety commands replay their original response with Idempotent-Replayed: true; changed keys after conflict require a fresh review. The required incidentReference must match the stored incident. Binary responses are never stored in command receipts. Missing/deleted evidence returns 404."
       }
     },
     "/v1/admin/safety/incidents/{incidentReference}/holds": {
@@ -2988,7 +2996,8 @@
               }
             }
           }
-        }
+        },
+        "description": "Return an authorized rich preview of the indexed account, post or event captured by the case. Media URLs are absent for unavailable or restricted content. No PDS fetch or restricted-evidence access is performed."
       }
     },
     "/v1/admin/moderation/cases/{caseReference}/provenance": {
@@ -4470,6 +4479,84 @@
       }
     },
     "/v1/admin/safety/holds/{holdId}/releases": {
+      "get": {
+        "operationId": "get_v1_admin_safety_holds_holdId_releases",
+        "summary": "GET /v1/admin/safety/holds/{holdId}/releases",
+        "x-operator-permission": "hold.manage",
+        "security": [
+          {
+            "OperatorSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/path_holdId"
+          },
+          {
+            "$ref": "#/components/parameters/query_limit"
+          },
+          {
+            "$ref": "#/components/parameters/query_cursor"
+          },
+          {
+            "$ref": "#/components/parameters/query_state"
+          }
+        ],
+        "responses": {
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          },
+          "200": {
+            "description": "Success. Cache-Control: no-store.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Idempotent-Replayed": {
+                "schema": {
+                  "type": "boolean"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HoldReleasePage"
+                }
+              }
+            }
+          }
+        }
+      },
       "post": {
         "operationId": "post_v1_admin_safety_holds_holdId_releases",
         "summary": "POST /v1/admin/safety/holds/{holdId}/releases",
@@ -4553,6 +4640,1364 @@
           }
         },
         "description": "Unsafe requests require the exact console Origin and X-CSRF-Token. Actor and source are server-derived. An existing resource requires expectedRevision. Successful safety commands replay their original response with Idempotent-Replayed: true; changed keys after conflict require a fresh review."
+      }
+    },
+    "/v1/admin/operators": {
+      "get": {
+        "operationId": "get_v1_admin_operators",
+        "summary": "GET /v1/admin/operators",
+        "x-operator-permission": "operator.manage",
+        "security": [
+          {
+            "OperatorSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/query_limit"
+          },
+          {
+            "$ref": "#/components/parameters/query_cursor"
+          },
+          {
+            "$ref": "#/components/parameters/query_state"
+          }
+        ],
+        "responses": {
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          },
+          "200": {
+            "description": "Success. Cache-Control: no-store.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Idempotent-Replayed": {
+                "schema": {
+                  "type": "boolean"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperatorPage"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "post_v1_admin_operators",
+        "summary": "POST /v1/admin/operators",
+        "x-operator-permission": "operator.manage",
+        "security": [
+          {
+            "OperatorSession": [],
+            "CSRF": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/header_Idempotency_Key"
+          }
+        ],
+        "responses": {
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          },
+          "201": {
+            "description": "Success. Cache-Control: no-store.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Idempotent-Replayed": {
+                "schema": {
+                  "type": "boolean"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SafeCommandResult"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OperatorAllowRequest"
+              }
+            }
+          }
+        },
+        "description": "Unsafe requests require the exact console Origin and X-CSRF-Token. Actor and source are server-derived. An existing resource requires expectedRevision. Successful safety commands replay their original response with Idempotent-Replayed: true; changed keys after conflict require a fresh review."
+      }
+    },
+    "/v1/admin/operators/{operatorId}": {
+      "get": {
+        "operationId": "get_v1_admin_operators_operatorId",
+        "summary": "GET /v1/admin/operators/{operatorId}",
+        "x-operator-permission": "operator.manage",
+        "security": [
+          {
+            "OperatorSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/path_operatorId"
+          }
+        ],
+        "responses": {
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          },
+          "200": {
+            "description": "Success. Cache-Control: no-store.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Idempotent-Replayed": {
+                "schema": {
+                  "type": "boolean"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Operator"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/admin/operators/{operatorId}/events": {
+      "get": {
+        "operationId": "get_v1_admin_operators_operatorId_events",
+        "summary": "GET /v1/admin/operators/{operatorId}/events",
+        "x-operator-permission": "operator.manage",
+        "security": [
+          {
+            "OperatorSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/path_operatorId"
+          },
+          {
+            "$ref": "#/components/parameters/query_limit"
+          },
+          {
+            "$ref": "#/components/parameters/query_cursor"
+          },
+          {
+            "$ref": "#/components/parameters/query_state"
+          }
+        ],
+        "responses": {
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          },
+          "200": {
+            "description": "Success. Cache-Control: no-store.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Idempotent-Replayed": {
+                "schema": {
+                  "type": "boolean"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperatorEventPage"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/admin/operations/{operationId}": {
+      "get": {
+        "operationId": "get_v1_admin_operations_operationId",
+        "summary": "GET /v1/admin/operations/{operationId}",
+        "x-operator-permission": "operator.manage",
+        "security": [
+          {
+            "OperatorSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/path_operationId"
+          }
+        ],
+        "responses": {
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          },
+          "200": {
+            "description": "Success. Cache-Control: no-store.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Idempotent-Replayed": {
+                "schema": {
+                  "type": "boolean"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Operation"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/admin/safety/incidents/{incidentReference}/assignments": {
+      "get": {
+        "operationId": "get_v1_admin_safety_incidents_incidentReference_assignments",
+        "summary": "GET /v1/admin/safety/incidents/{incidentReference}/assignments",
+        "x-operator-permission": "incident.confirm",
+        "security": [
+          {
+            "OperatorSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/path_incidentReference"
+          },
+          {
+            "$ref": "#/components/parameters/query_limit"
+          },
+          {
+            "$ref": "#/components/parameters/query_cursor"
+          },
+          {
+            "$ref": "#/components/parameters/query_state"
+          }
+        ],
+        "responses": {
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          },
+          "200": {
+            "description": "Success. Cache-Control: no-store.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Idempotent-Replayed": {
+                "schema": {
+                  "type": "boolean"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncidentAssignmentPage"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "post_v1_admin_safety_incidents_incidentReference_assignments",
+        "summary": "POST /v1/admin/safety/incidents/{incidentReference}/assignments",
+        "x-operator-permission": "operator.manage",
+        "security": [
+          {
+            "OperatorSession": [],
+            "CSRF": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/path_incidentReference"
+          },
+          {
+            "$ref": "#/components/parameters/header_Idempotency_Key"
+          }
+        ],
+        "responses": {
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          },
+          "201": {
+            "description": "Success. Cache-Control: no-store.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Idempotent-Replayed": {
+                "schema": {
+                  "type": "boolean"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SafeCommandResult"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IncidentAssignmentRequest"
+              }
+            }
+          }
+        },
+        "description": "Unsafe requests require the exact console Origin and X-CSRF-Token. Actor and source are server-derived. An existing resource requires expectedRevision. Successful safety commands replay their original response with Idempotent-Replayed: true; changed keys after conflict require a fresh review."
+      }
+    },
+    "/v1/admin/operators/{operatorId}/permission-set": {
+      "post": {
+        "operationId": "post_v1_admin_operators_operatorId_permission_set",
+        "summary": "POST /v1/admin/operators/{operatorId}/permission-set",
+        "x-operator-permission": "operator.manage",
+        "security": [
+          {
+            "OperatorSession": [],
+            "CSRF": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/path_operatorId"
+          },
+          {
+            "$ref": "#/components/parameters/header_Idempotency_Key"
+          }
+        ],
+        "responses": {
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          },
+          "200": {
+            "description": "Success. Cache-Control: no-store.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Idempotent-Replayed": {
+                "schema": {
+                  "type": "boolean"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SafeCommandResult"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OperatorSetRequest"
+              }
+            }
+          }
+        },
+        "description": "Unsafe requests require the exact console Origin and X-CSRF-Token. Actor and source are server-derived. An existing resource requires expectedRevision. Successful safety commands replay their original response with Idempotent-Replayed: true; changed keys after conflict require a fresh review."
+      }
+    },
+    "/v1/admin/operators/{operatorId}/disable": {
+      "post": {
+        "operationId": "post_v1_admin_operators_operatorId_disable",
+        "summary": "POST /v1/admin/operators/{operatorId}/disable",
+        "x-operator-permission": "operator.manage",
+        "security": [
+          {
+            "OperatorSession": [],
+            "CSRF": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/path_operatorId"
+          },
+          {
+            "$ref": "#/components/parameters/header_Idempotency_Key"
+          }
+        ],
+        "responses": {
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          },
+          "200": {
+            "description": "Success. Cache-Control: no-store.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Idempotent-Replayed": {
+                "schema": {
+                  "type": "boolean"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SafeCommandResult"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OperatorEmptyRequest"
+              }
+            }
+          }
+        },
+        "description": "Unsafe requests require the exact console Origin and X-CSRF-Token. Actor and source are server-derived. An existing resource requires expectedRevision. Successful safety commands replay their original response with Idempotent-Replayed: true; changed keys after conflict require a fresh review."
+      }
+    },
+    "/v1/admin/operators/{operatorId}/session-revocations": {
+      "post": {
+        "operationId": "post_v1_admin_operators_operatorId_session_revocations",
+        "summary": "POST /v1/admin/operators/{operatorId}/session-revocations",
+        "x-operator-permission": "operator.manage",
+        "security": [
+          {
+            "OperatorSession": [],
+            "CSRF": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/path_operatorId"
+          },
+          {
+            "$ref": "#/components/parameters/header_Idempotency_Key"
+          }
+        ],
+        "responses": {
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          },
+          "200": {
+            "description": "Success. Cache-Control: no-store.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Idempotent-Replayed": {
+                "schema": {
+                  "type": "boolean"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SafeCommandResult"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OperatorEmptyRequest"
+              }
+            }
+          }
+        },
+        "description": "Unsafe requests require the exact console Origin and X-CSRF-Token. Actor and source are server-derived. An existing resource requires expectedRevision. Successful safety commands replay their original response with Idempotent-Replayed: true; changed keys after conflict require a fresh review."
+      }
+    },
+    "/v1/admin/safety/incidents/{incidentReference}/assignments/{assignmentId}/release": {
+      "post": {
+        "operationId": "post_v1_admin_safety_incidents_incidentReference_assignments_assignmentId_release",
+        "summary": "POST /v1/admin/safety/incidents/{incidentReference}/assignments/{assignmentId}/release",
+        "x-operator-permission": "operator.manage",
+        "security": [
+          {
+            "OperatorSession": [],
+            "CSRF": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/path_incidentReference"
+          },
+          {
+            "$ref": "#/components/parameters/path_assignmentId"
+          },
+          {
+            "$ref": "#/components/parameters/header_Idempotency_Key"
+          }
+        ],
+        "responses": {
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          },
+          "200": {
+            "description": "Success. Cache-Control: no-store.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Idempotent-Replayed": {
+                "schema": {
+                  "type": "boolean"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SafeCommandResult"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OperatorEmptyRequest"
+              }
+            }
+          }
+        },
+        "description": "Unsafe requests require the exact console Origin and X-CSRF-Token. Actor and source are server-derived. An existing resource requires expectedRevision. Successful safety commands replay their original response with Idempotent-Replayed: true; changed keys after conflict require a fresh review."
+      }
+    },
+    "/v1/admin/safety/evidence/{evidenceId}/holds": {
+      "get": {
+        "operationId": "get_v1_admin_safety_evidence_evidenceId_holds",
+        "summary": "GET /v1/admin/safety/evidence/{evidenceId}/holds",
+        "x-operator-permission": "evidence.access",
+        "security": [
+          {
+            "OperatorSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/path_evidenceId"
+          },
+          {
+            "$ref": "#/components/parameters/query_limit"
+          },
+          {
+            "$ref": "#/components/parameters/query_cursor"
+          },
+          {
+            "$ref": "#/components/parameters/query_state"
+          }
+        ],
+        "responses": {
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          },
+          "200": {
+            "description": "Success. Cache-Control: no-store.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Idempotent-Replayed": {
+                "schema": {
+                  "type": "boolean"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HoldPage"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/admin/safety/evidence/{evidenceId}/retention-events": {
+      "get": {
+        "operationId": "get_v1_admin_safety_evidence_evidenceId_retention_events",
+        "summary": "GET /v1/admin/safety/evidence/{evidenceId}/retention-events",
+        "x-operator-permission": "evidence.access",
+        "security": [
+          {
+            "OperatorSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/path_evidenceId"
+          },
+          {
+            "$ref": "#/components/parameters/query_limit"
+          },
+          {
+            "$ref": "#/components/parameters/query_cursor"
+          },
+          {
+            "$ref": "#/components/parameters/query_state"
+          }
+        ],
+        "responses": {
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          },
+          "200": {
+            "description": "Success. Cache-Control: no-store.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Idempotent-Replayed": {
+                "schema": {
+                  "type": "boolean"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetentionEventPage"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/admin/safety/evidence/{evidenceId}/retention-jobs": {
+      "get": {
+        "operationId": "get_v1_admin_safety_evidence_evidenceId_retention_jobs",
+        "summary": "GET /v1/admin/safety/evidence/{evidenceId}/retention-jobs",
+        "x-operator-permission": "evidence.access",
+        "security": [
+          {
+            "OperatorSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/path_evidenceId"
+          },
+          {
+            "$ref": "#/components/parameters/query_limit"
+          },
+          {
+            "$ref": "#/components/parameters/query_cursor"
+          },
+          {
+            "$ref": "#/components/parameters/query_state"
+          }
+        ],
+        "responses": {
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          },
+          "200": {
+            "description": "Success. Cache-Control: no-store.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Idempotent-Replayed": {
+                "schema": {
+                  "type": "boolean"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetentionJobPage"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/admin/safety/holds/{holdId}/evidence": {
+      "get": {
+        "operationId": "get_v1_admin_safety_holds_holdId_evidence",
+        "summary": "GET /v1/admin/safety/holds/{holdId}/evidence",
+        "x-operator-permission": "hold.manage",
+        "security": [
+          {
+            "OperatorSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/path_holdId"
+          },
+          {
+            "$ref": "#/components/parameters/query_limit"
+          },
+          {
+            "$ref": "#/components/parameters/query_cursor"
+          },
+          {
+            "$ref": "#/components/parameters/query_state"
+          }
+        ],
+        "responses": {
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          },
+          "200": {
+            "description": "Success. Cache-Control: no-store.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Idempotent-Replayed": {
+                "schema": {
+                  "type": "boolean"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvidencePage"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/admin/safety/evidence/capabilities": {
+      "get": {
+        "operationId": "get_v1_admin_safety_evidence_capabilities",
+        "summary": "GET /v1/admin/safety/evidence/capabilities",
+        "x-operator-permission": "evidence.access",
+        "security": [
+          {
+            "OperatorSession": []
+          }
+        ],
+        "parameters": [],
+        "responses": {
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          },
+          "200": {
+            "description": "Success. Cache-Control: no-store.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Idempotent-Replayed": {
+                "schema": {
+                  "type": "boolean"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvidenceCapabilities"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/admin/safety/evidence/{evidenceId}/accesses": {
+      "get": {
+        "operationId": "get_v1_admin_safety_evidence_evidenceId_accesses",
+        "summary": "GET /v1/admin/safety/evidence/{evidenceId}/accesses",
+        "x-operator-permission": "evidence.access",
+        "security": [
+          {
+            "OperatorSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/path_evidenceId"
+          },
+          {
+            "$ref": "#/components/parameters/query_limit"
+          },
+          {
+            "$ref": "#/components/parameters/query_cursor"
+          },
+          {
+            "$ref": "#/components/parameters/query_state"
+          }
+        ],
+        "responses": {
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          },
+          "200": {
+            "description": "Success. Cache-Control: no-store.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "Idempotent-Replayed": {
+                "schema": {
+                  "type": "boolean"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EvidenceAccessAttemptPage"
+                }
+              }
+            }
+          }
+        }
       }
     }
   },
@@ -5020,6 +6465,10 @@
           },
           "deadlineMet": {
             "type": "boolean"
+          },
+          "operatorId": {
+            "type": "string",
+            "format": "uuid"
           }
         },
         "required": [
@@ -5633,16 +7082,47 @@
             "type": "string"
           },
           "mediaAvailable": {
-            "type": "boolean",
-            "enum": [
-              false
-            ]
+            "type": "boolean"
           },
           "text": {
             "type": "string"
           },
           "title": {
             "type": "string"
+          },
+          "author": {
+            "$ref": "#/components/schemas/PreviewAuthor"
+          },
+          "banner": {
+            "type": "string"
+          },
+          "crafts": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "images": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PreviewImage"
+            }
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "video": {
+            "$ref": "#/components/schemas/PreviewVideo"
+          },
+          "external": {
+            "$ref": "#/components/schemas/PreviewExternal"
+          },
+          "project": {
+            "$ref": "#/components/schemas/PreviewProject"
+          },
+          "event": {
+            "$ref": "#/components/schemas/PreviewEvent"
           }
         },
         "required": [
@@ -5650,7 +7130,8 @@
           "subjectType",
           "subjectDid",
           "mediaAvailable"
-        ]
+        ],
+        "description": "Indexed content for the case version. Changed records and terminal owners are unavailable; incident-linked subjects are restricted. Only clear image projections and already published profile image fields supply ordinary media URLs. Restricted evidence is never included."
       },
       "SafetyStatus": {
         "type": "object",
@@ -6024,7 +7505,8 @@
           "bytes": {
             "type": "string",
             "format": "byte",
-            "description": "Restricted bytes. This request must never be logged or retained in a replay receipt."
+            "description": "Restricted bytes. This request must never be logged or retained in a replay receipt.",
+            "maxLength": 699052
           },
           "contentType": {
             "type": "string"
@@ -6056,10 +7538,15 @@
         "properties": {
           "reason": {
             "type": "string"
+          },
+          "incidentReference": {
+            "type": "string",
+            "format": "uuid"
           }
         },
         "required": [
-          "reason"
+          "reason",
+          "incidentReference"
         ],
         "additionalProperties": false
       },
@@ -6700,6 +8187,801 @@
           "expectedRevision"
         ],
         "additionalProperties": false
+      },
+      "Operator": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "operatorId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "did": {
+            "type": "string"
+          },
+          "actorId": {
+            "type": "string"
+          },
+          "revision": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "permissionSet": {
+            "type": "string",
+            "enum": [
+              "admin",
+              "mod",
+              "helper"
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "OperatorEvent": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sequence": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "actorId": {
+            "type": "string"
+          },
+          "action": {
+            "type": "string"
+          },
+          "permissionSet": {
+            "type": "string",
+            "nullable": true
+          },
+          "incidentId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "assignmentId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "IncidentAssignment": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "operatorId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "owner",
+              "cover",
+              "helper"
+            ]
+          },
+          "assignedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "releasedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        }
+      },
+      "OperatorPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Operator"
+            },
+            "maxItems": 100
+          },
+          "cursor": {
+            "type": "string",
+            "description": "Opaque next-page token. Omitted on the final page. Keep all filters unchanged."
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "OperatorEventPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OperatorEvent"
+            },
+            "maxItems": 100
+          },
+          "cursor": {
+            "type": "string",
+            "description": "Opaque next-page token. Omitted on the final page. Keep all filters unchanged."
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "IncidentAssignmentPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/IncidentAssignment"
+            },
+            "maxItems": 100
+          },
+          "cursor": {
+            "type": "string",
+            "description": "Opaque next-page token. Omitted on the final page. Keep all filters unchanged."
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "OperatorAllowRequest": {
+        "type": "object",
+        "properties": {
+          "did": {
+            "type": "string"
+          },
+          "permissionSet": {
+            "type": "string",
+            "enum": [
+              "admin",
+              "mod",
+              "helper"
+            ]
+          }
+        },
+        "required": [
+          "did",
+          "permissionSet"
+        ],
+        "additionalProperties": false
+      },
+      "OperatorSetRequest": {
+        "type": "object",
+        "properties": {
+          "expectedRevision": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "permissionSet": {
+            "type": "string",
+            "enum": [
+              "admin",
+              "mod",
+              "helper"
+            ]
+          }
+        },
+        "required": [
+          "expectedRevision",
+          "permissionSet"
+        ],
+        "additionalProperties": false
+      },
+      "OperatorEmptyRequest": {
+        "type": "object",
+        "properties": {
+          "expectedRevision": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "expectedRevision"
+        ],
+        "additionalProperties": false
+      },
+      "IncidentAssignmentRequest": {
+        "type": "object",
+        "properties": {
+          "expectedRevision": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "operatorId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "owner",
+              "cover",
+              "helper"
+            ]
+          }
+        },
+        "required": [
+          "expectedRevision",
+          "operatorId",
+          "role"
+        ],
+        "additionalProperties": false
+      },
+      "EvidenceCapabilities": {
+        "type": "object",
+        "properties": {
+          "preservationAvailable": {
+            "type": "boolean"
+          },
+          "accessAvailable": {
+            "type": "boolean"
+          },
+          "maxPreservationBytes": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 524288
+          },
+          "maxAccessBytes": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 524288
+          }
+        },
+        "required": [
+          "preservationAvailable",
+          "accessAvailable",
+          "maxPreservationBytes",
+          "maxAccessBytes"
+        ]
+      },
+      "EvidenceAccessAttempt": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "actorId": {
+            "type": "string"
+          },
+          "action": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "allowed": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "EvidenceAccessAttemptPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/EvidenceAccessAttempt"
+            },
+            "maxItems": 100
+          },
+          "cursor": {
+            "type": "string",
+            "description": "Opaque next-page token. Omitted on the final page. Keep all filters unchanged."
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "HoldRelease": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "actorId": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "releasedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "HoldReleasePage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HoldRelease"
+            },
+            "maxItems": 100
+          },
+          "cursor": {
+            "type": "string",
+            "description": "Opaque next-page token. Omitted on the final page. Keep all filters unchanged."
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "RetentionEvent": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "outcome": {
+            "type": "string"
+          },
+          "occurredAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "RetentionEventPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RetentionEvent"
+            },
+            "maxItems": 100
+          },
+          "cursor": {
+            "type": "string",
+            "description": "Opaque next-page token. Omitted on the final page. Keep all filters unchanged."
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "RetentionJob": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "state": {
+            "type": "string"
+          },
+          "attemptCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "maxAttempts": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "nextAttemptAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "errorCategory": {
+            "type": "string",
+            "nullable": true
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "RetentionJobPage": {
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RetentionJob"
+            },
+            "maxItems": 100
+          },
+          "cursor": {
+            "type": "string",
+            "description": "Opaque next-page token. Omitted on the final page. Keep all filters unchanged."
+          }
+        },
+        "required": [
+          "items"
+        ]
+      },
+      "PreviewAuthor": {
+        "type": "object",
+        "properties": {
+          "did": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "avatar": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "did"
+        ]
+      },
+      "PreviewAspectRatio": {
+        "type": "object",
+        "properties": {
+          "width": {
+            "type": "integer"
+          },
+          "height": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "width",
+          "height"
+        ]
+      },
+      "PreviewImage": {
+        "type": "object",
+        "properties": {
+          "cid": {
+            "type": "string"
+          },
+          "mime": {
+            "type": "string"
+          },
+          "alt": {
+            "type": "string"
+          },
+          "thumb": {
+            "type": "string"
+          },
+          "fullsize": {
+            "type": "string"
+          },
+          "size": {
+            "type": "integer"
+          },
+          "aspectRatio": {
+            "$ref": "#/components/schemas/PreviewAspectRatio"
+          }
+        },
+        "required": [
+          "alt"
+        ]
+      },
+      "PreviewVideo": {
+        "type": "object",
+        "properties": {
+          "cid": {
+            "type": "string"
+          },
+          "mime": {
+            "type": "string"
+          },
+          "alt": {
+            "type": "string"
+          },
+          "playlist": {
+            "type": "string"
+          },
+          "thumbnail": {
+            "type": "string"
+          },
+          "size": {
+            "type": "integer"
+          },
+          "aspectRatio": {
+            "$ref": "#/components/schemas/PreviewAspectRatio"
+          }
+        },
+        "required": [
+          "cid",
+          "mime",
+          "alt",
+          "playlist",
+          "size"
+        ]
+      },
+      "PreviewExternal": {
+        "type": "object",
+        "properties": {
+          "uri": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "thumb": {
+            "type": "object",
+            "properties": {
+              "cid": {
+                "type": "string"
+              },
+              "mime": {
+                "type": "string"
+              },
+              "size": {
+                "type": "integer"
+              },
+              "url": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "cid",
+              "mime",
+              "size",
+              "url"
+            ]
+          }
+        },
+        "required": [
+          "uri",
+          "title",
+          "description"
+        ]
+      },
+      "PreviewProject": {
+        "type": "object",
+        "properties": {
+          "common": {
+            "type": "object",
+            "properties": {
+              "craftType": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string"
+              },
+              "title": {
+                "type": "string"
+              },
+              "duration": {
+                "type": "string"
+              },
+              "materials": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "text": {
+                      "type": "string"
+                    },
+                    "facets": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    }
+                  },
+                  "required": [
+                    "text"
+                  ]
+                }
+              },
+              "colors": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "designTags": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "tags": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "pattern": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "url": {
+                    "type": "string"
+                  },
+                  "designer": {
+                    "type": "string"
+                  },
+                  "publisher": {
+                    "type": "string"
+                  },
+                  "difficulty": {
+                    "type": "string"
+                  },
+                  "selfDrafted": {
+                    "type": "boolean"
+                  }
+                }
+              }
+            },
+            "required": [
+              "craftType"
+            ]
+          },
+          "details": {
+            "type": "object"
+          }
+        },
+        "required": [
+          "common"
+        ]
+      },
+      "PreviewEvent": {
+        "type": "object",
+        "properties": {
+          "did": {
+            "type": "string"
+          },
+          "rkey": {
+            "type": "string"
+          },
+          "uri": {
+            "type": "string"
+          },
+          "cid": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "startsAt": {
+            "type": "string"
+          },
+          "endsAt": {
+            "type": "string"
+          },
+          "timeZone": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "venueName": {
+            "type": "string"
+          },
+          "eventUri": {
+            "type": "string"
+          },
+          "registrationUri": {
+            "type": "string"
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "roles": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "string"
+                },
+                "known": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "value",
+                "known"
+              ]
+            }
+          },
+          "mode": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "type": "string"
+              },
+              "known": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "value",
+              "known"
+            ]
+          },
+          "status": {
+            "type": "object",
+            "properties": {
+              "value": {
+                "type": "string"
+              },
+              "known": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "value",
+              "known"
+            ]
+          },
+          "isAllDay": {
+            "type": "boolean"
+          },
+          "past": {
+            "type": "boolean"
+          },
+          "publicSuppressionReasons": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "upcomingExclusionReasons": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "image": {
+            "$ref": "#/components/schemas/PreviewImage"
+          }
+        },
+        "required": [
+          "name",
+          "startsAt",
+          "endsAt",
+          "isAllDay",
+          "status",
+          "createdAt"
+        ]
       }
     },
     "responses": {
@@ -6862,6 +9144,33 @@
       },
       "path_scanId": {
         "name": "scanId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      "path_operatorId": {
+        "name": "operatorId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      "path_assignmentId": {
+        "name": "assignmentId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "format": "uuid"
+        }
+      },
+      "path_operationId": {
+        "name": "operationId",
         "in": "path",
         "required": true,
         "schema": {

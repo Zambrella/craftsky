@@ -1,68 +1,11 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { ApiError, browserToken, request } from '../api'
+import { useState, type FormEvent } from 'react'
 import { base, effectLabels, label, reasons, type CaseDetail, type Effect, type Review } from './model'
-import { Confirmation } from './Confirmation'
 import { FollowUp } from './FollowUp'
 import { EffectChoices } from './EffectChoices'
+import { CommandPanel } from '../workspaces/CommandPanel'
 
-type Command = { path: string; body: string; key: string; title: string }
-export function CaseActions({ detail, disabled, refresh, onSessionExpired, onLocked }: { detail: CaseDetail; disabled: boolean; refresh: () => Promise<void>; onSessionExpired: () => void; onLocked: (locked: boolean) => void }) {
-  const [review, setReview] = useState<Review | null>(null)
-  const [command, setCommand] = useState<Command | null>(null)
-  const [running, setRunning] = useState(false)
-  const [settling, setSettling] = useState(false)
-  const [notice, setNotice] = useState('')
-  const inFlight = useRef(false)
-  const returnFocus = useRef<HTMLElement | null>(null)
-  function openReview(next: Review) {
-    // Capture before disabling the form, which blurs its focused control.
-    returnFocus.current = document.activeElement as HTMLElement | null
-    setReview(next)
-  }
-  const locked = !!review || !!command || running || settling
-  useEffect(() => { onLocked(locked); return () => onLocked(false) }, [locked, onLocked])
-  useEffect(() => {
-    if (!locked) return
-    const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = '' }
-    window.addEventListener('beforeunload', warn)
-    return () => window.removeEventListener('beforeunload', warn)
-  }, [locked])
-  async function execute(next: Command) {
-    if (inFlight.current) return
-    inFlight.current = true; setRunning(true); setNotice('')
-    try {
-      await request(next.path, { method: 'POST', body: next.body, signal: AbortSignal.timeout(30_000), headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': await browserToken(), 'Idempotency-Key': next.key } })
-      setCommand(null); setNotice('Command committed. The case is being refreshed.'); setSettling(true)
-      // A read failure cannot change the known outcome of the committed write.
-      try { await refresh(); setNotice('Command committed. Case data refreshed.') }
-      catch { setNotice('Command committed. Refresh the case before taking another action.') }
-    } catch (error) {
-      if (error instanceof ApiError && error.status >= 400 && error.status < 500 && ![408, 429].includes(error.status)) {
-        setCommand(null)
-        if (error.status === 401 || error.status === 403) { onSessionExpired(); return }
-        const support = error.requestId ? ` Request reference: ${error.requestId}.` : ''
-        if (error.status === 409) {
-          setNotice('Case changed or command conflicted. Review the refreshed case and confirm a new command.' + support)
-          setSettling(true); await refresh().catch(() => {})
-        } else setNotice('The command was not accepted. Check the case state, policy reason and selected consequences before reviewing again.' + support)
-      } else setNotice('The outcome is uncertain. Keep this page open and retry the exact command to safely recover its result.')
-    } finally { inFlight.current = false; setRunning(false); setSettling(false) }
-  }
-  function confirm() {
-    if (!review || inFlight.current) return
-    const next = { path: `${base}/${detail.caseReference}/${review.endpoint}`, body: JSON.stringify({ ...review.body, expectedRevision: detail.revision }), key: crypto.randomUUID(), title: review.title }
-    setReview(null); setCommand(next); void execute(next)
-  }
-  const unavailable = disabled || locked
-  return <section className="card action-card" aria-labelledby="actions-title">
-    <h2 id="actions-title">{detail.state === 'open' ? 'Record a decision' : 'Review and follow up'}</h2>
-    {notice && <p className="notice preserve" role="status">{notice}</p>}
-    {command && <div className="notice"><button className="primary" disabled={running || settling} onClick={() => void execute(command)}>{running && <span className="spinner"/>}{running ? 'Submitting…' : 'Retry exact command'}</button><p className="hint">Other actions and case navigation are paused until this result is known.</p></div>}
-    <fieldset disabled={unavailable} className="action-fields">
-      {detail.state === 'open' ? <DecisionForm review={openReview}/> : <FollowUp key={detail.revision} detail={detail} review={openReview}/>}
-    </fieldset>
-    {review && <Confirmation review={review} reference={detail.caseReference} revision={detail.revision} returnFocus={returnFocus.current} onCancel={() => setReview(null)} onConfirm={confirm}/>}
-  </section>
+export function CaseActions({detail, ...props}: {detail:CaseDetail;disabled:boolean;refresh:()=>Promise<void>;onSessionExpired:()=>void;onLocked:(v:boolean)=>void}) {
+  return <CommandPanel {...props} basePath={`${base}/${detail.caseReference}`} reference={detail.caseReference} revision={detail.revision} title={detail.state==='open'?'Record a decision':'Review and follow up'}>{(review,epoch)=>detail.state==='open'?<DecisionForm key={epoch} review={review}/>:<FollowUp key={`${detail.revision}:${epoch}`} detail={detail} review={review}/>}</CommandPanel>
 }
 
 function DecisionForm({ review }: { review: (r: Review) => void }) {

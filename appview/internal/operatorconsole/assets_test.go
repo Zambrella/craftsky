@@ -25,3 +25,18 @@ func TestConsoleAssetsAreScopedAndNeverServeHTMLForMissingScripts(t *testing.T) 
 		}
 	}
 }
+
+func TestConsoleMediaPolicyLimitsPublicPreviewsToConfiguredOrigins(t *testing.T) {
+	h := operatorconsole.Assets(fstest.MapFS{"index.html": &fstest.MapFile{Data: []byte("console")}}, "https://media.example/watch/account/video/playlist.m3u8", "https://posters.example/video.jpg")
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, httptest.NewRequest("GET", "/admin/", nil))
+	csp := w.Header().Get("Content-Security-Policy")
+	for _, required := range []string{"img-src 'self' blob: https://cdn.bsky.app", "https://posters.example", "media-src 'self' blob:", "connect-src 'self'", "https://media.example", "script-src 'self';"} {
+		if !strings.Contains(csp, required) {
+			t.Fatalf("missing %q in %s", required, csp)
+		}
+	}
+	if strings.Contains(csp, "data:") || strings.Contains(csp, "https:;") || strings.Contains(csp, "*") || w.Header().Get("Referrer-Policy") != "no-referrer" {
+		t.Fatal("media policy must keep a bounded origin list and suppress case URL referrers")
+	}
+}

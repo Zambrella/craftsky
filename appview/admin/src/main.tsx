@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import { createRoot } from 'react-dom/client'
 import { ApiError, browserToken, identity, login, logout, type Operator } from './api'
 import './style.css'
-import { CasesWorkspace } from './cases/CasesWorkspace'
+import { OperatorWorkspace } from './workspaces/OperatorWorkspace'
 
 function App() {
   const [operator, setOperator] = useState<Operator | null>(null)
@@ -52,7 +52,7 @@ function App() {
       {loading ? <div className="loading" role="status"><span className="spinner"/>Checking your session…</div> : operator ? <>
         <div className="eyebrow">YOUR WORKSPACE</div><div className="heading-row"><div><h1>Moderation console</h1><p className="intro">Review reports, record decisions and follow up on appeals.</p></div><button disabled={busy !== null || workspaceLocked} className="secondary" onClick={() => void signOut()}>{busy === 'logout' && <span className="spinner"/>}{busy === 'logout' ? 'Signing out…' : 'Sign out'}</button></div>
         <details className="access-details"><summary>Your access · {operator.permissionSet === 'mod' ? 'Moderator' : operator.permissionSet === 'admin' ? 'Administrator' : 'Helper'}</summary><dl><dt>Atmosphere account</dt><dd className="did">{operator.did}</dd><dt>Available permissions</dt><dd>{Object.entries(operator.permissions).filter(([, allowed]) => allowed).length}</dd>{operator.permissionSet === 'helper' && <><dt>Assigned incidents</dt><dd>{operator.assignedIncidentReferences.length}</dd></>}</dl></details>
-        <CasesWorkspace operator={operator} onSessionExpired={sessionExpired} onLocked={setWorkspaceLocked}/>
+        <OperatorWorkspace operator={operator} onSessionExpired={sessionExpired} onLocked={setWorkspaceLocked}/>
       </> : <section className="login-card"><div className="eyebrow">CRAFTSKY MODERATION</div><h1>A little care<br/>for the community.</h1><p className="intro">Sign in with your Atmosphere account to access the moderation workspace.</p><form onSubmit={event => void signIn(event)}><label htmlFor="identifier">Handle or DID</label><input id="identifier" autoComplete="username" autoCapitalize="none" spellCheck={false} required disabled={busy !== null} value={identifier} onChange={event => setIdentifier(event.target.value)} placeholder="you.bsky.social"/><button disabled={busy !== null || !identifier.trim()}>{busy === 'login' && <span className="spinner"/>}{busy === 'login' ? 'Connecting…' : 'Continue with Atmosphere'}<span aria-hidden="true">→</span></button></form><p className="hint">Access is limited to approved CraftSky operators. You’ll sign in with your account provider.</p></section>}
       {error && <div className="error" role="alert">{error}{!operator && !busy && <button className="text-button" onClick={() => void refresh()}>Retry connection</button>}</div>}
     </main><footer>CraftSky · A community made with care</footer>

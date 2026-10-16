@@ -98,7 +98,10 @@ func (s *Store) RevokeSessions(ctx context.Context, id uuid.UUID) error {
 		if _, err := tx.Exec(ctx, `DELETE FROM operator_browser_sessions WHERE operator_id=$1`, id); err != nil {
 			return err
 		}
-		return audit(ctx, tx, id, "sessionsRevoked", "", now)
+		if _, err := tx.Exec(ctx, `UPDATE safety_operators SET updated_at=$2 WHERE id=$1`, id, now); err != nil {
+			return err
+		}
+		return s.audit(ctx, tx, id, "sessionsRevoked", "", now)
 	})
 }
 

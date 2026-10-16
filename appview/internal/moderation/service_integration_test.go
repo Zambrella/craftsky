@@ -333,7 +333,7 @@ func TestAdjudicationServiceAtomicDecisionReplayAndVisibility(t *testing.T) {
 	now := time.Date(2026, 9, 10, 13, 0, 0, 0, time.UTC)
 	service := NewService(store, testVisibilityWriter{}, func() time.Time { return now })
 	command := TrustedCommand{
-		CaseID: caseRow.ID, ExpectedRevision: 0, SourceSystem: "retool",
+		CaseID: caseRow.ID, ExpectedRevision: 0, SourceSystem: "moderation-console",
 		ReplayID: "decision-replay-0001", ActorID: "moderator-one",
 		SourceDID: syntax.DID("did:plc:labeler"),
 		Decision: Decision{Disposition: DispositionViolation, Reason: ReasonSpam,
@@ -389,7 +389,7 @@ func TestAdjudicationServiceDoesNotInferStrikeAndRollsBack(t *testing.T) {
 	firstCase := seedAdjudicationCase(t, pool, store, "no-implicit-strike", syntax.DID("did:plc:owner"))
 	service := NewService(store, testVisibilityWriter{}, time.Now)
 	_, err := service.ResolveCase(ctx, TrustedCommand{
-		CaseID: firstCase.ID, ExpectedRevision: 0, SourceSystem: "retool", ReplayID: "no-strike-0000001",
+		CaseID: firstCase.ID, ExpectedRevision: 0, SourceSystem: "moderation-console", ReplayID: "no-strike-0000001",
 		ActorID: "moderator", SourceDID: syntax.DID("did:plc:labeler"),
 		Decision: Decision{Disposition: DispositionViolation, Reason: ReasonSpam,
 			Evidence: "evidence", Consequences: []EffectType{EffectVisibilityWarn}},
@@ -410,7 +410,7 @@ func TestAdjudicationServiceDoesNotInferStrikeAndRollsBack(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, err = service.ResolveCase(ctx, TrustedCommand{
-		CaseID: rollbackCase.ID, ExpectedRevision: 0, SourceSystem: "retool", ReplayID: "rollback-00000001",
+		CaseID: rollbackCase.ID, ExpectedRevision: 0, SourceSystem: "moderation-console", ReplayID: "rollback-00000001",
 		ActorID: "moderator", SourceDID: syntax.DID("did:plc:labeler"),
 		Decision: Decision{Disposition: DispositionViolation, Reason: ReasonSpam,
 			Evidence: "evidence", Consequences: []EffectType{EffectVisibilityHide}},
@@ -463,7 +463,7 @@ func TestAdjudicationServiceRollsBackEveryCoupledWriteFailure(t *testing.T) {
 			}
 			service := NewService(store, testVisibilityWriter{}, time.Now, WithNotificationWriter(testNotificationWriter{}))
 			_, err := service.ResolveCase(ctx, TrustedCommand{
-				CaseID: caseRow.ID, ExpectedRevision: 0, SourceSystem: "retool", ReplayID: "fault-replay-0001",
+				CaseID: caseRow.ID, ExpectedRevision: 0, SourceSystem: "moderation-console", ReplayID: "fault-replay-0001",
 				ActorID: "moderator", SourceDID: syntax.DID("did:plc:labeler"),
 				Decision: Decision{Disposition: DispositionViolation, Reason: ReasonSpam, Evidence: "evidence", Consequences: []EffectType{EffectVisibilityHide, EffectStrike}},
 			})
@@ -502,7 +502,7 @@ func TestAdjudicationServiceAppliesAndNegatesExistingVisibilityOutputs(t *testin
 			service := NewService(store, testVisibilityWriter{}, func() time.Time { return now })
 
 			resolved, err := service.ResolveCase(ctx, TrustedCommand{
-				CaseID: caseRow.ID, ExpectedRevision: 0, SourceSystem: "retool",
+				CaseID: caseRow.ID, ExpectedRevision: 0, SourceSystem: "moderation-console",
 				ReplayID: "visibility-apply-" + string(effect), ActorID: "moderator-one",
 				SourceDID: syntax.DID("did:plc:labeler"),
 				Decision: Decision{Disposition: DispositionViolation, Reason: ReasonSpam,
@@ -513,7 +513,7 @@ func TestAdjudicationServiceAppliesAndNegatesExistingVisibilityOutputs(t *testin
 			}
 			now = now.Add(time.Hour)
 			if _, err := service.ChangeEffects(ctx, EffectChangeCommand{
-				CaseID: caseRow.ID, ExpectedRevision: resolved.Revision, SourceSystem: "retool",
+				CaseID: caseRow.ID, ExpectedRevision: resolved.Revision, SourceSystem: "moderation-console",
 				ReplayID: "visibility-negate-" + string(effect), ActorID: "moderator-one",
 				SourceDID: syntax.DID("did:plc:labeler"), Negate: []EffectType{effect},
 				Rationale: "visibility consequence reversed",

@@ -1,5 +1,5 @@
 import { expect, test, vi } from 'vitest'
-import { act, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { CasesWorkspace } from '../src/cases/CasesWorkspace'
 
@@ -48,6 +48,32 @@ async function prepareDecision(user: ReturnType<typeof userEvent.setup>) {
   await user.click(screen.getByLabelText('Account strike'))
   await user.click(screen.getByRole('button', { name: 'Review decision' }))
 }
+
+test('consequence help works with hover and keyboard without selecting or submitting a decision', async () => {
+  fixture()
+  const user = await openCase()
+  await user.selectOptions(screen.getByLabelText('Decision'), 'violation')
+  expect(screen.getAllByRole('button', { name: /purpose and effect/ })).toHaveLength(6)
+  const help = screen.getByRole('button', { name: 'Formal warning: purpose and effect' })
+  const choice = screen.getByRole('checkbox', { name: 'Formal warning' }) as HTMLInputElement
+  expect(screen.queryByRole('tooltip')).toBeNull()
+  await user.hover(help)
+  expect(screen.getByRole('tooltip').textContent).toContain('account owner')
+  await user.click(help)
+  expect(choice.checked).toBe(false)
+  await user.unhover(help)
+  expect(screen.getByRole('tooltip')).toBeTruthy() // Focus keeps the help open.
+  await user.keyboard('{Escape}')
+  expect(screen.queryByRole('tooltip')).toBeNull()
+  expect(document.activeElement).toBe(help)
+  await user.tab()
+  await user.tab({ shift: true })
+  expect(screen.getByRole('tooltip')).toBeTruthy()
+  await user.tab()
+  expect(screen.queryByRole('tooltip')).toBeNull()
+  expect(choice.checked).toBe(false)
+  expect(vi.mocked(fetch).mock.calls.some(([, init]) => init?.method === 'POST')).toBe(false)
+})
 
 test('confirmed decision locks controls, retains exact uncertain retry and refreshes committed standing', async () => {
   let committed = false
@@ -266,4 +292,58 @@ test('revision conflict fetches fresh case and requires confirmation with a new 
   await screen.findByText(/Command committed/)
   expect(JSON.parse(String(writes[1].body)).expectedRevision).toBe(1)
   expect((writes[1].headers as Record<string, string>)['Idempotency-Key']).not.toBe((writes[0].headers as Record<string, string>)['Idempotency-Key'])
+})
+
+test('case content preview renders the post author, images and an accessible full size view', async () => {
+  fixture(path => path.includes('/preview') ? response({ state: 'available', subjectType: 'post', subjectDid: 'did:plc:author', text: 'A synthetic craft project.', mediaAvailable: true, author: { did: 'did:plc:author', displayName: 'Mira Makes' }, images: [{ fullsize: 'https://cdn.bsky.app/img/feed_fullsize/plain/did:plc:author/scarf@jpeg', thumb: 'https://cdn.bsky.app/img/feed_thumbnail/plain/did:plc:author/scarf@jpeg', alt: 'Blue knitted scarf' }] }) : undefined)
+  const user = await openCase()
+  expect(screen.getByText('Mira Makes')).toBeTruthy()
+  expect(screen.getByRole('img', { name: 'Blue knitted scarf' }).getAttribute('src')).toContain('feed_fullsize')
+  await user.click(screen.getByRole('button', { name: 'Enlarge image 1' }))
+  expect(screen.getByRole('dialog', { name: 'Image 1' })).toBeTruthy()
+  await user.keyboard('{Escape}')
+  expect(screen.queryByRole('dialog', { name: 'Image 1' })).toBeNull()
+  expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Enlarge image 1' }))
+})
+
+test('account and event previews display profile media and event context', async () => {
+  let kind = 'account'
+  fixture(path => path.includes('/preview') ? response(kind === 'account' ? { state: 'available', subjectType: 'account', subjectDid: 'did:plc:author', title: 'Mira Makes', text: 'A synthetic craft project.', mediaAvailable: true, author: { did: 'did:plc:author', displayName: 'Mira Makes', avatar: 'https://cdn.bsky.app/img/avatar/plain/did:plc:author/avatar@jpeg' }, banner: 'https://cdn.bsky.app/img/banner/plain/did:plc:author/banner@jpeg', crafts: ['knitting', 'weaving'] } : { state: 'available', subjectType: 'event', title: 'Textile fair', text: 'Meet local makers', mediaAvailable: true, event: { startsAt: '2030-01-01T10:00:00Z', endsAt: '2030-01-01T18:00:00Z', venueName: 'Village hall', eventUri: 'https://example.com/fair' }, images: [{ fullsize: 'https://cdn.bsky.app/img/feed_fullsize/plain/did:plc:author/fair@jpeg', alt: 'Textile stalls' }] }) : undefined)
+  const user = await openCase()
+  expect(screen.getByRole('img', { name: 'Account avatar' })).toBeTruthy()
+  expect(screen.getByRole('img', { name: 'Account banner' })).toBeTruthy()
+  expect(screen.getByText('Knitting')).toBeTruthy()
+  kind = 'event'
+  await user.click(screen.getByRole('button', { name: 'Refresh case' }))
+  expect(await screen.findByText('Village hall')).toBeTruthy()
+  expect(screen.getByRole('img', { name: 'Textile stalls' })).toBeTruthy()
+  expect(screen.getByRole('link', { name: 'Event website' }).getAttribute('rel')).toContain('noreferrer')
+})
+
+test('post video is only loaded after the operator asks to play it, and restricted previews never render media', async () => {
+  let restricted = false
+  fixture(path => path.includes('/preview') ? response({ state: restricted ? 'restricted' : 'available', subjectType: 'post', text: 'A synthetic craft project.', mediaAvailable: true, video: { playlist: 'https://video.bsky.app/watch/did:plc:author/video/playlist.m3u8', thumbnail: 'https://video.bsky.app/watch/did:plc:author/video/thumbnail.jpg', alt: 'Weaving demonstration' }, images: restricted ? [{ fullsize: 'https://cdn.bsky.app/never-load', alt: 'Restricted image canary' }] : [] }) : undefined)
+  const user = await openCase()
+  expect(screen.queryByLabelText('Video preview')).toBeNull()
+  await user.click(screen.getByRole('button', { name: 'Load video' }))
+  const video = screen.getByLabelText('Video preview') as HTMLVideoElement
+  expect(video.controls).toBe(true)
+  expect(video.autoplay).toBe(false)
+  restricted = true
+  await user.click(screen.getByRole('button', { name: 'Refresh case' }))
+  expect(await screen.findByText('Restricted content. Use the specialist review workflow.')).toBeTruthy()
+  expect(screen.queryByLabelText('Video preview')).toBeNull()
+  expect(screen.queryByRole('img', { name: 'Restricted image canary' })).toBeNull()
+})
+
+
+test('post previews show project and link context and handle missing images without unsafe destinations', async () => {
+  fixture(path => path.includes('/preview') ? response({ state: 'available', subjectType: 'post', text: 'A synthetic craft project.', mediaAvailable: true, images: [{ fullsize: 'https://cdn.bsky.app/missing', alt: 'Missing scarf photo' }], project: { common: { title: 'Winter scarf', craftType: 'social.craftsky.feed.defs#knitting', materials: [{ text: 'Blue wool' }] } }, external: { title: 'Pattern notes', description: 'A useful pattern', uri: 'javascript:alert(1)' } }) : undefined)
+  await openCase()
+  expect(screen.getByRole('heading', { name: 'Winter scarf' })).toBeTruthy()
+  expect(screen.getByText('Materials: Blue wool')).toBeTruthy()
+  expect(screen.getByText('Pattern notes')).toBeTruthy()
+  expect(screen.queryByRole('link', { name: 'Open linked page' })).toBeNull()
+  fireEvent.error(screen.getByRole('img', { name: 'Missing scarf photo' }))
+  expect(screen.getByRole('status').textContent).toContain('Image unavailable')
 })

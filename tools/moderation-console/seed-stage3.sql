@@ -14,7 +14,11 @@ ON CONFLICT DO NOTHING;
 INSERT INTO image_subject_states(subject_uri,subject_kind,source_cid,visibility_state)
 VALUES('at://did:example:console-stage3/social.craftsky.feed.post/review-one','post','synthetic-stage3-cid','clear') ON CONFLICT DO NOTHING;
 INSERT INTO bluesky_profiles(did,display_name,description,record_cid)
-VALUES('did:example:console-stage3-spare','Practice account','A benign synthetic account for console review.','synthetic-stage3-profile'),('did:example:console-stage3-open','Open practice account','A benign synthetic case left open for UI review.','synthetic-stage3-open') ON CONFLICT DO NOTHING;
+VALUES('did:example:console-stage3-spare','Practice account','A benign synthetic account for console review.','synthetic-stage3-profile'),('did:example:console-stage3-open','Open practice account','A benign synthetic case left open for UI review.','synthetic-stage3-open'),
+-- The existing development-only handle resolver requires a mirrored profile.
+-- These local identities let consumer HTTP reads verify hide/restore behavior.
+('did:example:console-stage3','Synthetic craft account','Benign local moderation fixture.','synthetic-stage3-author'),
+('did:example:console-stage3-viewer','Synthetic viewer','Benign local moderation fixture.','synthetic-stage3-viewer') ON CONFLICT DO NOTHING;
 INSERT INTO moderation_reports(id,reporter_did,subject_type,subject_did,subject_collection,subject_rkey,subject_uri,subject_cid_snapshot,reason_type,details,forwarding_status,forwarding_prepared_at)
 VALUES('console-stage3-report','did:example:console-stage3-reporter','post','did:example:console-stage3','social.craftsky.feed.post','review-one','at://did:example:console-stage3/social.craftsky.feed.post/review-one','synthetic-stage3-cid','harassment','Benign synthetic report for the stage 3 browser walkthrough. No real allegation.','prepared_not_submitted',now()) ON CONFLICT DO NOTHING;
 INSERT INTO moderation_cases(id,subject_key,subject_type,subject_did,subject_collection,subject_rkey,subject_uri,subject_cid_snapshot,owner_did,safe_snapshot)

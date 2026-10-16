@@ -102,6 +102,14 @@ func ConsoleCommandHandler(pool *pgxpool.Pool, table, param, column string, hand
 		var revision int64
 		var id uuid.UUID
 		var resourceKey any
+		// Registry operations and privileged CLI maintenance share this lock
+		// order, before target rows, to preserve last-admin and assignment rules.
+		if table == "safety_operators" {
+			if _, err = tx.Exec(r.Context(), `SELECT pg_advisory_xact_lock(hashtext('craftsky.operator-management'))`); err != nil {
+				consoleCommandFailure(w, r, err)
+				return
+			}
+		}
 		if table != "" {
 			if table == "account_age_eligibility" {
 				var raw string

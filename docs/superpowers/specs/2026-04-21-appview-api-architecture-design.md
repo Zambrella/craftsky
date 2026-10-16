@@ -370,7 +370,7 @@ Explicitly out of scope for v1, listed here so it's discoverable. Also tracked i
 
 The private operator surface is described by
 [`moderation_console.openapi.json`](../../../appview/internal/api/moderation_console.openapi.json)
-and its [capability map](../../changes/2026-10-14-retool-moderation-console/05-api-capability-map.md).
+and its [capability map](../../changes/2026-10-14-moderation-console/05-api-capability-map.md).
 New resource lists follow the bounded opaque-cursor contract above, with cursors
 bound to their parent and filters. All operator data responses use `no-store`.
 Safety/intake/eligibility commands require `Idempotency-Key`; existing resources

@@ -18,9 +18,15 @@ export type CaseDetail = CaseItem & {
   standing: { activeStrikeCount: number; strikeThreshold: number; thresholdSuspended: boolean; severeSuspended: boolean; suspended: boolean };
   strikeContext?: { active: boolean; issuedAt: string; dueAt: string; expiredAt?: string; overturnedAt?: string };
 }
-export type Preview = { state: string; title?: string; text?: string; mediaAvailable: boolean }
+export type PreviewImage = { fullsize?: string; thumb?: string; alt: string; aspectRatio?: { width: number; height: number } }
+export type Preview = { state: string; subjectType?: string; subjectDid?: string; title?: string; text?: string; mediaAvailable: boolean; author?: { did: string; displayName?: string | null; avatar?: string }; images?: PreviewImage[]; createdAt?: string; banner?: string; crafts?: string[];
+ event?: { startsAt: string; endsAt: string; venueName?: string; timeZone?: string; eventUri?: string; registrationUri?: string; status?: { value: string } };
+ video?: { playlist: string; thumbnail?: string; alt: string };
+ external?: { uri: string; title: string; description: string; thumb?: { url: string } };
+ project?: { common: { title?: string; craftType: string; status?: string; materials?: { text: string }[]; pattern?: { name?: string; url?: string } } };
+}
 export type Provenance = { id: string; actorId: string; sourceSystem: string; reason: string; createdAt: string }
-export type Review = { title: string; endpoint: string; body: Record<string, unknown>; summary: string[] }
+export type Review = { title: string; endpoint: string; path?: string; expectedRevision?: number | null; body: Record<string, unknown>; summary: string[] }
 export function selectedReference() {
   const match = /^#\/cases\/(MOD-[0-9a-f-]{36})$/i.exec(window.location.hash)
   return match?.[1] ?? ''

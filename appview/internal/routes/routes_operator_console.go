@@ -1,6 +1,7 @@
 package routes
 
 import (
+	"github.com/bluesky-social/indigo/atproto/syntax"
 	"net/http"
 	"os"
 	"social.craftsky/appview/internal/api/envelope"
@@ -27,5 +28,10 @@ func registerOperatorConsole(mux Registrar, mw v1Middleware, deps *Dependencies)
 	mux.Handle("GET /oauth/admin/client-metadata.json", metadata)
 	mux.Handle("GET /oauth/admin/jwks.json", jwks)
 	mux.Handle("GET /admin", http.RedirectHandler("/admin/", http.StatusTemporaryRedirect))
-	mux.Handle("GET /admin/", operatorconsole.Assets(os.DirFS("admin/dist")))
+	var playbackURLs []string
+	if deps.VideoPlayback != nil {
+		playlist, thumbnail := deps.VideoPlayback.URLs(syntax.DID("did:example:preview"), syntax.CID("preview"))
+		playbackURLs = []string{playlist, thumbnail}
+	}
+	mux.Handle("GET /admin/", operatorconsole.Assets(os.DirFS("admin/dist"), playbackURLs...))
 }

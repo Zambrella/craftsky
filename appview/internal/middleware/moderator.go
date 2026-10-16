@@ -3,6 +3,7 @@ package middleware
 import (
 	"context"
 	"crypto/subtle"
+	"errors"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -13,6 +14,12 @@ import (
 )
 
 const bearerPrefix = "Bearer "
+
+var ErrModeratorAuthentication = errors.New("moderator authentication failed")
+
+type ModeratorAuthenticator interface {
+	Authenticate(context.Context, string) (ctxkeys.Moderator, error)
+}
 
 // ModeratorAuthentication is independent from member and development auth.
 // All failures deliberately share one response and contain no credential data.

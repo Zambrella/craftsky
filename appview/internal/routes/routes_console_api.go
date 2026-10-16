@@ -10,8 +10,20 @@ var consoleReadRoutes = []struct {
 	path, resource, param string
 	permission            safetyincident.Permission
 }{
+	{"/v1/admin/safety/evidence/{evidenceId}/holds", "evidence-holds", "", safetyincident.PermissionEvidenceAccess},
+	{"/v1/admin/safety/evidence/{evidenceId}/retention-events", "retention-events", "", safetyincident.PermissionEvidenceAccess},
+	{"/v1/admin/safety/evidence/{evidenceId}/retention-jobs", "retention-jobs", "", safetyincident.PermissionEvidenceAccess},
+	{"/v1/admin/safety/holds/{holdId}/evidence", "hold-evidence", "", safetyincident.PermissionHoldManage},
+	{"/v1/admin/safety/holds/{holdId}/releases", "hold-releases", "", safetyincident.PermissionHoldManage},
+	{"/v1/admin/safety/evidence/capabilities", "evidence-capabilities", "", safetyincident.PermissionEvidenceAccess},
+	{"/v1/admin/safety/evidence/{evidenceId}/accesses", "evidence-accesses", "", safetyincident.PermissionEvidenceAccess},
+	{"/v1/admin/operators", "operators", "", safetyincident.PermissionOperatorManage},
+	{"/v1/admin/operators/{operatorId}", "operators", "operatorId", safetyincident.PermissionOperatorManage},
+	{"/v1/admin/operators/{operatorId}/events", "operator-events", "", safetyincident.PermissionOperatorManage},
+	{"/v1/admin/safety/incidents/{incidentReference}/assignments", "incident-assignments", "", safetyincident.PermissionIncidentConfirm},
 	{"/v1/admin/accounts/{did}/eligibility", "eligibility", "", safetyincident.PermissionEligibilityReview},
 	{"/v1/admin/operations", "operations", "", safetyincident.PermissionOperatorManage},
+	{"/v1/admin/operations/{operationId}", "operations", "operationId", safetyincident.PermissionOperatorManage},
 	{"/v1/admin/moderation/cases/{caseReference}/preview", "preview", "", safetyincident.PermissionModerationRead},
 	{"/v1/admin/moderation/cases/{caseReference}/provenance", "case-provenance", "", safetyincident.PermissionModerationRead},
 	{"/v1/admin/accounts/{did}/moderation", "standing", "", safetyincident.PermissionModerationRead},
@@ -41,10 +53,12 @@ func registerConsoleAPIRoutes(mux Registrar, middleware v1Middleware, deps *Depe
 	}
 	for _, route := range consoleReadRoutes {
 		handler := api.ConsoleListHandler(deps.DB, route.resource)
-		if route.resource == "eligibility" {
+		if route.resource == "evidence-capabilities" {
+			handler = api.ConsoleEvidenceCapabilitiesHandler(deps.SafetyEvidence, deps.Config.JSONBodyLimitBytes)
+		} else if route.resource == "eligibility" {
 			handler = api.ConsoleAccountEligibilityHandler(deps.DB)
 		} else if route.resource == "preview" {
-			handler = api.ConsoleCasePreviewHandler(deps.DB)
+			handler = api.ConsoleCasePreviewHandler(deps.DB, deps.VideoPlayback)
 		} else if route.resource == "standing" {
 			handler = api.ConsoleAccountStandingHandler(deps.DB)
 		} else if route.param != "" {
@@ -63,6 +77,10 @@ func registerConsoleAPIRoutes(mux Registrar, middleware v1Middleware, deps *Depe
 			handler = api.ConsoleCaseCreationHandler(deps.DB)
 		case "release":
 			handler = api.ConsoleHoldReleaseHandler(deps.DB)
+		case "allow", "set", "disable", "revoke":
+			handler = api.ConsoleOperatorCommandHandler(deps.DB, route.operation)
+		case "assign", "unassign":
+			handler = api.ConsoleAssignmentCommandHandler(deps.DB, route.operation == "unassign")
 		}
 		mux.Handle("POST "+route.path, middleware.wrap(mustConfiguredPolicy(deps.Config.Env, deps.Config, "POST", route.path), handler))
 	}
@@ -84,6 +102,12 @@ var consoleMutationRoutes = []struct {
 	path, operation string
 	permission      safetyincident.Permission
 }{
+	{"/v1/admin/operators", "allow", safetyincident.PermissionOperatorManage},
+	{"/v1/admin/operators/{operatorId}/permission-set", "set", safetyincident.PermissionOperatorManage},
+	{"/v1/admin/operators/{operatorId}/disable", "disable", safetyincident.PermissionOperatorManage},
+	{"/v1/admin/operators/{operatorId}/session-revocations", "revoke", safetyincident.PermissionOperatorManage},
+	{"/v1/admin/safety/incidents/{incidentReference}/assignments", "assign", safetyincident.PermissionOperatorManage},
+	{"/v1/admin/safety/incidents/{incidentReference}/assignments/{assignmentId}/release", "unassign", safetyincident.PermissionOperatorManage},
 	{"/v1/admin/moderation/cases", "case", safetyincident.PermissionModerationManage},
 	{"/v1/admin/safety/incidents/{incidentReference}/confirmations", "confirm", safetyincident.PermissionIncidentConfirm},
 	{"/v1/admin/safety/scans/{scanId}/retries", "retry", safetyincident.PermissionScanRetry},

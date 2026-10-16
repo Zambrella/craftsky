@@ -50,6 +50,6 @@ and records a maintenance actor rather than claiming OAuth attribution. Browser
 operator administration is a later console stage.
 
 This adds local session handling and frontend build maintenance, while removing
-Retool resource authentication and its per-user binding layer. Historic actor
+legacy external-UI resource authentication and its per-user binding layer. Historic actor
 references and append-only audits remain intact. Production provisioning,
 route enablement and deployment require the existing operational controls.

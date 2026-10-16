@@ -308,19 +308,20 @@ type Config struct {
 
 	// Media policy. Defaults preserve the approved image-posting contract;
 	// env overrides may lower but not raise these ceilings.
-	JSONBodyLimitBytes        int64 // default 1 MiB
-	MaxPostImages             int   // default 4, maximum 4
-	MaxImageUploadBytes       int64 // default 2,000,000 bytes, maximum 2,000,000 bytes
-	LinkPreviewsEnabled       bool
-	ImageDecodeLimits         api.ImageDecodeLimits
-	VideoServiceURL           string
-	VideoPlaylistURLTemplate  string
-	VideoThumbnailURLTemplate string
-	VideoEnabled              bool
-	RequiredPolicyVersion     string
-	RateLimits                middleware.RateLimitConfig
-	ScheduledPostsS3          scheduledposts.S3ObjectStoreConfig
-	SafetyEvidenceS3          safetyincident.S3EvidenceStoreConfig
+	JSONBodyLimitBytes                int64 // default 1 MiB
+	MaxPostImages                     int   // default 4, maximum 4
+	MaxImageUploadBytes               int64 // default 2,000,000 bytes, maximum 2,000,000 bytes
+	LinkPreviewsEnabled               bool
+	ImageDecodeLimits                 api.ImageDecodeLimits
+	VideoServiceURL                   string
+	VideoPlaylistURLTemplate          string
+	VideoThumbnailURLTemplate         string
+	VideoEnabled                      bool
+	RequiredPolicyVersion             string
+	RateLimits                        middleware.RateLimitConfig
+	ScheduledPostsS3                  scheduledposts.S3ObjectStoreConfig
+	SafetyIntimateImageResponseWithin time.Duration
+	SafetyEvidenceS3                  safetyincident.S3EvidenceStoreConfig
 
 	// Observability. Sentry export/tracing stays disabled unless explicitly
 	// configured, and unsafe body logging is local-dev only.
@@ -941,6 +942,13 @@ func LoadConfig(env Env, envFilePath string) (Config, error) {
 	}
 	if cfg.ScheduledPostsS3.SecretAccessKey == "" {
 		cfg.ScheduledPostsS3.SecretAccessKey = "not-configured"
+	}
+	// No default: an approved operational target must be explicitly configured.
+	if cfg.SafetyIntimateImageResponseWithin, err = durationEnv("SAFETY_INTIMATE_IMAGE_RESPONSE_WITHIN", 0); err != nil {
+		return Config{}, err
+	}
+	if cfg.SafetyIntimateImageResponseWithin < 0 {
+		return Config{}, fmt.Errorf("SAFETY_INTIMATE_IMAGE_RESPONSE_WITHIN must be non-negative")
 	}
 	cfg.SafetyEvidenceS3 = safetyincident.S3EvidenceStoreConfig{
 		Endpoint:        strings.TrimSpace(os.Getenv("SAFETY_EVIDENCE_S3_ENDPOINT")),

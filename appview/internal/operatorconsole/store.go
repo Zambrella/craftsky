@@ -12,22 +12,30 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"social.craftsky/appview/internal/dbx"
 	"social.craftsky/appview/internal/safetyincident"
 )
 
 var ErrDenied = errors.New("operator access denied")
 var ErrInvalid = errors.New("invalid operator configuration")
+var ErrLastAdmin = errors.New("another active administrator is required")
 
 type Store struct {
-	pool *pgxpool.Pool
-	now  func() time.Time
+	pool  dbx.DB
+	now   func() time.Time
+	actor string
+}
+
+// InTransaction keeps registry mutations and console replay receipts atomic.
+func (s *Store) InTransaction(tx pgx.Tx, actor string) *Store {
+	return &Store{pool: tx, now: s.now, actor: actor}
 }
 
 func NewStore(pool *pgxpool.Pool, now func() time.Time) *Store {
 	if now == nil {
 		now = time.Now
 	}
-	return &Store{pool: pool, now: now}
+	return &Store{pool: dbx.Normalize(pool), now: now}
 }
 
 type Operator struct {
@@ -86,8 +94,12 @@ func (s *Store) maintenance(ctx context.Context, run func(pgx.Tx, time.Time) err
 		return run(tx, s.now().UTC())
 	})
 }
-func audit(ctx context.Context, tx pgx.Tx, id uuid.UUID, action, set string, now time.Time) error {
-	_, err := tx.Exec(ctx, `INSERT INTO safety_operator_events(id,operator_id,actor_id,action,permission,created_at) VALUES($1,$2,'maintenance:operator-cli',$3,NULLIF($4,''),$5)`, uuid.New(), id, action, set, now)
+func (s *Store) audit(ctx context.Context, tx pgx.Tx, id uuid.UUID, action, set string, now time.Time) error {
+	actor := s.actor
+	if actor == "" {
+		actor = "maintenance:operator-cli"
+	}
+	_, err := tx.Exec(ctx, `INSERT INTO safety_operator_events(id,operator_id,actor_id,action,permission,created_at) VALUES($1,$2,$3,$4,NULLIF($5,''),$6)`, uuid.New(), id, actor, action, set, now)
 	return err
 }
 func (s *Store) Allow(ctx context.Context, did syntax.DID, set string) (Operator, error) {
@@ -104,7 +116,7 @@ func (s *Store) Allow(ctx context.Context, did syntax.DID, set string) (Operator
 		if err != nil {
 			return fmt.Errorf("allowlist operator: %w", err)
 		}
-		return audit(ctx, tx, id, "allowlisted", set, now)
+		return s.audit(ctx, tx, id, "allowlisted", set, now)
 	})
 	if err != nil {
 		return Operator{}, err
@@ -117,6 +129,11 @@ func (s *Store) SetPermissionSet(ctx context.Context, id uuid.UUID, set string) 
 		return err
 	}
 	return s.maintenance(ctx, func(tx pgx.Tx, now time.Time) error {
+		if set != "admin" {
+			if err := s.protectLastAdmin(ctx, tx, id); err != nil {
+				return err
+			}
+		}
 		tag, err := tx.Exec(ctx, `UPDATE safety_operators SET role=$2,updated_at=$3 WHERE id=$1 AND did IS NOT NULL AND active`, id, role, now)
 		if err != nil {
 			return err
@@ -124,11 +141,14 @@ func (s *Store) SetPermissionSet(ctx context.Context, id uuid.UUID, set string) 
 		if tag.RowsAffected() != 1 {
 			return ErrDenied
 		}
-		return audit(ctx, tx, id, "permissionSetChanged", set, now)
+		return s.audit(ctx, tx, id, "permissionSetChanged", set, now)
 	})
 }
 func (s *Store) Disable(ctx context.Context, id uuid.UUID) error {
 	return s.maintenance(ctx, func(tx pgx.Tx, now time.Time) error {
+		if err := s.protectLastAdmin(ctx, tx, id); err != nil {
+			return err
+		}
 		tag, err := tx.Exec(ctx, `UPDATE safety_operators SET active=false,deactivated_at=$2,updated_at=$2 WHERE id=$1 AND did IS NOT NULL AND active`, id, now)
 		if err != nil {
 			return err
@@ -139,8 +159,25 @@ func (s *Store) Disable(ctx context.Context, id uuid.UUID) error {
 		if _, err := tx.Exec(ctx, `DELETE FROM operator_browser_sessions WHERE operator_id=$1`, id); err != nil {
 			return err
 		}
-		return audit(ctx, tx, id, "deactivated", "", now)
+		return s.audit(ctx, tx, id, "deactivated", "", now)
 	})
+}
+
+// Browser administration cannot remove its last usable administrator. The
+// privileged maintenance CLI remains the separately controlled recovery path.
+func (s *Store) protectLastAdmin(ctx context.Context, tx pgx.Tx, id uuid.UUID) error {
+	if s.actor == "" {
+		return nil
+	}
+	var last bool
+	err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM safety_operators WHERE id=$1 AND active AND role='safetyAdministrator') AND NOT EXISTS(SELECT 1 FROM safety_operators o WHERE o.id<>$1 AND o.did IS NOT NULL AND o.active AND o.deactivated_at IS NULL AND o.role='safetyAdministrator' AND NOT EXISTS(SELECT 1 FROM owner_lifecycles WHERE owner_did=o.did AND state='terminal'))`, id).Scan(&last)
+	if err != nil {
+		return err
+	}
+	if last {
+		return ErrLastAdmin
+	}
+	return nil
 }
 
 func (s *Store) List(ctx context.Context) ([]Operator, error) {

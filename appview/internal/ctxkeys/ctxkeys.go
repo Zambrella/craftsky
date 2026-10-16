@@ -5,7 +5,6 @@ package ctxkeys
 
 import (
 	"context"
-	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/google/uuid"
@@ -29,9 +28,6 @@ type Moderator struct {
 	DID                        syntax.DID
 	PermissionSet              string
 	OperatorID                 uuid.UUID
-	TokenID                    uuid.UUID
-	TokenExpiresAt             time.Time
-	RetoolUserID               *int64
 	ActorID                    string
 	SourceSystem               string
 	Role                       string

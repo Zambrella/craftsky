@@ -193,14 +193,68 @@
   },
   {
     "method": "GET",
+    "path": "/v1/admin/operations/{operationId}",
+    "category": "appview.admin.operations.detail",
+    "public": false
+  },
+  {
+    "method": "GET",
+    "path": "/v1/admin/operators",
+    "category": "appview.admin.operators",
+    "public": false
+  },
+  {
+    "method": "GET",
+    "path": "/v1/admin/operators/{operatorId}",
+    "category": "appview.admin.operators.detail",
+    "public": false
+  },
+  {
+    "method": "GET",
+    "path": "/v1/admin/operators/{operatorId}/events",
+    "category": "appview.admin.operators.detail.events",
+    "public": false
+  },
+  {
+    "method": "GET",
     "path": "/v1/admin/safety/evidence",
     "category": "appview.admin.safety.evidence",
     "public": false
   },
   {
     "method": "GET",
+    "path": "/v1/admin/safety/evidence/capabilities",
+    "category": "appview.admin.safety.evidence.capabilities",
+    "public": false
+  },
+  {
+    "method": "GET",
     "path": "/v1/admin/safety/evidence/{evidenceId}",
     "category": "appview.admin.safety.evidence.detail",
+    "public": false
+  },
+  {
+    "method": "GET",
+    "path": "/v1/admin/safety/evidence/{evidenceId}/accesses",
+    "category": "appview.admin.safety.evidence.detail.accesses",
+    "public": false
+  },
+  {
+    "method": "GET",
+    "path": "/v1/admin/safety/evidence/{evidenceId}/holds",
+    "category": "appview.admin.safety.evidence.detail.holds",
+    "public": false
+  },
+  {
+    "method": "GET",
+    "path": "/v1/admin/safety/evidence/{evidenceId}/retention-events",
+    "category": "appview.admin.safety.evidence.detail.retention_events",
+    "public": false
+  },
+  {
+    "method": "GET",
+    "path": "/v1/admin/safety/evidence/{evidenceId}/retention-jobs",
+    "category": "appview.admin.safety.evidence.detail.retention_jobs",
     "public": false
   },
   {
@@ -235,6 +289,18 @@
   },
   {
     "method": "GET",
+    "path": "/v1/admin/safety/holds/{holdId}/evidence",
+    "category": "appview.admin.safety.holds.detail.evidence",
+    "public": false
+  },
+  {
+    "method": "GET",
+    "path": "/v1/admin/safety/holds/{holdId}/releases",
+    "category": "appview.admin.safety.holds.detail.releases",
+    "public": false
+  },
+  {
+    "method": "GET",
     "path": "/v1/admin/safety/incidents",
     "category": "appview.admin.safety.incidents",
     "public": false
@@ -243,6 +309,12 @@
     "method": "GET",
     "path": "/v1/admin/safety/incidents/{incidentReference}",
     "category": "appview.admin.safety.incidents.detail",
+    "public": false
+  },
+  {
+    "method": "GET",
+    "path": "/v1/admin/safety/incidents/{incidentReference}/assignments",
+    "category": "appview.admin.safety.incidents.detail.assignments",
     "public": false
   },
   {
@@ -763,6 +835,30 @@
   },
   {
     "method": "POST",
+    "path": "/v1/admin/operators",
+    "category": "appview.admin.operators",
+    "public": false
+  },
+  {
+    "method": "POST",
+    "path": "/v1/admin/operators/{operatorId}/disable",
+    "category": "appview.admin.operators.detail.disable",
+    "public": false
+  },
+  {
+    "method": "POST",
+    "path": "/v1/admin/operators/{operatorId}/permission-set",
+    "category": "appview.admin.operators.detail.permission_set",
+    "public": false
+  },
+  {
+    "method": "POST",
+    "path": "/v1/admin/operators/{operatorId}/session-revocations",
+    "category": "appview.admin.operators.detail.session_revocations",
+    "public": false
+  },
+  {
+    "method": "POST",
     "path": "/v1/admin/safety/evidence/{evidenceId}/access",
     "category": "appview.admin.safety.evidence.detail.access",
     "public": false
@@ -789,6 +885,18 @@
     "method": "POST",
     "path": "/v1/admin/safety/holds/{holdId}/releases",
     "category": "appview.admin.safety.holds.detail.releases",
+    "public": false
+  },
+  {
+    "method": "POST",
+    "path": "/v1/admin/safety/incidents/{incidentReference}/assignments",
+    "category": "appview.admin.safety.incidents.detail.assignments",
+    "public": false
+  },
+  {
+    "method": "POST",
+    "path": "/v1/admin/safety/incidents/{incidentReference}/assignments/{assignmentId}/release",
+    "category": "appview.admin.safety.incidents.detail.assignments.detail.release",
     "public": false
   },
   {
