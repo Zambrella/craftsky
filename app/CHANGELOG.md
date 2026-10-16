@@ -1,5 +1,11 @@
 # App Changelog
 
+## 1.7.2+9 - 2026-10-16
+
+- fix(app): use Rive renderer for yarn refresh animation
+- fix(app): use supported font weights
+- fix(app): fall back to Flutter renderer in headless tests
+
 ## 1.7.1+8 - 2026-10-16
 
 - build(android): apply Kotlin plugin to app
