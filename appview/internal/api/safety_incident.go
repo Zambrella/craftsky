@@ -30,6 +30,7 @@ func SafetyIncidentDetailHandler(store *safetyincident.Store) http.Handler {
 			envelope.WriteError(w, http.StatusServiceUnavailable, "safety_incident_unavailable", "safety incident unavailable", runID, nil)
 			return
 		}
+		w.Header().Set("Cache-Control", "no-store")
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(detail)
 	})

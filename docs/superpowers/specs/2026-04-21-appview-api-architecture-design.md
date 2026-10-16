@@ -101,6 +101,16 @@ Standard REST semantics:
 
 ## 3. Authentication
 
+### Operator console addition (15 October 2026)
+
+[ADR 018](../../../adr/018-atmosphere-operator-console-sessions.md) adds a separate
+cookie-authenticated browser boundary for `/v1/admin/*`, with DID allowlisting,
+request-time permission sets and CSRF protection for unsafe requests. Operator
+login/bootstrap routes are pre-authenticated browser endpoints and do not use
+consumer device IDs. `/oauth/admin/*` serves the separate client discovery and
+callback. Operator sessions cannot authenticate ordinary consumer routes.
+The bearer/device-header convention below continues to govern consumer APIs.
+
 ### 3.1 Headers on authenticated requests
 
 Every authenticated request carries two headers:
@@ -355,3 +365,17 @@ Explicitly out of scope for v1, listed here so it's discoverable. Also tracked i
 11. **Active-sessions UI endpoints.** `GET /v1/auth/sessions`, `DELETE /v1/auth/sessions/{id}`. Depends on Flutter profile/settings screen. Uses `last_device_id` / `device_label` data we're already collecting.
 12. **OpenAPI / typed client generation.** See §8.3.
 13. **XRPC interop surface.** `/xrpc/social.craftsky.*` for third-party atproto clients. Additive — doesn't break this spec.
+
+### Moderation console API completion (15 October 2026)
+
+The private operator surface is described by
+[`moderation_console.openapi.json`](../../../appview/internal/api/moderation_console.openapi.json)
+and its [capability map](../../changes/2026-10-14-moderation-console/05-api-capability-map.md).
+New resource lists follow the bounded opaque-cursor contract above, with cursors
+bound to their parent and filters. All operator data responses use `no-store`.
+Safety/intake/eligibility commands require `Idempotency-Key`; existing resources
+require `expectedRevision`. Successful transitions previously returning 204 now
+return 200 with a JSON revision. Exact retries return the original safe result;
+changed payloads or stale revisions return 409. Case commands retain their
+existing revision/replay protocol. Dedicated evidence byte access stays outside
+JSON replay buffering and remains separately reason-audited.

@@ -21,7 +21,11 @@ type safetyDependencies struct {
 }
 
 func newSafetyDependencies(ctx context.Context, pool *pgxpool.Pool, cfg Config) (*safetyDependencies, error) {
-	deadlines, err := safetyincident.NewDeadlinePolicy(nil)
+	targets := map[safetyincident.WorkflowClass]safetyincident.DeadlineTarget{}
+	if cfg.SafetyIntimateImageResponseWithin > 0 {
+		targets[safetyincident.WorkflowIntimateImage] = safetyincident.DeadlineTarget{ResponseWithin: cfg.SafetyIntimateImageResponseWithin}
+	}
+	deadlines, err := safetyincident.NewDeadlinePolicy(targets)
 	if err != nil {
 		return nil, fmt.Errorf("safety workflow deadlines: %w", err)
 	}

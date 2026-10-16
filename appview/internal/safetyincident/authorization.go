@@ -5,10 +5,46 @@ import "github.com/google/uuid"
 type Role string
 
 const (
-	RoleModerator           Role = "moderator"
-	RoleHelper              Role = "helper"
-	RoleSafetyAdministrator Role = "safetyAdministrator"
+	PermissionModerationRead    Permission = "moderation.read"
+	PermissionModerationManage  Permission = "moderation.manage"
+	PermissionSafetyRead        Permission = "safety.read"
+	PermissionIntakeManage      Permission = "intake.manage"
+	PermissionEligibilityReview Permission = "eligibility.review"
+	PermissionOperatorManage    Permission = "operator.manage"
+	RoleModerator               Role       = "moderator"
+	RoleHelper                  Role       = "helper"
+	RoleSafetyAdministrator     Role       = "safetyAdministrator"
 )
+
+// OperatorPermissions is the explicit grant vocabulary. Role alone never grants
+// these permissions to an authenticated database operator.
+func OperatorPermissions() []Permission {
+	return []Permission{PermissionModerationRead, PermissionModerationManage, PermissionSafetyRead,
+		PermissionIntakeManage, PermissionEligibilityReview, PermissionOperatorManage,
+		PermissionIncidentReadSafe, PermissionIncidentConfirm, PermissionEvidenceAccess,
+		PermissionEvidencePreserve, PermissionHoldManage, PermissionAuthorityReport,
+		PermissionDisclosureApprove, PermissionScanRetry, PermissionWorkflowManage}
+}
+
+func (role Role) AllowsPermission(permission Permission) bool {
+	switch role {
+	case RoleSafetyAdministrator:
+		for _, known := range OperatorPermissions() {
+			if permission == known {
+				return true
+			}
+		}
+	case RoleModerator:
+		switch permission {
+		case PermissionModerationRead, PermissionModerationManage, PermissionSafetyRead,
+			PermissionIntakeManage, PermissionIncidentReadSafe, PermissionIncidentConfirm, PermissionScanRetry:
+			return true
+		}
+	case RoleHelper:
+		return permission == PermissionIncidentReadSafe
+	}
+	return false
+}
 
 type Permission string
 
@@ -39,7 +75,7 @@ func (actor Actor) Allowed(permission Permission, incidentID uuid.UUID) bool {
 }
 
 func (actor Actor) HasPermission(permission Permission) bool {
-	if actor.ID == "" {
+	if actor.ID == "" || !actor.Role.AllowsPermission(permission) {
 		return false
 	}
 	if actor.Permissions != nil {

@@ -237,7 +237,7 @@ func testConfigFile(t *testing.T, contents string) string {
 		"SCHEDULED_IMAGE_ADMISSION_WAIT",
 		"SCHEDULED_POSTS_S3_ENDPOINT", "SCHEDULED_POSTS_S3_REGION", "SCHEDULED_POSTS_S3_BUCKET",
 		"SCHEDULED_POSTS_S3_ACCESS_KEY_ID", "SCHEDULED_POSTS_S3_SECRET_ACCESS_KEY",
-		"SAFETY_EVIDENCE_S3_ENDPOINT", "SAFETY_EVIDENCE_S3_REGION", "SAFETY_EVIDENCE_S3_BUCKET",
+		"SAFETY_INTIMATE_IMAGE_RESPONSE_WITHIN", "SAFETY_EVIDENCE_S3_ENDPOINT", "SAFETY_EVIDENCE_S3_REGION", "SAFETY_EVIDENCE_S3_BUCKET",
 		"SAFETY_EVIDENCE_S3_ACCESS_KEY_ID", "SAFETY_EVIDENCE_S3_SECRET_ACCESS_KEY",
 		"SENTRY_DSN", "SENTRY_RELEASE", "RENDER_GIT_COMMIT", "SENTRY_TRACING_ENABLED", "SENTRY_TRACES_SAMPLE_RATE",
 		"SENTRY_LOGS_ENABLED", "SENTRY_METRICS_ENABLED", "SENTRY_TAP_TRACING_ENABLED",
@@ -672,16 +672,16 @@ func TestLoadConfig_DevModerationConfig(t *testing.T) {
 
 func TestLoadConfig_ValidatesEnabledModerationAdmin(t *testing.T) {
 	path := testConfigFile(t, withProductionOAuth("DATABASE_URL=postgres://prod\nALLOWED_ORIGINS=https://a.example\nTAP_WS_URL=ws://tap:2480/channel\nMODERATION_ADMIN_ENABLED=true\n"))
-	if _, err := LoadConfig(EnvProd, path); err == nil || !strings.Contains(err.Error(), "MODERATION_ADMIN_BEARER_TOKEN") {
-		t.Fatalf("error = %v, want missing moderation admin token", err)
+	if _, err := LoadConfig(EnvProd, path); err == nil || !strings.Contains(err.Error(), "MODERATION_SOURCE_DID") {
+		t.Fatalf("error = %v, want missing moderation source DID", err)
 	}
 
-	path = testConfigFile(t, withProductionOAuth("DATABASE_URL=postgres://prod\nALLOWED_ORIGINS=https://a.example\nTAP_WS_URL=ws://tap:2480/channel\nMODERATION_ADMIN_ENABLED=true\nMODERATION_ADMIN_BEARER_TOKEN=admin-secret\nMODERATION_ADMIN_ACTOR_ID=primary-moderator\nMODERATION_SOURCE_DID=did:plc:moderation\n"))
+	path = testConfigFile(t, withProductionOAuth("DATABASE_URL=postgres://prod\nALLOWED_ORIGINS=https://a.example\nTAP_WS_URL=ws://tap:2480/channel\nMODERATION_ADMIN_ENABLED=true\nMODERATION_SOURCE_DID=did:plc:moderation\n"))
 	cfg, err := LoadConfig(EnvProd, path)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !cfg.ModerationAdminEnabled || cfg.ModerationAdminBearerToken.Reveal() != "admin-secret" || cfg.ModerationAdminActorID != "primary-moderator" || cfg.ModerationSourceDID != "did:plc:moderation" {
+	if !cfg.ModerationAdminEnabled || cfg.ModerationSourceDID != "did:plc:moderation" {
 		t.Fatalf("moderation admin config = %+v", cfg)
 	}
 }
@@ -1643,5 +1643,28 @@ func TestLoadConfig_OAuthCustomValues(t *testing.T) {
 	}
 	if cfg.CraftskySessionActivityWriteInterval != 2*time.Minute {
 		t.Errorf("CraftskySessionActivityWriteInterval = %v", cfg.CraftskySessionActivityWriteInterval)
+	}
+}
+
+func TestLoadConfigIntimateImageTargetRequiresExplicitValidDuration(t *testing.T) {
+	const base = "DATABASE_URL=postgres://dev\nALLOWED_ORIGINS=*\nCRAFTSKY_DEV_DID=did:plc:test\nTAP_WS_URL=ws://tap\n"
+	for _, tc := range []struct {
+		value   string
+		want    time.Duration
+		invalid bool
+	}{{"", 0, false}, {"6h", 6 * time.Hour, false}, {"-1h", 0, true}, {"invalid", 0, true}} {
+		t.Run(tc.value, func(t *testing.T) {
+			file := testConfigFile(t, base+"SAFETY_INTIMATE_IMAGE_RESPONSE_WITHIN="+tc.value+"\n")
+			cfg, err := LoadConfig(EnvDev, file)
+			if tc.invalid {
+				if err == nil || !strings.Contains(err.Error(), "SAFETY_INTIMATE_IMAGE_RESPONSE_WITHIN") {
+					t.Fatalf("invalid target accepted: %v", err)
+				}
+				return
+			}
+			if err != nil || cfg.SafetyIntimateImageResponseWithin != tc.want {
+				t.Fatalf("target=%v err=%v", cfg.SafetyIntimateImageResponseWithin, err)
+			}
+		})
 	}
 }

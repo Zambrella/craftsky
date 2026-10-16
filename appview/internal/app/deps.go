@@ -25,6 +25,7 @@ import (
 	"social.craftsky/appview/internal/moderation"
 	"social.craftsky/appview/internal/notifications"
 	"social.craftsky/appview/internal/observability"
+	"social.craftsky/appview/internal/operatorconsole"
 	"social.craftsky/appview/internal/ownerlifecycle"
 	"social.craftsky/appview/internal/pdscommands"
 	"social.craftsky/appview/internal/push"
@@ -46,6 +47,7 @@ import (
 // Handler factories in internal/api take only the specific dependencies
 // they use.
 type Deps struct {
+	OperatorConsole             *operatorconsole.Handlers
 	Config                      Config
 	Logger                      *slog.Logger
 	DB                          *pgxpool.Pool
@@ -272,6 +274,10 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (
 		return nil, nil, err
 	}
 	oauthStore := authCapability.store
+	operatorConsole, err := newOperatorConsole(pool, federated, cfg, logger)
+	if err != nil {
+		return nil, nil, err
+	}
 	oauthApp := authCapability.app
 	craftskyStore := authCapability.craftskySessions
 	oauthFlow := authCapability.flow
@@ -384,6 +390,7 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (
 		VideoCaptionFetcher:         videoCapability.captionFetcher,
 		OAuthApp:                    oauthApp,
 		OAuthArtifacts:              oauthArtifacts,
+		OperatorConsole:             operatorConsole,
 		OAuthStore:                  oauthStore,
 		OAuthFlow:                   oauthFlow,
 		HandoffCoordinator:          handoffs,

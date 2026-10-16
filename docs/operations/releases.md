@@ -94,6 +94,20 @@ just appview-check
 just release-push appview prod-v1.0.4
 ```
 
+The AppView Docker build also runs the moderation console's pinned frontend
+tests, TypeScript check and Vite production build in its Node build stage. Only
+the resulting `admin/dist` assets enter the runtime image. `appview-check`
+verifies `/admin/`, its referenced JavaScript/CSS and the unauthenticated identity
+boundary from that packaged image, using an isolated local instance with admin
+routes enabled. It does not provision operators or change production flags.
+Console changes therefore use the same exact-tag release as the backend; no
+separate frontend deployment or Vite server is needed.
+
+Before enabling the console in production, follow the provisioning, OAuth,
+permission, evidence-store and recovery checks in
+[Moderation operator access](moderation-operators.md#production-rollout).
+Release health checks alone do not verify a permitted operator workflow.
+
 `release-push` requires the release commit to remain exactly one commit ahead of
 freshly fetched `origin/main`. It pushes `main` and the tag atomically without an
 interactive prompt, so run it only after verifying the local tagged build. If

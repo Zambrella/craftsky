@@ -47,10 +47,10 @@ func TestRestrictedEvidenceRequiresExplicitAuthorizedPreservationAndAuditsAccess
 		t.Fatalf("evidence ref=%+v objects=%d", ref, objects.ObjectCount())
 	}
 
-	if _, err := service.Access(ctx, moderator, AccessCommand{EvidenceID: ref.ID, Reason: "not authorized"}); !errors.Is(err, ErrUnauthorized) {
+	if _, err := service.Access(ctx, moderator, AccessCommand{EvidenceID: ref.ID, IncidentID: incidentID, Reason: "not authorized"}); !errors.Is(err, ErrUnauthorized) {
 		t.Fatalf("moderator access error=%v, want unauthorized", err)
 	}
-	stream, err := service.Access(ctx, admin, AccessCommand{EvidenceID: ref.ID, Reason: "authority follow-up"})
+	stream, err := service.Access(ctx, admin, AccessCommand{EvidenceID: ref.ID, IncidentID: incidentID, Reason: "authority follow-up"})
 	if err != nil {
 		t.Fatalf("access evidence: %v", err)
 	}

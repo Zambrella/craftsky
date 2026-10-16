@@ -30,7 +30,7 @@ func TestThirdStrikeAndSevereBasesTransitionIndependently(t *testing.T) {
 	severeOwner := syntax.DID("did:plc:severe")
 	severeCase := seedAdjudicationCase(t, pool, store, "severe-report", severeOwner)
 	result, err := service.ResolveCase(ctx, TrustedCommand{
-		CaseID: severeCase.ID, ExpectedRevision: 0, SourceSystem: "retool", ReplayID: "severe-only-00001",
+		CaseID: severeCase.ID, ExpectedRevision: 0, SourceSystem: "moderation-console", ReplayID: "severe-only-00001",
 		ActorID: "moderator", SourceDID: syntax.DID("did:plc:labeler"),
 		Decision: Decision{Disposition: DispositionViolation, Reason: ReasonHate, Evidence: "evidence",
 			SeverityRationale: "immediate risk", Consequences: []EffectType{EffectSevereSuspension}},
@@ -43,7 +43,7 @@ func TestThirdStrikeAndSevereBasesTransitionIndependently(t *testing.T) {
 	resolveStrike(t, service, strikeCase, "severe-strike-0001")
 	assertStoredStanding(t, pool, severeOwner, 1, false, true, true)
 	if _, err := service.ChangeEffects(ctx, EffectChangeCommand{
-		CaseID: severeCase.ID, ExpectedRevision: result.Revision, SourceSystem: "retool",
+		CaseID: severeCase.ID, ExpectedRevision: result.Revision, SourceSystem: "moderation-console",
 		ReplayID: "restore-severe-001", ActorID: "moderator", SourceDID: syntax.DID("did:plc:labeler"),
 		Negate: []EffectType{EffectSevereSuspension}, Rationale: "appeal evidence accepted",
 	}); err != nil {
@@ -64,7 +64,7 @@ func TestThirdStrikeAndSevereBasesTransitionIndependently(t *testing.T) {
 	combinedOwner := syntax.DID("did:plc:combined")
 	combinedCase := seedAdjudicationCase(t, pool, store, "combined-report", combinedOwner)
 	if _, err := service.ResolveCase(ctx, TrustedCommand{
-		CaseID: combinedCase.ID, ExpectedRevision: 0, SourceSystem: "retool", ReplayID: "combined-effects-01",
+		CaseID: combinedCase.ID, ExpectedRevision: 0, SourceSystem: "moderation-console", ReplayID: "combined-effects-01",
 		ActorID: "moderator", SourceDID: syntax.DID("did:plc:labeler"),
 		Decision: Decision{Disposition: DispositionViolation, Reason: ReasonHarassment, Evidence: "evidence",
 			SeverityRationale: "immediate risk", Consequences: []EffectType{EffectStrike, EffectSevereSuspension}},
@@ -83,7 +83,7 @@ func TestExplicitSevereRestorationTargetsActiveEffectAndAppendsAuditEvent(t *tes
 	owner := syntax.DID("did:plc:explicit-restoration")
 	caseRow := seedAdjudicationCase(t, pool, store, "explicit-restoration-report", owner)
 	resolved, err := service.ResolveCase(ctx, TrustedCommand{
-		CaseID: caseRow.ID, ExpectedRevision: 0, SourceSystem: "retool", ReplayID: "explicit-restoration-decision",
+		CaseID: caseRow.ID, ExpectedRevision: 0, SourceSystem: "moderation-console", ReplayID: "explicit-restoration-decision",
 		ActorID: "moderator", SourceDID: syntax.DID("did:plc:labeler"),
 		Decision: Decision{Disposition: DispositionViolation, Reason: ReasonHate, Evidence: "evidence",
 			SeverityRationale: "immediate risk", Consequences: []EffectType{EffectSevereSuspension}},
@@ -98,7 +98,7 @@ func TestExplicitSevereRestorationTargetsActiveEffectAndAppendsAuditEvent(t *tes
 
 	if _, err := service.RestoreSevereSuspension(ctx, SevereRestorationCommand{
 		CaseID: caseRow.ID, EffectID: uuid.New(), ExpectedRevision: resolved.Revision,
-		SourceSystem: "retool", ReplayID: "explicit-restoration-wrong-effect", ActorID: "moderator",
+		SourceSystem: "moderation-console", ReplayID: "explicit-restoration-wrong-effect", ActorID: "moderator",
 		Rationale: "review completed",
 	}); !errors.Is(err, ErrInvalidEffectChange) {
 		t.Fatalf("wrong effect restoration error = %v", err)
@@ -107,7 +107,7 @@ func TestExplicitSevereRestorationTargetsActiveEffectAndAppendsAuditEvent(t *tes
 	now = now.Add(time.Hour)
 	command := SevereRestorationCommand{
 		CaseID: caseRow.ID, EffectID: effectID, ExpectedRevision: resolved.Revision,
-		SourceSystem: "retool", ReplayID: "explicit-restoration-correct", ActorID: "moderator",
+		SourceSystem: "moderation-console", ReplayID: "explicit-restoration-correct", ActorID: "moderator",
 		Rationale: "review completed",
 	}
 	restored, err := service.RestoreSevereSuspension(ctx, command)
@@ -165,7 +165,7 @@ func TestThirdStrikeAndExpirySerializeInBothLockOrders(t *testing.T) {
 			service := NewService(store, testVisibilityWriter{}, func() time.Time { return runAt }, WithNotificationWriter(testNotificationWriter{}))
 			processor := NewExpiryProcessor(store, testNotificationWriter{}, func() time.Time { return runAt })
 			command := TrustedCommand{
-				CaseID: third.ID, ExpectedRevision: 0, SourceSystem: "retool", ReplayID: name + "-third-00001",
+				CaseID: third.ID, ExpectedRevision: 0, SourceSystem: "moderation-console", ReplayID: name + "-third-00001",
 				ActorID: "moderator", SourceDID: syntax.DID("did:plc:labeler"),
 				Decision: Decision{Disposition: DispositionViolation, Reason: ReasonSpam, Evidence: "evidence", Consequences: []EffectType{EffectStrike}},
 			}
@@ -243,7 +243,7 @@ func TestStrikeReversalAndExpirySerializeInBothLockOrders(t *testing.T) {
 			service := NewService(store, testVisibilityWriter{}, func() time.Time { return runAt }, WithNotificationWriter(testNotificationWriter{}))
 			processor := NewExpiryProcessor(store, testNotificationWriter{}, func() time.Time { return runAt })
 			command := EffectChangeCommand{
-				CaseID: target.ID, ExpectedRevision: 1, SourceSystem: "retool", ReplayID: name + "-negate-00001",
+				CaseID: target.ID, ExpectedRevision: 1, SourceSystem: "moderation-console", ReplayID: name + "-negate-00001",
 				ActorID: "moderator", SourceDID: syntax.DID("did:plc:labeler"), Negate: []EffectType{EffectStrike}, Rationale: "strike reversed",
 			}
 			reversal := func() standingRaceResult {
@@ -309,7 +309,7 @@ func TestExpiryProcessorDoesNotLiftSevereSuspensionOrNotifyWithoutEnforcementCha
 	owner := syntax.DID("did:plc:severe-expiry")
 	caseRow := seedAdjudicationCase(t, pool, store, "severe-expiry-report", owner)
 	if _, err := service.ResolveCase(ctx, TrustedCommand{
-		CaseID: caseRow.ID, ExpectedRevision: 0, SourceSystem: "retool", ReplayID: "severe-expiry-decision",
+		CaseID: caseRow.ID, ExpectedRevision: 0, SourceSystem: "moderation-console", ReplayID: "severe-expiry-decision",
 		ActorID: "moderator", SourceDID: syntax.DID("did:plc:labeler"),
 		Decision: Decision{Disposition: DispositionViolation, Reason: ReasonHate, Evidence: "evidence",
 			SeverityRationale: "immediate risk", Consequences: []EffectType{EffectStrike, EffectSevereSuspension}},
@@ -347,7 +347,7 @@ func TestReappliedStrikeCanExpireAgainWithDistinctWorkerReplayIdentity(t *testin
 		t.Fatalf("first expiry = %d, %v", processed, err)
 	}
 	reapplied, err := service.ChangeEffects(ctx, EffectChangeCommand{
-		CaseID: caseRow.ID, ExpectedRevision: 2, SourceSystem: "retool", ReplayID: "repeat-expiry-reapply",
+		CaseID: caseRow.ID, ExpectedRevision: 2, SourceSystem: "moderation-console", ReplayID: "repeat-expiry-reapply",
 		ActorID: "moderator", SourceDID: syntax.DID("did:plc:labeler"), Apply: []EffectType{EffectStrike}, Rationale: "new evidence",
 	})
 	if err != nil {
@@ -378,7 +378,7 @@ func TestPartialReversalAndStrikeReapplicationPreserveOneLogicalStrike(t *testin
 	owner := syntax.DID("did:plc:partial")
 	caseRow := seedAdjudicationCase(t, pool, store, "partial-report", owner)
 	resolved, err := service.ResolveCase(ctx, TrustedCommand{
-		CaseID: caseRow.ID, ExpectedRevision: 0, SourceSystem: "retool", ReplayID: "partial-decision-01",
+		CaseID: caseRow.ID, ExpectedRevision: 0, SourceSystem: "moderation-console", ReplayID: "partial-decision-01",
 		ActorID: "moderator", SourceDID: syntax.DID("did:plc:labeler"),
 		Decision: Decision{Disposition: DispositionViolation, Reason: ReasonHate, Evidence: "evidence",
 			SeverityRationale: "immediate risk", Consequences: []EffectType{EffectVisibilityTakedown, EffectStrike, EffectSevereSuspension}},
@@ -387,28 +387,28 @@ func TestPartialReversalAndStrikeReapplicationPreserveOneLogicalStrike(t *testin
 		t.Fatal(err)
 	}
 	reversed, err := service.ChangeEffects(ctx, EffectChangeCommand{
-		CaseID: caseRow.ID, ExpectedRevision: resolved.Revision, SourceSystem: "retool", ReplayID: "partial-reverse-01",
+		CaseID: caseRow.ID, ExpectedRevision: resolved.Revision, SourceSystem: "moderation-console", ReplayID: "partial-reverse-01",
 		ActorID: "moderator", SourceDID: syntax.DID("did:plc:labeler"), Negate: []EffectType{EffectStrike}, Rationale: "strike was excessive",
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if _, err := service.ChangeEffects(ctx, EffectChangeCommand{
-		CaseID: caseRow.ID, ExpectedRevision: reversed.Revision, SourceSystem: "retool", ReplayID: "partial-reapply-bad",
+		CaseID: caseRow.ID, ExpectedRevision: reversed.Revision, SourceSystem: "moderation-console", ReplayID: "partial-reapply-bad",
 		ActorID: "moderator", SourceDID: syntax.DID("did:plc:labeler"), Apply: []EffectType{EffectStrike},
 	}); !errors.Is(err, ErrInvalidEffectChange) {
 		t.Fatalf("missing rationale error = %v", err)
 	}
 	now = now.Add(24 * time.Hour)
 	reapplied, err := service.ChangeEffects(ctx, EffectChangeCommand{
-		CaseID: caseRow.ID, ExpectedRevision: reversed.Revision, SourceSystem: "retool", ReplayID: "partial-reapply-01",
+		CaseID: caseRow.ID, ExpectedRevision: reversed.Revision, SourceSystem: "moderation-console", ReplayID: "partial-reapply-01",
 		ActorID: "moderator", SourceDID: syntax.DID("did:plc:labeler"), Apply: []EffectType{EffectStrike}, Rationale: "new verified evidence",
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	replay, err := service.ChangeEffects(ctx, EffectChangeCommand{
-		CaseID: caseRow.ID, ExpectedRevision: reversed.Revision, SourceSystem: "retool", ReplayID: "partial-reapply-01",
+		CaseID: caseRow.ID, ExpectedRevision: reversed.Revision, SourceSystem: "moderation-console", ReplayID: "partial-reapply-01",
 		ActorID: "moderator", SourceDID: syntax.DID("did:plc:labeler"), Apply: []EffectType{EffectStrike}, Rationale: "new verified evidence",
 	})
 	if err != nil || !replay.Replayed || replay.EventID != reapplied.EventID {
@@ -671,7 +671,7 @@ func resolveStrike(t *testing.T, service *Service, caseRow Case, replayID string
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	result, err := service.ResolveCase(ctx, TrustedCommand{
-		CaseID: caseRow.ID, ExpectedRevision: 0, SourceSystem: "retool", ReplayID: replayID,
+		CaseID: caseRow.ID, ExpectedRevision: 0, SourceSystem: "moderation-console", ReplayID: replayID,
 		ActorID: "moderator", SourceDID: syntax.DID("did:plc:labeler"),
 		Decision: Decision{Disposition: DispositionViolation, Reason: ReasonSpam, Evidence: "evidence", Consequences: []EffectType{EffectStrike}},
 	})

@@ -112,6 +112,7 @@ var terminalDIDInventory = []TerminalDIDEntry{
 	deleteDID("oauth_auth_requests", "owner_did", "owner", "state"),
 	deleteDID("oauth_handoff_exchanges", "owner_did", "owner", "id"),
 	deleteDID("oauth_sessions", "account_did", "owner", "account_did", "session_id"),
+	deleteDID("operator_oauth_attempts", "did", "operator", "state"),
 	deleteDID("owner_effect_attempts", "owner_did", "owner", "operation_id"),
 	retainDID("owner_lifecycles", "owner_did", "owner", "irreversible terminal visibility tombstone", "owner_did"),
 	retainDID("owner_purge_components", "owner_did", "owner", "fixed terminal purge completion ledger", "owner_did", "owner_generation", "component", "did_role"),
@@ -136,6 +137,7 @@ var terminalDIDInventory = []TerminalDIDEntry{
 	deleteDID("scheduled_post_publication_tombstones", "owner_did", "owner", "schedule_id"),
 	deleteDID("scheduled_posts", "owner_did", "owner", "id"),
 	retainDID("safety_incident_subjects", "owner_did", "owner", "restricted incident linkage remains subject to safety retention and legal holds", "incident_id", "subject_uri", "image_slot"),
+	retainDID("safety_operators", "did", "operator", "operator identity and audit linkage are retained independently of consumer membership; terminal DIDs are denied by operator authentication", "did"),
 	deleteDID("tap_repository_jobs", "did", "owner", "id"),
 	deleteDID("tap_source_records", "did", "owner", "uri"),
 }

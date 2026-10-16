@@ -1,0 +1,36 @@
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { ApiError, request, type Operator } from '../api'
+import { date, label, type CaseItem, type Page, type Preview } from '../cases/model'
+import { ContentPreview } from '../cases/ContentPreview'
+import { ActionForm, options, type Action } from './ActionForm'
+import { CommandPanel } from './CommandPanel'
+import type { Data } from './resources'
+function selectedAccount(){try{return window.location.hash.startsWith('#/accounts/')?decodeURIComponent(window.location.hash.slice(11)):''}catch{return ''}}
+export function AccountWorkspace({operator,onSessionExpired,onLocked}:{operator:Operator;onSessionExpired:()=>void;onLocked:(v:boolean)=>void}){
+ const [did,setDid]=useState(selectedAccount),[input,setInput]=useState(selectedAccount)
+ const [standing,setStanding]=useState<Data|null>(null),[eligibility,setEligibility]=useState<Data|null>(null),[history,setHistory]=useState<Page<CaseItem>>({items:[]})
+ const [preview,setPreview]=useState<Preview|null>(null)
+ const [busy,setBusy]=useState(false),[olderBusy,setOlderBusy]=useState(false),[error,setError]=useState(''),[locked,setLocked]=useState(false)
+ const generation=useRef(0),lock=useRef(false)
+ const canRead=!!operator.permissions['moderation.read'],canReview=!!operator.permissions['eligibility.review'],allowed=canRead||canReview
+ const changeLock=useCallback((v:boolean)=>{lock.current=v;setLocked(v);onLocked(v)},[onLocked])
+ const denied=useCallback((err:unknown)=>{if(err instanceof ApiError&&(err.status===401||err.status===403)){onSessionExpired();return true}return false},[onSessionExpired])
+ const refresh=useCallback(async()=>{
+  if(!allowed||!did)return
+  const version=++generation.current;setBusy(true);setError('')
+  const path='/v1/admin/accounts/'+encodeURIComponent(did)
+  try{
+   const [s,h,e,p]=await Promise.all([canRead?request<Data>(path+'/moderation'):null,canRead?request<Page<CaseItem>>(path+'/moderation/history?limit=50'):null,canReview?request<Data>(path+'/eligibility'):null,canRead?request<Preview>(path+'/preview'):null])
+   if(version===generation.current){setStanding(s);setHistory(h??{items:[]});setEligibility(e);setPreview(p)}
+  }catch(err){if(version===generation.current&&!denied(err))setError('Account data could not be refreshed. Check the DID and refresh before taking action.');throw err}
+  finally{if(version===generation.current)setBusy(false)}
+ },[allowed,did,canRead,canReview,denied])
+ useEffect(()=>{setStanding(null);setEligibility(null);setPreview(null);setHistory({items:[]});setError('');void refresh().catch(()=>{});return()=>{generation.current++}},[refresh])
+ useEffect(()=>{const change=()=>{if(lock.current){window.history.replaceState(null,'','#/accounts/'+encodeURIComponent(did));return}const next=selectedAccount();setDid(next);setInput(next)};window.addEventListener('hashchange',change);return()=>window.removeEventListener('hashchange',change)},[did])
+ async function older(){if(!history.cursor||olderBusy)return;const version=generation.current;setOlderBusy(true);try{const next=await request<Page<CaseItem>>('/v1/admin/accounts/'+encodeURIComponent(did)+'/moderation/history?limit=50&cursor='+encodeURIComponent(history.cursor));if(version===generation.current)setHistory(prior=>({...next,items:[...prior.items,...next.items]}))}catch(err){if(!denied(err)&&version===generation.current)setError('Earlier history could not be loaded. Refresh before continuing.')}finally{setOlderBusy(false)}}
+ if(!allowed)return <section className="card"><h2>Access unavailable</h2></section>
+ const actions:Action[]=eligibility?[eligibility.state==='restricted'?{title:'Eligibility restoration',heading:'Restore age eligibility',path:'/v1/admin/eligibility/reviews',help:'Restore CraftSky age eligibility after review. Other moderation restrictions may remain.',body:{accountDid:did,state:'eligible'},fields:[{key:'reason',label:'Reason',type:'textarea',required:true}]}:{title:'Eligibility restriction',heading:'Restrict age eligibility',path:'/v1/admin/eligibility/reviews',help:'Restrict CraftSky age eligibility using verified evidence. Record a reason and a way for the owner to appeal.',body:{accountDid:did,state:'restricted'},fields:[{key:'evidenceKind',label:'Evidence kind',type:'select',options:options(['self_disclosure','guardian_disclosure','verified_authority','verified_account_record'])},{key:'evidenceReference',label:'Evidence reference',required:true},{key:'reason',label:'Reason',type:'textarea',required:true},{key:'appealGuidance',label:'Appeal guidance',type:'textarea',required:true}]}]:[]
+ return <><section className="card"><h2>Accounts</h2><form className="account-lookup" onSubmit={e=>{e.preventDefault();if(locked||busy)return;const next=input.trim();setDid(next);window.location.hash='#/accounts/'+encodeURIComponent(next);if(next===did)void refresh().catch(()=>{})}}><fieldset disabled={locked||busy} className="action-fields"><label>Account DID<input required value={input} onChange={e=>setInput(e.target.value)} autoComplete="off" spellCheck={false}/></label><button className="primary">{busy&&<span className="spinner"/>}Review account</button></fieldset></form></section>
+ {error&&<p role="alert" className="notice">{error}</p>}{did&&<div className="case-pane account-pane"><div className="case-record"><section className="card"><h2 className="did">{did}</h2><button className="secondary" disabled={locked||busy||olderBusy} onClick={()=>void refresh().catch(()=>{})}>Refresh account</button></section>{preview&&<ContentPreview key={did} preview={preview}/>} {standing&&<section className="card"><h2>Account standing</h2><dl><dt>Active strikes</dt><dd>{String(standing.activeStrikeCount)} of {String(standing.strikeThreshold)}</dd><dt>Account access</dt><dd>{standing.suspended?'Suspended':'Active'}</dd><dt>Suspension bases</dt><dd>{[standing.thresholdSuspended&&'Strike threshold',standing.severeSuspended&&'Severe suspension'].filter(Boolean).join(', ')||'None'}</dd></dl></section>}{eligibility&&<section className="card"><h2>Age eligibility</h2><p>{label(String(eligibility.state))} · revision {eligibility.revision}</p></section>}{canRead&&<section className="card"><h2>Moderation history</h2>{!history.items.length&&<p>No moderation cases for this account.</p>}{history.items.map(item=><article key={item.caseReference} className="entry"><a href={'#/cases/'+item.caseReference} aria-disabled={locked} onClick={e=>{if(lock.current)e.preventDefault()}}>{item.caseReference}</a><p>{label(item.subjectType)} · {label(item.state)} · {date(item.createdAt)}</p></article>)}{history.cursor&&<button disabled={locked||busy||olderBusy} className="secondary" onClick={()=>void older()}>{olderBusy&&<span className="spinner"/>}Load older cases</button>}</section>}</div>
+ {!!actions.length&&<CommandPanel key={did} basePath="/v1/admin/eligibility" reference={did} revision={eligibility?.revision} resourceLabel="Eligibility" title="Eligibility review" disabled={busy||olderBusy||!!error} refresh={refresh} onSessionExpired={onSessionExpired} onLocked={changeLock}>{(review,epoch)=>actions.map(action=><ActionForm key={action.title+epoch} action={action} review={review}/>)}</CommandPanel>}</div>}</>
+}

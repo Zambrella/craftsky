@@ -8,7 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
+	"social.craftsky/appview/internal/dbx"
 )
 
 var ErrInvalidCSEAWorkflow = errors.New("invalid CSEA workflow transition")
@@ -37,9 +37,9 @@ const (
 	ResolutionDuplicateClosed   ResolutionOutcome = "duplicateClosed"
 )
 
-type CSEAWorkflow struct{ pool *pgxpool.Pool }
+type CSEAWorkflow struct{ pool dbx.DB }
 
-func NewCSEAWorkflow(pool *pgxpool.Pool) *CSEAWorkflow { return &CSEAWorkflow{pool: pool} }
+func NewCSEAWorkflow(pool dbx.DB) *CSEAWorkflow { return &CSEAWorkflow{pool: dbx.Normalize(pool)} }
 
 type ClassificationCommand struct {
 	IncidentID        uuid.UUID

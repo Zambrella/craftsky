@@ -181,9 +181,7 @@ func TestAdminModerationRoutesUseOnlyDedicatedModeratorAuthentication(t *testing
 	})
 	deps := testDeps()
 	deps.Config.ModerationAdminEnabled = true
-	deps.Config.ModerationAdminToken = Secret(sensitive)
-	deps.Config.ModerationAdminActorID = "operator-1"
-	deps.Config.ModerationAdminSourceSystem = "admin-api"
+	deps.OperatorAuthentication = middleware.ModeratorDatabaseAuthentication(operatorFixtureAuthenticator{token: sensitive, moderator: ctxkeys.Moderator{ActorID: "operator-1", Role: "safetyAdministrator", SourceSystem: "admin-api", Permissions: map[string]bool{"moderation.read": true}}}, nil, observer)
 	deps.Config.EnableDevModeration = true
 	deps.Config.DevModerationToken = "SENTINEL_DEVELOPMENT_SECRET"
 	deps.Observability = observer

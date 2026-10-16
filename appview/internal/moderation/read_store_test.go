@@ -40,7 +40,7 @@ func TestModerationReadStoreSeparatesAdminEvidenceFromOwnerHistory(t *testing.T)
 	if _, err := service.ResolveCase(ctx, TrustedCommand{
 		CaseID: caseRow.ID, ExpectedRevision: 0, SourceSystem: "admin-api", ReplayID: "read-store-replay",
 		ActorID: "private-moderator-sentinel", SourceDID: syntax.DID("did:plc:moderation"),
-		Decision: Decision{Disposition: DispositionViolation, Reason: ReasonSpam, Evidence: "private-evidence-sentinel", UserSafeDetail: "owner-safe-detail", Consequences: []EffectType{EffectStrike}},
+		Decision: Decision{Disposition: DispositionViolation, Reason: ReasonSpam, Evidence: "private-evidence-sentinel", UserSafeDetail: "owner-safe-detail", LegalClassification: LegalClassification("unassessed"), Consequences: []EffectType{EffectStrike}},
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -66,6 +66,9 @@ func TestModerationReadStoreSeparatesAdminEvidenceFromOwnerHistory(t *testing.T)
 	if strings.Contains(string(adminWire), "raw-snapshot-private-sentinel") {
 		t.Fatalf("admin snapshot leaked uncurated persistence JSON: %s", adminWire)
 	}
+	if !strings.Contains(string(adminWire), `"legalClassification":"unassessed"`) {
+		t.Fatalf("admin decision must retain its recorded legal classification: %s", adminWire)
+	}
 	if detail.StrikeContext == nil || detail.StrikeContext.LogicalEffectID == "" || !detail.StrikeContext.Active || !detail.StrikeContext.IssuedAt.Equal(now) || !detail.StrikeContext.DueAt.After(now) {
 		t.Fatalf("strike context = %+v", detail.StrikeContext)
 	}
@@ -77,7 +80,7 @@ func TestModerationReadStoreSeparatesAdminEvidenceFromOwnerHistory(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, secret := range []string{"private-report-sentinel", "private-evidence-sentinel", "private-moderator-sentinel", "did:plc:reporter-sensitive", "raw-snapshot-private-sentinel"} {
+	for _, secret := range []string{"private-report-sentinel", "private-evidence-sentinel", "private-moderator-sentinel", "did:plc:reporter-sensitive", "raw-snapshot-private-sentinel", "legalClassification"} {
 		if strings.Contains(string(wire), secret) {
 			t.Fatalf("owner history leaked %q: %s", secret, wire)
 		}

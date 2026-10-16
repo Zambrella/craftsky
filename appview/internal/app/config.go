@@ -308,19 +308,20 @@ type Config struct {
 
 	// Media policy. Defaults preserve the approved image-posting contract;
 	// env overrides may lower but not raise these ceilings.
-	JSONBodyLimitBytes        int64 // default 1 MiB
-	MaxPostImages             int   // default 4, maximum 4
-	MaxImageUploadBytes       int64 // default 2,000,000 bytes, maximum 2,000,000 bytes
-	LinkPreviewsEnabled       bool
-	ImageDecodeLimits         api.ImageDecodeLimits
-	VideoServiceURL           string
-	VideoPlaylistURLTemplate  string
-	VideoThumbnailURLTemplate string
-	VideoEnabled              bool
-	RequiredPolicyVersion     string
-	RateLimits                middleware.RateLimitConfig
-	ScheduledPostsS3          scheduledposts.S3ObjectStoreConfig
-	SafetyEvidenceS3          safetyincident.S3EvidenceStoreConfig
+	JSONBodyLimitBytes                int64 // default 1 MiB
+	MaxPostImages                     int   // default 4, maximum 4
+	MaxImageUploadBytes               int64 // default 2,000,000 bytes, maximum 2,000,000 bytes
+	LinkPreviewsEnabled               bool
+	ImageDecodeLimits                 api.ImageDecodeLimits
+	VideoServiceURL                   string
+	VideoPlaylistURLTemplate          string
+	VideoThumbnailURLTemplate         string
+	VideoEnabled                      bool
+	RequiredPolicyVersion             string
+	RateLimits                        middleware.RateLimitConfig
+	ScheduledPostsS3                  scheduledposts.S3ObjectStoreConfig
+	SafetyIntimateImageResponseWithin time.Duration
+	SafetyEvidenceS3                  safetyincident.S3EvidenceStoreConfig
 
 	// Observability. Sentry export/tracing stays disabled unless explicitly
 	// configured, and unsafe body logging is local-dev only.
@@ -344,8 +345,6 @@ type Config struct {
 	TrustedModerationSourceDIDs []string
 
 	ModerationAdminEnabled       bool
-	ModerationAdminBearerToken   Secret
-	ModerationAdminActorID       string
 	ModerationSourceDID          string
 	ModerationExpiryPollInterval time.Duration
 	ModerationExpiryBatchSize    int
@@ -944,6 +943,13 @@ func LoadConfig(env Env, envFilePath string) (Config, error) {
 	if cfg.ScheduledPostsS3.SecretAccessKey == "" {
 		cfg.ScheduledPostsS3.SecretAccessKey = "not-configured"
 	}
+	// No default: an approved operational target must be explicitly configured.
+	if cfg.SafetyIntimateImageResponseWithin, err = durationEnv("SAFETY_INTIMATE_IMAGE_RESPONSE_WITHIN", 0); err != nil {
+		return Config{}, err
+	}
+	if cfg.SafetyIntimateImageResponseWithin < 0 {
+		return Config{}, fmt.Errorf("SAFETY_INTIMATE_IMAGE_RESPONSE_WITHIN must be non-negative")
+	}
 	cfg.SafetyEvidenceS3 = safetyincident.S3EvidenceStoreConfig{
 		Endpoint:        strings.TrimSpace(os.Getenv("SAFETY_EVIDENCE_S3_ENDPOINT")),
 		Region:          strings.TrimSpace(os.Getenv("SAFETY_EVIDENCE_S3_REGION")),
@@ -1036,8 +1042,6 @@ func LoadConfig(env Env, envFilePath string) (Config, error) {
 	if cfg.ModerationAdminEnabled, err = boolEnv("MODERATION_ADMIN_ENABLED", false); err != nil {
 		return Config{}, err
 	}
-	cfg.ModerationAdminBearerToken = Secret(os.Getenv("MODERATION_ADMIN_BEARER_TOKEN"))
-	cfg.ModerationAdminActorID = os.Getenv("MODERATION_ADMIN_ACTOR_ID")
 	cfg.ModerationSourceDID = os.Getenv("MODERATION_SOURCE_DID")
 	if cfg.ModerationExpiryPollInterval, err = boundedPositiveDurationEnv("MODERATION_EXPIRY_POLL_INTERVAL", 5*time.Minute, maxModerationExpiryPollInterval); err != nil {
 		return Config{}, err
@@ -1087,12 +1091,6 @@ func LoadConfig(env Env, envFilePath string) (Config, error) {
 		return Config{}, fmt.Errorf("APPVIEW_DEV_MODERATION_TOKEN is required when APPVIEW_ENABLE_DEV_MODERATION=true")
 	}
 	if cfg.ModerationAdminEnabled {
-		if raw := cfg.ModerationAdminBearerToken.Reveal(); raw == "" || raw != strings.TrimSpace(raw) || containsControl(raw) {
-			return Config{}, fmt.Errorf("MODERATION_ADMIN_BEARER_TOKEN is required when MODERATION_ADMIN_ENABLED=true")
-		}
-		if cfg.ModerationAdminActorID == "" || cfg.ModerationAdminActorID != strings.TrimSpace(cfg.ModerationAdminActorID) || containsControl(cfg.ModerationAdminActorID) {
-			return Config{}, fmt.Errorf("MODERATION_ADMIN_ACTOR_ID is required when MODERATION_ADMIN_ENABLED=true")
-		}
 		if _, parseErr := syntax.ParseDID(cfg.ModerationSourceDID); parseErr != nil {
 			return Config{}, fmt.Errorf("MODERATION_SOURCE_DID must be a valid DID when MODERATION_ADMIN_ENABLED=true")
 		}

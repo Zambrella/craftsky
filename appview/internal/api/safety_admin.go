@@ -24,8 +24,9 @@ type SafetyWorkReader interface {
 }
 
 type safetyAdminStatusResponse struct {
-	ImageScans safetyImageScanStatus `json:"imageScans"`
-	Work       []safetyWorkStatus    `json:"work"`
+	WorkTruncated bool                  `json:"workTruncated"`
+	ImageScans    safetyImageScanStatus `json:"imageScans"`
+	Work          []safetyWorkStatus    `json:"work"`
 }
 
 type safetyImageScanStatus struct {
@@ -99,6 +100,10 @@ func SafetyAdminStatusHandler(
 			}
 			return items[i].CreatedAt.Before(items[j].CreatedAt)
 		})
+		if len(items) > 100 {
+			response.WorkTruncated = true
+			items = items[:100]
+		}
 		for _, item := range items {
 			safe, ok := safetyincident.RedactForSink(safetyincident.RestrictedRecord{
 				Reference: item.Reference,
@@ -126,6 +131,7 @@ func SafetyAdminStatusHandler(
 			}
 			response.Work = append(response.Work, status)
 		}
+		w.Header().Set("Cache-Control", "no-store")
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(response)
 	})

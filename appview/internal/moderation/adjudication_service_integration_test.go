@@ -276,10 +276,10 @@ func TestModerationNotificationIntentPolicyMatrix(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				reverse := EffectChangeCommand{CaseID: caseRow.ID, ExpectedRevision: decision.Revision, SourceSystem: "retool", ReplayID: "notification-effect-reverse", ActorID: "moderator", SourceDID: syntax.DID("did:plc:labeler"), Negate: []EffectType{EffectFormalWarning}, Rationale: "reversed"}
+				reverse := EffectChangeCommand{CaseID: caseRow.ID, ExpectedRevision: decision.Revision, SourceSystem: "moderation-console", ReplayID: "notification-effect-reverse", ActorID: "moderator", SourceDID: syntax.DID("did:plc:labeler"), Negate: []EffectType{EffectFormalWarning}, Rationale: "reversed"}
 				reversed := assertCommandReplay(t, func() (CommandResult, error) { return service.ChangeEffects(context.Background(), reverse) })
 				*now = now.Add(time.Minute)
-				reapply := EffectChangeCommand{CaseID: caseRow.ID, ExpectedRevision: reversed.Revision, SourceSystem: "retool", ReplayID: "notification-effect-reapply", ActorID: "moderator", SourceDID: syntax.DID("did:plc:labeler"), Apply: []EffectType{EffectFormalWarning}, Rationale: "reapplied"}
+				reapply := EffectChangeCommand{CaseID: caseRow.ID, ExpectedRevision: reversed.Revision, SourceSystem: "moderation-console", ReplayID: "notification-effect-reapply", ActorID: "moderator", SourceDID: syntax.DID("did:plc:labeler"), Apply: []EffectType{EffectFormalWarning}, Rationale: "reapplied"}
 				assertCommandReplay(t, func() (CommandResult, error) { return service.ChangeEffects(context.Background(), reapply) })
 			},
 			want: 3,
@@ -294,9 +294,9 @@ func TestModerationNotificationIntentPolicyMatrix(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				confirm := AppealCommand{CaseID: caseRow.ID, ExpectedRevision: decision.Revision, SourceSystem: "retool", ReplayID: "notification-appeal-confirm", ActorID: "moderator"}
+				confirm := AppealCommand{CaseID: caseRow.ID, ExpectedRevision: decision.Revision, SourceSystem: "moderation-console", ReplayID: "notification-appeal-confirm", ActorID: "moderator"}
 				confirmed := assertCommandReplay(t, func() (CommandResult, error) { return service.ConfirmAppeal(context.Background(), confirm) })
-				uphold := AppealResolutionCommand{CaseID: caseRow.ID, ExpectedRevision: confirmed.Revision, SourceSystem: "retool", ReplayID: "notification-appeal-uphold", ActorID: "moderator", Outcome: AppealStatusUpheld, Rationale: "upheld"}
+				uphold := AppealResolutionCommand{CaseID: caseRow.ID, ExpectedRevision: confirmed.Revision, SourceSystem: "moderation-console", ReplayID: "notification-appeal-uphold", ActorID: "moderator", Outcome: AppealStatusUpheld, Rationale: "upheld"}
 				assertCommandReplay(t, func() (CommandResult, error) { return service.ResolveAppeal(context.Background(), uphold) })
 			},
 			want: 1,
@@ -311,11 +311,11 @@ func TestModerationNotificationIntentPolicyMatrix(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				confirmed, err := service.ConfirmAppeal(context.Background(), AppealCommand{CaseID: caseRow.ID, ExpectedRevision: decision.Revision, SourceSystem: "retool", ReplayID: "notification-changed-confirm", ActorID: "moderator"})
+				confirmed, err := service.ConfirmAppeal(context.Background(), AppealCommand{CaseID: caseRow.ID, ExpectedRevision: decision.Revision, SourceSystem: "moderation-console", ReplayID: "notification-changed-confirm", ActorID: "moderator"})
 				if err != nil {
 					t.Fatal(err)
 				}
-				changed := AppealResolutionCommand{CaseID: caseRow.ID, ExpectedRevision: confirmed.Revision, SourceSystem: "retool", ReplayID: "notification-appeal-change", ActorID: "moderator", SourceDID: syntax.DID("did:plc:labeler"), Outcome: AppealStatusChanged, Negate: []EffectType{EffectFormalWarning}, Rationale: "changed"}
+				changed := AppealResolutionCommand{CaseID: caseRow.ID, ExpectedRevision: confirmed.Revision, SourceSystem: "moderation-console", ReplayID: "notification-appeal-change", ActorID: "moderator", SourceDID: syntax.DID("did:plc:labeler"), Outcome: AppealStatusChanged, Negate: []EffectType{EffectFormalWarning}, Rationale: "changed"}
 				assertCommandReplay(t, func() (CommandResult, error) { return service.ResolveAppeal(context.Background(), changed) })
 			},
 			want: 2,
@@ -334,7 +334,7 @@ func TestModerationNotificationIntentPolicyMatrix(t *testing.T) {
 				if err := pool.QueryRow(context.Background(), `SELECT logical_effect_id FROM moderation_active_case_effects WHERE case_id=$1`, caseRow.ID).Scan(&effectID); err != nil {
 					t.Fatal(err)
 				}
-				restore := SevereRestorationCommand{CaseID: caseRow.ID, EffectID: effectID, ExpectedRevision: decision.Revision, SourceSystem: "retool", ReplayID: "notification-severe-restore", ActorID: "moderator", Rationale: "restored"}
+				restore := SevereRestorationCommand{CaseID: caseRow.ID, EffectID: effectID, ExpectedRevision: decision.Revision, SourceSystem: "moderation-console", ReplayID: "notification-severe-restore", ActorID: "moderator", Rationale: "restored"}
 				assertCommandReplay(t, func() (CommandResult, error) { return service.RestoreSevereSuspension(context.Background(), restore) })
 			},
 			want: 2,
@@ -451,7 +451,7 @@ func TestModerationNotificationTransactionFailuresRollBackAllCoupledState(t *tes
 }
 
 func notificationDecision(caseRow Case, replayID string, decision Decision) TrustedCommand {
-	return TrustedCommand{CaseID: caseRow.ID, ExpectedRevision: 0, SourceSystem: "retool", ReplayID: replayID, ActorID: "moderator", SourceDID: syntax.DID("did:plc:labeler"), Decision: decision}
+	return TrustedCommand{CaseID: caseRow.ID, ExpectedRevision: 0, SourceSystem: "moderation-console", ReplayID: replayID, ActorID: "moderator", SourceDID: syntax.DID("did:plc:labeler"), Decision: decision}
 }
 
 func assertCommandReplay(t *testing.T, run func() (CommandResult, error)) CommandResult {

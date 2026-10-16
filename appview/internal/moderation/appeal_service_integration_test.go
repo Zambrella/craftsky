@@ -2,7 +2,9 @@ package moderation
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -12,7 +14,11 @@ import (
 )
 
 func TestAppealCorrespondenceRequiresConfirmationAndUsesOneLifecycle(t *testing.T) {
-	pool := testdb.WithSchema(t, adjudicationTestDDL)
+	pool := testdb.WithSchema(t, adjudicationTestDDL+`
+        ALTER TABLE moderation_reports ADD COLUMN reporter_did TEXT NOT NULL DEFAULT 'did:example:reporter';
+        ALTER TABLE moderation_reports ADD COLUMN reason_type TEXT NOT NULL DEFAULT 'spam';
+        ALTER TABLE moderation_reports ADD COLUMN details TEXT;
+    `)
 	ctx := context.Background()
 	store := NewStore(pool)
 	now := time.Date(2026, 9, 10, 12, 0, 0, 0, time.UTC)
@@ -20,7 +26,7 @@ func TestAppealCorrespondenceRequiresConfirmationAndUsesOneLifecycle(t *testing.
 	owner := syntax.DID("did:plc:appeal")
 	caseRow := seedAdjudicationCase(t, pool, store, "appeal-report", owner)
 	decision, err := service.ResolveCase(ctx, TrustedCommand{
-		CaseID: caseRow.ID, ExpectedRevision: 0, SourceSystem: "retool", ReplayID: "appeal-decision-01",
+		CaseID: caseRow.ID, ExpectedRevision: 0, SourceSystem: "moderation-console", ReplayID: "appeal-decision-01",
 		ActorID: "moderator", SourceDID: syntax.DID("did:plc:labeler"),
 		Decision: Decision{Disposition: DispositionViolation, Reason: ReasonSpam, Evidence: "evidence", Consequences: []EffectType{EffectFormalWarning}},
 	})
@@ -53,20 +59,20 @@ func TestAppealCorrespondenceRequiresConfirmationAndUsesOneLifecycle(t *testing.
 	}
 
 	confirmed, err := service.ConfirmAppeal(ctx, AppealCommand{
-		CaseID: caseRow.ID, ExpectedRevision: decision.Revision, SourceSystem: "retool", ReplayID: "appeal-confirm-001",
+		CaseID: caseRow.ID, ExpectedRevision: decision.Revision, SourceSystem: "moderation-console", ReplayID: "appeal-confirm-001",
 		ActorID: "moderator", CorrespondenceID: firstCorrespondence.ID,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if _, err := service.ConfirmAppeal(ctx, AppealCommand{
-		CaseID: caseRow.ID, ExpectedRevision: confirmed.Revision, SourceSystem: "retool", ReplayID: "appeal-confirm-002",
+		CaseID: caseRow.ID, ExpectedRevision: confirmed.Revision, SourceSystem: "moderation-console", ReplayID: "appeal-confirm-002",
 		ActorID: "moderator",
 	}); !errors.Is(err, ErrInvalidAppealTransition) {
 		t.Fatalf("second appeal confirmation error = %v", err)
 	}
 	resolved, err := service.ResolveAppeal(ctx, AppealResolutionCommand{
-		CaseID: caseRow.ID, ExpectedRevision: confirmed.Revision, SourceSystem: "retool", ReplayID: "appeal-uphold-0001",
+		CaseID: caseRow.ID, ExpectedRevision: confirmed.Revision, SourceSystem: "moderation-console", ReplayID: "appeal-uphold-0001",
 		ActorID: "moderator", Outcome: AppealStatusUpheld, Rationale: "decision remains supported",
 	})
 	if err != nil {
@@ -86,6 +92,32 @@ func TestAppealCorrespondenceRequiresConfirmationAndUsesOneLifecycle(t *testing.
 	if status != "upheld" || caseState != "resolved" || standingCount != 0 || notices != 0 {
 		t.Fatalf("appeal state=%s case=%s standing=%d notices=%d", status, caseState, standingCount, notices)
 	}
+	var wire []byte
+	if err := pool.QueryRow(ctx, `SELECT to_jsonb(a) FROM moderation_appeals a WHERE case_id=$1`, caseRow.ID).Scan(&wire); err != nil {
+		t.Fatal(err)
+	}
+	var persisted map[string]any
+	if err := json.Unmarshal(wire, &persisted); err != nil {
+		t.Fatal(err)
+	}
+	if persisted["resolution_rationale"] != "decision remains supported" {
+		t.Fatalf("upheld appeal rationale was not retained: %v", persisted["resolution_rationale"])
+	}
+	detail, err := store.AdminDetail(ctx, reference)
+	if err != nil || detail.AppealRationale != "decision remains supported" {
+		t.Fatalf("operator appeal rationale = %q, %v", detail.AppealRationale, err)
+	}
+	ownerHistory, err := store.OwnerHistory(ctx, owner, "", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ownerWire, err := json.Marshal(ownerHistory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(ownerWire), "decision remains supported") || strings.Contains(string(ownerWire), "appealRationale") {
+		t.Fatal("internal appeal rationale leaked into owner history")
+	}
 }
 
 func TestChangedAppealRecordsEffectChangeWithoutReopening(t *testing.T) {
@@ -97,13 +129,13 @@ func TestChangedAppealRecordsEffectChangeWithoutReopening(t *testing.T) {
 	caseRow := seedAdjudicationCase(t, pool, store, "changed-appeal-report", owner)
 	decision := resolveStrike(t, service, caseRow, "changed-decision-01")
 	confirmed, err := service.ConfirmAppeal(ctx, AppealCommand{
-		CaseID: caseRow.ID, ExpectedRevision: decision.Revision, SourceSystem: "retool", ReplayID: "changed-confirm-01", ActorID: "moderator",
+		CaseID: caseRow.ID, ExpectedRevision: decision.Revision, SourceSystem: "moderation-console", ReplayID: "changed-confirm-01", ActorID: "moderator",
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	appeal, err := service.ResolveAppeal(ctx, AppealResolutionCommand{
-		CaseID: caseRow.ID, ExpectedRevision: confirmed.Revision, SourceSystem: "retool", ReplayID: "changed-resolve-01",
+		CaseID: caseRow.ID, ExpectedRevision: confirmed.Revision, SourceSystem: "moderation-console", ReplayID: "changed-resolve-01",
 		ActorID: "moderator", SourceDID: syntax.DID("did:plc:labeler"), Outcome: AppealStatusChanged,
 		Negate: []EffectType{EffectStrike}, Rationale: "appeal changed decision",
 	})
@@ -134,7 +166,7 @@ func TestNoActionCaseCannotCreateAppealLifecycle(t *testing.T) {
 	service := NewService(store, testVisibilityWriter{}, time.Now)
 	caseRow := seedAdjudicationCase(t, pool, store, "no-action-appeal-report", syntax.DID("did:plc:no-action-appeal"))
 	decision, err := service.ResolveCase(ctx, TrustedCommand{
-		CaseID: caseRow.ID, ExpectedRevision: 0, SourceSystem: "retool", ReplayID: "no-action-appeal-decision",
+		CaseID: caseRow.ID, ExpectedRevision: 0, SourceSystem: "moderation-console", ReplayID: "no-action-appeal-decision",
 		ActorID: "moderator", SourceDID: syntax.DID("did:plc:labeler"),
 		Decision: Decision{Disposition: DispositionNoAction},
 	})
@@ -142,7 +174,7 @@ func TestNoActionCaseCannotCreateAppealLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := service.ConfirmAppeal(ctx, AppealCommand{
-		CaseID: caseRow.ID, ExpectedRevision: decision.Revision, SourceSystem: "retool",
+		CaseID: caseRow.ID, ExpectedRevision: decision.Revision, SourceSystem: "moderation-console",
 		ReplayID: "no-action-appeal-confirm", ActorID: "moderator",
 	}); !errors.Is(err, ErrInvalidAppealTransition) {
 		t.Fatalf("no-action appeal confirmation error = %v", err)

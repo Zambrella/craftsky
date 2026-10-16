@@ -47,7 +47,6 @@ type safetyCorrespondenceRequest struct {
 type safetyAppealLinkRequest struct {
 	CaseID           uuid.UUID `json:"caseId"`
 	VerifiedOwnerDID string    `json:"verifiedOwnerDid"`
-	ReplayID         string    `json:"replayId"`
 	ReceivedAt       time.Time `json:"receivedAt"`
 }
 
@@ -152,8 +151,8 @@ func SafetyExternalAppealLinkHandler(store ExternalSafetyIntakeStore) http.Handl
 		}
 		id, err := store.BindAppeal(r.Context(), safetyintake.AppealLink{
 			IntakeID: intakeID, CaseID: body.CaseID, VerifiedOwnerDID: ownerDID,
-			ActorID: moderator.ActorID, SourceSystem: "externalEmail",
-			ReplayID: body.ReplayID, ReceivedAt: body.ReceivedAt,
+			ActorID: moderator.ActorID, SourceSystem: moderator.SourceSystem,
+			ReplayID: moderator.ActorID + ":" + r.Header.Get("Idempotency-Key"), ReceivedAt: body.ReceivedAt,
 		})
 		if !writeSafetyIntakeError(w, r, err) {
 			return

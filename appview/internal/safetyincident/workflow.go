@@ -10,7 +10,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
+	"social.craftsky/appview/internal/dbx"
 )
 
 var (
@@ -20,16 +20,16 @@ var (
 )
 
 type WorkflowService struct {
-	pool      *pgxpool.Pool
+	pool      dbx.DB
 	deadlines DeadlinePolicy
 	now       func() time.Time
 }
 
-func NewWorkflowService(pool *pgxpool.Pool, deadlines DeadlinePolicy, now func() time.Time) *WorkflowService {
+func NewWorkflowService(pool dbx.DB, deadlines DeadlinePolicy, now func() time.Time) *WorkflowService {
 	if now == nil {
 		now = time.Now
 	}
-	return &WorkflowService{pool: pool, deadlines: deadlines, now: now}
+	return &WorkflowService{pool: dbx.Normalize(pool), deadlines: deadlines, now: now}
 }
 
 type IntimateImageCommand struct {
@@ -233,12 +233,16 @@ func (service *WorkflowService) ApproveAndDisclose(ctx context.Context, workflow
 	slices.Sort(minimized)
 	now := service.now().UTC()
 	return pgx.BeginFunc(ctx, service.pool, func(tx pgx.Tx) error {
-		var verification string
-		if err := tx.QueryRow(ctx, `SELECT verification_state FROM safety_authority_requests WHERE workflow_id=$1 FOR UPDATE`, workflowID).Scan(&verification); err != nil {
+		var verification, state string
+		var approved *string
+		if err := tx.QueryRow(ctx, `SELECT a.verification_state,w.state,a.approved_by_actor FROM safety_authority_requests a JOIN safety_workflows w ON w.id=a.workflow_id WHERE a.workflow_id=$1 FOR UPDATE OF a,w`, workflowID).Scan(&verification, &state, &approved); err != nil {
 			return err
 		}
 		if verification != "verified" {
 			return ErrAuthorityNotVerified
+		}
+		if state != "inProgress" || approved != nil {
+			return ErrInvalidWorkflowTransition
 		}
 		if _, err := tx.Exec(ctx, `UPDATE safety_authority_requests SET legal_basis_reference=$2,approved_by_actor=$3,disclosed_fields=$4 WHERE workflow_id=$1`, workflowID, legalBasis, actor.ID, minimized); err != nil {
 			return err
@@ -259,7 +263,7 @@ func (service *WorkflowService) CloseAuthorityRequest(ctx context.Context, workf
 	}
 	now := service.now().UTC()
 	return pgx.BeginFunc(ctx, service.pool, func(tx pgx.Tx) error {
-		command, err := tx.Exec(ctx, `UPDATE safety_authority_requests SET reviewed_at=$2 WHERE workflow_id=$1 AND verification_state IN ('verified','rejected')`, workflowID, now)
+		command, err := tx.Exec(ctx, `UPDATE safety_authority_requests SET reviewed_at=$2 WHERE workflow_id=$1 AND verification_state IN ('verified','rejected') AND reviewed_at IS NULL`, workflowID, now)
 		if err != nil || command.RowsAffected() != 1 {
 			return ErrInvalidWorkflowTransition
 		}
@@ -279,6 +283,33 @@ func insertWorkflowEvent(ctx context.Context, tx pgx.Tx, workflowID uuid.UUID, s
 	_, err := tx.Exec(ctx, `INSERT INTO safety_workflow_events(id,workflow_id,sequence,event_type,actor_id,detail_code,occurred_at)
 		VALUES($1,$2,$3,$4,$5,$6,$7)`, uuid.New(), workflowID, sequence, eventType, actorID, nullableString(detail), at)
 	return err
+}
+
+func (service *WorkflowService) ResolveCredibleThreat(ctx context.Context, id uuid.UUID, actor Actor, outcome string) error {
+	if id == uuid.Nil || strings.TrimSpace(outcome) == "" || len(outcome) > 256 {
+		return ErrInvalidWorkflowTransition
+	}
+	if !actor.HasPermission(PermissionWorkflowManage) {
+		return ErrUnauthorized
+	}
+	return pgx.BeginFunc(ctx, service.pool, func(tx pgx.Tx) error {
+		var state string
+		if err := tx.QueryRow(ctx, `SELECT state FROM safety_workflows WHERE id=$1 AND workflow_class='credibleThreat' FOR UPDATE`, id).Scan(&state); err != nil {
+			return err
+		}
+		if state != "inProgress" {
+			return ErrInvalidWorkflowTransition
+		}
+		var sequence int64
+		if err := tx.QueryRow(ctx, `SELECT COALESCE(max(sequence),0)+1 FROM safety_workflow_events WHERE workflow_id=$1`, id).Scan(&sequence); err != nil {
+			return err
+		}
+		if err := insertWorkflowEvent(ctx, tx, id, sequence, "outcomeRecorded", actor.ID, outcome, service.now().UTC()); err != nil {
+			return err
+		}
+		_, err := tx.Exec(ctx, `UPDATE safety_workflows SET state='resolved',updated_at=$2 WHERE id=$1`, id, service.now().UTC())
+		return err
+	})
 }
 
 func nullableUUID(value uuid.UUID) any {

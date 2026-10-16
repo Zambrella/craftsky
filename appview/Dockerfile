@@ -1,4 +1,11 @@
 # syntax=docker/dockerfile:1.7
+FROM node:24-alpine@sha256:44fce696f38ba8c987c4db89954051000bbd05ffd8d8659ba15ed4a8602e937f AS admin-build
+WORKDIR /admin
+COPY admin/package.json admin/package-lock.json ./
+RUN npm ci --no-audit --no-fund
+COPY admin/ ./
+RUN npm test && npm run build
+
 FROM golang:1.27.2-alpine@sha256:85dc1069ac644ea3c527b177303a406eb3358192816cd7f9e5848eb658851673 AS build-base
 WORKDIR /src
 RUN test "$(go env GOVERSION)" = "go1.27.2"
@@ -47,6 +54,7 @@ COPY --from=media-evidence-build /media-evidence/api.test /evidence/api.test
 ENTRYPOINT ["/evidence/api.test"]
 
 FROM runtime-base AS production
+COPY --from=admin-build /admin/dist /app/admin/dist
 COPY --from=production-build /out/appview /app/appview
 COPY --from=production-build /out/cli     /app/cli
 COPY migrations /app/migrations

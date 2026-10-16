@@ -561,6 +561,8 @@ docker run -d \
   --env DATABASE_URL="$container_database_url" \
   --env ALLOWED_ORIGINS="*" \
   --env CRAFTSKY_DEV_DID="did:plc:jt3cxdyrhjhrkpwzdvonheax" \
+  --env MODERATION_ADMIN_ENABLED="true" \
+  --env MODERATION_SOURCE_DID="did:example:release-console" \
   --env TAP_WS_URL="ws://tap:2480/channel" \
   --env OAUTH_CALLBACK_URL="http://127.0.0.1:18080/oauth/callback" \
   --env OAUTH_HANDOFF_RECEIPT_KEY="AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" \
@@ -590,6 +592,41 @@ if [[ "$smoke_ready" != "true" ]]; then
   echo "appview-check: release image did not pass the startup health smoke" >&2
   exit 1
 fi
+
+# Verify the console from the shipped image rather than a host Vite server.
+# This isolated smoke instance has no allowlisted operator or browser session.
+curl -fsS --header "Host: 127.0.0.1:18080" \
+  --dump-header "$artifact_dir/admin-shell-headers.txt" \
+  "http://127.0.0.1:${smoke_port}/admin/" >"$artifact_dir/admin-shell.html"
+rg -qi '^content-type: text/html' "$artifact_dir/admin-shell-headers.txt"
+rg -qi '^cache-control: no-store' "$artifact_dir/admin-shell-headers.txt"
+# The shipped HLS player fetches only from the configured video service. This
+# smoke instance uses the default host; keep its allowed connection list exact.
+rg -qi "^content-security-policy: .*script-src 'self';.*connect-src 'self' https://video[.]bsky[.]app;" "$artifact_dir/admin-shell-headers.txt"
+admin_script=$(sed -nE 's/.*<script[^>]*src="(\/admin\/assets\/[^" ]+\.js)".*/\1/p' "$artifact_dir/admin-shell.html")
+admin_style=$(sed -nE 's/.*<link[^>]*href="(\/admin\/assets\/[^" ]+\.css)".*/\1/p' "$artifact_dir/admin-shell.html")
+if [[ -z "$admin_script" || -z "$admin_style" ]]; then
+  echo "appview-check: console shell lacks built JavaScript or CSS" >&2
+  exit 1
+fi
+curl -fsS --header "Host: 127.0.0.1:18080" \
+  --dump-header "$artifact_dir/admin-script-headers.txt" \
+  "http://127.0.0.1:${smoke_port}${admin_script}" >"$artifact_dir/admin-script.js"
+rg -qi '^content-type: (text|application)/javascript' "$artifact_dir/admin-script-headers.txt"
+test -s "$artifact_dir/admin-script.js"
+curl -fsS --header "Host: 127.0.0.1:18080" \
+  --dump-header "$artifact_dir/admin-style-headers.txt" \
+  "http://127.0.0.1:${smoke_port}${admin_style}" >"$artifact_dir/admin-style.css"
+rg -qi '^content-type: text/css' "$artifact_dir/admin-style-headers.txt"
+test -s "$artifact_dir/admin-style.css"
+admin_identity_status=$(curl -sS --header "Host: 127.0.0.1:18080" \
+  --output "$artifact_dir/admin-unauthenticated.json" --write-out '%{http_code}' \
+  "http://127.0.0.1:${smoke_port}/v1/admin/identity")
+if [[ "$admin_identity_status" != 401 ]]; then
+  echo "appview-check: unauthenticated console identity returned $admin_identity_status, want 401" >&2
+  exit 1
+fi
+echo "appview-check: packaged console assets and unauthenticated boundary passed"
 
 # Tap v0.1.10 exposes no runtime API for injecting record or identity events.
 # Require the strongest honest image-level contract: the exact pinned binary is

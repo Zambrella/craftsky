@@ -1,9 +1,10 @@
 package app
 
 import (
+	"net/http"
 	"social.craftsky/appview/internal/api"
-	"social.craftsky/appview/internal/middleware"
 	"social.craftsky/appview/internal/routes"
+	"time"
 )
 
 // RouteDependencies lowers process-wide composition into the narrow boundary
@@ -12,7 +13,13 @@ func RouteDependencies(deps *Deps) *routes.Dependencies {
 	if deps == nil {
 		return nil
 	}
+	var operatorAuthentication func(http.Handler) http.Handler
+	if deps.OperatorConsole != nil {
+		operatorAuthentication = deps.OperatorConsole.Authentication()
+	}
 	return &routes.Dependencies{
+		OperatorConsole:        deps.OperatorConsole,
+		OperatorAuthentication: operatorAuthentication,
 		Config: routes.Config{
 			Env:                       routes.Environment(deps.Config.Env),
 			AllowedOrigins:            append([]string(nil), deps.Config.AllowedOrigins...),
@@ -44,9 +51,6 @@ func RouteDependencies(deps *Deps) *routes.Dependencies {
 			DevLabelerDID:                 deps.Config.DevLabelerDID,
 			TrustedModerationSourceDIDs:   append([]string(nil), deps.Config.TrustedModerationSourceDIDs...),
 			ModerationAdminEnabled:        deps.Config.ModerationAdminEnabled,
-			ModerationAdminToken:          routes.Secret(deps.Config.ModerationAdminBearerToken.Reveal()),
-			ModerationAdminActorID:        deps.Config.ModerationAdminActorID,
-			ModerationAdminSourceSystem:   "admin-api",
 			ModerationSourceDID:           deps.Config.ModerationSourceDID,
 			ImageSafetyAlertAge:           deps.Config.ImageSafetyAlertAge,
 			RequiredPolicyVersion:         deps.Config.RequiredPolicyVersion,
@@ -87,14 +91,13 @@ func RouteDependencies(deps *Deps) *routes.Dependencies {
 		Consumer:                    deps.Consumer,
 		ImageSafetyReadiness:        api.AdvisoryReadiness{Readiness: api.StaticReadiness(deps.Config.ImageSafety.AutomatedReady())},
 		ImageSafetyHealth:           deps.ImageSafetyStore,
-		SafetyWork:                  []api.SafetyWorkReader{deps.SafetyIncidents},
+		SafetyWork:                  []api.SafetyWorkReader{api.NewConsoleWorkReader(deps.DB, time.Now)},
 		SafetyIncidents:             deps.SafetyIncidents,
 		SafetyIntake:                deps.SafetyIntake,
 		SafetyEvidence:              deps.SafetyEvidence,
 		SafetyHolds:                 deps.SafetyHolds,
 		SafetyWorkflows:             deps.SafetyWorkflows,
 		SafetyCSEA:                  deps.SafetyCSEA,
-		ModeratorAuthenticator:      middleware.NewPostgresModeratorAuthenticator(deps.DB, "admin-api", deps.Now),
 		InstagramMembership:         deps.InstagramMembership,
 		InstagramRateLimiter:        deps.InstagramRateLimiter,
 		InstagramVerification:       deps.InstagramVerification,

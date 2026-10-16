@@ -27,6 +27,7 @@ type QueueFilter struct {
 }
 
 type QueueItem struct {
+	Origin        string      `json:"origin"`
 	CaseReference string      `json:"caseReference"`
 	State         string      `json:"state"`
 	SubjectType   SubjectType `json:"subjectType"`
@@ -72,7 +73,7 @@ func (s *Store) Queue(ctx context.Context, filter QueueFilter) (QueuePage, error
 	if s == nil || s.pool == nil {
 		return QueuePage{}, ErrInvalidCommand
 	}
-	rows, err := s.pool.Query(ctx, `SELECT c.id,c.state,c.subject_type,c.subject_did,count(r.report_id)::int,c.revision,c.created_at
+	rows, err := s.pool.Query(ctx, `SELECT c.id,c.state,c.subject_type,c.subject_did,count(r.report_id)::int,c.revision,c.created_at,c.origin
 		FROM moderation_cases c LEFT JOIN moderation_case_reports r ON r.case_id=c.id LEFT JOIN moderation_appeals a ON a.case_id=c.id
 		WHERE ($1='' OR c.state=$1) AND ($2='' OR c.subject_type=$2) AND ($3='' OR COALESCE(a.status,'none')=$3)
 		AND ($4::timestamptz IS NULL OR (c.created_at,c.id)<($4,$5))
@@ -86,7 +87,7 @@ func (s *Store) Queue(ctx context.Context, filter QueueFilter) (QueuePage, error
 	for rows.Next() {
 		var item QueueItem
 		var id uuid.UUID
-		if err := rows.Scan(&id, &item.State, &item.SubjectType, &item.SubjectDID, &item.ReportCount, &item.Revision, &item.CreatedAt); err != nil {
+		if err := rows.Scan(&id, &item.State, &item.SubjectType, &item.SubjectDID, &item.ReportCount, &item.Revision, &item.CreatedAt, &item.Origin); err != nil {
 			return QueuePage{}, err
 		}
 		item.CaseReference, _ = FormatCaseReference(id)
@@ -132,12 +133,13 @@ type AdminEvent struct {
 	CreatedAt    time.Time `json:"createdAt"`
 }
 type AdminDecision struct {
-	Disposition       Disposition `json:"disposition"`
-	Reason            Reason      `json:"reason,omitempty"`
-	EvidenceNotes     string      `json:"evidenceNotes,omitempty"`
-	UserSafeDetail    string      `json:"userSafeDetail,omitempty"`
-	SeverityRationale string      `json:"severityRationale,omitempty"`
-	CreatedAt         time.Time   `json:"createdAt"`
+	LegalClassification LegalClassification `json:"legalClassification,omitempty"`
+	Disposition         Disposition         `json:"disposition"`
+	Reason              Reason              `json:"reason,omitempty"`
+	EvidenceNotes       string              `json:"evidenceNotes,omitempty"`
+	UserSafeDetail      string              `json:"userSafeDetail,omitempty"`
+	SeverityRationale   string              `json:"severityRationale,omitempty"`
+	CreatedAt           time.Time           `json:"createdAt"`
 }
 type AdminEffect struct {
 	EffectID  string     `json:"effectId"`
@@ -156,6 +158,8 @@ type AdminStrikeContext struct {
 	Active          bool       `json:"active"`
 }
 type AdminDetail struct {
+	Origin            string     `json:"origin"`
+	IncidentReference *uuid.UUID `json:"incidentReference,omitempty"`
 	QueueItem
 	SubjectCollection  string              `json:"subjectCollection,omitempty"`
 	SubjectRkey        string              `json:"subjectRkey,omitempty"`
@@ -170,6 +174,7 @@ type AdminDetail struct {
 	StrikeContext      *AdminStrikeContext `json:"strikeContext,omitempty"`
 	Standing           OwnerStanding       `json:"standing"`
 	AppealStatus       AppealStatus        `json:"appealStatus,omitempty"`
+	AppealRationale    string              `json:"appealRationale,omitempty"`
 }
 
 func (s *Store) AdminDetail(ctx context.Context, reference string) (AdminDetail, error) {
@@ -180,7 +185,7 @@ func (s *Store) AdminDetail(ctx context.Context, reference string) (AdminDetail,
 	var detail AdminDetail
 	var id uuid.UUID
 	var rawSnapshot json.RawMessage
-	err = s.pool.QueryRow(ctx, `SELECT c.id,c.state,c.subject_type,c.subject_did,COALESCE(c.subject_collection,''),COALESCE(c.subject_rkey,''),COALESCE(c.subject_uri,''),COALESCE(c.subject_cid_snapshot,''),c.owner_did,c.revision,c.created_at,c.safe_snapshot,COALESCE((SELECT status FROM moderation_appeals WHERE case_id=c.id),'') FROM moderation_cases c WHERE c.id=$1`, parsed.UUID()).Scan(&id, &detail.State, &detail.SubjectType, &detail.SubjectDID, &detail.SubjectCollection, &detail.SubjectRkey, &detail.SubjectURI, &detail.SubjectCIDSnapshot, &detail.OwnerDID, &detail.Revision, &detail.CreatedAt, &rawSnapshot, &detail.AppealStatus)
+	err = s.pool.QueryRow(ctx, `SELECT c.id,c.state,c.subject_type,c.subject_did,COALESCE(c.subject_collection,''),COALESCE(c.subject_rkey,''),COALESCE(c.subject_uri,''),COALESCE(c.subject_cid_snapshot,''),c.owner_did,c.revision,c.created_at,c.safe_snapshot,COALESCE((SELECT status FROM moderation_appeals WHERE case_id=c.id),''),c.origin,c.incident_id,COALESCE((SELECT resolution_rationale FROM moderation_appeals WHERE case_id=c.id),'') FROM moderation_cases c WHERE c.id=$1`, parsed.UUID()).Scan(&id, &detail.State, &detail.SubjectType, &detail.SubjectDID, &detail.SubjectCollection, &detail.SubjectRkey, &detail.SubjectURI, &detail.SubjectCIDSnapshot, &detail.OwnerDID, &detail.Revision, &detail.CreatedAt, &rawSnapshot, &detail.AppealStatus, &detail.Origin, &detail.IncidentReference, &detail.AppealRationale)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return AdminDetail{}, ErrCaseNotFound
 	}
@@ -222,7 +227,7 @@ func (s *Store) AdminDetail(ctx context.Context, reference string) (AdminDetail,
 		}
 		detail.Events = append(detail.Events, event)
 	}
-	decisions, err := s.pool.Query(ctx, `SELECT disposition,COALESCE(reason,''),COALESCE(internal_evidence_notes,''),COALESCE(user_safe_detail,''),COALESCE(severity_rationale,''),created_at FROM moderation_decisions WHERE case_id=$1 ORDER BY created_at,id`, id)
+	decisions, err := s.pool.Query(ctx, `SELECT disposition,COALESCE(reason,''),COALESCE(internal_evidence_notes,''),COALESCE(user_safe_detail,''),COALESCE(severity_rationale,''),COALESCE(legal_classification,''),created_at FROM moderation_decisions WHERE case_id=$1 ORDER BY created_at,id`, id)
 	if err != nil {
 		return AdminDetail{}, err
 	}
@@ -230,7 +235,7 @@ func (s *Store) AdminDetail(ctx context.Context, reference string) (AdminDetail,
 	detail.Decisions = []AdminDecision{}
 	for decisions.Next() {
 		var decision AdminDecision
-		if err := decisions.Scan(&decision.Disposition, &decision.Reason, &decision.EvidenceNotes, &decision.UserSafeDetail, &decision.SeverityRationale, &decision.CreatedAt); err != nil {
+		if err := decisions.Scan(&decision.Disposition, &decision.Reason, &decision.EvidenceNotes, &decision.UserSafeDetail, &decision.SeverityRationale, &decision.LegalClassification, &decision.CreatedAt); err != nil {
 			return AdminDetail{}, err
 		}
 		detail.Decisions = append(detail.Decisions, decision)

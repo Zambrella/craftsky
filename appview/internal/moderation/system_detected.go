@@ -34,12 +34,25 @@ func (store *Store) ConfirmSystemDetection(ctx context.Context, command ConfirmS
 	}
 	var result Case
 	err := pgx.BeginFunc(ctx, store.pool, func(tx pgx.Tx) error {
+		var state string
+		if err := tx.QueryRow(ctx, `SELECT state FROM safety_incidents WHERE id=$1 FOR UPDATE`, command.IncidentID).Scan(&state); err != nil {
+			return err
+		}
+		if state != "detected" && state != "confirmed" && state != "caseCreated" {
+			return ErrCaseNotOpen
+		}
 		var owner, sourceCID, kind string
 		if err := tx.QueryRow(ctx, `SELECT owner_did,source_cid,subject_kind FROM safety_incident_subjects
 			WHERE incident_id=$1 AND subject_uri=$2 ORDER BY image_slot LIMIT 1`, command.IncidentID, command.SubjectURI).Scan(&owner, &sourceCID, &kind); err != nil {
 			return err
 		}
 		subjectType := SubjectType(kind)
+		switch kind {
+		case "profile", "business_profile":
+			subjectType = SubjectAccount
+		case "business_event":
+			subjectType = SubjectEvent
+		}
 		if subjectType != SubjectPost && subjectType != SubjectEvent && subjectType != SubjectAccount {
 			return ErrInvalidCommand
 		}
@@ -48,18 +61,26 @@ func (store *Store) ConfirmSystemDetection(ctx context.Context, command ConfirmS
 			return ErrInvalidCommand
 		}
 		collection, rkey := parts[3], parts[4]
-		snapshot, err := json.Marshal(safeSubjectSnapshot{Type: subjectType, DID: owner, Collection: collection, Rkey: rkey, URI: command.SubjectURI.String(), CID: sourceCID})
+		canonicalURI := command.SubjectURI.String()
+		subjectKey := string(subjectType) + ":" + canonicalURI
+		if subjectType == SubjectAccount {
+			collection = ""
+			rkey = ""
+			canonicalURI = ""
+			subjectKey = "account:" + owner
+		}
+		snapshot, err := json.Marshal(safeSubjectSnapshot{Type: subjectType, DID: owner, Collection: collection, Rkey: rkey, URI: canonicalURI, CID: sourceCID})
 		if err != nil {
 			return err
 		}
-		subjectKey := string(subjectType) + ":" + command.SubjectURI.String()
+
 		err = tx.QueryRow(ctx, `INSERT INTO moderation_cases(
 			id,subject_key,subject_type,subject_did,subject_collection,subject_rkey,subject_uri,
 			subject_cid_snapshot,owner_did,safe_snapshot,origin,incident_id,created_at,updated_at
 		) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$4,$9,'systemDetected',$10,$11,$11)
 		ON CONFLICT (subject_key,origin) WHERE state='open' DO NOTHING
 		RETURNING id,subject_key,state,revision,created_at`, uuid.New(), subjectKey, subjectType,
-			owner, collection, rkey, command.SubjectURI, sourceCID, snapshot, command.IncidentID,
+			owner, nullIfEmpty(collection), nullIfEmpty(rkey), nullIfEmpty(canonicalURI), sourceCID, snapshot, command.IncidentID,
 			command.ConfirmedAt.UTC()).Scan(&result.ID, &result.SubjectKey, &result.State, &result.Revision, &result.CreatedAt)
 		if errors.Is(err, pgx.ErrNoRows) {
 			err = tx.QueryRow(ctx, `SELECT id,subject_key,state,revision,created_at FROM moderation_cases

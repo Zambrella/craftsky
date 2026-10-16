@@ -13,9 +13,9 @@ import (
 )
 
 func TestModeratorAuthenticationDerivesTrustedContext(t *testing.T) {
-	handler := ModeratorAuthentication("correct horse battery staple 1234", "operator-1", "retool", nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := ModeratorAuthentication("correct horse battery staple 1234", "operator-1", "moderation-console", nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		moderator, ok := ctxkeys.GetModerator(r.Context())
-		if !ok || moderator.ActorID != "operator-1" || moderator.SourceSystem != "retool" {
+		if !ok || moderator.ActorID != "operator-1" || moderator.SourceSystem != "moderation-console" {
 			t.Fatalf("moderator context = %+v, %v", moderator, ok)
 		}
 		w.WriteHeader(http.StatusNoContent)

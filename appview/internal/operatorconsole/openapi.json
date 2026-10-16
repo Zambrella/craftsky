@@ -1,0 +1,320 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "CraftSky operator login",
+    "version": "1.0.0",
+    "description": "Standalone browser-console authentication. Consumer bearer sessions and development DID headers are not accepted. OAuth callback/discovery follow the AT Protocol OAuth specification and ADR 018."
+  },
+  "servers": [
+    {
+      "url": "/"
+    }
+  ],
+  "security": [
+    {
+      "operatorSession": []
+    }
+  ],
+  "paths": {
+    "/v1/admin/auth/csrf": {
+      "get": {
+        "operationId": "operatorBrowserToken",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Browser CSRF bootstrap. Sets a host-only HttpOnly browser-binding cookie. Response is no-store.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "csrfToken"
+                  ],
+                  "properties": {
+                    "csrfToken": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Request failed. No credentials or provider error text are returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/admin/auth/login": {
+      "post": {
+        "operationId": "operatorLogin",
+        "security": [],
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Origin",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uri"
+            },
+            "description": "Exact configured AppView origin."
+          },
+          {
+            "in": "header",
+            "name": "X-CSRF-Token",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Browser-bound value obtained from the CSRF bootstrap endpoint; do not log."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "identifier"
+                ],
+                "properties": {
+                  "identifier": {
+                    "type": "string",
+                    "description": "Atmosphere handle or DID. Role and actor cannot be supplied."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Redirect the initiating browser to the provider. Response is no-store; do not log the authorization URL.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": [
+                    "authorizationUrl"
+                  ],
+                  "properties": {
+                    "authorizationUrl": {
+                      "type": "string",
+                      "format": "uri"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Request failed. No credentials or provider error text are returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Request failed. No credentials or provider error text are returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/admin/auth/logout": {
+      "post": {
+        "operationId": "operatorLogout",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Origin",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uri"
+            },
+            "description": "Exact configured AppView origin."
+          },
+          {
+            "in": "header",
+            "name": "X-CSRF-Token",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Browser-bound value obtained from the CSRF bootstrap endpoint; do not log."
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Local operator session revoked and cookies cleared. Does not log out the PDS or consumer app."
+          },
+          "4XX": {
+            "description": "Request failed. No credentials or provider error text are returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Request failed. No credentials or provider error text are returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/admin/identity": {
+      "get": {
+        "operationId": "operatorIdentity",
+        "responses": {
+          "200": {
+            "description": "Current DID-bound operator and effective permissions. No credentials. No-store.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Operator"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Request failed. No credentials or provider error text are returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "5XX": {
+            "description": "Request failed. No credentials or provider error text are returned.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "operatorSession": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "craftsky_operator_session",
+        "description": "Opaque HttpOnly browser cookie issued only after verified OAuth and DID allowlisting."
+      }
+    },
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "required": [
+          "error",
+          "message",
+          "requestId"
+        ],
+        "properties": {
+          "error": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "requestId": {
+            "type": "string"
+          }
+        }
+      },
+      "Operator": {
+        "type": "object",
+        "required": [
+          "operatorId",
+          "did",
+          "actorId",
+          "role",
+          "permissionSet",
+          "permissions",
+          "assignedIncidentReferences",
+          "assignmentRequired"
+        ],
+        "properties": {
+          "operatorId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "did": {
+            "type": "string"
+          },
+          "actorId": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "safetyAdministrator",
+              "moderator",
+              "helper"
+            ]
+          },
+          "permissionSet": {
+            "type": "string",
+            "enum": [
+              "admin",
+              "mod",
+              "helper"
+            ]
+          },
+          "permissions": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "boolean"
+            }
+          },
+          "assignedIncidentReferences": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "assignmentRequired": {
+            "type": "boolean"
+          }
+        }
+      }
+    }
+  }
+}

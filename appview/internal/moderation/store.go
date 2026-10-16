@@ -1,11 +1,11 @@
 package moderation
 
-import "github.com/jackc/pgx/v5/pgxpool"
+import "social.craftsky/appview/internal/dbx"
 
 type Store struct {
-	pool *pgxpool.Pool
+	pool dbx.DB
 }
 
-func NewStore(pool *pgxpool.Pool) *Store {
-	return &Store{pool: pool}
+func NewStore(pool dbx.DB) *Store {
+	return &Store{pool: dbx.Normalize(pool)}
 }

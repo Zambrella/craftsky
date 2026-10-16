@@ -177,7 +177,7 @@ func (s *Service) ResolveAppeal(ctx context.Context, command AppealResolutionCom
 		if err := ValidateAppealResolution(current, command.Outcome); err != nil {
 			return err
 		}
-		_, err := tx.Exec(ctx, `UPDATE moderation_appeals SET status=$2,resolved_event_id=$3,resolved_at=$4 WHERE case_id=$1`, caseRow.id, command.Outcome, eventID, now)
+		_, err := tx.Exec(ctx, `UPDATE moderation_appeals SET status=$2,resolved_event_id=$3,resolved_at=$4,resolution_rationale=$5 WHERE case_id=$1`, caseRow.id, command.Outcome, eventID, now, command.Rationale)
 		if err != nil {
 			return fmt.Errorf("resolve moderation appeal: %w", err)
 		}
