@@ -1,5 +1,21 @@
 # AppView Changelog
 
+## 1.0.16 - 2026-10-16
+
+- feat(discovery): add desktop sidebar recommendations
+- docs: add contributor guidance and issue templates
+- feat(branding): update logos across apps and web
+- fix: honor lexicon image limit during post ingestion
+- feat(moderation): add operator console and sessions
+- refactor(composer,ops): extract shared submission flows and add status C
+- fix(ops): count due notification retries in status
+- fix(instagram): stabilize suggestion follow acceptance
+- feat(moderation-console): expand operator workspaces
+- fix(observability): classify expected cancellations and auth failures
+- feat(moderation): add version-aware contextual previews
+- fix(observability): preserve provider failure diagnostics
+- feat(text-inputs): enforce record text limits
+
 ## 1.0.15 - 2026-10-15
 
 - feat: upload immediate images directly to PDS with scoped authorization
