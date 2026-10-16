@@ -15,6 +15,7 @@ import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
 import 'package:craftsky_app/theme/craftsky_card.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
+import 'package:craftsky_app/theme/yarn_refresh_scroll_view.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -54,24 +55,23 @@ class _AccountStandingBody extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final standing = ref.watch(accountStandingProvider(account));
     final history = ref.watch(accountModerationHistoryProvider(account));
-    return RefreshIndicator(
-      onRefresh: () async {
-        ref
-          ..invalidate(accountStandingProvider(account))
-          ..invalidate(accountModerationHistoryProvider(account));
-        await Future.wait([
-          ref.read(accountStandingProvider(account).future),
-          ref.read(accountModerationHistoryProvider(account).future),
-        ]);
-      },
-      child: LayoutBuilder(
-        builder: (context, constraints) => SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: EdgeInsets.symmetric(
-            horizontal: constraints.maxWidth >= 840 ? 32 : 16,
-            vertical: 16,
-          ),
-          child: Center(
+    return LayoutBuilder(
+      builder: (context, constraints) => YarnRefreshScrollView.list(
+        onRefresh: () async {
+          ref
+            ..invalidate(accountStandingProvider(account))
+            ..invalidate(accountModerationHistoryProvider(account));
+          await Future.wait([
+            ref.read(accountStandingProvider(account).future),
+            ref.read(accountModerationHistoryProvider(account).future),
+          ]);
+        },
+        padding: EdgeInsets.symmetric(
+          horizontal: constraints.maxWidth >= 840 ? 32 : 16,
+          vertical: 16,
+        ),
+        children: [
+          Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 760),
               child: Column(
@@ -122,7 +122,7 @@ class _AccountStandingBody extends ConsumerWidget {
               ),
             ),
           ),
-        ),
+        ],
       ),
     );
   }

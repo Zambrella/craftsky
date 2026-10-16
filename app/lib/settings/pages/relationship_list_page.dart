@@ -9,6 +9,7 @@ import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
+import 'package:craftsky_app/theme/yarn_refresh_scroll_view.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -120,69 +121,66 @@ class _RelationshipListBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return RefreshIndicator(
+    return YarnRefreshScrollView(
       onRefresh: onRefresh,
-      child: CustomScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        slivers: [
-          if (state.items.isEmpty)
-            SliverFillRemaining(
-              hasScrollBody: false,
-              child: CraftskyEmptyState(
-                icon: switch (kind) {
-                  RelationshipListKind.muted => CraftskyIcons.muted,
-                  RelationshipListKind.blocked => CraftskyIcons.block,
-                },
-                title: switch (kind) {
-                  RelationshipListKind.muted => l10n.settingsMutedAccountsEmpty,
-                  RelationshipListKind.blocked =>
-                    l10n.settingsBlockedAccountsEmpty,
-                },
-                subtitle: l10n.profileAboutEmpty,
-              ),
-            )
-          else
-            SliverList.builder(
-              itemCount: state.items.length + (state.hasMore ? 1 : 0),
-              itemBuilder: (context, index) {
-                if (index == state.items.length) {
-                  return Center(
-                    child: isLoadingMore
-                        ? const Padding(
-                            padding: EdgeInsets.all(16),
-                            child: StitchProgressIndicator(),
-                          )
-                        : TextButton(
-                            onPressed: onLoadMore,
-                            child: Text(l10n.relationshipListLoadMore),
-                          ),
-                  );
-                }
-                final account = state.items[index];
-                final did = account.did.toString();
-                return ProfileAccountListTile(
-                  account: account,
-                  trailing: TextButton(
-                    onPressed: state.mutatingDids.contains(did)
-                        ? null
-                        : () => unawaited(onReverse(account)),
-                    child: ActionProgress(
-                      isLoading: state.mutatingDids.contains(did),
-                      child: Text(
-                        switch (kind) {
-                          RelationshipListKind.muted =>
-                            l10n.relationshipListUnmute,
-                          RelationshipListKind.blocked =>
-                            l10n.relationshipListUnblock,
-                        },
-                      ),
+      slivers: [
+        if (state.items.isEmpty)
+          SliverFillRemaining(
+            hasScrollBody: false,
+            child: CraftskyEmptyState(
+              icon: switch (kind) {
+                RelationshipListKind.muted => CraftskyIcons.muted,
+                RelationshipListKind.blocked => CraftskyIcons.block,
+              },
+              title: switch (kind) {
+                RelationshipListKind.muted => l10n.settingsMutedAccountsEmpty,
+                RelationshipListKind.blocked =>
+                  l10n.settingsBlockedAccountsEmpty,
+              },
+              subtitle: l10n.profileAboutEmpty,
+            ),
+          )
+        else
+          SliverList.builder(
+            itemCount: state.items.length + (state.hasMore ? 1 : 0),
+            itemBuilder: (context, index) {
+              if (index == state.items.length) {
+                return Center(
+                  child: isLoadingMore
+                      ? const Padding(
+                          padding: EdgeInsets.all(16),
+                          child: StitchProgressIndicator(),
+                        )
+                      : TextButton(
+                          onPressed: onLoadMore,
+                          child: Text(l10n.relationshipListLoadMore),
+                        ),
+                );
+              }
+              final account = state.items[index];
+              final did = account.did.toString();
+              return ProfileAccountListTile(
+                account: account,
+                trailing: TextButton(
+                  onPressed: state.mutatingDids.contains(did)
+                      ? null
+                      : () => unawaited(onReverse(account)),
+                  child: ActionProgress(
+                    isLoading: state.mutatingDids.contains(did),
+                    child: Text(
+                      switch (kind) {
+                        RelationshipListKind.muted =>
+                          l10n.relationshipListUnmute,
+                        RelationshipListKind.blocked =>
+                          l10n.relationshipListUnblock,
+                      },
                     ),
                   ),
-                );
-              },
-            ),
-        ],
-      ),
+                ),
+              );
+            },
+          ),
+      ],
     );
   }
 }

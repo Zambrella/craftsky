@@ -55,17 +55,19 @@ void main() {
       LocalPostDraft.unavailable(id: 'damaged', owner: owner),
     ];
     await tester.pumpWidget(
-      MaterialApp(
-        localizationsDelegates: appLocalizationsDelegates,
-        supportedLocales: AppLocalizations.supportedLocales,
-        home: Scaffold(
-          body: DraftsPageContent(
-            items: items,
-            onRefresh: () async {},
-            onEdit: (_) async {},
-            onDelete: (_) async {},
-            thumbnailBuilder: (draftId, mediaId) => Text(
-              'thumbnail:$draftId:$mediaId',
+      ProviderScope(
+        child: MaterialApp(
+          localizationsDelegates: appLocalizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(
+            body: DraftsPageContent(
+              items: items,
+              onRefresh: () async {},
+              onEdit: (_) async {},
+              onDelete: (_) async {},
+              thumbnailBuilder: (draftId, mediaId) => Text(
+                'thumbnail:$draftId:$mediaId',
+              ),
             ),
           ),
         ),

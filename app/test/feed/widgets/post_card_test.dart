@@ -1041,6 +1041,40 @@ void main() {
       expect(repostCount.style?.color, BrandColors.moss);
     });
 
+    testWidgets('like feedback stays on the initiating copy of a post', (
+      tester,
+    ) async {
+      var likes = 0;
+      await _pump(
+        tester,
+        Column(
+          children: [
+            PostCard(post: _post(), onLike: () => likes++),
+            PostCard(post: _post(), onLike: () => likes++),
+          ],
+        ),
+      );
+      await tester.tap(find.byIcon(CraftskyIconsBold.like).first);
+      await tester.pump();
+      expect(likes, 1);
+      expect(
+        find.descendant(
+          of: find.byType(PostCard).first,
+          matching: find.byKey(const Key('post-like-reaction')),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: find.byType(PostCard).last,
+          matching: find.byKey(const Key('post-like-reaction')),
+        ),
+        findsNothing,
+      );
+      await tester.pump(const Duration(milliseconds: 1500));
+      expect(find.byKey(const Key('post-like-reaction')), findsNothing);
+    });
+
     testWidgets('like keeps its icon while its request is pending', (
       tester,
     ) async {
@@ -1093,6 +1127,7 @@ void main() {
       await tester.pump();
 
       expect(find.byIcon(CraftskyIcons.liked), findsOneWidget);
+      expect(find.byKey(const Key('post-like-reaction')), findsOneWidget);
       expect(find.text('3'), findsOneWidget);
 
       response.completeError(Exception('rejected'));
@@ -1100,6 +1135,7 @@ void main() {
       await tester.pump();
 
       expect(find.byIcon(CraftskyIcons.liked), findsNothing);
+      expect(find.byKey(const Key('post-like-reaction')), findsNothing);
       expect(find.text('2'), findsOneWidget);
     });
 
@@ -2301,6 +2337,7 @@ void main() {
       expect(find.byType(StitchProgressIndicator), findsNothing);
       expect(likes, 1);
       expect(taps, 0);
+      expect(find.byKey(const Key('post-like-reaction')), findsOneWidget);
       request.complete();
       await tester.pumpAndSettle();
     });
@@ -2327,6 +2364,7 @@ void main() {
 
       expect(likes, 0);
       expect(taps, 0);
+      expect(find.byKey(const Key('post-like-reaction')), findsNothing);
     });
 
     testWidgets('reply tap does not invoke card tap', (tester) async {

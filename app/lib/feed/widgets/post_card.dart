@@ -18,6 +18,7 @@ import 'package:craftsky_app/feed/widgets/external_card.dart';
 import 'package:craftsky_app/feed/widgets/native_video_player.dart';
 import 'package:craftsky_app/feed/widgets/post_image_carousel.dart';
 import 'package:craftsky_app/feed/widgets/post_image_gallery.dart';
+import 'package:craftsky_app/feed/widgets/post_like_reaction.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/moderation/widgets/moderation_warning_banner.dart';
 import 'package:craftsky_app/profile/models/profile_handle.dart';
@@ -181,6 +182,36 @@ class PostCard extends ConsumerWidget {
         contentKind: contentKind,
       );
     }
+    final activeLease = ref.watch(sessionRegistryProvider).value?.activeLease;
+    final scope = likePostMutationScopeForLease(activeLease?.session, post);
+    final failed =
+        ref
+            .read(pdsRecordOperationControllerProvider)
+            .operationFor(scope)
+            ?.status ==
+        PdsMutationStatus.failed;
+    return PostLikeReaction(
+      key: ValueKey((post.uri, activeLease)),
+      liked: post.viewerHasLiked,
+      cancelled: failed,
+      onLike: onLike,
+      builder: (context, reactToLike) => Consumer(
+        builder: (context, ref, child) => _buildContent(
+          context,
+          ref,
+          post,
+          reactToLike,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildContent(
+    BuildContext context,
+    WidgetRef ref,
+    Post post,
+    VoidCallback? onLike,
+  ) {
     final auth = ref.watch(authSessionProvider).value;
     final isViewerOwned = auth is SignedIn && auth.did == post.author.did;
     final account = auth is SignedIn ? AccountKey(auth.did.toString()) : null;

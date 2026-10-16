@@ -25,6 +25,7 @@ import 'package:craftsky_app/shared/widgets/sort_menu_button.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
+import 'package:craftsky_app/theme/yarn_refresh_scroll_view.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -222,13 +223,15 @@ void main() {
     );
     await pumpUntilFound(
       tester,
-      find.byType(RefreshIndicator),
+      find.byType(YarnRefreshScrollView),
       description: 'the notifications refresh control',
     );
 
     expect(
-      tester.widget<RefreshIndicator>(find.byType(RefreshIndicator)).edgeOffset,
-      24 + kToolbarHeight,
+      tester
+          .widget<YarnRefreshScrollView>(find.byType(YarnRefreshScrollView))
+          .headerSliverCount,
+      1,
     );
   });
 

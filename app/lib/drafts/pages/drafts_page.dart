@@ -16,6 +16,7 @@ import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
+import 'package:craftsky_app/theme/yarn_refresh_scroll_view.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -167,36 +168,33 @@ final class DraftsPageContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return RefreshIndicator(
+    return YarnRefreshScrollView.list(
       onRefresh: onRefresh,
-      child: ListView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        children: [
-          if (showTitle)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
-              child: Text(
-                l10n.draftsTitle,
-                style: Theme.of(context).textTheme.headlineSmall,
-              ),
+      children: [
+        if (showTitle)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
+            child: Text(
+              l10n.draftsTitle,
+              style: Theme.of(context).textTheme.headlineSmall,
             ),
-          if (items.isEmpty)
-            CraftskyEmptyState(
-              icon: CraftskyIcons.drafts,
-              title: l10n.draftsTitle,
-              subtitle: l10n.draftsEmpty,
-            )
-          else
-            for (final draft in items)
-              DraftRow(
-                key: ValueKey(draft.id),
-                draft: draft,
-                onEdit: onEdit,
-                onDelete: onDelete,
-                thumbnailBuilder: thumbnailBuilder,
-              ),
-        ],
-      ),
+          ),
+        if (items.isEmpty)
+          CraftskyEmptyState(
+            icon: CraftskyIcons.drafts,
+            title: l10n.draftsTitle,
+            subtitle: l10n.draftsEmpty,
+          )
+        else
+          for (final draft in items)
+            DraftRow(
+              key: ValueKey(draft.id),
+              draft: draft,
+              onEdit: onEdit,
+              onDelete: onDelete,
+              thumbnailBuilder: thumbnailBuilder,
+            ),
+      ],
     );
   }
 }

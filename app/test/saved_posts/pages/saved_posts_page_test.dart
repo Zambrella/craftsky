@@ -22,6 +22,7 @@ import 'package:craftsky_app/subscriptions/subscription_build_config.dart';
 import 'package:craftsky_app/subscriptions/widgets/plus_feature_lock.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
+import 'package:craftsky_app/theme/yarn_refresh_scroll_view.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
@@ -153,7 +154,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Nothing saved yet'), findsOneWidget);
-    expect(find.byType(RefreshIndicator), findsOneWidget);
+    expect(find.byType(YarnRefreshScrollView), findsOneWidget);
 
     await tester.fling(
       find.byType(CustomScrollView),

@@ -138,8 +138,10 @@ void main() {
       findsOneWidget,
     );
     expect(
-      tester.widget<ListView>(find.byType(ListView).first).physics,
-      isA<AlwaysScrollableScrollPhysics>(),
+      tester
+          .widget<CustomScrollView>(find.byType(CustomScrollView).first)
+          .physics,
+      isA<BouncingScrollPhysics>(),
     );
   });
 
@@ -176,7 +178,7 @@ void main() {
         const PageStorageKey(OwnerEventFilter.upcoming),
       );
       await tester.drag(upcomingList, const Offset(0, -300));
-      await tester.pump();
+      await tester.pumpAndSettle();
       final loadMore = find.text('Load more').first;
       await tester.tap(loadMore);
       await tester.pumpAndSettle();

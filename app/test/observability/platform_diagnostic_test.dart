@@ -47,12 +47,12 @@ void main() {
   );
 
   test(
-    'SIM-T03 Unicode and oversized identifiers remain a complete brief record',
+    'SIM-T03 long local stacks survive alongside bounded private context',
     () {
       final lines = <String>[];
       final stack = StackTrace.fromString(
         List.generate(
-          100,
+          300,
           (i) => '#$i loadPost (package:craftsky_app/post.dart:12:3)',
         ).join('\n'),
       );
@@ -82,7 +82,7 @@ void main() {
       final selected = jsonDecode(lines.single) as Map<String, dynamic>;
       expect(
         utf8.encode(lines.single).length,
-        lessThanOrEqualTo(maxPlatformDiagnosticBytes),
+        greaterThan(8192),
       );
       expect(selected['appViewRequestId'], 'normal-request');
       expect(
@@ -90,11 +90,16 @@ void main() {
         '[OMITTED: console identifier]',
       );
       expect((selected['cause'] as Map<String, dynamic>)['type'], 'StateError');
-      expect(selected['stack'], hasLength(2));
+      expect(selected['stack'], hasLength(300));
+      expect(
+        ((selected['stack'] as List).last as Map<String, dynamic>)['function'],
+        'loadPost',
+      );
+      expect(lines.single, isNot(contains('PRIVATE_DRAFT')));
     },
   );
 
-  test('SIM-T03 console fallback emits one bounded brief record', () {
+  test('SIM-T03 console fallback emits one complete record', () {
     final local = <String>[];
     DiagnosticEmitter(
       platformSink: local.add,
@@ -142,10 +147,7 @@ void main() {
       decoded['diagnostic'].toString(),
       contains('40000000-0000-4000-8000-000000000001'),
     );
-    expect(
-      utf8.encode(local.single).length,
-      lessThanOrEqualTo(maxPlatformDiagnosticBytes),
-    );
+    expect(decoded['stack'], hasLength(64));
     expect(local.single, isNot(contains('PRIVATE_TOKEN')));
     expect(local.single, isNot(contains('PRIVATE_DRAFT_PROSE')));
   });

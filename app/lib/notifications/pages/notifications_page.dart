@@ -15,6 +15,7 @@ import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
+import 'package:craftsky_app/theme/yarn_refresh_scroll_view.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -34,61 +35,58 @@ class NotificationsPage extends ConsumerWidget {
     final l10n = AppLocalizations.of(context);
     final category = ref.watch(notificationFilterProvider);
     return Scaffold(
-      body: RefreshIndicator(
-        edgeOffset: MediaQuery.paddingOf(context).top + kToolbarHeight,
+      body: YarnRefreshScrollView(
         onRefresh: () => owner == null
             ? ref.refresh(notificationsProvider.future)
             : ref.refresh(accountNotificationsProvider(owner.account).future),
-        child: CustomScrollView(
-          key: ValueKey((owner?.account, category)),
-          physics: const AlwaysScrollableScrollPhysics(),
-          slivers: [
-            SliverAppBar(
-              leading: AppShellDrawerScope.maybeOf(context) == null
-                  ? null
-                  : const AppShellDrawerButton(),
-              title: Text(l10n.notificationsTitle),
-              pinned: true,
-              actions: [
-                Padding(
-                  padding: const EdgeInsetsDirectional.only(end: 16),
-                  child: ConstrainedBox(
-                    constraints: BoxConstraints(
-                      maxWidth: MediaQuery.sizeOf(context).width * .45,
-                    ),
-                    child: const NotificationCategoryFilter(),
+        headerSliverCount: 1,
+        slivers: [
+          SliverAppBar(
+            leading: AppShellDrawerScope.maybeOf(context) == null
+                ? null
+                : const AppShellDrawerButton(),
+            title: Text(l10n.notificationsTitle),
+            pinned: true,
+            actions: [
+              Padding(
+                padding: const EdgeInsetsDirectional.only(end: 16),
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxWidth: MediaQuery.sizeOf(context).width * .45,
                   ),
+                  child: const NotificationCategoryFilter(),
                 ),
-              ],
-            ),
-            switch (notifications) {
-              AsyncValue(:final value?) when value.category == category =>
-                _NotificationsLoadedSlivers(
-                  items: value.items,
-                  hasMore: value.hasMore,
-                  isLoadingMore: notifications.isLoading,
-                  hasLoadMoreError: notifications.hasError,
-                  renderToken: value.renderToken,
-                  owner: value.owner,
-                ),
-              _ when notifications.hasError && !notifications.isLoading =>
-                _NotificationsErrorSliver(
-                  onRetry: () {
-                    if (owner != null) {
-                      ref.invalidate(
-                        accountNotificationsProvider(owner.account),
-                      );
-                    } else {
-                      ref.invalidate(notificationsProvider);
-                    }
-                  },
-                ),
-              _ => const CraftskySkeletonSliverList(
-                itemBuilder: _buildActivitySkeleton,
               ),
-            },
-          ],
-        ),
+            ],
+          ),
+          switch (notifications) {
+            AsyncValue(:final value?) when value.category == category =>
+              _NotificationsLoadedSlivers(
+                items: value.items,
+                hasMore: value.hasMore,
+                isLoadingMore: notifications.isLoading,
+                hasLoadMoreError: notifications.hasError,
+                renderToken: value.renderToken,
+                owner: value.owner,
+              ),
+            _ when notifications.hasError && !notifications.isLoading =>
+              _NotificationsErrorSliver(
+                onRetry: () {
+                  if (owner != null) {
+                    ref.invalidate(
+                      accountNotificationsProvider(owner.account),
+                    );
+                  } else {
+                    ref.invalidate(notificationsProvider);
+                  }
+                },
+              ),
+            _ => const CraftskySkeletonSliverList(
+              itemBuilder: _buildActivitySkeleton,
+            ),
+          },
+        ],
+        scrollViewKey: ValueKey((owner?.account, category)),
       ),
     );
   }

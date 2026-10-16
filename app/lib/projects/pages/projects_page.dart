@@ -32,6 +32,7 @@ import 'package:craftsky_app/theme/craftsky_floating_action_button.dart';
 import 'package:craftsky_app/theme/craftsky_form_builder_select_fields.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
+import 'package:craftsky_app/theme/yarn_refresh_scroll_view.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
@@ -457,36 +458,33 @@ class _ProjectTabScrollView extends ConsumerWidget {
         }
         return false;
       },
-      child: RefreshIndicator(
+      child: YarnRefreshScrollView(
         onRefresh: () async {
           final _ = await ref.refresh(projectFeedProvider(query).future);
         },
-        child: CustomScrollView(
-          key: PageStorageKey<String>('projects_tab_$craftType'),
-          physics: const AlwaysScrollableScrollPhysics(),
-          slivers: [
-            switch (projectFeedAsync) {
-              AsyncValue(:final value?) => _ProjectPostSlivers(
-                posts: value.items,
-                isLoadingMore: projectFeedAsync.isLoading,
-                hasLoadMoreError: projectFeedAsync.hasError,
-                hasActiveFilters: filters.toQueryParameters().isNotEmpty,
-                onClearFilters: onClearFilters,
-                onNearEnd: () =>
-                    ref.read(projectFeedProvider(query).notifier).loadMore(),
+        slivers: [
+          switch (projectFeedAsync) {
+            AsyncValue(:final value?) => _ProjectPostSlivers(
+              posts: value.items,
+              isLoadingMore: projectFeedAsync.isLoading,
+              hasLoadMoreError: projectFeedAsync.hasError,
+              hasActiveFilters: filters.toQueryParameters().isNotEmpty,
+              onClearFilters: onClearFilters,
+              onNearEnd: () =>
+                  ref.read(projectFeedProvider(query).notifier).loadMore(),
+            ),
+            _ when projectFeedAsync.hasError => _ProjectErrorSliver(
+              onRetry: () => ref.invalidate(projectFeedProvider(query)),
+            ),
+            _ => CraftskySkeletonSliverList(
+              itemCount: 3,
+              itemBuilder: (context, index) => PostCardSkeleton(
+                showMedia: index == 0,
               ),
-              _ when projectFeedAsync.hasError => _ProjectErrorSliver(
-                onRetry: () => ref.invalidate(projectFeedProvider(query)),
-              ),
-              _ => CraftskySkeletonSliverList(
-                itemCount: 3,
-                itemBuilder: (context, index) => PostCardSkeleton(
-                  showMedia: index == 0,
-                ),
-              ),
-            },
-          ],
-        ),
+            ),
+          },
+        ],
+        scrollViewKey: PageStorageKey<String>('projects_tab_$craftType'),
       ),
     );
   }

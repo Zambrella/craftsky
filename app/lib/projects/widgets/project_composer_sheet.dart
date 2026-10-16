@@ -79,6 +79,7 @@ import 'package:craftsky_app/theme/craftsky_form_builder_select_fields.dart';
 import 'package:craftsky_app/theme/craftsky_form_builder_text_field.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/craftsky_text_inputs.dart';
+import 'package:craftsky_app/theme/publishing_progress_indicator.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_form_builder/flutter_form_builder.dart';
@@ -412,6 +413,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
 
   @override
   Widget build(BuildContext context) {
+    ref.watch(publishingAnimationFileProvider);
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
     final spacing = theme.extension<SpacingTheme>()!;

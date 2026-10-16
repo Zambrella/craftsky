@@ -88,7 +88,7 @@ void main() {
       'locked',
       ScheduledPostStatus.needsAttention,
     );
-    await tester.drag(find.byType(ListView), const Offset(0, 400));
+    await tester.drag(find.byType(CustomScrollView), const Offset(0, 400));
     await tester.pumpAndSettle();
 
     expect(repository.listCalls, greaterThan(listCallsBeforeRefresh));

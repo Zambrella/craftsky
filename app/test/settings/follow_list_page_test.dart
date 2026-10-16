@@ -8,6 +8,7 @@ import 'package:craftsky_app/profile/widgets/profile_presentation_page.dart';
 import 'package:craftsky_app/settings/pages/follow_list_page.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
+import 'package:craftsky_app/theme/yarn_refresh_scroll_view.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -227,8 +228,8 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final indicator = tester.widget<RefreshIndicator>(
-      find.byType(RefreshIndicator),
+    final indicator = tester.widget<YarnRefreshScrollView>(
+      find.byType(YarnRefreshScrollView),
     );
     await indicator.onRefresh();
     await tester.pump();
@@ -417,7 +418,7 @@ void main() {
     await tester.pump();
 
     final refresh = tester
-        .widget<RefreshIndicator>(find.byType(RefreshIndicator))
+        .widget<YarnRefreshScrollView>(find.byType(YarnRefreshScrollView))
         .onRefresh();
     await refresh;
     await tester.pump();

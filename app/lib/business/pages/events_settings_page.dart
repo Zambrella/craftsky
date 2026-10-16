@@ -21,6 +21,7 @@ import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:craftsky_app/theme/craftsky_floating_action_button.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
+import 'package:craftsky_app/theme/yarn_refresh_scroll_view.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -253,14 +254,12 @@ class _EventList extends ConsumerWidget {
       const SizedBox(height: 88),
     ];
 
-    return RefreshIndicator(
+    return YarnRefreshScrollView.list(
+      showSuccess: false,
       onRefresh: controller.refresh,
-      child: ListView(
-        key: PageStorageKey(filter),
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: const EdgeInsets.all(16),
-        children: rows,
-      ),
+      padding: const EdgeInsets.all(16),
+      scrollViewKey: PageStorageKey(filter),
+      children: rows,
     );
   }
 }

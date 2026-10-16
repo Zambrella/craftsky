@@ -23,26 +23,28 @@ void main() {
     tester,
   ) async {
     await tester.pumpWidget(
-      MaterialApp(
-        localizationsDelegates: appLocalizationsDelegates,
-        supportedLocales: AppLocalizations.supportedLocales,
-        home: Scaffold(
-          body: ScheduledPostsPageContent(
-            items: [
-              _item(
-                'future',
-                ScheduledPostStatus.scheduled,
-                subscriptionRequired: true,
-              ),
-              _item(
-                'missed',
-                ScheduledPostStatus.needsAttention,
-                lastErrorCode: 'subscription_required',
-              ),
-            ],
-            onRefresh: () async {},
-            onEdit: (_) async {},
-            onDelete: (_) async {},
+      ProviderScope(
+        child: MaterialApp(
+          localizationsDelegates: appLocalizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(
+            body: ScheduledPostsPageContent(
+              items: [
+                _item(
+                  'future',
+                  ScheduledPostStatus.scheduled,
+                  subscriptionRequired: true,
+                ),
+                _item(
+                  'missed',
+                  ScheduledPostStatus.needsAttention,
+                  lastErrorCode: 'subscription_required',
+                ),
+              ],
+              onRefresh: () async {},
+              onEdit: (_) async {},
+              onDelete: (_) async {},
+            ),
           ),
         ),
       ),
@@ -77,16 +79,18 @@ void main() {
       ),
     ];
     await tester.pumpWidget(
-      MaterialApp(
-        localizationsDelegates: appLocalizationsDelegates,
-        supportedLocales: AppLocalizations.supportedLocales,
-        home: Scaffold(
-          body: ScheduledPostsPageContent(
-            items: items,
-            onRefresh: () async {},
-            onEdit: (_) async {},
-            onDelete: (_) async {},
-            thumbnailBuilder: (mediaId) => Text('thumbnail:$mediaId'),
+      ProviderScope(
+        child: MaterialApp(
+          localizationsDelegates: appLocalizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(
+            body: ScheduledPostsPageContent(
+              items: items,
+              onRefresh: () async {},
+              onEdit: (_) async {},
+              onDelete: (_) async {},
+              thumbnailBuilder: (mediaId) => Text('thumbnail:$mediaId'),
+            ),
           ),
         ),
       ),

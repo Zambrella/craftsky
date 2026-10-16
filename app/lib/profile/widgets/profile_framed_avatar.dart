@@ -1,4 +1,5 @@
 import 'package:craftsky_app/profile/models/profile_customisation.dart';
+import 'package:craftsky_app/profile/widgets/follow_reaction.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -17,15 +18,17 @@ class ProfileFramedAvatar extends StatelessWidget {
   final ProfileCustomisation customisation;
 
   @override
-  Widget build(BuildContext context) => SizedBox.square(
-    dimension: 124,
-    child: Center(
-      child: ProfileAvatar(
-        seed: seed,
-        avatarUrl: avatarUrl,
-        size: ProfileAvatarSize.large,
-        showShadow: false,
-        customisation: customisation,
+  Widget build(BuildContext context) => FollowReactionAvatar(
+    child: SizedBox.square(
+      dimension: 124,
+      child: Center(
+        child: ProfileAvatar(
+          seed: seed,
+          avatarUrl: avatarUrl,
+          size: ProfileAvatarSize.large,
+          showShadow: false,
+          customisation: customisation,
+        ),
       ),
     ),
   );

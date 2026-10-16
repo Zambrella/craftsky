@@ -17,6 +17,7 @@ import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/theme/craftsky_context_menu.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
+import 'package:craftsky_app/theme/yarn_refresh_scroll_view.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -98,58 +99,56 @@ class _SavedPostFolderScreenState extends ConsumerState<SavedPostFolderScreen> {
         ],
       ),
       body: switch (state) {
-        AsyncData(:final value) => RefreshIndicator(
+        AsyncData(:final value) => YarnRefreshScrollView.list(
+          showSuccess: false,
           onRefresh: ref.read(savedPostsProvider(key).notifier).refresh,
-          child: ListView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            children: [
-              if (value.items.isEmpty)
-                CraftskyEmptyState(
-                  icon: CraftskyIcons.folder,
-                  title: l10n.savedPostsEmpty,
-                  subtitle: l10n.savedPostsTitle,
-                ),
-              for (final item in value.items)
-                SavedPostRow(
-                  account: widget.account,
-                  item: item,
-                  onOpen: () => openSavedPost(context, item),
-                  onMove: () => unawaited(
-                    moveSavedPost(
-                      context,
-                      ref,
-                      account: widget.account,
-                      item: item,
-                      sourceKey: key,
-                    ),
-                  ),
-                  onUnsave: () => unawaited(
-                    unsaveSavedPost(
-                      context,
-                      ref,
-                      account: widget.account,
-                      item: item,
-                      sourceKey: key,
-                    ),
+          children: [
+            if (value.items.isEmpty)
+              CraftskyEmptyState(
+                icon: CraftskyIcons.folder,
+                title: l10n.savedPostsEmpty,
+                subtitle: l10n.savedPostsTitle,
+              ),
+            for (final item in value.items)
+              SavedPostRow(
+                account: widget.account,
+                item: item,
+                onOpen: () => openSavedPost(context, item),
+                onMove: () => unawaited(
+                  moveSavedPost(
+                    context,
+                    ref,
+                    account: widget.account,
+                    item: item,
+                    sourceKey: key,
                   ),
                 ),
-              if (value.incrementalError case final error?)
-                _SavedPostListFailure(
-                  error: error,
-                  onRetry: ref.read(savedPostsProvider(key).notifier).loadMore,
-                )
-              else if (value.cursor != null)
-                TextButton(
-                  onPressed: value.isLoadingMore
-                      ? null
-                      : ref.read(savedPostsProvider(key).notifier).loadMore,
-                  child: ActionProgress(
-                    isLoading: value.isLoadingMore,
-                    child: Text(l10n.savedPostsLoadMore),
+                onUnsave: () => unawaited(
+                  unsaveSavedPost(
+                    context,
+                    ref,
+                    account: widget.account,
+                    item: item,
+                    sourceKey: key,
                   ),
                 ),
-            ],
-          ),
+              ),
+            if (value.incrementalError case final error?)
+              _SavedPostListFailure(
+                error: error,
+                onRetry: ref.read(savedPostsProvider(key).notifier).loadMore,
+              )
+            else if (value.cursor != null)
+              TextButton(
+                onPressed: value.isLoadingMore
+                    ? null
+                    : ref.read(savedPostsProvider(key).notifier).loadMore,
+                child: ActionProgress(
+                  isLoading: value.isLoadingMore,
+                  child: Text(l10n.savedPostsLoadMore),
+                ),
+              ),
+          ],
         ),
         AsyncError(:final error) => Center(
           child: _SavedPostListFailure(

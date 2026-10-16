@@ -25,6 +25,7 @@ import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/craftsky_floating_action_button.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
+import 'package:craftsky_app/theme/yarn_refresh_scroll_view.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -284,13 +285,15 @@ void main() {
     );
     await pumpUntilFound(
       tester,
-      find.byType(RefreshIndicator),
+      find.byType(YarnRefreshScrollView),
       description: 'the feed refresh control',
     );
 
     expect(
-      tester.widget<RefreshIndicator>(find.byType(RefreshIndicator)).edgeOffset,
-      24 + kToolbarHeight,
+      tester
+          .widget<YarnRefreshScrollView>(find.byType(YarnRefreshScrollView))
+          .headerSliverCount,
+      1,
     );
   });
 

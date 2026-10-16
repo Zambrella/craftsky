@@ -7,6 +7,7 @@ import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/pages/profile_page.dart';
 import 'package:craftsky_app/profile/providers/toggle_follow_profile_provider.dart';
 import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
+import 'package:craftsky_app/profile/widgets/follow_reaction.dart';
 import 'package:craftsky_app/profile/widgets/profile_card.dart';
 import 'package:craftsky_app/profile/widgets/profile_presentation_page.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
@@ -138,23 +139,36 @@ class _ProfileRoutePresentationState
     required double transitionProgress,
   }) {
     return switch (profileAsync) {
-      AsyncValue(:final value?) => ProfileCard(
-        profile: value,
-        isOwnProfile: _isOwnProfile(auth, value.did),
-        isPrimaryActionBusy: toggleState.isLoading,
-        expansionProgress: expansionProgress,
-        transitionProgress: transitionProgress,
-        compactHeight: _compactHeight,
-        surfaceMeasurementKey: _surfaceMeasurementKey,
-        onClose: () => Navigator.of(context).pop(),
-        onVisitProfile: _expand,
-        onPrimaryAction: () {
-          unawaited(
-            ref
-                .read(toggleFollowProfileProvider.notifier)
-                .toggle(cacheKey: value.did, profile: value),
-          );
-        },
+      AsyncValue(:final value?) => FollowReactionScope(
+        identity: value.did,
+        builder: (context) => ProfileCard(
+          profile: value,
+          isOwnProfile: _isOwnProfile(auth, value.did),
+          isPrimaryActionBusy: toggleState.isLoading,
+          expansionProgress: expansionProgress,
+          transitionProgress: transitionProgress,
+          compactHeight: _compactHeight,
+          surfaceMeasurementKey: _surfaceMeasurementKey,
+          onClose: () => Navigator.of(context).pop(),
+          onVisitProfile: _expand,
+          onPrimaryAction: () {
+            unawaited(
+              FollowReactionScope.run(context, () async {
+                await ref
+                    .read(toggleFollowProfileProvider.notifier)
+                    .toggle(cacheKey: value.did, profile: value);
+                if (!context.mounted) return false;
+                final result = ref
+                    .read(toggleFollowProfileProvider)
+                    .asData
+                    ?.value;
+                return !value.viewerIsFollowing &&
+                    result?.did == value.did &&
+                    result?.viewerIsFollowing == true;
+              }),
+            );
+          },
+        ),
       ),
       AsyncError() => Center(
         child: CraftskyDialog(

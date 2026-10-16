@@ -16,6 +16,7 @@ import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
+import 'package:craftsky_app/theme/yarn_refresh_scroll_view.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -140,36 +141,33 @@ class ScheduledPostsPageContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return RefreshIndicator(
+    return YarnRefreshScrollView.list(
       onRefresh: onRefresh,
-      child: ListView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        children: [
-          if (showTitle)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
-              child: Text(
-                l10n.scheduledPostsTitle,
-                style: Theme.of(context).textTheme.headlineSmall,
-              ),
+      children: [
+        if (showTitle)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
+            child: Text(
+              l10n.scheduledPostsTitle,
+              style: Theme.of(context).textTheme.headlineSmall,
             ),
-          if (items.isEmpty)
-            CraftskyEmptyState(
-              icon: CraftskyIcons.schedule,
-              title: l10n.scheduledPostsTitle,
-              subtitle: l10n.scheduledPostsEmpty,
-            )
-          else
-            for (final item in items)
-              _ScheduledPostTile(
-                key: ValueKey(item.id),
-                item: item,
-                onEdit: onEdit,
-                onDelete: onDelete,
-                thumbnailBuilder: thumbnailBuilder,
-              ),
-        ],
-      ),
+          ),
+        if (items.isEmpty)
+          CraftskyEmptyState(
+            icon: CraftskyIcons.schedule,
+            title: l10n.scheduledPostsTitle,
+            subtitle: l10n.scheduledPostsEmpty,
+          )
+        else
+          for (final item in items)
+            _ScheduledPostTile(
+              key: ValueKey(item.id),
+              item: item,
+              onEdit: onEdit,
+              onDelete: onDelete,
+              thumbnailBuilder: thumbnailBuilder,
+            ),
+      ],
     );
   }
 }
