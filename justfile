@@ -524,6 +524,8 @@ _app-build-mobile TARGET ENV:
     symbols_dir="build/debug-info/${target}"
     symbol_map="build/app/obfuscation-${target}.map.json"
     rm -rf "$symbols_dir" "$symbol_map"
+    # gen_snapshot does not create the obfuscation map's parent directory.
+    mkdir -p "$symbols_dir" "$(dirname "$symbol_map")"
     build_args=(
         flutter build "$target" --release
         --dart-define-from-file="$config"
