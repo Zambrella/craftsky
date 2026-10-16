@@ -65,7 +65,7 @@ class EventCard extends StatelessWidget {
                           child: Text(
                             event.name,
                             style: theme.textTheme.titleLarge?.copyWith(
-                              fontWeight: FontWeight.w800,
+                              fontWeight: FontWeight.w700,
                             ),
                           ),
                         ),

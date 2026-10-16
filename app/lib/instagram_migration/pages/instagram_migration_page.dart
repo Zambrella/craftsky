@@ -415,7 +415,7 @@ class _InstagramHandleText extends StatelessWidget {
           TextSpan(text: localizedText.substring(0, handleStart)),
           TextSpan(
             text: handle,
-            style: const TextStyle(fontWeight: FontWeight.bold),
+            style: const TextStyle(fontWeight: FontWeight.w600),
           ),
           if (handleEnd < localizedText.length)
             TextSpan(text: localizedText.substring(handleEnd)),

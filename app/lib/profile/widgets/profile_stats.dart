@@ -112,7 +112,7 @@ class _ProfileStat extends StatelessWidget {
               stat.value,
               maxLines: 1,
               style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w800,
+                fontWeight: FontWeight.w700,
               ),
             ),
           ),

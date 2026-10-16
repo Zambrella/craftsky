@@ -180,7 +180,7 @@ void main() {
       expect(fab.highlightElevation, 0);
       expect(shape.side.color, theme.colorScheme.onSurface);
       expect(shape.side.width, 1.5);
-      expect(fab.extendedTextStyle?.fontWeight, FontWeight.w800);
+      expect(fab.extendedTextStyle?.fontWeight, FontWeight.w700);
     });
 
     testWidgets('$name theme gives refresh indicators a paper treatment', (

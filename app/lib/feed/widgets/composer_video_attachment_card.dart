@@ -73,7 +73,7 @@ final class ComposerVideoAttachmentCard extends StatelessWidget {
                       Text(
                         l10n.postComposeVideoSelected,
                         style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w900,
+                          fontWeight: FontWeight.w800,
                         ),
                       ),
                       Text(
@@ -82,7 +82,7 @@ final class ComposerVideoAttachmentCard extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                         style: theme.textTheme.bodyMedium?.copyWith(
                           color: theme.colorScheme.outline,
-                          fontWeight: FontWeight.w700,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
                     ],

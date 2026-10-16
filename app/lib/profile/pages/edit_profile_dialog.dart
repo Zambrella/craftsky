@@ -582,7 +582,7 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
                       Text(
                         l10n.editProfileCraftsLabel,
                         style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w800,
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
                       SizedBox(height: spacing.sp1),
@@ -794,7 +794,7 @@ class _SaveAction extends StatelessWidget {
     return TextButton(
       onPressed: onPressed,
       style: TextButton.styleFrom(
-        textStyle: const TextStyle(fontWeight: FontWeight.w800),
+        textStyle: const TextStyle(fontWeight: FontWeight.w700),
       ),
       child: isSaving
           ? const StitchProgressIndicator(size: 18)

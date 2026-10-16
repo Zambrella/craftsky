@@ -102,7 +102,7 @@ void main() {
     final didSpan = (prompt.textSpan! as TextSpan).children!
         .whereType<TextSpan>()
         .singleWhere((span) => span.text == 'did:plc:alicefullidentifier');
-    expect(didSpan.style?.fontWeight, FontWeight.bold);
+    expect(didSpan.style?.fontWeight, FontWeight.w600);
     expect(find.text('Type your DID'), findsOneWidget);
     final button = tester.widget<ChunkyButton>(
       find.widgetWithText(ChunkyButton, 'Delete account'),

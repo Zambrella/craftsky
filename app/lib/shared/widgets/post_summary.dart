@@ -325,7 +325,7 @@ class SponsoredLabel extends StatelessWidget {
                   label,
                   style: theme.textTheme.labelSmall?.copyWith(
                     color: color,
-                    fontWeight: FontWeight.w700,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ],

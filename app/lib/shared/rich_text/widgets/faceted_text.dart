@@ -82,7 +82,7 @@ class _FacetedTextState extends ConsumerState<FacetedText> {
       baseStyle,
     );
     final actionStyle = effectiveBaseStyle.copyWith(
-      fontWeight: FontWeight.bold,
+      fontWeight: FontWeight.w600,
     );
     final ranges = FacetedTextModel.fromRaw(
       text: widget.text,

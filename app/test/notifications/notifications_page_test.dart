@@ -431,7 +431,7 @@ void main() {
       final boldActor = actorSpan.children!.whereType<TextSpan>().firstWhere(
         (span) => span.text == 'Alice',
       );
-      expect(boldActor.style?.fontWeight, FontWeight.bold);
+      expect(boldActor.style?.fontWeight, FontWeight.w600);
       expect(
         tester.getTopLeft(find.byType(ProfileAvatar).first).dy,
         lessThan(tester.getTopLeft(actorText.first).dy),

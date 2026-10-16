@@ -73,7 +73,7 @@ class ProfileIdentity extends StatelessWidget {
             textAlign: centered ? TextAlign.center : TextAlign.start,
             style: theme.textTheme.labelLarge?.copyWith(
               color: theme.colorScheme.primary,
-              fontWeight: FontWeight.w800,
+              fontWeight: FontWeight.w700,
             ),
           ),
         ],
