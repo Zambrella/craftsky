@@ -5949,6 +5949,12 @@ abstract class AppLocalizations {
   /// **'View full guidelines'**
   String get onboardingGuidelinesViewFull;
 
+  /// No description provided for @privacyTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Privacy'**
+  String get privacyTitle;
+
   /// No description provided for @errorReportingTitle.
   ///
   /// In en, this message translates to:

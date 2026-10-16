@@ -181,6 +181,13 @@ RouteBase get $authenticatedShellRoute => ShellRouteData.$route(
                       factory: $AppearanceRoute._fromState,
                     ),
                     GoRouteData.$route(
+                      path: 'privacy',
+                      name: 'settings-privacy',
+                      hasOverriddenOnExit: false,
+                      parentNavigatorKey: PrivacyRoute.$parentNavigatorKey,
+                      factory: $PrivacyRoute._fromState,
+                    ),
+                    GoRouteData.$route(
                       path: 'growth',
                       name: 'follower-growth',
                       hasOverriddenOnExit: false,
@@ -596,6 +603,26 @@ mixin $AppearanceRoute on GoRouteData {
 
   @override
   String get location => GoRouteData.$location('/profile/settings/appearance');
+
+  @override
+  void go(BuildContext context) => context.go(location);
+
+  @override
+  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
+
+  @override
+  void pushReplacement(BuildContext context) =>
+      context.pushReplacement(location);
+
+  @override
+  void replace(BuildContext context) => context.replace(location);
+}
+
+mixin $PrivacyRoute on GoRouteData {
+  static PrivacyRoute _fromState(GoRouterState state) => const PrivacyRoute();
+
+  @override
+  String get location => GoRouteData.$location('/profile/settings/privacy');
 
   @override
   void go(BuildContext context) => context.go(location);
