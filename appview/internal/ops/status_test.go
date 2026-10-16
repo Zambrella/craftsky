@@ -8,9 +8,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"social.craftsky/appview/internal/ingestion"
 	"social.craftsky/appview/internal/ops"
 	"social.craftsky/appview/internal/scheduledposts"
 	"social.craftsky/appview/internal/testdb"
@@ -96,6 +98,74 @@ func TestSnapshotUsesMigratedSchemaAndReadOnlyConnection(t *testing.T) {
 		if strings.Contains(string(encoded), canary) {
 			t.Fatalf("snapshot exposed %q", canary)
 		}
+	}
+}
+
+func TestSnapshotCountsBlockedNotificationRetriesAsDue(t *testing.T) {
+	pool := testdb.WithMigratedSchema(t)
+	ctx := t.Context()
+	var now time.Time
+	if err := pool.QueryRow(ctx, `SELECT now()`).Scan(&now); err != nil {
+		t.Fatal(err)
+	}
+	createdAt := now.Add(-time.Hour)
+	for _, item := range []struct {
+		name string
+		kind string
+		due  time.Time
+	}{
+		{"overdue-notification", ingestion.PostNotificationsProjection, now.Add(-2 * time.Minute)},
+		{"due-notification", ingestion.PostNotificationsProjection, now.Add(-30 * time.Second)},
+		{"future-notification", ingestion.PostNotificationsProjection, now.Add(time.Hour)},
+		{"blocked-serving", "serving", now.Add(-10 * time.Minute)},
+	} {
+		uri := syntax.ATURI("at://did:plc:alice/social.craftsky.feed.post/" + item.name)
+		fingerprint := sha256.Sum256([]byte(uri))
+		if _, err := pool.Exec(ctx, `INSERT INTO tap_source_records(
+			uri,did,collection,rkey,source_event_id,source_fingerprint,revision,cid,
+			action,record,record_bytes,live,ordering_status,projection_disposition,observed_at,updated_at)
+			VALUES($1,'did:plc:alice','social.craftsky.feed.post',$2,1,$3,'3aaaaaaaaaaa2','cid',
+			'create','{}',2,false,'authoritative','eligible',$4,$4)`, uri, item.name, fingerprint[:], createdAt); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := pool.Exec(ctx, `INSERT INTO tap_projection_jobs(
+			source_uri,projection_kind,source_event_id,state,dependency_kind,dependency_key,
+			next_attempt_at,created_at,updated_at)
+			VALUES($1,$2,1,'blocked','member_did','did:plc:alice',$3,$4,$4)`, uri, item.kind, item.due, createdAt); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	snapshot, err := ops.ReadSnapshot(ctx, pool, 5)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var projection ops.Queue
+	for _, queue := range snapshot.Queues {
+		if queue.Name == "tapProjection" {
+			projection = queue
+			break
+		}
+	}
+	if projection.Pending != 4 || projection.States["blocked"] != 4 || projection.Due != 2 || projection.Overdue != 1 {
+		t.Fatalf("projection=%+v, want two due notification retries, one overdue", projection)
+	}
+	if projection.OldestDueAt == nil || !projection.OldestDueAt.Equal(now.Add(-2*time.Minute)) {
+		t.Fatalf("oldest due=%v, want overdue notification retry", projection.OldestDueAt)
+	}
+
+	store, err := ingestion.NewStore(pool, func() time.Time { return snapshot.CollectedAt })
+	if err != nil {
+		t.Fatal(err)
+	}
+	claims, err := store.ClaimProjectionJobs(ctx, ingestion.ProjectionClaimRequest{
+		Worker: "ops-regression", LeaseToken: uuid.New(), LeaseDuration: time.Minute, Limit: 10,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if int64(len(claims)) != projection.Due {
+		t.Fatalf("worker claimed %d jobs, snapshot reported %d due", len(claims), projection.Due)
 	}
 }
 

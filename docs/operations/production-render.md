@@ -360,10 +360,11 @@ account identities, private payloads, credentials or raw failure text.
 
 `due` means the dispatch or lease-recovery timestamp has passed. `overdue` means
 it passed at least 60 seconds ago; this is an inspection aid, not an outage
-verdict. Blocked/manual work, including quarantine awaiting operator replay,
-is listed but is not considered due. Future scheduled posts are pending without
-being overdue. Scheduled publication counts use the active owner generation,
-matching the publisher's operational metrics. Account-deletion state counts
+verdict. Blocked Tap notification projections count as due when their automatic
+retry time passes. Other blocked/manual work, including quarantine awaiting
+operator replay, is listed but is not considered due. Future scheduled posts
+are pending without being overdue. Scheduled publication counts use the active
+owner generation, matching the publisher's operational metrics. Account-deletion state counts
 include unconfirmed intents. `--retry-threshold 5` highlights unfinished rows
 with at least five attempts; an attempt count alone does not prove failure.
 

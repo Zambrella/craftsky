@@ -31,7 +31,8 @@ type Queue struct {
 
 // ReadSnapshot uses one bounded, repeatable read-only transaction. The retry
 // threshold counts unfinished rows with repeated attempts, not proven failures.
-// Due means ready for dispatch or lease recovery; blocked/manual work is not due.
+// Due means ready for dispatch or lease recovery, including timed notification
+// retries. Other blocked/manual work is not due.
 func ReadSnapshot(ctx context.Context, pool *pgxpool.Pool, retryThreshold int) (Snapshot, error) {
 	if pool == nil || retryThreshold < 1 || retryThreshold > 1000 {
 		return Snapshot{}, fmt.Errorf("ops snapshot requires a database and retry threshold between 1 and 1000")
@@ -100,7 +101,8 @@ func earlier(current, candidate *time.Time) *time.Time {
 
 var queueSources = []struct{ name, sql string }{
 	{"tapProjection", `SELECT state, attempts, created_at,
-		CASE WHEN state='pending' THEN next_attempt_at WHEN state='processing' THEN lease_expires_at END AS due_at
+		CASE WHEN state='pending' OR (state='blocked' AND projection_kind='post_notifications') THEN next_attempt_at
+		WHEN state='processing' THEN lease_expires_at END AS due_at
 		FROM tap_projection_jobs WHERE state IN ('pending','processing','blocked')`},
 	{"tapRepository", `SELECT state, attempts, created_at,
 		CASE WHEN state='pending' THEN next_attempt_at ELSE lease_expires_at END AS due_at
