@@ -72,26 +72,26 @@ List<Map<String, Object?>> selectedCauses(Object error) {
 }
 
 final _frame = RegExp(
-  r'^#\d+\s+([A-Za-z0-9_.$<>]+)\s+\((.*?):(\d+)(?::\d+)?\)$',
+  r'^#\d+\s+(.+?)\s+\((.*?):(\d+)(?::(\d+))?\)$',
 );
 List<Map<String, Object?>> selectedStack(StackTrace stack) {
   final frames = <Map<String, Object?>>[];
-  const omission = <String, Object?>{'omitted': '[OMITTED: excess frames]'};
   for (final line in stack.toString().split('\n')) {
     final match = _frame.firstMatch(line.trim());
-    if (match == null) continue;
+    if (match == null) {
+      if (line.trim().isNotEmpty) {
+        frames.add({'frame': scrubKnownDiagnosticText(line)});
+      }
+      continue;
+    }
     final frame = <String, Object?>{
-      'function': boundDiagnosticText(match[1]!, 160),
-      'file': boundDiagnosticText(
+      'function': scrubKnownDiagnosticText(match[1]!),
+      'file': scrubKnownDiagnosticText(
         match[2]!.replaceAll(r'\', '/').split('/').last,
-        80,
       ),
       'line': int.tryParse(match[3]!),
+      if (match[4] != null) 'column': int.tryParse(match[4]!),
     };
-    if (frames.length >= 8) {
-      frames.add(omission);
-      break;
-    }
     frames.add(frame);
   }
   return frames;
