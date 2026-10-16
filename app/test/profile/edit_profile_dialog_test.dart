@@ -978,36 +978,67 @@ void main() {
     );
 
     testWidgets(
-      'editing keeps the active field focused when validation toggles',
+      'correcting an existing over-limit name keeps the active field focused',
       (tester) async {
-        final repo = FakeProfileRepository(onFetch: (_) async => _seedProfile);
+        final profile = _seedProfile.copyWith(displayName: 'x' * 65);
+        final repo = FakeProfileRepository(onFetch: (_) async => profile);
         await _pumpEditDialog(tester, repo: repo);
 
-        // Tap the field to give it focus, then drive it past the limit.
-        // Use a low-level `enterText`-then-`requestFocus` flow because
-        // tester.tap on a TextField doesn't always reliably hand focus
-        // in widget tests.
-        final fieldFinder = find.widgetWithText(TextField, 'Test User');
-        await tester.tap(fieldFinder);
-        await tester.pumpAndSettle();
-
-        final focusNode = tester.widget<TextField>(fieldFinder).focusNode!;
-        expect(focusNode.hasFocus, isTrue);
-
-        // Type something that fails validation. The
-        // FormBuilderField.validate path used to focus a sibling
-        // FocusNode here, stealing focus from the TextField — sharing
-        // the focus node fixes that.
-        await tester.enterText(fieldFinder, 'x' * 65);
+        // Existing values are preserved rather than silently truncated. Editing
+        // another field triggers validation of the over-limit display name.
+        final bio = find.widgetWithText(TextField, 'Sewist in Bristol');
+        final bioFocusNode = tester.widget<TextField>(bio).focusNode!;
+        await tester.enterText(bio, 'Updated bio');
         await tester.pump();
-
         expect(
           find.text('Display name must be 64 characters or fewer'),
           findsOneWidget,
         );
+        expect(bioFocusNode.hasFocus, isTrue);
+
+        final name = find.widgetWithText(TextField, 'x' * 65);
+        await tester.showKeyboard(name);
+        await tester.pump();
+        final focusNode = tester.widget<TextField>(name).focusNode!;
         expect(focusNode.hasFocus, isTrue);
+
+        // Correcting the invalid value must not transfer focus to a sibling
+        // FormBuilder focus node as the validation error disappears.
+        await tester.enterText(name, 'x' * 64);
+        await tester.pump();
+        expect(
+          find.text('Display name must be 64 characters or fewer'),
+          findsNothing,
+        );
+        expect(focusNode.hasFocus, isTrue);
+        expect(tester.testTextInput.isVisible, isTrue);
       },
     );
+
+    testWidgets('display name input caps pasted text at 64 graphemes', (
+      tester,
+    ) async {
+      final repo = FakeProfileRepository(onFetch: (_) async => _seedProfile);
+      await _pumpEditDialog(tester, repo: repo);
+
+      final name = find.widgetWithText(TextField, 'Test User');
+      final controller = tester.widget<TextField>(name).controller!;
+      await tester.enterText(name, '🧶' * 65);
+      await tester.pump();
+
+      expect(controller.text, '🧶' * 64);
+      expect(find.text('64/64'), findsOneWidget);
+      expect(
+        find.text('Display name must be 64 characters or fewer'),
+        findsNothing,
+      );
+      expect(
+        tester
+            .widget<TextButton>(find.widgetWithText(TextButton, 'Save'))
+            .onPressed,
+        isNotNull,
+      );
+    });
 
     testWidgets(
       'business text input keeps keyboard focus while another field is invalid',
@@ -1047,15 +1078,16 @@ void main() {
     );
 
     testWidgets(
-      'display name longer than 64 characters surfaces a validator error '
-      'without disabling dirty save',
+      'existing display name longer than 64 characters surfaces a validator '
+      'error without disabling dirty save',
       (tester) async {
-        final repo = FakeProfileRepository(onFetch: (_) async => _seedProfile);
+        final profile = _seedProfile.copyWith(displayName: 'x' * 65);
+        final repo = FakeProfileRepository(onFetch: (_) async => profile);
         await _pumpEditDialog(tester, repo: repo);
 
         await tester.enterText(
-          find.widgetWithText(TextField, 'Test User'),
-          'x' * 65,
+          find.widgetWithText(TextField, 'Sewist in Bristol'),
+          'Updated bio',
         );
         await tester.pump();
 
@@ -1079,6 +1111,7 @@ void main() {
           find.text('Display name must be 64 characters or fewer'),
           findsOneWidget,
         );
+        expect(repo.updateOperationKeys, isEmpty);
       },
     );
 
