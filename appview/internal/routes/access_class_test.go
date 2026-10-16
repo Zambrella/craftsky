@@ -37,6 +37,7 @@ func TestV1RoutePoliciesUseExplicitAccessClasses(t *testing.T) {
 		"GET /v1/admin/operations":                                                               AccessModerator,
 		"GET /v1/admin/moderation/cases/{caseReference}/preview":                                 AccessModerator,
 		"GET /v1/admin/moderation/cases/{caseReference}/provenance":                              AccessModerator,
+		"GET /v1/admin/accounts/{did}/preview":                                                   AccessModerator,
 		"GET /v1/admin/accounts/{did}/moderation":                                                AccessModerator,
 		"GET /v1/admin/safety/incidents/{incidentReference}/subjects":                            AccessModerator,
 		"GET /v1/admin/safety/incidents/{incidentReference}/reports":                             AccessModerator,

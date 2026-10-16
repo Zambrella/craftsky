@@ -38,3 +38,19 @@ button,select,textarea{font:inherit}select,textarea{width:100%;padding:10px 12px
 .preview-video { margin: 0; }
 
 .content-preview > h2 { margin-bottom: 1rem; }
+
+.preview-context-list { display: grid; gap: 1rem; }
+.preview-context-list > section > h3 { margin-bottom: 1rem; }
+.preview-products { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr)); gap: 1rem; margin-top: 1rem; }
+.preview-product { min-width: 0; border-top: 1px solid #dbe5dc; padding-top: .75rem; }
+.preview-product h4 { margin: 0 0 .75rem; }
+.preview-author .badge { justify-self: start; }
+
+.preview-current { margin-top: 1.5rem; padding-top: 1.5rem; border-top: 2px solid #cbd9cc; }
+.preview-version { margin-bottom: 1rem; min-width: 0; }
+.preview-version > p { margin-top: 0; }
+.preview-version summary { cursor: pointer; font-size: .8rem; color: #63766a; }
+.preview-version dl { grid-template-columns: minmax(5rem, 10rem) minmax(0, 1fr); gap: .6rem; font-size: .8rem; margin-top: 1rem; }
+.preview-version-record { display: contents; }
+
+.preview-version dt { overflow-wrap: anywhere; }

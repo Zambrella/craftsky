@@ -2997,7 +2997,7 @@
             }
           }
         },
-        "description": "Return an authorized rich preview of the indexed account, post or event captured by the case. Media URLs are absent for unavailable or restricted content. No PDS fetch or restricted-evidence access is performed."
+        "description": "Compare the captured case reference with the current indexed account, post or event. Changed current content is returned separately. Include bounded quote and reply context, each with independent exact-version, incident, lifecycle and image-safety checks. Case reads share a read-only repeatable-read snapshot. No PDS or restricted-evidence fetch is performed."
       }
     },
     "/v1/admin/moderation/cases/{caseReference}/provenance": {
@@ -5999,6 +5999,73 @@
           }
         }
       }
+    },
+    "/v1/admin/accounts/{did}/preview": {
+      "get": {
+        "operationId": "get_v1_admin_accounts_did_preview",
+        "summary": "GET /v1/admin/accounts/{did}/preview",
+        "x-operator-permission": "moderation.read",
+        "security": [
+          {
+            "OperatorSession": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/path_did"
+          }
+        ],
+        "responses": {
+          "400": {
+            "$ref": "#/components/responses/Error"
+          },
+          "401": {
+            "$ref": "#/components/responses/Error"
+          },
+          "403": {
+            "$ref": "#/components/responses/Error"
+          },
+          "404": {
+            "$ref": "#/components/responses/Error"
+          },
+          "409": {
+            "$ref": "#/components/responses/Error"
+          },
+          "413": {
+            "$ref": "#/components/responses/Error"
+          },
+          "422": {
+            "$ref": "#/components/responses/Error"
+          },
+          "429": {
+            "$ref": "#/components/responses/Error"
+          },
+          "500": {
+            "$ref": "#/components/responses/Error"
+          },
+          "503": {
+            "$ref": "#/components/responses/Error"
+          },
+          "200": {
+            "description": "Success. Cache-Control: no-store.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Preview"
+                }
+              }
+            }
+          }
+        },
+        "description": "Read the current indexed personal and business profile for moderation without requiring a case. Business content is independent of subscription eligibility and requires its own clear image projection. Incident-linked or terminal owners expose no content. Requires moderation.read."
+      }
     }
   },
   "components": {
@@ -7123,6 +7190,46 @@
           },
           "event": {
             "$ref": "#/components/schemas/PreviewEvent"
+          },
+          "business": {
+            "$ref": "#/components/schemas/PreviewBusiness"
+          },
+          "businessState": {
+            "type": "string",
+            "enum": [
+              "available",
+              "unavailable"
+            ]
+          },
+          "version": {
+            "$ref": "#/components/schemas/PreviewVersion"
+          },
+          "current": {
+            "$ref": "#/components/schemas/Preview"
+          },
+          "context": {
+            "type": "array",
+            "maxItems": 3,
+            "items": {
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "quote",
+                    "parent",
+                    "root"
+                  ]
+                },
+                "preview": {
+                  "$ref": "#/components/schemas/Preview"
+                }
+              },
+              "required": [
+                "kind",
+                "preview"
+              ]
+            }
           }
         },
         "required": [
@@ -7131,7 +7238,7 @@
           "subjectDid",
           "mediaAvailable"
         ],
-        "description": "Indexed content for the case version. Changed records and terminal owners are unavailable; incident-linked subjects are restricted. Only clear image projections and already published profile image fields supply ordinary media URLs. Restricted evidence is never included."
+        "description": "Authorized indexed subject preview. Case references are compared with current CIDs. A changed captured version is unavailable, with current content returned separately after its own safety checks. Account cases with no captured profile CID are explicitly untracked. No historical content is reconstructed. Context is bounded to one quote, parent and root."
       },
       "SafetyStatus": {
         "type": "object",
@@ -8981,6 +9088,181 @@
           "isAllDay",
           "status",
           "createdAt"
+        ]
+      },
+      "PreviewVersion": {
+        "type": "object",
+        "properties": {
+          "basis": {
+            "type": "string",
+            "enum": [
+              "case",
+              "current",
+              "reference"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "matches",
+              "changed",
+              "missing",
+              "untracked",
+              "current"
+            ]
+          },
+          "capturedCid": {
+            "type": "string"
+          },
+          "currentCid": {
+            "type": "string"
+          },
+          "caseOpenedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "records": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "collection": {
+                  "type": "string"
+                },
+                "cid": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "collection",
+                "cid"
+              ]
+            }
+          }
+        },
+        "required": [
+          "basis",
+          "status"
+        ]
+      },
+      "PreviewBusiness": {
+        "type": "object",
+        "properties": {
+          "cid": {
+            "type": "string"
+          },
+          "businessTypes": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "string"
+                },
+                "known": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "value",
+                "known"
+              ]
+            }
+          },
+          "offerings": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "value": {
+                  "type": "string"
+                },
+                "known": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "value",
+                "known"
+              ]
+            }
+          },
+          "tagline": {
+            "type": "string"
+          },
+          "hoursNote": {
+            "type": "string"
+          },
+          "serviceArea": {
+            "type": "string"
+          },
+          "location": {
+            "type": "object",
+            "properties": {
+              "country": {
+                "type": "string"
+              },
+              "locality": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "country"
+            ]
+          },
+          "primaryAction": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string"
+              },
+              "destination": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "type",
+              "destination"
+            ]
+          },
+          "products": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "title": {
+                  "type": "string"
+                },
+                "uri": {
+                  "type": "string"
+                },
+                "image": {
+                  "$ref": "#/components/schemas/PreviewImage"
+                },
+                "price": {
+                  "type": "object",
+                  "properties": {
+                    "amount": {
+                      "type": "string"
+                    },
+                    "currency": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "amount",
+                    "currency"
+                  ]
+                }
+              },
+              "required": [
+                "title"
+              ]
+            }
+          }
+        },
+        "required": [
+          "cid"
         ]
       }
     },

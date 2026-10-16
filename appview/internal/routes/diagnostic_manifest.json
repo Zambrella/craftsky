@@ -139,6 +139,12 @@
   },
   {
     "method": "GET",
+    "path": "/v1/admin/accounts/{did}/preview",
+    "category": "appview.admin.accounts.detail.preview",
+    "public": false
+  },
+  {
+    "method": "GET",
     "path": "/v1/admin/accounts/{did}/moderation",
     "category": "appview.admin.accounts.detail.moderation",
     "public": false

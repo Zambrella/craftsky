@@ -48,6 +48,9 @@ The [prototype cleanup](10-prototype-cleanup.md) records removal of the retired
 integration and verification of the standalone console after migration 100.
 [Rich content previews](11-rich-content-previews.md) add account, post and event
 cards with ordinary images and on-demand video.
+[Context, business and version completion](12-preview-context-business-versions.md)
+adds bounded quote/thread cards, account lookup previews and explicit case/current
+record comparison.
 
 ## Atmosphere login and a simple operator table
 

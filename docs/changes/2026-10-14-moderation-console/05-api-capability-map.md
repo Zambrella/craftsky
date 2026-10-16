@@ -1,6 +1,6 @@
 # Admin API capability map
 
-Status: Complete and validated locally on 15 October 2026.
+Status: Complete locally; account preview added on 16 October 2026.
 
 All routes require a current operator cookie. Unsafe requests also require the
 exact Origin and CSRF token. Sets derive capabilities centrally; direct HTTP
@@ -9,6 +9,7 @@ calls receive the same restrictions as the console screens.
 | Endpoint | Required capability | Console destination |
 |---|---|---|
 | `GET /v1/admin/accounts/{did}/eligibility` | `eligibility.review` | Eligibility review |
+| `GET /v1/admin/accounts/{did}/preview` | `moderation.read` | Account and business profile preview |
 | `GET /v1/admin/accounts/{did}/moderation` | `moderation.read` | Account history |
 | `GET /v1/admin/accounts/{did}/moderation/history` | `moderation.read` | Account history |
 | `POST /v1/admin/eligibility/reviews` | `eligibility.review` | Eligibility review |

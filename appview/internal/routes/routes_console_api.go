@@ -26,6 +26,7 @@ var consoleReadRoutes = []struct {
 	{"/v1/admin/operations/{operationId}", "operations", "operationId", safetyincident.PermissionOperatorManage},
 	{"/v1/admin/moderation/cases/{caseReference}/preview", "preview", "", safetyincident.PermissionModerationRead},
 	{"/v1/admin/moderation/cases/{caseReference}/provenance", "case-provenance", "", safetyincident.PermissionModerationRead},
+	{"/v1/admin/accounts/{did}/preview", "account-preview", "", safetyincident.PermissionModerationRead},
 	{"/v1/admin/accounts/{did}/moderation", "standing", "", safetyincident.PermissionModerationRead},
 	{"/v1/admin/safety/incidents/{incidentReference}/subjects", "incident-subjects", "", safetyincident.PermissionIncidentConfirm},
 	{"/v1/admin/safety/incidents/{incidentReference}/reports", "incident-reports", "", safetyincident.PermissionAuthorityReport},
@@ -59,6 +60,8 @@ func registerConsoleAPIRoutes(mux Registrar, middleware v1Middleware, deps *Depe
 			handler = api.ConsoleAccountEligibilityHandler(deps.DB)
 		} else if route.resource == "preview" {
 			handler = api.ConsoleCasePreviewHandler(deps.DB, deps.VideoPlayback)
+		} else if route.resource == "account-preview" {
+			handler = api.ConsoleAccountPreviewHandler(deps.DB)
 		} else if route.resource == "standing" {
 			handler = api.ConsoleAccountStandingHandler(deps.DB)
 		} else if route.param != "" {

@@ -347,3 +347,31 @@ test('post previews show project and link context and handle missing images with
   fireEvent.error(screen.getByRole('img', { name: 'Missing scarf photo' }))
   expect(screen.getByRole('status').textContent).toContain('Image unavailable')
 })
+
+test('case preview shows bounded quote and reply cards while withholding restricted context', async () => {
+  fixture(path => path.includes('/preview') ? response({ state: 'available', subjectType: 'post', text: 'A synthetic craft project.', mediaAvailable: false, context: [
+    { kind: 'quote', preview: { state: 'available', subjectType: 'post', text: 'The quoted knitting pattern', author: { did: 'did:example:quoted', displayName: 'Pattern author' }, mediaAvailable: false } },
+    { kind: 'parent', preview: { state: 'available', subjectType: 'post', text: 'The question being answered', mediaAvailable: false } },
+    { kind: 'root', preview: { state: 'restricted', text: 'restricted-root-canary', mediaAvailable: true, images: [{ fullsize: 'https://cdn.bsky.app/never-load', alt: 'restricted-root-image' }] } },
+  ] }) : undefined)
+  await openCase()
+  expect(screen.getByRole('heading', { name: 'Quoted post' })).toBeTruthy()
+  expect(screen.getByText('The quoted knitting pattern')).toBeTruthy()
+  expect(screen.getByRole('heading', { name: 'Reply parent' })).toBeTruthy()
+  expect(screen.getByText('The question being answered')).toBeTruthy()
+  expect(screen.getByRole('heading', { name: 'Thread root' })).toBeTruthy()
+  expect(screen.queryByText('restricted-root-canary')).toBeNull()
+  expect(screen.queryByRole('img', { name: 'restricted-root-image' })).toBeNull()
+})
+
+test('changed cases label the captured reference and show current content separately', async () => {
+  fixture(path => path.includes('/preview') ? response({ state: 'unavailable', subjectType: 'post', subjectDid: 'did:plc:author', mediaAvailable: false, version: { basis: 'case', status: 'changed', capturedCid: 'reported-cid', currentCid: 'edited-cid', caseOpenedAt: '2026-10-15T10:00:00Z' }, current: { state: 'available', subjectType: 'post', text: 'Edited current version', mediaAvailable: false, version: { basis: 'current', status: 'current', currentCid: 'edited-cid' } } }) : undefined)
+  const user=userEvent.setup()
+  render(<CasesWorkspace operator={operator} onSessionExpired={()=>{}}/>)
+  await user.click(await screen.findByRole('link',{name:'Review '+reference}))
+  expect(await screen.findByText('Changed since the case was opened.')).toBeTruthy()
+  expect(screen.getByRole('heading',{name:'Current indexed content'})).toBeTruthy()
+  expect(screen.getByText('Edited current version')).toBeTruthy()
+  expect(screen.getByText('reported-cid')).toBeTruthy()
+  expect(screen.getByText('The content for the captured version was not retained.')).toBeTruthy()
+})

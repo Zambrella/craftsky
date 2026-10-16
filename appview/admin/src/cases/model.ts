@@ -19,7 +19,9 @@ export type CaseDetail = CaseItem & {
   strikeContext?: { active: boolean; issuedAt: string; dueAt: string; expiredAt?: string; overturnedAt?: string };
 }
 export type PreviewImage = { fullsize?: string; thumb?: string; alt: string; aspectRatio?: { width: number; height: number } }
-export type Preview = { state: string; subjectType?: string; subjectDid?: string; title?: string; text?: string; mediaAvailable: boolean; author?: { did: string; displayName?: string | null; avatar?: string }; images?: PreviewImage[]; createdAt?: string; banner?: string; crafts?: string[];
+export type BusinessPreview = { cid?: string; tagline?: string; hoursNote?: string; serviceArea?: string; businessTypes?: { value: string; known: boolean }[]; offerings?: { value: string; known: boolean }[]; location?: { country: string; locality?: string }; primaryAction?: { type: string; destination: string }; products?: { title: string; uri?: string; price?: { amount: string; currency: string }; image?: PreviewImage }[] }
+export type PreviewVersion = { basis: 'case' | 'current' | 'reference'; status: 'matches' | 'changed' | 'untracked' | 'missing' | 'current'; capturedCid?: string; currentCid?: string; caseOpenedAt?: string; records?: { collection: string; cid: string }[] }
+export type Preview = { version?: PreviewVersion; current?: Preview; business?: BusinessPreview; businessState?: string; context?: { kind: 'quote' | 'parent' | 'root'; preview: Preview }[]; state: string; subjectType?: string; subjectDid?: string; title?: string; text?: string; mediaAvailable: boolean; author?: { did: string; displayName?: string | null; avatar?: string }; images?: PreviewImage[]; createdAt?: string; banner?: string; crafts?: string[];
  event?: { startsAt: string; endsAt: string; venueName?: string; timeZone?: string; eventUri?: string; registrationUri?: string; status?: { value: string } };
  video?: { playlist: string; thumbnail?: string; alt: string };
  external?: { uri: string; title: string; description: string; thumb?: { url: string } };

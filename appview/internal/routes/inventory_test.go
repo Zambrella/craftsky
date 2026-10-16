@@ -95,6 +95,7 @@ func TestRouteInventoryAndV1PoliciesStayExact(t *testing.T) {
 		"GET /v1/admin/operations/{operationId}",
 		"GET /v1/admin/moderation/cases/{caseReference}/preview",
 		"GET /v1/admin/moderation/cases/{caseReference}/provenance",
+		"GET /v1/admin/accounts/{did}/preview",
 		"GET /v1/admin/accounts/{did}/moderation",
 		"GET /v1/admin/safety/incidents/{incidentReference}/subjects",
 		"GET /v1/admin/safety/incidents/{incidentReference}/reports",

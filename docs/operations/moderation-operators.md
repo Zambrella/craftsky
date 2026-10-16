@@ -184,12 +184,21 @@ Admins and mods can use the case queue at `/admin/`, filter open/resolved cases,
 and share a direct case link using `/admin/#/cases/MOD-…`. The content preview shows indexed account cards (bio, avatar, banner and crafts),
 posts (author, text, photos, project/link cards and on-demand video), and events
 (image, dates and venue). Images can be enlarged; videos load only when requested
-and never autoplay. Media failures show an unavailable state. The preview retains
-the case's captured record version and withholds changed/blocked subjects and
-terminal owners. Incident-linked content remains restricted. Use the separate
+and never autoplay. Media failures show an unavailable state. Quoted posts and
+reply parent/root cards are bounded to one level and each receive separate safety
+and version checks. Record-version details compare the case's captured CID with
+the current index. Changed captured content is unavailable; safe current content
+is shown in a separate card. Older content is not reconstructed. Account cases
+without a captured CID are explicitly labelled as current indexed profiles.
+Current personal/business record CIDs are listed separately. Blocked subjects and
+terminal owners remain unavailable. Incident-linked content remains restricted. Use the separate
 restricted evidence workspace for explicit, audited access; ordinary previews do
 not fetch evidence bytes or contact a PDS. Public media uses the existing image
 CDN and configured video service with case URLs suppressed from referrers.
+The Accounts tab also has a current profile preview, including business types,
+offerings, tagline, hours, service area, location, primary action and product
+cards/prices/images. Business records are visible for moderation independently of
+subscription eligibility; their own image-safety projection must be clear.
 Reports are allegations, and account standing counts cases rather than reports.
 
 Review the decision summary before confirming it. Internal evidence notes and

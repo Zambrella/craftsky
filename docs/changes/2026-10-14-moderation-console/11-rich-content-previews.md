@@ -2,6 +2,10 @@
 
 Date: 16 October 2026
 
+Follow-up: [context, business and version completion](12-preview-context-business-versions.md)
+extends this implementation with quoted/reply cards, business records and explicit
+case/current version handling.
+
 The case workspace's **Content preview** now displays the indexed subject rather
 than a text-only excerpt:
 
