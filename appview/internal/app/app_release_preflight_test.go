@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-func TestAppReleasePreflightRunsFlutterChecksForTaggedHead(t *testing.T) {
+func TestAppReleasePreflightRunsFlutterChecksWithoutTestsForTaggedHead(t *testing.T) {
 	repo, _, releaseScript := newReleaseTestRepo(t)
 	notes := writeNotes(t, "- Ready for mobile stores.\n")
 	runRelease(t, repo, releaseScript, nil, "create", "app", "--version", "1.1.0+2", "--notes", notes)
@@ -19,7 +19,7 @@ func TestAppReleasePreflightRunsFlutterChecksForTaggedHead(t *testing.T) {
 	if err != nil {
 		t.Fatalf("preflight: %v\n%s", err, output)
 	}
-	if got := mustReadFile(t, logPath); got != "pub get\nanalyze\ntest\n" {
+	if got := mustReadFile(t, logPath); got != "pub get\nanalyze\n" {
 		t.Fatalf("flutter calls = %q", got)
 	}
 }
@@ -47,7 +47,7 @@ func TestAppReleasePreflightAcceptsConfiguredDistributionTeam(t *testing.T) {
 	if err != nil {
 		t.Fatalf("iOS preflight: %v\n%s", err, output)
 	}
-	if got := mustReadFile(t, logPath); got != "pub get\nanalyze\ntest\n" {
+	if got := mustReadFile(t, logPath); got != "pub get\nanalyze\n" {
 		t.Fatalf("flutter calls = %q", got)
 	}
 }
