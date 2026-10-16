@@ -343,6 +343,9 @@ class _YarnGraphicState extends State<_YarnGraphic>
     _numbers = {
       for (final name in [
         'strandLength',
+        'strandFirstY',
+        'strandSecondY',
+        'strandHandle',
         'ballScale',
         'rotation',
         'yarnOpacity',
@@ -387,7 +390,11 @@ class _YarnGraphicState extends State<_YarnGraphic>
     _inkColor.value = widget.inkColor;
     final pull = (widget.extent / 112).clamp(0.0, 1.0);
     _rive.artboard.height = math.max(40, widget.extent);
-    _numbers['strandLength']!.value = math.max(0, widget.extent - 22);
+    final strandLength = math.max<double>(0, widget.extent - 22);
+    _numbers['strandLength']!.value = strandLength;
+    _numbers['strandFirstY']!.value = strandLength / 3;
+    _numbers['strandSecondY']!.value = strandLength * 2 / 3;
+    _numbers['strandHandle']!.value = strandLength / 6;
     _numbers['ballScale']!.value = 1;
     _numbers['rotation']!.value = widget.reduced
         ? 0

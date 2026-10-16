@@ -123,9 +123,16 @@ for points in [
 circle(ball,0,0,18,None,BLUE,2.5)
 circle(ball,0,0,18,SKY)
 strand=el('Shape',yarn,name='Vertical strand')
-p=el('PointsPath',strand);el('StraightVertex',p,x=0,y=0)
-v=el('StraightVertex',p,x=0,y=74);bind(v,25,3)
-stroke(strand,RED,2.8)
+p=el('PointsPath',strand)
+# Vertical tangents keep the loose strand soft as its length follows the drag.
+for index,(x,y,prop) in enumerate([(0,0,None),(6,74/3,10),(-6,148/3,11),(0,74,3)]):
+    v=el('CubicDetachedVertex',p,x=x,y=y,
+         inRotation=-math.pi/2,inDistance=74/6 if index else 0,
+         outRotation=math.pi/2,outDistance=74/6 if index<3 else 0)
+    if prop:bind(v,25,prop)
+    if index:bind(v,85,12)
+    if index<3:bind(v,87,12)
+stroke(strand,BLUE,2.8)
 sm=el('StateMachine',ab,name='YarnRefresh',id='2:3')
 layer=el('StateMachineLayer',sm,name='Host-driven pose')
 el('StateTransition',el('EntryState',layer),stateToId='2:4')
@@ -134,7 +141,7 @@ el('LinearAnimation',ab,name='Pose',id='2:5',fps=60,duration=1,loopValue='oneSho
 for color in ab.iter('SolidColor'):
     if color.get('colorValue')==BLUE:bind(color,37,9)
 vm=el('ViewModel',root,name='YarnRefresh',id='1:1',defaultInstanceId='1:2')
-props=[(3,'strandLength',74),(4,'ballScale',1),(5,'rotation',0),(7,'yarnOpacity',1),(8,'checkOpacity',0)]
+props=[(3,'strandLength',74),(4,'ballScale',1),(5,'rotation',0),(7,'yarnOpacity',1),(8,'checkOpacity',0),(10,'strandFirstY',74/3),(11,'strandSecondY',148/3),(12,'strandHandle',74/6)]
 for i,name,val in props:el('ViewModelPropertyNumber',vm,name=name,id=f'1:{i}')
 el('ViewModelPropertyColor',vm,name='inkColor',id='1:9')
 inst=el('ViewModelInstance',vm,name='Default',id='1:2',exports='true')

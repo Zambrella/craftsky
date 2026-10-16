@@ -403,6 +403,9 @@ void main() {
     await tester.pump();
     final graphicBounds = tester.getRect(find.byType(rive.RiveWidget));
     expect(graphicBounds.height, greaterThan(240));
+    final ink = Theme.of(
+      tester.element(find.byType(rive.RiveWidget)),
+    ).colorScheme.primary;
     final boundary = tester.renderObject<RenderRepaintBoundary>(
       find.byKey(const Key('yarn-capture')),
     );
@@ -412,9 +415,9 @@ void main() {
       final x = graphicBounds.center.dx.round();
       final y = (graphicBounds.bottom - 4).floor();
       final offset = (y * image.width + x) * 4;
-      expect(bytes.getUint8(offset), greaterThan(220));
-      expect(bytes.getUint8(offset + 1), lessThan(100));
-      expect(bytes.getUint8(offset + 2), lessThan(100));
+      expect(bytes.getUint8(offset), closeTo((ink.r * 255).round(), 3));
+      expect(bytes.getUint8(offset + 1), closeTo((ink.g * 255).round(), 3));
+      expect(bytes.getUint8(offset + 2), closeTo((ink.b * 255).round(), 3));
       if (const bool.fromEnvironment('CAPTURE_YARN_REFRESH')) {
         final png = (await image.toByteData(format: ui.ImageByteFormat.png))!;
         await File('/tmp/craftsky-yarn-refresh.png')
