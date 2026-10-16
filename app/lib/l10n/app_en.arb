@@ -1101,6 +1101,8 @@
   "postComposeCommentSubmit": "Comment",
   "@postComposeCommentSubmit": { "description": "Submit button label when commenting directly on a root post." },
 
+  "textInputTooLong": "This text is too long. Please shorten it.",
+  "@textInputTooLong": { "description": "Validation error when text exceeds the character or encoded-size limit." },
   "postComposeTooLong": "Posts must be 2000 characters or fewer",
   "@postComposeTooLong": { "description": "Validation error shown when the text-only post composer exceeds the post text limit." },
 

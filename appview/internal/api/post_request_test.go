@@ -23,6 +23,37 @@ func TestDecodePostCreate_HappyPathTextOnly(t *testing.T) {
 	}
 }
 
+func TestValidatePostProjectTextContracts(t *testing.T) {
+	for _, tc := range []struct {
+		name, text string
+		valid      bool
+	}{
+		{"fit notes 600", strings.Repeat("é", 600), true},
+		{"fit notes 601", strings.Repeat("a", 601), false},
+		{"fit notes byte boundary", strings.Repeat("👨‍👩‍👧‍👦", 240), true},
+		{"fit notes bytes exceeded", strings.Repeat("👨‍👩‍👧‍👦", 241), false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			details, _ := json.Marshal(map[string]any{"$type": "social.craftsky.project.sewing#details", "fitNotes": tc.text})
+			err := api.ValidatePostCreate(api.PostCreateRequest{Text: "project", Project: &api.Project{
+				Common: api.ProjectCommon{CraftType: api.ProjectCraftTypeSewing}, Details: details,
+			}})
+			if (err == nil) != tc.valid {
+				t.Fatalf("valid=%v, error=%v", tc.valid, err)
+			}
+		})
+	}
+	// The title's byte budget is smaller than its grapheme budget permits
+	// for multibyte text. Reject before publishing, as ingestion would.
+	title := strings.Repeat("界", 167)
+	err := api.ValidatePostCreate(api.PostCreateRequest{Text: "project", Project: &api.Project{
+		Common: api.ProjectCommon{CraftType: api.ProjectCraftTypeSewing, Title: &title},
+	}})
+	if err == nil {
+		t.Fatal("accepted title exceeding 500 bytes")
+	}
+}
+
 func TestDecodePostCreate_RequiresExplicitSponsored(t *testing.T) {
 	t.Parallel()
 	for _, body := range []string{`{"text":"hello"}`, `{"text":"hello","sponsored":null}`} {

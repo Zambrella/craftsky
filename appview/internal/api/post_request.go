@@ -15,6 +15,7 @@ import (
 	"github.com/rivo/uniseg"
 
 	"social.craftsky/appview/internal/languages"
+	lexiconschema "social.craftsky/appview/internal/lexicon/schema"
 )
 
 const (
@@ -219,6 +220,9 @@ func ValidatePostCreateWithLimits(req PostCreateRequest, limits MediaLimits) err
 	}
 	for i, img := range req.Images {
 		prefix := fmt.Sprintf("images[%d]", i)
+		if !utf8.ValidString(img.Alt) || len(img.Alt) > 1000 || uniseg.GraphemeClusterCount(img.Alt) > 1000 {
+			fields[prefix+".alt"] = "exceeds 1000 graphemes / 1000 bytes"
+		}
 		if len(img.Image) == 0 {
 			fields[prefix+".image"] = "must not be empty"
 		} else {
@@ -235,6 +239,15 @@ func ValidatePostCreateWithLimits(req PostCreateRequest, limits MediaLimits) err
 		}
 	}
 	if req.Project != nil {
+		// Validate the complete project against the same embedded contract as
+		// ingestion, before it can be published to the owner's PDS.
+		raw, err := json.Marshal(map[string]any{
+			"$type": "social.craftsky.feed.post", "text": "", "sponsored": false,
+			"createdAt": "2026-01-01T00:00:00Z", "project": req.Project,
+		})
+		if err != nil || lexiconschema.ValidateCraftskyRecord(raw, "social.craftsky.feed.post") != nil {
+			fields["project"] = "must satisfy the project lexicon"
+		}
 		craftType := strings.TrimSpace(req.Project.Common.CraftType)
 		if craftType == "" {
 			fields["project.common.craftType"] = "must not be empty"

@@ -29,6 +29,7 @@ import 'package:craftsky_app/shared/link/external_link.dart';
 import 'package:craftsky_app/shared/media/image_source_menu.dart';
 import 'package:craftsky_app/shared/media/uploaded_image_blob.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
+import 'package:craftsky_app/shared/text/record_text_limits.dart';
 import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
 import 'package:craftsky_app/subscriptions/providers/subscription_access_provider.dart';
 import 'package:craftsky_app/theme/brand_text_field.dart';
@@ -38,7 +39,6 @@ import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_form_builder/flutter_form_builder.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:form_builder_validators/form_builder_validators.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -49,13 +49,6 @@ const _fieldDisplayName = 'displayName';
 const _fieldPronouns = 'pronouns';
 const _fieldBio = 'bio';
 const _fieldCrafts = 'crafts';
-
-/// Bsky's `app.bsky.actor.profile.displayName` lexicon caps display
-/// names at 64 graphemes. We approximate with code-unit length here —
-/// the server has the final say.
-
-/// Bsky's `app.bsky.actor.profile.description` lexicon caps the bio at
-/// 256 graphemes. Same code-unit caveat as [profileDisplayNameMaxLength].
 
 /// Opens the profile-edit screen as a full-screen Material dialog.
 ///
@@ -519,19 +512,15 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
                         // for why this matters.
                         focusNode: _displayNameFocusNode,
                         initialValue: widget.profile.displayName ?? '',
-                        // `checkNullOrEmpty: false` — form_builder_validators
-                        // 11.x's BaseValidator treats empty/null as a hard
-                        // failure by default, which is wrong for a
-                        // length-cap validator (empty is a valid display
-                        // name).
-                        validator: FormBuilderValidators.maxLength(
-                          profileDisplayNameMaxLength,
-                          errorText: l10n.editProfileDisplayNameTooLong,
-                          checkNullOrEmpty: false,
-                        ),
+                        validator: (value) =>
+                            RecordTextLimits.displayName.accepts(value ?? '')
+                            ? null
+                            : l10n.editProfileDisplayNameTooLong,
                         builder: (field) => BrandTextField(
                           label: l10n.editProfileDisplayNameLabel,
                           controller: _displayNameController,
+                          maxLength: RecordTextLimits.displayName.graphemes,
+                          maxBytes: RecordTextLimits.displayName.bytes,
                           focusNode: _displayNameFocusNode,
                           hintText: l10n.editProfileDisplayNameHint,
                           textInputAction: TextInputAction.next,
@@ -547,8 +536,7 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
                         focusNode: _pronounsFocusNode,
                         initialValue: widget.profile.pronouns ?? '',
                         validator: (value) =>
-                            (value?.characters.length ?? 0) >
-                                profilePronounsMaxLength
+                            !RecordTextLimits.pronouns.accepts(value ?? '')
                             ? l10n.editProfilePronounsTooLong
                             : null,
                         builder: (field) => BrandTextField(
@@ -557,6 +545,7 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
                           focusNode: _pronounsFocusNode,
                           hintText: l10n.editProfilePronounsHint,
                           maxLength: profilePronounsMaxLength,
+                          maxBytes: RecordTextLimits.pronouns.bytes,
                           textInputAction: TextInputAction.next,
                           enabled: !isSaving,
                           onChanged: field.didChange,
@@ -568,14 +557,15 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
                         name: _fieldBio,
                         focusNode: _bioFocusNode,
                         initialValue: widget.profile.description ?? '',
-                        validator: FormBuilderValidators.maxLength(
-                          profileBioMaxLength,
-                          errorText: l10n.editProfileBioTooLong,
-                          checkNullOrEmpty: false,
-                        ),
+                        validator: (value) =>
+                            RecordTextLimits.bio.accepts(value ?? '')
+                            ? null
+                            : l10n.editProfileBioTooLong,
                         builder: (field) => BrandTextField(
                           label: l10n.editProfileBioLabel,
                           controller: _bioController,
+                          maxLength: RecordTextLimits.bio.graphemes,
+                          maxBytes: RecordTextLimits.bio.bytes,
                           focusNode: _bioFocusNode,
                           hintText: l10n.editProfileBioHint,
                           minLines: 3,

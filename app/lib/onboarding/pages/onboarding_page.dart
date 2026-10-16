@@ -11,12 +11,12 @@ import 'package:craftsky_app/onboarding/widgets/onboarding_crafts_step.dart';
 import 'package:craftsky_app/onboarding/widgets/onboarding_guidelines_step.dart';
 import 'package:craftsky_app/onboarding/widgets/onboarding_profile_step.dart';
 import 'package:craftsky_app/onboarding/widgets/onboarding_progress.dart';
-import 'package:craftsky_app/profile/data/profile_field_constraints.dart';
 import 'package:craftsky_app/settings/settings_links.dart';
 import 'package:craftsky_app/shared/link/external_link.dart';
 import 'package:craftsky_app/shared/media/image_source_menu.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/shared/observability/error_reporting_consent_tile.dart';
+import 'package:craftsky_app/shared/text/record_text_limits.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/form_factor.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
@@ -96,9 +96,9 @@ class _OnboardingFlowScaffold extends ConsumerWidget {
       OnboardingStep.guidelines => false,
     };
     final valid =
-        state.identity.displayName.length <= profileDisplayNameMaxLength &&
-        state.identity.pronouns.characters.length <= profilePronounsMaxLength &&
-        state.identity.bio.length <= profileBioMaxLength &&
+        RecordTextLimits.displayName.accepts(state.identity.displayName) &&
+        RecordTextLimits.pronouns.accepts(state.identity.pronouns) &&
+        RecordTextLimits.bio.accepts(state.identity.bio) &&
         !state.uploadingAvatar &&
         !state.avatarUploadFailed;
     final stepValid =

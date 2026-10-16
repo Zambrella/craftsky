@@ -1,8 +1,8 @@
 import 'dart:typed_data';
 
-import 'package:characters/characters.dart';
 import 'package:craftsky_app/feed/media/video_source_validator.dart';
 import 'package:craftsky_app/feed/models/video_upload_limits.dart';
+import 'package:craftsky_app/shared/text/record_text_limits.dart';
 
 final class LocalVideoSelection {
   const new({
@@ -93,7 +93,7 @@ final class ComposerVideoController {
   void remove() => _selection = null;
 
   void setAltText(String value) {
-    if (value.characters.length > 1000) {
+    if (!RecordTextLimits.videoAlt.accepts(value)) {
       throw ArgumentError('Video alt text is too long');
     }
     _selection = _selection?.withAltText(value);

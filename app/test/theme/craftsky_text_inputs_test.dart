@@ -1,3 +1,4 @@
+import 'package:craftsky_app/theme/craftsky_form_builder_text_field.dart';
 import 'package:craftsky_app/theme/craftsky_text_inputs.dart';
 import 'package:flutter_form_builder/flutter_form_builder.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -6,6 +7,64 @@ import 'package:material_ui/material_ui.dart';
 import '../test_support/widget_pump.dart';
 
 void main() {
+  testWidgets('fit notes enforce 600 graphemes and preserve emoji clusters', (
+    tester,
+  ) async {
+    final formKey = GlobalKey<FormBuilderState>();
+    final controller = TextEditingController();
+    addTearDown(controller.dispose);
+    await pumpCraftskyWidget(
+      tester,
+      FormBuilder(
+        key: formKey,
+        child: CraftskyFormBuilderMultilineTextField(
+          name: 'fitNotes',
+          label: 'Fit notes',
+          controller: controller,
+          maxLength: 600,
+          maxBytes: 6000,
+        ),
+      ),
+    );
+    await tester.enterText(find.byType(TextField), 'é' * 601);
+    expect(controller.text, 'é' * 600);
+    await tester.pump();
+    expect(find.text('600/600'), findsOneWidget);
+    expect(formKey.currentState!.saveAndValidate(), isTrue);
+    await tester.enterText(find.byType(TextField), '👨‍👩‍👧‍👦' * 241);
+    expect(controller.text, '👨‍👩‍👧‍👦' * 240);
+    expect(formKey.currentState!.saveAndValidate(), isTrue);
+  });
+
+  testWidgets('restored over-limit text fails validation without truncation', (
+    tester,
+  ) async {
+    final formKey = GlobalKey<FormBuilderState>();
+    await pumpCraftskyWidget(
+      tester,
+      FormBuilder(
+        key: formKey,
+        child: CraftskyFormBuilderTextField(
+          name: 'title',
+          label: 'Title',
+          initialValue: '界' * 167,
+          maxLength: 200,
+          maxBytes: 500,
+        ),
+      ),
+    );
+    expect(formKey.currentState!.saveAndValidate(), isFalse);
+    await tester.pump();
+    expect(
+      find.text('This text is too long. Please shorten it.'),
+      findsOneWidget,
+    );
+    expect(
+      tester.widget<EditableText>(find.byType(EditableText)).controller.text,
+      '界' * 167,
+    );
+  });
+
   testWidgets(
     'multiline prose defaults to sentences and identifiers can opt out',
     (

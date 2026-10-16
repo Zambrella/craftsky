@@ -12,6 +12,7 @@ import 'package:craftsky_app/feed/providers/composer_image_state.dart';
 import 'package:craftsky_app/feed/widgets/composer_image_attachment_section.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/profile/providers/profile_image_picker_provider.dart';
+import 'package:craftsky_app/shared/text/record_text_limits.dart';
 import 'package:craftsky_app/theme/craftsky_field_scaffold.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/craftsky_select_inputs.dart';
@@ -181,6 +182,7 @@ class EventFormState extends ConsumerState<EventForm> {
                       controller: _name,
                       enabled: widget.enabled,
                       maxLength: businessEventNameLimit,
+                      maxBytes: RecordTextLimits.eventName.bytes,
                       textCapitalization: TextCapitalization.words,
                       label: l10n.businessEventNameLabel,
                       required: true,
@@ -313,6 +315,7 @@ class EventFormState extends ConsumerState<EventForm> {
                       controller: _summary,
                       enabled: widget.enabled,
                       maxLength: businessEventSummaryLimit,
+                      maxBytes: RecordTextLimits.eventSummary.bytes,
                       maxLines: 4,
                       label: l10n.businessEventSummaryLabel,
                     ),
@@ -322,6 +325,7 @@ class EventFormState extends ConsumerState<EventForm> {
                       controller: _venue,
                       enabled: widget.enabled,
                       maxLength: businessEventVenueLimit,
+                      maxBytes: RecordTextLimits.eventVenue.bytes,
                       textCapitalization: TextCapitalization.words,
                       label: l10n.businessEventVenueLabel,
                     ),

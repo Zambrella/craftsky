@@ -1,3 +1,4 @@
+import 'package:craftsky_app/shared/text/record_text_limits.dart';
 import 'package:craftsky_app/theme/craftsky_field_scaffold.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/services.dart';
@@ -36,6 +37,7 @@ class BrandTextField extends StatefulWidget {
     this.suffixIcon,
     this.suffixText,
     this.maxLength,
+    this.maxBytes,
     this.maxLines = 1,
     this.minLines,
     this.obscureText = false,
@@ -76,6 +78,7 @@ class BrandTextField extends StatefulWidget {
   final Widget? suffixIcon;
   final String? suffixText;
   final int? maxLength;
+  final int? maxBytes;
   final int? maxLines;
   final int? minLines;
   final bool obscureText;
@@ -210,6 +213,8 @@ class _BrandTextFieldState extends State<BrandTextField> {
         textCapitalization: widget.textCapitalization,
         inputFormatters: [
           ...?widget.inputFormatters,
+          if (widget.maxBytes case final maxBytes?)
+            Utf8LengthLimitingTextInputFormatter(maxBytes),
           if (widget.maxLength case final maxLength?)
             LengthLimitingTextInputFormatter(maxLength),
         ],

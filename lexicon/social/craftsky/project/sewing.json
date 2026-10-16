@@ -112,8 +112,8 @@
         },
         "fitNotes": {
           "type": "string",
-          "maxLength": 3000,
-          "maxGraphemes": 300,
+          "maxLength": 6000,
+          "maxGraphemes": 600,
           "description": "Free-text notes about garment fit and adjustments, e.g. 'Good through the bust but tight at the upper arm. Added 2cm bicep adjustment.'"
         }
       }

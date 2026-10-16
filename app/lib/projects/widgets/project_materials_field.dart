@@ -6,6 +6,7 @@ import 'package:craftsky_app/shared/rich_text/facet_autocomplete_controller.dart
 import 'package:craftsky_app/shared/rich_text/providers/facet_suggestion_providers.dart';
 import 'package:craftsky_app/shared/rich_text/widgets/facet_autocomplete_editor.dart';
 import 'package:craftsky_app/shared/rich_text/widgets/faceted_text.dart';
+import 'package:craftsky_app/shared/text/record_text_limits.dart';
 import 'package:craftsky_app/shared/widgets/action_progress.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
@@ -71,7 +72,6 @@ class _MaterialsInput extends ConsumerStatefulWidget {
   });
 
   static const maxSelected = 10;
-  static const maxGraphemes = 100;
 
   final String label;
   final List<ProjectMaterial> values;
@@ -128,7 +128,7 @@ class _MaterialsInputState extends ConsumerState<_MaterialsInput> {
     if (!widget.enabled || _isAdding) return;
     final text = _controller.text.trim();
     if (text.isEmpty) return;
-    if (text.characters.length > _MaterialsInput.maxGraphemes) {
+    if (!RecordTextLimits.material.accepts(text)) {
       setState(() => _errorText = widget.maxLengthErrorText);
       _focusNode.requestFocus();
       return;
@@ -177,6 +177,8 @@ class _MaterialsInputState extends ConsumerState<_MaterialsInput> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         FacetAutocompleteEditor(
+          maxLength: RecordTextLimits.material.graphemes,
+          maxBytes: RecordTextLimits.material.bytes,
           key: const Key('${ProjectComposerFields.materials}-custom-input'),
           label: widget.label,
           hintText: widget.inputHintText,

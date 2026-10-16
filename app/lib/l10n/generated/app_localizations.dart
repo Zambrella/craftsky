@@ -2248,6 +2248,12 @@ abstract class AppLocalizations {
   /// **'Comment'**
   String get postComposeCommentSubmit;
 
+  /// Validation error when text exceeds the character or encoded-size limit.
+  ///
+  /// In en, this message translates to:
+  /// **'This text is too long. Please shorten it.'**
+  String get textInputTooLong;
+
   /// Validation error shown when the text-only post composer exceeds the post text limit.
   ///
   /// In en, this message translates to:

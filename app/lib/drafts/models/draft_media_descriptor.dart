@@ -1,4 +1,5 @@
 import 'package:craftsky_app/drafts/models/draft_manifest_error.dart';
+import 'package:craftsky_app/shared/text/record_text_limits.dart';
 
 enum DraftMediaAvailability { available, unavailable }
 
@@ -65,7 +66,7 @@ final class DraftMediaDescriptor {
         _sha256Pattern.hasMatch(sha256) &&
         width > 0 &&
         height > 0 &&
-        altText.length <= 1000 &&
+        RecordTextLimits.imageAlt.accepts(altText) &&
         order >= 0 &&
         order < 4;
     if (!valid) {

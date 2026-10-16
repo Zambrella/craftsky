@@ -14,6 +14,36 @@ import 'package:material_ui/material_ui.dart';
 import '../../fakes/image_cache_fakes.dart';
 
 void main() {
+  testWidgets('autocomplete cannot bypass text limits', (tester) async {
+    final controller = FacetTextEditingController();
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(
+      _wrap(
+        overrides: [
+          facetAutocompleteDebounceProvider.overrideWithValue(Duration.zero),
+          hashtagSuggestionRepositoryProvider.overrideWithValue(
+            const MockHashtagSuggestionRepository(
+              hashtags: [
+                HashtagSuggestion(tag: 'MeMadeMay', postsLast28Days: 9),
+              ],
+            ),
+          ),
+        ],
+        child: FacetAutocompleteEditor(
+          label: 'Pattern',
+          controller: controller,
+          maxLength: 5,
+          maxBytes: 5,
+        ),
+      ),
+    );
+    await tester.enterText(find.byType(TextField), '#me');
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('#MeMadeMay'));
+    await tester.pump();
+    expect(controller.text, '#me');
+  });
+
   group('FacetAutocompleteEditor', () {
     testWidgets(
       'AT-003 shows mention suggestions and inserts selected handle',

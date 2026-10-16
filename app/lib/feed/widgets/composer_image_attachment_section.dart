@@ -7,6 +7,7 @@ import 'package:craftsky_app/feed/providers/composer_image_state.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/shared/image/craftsky_image_attachment_preview.dart';
 import 'package:craftsky_app/shared/media/image_source_menu.dart';
+import 'package:craftsky_app/shared/text/record_text_limits.dart';
 import 'package:craftsky_app/theme/brand_text_field.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
@@ -707,6 +708,8 @@ class _DraftImageTile extends StatelessWidget {
                 key: altTextKey,
                 label: l10n.postComposeAltTextLabel,
                 initialValue: image.altText,
+                maxLength: RecordTextLimits.imageAlt.graphemes,
+                maxBytes: RecordTextLimits.imageAlt.bytes,
                 hintText: l10n.postComposeAltTextHint,
                 minLines: 2,
                 maxLines: 4,

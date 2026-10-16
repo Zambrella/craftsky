@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:craftsky_app/feed/providers/composer_image_state.dart';
 import 'package:craftsky_app/feed/providers/composer_images_provider.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
@@ -10,14 +12,35 @@ import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/shared/widgets/craft_icon.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
+import 'package:craftsky_app/theme/publishing_progress_indicator.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:rive/rive.dart' as rive;
 
 import '../../fakes/recording_messenger.dart';
 
 void main() {
+  testWidgets('sewing fit notes stop at the lexicon character boundary', (
+    tester,
+  ) async {
+    await _pumpComposer(tester, 'fit-notes-composer');
+    await _selectCraft(tester, 'Sewing');
+    final action = find.byKey(
+      const Key('project-composer-craft-details-action'),
+    );
+    await tester.ensureVisible(action);
+    await tester.tap(action);
+    await tester.pumpAndSettle();
+    final field = find.widgetWithText(TextField, 'Add fit notes');
+    await tester.ensureVisible(field);
+    await tester.enterText(field, 'é' * 601);
+    await tester.pump();
+    expect(tester.widget<TextField>(field).controller!.text, 'é' * 600);
+    expect(find.text('600/600'), findsOneWidget);
+  });
+
   testWidgets('AT-003 project composer primary fields render on one page', (
     tester,
   ) async {
@@ -149,6 +172,9 @@ Future<void> _pumpComposer(
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
+        publishingAnimationFileProvider.overrideWith(
+          (ref) => Completer<rive.File>().future,
+        ),
         preferredProjectCraftsProvider.overrideWithValue(
           ProjectOptionCatalogs.craftTypesForPreferences(crafts),
         ),

@@ -8,6 +8,7 @@ import 'package:craftsky_app/feed/widgets/composer_image_attachment_section.dart
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/profile/providers/profile_image_picker_provider.dart';
 import 'package:craftsky_app/router/responsive_modal_navigation.dart';
+import 'package:craftsky_app/shared/text/record_text_limits.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:craftsky_app/theme/craftsky_select_inputs.dart';
@@ -200,6 +201,7 @@ class _ProductEditorState extends ConsumerState<ProductEditor> {
                           label: l10n.businessProductTitleLabel,
                           required: true,
                           maxLength: businessProductTitleLimit,
+                          maxBytes: RecordTextLimits.productTitle.bytes,
                           textCapitalization: TextCapitalization.words,
                           validator: (value) {
                             if (value == null || value.trim().isEmpty) {

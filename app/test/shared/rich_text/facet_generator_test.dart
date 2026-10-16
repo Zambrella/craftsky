@@ -9,6 +9,16 @@ import 'package:craftsky_app/shared/rich_text/faceted_text_model.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('hashtags beyond the lexicon limit remain unannotated prose', () async {
+    final generator = FacetGenerator(mentionResolver: _MapMentionResolver({}));
+    final valid = 'a' * 64;
+    final overlong = 'a' * 65;
+    final facets = await generator.generate('#$valid #$overlong');
+    expect(facets, hasLength(1));
+    expect(_firstFeature(facets.single)['tag'], valid);
+    expect(rawFacetsForPlainText('#$overlong'), isEmpty);
+  });
+
   group('FacetGenerator', () {
     test(
       'UT-002 computes UTF-8 byte offsets after emoji and multibyte text',

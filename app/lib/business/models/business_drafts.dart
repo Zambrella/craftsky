@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:characters/characters.dart';
 import 'package:craftsky_app/business/models/business_event.dart';
 import 'package:craftsky_app/business/models/business_profile.dart';
 import 'package:craftsky_app/business/services/business_time_zone_service.dart';
@@ -247,8 +248,9 @@ class BusinessEventDraftValidationException implements Exception {
   final Set<EventDraftError> errors;
 }
 
-bool _validText(String value, int runeLimit, int byteLimit) =>
-    value.runes.length <= runeLimit && utf8.encode(value).length <= byteLimit;
+bool _validText(String value, int graphemeLimit, int byteLimit) =>
+    value.characters.length <= graphemeLimit &&
+    utf8.encode(value).length <= byteLimit;
 
 bool _validHttps(String value) {
   final uri = Uri.tryParse(value);
@@ -676,7 +678,7 @@ class ProductDraft {
   Set<ProductDraftError> validate() {
     final errors = <ProductDraftError>{};
     if (title.trim().isEmpty) errors.add(ProductDraftError.titleRequired);
-    if (title.runes.length > businessProductTitleLimit ||
+    if (title.characters.length > businessProductTitleLimit ||
         utf8.encode(title).length > 1500) {
       errors.add(ProductDraftError.titleTooLong);
     }
@@ -747,7 +749,7 @@ bool _validImage(
     const {'image/jpeg', 'image/png', 'image/webp'}.contains(mime) &&
     size >= 0 &&
     size <= 2000000 &&
-    alt.runes.length <= businessImageAltLimit &&
+    alt.characters.length <= businessImageAltLimit &&
     utf8.encode(alt).length <= businessImageAltLimit &&
     (aspectRatio == null || (aspectRatio.width > 0 && aspectRatio.height > 0));
 

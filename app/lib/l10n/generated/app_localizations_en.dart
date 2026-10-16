@@ -1245,6 +1245,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get postComposeCommentSubmit => 'Comment';
 
   @override
+  String get textInputTooLong => 'This text is too long. Please shorten it.';
+
+  @override
   String get postComposeTooLong => 'Posts must be 2000 characters or fewer';
 
   @override

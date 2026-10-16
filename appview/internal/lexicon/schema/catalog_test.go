@@ -43,3 +43,23 @@ func TestPostImageCountBoundary(t *testing.T) {
 		})
 	}
 }
+
+func TestSewingFitNotesBoundaries(t *testing.T) {
+	for _, tc := range []struct {
+		name, text string
+		valid      bool
+	}{
+		{"600 graphemes", strings.Repeat("é", 600), true},
+		{"601 graphemes", strings.Repeat("a", 601), false},
+		{"6000 bytes", strings.Repeat("👨‍👩‍👧‍👦", 240), true},
+		{"over 6000 bytes", strings.Repeat("👨‍👩‍👧‍👦", 241), false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			notes, _ := json.Marshal(tc.text)
+			raw := json.RawMessage(`{"$type":"social.craftsky.feed.post","text":"project","sponsored":false,"createdAt":"2026-10-16T00:00:00Z","project":{"common":{"craftType":"social.craftsky.feed.defs#sewing"},"details":{"$type":"social.craftsky.project.sewing#details","fitNotes":` + string(notes) + `}}}`)
+			if err := schema.ValidateCraftskyRecord(raw, "social.craftsky.feed.post"); (err == nil) != tc.valid {
+				t.Fatalf("valid=%v, error=%v", tc.valid, err)
+			}
+		})
+	}
+}

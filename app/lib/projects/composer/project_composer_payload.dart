@@ -1,8 +1,14 @@
 import 'package:craftsky_app/projects/composer/project_composer_fields.dart';
 import 'package:craftsky_app/projects/models/project.dart';
 import 'package:craftsky_app/projects/options/project_option_catalogs.dart';
+import 'package:craftsky_app/shared/text/record_text_limits.dart';
 
-enum ProjectComposerValidationCode { required, invalidGauge, tooManyValues }
+enum ProjectComposerValidationCode {
+  required,
+  invalidGauge,
+  tooManyValues,
+  tooLong,
+}
 
 class ProjectComposerValidationError {
   const new({
@@ -33,6 +39,42 @@ ProjectComposerPayloadResult buildProjectComposerPayload({
         code: ProjectComposerValidationCode.required,
       ),
     ]);
+  }
+
+  final textLimits = <String, RecordTextLimit>{
+    ProjectComposerFields.title: RecordTextLimits.projectTitle,
+    ProjectComposerFields.patternName: RecordTextLimits.patternText,
+    ProjectComposerFields.patternDesigner: RecordTextLimits.patternText,
+    ProjectComposerFields.patternPublisher: RecordTextLimits.patternText,
+    if (craftType == ProjectOptionCatalogs.sewingCraftToken) ...{
+      ProjectComposerFields.sewingSizeMade: RecordTextLimits.projectSize,
+      ProjectComposerFields.sewingFitNotes: RecordTextLimits.fitNotes,
+    },
+    if (craftType == ProjectOptionCatalogs.knittingCraftToken)
+      ProjectComposerFields.knittingFinishedSize: RecordTextLimits.projectSize,
+    if (craftType == ProjectOptionCatalogs.crochetCraftToken)
+      ProjectComposerFields.crochetFinishedSize: RecordTextLimits.projectSize,
+    if (craftType == ProjectOptionCatalogs.quiltingCraftToken)
+      ProjectComposerFields.quiltingSize: RecordTextLimits.projectSize,
+  };
+  final textErrors = [
+    for (final entry in textLimits.entries)
+      if (!entry.value.accepts(_stringValue(formValues[entry.key]) ?? ''))
+        ProjectComposerValidationError(
+          fieldName: entry.key,
+          code: ProjectComposerValidationCode.tooLong,
+        ),
+    if (_materialsList(formValues[ProjectComposerFields.materials])?.any(
+          (material) => !RecordTextLimits.material.accepts(material.text),
+        ) ??
+        false)
+      const ProjectComposerValidationError(
+        fieldName: ProjectComposerFields.materials,
+        code: ProjectComposerValidationCode.tooLong,
+      ),
+  ];
+  if (textErrors.isNotEmpty) {
+    return ProjectComposerPayloadResult.errors(textErrors);
   }
 
   final detailErrors = _detailErrorsFrom(craftType, formValues);

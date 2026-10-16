@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:craftsky_app/feed/media/media_config.dart';
 import 'package:craftsky_app/feed/models/create_post_image.dart';
+import 'package:craftsky_app/shared/text/record_text_limits.dart';
 import 'package:dart_mappable/dart_mappable.dart';
 
 part 'composer_image_state.mapper.dart';
@@ -31,7 +32,10 @@ class ComposerImagesState with ComposerImagesStateMappable {
 
     for (final image in images) {
       final alt = image.altText.trim();
-      if (alt.length > config.maxAltTextCharacters) {
+      if (!RecordTextLimit(
+        config.maxAltTextCharacters,
+        RecordTextLimits.imageAlt.bytes,
+      ).accepts(alt)) {
         return false;
       }
     }
@@ -43,7 +47,10 @@ class ComposerImagesState with ComposerImagesStateMappable {
   bool canSaveDraftMedia({MediaConfig config = mediaConfig}) {
     for (final image in images) {
       if (image.phase is! ImageReady) return false;
-      if (image.altText.trim().length > config.maxAltTextCharacters) {
+      if (!RecordTextLimit(
+        config.maxAltTextCharacters,
+        RecordTextLimits.imageAlt.bytes,
+      ).accepts(image.altText.trim())) {
         return false;
       }
     }

@@ -8,6 +8,7 @@ import 'package:craftsky_app/shared/rich_text/data/facet_suggestion_repository.d
 import 'package:craftsky_app/shared/rich_text/facet_autocomplete_controller.dart';
 import 'package:craftsky_app/shared/rich_text/facet_syntax.dart';
 import 'package:craftsky_app/shared/rich_text/providers/facet_suggestion_providers.dart';
+import 'package:craftsky_app/shared/text/record_text_limits.dart';
 import 'package:craftsky_app/theme/brand_text_field.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:flutter/rendering.dart';
@@ -146,6 +147,8 @@ class FacetAutocompleteEditor extends ConsumerStatefulWidget {
     this.hintText,
     this.minLines,
     this.maxLines = 1,
+    this.maxLength,
+    this.maxBytes,
     this.enabled = true,
     this.errorText,
     this.helperText,
@@ -179,6 +182,9 @@ class FacetAutocompleteEditor extends ConsumerStatefulWidget {
 
   /// Maximum lines for multiline editors.
   final int? maxLines;
+
+  final int? maxLength;
+  final int? maxBytes;
 
   /// Whether the field is enabled.
   final bool enabled;
@@ -329,17 +335,28 @@ class _FacetAutocompleteEditorState
     });
   }
 
+  bool _acceptsReplacement(String text) =>
+      (widget.maxLength == null ||
+          text.characters.length <= widget.maxLength!) &&
+      (widget.maxBytes == null ||
+          RecordTextLimit(
+            text.characters.length,
+            widget.maxBytes!,
+          ).accepts(text));
+
   void _selectMention(AccountSuggestion account) {
     final token = _activeToken;
     final alias = ProfileHandle(account.handle).aliasInput;
     if (token == null || alias == null) {
       return;
     }
-    widget.controller.value = FacetAutocompleteController.replaceActiveToken(
+    final replacement = FacetAutocompleteController.replaceActiveToken(
       current: widget.controller.value,
       token: token,
       replacementWithSingleTrailingSpace: '@$alias ',
     );
+    if (!_acceptsReplacement(replacement.text)) return;
+    widget.controller.value = replacement;
     widget.onChanged?.call(widget.controller.text);
     _focusNode.requestFocus();
     setState(() {
@@ -355,11 +372,13 @@ class _FacetAutocompleteEditorState
     if (token == null) {
       return;
     }
-    widget.controller.value = FacetAutocompleteController.replaceActiveToken(
+    final replacement = FacetAutocompleteController.replaceActiveToken(
       current: widget.controller.value,
       token: token,
       replacementWithSingleTrailingSpace: '#${hashtag.tag} ',
     );
+    if (!_acceptsReplacement(replacement.text)) return;
+    widget.controller.value = replacement;
     widget.onChanged?.call(widget.controller.text);
     _focusNode.requestFocus();
     setState(() {
@@ -500,6 +519,8 @@ class _FacetAutocompleteEditorState
           hintText: widget.hintText,
           minLines: widget.minLines,
           maxLines: widget.maxLines,
+          maxLength: widget.maxLength,
+          maxBytes: widget.maxBytes,
           enabled: widget.enabled,
           errorText: widget.errorText,
           helperText: widget.helperText,

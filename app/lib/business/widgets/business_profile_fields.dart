@@ -4,6 +4,7 @@ import 'package:craftsky_app/business/models/business_drafts.dart';
 import 'package:craftsky_app/business/models/business_labels.dart';
 import 'package:craftsky_app/business/models/business_profile.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
+import 'package:craftsky_app/shared/text/record_text_limits.dart';
 import 'package:craftsky_app/theme/craftsky_form_builder_select_fields.dart';
 import 'package:craftsky_app/theme/craftsky_text_inputs.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
@@ -174,6 +175,8 @@ class BusinessProfileFields extends StatelessWidget {
         SizedBox(height: spacing.sp5),
         _TextField(
           name: BusinessProfileFieldNames.tagline,
+          maxLength: RecordTextLimits.businessTagline.graphemes,
+          maxBytes: RecordTextLimits.businessTagline.bytes,
           label: l10n.editProfileBusinessTaglineLabel,
           initialValue: initial.tagline,
           maxLines: 2,
@@ -188,6 +191,8 @@ class BusinessProfileFields extends StatelessWidget {
         SizedBox(height: spacing.sp5),
         _TextField(
           name: BusinessProfileFieldNames.hours,
+          maxLength: RecordTextLimits.businessHours.graphemes,
+          maxBytes: RecordTextLimits.businessHours.bytes,
           label: l10n.editProfileBusinessHoursLabel,
           initialValue: initial.hoursNote,
           maxLines: 4,
@@ -202,6 +207,8 @@ class BusinessProfileFields extends StatelessWidget {
         SizedBox(height: spacing.sp5),
         _TextField(
           name: BusinessProfileFieldNames.serviceArea,
+          maxLength: RecordTextLimits.businessServiceArea.graphemes,
+          maxBytes: RecordTextLimits.businessServiceArea.bytes,
           label: l10n.editProfileBusinessServiceAreaLabel,
           initialValue: initial.serviceArea,
           maxLines: 3,
@@ -232,6 +239,8 @@ class BusinessProfileFields extends StatelessWidget {
         SizedBox(height: spacing.sp5),
         _TextField(
           name: BusinessProfileFieldNames.locality,
+          maxLength: RecordTextLimits.locality.graphemes,
+          maxBytes: RecordTextLimits.locality.bytes,
           label: l10n.editProfileBusinessLocalityLabel,
           initialValue: initial.location?.locality,
           textCapitalization: TextCapitalization.words,
@@ -350,6 +359,8 @@ class _TextField extends StatelessWidget {
     this.initialValue,
     this.validator,
     this.maxLines = 1,
+    this.maxLength,
+    this.maxBytes,
     this.keyboardType,
     this.textCapitalization = TextCapitalization.none,
   });
@@ -360,6 +371,8 @@ class _TextField extends StatelessWidget {
   final bool enabled;
   final FormFieldValidator<String>? validator;
   final int maxLines;
+  final int? maxLength;
+  final int? maxBytes;
   final TextInputType? keyboardType;
   final TextCapitalization textCapitalization;
 
@@ -371,6 +384,8 @@ class _TextField extends StatelessWidget {
     enabled: enabled,
     validator: validator,
     maxLines: maxLines,
+    maxLength: maxLength,
+    maxBytes: maxBytes,
     keyboardType: keyboardType,
     textCapitalization: textCapitalization,
   );

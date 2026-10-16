@@ -1,5 +1,6 @@
 import 'package:craftsky_app/feed/providers/composer_video_controller.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
+import 'package:craftsky_app/shared/text/record_text_limits.dart';
 import 'package:craftsky_app/theme/brand_text_field.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:material_ui/material_ui.dart';
@@ -95,7 +96,8 @@ final class ComposerVideoAttachmentCard extends StatelessWidget {
               label: l10n.postComposeAltTextLabel,
               initialValue: selection.altText,
               enabled: enabled,
-              maxLength: 1000,
+              maxLength: RecordTextLimits.videoAlt.graphemes,
+              maxBytes: RecordTextLimits.videoAlt.bytes,
               maxLines: 3,
               minLines: 3,
               keyboardType: TextInputType.multiline,

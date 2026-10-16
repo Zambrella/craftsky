@@ -7,7 +7,7 @@ void main() {
       expect(mediaConfig.maxImages, 8);
       expect(mediaConfig.maxImageBytes, 2000000);
       expect(mediaConfig.maxImageAspectRatio, 20);
-      expect(mediaConfig.maxAltTextCharacters, 300);
+      expect(mediaConfig.maxAltTextCharacters, 1000);
     });
   });
 }

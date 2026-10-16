@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:craftsky_app/feed/media/composer_image_media_service.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
+import 'package:craftsky_app/shared/text/record_text_limits.dart';
 import 'package:crypto/crypto.dart';
 
 String verifyPreparedMediaBytes({
@@ -25,7 +26,10 @@ String verifyPreparedMediaBytes({
       (normalizedMime != 'image/jpeg' && normalizedMime != 'image/png') ||
       width <= 0 ||
       height <= 0 ||
-      altText.trim().length > mediaService.config.maxAltTextCharacters) {
+      !RecordTextLimit(
+        mediaService.config.maxAltTextCharacters,
+        RecordTextLimits.imageAlt.bytes,
+      ).accepts(altText.trim())) {
     throw DiagnosticStateError('prepared image is no longer valid');
   }
   final digest = sha256.convert(bytes).toString();

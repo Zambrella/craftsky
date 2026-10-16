@@ -11,10 +11,15 @@ void main() {
     controller
       ..setAltText('')
       ..setAltText('e\u0301' * 1000)
-      ..setAltText('👩🏽‍🧶' * 1000);
+      ..setAltText('👩' * 1000)
+      ..setAltText('👨‍👩‍👧‍👦' * 400);
 
     expect(
       () => controller.setAltText('👩🏽‍🧶' * 1001),
+      throwsArgumentError,
+    );
+    expect(
+      () => controller.setAltText('👨‍👩‍👧‍👦' * 401),
       throwsArgumentError,
     );
   });

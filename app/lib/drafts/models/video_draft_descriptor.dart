@@ -1,4 +1,5 @@
 import 'package:craftsky_app/drafts/models/draft_manifest_error.dart';
+import 'package:craftsky_app/shared/text/record_text_limits.dart';
 
 enum DraftVideoAvailability { available, unavailable }
 
@@ -74,7 +75,7 @@ final class VideoDraftDescriptor {
         width > 0 &&
         height > 0 &&
         (duration == null || duration! > Duration.zero) &&
-        altText.length <= 1000;
+        RecordTextLimits.videoAlt.accepts(altText);
     if (!valid) {
       throw const DraftManifestException(
         DraftManifestFailureReason.invalidMedia,

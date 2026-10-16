@@ -1,5 +1,7 @@
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/shared/rich_text/facet_autocomplete_controller.dart';
 import 'package:craftsky_app/shared/rich_text/widgets/facet_autocomplete_editor.dart';
+import 'package:craftsky_app/shared/text/record_text_limits.dart';
 import 'package:flutter_form_builder/flutter_form_builder.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -8,6 +10,7 @@ class ProjectFacetField extends StatefulWidget {
     required this.name,
     required this.label,
     required this.controller,
+    required this.limit,
     super.key,
     this.editorKey,
     this.focusNode,
@@ -20,6 +23,7 @@ class ProjectFacetField extends StatefulWidget {
     this.onChanged,
   });
 
+  final RecordTextLimit limit;
   final String name;
   final String label;
   final FacetTextEditingController controller;
@@ -55,10 +59,16 @@ class _ProjectFacetFieldState extends State<ProjectFacetField> {
     return FormBuilderField<String>(
       name: widget.name,
       enabled: widget.enabled,
+      validator: (value) => widget.limit.accepts(value ?? '')
+          ? null
+          : AppLocalizations.of(context).textInputTooLong,
       builder: (field) {
         return FacetAutocompleteEditor(
           key: widget.editorKey,
           label: widget.label,
+          maxLength: widget.limit.graphemes,
+          maxBytes: widget.limit.bytes,
+          errorText: field.errorText,
           hintText: widget.hintText,
           controller: widget.controller,
           focusNode: widget.focusNode,

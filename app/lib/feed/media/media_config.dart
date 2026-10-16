@@ -38,5 +38,5 @@ class MediaConfig {
 const mediaConfig = MediaConfig(
   maxImages: defaultMaxPostImages,
   maxImageBytes: 2000000,
-  maxAltTextCharacters: 300,
+  maxAltTextCharacters: 1000,
 );

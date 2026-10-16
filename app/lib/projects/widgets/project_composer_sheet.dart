@@ -69,6 +69,7 @@ import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
 import 'package:craftsky_app/shared/rich_text/facet_autocomplete_controller.dart';
 import 'package:craftsky_app/shared/rich_text/providers/facet_suggestion_providers.dart';
 import 'package:craftsky_app/shared/rich_text/widgets/facet_autocomplete_editor.dart';
+import 'package:craftsky_app/shared/text/record_text_limits.dart';
 import 'package:craftsky_app/shared/widgets/action_progress.dart';
 import 'package:craftsky_app/shared/widgets/craft_icon.dart';
 import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
@@ -472,7 +473,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
         !_isLoadingScheduledMedia &&
         !_scheduledMediaLoadFailed;
     final trimmedBody = _bodyText.trim();
-    final tooLong = _bodyText.length > ProjectComposerSheet.maxCharacters;
+    final tooLong = !RecordTextLimits.post.accepts(_bodyText);
     final canSubmit =
         !_isSavingDraft &&
         !_isScheduling &&
@@ -1290,6 +1291,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
       children: [
         ProjectFacetField(
           name: ProjectComposerFields.patternDesigner,
+          limit: RecordTextLimits.patternText,
           key: const Key('project-composer-pattern-designer-field'),
           editorKey: const Key('project-composer-pattern-designer-editor'),
           label: l10n.projectComposerPatternDesignerLabel,
@@ -1301,6 +1303,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
         SizedBox(height: spacing.sp4),
         ProjectFacetField(
           name: ProjectComposerFields.patternPublisher,
+          limit: RecordTextLimits.patternText,
           key: const Key('project-composer-pattern-publisher-field'),
           editorKey: const Key('project-composer-pattern-publisher-editor'),
           label: l10n.projectComposerPatternPublisherLabel,
@@ -1440,6 +1443,8 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
         SizedBox(height: spacing.sp3),
         CraftskyFormBuilderTextField(
           name: ProjectComposerFields.title,
+          maxLength: RecordTextLimits.projectTitle.graphemes,
+          maxBytes: RecordTextLimits.projectTitle.bytes,
           label: l10n.projectComposerProjectTitleLabel,
           textCapitalization: TextCapitalization.words,
           hintText: l10n.projectComposerProjectTitleHint,
@@ -1457,6 +1462,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
         SizedBox(height: spacing.sp4),
         ProjectFacetField(
           name: ProjectComposerFields.patternName,
+          limit: RecordTextLimits.patternText,
           key: const Key('project-composer-pattern-name-field'),
           editorKey: const Key('project-composer-pattern-name-editor'),
           label: l10n.projectComposerPatternNameLabel,
@@ -1533,6 +1539,8 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         FacetAutocompleteEditor(
+          maxLength: RecordTextLimits.post.graphemes,
+          maxBytes: RecordTextLimits.post.bytes,
           key: const Key('project-composer-body-editor'),
           label: l10n.projectComposerDescriptionLabel,
           required: true,
@@ -1546,8 +1554,6 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
           textInputAction: TextInputAction.newline,
           keyboardType: TextInputType.multiline,
           errorText: bodyErrorText,
-          helperText:
-              '${_bodyText.length}/${ProjectComposerSheet.maxCharacters}',
           helperAlignment: AlignmentDirectional.centerEnd,
           onChanged: (value) => setState(() => _bodyText = value),
         ),
@@ -1679,6 +1685,8 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
       SizedBox(height: spacing.sp4),
       CraftskyFormBuilderTextField(
         name: ProjectComposerFields.sewingSizeMade,
+        maxLength: RecordTextLimits.projectSize.graphemes,
+        maxBytes: RecordTextLimits.projectSize.bytes,
         label: l10n.projectComposerSizeMadeLabel,
         hintText: l10n.projectComposerSizeMadeHint,
         enabled: controlsEnabled,
@@ -1686,6 +1694,8 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
       SizedBox(height: spacing.sp4),
       CraftskyFormBuilderMultilineTextField(
         name: ProjectComposerFields.sewingFitNotes,
+        maxLength: RecordTextLimits.fitNotes.graphemes,
+        maxBytes: RecordTextLimits.fitNotes.bytes,
         label: l10n.projectComposerFitNotesLabel,
         hintText: l10n.projectComposerFitNotesHint,
         enabled: controlsEnabled,
@@ -1789,6 +1799,8 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
       SizedBox(height: spacing.sp4),
       CraftskyFormBuilderTextField(
         name: ProjectComposerFields.knittingFinishedSize,
+        maxLength: RecordTextLimits.projectSize.graphemes,
+        maxBytes: RecordTextLimits.projectSize.bytes,
         label: l10n.projectComposerFinishedSizeLabel,
         hintText: l10n.projectComposerFinishedSizeHint,
         enabled: controlsEnabled,
@@ -1891,6 +1903,8 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
       SizedBox(height: spacing.sp4),
       CraftskyFormBuilderTextField(
         name: ProjectComposerFields.crochetFinishedSize,
+        maxLength: RecordTextLimits.projectSize.graphemes,
+        maxBytes: RecordTextLimits.projectSize.bytes,
         label: l10n.projectComposerFinishedSizeLabel,
         hintText: l10n.projectComposerFinishedSizeHint,
         enabled: controlsEnabled,
@@ -1939,6 +1953,8 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
       SizedBox(height: spacing.sp4),
       CraftskyFormBuilderTextField(
         name: ProjectComposerFields.quiltingSize,
+        maxLength: RecordTextLimits.projectSize.graphemes,
+        maxBytes: RecordTextLimits.projectSize.bytes,
         label: l10n.projectComposerSizeLabel,
         hintText: l10n.projectComposerFinishedSizeHint,
         enabled: controlsEnabled,
@@ -1974,8 +1990,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
     final hasRequiredBody = trimmedBody.isNotEmpty;
     final hasRequiredPhoto =
         imagesState.images.isNotEmpty || _videoController.selection != null;
-    final isBodyLengthValid =
-        _bodyText.length <= ProjectComposerSheet.maxCharacters;
+    final isBodyLengthValid = RecordTextLimits.post.accepts(_bodyText);
     if (!isFormValid ||
         !hasRequiredBody ||
         !hasRequiredPhoto ||
@@ -2007,9 +2022,24 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
                   error.code == ProjectComposerValidationCode.invalidGauge,
             )
             ? AppLocalizations.of(context).projectComposerGaugeInvalidError
+            : payload.errors.any(
+                (error) => error.code == ProjectComposerValidationCode.tooLong,
+              )
+            ? AppLocalizations.of(context).textInputTooLong
             : null;
       });
-      if (_formValidationError != null) await _openCraftDetails();
+      if (_formValidationError != null) {
+        final field = payload.errors.first.fieldName;
+        if (field == ProjectComposerFields.patternName ||
+            field == ProjectComposerFields.patternDesigner ||
+            field == ProjectComposerFields.patternPublisher) {
+          await _openPatternDetails();
+        } else if (field == ProjectComposerFields.materials) {
+          await _openCommonDetails();
+        } else {
+          await _openCraftDetails();
+        }
+      }
       return;
     }
 

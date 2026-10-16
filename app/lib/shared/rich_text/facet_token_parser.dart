@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:craftsky_app/shared/rich_text/facet_syntax.dart';
 import 'package:craftsky_app/shared/rich_text/faceted_text_model.dart';
+import 'package:craftsky_app/shared/text/record_text_limits.dart';
 
 /// Plain-text token detected by CraftSky's supported facet rules.
 sealed class FacetToken {
@@ -106,6 +107,8 @@ List<FacetToken> detectSupportedFacetTokens(String text) {
   for (final match in facetHashtagPattern.allMatches(text)) {
     final prefix = match.group(1) ?? '';
     final tag = match.group(2)!;
+    // Keep overlong tokens as prose rather than publishing invalid facets.
+    if (!RecordTextLimits.hashtag.accepts(tag)) continue;
     final charStart = match.start + prefix.length;
     tokens.add(
       TagFacetToken(

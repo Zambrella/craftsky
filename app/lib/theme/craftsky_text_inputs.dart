@@ -1,3 +1,6 @@
+import 'dart:convert';
+
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/theme/brand_text_field.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_form_builder/flutter_form_builder.dart';
@@ -20,6 +23,7 @@ class CraftskyTextInput extends StatelessWidget {
     this.inputFormatters,
     this.autofillHints,
     this.maxLength,
+    this.maxBytes,
     this.minLines,
     this.maxLines = 1,
     this.textCapitalization = TextCapitalization.none,
@@ -46,6 +50,7 @@ class CraftskyTextInput extends StatelessWidget {
   final List<TextInputFormatter>? inputFormatters;
   final Iterable<String>? autofillHints;
   final int? maxLength;
+  final int? maxBytes;
   final int? minLines;
   final int? maxLines;
   final TextCapitalization textCapitalization;
@@ -71,6 +76,7 @@ class CraftskyTextInput extends StatelessWidget {
       inputFormatters: inputFormatters,
       autofillHints: autofillHints,
       maxLength: maxLength,
+      maxBytes: maxBytes,
       minLines: minLines,
       maxLines: maxLines,
       textCapitalization: textCapitalization,
@@ -97,6 +103,7 @@ class CraftskyMultilineTextInput extends CraftskyTextInput {
     super.inputFormatters,
     super.autofillHints,
     super.maxLength,
+    super.maxBytes,
     super.textCapitalization = TextCapitalization.sentences,
     super.minLines = 3,
     super.maxLines = 6,
@@ -132,6 +139,7 @@ class CraftskyTextFormField extends StatelessWidget {
     this.minLines,
     this.maxLines = 1,
     this.maxLength,
+    this.maxBytes,
     this.onChanged,
     this.onSubmitted,
   }) : assert(
@@ -158,6 +166,7 @@ class CraftskyTextFormField extends StatelessWidget {
   final int? minLines;
   final int? maxLines;
   final int? maxLength;
+  final int? maxBytes;
   final ValueChanged<String>? onChanged;
   final ValueChanged<String>? onSubmitted;
 
@@ -166,7 +175,16 @@ class CraftskyTextFormField extends StatelessWidget {
     return FormField<String>(
       initialValue: controller?.text ?? initialValue ?? '',
       enabled: enabled,
-      validator: validator,
+      validator: (value) {
+        final error = validator?.call(value);
+        if (error != null) return error;
+        if ((maxLength != null &&
+                (value ?? '').characters.length > maxLength!) ||
+            (maxBytes != null && utf8.encode(value ?? '').length > maxBytes!)) {
+          return AppLocalizations.of(context).textInputTooLong;
+        }
+        return null;
+      },
       builder: (field) => CraftskyTextInput(
         label: label,
         controller: controller,
@@ -187,6 +205,7 @@ class CraftskyTextFormField extends StatelessWidget {
         minLines: minLines,
         maxLines: maxLines,
         maxLength: maxLength,
+        maxBytes: maxBytes,
         onChanged: (value) {
           field.didChange(value);
           onChanged?.call(value);
@@ -215,6 +234,7 @@ class CraftskyMultilineTextFormField extends CraftskyTextFormField {
     super.minLines = 3,
     super.maxLines = 6,
     super.maxLength,
+    super.maxBytes,
     super.textCapitalization = TextCapitalization.sentences,
     super.onChanged,
     super.onSubmitted,
@@ -383,6 +403,7 @@ class CraftskyFormTextField extends StatelessWidget {
     this.minLines,
     this.maxLines = 1,
     this.maxLength,
+    this.maxBytes,
     this.textCapitalization = TextCapitalization.none,
     this.onChanged,
     this.onSubmitted,
@@ -408,6 +429,7 @@ class CraftskyFormTextField extends StatelessWidget {
   final int? minLines;
   final int? maxLines;
   final int? maxLength;
+  final int? maxBytes;
   final TextCapitalization textCapitalization;
   final ValueChanged<String?>? onChanged;
   final ValueChanged<String>? onSubmitted;
@@ -420,7 +442,16 @@ class CraftskyFormTextField extends StatelessWidget {
       initialValue: initialValue ?? controller?.text,
       enabled: enabled,
       focusNode: focusNode,
-      validator: validator,
+      validator: (value) {
+        final error = validator?.call(value);
+        if (error != null) return error;
+        if ((maxLength != null &&
+                (value ?? '').characters.length > maxLength!) ||
+            (maxBytes != null && utf8.encode(value ?? '').length > maxBytes!)) {
+          return AppLocalizations.of(context).textInputTooLong;
+        }
+        return null;
+      },
       builder: (field) {
         return _CraftskyFormTextAdapter(
           field: field,
@@ -440,6 +471,7 @@ class CraftskyFormTextField extends StatelessWidget {
           minLines: minLines,
           maxLines: maxLines,
           maxLength: maxLength,
+          maxBytes: maxBytes,
           textCapitalization: textCapitalization,
           onChanged: onChanged,
           onSubmitted: onSubmitted,
@@ -467,6 +499,8 @@ class CraftskyFormMultilineTextField extends CraftskyFormTextField {
     super.textInputAction = TextInputAction.newline,
     super.minLines = 3,
     super.maxLines = 6,
+    super.maxLength,
+    super.maxBytes,
     super.textCapitalization = TextCapitalization.sentences,
     super.onChanged,
     super.onSubmitted,
@@ -489,6 +523,7 @@ class _CraftskyFormTextAdapter extends StatefulWidget {
     required this.minLines,
     required this.maxLines,
     required this.maxLength,
+    required this.maxBytes,
     required this.textCapitalization,
     required this.onChanged,
     required this.onSubmitted,
@@ -508,6 +543,7 @@ class _CraftskyFormTextAdapter extends StatefulWidget {
   final int? minLines;
   final int? maxLines;
   final int? maxLength;
+  final int? maxBytes;
   final TextCapitalization textCapitalization;
   final ValueChanged<String?>? onChanged;
   final ValueChanged<String>? onSubmitted;
@@ -559,6 +595,7 @@ class _CraftskyFormTextAdapterState extends State<_CraftskyFormTextAdapter> {
       minLines: widget.minLines,
       maxLines: widget.maxLines,
       maxLength: widget.maxLength,
+      maxBytes: widget.maxBytes,
       textCapitalization: widget.textCapitalization,
       enabled: widget.field.widget.enabled,
       textFieldKey: widget.textFieldKey,

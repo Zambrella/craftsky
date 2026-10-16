@@ -5,6 +5,34 @@ import 'package:craftsky_app/projects/options/project_option_catalogs.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('restored sewing notes respect grapheme and byte boundaries', () {
+    for (final (notes, valid) in [
+      ('é' * 600, true),
+      ('a' * 601, false),
+      ('👨‍👩‍👧‍👦' * 240, true),
+      ('👨‍👩‍👧‍👦' * 241, false),
+    ]) {
+      final result = buildProjectComposerPayload(
+        formValues: {
+          ProjectComposerFields.craftType:
+              ProjectOptionCatalogs.sewingCraftToken,
+          ProjectComposerFields.sewingFitNotes: notes,
+        },
+      );
+      expect(result.project != null, valid);
+      if (!valid) {
+        expect(
+          result.errors.single.fieldName,
+          ProjectComposerFields.sewingFitNotes,
+        );
+        expect(
+          result.errors.single.code,
+          ProjectComposerValidationCode.tooLong,
+        );
+      }
+    }
+  });
+
   group('Project composer payload', () {
     test('UT-007 maps common fields, default status and metadata strings', () {
       final result = buildProjectComposerPayload(

@@ -15,6 +15,7 @@ import 'package:craftsky_app/drafts/models/draft_media_descriptor.dart';
 import 'package:craftsky_app/drafts/models/local_post_draft.dart';
 import 'package:craftsky_app/drafts/models/video_draft_descriptor.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
+import 'package:craftsky_app/shared/text/record_text_limits.dart';
 import 'package:crypto/crypto.dart';
 import 'package:path/path.dart' as p;
 import 'package:uuid/uuid.dart';
@@ -481,7 +482,7 @@ final class FileLocalPostDraftRepository
             stored.storageRevision != write.storageRevision ||
             stored.sourceSha256 != write.expectedSourceSha256 ||
             stored.posterSha256 != write.expectedPosterSha256 ||
-            write.altText.length > 1000) {
+            !RecordTextLimits.videoAlt.accepts(write.altText)) {
           throw const DraftRepositoryException(
             DraftRepositoryFailureReason.invalidRequest,
           );

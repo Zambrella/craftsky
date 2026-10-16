@@ -4,6 +4,7 @@ import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/onboarding/models/onboarding_flow_state.dart';
 import 'package:craftsky_app/profile/data/profile_field_constraints.dart';
 import 'package:craftsky_app/profile/models/profile_handle.dart';
+import 'package:craftsky_app/shared/text/record_text_limits.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/craftsky_text_inputs.dart';
 import 'package:material_ui/material_ui.dart';
@@ -153,6 +154,7 @@ class _OnboardingProfileStepState extends State<OnboardingProfileStep> {
           controller: _name,
           enabled: !widget.state.saving,
           maxLength: profileDisplayNameMaxLength,
+          maxBytes: RecordTextLimits.displayName.bytes,
           textCapitalization: TextCapitalization.words,
           textInputAction: TextInputAction.next,
           onChanged: widget.onDisplayNameChanged,
@@ -165,6 +167,7 @@ class _OnboardingProfileStepState extends State<OnboardingProfileStep> {
           controller: _pronouns,
           enabled: !widget.state.saving,
           maxLength: profilePronounsMaxLength,
+          maxBytes: RecordTextLimits.pronouns.bytes,
           textInputAction: TextInputAction.next,
           onChanged: widget.onPronounsChanged,
         ),
@@ -175,6 +178,7 @@ class _OnboardingProfileStepState extends State<OnboardingProfileStep> {
           controller: _bio,
           enabled: !widget.state.saving,
           maxLength: profileBioMaxLength,
+          maxBytes: RecordTextLimits.bio.bytes,
           onChanged: widget.onBioChanged,
         ),
       ],

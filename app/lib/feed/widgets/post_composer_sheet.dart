@@ -62,6 +62,7 @@ import 'package:craftsky_app/shared/messaging/widgets/craftsky_snack_bar.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
 import 'package:craftsky_app/shared/rich_text/providers/facet_suggestion_providers.dart';
 import 'package:craftsky_app/shared/rich_text/widgets/facet_autocomplete_editor.dart';
+import 'package:craftsky_app/shared/text/record_text_limits.dart';
 import 'package:craftsky_app/shared/widgets/action_progress.dart';
 import 'package:craftsky_app/subscriptions/providers/subscription_access_provider.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
@@ -405,7 +406,7 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
       ownsExistingSlot: widget.scheduledPost != null,
     );
     final trimmedText = _text.trim();
-    final tooLong = _text.length > PostComposerSheet.maxCharacters;
+    final tooLong = !RecordTextLimits.post.accepts(_text);
     final canSubmit =
         !_isSavingDraft &&
         !createState.isLoading &&
@@ -543,6 +544,8 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
                           SizedBox(height: spacing.sp4),
                         ],
                         FacetAutocompleteEditor(
+                          maxLength: RecordTextLimits.post.graphemes,
+                          maxBytes: RecordTextLimits.post.bytes,
                           label: isComment
                               ? l10n.postComposeCommentHint
                               : isResponse
@@ -565,8 +568,6 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
                               !_isScheduling &&
                               !_isSubmitting,
                           errorText: bodyErrorText,
-                          helperText:
-                              '${_text.length}/${PostComposerSheet.maxCharacters}',
                           helperAlignment: AlignmentDirectional.centerEnd,
                           onChanged: (value) {
                             setState(() => _text = value);
@@ -1101,10 +1102,9 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
     final imagesState = ref.read(composerImagesProvider(_composerId));
     setState(() => _attemptedSubmit = true);
     if (trimmedText.isEmpty ||
-        _text.length > PostComposerSheet.maxCharacters ||
+        !RecordTextLimits.post.accepts(_text) ||
         !imagesState.canSubmitImages()) {
-      if (trimmedText.isEmpty ||
-          _text.length > PostComposerSheet.maxCharacters) {
+      if (trimmedText.isEmpty || !RecordTextLimits.post.accepts(_text)) {
         _focusNode.requestFocus();
         if (_focusNode.context case final bodyContext?) {
           await Scrollable.ensureVisible(bodyContext);
