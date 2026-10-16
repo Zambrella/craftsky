@@ -24,6 +24,7 @@ import 'package:craftsky_app/subscriptions/widgets/plus_action_icon.dart';
 import 'package:craftsky_app/subscriptions/widgets/plus_feature_lock.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
+import 'package:craftsky_app/theme/yarn_refresh_scroll_view.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:sliver_tools/sliver_tools.dart';
@@ -201,79 +202,75 @@ class _FlatSavedBody extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
     final items = state?.items ?? const <SavedPostItem>[];
-    return RefreshIndicator(
+    return YarnRefreshScrollView(
+      showSuccess: false,
       onRefresh: () =>
           ref.read(savedPostsProvider(keyValue).notifier).refresh(),
-      child: CustomScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        slivers: [
-          if (state == null)
-            const CraftskySkeletonSliverList(
-              itemBuilder: _buildSavedPostSkeleton,
-            )
-          else if (items.isEmpty)
-            SliverFillRemaining(
-              hasScrollBody: false,
-              child: CraftskyEmptyState(
-                icon: CraftskyIcons.savedSection,
-                title: l10n.savedPostsTitle,
-                subtitle: l10n.savedPostsEmpty,
+      slivers: [
+        if (state == null)
+          const CraftskySkeletonSliverList(
+            itemBuilder: _buildSavedPostSkeleton,
+          )
+        else if (items.isEmpty)
+          SliverFillRemaining(
+            hasScrollBody: false,
+            child: CraftskyEmptyState(
+              icon: CraftskyIcons.savedSection,
+              title: l10n.savedPostsTitle,
+              subtitle: l10n.savedPostsEmpty,
+            ),
+          )
+        else ...[
+          SliverToBoxAdapter(
+            child: _SavedPostsSectionHeader(
+              title: l10n.savedPostsTitle,
+              trailing: SavedPostSortButton(
+                value: sort,
+                onChanged: onSortChanged,
               ),
-            )
-          else ...[
+            ),
+          ),
+          SliverList.builder(
+            itemCount: items.length,
+            itemBuilder: (context, index) {
+              final item = items[index];
+              return SavedPostRow(
+                account: account,
+                item: item,
+                moveLocked: true,
+                onOpen: () => openSavedPost(context, item),
+                onMove: () => unawaited(
+                  showPlusFeaturePrompt(
+                    context,
+                    l10n.savedPostsFoldersHeading,
+                  ),
+                ),
+                onUnsave: () => unawaited(
+                  unsaveSavedPost(
+                    context,
+                    ref,
+                    account: account,
+                    item: item,
+                    sourceKey: keyValue,
+                  ),
+                ),
+              );
+            },
+          ),
+          if (state!.cursor != null)
             SliverToBoxAdapter(
-              child: _SavedPostsSectionHeader(
-                title: l10n.savedPostsTitle,
-                trailing: SavedPostSortButton(
-                  value: sort,
-                  onChanged: onSortChanged,
+              child: TextButton(
+                onPressed: state!.isLoadingMore
+                    ? null
+                    : ref.read(savedPostsProvider(keyValue).notifier).loadMore,
+                child: ActionProgress(
+                  isLoading: state!.isLoadingMore,
+                  child: Text(l10n.savedPostsLoadMore),
                 ),
               ),
             ),
-            SliverList.builder(
-              itemCount: items.length,
-              itemBuilder: (context, index) {
-                final item = items[index];
-                return SavedPostRow(
-                  account: account,
-                  item: item,
-                  moveLocked: true,
-                  onOpen: () => openSavedPost(context, item),
-                  onMove: () => unawaited(
-                    showPlusFeaturePrompt(
-                      context,
-                      l10n.savedPostsFoldersHeading,
-                    ),
-                  ),
-                  onUnsave: () => unawaited(
-                    unsaveSavedPost(
-                      context,
-                      ref,
-                      account: account,
-                      item: item,
-                      sourceKey: keyValue,
-                    ),
-                  ),
-                );
-              },
-            ),
-            if (state!.cursor != null)
-              SliverToBoxAdapter(
-                child: TextButton(
-                  onPressed: state!.isLoadingMore
-                      ? null
-                      : ref
-                            .read(savedPostsProvider(keyValue).notifier)
-                            .loadMore,
-                  child: ActionProgress(
-                    isLoading: state!.isLoadingMore,
-                    child: Text(l10n.savedPostsLoadMore),
-                  ),
-                ),
-              ),
-          ],
         ],
-      ),
+      ],
     );
   }
 }
@@ -301,16 +298,14 @@ class _OverviewBody extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
     if (folderState == null && postState == null) {
-      return RefreshIndicator(
+      return YarnRefreshScrollView(
+        showSuccess: false,
         onRefresh: onRefresh,
-        child: const CustomScrollView(
-          physics: AlwaysScrollableScrollPhysics(),
-          slivers: [
-            CraftskySkeletonSliverList(
-              itemBuilder: _buildSavedPostSkeleton,
-            ),
-          ],
-        ),
+        slivers: const [
+          CraftskySkeletonSliverList(
+            itemBuilder: _buildSavedPostSkeleton,
+          ),
+        ],
       );
     }
     final overview = postState != null
@@ -321,182 +316,180 @@ class _OverviewBody extends ConsumerWidget {
           )
         : null;
     final isEmpty = folderState != null && (overview?.isEmpty ?? false);
-    return RefreshIndicator(
+    return YarnRefreshScrollView(
+      showSuccess: false,
       onRefresh: onRefresh,
-      child: CustomScrollView(
-        key: const PageStorageKey('saved-posts-overview'),
-        controller: scrollController,
-        physics: const AlwaysScrollableScrollPhysics(),
-        slivers: [
-          if (isEmpty)
-            SliverFillRemaining(
-              hasScrollBody: false,
-              child: CraftskyEmptyState(
-                icon: CraftskyIcons.savedSection,
-                title: l10n.savedPostsTitle,
-                subtitle: l10n.savedPostsEmpty,
+      controller: scrollController,
+      slivers: [
+        if (isEmpty)
+          SliverFillRemaining(
+            hasScrollBody: false,
+            child: CraftskyEmptyState(
+              icon: CraftskyIcons.savedSection,
+              title: l10n.savedPostsTitle,
+              subtitle: l10n.savedPostsEmpty,
+            ),
+          )
+        else ...[
+          MultiSliver(
+            pushPinnedChildren: true,
+            children: [
+              SliverPinnedHeader(
+                child: _SavedPostsSectionHeader(
+                  title: l10n.savedPostsFoldersHeading,
+                ),
               ),
-            )
-          else ...[
+              SliverList.builder(
+                itemCount: folderState?.displayItems.length ?? 0,
+                itemBuilder: (context, index) {
+                  final folder = folderState!.displayItems[index];
+                  return ListTile(
+                    key: ValueKey('saved-overview-folder-${folder.id}'),
+                    leading: const Icon(CraftskyIcons.folder),
+                    title: Text(folder.name),
+                    trailing: const Icon(CraftskyIconsBold.next),
+                    onTap: () => SavedPostFolderRoute(
+                      $extra: SavedPostFolderRouteData(folder: folder),
+                    ).go(context),
+                  );
+                },
+              ),
+              if (folderState == null)
+                const CraftskySkeletonSliverList(
+                  itemBuilder: _buildSavedPostSkeleton,
+                  itemCount: 3,
+                )
+              else if (folderState!.incrementalError case final error?)
+                SliverToBoxAdapter(
+                  child: _SavedPostFailureControl(
+                    failure: SavedPostFailure.from(
+                      error,
+                      operation: SavedPostOperation.loadFolders,
+                    ),
+                    onPressed: ref
+                        .read(savedPostFoldersProvider(account).notifier)
+                        .retry,
+                  ),
+                )
+              else if (folderState!.cursor != null)
+                SliverToBoxAdapter(
+                  child: TextButton(
+                    onPressed: folderState!.isLoadingMore
+                        ? null
+                        : ref
+                              .read(
+                                savedPostFoldersProvider(account).notifier,
+                              )
+                              .loadMore,
+                    child: ActionProgress(
+                      isLoading: folderState!.isLoadingMore,
+                      child: Text(l10n.savedPostLoadMoreFolders),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          if (postState == null || overview!.showUnfiled)
             MultiSliver(
               pushPinnedChildren: true,
               children: [
                 SliverPinnedHeader(
                   child: _SavedPostsSectionHeader(
-                    title: l10n.savedPostsFoldersHeading,
+                    title: l10n.savedPostsUnfiledHeading,
+                    trailing: SavedPostSortButton(
+                      value: sort,
+                      onChanged: onSortChanged,
+                    ),
                   ),
                 ),
                 SliverList.builder(
-                  itemCount: folderState?.displayItems.length ?? 0,
+                  itemCount: overview?.unfiledItems.length ?? 0,
                   itemBuilder: (context, index) {
-                    final folder = folderState!.displayItems[index];
-                    return ListTile(
-                      key: ValueKey('saved-overview-folder-${folder.id}'),
-                      leading: const Icon(CraftskyIcons.folder),
-                      title: Text(folder.name),
-                      trailing: const Icon(CraftskyIconsBold.next),
-                      onTap: () => SavedPostFolderRoute(
-                        $extra: SavedPostFolderRouteData(folder: folder),
-                      ).go(context),
+                    final item = overview!.unfiledItems[index];
+                    return SavedPostRow(
+                      account: account,
+                      item: item,
+                      onOpen: () => openSavedPost(context, item),
+                      onMove: () => unawaited(
+                        moveSavedPost(
+                          context,
+                          ref,
+                          account: account,
+                          item: item,
+                          sourceKey: SavedPostListKey(
+                            account: account,
+                            scope: const SavedPostScope.unfiled(),
+                            sort: sort,
+                          ),
+                        ),
+                      ),
+                      onUnsave: () => unawaited(
+                        unsaveSavedPost(
+                          context,
+                          ref,
+                          account: account,
+                          item: item,
+                          sourceKey: SavedPostListKey(
+                            account: account,
+                            scope: const SavedPostScope.unfiled(),
+                            sort: sort,
+                          ),
+                        ),
+                      ),
                     );
                   },
                 ),
-                if (folderState == null)
+                if (postState == null)
                   const CraftskySkeletonSliverList(
                     itemBuilder: _buildSavedPostSkeleton,
-                    itemCount: 3,
                   )
-                else if (folderState!.incrementalError case final error?)
+                else if (postState!.incrementalError case final error?)
                   SliverToBoxAdapter(
                     child: _SavedPostFailureControl(
                       failure: SavedPostFailure.from(
                         error,
-                        operation: SavedPostOperation.loadFolders,
+                        operation: SavedPostOperation.loadPosts,
                       ),
                       onPressed: ref
-                          .read(savedPostFoldersProvider(account).notifier)
-                          .retry,
+                          .read(
+                            savedPostsProvider(
+                              SavedPostListKey(
+                                account: account,
+                                scope: const SavedPostScope.unfiled(),
+                                sort: sort,
+                              ),
+                            ).notifier,
+                          )
+                          .loadMore,
                     ),
                   )
-                else if (folderState!.cursor != null)
+                else if (postState!.cursor != null)
                   SliverToBoxAdapter(
                     child: TextButton(
-                      onPressed: folderState!.isLoadingMore
+                      onPressed: postState!.isLoadingMore
                           ? null
                           : ref
                                 .read(
-                                  savedPostFoldersProvider(account).notifier,
+                                  savedPostsProvider(
+                                    SavedPostListKey(
+                                      account: account,
+                                      scope: const SavedPostScope.unfiled(),
+                                      sort: sort,
+                                    ),
+                                  ).notifier,
                                 )
                                 .loadMore,
                       child: ActionProgress(
-                        isLoading: folderState!.isLoadingMore,
-                        child: Text(l10n.savedPostLoadMoreFolders),
+                        isLoading: postState!.isLoadingMore,
+                        child: Text(l10n.savedPostsLoadMore),
                       ),
                     ),
                   ),
               ],
             ),
-            if (postState == null || overview!.showUnfiled)
-              MultiSliver(
-                pushPinnedChildren: true,
-                children: [
-                  SliverPinnedHeader(
-                    child: _SavedPostsSectionHeader(
-                      title: l10n.savedPostsUnfiledHeading,
-                      trailing: SavedPostSortButton(
-                        value: sort,
-                        onChanged: onSortChanged,
-                      ),
-                    ),
-                  ),
-                  SliverList.builder(
-                    itemCount: overview?.unfiledItems.length ?? 0,
-                    itemBuilder: (context, index) {
-                      final item = overview!.unfiledItems[index];
-                      return SavedPostRow(
-                        account: account,
-                        item: item,
-                        onOpen: () => openSavedPost(context, item),
-                        onMove: () => unawaited(
-                          moveSavedPost(
-                            context,
-                            ref,
-                            account: account,
-                            item: item,
-                            sourceKey: SavedPostListKey(
-                              account: account,
-                              scope: const SavedPostScope.unfiled(),
-                              sort: sort,
-                            ),
-                          ),
-                        ),
-                        onUnsave: () => unawaited(
-                          unsaveSavedPost(
-                            context,
-                            ref,
-                            account: account,
-                            item: item,
-                            sourceKey: SavedPostListKey(
-                              account: account,
-                              scope: const SavedPostScope.unfiled(),
-                              sort: sort,
-                            ),
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                  if (postState == null)
-                    const CraftskySkeletonSliverList(
-                      itemBuilder: _buildSavedPostSkeleton,
-                    )
-                  else if (postState!.incrementalError case final error?)
-                    SliverToBoxAdapter(
-                      child: _SavedPostFailureControl(
-                        failure: SavedPostFailure.from(
-                          error,
-                          operation: SavedPostOperation.loadPosts,
-                        ),
-                        onPressed: ref
-                            .read(
-                              savedPostsProvider(
-                                SavedPostListKey(
-                                  account: account,
-                                  scope: const SavedPostScope.unfiled(),
-                                  sort: sort,
-                                ),
-                              ).notifier,
-                            )
-                            .loadMore,
-                      ),
-                    )
-                  else if (postState!.cursor != null)
-                    SliverToBoxAdapter(
-                      child: TextButton(
-                        onPressed: postState!.isLoadingMore
-                            ? null
-                            : ref
-                                  .read(
-                                    savedPostsProvider(
-                                      SavedPostListKey(
-                                        account: account,
-                                        scope: const SavedPostScope.unfiled(),
-                                        sort: sort,
-                                      ),
-                                    ).notifier,
-                                  )
-                                  .loadMore,
-                        child: ActionProgress(
-                          isLoading: postState!.isLoadingMore,
-                          child: Text(l10n.savedPostsLoadMore),
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-          ],
         ],
-      ),
+      ],
+      scrollViewKey: const PageStorageKey('saved-posts-overview'),
     );
   }
 }

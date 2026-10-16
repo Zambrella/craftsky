@@ -11,6 +11,7 @@ import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/shared/widgets/sort_menu_button.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
+import 'package:craftsky_app/theme/yarn_refresh_scroll_view.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -109,37 +110,34 @@ class _TagPostList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return RefreshIndicator(
+    return YarnRefreshScrollView(
       onRefresh: onRefresh,
-      child: CustomScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        slivers: [
-          AutoPaginatedSliverList(
-            itemCount: posts.length,
-            emptyState: CraftskyEmptyState(
-              icon: CraftskyIcons.search,
-              title: l10n.searchHashtagsHeading,
-              subtitle: l10n.tagSearchEmpty,
-            ),
-            isLoadingMore: isLoadingMore,
-            hasLoadMoreError: hasLoadMoreError,
-            onNearEnd: onNearEnd,
-            itemBuilder: (context, index) {
-              final post = posts[index];
-              return PostCard(
-                post: post,
-                collapseBody: true,
-                imageInteractionMode: PostCardImageInteractionMode.navigate,
-                hideWhenAuthorProtected: true,
-                onTap: () => PostThreadRoute(
-                  did: post.author.did,
-                  rkey: post.rkey,
-                ).push<void>(context),
-              );
-            },
+      slivers: [
+        AutoPaginatedSliverList(
+          itemCount: posts.length,
+          emptyState: CraftskyEmptyState(
+            icon: CraftskyIcons.search,
+            title: l10n.searchHashtagsHeading,
+            subtitle: l10n.tagSearchEmpty,
           ),
-        ],
-      ),
+          isLoadingMore: isLoadingMore,
+          hasLoadMoreError: hasLoadMoreError,
+          onNearEnd: onNearEnd,
+          itemBuilder: (context, index) {
+            final post = posts[index];
+            return PostCard(
+              post: post,
+              collapseBody: true,
+              imageInteractionMode: PostCardImageInteractionMode.navigate,
+              hideWhenAuthorProtected: true,
+              onTap: () => PostThreadRoute(
+                did: post.author.did,
+                rkey: post.rkey,
+              ).push<void>(context),
+            );
+          },
+        ),
+      ],
     );
   }
 }

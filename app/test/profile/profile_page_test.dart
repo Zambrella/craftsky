@@ -41,6 +41,7 @@ import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
+import 'package:craftsky_app/theme/yarn_refresh_scroll_view.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -162,9 +163,9 @@ void main() {
         final scrollView = tester.widget<CustomScrollView>(
           find.byKey(PageStorageKey<String>('profile_tab_${entry.value}')),
         );
-        expect(scrollView.physics, isA<AlwaysScrollableScrollPhysics>());
+        expect(scrollView.physics, isA<BouncingScrollPhysics>());
         await tester
-            .widget<RefreshIndicator>(find.byType(RefreshIndicator))
+            .widget<YarnRefreshScrollView>(find.byType(YarnRefreshScrollView))
             .onRefresh();
         await tester.pumpAndSettle();
       }

@@ -1,0 +1,175 @@
+<Rive version="1" kind="fragment">
+  <Artboard name="YarnRefresh" id="2:1" width="80" height="240" styleId="2:2" defaultStateMachineId="2:3" viewModelId="1:1" viewModelInstanceId="1:2">
+    <LayoutComponentStyle id="2:2" />
+    <Node x="40" y="30" opacity="0">
+      <DataBindContext sourcePathIds="1:1-1:8" propertyKey="18" />
+      <Shape>
+        <PointsPath isClosed="false">
+          <StraightVertex x="-7" y="0" />
+          <StraightVertex x="-2" y="5" />
+          <StraightVertex x="9" y="-7" />
+        </PointsPath>
+        <Stroke thickness="3" cap="round" join="round">
+          <SolidColor colorValue="FF1535D6">
+            <DataBindContext sourcePathIds="1:1-1:9" propertyKey="37" />
+          </SolidColor>
+        </Stroke>
+      </Shape>
+    </Node>
+    <Node x="40" y="22">
+      <DataBindContext sourcePathIds="1:1-1:7" propertyKey="18" />
+      <Node name="Unwinding ball">
+        <DataBindContext sourcePathIds="1:1-1:5" propertyKey="15" />
+        <DataBindContext sourcePathIds="1:1-1:4" propertyKey="16" />
+        <DataBindContext sourcePathIds="1:1-1:4" propertyKey="17" />
+        <Shape>
+          <PointsPath>
+            <CubicDetachedVertex x="-13" y="-9" inRotation="0" inDistance="0" outRotation="1.1071487177940904" outDistance="8.94427190999916" />
+            <CubicDetachedVertex x="8" y="15" inRotation="-2.5829933382462307" inDistance="9.433981132056603" outRotation="0" outDistance="0" />
+          </PointsPath>
+          <Stroke thickness="4.1" cap="round" join="round">
+            <SolidColor colorValue="FFB8D5EB" />
+          </Stroke>
+          <Stroke thickness="1.7" cap="round" join="round">
+            <SolidColor colorValue="FF1535D6">
+              <DataBindContext sourcePathIds="1:1-1:9" propertyKey="37" />
+            </SolidColor>
+          </Stroke>
+        </Shape>
+        <Shape>
+          <PointsPath>
+            <CubicDetachedVertex x="-9" y="-14" inRotation="0" inDistance="0" outRotation="1.1525719972156676" outDistance="9.848857801796104" />
+            <CubicDetachedVertex x="13" y="10" inRotation="-2.677945044588987" inDistance="8.94427190999916" outRotation="0" outDistance="0" />
+          </PointsPath>
+          <Stroke thickness="4.1" cap="round" join="round">
+            <SolidColor colorValue="FFB8D5EB" />
+          </Stroke>
+          <Stroke thickness="1.7" cap="round" join="round">
+            <SolidColor colorValue="FF1535D6">
+              <DataBindContext sourcePathIds="1:1-1:9" propertyKey="37" />
+            </SolidColor>
+          </Stroke>
+        </Shape>
+        <Shape>
+          <PointsPath>
+            <CubicDetachedVertex x="-3" y="-17" inRotation="0" inDistance="0" outRotation="1.1071487177940904" outDistance="8.94427190999916" />
+            <CubicDetachedVertex x="16" y="4" inRotation="-2.4668517113662407" inDistance="6.4031242374328485" outRotation="0" outDistance="0" />
+          </PointsPath>
+          <Stroke thickness="4.1" cap="round" join="round">
+            <SolidColor colorValue="FFB8D5EB" />
+          </Stroke>
+          <Stroke thickness="1.7" cap="round" join="round">
+            <SolidColor colorValue="FF1535D6">
+              <DataBindContext sourcePathIds="1:1-1:9" propertyKey="37" />
+            </SolidColor>
+          </Stroke>
+        </Shape>
+        <Shape>
+          <PointsPath>
+            <CubicDetachedVertex x="-16" y="-5" inRotation="0" inDistance="0" outRotation="-1.2120256565243244" outDistance="8.54400374531753" />
+            <CubicDetachedVertex x="11" y="-13" inRotation="-2.642245931909663" inDistance="12.529964086141668" outRotation="0" outDistance="0" />
+          </PointsPath>
+          <Stroke thickness="1.7" cap="round" join="round">
+            <SolidColor colorValue="FF1535D6">
+              <DataBindContext sourcePathIds="1:1-1:9" propertyKey="37" />
+            </SolidColor>
+          </Stroke>
+        </Shape>
+        <Shape>
+          <PointsPath>
+            <CubicDetachedVertex x="-17" y="1" inRotation="0" inDistance="0" outRotation="-0.982793723247329" outDistance="10.816653826391969" />
+            <CubicDetachedVertex x="16" y="-6" inRotation="-2.5308666892005847" inDistance="12.206555615733702" outRotation="0" outDistance="0" />
+          </PointsPath>
+          <Stroke thickness="1.7" cap="round" join="round">
+            <SolidColor colorValue="FF1535D6">
+              <DataBindContext sourcePathIds="1:1-1:9" propertyKey="37" />
+            </SolidColor>
+          </Stroke>
+        </Shape>
+        <Shape>
+          <PointsPath>
+            <CubicDetachedVertex x="-16" y="6" inRotation="0" inDistance="0" outRotation="-0.7853981633974483" outDistance="11.313708498984761" />
+            <CubicDetachedVertex x="17" y="0" inRotation="-2.5535900500422257" inDistance="10.816653826391969" outRotation="0" outDistance="0" />
+          </PointsPath>
+          <Stroke thickness="1.7" cap="round" join="round">
+            <SolidColor colorValue="FF1535D6">
+              <DataBindContext sourcePathIds="1:1-1:9" propertyKey="37" />
+            </SolidColor>
+          </Stroke>
+        </Shape>
+        <Shape>
+          <PointsPath>
+            <CubicDetachedVertex x="-12" y="12" inRotation="0" inDistance="0" outRotation="-0.844153986113171" outDistance="12.041594578792296" />
+            <CubicDetachedVertex x="16" y="6" inRotation="-2.356194490192345" inDistance="8.48528137423857" outRotation="0" outDistance="0" />
+          </PointsPath>
+          <Stroke thickness="1.7" cap="round" join="round">
+            <SolidColor colorValue="FF1535D6">
+              <DataBindContext sourcePathIds="1:1-1:9" propertyKey="37" />
+            </SolidColor>
+          </Stroke>
+        </Shape>
+        <Shape>
+          <PointsPath>
+            <CubicDetachedVertex x="-6" y="16" inRotation="0" inDistance="0" outRotation="-0.8519663271732721" outDistance="10.63014581273465" />
+            <CubicDetachedVertex x="13" y="11" inRotation="-2.2455372690184494" inDistance="6.4031242374328485" outRotation="0" outDistance="0" />
+          </PointsPath>
+          <Stroke thickness="1.7" cap="round" join="round">
+            <SolidColor colorValue="FF1535D6">
+              <DataBindContext sourcePathIds="1:1-1:9" propertyKey="37" />
+            </SolidColor>
+          </Stroke>
+        </Shape>
+        <Shape x="0" y="0">
+          <Ellipse width="36" height="36" originX=".5" originY=".5" />
+          <Stroke thickness="2.5" cap="round" join="round">
+            <SolidColor colorValue="FF1535D6">
+              <DataBindContext sourcePathIds="1:1-1:9" propertyKey="37" />
+            </SolidColor>
+          </Stroke>
+        </Shape>
+        <Shape x="0" y="0">
+          <Ellipse width="36" height="36" originX=".5" originY=".5" />
+          <Fill>
+            <SolidColor colorValue="FFB8D5EB" />
+          </Fill>
+        </Shape>
+      </Node>
+      <Shape name="Vertical strand">
+        <PointsPath>
+          <StraightVertex x="0" y="0" />
+          <StraightVertex x="0" y="74">
+            <DataBindContext sourcePathIds="1:1-1:3" propertyKey="25" />
+          </StraightVertex>
+        </PointsPath>
+        <Stroke thickness="2.8" cap="round" join="round">
+          <SolidColor colorValue="FFF03A2E" />
+        </Stroke>
+      </Shape>
+    </Node>
+    <StateMachine name="YarnRefresh" id="2:3">
+      <StateMachineLayer name="Host-driven pose">
+        <EntryState>
+          <StateTransition stateToId="2:4" />
+        </EntryState>
+        <AnimationState x="220" animationId="2:5" id="2:4" />
+      </StateMachineLayer>
+    </StateMachine>
+    <LinearAnimation name="Pose" id="2:5" fps="60" duration="1" loopValue="oneShot" />
+  </Artboard>
+  <ViewModel name="YarnRefresh" id="1:1" defaultInstanceId="1:2">
+    <ViewModelPropertyNumber name="strandLength" id="1:3" />
+    <ViewModelPropertyNumber name="ballScale" id="1:4" />
+    <ViewModelPropertyNumber name="rotation" id="1:5" />
+    <ViewModelPropertyNumber name="yarnOpacity" id="1:7" />
+    <ViewModelPropertyNumber name="checkOpacity" id="1:8" />
+    <ViewModelPropertyColor name="inkColor" id="1:9" />
+    <ViewModelInstance name="Default" id="1:2" exports="true">
+      <ViewModelInstanceNumber viewModelPropertyId="1:3" propertyValue="74" />
+      <ViewModelInstanceNumber viewModelPropertyId="1:4" propertyValue="1" />
+      <ViewModelInstanceNumber viewModelPropertyId="1:5" propertyValue="0" />
+      <ViewModelInstanceNumber viewModelPropertyId="1:7" propertyValue="1" />
+      <ViewModelInstanceNumber viewModelPropertyId="1:8" propertyValue="0" />
+      <ViewModelInstanceColor viewModelPropertyId="1:9" propertyValue="FF1535D6" />
+    </ViewModelInstance>
+  </ViewModel>
+</Rive>

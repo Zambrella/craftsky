@@ -17,6 +17,7 @@ import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
 import 'package:craftsky_app/subscriptions/providers/subscription_access_provider.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
+import 'package:craftsky_app/theme/yarn_refresh_scroll_view.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
@@ -340,19 +341,19 @@ void main() {
         findsOneWidget,
       );
       expect(
-        find.byType(RefreshIndicator),
+        find.byType(YarnRefreshScrollView),
         entry.value.$2 ? findsOneWidget : findsNothing,
       );
       if (entry.value.$2) {
         expect(
           tester.widget<CustomScrollView>(scrollViewFinder).physics,
-          isA<AlwaysScrollableScrollPhysics>(),
+          isA<BouncingScrollPhysics>(),
         );
       }
       if (entry.key == 'Products') {
         final callsBeforeRefresh = profileFetches;
         await tester
-            .widget<RefreshIndicator>(find.byType(RefreshIndicator))
+            .widget<YarnRefreshScrollView>(find.byType(YarnRefreshScrollView))
             .onRefresh();
         await tester.pumpAndSettle();
         expect(profileFetches, callsBeforeRefresh + 1);
@@ -360,7 +361,7 @@ void main() {
       if (entry.key == 'Upcoming Events') {
         final callsBeforeRefresh = repository.profileEventListCalls;
         await tester
-            .widget<RefreshIndicator>(find.byType(RefreshIndicator))
+            .widget<YarnRefreshScrollView>(find.byType(YarnRefreshScrollView))
             .onRefresh();
         await tester.pumpAndSettle();
         expect(repository.profileEventListCalls, callsBeforeRefresh + 1);

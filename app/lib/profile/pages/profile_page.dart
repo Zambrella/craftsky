@@ -53,6 +53,7 @@ import 'package:craftsky_app/theme/craftsky_floating_action_button.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/form_factor.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
+import 'package:craftsky_app/theme/yarn_refresh_scroll_view.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:skeletonizer/skeletonizer.dart';
@@ -900,7 +901,12 @@ class _ProfileTabScrollView extends ConsumerWidget {
     );
     return onRefresh == null
         ? scrollView
-        : RefreshIndicator(onRefresh: onRefresh, child: scrollView);
+        : YarnRefreshScrollView(
+            showSuccess: tab != ProfileTab.upcomingEvents,
+            onRefresh: onRefresh,
+            scrollViewKey: scrollView.key,
+            slivers: scrollView.slivers,
+          );
   }
 
   Widget _sliverForTab(

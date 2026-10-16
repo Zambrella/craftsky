@@ -9,6 +9,7 @@ import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
+import 'package:craftsky_app/theme/yarn_refresh_scroll_view.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -184,48 +185,46 @@ class _FollowListBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return RefreshIndicator(
+    return YarnRefreshScrollView(
+      showSuccess: false,
       onRefresh: onRefresh,
-      child: CustomScrollView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        slivers: [
-          if (items.isEmpty)
-            SliverFillRemaining(
-              hasScrollBody: false,
-              child: CraftskyEmptyState(
-                icon: CraftskyIcons.people,
-                title: switch (kind) {
-                  FollowListKind.followers => l10n.settingsFollowers,
-                  FollowListKind.following => l10n.settingsFollowing,
-                },
-                subtitle: switch (kind) {
-                  FollowListKind.followers => 'No one follows you yet',
-                  FollowListKind.following => 'You are not following anyone',
-                },
-              ),
-            )
-          else
-            SliverList.builder(
-              itemCount: items.length + (hasMore ? 1 : 0),
-              itemBuilder: (context, index) {
-                if (index == items.length) {
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    child: Center(
-                      child: isLoadingMore
-                          ? const StitchProgressIndicator()
-                          : TextButton(
-                              onPressed: onLoadMore,
-                              child: Text(l10n.relationshipListLoadMore),
-                            ),
-                    ),
-                  );
-                }
-                return ProfileAccountListTile(account: items[index]);
+      slivers: [
+        if (items.isEmpty)
+          SliverFillRemaining(
+            hasScrollBody: false,
+            child: CraftskyEmptyState(
+              icon: CraftskyIcons.people,
+              title: switch (kind) {
+                FollowListKind.followers => l10n.settingsFollowers,
+                FollowListKind.following => l10n.settingsFollowing,
+              },
+              subtitle: switch (kind) {
+                FollowListKind.followers => 'No one follows you yet',
+                FollowListKind.following => 'You are not following anyone',
               },
             ),
-        ],
-      ),
+          )
+        else
+          SliverList.builder(
+            itemCount: items.length + (hasMore ? 1 : 0),
+            itemBuilder: (context, index) {
+              if (index == items.length) {
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  child: Center(
+                    child: isLoadingMore
+                        ? const StitchProgressIndicator()
+                        : TextButton(
+                            onPressed: onLoadMore,
+                            child: Text(l10n.relationshipListLoadMore),
+                          ),
+                  ),
+                );
+              }
+              return ProfileAccountListTile(account: items[index]);
+            },
+          ),
+      ],
     );
   }
 }
