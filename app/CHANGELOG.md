@@ -1,5 +1,9 @@
 # App Changelog
 
+## 1.7.4+11 - 2026-10-16
+
+- fix(justfile): create obfuscation map directory
+
 ## 1.7.3+10 - 2026-10-16
 
 - docs(release): separate tests from store builds
