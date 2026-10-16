@@ -3362,6 +3362,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get onboardingGuidelinesViewFull => 'View full guidelines';
 
   @override
+  String get privacyTitle => 'Privacy';
+
+  @override
   String get errorReportingTitle => 'Error reporting';
 
   @override

@@ -49,6 +49,7 @@ import 'package:craftsky_app/settings/pages/account_page.dart';
 import 'package:craftsky_app/settings/pages/appearance_page.dart';
 import 'package:craftsky_app/settings/pages/follow_list_page.dart';
 import 'package:craftsky_app/settings/pages/follower_growth_page.dart';
+import 'package:craftsky_app/settings/pages/privacy_page.dart';
 import 'package:craftsky_app/settings/pages/profile_customisation_page.dart';
 import 'package:craftsky_app/settings/pages/relationship_list_page.dart';
 import 'package:craftsky_app/settings/pages/settings_page.dart';
@@ -289,6 +290,10 @@ class AccountEligibilityRoute extends GoRouteData
                     TypedGoRoute<AppearanceRoute>(
                       path: RouteLocations.appearanceChild,
                       name: 'appearance',
+                    ),
+                    TypedGoRoute<PrivacyRoute>(
+                      path: RouteLocations.privacyChild,
+                      name: 'settings-privacy',
                     ),
                     TypedGoRoute<FollowerGrowthRoute>(
                       path: RouteLocations.growthChild,
@@ -581,6 +586,17 @@ class AppearanceRoute extends GoRouteData with $AppearanceRoute {
   @override
   Widget build(BuildContext context, GoRouterState state) =>
       const AppearancePage();
+}
+
+class PrivacyRoute extends GoRouteData with $PrivacyRoute {
+  const new();
+
+  static final GlobalKey<NavigatorState> $parentNavigatorKey =
+      _NavigatorKeys.authenticatedShellNavigatorKey;
+
+  @override
+  Widget build(BuildContext context, GoRouterState state) =>
+      const PrivacyPage();
 }
 
 class FollowerGrowthRoute extends GoRouteData with $FollowerGrowthRoute {

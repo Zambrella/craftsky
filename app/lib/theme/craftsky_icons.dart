@@ -87,6 +87,8 @@ abstract final class CraftskyIcons {
   static const IconData play = PhosphorIconsFill.playCircle;
   static const IconData previous = PhosphorIconsRegular.caretLeft;
   static const IconData privacy = PhosphorIconsRegular.shieldCheck;
+  static const IconData privacySettings = PhosphorIconsRegular.lockKey;
+  static const IconData errorReporting = PhosphorIconsRegular.bug;
   static const IconData profile = PhosphorIconsRegular.user;
   static const IconData profileSelected = PhosphorIconsFill.user;
   static const IconData projectCount = PhosphorIconsRegular.stack;

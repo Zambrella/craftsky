@@ -16,7 +16,6 @@ import 'package:craftsky_app/settings/pages/settings_page.dart';
 import 'package:craftsky_app/settings/widgets/settings_row_tile.dart';
 import 'package:craftsky_app/settings/widgets/sign_out_tile.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
-import 'package:craftsky_app/shared/observability/error_reporting_controller.dart';
 import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
 import 'package:craftsky_app/subscriptions/providers/subscription_access_provider.dart';
 import 'package:craftsky_app/subscriptions/subscription_build_config.dart';
@@ -240,40 +239,28 @@ void main() {
       );
       expect(find.text('Languages'), findsOneWidget);
       expect(find.text('Customisation'), findsOneWidget);
-      final reporting = find.byKey(const Key('settings-error-reporting'));
       await tester.scrollUntilVisible(
-        reporting,
-        180,
+        find.text('Privacy'),
+        80,
         scrollable: find.byType(Scrollable).first,
       );
-      expect(tester.widget<SwitchListTile>(reporting).value, isFalse);
-      await tester.tap(reporting);
-      await tester.pumpAndSettle();
-      expect(
-        preferences.getBool(ErrorReportingController.preferenceKey),
-        isTrue,
-      );
-      await tester.tap(reporting);
-      await tester.pumpAndSettle();
-      expect(
-        preferences.getBool(ErrorReportingController.preferenceKey),
-        isFalse,
-      );
+      expect(find.text('Privacy'), findsOneWidget);
+      expect(find.byKey(const Key('settings-error-reporting')), findsNothing);
       await tester.scrollUntilVisible(
         find.text('Growth'),
-        180,
+        80,
         scrollable: find.byType(Scrollable).first,
       );
       expect(find.text('Growth'), findsOneWidget);
       await tester.scrollUntilVisible(
         find.text('Followers'),
-        180,
+        80,
         scrollable: find.byType(Scrollable).first,
       );
       expect(find.text('Followers'), findsOneWidget);
       await tester.scrollUntilVisible(
         find.text('Following'),
-        180,
+        80,
         scrollable: find.byType(Scrollable).first,
       );
       expect(find.text('Following'), findsOneWidget);
@@ -570,6 +557,7 @@ const _regularSettingsRows = <SettingsRowId>[
   SettingsRowId.customisation,
   SettingsRowId.languages,
   SettingsRowId.notifications,
+  SettingsRowId.privacy,
   SettingsRowId.growth,
   SettingsRowId.followers,
   SettingsRowId.following,

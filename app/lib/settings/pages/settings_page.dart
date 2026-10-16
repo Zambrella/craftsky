@@ -18,7 +18,6 @@ import 'package:craftsky_app/settings/models/settings_identity.dart';
 import 'package:craftsky_app/settings/models/settings_row.dart';
 import 'package:craftsky_app/settings/widgets/settings_row_tile.dart';
 import 'package:craftsky_app/settings/widgets/sign_out_tile.dart';
-import 'package:craftsky_app/shared/observability/error_reporting_consent_tile.dart';
 import 'package:craftsky_app/subscriptions/providers/subscription_access_provider.dart';
 import 'package:craftsky_app/subscriptions/subscription_build_config.dart';
 import 'package:craftsky_app/subscriptions/widgets/plus_feature_lock.dart';
@@ -157,7 +156,15 @@ class SettingsPage extends ConsumerWidget {
               const NotificationSettingsRoute().push<void>(context),
             ),
           ),
-          const ErrorReportingConsentTile(),
+          SettingsRowTile(
+            descriptor: const SettingsRowDescriptor(
+              id: SettingsRowId.privacy,
+              kind: SettingsRowKind.disclosure,
+            ),
+            label: l10n.privacyTitle,
+            leading: CraftskyIcons.privacySettings,
+            onTap: () => const PrivacyRoute().go(context),
+          ),
           _SectionLabel(l10n.settingsSectionConnections),
           PlusFeatureLock(
             feature: l10n.settingsGrowth,

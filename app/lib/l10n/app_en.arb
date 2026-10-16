@@ -2786,6 +2786,7 @@
   "onboardingGuidelinesCheckHeading": "A useful check",
   "onboardingGuidelinesCheckBody": "If you are unsure whether something belongs on CraftSky, ask: Does this make the community a better place? If the answer is yes, you are probably on the right track.",
   "onboardingGuidelinesViewFull": "View full guidelines",
+  "privacyTitle": "Privacy",
   "errorReportingTitle": "Error reporting",
   "errorReportingOptIn": "Enable error reporting (optional)",
   "errorReportingDescription": "Send crash reports and diagnostic logs to help improve CraftSky.",
