@@ -128,6 +128,10 @@ fvm exec just app-analyze
 fvm exec just app-test
 ```
 
+`app-test` prepares Rive's native libraries for the host platform before running
+tests, including after `flutter clean`. For repeated focused runs after setup,
+you can run `flutter test <test-path>` directly from `app/`.
+
 Use [native integration tests](integration_test/README.md) for applicable device journeys. UI contributions should include screenshots or recordings and state which platforms were inspected. Production signing and symbol upload credentials are only needed for the maintainer release workflow, not debug development or unit/widget tests.
 
 ## Deep links

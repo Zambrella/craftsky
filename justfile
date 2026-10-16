@@ -420,6 +420,8 @@ app-analyze:
     cd app && flutter analyze
 
 app-test *ARGS:
+    # Refresh checkout-local libraries even when the pub cache has a setup marker.
+    cd app && dart run rive_native:setup --clean --platform {{os()}}
     cd app && flutter test {{ARGS}}
 
 # Run the device/process integration suite locally without adding it to the
