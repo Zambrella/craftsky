@@ -1,5 +1,9 @@
 # App Changelog
 
+## 1.7.1+8 - 2026-10-16
+
+- build(android): apply Kotlin plugin to app
+
 ## 1.7.0+7 - 2026-10-16
 
 - feat(discovery): add desktop sidebar recommendations
