@@ -1,5 +1,24 @@
 # App Changelog
 
+## 1.7.0+7 - 2026-10-16
+
+- feat(discovery): add desktop sidebar recommendations
+- docs: add contributor guidance and issue templates
+- feat(app): add animated publishing indicator
+- feat(branding): update logos across apps and web
+- feat(feed): animate post likes with a stitched heart
+- refactor(composer,ops): extract shared submission flows and add status C
+- feat(profile): celebrate successful follows with Rive animation
+- feat(app): add yarn pull-to-refresh animation
+- feat(refresh): add a theme-aware curved yarn strand
+- fix(observability): retain full sanitized Flutter stacks
+- fix(instagram): stabilize suggestion follow acceptance
+- feat(settings): add a dedicated privacy settings page
+- fix(app): align summary media layout with post previews
+- fix(observability): classify expected cancellations and auth failures
+- feat(text-inputs): enforce record text limits
+- test(profile): cover over-limit name editing behavior
+
 ## 1.6.0+6 - 2026-10-14
 
 - fix(profile): avoid mutating cached profiles after save
