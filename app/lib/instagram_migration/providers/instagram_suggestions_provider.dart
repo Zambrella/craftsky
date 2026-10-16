@@ -47,10 +47,40 @@ final class InstagramSuggestionReviewState {
 
 @riverpod
 class InstagramSuggestions extends _$InstagramSuggestions {
+  final Set<Did> _followedElsewhere = {};
+
   @override
   Future<InstagramSuggestionReviewState> build(
     ActiveAccountLease lease,
   ) async {
+    // Ordinary follow buttons publish through this shared mutation provider.
+    // Remove accepted follows immediately, while the projection catches up.
+    ref.listen(toggleFollowProfileProvider, (previous, next) {
+      if (_isCurrent &&
+          next.hasValue &&
+          next.value != null &&
+          next != previous) {
+        final profile = next.requireValue!;
+        if (profile.viewerIsFollowing) {
+          _followedElsewhere.add(profile.did);
+          final current = state.value;
+          if (current != null) {
+            state = AsyncData(
+              current.copyWith(
+                items: current.items
+                    .where(
+                      (item) => item.target.did != profile.did.toString(),
+                    )
+                    .toList(growable: false),
+              ),
+            );
+          }
+        } else {
+          _followedElsewhere.remove(profile.did);
+          ref.invalidateSelf();
+        }
+      }
+    });
     final repository = await ref.watch(
       instagramMigrationRepositoryProvider(lease).future,
     );
@@ -91,14 +121,19 @@ class InstagramSuggestions extends _$InstagramSuggestions {
         discarded: const InstagramOperationDiscarded(),
       );
       _operation.requireCurrent(discarded: const InstagramOperationDiscarded());
-      final seen = current.items.map((item) => item.suggestionId).toSet();
+      final latest = state.value;
+      if (latest == null) return false;
+      final seen = latest.items.map((item) => item.suggestionId).toSet();
       state = AsyncData(
         InstagramSuggestionReviewState(
           items: [
-            ...current.items,
-            ...page.items.where((item) => seen.add(item.suggestionId)),
+            ...latest.items,
+            ..._fromPage(page).items
+                .where((item) => seen.add(item.suggestionId)),
           ],
           cursor: page.cursor,
+          busyIds: latest.busyIds,
+          hasActionError: latest.hasActionError,
         ),
       );
       return true;
@@ -303,7 +338,19 @@ class InstagramSuggestions extends _$InstagramSuggestions {
       ActiveAccountOperation.fromLease(ref, lease);
 
   bool get _isCurrent => _operation.isCurrent;
-}
 
-InstagramSuggestionReviewState _fromPage(InstagramSuggestionPage page) =>
-    InstagramSuggestionReviewState(items: page.items, cursor: page.cursor);
+  InstagramSuggestionReviewState _fromPage(InstagramSuggestionPage page) =>
+      InstagramSuggestionReviewState(
+        items: page.items
+            .where((item) {
+              final did = Did.parse(item.target.did);
+              final overlay = ref
+                  .read(pdsRecordOperationControllerProvider)
+                  .overlayFor(followProfileMutationScope(ref, did));
+              return overlay?.optimisticValue != true &&
+                  !_followedElsewhere.contains(did);
+            })
+            .toList(growable: false),
+        cursor: page.cursor,
+      );
+}

@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"strings"
 	"time"
 
@@ -180,9 +179,11 @@ func (service *SuggestionService) Accept(
 		}
 	}
 
+	// Reuse the reserved TID across retries, including response loss. Older
+	// terminal suggestions can still replay their original command identity.
 	rkey := syntax.RecordKey("3l" + strings.ReplaceAll(suggestionID.String(), "-", ""))
-	if _, err := syntax.ParseRecordKey(rkey.String()); err != nil {
-		return SuggestionCommandResult{}, fmt.Errorf("derive Instagram suggestion follow key: %w", err)
+	if accepted.FollowRkey != nil {
+		rkey = *accepted.FollowRkey
 	}
 	result, err := service.follow.FollowSuggestion(ctx, SuggestionFollowRequest{
 		OperationKey: operationKey, RequestID: requestID, SessionID: sessionID, SuggestionID: suggestionID,
@@ -265,6 +266,12 @@ func (store *PrivateSuggestionStore) ListPending(
 		 AND target_lifecycle.generation=suggestion.target_generation
 		WHERE suggestion.importer_did=$1
 		  AND suggestion.state='pending'
+		  AND NOT EXISTS (
+		    SELECT 1 FROM pds_set_aggregates AS follows
+		    WHERE follows.kind='follow'
+		      AND follows.actor_did=suggestion.importer_did
+		      AND follows.subject_did=suggestion.target_did
+		  )
 		  AND ($2::timestamptz IS NULL OR (suggestion.created_at,suggestion.id) < ($2,$3::uuid))
 		ORDER BY suggestion.created_at DESC,suggestion.id DESC
 		LIMIT $4
@@ -328,7 +335,9 @@ const privateSuggestionQualifiedColumns = `
 	suggestion.importer_generation,suggestion.target_generation,
 	suggestion.evidence_link_id,suggestion.state,suggestion.accepting_since,
 	suggestion.terminal_at,suggestion.result_record_uri,
-	suggestion.result_record_cid,suggestion.created_at,suggestion.updated_at`
+	suggestion.result_record_cid,suggestion.created_at,suggestion.updated_at,suggestion.follow_rkey`
+
+var suggestionFollowClock = syntax.NewTIDClock(0)
 
 func (store *PrivateSuggestionStore) reserveAcceptance(
 	ctx context.Context,
@@ -339,7 +348,8 @@ func (store *PrivateSuggestionStore) reserveAcceptance(
 	now := store.now().UTC()
 	suggestion, err := scanPrivateSuggestion(tx.QueryRow(ctx, `
 		UPDATE instagram_private_suggestions AS suggestion
-		SET state='accepting',accepting_since=COALESCE(accepting_since,$3),updated_at=$3
+		SET state='accepting',accepting_since=COALESCE(accepting_since,$3),updated_at=$3,
+		    follow_rkey=COALESCE(follow_rkey,$4)
 		WHERE suggestion.id=$1 AND suggestion.importer_did=$2
 		  AND suggestion.state IN ('pending','accepting')
 		  AND EXISTS (
@@ -352,7 +362,7 @@ func (store *PrivateSuggestionStore) reserveAcceptance(
 			  AND NOT link.conflict_pending
 		  )
 		RETURNING `+privateSuggestionColumns,
-		suggestionID, importer, now,
+		suggestionID, importer, now, suggestionFollowClock.Next().String(),
 	))
 	if err == nil {
 		return suggestion, nil
@@ -452,6 +462,7 @@ func scanPrivateSuggestionWithUsername(row privateSuggestionScanner) (PrivateSug
 		&suggestion.ResultRecordCID,
 		&suggestion.CreatedAt,
 		&suggestion.UpdatedAt,
+		&suggestion.FollowRkey,
 		&suggestion.ImportedUsername,
 	)
 	if resultURI != nil {
