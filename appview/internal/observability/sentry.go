@@ -28,6 +28,8 @@ var allowedEventContextKeys = map[string]struct{}{
 	"http_method":       {},
 	"http_status":       {},
 	"http_status_class": {},
+	"upstream_status":   {},
+	"provider_code":     {},
 	"error_category":    {},
 	"error_code":        {},
 	"failure_stage":     {},
@@ -115,7 +117,12 @@ func sanitizeEventContextValue(key string, value any) any {
 		return safeMetricRoute(fmt.Sprint(value))
 	case "http_method":
 		return safeHTTPMethod(fmt.Sprint(value))
-	case "http_status":
+	case "provider_code":
+		if code, ok := value.(string); ok && knownProviderDiagnosticCode(code) {
+			return code
+		}
+		return "[OMITTED]"
+	case "http_status", "upstream_status":
 		switch v := value.(type) {
 		case int:
 			return safeHTTPStatus(v)

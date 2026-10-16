@@ -45,6 +45,9 @@ func (s sentryLogSink) Emit(ctx context.Context, level slog.Level, message strin
 	// Logs need one brief cause when a retry deliberately creates no issue.
 	// Full chains and origin stacks remain exclusively on native exceptions.
 	if causes, ok := attrs["causes"].([]DiagnosticCause); ok && len(causes) > 0 {
+		for key, value := range providerDiagnosticFields(causes) {
+			selected[key] = value
+		}
 		cause := causes[0]
 		for _, candidate := range causes {
 			if candidate.Code != "" {

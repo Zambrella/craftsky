@@ -33,8 +33,13 @@ func WriteCommandError(writer http.ResponseWriter, requestID string, err error, 
 	envelope.WriteError(writer, status, code, message, requestID, nil)
 }
 
-func RejectedCommandResult(requestID string, err error) pdscommands.TerminalResult {
+func RejectedCommandResult(requestID string, err error, contexts ...context.Context) pdscommands.TerminalResult {
 	status, code, message := commandError(err)
+	// The callback still has the original cause; persisted terminal responses do
+	// not. Retain it at the existing request owner before reducing it to JSON.
+	if len(contexts) > 0 && status >= 500 {
+		observability.ReportRequestFailure(contexts[0], err, "pds.command", "rejection")
+	}
 	body, _ := json.Marshal(envelope.Error{Error: code, Message: message, RequestID: requestID})
 	return pdscommands.TerminalResult{
 		State: pdscommands.CommandRejected, HTTPStatus: status, ResponseBody: body,

@@ -173,6 +173,12 @@ func protectSDKTransaction(event *sentry.Event, hint *sentry.EventHint) *sentry.
 		name = "unknown"
 	}
 	trace := event.Contexts["trace"]
+	// protectSDKEvent removes trace data in place. Select permitted transaction
+	// attributes before that shared hook mutates the same context map.
+	var traceData EventContext
+	if data, ok := trace["data"].(map[string]any); ok {
+		traceData = SanitizeEventContext(data)
+	}
 	event = protectSDKEvent(event, hint)
 	event.Message = ""
 	event.Transaction = name
@@ -184,8 +190,8 @@ func protectSDKTransaction(event *sentry.Event, hint *sentry.EventHint) *sentry.
 		if op, ok := trace["op"].(string); ok && diagnosticOperationPattern.MatchString(op) {
 			safe["op"] = op
 		}
-		if data, ok := trace["data"].(map[string]any); ok {
-			safe["data"] = SanitizeEventContext(data)
+		if len(traceData) > 0 {
+			safe["data"] = traceData
 		}
 		event.Contexts["trace"] = safe
 	}

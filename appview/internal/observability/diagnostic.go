@@ -23,9 +23,10 @@ import (
 // DiagnosticCause contains selected error details, never an unknown error's
 // rendered message. Ordinary errors deliberately carry no synthetic stack.
 type DiagnosticCause struct {
-	Type    string
-	Message string
-	Code    string
+	Type         string
+	Message      string
+	Code         string
+	ProviderCode string `json:",omitempty"`
 }
 
 var sqlStatePattern = regexp.MustCompile(`^[0-9A-Z]{5}$`)
@@ -50,7 +51,7 @@ func DescribeError(err error, eventCtx EventContext) []DiagnosticCause {
 		case *runtime.TypeAssertionError, *runtime.PanicNilError:
 			cause.Message = sanitizeKnownDiagnosticText(current.Error())
 		}
-		for _, sentinel := range []error{context.DeadlineExceeded, context.Canceled, auth.ErrRecordNotFound, auth.ErrAuthTokenInvalid, auth.ErrCraftskySessionNotFound, auth.ErrOAuthSessionNotFound, auth.ErrPDSSessionExpired} {
+		for _, sentinel := range []error{context.DeadlineExceeded, context.Canceled, auth.ErrRecordNotFound, auth.ErrAuthTokenInvalid, auth.ErrCraftskySessionNotFound, auth.ErrOAuthSessionNotFound, auth.ErrPDSSessionExpired, auth.ErrPDSLatestCommitMissingCID} {
 			if sameDiagnosticError(current, sentinel) {
 				cause.Message = sentinel.Error()
 				break
@@ -63,6 +64,21 @@ func DescribeError(err error, eventCtx EventContext) []DiagnosticCause {
 		if upstream, ok := current.(*atclient.APIError); ok && upstream.StatusCode >= 100 && upstream.StatusCode <= 599 {
 			cause.Code = strconv.Itoa(upstream.StatusCode)
 			cause.Message = "PDS request failed (HTTP " + cause.Code + ")"
+			if code := "pds." + upstream.Name; knownProviderDiagnosticCode(code) {
+				cause.ProviderCode = code
+				cause.Message += " " + code
+			}
+		}
+		if code, status := firebaseDiagnostic(current); code != "" || status != 0 {
+			cause.ProviderCode = code
+			cause.Message = "Firebase request failed"
+			if status != 0 {
+				cause.Code = strconv.Itoa(status)
+				cause.Message += " (HTTP " + cause.Code + ")"
+			}
+			if code != "" {
+				cause.Message += " " + code
+			}
 		}
 		if storage, ok := current.(*smithyhttp.ResponseError); ok && storage.Response != nil && storage.Response.Response != nil {
 			status := storage.HTTPStatusCode()
@@ -114,8 +130,13 @@ func logDiagnosticAt(ctx context.Context, logger *slog.Logger, input DiagnosticI
 	if input.Workflow == nil {
 		input.Workflow = RequestFailureWorkflow(ctx, input.Error)
 	}
-	attrs := eventContextSlogAttrs(SanitizeEventContext(withDiagnosticCorrelation(ctx, input.Context)))
-	attrs = append(attrs, slog.Any("causes", DescribeError(input.Error, input.Context)))
+	causes := DescribeError(input.Error, input.Context)
+	fields := withDiagnosticCorrelation(ctx, input.Context)
+	for key, value := range providerDiagnosticFields(causes) {
+		fields[key] = value
+	}
+	attrs := eventContextSlogAttrs(SanitizeEventContext(fields))
+	attrs = append(attrs, slog.Any("causes", causes))
 	if selected := workflowForRequest(ctx, input.Workflow); selected != nil {
 		attrs = append(attrs, slog.Any("diagnostic", workflowLogValue{selected}))
 	}
