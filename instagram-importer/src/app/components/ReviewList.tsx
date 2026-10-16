@@ -62,7 +62,7 @@ const warningWhyCopy: Record<UserFacingWarningCode, string> = {
   captionTruncated:
     'CraftSky captions can contain up to 2,000 characters, so the rest was removed.',
   imagesOmitted:
-    'CraftSky posts can include up to four images, so any extra images were left out.',
+    'CraftSky posts can include up to eight images, so any extra images were left out.',
   videoOmitted:
     'This importer currently supports photos but not videos.',
   unsupportedMediaOmitted:

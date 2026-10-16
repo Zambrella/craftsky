@@ -1,7 +1,7 @@
 package api
 
 const (
-	DefaultMaxPostImages       = 4
+	DefaultMaxPostImages       = 8
 	DefaultMaxImageUploadBytes = 2_000_000
 
 	// MaxImageUploadBytes preserves the historical default for tests and

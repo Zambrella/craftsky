@@ -1,9 +1,11 @@
 import 'package:craftsky_app/account_eligibility/data/account_eligibility_repository.dart';
 import 'package:craftsky_app/account_eligibility/data/api_account_eligibility_repository.dart';
 import 'package:craftsky_app/account_eligibility/models/account_eligibility_status.dart';
+import 'package:craftsky_app/auth/models/account_operation_canceled.dart';
 import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/shared/api/providers/dio_provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'account_eligibility_provider.g.dart';
@@ -22,8 +24,16 @@ Future<AccountEligibilityStatus> accountEligibility(
   Ref ref,
   ActiveAccountLease lease,
 ) async {
-  final registry = await ref.watch(sessionRegistryProvider.future);
-  if (registry.activeLease != lease) {
+  await ref.read(sessionRegistryProvider.future);
+  if (!ref.mounted) throw AccountOperationCanceled();
+  final activeLease = ref
+      .watch(
+        sessionRegistryProvider.select(
+          (state) => state.whenData((registry) => registry.activeLease),
+        ),
+      )
+      .requireValue;
+  if (activeLease != lease) {
     throw StateError('Active account changed');
   }
   final repository = await ref.watch(

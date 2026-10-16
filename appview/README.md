@@ -1,8 +1,8 @@
-# appview
+# CraftSky AppView
 
 The Craftsky App View — a Go service that consumes the atproto firehose via a [Tap](https://github.com/bluesky-social/indigo/tree/main/cmd/tap) sidecar, indexes Craftsky records into Postgres, and serves a JSON/HTTP API to the Flutter client.
 
-Also acts as the **Token Mediating Backend (TMB)** for OAuth with user PDSes.
+Also acts as the **Token Mediating Backend (TMB)** for OAuth with user PDSes. See [CONTRIBUTING.md](../CONTRIBUTING.md) for the contribution workflow. Backend tests require the Go version declared in [go.mod](go.mod); the server itself runs inside Docker during local development.
 
 ## Layout
 
@@ -13,14 +13,14 @@ appview/
 │   └── cli/                 # ops & smoke-test CLI (cobra)
 ├── internal/
 │   ├── app/                 # Config, Deps, NewDevDeps/NewProdDeps
-│   ├── auth/                # AuthService interface + mock / not-implemented impls
+│   ├── auth/                # OAuth, CraftSky sessions, and authorization
 │   ├── db/                  # pgxpool connection wrapper
 │   ├── middleware/          # Logging, CORS, Authenticated
 │   ├── routes/              # HTTP route registration
 │   ├── api/                 # HTTP handler factories
 │   ├── tap/                 # WebSocket-with-acks consumer for the Tap sidecar
-│   ├── index/               # Indexer interface + BlueskyPostsSample (throwaway)
-│   └── models/              # reserved for sqlc-generated types
+│   ├── index/               # CraftSky and shared atproto record indexers
+│   └── models/              # sqlc-generated database types
 ├── environments/
 │   ├── dev.env              # checked in; no secrets
 │   └── prod.env.example     # template; real prod.env is gitignored
@@ -81,11 +81,18 @@ Add a new dependency constructor beside the capability it assembles, accept expl
 ### `cmd/appview` — the HTTP server
 
 ```
-appview dev    # loads environments/dev.env, debug logging, mock auth
-appview prod   # loads environments/prod.env, info logging, (future) real OAuth
+appview dev    # development config, OAuth, and dev-only auth shortcut
+appview prod   # production config and OAuth; no dev auth shortcut
 ```
 
+These are container binary commands, not host development commands. Start the local server with `just dev-d`; do not use `go run ./cmd/appview`.
+
 ### `cmd/cli` — ops and smoke-test CLI
+
+`cli ops status` prints a read-only health and background-queue summary;
+`--json` provides aggregate output for scripts. Locally, use `just ops-status`.
+See the [operational snapshot runbook](../docs/operations/production-render.md#operational-snapshot)
+for queue semantics, timeout/origin options and exit codes.
 
 ```
 cli ping --env dev              # pings the DB, prints pool stats
@@ -115,7 +122,7 @@ Exit codes for `cli request`:
 
 ## Development
 
-Local development runs through Docker Compose, driven by the `justfile` at the repo root. See the root `README.md` for a getting-started walkthrough; the compose stack (`postgres`, `migrate`, `tap`, `tap-bootstrap`, `appview`) is brought up with:
+Local development runs through Docker Compose, driven by the `justfile` at the repo root. See the root `README.md` for a getting-started walkthrough; the compose stack (`postgres`, `minio`, their bootstrap/migration services, `tap`, and `appview`) is brought up with:
 
 ```
 just dev      # foreground
@@ -375,10 +382,11 @@ Sentry-bound events, logs, spans, and metrics use bounded route patterns, operat
 The appview acts as a confidential Backend-for-Frontend (BFF) OAuth client
 against users' PDSes, using [indigo's `atproto/auth/oauth`](https://github.com/bluesky-social/indigo/tree/main/atproto/auth/oauth).
 OAuth access/refresh tokens and DPoP keys stay server-side; clients present an
-opaque Craftsky bearer token on authenticated AppView requests. The sole narrow
-exception is ADR 012: AppView may issue Flutter a short-lived, upload-only
-PDS-signed service JWT for direct upload to the exact configured Bluesky video
-endpoint. That credential is memory-only and is not a general OAuth/TMB handoff.
+opaque CraftSky bearer token on authenticated AppView requests. Narrow exceptions
+under [ADR 012](../adr/012-ephemeral-video-service-token-handoff.md) and
+[ADR 017](../adr/017-direct-image-upload-service-token-handoff.md) allow temporary,
+upload-only service JWTs for the configured video service and authorized PDS image
+endpoint. These credentials stay in memory and do not provide general OAuth authority.
 
 Video completion verification uses the public, tokenless job-status endpoint at
 `VIDEO_SERVICE_URL` (default `https://video.bsky.app`). Canonical post responses
@@ -397,8 +405,8 @@ for the full design rationale.
 | GET | `/oauth-client-metadata.json` | Authorization Servers |
 | GET | `/oauth/jwks.json` | Authorization Servers (empty in dev) |
 | GET | `/oauth/callback` | Authorization Server → user browser |
-| POST | `/auth/login` | Craftsky clients (Flutter/CLI) |
-| POST | `/auth/logout` | Craftsky clients (behind `Authenticated`) |
+| POST | `/v1/auth/login` | Craftsky clients (Flutter/CLI) |
+| POST | `/v1/auth/logout` | Craftsky clients (behind `Authenticated`) |
 
 ### Dev key generation
 
@@ -413,16 +421,20 @@ In explicit dev mode the appview runs as a localhost public client
 against `http://127.0.0.1:18080/oauth/callback` and does not require a
 client secret.
 
-The compose stack publishes that callback on host port `18080`. Android
-emulators cannot otherwise reach the host through their own loopback address,
-so `just app-run-android` installs `adb reverse tcp:18080 tcp:18080` before
-launching Flutter. Keep the OAuth callback on `127.0.0.1`: atproto's localhost
+The primary checkout publishes that callback on host port `18080`; linked
+worktrees use the alternate port printed at startup. Examples below use `18080`;
+substitute your checkout's port. Android emulators cannot otherwise reach the host
+through their own loopback address, so `just app-run-android` installs ADB reverse
+for the selected port before launching Flutter. Keep the OAuth callback on `127.0.0.1`: atproto's localhost
 client profile does not permit `10.0.2.2` as a redirect host.
 
 ### Running the OAuth flow in development
 
 There is no `cli login` subcommand yet. Use the Flutter app for the complete
-verified-link flow. The login request it sends is equivalent to:
+flow. Native debug runs through `just app-run`, `just app-run-ios`, or
+`just app-run-android` opt into the development callback scheme described in the
+[client guide](../app/README.md#local-development-oauth). The verified HTTPS link
+mode used by release builds sends a login request equivalent to:
 
 ```bash
 curl -s -X POST http://localhost:18080/v1/auth/login \
@@ -595,7 +607,7 @@ equivalent). Re-run only if you log out or rotate the app password.
 Put the record in a file rather than echoing inline. `goat record create`
 reads `$type` from the JSON to derive the collection — and dotted NSIDs
 like `social.craftsky.feed.post` are eagerly auto-linked into markdown
-`[text](url)` syntax by many chat UIs and "smart-paste" tools, which
+`[label](target)` syntax by many chat UIs and "smart-paste" tools, which
 silently corrupts `$type` and produces a record under a malformed
 collection name. A single-quoted heredoc bypasses every layer of shell
 substitution and "helpful" linkification:
@@ -653,7 +665,7 @@ If `goat record ls` shows the record but `craftsky_posts` is empty, check
 whether `tap-status` reports no events or a slowly advancing historical
 cursor. Tap may still be replaying its durable relay backlog. For a tracked
 member whose PDS is ahead of AppView, queue a scoped read-only repair with
-`docker compose exec appview /app/cli tap reconcile YOUR_DID`. If Tap is
+`./scripts/compose-dev exec appview /app/cli tap reconcile YOUR_DID --env dev`. If Tap is
 current, the membership gate is the next likely culprit — re-onboard via
 the OAuth flow.
 

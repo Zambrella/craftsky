@@ -185,12 +185,26 @@ func ValidateProfilePutWithLimits(req ProfilePutRequest, limits MediaLimits) err
 			}
 		}
 	}
-	validateProfileImageUpdate(fields, "avatar", req.Avatar, limits)
-	validateProfileImageUpdate(fields, "banner", req.Banner, limits)
+	// Bluesky profile images have a stricter lexicon limit than post images.
+	limits.MaxImageUploadBytes = min(limits.MaxImageUploadBytes, 1_000_000)
+	validateActorProfileImageUpdate(fields, "avatar", req.Avatar, limits)
+	validateActorProfileImageUpdate(fields, "banner", req.Banner, limits)
 	if len(fields) > 0 {
 		return &FieldError{Code: "validation_failed", Fields: fields}
 	}
 	return nil
+}
+
+func validateActorProfileImageUpdate(fields map[string]string, prefix string, update ProfileImageUpdate, limits MediaLimits) {
+	validateProfileImageUpdate(fields, prefix, update, limits)
+	if !update.Present || update.Blob == nil {
+		return
+	}
+	mime, _ := update.Blob["mimeType"].(string)
+	mime = strings.TrimSpace(mime)
+	if mime != "" && mime != "image/jpeg" && mime != "image/png" {
+		fields[prefix+".mimeType"] = "must be one of image/jpeg, image/png"
+	}
 }
 
 func validateProfileImageUpdate(fields map[string]string, prefix string, update ProfileImageUpdate, limits MediaLimits) {

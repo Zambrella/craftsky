@@ -1,0 +1,168 @@
+<Rive version="1" kind="fragment">
+  <Artboard name="Publishing" id="0:116" x="0" y="0" width="72" height="72" styleId="0:117" defaultStateMachineId="0:118" viewModelId="1:1" viewModelInstanceId="1:2">
+    <LayoutComponentStyle id="0:117" />
+    <Node x="36" y="36">
+      <Node name="Orbit" id="0:121">
+        <Shape x="0" y="-29" id="0:122">
+          <Ellipse width="7.4" height="7.4" originX="0.5" originY="0.5" />
+          <Fill>
+            <SolidColor colorValue="FFF03A2E" />
+          </Fill>
+        </Shape>
+        <Shape x="0" y="0">
+          <Ellipse width="58" height="58" originX="0.5" originY="0.5" />
+          <Stroke thickness="3.5" cap="round" join="round">
+            <SolidColor colorValue="FF1535D6">
+              <DataBindContext sourcePathIds="1:1-1:3" propertyKey="37" />
+            </SolidColor>
+            <TrimPath start="0.04" end="0.85" />
+            <DashPath>
+              <Dash length="7" />
+              <Dash length="6" />
+            </DashPath>
+          </Stroke>
+        </Shape>
+      </Node>
+      <Shape id="0:142" name="Uploading arrow">
+        <PointsPath>
+          <StraightVertex x="-7" y="6" radius="0" />
+          <StraightVertex x="0" y="-3" radius="3" />
+          <StraightVertex x="7" y="6" radius="0" />
+        </PointsPath>
+        <Stroke thickness="3.5" cap="round" join="round">
+          <SolidColor colorValue="FF1535D6">
+            <DataBindContext sourcePathIds="1:1-1:3" propertyKey="37" />
+          </SolidColor>
+        </Stroke>
+      </Shape>
+    </Node>
+    <StateMachine name="Publishing" id="0:118">
+      <StateMachineLayer name="Loop">
+        <EntryState>
+          <StateTransition stateToId="0:119" />
+        </EntryState>
+        <AnimationState x="220" animationId="0:120" id="0:119" />
+      </StateMachineLayer>
+    </StateMachine>
+    <LinearAnimation name="Publishing loop" id="0:120" fps="60" duration="144" loopValue="loop">
+      <KeyedObject objectId="0:121">
+        <KeyedProperty propertyKey="15">
+          <KeyFrameDouble frame="0" value="0" interpolationType="linear" />
+          <KeyFrameDouble frame="144" value="6.283185307179586" interpolationType="linear" />
+        </KeyedProperty>
+      </KeyedObject>
+      <KeyedObject objectId="0:122">
+        <KeyedProperty propertyKey="16">
+          <KeyFrameDouble frame="0" value="1" interpolationType="cubic">
+            <CubicEaseInterpolator x1="0.42" y1="0" x2="0.58" y2="1" />
+          </KeyFrameDouble>
+          <KeyFrameDouble frame="36" value="1.15" interpolationType="cubic">
+            <CubicEaseInterpolator x1="0.42" y1="0" x2="0.58" y2="1" />
+          </KeyFrameDouble>
+          <KeyFrameDouble frame="72" value="1" interpolationType="cubic">
+            <CubicEaseInterpolator x1="0.42" y1="0" x2="0.58" y2="1" />
+          </KeyFrameDouble>
+          <KeyFrameDouble frame="108" value="1.15" interpolationType="cubic">
+            <CubicEaseInterpolator x1="0.42" y1="0" x2="0.58" y2="1" />
+          </KeyFrameDouble>
+          <KeyFrameDouble frame="144" value="1" interpolationType="cubic">
+            <CubicEaseInterpolator x1="0.42" y1="0" x2="0.58" y2="1" />
+          </KeyFrameDouble>
+        </KeyedProperty>
+      </KeyedObject>
+      <KeyedObject objectId="0:122">
+        <KeyedProperty propertyKey="17">
+          <KeyFrameDouble frame="0" value="1" interpolationType="cubic">
+            <CubicEaseInterpolator x1="0.42" y1="0" x2="0.58" y2="1" />
+          </KeyFrameDouble>
+          <KeyFrameDouble frame="36" value="1.15" interpolationType="cubic">
+            <CubicEaseInterpolator x1="0.42" y1="0" x2="0.58" y2="1" />
+          </KeyFrameDouble>
+          <KeyFrameDouble frame="72" value="1" interpolationType="cubic">
+            <CubicEaseInterpolator x1="0.42" y1="0" x2="0.58" y2="1" />
+          </KeyFrameDouble>
+          <KeyFrameDouble frame="108" value="1.15" interpolationType="cubic">
+            <CubicEaseInterpolator x1="0.42" y1="0" x2="0.58" y2="1" />
+          </KeyFrameDouble>
+          <KeyFrameDouble frame="144" value="1" interpolationType="cubic">
+            <CubicEaseInterpolator x1="0.42" y1="0" x2="0.58" y2="1" />
+          </KeyFrameDouble>
+        </KeyedProperty>
+      </KeyedObject>
+      <KeyedObject objectId="0:142">
+        <KeyedProperty propertyKey="14">
+          <KeyFrameDouble frame="0" value="6" interpolationType="cubic">
+            <CubicEaseInterpolator x1="0.25" y1="0.1" x2="0.25" y2="1" />
+          </KeyFrameDouble>
+          <KeyFrameDouble frame="10" value="4" interpolationType="cubic">
+            <CubicEaseInterpolator x1="0.25" y1="0.1" x2="0.25" y2="1" />
+          </KeyFrameDouble>
+          <KeyFrameDouble frame="42" value="-6" interpolationType="cubic">
+            <CubicEaseInterpolator x1="0.25" y1="0.1" x2="0.25" y2="1" />
+          </KeyFrameDouble>
+          <KeyFrameDouble frame="58" value="-10" interpolationType="cubic">
+            <CubicEaseInterpolator x1="0.25" y1="0.1" x2="0.25" y2="1" />
+          </KeyFrameDouble>
+          <KeyFrameDouble frame="71" value="6" interpolationType="cubic">
+            <CubicEaseInterpolator x1="0.25" y1="0.1" x2="0.25" y2="1" />
+          </KeyFrameDouble>
+          <KeyFrameDouble frame="72" value="6" interpolationType="cubic">
+            <CubicEaseInterpolator x1="0.25" y1="0.1" x2="0.25" y2="1" />
+          </KeyFrameDouble>
+          <KeyFrameDouble frame="82" value="4" interpolationType="cubic">
+            <CubicEaseInterpolator x1="0.25" y1="0.1" x2="0.25" y2="1" />
+          </KeyFrameDouble>
+          <KeyFrameDouble frame="114" value="-6" interpolationType="cubic">
+            <CubicEaseInterpolator x1="0.25" y1="0.1" x2="0.25" y2="1" />
+          </KeyFrameDouble>
+          <KeyFrameDouble frame="130" value="-10" interpolationType="cubic">
+            <CubicEaseInterpolator x1="0.25" y1="0.1" x2="0.25" y2="1" />
+          </KeyFrameDouble>
+          <KeyFrameDouble frame="143" value="6" interpolationType="cubic">
+            <CubicEaseInterpolator x1="0.25" y1="0.1" x2="0.25" y2="1" />
+          </KeyFrameDouble>
+          <KeyFrameDouble frame="144" value="6" interpolationType="linear" />
+        </KeyedProperty>
+        <KeyedProperty propertyKey="18">
+          <KeyFrameDouble frame="0" value="0" interpolationType="cubic">
+            <CubicEaseInterpolator x1="0.25" y1="0.1" x2="0.25" y2="1" />
+          </KeyFrameDouble>
+          <KeyFrameDouble frame="10" value="1" interpolationType="cubic">
+            <CubicEaseInterpolator x1="0.25" y1="0.1" x2="0.25" y2="1" />
+          </KeyFrameDouble>
+          <KeyFrameDouble frame="42" value="1" interpolationType="cubic">
+            <CubicEaseInterpolator x1="0.25" y1="0.1" x2="0.25" y2="1" />
+          </KeyFrameDouble>
+          <KeyFrameDouble frame="58" value="0" interpolationType="cubic">
+            <CubicEaseInterpolator x1="0.25" y1="0.1" x2="0.25" y2="1" />
+          </KeyFrameDouble>
+          <KeyFrameDouble frame="71" value="0" interpolationType="cubic">
+            <CubicEaseInterpolator x1="0.25" y1="0.1" x2="0.25" y2="1" />
+          </KeyFrameDouble>
+          <KeyFrameDouble frame="72" value="0" interpolationType="cubic">
+            <CubicEaseInterpolator x1="0.25" y1="0.1" x2="0.25" y2="1" />
+          </KeyFrameDouble>
+          <KeyFrameDouble frame="82" value="1" interpolationType="cubic">
+            <CubicEaseInterpolator x1="0.25" y1="0.1" x2="0.25" y2="1" />
+          </KeyFrameDouble>
+          <KeyFrameDouble frame="114" value="1" interpolationType="cubic">
+            <CubicEaseInterpolator x1="0.25" y1="0.1" x2="0.25" y2="1" />
+          </KeyFrameDouble>
+          <KeyFrameDouble frame="130" value="0" interpolationType="cubic">
+            <CubicEaseInterpolator x1="0.25" y1="0.1" x2="0.25" y2="1" />
+          </KeyFrameDouble>
+          <KeyFrameDouble frame="143" value="0" interpolationType="cubic">
+            <CubicEaseInterpolator x1="0.25" y1="0.1" x2="0.25" y2="1" />
+          </KeyFrameDouble>
+          <KeyFrameDouble frame="144" value="0" interpolationType="linear" />
+        </KeyedProperty>
+      </KeyedObject>
+    </LinearAnimation>
+  </Artboard>
+  <ViewModel name="PublishingTheme" id="1:1" defaultInstanceId="1:2">
+    <ViewModelPropertyColor name="threadColor" id="1:3" />
+    <ViewModelInstance name="Default" id="1:2" exports="true">
+      <ViewModelInstanceColor viewModelPropertyId="1:3" propertyValue="FF1535D6" />
+    </ViewModelInstance>
+  </ViewModel>
+</Rive>

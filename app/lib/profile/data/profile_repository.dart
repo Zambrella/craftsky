@@ -3,6 +3,7 @@ import 'package:craftsky_app/moderation/models/report_submission.dart';
 import 'package:craftsky_app/profile/models/follower_growth.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/models/profile_account_page.dart';
+import 'package:craftsky_app/profile/models/profile_account_summary.dart';
 import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:craftsky_app/profile/models/profile_relationship.dart';
 import 'package:craftsky_app/shared/media/uploaded_image_blob.dart';
@@ -11,6 +12,8 @@ import 'package:craftsky_app/shared/media/uploaded_image_blob.dart';
 /// binding is `ApiProfileRepository`, and the test suite swaps in
 /// `FakeProfileRepository` (under `test/`).
 abstract interface class ProfileRepository {
+  Future<List<ProfileAccountSummary>> fetchRecentMembers();
+
   /// Fetches any user's profile by handle or DID.
   Future<Profile> fetch(String handleOrDid);
 

@@ -27,6 +27,7 @@ type PrivateSuggestion struct {
 	TerminalAt         *time.Time
 	ResultRecordURI    *syntax.ATURI
 	ResultRecordCID    *string
+	FollowRkey         *syntax.RecordKey
 	ImportedUsername   string
 	CreatedAt          time.Time
 	UpdatedAt          time.Time
@@ -285,7 +286,7 @@ func (store *PrivateSuggestionStore) Dismiss(
 const privateSuggestionColumns = `
 	id,importer_did,target_did,importer_generation,target_generation,
 	evidence_link_id,state,accepting_since,terminal_at,result_record_uri,
-	result_record_cid,created_at,updated_at`
+	result_record_cid,created_at,updated_at,follow_rkey`
 
 type privateSuggestionScanner interface {
 	Scan(dest ...any) error
@@ -310,6 +311,7 @@ func scanPrivateSuggestion(row privateSuggestionScanner) (PrivateSuggestion, err
 		&suggestion.ResultRecordCID,
 		&suggestion.CreatedAt,
 		&suggestion.UpdatedAt,
+		&suggestion.FollowRkey,
 	)
 	if resultURI != nil {
 		parsed := syntax.ATURI(*resultURI)

@@ -148,13 +148,10 @@ class _SearchResultTabScrollView extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return RefreshIndicator(
+    return YarnRefreshScrollView(
       onRefresh: () => _refresh(ref),
-      child: CustomScrollView(
-        key: PageStorageKey<String>('search_results_tab_${tab.name}'),
-        physics: const AlwaysScrollableScrollPhysics(),
-        slivers: [_sliverForTab(tab)],
-      ),
+      slivers: [_sliverForTab(tab)],
+      scrollViewKey: PageStorageKey<String>('search_results_tab_${tab.name}'),
     );
   }
 

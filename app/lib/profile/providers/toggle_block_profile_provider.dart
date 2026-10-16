@@ -2,10 +2,12 @@ import 'dart:async';
 
 import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/auth/providers/account_operation_guard.dart';
+import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/feed/providers/timeline_provider.dart';
 import 'package:craftsky_app/notifications/providers/notifications_provider.dart';
 import 'package:craftsky_app/profile/providers/block_profile_overlay.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
+import 'package:craftsky_app/profile/providers/recent_members_provider.dart';
 import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
 import 'package:craftsky_app/search/providers/blank_search_provider.dart';
 import 'package:craftsky_app/shared/api/pds_mutation_contract.dart';
@@ -102,5 +104,9 @@ void _invalidateBlockReads(Ref ref, Did targetDid, AccountKey? account) {
     ..invalidate(notificationsProvider);
   if (account != null) {
     ref.invalidate(accountNotificationsProvider(account));
+  }
+  final lease = ref.read(sessionRegistryProvider).value?.activeLease;
+  if (lease != null && lease.session.account == account) {
+    ref.invalidate(recentMembersProvider(lease));
   }
 }

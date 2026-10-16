@@ -259,6 +259,28 @@ final class PdsRecordOperationController {
     return true;
   }
 
+  /// Additional bounded reads for projections such as cleared profile images.
+  /// Reuse the controller scheduler and lifetime so reset/disposal cancels them.
+  void refreshAfter(PdsMutationToken token, Duration delay) {
+    void refreshCurrent() {
+      final overlay = _overlays[token.scope];
+      if (overlay?.token != token || token._epoch != _epoch) return;
+      _refresh(overlay!);
+    }
+
+    final schedule = _schedule;
+    if (schedule != null) {
+      schedule(delay, refreshCurrent);
+      return;
+    }
+    late final Timer timer;
+    timer = Timer(delay, () {
+      _timers.remove(timer);
+      refreshCurrent();
+    });
+    _timers.add(timer);
+  }
+
   bool reconcile(PdsMutationScope scope, Object? authoritativeValue) {
     final overlay = _overlays[scope];
     if (overlay == null || overlay.token._epoch != _epoch) return false;

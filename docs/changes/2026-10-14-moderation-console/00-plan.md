@@ -7,6 +7,12 @@ Revised: 16 October 2026
 Status: Local implementation, validation and rollout preparation complete with
 documented limits; production rollout pending
 
+Main integration on 16 October reserves migration 93 for Instagram follow record
+keys. The unreleased console migrations previously numbered 93–100 are now
+94–101, with unchanged SQL. Earlier stage reports retain the migration numbers
+and database versions observed at the time; add one to those console migration
+numbers when locating the current files.
+
 ## Decision and architecture
 
 Build a private React/TypeScript moderation web app in this repository.
@@ -45,7 +51,7 @@ restricted preservation, access, holds and retention in
 [stage 5](08-evidence-ui-implementation.md). Final validation and production
 handoff are recorded in [stage 6](09-final-validation-rollout.md).
 The [prototype cleanup](10-prototype-cleanup.md) records removal of the retired
-integration and verification of the standalone console after migration 100.
+integration and verification of the standalone console after migration 101.
 [Rich content previews](11-rich-content-previews.md) add account, post and event
 cards with ordinary images and on-demand video.
 [Context, business and version completion](12-preview-context-business-versions.md)
@@ -229,7 +235,7 @@ The original backend proof passed on 14 October. It is historical evidence;
 Atmosphere login and the standalone UI have separate verification in revised
 stages 1 and 3 below.
 External prototype verification is no longer a gate. Local prototype code is
-retired; migration 100 removes the unused external identity column while
+retired; migration 101 removes the unused external identity column while
 preserving DID bindings, actor/audit history and sessions. Applied migrations and
 dated reports retain their historical identifiers. Remote resource cleanup and
 production mutations remain separate operations.
@@ -290,7 +296,7 @@ Completion evidence: report → decision → enforcement → appeal → reversal
 through the browser, with correct attribution, effects, strikes and standing.
 
 This milestone is complete and passed the full local release gate. Browser
-evidence, migration 98 and remaining verification limits are recorded in
+evidence, migration 99 and remaining verification limits are recorded in
 [stage 3](06-case-ui-implementation.md).
 
 ### 4. Safety, intake, specialist workflows and operations
@@ -312,7 +318,7 @@ Completion evidence: synthetic workflows with matching persisted state,
 attribution and denied-access tests, including stale/repeated commands.
 
 This milestone is complete locally. Browser workflows, authorization checks,
-migration 99, explicit deadline configuration and verification limits are
+migration 100, explicit deadline configuration and verification limits are
 recorded in [stage 4](07-specialist-ui-implementation.md).
 
 ### 5. Restricted evidence handling

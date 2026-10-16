@@ -27,6 +27,7 @@ import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/form_factor.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
+import 'package:craftsky_app/theme/yarn_refresh_scroll_view.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -108,45 +109,42 @@ class _FeedPageState extends ConsumerState<FeedPage> {
         children: [
           InlinePinchZoomScope(
             onPinchChanged: _handleImagePinchChanged,
-            child: RefreshIndicator(
+            child: YarnRefreshScrollView(
               key: ValueKey(_refreshGeneration),
               notificationPredicate: (notification) =>
                   !_isPinchingImage &&
                   defaultScrollNotificationPredicate(notification),
-              edgeOffset: MediaQuery.paddingOf(context).top + kToolbarHeight,
               onRefresh: () async {
                 final _ = await ref.refresh(timelineProvider.future);
               },
-              child: CustomScrollView(
-                controller: _scrollController,
-                physics: const AlwaysScrollableScrollPhysics(),
-                slivers: [
-                  SliverAppBar(
-                    leading: AppShellDrawerScope.maybeOf(context) == null
-                        ? null
-                        : const AppShellDrawerButton(),
-                    title: Text(l10n.feedTitle),
-                    pinned: true,
+              headerSliverCount: 1,
+              controller: _scrollController,
+              slivers: [
+                SliverAppBar(
+                  leading: AppShellDrawerScope.maybeOf(context) == null
+                      ? null
+                      : const AppShellDrawerButton(),
+                  title: Text(l10n.feedTitle),
+                  pinned: true,
+                ),
+                switch (timelineAsync) {
+                  AsyncValue(:final value?) => _FeedLoadedSlivers(
+                    items: value.items,
+                    hasMore: value.hasMore,
+                    isLoadingMore: timelineAsync.isLoading,
+                    hasLoadMoreError: timelineAsync.hasError,
                   ),
-                  switch (timelineAsync) {
-                    AsyncValue(:final value?) => _FeedLoadedSlivers(
-                      items: value.items,
-                      hasMore: value.hasMore,
-                      isLoadingMore: timelineAsync.isLoading,
-                      hasLoadMoreError: timelineAsync.hasError,
+                  _ when timelineAsync.hasError => _FeedErrorSliver(
+                    onRetry: () => ref.invalidate(timelineProvider),
+                  ),
+                  _ => CraftskySkeletonSliverList(
+                    itemCount: 3,
+                    itemBuilder: (context, index) => PostCardSkeleton(
+                      showMedia: index == 0,
                     ),
-                    _ when timelineAsync.hasError => _FeedErrorSliver(
-                      onRetry: () => ref.invalidate(timelineProvider),
-                    ),
-                    _ => CraftskySkeletonSliverList(
-                      itemCount: 3,
-                      itemBuilder: (context, index) => PostCardSkeleton(
-                        showMedia: index == 0,
-                      ),
-                    ),
-                  },
-                ],
-              ),
+                  ),
+                },
+              ],
             ),
           ),
           Positioned(

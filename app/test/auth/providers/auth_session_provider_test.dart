@@ -7,6 +7,7 @@ import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart'
     show sessionRegistryProvider;
 import 'package:craftsky_app/auth/services/session_validation_coordinator.dart';
+import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -32,6 +33,33 @@ ProviderContainer _container(SessionRegistry initial) => ProviderContainer.test(
 );
 
 void main() {
+  test(
+    'profile cache changes preserve the signed-in auth projection',
+    () async {
+      final registry = SessionRegistry.empty().upsertAndActivate(
+        token: 'token',
+        did: 'did:plc:alice',
+        handle: 'alice.test',
+      );
+      final container = _container(registry);
+      addTearDown(container.dispose);
+      final subscription = container.listen(authSessionProvider, (_, _) {});
+      addTearDown(subscription.close);
+      final auth = await container.read(authSessionProvider.future);
+      await container
+          .read(sessionRegistryProvider.notifier)
+          .updateCachedIdentity(
+            registry.activeLease!.session,
+            displayName: 'Updated name',
+            avatarUrl: 'new.jpg',
+            customisation: const ProfileCustomisation(colour: 'teal'),
+          );
+      await container.pump();
+      expect(container.read(authSessionProvider).requireValue, same(auth));
+      expect(container.read(authSessionProvider).isLoading, isFalse);
+    },
+  );
+
   test('cold start launches recovery for a durable pending receipt', () async {
     final pending = PendingHandoff(
       token: 'pending-token',

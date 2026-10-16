@@ -10,6 +10,24 @@ class AppLocalizationsEn extends AppLocalizations {
   AppLocalizationsEn([String locale = 'en']) : super(locale);
 
   @override
+  String get discoveryYourCrafts => 'Your crafts';
+
+  @override
+  String get discoveryNewMembers => 'New to CraftSky';
+
+  @override
+  String get discoveryCraftsError => 'Couldn\'t load your crafts.';
+
+  @override
+  String get discoveryMembersError => 'Couldn\'t load new members.';
+
+  @override
+  String get discoveryMembersEmpty => 'No new members to show yet.';
+
+  @override
+  String get discoveryChooseCrafts => 'Choose your crafts';
+
+  @override
   String get appTitle => 'CraftSky';
 
   @override
@@ -1332,7 +1350,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get postComposePhotosOrVideoHelper =>
-      'Choose up to 4 photos or a video.';
+      'Choose up to 8 photos or a video.';
 
   @override
   String get postComposeChoosePhotos => 'Choose photos';
@@ -3342,6 +3360,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get onboardingGuidelinesViewFull => 'View full guidelines';
+
+  @override
+  String get privacyTitle => 'Privacy';
 
   @override
   String get errorReportingTitle => 'Error reporting';

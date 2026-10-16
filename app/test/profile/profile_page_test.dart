@@ -38,8 +38,10 @@ import 'package:craftsky_app/shared/mutations/pds_record_operation_controller.da
 import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/shared/widgets/notification_destination_error_state.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
+import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
+import 'package:craftsky_app/theme/yarn_refresh_scroll_view.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -161,9 +163,9 @@ void main() {
         final scrollView = tester.widget<CustomScrollView>(
           find.byKey(PageStorageKey<String>('profile_tab_${entry.value}')),
         );
-        expect(scrollView.physics, isA<AlwaysScrollableScrollPhysics>());
+        expect(scrollView.physics, isA<BouncingScrollPhysics>());
         await tester
-            .widget<RefreshIndicator>(find.byType(RefreshIndicator))
+            .widget<YarnRefreshScrollView>(find.byType(YarnRefreshScrollView))
             .onRefresh();
         await tester.pumpAndSettle();
       }
@@ -1793,7 +1795,9 @@ void main() {
 
       await tester.tap(find.text('Follow'));
       await tester.pump();
-      await tester.tap(find.text('Follow'));
+      final followButton = find.widgetWithText(ChunkyButton, 'Follow');
+      expect(tester.widget<ChunkyButton>(followButton).onPressed, isNull);
+      await tester.tap(followButton);
       await tester.pump();
 
       expect(followCalls, 1);

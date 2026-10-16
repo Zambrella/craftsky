@@ -30,6 +30,7 @@ import 'package:craftsky_app/settings/pages/account_page.dart';
 import 'package:craftsky_app/settings/pages/appearance_page.dart';
 import 'package:craftsky_app/settings/pages/follow_list_page.dart';
 import 'package:craftsky_app/settings/pages/follower_growth_page.dart';
+import 'package:craftsky_app/settings/pages/privacy_page.dart';
 import 'package:craftsky_app/settings/pages/profile_customisation_page.dart';
 import 'package:craftsky_app/settings/pages/relationship_list_page.dart';
 import 'package:craftsky_app/settings/pages/settings_page.dart';
@@ -99,6 +100,7 @@ void main() {
       '/profile/settings/moderation',
     );
     expect(const AboutRoute().location, '/profile/settings/about');
+    expect(const PrivacyRoute().location, '/profile/settings/privacy');
   });
 
   testWidgets('Profile Settings action keeps one large navigation rail', (
@@ -401,6 +403,7 @@ void main() {
       'Customisation',
       'Languages',
       'Notifications',
+      'Privacy',
       'Connections',
       'Growth',
       'Followers',
@@ -421,7 +424,7 @@ void main() {
     expect(find.text('Clear image cache'), findsNothing);
     expect(
       find.byIcon(CraftskyIconsBold.next),
-      findsNWidgets(14),
+      findsNWidgets(15),
     );
     final signOut = tester.widget<Text>(find.text('Sign out'));
     expect(
@@ -625,6 +628,11 @@ const _emptyAccountPage = ProfileAccountPage(
 );
 
 final _routeCases = <_SettingsRouteCase>[
+  _SettingsRouteCase(
+    label: 'Privacy',
+    location: '/profile/settings/privacy',
+    matchesPage: (widget) => widget is PrivacyPage,
+  ),
   _SettingsRouteCase(
     label: 'Appearance',
     location: '/profile/settings/appearance',

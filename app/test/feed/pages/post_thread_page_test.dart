@@ -25,6 +25,7 @@ import 'package:craftsky_app/theme/craftsky_card.dart';
 import 'package:craftsky_app/theme/craftsky_context_menu.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/form_factor.dart';
+import 'package:craftsky_app/theme/yarn_refresh_scroll_view.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -336,7 +337,7 @@ void main() {
     );
 
     expect(find.text('original post'), findsOneWidget);
-    expect(find.byType(RefreshIndicator), findsOneWidget);
+    expect(find.byType(YarnRefreshScrollView), findsOneWidget);
     await tester.drag(find.byType(CustomScrollView), const Offset(0, 300));
     await tester.pump();
     await tester.pump(const Duration(seconds: 1));

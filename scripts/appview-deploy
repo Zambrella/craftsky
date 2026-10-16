@@ -107,9 +107,9 @@ while (( attempt <= health_attempts )); do
   if curl --fail --silent --max-time 10 "$public_origin/health" >/dev/null && \
     health=$(curl --fail --silent --max-time 10 "$public_origin/healthz") && \
     jq --exit-status '
+      .status == "ok" and
       .db == "ok" and
-      .tap.connected == true and
-      (.tap.last_event_at == "" or ((now - (.tap.last_event_at | fromdateiso8601)) as $age | $age >= 0 and $age < 900))
+      .tap.connected == true
     ' <<<"$health" >/dev/null; then
     break
   fi

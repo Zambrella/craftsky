@@ -23,7 +23,7 @@ final _privateKey = RegExp(
 
 /// Only call after reviewed provenance has admitted the text. This cannot
 /// classify arbitrary private prose; unknown exception messages stay excluded.
-String sanitizeKnownDiagnosticText(String sourceText) {
+String scrubKnownDiagnosticText(String sourceText) {
   var text = sourceText;
   for (var i = 0; i < 2; i++) {
     try {
@@ -50,6 +50,11 @@ String sanitizeKnownDiagnosticText(String sourceText) {
       .replaceAll(_localPath, '[REDACTED]')
       .replaceAllMapped(_credential, (match) => '${match[1]}=[REDACTED]')
       .replaceAll(_bearer, 'Bearer [REDACTED]');
+  return selected;
+}
+
+String sanitizeKnownDiagnosticText(String sourceText) {
+  final selected = scrubKnownDiagnosticText(sourceText);
   final bytes = utf8.encode(selected);
   if (bytes.length <= maxDiagnosticTextBytes) return selected;
   const marker = '[TRUNCATED]';

@@ -1,0 +1,23 @@
+name: Documentation improvement
+description: Report confusing, missing, or incorrect contributor or product documentation.
+title: "[Docs]: "
+body:
+  - type: input
+    id: location
+    attributes:
+      label: Page or file
+      description: Link the page, file, or section. If it is missing, say where you expected to find it.
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What is unclear or incorrect?
+      description: For setup problems, include the command, OS, and redacted error. Never include credentials or private payloads.
+    validations:
+      required: true
+  - type: textarea
+    id: improvement
+    attributes:
+      label: Suggested improvement
+      description: Optional wording, missing steps, or context that would have helped.

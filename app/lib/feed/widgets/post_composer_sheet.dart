@@ -5,9 +5,9 @@ import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/auth/providers/account_operation_guard.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/auth/providers/unsaved_work_guard_provider.dart';
+import 'package:craftsky_app/drafts/composer/composer_draft_session.dart';
 import 'package:craftsky_app/drafts/composer/draft_composer_hydrator.dart';
 import 'package:craftsky_app/drafts/composer/draft_schedule_restoration.dart';
-import 'package:craftsky_app/drafts/composer/draft_submission_origin.dart';
 import 'package:craftsky_app/drafts/composer/standard_draft_snapshot_adapter.dart';
 import 'package:craftsky_app/drafts/data/local_post_draft_repository.dart';
 import 'package:craftsky_app/drafts/models/local_post_draft.dart';
@@ -17,12 +17,12 @@ import 'package:craftsky_app/drafts/providers/local_post_drafts_provider.dart';
 import 'package:craftsky_app/drafts/widgets/draft_close_dialog.dart';
 import 'package:craftsky_app/feed/composer/composer_media_uploader.dart';
 import 'package:craftsky_app/feed/composer/composer_submission_coordinator.dart';
+import 'package:craftsky_app/feed/composer/composer_video_publication.dart';
 import 'package:craftsky_app/feed/composer/link_preview_candidate.dart';
 import 'package:craftsky_app/feed/composer/link_preview_controller.dart';
 import 'package:craftsky_app/feed/composer/submission_screen_awake.dart';
 import 'package:craftsky_app/feed/composer/video_failure_message.dart';
 import 'package:craftsky_app/feed/composer/video_publication_coordinator.dart';
-import 'package:craftsky_app/feed/data/video_service_client.dart';
 import 'package:craftsky_app/feed/models/create_post_video.dart';
 import 'package:craftsky_app/feed/models/link_preview.dart';
 import 'package:craftsky_app/feed/models/post.dart';
@@ -47,6 +47,7 @@ import 'package:craftsky_app/router/responsive_modal_navigation.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/scheduled_posts/composer/schedule_capacity_state.dart';
 import 'package:craftsky_app/scheduled_posts/composer/schedule_composer_state.dart';
+import 'package:craftsky_app/scheduled_posts/composer/scheduled_composer_submission.dart';
 import 'package:craftsky_app/scheduled_posts/models/scheduled_post.dart';
 import 'package:craftsky_app/scheduled_posts/providers/scheduled_post_repository_provider.dart';
 import 'package:craftsky_app/scheduled_posts/providers/scheduled_posts_provider.dart';
@@ -66,6 +67,7 @@ import 'package:craftsky_app/subscriptions/providers/subscription_access_provide
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
+import 'package:craftsky_app/theme/publishing_progress_indicator.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/foundation.dart';
@@ -187,7 +189,7 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
   var _initialSponsored = false;
   var _submissionSucceeded = false;
   Post? _pendingPublishedDraftPost;
-  late final DraftSubmissionOrigin _origin;
+  late final ComposerDraftSession _origin;
   List<String>? _initialLanguages;
   ScheduleChoice _initialScheduleChoice = ScheduleChoice.now;
   DateTime? _initialScheduledAtLocal;
@@ -205,7 +207,7 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
     _existingExternalMediaId = _existingExternalThumbMediaId(
       widget.scheduledPost,
     );
-    _origin = DraftSubmissionOrigin(widget.draftSeed?.draft);
+    _origin = ComposerDraftSession(widget.draftSeed?.draft);
     _mediaUploader = ComposerMediaUploader();
     _submissionCoordinator = ComposerSubmissionCoordinator(
       screenAwake: const WakelockSubmissionScreenAwake(),
@@ -313,6 +315,7 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
 
   @override
   Widget build(BuildContext context) {
+    ref.watch(publishingAnimationFileProvider);
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
     final spacing = theme.extension<SpacingTheme>()!;
@@ -912,37 +915,10 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
     );
   }
 
-  DraftVideoWrite? _draftVideoWrite() {
-    final selection = _videoController.selection;
-    if (selection == null) return null;
-    final stored = _origin.draft?.video;
-    if (_usesStoredDraftVideo && stored != null) {
-      return ExistingStoredVideo(
-        storageRevision: stored.storageRevision,
-        expectedSourceSha256: stored.sourceSha256,
-        expectedPosterSha256: stored.posterSha256,
-        altText: selection.altText,
-      );
-    }
-    final poster = selection.posterBytes;
-    if (poster == null) {
-      throw const DraftRepositoryException(
-        DraftRepositoryFailureReason.invalidRequest,
-      );
-    }
-    return PreparedDraftVideo(
-      displayFileName: selection.displayName,
-      mimeType: selection.mimeType,
-      byteLength: selection.byteLength,
-      openSource: selection.openRead,
-      width: selection.width,
-      height: selection.height,
-      duration: selection.duration,
-      altText: selection.altText,
-      posterMimeType: 'image/jpeg',
-      posterBytes: poster,
-    );
-  }
+  DraftVideoWrite? _draftVideoWrite() => _origin.videoWrite(
+    selection: _videoController.selection,
+    useStoredVideo: _usesStoredDraftVideo,
+  );
 
   Future<void> _restoreDraftVideo(LocalPostDraftSeed seed) async {
     final descriptor = seed.draft.video;
@@ -954,23 +930,10 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
           owner.session.account,
         ).future,
       );
-      if (repository is! LocalVideoDraftRepository) return;
-      final videoRepository = repository as LocalVideoDraftRepository;
-      final poster = await videoRepository.readVideoPoster(seed.draft.id);
-      if (!mounted) return;
+      final video = await _origin.restoreVideo(seed, repository);
+      if (!mounted || video == null) return;
       setState(() {
-        _videoController.restoredSelection = LocalVideoSelection(
-          displayName: descriptor.displayFileName,
-          mimeType: descriptor.mimeType,
-          byteLength: descriptor.sourceByteLength,
-          duration: descriptor.duration,
-          width: descriptor.width,
-          height: descriptor.height,
-          headerBytes: Uint8List(0),
-          openRead: () => videoRepository.openVideoSource(seed.draft.id),
-          posterBytes: poster,
-          altText: descriptor.altText,
-        );
+        _videoController.restoredSelection = video;
         _usesStoredDraftVideo = true;
       });
     } on Object {
@@ -1094,32 +1057,11 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
       _submissionSucceeded = created != null;
       return;
     }
-    final api = ref.read(postApiClientProvider);
-    final service = ref.read(videoServiceClientProvider);
-    final coordinator = VideoPublicationCoordinator(
-      operationAccountDid: owner.session.account.did.value,
-      checkEligibility: api.getVideoUploadLimits,
-      authorize: api.authorizeVideoUpload,
-      upload:
-          ({
-            required authorizationHeader,
-            required cancelToken,
-            required bypassDeduplication,
-            required onProgress,
-          }) => service.upload(
-            source: VideoUploadSource(
-              length: selectedVideo.byteLength,
-              openRead: selectedVideo.openRead,
-            ),
-            ownerDid: owner.session.account.did.value,
-            authorizationHeader: authorizationHeader,
-            bypassDeduplication: bypassDeduplication,
-            cancelToken: cancelToken,
-            onProgress: onProgress,
-          ),
-      poll: (jobId, cancelToken) =>
-          service.getJobStatus(jobId, cancelToken: cancelToken),
-      wait: Future<void>.delayed,
+    final coordinator = composerVideoPublication(
+      owner: owner,
+      selection: selectedVideo,
+      api: ref.read(postApiClientProvider),
+      service: ref.read(videoServiceClientProvider),
       publish: (video, {required allowBlobRecovery}) async {
         final created = await ref
             .read(createPostProvider.notifier)
@@ -1361,42 +1303,35 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
       owner == null ||
       (ref.read(sessionRegistryProvider).value?.isCurrent(owner) ?? false);
 
-  Future<void> _saveOriginSnapshot() async {
-    final origin = _origin.draft;
-    if (origin == null) return;
-    final active = ref.read(sessionRegistryProvider).value?.activeLease;
-    if (active == null ||
-        active != widget.draftOwner ||
-        active.session.account != origin.owner) {
-      throw DiagnosticStateError('local-draft account changed');
-    }
-    final saved = await ref
-        .read(draftSaveControllerProvider(origin.owner).notifier)
-        .save(
-          _draftWriteRequest(
-            origin.owner,
-            ref.read(composerImagesProvider(_composerId)),
-          ),
-        );
-    if (saved == null) {
-      throw DiagnosticStateError('local-draft account changed');
-    }
-    _origin.acceptSnapshot(saved);
-  }
+  Future<void> _saveOriginSnapshot() => _origin.saveOriginSnapshot(
+    expectedOwner: widget.draftOwner,
+    activeOwner: ref.read(sessionRegistryProvider).value?.activeLease,
+    save: (owner) {
+      return ref
+          .read(draftSaveControllerProvider(owner).notifier)
+          .save(
+            _draftWriteRequest(
+              owner,
+              ref.read(composerImagesProvider(_composerId)),
+            ),
+          );
+    },
+  );
 
   Future<void> _deleteOriginDraftAfterSuccess() async {
     final origin = _origin.draft;
     if (origin == null) return;
     try {
-      final repository = await ref.read(
-        accountLocalPostDraftRepositoryProvider(origin.owner).future,
+      await _origin.deleteAfterSuccess(
+        repositoryFor: (owner) => ref.read(
+          accountLocalPostDraftRepositoryProvider(owner).future,
+        ),
+        refresh: (owner) async {
+          if (mounted) {
+            await ref.read(localPostDraftsProvider(owner).notifier).refresh();
+          }
+        },
       );
-      await repository.delete(origin.id);
-      if (mounted) {
-        await ref
-            .read(localPostDraftsProvider(origin.owner).notifier)
-            .refresh();
-      }
     } on Object {
       if (mounted) {
         context.showError(AppLocalizations.of(context).draftCleanupError);
@@ -1483,88 +1418,47 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
       mounted &&
       (ref.read(sessionRegistryProvider).value?.isCurrent(owner) ?? false);
 
-  Future<void> _schedulePost({
-    required String trimmedText,
-    required List<Map<String, dynamic>> facets,
-    required ComposerImagesState imagesState,
-    required SelectedLinkPreview? previewSelection,
-    required _ScheduledExternalDisposition externalDisposition,
-  }) async {
-    final owner = _captureScheduledOperationOwner();
-    final scheduledAt = _scheduledAtLocal;
-    if (owner == null || scheduledAt == null) return;
+  ScheduledComposerSubmission _scheduledSubmission(ActiveAccountLease owner) {
     final account = owner.session.account;
-    final accountOperation = ActiveAccountOperation.withGuard(
-      ownership: owner,
-      isCurrent: () => _scheduledOperationIsCurrent(owner),
+    return ScheduledComposerSubmission(
+      operation: ActiveAccountOperation.withGuard(
+        ownership: owner,
+        isCurrent: () => _scheduledOperationIsCurrent(owner),
+      ),
+      repository: () => ref.read(
+        accountScheduledPostRepositoryProvider(account).future,
+      ),
+      refresh: () =>
+          ref.read(scheduledPostsProvider(account).notifier).refresh(),
+      materializeMedia: ref.read(scheduledComposerMediaMaterializerProvider),
     );
+  }
+
+  void _scheduleProgress(ScheduledComposerProgress progress) {
+    if (!mounted) return;
     setState(() {
-      _isScheduling = true;
-      _stagedImageCount = 0;
-      _stagedImageTotal = imagesState.images
-          .where((image) => image.phase is ImageUploaded)
-          .length;
-      _isSavingSchedule = _stagedImageTotal == 0;
+      _stagedImageCount = progress.staged;
+      _stagedImageTotal = progress.total;
+      _isSavingSchedule = progress.saving;
     });
+  }
+
+  Future<void> _runScheduledWrite(
+    ActiveAccountLease owner, {
+    required Future<void> Function(ScheduledComposerSubmission) write,
+    required String errorMessage,
+    String? successMessage,
+  }) async {
+    setState(() => _isScheduling = true);
     try {
-      final repository = await accountOperation.step(
-        () => ref.read(accountScheduledPostRepositoryProvider(account).future),
-      );
-      if (!mounted || !accountOperation.isCurrent) return;
-      final media = await ref.read(scheduledComposerMediaMaterializerProvider)(
-        imagesState.images,
-        stageMedia: repository.stageMedia,
-        onStaged: (_) {
-          if (mounted && accountOperation.isCurrent) {
-            setState(() => _stagedImageCount++);
-          }
-        },
-      );
-      if (!accountOperation.isCurrent) return;
-      final external = await accountOperation.step(
-        () => _scheduledExternalForSave(
-          previewSelection,
-          disposition: externalDisposition,
-          stageMedia: repository.stageMedia,
-        ),
-      );
-      if (!mounted || !accountOperation.isCurrent) return;
-      final payload = <String, dynamic>{
-        'kind': 'standard',
-        'text': trimmedText,
-        'langs': _languages!.values,
-        'sponsored': _sponsored,
-        'facets': ?facets.isEmpty ? null : facets,
-        'media': media,
-        'external': ?external,
-      };
-      if (mounted) setState(() => _isSavingSchedule = true);
-      final existing = widget.scheduledPost;
-      if (existing == null) {
-        await repository.create(
-          operationId: _composerId,
-          scheduledAt: scheduledAt.toUtc(),
-          payload: payload,
-        );
-      } else {
-        await repository.update(
-          id: existing.id,
-          scheduledAt: scheduledAt.toUtc(),
-          payload: payload,
-        );
-      }
-      if (!accountOperation.isCurrent) return;
-      await ref.read(scheduledPostsProvider(account).notifier).refresh();
-      if (!accountOperation.isCurrent) return;
-      if (!mounted) return;
+      await write(_scheduledSubmission(owner));
+      if (!mounted || !_scheduledOperationIsCurrent(owner)) return;
       _submissionSucceeded = true;
       Navigator.of(context).pop();
-      context.showInfo(AppLocalizations.of(context).scheduledPostSaved);
+      if (successMessage != null) context.showInfo(successMessage);
     } on Object {
-      if (mounted && accountOperation.isCurrent) {
-        context.showError(
-          AppLocalizations.of(context).scheduledPostSaveError,
-        );
+      if (mounted && _scheduledOperationIsCurrent(owner)) {
+        context.showError(errorMessage);
       }
     } finally {
       if (mounted) {
@@ -1578,6 +1472,63 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
     }
   }
 
+  Future<Map<String, dynamic>> _scheduledPostPayload({
+    required String trimmedText,
+    required List<Map<String, dynamic>> facets,
+    required List<Map<String, dynamic>> media,
+    required SelectedLinkPreview? previewSelection,
+    required _ScheduledExternalDisposition externalDisposition,
+    required ScheduledMediaStager stageMedia,
+  }) async {
+    final external = await _scheduledExternalForSave(
+      previewSelection,
+      disposition: externalDisposition,
+      stageMedia: stageMedia,
+    );
+    return {
+      'kind': 'standard',
+      'text': trimmedText,
+      'langs': _languages!.values,
+      'sponsored': _sponsored,
+      'facets': ?facets.isEmpty ? null : facets,
+      'media': media,
+      'external': ?external,
+    };
+  }
+
+  Future<void> _schedulePost({
+    required String trimmedText,
+    required List<Map<String, dynamic>> facets,
+    required ComposerImagesState imagesState,
+    required SelectedLinkPreview? previewSelection,
+    required _ScheduledExternalDisposition externalDisposition,
+  }) async {
+    final owner = _captureScheduledOperationOwner();
+    final scheduledAt = _scheduledAtLocal;
+    if (owner == null || scheduledAt == null) return;
+    final l10n = AppLocalizations.of(context);
+    await _runScheduledWrite(
+      owner,
+      errorMessage: l10n.scheduledPostSaveError,
+      successMessage: l10n.scheduledPostSaved,
+      write: (submission) => submission.save(
+        operationId: _composerId,
+        scheduledAt: scheduledAt,
+        existing: widget.scheduledPost,
+        images: imagesState.images,
+        onProgress: _scheduleProgress,
+        payload: (repository, media) => _scheduledPostPayload(
+          trimmedText: trimmedText,
+          facets: facets,
+          media: media,
+          previewSelection: previewSelection,
+          externalDisposition: externalDisposition,
+          stageMedia: repository.stageMedia,
+        ),
+      ),
+    );
+  }
+
   Future<void> _publishExistingNow({
     required String trimmedText,
     required List<Map<String, dynamic>> facets,
@@ -1588,79 +1539,23 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
     final existing = widget.scheduledPost;
     final owner = _captureScheduledOperationOwner();
     if (existing == null || owner == null) return;
-    final account = owner.session.account;
-    final accountOperation = ActiveAccountOperation.withGuard(
-      ownership: owner,
-      isCurrent: () => _scheduledOperationIsCurrent(owner),
-    );
-    setState(() {
-      _isScheduling = true;
-      _stagedImageCount = 0;
-      _stagedImageTotal = imagesState.images
-          .where((image) => image.phase is ImageUploaded)
-          .length;
-      _isSavingSchedule = _stagedImageTotal == 0;
-    });
-    try {
-      final repository = await accountOperation.step(
-        () => ref.read(accountScheduledPostRepositoryProvider(account).future),
-      );
-      if (!mounted || !accountOperation.isCurrent) return;
-      final media = await ref.read(scheduledComposerMediaMaterializerProvider)(
-        imagesState.images,
-        stageMedia: repository.stageMedia,
-        onStaged: (_) {
-          if (mounted && accountOperation.isCurrent) {
-            setState(() => _stagedImageCount++);
-          }
-        },
-      );
-      if (!accountOperation.isCurrent) return;
-      final external = await accountOperation.step(
-        () => _scheduledExternalForSave(
-          previewSelection,
-          disposition: externalDisposition,
+    await _runScheduledWrite(
+      owner,
+      errorMessage: AppLocalizations.of(context).scheduledPostNowError,
+      write: (submission) => submission.publishNow(
+        existing: existing,
+        images: imagesState.images,
+        onProgress: _scheduleProgress,
+        payload: (repository, media) => _scheduledPostPayload(
+          trimmedText: trimmedText,
+          facets: facets,
+          media: media,
+          previewSelection: previewSelection,
+          externalDisposition: externalDisposition,
           stageMedia: repository.stageMedia,
         ),
-      );
-      if (!mounted || !accountOperation.isCurrent) return;
-      if (mounted) setState(() => _isSavingSchedule = true);
-      await accountOperation.step(
-        () => repository.publishNow(
-          id: existing.id,
-          payload: {
-            ...existing.payload,
-            'text': trimmedText,
-            'langs': _languages!.values,
-            'sponsored': _sponsored,
-            'facets': ?facets.isEmpty ? null : facets,
-            'media': media,
-            'external': ?external,
-          },
-        ),
-      );
-      if (!mounted || !accountOperation.isCurrent) return;
-      await accountOperation.step(
-        () => ref.read(scheduledPostsProvider(account).notifier).refresh(),
-      );
-      if (!mounted || !accountOperation.isCurrent) return;
-      if (!mounted) return;
-      _submissionSucceeded = true;
-      Navigator.of(context).pop();
-    } on Object {
-      if (mounted && accountOperation.isCurrent) {
-        context.showError(AppLocalizations.of(context).scheduledPostNowError);
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isScheduling = false;
-          _stagedImageCount = 0;
-          _stagedImageTotal = 0;
-          _isSavingSchedule = false;
-        });
-      }
-    }
+      ),
+    );
   }
 
   Future<Map<String, dynamic>?> _scheduledExternalForSave(
@@ -1776,7 +1671,6 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
     final existing = widget.scheduledPost;
     final owner = _captureScheduledOperationOwner();
     if (existing == null || owner == null) return;
-    final account = owner.session.account;
     final l10n = AppLocalizations.of(context);
     final confirmed = await showCraftskyConfirmDialog(
       context,
@@ -1791,13 +1685,7 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
       _isDeletingSchedule = true;
     });
     try {
-      final repository = await ref.read(
-        accountScheduledPostRepositoryProvider(account).future,
-      );
-      if (!mounted || !_scheduledOperationIsCurrent(owner)) return;
-      await repository.delete(existing.id);
-      if (!mounted || !_scheduledOperationIsCurrent(owner)) return;
-      await ref.read(scheduledPostsProvider(account).notifier).refresh();
+      await _scheduledSubmission(owner).delete(existing.id);
       if (!mounted || !_scheduledOperationIsCurrent(owner)) return;
       Navigator.of(context).pop();
     } on Object {

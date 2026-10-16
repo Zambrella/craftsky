@@ -12,9 +12,9 @@ import 'package:craftsky_app/business/providers/business_repository_provider.dar
 import 'package:craftsky_app/profile/data/profile_repository.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/models/profile_save_result.dart';
+import 'package:craftsky_app/profile/providers/profile_mutation_publication.dart';
 import 'package:craftsky_app/profile/providers/profile_record_overlay.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
-import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
 import 'package:craftsky_app/shared/api/pds_mutation_contract.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/media/uploaded_image_blob.dart';
@@ -180,7 +180,7 @@ class SaveProfile extends _$SaveProfile {
           })
         : null;
 
-    final ordinary = ordinaryFuture == null
+    var ordinary = ordinaryFuture == null
         ? const PerRecordSaveOutcome<Profile>.skipped()
         : await ordinaryFuture;
     final business = businessFuture == null
@@ -188,26 +188,29 @@ class SaveProfile extends _$SaveProfile {
         : await businessFuture;
     if (!accountOperation.isCurrent) return null;
 
-    if (ordinary.value case final accepted? when mutationLease != null) {
-      final projection = personalProfileProjection(accepted);
-      final reconciliation = PdsCompoundProfileReconciliation(
-        bluesky: PdsFixedKeyReconciliation(
-          uri: projection.bluesky!.uri,
-          controlledContent: projection.bluesky!.content,
-        ),
-        craftsky: PdsFixedKeyReconciliation(
-          uri: projection.craftsky!.uri,
-          controlledContent: projection.craftsky!.content,
-        ),
+    if (ordinary.value case final accepted? when currentProfile != null) {
+      // Command responses contain saved text, not serving image URLs or the
+      // rest of the profile. Keep the editor's successful baseline complete.
+      ordinary = PerRecordSaveOutcome<Profile>.success(
+        AcceptedPersonalProfile(
+          accepted,
+          clearAvatar: clearAvatar,
+          clearBanner: clearBanner,
+        ).applyTo(currentProfile),
       );
-      if (!commandController.markAccepted(
-        ordinaryToken!,
-        optimisticValue: accepted,
-        agrees: (value) => reconciliation.agrees(
-          value is PdsCompoundProfileProjection ? value : null,
-        ),
-        refresh: ownership == null ? null : _invalidatePersonalProfileReads,
-      )) {
+    }
+
+    if (ordinary.value case final accepted? when mutationLease != null) {
+      if (!ref
+          .read(profileMutationPublicationProvider)
+          .acceptPersonal(
+            token: ordinaryToken!,
+            profile: accepted,
+            avatar: avatar,
+            banner: banner,
+            clearAvatar: clearAvatar,
+            clearBanner: clearBanner,
+          )) {
         return null;
       }
     }
@@ -226,7 +229,9 @@ class SaveProfile extends _$SaveProfile {
         optimisticValue: accepted,
         agrees: (value) =>
             reconciliation.agrees(value is PdsRecordProjection ? value : null),
-        refresh: _invalidateBusinessProfileReads,
+        refresh: ref
+            .read(profileMutationPublicationProvider)
+            .refreshFor(businessLease),
       )) {
         return null;
       }
@@ -313,16 +318,6 @@ class SaveProfile extends _$SaveProfile {
     banner: banner,
     clearBanner: clearBanner,
   );
-
-  void _invalidateBusinessProfileReads() {
-    if (!ref.mounted) return;
-    ref.invalidate(userProfileProvider);
-  }
-
-  void _invalidatePersonalProfileReads() {
-    if (!ref.mounted) return;
-    ref.invalidate(userProfileProvider);
-  }
 
   /// Resets the notifier back to its idle state. Call after consuming a
   /// success/failure transition so a re-entry to the edit page doesn't

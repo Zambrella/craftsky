@@ -3,6 +3,7 @@ package schema_test
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -20,5 +21,25 @@ func TestOversizedPublishedBlobRetainsSafeCause(t *testing.T) {
 	encoded, _ := json.Marshal(observability.DescribeError(err, nil))
 	if !strings.Contains(string(encoded), "11189477") || !strings.Contains(string(encoded), "lexicon size limit") || strings.Contains(string(encoded), "private-canary") {
 		t.Fatalf("unsafe/unhelpful cause: %s", encoded)
+	}
+}
+
+func TestPostImageCountBoundary(t *testing.T) {
+	t.Parallel()
+	for _, count := range []int{8, 9} {
+		t.Run(fmt.Sprintf("%d images", count), func(t *testing.T) {
+			images := make([]string, count)
+			for i := range images {
+				images[i] = `{"image":{"$type":"blob","ref":{"$link":"bafyreicdvexolyvp6j6yksqiib7hihwktt6ogalbvyzvtkj6ecrtqqw5fq"},"mimeType":"image/jpeg","size":1}}`
+			}
+			raw := json.RawMessage(`{"$type":"social.craftsky.feed.post","text":"hi","sponsored":false,"createdAt":"2026-10-14T00:00:00Z","images":[` + strings.Join(images, ",") + `]}`)
+			err := schema.ValidateCraftskyRecord(raw, "social.craftsky.feed.post")
+			if count == 8 && err != nil {
+				t.Fatalf("eight images must validate: %v", err)
+			}
+			if count == 9 && err == nil {
+				t.Fatal("nine images must fail validation")
+			}
+		})
 	}
 }

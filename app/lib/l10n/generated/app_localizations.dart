@@ -94,6 +94,42 @@ abstract class AppLocalizations {
   /// A list of this localizations delegate's supported locales.
   static const List<Locale> supportedLocales = <Locale>[Locale('en')];
 
+  /// Desktop discovery sidebar section copy.
+  ///
+  /// In en, this message translates to:
+  /// **'Your crafts'**
+  String get discoveryYourCrafts;
+
+  /// Desktop discovery sidebar section copy.
+  ///
+  /// In en, this message translates to:
+  /// **'New to CraftSky'**
+  String get discoveryNewMembers;
+
+  /// Desktop discovery sidebar section copy.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t load your crafts.'**
+  String get discoveryCraftsError;
+
+  /// Desktop discovery sidebar section copy.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t load new members.'**
+  String get discoveryMembersError;
+
+  /// Desktop discovery sidebar section copy.
+  ///
+  /// In en, this message translates to:
+  /// **'No new members to show yet.'**
+  String get discoveryMembersEmpty;
+
+  /// Sidebar action opening the existing profile craft editor.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose your crafts'**
+  String get discoveryChooseCrafts;
+
   /// The app's title, used in MaterialApp.title and as an AppBar title.
   ///
   /// In en, this message translates to:
@@ -2389,7 +2425,7 @@ abstract class AppLocalizations {
   /// Media options shown by a video-capable composer.
   ///
   /// In en, this message translates to:
-  /// **'Choose up to 4 photos or a video.'**
+  /// **'Choose up to 8 photos or a video.'**
   String get postComposePhotosOrVideoHelper;
 
   /// Photo choice in the composer media picker.
@@ -5912,6 +5948,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'View full guidelines'**
   String get onboardingGuidelinesViewFull;
+
+  /// No description provided for @privacyTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Privacy'**
+  String get privacyTitle;
 
   /// No description provided for @errorReportingTitle.
   ///

@@ -61,7 +61,7 @@ class ErrorReportingConsentTile extends ConsumerWidget {
       key: const Key('settings-error-reporting'),
       secondary: ActionProgress(
         isLoading: preference.isLoading,
-        child: const Icon(CraftskyIcons.privacy),
+        child: const Icon(CraftskyIcons.errorReporting),
       ),
       title: title,
       subtitle: subtitle,

@@ -7,6 +7,7 @@ import 'package:craftsky_app/business/models/business_profile.dart';
 import 'package:craftsky_app/business/providers/business_repository_provider.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
+import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:craftsky_app/profile/pages/edit_profile_dialog.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
@@ -547,6 +548,64 @@ void main() {
               .widget<TextButton>(find.widgetWithText(TextButton, 'Save'))
               .onPressed,
           isNull,
+        );
+      },
+    );
+
+    testWidgets(
+      'crafts-only save preserves the profile and closes only the editor',
+      (tester) async {
+        final profile = _seedProfile.copyWith(
+          followerCount: 7,
+          avatar: 'https://example.com/cleared-avatar.jpg',
+          banner: 'https://example.com/cleared-banner.jpg',
+          customisation: const ProfileCustomisation(colour: 'teal'),
+        );
+        final repo = FakeProfileRepository(
+          onFetch: (_) async => profile,
+          onUpdateMe: ({
+            displayName,
+            pronouns,
+            description,
+            crafts,
+            avatar,
+            clearAvatar = false,
+            banner,
+            clearBanner = false,
+          }) async => _seedProfile.copyWith(crafts: crafts),
+        );
+        await _pumpEditDialog(tester, repo: repo);
+        final container = ProviderScope.containerOf(
+          tester.element(find.byType(EditProfileDialog)),
+        );
+        final subscription = container.listen(
+          userProfileProvider(profile.did),
+          (_, _) {},
+        );
+        addTearDown(subscription.close);
+        final knitting = find.widgetWithText(FilterChip, 'Knitting');
+        await tester.ensureVisible(knitting);
+        await tester.pumpAndSettle();
+        await tester.tap(knitting);
+        await tester.pump();
+        await tester.tap(find.widgetWithText(TextButton, 'Save'));
+        await tester.pumpAndSettle();
+        expect(find.byType(EditProfileDialog), findsNothing);
+        expect(find.text('Open'), findsOneWidget);
+        final saved = subscription.read().requireValue;
+        expect(saved.crafts, containsAll(['sewing', 'quilting', 'knitting']));
+        expect(saved.customisation, profile.customisation);
+        expect(saved.followerCount, 7);
+        expect(saved.avatar, profile.avatar);
+        expect(saved.banner, profile.banner);
+        expect(saved.did, profile.did);
+        await tester.tap(find.text('Open'));
+        await tester.pumpAndSettle();
+        expect(
+          tester
+              .widget<FilterChip>(find.widgetWithText(FilterChip, 'Knitting'))
+              .selected,
+          isTrue,
         );
       },
     );

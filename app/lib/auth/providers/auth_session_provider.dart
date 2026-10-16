@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:craftsky_app/auth/models/account_operation_canceled.dart';
 import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/auth/models/auth_state.dart';
 import 'package:craftsky_app/auth/providers/auth_controller.dart';
@@ -25,21 +26,38 @@ class AuthSession extends _$AuthSession {
 
   @override
   Future<AuthState> build() async {
-    final registry = await ref.watch(sessionRegistryProvider.future);
-    final pending = registry.pendingHandoff;
+    await ref.read(sessionRegistryProvider.future);
+    if (!ref.mounted) throw AccountOperationCanceled();
+    final target = ref
+        .watch(
+          sessionRegistryProvider.select(
+            (state) => state.whenData((registry) {
+              final lease = registry.activeLease?.session;
+              return (
+                lease: lease,
+                handle: registry.sessions[lease?.account.did]?.handle.value,
+                pending: registry.pendingHandoff,
+              );
+            }),
+          ),
+        )
+        .requireValue;
+    final pending = target.pending;
     if (pending == null) {
       _lastRecoveryReceiptId = null;
     } else if (_lastRecoveryReceiptId != pending.receiptId) {
       _lastRecoveryReceiptId = pending.receiptId;
       unawaited(ref.read(pendingHandoffRecoveryLauncherProvider)());
     }
-    final activeLease = registry.activeLease?.session;
+    final activeLease = target.lease;
     if (activeLease == null) return const SignedOut();
-    final active = registry.sessions[activeLease.account.did]!;
     if (_lastValidationLease != activeLease) {
       _lastValidationLease = activeLease;
       unawaited(ref.read(sessionValidationLauncherProvider)(activeLease));
     }
-    return SignedIn(did: active.did.value, handle: active.handle.value);
+    return SignedIn(
+      did: activeLease.account.did.toString(),
+      handle: target.handle!,
+    );
   }
 }

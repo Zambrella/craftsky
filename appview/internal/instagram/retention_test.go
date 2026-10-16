@@ -496,6 +496,7 @@ func newRetentionTest(t *testing.T) (*pgxpool.Pool, time.Time) {
 		"000030_instagram_automatic_follows.up.sql",
 		"000031_instagram_automatic_follow_storage_names.up.sql",
 		"000042_instagram_private_suggestions.up.sql",
+		"000093_instagram_follow_rkey.up.sql",
 		"000044_moderation_restoration_outbox.up.sql",
 	} {
 		migration, err := testdb.ReadMigration(path)

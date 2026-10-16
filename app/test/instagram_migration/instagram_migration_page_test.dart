@@ -103,8 +103,8 @@ void main() {
     await tester.pump();
     expect(helpUri, Uri.https('craftsky.social', '/instagram-import'));
     expect(
-      tester.widget<ListView>(find.byType(ListView)).physics,
-      isA<AlwaysScrollableScrollPhysics>(),
+      tester.widget<CustomScrollView>(find.byType(CustomScrollView)).physics,
+      isA<BouncingScrollPhysics>(),
     );
     semantics.dispose();
   });
@@ -251,7 +251,7 @@ void main() {
     expect(find.widgetWithText(OutlinedButton, 'Import handles'), findsNothing);
     await tester.enterText(find.byType(TextField), '@Alice\nALICE\nbad name');
     expect(find.text('Preview normalized handles'), findsNothing);
-    await tester.drag(find.byType(ListView), const Offset(0, -300));
+    await tester.drag(find.byType(CustomScrollView), const Offset(0, -300));
     await tester.pumpAndSettle();
     expect(
       find.text(

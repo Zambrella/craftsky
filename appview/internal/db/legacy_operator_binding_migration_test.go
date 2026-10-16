@@ -18,7 +18,7 @@ func TestRetiredOperatorBindingMigrationPreservesIdentityAuditAndSessions(t *tes
 	// Restore the historical pre-state when the full migration chain already
 	// includes the cleanup, then exercise its upgrade against populated data.
 	if !exists {
-		if err := testdb.ApplyMigrations(t.Context(), pool, "000100_remove_legacy_operator_binding.down.sql"); err != nil {
+		if err := testdb.ApplyMigrations(t.Context(), pool, "000101_remove_legacy_operator_binding.down.sql"); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -33,7 +33,7 @@ func TestRetiredOperatorBindingMigrationPreservesIdentityAuditAndSessions(t *tes
 	if _, err := pool.Exec(t.Context(), `INSERT INTO operator_browser_sessions(token_digest,operator_id,created_at,expires_at,last_used_at) VALUES(decode(repeat('01',32),'hex'),$1,now(),now()+interval '1 hour',now())`, op.ID); err != nil {
 		t.Fatal(err)
 	}
-	if err := testdb.ApplyMigrations(t.Context(), pool, "000100_remove_legacy_operator_binding.up.sql"); err != nil {
+	if err := testdb.ApplyMigrations(t.Context(), pool, "000101_remove_legacy_operator_binding.up.sql"); err != nil {
 		t.Fatal(err)
 	}
 	if err := pool.QueryRow(t.Context(), `SELECT EXISTS(SELECT 1 FROM information_schema.columns WHERE table_schema=current_schema() AND table_name='safety_operators' AND column_name='retool_user_id')`).Scan(&exists); err != nil || exists {
@@ -51,7 +51,7 @@ func TestRetiredOperatorBindingMigrationPreservesIdentityAuditAndSessions(t *tes
 	if err := pool.QueryRow(t.Context(), `SELECT count(*) FROM operator_browser_sessions WHERE operator_id=$1`, op.ID).Scan(&sessions); err != nil || sessions != 1 {
 		t.Fatalf("session changed: count=%d err=%v", sessions, err)
 	}
-	if err := testdb.ApplyMigrations(t.Context(), pool, "000100_remove_legacy_operator_binding.down.sql"); err != nil {
+	if err := testdb.ApplyMigrations(t.Context(), pool, "000101_remove_legacy_operator_binding.down.sql"); err != nil {
 		t.Fatal(err)
 	}
 	var empty bool

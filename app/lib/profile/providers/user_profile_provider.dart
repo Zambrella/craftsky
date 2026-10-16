@@ -11,6 +11,8 @@ import 'package:craftsky_app/profile/providers/follow_profile_overlay.dart';
 import 'package:craftsky_app/profile/providers/profile_record_overlay.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
+import 'package:craftsky_app/shared/mutations/pds_record_operation_controller.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'user_profile_provider.g.dart';
@@ -32,7 +34,9 @@ class UserProfile extends _$UserProfile {
     late final Profile profile;
     try {
       final repository = ref.watch(profileRepositoryProvider);
-      final activeDid = ref.watch(sessionRegistryProvider).value?.activeDid;
+      final activeDid = ref.watch(
+        sessionRegistryProvider.select((state) => state.value?.activeDid),
+      );
       profile = activeDid == did
           ? await repository.fetchMe()
           : await repository.fetch(did);
@@ -63,8 +67,26 @@ class UserProfile extends _$UserProfile {
     );
   }
 
-  /// Publishes completed AppView-private profile mutations. Public PDS record
-  /// mutations use the shared operation overlay instead.
+  /// Refresh this read, retaining accepted fields while the request is pending.
+  /// Riverpod preserves this value automatically when rebuilding.
+  void refresh() {
+    final lease = captureActiveAccountOperation(ref)?.session;
+    final previous = state.value;
+    if (lease != null && previous != null) {
+      final pending = ref
+          .read(pdsRecordOperationControllerProvider)
+          .overlayFor(personalProfileMutationScope(lease, did))
+          ?.optimisticValue;
+      if (pending is AcceptedPersonalProfile) {
+        // Retained data is not a server response and cannot retire an overlay.
+        state = AsyncData(pending.applyTo(previous));
+      }
+    }
+    ref.invalidateSelf();
+  }
+
+  /// Publishes completed AppView-private mutations. Public record saves are
+  /// composed from the shared overlay by the read lifecycle.
   void setCached(Profile profile) => state = AsyncData(profile);
 }
 

@@ -3,6 +3,7 @@ import 'package:craftsky_app/scheduled_posts/models/schedule_time.dart';
 import 'package:craftsky_app/scheduled_posts/models/scheduled_post.dart';
 import 'package:craftsky_app/scheduled_posts/pages/scheduled_posts_page.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -17,24 +18,26 @@ void main() {
     final semantics = tester.ensureSemantics();
 
     await tester.pumpWidget(
-      MaterialApp(
-        localizationsDelegates: appLocalizationsDelegates,
-        supportedLocales: AppLocalizations.supportedLocales,
-        builder: (context, child) => MediaQuery(
-          data: MediaQuery.of(
-            context,
-          ).copyWith(textScaler: const TextScaler.linear(2)),
-          child: child!,
-        ),
-        home: Scaffold(
-          body: ScheduledPostsPageContent(
-            items: [
-              _item('editable', ScheduledPostStatus.scheduled),
-              _item('locked', ScheduledPostStatus.publishing),
-            ],
-            onRefresh: () async {},
-            onEdit: (_) async {},
-            onDelete: (_) async {},
+      ProviderScope(
+        child: MaterialApp(
+          localizationsDelegates: appLocalizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          builder: (context, child) => MediaQuery(
+            data: MediaQuery.of(
+              context,
+            ).copyWith(textScaler: const TextScaler.linear(2)),
+            child: child!,
+          ),
+          home: Scaffold(
+            body: ScheduledPostsPageContent(
+              items: [
+                _item('editable', ScheduledPostStatus.scheduled),
+                _item('locked', ScheduledPostStatus.publishing),
+              ],
+              onRefresh: () async {},
+              onEdit: (_) async {},
+              onDelete: (_) async {},
+            ),
           ),
         ),
       ),

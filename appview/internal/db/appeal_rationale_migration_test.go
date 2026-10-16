@@ -13,11 +13,11 @@ func TestAppealRationaleMigrationRetainsKnownHistoryAndGuardsRollback(t *testing
  INSERT INTO moderation_appeals VALUES('63000000-0000-4000-8000-000000000001','changed','63000000-0000-4000-8000-000000000002'),('63000000-0000-4000-8000-000000000003','upheld',NULL);
  INSERT INTO moderation_effect_events VALUES('63000000-0000-4000-8000-000000000004','63000000-0000-4000-8000-000000000002','retained earlier rationale',now());
  `)
-	up, err := testdb.ReadMigration("000098_appeal_resolution_rationale.up.sql")
+	up, err := testdb.ReadMigration("000099_appeal_resolution_rationale.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
-	down, err := testdb.ReadMigration("000098_appeal_resolution_rationale.down.sql")
+	down, err := testdb.ReadMigration("000099_appeal_resolution_rationale.down.sql")
 	if err != nil {
 		t.Fatal(err)
 	}

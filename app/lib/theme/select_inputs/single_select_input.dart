@@ -52,6 +52,7 @@ class _CraftskySingleSelectInputState<T>
   OverlayEntry? _overlayEntry;
   ScrollPosition? _overlayScrollPosition;
   bool _open = false;
+  bool _hovered = false;
   String _query = '';
   int _highlightedIndex = 0;
 
@@ -370,63 +371,68 @@ class _CraftskySingleSelectInputState<T>
         child: KeyedSubtree(
           key: _anchorKey,
           child: _searchable
-              ? InputDecorator(
-                  key: Key('$keyPrefix-select-button'),
-                  isFocused: _searchFocusNode.hasFocus,
-                  decoration: InputDecoration(
-                    enabled: widget.enabled,
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 14,
+              ? MouseRegion(
+                  onEnter: (_) => setState(() => _hovered = true),
+                  onExit: (_) => setState(() => _hovered = false),
+                  child: InputDecorator(
+                    key: Key('$keyPrefix-select-button'),
+                    isHovering: widget.enabled && _hovered,
+                    isFocused: _searchFocusNode.hasFocus,
+                    decoration: InputDecoration(
+                      enabled: widget.enabled,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 14,
+                      ),
                     ),
-                  ),
-                  child: Row(
-                    children: [
-                      if (selectedOption?.leadingBuilder
-                          case final builder?) ...[
-                        builder(context),
-                        const SizedBox(width: 8),
-                      ],
-                      Expanded(
-                        child: Focus(
-                          skipTraversal: true,
-                          descendantsAreFocusable: true,
-                          descendantsAreTraversable: true,
-                          onKeyEvent: _handleSearchKey,
-                          child: TextField(
-                            key: Key('$keyPrefix-search-input'),
-                            controller: _searchController,
-                            focusNode: _searchFocusNode,
-                            enabled: widget.enabled,
-                            decoration: InputDecoration.collapsed(
-                              hintText: selectedLabel ?? emptySelectionText,
-                              hintStyle: selectedLabel == null
-                                  ? Theme.of(
-                                      context,
-                                    ).textTheme.bodyLarge?.copyWith(
-                                      color: Theme.of(
+                    child: Row(
+                      children: [
+                        if (selectedOption?.leadingBuilder
+                            case final builder?) ...[
+                          builder(context),
+                          const SizedBox(width: 8),
+                        ],
+                        Expanded(
+                          child: Focus(
+                            skipTraversal: true,
+                            descendantsAreFocusable: true,
+                            descendantsAreTraversable: true,
+                            onKeyEvent: _handleSearchKey,
+                            child: TextField(
+                              key: Key('$keyPrefix-search-input'),
+                              controller: _searchController,
+                              focusNode: _searchFocusNode,
+                              enabled: widget.enabled,
+                              decoration: InputDecoration.collapsed(
+                                hintText: selectedLabel ?? emptySelectionText,
+                                hintStyle: selectedLabel == null
+                                    ? Theme.of(
                                         context,
-                                      ).colorScheme.onSurfaceVariant,
-                                    )
-                                  : Theme.of(context).textTheme.bodyLarge,
+                                      ).textTheme.bodyLarge?.copyWith(
+                                        color: Theme.of(
+                                          context,
+                                        ).colorScheme.onSurfaceVariant,
+                                      )
+                                    : Theme.of(context).textTheme.bodyLarge,
+                              ),
+                              onTap: () => _setOpen(true),
+                              onChanged: (value) {
+                                setState(() {
+                                  _query = value;
+                                  _highlightedIndex = 0;
+                                });
+                                _setOpen(true);
+                                _markOverlayNeedsBuild();
+                              },
                             ),
-                            onTap: () => _setOpen(true),
-                            onChanged: (value) {
-                              setState(() {
-                                _query = value;
-                                _highlightedIndex = 0;
-                              });
-                              _setOpen(true);
-                              _markOverlayNeedsBuild();
-                            },
                           ),
                         ),
-                      ),
-                      ActionProgress(
-                        isLoading: widget.isLoading,
-                        child: const Icon(CraftskyIcons.search),
-                      ),
-                    ],
+                        ActionProgress(
+                          isLoading: widget.isLoading,
+                          child: const Icon(CraftskyIcons.search),
+                        ),
+                      ],
+                    ),
                   ),
                 )
               : Focus(
@@ -437,6 +443,8 @@ class _CraftskySingleSelectInputState<T>
                   onKeyEvent: _handleKey,
                   child: InkWell(
                     key: Key('$keyPrefix-select-button'),
+                    hoverColor: Colors.transparent,
+                    onHover: (hovered) => setState(() => _hovered = hovered),
                     canRequestFocus: false,
                     onTap: widget.enabled
                         ? () {
@@ -445,6 +453,7 @@ class _CraftskySingleSelectInputState<T>
                           }
                         : null,
                     child: InputDecorator(
+                      isHovering: widget.enabled && _hovered,
                       isFocused: _focusNode.hasFocus,
                       decoration: InputDecoration(
                         enabled: widget.enabled,

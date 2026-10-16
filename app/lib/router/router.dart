@@ -49,6 +49,7 @@ import 'package:craftsky_app/settings/pages/account_page.dart';
 import 'package:craftsky_app/settings/pages/appearance_page.dart';
 import 'package:craftsky_app/settings/pages/follow_list_page.dart';
 import 'package:craftsky_app/settings/pages/follower_growth_page.dart';
+import 'package:craftsky_app/settings/pages/privacy_page.dart';
 import 'package:craftsky_app/settings/pages/profile_customisation_page.dart';
 import 'package:craftsky_app/settings/pages/relationship_list_page.dart';
 import 'package:craftsky_app/settings/pages/settings_page.dart';
@@ -290,6 +291,10 @@ class AccountEligibilityRoute extends GoRouteData
                       path: RouteLocations.appearanceChild,
                       name: 'appearance',
                     ),
+                    TypedGoRoute<PrivacyRoute>(
+                      path: RouteLocations.privacyChild,
+                      name: 'settings-privacy',
+                    ),
                     TypedGoRoute<FollowerGrowthRoute>(
                       path: RouteLocations.growthChild,
                       name: 'follower-growth',
@@ -491,10 +496,12 @@ class FeedRoute extends GoRouteData with $FeedRoute {
 }
 
 class ProjectsRoute extends GoRouteData with $ProjectsRoute {
-  const new();
+  const new({this.craft});
+
+  final String? craft;
   @override
   Widget build(BuildContext context, GoRouterState state) =>
-      const ProjectsPage();
+      ProjectsPage(craft: craft);
 }
 
 class SearchRoute extends GoRouteData with $SearchRoute {
@@ -579,6 +586,17 @@ class AppearanceRoute extends GoRouteData with $AppearanceRoute {
   @override
   Widget build(BuildContext context, GoRouterState state) =>
       const AppearancePage();
+}
+
+class PrivacyRoute extends GoRouteData with $PrivacyRoute {
+  const new();
+
+  static final GlobalKey<NavigatorState> $parentNavigatorKey =
+      _NavigatorKeys.authenticatedShellNavigatorKey;
+
+  @override
+  Widget build(BuildContext context, GoRouterState state) =>
+      const PrivacyPage();
 }
 
 class FollowerGrowthRoute extends GoRouteData with $FollowerGrowthRoute {

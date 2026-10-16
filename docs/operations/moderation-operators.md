@@ -134,14 +134,14 @@ origin and run `npm run dev`. Its proxy translates only the exact
 `http://127.0.0.1:5173` Origin into the configured AppView origin. OAuth returns
 to AppView's built shell; ordinary verification uses that built shell directly.
 
-Migration 94 adds DID binding, browser sessions and isolated pending attempts;
+Migration 95 adds DID binding, browser sessions and isolated pending attempts;
 it revokes existing active human bearer tokens. It leaves historic actors,
 grants and audits intact. Its down migration does not revive tokens and should
 not be used for credential recovery. Earlier external-UI experiments remain
 archived integration evidence, not supported deployment instructions.
-Migration 95 adds the DID/state index required for bounded terminal-attempt purge.
+Migration 96 adds the DID/state index required for bounded terminal-attempt purge.
 
-Migration 100 removes the unused external UI identity column. Operator UUIDs,
+Migration 101 removes the unused external UI identity column. Operator UUIDs,
 DIDs, permission sets, browser sessions and audit history remain intact. Its down
 migration restores an empty optional column for schema compatibility; it cannot
 recover discarded external bindings or revive credentials. The retired proof
@@ -168,8 +168,8 @@ review again and submit a new key. Successful safety commands return JSON with
 `revision`; former 204 transitions now return 200. A replay returns its original
 status/body with `Idempotent-Replayed: true`.
 
-Migration 96 adds revisions, safe command receipts and hold-release audit.
-Migration 97 adds explicit operator/external case provenance. Its downgrade
+Migration 97 adds revisions, safe command receipts and hold-release audit.
+Migration 98 adds explicit operator/external case provenance. Its downgrade
 refuses to discard real operator/external cases. Apply these through the existing
 migration/release process; this implementation has not changed production.
 
@@ -213,7 +213,7 @@ A successful command followed by a failed refresh remains committed; refresh
 before acting again. Closing the page or losing the session loses in-memory
 recovery, so inspect case history before creating a new command after sign-in.
 
-Migration 98 retains internal appeal-resolution rationale, separately from owner
+Migration 99 retains internal appeal-resolution rationale, separately from owner
 history. It recovers earlier changed-appeal rationale where effect history holds
 it; earlier upheld rationale may be unavailable. Downgrading refuses to discard
 retained rationale and needs an explicit reviewed data decision if any exists.
@@ -266,7 +266,7 @@ The browser prevents disabling or demoting the last usable administrator, even
 for concurrent requests. The privileged CLI remains a controlled recovery path;
 it can override that browser guard. It does not offer a browser re-enable flow.
 Do not disable the last administrator through maintenance tooling except as an
-explicitly reviewed recovery operation. Migration 99 adds operator revisions.
+explicitly reviewed recovery operation. Migration 100 adds operator revisions.
 
 Seed the stage 4 local fixtures after migrations with:
 
@@ -405,9 +405,9 @@ revoke affected sessions before any re-enablement. Consumer routes retain their
 separate authentication contract.
 
 If an application rollback is required, use the previous verified exact tag
-under the Render runbook after checking schema compatibility. Migration 94
+under the Render runbook after checking schema compatibility. Migration 95
 revocation is intentional; down migrations do not restore former credentials.
-Migrations 97/98 protect retained case provenance/rationale, so do not use schema
+Migrations 98/99 protect retained case provenance/rationale, so do not use schema
 down as a routine rollback. Preserve operator and command audits, holds and
 private evidence. If storage access fails, repair configuration/provider access
 and verify retention convergence rather than removing holds or evidence rows.

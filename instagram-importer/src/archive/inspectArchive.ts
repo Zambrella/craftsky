@@ -18,6 +18,7 @@ import {
   type SafeWarningCode,
   type SkippedPost,
 } from '../domain/types'
+import { POST_IMAGE_MAX_COUNT } from '../generated/craftsky-feed-post'
 import { deterministicRecordKeys } from '../domain/recordKey'
 import { partitionRecordKeyCollisions } from '../domain/rkeyCollisions'
 import { normalizeSourceTimestamp } from '../domain/timestamps'
@@ -219,11 +220,11 @@ async function normalizePost(
   }
   if (videoCount > 0) warnings.push('videoOmitted')
   if (unsupportedCount > 0) warnings.push('unsupportedMediaOmitted')
-  if (imageSources.length > 4) warnings.push('imagesOmitted')
+  if (imageSources.length > POST_IMAGE_MAX_COUNT) warnings.push('imagesOmitted')
 
   const media: ReviewMedia[] = []
   for (const source of imageSources) {
-    if (media.length >= 4) break
+    if (media.length >= POST_IMAGE_MAX_COUNT) break
     signal.throwIfAborted()
     let archivePath: string
     try {

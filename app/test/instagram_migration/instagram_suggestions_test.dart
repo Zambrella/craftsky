@@ -13,12 +13,17 @@ import 'package:craftsky_app/instagram_migration/pages/instagram_migration_page.
 import 'package:craftsky_app/instagram_migration/providers/instagram_migration_repository_provider.dart';
 import 'package:craftsky_app/instagram_migration/providers/instagram_suggestions_provider.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
+import 'package:craftsky_app/profile/models/profile.dart';
+import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
+import 'package:craftsky_app/profile/providers/toggle_follow_profile_provider.dart';
 import 'package:craftsky_app/shared/api/pds_mutation_contract.dart';
 import 'package:craftsky_app/shared/mutations/pds_record_operation_controller.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
+
+import '../profile/fakes/fake_profile_repository.dart';
 
 void main() {
   testWidgets(
@@ -36,11 +41,25 @@ void main() {
         handle: 'dismissible.synthetic.invalid',
         displayName: 'Dismissible Maker',
       );
+      final externalProfile = Profile(
+        did: 'did:plc:external',
+        handle: 'external.test',
+        crafts: const [],
+      );
       final accepted = <String>[];
       final dismissed = <String>[];
       final repository = _SuggestionRepository(
         suggestions: InstagramSuggestionPage(
-          items: [suggestion, dismissible],
+          items: [
+            suggestion,
+            dismissible,
+            _suggestion(
+              id: 'external',
+              did: 'did:plc:external',
+              handle: 'external.test',
+              displayName: 'External Maker',
+            ),
+          ],
           cursor: null,
         ),
         onAccept: (id, _) async {
@@ -56,6 +75,12 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            profileRepositoryProvider.overrideWithValue(
+              FakeProfileRepository(
+                onFollow: (_) async =>
+                    externalProfile.copyWith(viewerIsFollowing: true),
+              ),
+            ),
             secureSessionRegistryStorageProvider.overrideWithValue(
               _RegistryStorage(initial),
             ),
@@ -88,6 +113,20 @@ void main() {
       );
       expect(find.text('Synthetic Maker'), findsOneWidget);
       expect(find.text('@maker.synthetic.invalid'), findsOneWidget);
+      expect(find.widgetWithText(FilledButton, 'Follow'), findsNWidgets(3));
+      // A working follow action elsewhere must remove the mounted suggestion,
+      // even while the suggestion endpoint still returns the old projection.
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(InstagramMigrationPage)),
+      );
+      await container
+          .read(toggleFollowProfileProvider.notifier)
+          .toggle(
+            cacheKey: externalProfile.did,
+            profile: externalProfile,
+          );
+      await tester.pumpAndSettle();
+      expect(find.text('External Maker'), findsNothing);
       expect(find.widgetWithText(FilledButton, 'Follow'), findsNWidgets(2));
       expect(find.widgetWithText(TextButton, 'Dismiss'), findsNWidgets(2));
       expect(accepted, isEmpty);
@@ -247,6 +286,72 @@ void main() {
       );
     },
   );
+
+  test('pagination cannot restore an account followed while loading', () async {
+    final initial = _twoAccountRegistry();
+    final lease = initial.activeLease!;
+    final nextPage = Completer<InstagramSuggestionPage>();
+    final seed = Profile(
+      did: 'did:plc:maker',
+      handle: 'maker.test',
+      crafts: const [],
+    );
+    final repository = _SuggestionRepository(
+      suggestions: InstagramSuggestionPage(
+        items: [_suggestion()],
+        cursor: 'next',
+      ),
+      onList: (cursor) async => cursor == null
+          ? InstagramSuggestionPage(items: [_suggestion()], cursor: 'next')
+          : await nextPage.future,
+    );
+    final container = ProviderContainer.test(
+      overrides: [
+        secureSessionRegistryStorageProvider.overrideWithValue(
+          _RegistryStorage(initial),
+        ),
+        instagramMigrationRepositoryProvider.overrideWith(
+          (ref, _) async => repository,
+        ),
+        profileRepositoryProvider.overrideWithValue(
+          FakeProfileRepository(
+            onFollow: (_) async => seed.copyWith(viewerIsFollowing: true),
+          ),
+        ),
+        pdsRecordOperationControllerProvider.overrideWithValue(
+          PdsRecordOperationController(schedule: (_, _) {}),
+        ),
+      ],
+    );
+    await container.read(sessionRegistryProvider.future);
+    final subscription = container.listen(
+      instagramSuggestionsProvider(lease),
+      (_, _) {},
+    );
+    addTearDown(subscription.close);
+    await container.read(instagramSuggestionsProvider(lease).future);
+    final pending = container
+        .read(instagramSuggestionsProvider(lease).notifier)
+        .loadMore();
+    await container
+        .read(toggleFollowProfileProvider.notifier)
+        .toggle(cacheKey: seed.did, profile: seed);
+    nextPage.complete(
+      InstagramSuggestionPage(
+        items: [
+          _suggestion(),
+          _suggestion(id: 'other', did: 'did:plc:other'),
+        ],
+        cursor: null,
+      ),
+    );
+    expect(await pending, isTrue);
+    final result = container
+        .read(instagramSuggestionsProvider(lease))
+        .requireValue;
+    expect(result.items.map((item) => item.suggestionId), ['other']);
+    expect(result.cursor, isNull);
+  });
 
   test('exhausted acceptance remains available for explicit retry', () async {
     final initial = _twoAccountRegistry();
@@ -535,8 +640,10 @@ final class _SuggestionRepository implements InstagramMigrationRepository {
     required this.suggestions,
     this.onAccept,
     this.onDismiss,
+    this.onList,
   });
 
+  final Future<InstagramSuggestionPage> Function(String? cursor)? onList;
   final InstagramSuggestionPage suggestions;
   final Future<InstagramSuggestionActionResult> Function(
     String id,
@@ -566,7 +673,7 @@ final class _SuggestionRepository implements InstagramMigrationRepository {
   Future<InstagramSuggestionPage> listSuggestions({
     int? limit,
     String? cursor,
-  }) async => suggestions;
+  }) async => onList == null ? suggestions : await onList!(cursor);
 
   @override
   Future<InstagramSuggestionActionResult> acceptSuggestion(

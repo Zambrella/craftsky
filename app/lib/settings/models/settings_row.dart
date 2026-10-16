@@ -15,6 +15,7 @@ enum SettingsRowId {
   customisation,
   languages,
   notifications,
+  privacy,
   growth,
   followers,
   following,
@@ -85,6 +86,10 @@ const settingsSections = <SettingsSectionDescriptor>[
       ),
       SettingsRowDescriptor(
         id: SettingsRowId.notifications,
+        kind: SettingsRowKind.disclosure,
+      ),
+      SettingsRowDescriptor(
+        id: SettingsRowId.privacy,
         kind: SettingsRowKind.disclosure,
       ),
     ],

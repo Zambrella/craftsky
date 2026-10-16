@@ -441,10 +441,10 @@ void main() {
       final container = _containerWithPicker(
         _FakeImagePicker(
           () async {
-            final offset = batch * 2;
+            final offset = batch * (mediaConfig.maxImages ~/ 2);
             batch += 1;
             return List.generate(
-              2,
+              mediaConfig.maxImages ~/ 2,
               (index) => XFile.fromData(
                 bytes,
                 name: 'project-${offset + index}.png',

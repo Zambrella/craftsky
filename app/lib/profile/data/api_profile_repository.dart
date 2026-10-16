@@ -5,6 +5,7 @@ import 'package:craftsky_app/profile/data/profile_repository.dart';
 import 'package:craftsky_app/profile/models/follower_growth.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/models/profile_account_page.dart';
+import 'package:craftsky_app/profile/models/profile_account_summary.dart';
 import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:craftsky_app/profile/models/profile_relationship.dart';
 import 'package:craftsky_app/shared/media/uploaded_image_blob.dart';
@@ -14,6 +15,10 @@ class ApiProfileRepository implements ProfileRepository {
   const new(this._api);
 
   final ProfileApiClient _api;
+
+  @override
+  Future<List<ProfileAccountSummary>> fetchRecentMembers() =>
+      _api.getRecentMembers();
 
   @override
   Future<Profile> fetch(String handleOrDid) => _api.getProfile(handleOrDid);

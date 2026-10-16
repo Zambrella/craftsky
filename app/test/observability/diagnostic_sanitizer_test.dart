@@ -22,7 +22,7 @@ final class PatternFailure implements Exception {
 }
 
 void main() {
-  test('UT-013 stack omission marker fits frame and byte budgets', () {
+  test('UT-013 local stack retains every frame without count or byte caps', () {
     final frames = selectedStack(
       StackTrace.fromString(
         List.generate(
@@ -32,11 +32,32 @@ void main() {
         ).join('\n'),
       ),
     );
-    expect(frames.length, lessThanOrEqualTo(64));
-    expect(utf8.encode(jsonEncode(frames)).length, lessThanOrEqualTo(10000));
+    expect(frames, hasLength(100));
     expect(frames.first['function'], 'loadPublicRecord');
-    expect(frames.last['omitted'], isNotNull);
+    expect(frames.last['function'], 'loadPublicRecord');
   });
+  test(
+    'local stack preserves closures, async gaps and sanitized fallback frames',
+    () {
+      final frames = selectedStack(
+        StackTrace.fromString(
+          '#0      Widget.build.<anonymous closure> (file:///Users/private-canary/app/widget.dart:12:3)\n'
+          '<asynchronous suspension>\n'
+          'native frame token=secret-canary /Users/private-canary/file\n'
+          '#1      ${'longFunction' * 300} (package:app/last.dart:99:4)',
+        ),
+      );
+      expect(frames, hasLength(4));
+      expect(frames.first['function'], 'Widget.build.<anonymous closure>');
+      expect(frames.first['file'], 'widget.dart');
+      expect(frames.first['line'], 12);
+      expect(frames.first['column'], 3);
+      expect(frames[1]['frame'], '<asynchronous suspension>');
+      expect(frames.last['function'], 'longFunction' * 300);
+      expect(frames.toString(), isNot(contains('secret-canary')));
+      expect(frames.toString(), isNot(contains('private-canary')));
+    },
+  );
   test('UT-003 unknown API code does not acquire public prose provenance', () {
     final selected = SentrySanitizer.sanitizeContext({
       'appViewError': 'opaque_private_identifier',

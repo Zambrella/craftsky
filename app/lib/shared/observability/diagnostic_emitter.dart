@@ -22,7 +22,7 @@ final class DiagnosticMessage {
   String toString() => boundDiagnosticText(message, 256);
 }
 
-/// One brief console record. Sentry retains the richer exception and stack.
+/// One console record with a full sanitized stack and brief cause summary.
 final class DiagnosticEmitter {
   new({
     PlatformLogSink? platformSink,
@@ -56,9 +56,8 @@ final class DiagnosticEmitter {
 }
 
 // Fixed brief schema: <=12 operational scalars, <=6 references, <=3 causes,
-// <=2 frames and a 256-byte message. No raw bodies, nested arbitrary values or
-// byte-cut JSON. These independent small limits fit one 8 KiB console record.
-const maxPlatformDiagnosticBytes = 8192;
+// a 256-byte message. Stack traces retain every frame without a byte budget.
+// No raw bodies, nested arbitrary values or byte-cut JSON.
 Map<String, Object?> selectDiagnosticRecord(LogRecord record) {
   final context = record.object is DiagnosticMessage
       ? (record.object! as DiagnosticMessage).context
@@ -99,7 +98,7 @@ Map<String, Object?> selectDiagnosticRecord(LogRecord record) {
     };
   }
   if (record.stackTrace != null) {
-    fields['stack'] = selectedStack(record.stackTrace!).take(2).toList();
+    fields['stack'] = selectedStack(record.stackTrace!);
   }
   final workflow = context == null
       ? null

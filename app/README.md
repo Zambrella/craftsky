@@ -1,15 +1,16 @@
-# app
+# CraftSky Flutter client
 
-The CraftSky Flutter client. Ships as **app.craftsky.social**.
+The native Flutter client for CraftSky. `app.craftsky.social` hosts verified app links and OAuth browser fallbacks; it is not the Flutter web app. See [CONTRIBUTING.md](../CONTRIBUTING.md) for the contribution workflow.
 
 Uses [`atproto.dart`](https://github.com/myConsciousness/atproto.dart) for atproto primitives, but the happy path for data is:
 
 - **Reads:** `app` → `appview` HTTP API → Postgres index
 - **Writes:** `app` → `appview` (which holds PDS OAuth tokens) → user's PDS → Relay → firehose → `appview` indexes it
+- **Image upload exception:** immediate images may upload directly to the session-authorized PDS endpoint using the temporary, memory-only service JWT constrained by [ADR 017](../adr/017-direct-image-upload-service-token-handoff.md)
 - **Video upload exception:** `app` streams to the exact configured Bluesky video endpoint with the ephemeral, memory-only service JWT constrained by ADR 012; AppView still verifies and creates the post
 
 The app never holds OAuth access/refresh tokens or DPoP keys. It persists only a
-CraftSky session token issued by AppView; the video service JWT is never
+CraftSky session token issued by AppView; image and video service JWTs are never
 persisted.
 
 ## Development
@@ -18,9 +19,8 @@ The repository pins Flutter **3.47.7** (Dart **3.13.5**) in `.fvmrc` and CI.
 With FVM, run `fvm install` from the repository root, then use the pinned SDK:
 
 ```bash
-cd app
-fvm flutter pub get
-fvm flutter run
+(cd app && fvm flutter pub get)
+fvm exec just app-run
 ```
 
 The app requires Android API 26+, iOS 15+, and macOS 12+.
@@ -28,14 +28,14 @@ Apple builds use Swift Package Manager; keep it enabled in `pubspec.yaml`.
 See [the Flutter 3.47 upgrade notes](../docs/development/flutter-3.47-upgrade.md)
 for migration details and validation.
 
-Point the app at a local App View (`http://localhost:8080` by default) once `appview/` is running.
+Start the backend with `just dev-d` first. `app-run` creates local config and selects this checkout's AppView port. From the root, prefix recipes that invoke Flutter with `fvm exec` to use the pinned SDK; the examples below assume that SDK is on your PATH.
 
 ## Key Packages
 
 - [`atproto`](https://pub.dev/packages/atproto) — core `com.atproto.*` operations
 - [`bluesky_text`](https://pub.dev/packages/bluesky_text) — text parsing, facets, mentions, links (reusable for any atproto app)
 
-The `bluesky` package is Bluesky-specific and likely not needed here — CraftSky uses its own `social.craftsky.*` lexicon.
+CraftSky uses its own `social.craftsky.*` records and reuses standard Bluesky types where appropriate. Reads and ordinary writes still use the AppView API.
 
 ## Platform IDs
 
@@ -118,6 +118,17 @@ SENTRY_LOCAL_OPT_IN=false
 
 Keep Sentry upload credentials (`SENTRY_AUTH_TOKEN`, `SENTRY_ORG`,
 `SENTRY_PROJECT`) in CI secrets or your shell environment, not in app config.
+
+## Checks
+
+From the repository root:
+
+```bash
+fvm exec just app-analyze
+fvm exec just app-test
+```
+
+Use [native integration tests](integration_test/README.md) for applicable device journeys. UI contributions should include screenshots or recordings and state which platforms were inspected. Production signing and symbol upload credentials are only needed for the maintainer release workflow, not debug development or unit/widget tests.
 
 ## Deep links
 

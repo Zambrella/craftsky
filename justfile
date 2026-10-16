@@ -69,6 +69,10 @@ ping:
 tap-status:
     ./scripts/compose-dev exec appview /app/cli tap status
 
+# Read-only aggregate health and queue summary; pass --json for scripts.
+ops-status *ARGS:
+    ./scripts/compose-dev exec appview /app/cli ops status {{ARGS}}
+
 # Compare one DID's Tap/PDS/AppView post state; pass --repair-stale --yes for dev-only cleanup.
 tap-repo-check DID *ARGS:
     ./scripts/compose-dev exec appview /app/cli tap repo-check '{{DID}}' {{ARGS}}

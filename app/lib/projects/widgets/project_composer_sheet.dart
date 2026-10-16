@@ -5,9 +5,9 @@ import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/auth/providers/account_operation_guard.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/auth/providers/unsaved_work_guard_provider.dart';
+import 'package:craftsky_app/drafts/composer/composer_draft_session.dart';
 import 'package:craftsky_app/drafts/composer/draft_composer_hydrator.dart';
 import 'package:craftsky_app/drafts/composer/draft_schedule_restoration.dart';
-import 'package:craftsky_app/drafts/composer/draft_submission_origin.dart';
 import 'package:craftsky_app/drafts/data/local_post_draft_repository.dart';
 import 'package:craftsky_app/drafts/models/local_post_draft.dart';
 import 'package:craftsky_app/drafts/providers/draft_save_controller.dart';
@@ -16,10 +16,10 @@ import 'package:craftsky_app/drafts/providers/local_post_drafts_provider.dart';
 import 'package:craftsky_app/drafts/widgets/draft_close_dialog.dart';
 import 'package:craftsky_app/feed/composer/composer_media_uploader.dart';
 import 'package:craftsky_app/feed/composer/composer_submission_coordinator.dart';
+import 'package:craftsky_app/feed/composer/composer_video_publication.dart';
 import 'package:craftsky_app/feed/composer/submission_screen_awake.dart';
 import 'package:craftsky_app/feed/composer/video_failure_message.dart';
 import 'package:craftsky_app/feed/composer/video_publication_coordinator.dart';
-import 'package:craftsky_app/feed/data/video_service_client.dart';
 import 'package:craftsky_app/feed/models/create_post_video.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/providers/composer_image_state.dart';
@@ -47,10 +47,14 @@ import 'package:craftsky_app/projects/models/project.dart';
 import 'package:craftsky_app/projects/options/project_option.dart';
 import 'package:craftsky_app/projects/options/project_option_catalogs.dart';
 import 'package:craftsky_app/projects/providers/preferred_project_crafts_provider.dart';
+import 'package:craftsky_app/projects/widgets/project_composer_detail_page.dart';
+import 'package:craftsky_app/projects/widgets/project_facet_field.dart';
+import 'package:craftsky_app/projects/widgets/project_materials_field.dart';
 import 'package:craftsky_app/router/responsive_modal_navigation.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/scheduled_posts/composer/schedule_capacity_state.dart';
 import 'package:craftsky_app/scheduled_posts/composer/schedule_composer_state.dart';
+import 'package:craftsky_app/scheduled_posts/composer/scheduled_composer_submission.dart';
 import 'package:craftsky_app/scheduled_posts/models/scheduled_post.dart';
 import 'package:craftsky_app/scheduled_posts/providers/scheduled_post_repository_provider.dart';
 import 'package:craftsky_app/scheduled_posts/providers/scheduled_posts_provider.dart';
@@ -65,7 +69,6 @@ import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
 import 'package:craftsky_app/shared/rich_text/facet_autocomplete_controller.dart';
 import 'package:craftsky_app/shared/rich_text/providers/facet_suggestion_providers.dart';
 import 'package:craftsky_app/shared/rich_text/widgets/facet_autocomplete_editor.dart';
-import 'package:craftsky_app/shared/rich_text/widgets/faceted_text.dart';
 import 'package:craftsky_app/shared/widgets/action_progress.dart';
 import 'package:craftsky_app/shared/widgets/craft_icon.dart';
 import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
@@ -76,6 +79,7 @@ import 'package:craftsky_app/theme/craftsky_form_builder_select_fields.dart';
 import 'package:craftsky_app/theme/craftsky_form_builder_text_field.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/craftsky_text_inputs.dart';
+import 'package:craftsky_app/theme/publishing_progress_indicator.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_form_builder/flutter_form_builder.dart';
@@ -255,7 +259,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
   bool _initialSponsored = false;
   bool _submissionSucceeded = false;
   Post? _pendingPublishedDraftPost;
-  late final DraftSubmissionOrigin _origin;
+  late final ComposerDraftSession _origin;
   String _initialBodyText = '';
   List<String>? _initialLanguages;
   ScheduleChoice _initialScheduleChoice = ScheduleChoice.now;
@@ -265,7 +269,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _origin = DraftSubmissionOrigin(widget.draftSeed?.draft);
+    _origin = ComposerDraftSession(widget.draftSeed?.draft);
     _scheduledOwner = widget.scheduledOwner;
     final draftContent = widget.draftSeed?.draft.content;
     final project = widget.scheduledPost?.payload['project'];
@@ -409,6 +413,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
 
   @override
   Widget build(BuildContext context) {
+    ref.watch(publishingAnimationFileProvider);
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
     final spacing = theme.extension<SpacingTheme>()!;
@@ -758,7 +763,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
                             ),
                           ),
                           SizedBox(height: spacing.sp2),
-                          _ProjectDetailActionTile(
+                          ProjectDetailActionTile(
                             key: const Key(
                               'project-composer-pattern-details-action',
                             ),
@@ -774,7 +779,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
                             enabled: controlsEnabled,
                             onTap: _openPatternDetails,
                           ),
-                          _ProjectDetailActionTile(
+                          ProjectDetailActionTile(
                             key: const Key(
                               'project-composer-common-details-action',
                             ),
@@ -792,7 +797,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
                           ),
                           if (_craftDetailsTitle(l10n)
                               case final craftDetailsTitle?)
-                            _ProjectDetailActionTile(
+                            ProjectDetailActionTile(
                               key: const Key(
                                 'project-composer-craft-details-action',
                               ),
@@ -997,37 +1002,10 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
     );
   }
 
-  DraftVideoWrite? _draftVideoWrite() {
-    final selection = _videoController.selection;
-    if (selection == null) return null;
-    final stored = _origin.draft?.video;
-    if (_usesStoredDraftVideo && stored != null) {
-      return ExistingStoredVideo(
-        storageRevision: stored.storageRevision,
-        expectedSourceSha256: stored.sourceSha256,
-        expectedPosterSha256: stored.posterSha256,
-        altText: selection.altText,
-      );
-    }
-    final poster = selection.posterBytes;
-    if (poster == null) {
-      throw const DraftRepositoryException(
-        DraftRepositoryFailureReason.invalidRequest,
-      );
-    }
-    return PreparedDraftVideo(
-      displayFileName: selection.displayName,
-      mimeType: selection.mimeType,
-      byteLength: selection.byteLength,
-      openSource: selection.openRead,
-      width: selection.width,
-      height: selection.height,
-      duration: selection.duration,
-      altText: selection.altText,
-      posterMimeType: 'image/jpeg',
-      posterBytes: poster,
-    );
-  }
+  DraftVideoWrite? _draftVideoWrite() => _origin.videoWrite(
+    selection: _videoController.selection,
+    useStoredVideo: _usesStoredDraftVideo,
+  );
 
   Future<void> _restoreDraftVideo(LocalPostDraftSeed seed) async {
     final descriptor = seed.draft.video;
@@ -1039,23 +1017,10 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
           owner.session.account,
         ).future,
       );
-      if (repository is! LocalVideoDraftRepository) return;
-      final videoRepository = repository as LocalVideoDraftRepository;
-      final poster = await videoRepository.readVideoPoster(seed.draft.id);
-      if (!mounted) return;
+      final video = await _origin.restoreVideo(seed, repository);
+      if (!mounted || video == null) return;
       setState(() {
-        _videoController.restoredSelection = LocalVideoSelection(
-          displayName: descriptor.displayFileName,
-          mimeType: descriptor.mimeType,
-          byteLength: descriptor.sourceByteLength,
-          duration: descriptor.duration,
-          width: descriptor.width,
-          height: descriptor.height,
-          headerBytes: Uint8List(0),
-          openRead: () => videoRepository.openVideoSource(seed.draft.id),
-          posterBytes: poster,
-          altText: descriptor.altText,
-        );
+        _videoController.restoredSelection = video;
         _usesStoredDraftVideo = true;
       });
     } on Object {
@@ -1236,7 +1201,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
     final l10n = AppLocalizations.of(context);
     await Navigator.of(context).push<void>(
       MaterialPageRoute<void>(
-        builder: (_) => _ProjectComposerDetailPage(
+        builder: (_) => ProjectComposerDetailPage(
           title: l10n.projectComposerPatternDetailsTitle,
           child: FormBuilder(
             key: _patternDetailsFormKey,
@@ -1257,7 +1222,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
     final l10n = AppLocalizations.of(context);
     await Navigator.of(context).push<void>(
       MaterialPageRoute<void>(
-        builder: (_) => _ProjectComposerDetailPage(
+        builder: (_) => ProjectComposerDetailPage(
           title: l10n.projectComposerCommonDetailsTitle,
           child: FormBuilder(
             key: _commonDetailsFormKey,
@@ -1285,7 +1250,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
     await Navigator.of(context).push<void>(
       MaterialPageRoute<void>(
         builder: (_) => StatefulBuilder(
-          builder: (context, setRouteState) => _ProjectComposerDetailPage(
+          builder: (context, setRouteState) => ProjectComposerDetailPage(
             title: title,
             errorText: _formValidationError,
             child: FormBuilder(
@@ -1323,7 +1288,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _FacetFormBuilderTextField(
+        ProjectFacetField(
           name: ProjectComposerFields.patternDesigner,
           key: const Key('project-composer-pattern-designer-field'),
           editorKey: const Key('project-composer-pattern-designer-editor'),
@@ -1334,7 +1299,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
           allowedTokenKinds: const {ActiveFacetTokenKind.mention},
         ),
         SizedBox(height: spacing.sp4),
-        _FacetFormBuilderTextField(
+        ProjectFacetField(
           name: ProjectComposerFields.patternPublisher,
           key: const Key('project-composer-pattern-publisher-field'),
           editorKey: const Key('project-composer-pattern-publisher-editor'),
@@ -1490,7 +1455,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
           enabled: controlsEnabled,
         ),
         SizedBox(height: spacing.sp4),
-        _FacetFormBuilderTextField(
+        ProjectFacetField(
           name: ProjectComposerFields.patternName,
           key: const Key('project-composer-pattern-name-field'),
           editorKey: const Key('project-composer-pattern-name-editor'),
@@ -1517,7 +1482,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _MaterialsFormBuilderField(
+        ProjectMaterialsField(
           name: ProjectComposerFields.materials,
           label: l10n.projectComposerMaterialsLabel,
           inputHintText: l10n.projectComposerMaterialsAddHint,
@@ -2159,32 +2124,11 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
       _submissionSucceeded = created != null;
       return;
     }
-    final api = ref.read(postApiClientProvider);
-    final service = ref.read(videoServiceClientProvider);
-    final coordinator = VideoPublicationCoordinator(
-      operationAccountDid: owner.session.account.did.value,
-      checkEligibility: api.getVideoUploadLimits,
-      authorize: api.authorizeVideoUpload,
-      upload:
-          ({
-            required authorizationHeader,
-            required cancelToken,
-            required bypassDeduplication,
-            required onProgress,
-          }) => service.upload(
-            source: VideoUploadSource(
-              length: selectedVideo.byteLength,
-              openRead: selectedVideo.openRead,
-            ),
-            ownerDid: owner.session.account.did.value,
-            authorizationHeader: authorizationHeader,
-            bypassDeduplication: bypassDeduplication,
-            cancelToken: cancelToken,
-            onProgress: onProgress,
-          ),
-      poll: (jobId, cancelToken) =>
-          service.getJobStatus(jobId, cancelToken: cancelToken),
-      wait: Future<void>.delayed,
+    final coordinator = composerVideoPublication(
+      owner: owner,
+      selection: selectedVideo,
+      api: ref.read(postApiClientProvider),
+      service: ref.read(videoServiceClientProvider),
       publish: (video, {required allowBlobRecovery}) async {
         final created = await ref
             .read(createPostProvider.notifier)
@@ -2283,43 +2227,36 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
       owner == null ||
       (ref.read(sessionRegistryProvider).value?.isCurrent(owner) ?? false);
 
-  Future<void> _saveOriginSnapshot() async {
-    final origin = _origin.draft;
-    if (origin == null) return;
-    final active = ref.read(sessionRegistryProvider).value?.activeLease;
-    if (active == null ||
-        active != widget.draftOwner ||
-        active.session.account != origin.owner) {
-      throw DiagnosticStateError('local-draft account changed');
-    }
-    _formKey.currentState?.save();
-    final saved = await ref
-        .read(draftSaveControllerProvider(origin.owner).notifier)
-        .save(
-          _projectDraftWriteRequest(
-            origin.owner,
-            ref.read(composerImagesProvider(_composerId)),
-          ),
-        );
-    if (saved == null) {
-      throw DiagnosticStateError('local-draft account changed');
-    }
-    _origin.acceptSnapshot(saved);
-  }
+  Future<void> _saveOriginSnapshot() => _origin.saveOriginSnapshot(
+    expectedOwner: widget.draftOwner,
+    activeOwner: ref.read(sessionRegistryProvider).value?.activeLease,
+    save: (owner) {
+      _formKey.currentState?.save();
+      return ref
+          .read(draftSaveControllerProvider(owner).notifier)
+          .save(
+            _projectDraftWriteRequest(
+              owner,
+              ref.read(composerImagesProvider(_composerId)),
+            ),
+          );
+    },
+  );
 
   Future<void> _deleteOriginDraftAfterSuccess() async {
     final origin = _origin.draft;
     if (origin == null) return;
     try {
-      final repository = await ref.read(
-        accountLocalPostDraftRepositoryProvider(origin.owner).future,
+      await _origin.deleteAfterSuccess(
+        repositoryFor: (owner) => ref.read(
+          accountLocalPostDraftRepositoryProvider(owner).future,
+        ),
+        refresh: (owner) async {
+          if (mounted) {
+            await ref.read(localPostDraftsProvider(owner).notifier).refresh();
+          }
+        },
       );
-      await repository.delete(origin.id);
-      if (mounted) {
-        await ref
-            .read(localPostDraftsProvider(origin.owner).notifier)
-            .refresh();
-      }
     } on Object {
       if (mounted) {
         context.showError(AppLocalizations.of(context).draftCleanupError);
@@ -2404,79 +2341,47 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
       mounted &&
       (ref.read(sessionRegistryProvider).value?.isCurrent(owner) ?? false);
 
-  Future<void> _scheduleProject({
-    required ProjectComposerSubmitArguments args,
-    required ComposerImagesState imagesState,
-  }) async {
-    final owner = _captureScheduledOperationOwner();
-    final scheduledAt = _scheduledAtLocal;
-    if (owner == null || scheduledAt == null) return;
+  ScheduledComposerSubmission _scheduledSubmission(ActiveAccountLease owner) {
     final account = owner.session.account;
-    final accountOperation = ActiveAccountOperation.withGuard(
-      ownership: owner,
-      isCurrent: () => _scheduledOperationIsCurrent(owner),
+    return ScheduledComposerSubmission(
+      operation: ActiveAccountOperation.withGuard(
+        ownership: owner,
+        isCurrent: () => _scheduledOperationIsCurrent(owner),
+      ),
+      repository: () => ref.read(
+        accountScheduledPostRepositoryProvider(account).future,
+      ),
+      refresh: () =>
+          ref.read(scheduledPostsProvider(account).notifier).refresh(),
+      materializeMedia: ref.read(scheduledComposerMediaMaterializerProvider),
     );
+  }
+
+  void _scheduleProgress(ScheduledComposerProgress progress) {
+    if (!mounted) return;
     setState(() {
-      _isScheduling = true;
-      _stagedImageCount = 0;
-      _stagedImageTotal = imagesState.images
-          .where((image) => image.phase is ImageUploaded)
-          .length;
-      _isSavingSchedule = _stagedImageTotal == 0;
+      _stagedImageCount = progress.staged;
+      _stagedImageTotal = progress.total;
+      _isSavingSchedule = progress.saving;
     });
+  }
+
+  Future<void> _runScheduledWrite(
+    ActiveAccountLease owner, {
+    required Future<void> Function(ScheduledComposerSubmission) write,
+    required String errorMessage,
+    String? successMessage,
+  }) async {
+    setState(() => _isScheduling = true);
     try {
-      final repository = await accountOperation.step(
-        () => ref.read(accountScheduledPostRepositoryProvider(account).future),
-      );
-      if (!mounted || !accountOperation.isCurrent) return;
-      final media = await ref.read(scheduledComposerMediaMaterializerProvider)(
-        imagesState.images,
-        stageMedia: repository.stageMedia,
-        onStaged: (_) {
-          if (mounted && accountOperation.isCurrent) {
-            setState(() => _stagedImageCount++);
-          }
-        },
-      );
-      if (!mounted || !accountOperation.isCurrent) return;
-      final payload = <String, dynamic>{
-        'kind': 'project',
-        'text': args.text,
-        'langs': args.langs,
-        'sponsored': _sponsored,
-        'facets': ?args.facets,
-        'project': args.project.toCreateMap(),
-        'media': media,
-      };
-      if (mounted) setState(() => _isSavingSchedule = true);
-      final existing = widget.scheduledPost;
-      if (existing == null) {
-        await repository.create(
-          operationId: _composerId,
-          scheduledAt: scheduledAt.toUtc(),
-          payload: payload,
-        );
-      } else {
-        await repository.update(
-          id: existing.id,
-          scheduledAt: scheduledAt.toUtc(),
-          payload: payload,
-        );
-      }
-      if (!mounted || !accountOperation.isCurrent) return;
-      await accountOperation.step(
-        () => ref.read(scheduledPostsProvider(account).notifier).refresh(),
-      );
-      if (!mounted || !accountOperation.isCurrent) return;
-      if (!mounted) return;
+      await write(_scheduledSubmission(owner));
+      if (!mounted || !_scheduledOperationIsCurrent(owner)) return;
       _submissionSucceeded = true;
       Navigator.of(context).pop();
-      context.showInfo(AppLocalizations.of(context).scheduledProjectSaved);
+      if (successMessage != null) context.showInfo(successMessage);
     } on Object {
-      if (mounted && accountOperation.isCurrent) {
-        context.showError(
-          AppLocalizations.of(context).scheduledProjectSaveError,
-        );
+      if (mounted && _scheduledOperationIsCurrent(owner)) {
+        context.showError(errorMessage);
       }
     } finally {
       if (mounted) {
@@ -2490,78 +2395,59 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
     }
   }
 
+  Map<String, dynamic> _scheduledProjectPayload(
+    ProjectComposerSubmitArguments args,
+    List<Map<String, dynamic>> media,
+  ) => {
+    'kind': 'project',
+    'text': args.text,
+    'langs': args.langs,
+    'sponsored': _sponsored,
+    'facets': ?args.facets,
+    'project': args.project.toCreateMap(),
+    'media': media,
+  };
+
+  Future<void> _scheduleProject({
+    required ProjectComposerSubmitArguments args,
+    required ComposerImagesState imagesState,
+  }) async {
+    final owner = _captureScheduledOperationOwner();
+    final scheduledAt = _scheduledAtLocal;
+    if (owner == null || scheduledAt == null) return;
+    final l10n = AppLocalizations.of(context);
+    await _runScheduledWrite(
+      owner,
+      errorMessage: l10n.scheduledProjectSaveError,
+      successMessage: l10n.scheduledProjectSaved,
+      write: (submission) => submission.save(
+        operationId: _composerId,
+        scheduledAt: scheduledAt,
+        existing: widget.scheduledPost,
+        images: imagesState.images,
+        onProgress: _scheduleProgress,
+        payload: (_, media) async => _scheduledProjectPayload(args, media),
+      ),
+    );
+  }
+
   Future<void> _publishExistingProjectNow(
     ProjectComposerSubmitArguments args,
   ) async {
     final existing = widget.scheduledPost;
     final owner = _captureScheduledOperationOwner();
     if (existing == null || owner == null) return;
-    final account = owner.session.account;
-    final accountOperation = ActiveAccountOperation.withGuard(
-      ownership: owner,
-      isCurrent: () => _scheduledOperationIsCurrent(owner),
-    );
     final imagesState = ref.read(composerImagesProvider(_composerId));
-    setState(() {
-      _isScheduling = true;
-      _stagedImageCount = 0;
-      _stagedImageTotal = imagesState.images
-          .where((image) => image.phase is ImageUploaded)
-          .length;
-      _isSavingSchedule = _stagedImageTotal == 0;
-    });
-    try {
-      final repository = await accountOperation.step(
-        () => ref.read(accountScheduledPostRepositoryProvider(account).future),
-      );
-      if (!mounted || !accountOperation.isCurrent) return;
-      final media = await ref.read(scheduledComposerMediaMaterializerProvider)(
-        imagesState.images,
-        stageMedia: repository.stageMedia,
-        onStaged: (_) {
-          if (mounted && accountOperation.isCurrent) {
-            setState(() => _stagedImageCount++);
-          }
-        },
-      );
-      if (!mounted || !accountOperation.isCurrent) return;
-      if (mounted) setState(() => _isSavingSchedule = true);
-      await repository.publishNow(
-        id: existing.id,
-        payload: {
-          ...existing.payload,
-          'text': args.text,
-          'langs': args.langs,
-          'sponsored': _sponsored,
-          'facets': ?args.facets,
-          'project': args.project.toCreateMap(),
-          'media': media,
-        },
-      );
-      if (!mounted || !accountOperation.isCurrent) return;
-      await accountOperation.step(
-        () => ref.read(scheduledPostsProvider(account).notifier).refresh(),
-      );
-      if (!mounted || !accountOperation.isCurrent) return;
-      if (!mounted) return;
-      _submissionSucceeded = true;
-      Navigator.of(context).pop();
-    } on Object {
-      if (mounted && accountOperation.isCurrent) {
-        context.showError(
-          AppLocalizations.of(context).scheduledProjectNowError,
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isScheduling = false;
-          _stagedImageCount = 0;
-          _stagedImageTotal = 0;
-          _isSavingSchedule = false;
-        });
-      }
-    }
+    await _runScheduledWrite(
+      owner,
+      errorMessage: AppLocalizations.of(context).scheduledProjectNowError,
+      write: (submission) => submission.publishNow(
+        existing: existing,
+        images: imagesState.images,
+        onProgress: _scheduleProgress,
+        payload: (_, media) async => _scheduledProjectPayload(args, media),
+      ),
+    );
   }
 
   List<dynamic> get _scheduledPayloadMedia =>
@@ -2608,7 +2494,6 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
     final existing = widget.scheduledPost;
     final owner = _captureScheduledOperationOwner();
     if (existing == null || owner == null) return;
-    final account = owner.session.account;
     final l10n = AppLocalizations.of(context);
     final confirmed = await showCraftskyConfirmDialog(
       context,
@@ -2623,13 +2508,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
       _isDeletingSchedule = true;
     });
     try {
-      final repository = await ref.read(
-        accountScheduledPostRepositoryProvider(account).future,
-      );
-      if (!mounted || !_scheduledOperationIsCurrent(owner)) return;
-      await repository.delete(existing.id);
-      if (!mounted || !_scheduledOperationIsCurrent(owner)) return;
-      await ref.read(scheduledPostsProvider(account).notifier).refresh();
+      await _scheduledSubmission(owner).delete(existing.id);
       if (!mounted || !_scheduledOperationIsCurrent(owner)) return;
       Navigator.of(context).pop();
     } on Object {
@@ -2644,146 +2523,6 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
         });
       }
     }
-  }
-}
-
-class _ProjectDetailActionTile extends StatelessWidget {
-  const new({
-    required this.focusNode,
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.enabled,
-    required this.onTap,
-    this.errorText,
-    super.key,
-  });
-
-  final FocusNode focusNode;
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final String? errorText;
-  final bool enabled;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    return Semantics(
-      button: true,
-      enabled: enabled,
-      child: ListTile(
-        contentPadding: EdgeInsets.zero,
-        focusNode: focusNode,
-        leading: Icon(icon),
-        title: Text(title),
-        subtitle: Text(
-          errorText ?? subtitle,
-          style: errorText == null ? null : TextStyle(color: colors.error),
-        ),
-        trailing: const Icon(CraftskyIconsBold.next),
-        enabled: enabled,
-        onTap: enabled ? onTap : null,
-      ),
-    );
-  }
-}
-
-class _ProjectComposerDetailPage extends StatelessWidget {
-  const new({
-    required this.title,
-    required this.child,
-    this.errorText,
-  });
-
-  final String title;
-  final Widget child;
-  final String? errorText;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final spacing = theme.extension<SpacingTheme>()!;
-    final swatches = theme.extension<BrandSwatchTheme>()!;
-    return Scaffold(
-      backgroundColor: swatches.paper,
-      appBar: AppBar(title: Text(title, style: theme.textTheme.titleLarge)),
-      body: GestureDetector(
-        behavior: HitTestBehavior.translucent,
-        onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
-        child: SafeArea(
-          top: false,
-          bottom: false,
-          child: SingleChildScrollView(
-            padding: EdgeInsets.fromLTRB(
-              spacing.sp4,
-              spacing.sp4,
-              spacing.sp4,
-              spacing.sp4 + MediaQuery.paddingOf(context).bottom,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                if (errorText case final message?) ...[
-                  Text(
-                    message,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: theme.colorScheme.error,
-                    ),
-                  ),
-                  SizedBox(height: spacing.sp4),
-                ],
-                child,
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _MaterialsFormBuilderField extends StatelessWidget {
-  const new({
-    required this.name,
-    required this.label,
-    required this.inputHintText,
-    required this.addButtonLabel,
-    required this.disabledText,
-    required this.maxSelectedErrorText,
-    required this.maxLengthErrorText,
-    required this.enabled,
-  });
-
-  final String name;
-  final String label;
-  final String inputHintText;
-  final String addButtonLabel;
-  final String disabledText;
-  final String maxSelectedErrorText;
-  final String maxLengthErrorText;
-  final bool enabled;
-
-  @override
-  Widget build(BuildContext context) {
-    return FormBuilderField<List<ProjectMaterial>>(
-      name: name,
-      enabled: enabled,
-      builder: (field) {
-        return _MaterialsInput(
-          label: label,
-          values: List<ProjectMaterial>.from(field.value ?? const []),
-          inputHintText: inputHintText,
-          addButtonLabel: addButtonLabel,
-          disabledText: disabledText,
-          maxSelectedErrorText: maxSelectedErrorText,
-          maxLengthErrorText: maxLengthErrorText,
-          enabled: field.widget.enabled,
-          onChanged: field.didChange,
-        );
-      },
-    );
   }
 }
 
@@ -2802,326 +2541,6 @@ class _SelectCraftTypeEmptyState extends StatelessWidget {
           color: Theme.of(context).colorScheme.onSurfaceVariant,
         ),
       ),
-    );
-  }
-}
-
-class _MaterialsInput extends ConsumerStatefulWidget {
-  const new({
-    required this.label,
-    required this.values,
-    required this.inputHintText,
-    required this.addButtonLabel,
-    required this.disabledText,
-    required this.maxSelectedErrorText,
-    required this.maxLengthErrorText,
-    required this.enabled,
-    required this.onChanged,
-  });
-
-  static const maxSelected = 10;
-  static const maxGraphemes = 100;
-
-  final String label;
-  final List<ProjectMaterial> values;
-  final String inputHintText;
-  final String addButtonLabel;
-  final String disabledText;
-  final String maxSelectedErrorText;
-  final String maxLengthErrorText;
-  final bool enabled;
-  final ValueChanged<List<ProjectMaterial>> onChanged;
-
-  @override
-  ConsumerState<_MaterialsInput> createState() => _MaterialsInputState();
-}
-
-class _MaterialsInputState extends ConsumerState<_MaterialsInput> {
-  final _controller = FacetTextEditingController();
-  final _focusNode = FocusNode(debugLabel: 'projectMaterials');
-  String? _errorText;
-
-  bool get _canAdd => widget.enabled && _controller.text.trim().isNotEmpty;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller.addListener(_handleTextChanged);
-  }
-
-  @override
-  void dispose() {
-    _controller
-      ..removeListener(_handleTextChanged)
-      ..dispose();
-    _focusNode.dispose();
-    super.dispose();
-  }
-
-  @override
-  void didUpdateWidget(covariant _MaterialsInput oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.values.length < _MaterialsInput.maxSelected &&
-        oldWidget.values.length != widget.values.length) {
-      _errorText = null;
-    }
-  }
-
-  void _handleTextChanged() {
-    if (mounted) setState(() {});
-  }
-
-  bool _isAdding = false;
-
-  Future<void> _addCurrent() async {
-    if (!widget.enabled || _isAdding) return;
-    final text = _controller.text.trim();
-    if (text.isEmpty) return;
-    if (text.characters.length > _MaterialsInput.maxGraphemes) {
-      setState(() => _errorText = widget.maxLengthErrorText);
-      _focusNode.requestFocus();
-      return;
-    }
-    if (widget.values.length >= _MaterialsInput.maxSelected) {
-      setState(() => _errorText = widget.maxSelectedErrorText);
-      _focusNode.requestFocus();
-      return;
-    }
-
-    setState(() => _isAdding = true);
-    try {
-      final facets = await ref
-          .read(facetGeneratorProvider)
-          .generate(
-            text,
-            includeLinks: false,
-          );
-      if (!mounted) return;
-
-      widget.onChanged([
-        ...widget.values,
-        ProjectMaterial(text: text, facets: facets.isEmpty ? null : facets),
-      ]);
-      _controller.clear();
-      setState(() => _errorText = null);
-      _focusNode.requestFocus();
-    } finally {
-      if (mounted) setState(() => _isAdding = false);
-    }
-  }
-
-  void _remove(ProjectMaterial material) {
-    if (!widget.enabled) return;
-    widget.onChanged(
-      List<ProjectMaterial>.from(widget.values)..remove(material),
-    );
-    setState(() => _errorText = null);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final spacing = theme.extension<SpacingTheme>()!;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        FacetAutocompleteEditor(
-          key: const Key('${ProjectComposerFields.materials}-custom-input'),
-          label: widget.label,
-          hintText: widget.inputHintText,
-          controller: _controller,
-          textCapitalization: TextCapitalization.words,
-          focusNode: _focusNode,
-          enabled: widget.enabled && !_isAdding,
-          errorText: _errorText,
-          betweenLabelAndField: widget.values.isEmpty
-              ? null
-              : _MaterialEntryList(
-                  values: widget.values,
-                  enabled: widget.enabled && !_isAdding,
-                  onRemove: _remove,
-                ),
-          suffixIcon: Padding(
-            padding: const EdgeInsetsDirectional.only(end: 8),
-            child: TextButton(
-              key: const Key('${ProjectComposerFields.materials}-add-custom'),
-              style: TextButton.styleFrom(
-                minimumSize: Size.zero,
-                padding: const EdgeInsets.symmetric(horizontal: 8),
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              ),
-              onPressed: _canAdd && !_isAdding ? _addCurrent : null,
-              child: ActionProgress(
-                isLoading: _isAdding,
-                child: Text(widget.addButtonLabel),
-              ),
-            ),
-          ),
-          allowedTokenKinds: const {
-            ActiveFacetTokenKind.mention,
-            ActiveFacetTokenKind.hashtag,
-          },
-          textInputAction: TextInputAction.done,
-          onSubmitted: (_) => unawaited(_addCurrent()),
-        ),
-        if (!widget.enabled)
-          Padding(
-            padding: EdgeInsets.only(top: spacing.sp2),
-            child: Text(
-              widget.disabledText,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.outline,
-              ),
-            ),
-          ),
-      ],
-    );
-  }
-}
-
-class _MaterialEntryList extends StatelessWidget {
-  const new({
-    required this.values,
-    required this.enabled,
-    required this.onRemove,
-  });
-
-  final List<ProjectMaterial> values;
-  final bool enabled;
-  final ValueChanged<ProjectMaterial> onRemove;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final spacing = theme.extension<SpacingTheme>()!;
-    final radii = theme.extension<RadiusTheme>()!;
-    final colors = theme.colorScheme;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        for (final (index, material) in values.indexed) ...[
-          DecoratedBox(
-            decoration: BoxDecoration(
-              color: colors.surface,
-              border: Border.all(color: colors.outline),
-              borderRadius: BorderRadius.circular(radii.r3),
-            ),
-            child: Padding(
-              padding: EdgeInsetsDirectional.only(
-                start: spacing.sp4,
-                top: spacing.sp3,
-                bottom: spacing.sp3,
-                end: spacing.sp2,
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: FacetedText(
-                      text: material.text,
-                      facets: material.facets,
-                      style: theme.textTheme.bodyLarge?.copyWith(
-                        fontWeight: FontWeight.w700,
-                        color: colors.onSurface,
-                      ),
-                    ),
-                  ),
-                  IconButton(
-                    key: Key(
-                      '${ProjectComposerFields.materials}-remove-'
-                      '${material.text}',
-                    ),
-                    icon: const Icon(CraftskyIconsBold.close),
-                    tooltip: 'Remove material',
-                    visualDensity: VisualDensity.compact,
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints.tightFor(
-                      width: 32,
-                      height: 32,
-                    ),
-                    onPressed: enabled ? () => onRemove(material) : null,
-                  ),
-                ],
-              ),
-            ),
-          ),
-          if (index != values.length - 1) SizedBox(height: spacing.sp2),
-        ],
-      ],
-    );
-  }
-}
-
-class _FacetFormBuilderTextField extends StatefulWidget {
-  const new({
-    required this.name,
-    required this.label,
-    required this.controller,
-    super.key,
-    this.editorKey,
-    this.focusNode,
-    this.hintText,
-    this.enabled = true,
-    this.textCapitalization = TextCapitalization.words,
-    this.initialDisplayText,
-    this.allowedTokenKinds,
-    this.normalizeValue,
-    this.onChanged,
-  });
-
-  final String name;
-  final String label;
-  final FacetTextEditingController controller;
-  final Key? editorKey;
-  final FocusNode? focusNode;
-  final String? hintText;
-  final bool enabled;
-  final TextCapitalization textCapitalization;
-  final String? initialDisplayText;
-  final Set<ActiveFacetTokenKind>? allowedTokenKinds;
-  final String? Function(String value)? normalizeValue;
-  final ValueChanged<String>? onChanged;
-
-  @override
-  State<_FacetFormBuilderTextField> createState() =>
-      _FacetFormBuilderTextFieldState();
-}
-
-class _FacetFormBuilderTextFieldState
-    extends State<_FacetFormBuilderTextField> {
-  @override
-  void initState() {
-    super.initState();
-    if (widget.initialDisplayText case final initialDisplayText?
-        when widget.controller.text.isEmpty) {
-      widget.controller.text = initialDisplayText;
-      widget.controller.selection = TextSelection.collapsed(
-        offset: initialDisplayText.length,
-      );
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return FormBuilderField<String>(
-      name: widget.name,
-      enabled: widget.enabled,
-      builder: (field) {
-        return FacetAutocompleteEditor(
-          key: widget.editorKey,
-          label: widget.label,
-          hintText: widget.hintText,
-          controller: widget.controller,
-          focusNode: widget.focusNode,
-          textCapitalization: widget.textCapitalization,
-          enabled: field.widget.enabled,
-          textInputAction: TextInputAction.next,
-          allowedTokenKinds: widget.allowedTokenKinds,
-          onChanged: (value) {
-            field.didChange(widget.normalizeValue?.call(value) ?? value);
-            widget.onChanged?.call(value);
-          },
-        );
-      },
     );
   }
 }

@@ -1,0 +1,20 @@
+name: Development question
+description: Ask about local setup, the codebase, or contributing.
+title: "[Question]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please check CONTRIBUTING.md and the relevant component README first. Use https://craftsky.social/reporting for content reports and moderation appeals. Email support@craftsky.social privately for security concerns or account details.
+  - type: textarea
+    id: question
+    attributes:
+      label: Your question
+      description: What are you trying to do, and where are you stuck?
+    validations:
+      required: true
+  - type: textarea
+    id: context
+    attributes:
+      label: What have you tried?
+      description: Include relevant documentation, commands, and tool/platform versions. Remove secrets, personal data, and private content.

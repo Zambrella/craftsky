@@ -513,7 +513,11 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.fling(find.byType(ListView), const Offset(0, 320), 1000);
+    await tester.fling(
+      find.byType(CustomScrollView),
+      const Offset(0, 320),
+      1000,
+    );
     await tester.pumpAndSettle();
 
     expect(find.text('stale'), findsNothing);

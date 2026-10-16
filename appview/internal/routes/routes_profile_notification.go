@@ -29,6 +29,7 @@ type profileRelationshipRouteBundle struct {
 }
 
 func registerProfileRelationshipRoutes(routes profileRelationshipRouteBundle) {
+	routes.mux.Handle("GET /v1/profiles/recent", routes.middleware.wrap(mustPolicy("GET", "/v1/profiles/recent"), api.GetRecentMembersHandler(routes.profileStore)))
 	routes.mux.Handle("GET /v1/profiles/{handleOrDid}", routes.middleware.wrap(mustPolicy("GET", "/v1/profiles/{handleOrDid}"), api.GetProfileHandler(routes.profileStore, routes.businessProfiles, routes.handleResolver, routes.logger)))
 	routes.mux.Handle("GET /v1/profiles/me", routes.middleware.wrap(mustPolicy("GET", "/v1/profiles/me"), api.GetMeProfileHandler(routes.profileStore, routes.businessProfiles, routes.handleResolver, routes.logger)))
 	routes.mux.Handle("GET /v1/profiles/me/follower-growth", routes.middleware.wrap(mustPolicy("GET", "/v1/profiles/me/follower-growth"), api.GetFollowerGrowthHandler(routes.followerGrowth, time.Now)))

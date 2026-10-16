@@ -4,16 +4,18 @@ Craftsky atproto lexicon schemas, under the `social.craftsky.*` namespace.
 
 Lexicons are JSON schemas that define the shape of records stored on user PDSes. They are load-bearing: once users create records against a lexicon, changing it is painful because existing data on PDSes can't be easily migrated.
 
-**Design carefully upfront.** Every change to a lexicon in production needs an ADR — use the `writing-architecture-decision-records` skill.
+**Design carefully upfront.** Schema changes need an ADR. Agree on scope before implementation, following [CONTRIBUTING.md](../CONTRIBUTING.md). Record the decision in `adr/` using the existing documents as examples.
 
-**Before editing or adding schemas, invoke the [`atproto-lexicon`](../.claude/skills/atproto-lexicon/SKILL.md) project skill.** It distils the canonical atproto lexicon docs (guide, style guide, spec) into the NSID/type/style/evolution rules you need to get this right the first time.
+**Before editing or adding schemas, read the [project Lexicon rules](../.agents/skills/atproto-lexicon/SKILL.md).** Coding agents should invoke this skill; human contributors can follow its naming, type, style, and evolution checklist directly. No agent tooling is required to contribute.
 
-## Planned Namespaces
+After a schema change, run `just lexgen` from the repository root and commit the regenerated Go packages alongside the schema. Run `just lexgen-check` to detect drift, then the applicable AppView and client checks. See the [code generation design](../docs/superpowers/specs/2026-04-26-lexicon-codegen-design.md).
+
+## Defined namespaces
 
 | Lexicon | Purpose |
 |---|---|
 | `social.craftsky.authFull` | Readable OAuth permission set for the six CraftSky public record collections; see ADR 017. |
-| `social.craftsky.feed.post` | A post — general or a craft project (via optional `project` sub-object with `common` + open-union `details`). Supports replies, up to 4 images, rich-text facets, quote embeds, standard external cards, and standard video. |
+| `social.craftsky.feed.post` | A post — general or a craft project (via optional `project` sub-object with `common` + open-union `details`). Supports replies, up to 8 images, rich-text facets, quote embeds, standard external cards, and standard video. |
 | `social.craftsky.feed.defs` | Shared feed/project tokens for craft type, project status, and pattern difficulty. |
 | `social.craftsky.feed.repost` | A repost of a Craftsky post |
 | `social.craftsky.feed.like` | A like on a Craftsky post (distinct NSID for firehose-filter efficiency) |

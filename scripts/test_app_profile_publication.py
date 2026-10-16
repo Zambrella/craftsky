@@ -17,8 +17,15 @@ class ProfileContractTests(unittest.TestCase):
         source = profile.load_source()
         registered = set(re.findall(r'collection: "([^"]+)"',
                                    (profile.ROOT / 'appview/internal/app/deps.go').read_text()))
-        scopes = set(re.findall(r'"repo:([^"?]+)',
-                               (profile.ROOT / 'appview/internal/auth/scopes.go').read_text()))
+        scope_source = (profile.ROOT / 'appview/internal/auth/scopes.go').read_text()
+        scopes = set(re.findall(r'"repo:([^"?]+)', scope_source))
+        # CraftSky record grants are now bundled in the included permission set.
+        self.assertIn('"include:social.craftsky.authFull"', scope_source)
+        permission_set = json.loads(
+            (profile.ROOT / 'lexicon/social/craftsky/authFull.json').read_text())
+        for permission in permission_set['defs']['main']['permissions']:
+            if permission['resource'] == 'repo':
+                scopes.update(permission['collection'])
         self.assertEqual(set(source['lexicons']['consumes']), registered)
         self.assertEqual(set(source['lexicons']['produces']), scopes)
         for records in source['lexicons'].values():

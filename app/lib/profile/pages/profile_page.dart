@@ -23,6 +23,7 @@ import 'package:craftsky_app/profile/providers/profile_relationship_provider.dar
 import 'package:craftsky_app/profile/providers/toggle_block_profile_provider.dart';
 import 'package:craftsky_app/profile/providers/toggle_follow_profile_provider.dart';
 import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
+import 'package:craftsky_app/profile/widgets/follow_reaction.dart';
 import 'package:craftsky_app/profile/widgets/profile_actions.dart';
 import 'package:craftsky_app/profile/widgets/profile_customisation_theme.dart';
 import 'package:craftsky_app/profile/widgets/profile_meta_section.dart';
@@ -52,6 +53,7 @@ import 'package:craftsky_app/theme/craftsky_floating_action_button.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/form_factor.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
+import 'package:craftsky_app/theme/yarn_refresh_scroll_view.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:skeletonizer/skeletonizer.dart';
@@ -297,7 +299,14 @@ class _ProfileBody extends ConsumerWidget {
   final AccountKey? viewerAccount;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context, WidgetRef ref) => FollowReactionScope(
+    identity: profile.did,
+    builder: (context) => Consumer(
+      builder: (context, ref, _) => _build(context, ref),
+    ),
+  );
+
+  Widget _build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
     final activeLease = ref
         .watch(sessionRegistryProvider)
@@ -403,12 +412,19 @@ class _ProfileBody extends ConsumerWidget {
       canToggleMute: !relationship.hasBlock || relationship.muted,
       onFollowToggle: () {
         unawaited(
-          ref
-              .read(toggleFollowProfileProvider.notifier)
-              .toggle(
-                cacheKey: profile.did,
-                profile: profile,
-              ),
+          FollowReactionScope.run(context, () async {
+            await ref
+                .read(toggleFollowProfileProvider.notifier)
+                .toggle(
+                  cacheKey: profile.did,
+                  profile: profile,
+                );
+            if (!context.mounted) return false;
+            final result = ref.read(toggleFollowProfileProvider).asData?.value;
+            return !profile.viewerIsFollowing &&
+                result?.did == profile.did &&
+                result?.viewerIsFollowing == true;
+          }),
         );
       },
       onShare: () => context.showInfo(l10n.profileShareComingSoon),
@@ -885,7 +901,12 @@ class _ProfileTabScrollView extends ConsumerWidget {
     );
     return onRefresh == null
         ? scrollView
-        : RefreshIndicator(onRefresh: onRefresh, child: scrollView);
+        : YarnRefreshScrollView(
+            showSuccess: tab != ProfileTab.upcomingEvents,
+            onRefresh: onRefresh,
+            scrollViewKey: scrollView.key,
+            slivers: scrollView.slivers,
+          );
   }
 
   Widget _sliverForTab(

@@ -29,6 +29,7 @@ import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/craftsky_text_inputs.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
+import 'package:craftsky_app/theme/yarn_refresh_scroll_view.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
@@ -88,7 +89,8 @@ class _InstagramMigrationBody extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final account = ref.watch(instagramAccountProvider(lease));
     final spacing = Theme.of(context).extension<SpacingTheme>()!;
-    return RefreshIndicator(
+    return YarnRefreshScrollView.list(
+      showSuccess: false,
       onRefresh: () async {
         await ref.read(instagramAccountProvider(lease).notifier).refresh();
         if (!_current(ref, lease)) return;
@@ -99,92 +101,89 @@ class _InstagramMigrationBody extends ConsumerWidget {
         if (!_current(ref, lease)) return;
         await ref.read(instagramSuggestionsProvider(lease).notifier).refresh();
       },
-      child: ListView(
-        physics: const AlwaysScrollableScrollPhysics(),
-        padding: EdgeInsets.fromLTRB(
-          spacing.sp4,
-          spacing.sp4,
-          spacing.sp4,
-          spacing.sp7,
-        ),
-        children: [
-          Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 720),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  account.when(
-                    loading: () => const _LoadingCard(),
-                    error: (_, _) => _ErrorCard(
-                      onRetry: () => ref
-                          .read(instagramAccountProvider(lease).notifier)
-                          .refresh(),
-                    ),
-                    data: (value) => _AccountAndVerificationCard(
-                      lease: lease,
-                      status: value,
-                    ),
+      padding: EdgeInsets.fromLTRB(
+        spacing.sp4,
+        spacing.sp4,
+        spacing.sp4,
+        spacing.sp7,
+      ),
+      children: [
+        Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 720),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                account.when(
+                  loading: () => const _LoadingCard(),
+                  error: (_, _) => _ErrorCard(
+                    onRetry: () => ref
+                        .read(instagramAccountProvider(lease).notifier)
+                        .refresh(),
                   ),
-                  SizedBox(height: spacing.sp4),
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: TextButton(
-                      key: const Key('instagram-import-help'),
-                      onPressed: () => unawaited(
-                        confirmAndLaunchExternalLink(
-                          context,
-                          uri: Uri.https(
-                            'craftsky.social',
-                            '/instagram-import',
-                          ),
-                          launchUrl: ref.read(instagramHelpLauncherProvider),
-                          confirmOpenLink: (_, _) async => true,
+                  data: (value) => _AccountAndVerificationCard(
+                    lease: lease,
+                    status: value,
+                  ),
+                ),
+                SizedBox(height: spacing.sp4),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton(
+                    key: const Key('instagram-import-help'),
+                    onPressed: () => unawaited(
+                      confirmAndLaunchExternalLink(
+                        context,
+                        uri: Uri.https(
+                          'craftsky.social',
+                          '/instagram-import',
                         ),
-                      ),
-                      child: Text(
-                        AppLocalizations.of(context).instagramImportHelp,
+                        launchUrl: ref.read(instagramHelpLauncherProvider),
+                        confirmOpenLink: (_, _) async => true,
                       ),
                     ),
+                    child: Text(
+                      AppLocalizations.of(context).instagramImportHelp,
+                    ),
                   ),
-                  SizedBox(height: spacing.sp2),
-                  account.when(
-                    loading: () => const SizedBox.shrink(),
-                    error: (_, _) => const SizedBox.shrink(),
-                    data: (value) => value.account == null
-                        ? Text(
-                            AppLocalizations.of(
-                              context,
-                            ).instagramVerificationRequiredForImport,
-                          )
-                        : Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              _ImportComposerCard(lease: lease),
-                              SizedBox(height: spacing.sp4),
-                              _ImportsCard(lease: lease),
-                              SizedBox(height: spacing.sp4),
-                              _SuggestionsCard(
-                                lease: lease,
-                                onSuggestionTap: (suggestion) => unawaited(
-                                  UserProfileRoute(
-                                    did: Did.parse(suggestion.target.did),
-                                  ).push<void>(context),
-                                ),
+                ),
+                SizedBox(height: spacing.sp2),
+                account.when(
+                  loading: () => const SizedBox.shrink(),
+                  error: (_, _) => const SizedBox.shrink(),
+                  data: (value) => value.account == null
+                      ? Text(
+                          AppLocalizations.of(
+                            context,
+                          ).instagramVerificationRequiredForImport,
+                        )
+                      : Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            _ImportComposerCard(lease: lease),
+                            SizedBox(height: spacing.sp4),
+                            _ImportsCard(lease: lease),
+                            SizedBox(height: spacing.sp4),
+                            _SuggestionsCard(
+                              lease: lease,
+                              onSuggestionTap: (suggestion) => unawaited(
+                                UserProfileRoute(
+                                  did: Did.parse(suggestion.target.did),
+                                ).push<void>(context),
                               ),
-                              SizedBox(height: spacing.sp6),
-                              _RevokeInstagramVerificationButton(
-                                lease: lease,
-                              ),
-                            ],
-                          ),
-                  ),
-                ],
-              ),
+                            ),
+                            SizedBox(height: spacing.sp6),
+                            _RevokeInstagramVerificationButton(
+                              lease: lease,
+                            ),
+                          ],
+                        ),
+                ),
+              ],
             ),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }

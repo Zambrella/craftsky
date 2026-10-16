@@ -10,6 +10,7 @@ import 'package:craftsky_app/notifications/providers/notifications_provider.dart
 import 'package:craftsky_app/profile/data/profile_repository.dart';
 import 'package:craftsky_app/profile/models/profile_relationship.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
+import 'package:craftsky_app/profile/providers/recent_members_provider.dart';
 import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
 import 'package:craftsky_app/search/providers/blank_search_provider.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
@@ -80,7 +81,7 @@ class ProfileRelationshipController extends _$ProfileRelationshipController {
       confirmedOverlay: true,
       initialized: true,
     );
-    _invalidateAffectedSurfaces();
+    _invalidateAffectedSurfaces(refreshRecentMembers: true);
     _scheduleReconciliation(_captureLease());
   }
 
@@ -110,7 +111,7 @@ class ProfileRelationshipController extends _$ProfileRelationshipController {
         confirmedOverlay: true,
         initialized: true,
       );
-      _invalidateAffectedSurfaces();
+      _invalidateAffectedSurfaces(refreshRecentMembers: true);
       _scheduleReconciliation(lease);
     } on Object catch (error) {
       if (!_isCurrent(lease)) return;
@@ -151,7 +152,13 @@ class ProfileRelationshipController extends _$ProfileRelationshipController {
     ),
   };
 
-  void _invalidateAffectedSurfaces() {
+  void _invalidateAffectedSurfaces({bool refreshRecentMembers = false}) {
+    final activeLease = ref.read(sessionRegistryProvider).value?.activeLease;
+    if (refreshRecentMembers &&
+        activeLease != null &&
+        activeLease.session.account == account) {
+      ref.invalidate(recentMembersProvider(activeLease));
+    }
     ref
       ..invalidate(userProfileProvider(did))
       ..invalidate(timelineProvider)
@@ -199,7 +206,7 @@ class ProfileRelationshipController extends _$ProfileRelationshipController {
             _cancelReconciliation = null;
             if (!_isCurrent(lease) || !state.confirmedOverlay) return;
             ref.read(relationshipReconciliationDiagnosticProvider)();
-            _invalidateAffectedSurfaces();
+            _invalidateAffectedSurfaces(refreshRecentMembers: true);
           },
         );
   }
