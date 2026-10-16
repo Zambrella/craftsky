@@ -16,7 +16,12 @@ final FutureProvider<rive.File> yarnRefreshFileProvider =
       await rive.RiveNative.init();
       final loaded = await rive.File.asset(
         'assets/animations/yarn_refresh.riv',
-        riveFactory: rive.Factory.rive,
+        // Keep the Rive renderer on devices (including the iOS rendering fix).
+        // Headless widget tests have no native render context; passing its
+        // unsupported factory into File.asset aborts the process in C++.
+        riveFactory: rive.Factory.rive.isSupported
+            ? rive.Factory.rive
+            : rive.Factory.flutter,
       );
       if (loaded == null) {
         throw const FormatException('Could not decode yarn refresh animation');
