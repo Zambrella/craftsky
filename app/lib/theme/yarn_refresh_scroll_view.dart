@@ -16,7 +16,7 @@ final FutureProvider<rive.File> yarnRefreshFileProvider =
       await rive.RiveNative.init();
       final loaded = await rive.File.asset(
         'assets/animations/yarn_refresh.riv',
-        riveFactory: rive.Factory.flutter,
+        riveFactory: rive.Factory.rive,
       );
       if (loaded == null) {
         throw const FormatException('Could not decode yarn refresh animation');
