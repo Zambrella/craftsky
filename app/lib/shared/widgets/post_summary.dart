@@ -1,6 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/widgets/external_card.dart';
+import 'package:craftsky_app/feed/widgets/post_image_carousel.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/profile/models/profile_handle.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
@@ -54,10 +55,7 @@ final class PostSummaryData with PostSummaryDataMappable {
     );
   }
 
-  factory fromQuoteView(QuoteView quote) => switch ((
-    quote.state,
-    quote.post,
-  )) {
+  factory fromQuoteView(QuoteView quote) => switch ((quote.state, quote.post)) {
     ('visible', final post?) => PostSummaryData._visible(
       author: post.author,
       text: post.text,
@@ -77,10 +75,8 @@ final class PostSummaryData with PostSummaryDataMappable {
     _ => const PostSummaryData(state: PostSummaryState.unavailable),
   };
 
-  factory notificationSubject(Post post) => PostSummaryData(
-    state: PostSummaryState.visible,
-    text: post.text,
-  );
+  factory notificationSubject(Post post) =>
+      PostSummaryData(state: PostSummaryState.visible, text: post.text);
 
   factory savedPost(Post post) {
     if (post.availability == 'muted') {
@@ -211,16 +207,22 @@ class PostSummary extends StatelessWidget {
                 if (data.author != null) const SizedBox(height: 8),
                 const ImportedPostLabel(),
               ],
-              if (data.sponsored) ...[
-                const SponsoredLabel(),
+              if (data.sponsored) ...[const SponsoredLabel()],
+              if (data.projectTitle case final title?) ...[
+                const SizedBox(height: 8),
+                Text(title, style: Theme.of(context).textTheme.titleSmall),
+              ],
+              if (data.text case final text?) ...[
+                if (data.author != null ||
+                    data.projectTitle != null ||
+                    data.externalImport != null ||
+                    data.sponsored)
+                  const SizedBox(height: 8),
+                Text(text, maxLines: 4, overflow: TextOverflow.ellipsis),
               ],
               if (data.image case final image?) ...[
                 const SizedBox(height: 8),
                 _PostSummaryImage(image: image),
-              ],
-              if (data.projectTitle case final title?) ...[
-                const SizedBox(height: 8),
-                Text(title, style: Theme.of(context).textTheme.titleSmall),
               ],
               if (data.external case final external?) ...[
                 const SizedBox(height: 8),
@@ -228,14 +230,6 @@ class PostSummary extends StatelessWidget {
                   external: external,
                   variant: ExternalCardVariant.compact,
                 ),
-              ],
-              if (data.text case final text?) ...[
-                if (data.author != null ||
-                    data.image != null ||
-                    data.projectTitle != null ||
-                    data.external != null)
-                  const SizedBox(height: 8),
-                Text(text, maxLines: 4, overflow: TextOverflow.ellipsis),
               ],
               if (data.createdAt case final createdAt?
                   when data.author == null) ...[
@@ -402,32 +396,55 @@ class _PostSummaryImage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final radii = Theme.of(context).extension<RadiusTheme>()!;
     final imageUrl = image.thumb ?? image.fullsize;
-    return ClipRRect(
-      key: const Key('post-summary-image'),
-      borderRadius: BorderRadius.circular(radii.r1),
-      child: SizedBox(
-        width: double.infinity,
-        height: 160,
-        child: Semantics(
-          label: image.alt,
-          image: true,
-          child: imageUrl == null
-              ? DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).brightness == Brightness.dark
-                        ? Theme.of(
-                            context,
-                          ).colorScheme.surfaceContainerHighest
-                        : const Color(0xFFEAEAEA),
-                  ),
-                )
-              : CachedNetworkImage(
-                  imageUrl: imageUrl,
-                  cacheManager: ref.watch(feedImageCacheManagerProvider),
-                  fit: BoxFit.cover,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final maxHeight = computeResponsiveCarouselMaxHeight(
+          MediaQuery.sizeOf(context).height,
+        );
+        final height = computeBoundedImageHeight(
+          availableWidth: constraints.maxWidth,
+          aspectRatio: image.aspectRatio,
+          maxHeight: maxHeight,
+        );
+        final fit = computePostImageFit(
+          availableWidth: constraints.maxWidth,
+          aspectRatio: image.aspectRatio,
+          maxHeight: maxHeight,
+        );
+        return ClipRRect(
+          key: const Key('post-summary-image'),
+          borderRadius: BorderRadius.circular(radii.r2),
+          child: DecoratedBox(
+            position: DecorationPosition.foreground,
+            decoration: BoxDecoration(
+              border: Border.all(
+                color: Theme.of(context).colorScheme.outlineVariant,
+              ),
+              borderRadius: BorderRadius.circular(radii.r2),
+            ),
+            child: SizedBox(
+              width: double.infinity,
+              height: height,
+              child: ColoredBox(
+                color: Theme.of(context).colorScheme.surfaceContainerLow,
+                child: Semantics(
+                  label: image.alt,
+                  image: true,
+                  child: imageUrl == null
+                      ? const SizedBox.expand()
+                      : CachedNetworkImage(
+                          imageUrl: imageUrl,
+                          cacheManager: ref.watch(
+                            feedImageCacheManagerProvider,
+                          ),
+                          fit: fit,
+                        ),
                 ),
-        ),
-      ),
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }
@@ -443,9 +460,8 @@ class _PostSummaryPlaceholder extends StatelessWidget {
     padding: padding,
     child: Text(
       text,
-      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-        color: Theme.of(context).colorScheme.outline,
-      ),
+      style: Theme.of(context).textTheme.bodyMedium
+          ?.copyWith(color: Theme.of(context).colorScheme.outline),
     ),
   );
 }

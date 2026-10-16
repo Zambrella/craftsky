@@ -72,9 +72,7 @@ void main() {
     final fakeCache = FakeBaseCacheManager();
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [
-          feedImageCacheManagerProvider.overrideWithValue(fakeCache),
-        ],
+        overrides: [feedImageCacheManagerProvider.overrideWithValue(fakeCache)],
         child: MaterialApp(
           theme: AppTheme.lightThemeData,
           localizationsDelegates: appLocalizationsDelegates,
@@ -107,6 +105,10 @@ void main() {
     expect(find.byIcon(CraftskyIcons.saved), findsNothing);
     expect(find.byIcon(CraftskyIcons.like), findsNothing);
     expect(find.byKey(const Key('post-summary-image')), findsOneWidget);
+    expect(
+      tester.getTopLeft(find.byKey(const Key('post-summary-image'))).dy,
+      greaterThan(tester.getBottomLeft(find.text(post.text)).dy),
+    );
     expect(
       find.byWidgetPredicate(
         (widget) => widget is Semantics && widget.properties.label == 'First',
@@ -168,6 +170,10 @@ void main() {
 
     expect(find.byType(ExternalCard), findsOneWidget);
     expect(find.text('Quoted pattern'), findsOneWidget);
+    expect(
+      tester.getTopLeft(find.byType(ExternalCard)).dy,
+      greaterThan(tester.getBottomLeft(find.text('Quoted text')).dy),
+    );
     expect(tester.takeException(), isNull);
     await tester.tap(find.byType(ExternalCard));
     await tester.pump();
@@ -201,6 +207,60 @@ void main() {
       final hidden = PostSummaryData.fromQuoteView(QuoteView(state: state));
       expect(hidden.state, isNot(PostSummaryState.visible));
       expect(hidden.external, isNull);
+    }
+  });
+
+  testWidgets('summary image ratios share regular post bounds and fit', (
+    tester,
+  ) async {
+    for (final (ratio, expectedHeight, expectedFit) in [
+      (const PostImageAspectRatio(width: 2, height: 1), 188.0, BoxFit.cover),
+      (const PostImageAspectRatio(width: 10, height: 1), 160.0, BoxFit.cover),
+      (const PostImageAspectRatio(width: 1, height: 3), 420.0, BoxFit.contain),
+      (null, 320.0, BoxFit.cover),
+    ]) {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            feedImageCacheManagerProvider.overrideWithValue(
+              FakeBaseCacheManager(),
+            ),
+          ],
+          child: MaterialApp(
+            theme: AppTheme.lightThemeData,
+            localizationsDelegates: appLocalizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: Scaffold(
+              body: SizedBox(
+                width: 400,
+                child: PostSummary(
+                  data: PostSummaryData(
+                    state: PostSummaryState.visible,
+                    text: 'Text above media',
+                    image: PostImage(
+                      cid: 'image',
+                      mime: 'image/jpeg',
+                      size: 1,
+                      alt: '',
+                      thumb: 'https://cdn.example.com/image.jpg',
+                      aspectRatio: ratio,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      expect(
+        tester.getSize(find.byKey(const Key('post-summary-image'))).height,
+        expectedHeight,
+      );
+      expect(
+        tester.widget<CachedNetworkImage>(find.byType(CachedNetworkImage)).fit,
+        expectedFit,
+      );
+      expect(tester.takeException(), isNull);
     }
   });
 
@@ -256,10 +316,7 @@ void main() {
         uri: 'at://did:plc:bob/social.craftsky.feed.post/target',
         cid: 'bafyquote',
         text: 'Original imported post',
-        author: PostAuthor(
-          did: 'did:plc:bob',
-          handle: 'bob.craftsky.social',
-        ),
+        author: PostAuthor(did: 'did:plc:bob', handle: 'bob.craftsky.social'),
         createdAt: DateTime.utc(2026),
         sponsored: true,
         externalImport: const ExternalImport(source: 'instagram'),
