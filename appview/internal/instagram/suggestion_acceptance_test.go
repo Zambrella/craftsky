@@ -66,6 +66,9 @@ func TestSuggestionAcceptanceIsExplicitGenerationFencedAndIdempotent(t *testing.
 		t.Fatalf("follow executor calls = %d, want terminal replay through command", len(requests))
 	}
 	request := requests[0]
+	if _, err := syntax.ParseTID(request.Rkey.String()); err != nil {
+		t.Fatalf("follow key must satisfy the app.bsky.graph.follow TID schema: %v", err)
+	}
 	if request.Owner != importer || request.Target != target ||
 		request.OwnerGeneration != 2 || request.TargetGeneration != 5 ||
 		request.SessionID != "session-one" || request.OperationKey != operationKey || request.Rkey == "" {

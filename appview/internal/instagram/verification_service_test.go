@@ -532,6 +532,7 @@ func verificationServicePool(t *testing.T) *pgxpool.Pool {
 		"000030_instagram_automatic_follows.up.sql",
 		"000031_instagram_automatic_follow_storage_names.up.sql",
 		"000042_instagram_private_suggestions.up.sql",
+		"000093_instagram_follow_rkey.up.sql",
 	} {
 		contents, err := testdb.ReadMigration(name)
 		if err != nil {

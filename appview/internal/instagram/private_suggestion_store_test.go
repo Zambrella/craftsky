@@ -234,6 +234,7 @@ func newPrivateSuggestionTestPool(t *testing.T) *pgxpool.Pool {
 		"000039_owner_effects_terminal_purge.up.sql",
 		"000042_instagram_private_suggestions.up.sql",
 		"000055_instagram_match_notifications.up.sql",
+		"000093_instagram_follow_rkey.up.sql",
 	} {
 		migration, err := testdb.ReadMigration(path)
 		if err != nil {
