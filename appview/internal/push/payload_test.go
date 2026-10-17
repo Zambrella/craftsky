@@ -25,7 +25,7 @@ func TestBuildPayloadUT011ExactNotificationFactMatrix(t *testing.T) {
 		notifications.Repost:         {"subjectUri": facts.SubjectURI.String(), "rootUri": facts.RootURI.String()},
 		notifications.Mention:        {"sourceUri": facts.SourceURI.String()},
 		notifications.Quote:          {"sourceUri": facts.SourceURI.String()},
-		notifications.Reply:          {"subjectUri": facts.SubjectURI.String(), "sourceUri": facts.SourceURI.String()},
+		notifications.Reply:          {"subjectUri": facts.SubjectURI.String(), "rootUri": facts.RootURI.String(), "sourceUri": facts.SourceURI.String()},
 		notifications.EverythingElse: {},
 		notifications.InstagramMatch: {"notificationId": facts.NotificationID},
 	}
@@ -113,10 +113,10 @@ func TestBuildPayloadUT012BoundsLargestReplyData(t *testing.T) {
 		notifications.Reply,
 		strings.Repeat("r", 128),
 		"Alice",
-		RoutingFacts{SubjectURI: syntax.ATURI(maxURI), SourceURI: syntax.ATURI(maxURI)},
+		RoutingFacts{SubjectURI: syntax.ATURI(maxURI), RootURI: syntax.ATURI(maxURI), SourceURI: syntax.ATURI(maxURI)},
 	)
 
-	for _, key := range []string{"subjectUri", "sourceUri"} {
+	for _, key := range []string{"subjectUri", "rootUri", "sourceUri"} {
 		if got := len(payload.Data[key]); got != maxFactBytes {
 			t.Fatalf("%s bytes = %d, want %d", key, got, maxFactBytes)
 		}

@@ -116,13 +116,16 @@ final class NotificationOpenAttempt {
           },
         NotificationCategory.reply => switch ((
           _parsePostUri(data['subjectUri']),
+          _parsePostUri(data['rootUri']),
           _parsePostUri(data['sourceUri']),
         )) {
-          (final subjectUri?, final sourceUri?) => ValidNotificationFacts._(
-            category: category,
-            subjectUri: subjectUri,
-            sourceUri: sourceUri,
-          ),
+          (final subjectUri?, final rootUri?, final sourceUri?) =>
+            ValidNotificationFacts._(
+              category: category,
+              subjectUri: subjectUri,
+              rootUri: rootUri,
+              sourceUri: sourceUri,
+            ),
           _ => const InvalidNotificationFacts(
             NotificationFactFailureClass.missingOrMalformedRequiredFacts,
           ),

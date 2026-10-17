@@ -273,6 +273,7 @@ void main() {
           {
             'payloadVersion': '1',
             'type': 'reply',
+            'rootUri': 'at://did:plc:root/social.craftsky.feed.post/root',
             'accountSubscriptionId': 'binding',
             'subjectUri':
                 'at://did:plc:subject/social.craftsky.feed.post/subject',

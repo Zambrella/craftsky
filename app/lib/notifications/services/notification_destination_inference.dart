@@ -18,7 +18,7 @@ abstract final class NotificationDestinationInference {
         NotificationCategory.mention ||
         NotificationCategory.quote => PostDestination(facts.sourceUri!),
         NotificationCategory.reply => PostDestination(
-          facts.subjectUri!,
+          facts.rootUri!,
           focusUri: facts.sourceUri,
         ),
         NotificationCategory.everythingElse => const NotificationsDestination(),
