@@ -356,7 +356,6 @@ class NotificationRow extends ConsumerWidget {
         did: (rootParts?.did ?? post.author.did).toString(),
         rkey: (rootParts?.rkey ?? post.rkey).toString(),
         focus: (focus ?? (root == null ? null : post.uri))?.toString(),
-        $extra: post,
       ).push<void>(context),
     );
   }

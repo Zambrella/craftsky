@@ -53,6 +53,7 @@ func BuildPayload(category notifications.Category, routingID, actorDisplayName s
 		addRoutingFact(data, "sourceUri", facts.SourceURI.String())
 	case notifications.Reply:
 		addRoutingFact(data, "subjectUri", facts.SubjectURI.String())
+		addRoutingFact(data, "rootUri", facts.RootURI.String())
 		addRoutingFact(data, "sourceUri", facts.SourceURI.String())
 	}
 	return Payload{

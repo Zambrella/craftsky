@@ -65,6 +65,7 @@ void main() {
     const actorDid = 'did:plc:alice';
     const subjectUri = 'at://did:plc:subject/social.craftsky.feed.post/subject';
     const sourceUri = 'at://did:plc:source/social.craftsky.feed.post/source';
+    const rootUri = 'at://did:plc:root/social.craftsky.feed.post/root';
     final cases =
         <({Map<String, Object?> data, NotificationDestination expected})>[
           (
@@ -98,11 +99,12 @@ void main() {
           (
             data: _providerData(
               type: 'reply',
+              rootUri: rootUri,
               subjectUri: subjectUri,
               sourceUri: sourceUri,
             ),
             expected: PostDestination(
-              AtUri.parse(subjectUri),
+              AtUri.parse(rootUri),
               focusUri: AtUri.parse(sourceUri),
             ),
           ),

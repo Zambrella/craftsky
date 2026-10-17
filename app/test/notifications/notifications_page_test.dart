@@ -3,20 +3,28 @@ import 'dart:async';
 import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/bootstrap.dart';
+import 'package:craftsky_app/feed/models/post.dart';
+import 'package:craftsky_app/feed/models/post_comment_section.dart';
+import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
+import 'package:craftsky_app/feed/widgets/post_card.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/moderation/models/account_moderation.dart';
 import 'package:craftsky_app/notifications/data/notification_repository.dart';
 import 'package:craftsky_app/notifications/models/craftsky_notification.dart';
 import 'package:craftsky_app/notifications/models/notification_category.dart';
+import 'package:craftsky_app/notifications/models/notification_open_event.dart';
 import 'package:craftsky_app/notifications/models/notification_page.dart';
 import 'package:craftsky_app/notifications/pages/notifications_page.dart';
 import 'package:craftsky_app/notifications/providers/notification_repository_provider.dart';
+import 'package:craftsky_app/notifications/services/notification_destination_inference.dart';
+import 'package:craftsky_app/notifications/services/notification_navigation.dart';
 import 'package:craftsky_app/notifications/widgets/notification_row.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/models/profile_relationship.dart';
 import 'package:craftsky_app/profile/providers/profile_relationship_provider.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
+import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
@@ -24,6 +32,7 @@ import 'package:craftsky_app/shared/widgets/post_summary.dart';
 import 'package:craftsky_app/shared/widgets/sort_menu_button.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
+import 'package:craftsky_app/theme/form_factor.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:craftsky_app/theme/yarn_refresh_scroll_view.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -32,11 +41,147 @@ import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../fakes/recording_messenger.dart';
+import '../feed/fakes/fake_post_repository.dart';
 import '../profile/fakes/fake_profile_repository.dart';
 import '../test_support/deterministic_pump.dart';
 
 void main() {
   setUpAll(initializeMappers);
+
+  for (final systemNotification in [false, true]) {
+    testWidgets(
+      '${systemNotification ? 'system' : 'in-app'} reply notification '
+      'opens root thread with the reply expanded and highlighted',
+      (tester) async {
+        final notification = _reply('new-reply', subjectPost: _commentPost());
+        final comment = notification.subjectPost.copyWith(replyCount: 1);
+        final rootUri = comment.reply!.root.uri;
+        final replyUri = notification.reply!.uri;
+        final root = PostMapper.fromMap({
+          ..._post(),
+          'uri': rootUri.toString(),
+          'author': {
+            'did': 'did:plc:root-author',
+            'handle': 'root.craftsky.social',
+          },
+        });
+        final reply = PostMapper.fromMap({
+          ..._post(),
+          'uri': replyUri.toString(),
+          'rkey': 'new-reply',
+          'text': 'The notified reply',
+          'reply': {
+            'root': {'uri': rootUri.toString(), 'cid': root.cid.toString()},
+            'parent': {
+              'uri': comment.uri.toString(),
+              'cid': comment.cid.toString(),
+            },
+          },
+        });
+        final repository = FakePostRepository(
+          onCommentSection: (did, rkey, {cursor, sort, focus, limit}) async {
+            expect(did.toString(), 'did:plc:root-author');
+            expect(rkey.toString(), 'root');
+            expect(focus, replyUri);
+            return PostCommentSection(
+              post: root,
+              sort: sort!,
+              focus: FocusContext(
+                uri: replyUri.toString(),
+                status: FocusStatus.included,
+                kind: FocusKind.reply,
+                commentUri: comment.uri.toString(),
+              ),
+              comments: CommentPage(
+                items: [
+                  CommentItem(
+                    post: comment,
+                    placement: CommentPlacement.focused,
+                    replies: ReplyPage(
+                      loaded: true,
+                      items: [ReplyItem(post: reply, flattened: false)],
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+        late GoRouter router;
+        router = GoRouter(
+          routes: [
+            GoRoute(
+              path: '/',
+              builder: (context, _) => Scaffold(
+                body: systemNotification
+                    ? TextButton(
+                        onPressed: () => navigateToNotificationOutcome(
+                          context,
+                          router,
+                          NotificationDestinationInference.forFacts(
+                            NotificationOpenAttempt.fromProviderData({
+                              'payloadVersion': '1',
+                              'type': 'reply',
+                              'accountSubscriptionId': 'binding',
+                              'subjectUri': comment.uri.toString(),
+                              'rootUri': rootUri.toString(),
+                              'sourceUri': replyUri.toString(),
+                            }).facts,
+                          ),
+                        ),
+                        child: const Text('Open system notification'),
+                      )
+                    : NotificationRow(notification: notification),
+              ),
+            ),
+            GoRoute(
+              path: '/posts/:did/:rkey',
+              builder: (context, state) => FormFactorWidget(
+                child: PostThreadRoute(
+                  did: state.pathParameters['did']!,
+                  rkey: state.pathParameters['rkey']!,
+                  focus: state.uri.queryParameters['focus'],
+                  $extra: state.extra as Post?,
+                ).build(context, state),
+              ),
+            ),
+          ],
+        );
+        addTearDown(router.dispose);
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [postRepositoryProvider.overrideWithValue(repository)],
+            child: MaterialApp.router(
+              theme: AppTheme.lightThemeData,
+              localizationsDelegates: appLocalizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
+              routerConfig: router,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(
+          find.text(
+            systemNotification
+                ? 'Open system notification'
+                : 'Alice replied to your comment',
+          ),
+        );
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 400));
+        await tester.pump(const Duration(milliseconds: 400));
+        expect(find.text('The notified reply'), findsOneWidget);
+        final focused = tester.widget<PostCard>(
+          find.byKey(const ValueKey('focused-comment-target')),
+        );
+        expect(focused.post.uri, replyUri);
+        expect(focused.isHighlighted, isTrue);
+        expect(tester.takeException(), isNull);
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pump(const Duration(seconds: 3));
+      },
+    );
+  }
 
   testWidgets('NotificationsPage renders its title', (tester) async {
     await tester.pumpWidget(

@@ -74,7 +74,7 @@ void main() {
       (type: 'repost', required: ['subjectUri', 'rootUri']),
       (type: 'mention', required: ['sourceUri']),
       (type: 'quote', required: ['sourceUri']),
-      (type: 'reply', required: ['subjectUri', 'sourceUri']),
+      (type: 'reply', required: ['subjectUri', 'rootUri', 'sourceUri']),
       (type: 'everythingElse', required: []),
     ];
 
@@ -223,6 +223,7 @@ void main() {
     final attempt = NotificationOpenAttempt.fromProviderData({
       'payloadVersion': '1',
       'type': 'reply',
+      'rootUri': subjectUri,
       'accountSubscriptionId': routingId,
       'actorDid': actorDid,
       'subjectUri': subjectUri,
