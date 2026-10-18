@@ -1616,6 +1616,10 @@
   "editProfileChangeCover": "Change cover",
   "@editProfileChangeCover": { "description": "Action label for choosing a new profile cover/banner image." },
 
+  "profilePhotoTooManyPixels": "That photo is over 48 megapixels. Choose a smaller photo or reduce its resolution and try again.",
+  "@profilePhotoTooManyPixels": { "description": "Shown when an original profile photo exceeds 48 million pixels, before resizing." },
+  "profilePhotoFileTooLarge": "That photo is over 100 MB. Choose a smaller file and try again.",
+  "@profilePhotoFileTooLarge": { "description": "Shown when an original profile photo exceeds the 100 MB file limit." },
   "editProfilePhotoUploadError": "Couldn't upload that photo.",
   "@editProfilePhotoUploadError": { "description": "Snackbar shown when a selected profile avatar or cover image cannot be prepared or uploaded." },
 

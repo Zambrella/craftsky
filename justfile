@@ -343,15 +343,6 @@ app-run-chrome: app-env-init
     flutter run -d chrome --dart-define-from-file=config/local.env \
       --dart-define="CRAFTSKY_API_BASE_URL=http://localhost:${APPVIEW_PORT}"
 
-app-run-macos: app-env-init
-    #!/usr/bin/env bash
-    set -euo pipefail
-    APPVIEW_ADDRESS=$(./scripts/compose-dev port appview 8080)
-    APPVIEW_PORT=${APPVIEW_ADDRESS##*:}
-    cd app
-    flutter run -d macos --dart-define-from-file=config/local.env \
-      --dart-define="CRAFTSKY_API_BASE_URL=http://localhost:${APPVIEW_PORT}"
-
 app-run-ios: app-env-init
     #!/usr/bin/env bash
     set -euo pipefail
@@ -406,9 +397,6 @@ app-run-production *ARGS:
 
 app-run-production-chrome:
     just app-run-production -- -d chrome
-
-app-run-production-macos:
-    just app-run-production -- -d macos
 
 app-run-production-ios:
     just app-run-production -- -d ios

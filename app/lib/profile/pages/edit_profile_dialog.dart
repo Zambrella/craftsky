@@ -14,11 +14,13 @@ import 'package:craftsky_app/profile/data/crafts_catalog.dart';
 import 'package:craftsky_app/profile/data/profile_field_constraints.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/models/profile_feature_access.dart';
+import 'package:craftsky_app/profile/models/profile_image_failure.dart';
 import 'package:craftsky_app/profile/models/profile_save_result.dart';
 import 'package:craftsky_app/profile/providers/profile_image_picker_provider.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/profile/providers/save_profile_provider.dart';
 import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
+import 'package:craftsky_app/profile/services/profile_image_error_reporting.dart';
 import 'package:craftsky_app/profile/widgets/edit_profile_banner_avatar.dart';
 import 'package:craftsky_app/profile/widgets/edit_profile_crafts_picker.dart';
 import 'package:craftsky_app/profile/widgets/profile_page_error.dart';
@@ -29,6 +31,7 @@ import 'package:craftsky_app/shared/link/external_link.dart';
 import 'package:craftsky_app/shared/media/image_source_menu.dart';
 import 'package:craftsky_app/shared/media/uploaded_image_blob.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
+import 'package:craftsky_app/shared/observability/error_reporter_provider.dart';
 import 'package:craftsky_app/shared/text/record_text_limits.dart';
 import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
 import 'package:craftsky_app/subscriptions/providers/subscription_access_provider.dart';
@@ -356,6 +359,15 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
   Future<void> _pickProfileImage(ImageSource source) async {
     if (_imageUploadInFlight) return;
     final l10n = AppLocalizations.of(context);
+    final reporter = ref.read(errorReporterProvider);
+    final initiatingAccountDid = _ordinaryBaseline.did.value;
+    final previousDraft = _avatarDraft;
+    setState(
+      () => _avatarDraft = _ProfileImageDraft(
+        previewBytes: previousDraft.previewBytes,
+        isUploading: true,
+      ),
+    );
     try {
       final result = await ref
           .read(profileImagePickerProvider)
@@ -368,17 +380,36 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
               );
             },
           );
-      if (result == null || !mounted) return;
+      if (!mounted) return;
+      if (result == null) {
+        setState(() => _avatarDraft = previousDraft);
+        return;
+      }
       setState(
         () => _avatarDraft = _ProfileImageDraft.uploaded(
           result.previewBytes,
           result.uploaded,
         ),
       );
-    } on Object {
+    } on Object catch (error, stack) {
+      unawaited(
+        reportProfileImageFailure(
+          reporter: reporter,
+          error: error,
+          stackTrace: stack,
+          operation: ProfileImageOperation.editor,
+          accountDid: initiatingAccountDid,
+        ),
+      );
       if (!mounted) return;
       setState(() => _avatarDraft = _ProfileImageDraft.failed());
-      context.showError(l10n.editProfilePhotoUploadError);
+      context.showError(switch (error) {
+        ProfileImagePickException(reason: ProfileImageFailure.tooManyPixels) =>
+          l10n.profilePhotoTooManyPixels,
+        ProfileImagePickException(reason: ProfileImageFailure.fileTooLarge) =>
+          l10n.profilePhotoFileTooLarge,
+        _ => l10n.editProfilePhotoUploadError,
+      });
     }
   }
 
@@ -815,10 +846,7 @@ class _ProfileImageDraft {
     return _ProfileImageDraft(previewBytes: previewBytes, isUploading: true);
   }
 
-  factory uploaded(
-    Uint8List previewBytes,
-    UploadedImageBlob uploaded,
-  ) {
+  factory uploaded(Uint8List previewBytes, UploadedImageBlob uploaded) {
     return _ProfileImageDraft(previewBytes: previewBytes, uploaded: uploaded);
   }
 

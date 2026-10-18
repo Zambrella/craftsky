@@ -1835,6 +1835,14 @@ class AppLocalizationsEn extends AppLocalizations {
   String get editProfileChangeCover => 'Change cover';
 
   @override
+  String get profilePhotoTooManyPixels =>
+      'That photo is over 48 megapixels. Choose a smaller photo or reduce its resolution and try again.';
+
+  @override
+  String get profilePhotoFileTooLarge =>
+      'That photo is over 100 MB. Choose a smaller file and try again.';
+
+  @override
   String get editProfilePhotoUploadError => 'Couldn\'t upload that photo.';
 
   @override

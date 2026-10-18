@@ -2,6 +2,7 @@ import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/onboarding/models/onboarding_flow_state.dart';
 import 'package:craftsky_app/onboarding/widgets/onboarding_profile_step.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
+import 'package:craftsky_app/profile/models/profile_image_failure.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/brand_text_field.dart';
 import 'package:craftsky_app/theme/craftsky_field_scaffold.dart';
@@ -100,11 +101,7 @@ void main() {
     tester,
   ) async {
     final initial = OnboardingFlowState.fromProfile(
-      Profile(
-        did: 'did:plc:alice',
-        handle: 'alice.test',
-        crafts: const [],
-      ),
+      Profile(did: 'did:plc:alice', handle: 'alice.test', crafts: const []),
     );
 
     await _pumpStep(tester, initial.copyWith(uploadingAvatar: true));
@@ -114,17 +111,43 @@ void main() {
     await _pumpStep(tester, initial.copyWith(avatarUploadFailed: true));
     expect(find.text('Photo upload failed. Try again.'), findsOneWidget);
     expect(find.byIcon(CraftskyIcons.error), findsOneWidget);
+
+    await _pumpStep(
+      tester,
+      initial.copyWith(
+        avatarUploadFailed: true,
+        avatarFailure: ProfileImageFailure.tooManyPixels,
+      ),
+    );
+    expect(
+      find.text(
+        'That photo is over 48 megapixels. Choose a smaller photo or '
+        'reduce its resolution and try again.',
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('Photo upload failed. Try again.'), findsNothing);
+
+    await _pumpStep(
+      tester,
+      initial.copyWith(
+        avatarUploadFailed: true,
+        avatarFailure: ProfileImageFailure.fileTooLarge,
+      ),
+    );
+    expect(
+      find.text(
+        'That photo is over 100 MB. Choose a smaller file and try again.',
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets('applies profile prefill that arrives after the first frame', (
     tester,
   ) async {
     final empty = OnboardingFlowState.fromProfile(
-      Profile(
-        did: 'did:plc:alice',
-        handle: 'alice.test',
-        crafts: const [],
-      ),
+      Profile(did: 'did:plc:alice', handle: 'alice.test', crafts: const []),
     );
     await _pumpStep(tester, empty);
 
@@ -151,9 +174,7 @@ void main() {
     );
     expect(
       tester
-          .widget<TextField>(
-            find.byKey(const Key('onboarding-display-name')),
-          )
+          .widget<TextField>(find.byKey(const Key('onboarding-display-name')))
           .controller
           ?.text,
       'Alice',
@@ -168,24 +189,22 @@ void main() {
   });
 }
 
-Future<void> _pumpStep(
-  WidgetTester tester,
-  OnboardingFlowState state,
-) => tester.pumpWidget(
-  MaterialApp(
-    theme: AppTheme.lightThemeData,
-    localizationsDelegates: appLocalizationsDelegates,
-    supportedLocales: AppLocalizations.supportedLocales,
-    home: Scaffold(
-      body: SingleChildScrollView(
-        child: OnboardingProfileStep(
-          state: state,
-          onDisplayNameChanged: (_) {},
-          onPronounsChanged: (_) {},
-          onBioChanged: (_) {},
-          onPickAvatar: () {},
+Future<void> _pumpStep(WidgetTester tester, OnboardingFlowState state) =>
+    tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.lightThemeData,
+        localizationsDelegates: appLocalizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: OnboardingProfileStep(
+              state: state,
+              onDisplayNameChanged: (_) {},
+              onPronounsChanged: (_) {},
+              onBioChanged: (_) {},
+              onPickAvatar: () {},
+            ),
+          ),
         ),
       ),
-    ),
-  ),
-);
+    );

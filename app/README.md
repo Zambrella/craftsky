@@ -1,6 +1,6 @@
 # CraftSky Flutter client
 
-The native Flutter client for CraftSky. `app.craftsky.social` hosts verified app links and OAuth browser fallbacks; it is not the Flutter web app. See [CONTRIBUTING.md](../CONTRIBUTING.md) for the contribution workflow.
+The Flutter client for CraftSky, supporting **iOS, Android, and web only**. Native macOS, Windows, and Linux apps are not supported. `app.craftsky.social` hosts verified app links and OAuth browser fallbacks; it is not the Flutter web app. See [CONTRIBUTING.md](../CONTRIBUTING.md) for the contribution workflow.
 
 Uses [`atproto.dart`](https://github.com/myConsciousness/atproto.dart) for atproto primitives, but the happy path for data is:
 
@@ -23,7 +23,7 @@ With FVM, run `fvm install` from the repository root, then use the pinned SDK:
 fvm exec just app-run
 ```
 
-The app requires Android API 26+, iOS 15+, and macOS 12+.
+Native builds require Android API 26+ or iOS 15+.
 Apple builds use Swift Package Manager; keep it enabled in `pubspec.yaml`.
 See [the Flutter 3.47 upgrade notes](../docs/development/flutter-3.47-upgrade.md)
 for migration details and validation.
@@ -47,7 +47,7 @@ The Android application ID and iOS bundle ID are both `social.craftsky.app`.
 
 The app talks to the AppView via `CRAFTSKY_API_BASE_URL`. In debug builds the
 default is `http://127.0.0.1:18080`. Android uses ADB reverse to reach the
-host's loopback listener; Chrome, macOS, and iOS simulator runs use
+host's loopback listener; Chrome and iOS simulator runs use
 `localhost` directly. The emulator's `10.0.2.2` alias reaches the host but
 is rejected by AppView's local Host policy with HTTP 421.
 

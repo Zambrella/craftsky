@@ -5,6 +5,7 @@ import 'package:craftsky_app/feed/media/bounded_image_file_reader.dart';
 import 'package:craftsky_app/feed/media/composer_image_media_service.dart';
 import 'package:craftsky_app/feed/media/media_config.dart';
 import 'package:craftsky_app/feed/providers/composer_images_provider.dart';
+import 'package:craftsky_app/profile/models/profile_image_failure.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/api/providers/dio_provider.dart';
 import 'package:craftsky_app/shared/media/blob_api_client.dart';
@@ -98,18 +99,32 @@ class ProfileImagePicker {
       headerBytes: header,
     );
     if (!originalCheck.canPrepare) {
-      throw const ProfileImagePickException();
+      throw ProfileImagePickException(
+        expectedRejection: true,
+        reason: originalCheck.rejectedReason == OriginalImageRejection.tooLarge
+            ? ProfileImageFailure.fileTooLarge
+            : ProfileImageFailure.unknown,
+      );
     }
 
     final bytes = await readBoundedImageFile(
       file,
       maxBytes: _media.config.maxSourceImageBytes,
     );
-    onPreviewReady(bytes);
 
-    final prepared = await _media
-        .prepareImage(bytes: bytes, fileName: file.name, mimeType: mimeType)
-        .future;
+    late final PreparedImagePayload prepared;
+    try {
+      prepared = await _media
+          .prepareImage(bytes: bytes, fileName: file.name, mimeType: mimeType)
+          .future;
+    } on ImageSourceDimensionsTooLargeException catch (error) {
+      if (error.width * error.height > error.maxPixels) {
+        throw const ProfileImagePickException(
+          reason: ProfileImageFailure.tooManyPixels,
+        );
+      }
+      rethrow;
+    }
     final preparedCheck = _media.validatePreparedUploadBytes(
       originalBytes: bytes.length,
       preparedBytes: prepared.bytes.length,
@@ -120,6 +135,7 @@ class ProfileImagePicker {
       throw const ProfileImagePickException();
     }
 
+    onPreviewReady(prepared.bytes);
     return PreparedProfileImage(
       bytes: prepared.bytes,
       mimeType: prepared.mimeType,
@@ -130,12 +146,13 @@ class ProfileImagePicker {
 
   Future<Uint8List> _readHeaderBytes(XFile file) async {
     final header = <int>[];
-    await for (final chunk in file.openRead(0, 16)) {
+    final length = await file.length();
+    await for (final chunk in file.openRead(0, length < 64 ? length : 64)) {
       header.addAll(chunk);
-      if (header.length >= 16) break;
+      if (header.length >= 64) break;
     }
     return Uint8List.fromList(
-      header.length <= 16 ? header : header.sublist(0, 16),
+      header.length <= 64 ? header : header.sublist(0, 64),
     );
   }
 }
@@ -155,15 +172,18 @@ class PreparedProfileImage {
 }
 
 class ProfileImagePickResult {
-  const new({
-    required this.previewBytes,
-    required this.uploaded,
-  });
+  const new({required this.previewBytes, required this.uploaded});
 
   final Uint8List previewBytes;
   final UploadedImageBlob uploaded;
 }
 
 class ProfileImagePickException implements Exception {
-  const new();
+  const new({
+    this.reason = ProfileImageFailure.unknown,
+    this.expectedRejection = false,
+  });
+
+  final ProfileImageFailure reason;
+  final bool expectedRejection;
 }

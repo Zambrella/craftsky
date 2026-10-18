@@ -587,7 +587,7 @@ void main() {
 
         expect(phase.failure, isA<ImagePreparationFailed>());
         expect(phase.failure.canRetry, isTrue);
-        expect(state.images.single.previewBytes, isNotNull);
+        expect(state.images.single.previewBytes, isNull);
       },
     );
 
@@ -596,7 +596,7 @@ void main() {
         _FakeImagePicker(
           () async => [
             XFile.fromData(
-              _jpegHeader(width: 4284, height: 5712),
+              _jpegHeader(width: 8000, height: 6001),
               name: 'large-dimensions.jpg',
               mimeType: 'image/jpeg',
             ),

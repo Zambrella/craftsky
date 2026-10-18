@@ -10,13 +10,16 @@ import 'package:craftsky_app/onboarding/models/onboarding_flow_state.dart';
 import 'package:craftsky_app/onboarding/providers/onboarding_status_provider.dart';
 import 'package:craftsky_app/profile/data/profile_repository.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
+import 'package:craftsky_app/profile/models/profile_image_failure.dart';
 import 'package:craftsky_app/profile/providers/profile_image_picker_provider.dart';
 import 'package:craftsky_app/profile/providers/profile_mutation_publication.dart';
 import 'package:craftsky_app/profile/providers/profile_record_overlay.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
+import 'package:craftsky_app/profile/services/profile_image_error_reporting.dart';
 import 'package:craftsky_app/shared/api/pds_mutation_contract.dart';
 import 'package:craftsky_app/shared/mutations/pds_record_operation_controller.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
+import 'package:craftsky_app/shared/observability/error_reporter_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -71,9 +74,8 @@ class OnboardingFlow extends _$OnboardingFlow {
       accountProfileRepositoryProvider(lease).future,
     );
     unawaited(
-      Future<void>.delayed(
-        Duration.zero,
-      ).then((_) => _startPrefill(initial, repository)),
+      Future<void>.delayed(Duration.zero)
+          .then((_) => _startPrefill(initial, repository)),
     );
     return initial;
   }
@@ -153,8 +155,13 @@ class OnboardingFlow extends _$OnboardingFlow {
   Future<void> pickAvatar(ImageSource source) async {
     final current = state.value;
     if (current == null || current.saving || current.uploadingAvatar) return;
+    final reporter = ref.read(errorReporterProvider);
+    final initiatingAccountDid = lease.session.account.did.value;
     // Selection can span many frames. Retain the provider that owns the upload
     // client until the operation finishes; ref disposal still cancels it.
+    state = AsyncData(
+      current.copyWith(uploadingAvatar: true, avatarUploadFailed: false),
+    );
     final pickerProvider = accountProfileImagePickerProvider(lease);
     final pickerSubscription = ref.listen(pickerProvider, (_, _) {});
     try {
@@ -173,7 +180,13 @@ class OnboardingFlow extends _$OnboardingFlow {
           );
         },
       );
-      if (result == null || !_isCurrent()) return;
+      if (!_isCurrent()) return;
+      if (result == null) {
+        state = AsyncData(
+          (state.value ?? current).copyWith(uploadingAvatar: false),
+        );
+        return;
+      }
       state = AsyncData(
         (state.value ?? current).copyWith(
           avatarPreview: result.previewBytes,
@@ -182,12 +195,24 @@ class OnboardingFlow extends _$OnboardingFlow {
           avatarUploadFailed: false,
         ),
       );
-    } on Object {
+    } on Object catch (error, stack) {
+      unawaited(
+        reportProfileImageFailure(
+          reporter: reporter,
+          error: error,
+          stackTrace: stack,
+          operation: ProfileImageOperation.onboarding,
+          accountDid: initiatingAccountDid,
+        ),
+      );
       if (!_isCurrent()) return;
       state = AsyncData(
         (state.value ?? current).copyWith(
           uploadingAvatar: false,
           avatarUploadFailed: true,
+          avatarFailure: error is ProfileImagePickException
+              ? error.reason
+              : ProfileImageFailure.unknown,
         ),
       );
     } finally {
@@ -344,9 +369,7 @@ class OnboardingFlow extends _$OnboardingFlow {
       (profile.avatar?.isNotEmpty ?? false);
 }
 
-Map<String, dynamic> _profileMutationBody(
-  OnboardingProfilePayload payload,
-) => {
+Map<String, dynamic> _profileMutationBody(OnboardingProfilePayload payload) => {
   'displayName': payload.displayName,
   'pronouns': payload.pronouns,
   'description': payload.description,

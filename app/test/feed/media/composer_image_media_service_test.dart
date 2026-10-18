@@ -76,6 +76,35 @@ void main() {
       expect(result.rejectedReason, isNull);
     });
 
+    test('accepts original files up to 100 MB', () {
+      expect(
+        service
+            .validateOriginalImage(
+              sizeBytes: 100000000,
+              fileName: 'photo.jpg',
+              mimeType: 'image/jpeg',
+              headerBytes: Uint8List(0),
+            )
+            .canPrepare,
+        isTrue,
+      );
+    });
+
+    test('resizes a 48 MP post photo below the 2 MB upload limit', () async {
+      final prepared = await service
+          .prepareImage(
+            bytes: Uint8List.fromList(
+              img.encodeJpg(img.Image(width: 8000, height: 6000)),
+            ),
+            fileName: 'photo.jpg',
+            mimeType: 'image/jpeg',
+          )
+          .future;
+      expect(prepared.bytes.length, lessThanOrEqualTo(2000000));
+      final decoded = img.decodeJpg(prepared.bytes)!;
+      expect((decoded.width, decoded.height), (4000, 3000));
+    });
+
     test('rejects original files over the source byte limit', () {
       final result = service.validateOriginalImage(
         sizeBytes: mediaConfig.maxSourceImageBytes + 1,
@@ -345,7 +374,7 @@ void main() {
     });
 
     test('reports oversized source geometry with safe diagnostics', () async {
-      final bytes = _jpegHeader(width: 4284, height: 5712);
+      final bytes = _jpegHeader(width: 8000, height: 6001);
 
       await expectLater(
         service
@@ -357,8 +386,8 @@ void main() {
             .future,
         throwsA(
           isA<ImageSourceDimensionsTooLargeException>()
-              .having((error) => error.width, 'width', 4284)
-              .having((error) => error.height, 'height', 5712)
+              .having((error) => error.width, 'width', 8000)
+              .having((error) => error.height, 'height', 6001)
               .having(
                 (error) => error.maxPixels,
                 'maxPixels',
@@ -368,20 +397,20 @@ void main() {
       );
     });
 
-    test('accepts exactly 16 MP and rejects the next pixel row', () async {
+    test('accepts exactly 48 MP and rejects the next pixel row', () async {
       final accepted = await service
           .inspectImage(
-            bytes: _jpegHeader(width: 4000, height: 4000),
+            bytes: _jpegHeader(width: 8000, height: 6000),
             fileName: 'boundary.jpg',
             mimeType: 'image/jpeg',
           )
           .future;
 
-      expect((accepted.width, accepted.height), (4000, 4000));
+      expect((accepted.width, accepted.height), (8000, 6000));
       await expectLater(
         service
             .inspectImage(
-              bytes: _jpegHeader(width: 4000, height: 4001),
+              bytes: _jpegHeader(width: 8000, height: 6001),
               fileName: 'over-boundary.jpg',
               mimeType: 'image/jpeg',
             )
