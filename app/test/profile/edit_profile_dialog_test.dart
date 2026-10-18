@@ -5,15 +5,19 @@ import 'package:craftsky_app/business/data/business_repository.dart';
 import 'package:craftsky_app/business/models/business_event.dart';
 import 'package:craftsky_app/business/models/business_profile.dart';
 import 'package:craftsky_app/business/providers/business_repository_provider.dart';
+import 'package:craftsky_app/feed/media/composer_image_media_service.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/models/profile_customisation.dart';
+import 'package:craftsky_app/profile/models/profile_image_failure.dart';
 import 'package:craftsky_app/profile/pages/edit_profile_dialog.dart';
+import 'package:craftsky_app/profile/providers/profile_image_picker_provider.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/link/external_link.dart';
+import 'package:craftsky_app/shared/media/blob_api_client.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/shared/messaging/scaffold_messenger_impl.dart';
 import 'package:craftsky_app/shared/mutations/pds_record_operation_controller.dart';
@@ -21,9 +25,11 @@ import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
 import 'package:craftsky_app/subscriptions/providers/subscription_access_provider.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:material_ui/material_ui.dart';
 
 import '../business/accessibility_test_helpers.dart';
@@ -49,6 +55,7 @@ Future<void> _pumpEditDialog(
   required FakeProfileRepository repo,
   BusinessRepository? businessRepository,
   bool businessAccess = false,
+  ProfileImageFailure? imageFailure,
   ExternalLinkLauncher linkLauncher = launchExternalLink,
   ExternalLinkConfirmer confirmOpenLink = showOpenLinkDialog,
 }) async {
@@ -59,6 +66,10 @@ Future<void> _pumpEditDialog(
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
+        if (imageFailure != null)
+          profileImagePickerProvider.overrideWithValue(
+            _FailingProfileImagePicker(imageFailure),
+          ),
         secureSessionRegistryStorageProvider.overrideWithValue(
           _EditRegistryStorage(
             SessionRegistry.empty().upsertAndActivate(
@@ -130,6 +141,40 @@ final class _EditRegistryStorage implements SessionRegistryStorage {
 
 void main() {
   group('EditProfileDialog', () {
+    for (final failure in [
+      ProfileImageFailure.tooManyPixels,
+      ProfileImageFailure.fileTooLarge,
+    ]) {
+      testWidgets('shows actionable photo error for ${failure.name}', (
+        tester,
+      ) async {
+        await _pumpEditDialog(
+          tester,
+          repo: FakeProfileRepository(onFetchMe: () async => _seedProfile),
+          imageFailure: failure,
+        );
+        await tester.tap(find.byTooltip('Change avatar'));
+        await tester.pumpAndSettle();
+        final choosePhotos = find.byKey(
+          const Key('profile-avatar-choose-photos'),
+        );
+        if (choosePhotos.evaluate().isNotEmpty) {
+          await tester.tap(choosePhotos);
+          await tester.pumpAndSettle();
+        }
+        expect(
+          find.text(
+            failure == ProfileImageFailure.tooManyPixels
+                ? 'That photo is over 48 megapixels. Choose a smaller photo or '
+                      'reduce its resolution and try again.'
+                : 'That photo is over 100 MB. '
+                      'Choose a smaller file and try again.',
+          ),
+          findsOneWidget,
+        );
+      });
+    }
+
     testWidgets('avatar action offers camera and gallery sources', (
       tester,
     ) async {
@@ -1188,4 +1233,20 @@ final class _RecordingBusinessRepository extends Fake
       cid: 'bafyreifbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
     );
   }
+}
+
+class _FailingProfileImagePicker extends ProfileImagePicker {
+  new(this.failure)
+    : super(
+        picker: ImagePicker(),
+        media: const ComposerImageMediaService(),
+        blobApi: BlobApiClient(Dio()),
+      );
+  final ProfileImageFailure failure;
+
+  @override
+  Future<ProfileImagePickResult?> pickAndUpload({
+    required ImageSource source,
+    required void Function(Uint8List bytes) onPreviewReady,
+  }) async => throw ProfileImagePickException(reason: failure);
 }

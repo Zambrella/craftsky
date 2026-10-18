@@ -37,9 +37,30 @@ Not responsibly automated yet:
   infrastructure and credentials. The loopback server verifies the running
   app's complete UI-to-socket request path and production client contract.
 
-The suite currently targets Android and iOS. The app intentionally rejects
+The critical-journeys suite targets Android and iOS. The app intentionally rejects
 desktop dependency initialization, and the loopback server uses `dart:io`, so
 macOS and web are not valid targets.
 
 No `test_driver` entry point or `enableFlutterDriverExtension` is needed for
 the current `flutter test integration_test/... -d <device>` runner.
+
+## Native image processing
+
+`image_compression_test.dart` exercises the real `flutter_image_compress`
+plugin through the shared image service, without starting the application or
+contacting any backend. Run it on a native target:
+
+```sh
+flutter test integration_test/image_compression_test.dart -d <ios-device-id>
+```
+
+It checks JPEG orientation and metadata removal, Apple HEIC-to-JPEG conversion,
+PNG transparency, real 48 MP input, and the quality/resize loop's hard byte limit. The HEIC fixture
+is a synthetic red/blue image generated with Apple ImageIO and includes only
+synthetic metadata canaries. HEIC conversion runs on iOS; JPEG/PNG
+checks also apply to Android. An iPhone run remains necessary to assess camera
+picker behavior and memory use with real 48 MP photos.
+
+The host `test/` suite installs an explicit codec substitute in
+`flutter_test_config.dart`; those tests verify policy and state behavior, not
+native plugin execution. It is not installed by this integration suite.

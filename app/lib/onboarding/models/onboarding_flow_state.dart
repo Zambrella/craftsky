@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:craftsky_app/profile/data/crafts_catalog.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
+import 'package:craftsky_app/profile/models/profile_image_failure.dart';
 import 'package:craftsky_app/shared/media/uploaded_image_blob.dart';
 
 enum OnboardingStep { profile, crafts, guidelines }
@@ -43,6 +44,7 @@ final class OnboardingFlowState {
     this.saving = false,
     this.uploadingAvatar = false,
     this.avatarUploadFailed = false,
+    this.avatarFailure = ProfileImageFailure.unknown,
     this.saveError,
     this.avatarPreview,
     this.avatarBlob,
@@ -81,6 +83,7 @@ final class OnboardingFlowState {
   final bool saving;
   final bool uploadingAvatar;
   final bool avatarUploadFailed;
+  final ProfileImageFailure avatarFailure;
   final Object? saveError;
   final Uint8List? avatarPreview;
   final UploadedBlob? avatarBlob;
@@ -107,6 +110,7 @@ final class OnboardingFlowState {
     bool? saving,
     bool? uploadingAvatar,
     bool? avatarUploadFailed,
+    ProfileImageFailure? avatarFailure,
     Object? saveError,
     Uint8List? avatarPreview,
     UploadedBlob? avatarBlob,
@@ -120,6 +124,7 @@ final class OnboardingFlowState {
     saving: saving ?? this.saving,
     uploadingAvatar: uploadingAvatar ?? this.uploadingAvatar,
     avatarUploadFailed: avatarUploadFailed ?? this.avatarUploadFailed,
+    avatarFailure: avatarFailure ?? this.avatarFailure,
     saveError: saveError,
     avatarPreview: avatarPreview ?? this.avatarPreview,
     avatarBlob: avatarBlob ?? this.avatarBlob,

@@ -14,6 +14,7 @@ import 'package:craftsky_app/profile/data/crafts_catalog.dart';
 import 'package:craftsky_app/profile/data/profile_field_constraints.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/models/profile_feature_access.dart';
+import 'package:craftsky_app/profile/models/profile_image_failure.dart';
 import 'package:craftsky_app/profile/models/profile_save_result.dart';
 import 'package:craftsky_app/profile/providers/profile_image_picker_provider.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
@@ -356,6 +357,13 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
   Future<void> _pickProfileImage(ImageSource source) async {
     if (_imageUploadInFlight) return;
     final l10n = AppLocalizations.of(context);
+    final previousDraft = _avatarDraft;
+    setState(
+      () => _avatarDraft = _ProfileImageDraft(
+        previewBytes: previousDraft.previewBytes,
+        isUploading: true,
+      ),
+    );
     try {
       final result = await ref
           .read(profileImagePickerProvider)
@@ -368,17 +376,27 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
               );
             },
           );
-      if (result == null || !mounted) return;
+      if (!mounted) return;
+      if (result == null) {
+        setState(() => _avatarDraft = previousDraft);
+        return;
+      }
       setState(
         () => _avatarDraft = _ProfileImageDraft.uploaded(
           result.previewBytes,
           result.uploaded,
         ),
       );
-    } on Object {
+    } on Object catch (error) {
       if (!mounted) return;
       setState(() => _avatarDraft = _ProfileImageDraft.failed());
-      context.showError(l10n.editProfilePhotoUploadError);
+      context.showError(switch (error) {
+        ProfileImagePickException(reason: ProfileImageFailure.tooManyPixels) =>
+          l10n.profilePhotoTooManyPixels,
+        ProfileImagePickException(reason: ProfileImageFailure.fileTooLarge) =>
+          l10n.profilePhotoFileTooLarge,
+        _ => l10n.editProfilePhotoUploadError,
+      });
     }
   }
 
@@ -815,10 +833,7 @@ class _ProfileImageDraft {
     return _ProfileImageDraft(previewBytes: previewBytes, isUploading: true);
   }
 
-  factory uploaded(
-    Uint8List previewBytes,
-    UploadedImageBlob uploaded,
-  ) {
+  factory uploaded(Uint8List previewBytes, UploadedImageBlob uploaded) {
     return _ProfileImageDraft(previewBytes: previewBytes, uploaded: uploaded);
   }
 

@@ -4,6 +4,7 @@ import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/onboarding/models/onboarding_flow_state.dart';
 import 'package:craftsky_app/profile/data/profile_field_constraints.dart';
 import 'package:craftsky_app/profile/models/profile_handle.dart';
+import 'package:craftsky_app/profile/models/profile_image_failure.dart';
 import 'package:craftsky_app/shared/text/record_text_limits.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/craftsky_text_inputs.dart';
@@ -129,7 +130,14 @@ class _OnboardingProfileStepState extends State<OnboardingProfileStep> {
                 const SizedBox(width: 8),
                 Flexible(
                   child: Text(
-                    l10n.onboardingAvatarUploadFailed,
+                    switch (widget.state.avatarFailure) {
+                      ProfileImageFailure.tooManyPixels =>
+                        l10n.profilePhotoTooManyPixels,
+                      ProfileImageFailure.fileTooLarge =>
+                        l10n.profilePhotoFileTooLarge,
+                      ProfileImageFailure.unknown =>
+                        l10n.onboardingAvatarUploadFailed,
+                    },
                     style: TextStyle(
                       color: Theme.of(context).colorScheme.error,
                     ),

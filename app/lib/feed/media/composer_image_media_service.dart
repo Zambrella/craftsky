@@ -1,10 +1,10 @@
-import 'dart:isolate';
 import 'dart:math' as math;
 import 'dart:typed_data';
 
+import 'package:craftsky_app/feed/media/heif_image_info.dart';
 import 'package:craftsky_app/feed/media/media_config.dart';
+import 'package:craftsky_app/feed/media/platform_image_compression.dart';
 import 'package:craftsky_app/feed/models/create_post_image.dart';
-import 'package:image/image.dart' as img;
 import 'package:image_size_getter/image_size_getter.dart' as image_size;
 import 'package:mime/mime.dart';
 
@@ -68,6 +68,10 @@ class ComposerImageMediaService {
     final lower = fileName.toLowerCase();
     if (lower.endsWith('.jpg') || lower.endsWith('.jpeg')) return 'image/jpeg';
     if (lower.endsWith('.png')) return 'image/png';
+    if (supportsAppleHeic &&
+        (lower.endsWith('.heic') || lower.endsWith('.heif'))) {
+      return 'image/heic';
+    }
     return '';
   }
 
@@ -90,6 +94,7 @@ class ComposerImageMediaService {
         fileName: fileName,
         mimeType: mimeType,
         headerBytes: headerBytes,
+        allowHeic: supportsAppleHeic,
       );
     } on FormatException {
       return const OriginalImageValidationResult(
@@ -143,7 +148,7 @@ class ComposerImageMediaService {
     );
   }
 
-  /// Starts off-main-isolate image preparation.
+  /// Starts asynchronous image preparation using the platform codec.
   ImagePreparationJob prepareImage({
     required Uint8List bytes,
     required String fileName,
@@ -156,9 +161,10 @@ class ComposerImageMediaService {
       mimeType: mimeType,
       metadata: metadata,
       config: config,
+      allowHeic: supportsAppleHeic,
     );
     return ImagePreparationJob._(
-      Isolate.run(() => ComposerImageMediaService._prepareForUpload(request)),
+      _prepareWithPlatform(request),
     );
   }
 
@@ -176,15 +182,11 @@ class ComposerImageMediaService {
       mimeType: mimeType,
       metadata: metadata,
       config: config,
+      allowHeic: supportsAppleHeic,
     );
     final limits = scheduledImageLimits;
     return ImagePreparationJob._(
-      Isolate.run(
-        () => ComposerImageMediaService._prepareForUpload(
-          request,
-          scheduledLimits: limits,
-        ),
-      ),
+      _prepareWithPlatform(request, scheduledLimits: limits),
     );
   }
 
@@ -200,9 +202,10 @@ class ComposerImageMediaService {
       mimeType: mimeType,
       metadata: const {},
       config: config,
+      allowHeic: supportsAppleHeic,
     );
     return ImageInspectionJob._(
-      Isolate.run(() => ComposerImageMediaService._inspectForPreview(request)),
+      Future.sync(() => ComposerImageMediaService._inspectForPreview(request)),
     );
   }
 
@@ -247,64 +250,198 @@ class ComposerImageMediaService {
   bool _isSupportedType(LocalImageSelection candidate) {
     final mime = candidate.mimeType.trim().toLowerCase();
     if (_supportedMimeTypes.contains(mime)) return true;
+    if (supportsAppleHeic &&
+        (mime == 'image/heic' ||
+            mime == 'image/heif' ||
+            candidate.name.toLowerCase().endsWith('.heic') ||
+            candidate.name.toLowerCase().endsWith('.heif'))) {
+      return true;
+    }
 
     final name = candidate.name.toLowerCase();
     return _supportedExtensions.any(name.endsWith);
   }
 
-  static PreparedImagePayload _prepareForUpload(
+  // Serialize preparation to avoid decoding several 48 MP sources at once.
+  static Future<void> _platformTail = Future<void>.value();
+
+  Future<PreparedImagePayload> _prepareWithPlatform(
     ImagePreparationRequest request, {
     ScheduledImageLimits? scheduledLimits,
   }) {
+    final operation = _platformTail.then(
+      (_) => _encodeWithPlatform(request, scheduledLimits),
+    );
+    _platformTail = operation.then<void>(
+      (_) {},
+      onError: (Object _, StackTrace _) {},
+    );
+    return operation;
+  }
+
+  static void _validateSourceDimensions(
+    ImagePreparationRequest request,
+    int width,
+    int height,
+  ) {
+    if (width <= 0 || height <= 0) {
+      throw const FormatException('Invalid image dimensions');
+    }
+    if (width > request.config.maxSourceImageSide ||
+        height > request.config.maxSourceImageSide ||
+        width * height > request.config.maxSourceImagePixels) {
+      throw ImageSourceDimensionsTooLargeException(
+        width: width,
+        height: height,
+        maxSide: request.config.maxSourceImageSide,
+        maxPixels: request.config.maxSourceImagePixels,
+      );
+    }
+  }
+
+  static Future<PreparedImagePayload> _encodeWithPlatform(
+    ImagePreparationRequest request,
+    ScheduledImageLimits? scheduledLimits,
+  ) async {
+    if (request.bytes.isEmpty ||
+        request.bytes.length > request.config.maxSourceImageBytes) {
+      throw const FormatException('Invalid source image size');
+    }
     final format = _resolveSupportedImageFormat(
       fileName: request.fileName,
       mimeType: request.mimeType,
       headerBytes: request.bytes,
+      allowHeic: request.allowHeic,
     );
-
-    var preparedImage = _stripEmbeddedMetadata(
-      _decodeOrientedImage(request, format),
-    );
-    preparedImage = _resizeToFit(
-      preparedImage,
-      maxWidth: request.config.maxImageWidth,
-      maxHeight: request.config.maxImageHeight,
-    );
-    if (scheduledLimits != null) {
-      preparedImage = _resizeForScheduledUpload(
-        preparedImage,
-        scheduledLimits,
-      );
-    }
+    final dimensions = _inspectDimensions(request, format);
+    final sourceWidth = dimensions.orientedWidth;
+    final sourceHeight = dimensions.orientedHeight;
     if (!_hasValidAspectRatio(
-      preparedImage.width,
-      preparedImage.height,
+      sourceWidth,
+      sourceHeight,
       request.config.maxImageAspectRatio,
     )) {
       throw const FormatException('Image aspect ratio is too extreme');
     }
+    final scale = math.min(
+      1,
+      math.min(
+        request.config.maxImageWidth / sourceWidth,
+        request.config.maxImageHeight / sourceHeight,
+      ),
+    );
+    var width = math.max(1, (sourceWidth * scale).floor());
+    var height = math.max(1, (sourceHeight * scale).floor());
+    if (scheduledLimits != null) {
+      final fitted = scheduledLimits.fit(width: width, height: height);
+      width = fitted.width;
+      height = fitted.height;
+    }
+    // Preserve PNG alpha, including palette transparency, without decoding a
+    // full bitmap merely to decide the output format.
+    var preservePng = format == SupportedImageFormat.png;
+    final hasAlpha = preservePng && _pngMayHaveTransparency(request.bytes);
+    PreparedImagePayload? hardLimitCandidate;
+    for (var round = 0; round <= request.config.maxResizeRounds; round++) {
+      var low = request.config.minJpegQuality;
+      var high = request.config.maxJpegQuality;
+      var smallest = request.bytes.length;
+      PreparedImagePayload? best;
+      for (
+        var attempt = 0;
+        attempt < (preservePng ? 1 : request.config.maxJpegQualityAttempts) &&
+            low <= high;
+        attempt++
+      ) {
+        final quality = (low + high) ~/ 2;
+        final encoded = await compressPlatformImage(
+          bytes: request.bytes,
+          width: width,
+          height: height,
+          quality: quality,
+          png: preservePng,
+        );
+        final outputFormat = preservePng
+            ? SupportedImageFormat.png
+            : SupportedImageFormat.jpeg;
+        final outputDimensions = _inspectDimensions(
+          ImagePreparationRequest(
+            bytes: encoded,
+            fileName: preservePng ? 'output.png' : 'output.jpg',
+            mimeType: _mimeTypeFor(outputFormat),
+            metadata: const {},
+            config: request.config,
+          ),
+          outputFormat,
+        );
+        final outWidth = outputDimensions.orientedWidth;
+        final outHeight = outputDimensions.orientedHeight;
+        if (outWidth > request.config.maxImageWidth ||
+            outHeight > request.config.maxImageHeight ||
+            (scheduledLimits != null &&
+                !scheduledLimits.allows(width: outWidth, height: outHeight))) {
+          throw const FormatException(
+            'Compressed image exceeds dimension limits',
+          );
+        }
+        final payload = PreparedImagePayload(
+          bytes: encoded,
+          mimeType: _mimeTypeFor(outputFormat),
+          width: outWidth,
+          height: outHeight,
+          metadata: _stripNonEssentialMetadata(
+            format: outputFormat,
+            metadata: request.metadata,
+            hasTransparency: hasAlpha,
+          ).metadata,
+          hasTransparency: hasAlpha,
+        );
+        smallest = math.min(smallest, encoded.length);
+        if (encoded.length <= request.config.maxImageBytes) {
+          hardLimitCandidate = payload;
+        }
+        if (encoded.length <= request.config.targetImageBytes) {
+          best = payload;
+          low = quality + 1;
+        } else if (preservePng && !hasAlpha) {
+          preservePng = false;
+          low = request.config.minJpegQuality;
+          high = request.config.maxJpegQuality;
+          attempt = -1;
+        } else {
+          high = quality - 1;
+        }
+      }
+      if (best != null) return best;
+      if (round == request.config.maxResizeRounds) break;
+      final shrink = math.min(
+        0.9,
+        math.sqrt(request.config.targetImageBytes / smallest) * 0.9,
+      );
+      width = math.max(1, (width * shrink).floor());
+      height = math.max(1, (height * shrink).floor());
+    }
+    if (hardLimitCandidate != null) return hardLimitCandidate;
+    throw const FormatException(
+      'Image could not be compressed below the upload limit',
+    );
+  }
 
-    final hasTransparency = _hasTransparency(preparedImage);
-    final encoded = _encodeToTarget(
-      image: preparedImage,
-      sourceFormat: format,
-      hasTransparency: hasTransparency,
-      config: request.config,
-    );
-    final stripped = _stripNonEssentialMetadata(
-      format: encoded.format,
-      metadata: request.metadata,
-      hasTransparency: hasTransparency,
-    );
-
-    return PreparedImagePayload(
-      bytes: encoded.bytes,
-      mimeType: _mimeTypeFor(encoded.format),
-      width: encoded.image.width,
-      height: encoded.image.height,
-      metadata: stripped.metadata,
-      hasTransparency: stripped.hasTransparency,
-    );
+  static bool _pngMayHaveTransparency(Uint8List bytes) {
+    if (bytes.length < 26) return false;
+    if (bytes[25] == 4 || bytes[25] == 6) return true;
+    final data = ByteData.sublistView(bytes);
+    var offset = 8;
+    while (offset + 12 <= bytes.length) {
+      final size = data.getUint32(offset);
+      if (size > bytes.length - offset - 12) break;
+      if (String.fromCharCodes(bytes.sublist(offset + 4, offset + 8)) ==
+          'tRNS') {
+        return true;
+      }
+      offset += size + 12;
+    }
+    return false;
   }
 
   static ImageInspectionPayload _inspectForPreview(
@@ -314,6 +451,7 @@ class ComposerImageMediaService {
       fileName: request.fileName,
       mimeType: request.mimeType,
       headerBytes: request.bytes,
+      allowHeic: request.allowHeic,
     );
 
     final inspection = _inspectDimensions(request, format);
@@ -321,36 +459,6 @@ class ComposerImageMediaService {
       width: inspection.orientedWidth,
       height: inspection.orientedHeight,
     );
-  }
-
-  static img.Image _decodeOrientedImage(
-    ImagePreparationRequest request,
-    SupportedImageFormat format,
-  ) {
-    final inspection = _inspectDimensions(request, format);
-    final decoder = switch (format) {
-      SupportedImageFormat.jpeg => img.JpegDecoder(),
-      SupportedImageFormat.png => img.PngDecoder(),
-    };
-    final img.Image? decoded;
-    try {
-      final info = decoder.startDecode(request.bytes);
-      if (info == null ||
-          info.width != inspection.rawWidth ||
-          info.height != inspection.rawHeight) {
-        throw const FormatException('Unsupported or corrupt image bytes');
-      }
-      decoded = decoder.decodeFrame(0);
-    } on FormatException {
-      rethrow;
-    } on Object {
-      throw const FormatException('Unsupported or corrupt image bytes');
-    }
-    if (decoded == null) {
-      throw const FormatException('Unsupported or corrupt image bytes');
-    }
-
-    return img.bakeOrientation(decoded);
   }
 
   static ({
@@ -364,10 +472,23 @@ class ComposerImageMediaService {
     SupportedImageFormat format,
   ) {
     try {
+      if (format == SupportedImageFormat.heic) {
+        final info = HeifImageInfo.read(request.bytes);
+        _validateSourceDimensions(request, info.width, info.height);
+        return (
+          rawWidth: info.width,
+          rawHeight: info.height,
+          orientedWidth: info.rotated ? info.height : info.width,
+          orientedHeight: info.rotated ? info.width : info.height,
+        );
+      }
       final input = image_size.MemoryInput(request.bytes);
       final image_size.BaseDecoder decoder = switch (format) {
         SupportedImageFormat.jpeg => const image_size.JpegDecoder(),
         SupportedImageFormat.png => const image_size.PngDecoder(),
+        SupportedImageFormat.heic => throw const FormatException(
+          'HEIC requires Apple decoding',
+        ),
       };
       if (!decoder.isValid(input)) {
         throw const FormatException('Unsupported or corrupt image bytes');
@@ -406,227 +527,11 @@ class ComposerImageMediaService {
     }
   }
 
-  static img.Image _stripEmbeddedMetadata(img.Image image) {
-    image
-      ..exif.clear()
-      ..textData = null
-      ..iccProfile = null;
-    return image;
-  }
-
-  static img.Image _resizeToFit(
-    img.Image image, {
-    required int maxWidth,
-    required int maxHeight,
-  }) {
-    final scale = math.min(
-      1,
-      math.min(maxWidth / image.width, maxHeight / image.height),
-    );
-    if (scale >= 1) return image;
-    return img.copyResize(
-      image,
-      width: math.max(1, (image.width * scale).floor()),
-      height: math.max(1, (image.height * scale).floor()),
-      interpolation: img.Interpolation.average,
-    );
-  }
-
   static bool _hasValidAspectRatio(int width, int height, int maxRatio) {
     return width > 0 &&
         height > 0 &&
         width <= height * maxRatio &&
         height <= width * maxRatio;
-  }
-
-  static bool _hasTransparency(img.Image image) {
-    if (!image.hasAlpha) return false;
-    for (final pixel in image) {
-      if (pixel.a != pixel.maxChannelValue) return true;
-    }
-    return false;
-  }
-
-  static ({
-    Uint8List bytes,
-    SupportedImageFormat format,
-    img.Image image,
-  })
-  _encodeToTarget({
-    required img.Image image,
-    required SupportedImageFormat sourceFormat,
-    required bool hasTransparency,
-    required MediaConfig config,
-  }) {
-    if (sourceFormat == SupportedImageFormat.png && hasTransparency) {
-      return _encodeTransparentPng(image, config);
-    }
-
-    if (sourceFormat == SupportedImageFormat.png) {
-      final pngBytes = Uint8List.fromList(
-        img.encodePng(
-          image,
-          singleFrame: true,
-          level: 9,
-        ),
-      );
-      if (pngBytes.length <= config.targetImageBytes) {
-        return (bytes: pngBytes, format: sourceFormat, image: image);
-      }
-    }
-    return _encodeJpeg(image, config);
-  }
-
-  static ({
-    Uint8List bytes,
-    SupportedImageFormat format,
-    img.Image image,
-  })
-  _encodeJpeg(img.Image image, MediaConfig config) {
-    var current = image;
-    ({Uint8List bytes, img.Image image})? hardLimitCandidate;
-    for (
-      var resizeRound = 0;
-      resizeRound <= config.maxResizeRounds;
-      resizeRound++
-    ) {
-      Uint8List? best;
-      Uint8List? smallest;
-      var low = config.minJpegQuality;
-      var high = config.maxJpegQuality;
-      var attempts = 0;
-      while (low <= high && attempts < config.maxJpegQualityAttempts) {
-        final quality = (low + high) ~/ 2;
-        final bytes = Uint8List.fromList(
-          img.encodeJpg(
-            current,
-            quality: quality,
-            chroma: img.JpegChroma.yuv420,
-          ),
-        );
-        attempts++;
-        if (smallest == null || bytes.length < smallest.length) {
-          smallest = bytes;
-        }
-        if (bytes.length <= config.maxImageBytes &&
-            (hardLimitCandidate == null ||
-                bytes.length > hardLimitCandidate.bytes.length)) {
-          hardLimitCandidate = (bytes: bytes, image: current);
-        }
-        if (bytes.length <= config.targetImageBytes) {
-          best = bytes;
-          low = quality + 1;
-        } else {
-          high = quality - 1;
-        }
-      }
-      if (best != null) {
-        return (
-          bytes: best,
-          format: SupportedImageFormat.jpeg,
-          image: current,
-        );
-      }
-      if (resizeRound == config.maxResizeRounds || smallest == null) break;
-      final scale = math.min(
-        0.9,
-        math.sqrt(config.targetImageBytes / smallest.length) * 0.9,
-      );
-      final width = math.max(1, (current.width * scale).floor());
-      final height = math.max(1, (current.height * scale).floor());
-      if (width == current.width && height == current.height) break;
-      current = img.copyResize(
-        current,
-        width: width,
-        height: height,
-        interpolation: img.Interpolation.average,
-      );
-    }
-    if (hardLimitCandidate != null) {
-      return (
-        bytes: hardLimitCandidate.bytes,
-        format: SupportedImageFormat.jpeg,
-        image: hardLimitCandidate.image,
-      );
-    }
-    throw const FormatException('Image could not be compressed below 2 MB');
-  }
-
-  static ({
-    Uint8List bytes,
-    SupportedImageFormat format,
-    img.Image image,
-  })
-  _encodeTransparentPng(img.Image image, MediaConfig config) {
-    var current = image;
-    ({Uint8List bytes, img.Image image})? hardLimitCandidate;
-    for (
-      var resizeRound = 0;
-      resizeRound <= config.maxResizeRounds;
-      resizeRound++
-    ) {
-      final bytes = Uint8List.fromList(
-        img.encodePng(
-          current,
-          singleFrame: true,
-          level: 9,
-        ),
-      );
-      if (bytes.length <= config.targetImageBytes) {
-        return (
-          bytes: bytes,
-          format: SupportedImageFormat.png,
-          image: current,
-        );
-      }
-      if (bytes.length <= config.maxImageBytes) {
-        hardLimitCandidate = (bytes: bytes, image: current);
-      }
-      if (resizeRound == config.maxResizeRounds) break;
-      final scale = math.min(
-        0.9,
-        math.sqrt(config.targetImageBytes / bytes.length) * 0.9,
-      );
-      final width = math.max(1, (current.width * scale).floor());
-      final height = math.max(1, (current.height * scale).floor());
-      if (width == current.width && height == current.height) break;
-      current = img.copyResize(
-        current,
-        width: width,
-        height: height,
-        interpolation: img.Interpolation.average,
-      );
-    }
-    if (hardLimitCandidate != null) {
-      return (
-        bytes: hardLimitCandidate.bytes,
-        format: SupportedImageFormat.png,
-        image: hardLimitCandidate.image,
-      );
-    }
-    throw const FormatException('Image could not be compressed below 2 MB');
-  }
-
-  static img.Image _resizeForScheduledUpload(
-    img.Image image,
-    ScheduledImageLimits limits,
-  ) {
-    final target = limits.fit(width: image.width, height: image.height);
-    if (target.width == image.width && target.height == image.height) {
-      return image;
-    }
-    final resized = img.copyResize(
-      image,
-      width: target.width,
-      height: target.height,
-      interpolation: img.Interpolation.average,
-    );
-    if (!limits.allows(width: resized.width, height: resized.height)) {
-      throw const FormatException(
-        'Scheduled image could not be resized to the supported dimensions',
-      );
-    }
-    return resized;
   }
 
   static ({Map<String, String> metadata, bool hasTransparency})
@@ -649,13 +554,24 @@ class ComposerImageMediaService {
     required String fileName,
     required String mimeType,
     Uint8List? headerBytes,
+    bool allowHeic = false,
   }) {
+    if (allowHeic &&
+        headerBytes != null &&
+        HeifImageInfo.hasHeicBrand(headerBytes)) {
+      return SupportedImageFormat.heic;
+    }
     final normalizedMime = mimeType.trim().toLowerCase();
     final detectedMime = lookupMimeType(fileName, headerBytes: headerBytes);
     final resolvedMime = detectedMime ?? normalizedMime;
 
     if (resolvedMime == 'image/jpeg') return SupportedImageFormat.jpeg;
     if (resolvedMime == 'image/png') return SupportedImageFormat.png;
+    if (allowHeic &&
+        (headerBytes == null || headerBytes.isEmpty) &&
+        (resolvedMime == 'image/heic' || resolvedMime == 'image/heif')) {
+      return SupportedImageFormat.heic;
+    }
 
     throw const FormatException('Unsupported image format');
   }
@@ -663,6 +579,7 @@ class ComposerImageMediaService {
   static String _mimeTypeFor(SupportedImageFormat format) => switch (format) {
     SupportedImageFormat.jpeg => 'image/jpeg',
     SupportedImageFormat.png => 'image/png',
+    SupportedImageFormat.heic => 'image/heic',
   };
 }
 
@@ -799,7 +716,7 @@ class PreparedUploadValidationResult {
 }
 
 /// Image formats accepted by the local preparation pipeline.
-enum SupportedImageFormat { jpeg, png }
+enum SupportedImageFormat { jpeg, png, heic }
 
 /// Sendable request object for off-main-isolate image preparation.
 class ImagePreparationRequest {
@@ -809,6 +726,7 @@ class ImagePreparationRequest {
     required this.mimeType,
     required this.metadata,
     required this.config,
+    this.allowHeic = false,
   });
 
   final Uint8List bytes;
@@ -816,9 +734,10 @@ class ImagePreparationRequest {
   final String mimeType;
   final Map<String, String> metadata;
   final MediaConfig config;
+  final bool allowHeic;
 }
 
-/// Prepared image data returned from the isolate.
+/// Prepared image data returned by the processing engine.
 class PreparedImagePayload {
   const new({
     required this.bytes,

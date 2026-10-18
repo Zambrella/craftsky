@@ -466,10 +466,11 @@ class ComposerImages extends _$ComposerImages {
       case _ImagePipelineStepNames.read:
         final bytes = result.originalBytes;
         if (bytes == null) return;
+        // Render only prepared JPEG/PNG bytes. Flutter preview decoding need
+        // not understand HEIC or allocate a second full-resolution bitmap.
         _updateImage(
           imageId,
           (draft) => draft.copyWith(
-            previewBytes: bytes,
             previewAspectRatio: result.previewAspectRatio,
           ),
         );
@@ -479,6 +480,7 @@ class ComposerImages extends _$ComposerImages {
         _updateImage(
           imageId,
           (draft) => draft.copyWith(
+            previewBytes: prepared.bytes,
             previewAspectRatio: _media.aspectRatioFor(
               width: prepared.width,
               height: prepared.height,
@@ -659,12 +661,13 @@ class ComposerImages extends _$ComposerImages {
 
   Future<Uint8List> _readHeaderBytes(XFile file) async {
     final header = <int>[];
-    await for (final chunk in file.openRead(0, 16)) {
+    final length = await file.length();
+    await for (final chunk in file.openRead(0, length < 64 ? length : 64)) {
       header.addAll(chunk);
-      if (header.length >= 16) break;
+      if (header.length >= 64) break;
     }
     return Uint8List.fromList(
-      header.length <= 16 ? header : header.sublist(0, 16),
+      header.length <= 64 ? header : header.sublist(0, 64),
     );
   }
 
@@ -672,7 +675,7 @@ class ComposerImages extends _$ComposerImages {
     return Uint8List.sublistView(
       bytes,
       0,
-      bytes.length < 16 ? bytes.length : 16,
+      bytes.length < 64 ? bytes.length : 64,
     );
   }
 

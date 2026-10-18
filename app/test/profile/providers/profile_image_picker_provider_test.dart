@@ -3,6 +3,7 @@ import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:craftsky_app/feed/providers/composer_images_provider.dart';
+import 'package:craftsky_app/profile/models/profile_image_failure.dart';
 import 'package:craftsky_app/profile/providers/profile_image_picker_provider.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/api/providers/dio_provider.dart';
@@ -133,16 +134,131 @@ void main() {
       addTearDown(container.dispose);
       final prepared = await container
           .read(profileImagePickerProvider)
-          .pickAndPrepare(
-            source: ImageSource.gallery,
-            onPreviewReady: (_) {},
-          );
+          .pickAndPrepare(source: ImageSource.gallery, onPreviewReady: (_) {});
       expect(prepared, isNotNull);
       expect(prepared!.bytes.length, lessThanOrEqualTo(1000000));
       expect(prepared.mimeType, 'image/jpeg');
       expect(img.decodeImage(prepared.bytes), isNotNull);
     },
   );
+
+  test('resizes a 48 MP profile photo below the upload limit', () async {
+    final original = Uint8List.fromList(
+      img.encodeJpg(img.Image(width: 8000, height: 6000)),
+    );
+    final container = ProviderContainer.test(
+      overrides: [
+        imagePickerProvider.overrideWithValue(
+          _RecordingImagePicker(
+            XFile.fromData(original, name: 'photo.jpg', mimeType: 'image/jpeg'),
+          ),
+        ),
+        blobApiClientProvider.overrideWithValue(BlobApiClient(Dio())),
+      ],
+    );
+    final prepared = await container
+        .read(profileImagePickerProvider)
+        .pickAndPrepare(
+          source: ImageSource.gallery,
+          onPreviewReady: (_) {},
+        );
+    expect(prepared, isNotNull);
+    expect(prepared!.bytes.length, lessThanOrEqualTo(1000000));
+    final decoded = img.decodeJpg(prepared.bytes)!;
+    expect(decoded.width, 4000);
+    expect(decoded.height, 3000);
+  });
+
+  test('accepts 48 MP source geometry and files up to 100 MB', () async {
+    final container = ProviderContainer.test();
+    final media = container.read(profileImageMediaServiceProvider);
+    final inspected = await media
+        .inspectImage(
+          bytes: _jpegHeader(width: 8000, height: 6000),
+          fileName: 'photo.jpg',
+          mimeType: 'image/jpeg',
+        )
+        .future;
+    expect(inspected.width, 8000);
+    expect(inspected.height, 6000);
+    expect(
+      media
+          .validateOriginalImage(
+            sizeBytes: 100000000,
+            fileName: 'photo.jpg',
+            mimeType: 'image/jpeg',
+            headerBytes: _jpegHeader(width: 8000, height: 6000),
+          )
+          .canPrepare,
+      isTrue,
+    );
+    expect(
+      media
+          .validateOriginalImage(
+            sizeBytes: 100000001,
+            fileName: 'photo.jpg',
+            mimeType: 'image/jpeg',
+            headerBytes: _jpegHeader(width: 8000, height: 6000),
+          )
+          .canPrepare,
+      isFalse,
+    );
+  });
+
+  test('rejects over 48 MP before decoding or contacting the server', () async {
+    final container = ProviderContainer.test(
+      overrides: [
+        imagePickerProvider.overrideWithValue(
+          _RecordingImagePicker(
+            XFile.fromData(
+              _jpegHeader(width: 8000, height: 6001),
+              name: 'photo.jpg',
+              mimeType: 'image/jpeg',
+            ),
+          ),
+        ),
+        blobApiClientProvider.overrideWithValue(BlobApiClient(Dio())),
+      ],
+    );
+    await expectLater(
+      container
+          .read(profileImagePickerProvider)
+          .pickAndUpload(source: ImageSource.gallery, onPreviewReady: (_) {}),
+      throwsA(
+        isA<ProfileImagePickException>().having(
+          (error) => error.reason,
+          'reason',
+          ProfileImageFailure.tooManyPixels,
+        ),
+      ),
+    );
+  });
+
+  test('reports a file over 100 MB before reading the full image', () async {
+    final container = ProviderContainer.test(
+      overrides: [
+        imagePickerProvider.overrideWithValue(
+          _RecordingImagePicker(_OversizedImageFile()),
+        ),
+        blobApiClientProvider.overrideWithValue(BlobApiClient(Dio())),
+      ],
+    );
+    await expectLater(
+      container
+          .read(profileImagePickerProvider)
+          .pickAndPrepare(
+            source: ImageSource.gallery,
+            onPreviewReady: (_) => fail('oversized file must not be previewed'),
+          ),
+      throwsA(
+        isA<ProfileImagePickException>().having(
+          (error) => error.reason,
+          'reason',
+          ProfileImageFailure.fileTooLarge,
+        ),
+      ),
+    );
+  });
 
   test('returns null when camera capture is cancelled', () async {
     final picker = _RecordingImagePicker(null);
@@ -188,9 +304,8 @@ class _RecordingImagePicker extends ImagePicker {
   }
 }
 
-Uint8List _pngBytes() => Uint8List.fromList(
-  img.encodePng(img.Image(width: 2, height: 1)),
-);
+Uint8List _pngBytes() =>
+    Uint8List.fromList(img.encodePng(img.Image(width: 2, height: 1)));
 
 class _PendingImagePicker extends ImagePicker {
   new(this.selected, this.opened);
@@ -209,4 +324,39 @@ class _PendingImagePicker extends ImagePicker {
     opened.complete();
     return selected.future;
   }
+}
+
+// Only geometry is needed: oversized input must fail before full decoding.
+Uint8List _jpegHeader({required int width, required int height}) =>
+    Uint8List.fromList([
+      0xff,
+      0xd8,
+      0xff,
+      0xc0,
+      0x00,
+      0x11,
+      0x08,
+      height >> 8,
+      height & 0xff,
+      width >> 8,
+      width & 0xff,
+      0x03,
+      0x01,
+      0x11,
+      0x00,
+      0x02,
+      0x11,
+      0x00,
+      0x03,
+      0x11,
+      0x00,
+      0xff,
+      0xd9,
+    ]);
+
+class _OversizedImageFile extends XFile {
+  new() : super.fromData(_pngBytes(), name: 'photo.png', mimeType: 'image/png');
+
+  @override
+  Future<int> length() async => 100000001;
 }

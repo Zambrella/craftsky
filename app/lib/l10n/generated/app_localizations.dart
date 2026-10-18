@@ -3298,6 +3298,18 @@ abstract class AppLocalizations {
   /// **'Change cover'**
   String get editProfileChangeCover;
 
+  /// Shown when an original profile photo exceeds 48 million pixels, before resizing.
+  ///
+  /// In en, this message translates to:
+  /// **'That photo is over 48 megapixels. Choose a smaller photo or reduce its resolution and try again.'**
+  String get profilePhotoTooManyPixels;
+
+  /// Shown when an original profile photo exceeds the 100 MB file limit.
+  ///
+  /// In en, this message translates to:
+  /// **'That photo is over 100 MB. Choose a smaller file and try again.'**
+  String get profilePhotoFileTooLarge;
+
   /// Snackbar shown when a selected profile avatar or cover image cannot be prepared or uploaded.
   ///
   /// In en, this message translates to:
