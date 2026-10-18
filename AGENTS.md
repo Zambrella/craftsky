@@ -12,6 +12,13 @@ Read [atproto-craft-social-app-reference.md](atproto-craft-social-app-reference.
 
 For the product-level "why" and the community-facing feature intent, read the vision doc: [Building a Social Network for Textile Crafters](https://docs.google.com/document/d/11wu5ZFifrhx3HwdqOR5-7WQiESq5MUKk7vTa_U8fl-c/edit?usp=sharing). It's the source of truth for product principles (no ads ever, data portability, transparent business accounts, chronological feed, no algorithmic ranking) and for the project-post field set. If a technical decision conflicts with this doc, flag it — don't silently diverge.
 
+## Supported App Platforms
+
+The Flutter app supports **iOS, Android, and web only**. Native macOS, Windows,
+and Linux apps are not build targets. Do not recreate their platform folders or
+add desktop build/run recipes. Desktop operating systems may still be used as
+development and CI hosts, including native libraries required by Flutter tests.
+
 ## Dev Workflow
 
 `just dev` (from the repo root) starts the full compose stack — `postgres`, `migrate`, `tap`, `tap-bootstrap`, `appview`. The appview runs only inside Docker in dev; there is no `go run ./cmd/appview` path. Go tests run on the host with `just test` against the compose Postgres (the appview image has no Go toolchain). See `justfile` for the full recipe list.

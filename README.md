@@ -15,6 +15,11 @@ CraftSky is being developed for private beta. The Flutter client and Go backend 
 
 The [product vision](https://docs.google.com/document/d/11wu5ZFifrhx3HwdqOR5-7WQiESq5MUKk7vTa_U8fl-c/edit?usp=sharing) explains the community principles and project-post field set. The [roadmap](docs/roadmap.md) records implemented work and future ideas; it is not a release schedule.
 
+## Supported platforms
+
+The CraftSky app supports **iOS, Android, and web only**. Native macOS, Windows,
+and Linux apps are not supported.
+
 ## Contributing
 
 Code, documentation, accessibility feedback, bug reports, and product ideas are welcome. Start with [CONTRIBUTING.md](CONTRIBUTING.md) for setup, checks, and the pull request process. For substantial work, open an issue to agree on scope before implementing it. Small fixes can go straight to a pull request.
