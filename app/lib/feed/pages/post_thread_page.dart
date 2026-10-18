@@ -537,6 +537,12 @@ class _CommentSectionBodyState extends ConsumerState<_CommentSectionBody> {
                   onRepost: () => ref
                       .read(toggleRepostPostProvider.notifier)
                       .toggle(post: widget.section.post),
+                  onQuote: () => unawaited(
+                    showPostComposerSheet(
+                      context,
+                      quoteTarget: widget.section.post,
+                    ),
+                  ),
                   onDelete: _deleteIfViewerOwned(widget.section.post),
                   onReport: _reportIfViewerNotOwner(widget.section.post),
                 ),
