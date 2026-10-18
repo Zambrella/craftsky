@@ -201,6 +201,27 @@ Future<GoRouter> _pumpThreadRoute(
 }
 
 void main() {
+  for (final hasReposted in [false, true]) {
+    testWidgets(
+      'root repost menu offers Quote when viewerHasReposted is $hasReposted',
+      (tester) async {
+        await _pumpThread(
+          tester,
+          FakePostRepository(
+            onCommentSection: (did, rkey, {cursor, sort, focus, limit}) async =>
+                _section('thread root', viewerHasReposted: hasReposted),
+          ),
+        );
+
+        await tester.tap(find.byIcon(CraftskyIconsBold.repost));
+        await tester.pumpAndSettle();
+
+        expect(find.text(hasReposted ? 'Unrepost' : 'Repost'), findsOneWidget);
+        expect(find.text('Quote'), findsOneWidget);
+      },
+    );
+  }
+
   testWidgets(
     'muted comments and replies use subtle, contextual placeholders',
     (
