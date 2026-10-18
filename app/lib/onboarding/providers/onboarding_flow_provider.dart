@@ -15,9 +15,11 @@ import 'package:craftsky_app/profile/providers/profile_image_picker_provider.dar
 import 'package:craftsky_app/profile/providers/profile_mutation_publication.dart';
 import 'package:craftsky_app/profile/providers/profile_record_overlay.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
+import 'package:craftsky_app/profile/services/profile_image_error_reporting.dart';
 import 'package:craftsky_app/shared/api/pds_mutation_contract.dart';
 import 'package:craftsky_app/shared/mutations/pds_record_operation_controller.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
+import 'package:craftsky_app/shared/observability/error_reporter_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -153,6 +155,8 @@ class OnboardingFlow extends _$OnboardingFlow {
   Future<void> pickAvatar(ImageSource source) async {
     final current = state.value;
     if (current == null || current.saving || current.uploadingAvatar) return;
+    final reporter = ref.read(errorReporterProvider);
+    final initiatingAccountDid = lease.session.account.did.value;
     // Selection can span many frames. Retain the provider that owns the upload
     // client until the operation finishes; ref disposal still cancels it.
     state = AsyncData(
@@ -191,7 +195,16 @@ class OnboardingFlow extends _$OnboardingFlow {
           avatarUploadFailed: false,
         ),
       );
-    } on Object catch (error) {
+    } on Object catch (error, stack) {
+      unawaited(
+        reportProfileImageFailure(
+          reporter: reporter,
+          error: error,
+          stackTrace: stack,
+          operation: ProfileImageOperation.onboarding,
+          accountDid: initiatingAccountDid,
+        ),
+      );
       if (!_isCurrent()) return;
       state = AsyncData(
         (state.value ?? current).copyWith(

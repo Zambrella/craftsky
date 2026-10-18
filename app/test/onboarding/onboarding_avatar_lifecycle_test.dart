@@ -9,6 +9,7 @@ import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/providers/profile_image_picker_provider.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/shared/api/providers/dio_provider.dart';
+import 'package:craftsky_app/shared/observability/error_reporter_provider.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -16,9 +17,53 @@ import 'package:image/image.dart' as img;
 import 'package:image_picker/image_picker.dart';
 
 import '../profile/fakes/fake_profile_repository.dart';
+import '../test_support/recording_error_reporter.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  test('onboarding reports an unknown photo error once '
+      'while keeping failure state', () async {
+    final registry = SessionRegistry.empty().upsertAndActivate(
+      token: 'test-token',
+      did: 'did:plc:alice',
+      handle: 'alice.test',
+    );
+    final lease = registry.activeLease!;
+    final reporter = RecordingErrorReporter();
+    final error = StateError('PRIVATE_IMAGE_ERROR');
+    final container = ProviderContainer.test(
+      overrides: [
+        secureSessionRegistryStorageProvider.overrideWithValue(
+          _Storage(registry),
+        ),
+        accountDioProvider.overrideWith((ref, account) async => Dio()),
+        errorReporterProvider.overrideWithValue(reporter),
+        imagePickerProvider.overrideWithValue(_FailingImagePicker(error)),
+        accountProfileRepositoryProvider.overrideWith(
+          (ref, lease) async => FakeProfileRepository(
+            onFetchMe: () async => Profile(
+              did: 'did:plc:alice',
+              handle: 'alice.test',
+              crafts: const [],
+            ),
+          ),
+        ),
+      ],
+    );
+    final flow = onboardingFlowProvider(lease);
+    final subscription = container.listen(flow, (_, _) {});
+    addTearDown(subscription.close);
+    await container.read(flow.future);
+    await container.read(flow.notifier).pickAvatar(ImageSource.gallery);
+    expect(container.read(flow).requireValue.avatarUploadFailed, isTrue);
+    expect(reporter.errors, [same(error)]);
+    expect(reporter.contexts.single.feature, 'Onboarding');
+    expect(
+      reporter.contexts.single.workflow!.selectedFields['operationAccountDid'],
+      'did:plc:alice',
+    );
+  });
 
   for (final leaveOnboarding in [false, true]) {
     test(
@@ -141,4 +186,19 @@ class _Storage implements SessionRegistryStorage {
 
   @override
   Future<void> write(SessionRegistry registry) async {}
+}
+
+class _FailingImagePicker extends ImagePicker {
+  new(this.error);
+  final Object error;
+
+  @override
+  Future<XFile?> pickImage({
+    required ImageSource source,
+    double? maxWidth,
+    double? maxHeight,
+    int? imageQuality,
+    CameraDevice preferredCameraDevice = CameraDevice.rear,
+    bool requestFullMetadata = true,
+  }) async => Error.throwWithStackTrace(error, StackTrace.current);
 }

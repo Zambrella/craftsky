@@ -100,6 +100,7 @@ class ProfileImagePicker {
     );
     if (!originalCheck.canPrepare) {
       throw ProfileImagePickException(
+        expectedRejection: true,
         reason: originalCheck.rejectedReason == OriginalImageRejection.tooLarge
             ? ProfileImageFailure.fileTooLarge
             : ProfileImageFailure.unknown,
@@ -178,7 +179,11 @@ class ProfileImagePickResult {
 }
 
 class ProfileImagePickException implements Exception {
-  const new({this.reason = ProfileImageFailure.unknown});
+  const new({
+    this.reason = ProfileImageFailure.unknown,
+    this.expectedRejection = false,
+  });
 
   final ProfileImageFailure reason;
+  final bool expectedRejection;
 }

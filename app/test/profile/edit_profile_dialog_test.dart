@@ -21,6 +21,8 @@ import 'package:craftsky_app/shared/media/blob_api_client.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/shared/messaging/scaffold_messenger_impl.dart';
 import 'package:craftsky_app/shared/mutations/pds_record_operation_controller.dart';
+import 'package:craftsky_app/shared/observability/error_reporter.dart';
+import 'package:craftsky_app/shared/observability/error_reporter_provider.dart';
 import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
 import 'package:craftsky_app/subscriptions/providers/subscription_access_provider.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
@@ -34,6 +36,7 @@ import 'package:material_ui/material_ui.dart';
 
 import '../business/accessibility_test_helpers.dart';
 import '../fakes/auth_session_fakes.dart';
+import '../test_support/recording_error_reporter.dart';
 import 'fakes/fake_profile_repository.dart';
 
 final _seedProfile = Profile(
@@ -56,6 +59,8 @@ Future<void> _pumpEditDialog(
   BusinessRepository? businessRepository,
   bool businessAccess = false,
   ProfileImageFailure? imageFailure,
+  Object? imageException,
+  ErrorReporter? reporter,
   ExternalLinkLauncher linkLauncher = launchExternalLink,
   ExternalLinkConfirmer confirmOpenLink = showOpenLinkDialog,
 }) async {
@@ -66,9 +71,13 @@ Future<void> _pumpEditDialog(
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
-        if (imageFailure != null)
+        if (reporter != null) errorReporterProvider.overrideWithValue(reporter),
+        if (imageFailure != null || imageException != null)
           profileImagePickerProvider.overrideWithValue(
-            _FailingProfileImagePicker(imageFailure),
+            _FailingProfileImagePicker(
+              imageException ??
+                  ProfileImagePickException(reason: imageFailure!),
+            ),
           ),
         secureSessionRegistryStorageProvider.overrideWithValue(
           _EditRegistryStorage(
@@ -141,6 +150,39 @@ final class _EditRegistryStorage implements SessionRegistryStorage {
 
 void main() {
   group('EditProfileDialog', () {
+    testWidgets(
+      'reports an unknown photo failure once and retains recovery UI',
+      (tester) async {
+        final reporter = RecordingErrorReporter();
+        final error = StateError('PRIVATE_IMAGE_ERROR');
+        await _pumpEditDialog(
+          tester,
+          repo: FakeProfileRepository(onFetchMe: () async => _seedProfile),
+          imageException: error,
+          reporter: reporter,
+        );
+        await tester.tap(find.byTooltip('Change avatar'));
+        await tester.pumpAndSettle();
+        final choosePhotos = find.byKey(
+          const Key('profile-avatar-choose-photos'),
+        );
+        if (choosePhotos.evaluate().isNotEmpty) {
+          await tester.tap(choosePhotos);
+          await tester.pumpAndSettle();
+        }
+        expect(find.text("Couldn't upload that photo."), findsOneWidget);
+        expect(reporter.errors, [same(error)]);
+        expect(
+          reporter
+              .contexts
+              .single
+              .workflow!
+              .selectedFields['operationAccountDid'],
+          'did:plc:test',
+        );
+      },
+    );
+
     for (final failure in [
       ProfileImageFailure.tooManyPixels,
       ProfileImageFailure.fileTooLarge,
@@ -1242,11 +1284,11 @@ class _FailingProfileImagePicker extends ProfileImagePicker {
         media: const ComposerImageMediaService(),
         blobApi: BlobApiClient(Dio()),
       );
-  final ProfileImageFailure failure;
+  final Object failure;
 
   @override
   Future<ProfileImagePickResult?> pickAndUpload({
     required ImageSource source,
     required void Function(Uint8List bytes) onPreviewReady,
-  }) async => throw ProfileImagePickException(reason: failure);
+  }) async => Error.throwWithStackTrace(failure, StackTrace.current);
 }
