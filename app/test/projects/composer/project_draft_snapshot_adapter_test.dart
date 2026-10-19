@@ -22,6 +22,9 @@ void main() {
       ProjectComposerFields.knittingGaugeRows: null,
       ProjectComposerFields.colours: <dynamic>['blue', 'cream'],
       ProjectComposerFields.designTags: <dynamic>['cables'],
+      ProjectComposerFields.additionalCrafts: <dynamic>[
+        'social.craftsky.feed.defs#sewing',
+      ],
       'unknownRuntimeField': Object(),
     });
 
@@ -58,6 +61,12 @@ void main() {
     expect(
       decoded[ProjectComposerFields.designTags],
       isA<List<String>>().having((values) => values, 'values', ['cables']),
+    );
+    expect(
+      decoded[ProjectComposerFields.additionalCrafts],
+      isA<List<String>>().having((values) => values, 'values', [
+        'social.craftsky.feed.defs#sewing',
+      ]),
     );
   });
 

@@ -22,7 +22,7 @@ type HashtagSearchPageResponse struct {
 }
 
 type HashtagSearchResult struct {
-	Tag             string `json:"tag"`
+	Tag       string `json:"tag"`
 	PostCount int    `json:"postCount"`
 }
 

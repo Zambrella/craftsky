@@ -14,9 +14,9 @@ Map<String, dynamic> hydrateScheduledProjectComposer(
   if (common is! Map<Object?, Object?>) return values;
   values
     ..[ProjectComposerFields.craftType] = common['craftType']
-    ..[ProjectComposerFields.additionalCrafts] = [
-      for (final craft in (common['additionalCrafts'] as List? ?? []))
-        if (craft is Map && craft['craftType'] is String) craft['craftType'],
+    ..[ProjectComposerFields.additionalCrafts] = <String>[
+      for (final craft in (common['additionalCrafts'] as List? ?? const []))
+        if (craft case {'craftType': final String craftType}) craftType,
     ]
     ..[ProjectComposerFields.status] =
         common['status'] ?? ProjectOptionCatalogs.finishedStatusToken

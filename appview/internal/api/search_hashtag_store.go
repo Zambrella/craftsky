@@ -19,7 +19,7 @@ func (s *SearchStore) SearchHashtags(ctx context.Context, req HashtagSearchReque
 	return items, cursor, err
 }
 
-func (s *SearchStore) searchHashtagsObserved(ctx context.Context, req HashtagSearchRequest, now time.Time) ([]HashtagSearchResult, string, error) {
+func (s *SearchStore) searchHashtagsObserved(ctx context.Context, req HashtagSearchRequest, _ time.Time) ([]HashtagSearchResult, string, error) {
 	if s == nil || s.pool == nil {
 		return nil, "", fmt.Errorf("search store unavailable")
 	}
@@ -30,9 +30,6 @@ func (s *SearchStore) searchHashtagsObserved(ctx context.Context, req HashtagSea
 	limit := req.Limit
 	if limit <= 0 {
 		limit = SearchDefaultLimit
-	}
-	if now.IsZero() {
-		now = time.Now().UTC()
 	}
 	cur, err := DecodeHashtagSearchCursor(req.Cursor, query)
 	if err != nil {

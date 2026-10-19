@@ -26,7 +26,7 @@ type FacetHashtagSuggestionsResponse struct {
 }
 
 type FacetHashtagSuggestion struct {
-	Tag             string `json:"tag"`
+	Tag       string `json:"tag"`
 	PostCount int    `json:"postCount"`
 }
 
@@ -43,7 +43,7 @@ type MentionSuggestionRow struct {
 }
 
 type HashtagSuggestionRow struct {
-	Tag             string
+	Tag       string
 	PostCount int
 }
 

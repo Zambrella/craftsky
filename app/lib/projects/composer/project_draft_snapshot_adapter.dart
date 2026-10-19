@@ -156,6 +156,7 @@ class ProjectDraftSnapshotAdapter {
   };
 
   static const _stringListFields = <String>{
+    ProjectComposerFields.additionalCrafts,
     ProjectComposerFields.colours,
     ProjectComposerFields.designTags,
   };
