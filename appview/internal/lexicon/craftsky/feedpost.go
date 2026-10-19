@@ -23,6 +23,8 @@ func init() {
 
 type FeedPost struct {
 	LexiconTypeID string `json:"$type" cborgen:"$type,const=social.craftsky.feed.post"`
+	// crafts: Optional author-supplied craft metadata for this post, independent of project.common.craftType and project.common.additionalCrafts. Order does not designate a primary craft. Reserved for future use: CraftSky currently preserves this field without using it for display, search, filtering, feeds, or discovery.
+	Crafts []*FeedPost_Craft `json:"crafts,omitempty" cborgen:"crafts,omitempty"`
 	// createdAt: Client-declared creation timestamp.
 	CreatedAt string `json:"createdAt" cborgen:"createdAt"`
 	// embed: Optional embedded content. Open union supporting local quote embeds, standard external cards, and standard video.
@@ -51,6 +53,14 @@ type FeedPost struct {
 type FeedPost_AspectRatio struct {
 	Height int64 `json:"height" cborgen:"height"`
 	Width  int64 `json:"width" cborgen:"width"`
+}
+
+// FeedPost_Craft is a "craft" in the social.craftsky.feed.post schema.
+//
+// One craft associated with a post, represented as an object so optional context can be added later.
+type FeedPost_Craft struct {
+	// craftType: Craft token associated with the post. knownValues are open suggestions; future bounded craft values remain valid.
+	CraftType string `json:"craftType" cborgen:"craftType"`
 }
 
 // Optional embedded content. Open union supporting local quote embeds, standard external cards, and standard video.

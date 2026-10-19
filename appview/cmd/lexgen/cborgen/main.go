@@ -40,6 +40,7 @@ func main() {
 		craftsky.FeedRepost{},
 		craftsky.FeedPost{},
 		craftsky.FeedPost_AspectRatio{},
+		craftsky.FeedPost_Craft{},
 		craftsky.FeedPost_ExternalImport{},
 		craftsky.FeedPost_Image{},
 		craftsky.FeedPost_QuoteEmbed{},

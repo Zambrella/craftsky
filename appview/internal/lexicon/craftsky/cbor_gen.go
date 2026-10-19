@@ -2799,7 +2799,11 @@ func (t *FeedPost) MarshalCBOR(w io.Writer) error {
 	}
 
 	cw := cbg.NewCborWriter(w)
-	fieldCount := 11
+	fieldCount := 12
+
+	if t.Crafts == nil {
+		fieldCount--
+	}
 
 	if t.Embed == nil {
 		fieldCount--
@@ -2946,6 +2950,35 @@ func (t *FeedPost) MarshalCBOR(w io.Writer) error {
 
 		if err := t.Reply.MarshalCBOR(cw); err != nil {
 			return err
+		}
+	}
+
+	// t.Crafts ([]*craftsky.FeedPost_Craft) (slice)
+	if t.Crafts != nil {
+
+		if len("crafts") > 1000000 {
+			return xerrors.Errorf("Value in field \"crafts\" was too long")
+		}
+
+		if err := cw.WriteMajorTypeHeader(cbg.MajTextString, uint64(len("crafts"))); err != nil {
+			return err
+		}
+		if _, err := cw.WriteString(string("crafts")); err != nil {
+			return err
+		}
+
+		if len(t.Crafts) > 8192 {
+			return xerrors.Errorf("Slice value in field t.Crafts was too long")
+		}
+
+		if err := cw.WriteMajorTypeHeader(cbg.MajArray, uint64(len(t.Crafts))); err != nil {
+			return err
+		}
+		for _, v := range t.Crafts {
+			if err := v.MarshalCBOR(cw); err != nil {
+				return err
+			}
+
 		}
 	}
 
@@ -3228,6 +3261,55 @@ func (t *FeedPost) UnmarshalCBOR(r io.Reader) (err error) {
 					}
 				}
 
+			}
+			// t.Crafts ([]*craftsky.FeedPost_Craft) (slice)
+		case "crafts":
+
+			maj, extra, err = cr.ReadHeader()
+			if err != nil {
+				return err
+			}
+
+			if extra > 8192 {
+				return fmt.Errorf("t.Crafts: array too large (%d)", extra)
+			}
+
+			if maj != cbg.MajArray {
+				return fmt.Errorf("expected cbor array")
+			}
+
+			if extra > 0 {
+				t.Crafts = make([]*FeedPost_Craft, extra)
+			}
+
+			for i := 0; i < int(extra); i++ {
+				{
+					var maj byte
+					var extra uint64
+					var err error
+					_ = maj
+					_ = extra
+					_ = err
+
+					{
+
+						b, err := cr.ReadByte()
+						if err != nil {
+							return err
+						}
+						if b != cbg.CborNull[0] {
+							if err := cr.UnreadByte(); err != nil {
+								return err
+							}
+							t.Crafts[i] = new(FeedPost_Craft)
+							if err := t.Crafts[i].UnmarshalCBOR(cr); err != nil {
+								return xerrors.Errorf("unmarshaling t.Crafts[i] pointer: %w", err)
+							}
+						}
+
+					}
+
+				}
 			}
 			// t.Facets ([]*bsky.RichtextFacet) (slice)
 		case "facets":
@@ -3558,6 +3640,106 @@ func (t *FeedPost_AspectRatio) UnmarshalCBOR(r io.Reader) (err error) {
 				}
 
 				t.Height = int64(extraI)
+			}
+
+		default:
+			// Field doesn't exist on this type, so ignore it
+			if err := cbg.ScanForLinks(r, func(cid.Cid) {}); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+func (t *FeedPost_Craft) MarshalCBOR(w io.Writer) error {
+	if t == nil {
+		_, err := w.Write(cbg.CborNull)
+		return err
+	}
+
+	cw := cbg.NewCborWriter(w)
+
+	if _, err := cw.Write([]byte{161}); err != nil {
+		return err
+	}
+
+	// t.CraftType (string) (string)
+	if len("craftType") > 1000000 {
+		return xerrors.Errorf("Value in field \"craftType\" was too long")
+	}
+
+	if err := cw.WriteMajorTypeHeader(cbg.MajTextString, uint64(len("craftType"))); err != nil {
+		return err
+	}
+	if _, err := cw.WriteString(string("craftType")); err != nil {
+		return err
+	}
+
+	if len(t.CraftType) > 1000000 {
+		return xerrors.Errorf("Value in field t.CraftType was too long")
+	}
+
+	if err := cw.WriteMajorTypeHeader(cbg.MajTextString, uint64(len(t.CraftType))); err != nil {
+		return err
+	}
+	if _, err := cw.WriteString(string(t.CraftType)); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (t *FeedPost_Craft) UnmarshalCBOR(r io.Reader) (err error) {
+	*t = FeedPost_Craft{}
+
+	cr := cbg.NewCborReader(r)
+
+	maj, extra, err := cr.ReadHeader()
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err == io.EOF {
+			err = io.ErrUnexpectedEOF
+		}
+	}()
+
+	if maj != cbg.MajMap {
+		return fmt.Errorf("cbor input should be of type map")
+	}
+
+	if extra > cbg.MaxLength {
+		return fmt.Errorf("FeedPost_Craft: map struct too large (%d)", extra)
+	}
+
+	n := extra
+
+	nameBuf := make([]byte, 9)
+	for i := uint64(0); i < n; i++ {
+		nameLen, ok, err := cbg.ReadFullStringIntoBuf(cr, nameBuf, 1000000)
+		if err != nil {
+			return err
+		}
+
+		if !ok {
+			// Field doesn't exist on this type, so ignore it
+			if err := cbg.ScanForLinks(cr, func(cid.Cid) {}); err != nil {
+				return err
+			}
+			continue
+		}
+
+		switch string(nameBuf[:nameLen]) {
+		// t.CraftType (string) (string)
+		case "craftType":
+
+			{
+				sval, err := cbg.ReadStringWithMax(cr, 1000000)
+				if err != nil {
+					return err
+				}
+
+				t.CraftType = string(sval)
 			}
 
 		default:

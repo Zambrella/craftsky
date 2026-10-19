@@ -26,6 +26,9 @@ mixing rankings. Records retain their original values and require no rewrite.
 Every applicable craft's detail fields participate. General post searches only
 use general post fields; project metadata does not spill into general posts.
 Unknown extension properties are preserved but never automatically searched.
+Top-level post `crafts` is reserved metadata: it is preserved but does not
+participate in keyword search, craft filtering, or tag discovery. Only the
+primary/additional crafts inside `project.common` have those behaviors.
 Facet metadata, mention DIDs, raw pattern URLs, embed contents, timestamps,
 duration-derived numeric estimates, import provenance, sponsored flags, and
 technical identifiers do not participate in keyword matching. Visible facet text
