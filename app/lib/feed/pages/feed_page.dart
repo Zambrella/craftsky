@@ -45,7 +45,6 @@ class _FeedPageState extends ConsumerState<FeedPage> {
   final _scrollController = ScrollController();
   var _isPastScrollThreshold = false;
   var _isPinchingImage = false;
-  var _refreshGeneration = 0;
 
   @override
   void initState() {
@@ -110,7 +109,6 @@ class _FeedPageState extends ConsumerState<FeedPage> {
           InlinePinchZoomScope(
             onPinchChanged: _handleImagePinchChanged,
             child: YarnRefreshScrollView(
-              key: ValueKey(_refreshGeneration),
               notificationPredicate: (notification) =>
                   !_isPinchingImage &&
                   defaultScrollNotificationPredicate(notification),
@@ -173,12 +171,9 @@ class _FeedPageState extends ConsumerState<FeedPage> {
 
   void _handleImagePinchChanged(bool active) {
     if (_isPinchingImage == active || !mounted) return;
-    _isPinchingImage = active;
-    setState(() {
-      // Discard any pull started before the second finger landed, once the
-      // pinch and its scroll holds have finished.
-      if (!active) _refreshGeneration++;
-    });
+    // The refresh surface cancels multi-pointer pulls itself. Keep its
+    // scrollable mounted so releasing a pinch preserves the feed position.
+    setState(() => _isPinchingImage = active);
   }
 
   void _openComposer(BuildContext buttonContext) {
