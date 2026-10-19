@@ -84,6 +84,13 @@ class _ProjectSummary extends StatelessWidget {
               craft: project.common.craftType,
               tone: _ProjectChipTone.outlined,
             ),
+            for (final craft
+                in project.common.additionalCrafts ?? const <ProjectCraft>[])
+              _ProjectChip(
+                label: _craftTypeLabel(craft.craftType),
+                craft: craft.craftType,
+                tone: _ProjectChipTone.outlined,
+              ),
           ],
         ),
         if (pattern != null || size != null) ...[
@@ -144,6 +151,13 @@ class _ProjectDetail extends StatelessWidget {
               craft: project.common.craftType,
               tone: _ProjectChipTone.outlined,
             ),
+            for (final craft
+                in project.common.additionalCrafts ?? const <ProjectCraft>[])
+              _ProjectChip(
+                label: _craftTypeLabel(craft.craftType),
+                craft: craft.craftType,
+                tone: _ProjectChipTone.outlined,
+              ),
           ],
         ),
         if (hasPattern || rows.isNotEmpty) ...[

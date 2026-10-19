@@ -1,0 +1,3788 @@
+{
+  "version": 1,
+  "equivalenceGroups": [
+    [
+      "work in progress",
+      "wip"
+    ],
+    [
+      "stocking stitch",
+      "stockinette"
+    ],
+    [
+      "jumper",
+      "sweater"
+    ]
+  ],
+  "entries": [
+    {
+      "id": "social.craftsky.feed.defs#knitting",
+      "family": "craft",
+      "labels": {
+        "en": "Knitting"
+      },
+      "aliases": [],
+      "parents": []
+    },
+    {
+      "id": "social.craftsky.feed.defs#crochet",
+      "family": "craft",
+      "labels": {
+        "en": "Crochet"
+      },
+      "aliases": [],
+      "parents": []
+    },
+    {
+      "id": "social.craftsky.feed.defs#sewing",
+      "family": "craft",
+      "labels": {
+        "en": "Sewing"
+      },
+      "aliases": [],
+      "parents": []
+    },
+    {
+      "id": "social.craftsky.feed.defs#embroidery",
+      "family": "craft",
+      "labels": {
+        "en": "Embroidery"
+      },
+      "aliases": [],
+      "parents": []
+    },
+    {
+      "id": "social.craftsky.feed.defs#quilting",
+      "family": "craft",
+      "labels": {
+        "en": "Quilting"
+      },
+      "aliases": [],
+      "parents": []
+    },
+    {
+      "id": "social.craftsky.feed.defs#finished",
+      "family": "status",
+      "labels": {
+        "en": "Finished"
+      },
+      "aliases": [
+        "completed"
+      ],
+      "parents": []
+    },
+    {
+      "id": "social.craftsky.feed.defs#wip",
+      "family": "status",
+      "labels": {
+        "en": "Work in progress"
+      },
+      "aliases": [
+        "wip"
+      ],
+      "parents": []
+    },
+    {
+      "id": "social.craftsky.feed.defs#beginner",
+      "family": "difficulty",
+      "labels": {
+        "en": "Beginner"
+      },
+      "aliases": [],
+      "parents": []
+    },
+    {
+      "id": "social.craftsky.feed.defs#confidentBeginner",
+      "family": "difficulty",
+      "labels": {
+        "en": "Confident beginner"
+      },
+      "aliases": [],
+      "parents": []
+    },
+    {
+      "id": "social.craftsky.feed.defs#intermediate",
+      "family": "difficulty",
+      "labels": {
+        "en": "Intermediate"
+      },
+      "aliases": [],
+      "parents": []
+    },
+    {
+      "id": "social.craftsky.feed.defs#advanced",
+      "family": "difficulty",
+      "labels": {
+        "en": "Advanced"
+      },
+      "aliases": [],
+      "parents": []
+    },
+    {
+      "id": "social.craftsky.project.defs#garment",
+      "family": "projectType",
+      "labels": {
+        "en": "Garment"
+      },
+      "aliases": [],
+      "parents": []
+    },
+    {
+      "id": "social.craftsky.project.defs#accessory",
+      "family": "projectType",
+      "labels": {
+        "en": "Accessory"
+      },
+      "aliases": [],
+      "parents": []
+    },
+    {
+      "id": "social.craftsky.project.defs#homeGoods",
+      "family": "projectType",
+      "labels": {
+        "en": "Home goods"
+      },
+      "aliases": [
+        "home decor"
+      ],
+      "parents": []
+    },
+    {
+      "id": "social.craftsky.project.defs#toyHobby",
+      "family": "projectType",
+      "labels": {
+        "en": "Toy or hobby"
+      },
+      "aliases": [
+        "toys"
+      ],
+      "parents": []
+    },
+    {
+      "id": "social.craftsky.project.defs#pet",
+      "family": "projectType",
+      "labels": {
+        "en": "Pet"
+      },
+      "aliases": [],
+      "parents": []
+    },
+    {
+      "id": "social.craftsky.project.defs#medical",
+      "family": "projectType",
+      "labels": {
+        "en": "Medical or adaptive"
+      },
+      "aliases": [],
+      "parents": []
+    },
+    {
+      "id": "social.craftsky.project.defs#component",
+      "family": "projectType",
+      "labels": {
+        "en": "Component"
+      },
+      "aliases": [],
+      "parents": []
+    },
+    {
+      "id": "social.craftsky.project.defs#quilt",
+      "family": "projectType",
+      "labels": {
+        "en": "Quilt"
+      },
+      "aliases": [],
+      "parents": []
+    },
+    {
+      "id": "social.craftsky.project.defs#alteration",
+      "family": "projectType",
+      "labels": {
+        "en": "Alteration"
+      },
+      "aliases": [],
+      "parents": []
+    },
+    {
+      "id": "social.craftsky.project.defs#costume",
+      "family": "projectType",
+      "labels": {
+        "en": "Costume"
+      },
+      "aliases": [],
+      "parents": []
+    },
+    {
+      "id": "social.craftsky.project.defs#other",
+      "family": "projectType",
+      "labels": {
+        "en": "Other"
+      },
+      "aliases": [],
+      "parents": []
+    },
+    {
+      "id": "social.craftsky.project.defs#lace",
+      "family": "yarnWeight",
+      "labels": {
+        "en": "Lace"
+      },
+      "aliases": [],
+      "parents": []
+    },
+    {
+      "id": "social.craftsky.project.defs#fingering",
+      "family": "yarnWeight",
+      "labels": {
+        "en": "Fingering"
+      },
+      "aliases": [],
+      "parents": []
+    },
+    {
+      "id": "social.craftsky.project.defs#sport",
+      "family": "yarnWeight",
+      "labels": {
+        "en": "Sport"
+      },
+      "aliases": [],
+      "parents": []
+    },
+    {
+      "id": "social.craftsky.project.defs#dk",
+      "family": "yarnWeight",
+      "labels": {
+        "en": "DK"
+      },
+      "aliases": [],
+      "parents": []
+    },
+    {
+      "id": "social.craftsky.project.defs#worsted",
+      "family": "yarnWeight",
+      "labels": {
+        "en": "Worsted"
+      },
+      "aliases": [],
+      "parents": []
+    },
+    {
+      "id": "social.craftsky.project.defs#aran",
+      "family": "yarnWeight",
+      "labels": {
+        "en": "Aran"
+      },
+      "aliases": [],
+      "parents": []
+    },
+    {
+      "id": "social.craftsky.project.defs#bulky",
+      "family": "yarnWeight",
+      "labels": {
+        "en": "Bulky"
+      },
+      "aliases": [],
+      "parents": []
+    },
+    {
+      "id": "social.craftsky.project.defs#superBulky",
+      "family": "yarnWeight",
+      "labels": {
+        "en": "Super bulky"
+      },
+      "aliases": [
+        "super chunky"
+      ],
+      "parents": []
+    },
+    {
+      "id": "black",
+      "family": "color",
+      "labels": {
+        "en": "Black"
+      },
+      "aliases": [],
+      "parents": []
+    },
+    {
+      "id": "white",
+      "family": "color",
+      "labels": {
+        "en": "White"
+      },
+      "aliases": [],
+      "parents": []
+    },
+    {
+      "id": "gray",
+      "family": "color",
+      "labels": {
+        "en": "Grey"
+      },
+      "aliases": [
+        "grey"
+      ],
+      "parents": []
+    },
+    {
+      "id": "brown",
+      "family": "color",
+      "labels": {
+        "en": "Brown"
+      },
+      "aliases": [],
+      "parents": []
+    },
+    {
+      "id": "beige",
+      "family": "color",
+      "labels": {
+        "en": "Beige"
+      },
+      "aliases": [],
+      "parents": []
+    },
+    {
+      "id": "red",
+      "family": "color",
+      "labels": {
+        "en": "Red"
+      },
+      "aliases": [],
+      "parents": []
+    },
+    {
+      "id": "orange",
+      "family": "color",
+      "labels": {
+        "en": "Orange"
+      },
+      "aliases": [],
+      "parents": []
+    },
+    {
+      "id": "yellow",
+      "family": "color",
+      "labels": {
+        "en": "Yellow"
+      },
+      "aliases": [],
+      "parents": []
+    },
+    {
+      "id": "green",
+      "family": "color",
+      "labels": {
+        "en": "Green"
+      },
+      "aliases": [],
+      "parents": []
+    },
+    {
+      "id": "blue",
+      "family": "color",
+      "labels": {
+        "en": "Blue"
+      },
+      "aliases": [],
+      "parents": []
+    },
+    {
+      "id": "purple",
+      "family": "color",
+      "labels": {
+        "en": "Purple"
+      },
+      "aliases": [],
+      "parents": []
+    },
+    {
+      "id": "pink",
+      "family": "color",
+      "labels": {
+        "en": "Pink"
+      },
+      "aliases": [],
+      "parents": []
+    },
+    {
+      "id": "cream",
+      "family": "color",
+      "labels": {
+        "en": "Cream"
+      },
+      "aliases": [],
+      "parents": []
+    },
+    {
+      "id": "gold",
+      "family": "color",
+      "labels": {
+        "en": "Gold"
+      },
+      "aliases": [],
+      "parents": []
+    },
+    {
+      "id": "silver",
+      "family": "color",
+      "labels": {
+        "en": "Silver"
+      },
+      "aliases": [],
+      "parents": []
+    },
+    {
+      "id": "multicolor",
+      "family": "color",
+      "labels": {
+        "en": "Multicolour"
+      },
+      "aliases": [
+        "multicolour"
+      ],
+      "parents": []
+    },
+    {
+      "id": "natural",
+      "family": "color",
+      "labels": {
+        "en": "Natural"
+      },
+      "aliases": [],
+      "parents": []
+    },
+    {
+      "id": "social.craftsky.project.defs#floral",
+      "family": "designTag",
+      "labels": {
+        "en": "Floral"
+      },
+      "aliases": [],
+      "parents": []
+    },
+    {
+      "id": "social.craftsky.project.defs#botanical",
+      "family": "designTag",
+      "labels": {
+        "en": "Botanical"
+      },
+      "aliases": [],
+      "parents": []
+    },
+    {
+      "id": "social.craftsky.project.defs#animal",
+      "family": "designTag",
+      "labels": {
+        "en": "Animal"
+      },
+      "aliases": [],
+      "parents": []
+    },
+    {
+      "id": "social.craftsky.project.defs#geometric",
+      "family": "designTag",
+      "labels": {
+        "en": "Geometric"
+      },
+      "aliases": [],
+      "parents": []
+    },
+    {
+      "id": "social.craftsky.project.defs#abstract",
+      "family": "designTag",
+      "labels": {
+        "en": "Abstract"
+      },
+      "aliases": [],
+      "parents": []
+    },
+    {
+      "id": "social.craftsky.project.defs#stripes",
+      "family": "designTag",
+      "labels": {
+        "en": "Stripes"
+      },
+      "aliases": [],
+      "parents": []
+    },
+    {
+      "id": "social.craftsky.project.defs#colorblock",
+      "family": "designTag",
+      "labels": {
+        "en": "Colour block"
+      },
+      "aliases": [
+        "color block",
+        "colour block"
+      ],
+      "parents": []
+    },
+    {
+      "id": "social.craftsky.project.defs#plaid",
+      "family": "designTag",
+      "labels": {
+        "en": "Plaid"
+      },
+      "aliases": [],
+      "parents": []
+    },
+    {
+      "id": "social.craftsky.project.defs#checkerboard",
+      "family": "designTag",
+      "labels": {
+        "en": "Checkerboard"
+      },
+      "aliases": [],
+      "parents": []
+    },
+    {
+      "id": "social.craftsky.project.defs#lettering",
+      "family": "designTag",
+      "labels": {
+        "en": "Lettering"
+      },
+      "aliases": [],
+      "parents": []
+    },
+    {
+      "id": "social.craftsky.project.defs#novelty",
+      "family": "designTag",
+      "labels": {
+        "en": "Novelty"
+      },
+      "aliases": [],
+      "parents": []
+    },
+    {
+      "id": "social.craftsky.project.defs#holiday",
+      "family": "designTag",
+      "labels": {
+        "en": "Holiday"
+      },
+      "aliases": [],
+      "parents": []
+    },
+    {
+      "id": "social.craftsky.project.defs#seasonal",
+      "family": "designTag",
+      "labels": {
+        "en": "Seasonal"
+      },
+      "aliases": [],
+      "parents": []
+    },
+    {
+      "id": "social.craftsky.project.defs#traditional",
+      "family": "designTag",
+      "labels": {
+        "en": "Traditional"
+      },
+      "aliases": [],
+      "parents": []
+    },
+    {
+      "id": "social.craftsky.project.defs#modern",
+      "family": "designTag",
+      "labels": {
+        "en": "Modern"
+      },
+      "aliases": [],
+      "parents": []
+    },
+    {
+      "id": "social.craftsky.project.defs#vintage",
+      "family": "designTag",
+      "labels": {
+        "en": "Vintage"
+      },
+      "aliases": [],
+      "parents": []
+    },
+    {
+      "id": "social.craftsky.project.defs#minimalist",
+      "family": "designTag",
+      "labels": {
+        "en": "Minimalist"
+      },
+      "aliases": [],
+      "parents": []
+    },
+    {
+      "id": "social.craftsky.project.defs#maximalist",
+      "family": "designTag",
+      "labels": {
+        "en": "Maximalist"
+      },
+      "aliases": [],
+      "parents": []
+    },
+    {
+      "id": "social.craftsky.project.defs#whimsical",
+      "family": "designTag",
+      "labels": {
+        "en": "Whimsical"
+      },
+      "aliases": [],
+      "parents": []
+    },
+    {
+      "id": "social.craftsky.project.defs#folk",
+      "family": "designTag",
+      "labels": {
+        "en": "Folk"
+      },
+      "aliases": [],
+      "parents": []
+    },
+    {
+      "id": "social.craftsky.project.defs#boho",
+      "family": "designTag",
+      "labels": {
+        "en": "Boho"
+      },
+      "aliases": [],
+      "parents": []
+    },
+    {
+      "id": "social.craftsky.project.defs#cottagecore",
+      "family": "designTag",
+      "labels": {
+        "en": "Cottagecore"
+      },
+      "aliases": [],
+      "parents": []
+    },
+    {
+      "id": "social.craftsky.project.defs#gothic",
+      "family": "designTag",
+      "labels": {
+        "en": "Gothic"
+      },
+      "aliases": [],
+      "parents": []
+    },
+    {
+      "id": "social.craftsky.project.defs#romantic",
+      "family": "designTag",
+      "labels": {
+        "en": "Romantic"
+      },
+      "aliases": [],
+      "parents": []
+    },
+    {
+      "id": "social.craftsky.project.defs#nautical",
+      "family": "designTag",
+      "labels": {
+        "en": "Nautical"
+      },
+      "aliases": [],
+      "parents": []
+    },
+    {
+      "id": "social.craftsky.project.defs#sporty",
+      "family": "designTag",
+      "labels": {
+        "en": "Sporty"
+      },
+      "aliases": [],
+      "parents": []
+    },
+    {
+      "id": "social.craftsky.project.quilting.defs#handQuilted",
+      "family": "quiltingMethod",
+      "labels": {
+        "en": "Hand quilted"
+      },
+      "aliases": [],
+      "parents": []
+    },
+    {
+      "id": "social.craftsky.project.quilting.defs#machineQuilted",
+      "family": "quiltingMethod",
+      "labels": {
+        "en": "Machine quilted"
+      },
+      "aliases": [],
+      "parents": []
+    },
+    {
+      "id": "social.craftsky.project.quilting.defs#longarm",
+      "family": "quiltingMethod",
+      "labels": {
+        "en": "Longarm"
+      },
+      "aliases": [],
+      "parents": []
+    },
+    {
+      "id": "social.craftsky.project.quilting.defs#tied",
+      "family": "quiltingMethod",
+      "labels": {
+        "en": "Tied"
+      },
+      "aliases": [],
+      "parents": []
+    },
+    {
+      "id": "social.craftsky.project.sewing.defs#coatJacket",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Coat or jacket"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#garment"
+      ],
+      "craft": "social.craftsky.feed.defs#sewing",
+      "concept": "projectSubtype:coatJacket"
+    },
+    {
+      "id": "social.craftsky.project.sewing.defs#dress",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Dress"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#garment"
+      ],
+      "craft": "social.craftsky.feed.defs#sewing",
+      "concept": "projectSubtype:dress"
+    },
+    {
+      "id": "social.craftsky.project.sewing.defs#top",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Top"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#garment"
+      ],
+      "craft": "social.craftsky.feed.defs#sewing",
+      "concept": "projectSubtype:top"
+    },
+    {
+      "id": "social.craftsky.project.sewing.defs#shirt",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Shirt"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#garment"
+      ],
+      "craft": "social.craftsky.feed.defs#sewing",
+      "concept": "projectSubtype:shirt"
+    },
+    {
+      "id": "social.craftsky.project.sewing.defs#blouse",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Blouse"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#garment"
+      ],
+      "craft": "social.craftsky.feed.defs#sewing",
+      "concept": "projectSubtype:blouse"
+    },
+    {
+      "id": "social.craftsky.project.sewing.defs#tunic",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Tunic"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#garment"
+      ],
+      "craft": "social.craftsky.feed.defs#sewing",
+      "concept": "projectSubtype:tunic"
+    },
+    {
+      "id": "social.craftsky.project.sewing.defs#pants",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Pants or trousers"
+      },
+      "aliases": [
+        "trousers"
+      ],
+      "parents": [
+        "social.craftsky.project.defs#garment"
+      ],
+      "craft": "social.craftsky.feed.defs#sewing",
+      "concept": "projectSubtype:pants"
+    },
+    {
+      "id": "social.craftsky.project.sewing.defs#shorts",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Shorts"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#garment"
+      ],
+      "craft": "social.craftsky.feed.defs#sewing",
+      "concept": "projectSubtype:shorts"
+    },
+    {
+      "id": "social.craftsky.project.sewing.defs#skirt",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Skirt"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#garment"
+      ],
+      "craft": "social.craftsky.feed.defs#sewing",
+      "concept": "projectSubtype:skirt"
+    },
+    {
+      "id": "social.craftsky.project.sewing.defs#leggings",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Leggings"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#garment"
+      ],
+      "craft": "social.craftsky.feed.defs#sewing",
+      "concept": "projectSubtype:leggings"
+    },
+    {
+      "id": "social.craftsky.project.sewing.defs#jumpsuit",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Jumpsuit or romper"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#garment"
+      ],
+      "craft": "social.craftsky.feed.defs#sewing",
+      "concept": "projectSubtype:jumpsuit"
+    },
+    {
+      "id": "social.craftsky.project.sewing.defs#robe",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Robe"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#garment"
+      ],
+      "craft": "social.craftsky.feed.defs#sewing",
+      "concept": "projectSubtype:robe"
+    },
+    {
+      "id": "social.craftsky.project.sewing.defs#sleepwear",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Sleepwear"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#garment"
+      ],
+      "craft": "social.craftsky.feed.defs#sewing",
+      "concept": "projectSubtype:sleepwear"
+    },
+    {
+      "id": "social.craftsky.project.sewing.defs#swimwear",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Swimwear"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#garment"
+      ],
+      "craft": "social.craftsky.feed.defs#sewing",
+      "concept": "projectSubtype:swimwear"
+    },
+    {
+      "id": "social.craftsky.project.sewing.defs#intimateApparel",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Intimate apparel"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#garment"
+      ],
+      "craft": "social.craftsky.feed.defs#sewing",
+      "concept": "projectSubtype:intimateApparel"
+    },
+    {
+      "id": "social.craftsky.project.sewing.defs#vest",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Vest"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#garment"
+      ],
+      "craft": "social.craftsky.feed.defs#sewing",
+      "concept": "projectSubtype:vest"
+    },
+    {
+      "id": "social.craftsky.project.sewing.defs#babyOnesie",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Baby onesie"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#garment"
+      ],
+      "craft": "social.craftsky.feed.defs#sewing",
+      "concept": "projectSubtype:babyOnesie"
+    },
+    {
+      "id": "social.craftsky.project.sewing.defs#shrugBolero",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Shrug or bolero"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#garment"
+      ],
+      "craft": "social.craftsky.feed.defs#sewing",
+      "concept": "projectSubtype:shrugBolero"
+    },
+    {
+      "id": "social.craftsky.project.sewing.defs#bag",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Bag"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#accessory"
+      ],
+      "craft": "social.craftsky.feed.defs#sewing",
+      "concept": "projectSubtype:bag"
+    },
+    {
+      "id": "social.craftsky.project.sewing.defs#tote",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Tote bag"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.sewing.defs#bag",
+        "social.craftsky.project.defs#accessory"
+      ],
+      "craft": "social.craftsky.feed.defs#sewing",
+      "concept": "projectSubtype:tote"
+    },
+    {
+      "id": "social.craftsky.project.sewing.defs#pouch",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Pouch or small case"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#accessory"
+      ],
+      "craft": "social.craftsky.feed.defs#sewing",
+      "concept": "projectSubtype:pouch"
+    },
+    {
+      "id": "social.craftsky.project.sewing.defs#wallet",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Wallet"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#accessory"
+      ],
+      "craft": "social.craftsky.feed.defs#sewing",
+      "concept": "projectSubtype:wallet"
+    },
+    {
+      "id": "social.craftsky.project.sewing.defs#belt",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Belt"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#accessory"
+      ],
+      "craft": "social.craftsky.feed.defs#sewing",
+      "concept": "projectSubtype:belt"
+    },
+    {
+      "id": "social.craftsky.project.sewing.defs#hat",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Hat or cap"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#accessory"
+      ],
+      "craft": "social.craftsky.feed.defs#sewing",
+      "concept": "projectSubtype:hat"
+    },
+    {
+      "id": "social.craftsky.project.sewing.defs#headband",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Headband"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#accessory"
+      ],
+      "craft": "social.craftsky.feed.defs#sewing",
+      "concept": "projectSubtype:headband"
+    },
+    {
+      "id": "social.craftsky.project.sewing.defs#scarf",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Scarf"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#accessory"
+      ],
+      "craft": "social.craftsky.feed.defs#sewing",
+      "concept": "projectSubtype:scarf"
+    },
+    {
+      "id": "social.craftsky.project.sewing.defs#jewelry",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Jewellery"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#accessory"
+      ],
+      "craft": "social.craftsky.feed.defs#sewing",
+      "concept": "projectSubtype:jewelry"
+    },
+    {
+      "id": "social.craftsky.project.sewing.defs#glovesMittens",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Gloves or mittens"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#accessory"
+      ],
+      "craft": "social.craftsky.feed.defs#sewing",
+      "concept": "projectSubtype:glovesMittens"
+    },
+    {
+      "id": "social.craftsky.project.sewing.defs#shoeCover",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Shoe cover"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#accessory"
+      ],
+      "craft": "social.craftsky.feed.defs#sewing",
+      "concept": "projectSubtype:shoeCover"
+    },
+    {
+      "id": "social.craftsky.project.sewing.defs#blanket",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Blanket"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#homeGoods"
+      ],
+      "craft": "social.craftsky.feed.defs#sewing",
+      "concept": "projectSubtype:blanket"
+    },
+    {
+      "id": "social.craftsky.project.sewing.defs#bedding",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Bedding"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#homeGoods"
+      ],
+      "craft": "social.craftsky.feed.defs#sewing",
+      "concept": "projectSubtype:bedding"
+    },
+    {
+      "id": "social.craftsky.project.sewing.defs#pillow",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Pillow or cushion"
+      },
+      "aliases": [
+        "cushion"
+      ],
+      "parents": [
+        "social.craftsky.project.defs#homeGoods"
+      ],
+      "craft": "social.craftsky.feed.defs#sewing",
+      "concept": "projectSubtype:pillow"
+    },
+    {
+      "id": "social.craftsky.project.sewing.defs#curtain",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Curtain or window covering"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#homeGoods"
+      ],
+      "craft": "social.craftsky.feed.defs#sewing",
+      "concept": "projectSubtype:curtain"
+    },
+    {
+      "id": "social.craftsky.project.sewing.defs#tableRunner",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Table runner"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#homeGoods"
+      ],
+      "craft": "social.craftsky.feed.defs#sewing",
+      "concept": "projectSubtype:tableRunner"
+    },
+    {
+      "id": "social.craftsky.project.sewing.defs#placemat",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Placemat"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#homeGoods"
+      ],
+      "craft": "social.craftsky.feed.defs#sewing",
+      "concept": "projectSubtype:placemat"
+    },
+    {
+      "id": "social.craftsky.project.sewing.defs#napkin",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Napkin"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#homeGoods"
+      ],
+      "craft": "social.craftsky.feed.defs#sewing",
+      "concept": "projectSubtype:napkin"
+    },
+    {
+      "id": "social.craftsky.project.sewing.defs#potholder",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Potholder or hot pad"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#homeGoods"
+      ],
+      "craft": "social.craftsky.feed.defs#sewing",
+      "concept": "projectSubtype:potholder"
+    },
+    {
+      "id": "social.craftsky.project.sewing.defs#coaster",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Coaster"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#homeGoods"
+      ],
+      "craft": "social.craftsky.feed.defs#sewing",
+      "concept": "projectSubtype:coaster"
+    },
+    {
+      "id": "social.craftsky.project.sewing.defs#rug",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Rug or mat"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#homeGoods"
+      ],
+      "craft": "social.craftsky.feed.defs#sewing",
+      "concept": "projectSubtype:rug"
+    },
+    {
+      "id": "social.craftsky.project.sewing.defs#basket",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Basket"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#homeGoods"
+      ],
+      "craft": "social.craftsky.feed.defs#sewing",
+      "concept": "projectSubtype:basket"
+    },
+    {
+      "id": "social.craftsky.project.sewing.defs#container",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Container or storage item"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#homeGoods"
+      ],
+      "craft": "social.craftsky.feed.defs#sewing",
+      "concept": "projectSubtype:container"
+    },
+    {
+      "id": "social.craftsky.project.sewing.defs#lampshade",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Lampshade"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#homeGoods"
+      ],
+      "craft": "social.craftsky.feed.defs#sewing",
+      "concept": "projectSubtype:lampshade"
+    },
+    {
+      "id": "social.craftsky.project.sewing.defs#sachet",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Sachet"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#homeGoods"
+      ],
+      "craft": "social.craftsky.feed.defs#sewing",
+      "concept": "projectSubtype:sachet"
+    },
+    {
+      "id": "social.craftsky.project.sewing.defs#decorative",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Decorative home item"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#homeGoods"
+      ],
+      "craft": "social.craftsky.feed.defs#sewing",
+      "concept": "projectSubtype:decorative"
+    },
+    {
+      "id": "social.craftsky.project.sewing.defs#softToy",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Soft toy"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#toyHobby"
+      ],
+      "craft": "social.craftsky.feed.defs#sewing",
+      "concept": "projectSubtype:softToy"
+    },
+    {
+      "id": "social.craftsky.project.sewing.defs#dollClothes",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Doll clothes"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#toyHobby"
+      ],
+      "craft": "social.craftsky.feed.defs#sewing",
+      "concept": "projectSubtype:dollClothes"
+    },
+    {
+      "id": "social.craftsky.project.sewing.defs#puppet",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Puppet"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#toyHobby"
+      ],
+      "craft": "social.craftsky.feed.defs#sewing",
+      "concept": "projectSubtype:puppet"
+    },
+    {
+      "id": "social.craftsky.project.sewing.defs#costumePiece",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Costume piece"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#costume"
+      ],
+      "craft": "social.craftsky.feed.defs#sewing",
+      "concept": "projectSubtype:costumePiece"
+    },
+    {
+      "id": "social.craftsky.project.sewing.defs#playFood",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Play food"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#toyHobby"
+      ],
+      "craft": "social.craftsky.feed.defs#sewing",
+      "concept": "projectSubtype:playFood"
+    },
+    {
+      "id": "social.craftsky.project.sewing.defs#game",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Game or game piece"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#toyHobby"
+      ],
+      "craft": "social.craftsky.feed.defs#sewing",
+      "concept": "projectSubtype:game"
+    },
+    {
+      "id": "social.craftsky.project.sewing.defs#mobile",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Mobile or hanging toy"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#toyHobby"
+      ],
+      "craft": "social.craftsky.feed.defs#sewing",
+      "concept": "projectSubtype:mobile"
+    },
+    {
+      "id": "social.craftsky.project.sewing.defs#craftSupply",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Craft supply or organiser"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#toyHobby"
+      ],
+      "craft": "social.craftsky.feed.defs#sewing",
+      "concept": "projectSubtype:craftSupply"
+    },
+    {
+      "id": "social.craftsky.project.sewing.defs#petClothing",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Pet clothing"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#pet"
+      ],
+      "craft": "social.craftsky.feed.defs#sewing",
+      "concept": "projectSubtype:petClothing"
+    },
+    {
+      "id": "social.craftsky.project.sewing.defs#petBedding",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Pet bedding"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#pet"
+      ],
+      "craft": "social.craftsky.feed.defs#sewing",
+      "concept": "projectSubtype:petBedding"
+    },
+    {
+      "id": "social.craftsky.project.sewing.defs#petToy",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Pet toy"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#pet"
+      ],
+      "craft": "social.craftsky.feed.defs#sewing",
+      "concept": "projectSubtype:petToy"
+    },
+    {
+      "id": "social.craftsky.project.sewing.defs#petAccessory",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Pet accessory"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#pet"
+      ],
+      "craft": "social.craftsky.feed.defs#sewing",
+      "concept": "projectSubtype:petAccessory"
+    },
+    {
+      "id": "social.craftsky.project.sewing.defs#mask",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Mask or face covering"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#medical"
+      ],
+      "craft": "social.craftsky.feed.defs#sewing",
+      "concept": "projectSubtype:mask"
+    },
+    {
+      "id": "social.craftsky.project.sewing.defs#heatColdPack",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Heat or cold pack"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#medical"
+      ],
+      "craft": "social.craftsky.feed.defs#sewing",
+      "concept": "projectSubtype:heatColdPack"
+    },
+    {
+      "id": "social.craftsky.project.sewing.defs#adaptiveClothing",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Adaptive clothing"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#medical"
+      ],
+      "craft": "social.craftsky.feed.defs#sewing",
+      "concept": "projectSubtype:adaptiveClothing"
+    },
+    {
+      "id": "social.craftsky.project.sewing.defs#braceSupport",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Brace, support or wrap"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#medical"
+      ],
+      "craft": "social.craftsky.feed.defs#sewing",
+      "concept": "projectSubtype:braceSupport"
+    },
+    {
+      "id": "social.craftsky.project.sewing.defs#wheelchairAccessory",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Wheelchair accessory"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#medical"
+      ],
+      "craft": "social.craftsky.feed.defs#sewing",
+      "concept": "projectSubtype:wheelchairAccessory"
+    },
+    {
+      "id": "social.craftsky.project.sewing.defs#patch",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Patch"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#component"
+      ],
+      "craft": "social.craftsky.feed.defs#sewing",
+      "concept": "projectSubtype:patch"
+    },
+    {
+      "id": "social.craftsky.project.sewing.defs#applique",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Applique"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#component"
+      ],
+      "craft": "social.craftsky.feed.defs#sewing",
+      "concept": "projectSubtype:applique"
+    },
+    {
+      "id": "social.craftsky.project.sewing.defs#pocket",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Pocket"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#component"
+      ],
+      "craft": "social.craftsky.feed.defs#sewing",
+      "concept": "projectSubtype:pocket"
+    },
+    {
+      "id": "social.craftsky.project.sewing.defs#strap",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Strap"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#component"
+      ],
+      "craft": "social.craftsky.feed.defs#sewing",
+      "concept": "projectSubtype:strap"
+    },
+    {
+      "id": "social.craftsky.project.sewing.defs#lining",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Lining"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#component"
+      ],
+      "craft": "social.craftsky.feed.defs#sewing",
+      "concept": "projectSubtype:lining"
+    },
+    {
+      "id": "social.craftsky.project.sewing.defs#trim",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Trim"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#component"
+      ],
+      "craft": "social.craftsky.feed.defs#sewing",
+      "concept": "projectSubtype:trim"
+    },
+    {
+      "id": "social.craftsky.project.sewing.defs#mending",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Mending"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#alteration"
+      ],
+      "craft": "social.craftsky.feed.defs#sewing",
+      "concept": "projectSubtype:mending"
+    },
+    {
+      "id": "social.craftsky.project.sewing.defs#refashion",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Refashion"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#alteration"
+      ],
+      "craft": "social.craftsky.feed.defs#sewing",
+      "concept": "projectSubtype:refashion"
+    },
+    {
+      "id": "social.craftsky.project.sewing.defs#hemming",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Hemming"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#alteration"
+      ],
+      "craft": "social.craftsky.feed.defs#sewing",
+      "concept": "projectSubtype:hemming"
+    },
+    {
+      "id": "social.craftsky.project.sewing.defs#repair",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Repair"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#alteration"
+      ],
+      "craft": "social.craftsky.feed.defs#sewing",
+      "concept": "projectSubtype:repair"
+    },
+    {
+      "id": "social.craftsky.project.knitting.defs#sweater",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Sweater"
+      },
+      "aliases": [
+        "jumper"
+      ],
+      "parents": [
+        "social.craftsky.project.defs#garment"
+      ],
+      "craft": "social.craftsky.feed.defs#knitting",
+      "concept": "projectSubtype:sweater"
+    },
+    {
+      "id": "social.craftsky.project.knitting.defs#cardigan",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Cardigan"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.knitting.defs#sweater",
+        "social.craftsky.project.defs#garment"
+      ],
+      "craft": "social.craftsky.feed.defs#knitting",
+      "concept": "projectSubtype:cardigan"
+    },
+    {
+      "id": "social.craftsky.project.knitting.defs#pullover",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Pullover"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.knitting.defs#sweater",
+        "social.craftsky.project.defs#garment"
+      ],
+      "craft": "social.craftsky.feed.defs#knitting",
+      "concept": "projectSubtype:pullover"
+    },
+    {
+      "id": "social.craftsky.project.knitting.defs#top",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Top"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#garment"
+      ],
+      "craft": "social.craftsky.feed.defs#knitting",
+      "concept": "projectSubtype:top"
+    },
+    {
+      "id": "social.craftsky.project.knitting.defs#tee",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Tee"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#garment"
+      ],
+      "craft": "social.craftsky.feed.defs#knitting",
+      "concept": "projectSubtype:tee"
+    },
+    {
+      "id": "social.craftsky.project.knitting.defs#tank",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Tank"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#garment"
+      ],
+      "craft": "social.craftsky.feed.defs#knitting",
+      "concept": "projectSubtype:tank"
+    },
+    {
+      "id": "social.craftsky.project.knitting.defs#dress",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Dress"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#garment"
+      ],
+      "craft": "social.craftsky.feed.defs#knitting",
+      "concept": "projectSubtype:dress"
+    },
+    {
+      "id": "social.craftsky.project.knitting.defs#skirt",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Skirt"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#garment"
+      ],
+      "craft": "social.craftsky.feed.defs#knitting",
+      "concept": "projectSubtype:skirt"
+    },
+    {
+      "id": "social.craftsky.project.knitting.defs#vest",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Vest"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#garment"
+      ],
+      "craft": "social.craftsky.feed.defs#knitting",
+      "concept": "projectSubtype:vest"
+    },
+    {
+      "id": "social.craftsky.project.knitting.defs#shrugBolero",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Shrug or bolero"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#garment"
+      ],
+      "craft": "social.craftsky.feed.defs#knitting",
+      "concept": "projectSubtype:shrugBolero"
+    },
+    {
+      "id": "social.craftsky.project.knitting.defs#poncho",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Poncho"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#garment"
+      ],
+      "craft": "social.craftsky.feed.defs#knitting",
+      "concept": "projectSubtype:poncho"
+    },
+    {
+      "id": "social.craftsky.project.knitting.defs#coatJacket",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Coat or jacket"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#garment"
+      ],
+      "craft": "social.craftsky.feed.defs#knitting",
+      "concept": "projectSubtype:coatJacket"
+    },
+    {
+      "id": "social.craftsky.project.knitting.defs#babyOnesie",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Baby onesie"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#garment"
+      ],
+      "craft": "social.craftsky.feed.defs#knitting",
+      "concept": "projectSubtype:babyOnesie"
+    },
+    {
+      "id": "social.craftsky.project.knitting.defs#hat",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Hat"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#accessory"
+      ],
+      "craft": "social.craftsky.feed.defs#knitting",
+      "concept": "projectSubtype:hat"
+    },
+    {
+      "id": "social.craftsky.project.knitting.defs#beanie",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Beanie"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.knitting.defs#hat",
+        "social.craftsky.project.defs#accessory"
+      ],
+      "craft": "social.craftsky.feed.defs#knitting",
+      "concept": "projectSubtype:beanie"
+    },
+    {
+      "id": "social.craftsky.project.knitting.defs#headband",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Headband"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#accessory"
+      ],
+      "craft": "social.craftsky.feed.defs#knitting",
+      "concept": "projectSubtype:headband"
+    },
+    {
+      "id": "social.craftsky.project.knitting.defs#scarf",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Scarf"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#accessory"
+      ],
+      "craft": "social.craftsky.feed.defs#knitting",
+      "concept": "projectSubtype:scarf"
+    },
+    {
+      "id": "social.craftsky.project.knitting.defs#cowl",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Cowl"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#accessory"
+      ],
+      "craft": "social.craftsky.feed.defs#knitting",
+      "concept": "projectSubtype:cowl"
+    },
+    {
+      "id": "social.craftsky.project.knitting.defs#shawlWrap",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Shawl or wrap"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#accessory"
+      ],
+      "craft": "social.craftsky.feed.defs#knitting",
+      "concept": "projectSubtype:shawlWrap"
+    },
+    {
+      "id": "social.craftsky.project.knitting.defs#neckTorso",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Neck or torso accessory"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#accessory"
+      ],
+      "craft": "social.craftsky.feed.defs#knitting",
+      "concept": "projectSubtype:neckTorso"
+    },
+    {
+      "id": "social.craftsky.project.knitting.defs#mittens",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Mittens"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#accessory"
+      ],
+      "craft": "social.craftsky.feed.defs#knitting",
+      "concept": "projectSubtype:mittens"
+    },
+    {
+      "id": "social.craftsky.project.knitting.defs#gloves",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Gloves"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#accessory"
+      ],
+      "craft": "social.craftsky.feed.defs#knitting",
+      "concept": "projectSubtype:gloves"
+    },
+    {
+      "id": "social.craftsky.project.knitting.defs#fingerlessMitts",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Fingerless mitts"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.knitting.defs#mittens",
+        "social.craftsky.project.defs#accessory"
+      ],
+      "craft": "social.craftsky.feed.defs#knitting",
+      "concept": "projectSubtype:fingerlessMitts"
+    },
+    {
+      "id": "social.craftsky.project.knitting.defs#socks",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Socks"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#accessory"
+      ],
+      "craft": "social.craftsky.feed.defs#knitting",
+      "concept": "projectSubtype:socks"
+    },
+    {
+      "id": "social.craftsky.project.knitting.defs#slippers",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Slippers"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#accessory"
+      ],
+      "craft": "social.craftsky.feed.defs#knitting",
+      "concept": "projectSubtype:slippers"
+    },
+    {
+      "id": "social.craftsky.project.knitting.defs#bag",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Bag"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#accessory"
+      ],
+      "craft": "social.craftsky.feed.defs#knitting",
+      "concept": "projectSubtype:bag"
+    },
+    {
+      "id": "social.craftsky.project.knitting.defs#belt",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Belt"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#accessory"
+      ],
+      "craft": "social.craftsky.feed.defs#knitting",
+      "concept": "projectSubtype:belt"
+    },
+    {
+      "id": "social.craftsky.project.knitting.defs#jewelry",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Jewellery"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#accessory"
+      ],
+      "craft": "social.craftsky.feed.defs#knitting",
+      "concept": "projectSubtype:jewelry"
+    },
+    {
+      "id": "social.craftsky.project.knitting.defs#blanket",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Blanket"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#homeGoods"
+      ],
+      "craft": "social.craftsky.feed.defs#knitting",
+      "concept": "projectSubtype:blanket"
+    },
+    {
+      "id": "social.craftsky.project.knitting.defs#afghan",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Afghan"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.knitting.defs#blanket",
+        "social.craftsky.project.defs#homeGoods"
+      ],
+      "craft": "social.craftsky.feed.defs#knitting",
+      "concept": "projectSubtype:afghan"
+    },
+    {
+      "id": "social.craftsky.project.knitting.defs#babyBlanket",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Baby blanket"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.knitting.defs#blanket",
+        "social.craftsky.project.defs#homeGoods"
+      ],
+      "craft": "social.craftsky.feed.defs#knitting",
+      "concept": "projectSubtype:babyBlanket"
+    },
+    {
+      "id": "social.craftsky.project.knitting.defs#pillow",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Pillow"
+      },
+      "aliases": [
+        "cushion"
+      ],
+      "parents": [
+        "social.craftsky.project.defs#homeGoods"
+      ],
+      "craft": "social.craftsky.feed.defs#knitting",
+      "concept": "projectSubtype:pillow"
+    },
+    {
+      "id": "social.craftsky.project.knitting.defs#rug",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Rug"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#homeGoods"
+      ],
+      "craft": "social.craftsky.feed.defs#knitting",
+      "concept": "projectSubtype:rug"
+    },
+    {
+      "id": "social.craftsky.project.knitting.defs#washcloth",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Washcloth"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#homeGoods"
+      ],
+      "craft": "social.craftsky.feed.defs#knitting",
+      "concept": "projectSubtype:washcloth"
+    },
+    {
+      "id": "social.craftsky.project.knitting.defs#dishcloth",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Dishcloth"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#homeGoods"
+      ],
+      "craft": "social.craftsky.feed.defs#knitting",
+      "concept": "projectSubtype:dishcloth"
+    },
+    {
+      "id": "social.craftsky.project.knitting.defs#teaTowel",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Tea towel"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#homeGoods"
+      ],
+      "craft": "social.craftsky.feed.defs#knitting",
+      "concept": "projectSubtype:teaTowel"
+    },
+    {
+      "id": "social.craftsky.project.knitting.defs#cozy",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Cosy"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#homeGoods"
+      ],
+      "craft": "social.craftsky.feed.defs#knitting",
+      "concept": "projectSubtype:cozy"
+    },
+    {
+      "id": "social.craftsky.project.knitting.defs#decorative",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Decorative item"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#homeGoods"
+      ],
+      "craft": "social.craftsky.feed.defs#knitting",
+      "concept": "projectSubtype:decorative"
+    },
+    {
+      "id": "social.craftsky.project.knitting.defs#softToy",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Soft toy"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#toyHobby"
+      ],
+      "craft": "social.craftsky.feed.defs#knitting",
+      "concept": "projectSubtype:softToy"
+    },
+    {
+      "id": "social.craftsky.project.knitting.defs#doll",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Doll"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#toyHobby"
+      ],
+      "craft": "social.craftsky.feed.defs#knitting",
+      "concept": "projectSubtype:doll"
+    },
+    {
+      "id": "social.craftsky.project.knitting.defs#dollClothes",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Doll clothes"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#toyHobby"
+      ],
+      "craft": "social.craftsky.feed.defs#knitting",
+      "concept": "projectSubtype:dollClothes"
+    },
+    {
+      "id": "social.craftsky.project.knitting.defs#puppet",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Puppet"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#toyHobby"
+      ],
+      "craft": "social.craftsky.feed.defs#knitting",
+      "concept": "projectSubtype:puppet"
+    },
+    {
+      "id": "social.craftsky.project.knitting.defs#mobile",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Mobile"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#toyHobby"
+      ],
+      "craft": "social.craftsky.feed.defs#knitting",
+      "concept": "projectSubtype:mobile"
+    },
+    {
+      "id": "social.craftsky.project.knitting.defs#playFood",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Play food"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#toyHobby"
+      ],
+      "craft": "social.craftsky.feed.defs#knitting",
+      "concept": "projectSubtype:playFood"
+    },
+    {
+      "id": "social.craftsky.project.knitting.defs#ball",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Ball"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#toyHobby"
+      ],
+      "craft": "social.craftsky.feed.defs#knitting",
+      "concept": "projectSubtype:ball"
+    },
+    {
+      "id": "social.craftsky.project.knitting.defs#game",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Game"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#toyHobby"
+      ],
+      "craft": "social.craftsky.feed.defs#knitting",
+      "concept": "projectSubtype:game"
+    },
+    {
+      "id": "social.craftsky.project.knitting.defs#petSweater",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Pet sweater"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#pet"
+      ],
+      "craft": "social.craftsky.feed.defs#knitting",
+      "concept": "projectSubtype:petSweater"
+    },
+    {
+      "id": "social.craftsky.project.knitting.defs#petBedding",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Pet bedding"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#pet"
+      ],
+      "craft": "social.craftsky.feed.defs#knitting",
+      "concept": "projectSubtype:petBedding"
+    },
+    {
+      "id": "social.craftsky.project.knitting.defs#petToy",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Pet toy"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#pet"
+      ],
+      "craft": "social.craftsky.feed.defs#knitting",
+      "concept": "projectSubtype:petToy"
+    },
+    {
+      "id": "social.craftsky.project.knitting.defs#petAccessory",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Pet accessory"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#pet"
+      ],
+      "craft": "social.craftsky.feed.defs#knitting",
+      "concept": "projectSubtype:petAccessory"
+    },
+    {
+      "id": "social.craftsky.project.knitting.defs#mask",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Mask"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#medical"
+      ],
+      "craft": "social.craftsky.feed.defs#knitting",
+      "concept": "projectSubtype:mask"
+    },
+    {
+      "id": "social.craftsky.project.knitting.defs#heatColdPack",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Heat or cold pack"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#medical"
+      ],
+      "craft": "social.craftsky.feed.defs#knitting",
+      "concept": "projectSubtype:heatColdPack"
+    },
+    {
+      "id": "social.craftsky.project.knitting.defs#adaptiveClothing",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Adaptive clothing"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#medical"
+      ],
+      "craft": "social.craftsky.feed.defs#knitting",
+      "concept": "projectSubtype:adaptiveClothing"
+    },
+    {
+      "id": "social.craftsky.project.knitting.defs#compression",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Compression item"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#medical"
+      ],
+      "craft": "social.craftsky.feed.defs#knitting",
+      "concept": "projectSubtype:compression"
+    },
+    {
+      "id": "social.craftsky.project.knitting.defs#braceSupport",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Brace or support"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#medical"
+      ],
+      "craft": "social.craftsky.feed.defs#knitting",
+      "concept": "projectSubtype:braceSupport"
+    },
+    {
+      "id": "social.craftsky.project.knitting.defs#swatch",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Swatch"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#component"
+      ],
+      "craft": "social.craftsky.feed.defs#knitting",
+      "concept": "projectSubtype:swatch"
+    },
+    {
+      "id": "social.craftsky.project.knitting.defs#square",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Square"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#component"
+      ],
+      "craft": "social.craftsky.feed.defs#knitting",
+      "concept": "projectSubtype:square"
+    },
+    {
+      "id": "social.craftsky.project.knitting.defs#motif",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Motif"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#component"
+      ],
+      "craft": "social.craftsky.feed.defs#knitting",
+      "concept": "projectSubtype:motif"
+    },
+    {
+      "id": "social.craftsky.project.knitting.defs#patch",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Patch"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#component"
+      ],
+      "craft": "social.craftsky.feed.defs#knitting",
+      "concept": "projectSubtype:patch"
+    },
+    {
+      "id": "social.craftsky.project.knitting.defs#trim",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Trim"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#component"
+      ],
+      "craft": "social.craftsky.feed.defs#knitting",
+      "concept": "projectSubtype:trim"
+    },
+    {
+      "id": "social.craftsky.project.knitting.defs#cord",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Cord"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#component"
+      ],
+      "craft": "social.craftsky.feed.defs#knitting",
+      "concept": "projectSubtype:cord"
+    },
+    {
+      "id": "social.craftsky.project.crochet.defs#sweater",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Sweater"
+      },
+      "aliases": [
+        "jumper"
+      ],
+      "parents": [
+        "social.craftsky.project.defs#garment"
+      ],
+      "craft": "social.craftsky.feed.defs#crochet",
+      "concept": "projectSubtype:sweater"
+    },
+    {
+      "id": "social.craftsky.project.crochet.defs#cardigan",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Cardigan"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.crochet.defs#sweater",
+        "social.craftsky.project.defs#garment"
+      ],
+      "craft": "social.craftsky.feed.defs#crochet",
+      "concept": "projectSubtype:cardigan"
+    },
+    {
+      "id": "social.craftsky.project.crochet.defs#pullover",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Pullover"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.crochet.defs#sweater",
+        "social.craftsky.project.defs#garment"
+      ],
+      "craft": "social.craftsky.feed.defs#crochet",
+      "concept": "projectSubtype:pullover"
+    },
+    {
+      "id": "social.craftsky.project.crochet.defs#top",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Top"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#garment"
+      ],
+      "craft": "social.craftsky.feed.defs#crochet",
+      "concept": "projectSubtype:top"
+    },
+    {
+      "id": "social.craftsky.project.crochet.defs#tank",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Tank"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#garment"
+      ],
+      "craft": "social.craftsky.feed.defs#crochet",
+      "concept": "projectSubtype:tank"
+    },
+    {
+      "id": "social.craftsky.project.crochet.defs#tee",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Tee"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#garment"
+      ],
+      "craft": "social.craftsky.feed.defs#crochet",
+      "concept": "projectSubtype:tee"
+    },
+    {
+      "id": "social.craftsky.project.crochet.defs#dress",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Dress"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#garment"
+      ],
+      "craft": "social.craftsky.feed.defs#crochet",
+      "concept": "projectSubtype:dress"
+    },
+    {
+      "id": "social.craftsky.project.crochet.defs#skirt",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Skirt"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#garment"
+      ],
+      "craft": "social.craftsky.feed.defs#crochet",
+      "concept": "projectSubtype:skirt"
+    },
+    {
+      "id": "social.craftsky.project.crochet.defs#vest",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Vest"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#garment"
+      ],
+      "craft": "social.craftsky.feed.defs#crochet",
+      "concept": "projectSubtype:vest"
+    },
+    {
+      "id": "social.craftsky.project.crochet.defs#shrugBolero",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Shrug or bolero"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#garment"
+      ],
+      "craft": "social.craftsky.feed.defs#crochet",
+      "concept": "projectSubtype:shrugBolero"
+    },
+    {
+      "id": "social.craftsky.project.crochet.defs#poncho",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Poncho"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#garment"
+      ],
+      "craft": "social.craftsky.feed.defs#crochet",
+      "concept": "projectSubtype:poncho"
+    },
+    {
+      "id": "social.craftsky.project.crochet.defs#swimwear",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Swimwear"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#garment"
+      ],
+      "craft": "social.craftsky.feed.defs#crochet",
+      "concept": "projectSubtype:swimwear"
+    },
+    {
+      "id": "social.craftsky.project.crochet.defs#babyOnesie",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Baby onesie"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#garment"
+      ],
+      "craft": "social.craftsky.feed.defs#crochet",
+      "concept": "projectSubtype:babyOnesie"
+    },
+    {
+      "id": "social.craftsky.project.crochet.defs#bag",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Bag"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#accessory"
+      ],
+      "craft": "social.craftsky.feed.defs#crochet",
+      "concept": "projectSubtype:bag"
+    },
+    {
+      "id": "social.craftsky.project.crochet.defs#tote",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Tote"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.crochet.defs#bag",
+        "social.craftsky.project.defs#accessory"
+      ],
+      "craft": "social.craftsky.feed.defs#crochet",
+      "concept": "projectSubtype:tote"
+    },
+    {
+      "id": "social.craftsky.project.crochet.defs#pouch",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Pouch"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#accessory"
+      ],
+      "craft": "social.craftsky.feed.defs#crochet",
+      "concept": "projectSubtype:pouch"
+    },
+    {
+      "id": "social.craftsky.project.crochet.defs#hat",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Hat"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#accessory"
+      ],
+      "craft": "social.craftsky.feed.defs#crochet",
+      "concept": "projectSubtype:hat"
+    },
+    {
+      "id": "social.craftsky.project.crochet.defs#headband",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Headband"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#accessory"
+      ],
+      "craft": "social.craftsky.feed.defs#crochet",
+      "concept": "projectSubtype:headband"
+    },
+    {
+      "id": "social.craftsky.project.crochet.defs#scarf",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Scarf"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#accessory"
+      ],
+      "craft": "social.craftsky.feed.defs#crochet",
+      "concept": "projectSubtype:scarf"
+    },
+    {
+      "id": "social.craftsky.project.crochet.defs#cowl",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Cowl"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#accessory"
+      ],
+      "craft": "social.craftsky.feed.defs#crochet",
+      "concept": "projectSubtype:cowl"
+    },
+    {
+      "id": "social.craftsky.project.crochet.defs#shawlWrap",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Shawl or wrap"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#accessory"
+      ],
+      "craft": "social.craftsky.feed.defs#crochet",
+      "concept": "projectSubtype:shawlWrap"
+    },
+    {
+      "id": "social.craftsky.project.crochet.defs#neckTorso",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Neck or torso accessory"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#accessory"
+      ],
+      "craft": "social.craftsky.feed.defs#crochet",
+      "concept": "projectSubtype:neckTorso"
+    },
+    {
+      "id": "social.craftsky.project.crochet.defs#glovesMittens",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Gloves or mittens"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#accessory"
+      ],
+      "craft": "social.craftsky.feed.defs#crochet",
+      "concept": "projectSubtype:glovesMittens"
+    },
+    {
+      "id": "social.craftsky.project.crochet.defs#socksSlippers",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Socks or slippers"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#accessory"
+      ],
+      "craft": "social.craftsky.feed.defs#crochet",
+      "concept": "projectSubtype:socksSlippers"
+    },
+    {
+      "id": "social.craftsky.project.crochet.defs#belt",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Belt"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#accessory"
+      ],
+      "craft": "social.craftsky.feed.defs#crochet",
+      "concept": "projectSubtype:belt"
+    },
+    {
+      "id": "social.craftsky.project.crochet.defs#jewelry",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Jewellery"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#accessory"
+      ],
+      "craft": "social.craftsky.feed.defs#crochet",
+      "concept": "projectSubtype:jewelry"
+    },
+    {
+      "id": "social.craftsky.project.crochet.defs#blanket",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Blanket"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#homeGoods"
+      ],
+      "craft": "social.craftsky.feed.defs#crochet",
+      "concept": "projectSubtype:blanket"
+    },
+    {
+      "id": "social.craftsky.project.crochet.defs#afghan",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Afghan"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.crochet.defs#blanket",
+        "social.craftsky.project.defs#homeGoods"
+      ],
+      "craft": "social.craftsky.feed.defs#crochet",
+      "concept": "projectSubtype:afghan"
+    },
+    {
+      "id": "social.craftsky.project.crochet.defs#babyBlanket",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Baby blanket"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.crochet.defs#blanket",
+        "social.craftsky.project.defs#homeGoods"
+      ],
+      "craft": "social.craftsky.feed.defs#crochet",
+      "concept": "projectSubtype:babyBlanket"
+    },
+    {
+      "id": "social.craftsky.project.crochet.defs#pillow",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Pillow"
+      },
+      "aliases": [
+        "cushion"
+      ],
+      "parents": [
+        "social.craftsky.project.defs#homeGoods"
+      ],
+      "craft": "social.craftsky.feed.defs#crochet",
+      "concept": "projectSubtype:pillow"
+    },
+    {
+      "id": "social.craftsky.project.crochet.defs#rug",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Rug"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#homeGoods"
+      ],
+      "craft": "social.craftsky.feed.defs#crochet",
+      "concept": "projectSubtype:rug"
+    },
+    {
+      "id": "social.craftsky.project.crochet.defs#basket",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Basket"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#homeGoods"
+      ],
+      "craft": "social.craftsky.feed.defs#crochet",
+      "concept": "projectSubtype:basket"
+    },
+    {
+      "id": "social.craftsky.project.crochet.defs#container",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Container"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#homeGoods"
+      ],
+      "craft": "social.craftsky.feed.defs#crochet",
+      "concept": "projectSubtype:container"
+    },
+    {
+      "id": "social.craftsky.project.crochet.defs#coaster",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Coaster"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#homeGoods"
+      ],
+      "craft": "social.craftsky.feed.defs#crochet",
+      "concept": "projectSubtype:coaster"
+    },
+    {
+      "id": "social.craftsky.project.crochet.defs#potholder",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Potholder"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#homeGoods"
+      ],
+      "craft": "social.craftsky.feed.defs#crochet",
+      "concept": "projectSubtype:potholder"
+    },
+    {
+      "id": "social.craftsky.project.crochet.defs#doily",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Doily"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#homeGoods"
+      ],
+      "craft": "social.craftsky.feed.defs#crochet",
+      "concept": "projectSubtype:doily"
+    },
+    {
+      "id": "social.craftsky.project.crochet.defs#tableRunner",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Table runner"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#homeGoods"
+      ],
+      "craft": "social.craftsky.feed.defs#crochet",
+      "concept": "projectSubtype:tableRunner"
+    },
+    {
+      "id": "social.craftsky.project.crochet.defs#curtain",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Curtain"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#homeGoods"
+      ],
+      "craft": "social.craftsky.feed.defs#crochet",
+      "concept": "projectSubtype:curtain"
+    },
+    {
+      "id": "social.craftsky.project.crochet.defs#plantHanger",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Plant hanger"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#homeGoods"
+      ],
+      "craft": "social.craftsky.feed.defs#crochet",
+      "concept": "projectSubtype:plantHanger"
+    },
+    {
+      "id": "social.craftsky.project.crochet.defs#cozy",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Cosy"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#homeGoods"
+      ],
+      "craft": "social.craftsky.feed.defs#crochet",
+      "concept": "projectSubtype:cozy"
+    },
+    {
+      "id": "social.craftsky.project.crochet.defs#decorative",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Decorative item"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#homeGoods"
+      ],
+      "craft": "social.craftsky.feed.defs#crochet",
+      "concept": "projectSubtype:decorative"
+    },
+    {
+      "id": "social.craftsky.project.crochet.defs#amigurumi",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Amigurumi"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#toyHobby"
+      ],
+      "craft": "social.craftsky.feed.defs#crochet",
+      "concept": "projectSubtype:amigurumi"
+    },
+    {
+      "id": "social.craftsky.project.crochet.defs#softToy",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Soft toy"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#toyHobby"
+      ],
+      "craft": "social.craftsky.feed.defs#crochet",
+      "concept": "projectSubtype:softToy"
+    },
+    {
+      "id": "social.craftsky.project.crochet.defs#doll",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Doll"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#toyHobby"
+      ],
+      "craft": "social.craftsky.feed.defs#crochet",
+      "concept": "projectSubtype:doll"
+    },
+    {
+      "id": "social.craftsky.project.crochet.defs#dollClothes",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Doll clothes"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#toyHobby"
+      ],
+      "craft": "social.craftsky.feed.defs#crochet",
+      "concept": "projectSubtype:dollClothes"
+    },
+    {
+      "id": "social.craftsky.project.crochet.defs#puppet",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Puppet"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#toyHobby"
+      ],
+      "craft": "social.craftsky.feed.defs#crochet",
+      "concept": "projectSubtype:puppet"
+    },
+    {
+      "id": "social.craftsky.project.crochet.defs#mobile",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Mobile"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#toyHobby"
+      ],
+      "craft": "social.craftsky.feed.defs#crochet",
+      "concept": "projectSubtype:mobile"
+    },
+    {
+      "id": "social.craftsky.project.crochet.defs#playFood",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Play food"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#toyHobby"
+      ],
+      "craft": "social.craftsky.feed.defs#crochet",
+      "concept": "projectSubtype:playFood"
+    },
+    {
+      "id": "social.craftsky.project.crochet.defs#game",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Game"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#toyHobby"
+      ],
+      "craft": "social.craftsky.feed.defs#crochet",
+      "concept": "projectSubtype:game"
+    },
+    {
+      "id": "social.craftsky.project.crochet.defs#ball",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Ball"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#toyHobby"
+      ],
+      "craft": "social.craftsky.feed.defs#crochet",
+      "concept": "projectSubtype:ball"
+    },
+    {
+      "id": "social.craftsky.project.crochet.defs#blocks",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Blocks"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#toyHobby"
+      ],
+      "craft": "social.craftsky.feed.defs#crochet",
+      "concept": "projectSubtype:blocks"
+    },
+    {
+      "id": "social.craftsky.project.crochet.defs#costumePiece",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Costume piece"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#costume"
+      ],
+      "craft": "social.craftsky.feed.defs#crochet",
+      "concept": "projectSubtype:costumePiece"
+    },
+    {
+      "id": "social.craftsky.project.crochet.defs#petClothing",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Pet clothing"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#pet"
+      ],
+      "craft": "social.craftsky.feed.defs#crochet",
+      "concept": "projectSubtype:petClothing"
+    },
+    {
+      "id": "social.craftsky.project.crochet.defs#petBedding",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Pet bedding"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#pet"
+      ],
+      "craft": "social.craftsky.feed.defs#crochet",
+      "concept": "projectSubtype:petBedding"
+    },
+    {
+      "id": "social.craftsky.project.crochet.defs#petToy",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Pet toy"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#pet"
+      ],
+      "craft": "social.craftsky.feed.defs#crochet",
+      "concept": "projectSubtype:petToy"
+    },
+    {
+      "id": "social.craftsky.project.crochet.defs#petAccessory",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Pet accessory"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#pet"
+      ],
+      "craft": "social.craftsky.feed.defs#crochet",
+      "concept": "projectSubtype:petAccessory"
+    },
+    {
+      "id": "social.craftsky.project.crochet.defs#mask",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Mask"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#medical"
+      ],
+      "craft": "social.craftsky.feed.defs#crochet",
+      "concept": "projectSubtype:mask"
+    },
+    {
+      "id": "social.craftsky.project.crochet.defs#heatColdPack",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Heat or cold pack"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#medical"
+      ],
+      "craft": "social.craftsky.feed.defs#crochet",
+      "concept": "projectSubtype:heatColdPack"
+    },
+    {
+      "id": "social.craftsky.project.crochet.defs#adaptiveClothing",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Adaptive clothing"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#medical"
+      ],
+      "craft": "social.craftsky.feed.defs#crochet",
+      "concept": "projectSubtype:adaptiveClothing"
+    },
+    {
+      "id": "social.craftsky.project.crochet.defs#grannySquare",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Granny square"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#component"
+      ],
+      "craft": "social.craftsky.feed.defs#crochet",
+      "concept": "projectSubtype:grannySquare"
+    },
+    {
+      "id": "social.craftsky.project.crochet.defs#motif",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Motif"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#component"
+      ],
+      "craft": "social.craftsky.feed.defs#crochet",
+      "concept": "projectSubtype:motif"
+    },
+    {
+      "id": "social.craftsky.project.crochet.defs#applique",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Applique"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#component"
+      ],
+      "craft": "social.craftsky.feed.defs#crochet",
+      "concept": "projectSubtype:applique"
+    },
+    {
+      "id": "social.craftsky.project.crochet.defs#swatch",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Swatch"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#component"
+      ],
+      "craft": "social.craftsky.feed.defs#crochet",
+      "concept": "projectSubtype:swatch"
+    },
+    {
+      "id": "social.craftsky.project.crochet.defs#trim",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Trim"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#component"
+      ],
+      "craft": "social.craftsky.feed.defs#crochet",
+      "concept": "projectSubtype:trim"
+    },
+    {
+      "id": "social.craftsky.project.crochet.defs#cord",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Cord"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#component"
+      ],
+      "craft": "social.craftsky.feed.defs#crochet",
+      "concept": "projectSubtype:cord"
+    },
+    {
+      "id": "social.craftsky.project.crochet.defs#flower",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Flower"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#component"
+      ],
+      "craft": "social.craftsky.feed.defs#crochet",
+      "concept": "projectSubtype:flower"
+    },
+    {
+      "id": "social.craftsky.project.quilting.defs#bedQuilt",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Bed quilt"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#quilt"
+      ],
+      "craft": "social.craftsky.feed.defs#quilting",
+      "concept": "projectSubtype:bedQuilt"
+    },
+    {
+      "id": "social.craftsky.project.quilting.defs#babyQuilt",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Baby quilt"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#quilt"
+      ],
+      "craft": "social.craftsky.feed.defs#quilting",
+      "concept": "projectSubtype:babyQuilt"
+    },
+    {
+      "id": "social.craftsky.project.quilting.defs#throwQuilt",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Throw quilt"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#quilt"
+      ],
+      "craft": "social.craftsky.feed.defs#quilting",
+      "concept": "projectSubtype:throwQuilt"
+    },
+    {
+      "id": "social.craftsky.project.quilting.defs#wallHanging",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Wall hanging"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#quilt"
+      ],
+      "craft": "social.craftsky.feed.defs#quilting",
+      "concept": "projectSubtype:wallHanging"
+    },
+    {
+      "id": "social.craftsky.project.quilting.defs#miniQuilt",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Mini quilt"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#quilt"
+      ],
+      "craft": "social.craftsky.feed.defs#quilting",
+      "concept": "projectSubtype:miniQuilt"
+    },
+    {
+      "id": "social.craftsky.project.quilting.defs#artQuilt",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Art quilt"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#quilt"
+      ],
+      "craft": "social.craftsky.feed.defs#quilting",
+      "concept": "projectSubtype:artQuilt"
+    },
+    {
+      "id": "social.craftsky.project.quilting.defs#memoryQuilt",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Memory quilt"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#quilt"
+      ],
+      "craft": "social.craftsky.feed.defs#quilting",
+      "concept": "projectSubtype:memoryQuilt"
+    },
+    {
+      "id": "social.craftsky.project.quilting.defs#samplerQuilt",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Sampler quilt"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#quilt"
+      ],
+      "craft": "social.craftsky.feed.defs#quilting",
+      "concept": "projectSubtype:samplerQuilt"
+    },
+    {
+      "id": "social.craftsky.project.quilting.defs#medallionQuilt",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Medallion quilt"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#quilt"
+      ],
+      "craft": "social.craftsky.feed.defs#quilting",
+      "concept": "projectSubtype:medallionQuilt"
+    },
+    {
+      "id": "social.craftsky.project.quilting.defs#wholeclothQuilt",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Wholecloth quilt"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#quilt"
+      ],
+      "craft": "social.craftsky.feed.defs#quilting",
+      "concept": "projectSubtype:wholeclothQuilt"
+    },
+    {
+      "id": "social.craftsky.project.quilting.defs#tableRunner",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Table runner"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#homeGoods"
+      ],
+      "craft": "social.craftsky.feed.defs#quilting",
+      "concept": "projectSubtype:tableRunner"
+    },
+    {
+      "id": "social.craftsky.project.quilting.defs#placemat",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Placemat"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#homeGoods"
+      ],
+      "craft": "social.craftsky.feed.defs#quilting",
+      "concept": "projectSubtype:placemat"
+    },
+    {
+      "id": "social.craftsky.project.quilting.defs#pillow",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Pillow"
+      },
+      "aliases": [
+        "cushion"
+      ],
+      "parents": [
+        "social.craftsky.project.defs#homeGoods"
+      ],
+      "craft": "social.craftsky.feed.defs#quilting",
+      "concept": "projectSubtype:pillow"
+    },
+    {
+      "id": "social.craftsky.project.quilting.defs#potholder",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Potholder"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#homeGoods"
+      ],
+      "craft": "social.craftsky.feed.defs#quilting",
+      "concept": "projectSubtype:potholder"
+    },
+    {
+      "id": "social.craftsky.project.quilting.defs#coaster",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Coaster"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#homeGoods"
+      ],
+      "craft": "social.craftsky.feed.defs#quilting",
+      "concept": "projectSubtype:coaster"
+    },
+    {
+      "id": "social.craftsky.project.quilting.defs#rug",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Rug"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#homeGoods"
+      ],
+      "craft": "social.craftsky.feed.defs#quilting",
+      "concept": "projectSubtype:rug"
+    },
+    {
+      "id": "social.craftsky.project.quilting.defs#curtain",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Curtain"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#homeGoods"
+      ],
+      "craft": "social.craftsky.feed.defs#quilting",
+      "concept": "projectSubtype:curtain"
+    },
+    {
+      "id": "social.craftsky.project.quilting.defs#bedding",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Bedding"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#homeGoods"
+      ],
+      "craft": "social.craftsky.feed.defs#quilting",
+      "concept": "projectSubtype:bedding"
+    },
+    {
+      "id": "social.craftsky.project.quilting.defs#bag",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Bag"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#accessory"
+      ],
+      "craft": "social.craftsky.feed.defs#quilting",
+      "concept": "projectSubtype:bag"
+    },
+    {
+      "id": "social.craftsky.project.quilting.defs#tote",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Tote"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.quilting.defs#bag",
+        "social.craftsky.project.defs#accessory"
+      ],
+      "craft": "social.craftsky.feed.defs#quilting",
+      "concept": "projectSubtype:tote"
+    },
+    {
+      "id": "social.craftsky.project.quilting.defs#pouch",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Pouch"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#accessory"
+      ],
+      "craft": "social.craftsky.feed.defs#quilting",
+      "concept": "projectSubtype:pouch"
+    },
+    {
+      "id": "social.craftsky.project.quilting.defs#jacket",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Jacket"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#garment"
+      ],
+      "craft": "social.craftsky.feed.defs#quilting",
+      "concept": "projectSubtype:jacket"
+    },
+    {
+      "id": "social.craftsky.project.quilting.defs#vest",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Vest"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#garment"
+      ],
+      "craft": "social.craftsky.feed.defs#quilting",
+      "concept": "projectSubtype:vest"
+    },
+    {
+      "id": "social.craftsky.project.quilting.defs#softToy",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Soft toy"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#toyHobby"
+      ],
+      "craft": "social.craftsky.feed.defs#quilting",
+      "concept": "projectSubtype:softToy"
+    },
+    {
+      "id": "social.craftsky.project.quilting.defs#playMat",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Play mat"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#toyHobby"
+      ],
+      "craft": "social.craftsky.feed.defs#quilting",
+      "concept": "projectSubtype:playMat"
+    },
+    {
+      "id": "social.craftsky.project.quilting.defs#petBedding",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Pet bedding"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#pet"
+      ],
+      "craft": "social.craftsky.feed.defs#quilting",
+      "concept": "projectSubtype:petBedding"
+    },
+    {
+      "id": "social.craftsky.project.quilting.defs#quiltBlock",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Quilt block"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#component"
+      ],
+      "craft": "social.craftsky.feed.defs#quilting",
+      "concept": "projectSubtype:quiltBlock"
+    },
+    {
+      "id": "social.craftsky.project.quilting.defs#applique",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Applique"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#component"
+      ],
+      "craft": "social.craftsky.feed.defs#quilting",
+      "concept": "projectSubtype:applique"
+    },
+    {
+      "id": "social.craftsky.project.quilting.defs#patch",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Patch"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#component"
+      ],
+      "craft": "social.craftsky.feed.defs#quilting",
+      "concept": "projectSubtype:patch"
+    },
+    {
+      "id": "social.craftsky.project.quilting.defs#binding",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Binding"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#component"
+      ],
+      "craft": "social.craftsky.feed.defs#quilting",
+      "concept": "projectSubtype:binding"
+    },
+    {
+      "id": "social.craftsky.project.quilting.defs#quiltTop",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Quilt top"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#component"
+      ],
+      "craft": "social.craftsky.feed.defs#quilting",
+      "concept": "projectSubtype:quiltTop"
+    },
+    {
+      "id": "social.craftsky.project.quilting.defs#sampleBlock",
+      "family": "projectSubtype",
+      "labels": {
+        "en": "Sample block"
+      },
+      "aliases": [],
+      "parents": [
+        "social.craftsky.project.defs#component"
+      ],
+      "craft": "social.craftsky.feed.defs#quilting",
+      "concept": "projectSubtype:sampleBlock"
+    },
+    {
+      "id": "social.craftsky.project.quilting.defs#traditional",
+      "family": "piecingTechnique",
+      "labels": {
+        "en": "Traditional"
+      },
+      "aliases": [],
+      "parents": []
+    },
+    {
+      "id": "social.craftsky.project.quilting.defs#foundationPaperPiecing",
+      "family": "piecingTechnique",
+      "labels": {
+        "en": "Foundation paper piecing"
+      },
+      "aliases": [
+        "fpp"
+      ],
+      "parents": []
+    },
+    {
+      "id": "social.craftsky.project.quilting.defs#englishPaperPiecing",
+      "family": "piecingTechnique",
+      "labels": {
+        "en": "English paper piecing"
+      },
+      "aliases": [
+        "epp"
+      ],
+      "parents": []
+    },
+    {
+      "id": "social.craftsky.project.quilting.defs#improv",
+      "family": "piecingTechnique",
+      "labels": {
+        "en": "Improv"
+      },
+      "aliases": [
+        "improvisational"
+      ],
+      "parents": []
+    }
+  ]
+}

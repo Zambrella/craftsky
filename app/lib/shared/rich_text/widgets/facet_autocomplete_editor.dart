@@ -720,7 +720,7 @@ class _HashtagSuggestionList extends StatelessWidget {
                         ),
                         const SizedBox(width: 4),
                         Text(
-                          '${suggestion.postsLast28Days} posts',
+                          '${suggestion.postCount} posts',
                           style: popularityStyle,
                         ),
                       ],

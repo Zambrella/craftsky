@@ -223,10 +223,10 @@ class HashtagSuggestionMapper extends ClassMapperBase<HashtagSuggestion> {
 
   static String _$tag(HashtagSuggestion v) => v.tag;
   static const Field<HashtagSuggestion, String> _f$tag = Field('tag', _$tag);
-  static int _$postsLast28Days(HashtagSuggestion v) => v.postsLast28Days;
-  static const Field<HashtagSuggestion, int> _f$postsLast28Days = Field(
-    'postsLast28Days',
-    _$postsLast28Days,
+  static int _$postCount(HashtagSuggestion v) => v.postCount;
+  static const Field<HashtagSuggestion, int> _f$postCount = Field(
+    'postCount',
+    _$postCount,
     opt: true,
     def: 0,
   );
@@ -234,13 +234,13 @@ class HashtagSuggestionMapper extends ClassMapperBase<HashtagSuggestion> {
   @override
   final MappableFields<HashtagSuggestion> fields = const {
     #tag: _f$tag,
-    #postsLast28Days: _f$postsLast28Days,
+    #postCount: _f$postCount,
   };
 
   static HashtagSuggestion _instantiate(DecodingData data) {
     return HashtagSuggestion(
       tag: data.dec(_f$tag),
-      postsLast28Days: data.dec(_f$postsLast28Days),
+      postCount: data.dec(_f$postCount),
     );
   }
 
@@ -315,7 +315,7 @@ abstract class HashtagSuggestionCopyWith<
   $Out
 >
     implements ClassCopyWith<$R, $In, $Out> {
-  $R call({String? tag, int? postsLast28Days});
+  $R call({String? tag, int? postCount});
   HashtagSuggestionCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(
     Then<$Out2, $R2> t,
   );
@@ -330,16 +330,16 @@ class _HashtagSuggestionCopyWithImpl<$R, $Out>
   late final ClassMapperBase<HashtagSuggestion> $mapper =
       HashtagSuggestionMapper.ensureInitialized();
   @override
-  $R call({String? tag, int? postsLast28Days}) => $apply(
+  $R call({String? tag, int? postCount}) => $apply(
     FieldCopyWithData({
       if (tag != null) #tag: tag,
-      if (postsLast28Days != null) #postsLast28Days: postsLast28Days,
+      if (postCount != null) #postCount: postCount,
     }),
   );
   @override
   HashtagSuggestion $make(CopyWithData data) => HashtagSuggestion(
     tag: data.get(#tag, or: $value.tag),
-    postsLast28Days: data.get(#postsLast28Days, or: $value.postsLast28Days),
+    postCount: data.get(#postCount, or: $value.postCount),
   );
 
   @override

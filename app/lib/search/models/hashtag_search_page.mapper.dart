@@ -185,22 +185,22 @@ class HashtagSearchResultMapper extends ClassMapperBase<HashtagSearchResult> {
 
   static String _$tag(HashtagSearchResult v) => v.tag;
   static const Field<HashtagSearchResult, String> _f$tag = Field('tag', _$tag);
-  static int _$postsLast28Days(HashtagSearchResult v) => v.postsLast28Days;
-  static const Field<HashtagSearchResult, int> _f$postsLast28Days = Field(
-    'postsLast28Days',
-    _$postsLast28Days,
+  static int _$postCount(HashtagSearchResult v) => v.postCount;
+  static const Field<HashtagSearchResult, int> _f$postCount = Field(
+    'postCount',
+    _$postCount,
   );
 
   @override
   final MappableFields<HashtagSearchResult> fields = const {
     #tag: _f$tag,
-    #postsLast28Days: _f$postsLast28Days,
+    #postCount: _f$postCount,
   };
 
   static HashtagSearchResult _instantiate(DecodingData data) {
     return HashtagSearchResult(
       tag: data.dec(_f$tag),
-      postsLast28Days: data.dec(_f$postsLast28Days),
+      postCount: data.dec(_f$postCount),
     );
   }
 
@@ -274,7 +274,7 @@ abstract class HashtagSearchResultCopyWith<
   $Out
 >
     implements ClassCopyWith<$R, $In, $Out> {
-  $R call({String? tag, int? postsLast28Days});
+  $R call({String? tag, int? postCount});
   HashtagSearchResultCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(
     Then<$Out2, $R2> t,
   );
@@ -289,16 +289,16 @@ class _HashtagSearchResultCopyWithImpl<$R, $Out>
   late final ClassMapperBase<HashtagSearchResult> $mapper =
       HashtagSearchResultMapper.ensureInitialized();
   @override
-  $R call({String? tag, int? postsLast28Days}) => $apply(
+  $R call({String? tag, int? postCount}) => $apply(
     FieldCopyWithData({
       if (tag != null) #tag: tag,
-      if (postsLast28Days != null) #postsLast28Days: postsLast28Days,
+      if (postCount != null) #postCount: postCount,
     }),
   );
   @override
   HashtagSearchResult $make(CopyWithData data) => HashtagSearchResult(
     tag: data.get(#tag, or: $value.tag),
-    postsLast28Days: data.get(#postsLast28Days, or: $value.postsLast28Days),
+    postCount: data.get(#postCount, or: $value.postCount),
   );
 
   @override

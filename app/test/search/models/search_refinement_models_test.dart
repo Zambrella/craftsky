@@ -26,7 +26,7 @@ void main() {
       },
       'hashtags': {
         'items': [
-          {'tag': 'sockkal', 'postsLast28Days': 12},
+          {'tag': 'sockkal', 'postCount': 12},
         ],
         'hasMore': false,
       },
@@ -40,12 +40,12 @@ void main() {
 
     final hashtagPage = HashtagSearchPageMapper.fromMap({
       'items': [
-        {'tag': 'sockkal', 'postsLast28Days': 12},
+        {'tag': 'sockkal', 'postCount': 12},
       ],
       'cursor': 'opaque:hashtags',
     });
     expect(hashtagPage.cursor, 'opaque:hashtags');
-    expect(hashtagPage.items.single.postsLast28Days, 12);
+    expect(hashtagPage.items.single.postCount, 12);
 
     final recentPage = RecentSearchPage.fromMap({
       'items': [

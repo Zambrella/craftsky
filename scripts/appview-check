@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-for required_command in curl diff docker git go just rg; do
+for required_command in curl diff docker git go just python3 rg; do
   if ! command -v "$required_command" >/dev/null 2>&1; then
     echo "appview-check: required command is unavailable: $required_command" >&2
     exit 1
@@ -15,6 +15,7 @@ fi
 script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 check_root=$(cd "$script_dir/.." && pwd)
 appview_dir="$check_root/appview"
+python3 "$check_root/scripts/project-catalog" --check
 compose_file="$check_root/docker-compose.yml"
 migration_failure_override="$check_root/scripts/appview-check-migration-failure.override.yml"
 tap_acceptance_override="$check_root/scripts/appview-check-tap.override.yml"

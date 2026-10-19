@@ -255,14 +255,14 @@ func TestHashtagSpellingsRecoveryMatchesFreshIndexing(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(rows) != 1 || rows[0].Tag != "MeMadeMay" || rows[0].PostsLast28Days != 9 {
+		if len(rows) != 1 || rows[0].Tag != "MeMadeMay" || rows[0].PostCount != 9 {
 			t.Fatalf("suggestions=%v", rows)
 		}
 		unicodeRows, err := api.NewFacetStore(pool).SearchHashtagSuggestions(ctx, "꟎", 10, now)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(unicodeRows) != 1 || unicodeRows[0].Tag != "꟎" || unicodeRows[0].PostsLast28Days != 1 {
+		if len(unicodeRows) != 1 || unicodeRows[0].Tag != "꟎" || unicodeRows[0].PostCount != 1 {
 			t.Fatalf("Unicode recovery suggestions=%v", unicodeRows)
 		}
 	}

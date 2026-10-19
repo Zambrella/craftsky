@@ -44,7 +44,7 @@
               "ref": "#image"
             },
             "maxLength": 8,
-            "description": "Images attached to the post. Top-level (not inside 'embed') — a post may carry images alongside a quote embed without needing a wrapper variant."
+            "description": "Images attached to the post. Top-level (not inside 'embed') \u2014 a post may carry images alongside a quote embed without needing a wrapper variant."
           },
           "embed": {
             "type": "union",
@@ -117,7 +117,7 @@
         },
         "alt": {
           "type": "string",
-          "maxLength": 1000,
+          "maxLength": 10000,
           "maxGraphemes": 1000,
           "description": "Optional alt text describing the image for accessibility."
         },

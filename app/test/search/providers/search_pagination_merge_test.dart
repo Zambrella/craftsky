@@ -39,23 +39,23 @@ void main() {
   setUpAll(initializeMappers);
 
   test('IR-001 Unicode casing changes preserve one server identity', () {
-    const current = HashtagSearchResult(tag: '꟎', postsLast28Days: 3);
+    const current = HashtagSearchResult(tag: '꟎', postCount: 3);
     final merged = appendUniqueHashtags(
       [current],
-      const [HashtagSearchResult(tag: '꟏', postsLast28Days: 3)],
+      const [HashtagSearchResult(tag: '꟏', postCount: 3)],
     );
     expect(merged, [same(current)]);
   });
 
   test('IT-008 casing changes across pages preserve one hashtag identity', () {
-    const current = HashtagSearchResult(tag: 'MeMadeMay', postsLast28Days: 9);
+    const current = HashtagSearchResult(tag: 'MeMadeMay', postCount: 9);
     final merged = appendUniqueHashtags(
       [current],
       const [
-        HashtagSearchResult(tag: 'memademay', postsLast28Days: 9),
-        HashtagSearchResult(tag: 'MEMADEMAY', postsLast28Days: 9),
-        HashtagSearchResult(tag: 'SockKAL', postsLast28Days: 2),
-        HashtagSearchResult(tag: 'sockkal', postsLast28Days: 2),
+        HashtagSearchResult(tag: 'memademay', postCount: 9),
+        HashtagSearchResult(tag: 'MEMADEMAY', postCount: 9),
+        HashtagSearchResult(tag: 'SockKAL', postCount: 2),
+        HashtagSearchResult(tag: 'sockkal', postCount: 2),
       ],
     );
     expect(merged.map((tag) => tag.tag), ['MeMadeMay', 'SockKAL']);

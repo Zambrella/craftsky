@@ -26,7 +26,7 @@ func TestProductImageValidation(t *testing.T) {
 		{MIMEType: "image/gif", Size: 1},
 		{MIMEType: "image/jpeg", Size: MaxImageBytes + 1},
 		{MIMEType: "image/jpeg", Size: 1, Alt: strings.Repeat("a", 1001)},
-		{MIMEType: "image/jpeg", Size: 1, Alt: strings.Repeat("👨‍👩‍👧‍👦", 41)},
+		{MIMEType: "image/jpeg", Size: 1, Alt: strings.Repeat("👨‍👩‍👧‍👦", 401)},
 	}
 	for _, image := range invalid {
 		if err := ValidateProductImage(image, true); !errors.Is(err, ErrInvalidImage) {

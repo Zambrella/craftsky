@@ -25,7 +25,7 @@ void main() {
         if (calls == 1) {
           return const HashtagSearchPage(
             items: [
-              HashtagSearchResult(tag: 'sock', postsLast28Days: 4),
+              HashtagSearchResult(tag: 'sock', postCount: 4),
             ],
             cursor: 'opaque:hashtags',
           );
@@ -33,8 +33,8 @@ void main() {
         seenCursor = cursor;
         return const HashtagSearchPage(
           items: [
-            HashtagSearchResult(tag: 'sock', postsLast28Days: 4),
-            HashtagSearchResult(tag: 'sockkal', postsLast28Days: 3),
+            HashtagSearchResult(tag: 'sock', postCount: 4),
+            HashtagSearchResult(tag: 'sockkal', postCount: 3),
           ],
         );
       },

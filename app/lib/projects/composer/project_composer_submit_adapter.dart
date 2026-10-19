@@ -43,8 +43,9 @@ Future<ProjectComposerSubmitArguments> buildProjectComposerSubmitArguments({
   final facets = existingText?.trim() == trimmedText
       ? existingFacets ?? const <Map<String, dynamic>>[]
       : await generateFacets(trimmedText);
+  final preserved = _preserveProjectExtensions(project, existingProject);
   final projectWithPatternFacets = await _projectWithPatternFacets(
-    project,
+    preserved,
     generateFacets,
     existingProject: existingProject,
   );
@@ -104,15 +105,10 @@ Future<Project> _projectWithPatternFacets(
           includeTags: false,
         );
 
-  final nextPattern = ProjectPattern(
-    url: pattern.url,
-    name: pattern.name,
+  final nextPattern = pattern.copyWith(
+    extraFields: {...?existingPattern?.extraFields, ...pattern.extraFields},
     nameFacets: nameFacets,
-    difficulty: pattern.difficulty,
-    selfDrafted: pattern.selfDrafted,
-    designer: pattern.designer,
     designerFacets: designerFacets,
-    publisher: pattern.publisher,
     publisherFacets: publisherFacets,
   );
   return _projectWith(project, pattern: nextPattern, materials: materials);
@@ -122,20 +118,7 @@ Project _projectWith(
   Project project, {
   ProjectPattern? pattern,
   List<ProjectMaterial>? materials,
-}) => Project(
-  common: ProjectCommon(
-    craftType: project.common.craftType,
-    status: project.common.status,
-    title: project.common.title,
-    duration: project.common.duration,
-    pattern: pattern,
-    materials: materials,
-    colors: project.common.colors,
-    designTags: project.common.designTags,
-    tags: project.common.tags,
-  ),
-  details: project.details,
-);
+}) => project.copyWith.common(pattern: pattern, materials: materials);
 
 List<ProjectMaterial>? _preserveUnchangedMaterialFacets(
   List<ProjectMaterial>? materials,
@@ -145,6 +128,12 @@ List<ProjectMaterial>? _preserveUnchangedMaterialFacets(
   return [
     for (var index = 0; index < materials.length; index++)
       ProjectMaterial(
+        extraFields: {
+          if (index < (existing?.length ?? 0) &&
+              existing![index].text == materials[index].text)
+            ...existing[index].extraFields,
+          ...materials[index].extraFields,
+        },
         text: materials[index].text,
         facets:
             index < (existing?.length ?? 0) &&
@@ -170,4 +159,92 @@ Future<List<Map<String, dynamic>>?> _fieldFacets(
     includeTags: includeTags,
   );
   return facets.isEmpty ? null : facets;
+}
+
+// Preserve extension data when a scheduled project is rebuilt from form fields.
+// Known values are taken exclusively from the form, so clearing remains valid.
+Project _preserveProjectExtensions(Project project, Project? existing) {
+  if (existing == null) return project;
+  final common = project.common;
+  final original = existing.common;
+  final sameCraft = common.craftType == original.craftType;
+  var details = project.details;
+  final rawDetails = details == null
+      ? null
+      : const ProjectDetailsMapper().encode(details) as Map<String, dynamic>;
+  final oldDetails = existing.details == null
+      ? null
+      : const ProjectDetailsMapper().encode(existing.details!)
+            as Map<String, dynamic>;
+  if (sameCraft && oldDetails != null) {
+    final oldExtra = switch (existing.details) {
+      KnittingProjectDetails(:final extraFields) => extraFields,
+      CrochetProjectDetails(:final extraFields) => extraFields,
+      SewingProjectDetails(:final extraFields) => extraFields,
+      QuiltingProjectDetails(:final extraFields) => extraFields,
+      _ => <String, dynamic>{},
+    };
+    if (rawDetails != null && rawDetails[r'$type'] == oldDetails[r'$type']) {
+      // Retain unfamiliar detail keys while replacing the known form values.
+      final gauge = rawDetails['gauge'];
+      final oldGauge = oldDetails['gauge'];
+      if (gauge is Map<String, dynamic> && oldGauge is Map) {
+        for (final entry in oldGauge.entries) {
+          if (!const [
+            'stitches',
+            'rows',
+            'measurement',
+            'unit',
+          ].contains(entry.key)) {
+            gauge.putIfAbsent(entry.key as String, () => entry.value);
+          }
+        }
+      }
+      details = const ProjectDetailsMapper().decode({
+        ...oldExtra,
+        ...rawDetails,
+      });
+    } else if (details == null && existing.details is UnknownProjectDetails) {
+      details = existing.details;
+    } else if (details == null && oldExtra.isNotEmpty) {
+      details = const ProjectDetailsMapper().decode({
+        r'$type': oldDetails[r'$type'],
+        ...oldExtra,
+      });
+    }
+  }
+  final pattern = common.pattern;
+  final oldPatternExtra =
+      original.pattern?.extraFields ?? const <String, dynamic>{};
+  final preservedPattern =
+      pattern?.copyWith(
+        extraFields: {...oldPatternExtra, ...pattern.extraFields},
+      ) ??
+      (oldPatternExtra.isEmpty
+          ? null
+          : ProjectPattern(extraFields: oldPatternExtra));
+  return project.copyWith(
+    extraFields: {...existing.extraFields, ...project.extraFields},
+    common: common.copyWith(
+      extraFields: {...original.extraFields, ...common.extraFields},
+      additionalCrafts: common.additionalCrafts == null
+          ? null
+          : [
+              for (final craft in common.additionalCrafts!)
+                ProjectCraft(
+                  craftType: craft.craftType,
+                  extraFields: {
+                    for (final old
+                        in original.additionalCrafts ?? const <ProjectCraft>[])
+                      if (old.craftType == craft.craftType) ...old.extraFields,
+                    ...craft.extraFields,
+                  },
+                ),
+            ],
+      duration: common.duration ?? original.duration,
+      pattern: preservedPattern,
+      tags: common.tags ?? original.tags,
+    ),
+    details: details,
+  );
 }

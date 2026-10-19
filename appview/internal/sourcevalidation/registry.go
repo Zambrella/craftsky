@@ -12,6 +12,7 @@ import (
 	craftskylex "social.craftsky/appview/internal/lexicon/craftsky"
 	lexiconschema "social.craftsky/appview/internal/lexicon/schema"
 	"social.craftsky/appview/internal/postutil"
+	"social.craftsky/appview/internal/projectcatalog"
 	"social.craftsky/appview/internal/tap"
 )
 
@@ -143,6 +144,17 @@ func validateRecordBody(event tap.Event) Result {
 		}
 		if err := languages.ValidatePostTags(record.Langs); err != nil {
 			return semanticInvalid("invalid_language")
+		}
+		if record.Project != nil && record.Project.Common != nil && record.Project.Details != nil {
+			raw, err := json.Marshal(record.Project.Details)
+			var details struct {
+				Type string `json:"$type"`
+			}
+			if err == nil && json.Unmarshal(raw, &details) == nil {
+				if craft, known := projectcatalog.DetailCraft(details.Type); known && craft != record.Project.Common.CraftType {
+					return semanticInvalid("mismatched_project_details")
+				}
+			}
 		}
 		if !validTimestamp(record.CreatedAt) {
 			return semanticInvalid("invalid_timestamp")

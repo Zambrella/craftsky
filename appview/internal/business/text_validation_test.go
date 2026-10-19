@@ -13,6 +13,7 @@ func TestBusinessTextValidation(t *testing.T) {
 		maxBytes     int
 	}{
 		{TextFieldTagline, 100, 1000},
+		{TextFieldImageAlt, 1000, 10000},
 		{TextFieldHoursNote, 300, 3000},
 		{TextFieldServiceArea, 200, 2000},
 		{TextFieldProductTitle, 150, 1500},

@@ -23,7 +23,7 @@ type HashtagSearchPageResponse struct {
 
 type HashtagSearchResult struct {
 	Tag             string `json:"tag"`
-	PostsLast28Days int    `json:"postsLast28Days"`
+	PostCount int    `json:"postCount"`
 }
 
 type SearchSuggestionsResponse struct {

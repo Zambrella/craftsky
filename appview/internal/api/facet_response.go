@@ -27,7 +27,7 @@ type FacetHashtagSuggestionsResponse struct {
 
 type FacetHashtagSuggestion struct {
 	Tag             string `json:"tag"`
-	PostsLast28Days int    `json:"postsLast28Days"`
+	PostCount int    `json:"postCount"`
 }
 
 type MentionSuggestionRow struct {
@@ -44,7 +44,7 @@ type MentionSuggestionRow struct {
 
 type HashtagSuggestionRow struct {
 	Tag             string
-	PostsLast28Days int
+	PostCount int
 }
 
 func BuildFacetMentionSuggestion(row MentionSuggestionRow) FacetMentionSuggestion {

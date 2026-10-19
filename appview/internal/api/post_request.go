@@ -220,8 +220,8 @@ func ValidatePostCreateWithLimits(req PostCreateRequest, limits MediaLimits) err
 	}
 	for i, img := range req.Images {
 		prefix := fmt.Sprintf("images[%d]", i)
-		if !utf8.ValidString(img.Alt) || len(img.Alt) > 1000 || uniseg.GraphemeClusterCount(img.Alt) > 1000 {
-			fields[prefix+".alt"] = "exceeds 1000 graphemes / 1000 bytes"
+		if !utf8.ValidString(img.Alt) || len(img.Alt) > 10000 || uniseg.GraphemeClusterCount(img.Alt) > 1000 {
+			fields[prefix+".alt"] = "exceeds 1000 graphemes / 10000 bytes"
 		}
 		if len(img.Image) == 0 {
 			fields[prefix+".image"] = "must not be empty"
@@ -254,6 +254,7 @@ func ValidatePostCreateWithLimits(req PostCreateRequest, limits MediaLimits) err
 		} else if !IsSupportedProjectCraftType(craftType) {
 			fields["project.common.craftType"] = "must be a supported craft type"
 		}
+		validateProjectCrafts(fields, req.Project)
 		if len(req.Project.Common.Materials) > maxProjectMaterials {
 			fields["project.common.materials"] = fmt.Sprintf("exceeds maximum of %d entries", maxProjectMaterials)
 		}

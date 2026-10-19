@@ -480,7 +480,7 @@ class _HashtagResultTile extends StatelessWidget {
       contentPadding: EdgeInsets.zero,
       leading: const CircleAvatar(child: Text('#')),
       title: Text('#${hashtag.tag}'),
-      subtitle: Text(l10n.searchTagPostCount(hashtag.postsLast28Days)),
+      subtitle: Text(l10n.searchTagPostCount(hashtag.postCount)),
       onTap: onTap,
     );
   }

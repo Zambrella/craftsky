@@ -14,9 +14,9 @@ class HashtagSearchPage with HashtagSearchPageMappable {
 class HashtagSearchResult with HashtagSearchResultMappable {
   const new({
     required this.tag,
-    required this.postsLast28Days,
+    required this.postCount,
   });
 
   final String tag;
-  final int postsLast28Days;
+  final int postCount;
 }

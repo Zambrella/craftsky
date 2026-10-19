@@ -45,6 +45,7 @@ func main() {
 		craftsky.FeedPost_QuoteEmbed{},
 		craftsky.FeedPost_ReplyRef{},
 		craftsky.ProjectCrochet_Details{},
+		craftsky.ProjectDefs_AdditionalCraft{},
 		craftsky.ProjectDefs_Gauge{},
 		craftsky.ProjectDefs_Material{},
 		craftsky.ProjectDefs_Pattern{},

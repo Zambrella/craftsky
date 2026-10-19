@@ -11,6 +11,7 @@ import 'package:craftsky_app/projects/widgets/project_composer_sheet.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/shared/widgets/craft_icon.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
+import 'package:craftsky_app/theme/craftsky_form_builder_select_fields.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/publishing_progress_indicator.dart';
 import 'package:flutter/services.dart';
@@ -47,6 +48,30 @@ void main() {
     await _pumpComposer(tester, 'sheet-composer');
 
     expect(find.text('Project post'), findsOneWidget);
+    expect(
+      tester
+          .widget<CraftskyFormBuilderDropdownField<String>>(
+            find.byWidgetPredicate(
+              (widget) =>
+                  widget is CraftskyFormBuilderDropdownField<String> &&
+                  widget.name == 'craftType',
+            ),
+          )
+          .label,
+      'Primary craft',
+    );
+    expect(
+      tester
+          .widget<CraftskyFormBuilderMultiSelectField<String>>(
+            find.byWidgetPredicate(
+              (widget) =>
+                  widget is CraftskyFormBuilderMultiSelectField<String> &&
+                  widget.name == 'additionalCrafts',
+            ),
+          )
+          .label,
+      'Additional crafts',
+    );
     expect(find.text('Project title'), findsOneWidget);
     expect(find.text('Pattern tag or name'), findsOneWidget);
     expect(

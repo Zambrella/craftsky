@@ -18,10 +18,18 @@ scripts/lexicon-publication verify
 ```
 
 Publication requires `goat` authenticated as that exact DID. The script checks
-account identity and parses every schema before publishing. It does not use
-`--update`: changing an existing published schema requires the project's lexicon
-review and ADR process. `publish --bootstrap` allows initial publication before
-DNS exists, without changing the schema-update policy.
+account identity and parses every schema before publishing. It does not update
+existing schemas by default. After the project's Lexicon review, ADR, and consumer checks, publish approved changes with:
+
+```bash
+scripts/lexicon-publication publish --update-reviewed
+scripts/lexicon-publication verify
+```
+
+Run this only after implementation and validation; it changes public schemas,
+not AppView deployments or existing owner records. `--update-reviewed` enables
+Goat's explicit update mode and requires the normal DNS authority checks.
+`publish --bootstrap` allows initial publication before DNS exists, without changing the schema-update policy.
 
 DNS authority is assigned separately for each NSID group. The manifest lists
 all nine TXT records with value `did=did:plc:lmmx63zcns6gewgxqfdt4kof`:

@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"social.craftsky/appview/internal/recordjson"
 
 	comatproto "github.com/bluesky-social/indigo/api/atproto"
 	appbsky "github.com/bluesky-social/indigo/api/bsky"
@@ -54,6 +55,7 @@ type FeedPost_AspectRatio struct {
 
 // Optional embedded content. Open union supporting local quote embeds, standard external cards, and standard video.
 type FeedPost_Embed struct {
+	Unknown             *recordjson.OpenUnion `json:"-"`
 	FeedPost_QuoteEmbed *FeedPost_QuoteEmbed
 	EmbedExternal       *appbsky.EmbedExternal
 	EmbedVideo          *appbsky.EmbedVideo
@@ -72,10 +74,14 @@ func (t *FeedPost_Embed) MarshalJSON() ([]byte, error) {
 		t.EmbedVideo.LexiconTypeID = "app.bsky.embed.video"
 		return json.Marshal(t.EmbedVideo)
 	}
+	if t.Unknown != nil {
+		return t.Unknown.MarshalJSON()
+	}
 	return nil, fmt.Errorf("can not marshal empty union as JSON")
 }
 
 func (t *FeedPost_Embed) UnmarshalJSON(b []byte) error {
+	*t = FeedPost_Embed{}
 	typ, err := lexutil.TypeExtract(b)
 	if err != nil {
 		return err
@@ -92,7 +98,8 @@ func (t *FeedPost_Embed) UnmarshalJSON(b []byte) error {
 		t.EmbedVideo = new(appbsky.EmbedVideo)
 		return json.Unmarshal(b, t.EmbedVideo)
 	default:
-		return nil
+		t.Unknown = &recordjson.OpenUnion{}
+		return t.Unknown.UnmarshalJSON(b)
 	}
 }
 
@@ -111,10 +118,14 @@ func (t *FeedPost_Embed) MarshalCBOR(w io.Writer) error {
 	if t.EmbedVideo != nil {
 		return t.EmbedVideo.MarshalCBOR(w)
 	}
+	if t.Unknown != nil {
+		return t.Unknown.MarshalCBOR(w)
+	}
 	return fmt.Errorf("can not marshal empty union as CBOR")
 }
 
 func (t *FeedPost_Embed) UnmarshalCBOR(r io.Reader) error {
+	*t = FeedPost_Embed{}
 	typ, b, err := lexutil.CborTypeExtractReader(r)
 	if err != nil {
 		return err
@@ -131,7 +142,8 @@ func (t *FeedPost_Embed) UnmarshalCBOR(r io.Reader) error {
 		t.EmbedVideo = new(appbsky.EmbedVideo)
 		return t.EmbedVideo.UnmarshalCBOR(bytes.NewReader(b))
 	default:
-		return nil
+		t.Unknown = &recordjson.OpenUnion{}
+		return t.Unknown.UnmarshalCBOR(bytes.NewReader(b))
 	}
 }
 

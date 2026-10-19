@@ -541,7 +541,7 @@ func TestSearchImprovementsRanking(t *testing.T) {
 
 // UT-006 / FR-006 / AC-010.
 func TestSearchImprovementsCursorValidation(t *testing.T) {
-	base := map[string]any{"kind": "searchPostsRelevance", "query": "socks", "tier": 1, "score": 0.2, "createdAt": "2026-10-09T12:00:00Z", "uri": "at://did:plc:author/social.craftsky.feed.post/test"}
+	base := map[string]any{"kind": "searchPostsRelevance", "searchVersion": 2, "catalogVersion": 1, "query": "socks", "tier": 1, "score": 0.2, "createdAt": "2026-10-09T12:00:00Z", "uri": "at://did:plc:author/social.craftsky.feed.post/test"}
 	encoded, err := envelope.EncodeCursor(base)
 	if err != nil {
 		t.Fatal(err)
@@ -554,6 +554,7 @@ func TestSearchImprovementsCursorValidation(t *testing.T) {
 		key   string
 		value any
 	}{
+		{"searchVersion", nil}, {"searchVersion", 1}, {"catalogVersion", nil}, {"catalogVersion", 2},
 		{"tier", nil}, {"tier", 2}, {"tier", 0.5}, {"score", -1}, {"score", "NaN"}, {"createdAt", "yesterday"}, {"uri", "not-an-aturi"}, {"query", "hats"}, {"kind", "searchProjectsRelevance"},
 	} {
 		copy := map[string]any{}
