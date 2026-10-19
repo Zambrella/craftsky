@@ -42,6 +42,7 @@ func CORS(allowedOrigins []string, catalogue CORSMethodCatalogue) func(http.Hand
 			originAllowed := isOriginAllowed(origin, allowedOrigins)
 			if originAllowed {
 				w.Header().Set("Access-Control-Allow-Origin", origin)
+				w.Header().Set("Access-Control-Expose-Headers", "X-Request-ID")
 			}
 			w.Header().Add("Vary", "Origin")
 			w.Header().Add("Vary", "Access-Control-Request-Method")

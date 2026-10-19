@@ -23,11 +23,15 @@ func TestLogging_InjectsRunIDAndLogs(t *testing.T) {
 	}))
 
 	req := httptest.NewRequest("GET", "/health", nil)
+	req.Header.Set("X-Request-ID", "untrusted-client-canary")
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	if rec.Header().Get("X-Request-ID") != seenRunID {
+		t.Fatal("response correlation does not match the server request")
 	}
 	if seenRunID == "" {
 		t.Fatal("handler did not see a run_id in context")

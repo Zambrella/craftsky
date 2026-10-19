@@ -11,6 +11,7 @@ import (
 	"social.craftsky/appview/internal/api/envelope"
 	"social.craftsky/appview/internal/instagram"
 	"social.craftsky/appview/internal/middleware"
+	"social.craftsky/appview/internal/observability"
 )
 
 type InstagramAccountStore interface {
@@ -151,9 +152,7 @@ func writeInstagramAccountError(w http.ResponseWriter, r *http.Request, logger *
 	case errors.Is(err, instagram.ErrInstagramLinkConflict):
 		envelope.WriteError(w, http.StatusConflict, "instagram_link_conflict", "Instagram account link conflict", runID, nil)
 	default:
-		logger.Error("Instagram account operation failed",
-			slog.String("run_id", runID),
-			slog.String("error_category", "internal"))
+		observability.ReportRequestFailure(r.Context(), err, "instagram.account", "store")
 		envelope.WriteError(w, http.StatusInternalServerError, "internal_error", "Instagram account operation failed", runID, nil)
 	}
 }

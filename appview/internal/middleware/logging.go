@@ -42,6 +42,7 @@ func Logging(logger *slog.Logger, resolvers ...observability.RequestDiagnosticRe
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			started := time.Now()
 			runID := uuid.New().String()
+			w.Header().Set("X-Request-ID", runID)
 			ctx := ctxkeys.WithRunID(r.Context(), runID)
 			ctx = observability.WithCaptureMarker(ctx)
 			ctx = observability.WithRoutePatternRecorder(ctx)

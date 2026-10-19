@@ -121,6 +121,7 @@ final class AppErrorMapper {
       if ((appViewError ?? details.appViewError) != null)
         'appViewError': appViewError ?? details.appViewError,
       if (details.requestId != null) 'appViewRequestId': details.requestId,
+      if (details.responseKind != null) 'responseKind': details.responseKind,
     };
   }
 

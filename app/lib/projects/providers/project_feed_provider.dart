@@ -6,6 +6,7 @@ import 'package:craftsky_app/projects/models/project_browse_filters.dart';
 import 'package:craftsky_app/projects/models/user_projects_state.dart';
 import 'package:craftsky_app/projects/providers/project_repository_provider.dart';
 import 'package:craftsky_app/search/providers/search_pagination.dart';
+import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'project_feed_provider.g.dart';
@@ -19,12 +20,14 @@ class ProjectFeed extends _$ProjectFeed {
   @override
   Future<UserProjectsState> build(ProjectBrowseQuery query) async {
     ref.watch(activeContentLanguagePolicyProvider);
+    final accountOperation = ActiveAccountOperation.capture(ref);
     final page = await ref
         .watch(projectRepositoryProvider)
         .listProjects(
           query: query,
           limit: projectFeedPageLimit,
         );
+    accountOperation.requireCurrent(discarded: const ApiCanceled());
     return UserProjectsState(
       items: _visibleProjects(ref, page.items),
       cursor: page.cursor,
@@ -47,6 +50,7 @@ class ProjectFeed extends _$ProjectFeed {
             limit: projectFeedPageLimit,
             cursor: current.cursor,
           );
+      accountOperation.requireCurrent(discarded: const ApiCanceled());
       return UserProjectsState(
         items: appendUniquePosts(
           current.items,
