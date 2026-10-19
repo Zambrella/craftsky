@@ -1434,6 +1434,24 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
           onChanged: _onCraftTypeChanged,
         ),
         SizedBox(height: spacing.sp4),
+        CraftskyFormBuilderMultiSelectField<String>(
+          name: ProjectComposerFields.additionalCrafts,
+          label: l10n.projectComposerAdditionalCraftsLabel,
+          options: _selectOptions(
+            ProjectOptionCatalogs.craftTypes
+                .where((craft) => craft.value != _activeCraftType)
+                .toList(),
+            includeCraftIcons: true,
+          ),
+          maxSelected: 10,
+          searchHintText: l10n.projectComposerAdditionalCraftsSearchHint,
+          disabledText: l10n.projectComposerFieldDisabledLabel,
+          maxSelectedErrorText: l10n.projectComposerMultiSelectMaxSelectedError(
+            10,
+          ),
+          enabled: controlsEnabled,
+        ),
+        SizedBox(height: spacing.sp4),
         Text(
           l10n.projectComposerDetailsPrompt,
           style: theme.textTheme.bodySmall?.copyWith(
@@ -1563,6 +1581,14 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
 
   void _onCraftTypeChanged(String? value) {
     if (value == _activeCraftType) return;
+    final additionalField =
+        _formKey.currentState?.fields[ProjectComposerFields.additionalCrafts];
+    final selected = additionalField?.value;
+    if (selected is Iterable) {
+      additionalField?.didChange(
+        selected.whereType<String>().where((craft) => craft != value).toList(),
+      );
+    }
     final clearedDetails = _hasAnyDetail(_craftDetailFieldNames);
     setState(() {
       _activeCraftType = value;

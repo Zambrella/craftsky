@@ -279,7 +279,7 @@ void main() {
             hashtagSuggestionRepositoryProvider.overrideWithValue(
               const MockHashtagSuggestionRepository(
                 hashtags: [
-                  HashtagSuggestion(tag: 'SockKAL', postsLast28Days: 7),
+                  HashtagSuggestion(tag: 'SockKAL', postCount: 7),
                 ],
               ),
             ),

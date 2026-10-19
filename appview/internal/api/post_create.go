@@ -570,6 +570,9 @@ func lexiconRecordBodyAt(req PostCreateRequest, verifiedVideo *video.Blob, creat
 	if len(req.Facets) > 0 {
 		body["facets"] = req.Facets
 	}
+	if len(req.Crafts) > 0 {
+		body["crafts"] = req.Crafts
+	}
 	if len(req.Langs) > 0 {
 		body["langs"] = req.Langs
 	}
@@ -687,6 +690,13 @@ func syntheticPostRow(
 		CreatedAt: now,
 		IndexedAt: now,
 		Project:   req.Project,
+	}
+	if len(req.Crafts) > 0 {
+		crafts, err := json.Marshal(req.Crafts)
+		if err != nil {
+			return nil, err
+		}
+		row.Crafts = crafts
 	}
 	if len(req.Facets) > 0 {
 		row.Facets = req.Facets

@@ -5,17 +5,20 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+
+	craftskylex "social.craftsky/appview/internal/lexicon/craftsky"
 )
 
 type Payload struct {
-	Kind      PostKind         `json:"kind"`
-	Text      string           `json:"text"`
-	Sponsored bool             `json:"sponsored"`
-	Facets    json.RawMessage  `json:"facets,omitempty"`
-	Langs     []string         `json:"langs,omitempty"`
-	Project   json.RawMessage  `json:"project,omitempty"`
-	Media     []PayloadMedia   `json:"media,omitempty"`
-	External  *PayloadExternal `json:"external,omitempty"`
+	Kind      PostKind                      `json:"kind"`
+	Text      string                        `json:"text"`
+	Sponsored bool                          `json:"sponsored"`
+	Facets    json.RawMessage               `json:"facets,omitempty"`
+	Langs     []string                      `json:"langs,omitempty"`
+	Crafts    []*craftskylex.FeedPost_Craft `json:"crafts,omitempty"`
+	Project   json.RawMessage               `json:"project,omitempty"`
+	Media     []PayloadMedia                `json:"media,omitempty"`
+	External  *PayloadExternal              `json:"external,omitempty"`
 }
 
 type PayloadMedia struct {

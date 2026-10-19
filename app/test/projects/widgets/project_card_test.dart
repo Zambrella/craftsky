@@ -38,6 +38,28 @@ Future<void> _pump(
 }
 
 void main() {
+  testWidgets('mixed-craft project shows primary and additional craft chips', (
+    tester,
+  ) async {
+    await _pump(
+      tester,
+      const ProjectCard(
+        project: Project(
+          common: ProjectCommon(
+            craftType: ProjectOptionCatalogs.sewingCraftToken,
+            additionalCrafts: [
+              ProjectCraft(
+                craftType: ProjectOptionCatalogs.embroideryCraftToken,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    expect(find.text('Sewing'), findsOneWidget);
+    expect(find.text('Embroidery'), findsOneWidget);
+  });
+
   group('ProjectCard', () {
     testWidgets('summary keeps feed project details compact', (tester) async {
       await _pump(

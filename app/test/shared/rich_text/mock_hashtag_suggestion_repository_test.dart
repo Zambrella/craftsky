@@ -10,16 +10,16 @@ void main() {
     test('UT-013 filters hashtags and exposes 28-day counts', () async {
       final repository = MockHashtagSuggestionRepository(
         hashtags: const [
-          HashtagSuggestion(tag: 'SockKAL', postsLast28Days: 128),
-          HashtagSuggestion(tag: 'sockmending', postsLast28Days: 12),
-          HashtagSuggestion(tag: 'Lace', postsLast28Days: 7),
+          HashtagSuggestion(tag: 'SockKAL', postCount: 128),
+          HashtagSuggestion(tag: 'sockmending', postCount: 12),
+          HashtagSuggestion(tag: 'Lace', postCount: 7),
         ],
       );
 
       final results = await repository.searchHashtags('sock');
 
       expect(results.map((hashtag) => hashtag.tag), ['SockKAL', 'sockmending']);
-      expect(results.map((hashtag) => hashtag.postsLast28Days), [128, 12]);
+      expect(results.map((hashtag) => hashtag.postCount), [128, 12]);
     });
   });
 }

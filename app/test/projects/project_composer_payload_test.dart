@@ -5,6 +5,30 @@ import 'package:craftsky_app/projects/options/project_option_catalogs.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test(
+    'additional crafts exclude the primary and duplicates in create payload',
+    () {
+      final result = buildProjectComposerPayload(
+        formValues: {
+          ProjectComposerFields.craftType:
+              ProjectOptionCatalogs.sewingCraftToken,
+          ProjectComposerFields.additionalCrafts: [
+            ProjectOptionCatalogs.knittingCraftToken,
+            ProjectOptionCatalogs.sewingCraftToken,
+            ProjectOptionCatalogs.knittingCraftToken,
+          ],
+        },
+      );
+      expect(result.errors, isEmpty);
+      expect(
+        result.project!.toCreateMap()['common'],
+        containsPair('additionalCrafts', [
+          {'craftType': ProjectOptionCatalogs.knittingCraftToken},
+        ]),
+      );
+    },
+  );
+
   test('restored sewing notes respect grapheme and byte boundaries', () {
     for (final (notes, valid) in [
       ('é' * 600, true),

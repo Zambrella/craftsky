@@ -179,7 +179,7 @@ void main() {
           },
           'hashtags': {
             'items': [
-              {'tag': 'SockKAL', 'postsLast28Days': 12},
+              {'tag': 'SockKAL', 'postCount': 12},
             ],
             'hasMore': false,
           },
@@ -215,7 +215,7 @@ void main() {
         '/v1/search/hashtags',
         (server) => server.reply(200, {
           'items': [
-            {'tag': 'Sock', 'postsLast28Days': 4},
+            {'tag': 'Sock', 'postCount': 4},
           ],
           'cursor': 'opaque:hashtags',
         }),
@@ -231,7 +231,7 @@ void main() {
       ).searchHashtags(q: 'sock', limit: 10, cursor: 'opaque:start');
 
       expect(page.cursor, 'opaque:hashtags');
-      expect(page.items.single.postsLast28Days, 4);
+      expect(page.items.single.postCount, 4);
       expect(page.items.single.tag, 'Sock');
     });
   });

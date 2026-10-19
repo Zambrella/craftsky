@@ -258,7 +258,7 @@ void main() {
                     items: [
                       HashtagSearchResult(
                         tag: 'SockKAL',
-                        postsLast28Days: 12,
+                        postCount: 12,
                       ),
                     ],
                   ),
@@ -483,7 +483,7 @@ void main() {
             items: calls == 1
                 ? const []
                 : const [
-                    HashtagSearchResult(tag: 'refreshed', postsLast28Days: 1),
+                    HashtagSearchResult(tag: 'refreshed', postCount: 1),
                   ],
           );
         },
@@ -566,7 +566,7 @@ void main() {
                   ),
                   hashtags: SearchSuggestionHashtagSection(
                     items: [
-                      HashtagSearchResult(tag: 'MeMadeMay', postsLast28Days: 0),
+                      HashtagSearchResult(tag: 'MeMadeMay', postCount: 0),
                     ],
                     hasMore: false,
                   ),
@@ -574,7 +574,7 @@ void main() {
         onSearchHashtags: ({required q, limit, cursor}) async =>
             const HashtagSearchPage(
               items: [
-                HashtagSearchResult(tag: 'MeMadeMay', postsLast28Days: 1),
+                HashtagSearchResult(tag: 'MeMadeMay', postCount: 1),
               ],
             ),
         onSearchPosts: ({required q, limit, cursor}) async =>

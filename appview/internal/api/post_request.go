@@ -15,6 +15,7 @@ import (
 	"github.com/rivo/uniseg"
 
 	"social.craftsky/appview/internal/languages"
+	craftskylex "social.craftsky/appview/internal/lexicon/craftsky"
 	lexiconschema "social.craftsky/appview/internal/lexicon/schema"
 )
 
@@ -83,12 +84,13 @@ type PostCreateRequest struct {
 	// pass-through to the PDS, which validates it. The tag-extraction
 	// path in the create handler does its own non-strict decode for the
 	// synthetic response.
-	Facets  json.RawMessage `json:"facets,omitempty"`
-	Reply   *ReplyRef       `json:"reply,omitempty"`
-	Embed   *EmbedRequest   `json:"embed,omitempty"`
-	Images  []PostImage     `json:"images,omitempty"`
-	Project *Project        `json:"project,omitempty"`
-	Langs   []string        `json:"langs,omitempty"`
+	Facets  json.RawMessage               `json:"facets,omitempty"`
+	Reply   *ReplyRef                     `json:"reply,omitempty"`
+	Embed   *EmbedRequest                 `json:"embed,omitempty"`
+	Images  []PostImage                   `json:"images,omitempty"`
+	Project *Project                      `json:"project,omitempty"`
+	Langs   []string                      `json:"langs,omitempty"`
+	Crafts  []*craftskylex.FeedPost_Craft `json:"crafts,omitempty"`
 }
 
 type PostImage struct {
@@ -181,6 +183,15 @@ func ValidatePostCreateWithLimits(req PostCreateRequest, limits MediaLimits) err
 	if err := languages.ValidatePostTags(req.Langs); err != nil {
 		fields["langs"] = "must contain no more than three distinct valid language tags"
 	}
+	if len(req.Crafts) > 0 {
+		raw, err := json.Marshal(map[string]any{
+			"$type": "social.craftsky.feed.post", "text": "", "sponsored": false,
+			"createdAt": "2026-01-01T00:00:00Z", "crafts": req.Crafts,
+		})
+		if err != nil || lexiconschema.ValidateCraftskyRecord(raw, "social.craftsky.feed.post") != nil {
+			fields["crafts"] = "must contain at most three craft entries satisfying the post lexicon"
+		}
+	}
 	if req.Reply != nil {
 		validateStrongRef(fields, "reply.root", req.Reply.Root)
 		validateStrongRef(fields, "reply.parent", req.Reply.Parent)
@@ -220,8 +231,8 @@ func ValidatePostCreateWithLimits(req PostCreateRequest, limits MediaLimits) err
 	}
 	for i, img := range req.Images {
 		prefix := fmt.Sprintf("images[%d]", i)
-		if !utf8.ValidString(img.Alt) || len(img.Alt) > 1000 || uniseg.GraphemeClusterCount(img.Alt) > 1000 {
-			fields[prefix+".alt"] = "exceeds 1000 graphemes / 1000 bytes"
+		if !utf8.ValidString(img.Alt) || len(img.Alt) > 10000 || uniseg.GraphemeClusterCount(img.Alt) > 1000 {
+			fields[prefix+".alt"] = "exceeds 1000 graphemes / 10000 bytes"
 		}
 		if len(img.Image) == 0 {
 			fields[prefix+".image"] = "must not be empty"
@@ -254,6 +265,7 @@ func ValidatePostCreateWithLimits(req PostCreateRequest, limits MediaLimits) err
 		} else if !IsSupportedProjectCraftType(craftType) {
 			fields["project.common.craftType"] = "must be a supported craft type"
 		}
+		validateProjectCrafts(fields, req.Project)
 		if len(req.Project.Common.Materials) > maxProjectMaterials {
 			fields["project.common.materials"] = fmt.Sprintf("exceeds maximum of %d entries", maxProjectMaterials)
 		}

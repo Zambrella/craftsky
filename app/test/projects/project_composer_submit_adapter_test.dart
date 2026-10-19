@@ -4,6 +4,55 @@ import 'package:craftsky_app/projects/models/project.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test(
+    'scheduled form rebuild retains future metadata and additional crafts',
+    () async {
+      final existing = ProjectMapper.fromMap({
+        'futureRoot': true,
+        'common': {
+          'craftType': 'social.craftsky.feed.defs#knitting',
+          'futureCommon': true,
+          'pattern': {'name': 'Aster', 'futurePattern': true},
+        },
+        'details': {r'$type': knittingProjectDetailsType, 'futureDetail': true},
+      });
+      final args = await buildProjectComposerSubmitArguments(
+        text: 'New caption',
+        langs: const ['en'],
+        project: const Project(
+          common: ProjectCommon(
+            craftType: 'social.craftsky.feed.defs#knitting',
+            additionalCrafts: [
+              ProjectCraft(craftType: 'social.craftsky.feed.defs#sewing'),
+            ],
+            pattern: ProjectPattern(name: 'Aster'),
+          ),
+          details: KnittingProjectDetails(),
+        ),
+        existingProject: existing,
+        imagesState: const ComposerImagesState(images: []),
+        generateFacets: (
+          _, {
+          includeMentions = true,
+          includeLinks = true,
+          includeTags = true,
+        }) async => [],
+      );
+      final map = args.project.toCreateMap();
+      expect(map['futureRoot'], isTrue);
+      expect((map['common'] as Map)['futureCommon'], isTrue);
+      expect(
+        ((map['common'] as Map)['pattern'] as Map)['futurePattern'],
+        isTrue,
+      );
+      expect((map['details'] as Map)['futureDetail'], isTrue);
+      expect(
+        args.project.common.additionalCrafts!.single.craftType,
+        'social.craftsky.feed.defs#sewing',
+      );
+    },
+  );
+
   const langs = ['fr', 'en'];
 
   test(

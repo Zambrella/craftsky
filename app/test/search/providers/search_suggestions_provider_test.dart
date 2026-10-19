@@ -42,7 +42,7 @@ void main() {
                 ),
                 hashtags: const SearchSuggestionHashtagSection(
                   items: [
-                    HashtagSearchResult(tag: 'sockkal', postsLast28Days: 7),
+                    HashtagSearchResult(tag: 'sockkal', postCount: 7),
                   ],
                   hasMore: false,
                 ),

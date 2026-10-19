@@ -84,6 +84,7 @@ type PostResponse struct {
 	Facets              json.RawMessage         `json:"facets"`
 	Tags                []string                `json:"tags"`
 	Langs               []string                `json:"langs"`
+	Crafts              json.RawMessage         `json:"crafts,omitempty"`
 	LikeCount           int                     `json:"likeCount"`
 	RepostCount         int                     `json:"repostCount"`
 	QuoteCount          int                     `json:"quoteCount"`
@@ -218,6 +219,7 @@ type QuotePreviewPost struct {
 	CID            string                  `json:"cid"`
 	Text           string                  `json:"text"`
 	Sponsored      bool                    `json:"sponsored"`
+	Crafts         json.RawMessage         `json:"crafts,omitempty"`
 	Author         PostAuthor              `json:"author"`
 	Images         []PostImageView         `json:"images,omitempty"`
 	Project        *Project                `json:"project,omitempty"`
@@ -325,6 +327,7 @@ func BuildPostResponse(row *PostRow, handle syntax.Handle, playbackBuilders ...P
 		Facets:         row.Facets,
 		Tags:           tags,
 		Langs:          langs,
+		Crafts:         row.Crafts,
 		CreatedAt:      row.CreatedAt.UTC(),
 		IndexedAt:      row.IndexedAt.UTC(),
 		ExternalImport: buildExternalImportResponse(row.ExternalImportSource),
@@ -464,6 +467,7 @@ func BuildQuoteView(row *QuoteViewRow, handle syntax.Handle) *QuoteView {
 		CID:            row.Post.CID,
 		Text:           row.Post.Text,
 		Sponsored:      row.Post.Sponsored,
+		Crafts:         row.Post.Crafts,
 		Author:         author,
 		Images:         buildPostImageViews(row.Post),
 		Project:        row.Post.Project,

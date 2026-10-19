@@ -51,3 +51,11 @@ func TestPublishedPostImageCount(t *testing.T) {
 		}
 	}
 }
+
+func TestPublishedProjectDetailsMustMatchPrimaryCraft(t *testing.T) {
+	raw := json.RawMessage(`{"$type":"social.craftsky.feed.post","text":"project","sponsored":false,"createdAt":"2026-10-19T00:00:00Z","project":{"common":{"craftType":"social.craftsky.feed.defs#knitting","additionalCrafts":[{"craftType":"social.craftsky.feed.defs#sewing"}]},"details":{"$type":"social.craftsky.project.sewing#details"}}}`)
+	result := Validate(tap.Event{Collection: "social.craftsky.feed.post", Rkey: "3aaaaaaaaaaa2", Action: "create", Record: raw})
+	if result.SemanticStatus != Invalid || result.Reason != "mismatched_project_details" {
+		t.Fatalf("result=%+v", result)
+	}
+}

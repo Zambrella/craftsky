@@ -167,21 +167,20 @@ func (s *FacetStore) SearchHashtagSuggestions(ctx context.Context, query string,
 		WHERE p.reply_root_uri IS NULL
 		  AND p.reply_parent_uri IS NULL
 		  AND p.quote_uri IS NULL
-		  AND p.created_at >= $1
 		  AND trim(tag.raw_tag) <> ''
-		  AND lower(trim(tag.raw_tag)) LIKE '%' || $3 || '%' ESCAPE '\'
+		  AND lower(trim(tag.raw_tag)) LIKE '%' || $2 || '%' ESCAPE '\'
 		`+postVisibleModerationPredicate+`
 		)`+hashtagAggregationCTEs+`
 		ORDER BY
 		  CASE
-		    WHEN c.tag_key = $2 THEN 0
-		    WHEN c.tag_key LIKE $3 || '%' ESCAPE '\' THEN 1
+		    WHEN c.tag_key = $1 THEN 0
+		    WHEN c.tag_key LIKE $2 || '%' ESCAPE '\' THEN 1
 		    ELSE 2
 		  END ASC,
 		  c.post_count DESC,
 		  c.tag_key ASC
-		LIMIT $4
-	`, now.Add(-28*24*time.Hour), queryLower, likeQuery, limit)
+		LIMIT $3
+	`, queryLower, likeQuery, limit)
 	if err != nil {
 		return nil, fmt.Errorf("facet hashtag suggestions: %w", err)
 	}
@@ -189,7 +188,7 @@ func (s *FacetStore) SearchHashtagSuggestions(ctx context.Context, query string,
 	out := make([]HashtagSuggestionRow, 0, limit)
 	for rows.Next() {
 		var row HashtagSuggestionRow
-		if err := rows.Scan(&row.Tag, &row.PostsLast28Days); err != nil {
+		if err := rows.Scan(&row.Tag, &row.PostCount); err != nil {
 			return nil, fmt.Errorf("facet hashtag suggestion scan: %w", err)
 		}
 		out = append(out, row)

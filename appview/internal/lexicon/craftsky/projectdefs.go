@@ -9,11 +9,20 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"social.craftsky/appview/internal/recordjson"
 
 	appbsky "github.com/bluesky-social/indigo/api/bsky"
 	lexutil "github.com/bluesky-social/indigo/lex/util"
 	cbg "github.com/whyrusleeping/cbor-gen"
 )
+
+// ProjectDefs_AdditionalCraft is a "additionalCraft" in the social.craftsky.project.defs schema.
+//
+// One additional craft, represented as an object so future context can be added.
+type ProjectDefs_AdditionalCraft struct {
+	// craftType: An additional craft involved in this project.
+	CraftType string `json:"craftType" cborgen:"craftType"`
+}
 
 // ProjectDefs_Gauge is a "gauge" in the social.craftsky.project.defs schema.
 //
@@ -77,9 +86,11 @@ type ProjectDefs_Project struct {
 //
 // Project fields shared across every craft. A post with project.common present but no project.details is a valid craft-tagged project post without specialised fields — useful when craftType references a craft that has no #details lexicon yet.
 type ProjectDefs_ProjectCommon struct {
+	// additionalCrafts: Other crafts involved in this project. Clients should omit the primary craft and duplicates. These crafts also participate in discovery; details remain associated with the primary craft.
+	AdditionalCrafts []*ProjectDefs_AdditionalCraft `json:"additionalCrafts,omitempty" cborgen:"additionalCrafts,omitempty"`
 	// colors: Primary colors used in the project, normalized by clients for search and filtering. knownValues are open suggestions; clients may write other bounded color strings when needed.
 	Colors []string `json:"colors,omitempty" cborgen:"colors,omitempty"`
-	// craftType: The craft this project belongs to. Required — a project post without a craft type is meaningless. knownValues are tokens; new crafts can be added to feed.defs without breaking old clients.
+	// craftType: Primary craft for this project. Determines the craft-specific details; additionalCrafts records other participating crafts. knownValues are open tokens.
 	CraftType string `json:"craftType" cborgen:"craftType"`
 	// designTags: Visual design, motif, or aesthetic tags for the project, normalized by clients for cross-craft search and filtering. knownValues are open suggestions; clients may write other bounded design strings when needed.
 	DesignTags []string `json:"designTags,omitempty" cborgen:"designTags,omitempty"`
@@ -99,6 +110,7 @@ type ProjectDefs_ProjectCommon struct {
 
 // Optional craft-specific fields. Open union — new crafts add new variants here without breaking existing records.
 type ProjectDefs_Project_Details struct {
+	Unknown                 *recordjson.OpenUnion `json:"-"`
 	ProjectSewing_Details   *ProjectSewing_Details
 	ProjectQuilting_Details *ProjectQuilting_Details
 	ProjectCrochet_Details  *ProjectCrochet_Details
@@ -122,10 +134,14 @@ func (t *ProjectDefs_Project_Details) MarshalJSON() ([]byte, error) {
 		t.ProjectKnitting_Details.LexiconTypeID = "social.craftsky.project.knitting#details"
 		return json.Marshal(t.ProjectKnitting_Details)
 	}
+	if t.Unknown != nil {
+		return t.Unknown.MarshalJSON()
+	}
 	return nil, fmt.Errorf("can not marshal empty union as JSON")
 }
 
 func (t *ProjectDefs_Project_Details) UnmarshalJSON(b []byte) error {
+	*t = ProjectDefs_Project_Details{}
 	typ, err := lexutil.TypeExtract(b)
 	if err != nil {
 		return err
@@ -145,7 +161,8 @@ func (t *ProjectDefs_Project_Details) UnmarshalJSON(b []byte) error {
 		t.ProjectKnitting_Details = new(ProjectKnitting_Details)
 		return json.Unmarshal(b, t.ProjectKnitting_Details)
 	default:
-		return nil
+		t.Unknown = &recordjson.OpenUnion{}
+		return t.Unknown.UnmarshalJSON(b)
 	}
 }
 
@@ -167,10 +184,14 @@ func (t *ProjectDefs_Project_Details) MarshalCBOR(w io.Writer) error {
 	if t.ProjectKnitting_Details != nil {
 		return t.ProjectKnitting_Details.MarshalCBOR(w)
 	}
+	if t.Unknown != nil {
+		return t.Unknown.MarshalCBOR(w)
+	}
 	return fmt.Errorf("can not marshal empty union as CBOR")
 }
 
 func (t *ProjectDefs_Project_Details) UnmarshalCBOR(r io.Reader) error {
+	*t = ProjectDefs_Project_Details{}
 	typ, b, err := lexutil.CborTypeExtractReader(r)
 	if err != nil {
 		return err
@@ -190,6 +211,7 @@ func (t *ProjectDefs_Project_Details) UnmarshalCBOR(r io.Reader) error {
 		t.ProjectKnitting_Details = new(ProjectKnitting_Details)
 		return t.ProjectKnitting_Details.UnmarshalCBOR(bytes.NewReader(b))
 	default:
-		return nil
+		t.Unknown = &recordjson.OpenUnion{}
+		return t.Unknown.UnmarshalCBOR(bytes.NewReader(b))
 	}
 }

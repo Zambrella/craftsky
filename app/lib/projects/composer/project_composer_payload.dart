@@ -84,6 +84,13 @@ ProjectComposerPayloadResult buildProjectComposerPayload({
 
   final common = ProjectCommon(
     craftType: craftType,
+    additionalCrafts: [
+      for (final craft
+          in (_stringList(formValues[ProjectComposerFields.additionalCrafts]) ??
+                  <String>[])
+              .toSet())
+        if (craft != craftType) ProjectCraft(craftType: craft),
+    ],
     status:
         _stringValue(formValues[ProjectComposerFields.status]) ??
         ProjectOptionCatalogs.finishedStatusToken,

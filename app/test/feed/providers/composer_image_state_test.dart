@@ -5,12 +5,14 @@ import 'package:craftsky_app/feed/providers/composer_image_state.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('image alt permits 1000 ASCII characters and enforces UTF-8 bytes', () {
+  test('image alt permits 1000 graphemes and enforces 10000 UTF-8 bytes', () {
     for (final (alt, valid) in [
       ('a' * 1000, true),
       ('a' * 1001, false),
-      ('é' * 500, true),
-      ('é' * 501, false),
+      ('é' * 1000, true),
+      ('é' * 1001, false),
+      ('👨‍👩‍👧‍👦' * 400, true),
+      ('👨‍👩‍👧‍👦' * 401, false),
     ]) {
       final state = ComposerImagesState(
         images: [

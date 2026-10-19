@@ -1,3 +1,4 @@
+import 'package:craftsky_app/projects/models/project_extensions.dart';
 import 'package:dart_mappable/dart_mappable.dart';
 
 part 'project.mapper.dart';
@@ -7,9 +8,19 @@ const crochetProjectDetailsType = 'social.craftsky.project.crochet#details';
 const sewingProjectDetailsType = 'social.craftsky.project.sewing#details';
 const quiltingProjectDetailsType = 'social.craftsky.project.quilting#details';
 
-@MappableClass(ignoreNull: true, includeCustomMappers: [ProjectDetailsMapper()])
+@MappableClass(
+  ignoreNull: true,
+  includeCustomMappers: [ProjectDetailsMapper()],
+  hook: ProjectExtensionsHook(['common', 'details']),
+)
 class Project with ProjectMappable {
-  const new({required this.common, this.details});
+  const new({
+    required this.common,
+    this.details,
+    this.extraFields = const {},
+  });
+
+  final Map<String, dynamic> extraFields;
 
   final ProjectCommon common;
   @MappableField(hook: ProjectDetailsFieldHook())
@@ -18,10 +29,25 @@ class Project with ProjectMappable {
   Map<String, dynamic> toCreateMap() => _omitEmptyProjectArrays(toMap());
 }
 
-@MappableClass(ignoreNull: true)
+@MappableClass(
+  ignoreNull: true,
+  hook: ProjectExtensionsHook([
+    'craftType',
+    'additionalCrafts',
+    'status',
+    'title',
+    'duration',
+    'pattern',
+    'materials',
+    'colors',
+    'designTags',
+    'tags',
+  ]),
+)
 class ProjectCommon with ProjectCommonMappable {
   const new({
     required this.craftType,
+    this.additionalCrafts,
     this.status,
     this.title,
     this.duration,
@@ -30,9 +56,13 @@ class ProjectCommon with ProjectCommonMappable {
     this.colors,
     this.designTags,
     this.tags,
+    this.extraFields = const {},
   });
 
+  final Map<String, dynamic> extraFields;
+
   final String craftType;
+  final List<ProjectCraft>? additionalCrafts;
   final String? status;
   final String? title;
   final String? duration;
@@ -43,15 +73,47 @@ class ProjectCommon with ProjectCommonMappable {
   final List<String>? tags;
 }
 
-@MappableClass(ignoreNull: true)
+@MappableClass(ignoreNull: true, hook: ProjectExtensionsHook(['craftType']))
+class ProjectCraft with ProjectCraftMappable {
+  const new({
+    required this.craftType,
+    this.extraFields = const {},
+  });
+  final String craftType;
+  final Map<String, dynamic> extraFields;
+}
+
+@MappableClass(
+  ignoreNull: true,
+  hook: ProjectExtensionsHook(['text', 'facets']),
+)
 class ProjectMaterial with ProjectMaterialMappable {
-  const new({required this.text, this.facets});
+  const new({
+    required this.text,
+    this.facets,
+    this.extraFields = const {},
+  });
+
+  final Map<String, dynamic> extraFields;
 
   final String text;
   final List<Map<String, dynamic>>? facets;
 }
 
-@MappableClass(ignoreNull: true)
+@MappableClass(
+  ignoreNull: true,
+  hook: ProjectExtensionsHook([
+    'url',
+    'name',
+    'nameFacets',
+    'difficulty',
+    'selfDrafted',
+    'designer',
+    'designerFacets',
+    'publisher',
+    'publisherFacets',
+  ]),
+)
 class ProjectPattern with ProjectPatternMappable {
   const new({
     this.url,
@@ -63,7 +125,10 @@ class ProjectPattern with ProjectPatternMappable {
     this.designerFacets,
     this.publisher,
     this.publisherFacets,
+    this.extraFields = const {},
   });
+
+  final Map<String, dynamic> extraFields;
 
   final String? url;
   final String? name;
@@ -76,14 +141,20 @@ class ProjectPattern with ProjectPatternMappable {
   final List<Map<String, dynamic>>? publisherFacets;
 }
 
-@MappableClass(ignoreNull: true)
+@MappableClass(
+  ignoreNull: true,
+  hook: ProjectExtensionsHook(['stitches', 'measurement', 'unit', 'rows']),
+)
 class ProjectGauge with ProjectGaugeMappable {
   const new({
     required this.stitches,
     required this.measurement,
     required this.unit,
     this.rows,
+    this.extraFields = const {},
   });
+
+  final Map<String, dynamic> extraFields;
 
   final int stitches;
   final int? rows;
@@ -95,7 +166,17 @@ sealed class ProjectDetails {
   const new();
 }
 
-@MappableClass(ignoreNull: true)
+@MappableClass(
+  ignoreNull: true,
+  hook: ProjectExtensionsHook([
+    'projectType',
+    'projectSubtype',
+    'yarnWeight',
+    'needleSizeMm',
+    'gauge',
+    'finishedSize',
+  ]),
+)
 final class KnittingProjectDetails extends ProjectDetails
     with KnittingProjectDetailsMappable {
   const new({
@@ -105,7 +186,10 @@ final class KnittingProjectDetails extends ProjectDetails
     this.needleSizeMm,
     this.gauge,
     this.finishedSize,
+    this.extraFields = const {},
   });
+
+  final Map<String, dynamic> extraFields;
 
   final String? projectType;
   final String? projectSubtype;
@@ -115,7 +199,17 @@ final class KnittingProjectDetails extends ProjectDetails
   final String? finishedSize;
 }
 
-@MappableClass(ignoreNull: true)
+@MappableClass(
+  ignoreNull: true,
+  hook: ProjectExtensionsHook([
+    'projectType',
+    'projectSubtype',
+    'yarnWeight',
+    'hookSizeMm',
+    'gauge',
+    'finishedSize',
+  ]),
+)
 final class CrochetProjectDetails extends ProjectDetails
     with CrochetProjectDetailsMappable {
   const new({
@@ -125,7 +219,10 @@ final class CrochetProjectDetails extends ProjectDetails
     this.hookSizeMm,
     this.gauge,
     this.finishedSize,
+    this.extraFields = const {},
   });
+
+  final Map<String, dynamic> extraFields;
 
   final String? projectType;
   final String? projectSubtype;
@@ -135,7 +232,15 @@ final class CrochetProjectDetails extends ProjectDetails
   final String? finishedSize;
 }
 
-@MappableClass(ignoreNull: true)
+@MappableClass(
+  ignoreNull: true,
+  hook: ProjectExtensionsHook([
+    'projectType',
+    'projectSubtype',
+    'sizeMade',
+    'fitNotes',
+  ]),
+)
 final class SewingProjectDetails extends ProjectDetails
     with SewingProjectDetailsMappable {
   const new({
@@ -143,7 +248,10 @@ final class SewingProjectDetails extends ProjectDetails
     this.projectSubtype,
     this.sizeMade,
     this.fitNotes,
+    this.extraFields = const {},
   });
+
+  final Map<String, dynamic> extraFields;
 
   final String? projectType;
   final String? projectSubtype;
@@ -151,7 +259,16 @@ final class SewingProjectDetails extends ProjectDetails
   final String? fitNotes;
 }
 
-@MappableClass(ignoreNull: true)
+@MappableClass(
+  ignoreNull: true,
+  hook: ProjectExtensionsHook([
+    'projectType',
+    'projectSubtype',
+    'size',
+    'piecingTechnique',
+    'quiltingMethod',
+  ]),
+)
 final class QuiltingProjectDetails extends ProjectDetails
     with QuiltingProjectDetailsMappable {
   const new({
@@ -160,7 +277,10 @@ final class QuiltingProjectDetails extends ProjectDetails
     this.size,
     this.piecingTechnique,
     this.quiltingMethod,
+    this.extraFields = const {},
   });
+
+  final Map<String, dynamic> extraFields;
 
   final String? projectType;
   final String? projectSubtype;
@@ -185,10 +305,18 @@ class ProjectDetailsMapper extends SimpleMapper<ProjectDetails> {
   ProjectDetails decode(Object value) {
     final map = Map<String, dynamic>.from(value as Map);
     return switch (map[r'$type']) {
-      knittingProjectDetailsType => KnittingProjectDetailsMapper.fromMap(map),
-      crochetProjectDetailsType => CrochetProjectDetailsMapper.fromMap(map),
-      sewingProjectDetailsType => SewingProjectDetailsMapper.fromMap(map),
-      quiltingProjectDetailsType => QuiltingProjectDetailsMapper.fromMap(map),
+      knittingProjectDetailsType => KnittingProjectDetailsMapper.fromMap(
+        _withoutDiscriminator(map),
+      ),
+      crochetProjectDetailsType => CrochetProjectDetailsMapper.fromMap(
+        _withoutDiscriminator(map),
+      ),
+      sewingProjectDetailsType => SewingProjectDetailsMapper.fromMap(
+        _withoutDiscriminator(map),
+      ),
+      quiltingProjectDetailsType => QuiltingProjectDetailsMapper.fromMap(
+        _withoutDiscriminator(map),
+      ),
       final String type => UnknownProjectDetails(
         type: type,
         raw: _withoutDiscriminator(map),
@@ -244,7 +372,13 @@ Map<String, dynamic> _withoutDiscriminator(Map<String, dynamic> map) {
 Map<String, dynamic> _omitEmptyProjectArrays(Map<String, dynamic> map) {
   final common = map['common'];
   if (common case final Map<String, dynamic> commonMap) {
-    for (final key in const ['materials', 'colors', 'designTags', 'tags']) {
+    for (final key in const [
+      'materials',
+      'colors',
+      'designTags',
+      'tags',
+      'additionalCrafts',
+    ]) {
       if (commonMap[key] case final List<Object?> value when value.isEmpty) {
         commonMap.remove(key);
       }

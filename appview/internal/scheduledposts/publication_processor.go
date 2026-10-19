@@ -634,6 +634,9 @@ func publicationRecord(payload Payload, blobs []map[string]any, createdAt time.T
 		}
 		record["facets"] = facets
 	}
+	if len(payload.Crafts) > 0 {
+		record["crafts"] = payload.Crafts
+	}
 	if len(payload.Langs) > 0 {
 		record["langs"] = payload.Langs
 	}

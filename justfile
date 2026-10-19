@@ -279,6 +279,7 @@ lexgen:
       --external-lexicons "$INDIGO_DIR/lexicons/com/atproto/repo/strongRef.json" \
       "$codegen_source" \
       cmd/lexgen/external/community.lexicon.location.address.bafyreicdvexolyvp6j6yksqiib7hihwktt6ogalbvyzvtkj6ecrtqqw5fq.json
+    python3 ../scripts/lexicon-open-unions
     go run ./cmd/lexgen/cborgen
     ../scripts/lexicon-catalog-sync "$INDIGO_DIR"
     gofmt -w internal/lexicon/craftsky internal/lexicon/community

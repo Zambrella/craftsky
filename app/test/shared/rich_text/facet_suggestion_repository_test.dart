@@ -154,7 +154,7 @@ void main() {
         '/v1/facets/hashtags',
         (server) => server.reply(200, {
           'items': [
-            {'tag': 'SockKAL', 'postsLast28Days': 12},
+            {'tag': 'SockKAL', 'postCount': 12},
             {'tag': 'knitting'},
           ],
         }),
@@ -167,9 +167,9 @@ void main() {
 
       expect(items, hasLength(2));
       expect(items.first.tag, 'SockKAL');
-      expect(items.first.postsLast28Days, 12);
+      expect(items.first.postCount, 12);
       expect(items.last.tag, 'knitting');
-      expect(items.last.postsLast28Days, 0);
+      expect(items.last.postCount, 0);
     },
   );
 

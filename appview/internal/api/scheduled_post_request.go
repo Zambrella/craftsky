@@ -12,6 +12,7 @@ import (
 
 	"github.com/google/uuid"
 
+	craftskylex "social.craftsky/appview/internal/lexicon/craftsky"
 	"social.craftsky/appview/internal/scheduledposts"
 )
 
@@ -36,6 +37,7 @@ type scheduledPostPayloadRequest struct {
 	Sponsored bool                            `json:"sponsored"`
 	Facets    json.RawMessage                 `json:"facets,omitempty"`
 	Langs     []string                        `json:"langs,omitempty"`
+	Crafts    []*craftskylex.FeedPost_Craft   `json:"crafts,omitempty"`
 	Project   json.RawMessage                 `json:"project,omitempty"`
 	Media     []scheduledposts.PayloadMedia   `json:"media,omitempty"`
 	Reply     json.RawMessage                 `json:"reply,omitempty"`
@@ -46,7 +48,7 @@ type scheduledPostPayloadRequest struct {
 func (payload scheduledPostPayloadRequest) canonical() scheduledposts.Payload {
 	return scheduledposts.Payload{
 		Kind: payload.Kind, Text: payload.Text, Sponsored: payload.Sponsored, Facets: payload.Facets,
-		Langs: payload.Langs, Project: payload.Project, Media: payload.Media,
+		Langs: payload.Langs, Crafts: payload.Crafts, Project: payload.Project, Media: payload.Media,
 		External: payload.External,
 	}
 }
@@ -136,6 +138,7 @@ func validateScheduledPostRequest(
 		Sponsored: request.Payload.Sponsored,
 		Facets:    request.Payload.Facets,
 		Langs:     request.Payload.Langs,
+		Crafts:    request.Payload.Crafts,
 	}
 	if len(request.Payload.Project) > 0 {
 		if err := json.Unmarshal(request.Payload.Project, &postRequest.Project); err != nil {

@@ -657,7 +657,7 @@ func TestFacetStoreResolveMentionDoesNotTrustFreshLookingReassignedHandle(t *tes
 	}
 }
 
-func TestFacetStoreSearchHashtagSuggestionsCountsRecentRootPosts(t *testing.T) {
+func TestFacetStoreSearchHashtagSuggestionsCountsAllTimeRootPosts(t *testing.T) {
 	t.Parallel()
 	pool := hashtagSearchTestPool(t)
 	ctx := context.Background()
@@ -682,8 +682,8 @@ func TestFacetStoreSearchHashtagSuggestionsCountsRecentRootPosts(t *testing.T) {
 		t.Fatalf("SearchHashtagSuggestions: %v", err)
 	}
 	want := []api.HashtagSuggestionRow{
-		{Tag: "sockkal", PostsLast28Days: 2},
-		{Tag: "sockmending", PostsLast28Days: 1},
+		{Tag: "sockkal", PostCount: 3},
+		{Tag: "sockmending", PostCount: 1},
 	}
 	if len(rows) != len(want) {
 		t.Fatalf("rows = %#v, want %#v", rows, want)

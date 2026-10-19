@@ -1,5 +1,6 @@
 abstract final class ProjectComposerFields {
   static const craftType = 'craftType';
+  static const additionalCrafts = 'additionalCrafts';
   static const status = 'status';
   static const title = 'title';
   static const materials = 'materials';

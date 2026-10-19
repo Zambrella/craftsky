@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"social.craftsky/appview/internal/projectcatalog"
 )
 
 func (s *SearchStore) searchSubmittedByRelevance(ctx context.Context, viewer string, languages []string, req ProjectSearchRequest, project bool) ([]SearchPostRow, string, error) {
@@ -18,7 +19,7 @@ func (s *SearchStore) searchSubmittedByRelevance(ctx context.Context, viewer str
 	}
 	// Posts use empty filter arrays; project filters retain their existing semantics.
 	scope += `
-   AND (cardinality($8::text[]) = 0 OR lower(pp.common_craft_type) = ANY($8))
+   AND (cardinality($8::text[]) = 0 OR ` + projectCraftValuesSQL + ` && $8::text[])
    AND (cardinality($9::text[]) = 0 OR lower(coalesce(pp.pattern_difficulty,'')) = ANY($9))
    AND (cardinality($10::text[]) = 0 OR lower(coalesce(pp.knitting_project_type,'')) = ANY($10) OR lower(coalesce(pp.crochet_project_type,'')) = ANY($10) OR lower(coalesce(pp.quilting_project_type,'')) = ANY($10) OR lower(coalesce(pp.sewing_project_type,'')) = ANY($10))
    AND (cardinality($11::text[]) = 0 OR EXISTS(SELECT 1 FROM unnest(pp.colors) v WHERE lower(v) = ANY($11)))
@@ -36,17 +37,7 @@ func (s *SearchStore) searchSubmittedByRelevance(ctx context.Context, viewer str
 		return nil, "", err
 	}
 
-	tags := `ARRAY(SELECT DISTINCT lower(tag) COLLATE "C" FROM unnest(coalesce(p.tags,'{}'::text[])) tag WHERE tag IS NOT NULL ORDER BY lower(tag) COLLATE "C")`
-	if project {
-		tags = `ARRAY(SELECT DISTINCT lower(tag) COLLATE "C" FROM unnest(coalesce(p.tags,'{}'::text[]) || coalesce(pp.project_tags,'{}'::text[]) || coalesce(pp.design_tags,'{}'::text[])) tag WHERE tag IS NOT NULL ORDER BY lower(tag) COLLATE "C")`
-	}
-	alts := `ARRAY(SELECT image->>'alt' FROM jsonb_array_elements(CASE WHEN jsonb_typeof(p.images)='array' THEN p.images ELSE '[]'::jsonb END) image WHERE jsonb_typeof(image->'alt')='string')`
-	fields := `ARRAY[p.text,array_to_string(` + tags + `,' ')]::text[] || ` + alts
-	weights := `ARRAY[1.0,0.2]::real[] || array_fill(0.1::real,ARRAY[cardinality(` + alts + `)])`
-	if project {
-		fields = `ARRAY[p.text,pp.common_title,pp.pattern_name,array_to_string(pp.materials,' '),array_to_string(` + tags + `,' ')]::text[] || ` + alts
-		weights = `ARRAY[1.0,1.0,1.0,0.4,0.2]::real[] || array_fill(0.1::real,ARRAY[cardinality(` + alts + `)])`
-	}
+	fields, weights := submittedSearchFieldSQL(project)
 	corrections, _ := json.Marshal(correctionWords)
 	dictionary, _ := json.Marshal(searchEquivalenceGroups)
 	q := `WITH eligible AS MATERIALIZED (
@@ -97,6 +88,9 @@ func (s *SearchStore) searchSubmittedByRelevance(ctx context.Context, viewer str
 		args = append(args, projectFilterValues(req, key))
 	}
 	args = append(args, cur.TierPtr(), corrections, dictionary)
+	if project {
+		args = append(args, projectcatalog.SearchTermsJSON)
+	}
 	rows, err := s.pool.Query(ctx, q, args...)
 	if err != nil {
 		return nil, "", fmt.Errorf("submitted search: %w", err)

@@ -1,16 +1,13 @@
 package api
 
 import (
+	"social.craftsky/appview/internal/projectcatalog"
 	"strings"
 	"unicode"
 	"unicode/utf8"
 )
 
-var searchEquivalenceGroups = [][]string{
-	{"work in progress", "wip"},
-	{"stocking stitch", "stockinette"},
-	{"jumper", "sweater"},
-}
+var searchEquivalenceGroups = projectcatalog.Current.EquivalenceGroups
 
 type searchCorrectionWord struct {
 	Concept  int    `json:"concept"`
@@ -23,9 +20,16 @@ type searchCorrectionWord struct {
 // buildSearchMatchingPlan recognizes approved phrases before removing filler.
 // PostgreSQL remains responsible for field/query lexemes and English stemming.
 func buildSearchMatchingPlan(query string) ([][]string, []searchCorrectionWord) {
-	words := strings.FieldsFunc(strings.ToLower(query), func(r rune) bool {
-		return !unicode.IsLetter(r) && !unicode.IsNumber(r) && r != '-' && r != '_'
-	})
+	// Keep decimal measurements intact so query and field lexemes agree (for
+	// example 4.5mm). Other punctuation continues to separate words.
+	runes := []rune(strings.ToLower(query))
+	for i, r := range runes {
+		decimal := r == '.' && i > 0 && i+1 < len(runes) && unicode.IsNumber(runes[i-1]) && unicode.IsNumber(runes[i+1])
+		if !unicode.IsLetter(r) && !unicode.IsNumber(r) && r != '-' && r != '_' && !decimal {
+			runes[i] = ' '
+		}
+	}
+	words := strings.Fields(string(runes))
 	concepts := make([][]string, 0, len(words))
 	seen := map[string]bool{}
 	corrections := make([]searchCorrectionWord, 0)
