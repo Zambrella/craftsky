@@ -1,5 +1,13 @@
 # App Changelog
 
+## 1.7.5+12 - 2026-10-19
+
+- fix(notifications): open reply threads at their root
+- feat(feed): add quote action to thread repost menu
+- fix(app): handle profile image upload failures
+- chore(app): drop unsupported desktop platform targets
+- fix(profile): report unexpected photo upload failures
+
 ## 1.7.4+11 - 2026-10-16
 
 - fix(justfile): create obfuscation map directory
