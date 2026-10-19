@@ -4,10 +4,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
+	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/getsentry/sentry-go"
 	"github.com/jackc/pgx/v5/pgconn"
+	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -148,4 +151,139 @@ type callbackDiagnosticFlow struct {
 
 func (f *callbackDiagnosticFlow) CompleteCallback(context.Context, url.Values, auth.OAuthCallbackFinalizer) error {
 	return f.cause
+}
+
+func TestRegistrationCancellationDoesNotCaptureIssue(t *testing.T) {
+	for _, code := range []auth.RegistrationFailureCode{auth.RegistrationFailureCanceled, auth.RegistrationFailureProviderUnavailable, auth.RegistrationFailureIncomplete} {
+		t.Run(string(code), func(t *testing.T) {
+			var local bytes.Buffer
+			transport := &sentry.MockTransport{}
+			logger := slog.New(observability.NewDiagnosticHandler(slog.NewJSONHandler(&local, nil)))
+			observer := observability.New(observability.Config{Env: "test", Logger: logger, SentryDSN: "https://public@example.invalid/1", SentryTransport: transport})
+			failure := &auth.TrustedRegistrationFailure{Code: code, Metadata: auth.AuthRequestMetadata{
+				Purpose: auth.RegistrationOAuthPurpose, HandoffMode: auth.HandoffVerifiedLink,
+				DeviceID: "private-device-canary", RequestState: auth.AuthRequestReady, ExpiresAt: time.Now().Add(time.Minute),
+				RegistrationProviderOrigin: "https://provider.example", RegistrationIssuer: "https://issuer.example",
+			}}
+			handlers := &auth.HTTPHandlers{Logger: logger, OAuthFlow: &callbackDiagnosticFlow{cause: errors.Join(failure, errors.New("private-provider-canary"))}, LoginCompleteURL: "https://app.craftsky.social/auth/complete"}
+			request := httptest.NewRequest("GET", "/oauth/callback?state=private-state-canary&error=access_denied", nil)
+			response := httptest.NewRecorder()
+			middleware.Logging(logger)(middleware.HTTPMetrics(observer)(handlers.CallbackHandler())).ServeHTTP(response, request)
+			observer.Flush(time.Second)
+			if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), string(code)) {
+				t.Fatalf("callback response changed: %d", response.Code)
+			}
+			wantEvents, result := 1, "error"
+			if code == auth.RegistrationFailureCanceled {
+				wantEvents, result = 0, "expected"
+			}
+			if len(transport.Events()) != wantEvents {
+				t.Fatalf("issues = %d, want %d", len(transport.Events()), wantEvents)
+			}
+			for _, want := range []string{"registration.callback", "TrustedRegistrationFailure", `"result":"` + result + `"`, "run_id"} {
+				if !strings.Contains(local.String(), want) {
+					t.Fatalf("missing %q in local diagnostics", want)
+				}
+			}
+			serialized, err := json.Marshal(transport.Events())
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, canary := range []string{"private-device-canary", "private-state-canary", "private-provider-canary"} {
+				if strings.Contains(local.String(), canary) || strings.Contains(string(serialized), canary) || strings.Contains(response.Body.String(), canary) {
+					t.Fatalf("protected value escaped: %s", canary)
+				}
+			}
+		})
+	}
+}
+
+func TestLoginRecurrenceRetainsStageProviderFactsAndCorrelation(t *testing.T) {
+	for _, stage := range []string{"identity_result", "provider_discovery", "provider_metadata", "authorization_request"} {
+		t.Run(stage, func(t *testing.T) {
+			pool := withAuthSchema(t)
+			owners := newAuthOwnerStore(t, pool)
+			config := testStoreConfig()
+			config.OwnerLifecycles = owners
+			store := auth.NewPostgresAuthStore(pool, config)
+			owner := syntax.DID("did:plc:login-diagnostic")
+			seedAuthOwner(t, pool, owner)
+			ident := &identity.Identity{DID: owner, Handle: "alice.example", Services: map[string]identity.ServiceEndpoint{"atproto_pds": {Type: "AtprotoPersonalDataServer", URL: "https://pds.example"}}}
+			if stage == "identity_result" {
+				ident = nil
+			}
+			client := &http.Client{Transport: callbackRoundTripFunc(func(req *http.Request) (*http.Response, error) {
+				status, body := 200, ""
+				switch req.URL.Path {
+				case "/.well-known/oauth-protected-resource":
+					body = `{"resource":"https://pds.example","authorization_servers":["https://issuer.example"]}`
+					if stage == "provider_discovery" {
+						status, body = 502, "private-provider-canary"
+					}
+				case "/.well-known/oauth-authorization-server":
+					body = `{"issuer":"https://issuer.example","authorization_endpoint":"https://issuer.example/authorize","token_endpoint":"https://issuer.example/token","response_types_supported":["code"],"grant_types_supported":["authorization_code","refresh_token"],"code_challenge_methods_supported":["S256"],"token_endpoint_auth_methods_supported":["none","private_key_jwt"],"token_endpoint_auth_signing_alg_values_supported":["ES256"],"scopes_supported":["atproto"],"authorization_response_iss_parameter_supported":true,"require_pushed_authorization_requests":true,"pushed_authorization_request_endpoint":"https://issuer.example/par","dpop_signing_alg_values_supported":["ES256"],"client_id_metadata_document_supported":true}`
+					if stage == "provider_metadata" {
+						status, body = 503, "private-provider-canary"
+					}
+				case "/par":
+					status, body = 400, `{"error":"invalid_client_metadata","error_description":"private-provider-canary"}`
+				default:
+					t.Fatal("unexpected provider request")
+				}
+				return &http.Response{StatusCode: status, Body: io.NopCloser(strings.NewReader(body)), Header: http.Header{"Content-Type": {"application/json"}}, Request: req}, nil
+			})}
+			appConfig := oauth.NewPublicConfig("https://appview.example/oauth-client-metadata.json", "https://appview.example/oauth/callback", auth.DefaultScopes())
+			flow, err := auth.NewOAuthFlowService(auth.OAuthFlowServiceOptions{App: &oauth.ClientApp{Config: &appConfig, Client: client, Resolver: &oauth.Resolver{Client: client}, Dir: &callbackDirectory{identity: ident}}, Store: store, Owners: owners, AuthorityVerifier: &fakeOAuthAuthorityVerifier{}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			var local bytes.Buffer
+			logger := slog.New(observability.NewDiagnosticHandler(slog.NewJSONHandler(&local, nil)))
+			previousLogger := slog.Default()
+			slog.SetDefault(logger)
+			defer slog.SetDefault(previousLogger)
+			transport := &sentry.MockTransport{}
+			observer := observability.New(observability.Config{Env: "test", Logger: logger, SentryDSN: "https://public@example.invalid/1", SentryTransport: transport})
+			handlers := &auth.HTTPHandlers{Logger: logger, OAuthFlow: flow}
+			req := httptest.NewRequest("POST", "/v1/auth/login", strings.NewReader(`{"handle":"alice.example","handoffMode":"verified_link"}`))
+			req = req.WithContext(middleware.WithDeviceID(req.Context(), "private-device-canary"))
+			rec := httptest.NewRecorder()
+			middleware.Logging(logger)(middleware.HTTPMetrics(observer)(handlers.LoginHandler())).ServeHTTP(rec, req)
+			observer.Flush(time.Second)
+			if rec.Code != 502 {
+				t.Fatalf("login response changed: %d", rec.Code)
+			}
+			events := transport.Events()
+			if len(events) != 1 || events[0].Tags["failure_stage"] != stage {
+				t.Fatalf("missing or duplicated stage: %+v", events)
+			}
+			status := map[string]string{"provider_discovery": "502", "provider_metadata": "503", "authorization_request": "400"}[stage]
+			if events[0].Tags["upstream_status"] != status {
+				t.Fatalf("provider status lost: %v", events[0].Tags)
+			}
+			if stage == "authorization_request" && events[0].Tags["provider_code"] != "oauth.invalid_client_metadata" {
+				t.Fatal("provider code lost")
+			}
+			requestID := rec.Header().Get("X-Request-ID")
+			if requestID == "" || events[0].Contexts["correlation"]["run_id"] != requestID || !strings.Contains(rec.Body.String(), requestID) {
+				t.Fatal("request correlation lost")
+			}
+			payload, err := json.Marshal(events)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, sink := range []string{local.String(), string(payload)} {
+				for _, want := range []string{stage, "OAuthLoginDiagnostic", requestID, status} {
+					if want != "" && !strings.Contains(sink, want) {
+						t.Fatalf("missing %q", want)
+					}
+				}
+				for _, private := range []string{"private-provider-canary", "private-device-canary", "code_challenge", "request_uri"} {
+					if strings.Contains(sink, private) {
+						t.Fatalf("private data escaped: %s", private)
+					}
+				}
+			}
+		})
+	}
 }

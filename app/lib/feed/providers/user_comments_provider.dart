@@ -4,6 +4,7 @@ import 'package:craftsky_app/feed/providers/like_post_overlay.dart';
 import 'package:craftsky_app/feed/providers/post_record_overlay.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
+import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -19,11 +20,13 @@ class UserComments extends _$UserComments {
   @override
   Future<UserPostsState> build(Did did) async {
     ref.watch(activeContentLanguagePolicyProvider);
+    final accountOperation = ActiveAccountOperation.capture(ref);
     final repo = ref.watch(postRepositoryProvider);
     final page = await repo.listCommentsByAuthor(
       did,
       limit: userCommentsPageLimit,
     );
+    accountOperation.requireCurrent(discarded: const ApiCanceled());
     return UserPostsState(
       items: applyPostRecordListOverlays(
         ref,
@@ -49,6 +52,7 @@ class UserComments extends _$UserComments {
         cursor: current.cursor,
         limit: userCommentsPageLimit,
       );
+      accountOperation.requireCurrent(discarded: const ApiCanceled());
       return UserPostsState(
         items: applyPostRecordListOverlays(
           ref,

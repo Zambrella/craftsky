@@ -26,6 +26,14 @@ func authLogSuccessAttrs(runID, operation string) []any {
 func authLogErrorAttrs(ctx context.Context, runID, operation, category string, err error) []any {
 	attrs := authLogAttrs(runID, operation)
 	fields := map[string]any{"component": "auth", "operation": operation, "error_category": category, "run_id": runID, "failure_stage": category}
+	var registrationFailure *TrustedRegistrationFailure
+	if errors.As(err, &registrationFailure) && registrationFailure.Code == RegistrationFailureCanceled {
+		fields["result"] = "expected"
+	}
+	var loginFailure *OAuthLoginDiagnostic
+	if errors.As(err, &loginFailure) {
+		fields["failure_stage"] = loginFailure.Stage()
+	}
 	var diagnostic *OAuthCallbackDiagnostic
 	if errors.As(err, &diagnostic) && errors.Is(err, ErrOAuthFlowInvalid) &&
 		(strings.HasPrefix(diagnostic.Reason(), "scope_") || diagnostic.Reason() == "callback_request_unavailable") {
@@ -34,7 +42,12 @@ func authLogErrorAttrs(ctx context.Context, runID, operation, category string, e
 	for _, attr := range ctxkeys.DiagnosticFailureAttrs(ctx, err, fields) {
 		attrs = append(attrs, attr)
 	}
+	result, _ := fields["result"].(string)
+	if result == "" {
+		result = "error"
+	}
 	return append(attrs,
-		slog.String("result", "error"),
+		slog.String("result", result),
+		slog.String("failure_stage", fields["failure_stage"].(string)),
 		slog.String("error_category", category))
 }

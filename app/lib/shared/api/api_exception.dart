@@ -15,6 +15,7 @@ final class ApiFailureDetails {
     this.retryAfterSeconds,
     this.appViewError,
     this.requestId,
+    this.responseKind,
     this.method,
     this.cause,
     this.stackTrace,
@@ -26,6 +27,7 @@ final class ApiFailureDetails {
   final String? appViewError;
 
   final String? requestId;
+  final String? responseKind;
   final String? method;
   final Object? cause;
   final StackTrace? stackTrace;

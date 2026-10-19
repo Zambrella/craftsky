@@ -20,11 +20,13 @@ class UserProjects extends _$UserProjects {
   @override
   Future<UserProjectsState> build(Did did) async {
     ref.watch(activeContentLanguagePolicyProvider);
+    final accountOperation = ActiveAccountOperation.capture(ref);
     final repo = ref.watch(postRepositoryProvider);
     final page = await repo.listProjectsByAuthor(
       did,
       limit: userProjectsPageLimit,
     );
+    accountOperation.requireCurrent(discarded: const ApiCanceled());
     return UserProjectsState(
       items: applyPostRecordListOverlays(
         ref,
@@ -58,10 +60,12 @@ class UserProjects extends _$UserProjects {
         );
       } on ApiBadRequest catch (error) {
         if (error.code != 'invalid_cursor') rethrow;
+        accountOperation.requireCurrent(discarded: const ApiCanceled());
         final restarted = await repo.listProjectsByAuthor(
           did,
           limit: userProjectsPageLimit,
         );
+        accountOperation.requireCurrent(discarded: const ApiCanceled());
         return UserProjectsState(
           items: applyPostRecordListOverlays(
             ref,
@@ -75,6 +79,7 @@ class UserProjects extends _$UserProjects {
           pinnedPostUri: restarted.pinnedPostUri,
         );
       }
+      accountOperation.requireCurrent(discarded: const ApiCanceled());
       return UserProjectsState(
         items: applyPostRecordListOverlays(
           ref,

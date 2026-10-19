@@ -15,9 +15,12 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 
+	"github.com/getsentry/sentry-go"
+	"github.com/jackc/pgx/v5/pgconn"
 	"social.craftsky/appview/internal/api/envelope"
 	"social.craftsky/appview/internal/instagram"
 	"social.craftsky/appview/internal/middleware"
+	"social.craftsky/appview/internal/observability"
 )
 
 func TestInstagramAccountGetReportsLocalStateIndependentOfIntegrationAvailability(t *testing.T) {
@@ -288,3 +291,51 @@ func (s *stubInstagramAccountStore) RevokeAccount(_ context.Context, owner synta
 }
 
 var _ InstagramAccountStore = (*stubInstagramAccountStore)(nil)
+
+func TestInstagramAccountFailureRetainsCauseAndRequestCorrelation(t *testing.T) {
+	var local bytes.Buffer
+	logger := slog.New(observability.NewDiagnosticHandler(slog.NewJSONHandler(&local, nil)))
+	transport := &sentry.MockTransport{}
+	observer := observability.New(observability.Config{Env: "test", Logger: logger, SentryDSN: "https://public@example.invalid/1", SentryTransport: transport})
+	store := &stubInstagramAccountStore{getErr: &pgconn.PgError{Code: "08006", Message: "private-account-canary private-token-canary"}}
+	handler := middleware.Logging(logger)(middleware.HTTPMetrics(observer)(GetInstagramAccountHandler(store, nil, logger)))
+	req := httptest.NewRequest("GET", "/v1/migrations/instagram/account", nil)
+	req = req.WithContext(middleware.WithDID(req.Context(), "did:plc:actor"))
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	observer.Flush(time.Second)
+	if rec.Code != 500 {
+		t.Fatalf("response changed: %d", rec.Code)
+	}
+	var body struct {
+		RequestID string `json:"requestId"`
+		Error     string `json:"error"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	events := transport.Events()
+	if len(events) != 1 || body.Error != "internal_error" || body.RequestID == "" || body.RequestID != rec.Header().Get("X-Request-ID") {
+		t.Fatalf("response/capture correlation lost: %s / %d", rec.Body, len(events))
+	}
+	event := events[0]
+	if event.Tags["operation"] != "instagram.account" || event.Tags["failure_stage"] != "store" || event.Contexts["correlation"]["run_id"] != body.RequestID {
+		t.Fatalf("cause context missing: %v", event.Tags)
+	}
+	serialized, err := json.Marshal(events)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, sink := range []string{local.String(), string(serialized)} {
+		for _, want := range []string{"PgError", "08006", "instagram.account", body.RequestID} {
+			if !strings.Contains(sink, want) {
+				t.Fatalf("missing %q in diagnostics", want)
+			}
+		}
+		for _, private := range []string{"private-account-canary", "private-token-canary"} {
+			if strings.Contains(sink, private) {
+				t.Fatalf("protected value escaped: %s", private)
+			}
+		}
+	}
+}
