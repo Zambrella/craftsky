@@ -35,6 +35,10 @@ func (h *Handlers) Metadata() http.Handler {
 		noStore(w)
 		w.Header().Set("Content-Type", "application/json")
 		m := h.app.Config.ClientMetadata()
+		if h.app.Config.IsConfidential() {
+			jwksURL := h.origin + "/oauth/admin/jwks.json"
+			m.JWKSURI = &jwksURL
+		}
 		name := "CraftSky moderation"
 		m.ClientName = &name
 		json.NewEncoder(w).Encode(m)
@@ -69,11 +73,18 @@ func noStore(w http.ResponseWriter) {
 	w.Header().Set("Referrer-Policy", "no-referrer")
 }
 func (h *Handlers) failure(w http.ResponseWriter, r *http.Request, status int, code string, err error) {
+	h.failureAt(w, r, status, code, "execution", err)
+}
+
+func (h *Handlers) failureAt(w http.ResponseWriter, r *http.Request, status int, code, stage string, err error) {
 	noStore(w)
 	if err != nil && !errors.Is(err, ErrDenied) && !errors.Is(err, ErrInvalid) {
-		observability.ReportRequestFailure(r.Context(), err, "operator.auth", "execution")
+		observability.ReportRequestFailure(r.Context(), err, "operator.auth", stage)
 	} else if err != nil {
-		observability.LogDiagnostic(r.Context(), h.logger, observability.DiagnosticInput{Error: err, Context: observability.EventContext{"component": "operator-console", "operation": "operator.auth", "failure_stage": "validation", "result": "expected"}})
+		if stage == "execution" {
+			stage = "validation"
+		}
+		observability.LogDiagnostic(r.Context(), h.logger, observability.DiagnosticInput{Error: err, Context: observability.EventContext{"component": "operator-console", "operation": "operator.auth", "failure_stage": stage, "result": "expected"}})
 	}
 	if r.URL.Path == "/oauth/admin/callback" && strings.Contains(r.Header.Get("Accept"), "text/html") {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -146,32 +157,32 @@ func (h *Handlers) Login() http.Handler {
 		defer cancel()
 		ident, err := h.app.Dir.Lookup(ctx, id)
 		if err != nil || ident == nil || ident.DID == "" || ident.PDSEndpoint() == "" {
-			h.failure(w, r, 403, "operator_access_denied", errors.Join(ErrDenied, err))
+			h.failureAt(w, r, 403, "operator_access_denied", "identity_lookup", errors.Join(ErrDenied, err))
 			return
 		}
 		if _, err := h.store.Lookup(ctx, ident.DID); err != nil {
-			h.failure(w, r, 403, "operator_access_denied", err)
+			h.failureAt(w, r, 403, "operator_access_denied", "operator_lookup", err)
 			return
 		}
 		issuer, err := h.app.Resolver.ResolveAuthServerURL(ctx, ident.PDSEndpoint())
 		if err != nil {
-			h.failure(w, r, 503, "operator_auth_unavailable", err)
+			h.failureAt(w, r, 503, "operator_auth_unavailable", "provider_discovery", observability.WrapError("discover operator OAuth provider", observability.OAuthRequestFailure(err)))
 			return
 		}
 		metadata, err := h.app.Resolver.ResolveAuthServerMetadata(ctx, issuer)
 		if err != nil {
-			h.failure(w, r, 503, "operator_auth_unavailable", err)
+			h.failureAt(w, r, 503, "operator_auth_unavailable", "provider_metadata", observability.WrapError("fetch and validate operator OAuth provider metadata", observability.OAuthRequestFailure(err)))
 			return
 		}
 		info, err := h.app.SendAuthRequest(ctx, metadata, []string{"atproto"}, body.Identifier)
 		if err != nil {
-			h.failure(w, r, 503, "operator_auth_unavailable", err)
+			h.failureAt(w, r, 503, "operator_auth_unavailable", "authorization_request", observability.WrapError("start operator OAuth authorization request", observability.OAuthRequestFailure(err)))
 			return
 		}
 		info.AccountDID = &ident.DID
 		browser, _ := r.Cookie(browserCookie)
 		if err := h.store.saveAttempt(ctx, attempt{Info: *info, DID: ident.DID, PDS: ident.PDSEndpoint()}, browser.Value); err != nil {
-			h.failure(w, r, 503, "operator_auth_unavailable", err)
+			h.failureAt(w, r, 503, "operator_auth_unavailable", "login_attempt_storage", observability.WrapError("save operator OAuth login attempt", err))
 			return
 		}
 		redirect := metadata.AuthorizationEndpoint + "?" + url.Values{"client_id": {h.app.Config.ClientID}, "request_uri": {info.RequestURI}}.Encode()

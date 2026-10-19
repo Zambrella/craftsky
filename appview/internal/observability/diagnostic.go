@@ -42,6 +42,8 @@ func DescribeError(err error, eventCtx EventContext) []DiagnosticCause {
 	for _, current := range nodes {
 		cause := DiagnosticCause{Type: fmt.Sprintf("%T", current), Message: ClassifyError(current, eventCtx).Message}
 		switch current := current.(type) {
+		case *oauthRequestDiagnostic:
+			cause = current.diagnosticCause()
 		case *auth.OAuthCallbackDiagnostic:
 			cause.Message = current.DiagnosticMessage()
 		case *lexiconschema.ValidationError:

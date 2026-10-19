@@ -1,10 +1,12 @@
 package operatorconsole_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -12,16 +14,54 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/google/uuid"
 	"social.craftsky/appview/internal/api"
+	"social.craftsky/appview/internal/ctxkeys"
+	"social.craftsky/appview/internal/observability"
 	"social.craftsky/appview/internal/operatorconsole"
 	"social.craftsky/appview/internal/ownerlifecycle"
 	"social.craftsky/appview/internal/safetyincident"
 	"social.craftsky/appview/internal/testdb"
 )
+
+func TestConfidentialMetadataPublishesVerificationKeyURL(t *testing.T) {
+	const origin = "https://appview.console.test"
+	cfg := oauth.NewPublicConfig(origin+"/oauth/admin/client-metadata.json", origin+"/oauth/admin/callback", []string{"atproto"})
+	key, err := atcrypto.GeneratePrivateKeyP256()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := cfg.SetClientSecret(key, "operator-test-key"); err != nil {
+		t.Fatal(err)
+	}
+	app := oauth.NewClientApp(&cfg, nil)
+	h, err := operatorconsole.NewHandlers(operatorconsole.NewStore(nil, time.Now), app, origin, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	w := httptest.NewRecorder()
+	h.Metadata().ServeHTTP(w, httptest.NewRequest("GET", origin+"/oauth/admin/client-metadata.json", nil))
+	var metadata oauth.ClientMetadata
+	if err := json.Unmarshal(w.Body.Bytes(), &metadata); err != nil {
+		t.Fatal(err)
+	}
+	if metadata.JWKSURI == nil || *metadata.JWKSURI != origin+"/oauth/admin/jwks.json" || !metadata.IsConfidential() {
+		t.Fatalf("confidential client metadata lacks its verification key URL: %s", w.Body)
+	}
+	keys := httptest.NewRecorder()
+	h.JWKS().ServeHTTP(keys, httptest.NewRequest("GET", *metadata.JWKSURI, nil))
+	var jwks oauth.JWKS
+	if err := json.Unmarshal(keys.Body.Bytes(), &jwks); err != nil {
+		t.Fatal(err)
+	}
+	if len(jwks.Keys) != 1 {
+		t.Fatalf("expected one public verification key, got %d", len(jwks.Keys))
+	}
+}
 
 type consoleDirectory struct {
 	identity.Directory
@@ -55,14 +95,28 @@ func runConsoleFlow(t *testing.T, scenario string) {
 	did := syntax.DID("did:plc:consolelogin")
 	const providerOrigin = "https://identity.console.test"
 	var state, scope string
+	failurePath := map[string]string{
+		"provider_discovery":    "/.well-known/oauth-protected-resource",
+		"provider_metadata":     "/.well-known/oauth-authorization-server",
+		"authorization_request": "/par",
+	}[scenario]
+	var beforeSave func()
 	upstream := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
+		if r.URL.Path == failurePath {
+			w.WriteHeader(400)
+			json.NewEncoder(w).Encode(map[string]string{"error": "invalid_client_metadata", "error_description": "PRIVATE_PROVIDER_BODY_CANARY", "access_token": "PRIVATE_ACCESS_TOKEN_CANARY"})
+			return
+		}
 		switch r.URL.Path {
 		case "/.well-known/oauth-protected-resource":
 			json.NewEncoder(w).Encode(map[string]any{"resource": providerOrigin, "authorization_servers": []string{providerOrigin}})
 		case "/.well-known/oauth-authorization-server":
 			json.NewEncoder(w).Encode(map[string]any{"issuer": providerOrigin, "authorization_endpoint": providerOrigin + "/authorize", "token_endpoint": providerOrigin + "/token", "pushed_authorization_request_endpoint": providerOrigin + "/par", "scopes_supported": []string{"atproto"}, "response_types_supported": []string{"code"}, "grant_types_supported": []string{"authorization_code", "refresh_token"}, "code_challenge_methods_supported": []string{"S256"}, "token_endpoint_auth_methods_supported": []string{"none", "private_key_jwt"}, "authorization_response_iss_parameter_supported": true, "client_id_metadata_document_supported": true, "token_endpoint_auth_signing_alg_values_supported": []string{"ES256"}, "dpop_signing_alg_values_supported": []string{"ES256"}, "require_pushed_authorization_requests": true})
 		case "/par":
+			if beforeSave != nil {
+				beforeSave()
+			}
 			r.ParseForm()
 			state = r.Form.Get("state")
 			scope = r.Form.Get("scope")
@@ -93,6 +147,9 @@ func runConsoleFlow(t *testing.T, scenario string) {
 	clock := time.Now().UTC()
 	pool := testdb.WithMigratedSchema(t)
 	store := operatorconsole.NewStore(pool, func() time.Time { return clock })
+	if scenario == "login_attempt_storage" {
+		beforeSave = pool.Close
+	}
 	op, err := store.Allow(t.Context(), did, "mod")
 	if err != nil {
 		t.Fatal(err)
@@ -163,7 +220,36 @@ func runConsoleFlow(t *testing.T, scenario string) {
 		login.Header.Del("X-CSRF-Token")
 	}
 	start := httptest.NewRecorder()
+	var failureLog bytes.Buffer
+	if failurePath != "" || scenario == "login_attempt_storage" {
+		logger := slog.New(observability.NewDiagnosticHandler(slog.NewJSONHandler(&failureLog, nil)))
+		previousLogger := slog.Default()
+		slog.SetDefault(logger)
+		t.Cleanup(func() { slog.SetDefault(previousLogger) })
+		observer := observability.New(observability.Config{Env: "test", Logger: logger})
+		ctx := observability.WithRequestObserver(ctxkeys.WithRunID(login.Context(), "10000000-0000-4000-8000-000000000001"), observer)
+		login = login.WithContext(ctx)
+	}
 	h.Login().ServeHTTP(start, login)
+	if failurePath != "" || scenario == "login_attempt_storage" {
+		if start.Code != 503 || !strings.Contains(start.Body.String(), `"error":"operator_auth_unavailable"`) {
+			t.Fatalf("failure changed public response: %d %s", start.Code, start.Body)
+		}
+		for _, want := range []string{`"failure_stage":"` + scenario + `"`, "operator.auth", "10000000-0000-4000-8000-000000000001"} {
+			if !strings.Contains(failureLog.String(), want) {
+				t.Fatalf("missing %s from diagnostics: %s", want, &failureLog)
+			}
+		}
+		if scenario == "authorization_request" && !strings.Contains(failureLog.String(), "oauth.invalid_client_metadata") {
+			t.Fatal("real SDK provider error code lost")
+		}
+		for _, private := range []string{"PRIVATE_", csrf.Token, "fixture-code", "reviewer.test", "identity.console.test"} {
+			if strings.Contains(failureLog.String()+start.Body.String(), private) {
+				t.Fatalf("protected login data escaped: %s", private)
+			}
+		}
+		return
+	}
 	if scenario == "forged body" {
 		if start.Code != 400 || state != "" {
 			t.Fatal("forged login body accepted")
@@ -338,5 +424,11 @@ func runConsoleFlow(t *testing.T, scenario string) {
 func TestOperatorOAuthAndSessionBoundaries(t *testing.T) {
 	for _, scenario := range []string{"legacy credentials", "handle transferred", "handle changed", "database unavailable", "terminal DID", "forged body", "helper assignment", "success", "unlisted", "login CSRF", "disabled during flow", "wrong subject", "missing scope", "extra scope", "wrong browser", "wrong issuer", "duplicate state", "expired attempt", "set change", "session disabled", "session revoked", "idle expiry", "absolute expiry"} {
 		t.Run(scenario, func(t *testing.T) { runConsoleFlow(t, scenario) })
+	}
+}
+
+func TestOperatorLoginFailureStages(t *testing.T) {
+	for _, stage := range []string{"provider_discovery", "provider_metadata", "authorization_request", "login_attempt_storage"} {
+		t.Run(stage, func(t *testing.T) { runConsoleFlow(t, stage) })
 	}
 }
