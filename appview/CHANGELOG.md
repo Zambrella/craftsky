@@ -1,5 +1,13 @@
 # AppView Changelog
 
+## 1.0.18 - 2026-10-20
+
+- feat(projects): add multi-craft discovery and search
+- feat(posts): preserve reserved craft metadata
+- fix(observability): preserve safe Sentry issue diagnostics
+- fix(composer): restore additional craft selections
+- fix(auth): hand off Android OAuth completion to the app
+
 ## 1.0.17 - 2026-10-19
 
 - test(release): skip Flutter tests in app preflight
