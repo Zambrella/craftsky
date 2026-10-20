@@ -16,8 +16,11 @@ import 'package:craftsky_app/profile/models/profile_handle.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/settings/models/settings_identity.dart';
 import 'package:craftsky_app/settings/models/settings_row.dart';
+import 'package:craftsky_app/settings/settings_links.dart';
 import 'package:craftsky_app/settings/widgets/settings_row_tile.dart';
 import 'package:craftsky_app/settings/widgets/sign_out_tile.dart';
+import 'package:craftsky_app/shared/link/external_link.dart';
+import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/subscriptions/providers/subscription_access_provider.dart';
 import 'package:craftsky_app/subscriptions/subscription_build_config.dart';
 import 'package:craftsky_app/subscriptions/widgets/plus_feature_lock.dart';
@@ -289,12 +292,31 @@ class SettingsPage extends ConsumerWidget {
             leading: CraftskyIcons.info,
             onTap: () => const AboutRoute().go(context),
           ),
+          SettingsRowTile(
+            descriptor: const SettingsRowDescriptor(
+              id: SettingsRowId.feedback,
+              kind: SettingsRowKind.externalLink,
+            ),
+            label: l10n.navigationFeedback,
+            leading: CraftskyIcons.comment,
+            onTap: () => unawaited(_openFeedback(context)),
+          ),
           const Divider(),
           const SignOutTile(),
           const SizedBox(height: 24),
         ],
       ),
     );
+  }
+
+  Future<void> _openFeedback(BuildContext context) async {
+    final opened = await tryLaunchSettingsLink(
+      settingsSupportUri,
+      launchExternalLink,
+    );
+    if (!opened && context.mounted) {
+      context.showError(AppLocalizations.of(context).navigationLinkOpenError);
+    }
   }
 
   Future<void> _openSwitcher(
