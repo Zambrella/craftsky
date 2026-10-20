@@ -18,6 +18,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"social.craftsky/appview/internal/auth"
 	"social.craftsky/appview/internal/ctxkeys"
@@ -1537,6 +1538,12 @@ func TestProviderRegistrationFinalizerFailureRetainsTrustedFailureMetadata(t *te
 // IT-011: a verified new DID uses the ordinary profile and handoff path, and
 // neither the OAuth parent nor Craftsky child activates before confirmation.
 func TestProviderRegistrationCompletesSharedOnboardingAndConfirmedHandoff(t *testing.T) {
+	for _, purpose := range []string{"registration", "login"} {
+		t.Run(purpose, func(t *testing.T) { testSharedOnboardingAndConfirmedHandoff(t, purpose) })
+	}
+}
+
+func testSharedOnboardingAndConfirmedHandoff(t *testing.T, purpose string) {
 	pool := withRealFlowAuthSchema(t)
 	if _, err := pool.Exec(context.Background(), `
 		ALTER TABLE craftsky_profiles
@@ -1601,6 +1608,17 @@ func TestProviderRegistrationCompletesSharedOnboardingAndConfirmedHandoff(t *tes
 		},
 	}
 	pds := &registrationOnboardingPDS{blueskyCID: profileCID, blueskyRecord: profileRecord}
+	sessions, err := auth.NewSessionLifecycleService(auth.SessionLifecycleOptions{Pool: pool, Owners: owners, Sessions: children})
+	if err != nil {
+		t.Fatal(err)
+	}
+	noop := func(context.Context, pgx.Tx, ownerlifecycle.Lifecycle, ownerlifecycle.Lifecycle) error { return nil }
+	reconciler, err := auth.NewOnboardingReconciler(owners, sessions,
+		func(context.Context, auth.CallbackAttempt) (auth.PDSClient, error) { return pds, nil }, noop, noop)
+	if err != nil {
+		t.Fatal(err)
+	}
+	flow = flow.WithOnboardingReconciler(reconciler)
 	cache := &registrationOnboardingEffects{}
 	profileHandler := index.NewBlueskyProfile(pool)
 	profileProjector := oauthBlueskyProfileProjection{handler: profileHandler}
@@ -1609,7 +1627,12 @@ func TestProviderRegistrationCompletesSharedOnboardingAndConfirmedHandoff(t *tes
 			pool, slog.Default(), notifications.NoopActorDeletion{},
 		),
 	}
-	if _, err := flow.StartRegistration(context.Background(), auth.HandoffVerifiedLink, "", "onboarding-device"); err != nil {
+	if purpose == "login" {
+		_, err = flow.StartLogin(context.Background(), "onboarding.real-flow.test", auth.HandoffVerifiedLink, "", "onboarding-device")
+	} else {
+		_, err = flow.StartRegistration(context.Background(), auth.HandoffVerifiedLink, "", "onboarding-device")
+	}
+	if err != nil {
 		t.Fatal(err)
 	}
 	var state string
@@ -1703,11 +1726,8 @@ func TestProviderRegistrationCompletesSharedOnboardingAndConfirmedHandoff(t *tes
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := owners.TransitionWith(context.Background(), ownerlifecycle.TransitionRequest{
-		Owner: owner, ExpectedGeneration: lifecycle.Generation,
-		To: ownerlifecycle.StateActive, Reason: "profileActivated",
-	}, registrationProfileActivation(t, pool, owners, children)); err != nil {
-		t.Fatal(err)
+	if lifecycle.State != ownerlifecycle.StateActive || lifecycle.Generation != 2 {
+		t.Fatalf("callback returned before membership activation: %+v", lifecycle)
 	}
 	if err := handoffs.Confirm(context.Background(), exchange.Token, exchange.ReceiptID, "onboarding-device"); err != nil {
 		t.Fatal(err)
@@ -1723,6 +1743,9 @@ func TestProviderRegistrationCompletesSharedOnboardingAndConfirmedHandoff(t *tes
 	}
 	if parentState != "active" || childState != "active" {
 		t.Fatalf("confirmed parent/child=%s/%s", parentState, childState)
+	}
+	if _, err := children.Lookup(context.Background(), exchange.Token); err != nil {
+		t.Fatalf("ordinary authentication immediately after confirmation: %v", err)
 	}
 }
 

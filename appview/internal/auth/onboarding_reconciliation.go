@@ -9,8 +9,8 @@ import (
 	"social.craftsky/appview/internal/ownerlifecycle"
 )
 
-// OnboardingReconciler repairs missed profile departures only after the current
-// PDS authority and the newly exchanged OAuth credential have been verified.
+// OnboardingReconciler repairs missed profile departures and completes profile
+// activation after the current PDS authority and OAuth credential are verified.
 type OnboardingReconciler struct {
 	owners        *ownerlifecycle.Store
 	sessions      *SessionLifecycleService
@@ -87,4 +87,37 @@ func (service *OnboardingReconciler) Reconcile(
 		return ctx, result, &profileInitStageError{"profile_reconciliation", err}
 	}
 	return ctx, result, nil
+}
+
+// Activate completes membership before the browser receives the handoff code.
+// The callback has verified the current PDS profile and projected it locally;
+// waiting for Tap here would expose a confirmed session that ordinary routes
+// reject while the owner remains departed.
+func (service *OnboardingReconciler) Activate(ctx context.Context, result OAuthCallbackResult) error {
+	attempt := result.Attempt
+	bound, ok := callbackAttemptFromContext(ctx)
+	if !ok || bound != attempt || !attempt.permitsOrdinaryOnboarding() || !attempt.validFor(attempt.Owner, attempt.State) {
+		return ErrCallbackAttemptInvalid
+	}
+	authority, err := service.owners.Get(ctx, attempt.Owner)
+	if err != nil {
+		return err
+	}
+	if authority.Generation != attempt.OwnerGeneration || authority.AuthEpoch != attempt.AuthEpoch {
+		return ErrCallbackAttemptInvalid
+	}
+	if authority.State == ownerlifecycle.StateActive {
+		return nil
+	}
+	return service.owners.ActivateOnboardingProfile(ctx, authority,
+		func(txCtx context.Context, tx pgx.Tx, before, after ownerlifecycle.Lifecycle) error {
+			var projected bool
+			if err := tx.QueryRow(txCtx, `SELECT EXISTS(SELECT 1 FROM craftsky_profiles WHERE did=$1)`, attempt.Owner).Scan(&projected); err != nil {
+				return err
+			}
+			if !projected {
+				return ErrProfileInitFailed
+			}
+			return service.sessions.ProfileActivationParticipant()(txCtx, tx, before, after)
+		})
 }
