@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"html"
 	"log/slog"
 	"net"
 	"net/http"
@@ -558,6 +559,75 @@ func TestVerifiedLinkAndErrorPagesDenyAllConnections(t *testing.T) {
 	renderErrorHTML(failure, http.StatusBadRequest, "Try again")
 	if csp := failure.Header().Get("Content-Security-Policy"); !strings.Contains(csp, "connect-src 'none'") {
 		t.Fatalf("error CSP=%q, want connections denied", csp)
+	}
+}
+
+func TestAndroidCompletionIntentCarriesHTTPSCallbackAndCredentialFreeFallback(t *testing.T) {
+	for _, completion := range []string{
+		"https://app.craftsky.social/auth/complete?code=single-use-code",
+		"https://app.craftsky.social/auth/complete?error=canceled",
+		"https://app.craftsky.social/account-deletion/reauth-complete?job-id=job&proof=single-use-proof",
+		"https://app.craftsky.social/auth/complete?code=" + url.QueryEscape(`</script>\"#Intent;package=attacker;S.browser_fallback_url=https://attacker.example;end`),
+	} {
+		t.Run(completion, func(t *testing.T) {
+			parsed, err := url.Parse(completion)
+			if err != nil {
+				t.Fatal(err)
+			}
+			intent := androidCompletionIntentURL(parsed)
+			parts := strings.Split(intent, "#Intent;")
+			if len(parts) != 2 {
+				t.Fatalf("intent directives escaped query: %q", intent)
+			}
+			reconstructed, err := url.Parse(strings.Replace(parts[0], "intent:", "https:", 1))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if reconstructed.Host != parsed.Host || reconstructed.Path != parsed.Path || reconstructed.Query().Encode() != parsed.Query().Encode() {
+				t.Fatalf("callback changed: %q", reconstructed)
+			}
+			wantDirectives := "scheme=https;package=social.craftsky.app;S.browser_fallback_url=" + url.QueryEscape("https://app.craftsky.social"+parsed.Path) + ";end"
+			if parts[1] != wantDirectives {
+				t.Fatalf("unsafe directives/fallback: %q", parts[1])
+			}
+
+			recorder := httptest.NewRecorder()
+			if err := renderCallbackHTML(recorder, callbackPageData{DeepLinkURL: completion}); err != nil {
+				t.Fatal(err)
+			}
+			body := recorder.Body.String()
+			if !strings.Contains(body, `data-android-intent="`+html.EscapeString(intent)+`"`) || strings.Contains(body, "ZgotmplZ") {
+				t.Fatal("intent did not survive contextual HTML escaping")
+			}
+			if strings.Count(body, "</script>") != 1 || strings.Contains(body, "window.location") || strings.Contains(body, "setTimeout") {
+				t.Fatal("callback contains unsafe markup or automatic navigation")
+			}
+			for key, want := range map[string]string{"Cache-Control": "no-store", "Referrer-Policy": "no-referrer"} {
+				if recorder.Header().Get(key) != want {
+					t.Fatalf("%s must remain %s", key, want)
+				}
+			}
+		})
+	}
+}
+
+func TestAndroidCompletionIntentRejectsOtherDestinationsAndFragments(t *testing.T) {
+	for _, raw := range []string{
+		"http://app.craftsky.social/auth/complete?code=code",
+		"https://attacker.example/auth/complete?code=code",
+		"https://app.craftsky.social:443/auth/complete?code=code",
+		"https://user@app.craftsky.social/auth/complete?code=code",
+		"https://app.craftsky.social/other?code=code",
+		"https://app.craftsky.social/auth/complete?code=code#Intent;package=attacker;end",
+		"https://app.craftsky.social/auth/complete?code=bad;package=attacker",
+	} {
+		parsed, err := url.Parse(raw)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := androidCompletionIntentURL(parsed); got != "" {
+			t.Fatalf("accepted %q: %q", raw, got)
+		}
 	}
 }
 

@@ -34,12 +34,13 @@ var errorPageTmpl = template.Must(template.New("err").Parse(`<!doctype html>
 // CallbackHandler before rendering. Either DeepLinkURL OR LoopbackURI
 // is set, never both.
 type callbackPageData struct {
-	Code            string
-	Failure         RegistrationFailureCode
-	DeepLinkURL     string
-	VerifiedLinkURL string
-	LoopbackURI     string
-	Nonce           string
+	Code             string
+	Failure          RegistrationFailureCode
+	DeepLinkURL      string
+	VerifiedLinkURL  string
+	AndroidIntentURL string
+	LoopbackURI      string
+	Nonce            string
 }
 
 func renderCallbackHTML(w http.ResponseWriter, data callbackPageData) error {
@@ -53,6 +54,7 @@ func renderCallbackHTML(w http.ResponseWriter, data callbackPageData) error {
 		parsed, err := url.Parse(data.DeepLinkURL)
 		if err == nil && parsed.Scheme == "https" && parsed.Host != "" && parsed.User == nil {
 			data.VerifiedLinkURL = data.DeepLinkURL
+			data.AndroidIntentURL = androidCompletionIntentURL(parsed)
 		}
 	}
 	connectSource := ""
@@ -71,6 +73,26 @@ func renderCallbackHTML(w http.ResponseWriter, data callbackPageData) error {
 	setCallbackSecurityHeaders(w, data.Nonce, connectSource)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	return callbackTmpl.Execute(w, data)
+}
+
+// Target the existing HTTPS activity explicitly when Android browsers keep App
+// Links in the browser. Only our manifest's fixed host and paths are eligible.
+// Re-encode query values so they cannot introduce Intent directives. The browser
+// fallback contains no handoff code or deletion proof and never retries a launch.
+func androidCompletionIntentURL(completion *url.URL) string {
+	if completion.Scheme != "https" || completion.Host != "app.craftsky.social" ||
+		completion.User != nil || completion.Fragment != "" ||
+		(completion.Path != "/auth/complete" && completion.Path != "/account-deletion/reauth-complete") {
+		return ""
+	}
+	query, err := url.ParseQuery(completion.RawQuery)
+	if err != nil {
+		return ""
+	}
+	fallback := "https://app.craftsky.social" + completion.Path
+	return "intent://app.craftsky.social" + completion.Path + "?" + query.Encode() +
+		"#Intent;scheme=https;package=social.craftsky.app;S.browser_fallback_url=" +
+		url.QueryEscape(fallback) + ";end"
 }
 
 func trustedRegistrationFailurePageData(
@@ -277,12 +299,23 @@ h1 {
 <p class="eyebrow">{{if .Failure}}One more step{{else}}All stitched up{{end}}</p>
 <h1 id="page-title">{{if .Failure}}Return to CraftSky.{{else}}You're signed in.{{end}}</h1>
 <p class="message">{{if .Failure}}Registration did not finish. Open CraftSky to continue.{{else if .VerifiedLinkURL}}Your session is ready. Open the app to continue.{{else if .DeepLinkURL}}Returning you to the app.{{else}}Authentication is complete. You can close this tab.{{end}}</p>
-{{if .VerifiedLinkURL}}<a class="cta" href="{{.VerifiedLinkURL}}">Open CraftSky</a>{{end}}
+{{if .VerifiedLinkURL}}<a class="cta" href="{{.VerifiedLinkURL}}"{{if .AndroidIntentURL}} data-android-intent="{{.AndroidIntentURL}}"{{end}}>Open CraftSky</a>{{end}}
 {{if .VerifiedLinkURL}}<p class="note">You can close this tab after CraftSky opens.</p>{{end}}
+{{if .AndroidIntentURL}}<details class="note">
+<summary>CraftSky not opening on Android?</summary>
+<p>In Android Settings, open Apps → CraftSky → Open by default (or Set as default) and enable Open supported links.</p>
+<p>In Samsung Browser, if links keep opening in the browser, check Settings → Security and privacy → Block opening external apps. Turning this off allows links to open other apps. Then tap Open CraftSky again. If it still does not open, try signing in again with Chrome set as your default browser.</p>
+</details>{{end}}
 </section>
 </main>
 <script nonce="{{.Nonce}}">
 {{if .VerifiedLinkURL}}
+// Prepare the link only. App launches must follow the user's tap, never a timer.
+// With JavaScript disabled or an unrecognised browser, retain the HTTPS link.
+if (/Android/i.test(navigator.userAgent)) {
+    const button = document.querySelector("[data-android-intent]");
+    if (button) button.href = button.getAttribute("data-android-intent");
+}
 {{else if .DeepLinkURL}}
 window.location.replace({{.DeepLinkURL}});
 {{else if .LoopbackURI}}
