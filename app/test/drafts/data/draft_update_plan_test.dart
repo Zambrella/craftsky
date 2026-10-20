@@ -6,6 +6,37 @@ import 'package:craftsky_app/drafts/models/draft_media_descriptor.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('rejects nine images before planning writes', () {
+    expect(
+      () => DraftUpdatePlan.build(
+        currentMedia: const [],
+        orderedMedia: [
+          for (var index = 0; index < 9; index++)
+            PreparedDraftMedia(
+              mediaId:
+                  '00000000-0000-4000-8000-'
+                  '${(index + 1).toString().padLeft(12, '0')}',
+              displayFileName: 'image.png',
+              mimeType: 'image/png',
+              bytes: Uint8List.fromList([1]),
+              width: 1,
+              height: 1,
+              altText: '',
+            ),
+        ],
+        nextStorageRevision: () =>
+            throw StateError('must reject before writing'),
+      ),
+      throwsA(
+        isA<DraftRepositoryException>().having(
+          (error) => error.reason,
+          'reason',
+          DraftRepositoryFailureReason.invalidRequest,
+        ),
+      ),
+    );
+  });
+
   test('reuses unchanged media and writes replacements immutably', () {
     const retained = DraftMediaDescriptor(
       mediaId: '00000000-0000-4000-8000-000000000001',
