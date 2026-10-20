@@ -39,6 +39,7 @@ import 'package:craftsky_app/feed/widgets/composer_link_preview_carousel.dart';
 import 'package:craftsky_app/feed/widgets/composer_metadata_controls.dart';
 import 'package:craftsky_app/feed/widgets/composer_video_attachment_card.dart';
 import 'package:craftsky_app/feed/widgets/submission_blocking_overlay.dart';
+import 'package:craftsky_app/keys.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/languages/models/post_language_selection.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
@@ -544,6 +545,7 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
                           SizedBox(height: spacing.sp4),
                         ],
                         FacetAutocompleteEditor(
+                          key: keys.feed.composerBody,
                           maxLength: RecordTextLimits.post.graphemes,
                           maxBytes: RecordTextLimits.post.bytes,
                           label: isComment
@@ -777,7 +779,7 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
                     child: Padding(
                       padding: EdgeInsets.only(bottom: spacing.sp4),
                       child: _PostAction(
-                        actionKey: const Key('post-composer-primary-action'),
+                        actionKey: keys.feed.submit,
                         isSaving:
                             createState.isLoading ||
                             (_isScheduling && !_isDeletingSchedule),

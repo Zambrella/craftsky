@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 
+import 'package:craftsky_app/keys.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/onboarding/models/onboarding_flow_state.dart';
 import 'package:craftsky_app/profile/data/profile_field_constraints.dart';
@@ -182,7 +183,7 @@ class _OnboardingProfileStepState extends State<OnboardingProfileStep> {
         const SizedBox(height: 12),
         CraftskyMultilineTextInput(
           label: l10n.editProfileBioLabel,
-          textFieldKey: const Key('onboarding-bio'),
+          textFieldKey: keys.onboarding.bio,
           controller: _bio,
           enabled: !widget.state.saving,
           maxLength: profileBioMaxLength,

@@ -1,5 +1,8 @@
 # Flutter integration tests
 
+For the separate, opt-in journey using real OAuth, AppView/PDS writes and the
+native photo picker, see [`../patrol_test/README.md`](../patrol_test/README.md).
+
 This directory owns device/process coverage. The fast `app-test` recipe still
 runs only `test/`; use `just app-test-integration <device-id>` locally and
 `just app-test-integration-ci <device-id>` in CI.
@@ -23,7 +26,7 @@ Covered journeys:
 - Mobile startup dependency resolution through package-info, device-info, and
   shared-preferences plugins.
 
-Not responsibly automated yet:
+Outside this loopback suite:
 
 - Initial OAuth login/add-account requires a disposable PDS identity and a
   browser redirect service. The suite covers retained-account activation, not

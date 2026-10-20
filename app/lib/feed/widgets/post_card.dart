@@ -19,6 +19,7 @@ import 'package:craftsky_app/feed/widgets/native_video_player.dart';
 import 'package:craftsky_app/feed/widgets/post_image_carousel.dart';
 import 'package:craftsky_app/feed/widgets/post_image_gallery.dart';
 import 'package:craftsky_app/feed/widgets/post_like_reaction.dart';
+import 'package:craftsky_app/keys.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/moderation/widgets/moderation_warning_banner.dart';
 import 'package:craftsky_app/profile/models/profile_handle.dart';
@@ -1113,6 +1114,7 @@ class _PostCardMenu extends StatelessWidget {
     return SizedBox(
       width: _postCardMenuWidth,
       child: CraftskyContextMenuButton(
+        key: keys.feed.menu,
         tooltip: tooltip ?? l10n.postMoreActions,
         isLoading: isPinPending,
         enabled: !isRelationshipBusy && !isPinPending,
@@ -1164,6 +1166,7 @@ class _PostCardMenu extends StatelessWidget {
                 ),
               if (onDelete != null)
                 CraftskyContextMenuItem(
+                  key: keys.feed.delete,
                   text: label ?? l10n.postDeleteAction,
                   icon: CraftskyIconsBold.delete,
                   onPressed: onDelete,
@@ -1430,6 +1433,7 @@ class _PostCardAction extends StatelessWidget {
         : theme.colorScheme.onSurfaceVariant;
     final countLabel = _compactCountLabel(context, count);
     return Semantics(
+      key: keys.feed.action(tooltip),
       label: tooltip,
       button: true,
       enabled: onPressed != null,

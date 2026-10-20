@@ -1,3 +1,4 @@
+import 'package:craftsky_app/keys.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/theme/craftsky_context_menu.dart';
 import 'package:flutter/foundation.dart';
@@ -42,7 +43,7 @@ Future<void> showImageSourceMenu(
               onPressed: onTakePhoto,
             ),
           CraftskyContextMenuItem(
-            key: Key('$keyPrefix-choose-photos'),
+            key: keys.imageSource.photos(keyPrefix),
             text: l10n.postComposeChoosePhotos,
             icon: Icons.photo_library_outlined,
             onPressed: onChoosePhotos,

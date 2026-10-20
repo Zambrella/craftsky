@@ -1,0 +1,109 @@
+#!/usr/bin/env python3
+"""Run the explicitly requested live smoke journey against this checkout only."""
+
+import base64
+import json
+import os
+from pathlib import Path
+import re
+import shutil
+import subprocess
+import sys
+import urllib.parse
+import urllib.request
+
+ROOT = Path(__file__).resolve().parent.parent
+COMPOSE = str(ROOT / "scripts/compose-dev")
+
+
+def run(*args, **kwargs):
+    return subprocess.run(args, check=True, cwd=ROOT, **kwargs)
+
+
+def main():
+    if len(sys.argv) != 2 or not sys.argv[1].startswith("emulator-"):
+        sys.exit("Usage: scripts/app-test-e2e emulator-5554 (dedicated Android emulator)")
+    device = sys.argv[1]
+    config = ROOT / "app/.patrol.env"
+    if not config.exists():
+        sys.exit("Copy app/.patrol.env.example to app/.patrol.env and add the test account.")
+    values = {}
+    for line in config.read_text().splitlines():
+        if line.strip() and not line.lstrip().startswith("#"):
+            key, value = line.strip().split("=", 1)
+            values[key] = value
+    if not all(values.get(key) for key in ("E2E_HANDLE", "E2E_PASSWORD")):
+        sys.exit("Set E2E_HANDLE and E2E_PASSWORD in app/.patrol.env (no quotes).")
+    patrol = shutil.which("patrol") or str(Path.home() / ".pub-cache/bin/patrol")
+    if not Path(patrol).is_file():
+        sys.exit("Install Patrol: dart pub global activate patrol_cli 4.8.0")
+    booted = run("adb", "-s", device, "shell", "getprop", "sys.boot_completed", capture_output=True, text=True)
+    if booted.stdout.strip() != "1":
+        sys.exit("Wait for the Android emulator to finish booting.")
+    browser = run("adb", "-s", device, "shell", "cmd", "role", "get-role-holders",
+                  "android.app.role.BROWSER", capture_output=True, text=True).stdout.strip()
+    if browser != "com.android.chrome":
+        sys.exit("Select Chrome as the default browser on the dedicated emulator first.")
+    # Patrol 4.10's native DEBUG text-entry logs include entered values.
+    # Android's per-tag filter suppresses them at the log producer.
+    run("adb", "-s", device, "shell", "setprop", "log.tag.PatrolServer", "INFO")
+    port_output = run(COMPOSE, "port", "appview", "8080", capture_output=True, text=True).stdout
+    ports = re.findall(r"^127\.0\.0\.1:(\d+)$", port_output, re.MULTILINE)
+    if len(ports) != 1:
+        sys.exit("Start this checkout's local stack with just dev first.")
+    port = ports[0]
+    origin = f"http://127.0.0.1:{port}"
+    with urllib.request.urlopen(origin + "/healthz", timeout=15) as response:
+        if response.status != 200:
+            sys.exit("Local AppView is not healthy.")
+    query = urllib.parse.urlencode({"handle": values["E2E_HANDLE"]})
+    with urllib.request.urlopen("https://public.api.bsky.app/xrpc/com.atproto.identity.resolveHandle?" + query, timeout=20) as response:
+        did = json.load(response)["did"]
+    if not re.fullmatch(r"did:plc:[a-z2-7]{24}", did):
+        sys.exit("This initial smoke runner requires a Bluesky-hosted did:plc test account.")
+    # The service/database names are fixed: no arbitrary DB URL or remote target.
+    sql = "DELETE FROM account_onboarding_completions WHERE account_did = :'e2e_did';\n"
+    run(COMPOSE, "exec", "-T", "postgres", "psql", "-X", "-v", "ON_ERROR_STOP=1",
+        "-U", "craftsky", "-d", "craftsky_dev", "-v", f"e2e_did={did}",
+        input=sql, text=True, stdout=subprocess.DEVNULL)
+    run("adb", "-s", device, "reverse", f"tcp:{port}", f"tcp:{port}", stdout=subprocess.DEVNULL)
+    # A dedicated album makes fixture selection independent of personal photos.
+    album = "/sdcard/Pictures/CraftSkyE2E"
+    run("adb", "-s", device, "shell", "mkdir", "-p", album)
+    for fixture in sorted((ROOT / "app/patrol_test/fixtures").glob("*.png")):
+        destination = album + "/" + fixture.name
+        run("adb", "-s", device, "push", str(fixture), destination, stdout=subprocess.DEVNULL)
+        run("adb", "-s", device, "shell", "am", "broadcast", "-a",
+            "android.intent.action.MEDIA_SCANNER_SCAN_FILE", "-d", "file://" + destination,
+            stdout=subprocess.DEVNULL)
+    environment = os.environ.copy()
+    environment["PATROL_ANALYTICS_ENABLED"] = "false"
+    environment.setdefault("ANDROID_HOME", str(Path.home() / "Library/Android/Sdk"))
+    command = [patrol, "test", "--target", "patrol_test/live_smoke_test.dart", "--device", device,
+               "--dart-define=E2E_LIVE=true", f"--dart-define=CRAFTSKY_API_BASE_URL={origin}",
+               "--dart-define=E2E_PASSWORD_BASE64=" + base64.b64encode(values["E2E_PASSWORD"].encode()).decode(),
+               "--dart-define=CRAFTSKY_DEV_OAUTH_SCHEME=true", "--dart-define=SENTRY_DSN=",
+               "--no-show-flutter-logs"]
+    # Flutter/Gradle failures can include encoded dart-defines. Do not echo them.
+    protected = [values["E2E_PASSWORD"], values["E2E_HANDLE"],
+                 base64.b64encode(values["E2E_PASSWORD"].encode()).decode(),
+                 values["E2E_PASSWORD"].split("#", 1)[0],
+                 base64.b64encode(("E2E_PASSWORD=" + values["E2E_PASSWORD"]).encode()).decode()]
+    protected = sorted({value for value in protected if value}, key=len, reverse=True)
+    print("Running live smoke test against this checkout's local AppView.", flush=True)
+    process = subprocess.Popen(command, cwd=ROOT / "app", env=environment,
+                               stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+    for line in process.stdout:
+        line = re.sub(r"-Pdart-defines=\S+", "-Pdart-defines=[redacted]", line)
+        for value in protected:
+            line = line.replace(value, "[redacted]")
+        print(line, end="", flush=True)
+    return process.wait()
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main())
+    except (OSError, ValueError, KeyError, subprocess.CalledProcessError) as error:
+        code = getattr(error, "code", getattr(error, "returncode", "unavailable"))
+        sys.exit(f"E2E preparation failed ({type(error).__name__}, status {code}). Check the local stack, emulator, and account configuration.")
