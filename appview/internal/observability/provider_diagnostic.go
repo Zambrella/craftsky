@@ -10,6 +10,11 @@ import (
 // Provider error names are untrusted response data. Only these reviewed machine
 // codes may enter diagnostics; neither provider prose nor response bodies do.
 var providerDiagnosticCodes = map[string]struct{}{
+	"oauth.invalid_request": {}, "oauth.invalid_client": {}, "oauth.invalid_client_metadata": {},
+	"oauth.invalid_redirect_uri": {}, "oauth.invalid_scope": {}, "oauth.unauthorized_client": {},
+	"oauth.unsupported_response_type": {}, "oauth.unsupported_grant_type": {},
+	"oauth.access_denied": {}, "oauth.server_error": {}, "oauth.temporarily_unavailable": {},
+	"oauth.use_dpop_nonce": {}, "oauth.invalid_dpop_proof": {},
 	"pds.InvalidRequest": {}, "pds.InvalidRecord": {}, "pds.InvalidSwap": {},
 	"pds.InvalidToken": {}, "pds.ExpiredToken": {}, "pds.AuthRequired": {},
 	"pds.AuthenticationRequired": {}, "pds.InvalidRepo": {}, "pds.RepoNotFound": {},

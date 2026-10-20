@@ -840,7 +840,7 @@
   "projectComposerDescriptionHint": "Tell everyone about your project",
   "@projectComposerDescriptionHint": { "description": "Hint text inside the main project description text field in the project composer." },
 
-  "projectComposerCraftTypeLabel": "Craft type",
+  "projectComposerCraftTypeLabel": "Primary craft",
   "@projectComposerCraftTypeLabel": { "description": "Label for the project composer craft-type field." },
 
   "projectComposerStatusLabel": "Status",
@@ -3595,5 +3595,7 @@
   "chatPreviewEvent": "CraftSky event",
   "chatReviewPermissions": "Review messaging permissions",
   "chatLastUpdated": "Last updated {time}",
-  "@chatLastUpdated": {"placeholders": {"time": {"type": "String"}}}
+  "@chatLastUpdated": {"placeholders": {"time": {"type": "String"}}},
+  "projectComposerAdditionalCraftsLabel": "Additional crafts",
+  "projectComposerAdditionalCraftsSearchHint": "Find other crafts used in this project"
 }

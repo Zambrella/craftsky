@@ -283,6 +283,7 @@ lexgen:
       --external-lexicons "$INDIGO_DIR/lexicons/com/atproto/repo/strongRef.json" \
       "$codegen_source" \
       cmd/lexgen/external/community.lexicon.location.address.bafyreicdvexolyvp6j6yksqiib7hihwktt6ogalbvyzvtkj6ecrtqqw5fq.json
+    python3 ../scripts/lexicon-open-unions
     go run ./cmd/lexgen/cborgen
     ../scripts/lexicon-catalog-sync "$INDIGO_DIR"
     gofmt -w internal/lexicon/craftsky internal/lexicon/community
@@ -425,6 +426,14 @@ app-test-integration DEVICE *ARGS:
 # command compiles and runs only the dedicated device suite.
 app-test-integration-ci DEVICE *ARGS:
     cd app && flutter test integration_test/critical_journeys_test.dart -d '{{DEVICE}}' --no-pub --reporter expanded {{ARGS}}
+
+# Explicit live writes with a disposable account. Never part of app-test or CI.
+app-test-e2e DEVICE:
+    python3 scripts/app-test-e2e '{{DEVICE}}'
+
+# No backend/account required; verifies the selected native Patrol runner.
+app-test-e2e-harness DEVICE:
+    python3 scripts/app-test-e2e '{{DEVICE}}' --harness
 
 # Install the standalone Instagram importer's checked dependency graph.
 importer-install:

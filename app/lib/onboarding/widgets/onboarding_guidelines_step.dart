@@ -1,3 +1,4 @@
+import 'package:craftsky_app/keys.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:material_ui/material_ui.dart';
@@ -58,7 +59,7 @@ class OnboardingGuidelinesStep extends StatelessWidget {
         ),
         const SizedBox(height: 24),
         CheckboxListTile(
-          key: const Key('onboarding-minimum-age-declaration'),
+          key: keys.onboarding.minimumAge,
           contentPadding: EdgeInsets.zero,
           controlAffinity: ListTileControlAffinity.leading,
           value: meetsMinimumAge,

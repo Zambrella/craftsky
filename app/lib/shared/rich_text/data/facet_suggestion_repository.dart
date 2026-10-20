@@ -55,11 +55,11 @@ class AccountSuggestion with AccountSuggestionMappable {
 @MappableClass()
 class HashtagSuggestion with HashtagSuggestionMappable {
   /// Creates a hashtag suggestion.
-  const new({required this.tag, this.postsLast28Days = 0});
+  const new({required this.tag, this.postCount = 0});
 
   /// Repository display/canonical tag casing, without leading `#`.
   final String tag;
 
-  /// Number of posts with this hashtag in the last 28 days.
-  final int postsLast28Days;
+  /// All-time distinct-post count on the suggestion surface.
+  final int postCount;
 }

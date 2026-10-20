@@ -18,6 +18,7 @@ import (
 
 type searchCorpusRecord struct {
 	Key         string
+	CraftType   string
 	Caption     string
 	Title       string
 	PatternName string
@@ -45,7 +46,13 @@ func seedCorpusRecord(t *testing.T, pool *pgxpool.Pool, tc searchCorpusCase, rec
 	uri := searchFixturePost(t, pool, tc.Project, record.Key, title, []string{tc.Language}, now)
 	ctx := context.Background()
 	if tc.Project {
-		if _, err := pool.Exec(ctx, `WITH caption AS (UPDATE craftsky_posts SET text=$2 WHERE uri=$1) UPDATE craftsky_project_posts SET pattern_name=$3 WHERE uri=$1`, uri, record.Caption, record.PatternName); err != nil {
+		// This corpus describes specific authored fields. Do not inject a
+		// searchable knitting category into every unrelated negative fixture.
+		craft := record.CraftType
+		if craft == "" {
+			craft = "social.craftsky.feed.defs#unclassified"
+		}
+		if _, err := pool.Exec(ctx, `WITH caption AS (UPDATE craftsky_posts SET text=$2 WHERE uri=$1) UPDATE craftsky_project_posts SET pattern_name=$3, common_craft_type=$4, raw_project=jsonb_set(raw_project,'{common,craftType}',to_jsonb($4::text)) WHERE uri=$1`, uri, record.Caption, record.PatternName, craft); err != nil {
 			t.Fatal(err)
 		}
 		seedProjectDetails(t, pool, uri, record.Materials, nil, nil, nil)

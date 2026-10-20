@@ -21,12 +21,14 @@ class UserReposts extends _$UserReposts {
   @override
   Future<UserPostsState> build(Did did) async {
     ref.watch(activeContentLanguagePolicyProvider);
+    final accountOperation = ActiveAccountOperation.capture(ref);
     final page = await ref
         .watch(postRepositoryProvider)
         .listRepostsByAuthor(
           did,
           limit: userRepostsPageLimit,
         );
+    accountOperation.requireCurrent(discarded: const ApiCanceled());
     return _stateFor(page);
   }
 
@@ -48,10 +50,15 @@ class UserReposts extends _$UserReposts {
         );
       } on ApiBadRequest catch (error) {
         if (error.code != 'invalid_cursor') rethrow;
-        return _stateFor(
-          await repo.listRepostsByAuthor(did, limit: userRepostsPageLimit),
+        accountOperation.requireCurrent(discarded: const ApiCanceled());
+        final restarted = await repo.listRepostsByAuthor(
+          did,
+          limit: userRepostsPageLimit,
         );
+        accountOperation.requireCurrent(discarded: const ApiCanceled());
+        return _stateFor(restarted);
       }
+      accountOperation.requireCurrent(discarded: const ApiCanceled());
       return _stateFor(
         PostPage(items: [...current.items, ...page.items], cursor: page.cursor),
       );

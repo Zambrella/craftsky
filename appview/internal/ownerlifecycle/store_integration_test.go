@@ -15,6 +15,47 @@ import (
 	"social.craftsky/appview/internal/testdb"
 )
 
+func TestOnboardingProfileActivationRequiresAuthFenceAndRollsBack(t *testing.T) {
+	store, _ := ownerLifecycleTestStores(t)
+	owner := syntax.DID("did:plc:callback-profile-activation")
+	ctx := context.Background()
+	authority, err := store.EnsureOnboardingOwner(ctx, owner)
+	if err != nil {
+		t.Fatal(err)
+	}
+	participant := func(context.Context, pgx.Tx, Lifecycle, Lifecycle) error { return nil }
+	if err := store.ActivateOnboardingProfile(ctx, authority, participant); !errors.Is(err, ErrFenceRequired) {
+		t.Fatalf("unfenced activation: %v", err)
+	}
+	err = store.WithOnboardingAuth(ctx, owner, func(authCtx context.Context, current Lifecycle) error {
+		stale := current
+		stale.Generation++
+		if err := store.ActivateOnboardingProfile(authCtx, stale, participant); !errors.Is(err, ErrFenceRequired) {
+			t.Fatalf("stale activation: %v", err)
+		}
+		want := errors.New("activation participant failed")
+		err := store.ActivateOnboardingProfile(authCtx, current,
+			func(context.Context, pgx.Tx, Lifecycle, Lifecycle) error { return want })
+		if !errors.Is(err, want) {
+			t.Fatalf("participant failure: %v", err)
+		}
+		unchanged, err := store.Get(authCtx, owner)
+		if err != nil {
+			return err
+		}
+		assertLifecycle(t, unchanged, StateDeparted, 1, 1)
+		return store.ActivateOnboardingProfile(authCtx, current, participant)
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	activated, err := store.Get(ctx, owner)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertLifecycle(t, activated, StateActive, 2, 1)
+}
+
 func TestStoreLifecycleGenerationEpochAndEffectClosure(t *testing.T) {
 	store, _ := ownerLifecycleTestStores(t)
 	ctx := context.Background()

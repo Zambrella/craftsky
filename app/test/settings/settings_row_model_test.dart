@@ -36,6 +36,7 @@ void main() {
       SettingsRowId.accountStanding,
       SettingsRowId.account,
       SettingsRowId.about,
+      SettingsRowId.feedback,
     ]);
   });
 

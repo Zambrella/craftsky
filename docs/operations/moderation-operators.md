@@ -119,6 +119,16 @@ cookies, CSRF tokens or provider request URIs into logs or support messages.
 Inspect protected diagnostics using the returned request reference. Access
 failures stay closed when the registry or session database is unavailable.
 
+Login diagnostics use `operation=operator.auth` and distinguish
+`identity_lookup`, `operator_lookup`, `provider_discovery`, `provider_metadata`,
+`authorization_request` and `login_attempt_storage` in `failure_stage`.
+Provider failures retain an upstream HTTP status and a recognized `oauth.*`
+error code when available; database failures retain SQLSTATE. Original cause
+types and request correlation remain available, while provider descriptions,
+bodies, credentials and authorization URLs remain excluded. Public sign-in
+errors stay generic. The OAuth status/code adapter matches the pinned Indigo
+error formats; review its fixtures when upgrading Indigo.
+
 ## Development and migration
 
 For frontend type/build checks:

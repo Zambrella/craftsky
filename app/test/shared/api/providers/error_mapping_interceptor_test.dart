@@ -1,8 +1,14 @@
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/api/providers/error_mapping_interceptor.dart';
 import 'package:craftsky_app/shared/errors/app_error_mapper.dart';
+import 'package:craftsky_app/shared/observability/error_reporter.dart';
+import 'package:craftsky_app/shared/observability/sentry_error_reporter.dart';
+import 'package:craftsky_app/shared/observability/sentry_sanitizer.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:sentry_flutter/sentry_flutter.dart';
+
+import '../../../test_support/serialized_sentry_transport.dart';
 
 DioException _ex({
   int? status,
@@ -25,6 +31,115 @@ void main() {
     late _CapturingHandler handler;
 
     setUp(() => handler = _CapturingHandler());
+
+    test(
+      '502 response evidence survives mapping and serialized Sentry output',
+      () async {
+        const requestId = '10000000-0000-4000-8000-000000000001';
+        final transport = SerializedTransport();
+        await Sentry.init((options) {
+          configureDiagnosticOptions(options);
+          options
+            ..dsn = 'https://public@example.invalid/1'
+            ..transport = transport;
+        });
+        addTearDown(Sentry.close);
+        final original = _ex(
+          status: 502,
+          data: '<html>private-body-canary</html>',
+        );
+        original.response!.headers = Headers.fromMap({
+          'x-request-id': [requestId],
+          'set-cookie': ['private-cookie-canary'],
+        });
+        const ErrorMappingInterceptor().onError(original, handler);
+        final mapped = AppErrorMapper.map(handler.error!);
+        expect(mapped.safeDiagnostics, containsPair('responseKind', 'nonJson'));
+        expect(
+          mapped.safeDiagnostics,
+          containsPair('appViewRequestId', requestId),
+        );
+        await const SentryErrorReporter().captureException(
+          handler.error!,
+          context: ReportContext(
+            feature: 'instagramAccountProvider',
+            operation: 'provider',
+            classification: 'api.server_error',
+            safeDiagnostics: mapped.safeDiagnostics,
+          ),
+          stackTrace: StackTrace.current,
+        );
+        await transport.issueReceived.future.timeout(
+          const Duration(seconds: 5),
+        );
+        final payload = transport.payloads.join();
+        for (final value in ['nonJson', requestId, '502', 'DioException']) {
+          expect(payload, contains(value));
+        }
+        for (final value in ['private-body-canary', 'private-cookie-canary']) {
+          expect(payload, isNot(contains(value)));
+        }
+      },
+    );
+
+    test('response evidence distinguishes envelopes and gateway bodies', () {
+      const requestId = '10000000-0000-4000-8000-000000000001';
+      for (final sample in [
+        (
+          data: <String, Object?>{
+            'error': 'identity_unavailable',
+            'requestId': 'body_id',
+          },
+          kind: 'appViewError',
+          id: 'body_id',
+        ),
+        (
+          data: <String, Object?>{'message': 'private-body-canary'},
+          kind: 'json',
+          id: requestId,
+        ),
+        (data: null, kind: 'empty', id: requestId),
+        (data: '', kind: 'empty', id: requestId),
+        (
+          data: '<html>private-body-canary</html>',
+          kind: 'nonJson',
+          id: requestId,
+        ),
+      ]) {
+        handler = _CapturingHandler();
+        final error = _ex(status: 502, data: sample.data);
+        error.response!.headers = Headers.fromMap({
+          'x-request-id': [requestId],
+        });
+        const ErrorMappingInterceptor().onError(error, handler);
+        final diagnostics = AppErrorMapper.map(handler.error!).safeDiagnostics;
+        expect(diagnostics, containsPair('responseKind', sample.kind));
+        expect(diagnostics, containsPair('appViewRequestId', sample.id));
+        expect(
+          SentrySanitizer.sanitizeContext(diagnostics),
+          containsPair('responseKind', sample.kind),
+        );
+      }
+      for (final headers in [
+        <String>['private-header-canary'],
+        <String>[requestId, requestId],
+      ]) {
+        handler = _CapturingHandler();
+        final error = _ex(status: 502, data: 'private-body-canary');
+        error.response!.headers = Headers.fromMap({'x-request-id': headers});
+        const ErrorMappingInterceptor().onError(error, handler);
+        expect(
+          AppErrorMapper.map(handler.error!).safeDiagnostics,
+          isNot(contains('appViewRequestId')),
+        );
+      }
+      expect(
+        SentrySanitizer.sanitizeContext({
+          'responseKind': 'private-body-canary',
+        }),
+        isNot(contains('responseKind')),
+      );
+    });
 
     test(
       'SIM-T01 client diagnostics retain codes and correlation '

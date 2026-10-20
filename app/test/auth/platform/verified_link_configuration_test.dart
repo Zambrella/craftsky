@@ -6,18 +6,18 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   const host = 'app.craftsky.social';
 
-  test('Android accepts only the two verified HTTPS callback paths', () {
+  test('Android accepts all paths on the verified HTTPS host', () {
     final manifest = File(
       'android/app/src/main/AndroidManifest.xml',
     ).readAsStringSync();
 
-    expect('android:autoVerify="true"'.allMatches(manifest), hasLength(2));
-    expect('android:scheme="https"'.allMatches(manifest), hasLength(2));
-    expect('android:host="$host"'.allMatches(manifest), hasLength(2));
-    expect(manifest, contains('android:path="/auth/complete"'));
+    expect('android:autoVerify="true"'.allMatches(manifest), hasLength(1));
+    expect('android:scheme="https"'.allMatches(manifest), hasLength(1));
+    expect('android:host="$host"'.allMatches(manifest), hasLength(1));
     expect(
       manifest,
-      contains('android:path="/account-deletion/reauth-complete"'),
+      isNot(contains(RegExp(r'android:path\w*\s*='))),
+      reason: 'HTTPS links must accept every path, including callbacks',
     );
     expect(manifest, isNot(contains('android:scheme="craftsky"')));
     expect(manifest, isNot(contains('android:scheme="craftsky-dev"')));

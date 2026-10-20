@@ -1509,6 +1509,35 @@ a:hover { color: var(--cobalt-deep); }
   font-weight: 700;
 }
 
+/* Instagram export guide screenshots */
+.import-guide__steps > li + li {
+  margin-top: var(--sp-6);
+}
+
+.import-guide__figure {
+  margin: var(--sp-4) 0 0;
+}
+
+.import-guide__figure a {
+  display: block;
+  border: 1px solid var(--border-hair);
+  border-radius: var(--r-2);
+  overflow: hidden;
+}
+
+.import-guide__figure img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.import-guide__figure figcaption {
+  margin-top: var(--sp-2);
+  color: var(--fg-2);
+  font-size: var(--t-meta);
+  line-height: 1.5;
+}
+
 /* =========================================================================
    Footer legal nav (privacy + terms in the bottom strip)
    ========================================================================= */

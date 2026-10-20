@@ -6,6 +6,7 @@ import 'package:craftsky_app/feed/models/post_comment_section.dart' as model;
 import 'package:craftsky_app/feed/models/post_uri.dart';
 import 'package:craftsky_app/feed/providers/like_post_overlay.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
+import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -22,6 +23,7 @@ class PostCommentSection extends _$PostCommentSection {
     model.CommentSort sort = model.CommentSort.oldest,
     AtUri? focus,
   }) async {
+    final accountOperation = ActiveAccountOperation.capture(ref);
     final repo = ref.watch(postRepositoryProvider);
     final section = await repo.commentSection(
       did,
@@ -29,6 +31,7 @@ class PostCommentSection extends _$PostCommentSection {
       sort: sort,
       focus: focus,
     );
+    accountOperation.requireCurrent(discarded: const ApiCanceled());
     return applyPostCommentSectionInteractionOverlays(ref, section);
   }
 
@@ -176,6 +179,7 @@ class PostCommentRepliesLoader extends _$PostCommentRepliesLoader {
       final revealed = revealParent
           ? await ref.read(postRepositoryProvider).fetch(authorDid, postRkey)
           : null;
+      if (!accountOperation.isCurrent) return;
       final page = await ref
           .read(postRepositoryProvider)
           .listCommentBranchReplies(

@@ -1,0 +1,34 @@
+#!/usr/bin/env python3
+"""Retain unknown variants in Indigo's generated open unions.
+
+Run immediately after lexgen, before cborgen. Fail if generator shapes change;
+never silently drop this compatibility adaptation on a dependency upgrade.
+"""
+import re
+from pathlib import Path
+
+root = Path(__file__).resolve().parent.parent
+for filename, typename in [('projectdefs.go', 'ProjectDefs_Project_Details'),
+                           ('feedpost.go', 'FeedPost_Embed')]:
+    path = root / 'appview/internal/lexicon/craftsky' / filename
+    text = path.read_text()
+    text = text.replace('import (', 'import (\n "social.craftsky/appview/internal/recordjson"', 1)
+    marker = f'type {typename} struct {{'
+    assert text.count(marker) == 1
+    text = text.replace(marker, marker + '\n Unknown *recordjson.OpenUnion `json:"-"`', 1)
+    for encoding, argument in [('JSON', 'b'), ('CBOR', 'bytes.NewReader(b)')]:
+        pattern = rf'(func \(t \*{typename}\) Unmarshal{encoding}\([^\n]+\{{)(.*?)(\n\}})'
+        def adapt(match):
+            body = match[2]
+            assert body.count('default:\n\t\treturn nil') == 1
+            body = body.replace('default:\n\t\treturn nil',
+                f'default:\n t.Unknown = &recordjson.OpenUnion{{}}\n return t.Unknown.Unmarshal{encoding}({argument})')
+            return match[1] + f'\n *t = {typename}{{}}' + body + match[3]
+        text, count = re.subn(pattern, adapt, text, flags=re.S)
+        assert count == 1
+        fallback = ('return nil, fmt.Errorf("can not marshal empty union as JSON")' if encoding == 'JSON'
+                    else 'return fmt.Errorf("can not marshal empty union as CBOR")')
+        assert text.count(fallback) == 1
+        call = 't.Unknown.MarshalJSON()' if encoding == 'JSON' else 't.Unknown.MarshalCBOR(w)'
+        text = text.replace(fallback, f'if t.Unknown != nil {{ return {call} }}\n\t' + fallback)
+    path.write_text(text)

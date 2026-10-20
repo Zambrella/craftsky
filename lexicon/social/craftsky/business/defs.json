@@ -39,7 +39,7 @@
         },
         "alt": {
           "type": "string",
-          "maxLength": 1000,
+          "maxLength": 10000,
           "maxGraphemes": 1000,
           "description": "Optional alt text describing the image."
         },

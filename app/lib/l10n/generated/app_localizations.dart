@@ -1753,7 +1753,7 @@ abstract class AppLocalizations {
   /// Label for the project composer craft-type field.
   ///
   /// In en, this message translates to:
-  /// **'Craft type'**
+  /// **'Primary craft'**
   String get projectComposerCraftTypeLabel;
 
   /// Label for the project composer status field.
@@ -8636,6 +8636,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Last updated {time}'**
   String chatLastUpdated(String time);
+
+  /// No description provided for @projectComposerAdditionalCraftsLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Additional crafts'**
+  String get projectComposerAdditionalCraftsLabel;
+
+  /// No description provided for @projectComposerAdditionalCraftsSearchHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Find other crafts used in this project'**
+  String get projectComposerAdditionalCraftsSearchHint;
 }
 
 class _AppLocalizationsDelegate

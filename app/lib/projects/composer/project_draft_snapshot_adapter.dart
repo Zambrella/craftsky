@@ -115,6 +115,7 @@ class ProjectDraftSnapshotAdapter {
 
   static const _knownFields = <String>{
     ProjectComposerFields.craftType,
+    ProjectComposerFields.additionalCrafts,
     ProjectComposerFields.status,
     ProjectComposerFields.title,
     ProjectComposerFields.materials,
@@ -155,6 +156,7 @@ class ProjectDraftSnapshotAdapter {
   };
 
   static const _stringListFields = <String>{
+    ProjectComposerFields.additionalCrafts,
     ProjectComposerFields.colours,
     ProjectComposerFields.designTags,
   };

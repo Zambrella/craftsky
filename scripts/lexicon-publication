@@ -77,6 +77,7 @@ def configure_dns(dry_run):
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('action', choices=['manifest', 'publish', 'verify', 'configure-dns'])
 parser.add_argument('--bootstrap', action='store_true', help='Publish before DNS exists; never update existing schemas')
+parser.add_argument('--update-reviewed', action='store_true', help='Publish reviewed changes to existing schemas after ADR and consumer validation')
 parser.add_argument('--dry-run', action='store_true', help='Preview DNS creation without changing records')
 parser.add_argument('--schemas-only', action='store_true', help='Verify published schemas before DNS setup')
 args = parser.parse_args()
@@ -93,7 +94,10 @@ try:
         command = ['goat', 'lex', 'publish']
         if args.bootstrap:
             command.append('--skip-dns-check')
-        # No --update: changed existing schemas require separate review.
+        if args.update_reviewed:
+            if args.bootstrap:
+                raise RuntimeError('Reviewed updates must use existing DNS authority, not --bootstrap')
+            command.append('--update')
         subprocess.run(command + [str(ROOT / 'lexicon/social/craftsky')], check=True)
         verify(True)
     elif args.action == 'configure-dns':

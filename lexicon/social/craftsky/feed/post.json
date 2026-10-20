@@ -44,7 +44,7 @@
               "ref": "#image"
             },
             "maxLength": 8,
-            "description": "Images attached to the post. Top-level (not inside 'embed') — a post may carry images alongside a quote embed without needing a wrapper variant."
+            "description": "Images attached to the post. Top-level (not inside 'embed') \u2014 a post may carry images alongside a quote embed without needing a wrapper variant."
           },
           "embed": {
             "type": "union",
@@ -78,6 +78,15 @@
             "type": "ref",
             "ref": "#externalImport",
             "description": "Optional self-asserted provenance for content created by an external-history importer. This metadata does not verify ownership of an external account or grant trust."
+          },
+          "crafts": {
+            "type": "array",
+            "maxLength": 3,
+            "items": {
+              "type": "ref",
+              "ref": "#craft"
+            },
+            "description": "Optional author-supplied craft metadata for this post, independent of project.common.craftType and project.common.additionalCrafts. Order does not designate a primary craft. Reserved for future use: CraftSky currently preserves this field without using it for display, search, filtering, feeds, or discovery."
           }
         }
       }
@@ -117,7 +126,7 @@
         },
         "alt": {
           "type": "string",
-          "maxLength": 1000,
+          "maxLength": 10000,
           "maxGraphemes": 1000,
           "description": "Optional alt text describing the image for accessibility."
         },
@@ -177,6 +186,29 @@
           "type": "ref",
           "ref": "com.atproto.repo.strongRef",
           "description": "The immediate parent post being replied to."
+        }
+      }
+    },
+    "craft": {
+      "type": "object",
+      "description": "One craft associated with a post, represented as an object so optional context can be added later.",
+      "required": [
+        "craftType"
+      ],
+      "properties": {
+        "craftType": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100,
+          "maxGraphemes": 100,
+          "knownValues": [
+            "social.craftsky.feed.defs#knitting",
+            "social.craftsky.feed.defs#crochet",
+            "social.craftsky.feed.defs#sewing",
+            "social.craftsky.feed.defs#embroidery",
+            "social.craftsky.feed.defs#quilting"
+          ],
+          "description": "Craft token associated with the post. knownValues are open suggestions; future bounded craft values remain valid."
         }
       }
     }

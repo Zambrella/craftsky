@@ -5,6 +5,37 @@ import 'package:craftsky_app/projects/options/project_option_catalogs.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('restored additional crafts retain the multi-select list type', () {
+    for (final additionalCrafts in [
+      null,
+      <dynamic>[],
+      <dynamic>[
+        {'craftType': ProjectOptionCatalogs.sewingCraftToken},
+        {'craftType': ProjectOptionCatalogs.embroideryCraftToken},
+      ],
+    ]) {
+      final values = hydrateScheduledProjectComposer({
+        'common': {
+          'craftType': ProjectOptionCatalogs.knittingCraftToken,
+          'additionalCrafts': ?additionalCrafts,
+        },
+      });
+      expect(
+        values[ProjectComposerFields.additionalCrafts],
+        isA<List<String>>().having(
+          (values) => values,
+          'values',
+          additionalCrafts == null || additionalCrafts.isEmpty
+              ? <String>[]
+              : [
+                  ProjectOptionCatalogs.sewingCraftToken,
+                  ProjectOptionCatalogs.embroideryCraftToken,
+                ],
+        ),
+      );
+    }
+  });
+
   test('AT-007 hydrates every nested knitting project field', () {
     final values = hydrateScheduledProjectComposer({
       'common': {

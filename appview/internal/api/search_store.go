@@ -65,7 +65,7 @@ func scanPostRowWithScoreAndTier(scanner pgx.Row, tier *int) (SearchPostRow, err
 	var rawProject *[]byte
 	var score float64
 	destinations := []any{
-		&post.URI, &post.DID, &post.Rkey, &post.CID, &post.Text, &post.Sponsored, &post.Facets, &post.Images, &post.RawEmbed,
+		&post.URI, &post.DID, &post.Rkey, &post.CID, &post.Text, &post.Sponsored, &post.Facets, &post.Images, &post.RawEmbed, &post.Crafts,
 		&post.ReplyRootURI, &post.ReplyRootCID, &post.ReplyParentURI, &post.ReplyParentCID,
 		&post.QuoteURI, &post.QuoteCID, &post.Tags, &post.Langs, &post.CreatedAt, &post.IndexedAt,
 		&post.ExternalImportSource, &post.ProfileSortAt,

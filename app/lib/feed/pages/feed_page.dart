@@ -12,6 +12,7 @@ import 'package:craftsky_app/feed/widgets/inline_pinch_zoom.dart';
 import 'package:craftsky_app/feed/widgets/post_card.dart';
 import 'package:craftsky_app/feed/widgets/post_composer_sheet.dart';
 import 'package:craftsky_app/feed/widgets/post_type_chooser.dart';
+import 'package:craftsky_app/keys.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/moderation/widgets/report_flow.dart';
 import 'package:craftsky_app/router/app_shell_drawer.dart';
@@ -45,7 +46,6 @@ class _FeedPageState extends ConsumerState<FeedPage> {
   final _scrollController = ScrollController();
   var _isPastScrollThreshold = false;
   var _isPinchingImage = false;
-  var _refreshGeneration = 0;
 
   @override
   void initState() {
@@ -98,6 +98,7 @@ class _FeedPageState extends ConsumerState<FeedPage> {
       floatingActionButton: isCompact
           ? Builder(
               builder: (buttonContext) => CraftskyFloatingActionButton.extended(
+                key: keys.feed.compose,
                 tooltip: l10n.postComposeAction,
                 onPressed: () => _openComposer(buttonContext),
                 icon: const Icon(CraftskyIconsBold.add),
@@ -110,7 +111,6 @@ class _FeedPageState extends ConsumerState<FeedPage> {
           InlinePinchZoomScope(
             onPinchChanged: _handleImagePinchChanged,
             child: YarnRefreshScrollView(
-              key: ValueKey(_refreshGeneration),
               notificationPredicate: (notification) =>
                   !_isPinchingImage &&
                   defaultScrollNotificationPredicate(notification),
@@ -173,12 +173,9 @@ class _FeedPageState extends ConsumerState<FeedPage> {
 
   void _handleImagePinchChanged(bool active) {
     if (_isPinchingImage == active || !mounted) return;
-    _isPinchingImage = active;
-    setState(() {
-      // Discard any pull started before the second finger landed, once the
-      // pinch and its scroll holds have finished.
-      if (!active) _refreshGeneration++;
-    });
+    // The refresh surface cancels multi-pointer pulls itself. Keep its
+    // scrollable mounted so releasing a pinch preserves the feed position.
+    setState(() => _isPinchingImage = active);
   }
 
   void _openComposer(BuildContext buttonContext) {
@@ -263,6 +260,7 @@ class _FeedLoadedSlivers extends ConsumerWidget {
               final item = items[index];
               final post = item.post;
               return PostCard(
+                key: keys.feed.post(post.uri),
                 post: post,
                 collapseBody: true,
                 imageInteractionMode: PostCardImageInteractionMode.navigate,

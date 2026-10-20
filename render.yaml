@@ -195,7 +195,9 @@ projects:
               - key: HTTP_UPLOAD_BODY_READ_TIMEOUT
                 value: 1m
               - key: MODERATION_ADMIN_ENABLED
-                value: "false"
+                value: "true"
+              - key: MODERATION_SOURCE_DID
+                value: did:plc:g53b5bh4gcesqmbvncwomgyv
               - key: PUSH_ENABLED
                 value: "true"
               - key: FIREBASE_PROJECT_ID

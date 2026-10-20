@@ -64,6 +64,15 @@ final class SentrySanitizer {
     if (code is String && RegExp(r'^[a-z][a-z0-9_]{0,79}$').hasMatch(code)) {
       selected['appViewError'] = code;
     }
+    final responseKind = context['responseKind'];
+    if (const {
+      'appViewError',
+      'json',
+      'nonJson',
+      'empty',
+    }.contains(responseKind)) {
+      selected['responseKind'] = responseKind;
+    }
     final method = context['httpMethod'];
     if (method is String &&
         const {

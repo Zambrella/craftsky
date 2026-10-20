@@ -24,7 +24,7 @@ void main() {
           hashtagSuggestionRepositoryProvider.overrideWithValue(
             const MockHashtagSuggestionRepository(
               hashtags: [
-                HashtagSuggestion(tag: 'MeMadeMay', postsLast28Days: 9),
+                HashtagSuggestion(tag: 'MeMadeMay', postCount: 9),
               ],
             ),
           ),
@@ -157,8 +157,8 @@ void main() {
               hashtagSuggestionRepositoryProvider.overrideWithValue(
                 const MockHashtagSuggestionRepository(
                   hashtags: [
-                    HashtagSuggestion(tag: 'MeMadeMay', postsLast28Days: 9),
-                    HashtagSuggestion(tag: 'MeMadeJune', postsLast28Days: 12),
+                    HashtagSuggestion(tag: 'MeMadeMay', postCount: 9),
+                    HashtagSuggestion(tag: 'MeMadeJune', postCount: 12),
                   ],
                 ),
               ),
@@ -207,7 +207,7 @@ void main() {
               hashtagSuggestionRepositoryProvider.overrideWithValue(
                 MockHashtagSuggestionRepository(
                   hashtags: [
-                    HashtagSuggestion(tag: 'MeMadeMay', postsLast28Days: count),
+                    HashtagSuggestion(tag: 'MeMadeMay', postCount: count),
                   ],
                 ),
               ),
@@ -450,7 +450,7 @@ void main() {
                   for (var index = 1; index <= 10; index += 1)
                     HashtagSuggestion(
                       tag: 'example$index',
-                      postsLast28Days: index,
+                      postCount: index,
                     ),
                 ],
               ),

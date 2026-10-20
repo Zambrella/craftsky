@@ -38,6 +38,7 @@ func ValidateScheduledPublication(
 		Sponsored: payload.Sponsored,
 		Facets:    payload.Facets,
 		Langs:     payload.Langs,
+		Crafts:    payload.Crafts,
 	}
 	if len(payload.Project) > 0 {
 		if err := json.Unmarshal(payload.Project, &request.Project); err != nil {

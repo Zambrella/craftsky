@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:craftsky_app/keys.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/theme/brand_colors.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
@@ -375,6 +376,7 @@ class _AsyncConfirmDialogHostState extends State<_AsyncConfirmDialogHost> {
             child: Text(widget.cancelLabel),
           ),
           ChunkyButton(
+            key: keys.dialog.confirm,
             backgroundColor: primaryBackground,
             onPressed: _isConfirming ? null : _handleConfirm,
             child: _isConfirming

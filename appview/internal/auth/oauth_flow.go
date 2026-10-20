@@ -210,10 +210,10 @@ func (service *OAuthFlowService) StartLogin(
 	}
 	identity, err := service.app.Dir.Lookup(ctx, identifier)
 	if err != nil {
-		return "", fmt.Errorf("resolve login identity: %w", err)
+		return "", loginDiagnostic("identity", err)
 	}
 	if identity == nil || identity.DID == "" || identity.PDSEndpoint() == "" {
-		return "", ErrOAuthFlowInvalid
+		return "", loginDiagnostic("identity_result", ErrOAuthFlowInvalid)
 	}
 	var redirectURL string
 	err = service.owners.WithOnboardingAuth(ctx, identity.DID, func(authCtx context.Context, authority ownerlifecycle.Lifecycle) error {
@@ -222,17 +222,17 @@ func (service *OAuthFlowService) StartLogin(
 		}
 		authServerURL, err := service.app.Resolver.ResolveAuthServerURL(authCtx, identity.PDSEndpoint())
 		if err != nil {
-			return fmt.Errorf("resolve authorization server: %w", err)
+			return loginDiagnostic("provider_discovery", err)
 		}
 		serverMetadata, err := service.app.Resolver.ResolveAuthServerMetadata(authCtx, authServerURL)
 		if err != nil {
-			return fmt.Errorf("resolve authorization server metadata: %w", err)
+			return loginDiagnostic("provider_metadata", err)
 		}
 		requestInfo, err := service.app.SendAuthRequest(
 			authCtx, serverMetadata, service.app.Config.Scopes, identity.DID.String(),
 		)
 		if err != nil {
-			return fmt.Errorf("send OAuth authorization request: %w", err)
+			return loginDiagnostic("authorization_request", err)
 		}
 		requestInfo.AccountDID = &identity.DID
 		requestCtx := WithLoginAuthRequest(
@@ -241,7 +241,7 @@ func (service *OAuthFlowService) StartLogin(
 			mode, deviceID, loopbackURI,
 		)
 		if err := service.store.SaveAuthRequestInfo(requestCtx, *requestInfo); err != nil {
-			return err
+			return loginDiagnostic("request_persistence", err)
 		}
 		params := url.Values{"client_id": {service.app.Config.ClientID}, "request_uri": {requestInfo.RequestURI}}
 		redirectURL = strings.TrimSuffix(serverMetadata.AuthorizationEndpoint, "?") + "?" + params.Encode()
@@ -529,6 +529,9 @@ func (service *OAuthFlowService) finalizeOnboardingCallback(
 	}
 	if err == nil {
 		err = finalize(ctx, result)
+	}
+	if err == nil && result.Attempt.permitsOrdinaryOnboarding() && service.onboardingReconciler != nil {
+		err = service.onboardingReconciler.Activate(ctx, result)
 	}
 	if err != nil {
 		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), service.callbackOperationTimeout)

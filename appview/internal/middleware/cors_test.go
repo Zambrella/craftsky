@@ -17,6 +17,9 @@ func TestCORS_AllowsListedOrigin(t *testing.T) {
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 
+	if got := rec.Header().Get("Access-Control-Expose-Headers"); got != "X-Request-ID" {
+		t.Fatalf("request correlation is not exposed: %q", got)
+	}
 	if got := rec.Header().Get("Access-Control-Allow-Origin"); got != "https://a.example" {
 		t.Errorf("ACAO = %q, want https://a.example", got)
 	}

@@ -8,7 +8,7 @@ export const POST_TEXT_MAX_GRAPHEMES = 2000 as const
 export const POST_IMAGE_MAX_COUNT = 8 as const
 export const POST_IMAGE_MAX_BYTES = 2000000 as const
 export const POST_IMAGE_ACCEPT = ["image/jpeg","image/png","image/webp"] as const
-export const POST_IMAGE_ALT_MAX_BYTES = 1000 as const
+export const POST_IMAGE_ALT_MAX_BYTES = 10000 as const
 export const POST_IMAGE_ALT_MAX_GRAPHEMES = 1000 as const
 export const POST_ASPECT_RATIO_MINIMUM = 1 as const
 

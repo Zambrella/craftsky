@@ -2000,10 +2000,10 @@ func TestCraftskyPost_HashtagUnicodeSpelling(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				if len(facet) != 1 || facet[0].Tag != "꟎" || facet[0].PostsLast28Days != len(spellings) {
+				if len(facet) != 1 || facet[0].Tag != "꟎" || facet[0].PostCount != len(spellings) {
 					t.Fatalf("query=%q facet=%v; want uppercase winner/%d", query, facet, len(spellings))
 				}
-				if len(search) != 1 || search[0].Tag != "꟎" || search[0].PostsLast28Days != len(spellings) {
+				if len(search) != 1 || search[0].Tag != "꟎" || search[0].PostCount != len(spellings) {
 					t.Fatalf("query=%q search=%v", query, search)
 				}
 				if len(top) != 1 || len(top[0].Items) != 1 || top[0].Items[0].Tag != "꟎" || top[0].Items[0].Count != len(spellings) {
@@ -2069,10 +2069,10 @@ func TestCraftskyPost_HashtagFieldCasing(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if len(facetRows) != 1 || facetRows[0].Tag != "MeMadeMay" || facetRows[0].PostsLast28Days != 1 {
+			if len(facetRows) != 1 || facetRows[0].Tag != "MeMadeMay" || facetRows[0].PostCount != 1 {
 				t.Fatalf("facet=%v; want MeMadeMay/1", facetRows)
 			}
-			if len(search) != 1 || search[0].Tag != "MeMadeMay" || search[0].PostsLast28Days != 1 {
+			if len(search) != 1 || search[0].Tag != "MeMadeMay" || search[0].PostCount != 1 {
 				t.Fatalf("search=%v", search)
 			}
 			if len(top) != 1 || len(top[0].Items) != 1 || top[0].Items[0].Tag != "MeMadeMay" || top[0].Items[0].Count != 1 {
@@ -2128,7 +2128,7 @@ func TestCraftskyPost_HashtagSpellingLifecycle(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(rows) != 1 || rows[0].Tag != winner || rows[0].PostsLast28Days != count {
+		if len(rows) != 1 || rows[0].Tag != winner || rows[0].PostCount != count {
 			t.Fatalf("suggestion=%v want %s/%d", rows, winner, count)
 		}
 	}

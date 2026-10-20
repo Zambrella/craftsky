@@ -238,6 +238,30 @@ func (store *Store) AdvanceAuthEpoch(
 	return updated, err
 }
 
+// ActivateOnboardingProfile completes callback-time membership activation under
+// the existing exclusive auth fence. It must be the last callback operation:
+// the original auth context still describes the preceding generation.
+func (store *Store) ActivateOnboardingProfile(
+	ctx context.Context,
+	expected Lifecycle,
+	participant TransitionParticipant,
+) error {
+	authority, ok := ctx.Value(authTransitionContextKey{}).(Lifecycle)
+	if !ok || ctx.Value(exclusiveAuthContextKey{}) == nil || authority.Owner != expected.Owner ||
+		authority.State != expected.State || authority.Generation != expected.Generation ||
+		authority.AuthEpoch != expected.AuthEpoch || participant == nil {
+		return ErrFenceRequired
+	}
+	if expected.State != StateDeparted || ctx.Value(activeEffectsContextKey{}) != nil {
+		return ErrOwnerNotOnboarding
+	}
+	_, err := store.transitionFenced(ctx, TransitionRequest{
+		Owner: expected.Owner, ExpectedGeneration: expected.Generation,
+		To: StateActive, Reason: "profileActivated",
+	}, participant)
+	return err
+}
+
 type activeEffectsContextKey struct{}
 
 type authTransitionContextKey struct{}

@@ -19,7 +19,7 @@ func (s *SearchStore) SearchHashtags(ctx context.Context, req HashtagSearchReque
 	return items, cursor, err
 }
 
-func (s *SearchStore) searchHashtagsObserved(ctx context.Context, req HashtagSearchRequest, now time.Time) ([]HashtagSearchResult, string, error) {
+func (s *SearchStore) searchHashtagsObserved(ctx context.Context, req HashtagSearchRequest, _ time.Time) ([]HashtagSearchResult, string, error) {
 	if s == nil || s.pool == nil {
 		return nil, "", fmt.Errorf("search store unavailable")
 	}
@@ -30,9 +30,6 @@ func (s *SearchStore) searchHashtagsObserved(ctx context.Context, req HashtagSea
 	limit := req.Limit
 	if limit <= 0 {
 		limit = SearchDefaultLimit
-	}
-	if now.IsZero() {
-		now = time.Now().UTC()
 	}
 	cur, err := DecodeHashtagSearchCursor(req.Cursor, query)
 	if err != nil {
@@ -48,22 +45,22 @@ func (s *SearchStore) searchHashtagsObserved(ctx context.Context, req HashtagSea
 		WHERE p.reply_root_uri IS NULL
 		  AND p.reply_parent_uri IS NULL
 		  AND p.quote_uri IS NULL
-		  AND p.created_at >= $1
+
 		  AND trim(tag.raw_tag) <> ''
-		  AND lower(trim(tag.raw_tag)) LIKE '%' || $3 || '%' ESCAPE '\'
-		`+relationshipTopLevelPredicate("$6")+`
+		  AND lower(trim(tag.raw_tag)) LIKE '%' || $2 || '%' ESCAPE '\'
+		`+relationshipTopLevelPredicate("$5")+`
 		`+postVisibleModerationPredicate+`
 		)`+hashtagAggregationCTEs+`
 		ORDER BY
 		  CASE
-		    WHEN c.tag_key = $2 THEN 0
-		    WHEN c.tag_key LIKE $3 || '%' ESCAPE '\' THEN 1
+		    WHEN c.tag_key = $1 THEN 0
+		    WHEN c.tag_key LIKE $2 || '%' ESCAPE '\' THEN 1
 		    ELSE 2
 		  END ASC,
 		  c.post_count DESC,
 		  c.tag_key ASC
-		LIMIT $4 OFFSET $5
-	`, now.Add(-28*24*time.Hour), query, likeQuery, limit+1, cur.Offset, viewerDID.String())
+		LIMIT $3 OFFSET $4
+	`, query, likeQuery, limit+1, cur.Offset, viewerDID.String())
 	if err != nil {
 		return nil, "", fmt.Errorf("hashtag search: %w", err)
 	}
@@ -71,7 +68,7 @@ func (s *SearchStore) searchHashtagsObserved(ctx context.Context, req HashtagSea
 	out := make([]HashtagSearchResult, 0, limit+1)
 	for rows.Next() {
 		var row HashtagSearchResult
-		if err := rows.Scan(&row.Tag, &row.PostsLast28Days); err != nil {
+		if err := rows.Scan(&row.Tag, &row.PostCount); err != nil {
 			return nil, "", err
 		}
 		out = append(out, row)
@@ -152,14 +149,13 @@ func (s *SearchStore) topHashtagsObserved(ctx context.Context, req TopHashtagsRe
 			CROSS JOIN LATERAL unnest(p.tags) AS tag
 			WHERE p.is_project = true
 			  AND p.reply_root_uri IS NULL AND p.reply_parent_uri IS NULL AND p.quote_uri IS NULL
-			  AND p.created_at >= $2
-			  AND lower(pp.common_craft_type) = $1
-			` + relationshipTopLevelPredicate("$4") + `
+			  AND $1 = ANY(` + projectCraftValuesSQL + `)
+			` + relationshipTopLevelPredicate("$3") + `
 			` + postVisibleModerationPredicate + `
 			)` + hashtagAggregationCTEs + `
 			ORDER BY c.post_count DESC, c.tag_key ASC
-			LIMIT $3`
-		rows, err := s.pool.Query(ctx, q, craft, now.Add(-28*24*time.Hour), req.Limit, viewerDID.String())
+			LIMIT $2`
+		rows, err := s.pool.Query(ctx, q, craft, req.Limit, viewerDID.String())
 		if err != nil {
 			return nil, fmt.Errorf("top hashtags: %w", err)
 		}

@@ -17,7 +17,7 @@ class RecordTextLimit {
 
 abstract final class RecordTextLimits {
   static const post = RecordTextLimit(2000, 20000);
-  static const imageAlt = RecordTextLimit(1000, 1000);
+  static const imageAlt = RecordTextLimit(1000, 10000);
   static const videoAlt = RecordTextLimit(1000, 10000);
   static const displayName = RecordTextLimit(64, 640);
   static const pronouns = RecordTextLimit(20, 200);

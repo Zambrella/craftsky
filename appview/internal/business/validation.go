@@ -38,7 +38,7 @@ var textRules = map[TextField]textBounds{
 	TextFieldEventName:    {graphemes: 200, bytes: 2000},
 	TextFieldEventSummary: {graphemes: 1000, bytes: 10000},
 	TextFieldVenueName:    {graphemes: 200, bytes: 2000},
-	TextFieldImageAlt:     {graphemes: 1000, bytes: 1000},
+	TextFieldImageAlt:     {graphemes: 1000, bytes: 10000},
 }
 
 type TextValidationError struct {

@@ -58,6 +58,33 @@ class ErrorMappingInterceptor extends Interceptor {
       return value is String && pattern.hasMatch(value) ? value : null;
     }
 
+    final envelopeRequestId = field(
+      'requestId',
+      RegExp(r'^[A-Za-z0-9_-]{1,160}$'),
+    );
+    final headerRequestIds = err.response?.headers['x-request-id'];
+    final headerRequestId = headerRequestIds?.length == 1
+        ? headerRequestIds!.single
+        : null;
+    final validHeaderRequestId =
+        headerRequestId != null &&
+            RegExp(
+              '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-'
+              r'[89ab][0-9a-f]{3}-[0-9a-f]{12}$',
+            ).hasMatch(headerRequestId)
+        ? headerRequestId
+        : null;
+    final code = field('error', RegExp(r'^[a-z][a-z0-9_]{0,79}$'));
+    final responseKind = err.response == null
+        ? null
+        : code != null && envelopeRequestId != null
+        ? 'appViewError'
+        : data == null || data == ''
+        ? 'empty'
+        : data is Map || data is List || data is num || data is bool
+        ? 'json'
+        : 'nonJson';
+
     // Server prose and resource paths stay out of diagnostics.
     // Validation fields are retained separately for UI validation.
     // Codes are a bounded API contract, not a catalogue of server wording.
@@ -73,8 +100,9 @@ class ErrorMappingInterceptor extends Interceptor {
           ? retryAfter
           : null,
       statusCode: err.response?.statusCode,
-      appViewError: field('error', RegExp(r'^[a-z][a-z0-9_]{0,79}$')),
-      requestId: field('requestId', RegExp(r'^[A-Za-z0-9_-]{1,160}$')),
+      appViewError: code,
+      requestId: envelopeRequestId ?? validHeaderRequestId,
+      responseKind: responseKind,
       method: err.requestOptions.method,
       cause: err.error ?? err,
       stackTrace: err.stackTrace,

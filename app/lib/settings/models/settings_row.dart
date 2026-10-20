@@ -28,6 +28,7 @@ enum SettingsRowId {
   accountStanding,
   account,
   about,
+  feedback,
   terms,
   privacyPolicy,
   clearImageCache,
@@ -147,6 +148,10 @@ const settingsSections = <SettingsSectionDescriptor>[
       SettingsRowDescriptor(
         id: SettingsRowId.about,
         kind: SettingsRowKind.disclosure,
+      ),
+      SettingsRowDescriptor(
+        id: SettingsRowId.feedback,
+        kind: SettingsRowKind.externalLink,
       ),
     ],
   ),

@@ -152,7 +152,7 @@ func listAuthorPostsHandler(
 			return
 		}
 		if err != nil {
-			observability.ReportRequestFailure(r.Context(), err, "api.listAuthorPostsHandler", "handler")
+			observability.ReportRequestFailure(r.Context(), err, operation, "relationship")
 			envelope.WriteError(w, http.StatusInternalServerError,
 				"internal_error", "relationship lookup failed", runID, nil)
 			return

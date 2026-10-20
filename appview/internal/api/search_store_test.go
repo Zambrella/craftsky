@@ -615,7 +615,7 @@ func TestHashtagSuggestionsMostUsedSpelling(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SearchHashtagSuggestions: %v", err)
 	}
-	want := []api.HashtagSuggestionRow{{Tag: "MeMadeMay", PostsLast28Days: 9}}
+	want := []api.HashtagSuggestionRow{{Tag: "MeMadeMay", PostCount: 9}}
 	if !slices.Equal(rows, want) {
 		t.Fatalf("suggestions = %#v, want %#v", rows, want)
 	}
@@ -623,7 +623,7 @@ func TestHashtagSuggestionsMostUsedSpelling(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(results) != 1 || results[0].Tag != "MeMadeMay" || results[0].PostsLast28Days != 9 {
+	if len(results) != 1 || results[0].Tag != "MeMadeMay" || results[0].PostCount != 9 {
 		t.Fatalf("search results=%v", results)
 	}
 
@@ -654,12 +654,12 @@ func TestFacetHashtagSuggestionsUseHashtagResultRanking(t *testing.T) {
 	}
 	got := make([]api.HashtagSuggestionRow, 0, len(rows))
 	for _, row := range rows {
-		got = append(got, api.HashtagSuggestionRow{Tag: row.Tag, PostsLast28Days: row.PostsLast28Days})
+		got = append(got, api.HashtagSuggestionRow{Tag: row.Tag, PostCount: row.PostCount})
 	}
 	want := []api.HashtagSuggestionRow{
-		{Tag: "sock", PostsLast28Days: 1},
-		{Tag: "sockkal", PostsLast28Days: 3},
-		{Tag: "mending-sock", PostsLast28Days: 4},
+		{Tag: "sock", PostCount: 1},
+		{Tag: "sockkal", PostCount: 3},
+		{Tag: "mending-sock", PostCount: 4},
 	}
 	if !slices.Equal(got, want) {
 		t.Fatalf("hashtag suggestions = %#v, want %#v", got, want)
@@ -711,8 +711,8 @@ func TestFacetHashtagSuggestionsUseVisibleSearchHashtagCounts(t *testing.T) {
 		searchGot = append(searchGot, api.HashtagSuggestionRow(row))
 	}
 	want := []api.HashtagSuggestionRow{
-		{Tag: "sockkal", PostsLast28Days: 2},
-		{Tag: "sockmending", PostsLast28Days: 1},
+		{Tag: "sockkal", PostCount: 3},
+		{Tag: "sockmending", PostCount: 1},
 	}
 	if !slices.Equal(searchGot, want) {
 		t.Fatalf("search hashtag counts = %#v, want %#v", searchGot, want)
@@ -786,7 +786,7 @@ func TestSearchStore_SearchHashtagsRanksAndPaginates(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SearchHashtags page1: %v", err)
 	}
-	wantPage1 := []api.HashtagSearchResult{{Tag: "sock", PostsLast28Days: 1}, {Tag: "sockkal", PostsLast28Days: 3}}
+	wantPage1 := []api.HashtagSearchResult{{Tag: "sock", PostCount: 1}, {Tag: "sockkal", PostCount: 3}}
 	if !slices.Equal(page1, wantPage1) || cursor == "" {
 		t.Fatalf("page1 = %#v cursor=%q, want %#v and cursor", page1, cursor, wantPage1)
 	}
@@ -794,7 +794,7 @@ func TestSearchStore_SearchHashtagsRanksAndPaginates(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SearchHashtags page2: %v", err)
 	}
-	wantPage2 := []api.HashtagSearchResult{{Tag: "sockmending", PostsLast28Days: 2}, {Tag: "mending-sock", PostsLast28Days: 4}}
+	wantPage2 := []api.HashtagSearchResult{{Tag: "sockmending", PostCount: 2}, {Tag: "mending-sock", PostCount: 4}}
 	if !slices.Equal(page2, wantPage2) || cursor2 != "" {
 		t.Fatalf("page2 = %#v cursor=%q, want %#v and empty cursor", page2, cursor2, wantPage2)
 	}
@@ -1209,7 +1209,7 @@ func TestSearchStore_TopHashtagsGroupsDistinctProjectsAndEmptyCrafts(t *testing.
 	if !slices.Equal(gotCrafts, wantCrafts) {
 		t.Fatalf("groups = %#v", groups)
 	}
-	if got := groups[0].Items; len(got) != 2 || got[0].Tag != "sock" || got[0].Count != 2 || got[1].Tag != "sweater" || got[1].Count != 1 {
+	if got := groups[0].Items; len(got) != 3 || got[0].Tag != "sock" || got[0].Count != 2 || got[1].Tag != "old" || got[1].Count != 1 || got[2].Tag != "sweater" || got[2].Count != 1 {
 		t.Fatalf("knitting items = %#v", got)
 	}
 	if got := groups[1].Items; len(got) != 1 || got[0].Tag != "granny" || got[0].Count != 1 {
@@ -1276,10 +1276,10 @@ func TestHashtagSpellingWinnersAndOverlap(t *testing.T) {
 					t.Fatal(err)
 				}
 				count := len(tc.spellings)
-				if len(facet) != 1 || facet[0].Tag != tc.winner || facet[0].PostsLast28Days != count {
+				if len(facet) != 1 || facet[0].Tag != tc.winner || facet[0].PostCount != count {
 					t.Fatalf("facet=%v want %s/%d", facet, tc.winner, count)
 				}
-				if len(search) != 1 || search[0].Tag != tc.winner || search[0].PostsLast28Days != count {
+				if len(search) != 1 || search[0].Tag != tc.winner || search[0].PostCount != count {
 					t.Fatalf("search=%v", search)
 				}
 				if len(top) != 1 || len(top[0].Items) != 1 || top[0].Items[0].Tag != tc.winner || top[0].Items[0].Count != count {
@@ -1376,7 +1376,7 @@ func TestHashtagSpellingEligibilityAndCraft(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(search) != 1 || search[0].Tag != "MeMadeMay" || search[0].PostsLast28Days != 2 {
+	if len(search) != 1 || search[0].Tag != "MEMADEMAY" || search[0].PostCount != 3 {
 		t.Fatalf("search=%v", search)
 	}
 	facet, err := api.NewFacetStore(pool).SearchHashtagSuggestions(ctx, "mema", 10, now)
@@ -1384,18 +1384,18 @@ func TestHashtagSpellingEligibilityAndCraft(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Composer retains its preexisting absence of viewer relationship exclusions.
-	if len(facet) != 1 || facet[0].Tag != "MEMADEMAY" || facet[0].PostsLast28Days != 4 {
+	if len(facet) != 1 || facet[0].Tag != "MEMADEMAY" || facet[0].PostCount != 5 {
 		t.Fatalf("facet=%v", facet)
 	}
 	groups, err := api.NewSearchStore(pool, nil).TopHashtags(ctx, api.TopHashtagsRequest{CraftTypes: []string{"knitting", "crochet"}, Limit: 10}, now)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(groups) != 2 || len(groups[0].Items) != 1 || groups[0].Items[0].Tag != "MeMadeMay" || groups[0].Items[0].Count != 1 || len(groups[1].Items) != 1 || groups[1].Items[0].Tag != "memademay" || groups[1].Items[0].Count != 1 {
+	if len(groups) != 2 || len(groups[0].Items) != 1 || groups[0].Items[0].Tag != "MEMADEMAY" || groups[0].Items[0].Count != 2 || len(groups[1].Items) != 1 || groups[1].Items[0].Tag != "memademay" || groups[1].Items[0].Count != 1 {
 		t.Fatalf("crafts=%v", groups)
 	}
 	aged, _, err := api.NewSearchStore(pool, nil).SearchHashtags(ctx, api.HashtagSearchRequest{Query: "mema", Limit: 10}, now.Add(29*24*time.Hour))
-	if err != nil || len(aged) != 0 {
+	if err != nil || len(aged) != 1 {
 		t.Fatalf("aged=%v %v", aged, err)
 	}
 }
@@ -1441,9 +1441,9 @@ func TestHashtagSpellingHTTPResponses(t *testing.T) {
 		handler http.Handler
 		count   string
 	}{
-		{"/v1/facets/hashtags?q=mema", api.ListFacetHashtagSuggestionsHandler(facet, nilLogger()), `"postsLast28Days":9`},
-		{"/v1/search/hashtags?q=MeMa", api.SearchHashtagsHandler(search, nilLogger()), `"postsLast28Days":9`},
-		{"/v1/search/suggestions?q=MEMA&types=hashtags", api.SearchSuggestionsHandler(search, nilLogger()), `"postsLast28Days":9`},
+		{"/v1/facets/hashtags?q=mema", api.ListFacetHashtagSuggestionsHandler(facet, nilLogger()), `"postCount":9`},
+		{"/v1/search/hashtags?q=MeMa", api.SearchHashtagsHandler(search, nilLogger()), `"postCount":9`},
+		{"/v1/search/suggestions?q=MEMA&types=hashtags", api.SearchSuggestionsHandler(search, nilLogger()), `"postCount":9`},
 		{"/v1/search/hashtags/top?craftTypes=knitting&limit=10", api.TopHashtagsHandler(search, nilLogger()), `"count":9`},
 	} {
 		req := httptest.NewRequest(http.MethodGet, tc.path, nil)
@@ -1509,7 +1509,7 @@ func TestHashtagSpellingExcludesTerminalOwners(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(facet) != 1 || facet[0].Tag != "MeMadeMay" || facet[0].PostsLast28Days != 1 || len(search) != 1 || search[0].Tag != "MeMadeMay" || search[0].PostsLast28Days != 1 || len(groups) != 1 || len(groups[0].Items) != 1 || groups[0].Items[0].Tag != "MeMadeMay" || groups[0].Items[0].Count != 1 {
+	if len(facet) != 1 || facet[0].Tag != "MeMadeMay" || facet[0].PostCount != 1 || len(search) != 1 || search[0].Tag != "MeMadeMay" || search[0].PostCount != 1 || len(groups) != 1 || len(groups[0].Items) != 1 || groups[0].Items[0].Tag != "MeMadeMay" || groups[0].Items[0].Count != 1 {
 		t.Fatalf("facet=%v search=%v top=%v", facet, search, groups)
 	}
 }

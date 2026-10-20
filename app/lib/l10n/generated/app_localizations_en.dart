@@ -972,7 +972,7 @@ class AppLocalizationsEn extends AppLocalizations {
       'Tell everyone about your project';
 
   @override
-  String get projectComposerCraftTypeLabel => 'Craft type';
+  String get projectComposerCraftTypeLabel => 'Primary craft';
 
   @override
   String get projectComposerStatusLabel => 'Status';
@@ -4881,4 +4881,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String chatLastUpdated(String time) {
     return 'Last updated $time';
   }
+
+  @override
+  String get projectComposerAdditionalCraftsLabel => 'Additional crafts';
+
+  @override
+  String get projectComposerAdditionalCraftsSearchHint =>
+      'Find other crafts used in this project';
 }

@@ -23,13 +23,13 @@
             "social.craftsky.project.crochet#details",
             "social.craftsky.project.knitting#details"
           ],
-          "description": "Optional craft-specific fields. Open union — new crafts add new variants here without breaking existing records."
+          "description": "Optional craft-specific fields. Open union \u2014 new crafts add new variants here without breaking existing records."
         }
       }
     },
     "projectCommon": {
       "type": "object",
-      "description": "Project fields shared across every craft. A post with project.common present but no project.details is a valid craft-tagged project post without specialised fields — useful when craftType references a craft that has no #details lexicon yet.",
+      "description": "Project fields shared across every craft. A post with project.common present but no project.details is a valid craft-tagged project post without specialised fields \u2014 useful when craftType references a craft that has no #details lexicon yet.",
       "required": [
         "craftType"
       ],
@@ -38,7 +38,7 @@
           "type": "string",
           "maxLength": 100,
           "maxGraphemes": 100,
-          "description": "The craft this project belongs to. Required — a project post without a craft type is meaningless. knownValues are tokens; new crafts can be added to feed.defs without breaking old clients.",
+          "description": "Primary craft for this project. Determines the craft-specific details; additionalCrafts records other participating crafts. knownValues are open tokens.",
           "knownValues": [
             "social.craftsky.feed.defs#knitting",
             "social.craftsky.feed.defs#crochet",
@@ -51,7 +51,7 @@
           "type": "string",
           "maxLength": 100,
           "maxGraphemes": 100,
-          "description": "Whether the project is in progress or finished at the time this post was created. Snapshot — not a mutable lifecycle flag. knownValues are tokens so new statuses (e.g. planned, frogged) can be added without breaking old clients.",
+          "description": "Whether the project is in progress or finished at the time this post was created. Snapshot \u2014 not a mutable lifecycle flag. knownValues are tokens so new statuses (e.g. planned, frogged) can be added without breaking old clients.",
           "knownValues": [
             "social.craftsky.feed.defs#wip",
             "social.craftsky.feed.defs#finished"
@@ -67,7 +67,7 @@
           "type": "string",
           "maxLength": 500,
           "maxGraphemes": 100,
-          "description": "Free-text description of how long the project took, e.g. '3 weeks', 'a weekend', '6 months of evenings'. Deliberately unstructured — crafters describe duration informally. Not range-queryable."
+          "description": "Free-text description of how long the project took, e.g. '3 weeks', 'a weekend', '6 months of evenings'. Deliberately unstructured \u2014 crafters describe duration informally. Not range-queryable."
         },
         "pattern": {
           "type": "ref",
@@ -159,6 +159,15 @@
             "maxGraphemes": 64
           },
           "description": "Structured search tags. Composer responsibility to normalise to ASCII kebab-case (pattern ^[a-z0-9]+(-[a-z0-9]+)*$). AppView search materialisation also merges hashtag facets from post text and faceted project metadata, so this field is not required to duplicate every visible hashtag."
+        },
+        "additionalCrafts": {
+          "type": "array",
+          "maxLength": 10,
+          "items": {
+            "type": "ref",
+            "ref": "#additionalCraft"
+          },
+          "description": "Other crafts involved in this project. Clients should omit the primary craft and duplicates. These crafts also participate in discovery; details remain associated with the primary craft."
         }
       }
     },
@@ -469,6 +478,28 @@
           "description": "Measurement unit for the gauge swatch."
         }
       }
+    },
+    "additionalCraft": {
+      "type": "object",
+      "required": [
+        "craftType"
+      ],
+      "properties": {
+        "craftType": {
+          "type": "string",
+          "maxLength": 100,
+          "maxGraphemes": 100,
+          "description": "An additional craft involved in this project.",
+          "knownValues": [
+            "social.craftsky.feed.defs#knitting",
+            "social.craftsky.feed.defs#crochet",
+            "social.craftsky.feed.defs#sewing",
+            "social.craftsky.feed.defs#embroidery",
+            "social.craftsky.feed.defs#quilting"
+          ]
+        }
+      },
+      "description": "One additional craft, represented as an object so future context can be added."
     }
   }
 }
