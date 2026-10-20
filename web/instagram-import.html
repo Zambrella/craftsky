@@ -19,17 +19,55 @@
     <p>This guide is for importing your following list. It does not import your Instagram posts or the people who follow you.</p>
 
     <h2>1. Request your Instagram export</h2>
-    <ol>
-      <li>In Instagram, open your profile and tap the menu in the top corner. Find <strong>Accounts Center</strong> in settings.</li>
-      <li>Go to <strong>Your information and permissions</strong>, then <strong>Export your information</strong>.</li>
-      <li>Choose <strong>Create export</strong>, select the Instagram account you want to use, and choose <strong>Export to device</strong>.</li>
-      <li>Open the information selection (sometimes called <strong>Customize information</strong> or <strong>Some of your information</strong>). Select <strong>Followers and following</strong> under Connections. You can leave the other categories out.</li>
-      <li>Set the format to <strong>JSON</strong> and the date range to <strong>All time</strong>, then start the export.</li>
+    <p>These screenshots show Instagram’s website in October 2026. The app’s layout may differ, but look for the same controls in Accounts Center. Account details are hidden in the screenshots. Select any screenshot to view it at full size.</p>
+    <ol class="import-guide__steps">
+      <li>In Instagram, open <strong>More → Settings</strong> on the website, or your profile menu in the app, then open <strong>Accounts Center</strong>. Choose <strong>Your information and permissions</strong>, then <strong>Export your information</strong>.
+        <figure class="import-guide__figure">
+          <a href="/assets/instagram-import/accounts-center.png" aria-label="View full-size screenshot: Accounts Center with Your information and permissions selected and the Export your information control visible."><img src="/assets/instagram-import/accounts-center.png" alt="Accounts Center with Your information and permissions selected and the Export your information control visible." width="1280" height="800" loading="lazy" decoding="async" /></a>
+          <figcaption>Open Export your information in Accounts Center.</figcaption>
+        </figure>
+      </li>
+      <li>Choose <strong>Create export</strong>. If Instagram asks which account to use, select the Instagram account whose following list you want to import.
+        <figure class="import-guide__figure">
+          <a href="/assets/instagram-import/create-export.png" aria-label="View full-size screenshot: Export your information dialog with the Create export button."><img src="/assets/instagram-import/create-export.png" alt="Export your information dialog with the Create export button." width="1280" height="800" loading="lazy" decoding="async" /></a>
+          <figcaption>Create a new export for your Instagram account.</figcaption>
+        </figure>
+      </li>
+      <li>Choose <strong>Export to device</strong>.
+        <figure class="import-guide__figure">
+          <a href="/assets/instagram-import/export-to-device.png" aria-label="View full-size screenshot: Choose where to export dialog offering Export to device and Export to external service."><img src="/assets/instagram-import/export-to-device.png" alt="Choose where to export dialog offering Export to device and Export to external service." width="1280" height="800" loading="lazy" decoding="async" /></a>
+          <figcaption>Save the export to your device.</figcaption>
+        </figure>
+      </li>
+      <li>On <strong>Confirm your export</strong>, open <strong>Customize information</strong> (sometimes called <strong>Some of your information</strong>). Use <strong>Clear all</strong> in each selected section to deselect the other categories. Under <strong>Connections</strong>, select only <strong>Followers and following</strong>, then choose <strong>Save</strong>.
+        <figure class="import-guide__figure">
+          <a href="/assets/instagram-import/followers-and-following.png" aria-label="View full-size screenshot: Connections section with Followers and following checked and Contacts unchecked."><img src="/assets/instagram-import/followers-and-following.png" alt="Connections section with Followers and following checked and Contacts unchecked." width="1280" height="800" loading="lazy" decoding="async" /></a>
+          <figcaption>Select Followers and following; leave the other categories unchecked.</figcaption>
+        </figure>
+      </li>
+      <li>Open <strong>Date range</strong>, select <strong>All time</strong>, then choose <strong>Save</strong>. The default may be Last year, which can leave out older connections.
+        <figure class="import-guide__figure">
+          <a href="/assets/instagram-import/all-time.png" aria-label="View full-size screenshot: Date range dialog with All time selected."><img src="/assets/instagram-import/all-time.png" alt="Date range dialog with All time selected." width="1280" height="800" loading="lazy" decoding="async" /></a>
+          <figcaption>Choose All time to include older connections.</figcaption>
+        </figure>
+      </li>
+      <li>Open <strong>Format</strong>, select <strong>JSON</strong>, then choose <strong>Save</strong>. Instagram may default to HTML; CraftSky needs JSON.
+        <figure class="import-guide__figure">
+          <a href="/assets/instagram-import/json-format.png" aria-label="View full-size screenshot: Format dialog with JSON selected instead of HTML."><img src="/assets/instagram-import/json-format.png" alt="Format dialog with JSON selected instead of HTML." width="1280" height="800" loading="lazy" decoding="async" /></a>
+          <figcaption>Choose JSON so CraftSky can read the export.</figcaption>
+        </figure>
+      </li>
+      <li>Check that the summary shows <strong>Followers and following</strong>, <strong>All time</strong>, and <strong>JSON</strong>. Scroll down if needed and choose <strong>Start export</strong>.
+        <figure class="import-guide__figure">
+          <a href="/assets/instagram-import/confirm-export.png" aria-label="View full-size screenshot: Export summary showing Followers and following, All time, JSON, and the Start export button."><img src="/assets/instagram-import/confirm-export.png" alt="Export summary showing Followers and following, All time, JSON, and the Start export button." width="1280" height="800" loading="lazy" decoding="async" /></a>
+          <figcaption>Check all three settings before starting the export.</figcaption>
+        </figure>
+      </li>
     </ol>
     <p>Instagram changes its menus from time to time, so the labels may look slightly different. Look for the export or download controls in Accounts Center.</p>
 
     <h2>2. Download the ZIP</h2>
-    <p>Instagram will notify you when the export is ready. Return to the export screen in Accounts Center and save the ZIP to your device.</p>
+    <p>Instagram will notify you when the export is ready. Return to the export screen in Accounts Center and save the ZIP to your device. Download it before the expiry shown by Instagram; the export screen currently gives you four days once the files are ready.</p>
     <p>If Instagram asks you to confirm your password, do that in Instagram. CraftSky does not need your Instagram password.</p>
 
     <h2>3. Import it into CraftSky</h2>
