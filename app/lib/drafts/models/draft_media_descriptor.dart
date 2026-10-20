@@ -1,4 +1,5 @@
 import 'package:craftsky_app/drafts/models/draft_manifest_error.dart';
+import 'package:craftsky_app/feed/media/media_config.dart';
 import 'package:craftsky_app/shared/text/record_text_limits.dart';
 
 enum DraftMediaAvailability { available, unavailable }
@@ -68,7 +69,7 @@ final class DraftMediaDescriptor {
         height > 0 &&
         RecordTextLimits.imageAlt.accepts(altText) &&
         order >= 0 &&
-        order < 4;
+        order < defaultMaxPostImages;
     if (!valid) {
       throw const DraftManifestException(
         DraftManifestFailureReason.invalidMedia,
