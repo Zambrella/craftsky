@@ -519,6 +519,9 @@ func (service *OAuthFlowService) finalizeOnboardingCallback(
 	if err == nil {
 		err = finalize(ctx, result)
 	}
+	if err == nil && result.Attempt.permitsOrdinaryOnboarding() && service.onboardingReconciler != nil {
+		err = service.onboardingReconciler.Activate(ctx, result)
+	}
 	if err != nil {
 		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), service.callbackOperationTimeout)
 		defer cancel()
