@@ -1,5 +1,15 @@
 # App Changelog
 
+## 1.8.0+13 - 2026-10-20
+
+- feat(projects): add multi-craft discovery and search
+- fix(feed): preserve scroll position after image pinch
+- fix(observability): preserve safe Sentry issue diagnostics
+- fix(composer): restore additional craft selections
+- feat(settings): add feedback link
+- fix(android): match Craftsky HTTPS links without path filters
+- test(android): accept all verified HTTPS link paths
+
 ## 1.7.5+12 - 2026-10-19
 
 - fix(notifications): open reply threads at their root
