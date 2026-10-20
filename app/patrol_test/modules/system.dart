@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:craftsky_app/keys.dart';
 import 'package:patrol/patrol.dart';
 
@@ -7,6 +9,38 @@ final class System {
   final PatrolIntegrationTester $;
 
   Future<void> chooseFixturePhotos() async {
+    if (Platform.isIOS) {
+      // Match actual photo tiles, excluding the picker's onboarding artwork.
+      for (var index = 0; index < 2; index++) {
+        await $.platform.ios.tap(
+          IOSSelector(
+            elementType: IOSElementType.image,
+            identifier: 'PXGGridLayout-Info',
+            instance: index,
+          ),
+        );
+      }
+      final selection = await $.platform.ios.getNativeViews(
+        const IOSSelector(
+          elementType: IOSElementType.image,
+          identifier: 'PXGGridLayout-Info',
+          isSelected: true,
+        ),
+      );
+      if (selection.roots.length != 2) {
+        throw StateError(
+          'The iOS photo picker must select exactly two photos.',
+        );
+      }
+      await $.platform.ios.tap(
+        const IOSSelector(
+          elementType: IOSElementType.button,
+          identifier: 'Add',
+        ),
+      );
+      await $(keys.composerImages.page('composer')).waitUntilVisible();
+      return;
+    }
     if (await $.platform.mobile.isPermissionDialogVisible()) {
       await $.platform.mobile.grantPermissionWhenInUse();
     }

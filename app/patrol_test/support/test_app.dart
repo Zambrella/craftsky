@@ -1,7 +1,11 @@
+import 'dart:io';
+
 import 'package:craftsky_app/app.dart';
+import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
 import 'package:craftsky_app/bootstrap.dart';
 import 'package:craftsky_app/shared/device/device_id_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:patrol/patrol.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -25,7 +29,22 @@ void testApp(
       initializeMappers();
       MediaKit.ensureInitialized();
       SharedPreferences.setPrefix('craftsky.e2e.');
-      final container = ProviderContainer(retry: appProviderRetry);
+      const testStorage = FlutterSecureStorage(
+        iOptions: IOSOptions(accountName: 'craftsky.patrol.e2e'),
+      );
+      if (Platform.isIOS) {
+        // Keychain survives uninstall. Reset only the E2E session namespace.
+        await testStorage.delete(key: SecureSessionRegistryStorage.storageKey);
+      }
+      final container = ProviderContainer(
+        retry: appProviderRetry,
+        overrides: [
+          if (Platform.isIOS)
+            secureSessionRegistryStorageProvider.overrideWith(
+              (ref) => SecureSessionRegistryStorage(testStorage),
+            ),
+        ],
+      );
       try {
         await container.read(deviceIdProvider.future);
         // Use real auth storage, router, clients and plugins. Push delivery,

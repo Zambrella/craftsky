@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:patrol/patrol.dart';
 
 void main() {
-  patrolTest('Patrol can render Flutter and control Android', ($) async {
+  patrolTest('Patrol can render Flutter and control the device', ($) async {
     await $.pumpWidgetAndSettle(
       const MaterialApp(
         home: Scaffold(

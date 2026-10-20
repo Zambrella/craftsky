@@ -427,9 +427,9 @@ app-test-integration-ci DEVICE *ARGS:
 app-test-e2e DEVICE:
     python3 scripts/app-test-e2e '{{DEVICE}}'
 
-# No backend/account required; verifies the Android Patrol runner itself.
+# No backend/account required; verifies the selected native Patrol runner.
 app-test-e2e-harness DEVICE:
-    cd app && PATROL_ANALYTICS_ENABLED=false patrol test --target patrol_test/harness_test.dart --device '{{DEVICE}}'
+    python3 scripts/app-test-e2e '{{DEVICE}}' --harness
 
 # Install the standalone Instagram importer's checked dependency graph.
 importer-install:

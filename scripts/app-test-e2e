@@ -1,14 +1,18 @@
 #!/usr/bin/env python3
 """Run the explicitly requested live smoke journey against this checkout only."""
 
+import argparse
 import base64
 import json
 import os
 from pathlib import Path
 import re
 import shutil
+import signal
 import subprocess
 import sys
+import tempfile
+import time
 import urllib.parse
 import urllib.request
 
@@ -21,32 +25,49 @@ def run(*args, **kwargs):
 
 
 def main():
-    if len(sys.argv) != 2 or not sys.argv[1].startswith("emulator-"):
-        sys.exit("Usage: scripts/app-test-e2e emulator-5554 (dedicated Android emulator)")
-    device = sys.argv[1]
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("device", help="Dedicated Android emulator ID, booted iOS simulator UUID, or booted")
+    parser.add_argument("--harness", action="store_true", help="Native harness only; no account or backend required")
+    args = parser.parse_args()
+    device = args.device
+    android = device.startswith("emulator-")
+    if not android:
+        if device != "booted" and not re.fullmatch(r"[0-9a-fA-F-]{36}", device):
+            sys.exit("Choose an Android emulator ID or a booted iOS simulator UUID (or booted).")
+        inventory = json.loads(run("xcrun", "simctl", "list", "devices", "booted", "-j",
+                                   capture_output=True, text=True).stdout)
+        candidates = [item for runtime, items in inventory["devices"].items()
+                      if ".iOS-" in runtime for item in items
+                      if item.get("isAvailable") and item["state"] == "Booted"
+                      and (device == "booted" or item["udid"].lower() == device.lower())]
+        if len(candidates) != 1:
+            sys.exit("Boot one dedicated iOS simulator, or specify its exact UUID from xcrun simctl list devices booted.")
+        device = candidates[0]["udid"]
     config = ROOT / "app/.patrol.env"
-    if not config.exists():
+    if not config.exists() and not args.harness:
         sys.exit("Copy app/.patrol.env.example to app/.patrol.env and add the test account.")
     values = {}
-    for line in config.read_text().splitlines():
+    for line in config.read_text().splitlines() if config.exists() else []:
         if line.strip() and not line.lstrip().startswith("#"):
             key, value = line.strip().split("=", 1)
             values[key] = value
-    if not all(values.get(key) for key in ("E2E_HANDLE", "E2E_PASSWORD")):
+    if not args.harness and not all(values.get(key) for key in ("E2E_HANDLE", "E2E_PASSWORD")):
         sys.exit("Set E2E_HANDLE and E2E_PASSWORD in app/.patrol.env (no quotes).")
     patrol = shutil.which("patrol") or str(Path.home() / ".pub-cache/bin/patrol")
     if not Path(patrol).is_file():
         sys.exit("Install Patrol: dart pub global activate patrol_cli 4.8.0")
-    booted = run("adb", "-s", device, "shell", "getprop", "sys.boot_completed", capture_output=True, text=True)
-    if booted.stdout.strip() != "1":
-        sys.exit("Wait for the Android emulator to finish booting.")
-    browser = run("adb", "-s", device, "shell", "cmd", "role", "get-role-holders",
-                  "android.app.role.BROWSER", capture_output=True, text=True).stdout.strip()
-    if browser != "com.android.chrome":
-        sys.exit("Select Chrome as the default browser on the dedicated emulator first.")
-    # Patrol 4.10's native DEBUG text-entry logs include entered values.
-    # Android's per-tag filter suppresses them at the log producer.
-    run("adb", "-s", device, "shell", "setprop", "log.tag.PatrolServer", "INFO")
+    if android:
+        booted = run("adb", "-s", device, "shell", "getprop", "sys.boot_completed", capture_output=True, text=True)
+        if booted.stdout.strip() != "1":
+            sys.exit("Wait for the Android emulator to finish booting.")
+        browser = run("adb", "-s", device, "shell", "cmd", "role", "get-role-holders",
+                      "android.app.role.BROWSER", capture_output=True, text=True).stdout.strip()
+        if browser != "com.android.chrome" and not args.harness:
+            sys.exit("Select Chrome as the default browser on the dedicated emulator first.")
+        # Patrol 4.10's native DEBUG text-entry logs include entered values.
+        run("adb", "-s", device, "shell", "setprop", "log.tag.PatrolServer", "INFO")
+    if args.harness:
+        return launch(patrol, device, values, harness=True)
     port_output = run(COMPOSE, "port", "appview", "8080", capture_output=True, text=True).stdout
     ports = re.findall(r"^127\.0\.0\.1:(\d+)$", port_output, re.MULTILINE)
     if len(ports) != 1:
@@ -66,38 +87,67 @@ def main():
     run(COMPOSE, "exec", "-T", "postgres", "psql", "-X", "-v", "ON_ERROR_STOP=1",
         "-U", "craftsky", "-d", "craftsky_dev", "-v", f"e2e_did={did}",
         input=sql, text=True, stdout=subprocess.DEVNULL)
-    run("adb", "-s", device, "reverse", f"tcp:{port}", f"tcp:{port}", stdout=subprocess.DEVNULL)
-    # A dedicated album makes fixture selection independent of personal photos.
-    album = "/sdcard/Pictures/CraftSkyE2E"
-    run("adb", "-s", device, "shell", "mkdir", "-p", album)
-    for fixture in sorted((ROOT / "app/patrol_test/fixtures").glob("*.png")):
-        destination = album + "/" + fixture.name
-        run("adb", "-s", device, "push", str(fixture), destination, stdout=subprocess.DEVNULL)
-        run("adb", "-s", device, "shell", "am", "broadcast", "-a",
-            "android.intent.action.MEDIA_SCANNER_SCAN_FILE", "-d", "file://" + destination,
-            stdout=subprocess.DEVNULL)
+    fixtures = sorted((ROOT / "app/patrol_test/fixtures").glob("*.png"))
+    if android:
+        run("adb", "-s", device, "reverse", f"tcp:{port}", f"tcp:{port}", stdout=subprocess.DEVNULL)
+        album = "/sdcard/Pictures/CraftSkyE2E"
+        run("adb", "-s", device, "shell", "mkdir", "-p", album)
+        for fixture in fixtures:
+            destination = album + "/" + fixture.name
+            run("adb", "-s", device, "push", str(fixture), destination, stdout=subprocess.DEVNULL)
+            run("adb", "-s", device, "shell", "am", "broadcast", "-a",
+                "android.intent.action.MEDIA_SCANNER_SCAN_FILE", "-d", "file://" + destination,
+                stdout=subprocess.DEVNULL)
+    else:
+        # iOS simulators reach the host's loopback directly; no ADB reverse.
+        # Photos sorts by capture/file date, not import order. Fresh timestamps
+        # keep this run's pair ahead of earlier imports and simulator photos.
+        with tempfile.TemporaryDirectory(prefix="craftsky-patrol-") as directory:
+            imported = []
+            for index, fixture in enumerate(fixtures):
+                destination = Path(directory) / fixture.name
+                shutil.copyfile(fixture, destination)
+                stamp = time.time() + index
+                os.utime(destination, (stamp, stamp))
+                imported.append(str(destination))
+            run("xcrun", "simctl", "addmedia", device, *imported)
+    return launch(patrol, device, values, origin=origin)
+
+
+def launch(patrol, device, values, *, harness=False, origin=None):
     environment = os.environ.copy()
     environment["PATROL_ANALYTICS_ENABLED"] = "false"
     environment.setdefault("ANDROID_HOME", str(Path.home() / "Library/Android/Sdk"))
-    command = [patrol, "test", "--target", "patrol_test/live_smoke_test.dart", "--device", device,
-               "--dart-define=E2E_LIVE=true", f"--dart-define=CRAFTSKY_API_BASE_URL={origin}",
-               "--dart-define=E2E_PASSWORD_BASE64=" + base64.b64encode(values["E2E_PASSWORD"].encode()).decode(),
-               "--dart-define=CRAFTSKY_DEV_OAUTH_SCHEME=true", "--dart-define=SENTRY_DSN=",
-               "--no-show-flutter-logs"]
+    password = values.get("E2E_PASSWORD", "")
+    encoded = base64.b64encode(password.encode()).decode()
+    target = "harness_test.dart" if harness else "live_smoke_test.dart"
+    command = [patrol, "test", "--target", "patrol_test/" + target, "--device", device,
+               "--dart-define=E2E_PASSWORD=", "--no-show-flutter-logs"]
+    if harness:
+        command += ["--dart-define=E2E_HANDLE=", "--dart-define=E2E_PASSWORD_BASE64="]
+    else:
+        command += ["--dart-define=E2E_LIVE=true", f"--dart-define=CRAFTSKY_API_BASE_URL={origin}",
+                    "--dart-define=E2E_PASSWORD_BASE64=" + encoded,
+                    "--dart-define=CRAFTSKY_DEV_OAUTH_SCHEME=true", "--dart-define=SENTRY_DSN="]
     # Flutter/Gradle failures can include encoded dart-defines. Do not echo them.
-    protected = [values["E2E_PASSWORD"], values["E2E_HANDLE"],
-                 base64.b64encode(values["E2E_PASSWORD"].encode()).decode(),
-                 values["E2E_PASSWORD"].split("#", 1)[0],
-                 base64.b64encode(("E2E_PASSWORD=" + values["E2E_PASSWORD"]).encode()).decode()]
+    protected = [password, values.get("E2E_HANDLE", ""), encoded, password.split("#", 1)[0],
+                 base64.b64encode(("E2E_PASSWORD=" + password).encode()).decode(),
+                 base64.b64encode(("E2E_PASSWORD_BASE64=" + encoded).encode()).decode()]
     protected = sorted({value for value in protected if value}, key=len, reverse=True)
-    print("Running live smoke test against this checkout's local AppView.", flush=True)
+    print("Running native harness." if harness else "Running live smoke test against this checkout's local AppView.", flush=True)
     process = subprocess.Popen(command, cwd=ROOT / "app", env=environment,
                                stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
-    for line in process.stdout:
-        line = re.sub(r"-Pdart-defines=\S+", "-Pdart-defines=[redacted]", line)
-        for value in protected:
-            line = line.replace(value, "[redacted]")
-        print(line, end="", flush=True)
+    try:
+        for line in process.stdout:
+            line = re.sub(r"-Pdart-defines=\S+", "-Pdart-defines=[redacted]", line)
+            line = re.sub(r"DART_DEFINES=\S+", "DART_DEFINES=[redacted]", line)
+            for value in protected:
+                line = line.replace(value, "[redacted]")
+            print(line, end="", flush=True)
+    except KeyboardInterrupt:
+        process.send_signal(signal.SIGINT)
+        process.wait()
+        return 130
     return process.wait()
 
 

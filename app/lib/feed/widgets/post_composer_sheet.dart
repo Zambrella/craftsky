@@ -725,6 +725,7 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
                             )
                           else
                             ComposerImageAttachmentSection(
+                              key: keys.composerImages.section('composer'),
                               useDetailsRoute: true,
                               imagesProvider: imagesProvider,
                               imagesState: imagesState,
