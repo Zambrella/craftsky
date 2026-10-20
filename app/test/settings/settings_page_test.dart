@@ -567,6 +567,7 @@ const _regularSettingsRows = <SettingsRowId>[
   SettingsRowId.accountStanding,
   SettingsRowId.account,
   SettingsRowId.about,
+  SettingsRowId.feedback,
   SettingsRowId.signOut,
 ];
 
