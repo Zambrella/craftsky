@@ -86,6 +86,41 @@ func TestTerminalPurgeProcessorRetainsFixedTombstones(t *testing.T) {
 	}
 }
 
+// IT-018 / NFR-002: one account must not cascade an unbounded lifetime
+// receipt ledger through a single nominal parent-row purge batch.
+func TestTerminalChatAccountWaitsForBoundedReceiptPurge(t *testing.T) {
+	pool, store, processor, owner, generation := newTerminalPurgeProcessorTest(t, 1)
+	if _, err := pool.Exec(t.Context(), `INSERT INTO chat_accounts(owner_did) VALUES($1)`, owner); err != nil {
+		t.Fatal(err)
+	}
+	for range 3 {
+		if _, err := pool.Exec(t.Context(), `INSERT INTO chat_operations(owner_did,operation_id,kind,key_version,request_digest,state) VALUES($1,$2,'send',1,$3,'uncertain')`, owner, uuid.New(), bytes.Repeat([]byte{1}, 32)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	parent := claimSpecificTerminalComponent(t, store, owner, generation, "chat_accounts", "owner")
+	result, err := processor.ProcessClaim(t.Context(), parent)
+	if err != nil || result.Complete || result.RowsAffected != 0 {
+		t.Fatalf("parent cascaded receipt deletion: %+v %v", result, err)
+	}
+	for remaining := 2; remaining >= 0; remaining-- {
+		claim := claimSpecificTerminalComponent(t, store, owner, generation, "chat_operations", "owner")
+		result, err = processor.ProcessClaim(t.Context(), claim)
+		if err != nil || result.RowsAffected != 1 {
+			t.Fatalf("receipt purge: %+v %v", result, err)
+		}
+		var count int
+		if err := pool.QueryRow(t.Context(), `SELECT count(*) FROM chat_operations WHERE owner_did=$1`, owner).Scan(&count); err != nil || count != remaining {
+			t.Fatalf("retained=%d expected=%d err=%v", count, remaining, err)
+		}
+	}
+	parent = claimSpecificTerminalComponent(t, store, owner, generation, "chat_accounts", "owner")
+	result, err = processor.ProcessClaim(t.Context(), parent)
+	if err != nil || !result.Complete || result.RowsAffected != 1 {
+		t.Fatalf("drained account purge: %+v %v", result, err)
+	}
+}
+
 func TestTerminalPurgeProcessorAnonymizesAuditRowsInBoundedBatches(t *testing.T) {
 	pool, store, processor, owner, generation := newTerminalPurgeProcessorTest(t, 1)
 	other := syntax.DID("did:plc:audit-other")

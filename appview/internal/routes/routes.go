@@ -2,8 +2,10 @@ package routes
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -46,17 +48,18 @@ func normalizedImageDecodeLimits(limits api.ImageDecodeLimits) api.ImageDecodeLi
 }
 
 type v1Middleware struct {
-	subscriptionAccess subscriptionAccessReader
-	authCurrentMember  func(http.Handler) http.Handler
-	authRecovery       func(http.Handler) http.Handler
-	deviceID           func(http.Handler) http.Handler
-	member             func(http.Handler) http.Handler
-	bodyLimit          middleware.BodyLimitConfig
-	uploadAdmission    *middleware.UploadBodyAdmission
-	rateLimit          map[RateClass]func(http.Handler) http.Handler
-	observer           *observability.Observer
-	hydrator           *api.IdentityCustomisationHydrator
-	folderRedactor     interface {
+	subscriptionAccess  subscriptionAccessReader
+	authCurrentMember   func(http.Handler) http.Handler
+	authWithoutActivity func(http.Handler) http.Handler
+	authRecovery        func(http.Handler) http.Handler
+	deviceID            func(http.Handler) http.Handler
+	member              func(http.Handler) http.Handler
+	bodyLimit           middleware.BodyLimitConfig
+	uploadAdmission     *middleware.UploadBodyAdmission
+	rateLimit           map[RateClass]func(http.Handler) http.Handler
+	observer            *observability.Observer
+	hydrator            *api.IdentityCustomisationHydrator
+	folderRedactor      interface {
 		Handler(http.Handler) http.Handler
 	}
 	accountTypeHydrator *api.IdentityAccountTypeHydrator
@@ -145,7 +148,11 @@ func (m v1Middleware) wrap(policy RoutePolicy, handler http.Handler) http.Handle
 	}
 	// Keep BodyLimit outside response decorators so ResponseController reaches
 	// net/http's writer and can install the route-specific read deadline.
-	wrapped = middleware.BodyLimit(m.bodyLimit, middleware.BodyKind(policy.BodyKind), nil)(wrapped)
+	bodyLimit := m.bodyLimit
+	if strings.HasPrefix(policy.PathPattern, "/v1/chat/") && (bodyLimit.DefaultJSONBytes == 0 || bodyLimit.DefaultJSONBytes > 64<<10) {
+		bodyLimit.DefaultJSONBytes = 64 << 10
+	}
+	wrapped = middleware.BodyLimit(bodyLimit, middleware.BodyKind(policy.BodyKind), nil)(wrapped)
 	if policy.BodyKind == BodyUpload {
 		// Acquire the shared encoded-body permit before either upload handler can
 		// read and retain its bounded body. Holding it until handler completion
@@ -175,13 +182,17 @@ func (m v1Middleware) wrap(policy RoutePolicy, handler http.Handler) http.Handle
 		wrapped = m.authRecovery(wrapped)
 	case AccessCurrentMember:
 		wrapped = m.deviceID(wrapped)
-		wrapped = m.authCurrentMember(wrapped)
+		if policy.NoActivity {
+			wrapped = m.authWithoutActivity(wrapped)
+		} else {
+			wrapped = m.authCurrentMember(wrapped)
+		}
 	case AccessAnonymous:
 		if policy.RateClass == RateClassAuth {
 			wrapped = m.deviceID(wrapped)
 		}
 	}
-	wrapped = middleware.BodyPrecheck(m.bodyLimit, middleware.BodyKind(policy.BodyKind), nil)(wrapped)
+	wrapped = middleware.BodyPrecheck(bodyLimit, middleware.BodyKind(policy.BodyKind), nil)(wrapped)
 	return middleware.HTTPInFlight(m.observer)(wrapped)
 }
 
@@ -245,6 +256,11 @@ func buildV1Middleware(deps middlewareDependencies, observer *observability.Obse
 		panic("routes: auth service does not implement recovery authentication")
 	}
 	authCurrentMember := middleware.Authenticated(deps.AuthService, deps.Logger, devAuthPolicy)
+	automatic, ok := deps.AuthService.(auth.NoActivityAuthService)
+	if !ok {
+		automatic = unavailableAutomaticAuth{}
+	}
+	authWithoutActivity := middleware.AuthenticatedWithoutActivity(automatic, deps.Logger, devAuthPolicy)
 	authRecovery := middleware.AuthenticatedRecovery(recoveryAuthService, deps.Logger, devAuthPolicy)
 	deviceID := middleware.DeviceID(deps.CraftskySessionStore, deps.Logger)
 	membership := deps.InstagramMembership
@@ -315,6 +331,7 @@ func buildV1Middleware(deps middlewareDependencies, observer *observability.Obse
 	return v1Middleware{
 		subscriptionAccess:  subscriptionAccess,
 		authCurrentMember:   authCurrentMember,
+		authWithoutActivity: authWithoutActivity,
 		authRecovery:        authRecovery,
 		deviceID:            deviceID,
 		member:              currentMember,
@@ -413,6 +430,7 @@ func AddRoutes(_ context.Context, mux Registrar, deps *Dependencies) {
 	}
 
 	registerAuthRoutes(authRouteBundle{mux: mux, middleware: v1mw, handlers: oauthHandlers})
+	registerChatRoutes(chatRouteBundle{mux: mux, middleware: v1mw, status: deps.ChatStatus, sender: deps.ChatSender, consumer: deps.ChatConsumer, authorization: deps.ChatAuthorization, allowDevScheme: deps.Config.Env == EnvDev && deps.Config.EnableDevOAuthScheme, logger: deps.Logger})
 	registerOperatorConsole(mux, v1mw, deps)
 	registerModerationRoutes(moderationRouteBundle{
 		db: deps.DB, mux: mux, middleware: v1mw, store: moderationCases,
@@ -524,4 +542,12 @@ func AddRoutes(_ context.Context, mux Registrar, deps *Dependencies) {
 		enabled: deps.Config.LinkPreviewsEnabled, observer: observer,
 	})
 	registerFallbackRoutes(fallbackRouteBundle{mux: mux, inFlight: inFlight})
+}
+
+// Unsupported auth implementations fail closed rather than silently touching
+// activity through the ordinary authentication path.
+type unavailableAutomaticAuth struct{}
+
+func (unavailableAutomaticAuth) AuthenticateWithoutActivity(context.Context, string) (auth.AuthInfo, error) {
+	return auth.AuthInfo{}, errors.New("automatic authentication unavailable")
 }

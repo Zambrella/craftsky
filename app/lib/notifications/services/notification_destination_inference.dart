@@ -7,6 +7,11 @@ abstract final class NotificationDestinationInference {
   static NotificationOpenOutcome forFacts(
     NotificationFactOutcome facts,
   ) => switch (facts) {
+    ChatNotificationFacts() ||
+    InvalidChatNotificationFacts() => const NotificationOpenOutcome(
+      destination: ChatInboxDestination(),
+      feedback: NotificationOpenFeedback.unableToOpen,
+    ),
     ValidNotificationFacts(:final category) => NotificationOpenOutcome(
       destination: switch (category) {
         NotificationCategory.follow => ProfileDestination(facts.actorDid!),

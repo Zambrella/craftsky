@@ -22,6 +22,12 @@ void _navigate(
   NotificationOpenOutcome outcome, {
   required bool retryAfterFrame,
 }) {
+  if (outcome.isCurrent?.call() == false) return;
+  if ((outcome.destination is ChatInboxDestination ||
+          outcome.destination is ChatConversationDestination) &&
+      outcome.isCurrent == null) {
+    return;
+  }
   final navigationContext = router.routerDelegate.navigatorKey.currentContext;
   if (navigationContext == null) {
     if (retryAfterFrame) {
@@ -39,6 +45,13 @@ void _navigate(
     );
   }
   switch (outcome.destination) {
+    case ChatInboxDestination():
+      unawaited(const ChatInboxRoute().push<void>(navigationContext));
+    case ChatConversationDestination(:final conversationId):
+      unawaited(
+        ChatConversationRoute(conversationId: conversationId.value)
+            .push<void>(navigationContext),
+      );
     case InstagramMigrationDestination():
       unawaited(
         const InstagramMigrationRoute().push<void>(navigationContext),

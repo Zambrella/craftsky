@@ -4,6 +4,7 @@ import 'dart:developer' as developer;
 import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
+import 'package:craftsky_app/chat/providers/chat_providers.dart';
 import 'package:craftsky_app/feed/providers/timeline_provider.dart';
 import 'package:craftsky_app/notifications/providers/notification_new_count_provider.dart';
 import 'package:craftsky_app/notifications/providers/notifications_provider.dart';
@@ -160,6 +161,8 @@ class ProfileRelationshipController extends _$ProfileRelationshipController {
       ref.invalidate(recentMembersProvider(activeLease));
     }
     ref
+      ..invalidate(chatPreviewProvider)
+      ..invalidate(chatRecipientAvailabilityProvider)
       ..invalidate(userProfileProvider(did))
       ..invalidate(timelineProvider)
       ..invalidate(blankSearchProvider)

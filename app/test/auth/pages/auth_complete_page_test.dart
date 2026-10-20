@@ -1,9 +1,14 @@
 import 'dart:async';
 
+import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/auth/models/auth_error.dart';
+import 'package:craftsky_app/auth/models/session_registry.dart';
 import 'package:craftsky_app/auth/pages/auth_complete_page.dart';
 import 'package:craftsky_app/auth/providers/auth_controller.dart';
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
+import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
+import 'package:craftsky_app/auth/providers/session_registry_provider.dart'
+    show sessionRegistryProvider;
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -14,7 +19,10 @@ import 'package:material_ui/material_ui.dart';
 import '../../fakes/auth_session_fakes.dart';
 
 class _FakeAuthController extends AuthController {
-  new({required this.onComplete, this.onStartRegistration});
+  new({required this.onComplete, this.onStartRegistration, this.chatLease});
+  final ActiveAccountLease? chatLease;
+  @override
+  ActiveAccountLease? get completedChatLease => chatLease;
   final Future<void> Function(String code) onComplete;
   final Future<void> Function()? onStartRegistration;
 
@@ -24,7 +32,10 @@ class _FakeAuthController extends AuthController {
   @override
   Future<void> completeFromDeepLink(String code) async {
     state = const AsyncLoading();
-    state = await AsyncValue.guard(() => onComplete(code));
+    state = await AsyncValue.guard(() async {
+      if (chatLease != null) await ref.read(sessionRegistryProvider.future);
+      await onComplete(code);
+    });
   }
 
   @override
@@ -37,6 +48,8 @@ Future<GoRouter> _pumpCompletionRouter(
   required Future<void> Function(String code) onComplete,
   required bool signedIn,
   String? code = 'code-123',
+  SessionRegistry? registry,
+  ActiveAccountLease? completedChatLease,
 }) async {
   final router = GoRouter(
     initialLocation: '/auth/complete',
@@ -44,6 +57,10 @@ Future<GoRouter> _pumpCompletionRouter(
       GoRoute(
         path: '/auth/complete',
         builder: (context, state) => AuthCompletePage(code: code),
+      ),
+      GoRoute(
+        path: '/messages',
+        builder: (context, state) => const Scaffold(body: Text('Messages')),
       ),
       GoRoute(
         path: '/feed',
@@ -58,8 +75,15 @@ Future<GoRouter> _pumpCompletionRouter(
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
+        if (registry != null)
+          secureSessionRegistryStorageProvider.overrideWithValue(
+            _RegistryStorage(registry),
+          ),
         authControllerProvider.overrideWith(
-          () => _FakeAuthController(onComplete: onComplete),
+          () => _FakeAuthController(
+            onComplete: onComplete,
+            chatLease: completedChatLease,
+          ),
         ),
         authSessionProvider.overrideWith(
           signedIn ? SignedInAuthSession.new : SignedOutAuthSession.new,
@@ -76,6 +100,40 @@ Future<GoRouter> _pumpCompletionRouter(
 }
 
 void main() {
+  for (final stale in [false, true]) {
+    testWidgets(
+      'IT-015 consent returns only the exact active chat owner stale=$stale',
+      (tester) async {
+        final registry = SessionRegistry.empty().upsertAndActivate(
+          token: 'synthetic',
+          did: 'did:plc:test',
+          handle: 'test.test',
+        );
+        final lease = registry.activeLease!;
+        final completed = stale
+            ? ActiveAccountLease(
+                session: lease.session,
+                activationGeneration: lease.activationGeneration + 1,
+              )
+            : lease;
+        final router = await _pumpCompletionRouter(
+          tester,
+          signedIn: true,
+          registry: registry,
+          completedChatLease: completed,
+          onComplete: (_) async {},
+        );
+        addTearDown(router.dispose);
+        await tester.pumpAndSettle();
+        expect(
+          router.routeInformationProvider.value.uri.path,
+          stale ? '/feed' : '/messages',
+        );
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
   testWidgets('reopening a used link returns an existing session to the app', (
     tester,
   ) async {
@@ -379,4 +437,15 @@ void main() {
     expect(seen, isEmpty);
     expect(find.textContaining('already in progress'), findsOneWidget);
   });
+}
+
+class _RegistryStorage implements SessionRegistryStorage {
+  new(this.value);
+  SessionRegistry value;
+  @override
+  Future<SessionRegistry> read() async => value;
+  @override
+  Future<void> write(SessionRegistry value) async {
+    this.value = value;
+  }
 }

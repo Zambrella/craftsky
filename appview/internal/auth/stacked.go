@@ -20,6 +20,21 @@ type StackedAuthService struct {
 
 var _ AuthService = (*StackedAuthService)(nil)
 var _ RecoveryAuthService = (*StackedAuthService)(nil)
+var _ NoActivityAuthService = (*StackedAuthService)(nil)
+
+func (s *StackedAuthService) AuthenticateWithoutActivity(ctx context.Context, token string) (AuthInfo, error) {
+	info, err := s.Real.AuthenticateWithoutActivity(ctx, token)
+	if err == nil {
+		return info, nil
+	}
+	if !errors.Is(err, ErrAuthTokenInvalid) {
+		return AuthInfo{}, err
+	}
+	if did, ok := DevDIDFromContext(ctx); ok && did != "" {
+		return AuthInfo{DID: did}, nil
+	}
+	return AuthInfo{}, err
+}
 
 func (s *StackedAuthService) Authenticate(ctx context.Context, token string) (AuthInfo, error) {
 	info, err := s.Real.Authenticate(ctx, token)

@@ -244,6 +244,39 @@ func run(ctx context.Context, args []string, output io.Writer) error {
 		deps.Logger,
 	)
 	pushDone := make(chan struct{})
+	chatSyncDone := make(chan struct{})
+	chatDeliveryDone := make(chan struct{})
+	chatMaintenanceDone := make(chan struct{})
+	if deps.ChatDispatcher != nil {
+		go func() {
+			defer close(chatDeliveryDone)
+			if err := deps.ChatDispatcher.Run(consumerCtx); err != nil && !errors.Is(err, context.Canceled) {
+				deps.Observability.ObservePrivateFailure(consumerCtx, err, "", "", "chat.push", "worker", "error", 1)
+			}
+		}()
+	} else {
+		close(chatDeliveryDone)
+	}
+	if deps.Chat != nil {
+		go func() {
+			defer close(chatMaintenanceDone)
+			if err := deps.Chat.RunMaintenance(consumerCtx, deps.Observability); err != nil && !errors.Is(err, context.Canceled) {
+				deps.Observability.ObservePrivateFailure(consumerCtx, err, "", "", "chat.retention", "worker", "error", 1)
+			}
+		}()
+	} else {
+		close(chatMaintenanceDone)
+	}
+	if deps.ChatSynchronizer != nil {
+		go func() {
+			defer close(chatSyncDone)
+			if err := deps.ChatSynchronizer.Run(consumerCtx); err != nil && !errors.Is(err, context.Canceled) {
+				deps.Observability.ObservePrivateFailure(consumerCtx, err, "", "", "chat.sync", "scheduler", "error", 1)
+			}
+		}()
+	} else {
+		close(chatSyncDone)
+	}
 	if deps.PushDispatcher != nil {
 		go func() {
 			defer close(pushDone)
@@ -448,6 +481,9 @@ func run(ctx context.Context, args []string, output io.Writer) error {
 		imageSafetyDone,
 		followerGrowthDone,
 		pushDone,
+		chatSyncDone,
+		chatDeliveryDone,
+		chatMaintenanceDone,
 		instagramWorkersDone,
 		instagramReconciliationDone,
 		instagramRetentionDone,

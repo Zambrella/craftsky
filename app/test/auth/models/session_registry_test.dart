@@ -7,9 +7,72 @@ import 'package:craftsky_app/auth/models/pending_handoff.dart';
 import 'package:craftsky_app/auth/models/session_registry.dart';
 import 'package:craftsky_app/auth/models/stored_session.dart';
 import 'package:craftsky_app/profile/models/profile_customisation.dart';
+import 'package:crypto/crypto.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test(
+    'IT-015 chat handoff replaces only bound retained session after restart',
+    () {
+      final a = AccountKey('did:plc:alice');
+      final b = AccountKey('did:plc:bob');
+      var registry = SessionRegistry.empty()
+          .upsertAndActivate(
+            token: 'alice-token',
+            did: a.did.value,
+            handle: 'alice.test',
+            cachedDisplayName: 'Alice',
+          )
+          .upsertAndActivate(
+            token: 'bob-token',
+            did: b.did.value,
+            handle: 'bob.test',
+          );
+      final activeB = registry.activeLease!;
+      final oldA = registry.leaseFor(a)!;
+      final source = base64Url
+          .encode(sha256.convert(utf8.encode('alice-token')).bytes)
+          .replaceAll('=', '');
+      final pending = PendingHandoff.fromMap({
+        'token': 'chat-child-token',
+        'did': a.did.value,
+        'handle': 'alice.test',
+        'receiptId': 'chat-receipt',
+        'confirmBy': '2026-10-20T00:00:00Z',
+        'purpose': 'chat',
+        'sourceTokenHash': source,
+      });
+      registry = SessionRegistry.fromJson(
+        registry.stageHandoff(pending).toJson(),
+      );
+      final confirmed = registry.confirmHandoff(pending.receiptId);
+      expect(confirmed.activeLease, activeB);
+      expect(confirmed.sessions[a.did]!.token, 'chat-child-token');
+      expect(confirmed.sessions[a.did]!.cachedDisplayName, 'Alice');
+      expect(confirmed.leaseFor(a), isNot(oldA));
+      expect(confirmed.pendingHandoff, isNull);
+      final removed = registry.remove(a.did.value);
+      expect(
+        () => removed.confirmHandoff(pending.receiptId),
+        throwsA(isA<ChatHandoffSourceUnavailable>()),
+      );
+      final replaced = registry.upsertAndActivate(
+        token: 'newer-token',
+        did: a.did.value,
+        handle: 'alice.test',
+      );
+      expect(
+        () => replaced.confirmHandoff(pending.receiptId),
+        throwsA(isA<ChatHandoffSourceUnavailable>()),
+      );
+      expect(
+        () => SessionRegistry.empty().stageHandoff(pending),
+        throwsA(isA<ChatHandoffSourceUnavailable>()),
+      );
+      expect('$pending', isNot(contains(source)));
+    },
+  );
+
   test('UT-013 rejects the superseded handle-bound storage schema', () {
     expect(
       () => SessionRegistry.fromJson(

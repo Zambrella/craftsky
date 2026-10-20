@@ -68,6 +68,7 @@ func (c AccessClass) Valid() bool {
 }
 
 type RoutePolicy struct {
+	NoActivity         bool
 	Method             string
 	PathPattern        string
 	RateClass          RateClass
@@ -222,6 +223,19 @@ var retainedSuspendedMutations = map[string]bool{
 // Denied mutations are explicit so a new authenticated mutation cannot silently
 // inherit policy; an absent classification prevents catalogue construction.
 var deniedSuspendedMutations = map[string]bool{
+	"POST /v1/chat/sync":                                                   true,
+	"PUT /v1/chat/push-preferences":                                        true,
+	"PUT /v1/chat/connection":                                              true,
+	"POST /v1/chat/conversations":                                          true,
+	"PUT /v1/chat/conversations/{id}/read":                                 true,
+	"POST /v1/chat/conversations/{id}/accept":                              true,
+	"PUT /v1/chat/conversations/{id}/mute":                                 true,
+	"DELETE /v1/chat/conversations/{id}/mute":                              true,
+	"POST /v1/chat/conversations/{id}/leave":                               true,
+	"POST /v1/chat/reports":                                                true,
+	"PUT /v1/chat/incoming-policy":                                         true,
+	"POST /v1/chat/conversations/{id}/messages":                            true,
+	"POST /v1/chat/authorization":                                          true,
 	"POST /v1/blobs/videos/authorization":                                  true,
 	"POST /v1/migrations/instagram/verifications":                          true,
 	"POST /v1/migrations/instagram/verifications/{verificationId}/confirm": true,
@@ -274,6 +288,29 @@ func mustConfiguredPolicy(env Environment, cfg Config, method, pathPattern strin
 
 func baseV1RoutePolicies() []RoutePolicy {
 	return []RoutePolicy{
+		{Method: "GET", PathPattern: "/v1/chat/notification-opens/{reference}", NoActivity: true, RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},
+		{Method: "POST", PathPattern: "/v1/chat/sync", NoActivity: true, RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessCurrentMember},
+		{Method: "GET", PathPattern: "/v1/chat/incoming-policy", NoActivity: true, RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},
+		{Method: "GET", PathPattern: "/v1/chat/push-preferences", NoActivity: true, RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},
+		{Method: "PUT", PathPattern: "/v1/chat/push-preferences", NoActivity: false, RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessCurrentMember},
+		{Method: "PUT", PathPattern: "/v1/chat/connection", NoActivity: false, RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessCurrentMember},
+		{Method: "GET", PathPattern: "/v1/chat/conversations", NoActivity: true, RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},
+		{Method: "GET", PathPattern: "/v1/chat/availability", NoActivity: true, RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},
+		{Method: "POST", PathPattern: "/v1/chat/conversations", NoActivity: false, RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessCurrentMember},
+		{Method: "GET", PathPattern: "/v1/chat/conversations/{id}", NoActivity: true, RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},
+		{Method: "GET", PathPattern: "/v1/chat/conversations/{id}/messages", NoActivity: true, RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},
+		{Method: "GET", PathPattern: "/v1/chat/operations/{operationId}", NoActivity: true, RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},
+		{Method: "PUT", PathPattern: "/v1/chat/conversations/{id}/read", NoActivity: false, RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessCurrentMember},
+		{Method: "POST", PathPattern: "/v1/chat/conversations/{id}/accept", NoActivity: false, RateClass: RateClassWrite, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},
+		{Method: "PUT", PathPattern: "/v1/chat/conversations/{id}/mute", NoActivity: false, RateClass: RateClassWrite, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},
+		{Method: "DELETE", PathPattern: "/v1/chat/conversations/{id}/mute", NoActivity: false, RateClass: RateClassWrite, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},
+		{Method: "POST", PathPattern: "/v1/chat/conversations/{id}/leave", NoActivity: false, RateClass: RateClassWrite, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},
+		{Method: "POST", PathPattern: "/v1/chat/reports", NoActivity: false, RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessCurrentMember},
+		{Method: "GET", PathPattern: "/v1/chat/unread-counts", NoActivity: true, RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},
+		{Method: "PUT", PathPattern: "/v1/chat/incoming-policy", NoActivity: false, RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessCurrentMember},
+		{Method: "POST", PathPattern: "/v1/chat/conversations/{id}/messages", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessCurrentMember},
+		{Method: "POST", PathPattern: "/v1/chat/authorization", RateClass: RateClassAuth, BodyKind: BodyDefaultJSON, AccessClass: AccessCurrentMember},
+		{Method: "GET", PathPattern: "/v1/chat/status", NoActivity: true, RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},
 		{Method: "GET", PathPattern: "/v1/moderation/standing", RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},
 		{Method: "GET", PathPattern: "/v1/moderation/history", RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},
 		{Method: "GET", PathPattern: "/v1/moderation/history/{caseReference}", RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},

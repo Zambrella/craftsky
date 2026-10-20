@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/auth/providers/account_operation_guard.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
+import 'package:craftsky_app/chat/providers/chat_providers.dart';
 import 'package:craftsky_app/feed/providers/timeline_provider.dart';
 import 'package:craftsky_app/notifications/providers/notifications_provider.dart';
 import 'package:craftsky_app/profile/providers/block_profile_overlay.dart';
@@ -103,7 +104,10 @@ void _invalidateBlockReads(Ref ref, Did targetDid, AccountKey? account) {
     ..invalidate(blankSearchProvider)
     ..invalidate(notificationsProvider);
   if (account != null) {
-    ref.invalidate(accountNotificationsProvider(account));
+    ref
+      ..invalidate(accountNotificationsProvider(account))
+      ..invalidate(chatPreviewProvider)
+      ..invalidate(chatRecipientAvailabilityProvider);
   }
   final lease = ref.read(sessionRegistryProvider).value?.activeLease;
   if (lease != null && lease.session.account == account) {

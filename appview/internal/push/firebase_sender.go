@@ -53,24 +53,34 @@ func (s *FirebaseSender) Send(ctx context.Context, request SendRequest) (Provide
 
 func (s *FirebaseSender) buildMessage(request SendRequest) (*messaging.Message, error) {
 	if s == nil || s.client == nil || s.now == nil || request.Token == "" ||
-		!request.Category.Valid() || request.TTL <= 0 ||
+		request.TTL <= 0 ||
 		request.Semantics != DeliveryUniqueEvent {
 		return nil, ErrPushPayloadInvalid
 	}
-	if _, err := uuid.Parse(request.RoutingFacts.NotificationID); err != nil {
-		return nil, ErrPushPayloadInvalid
+	var payload Payload
+	if request.Chat != nil {
+		reference, err := uuid.Parse(request.Chat.OpenReference)
+		subscription, subscriptionErr := uuid.Parse(request.AccountSubscriptionID)
+		if err != nil || reference == uuid.Nil || subscriptionErr != nil || subscription == uuid.Nil || request.Category != "" || request.RoutingFacts != (RoutingFacts{}) {
+			return nil, ErrPushPayloadInvalid
+		}
+		payload = BuildChatPayload(request.AccountSubscriptionID, request.ActorDisplayName, request.Chat.OpenReference)
+	} else {
+		if !request.Category.Valid() {
+			return nil, ErrPushPayloadInvalid
+		}
+		if _, err := uuid.Parse(request.RoutingFacts.NotificationID); err != nil {
+			return nil, ErrPushPayloadInvalid
+		}
+		payload = BuildPayload(request.Category, request.AccountSubscriptionID, request.ActorDisplayName, request.RoutingFacts)
 	}
-	payload := BuildPayload(
-		request.Category,
-		request.AccountSubscriptionID,
-		request.ActorDisplayName,
-		request.RoutingFacts,
-	)
 	data := make(map[string]string, len(payload.Data)+3)
 	for key, value := range payload.Data {
 		data[key] = value
 	}
-	data["notificationId"] = request.RoutingFacts.NotificationID
+	if request.Chat == nil {
+		data["notificationId"] = request.RoutingFacts.NotificationID
+	}
 	message := &messaging.Message{
 		//lint:ignore SA1019 request.Token is an FCM registration token; Fid requires a different client registration contract.
 		Token: request.Token,

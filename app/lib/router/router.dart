@@ -12,6 +12,7 @@ import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/business/pages/event_detail_page.dart';
 import 'package:craftsky_app/business/pages/events_settings_page.dart';
 import 'package:craftsky_app/business/pages/products_settings_page.dart';
+import 'package:craftsky_app/chat/pages/messaging_route_page.dart';
 import 'package:craftsky_app/design_playground/pages/design_playground_page.dart';
 import 'package:craftsky_app/drafts/pages/drafts_page.dart';
 import 'package:craftsky_app/feed/models/post.dart';
@@ -362,6 +363,26 @@ class AccountEligibilityRoute extends GoRouteData
           ],
         ),
       ],
+    ),
+    TypedGoRoute<ChatInboxRoute>(
+      path: RouteLocations.messages,
+      name: 'messages',
+    ),
+    TypedGoRoute<ChatRequestsRoute>(
+      path: RouteLocations.messageRequests,
+      name: 'message-requests',
+    ),
+    TypedGoRoute<NewMessageRoute>(
+      path: RouteLocations.newMessage,
+      name: 'new-message',
+    ),
+    TypedGoRoute<ChatConversationRoute>(
+      path: RouteLocations.messageConversation,
+      name: 'message-conversation',
+    ),
+    TypedGoRoute<ChatSettingsRoute>(
+      path: RouteLocations.messagingSettings,
+      name: 'messaging-settings',
     ),
     TypedGoRoute<ScheduledPostsRoute>(
       path: RouteLocations.scheduledPosts,
@@ -1113,3 +1134,44 @@ String _encodeDidRouteParameter(Did value) => value.toString();
 Handle _decodeHandleRouteParameter(String value) => Handle.parse(value);
 
 String _encodeHandleRouteParameter(Handle value) => value.toString();
+
+class ChatInboxRoute extends GoRouteData with $ChatInboxRoute {
+  const new();
+  @override
+  Widget build(BuildContext context, GoRouterState state) =>
+      const MessagingRoutePage(destination: MessagingDestination.inbox);
+}
+
+class ChatRequestsRoute extends GoRouteData with $ChatRequestsRoute {
+  const new();
+  @override
+  Widget build(BuildContext context, GoRouterState state) =>
+      const MessagingRoutePage(destination: MessagingDestination.requests);
+}
+
+class NewMessageRoute extends GoRouteData with $NewMessageRoute {
+  const new({this.recipientDid});
+  final String? recipientDid;
+  @override
+  Widget build(BuildContext context, GoRouterState state) => MessagingRoutePage(
+    destination: MessagingDestination.newMessage,
+    recipientDid: recipientDid,
+  );
+}
+
+class ChatSettingsRoute extends GoRouteData with $ChatSettingsRoute {
+  const new();
+  @override
+  Widget build(BuildContext context, GoRouterState state) =>
+      const MessagingRoutePage(destination: MessagingDestination.settings);
+}
+
+class ChatConversationRoute extends GoRouteData with $ChatConversationRoute {
+  const new({required this.conversationId});
+  final String conversationId;
+  @override
+  Widget build(BuildContext context, GoRouterState state) => MessagingRoutePage(
+    destination: MessagingDestination.conversation,
+    conversationId: conversationId,
+  );
+}

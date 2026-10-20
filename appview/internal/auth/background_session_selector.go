@@ -2,11 +2,12 @@ package auth
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -24,13 +25,26 @@ func NewBackgroundSessionSelector(pool *pgxpool.Pool) *BackgroundSessionSelector
 }
 
 func (s *BackgroundSessionSelector) Select(ctx context.Context, owner syntax.DID) (string, error) {
+	return s.selectSession(ctx, owner, nil)
+}
+
+// SelectForCapability skips eligible base-only sessions instead of borrowing
+// another owner's authority or touching a child's inactivity deadline. The
+// coordinator revalidates the chosen session under its normal fences.
+func (s *BackgroundSessionSelector) SelectForCapability(ctx context.Context, owner syntax.DID, required []string) (string, error) {
+	if len(required) == 0 {
+		return "", ErrNoUsableBackgroundSession
+	}
+	return s.selectSession(ctx, owner, required)
+}
+
+func (s *BackgroundSessionSelector) selectSession(ctx context.Context, owner syntax.DID, required []string) (string, error) {
 	if s == nil || s.pool == nil || owner == "" {
 		return "", ErrNoUsableBackgroundSession
 	}
 
-	var sessionID string
-	err := s.pool.QueryRow(ctx, `
-		SELECT oauth.session_id
+	rows, err := s.pool.Query(ctx, `
+		SELECT oauth.session_id, COALESCE(oauth.data->'scopes', '[]'::jsonb)
 		FROM oauth_sessions oauth
 		JOIN owner_lifecycles owner ON owner.owner_did=oauth.account_did
 		JOIN LATERAL (
@@ -51,15 +65,34 @@ func (s *BackgroundSessionSelector) Select(ctx context.Context, owner syntax.DID
 		ORDER BY activity.last_seen_at DESC,
 		         oauth.updated_at DESC,
 		         oauth.session_id ASC
-		LIMIT 1
-	`, owner).Scan(&sessionID)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return "", ErrNoUsableBackgroundSession
-	}
+	`, owner)
 	if err != nil {
 		return "", fmt.Errorf("select background OAuth session: %w", err)
 	}
-	return sessionID, nil
+	defer rows.Close()
+	for rows.Next() {
+		var sessionID string
+		var rawScopes []byte
+		if err := rows.Scan(&sessionID, &rawScopes); err != nil {
+			return "", fmt.Errorf("read background OAuth candidate: %w", err)
+		}
+		if len(required) == 0 {
+			return sessionID, nil
+		}
+		var scopes []string
+		if err := json.Unmarshal(rawScopes, &scopes); err != nil {
+			// An unusable stored grant cannot authorize work. Continue so that
+			// another valid session belonging to this owner remains usable.
+			continue
+		}
+		if validRegistrationTokenScopes(strings.Join(scopes, " "), required) {
+			return sessionID, nil
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return "", fmt.Errorf("iterate background OAuth candidates: %w", err)
+	}
+	return "", ErrNoUsableBackgroundSession
 }
 
 // Invalidate removes only the exact rejected OAuth session. The composite

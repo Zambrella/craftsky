@@ -185,13 +185,13 @@ void main() {
     expect(find.byIcon(CraftskyIcons.profile), findsOneWidget);
   });
 
-  testWidgets('wide rail has one compose action outside its 9 destinations', (
+  testWidgets('wide rail has one compose action outside its 10 destinations', (
     tester,
   ) async {
-    await _pumpShell(tester, const Size(1200, 800));
+    await _pumpShell(tester, const Size(1200, 900));
 
     final rail = tester.widget<NavigationRail>(find.byType(NavigationRail));
-    expect(rail.destinations, hasLength(9));
+    expect(rail.destinations, hasLength(10));
     expect(rail.leading, isNull);
     expect(rail.trailing, isNotNull);
     expect(
@@ -398,6 +398,7 @@ void main() {
     ('Scheduled', '/scheduled'),
     ('Drafts', '/drafts'),
     ('Settings', '/profile/settings'),
+    ('Messages', '/messages'),
   ]) {
     testWidgets('CORR-005 compact drawer selects $label once', (tester) async {
       var navigations = 0;
@@ -431,6 +432,7 @@ void main() {
     ('Scheduled', '/scheduled'),
     ('Drafts', '/drafts'),
     ('Settings', '/profile/settings'),
+    ('Messages', '/messages'),
   ]) {
     testWidgets('CORR-005 large rail selects $label once', (tester) async {
       var navigations = 0;
@@ -618,7 +620,7 @@ void main() {
       expect(tester.getSize(find.widgetWithText(ListTile, label)).height, 40);
     }
 
-    await _pumpShell(tester, const Size(1200, 800));
+    await _pumpShell(tester, const Size(1200, 900));
 
     for (final label in ['Terms', 'Privacy']) {
       expect(tester.getSize(find.widgetWithText(TextButton, label)).height, 40);
@@ -682,7 +684,7 @@ void main() {
       ),
     );
 
-    await _pumpShell(tester, const Size(1200, 800));
+    await _pumpShell(tester, const Size(1200, 900));
 
     final rail = find.byType(NavigationRail);
     final railSurface = find.ancestor(
@@ -714,7 +716,7 @@ void main() {
   testWidgets('large shell rail exposes primary and utility destinations', (
     tester,
   ) async {
-    await _pumpShell(tester, const Size(1200, 800));
+    await _pumpShell(tester, const Size(1200, 900));
 
     expect(find.byType(NavigationRail), findsOneWidget);
     for (final label in [
@@ -727,6 +729,7 @@ void main() {
       'Scheduled',
       'Drafts',
       'Settings',
+      'Messages',
       'Terms',
       'Privacy',
       'Feedback',
@@ -749,6 +752,13 @@ void main() {
     expect(find.text('Settings'), findsOneWidget);
 
     tester.view.physicalSize = const Size(1200, 800);
+    await tester.pumpAndSettle();
+    expect(find.text('Feedback'), findsNothing);
+    await tester.ensureVisible(find.text('Messages'));
+    await tester.pumpAndSettle();
+    expect(find.text('Messages'), findsOneWidget);
+    // Ten destinations need more height before the optional footer fits.
+    tester.view.physicalSize = const Size(1200, 900);
     await tester.pumpAndSettle();
     expect(find.text('Feedback'), findsOneWidget);
   });
@@ -785,7 +795,7 @@ void main() {
     var confirmationCalls = 0;
     final router = await _pumpShell(
       tester,
-      const Size(1200, 800),
+      const Size(1200, 900),
       linkLauncher: (uri) async {
         openedUri = uri;
         return true;
@@ -797,7 +807,7 @@ void main() {
     );
     final rail = tester.widget<NavigationRail>(find.byType(NavigationRail));
 
-    expect(rail.destinations, hasLength(9));
+    expect(rail.destinations, hasLength(10));
     expect(rail.selectedIndex, 0);
     expect(find.byType(NavigationBar), findsNothing);
     expect(find.byTooltip('Open navigation menu'), findsNothing);
@@ -817,7 +827,7 @@ void main() {
     var confirmationCalls = 0;
     final router = await _pumpShell(
       tester,
-      const Size(1200, 800),
+      const Size(1200, 900),
       linkLauncher: (_) async {
         launcherCalled = true;
         return true;
@@ -1047,7 +1057,13 @@ Future<GoRouter> _pumpShell(
         branches: [
           StatefulShellBranch(
             routes: [
-              for (final path in ['/feed', '/saved', '/scheduled', '/drafts'])
+              for (final path in [
+                '/feed',
+                '/saved',
+                '/scheduled',
+                '/drafts',
+                '/messages',
+              ])
                 GoRoute(
                   path: path,
                   builder: (context, state) => Scaffold(

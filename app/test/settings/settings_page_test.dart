@@ -203,7 +203,8 @@ void main() {
           rowIds,
           _regularSettingsRows,
           reason:
-              'REG-003 must preserve existing rows and insert Business only',
+              'REG-003 preserves existing order with the '
+              'approved messaging and Business entries',
         );
 
         await tester.drag(find.byType(ListView), const Offset(0, -600));
@@ -414,6 +415,11 @@ void main() {
       300,
       scrollable: find.byType(Scrollable).first,
     );
+    await Scrollable.ensureVisible(
+      tester.element(find.text('Find people from Instagram')),
+      alignment: 0.5,
+    );
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Find people from Instagram'));
     await tester.pumpAndSettle();
 
@@ -557,6 +563,7 @@ const _regularSettingsRows = <SettingsRowId>[
   SettingsRowId.customisation,
   SettingsRowId.languages,
   SettingsRowId.notifications,
+  SettingsRowId.messaging,
   SettingsRowId.privacy,
   SettingsRowId.growth,
   SettingsRowId.followers,

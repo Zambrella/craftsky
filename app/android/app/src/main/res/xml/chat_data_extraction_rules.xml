@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="sharedpref" path="craftsky_chat_drafts.xml" />
+        <exclude domain="sharedpref" path="FlutterSecureKeyStorage:craftsky_chat_drafts.xml" />
+        <exclude domain="sharedpref" path="FlutterSecureStorageConfiguration:craftsky_chat_drafts.xml" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="sharedpref" path="craftsky_chat_drafts.xml" />
+        <exclude domain="sharedpref" path="FlutterSecureKeyStorage:craftsky_chat_drafts.xml" />
+        <exclude domain="sharedpref" path="FlutterSecureStorageConfiguration:craftsky_chat_drafts.xml" />
+    </device-transfer>
+</data-extraction-rules>

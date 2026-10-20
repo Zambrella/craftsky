@@ -3,6 +3,7 @@ package app
 import (
 	"net/http"
 	"social.craftsky/appview/internal/api"
+	"social.craftsky/appview/internal/auth"
 	"social.craftsky/appview/internal/routes"
 	"time"
 )
@@ -17,7 +18,23 @@ func RouteDependencies(deps *Deps) *routes.Dependencies {
 	if deps.OperatorConsole != nil {
 		operatorAuthentication = deps.OperatorConsole.Authentication()
 	}
+	var chatStatus api.ChatStatusReader
+	var chatSender api.ChatSender
+	var chatConsumer api.ChatConsumer
+	if deps.Chat != nil {
+		chatStatus = deps.Chat
+		chatSender = deps.Chat
+		chatConsumer = deps.Chat
+	}
+	var chatAuthorization auth.ChatAuthorizationStarter
+	if deps.Chat.OperationsAvailable() {
+		chatAuthorization, _ = deps.OAuthFlow.(auth.ChatAuthorizationStarter)
+	}
 	return &routes.Dependencies{
+		ChatAuthorization:      chatAuthorization,
+		ChatStatus:             chatStatus,
+		ChatSender:             chatSender,
+		ChatConsumer:           chatConsumer,
 		OperatorConsole:        deps.OperatorConsole,
 		OperatorAuthentication: operatorAuthentication,
 		Config: routes.Config{

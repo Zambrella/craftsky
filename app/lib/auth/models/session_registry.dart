@@ -355,7 +355,18 @@ class SessionRegistry {
   /// Stores the entire inactive handoff receipt in the same secure snapshot as
   /// retained accounts. No session becomes usable or visible through
   /// [activeDid] until [confirmHandoff] runs after server confirmation.
-  SessionRegistry stageHandoff(PendingHandoff handoff) {
+  SessionRegistry stageHandoff(PendingHandoff candidate) {
+    var handoff = candidate;
+    if (handoff.purpose == HandoffPurpose.chat) {
+      final source = sessions[handoff.did];
+      if (source == null ||
+          !handoff.matchesSourceToken(source.token) ||
+          (handoff.sourceSessionGeneration != null &&
+              handoff.sourceSessionGeneration != source.sessionGeneration)) {
+        throw const ChatHandoffSourceUnavailable();
+      }
+      handoff = handoff.bindSource(source.sessionGeneration);
+    }
     final current = pendingHandoff;
     if (current != null) {
       if (_sameHandoff(current, handoff)) return this;
@@ -371,15 +382,51 @@ class SessionRegistry {
   /// Promotes exactly the durably stored receipt after the server has made the
   /// parent and child session active.
   SessionRegistry confirmHandoff(String receiptId) {
-    final pending = pendingHandoff;
-    if (pending == null || pending.receiptId != receiptId) {
-      throw DiagnosticStateError('Pending handoff unavailable');
+    final pending = handoffForConfirmation(receiptId);
+    if (pending.purpose == HandoffPurpose.chat) {
+      final source = sessions[pending.did]!;
+      final active = activeDid == pending.did;
+      return _copyWith(
+        nextSessionGeneration: nextSessionGeneration + 1,
+        nextUseOrdinal: nextUseOrdinal + (active ? 1 : 0),
+        activationGeneration: activationGeneration + (active ? 1 : 0),
+        pendingHandoff: null,
+        sessions: {
+          ...sessions,
+          pending.did: StoredSession(
+            token: pending.token,
+            did: pending.did.value,
+            handle: pending.handle.value,
+            sessionGeneration: nextSessionGeneration,
+            lastUsedOrdinal: active ? nextUseOrdinal : source.lastUsedOrdinal,
+            cachedDisplayName: source.cachedDisplayName,
+            cachedAvatarUrl: source.cachedAvatarUrl,
+            cachedCustomisation: source.cachedCustomisation,
+          ),
+        },
+      );
     }
     return upsertAndActivate(
       token: pending.token,
       did: pending.did.value,
       handle: pending.handle.value,
     )._copyWith(pendingHandoff: null);
+  }
+
+  PendingHandoff handoffForConfirmation(String receiptId) {
+    final pending = pendingHandoff;
+    if (pending == null || pending.receiptId != receiptId) {
+      throw DiagnosticStateError('Pending handoff unavailable');
+    }
+    if (pending.purpose == HandoffPurpose.chat) {
+      final source = sessions[pending.did];
+      if (source == null ||
+          source.sessionGeneration != pending.sourceSessionGeneration ||
+          !pending.matchesSourceToken(source.token)) {
+        throw const ChatHandoffSourceUnavailable();
+      }
+    }
+    return pending;
   }
 
   SessionRegistry discardHandoff(String receiptId) {
@@ -683,5 +730,8 @@ class SessionRegistry {
       left.did == right.did &&
       left.handle == right.handle &&
       left.receiptId == right.receiptId &&
-      left.confirmBy == right.confirmBy;
+      left.confirmBy == right.confirmBy &&
+      left.purpose == right.purpose &&
+      left.sourceTokenHash == right.sourceTokenHash &&
+      left.sourceSessionGeneration == right.sourceSessionGeneration;
 }

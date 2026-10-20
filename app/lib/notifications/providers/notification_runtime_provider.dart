@@ -3,8 +3,11 @@ import 'dart:async';
 import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/auth/providers/account_activation_coordinator.dart';
 import 'package:craftsky_app/auth/providers/account_boundary_provider.dart';
+import 'package:craftsky_app/auth/providers/account_operation_guard.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/auth/providers/unsaved_work_guard_provider.dart';
+import 'package:craftsky_app/chat/models/chat_conversation.dart';
+import 'package:craftsky_app/chat/providers/chat_providers.dart';
 import 'package:craftsky_app/notifications/models/notification_effect.dart';
 import 'package:craftsky_app/notifications/providers/notification_lifecycle_provider.dart';
 import 'package:craftsky_app/notifications/providers/notification_new_count_provider.dart';
@@ -74,6 +77,27 @@ NotificationRuntime notificationRuntime(Ref ref) {
         .read(accountNotificationNewCountProvider(account).notifier)
         .refresh(),
     effects: effects,
+    refreshChatCount: (account) {
+      ref
+        ..invalidate(chatUnreadCountsProvider(account))
+        ..invalidate(chatInboxControllerProvider(account, ChatBucket.accepted))
+        ..invalidate(chatInboxControllerProvider(account, ChatBucket.request));
+    },
+    resolveChat: (lease, reference) async {
+      final operation = ActiveAccountOperation.capture(ref);
+      if (operation.ownership?.session != lease) return null;
+      try {
+        return await operation.step(
+          () => ref.read(
+            chatNotificationOpenProvider(lease.account, reference).future,
+          ),
+        );
+      } on AccountOperationDiscarded {
+        return null;
+      } on Object {
+        return null;
+      }
+    },
     activateRecipient: activation.activate,
     eligibleAccounts: () {
       final registry = ref.read(sessionRegistryProvider).value;

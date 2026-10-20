@@ -8150,6 +8150,492 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Clear all'**
   String get postComposeClearPhotos;
+
+  /// No description provided for @chatEnableTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Enable messaging'**
+  String get chatEnableTitle;
+
+  /// No description provided for @chatSharedInboxDisclosure.
+  ///
+  /// In en, this message translates to:
+  /// **'This is your shared Bluesky inbox, including conversations started in other apps. Read, accept, mute and leave actions also affect those apps.'**
+  String get chatSharedInboxDisclosure;
+
+  /// No description provided for @chatStorageDisclosure.
+  ///
+  /// In en, this message translates to:
+  /// **'Messages are stored by Bluesky, outside public PDS records. They are not end-to-end encrypted.'**
+  String get chatStorageDisclosure;
+
+  /// No description provided for @chatReportDisclosure.
+  ///
+  /// In en, this message translates to:
+  /// **'Message reports go to Bluesky only. CraftSky moderators do not receive these reports.'**
+  String get chatReportDisclosure;
+
+  /// No description provided for @chatPolicyDisclosure.
+  ///
+  /// In en, this message translates to:
+  /// **'Your current shared incoming-message setting stays unchanged until you choose to change it.'**
+  String get chatPolicyDisclosure;
+
+  /// No description provided for @chatPushTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Message notifications'**
+  String get chatPushTitle;
+
+  /// No description provided for @chatPushDisclosure.
+  ///
+  /// In en, this message translates to:
+  /// **'Show the sender’s name, without message text. This preference applies to all your devices; device notification permission still applies.'**
+  String get chatPushDisclosure;
+
+  /// No description provided for @chatAuthorizeAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Continue with Bluesky'**
+  String get chatAuthorizeAction;
+
+  /// No description provided for @chatReportTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Report message'**
+  String get chatReportTitle;
+
+  /// No description provided for @chatReportEvidenceDisclosure.
+  ///
+  /// In en, this message translates to:
+  /// **'Bluesky will receive a reference to this message, your selected reason and any explanation. CraftSky does not send a copied transcript.'**
+  String get chatReportEvidenceDisclosure;
+
+  /// No description provided for @chatReportReasonLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Reason'**
+  String get chatReportReasonLabel;
+
+  /// No description provided for @chatReportReasonSpam.
+  ///
+  /// In en, this message translates to:
+  /// **'Spam'**
+  String get chatReportReasonSpam;
+
+  /// No description provided for @chatReportReasonViolation.
+  ///
+  /// In en, this message translates to:
+  /// **'Illegal or prohibited content'**
+  String get chatReportReasonViolation;
+
+  /// No description provided for @chatReportReasonMisleading.
+  ///
+  /// In en, this message translates to:
+  /// **'Misleading content'**
+  String get chatReportReasonMisleading;
+
+  /// No description provided for @chatReportReasonSexual.
+  ///
+  /// In en, this message translates to:
+  /// **'Sexual content'**
+  String get chatReportReasonSexual;
+
+  /// No description provided for @chatReportReasonRude.
+  ///
+  /// In en, this message translates to:
+  /// **'Harassment or abuse'**
+  String get chatReportReasonRude;
+
+  /// No description provided for @chatReportReasonOther.
+  ///
+  /// In en, this message translates to:
+  /// **'Other'**
+  String get chatReportReasonOther;
+
+  /// No description provided for @chatReportExplanationLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Explanation (optional)'**
+  String get chatReportExplanationLabel;
+
+  /// No description provided for @chatReportInvalidExplanation.
+  ///
+  /// In en, this message translates to:
+  /// **'Use at most 2,000 characters and 20,000 UTF-8 bytes. Your explanation has been kept for editing.'**
+  String get chatReportInvalidExplanation;
+
+  /// No description provided for @chatReportAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Report to Bluesky'**
+  String get chatReportAction;
+
+  /// No description provided for @chatReportConfirmed.
+  ///
+  /// In en, this message translates to:
+  /// **'Report sent to Bluesky.'**
+  String get chatReportConfirmed;
+
+  /// No description provided for @chatReportFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Bluesky did not accept this report. Your explanation has been kept.'**
+  String get chatReportFailed;
+
+  /// No description provided for @chatReportUncertain.
+  ///
+  /// In en, this message translates to:
+  /// **'We could not confirm whether Bluesky received this report. Your explanation has been kept; it will not be sent again automatically.'**
+  String get chatReportUncertain;
+
+  /// No description provided for @chatMessageDeleted.
+  ///
+  /// In en, this message translates to:
+  /// **'Message deleted'**
+  String get chatMessageDeleted;
+
+  /// No description provided for @chatMessageUnsupported.
+  ///
+  /// In en, this message translates to:
+  /// **'Unsupported message'**
+  String get chatMessageUnsupported;
+
+  /// No description provided for @chatLoadingOlder.
+  ///
+  /// In en, this message translates to:
+  /// **'Loading older messages'**
+  String get chatLoadingOlder;
+
+  /// No description provided for @chatInboxTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Messages'**
+  String get chatInboxTitle;
+
+  /// No description provided for @chatInboxTab.
+  ///
+  /// In en, this message translates to:
+  /// **'Inbox'**
+  String get chatInboxTab;
+
+  /// No description provided for @chatRequestsTab.
+  ///
+  /// In en, this message translates to:
+  /// **'Requests'**
+  String get chatRequestsTab;
+
+  /// No description provided for @chatNewMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'New message'**
+  String get chatNewMessage;
+
+  /// No description provided for @chatSettingsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Message settings'**
+  String get chatSettingsTitle;
+
+  /// No description provided for @chatUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Messaging is temporarily unavailable. Try again.'**
+  String get chatUnavailable;
+
+  /// No description provided for @chatRestricted.
+  ///
+  /// In en, this message translates to:
+  /// **'Messaging is restricted by Bluesky. Other CraftSky features are still available.'**
+  String get chatRestricted;
+
+  /// No description provided for @chatEmptyInbox.
+  ///
+  /// In en, this message translates to:
+  /// **'No messages yet.'**
+  String get chatEmptyInbox;
+
+  /// No description provided for @chatEmptyRequests.
+  ///
+  /// In en, this message translates to:
+  /// **'No message requests.'**
+  String get chatEmptyRequests;
+
+  /// No description provided for @chatSomeone.
+  ///
+  /// In en, this message translates to:
+  /// **'Someone'**
+  String get chatSomeone;
+
+  /// No description provided for @chatMuted.
+  ///
+  /// In en, this message translates to:
+  /// **'Conversation muted'**
+  String get chatMuted;
+
+  /// No description provided for @chatLoadMore.
+  ///
+  /// In en, this message translates to:
+  /// **'Load more'**
+  String get chatLoadMore;
+
+  /// No description provided for @chatRefresh.
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh'**
+  String get chatRefresh;
+
+  /// No description provided for @chatAcceptRequest.
+  ///
+  /// In en, this message translates to:
+  /// **'Accept request'**
+  String get chatAcceptRequest;
+
+  /// No description provided for @chatRequestExplanation.
+  ///
+  /// In en, this message translates to:
+  /// **'Accept this shared message request before sending a reply. Reading it does not accept it.'**
+  String get chatRequestExplanation;
+
+  /// No description provided for @chatComposeLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Message'**
+  String get chatComposeLabel;
+
+  /// No description provided for @chatSend.
+  ///
+  /// In en, this message translates to:
+  /// **'Send message'**
+  String get chatSend;
+
+  /// No description provided for @chatSending.
+  ///
+  /// In en, this message translates to:
+  /// **'Sending…'**
+  String get chatSending;
+
+  /// No description provided for @chatSendFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'This message was not sent. Your draft is kept.'**
+  String get chatSendFailed;
+
+  /// No description provided for @chatSendUncertain.
+  ///
+  /// In en, this message translates to:
+  /// **'We could not confirm whether this message was sent. Your text is kept. It will not be sent again automatically.'**
+  String get chatSendUncertain;
+
+  /// No description provided for @chatCheckStatus.
+  ///
+  /// In en, this message translates to:
+  /// **'Check status'**
+  String get chatCheckStatus;
+
+  /// No description provided for @chatDiscardDraft.
+  ///
+  /// In en, this message translates to:
+  /// **'Discard draft'**
+  String get chatDiscardDraft;
+
+  /// No description provided for @chatDraftSaveFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not save this draft on your device. Your text is kept here. Try saving again before leaving.'**
+  String get chatDraftSaveFailed;
+
+  /// No description provided for @chatSaveDraft.
+  ///
+  /// In en, this message translates to:
+  /// **'Save draft'**
+  String get chatSaveDraft;
+
+  /// No description provided for @chatMessageInvalid.
+  ///
+  /// In en, this message translates to:
+  /// **'Write a nonblank message with at most 1,000 characters and 10,000 UTF-8 bytes.'**
+  String get chatMessageInvalid;
+
+  /// No description provided for @chatCannotSend.
+  ///
+  /// In en, this message translates to:
+  /// **'You cannot send to this conversation right now.'**
+  String get chatCannotSend;
+
+  /// No description provided for @chatSendAgain.
+  ///
+  /// In en, this message translates to:
+  /// **'Send again'**
+  String get chatSendAgain;
+
+  /// No description provided for @chatSendAgainWarning.
+  ///
+  /// In en, this message translates to:
+  /// **'The earlier message may already have been sent. Sending it again could create a duplicate. Any newer draft will be kept.'**
+  String get chatSendAgainWarning;
+
+  /// No description provided for @chatDisconnectTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Disconnect messaging'**
+  String get chatDisconnectTitle;
+
+  /// No description provided for @chatDisconnect.
+  ///
+  /// In en, this message translates to:
+  /// **'Disconnect'**
+  String get chatDisconnect;
+
+  /// No description provided for @chatDisconnectExplanation.
+  ///
+  /// In en, this message translates to:
+  /// **'CraftSky will stop accessing your shared inbox. Your local drafts stay on this device and will be hidden until you reconnect. Your shared incoming-message policy stays unchanged.'**
+  String get chatDisconnectExplanation;
+
+  /// No description provided for @chatDisconnected.
+  ///
+  /// In en, this message translates to:
+  /// **'Messaging is disconnected.'**
+  String get chatDisconnected;
+
+  /// No description provided for @chatIncomingTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Who can message me'**
+  String get chatIncomingTitle;
+
+  /// No description provided for @chatIncomingExplanation.
+  ///
+  /// In en, this message translates to:
+  /// **'This setting is shared with Bluesky and other apps. Changes may take time to appear there and do not remove existing conversations.'**
+  String get chatIncomingExplanation;
+
+  /// No description provided for @chatIncomingEveryone.
+  ///
+  /// In en, this message translates to:
+  /// **'Everyone'**
+  String get chatIncomingEveryone;
+
+  /// No description provided for @chatIncomingFollowing.
+  ///
+  /// In en, this message translates to:
+  /// **'People I follow'**
+  String get chatIncomingFollowing;
+
+  /// No description provided for @chatIncomingNobody.
+  ///
+  /// In en, this message translates to:
+  /// **'Nobody'**
+  String get chatIncomingNobody;
+
+  /// No description provided for @chatPolicyUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Reconnect with incoming-message settings permission to change this shared setting.'**
+  String get chatPolicyUnavailable;
+
+  /// No description provided for @chatSearchCraftsky.
+  ///
+  /// In en, this message translates to:
+  /// **'Search CraftSky profiles'**
+  String get chatSearchCraftsky;
+
+  /// No description provided for @chatStartConversation.
+  ///
+  /// In en, this message translates to:
+  /// **'Start conversation'**
+  String get chatStartConversation;
+
+  /// No description provided for @chatRecipientUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'This person cannot receive a new message from you right now.'**
+  String get chatRecipientUnavailable;
+
+  /// No description provided for @chatConversationActions.
+  ///
+  /// In en, this message translates to:
+  /// **'Conversation actions'**
+  String get chatConversationActions;
+
+  /// No description provided for @chatMute.
+  ///
+  /// In en, this message translates to:
+  /// **'Mute conversation'**
+  String get chatMute;
+
+  /// No description provided for @chatUnmute.
+  ///
+  /// In en, this message translates to:
+  /// **'Unmute conversation'**
+  String get chatUnmute;
+
+  /// No description provided for @chatLeaveTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Leave conversation'**
+  String get chatLeaveTitle;
+
+  /// No description provided for @chatLeave.
+  ///
+  /// In en, this message translates to:
+  /// **'Leave'**
+  String get chatLeave;
+
+  /// No description provided for @chatLeaveExplanation.
+  ///
+  /// In en, this message translates to:
+  /// **'Leaving also affects your shared inbox in other apps. CraftSky will stop showing this conversation; this does not delete the other person’s messages.'**
+  String get chatLeaveExplanation;
+
+  /// No description provided for @chatUnreadConversations.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} unread conversations'**
+  String chatUnreadConversations(String count);
+
+  /// No description provided for @chatSyncStale.
+  ///
+  /// In en, this message translates to:
+  /// **'Messages may be out of date. Your loaded messages and draft are kept.'**
+  String get chatSyncStale;
+
+  /// No description provided for @chatSyncUpdating.
+  ///
+  /// In en, this message translates to:
+  /// **'Updating your shared inbox…'**
+  String get chatSyncUpdating;
+
+  /// No description provided for @chatPreviewPost.
+  ///
+  /// In en, this message translates to:
+  /// **'CraftSky post'**
+  String get chatPreviewPost;
+
+  /// No description provided for @chatPreviewProfile.
+  ///
+  /// In en, this message translates to:
+  /// **'CraftSky profile'**
+  String get chatPreviewProfile;
+
+  /// No description provided for @chatPreviewEvent.
+  ///
+  /// In en, this message translates to:
+  /// **'CraftSky event'**
+  String get chatPreviewEvent;
+
+  /// No description provided for @chatReviewPermissions.
+  ///
+  /// In en, this message translates to:
+  /// **'Review messaging permissions'**
+  String get chatReviewPermissions;
+
+  /// No description provided for @chatLastUpdated.
+  ///
+  /// In en, this message translates to:
+  /// **'Last updated {time}'**
+  String chatLastUpdated(String time);
 }
 
 class _AppLocalizationsDelegate

@@ -1,0 +1,11 @@
+version: "2"
+sql:
+  - engine: postgresql
+    schema: migrations
+    queries: queries/chat.sql
+    gen:
+      go:
+        package: chatdb
+        out: internal/chatdb
+        sql_package: pgx/v5
+        omit_unused_structs: true

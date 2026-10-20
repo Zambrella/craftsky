@@ -8,6 +8,10 @@ import 'package:craftsky_app/auth/models/session_registry.dart';
 import 'package:craftsky_app/auth/providers/active_account_initialization_provider.dart';
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
 import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
+import 'package:craftsky_app/chat/data/chat_repository.dart';
+import 'package:craftsky_app/chat/models/chat_state.dart';
+import 'package:craftsky_app/chat/pages/chat_settings_page.dart';
+import 'package:craftsky_app/chat/providers/chat_providers.dart';
 import 'package:craftsky_app/feed/models/post_page.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/feed/widgets/post_composer_sheet.dart';
@@ -403,6 +407,7 @@ void main() {
       'Customisation',
       'Languages',
       'Notifications',
+      'Message settings',
       'Privacy',
       'Connections',
       'Growth',
@@ -424,7 +429,7 @@ void main() {
     expect(find.text('Clear image cache'), findsNothing);
     expect(
       find.byIcon(CraftskyIconsBold.next),
-      findsNWidgets(15),
+      findsNWidgets(16),
     );
     final signOut = tester.widget<Text>(find.text('Sign out'));
     expect(
@@ -529,6 +534,8 @@ void main() {
 
 ProviderContainer _container() => ProviderContainer.test(
   overrides: [
+    accountChatRepositoryProvider(AccountKey('did:plc:test'))
+        .overrideWith((ref) async => _ChatRepository()),
     secureSessionRegistryStorageProvider.overrideWithValue(
       _SettingsRouteRegistryStorage(
         SessionRegistry.empty().upsertAndActivate(
@@ -629,6 +636,11 @@ const _emptyAccountPage = ProfileAccountPage(
 
 final _routeCases = <_SettingsRouteCase>[
   _SettingsRouteCase(
+    label: 'Message settings',
+    location: '/settings/messaging',
+    matchesPage: (widget) => widget is MessagingSettingsView,
+  ),
+  _SettingsRouteCase(
     label: 'Privacy',
     location: '/profile/settings/privacy',
     matchesPage: (widget) => widget is PrivacyPage,
@@ -721,4 +733,31 @@ final class _SettingsRouteCase {
   final String label;
   final String location;
   final bool Function(Widget widget) matchesPage;
+}
+
+class _ChatRepository implements ChatRepository {
+  @override
+  Future<ChatStatus> status() async => ChatStatus.fromMap(const {
+    'generation': 1,
+    'enabled': true,
+    'pushEnabled': true,
+    'state': 'ready',
+    'capabilities': {
+      'canRead': true,
+      'canSend': true,
+      'canReport': true,
+      'canSetPolicy': true,
+    },
+  });
+  @override
+  Future<bool> pushPreference() async => true;
+  @override
+  Future<ChatPolicySetting> incomingPolicy() async => ChatPolicySetting.fromMap(
+    const {'allowIncoming': 'following', 'persisted': true},
+  );
+  @override
+  Future<ChatUnreadCounts> unreadCounts() async =>
+      ChatUnreadCounts.fromMap(const {'accepted': 0, 'requests': 0});
+  @override
+  dynamic noSuchMethod(Invocation invocation) => throw UnimplementedError();
 }

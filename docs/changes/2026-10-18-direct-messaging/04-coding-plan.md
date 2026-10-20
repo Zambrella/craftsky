@@ -97,7 +97,7 @@ Register these feature routes in the existing catalogue and diagnostic manifest,
 
 | Method and path | Contract and effect | Requirement / AC / Tests |
 |---|---|---|
-| `GET /v1/chat/status` | Account enablement, capability booleans, eligibility/sync state, last successful sync and safe recovery code; no tokens, cursor or provider prose | FR-001, AC-002/AC-017, UT-001/UT-006 |
+| `GET /v1/chat/status` | Account enablement, messaging `generation`, capability booleans, eligibility/sync state, last successful sync and safe recovery code; no tokens, cursor or provider prose | FR-001, AC-002/AC-017, UT-001/UT-006 |
 | `POST /v1/chat/authorization` | Start bound additional-consent attempt through existing handoff flow; fixed scope profile only; optional `{pushEnabled}` initial choice; callback validates profile and same owner | BR-002, FR-016, RULE-004, AC-002/AC-014/AC-019, IT-005/IT-015 |
 | `PUT /v1/chat/connection` | Full replacement `{enabled}`; false disconnects atomically, true only with sufficient current authority and initializes/resumes account state; never changes declaration | FR-016, AC-014/AC-028, IT-005/IT-017 |
 | `GET /v1/chat/conversations?status=accepted\|request&cursor=&limit=` | One explicit bucket per request; accepted uses direct/accepted listing, request uses dedicated upstream union filtering | FR-002/FR-008, AC-001/AC-003, IT-001 |
@@ -377,3 +377,7 @@ No open product decision prevents implementation design. Key provisioning, live 
 - First implementation tasks must include redacted `CHAT_OPERATION_HMAC_KEY` configuration and the no-activity auth seam before dependent durable writes/automatic polling. Production key provisioning/config changes require their normal later authorization and verification.
 - Validation performed in this stage: read-only code/package-manifest/document inspection and document traceability/structure checks only. Prior isolated dependency solver evidence is attributed to requirements; no install, application compile, executable tests, migration, deployment or live messages/reports occurred here.
 - Stage output: only this uncommitted plan; earlier workflow artifacts remain unchanged by this stage. Stop for the owner's choice of implementation, manual note or no further work.
+
+### Implementation detail: same-owner consent handoff on Flutter
+
+IT-015/IT-017 and REG-001 reuse the durable handoff protocol without treating chat consent as a new login. A chat exchange additionally returns its server-owned `purpose: chat` and `sourceTokenHash` (base64url SHA-256 of the initiating child bearer, never the bearer). Ordinary exchanges omit these optional fields. Flutter matches this hash to the already retained same-owner session before staging; the durable pending receipt captures that local session generation. Confirmation rechecks the exact source hash/generation before dispatch and before local publication. Missing/replaced/removed source sessions fail closed. Successful chat confirmation replaces only that owner's child token, preserves another active account, and advances activation authority only when replacing the active owner. The pending receipt carries these fields through process restart. No new OAuth credential handoff, public record or production mutation is introduced. Chat handoff diagnostics select private operational context.

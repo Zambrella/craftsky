@@ -55,6 +55,10 @@ func BuildClientArtifacts(input ClientConfigInput) (ClientArtifacts, error) {
 	if err := ValidateClientScopes(input.Scopes); err != nil {
 		return ClientArtifacts{}, err
 	}
+	advertised := append([]string(nil), input.Scopes...)
+	if input.Purpose != ClientPurposeOperator {
+		advertised = advertisedConsumerScopes(input.Scopes)
+	}
 	var cfg oauth.ClientConfig
 	switch input.Mode {
 	case ClientModeLocalhost:
@@ -64,7 +68,10 @@ func BuildClientArtifacts(input ClientConfigInput) (ClientArtifacts, error) {
 		if input.ClientSecretKey != "" || input.ClientKeyID != "" || input.ClientID.String() != "" || input.JWKSURL.String() != "" {
 			return ClientArtifacts{}, errors.New("localhost OAuth mode cannot configure confidential-client fields")
 		}
-		cfg = oauth.NewLocalhostConfig(input.CallbackURL.String(), append([]string(nil), input.Scopes...))
+		// Localhost metadata is encoded in the client ID. Its advertised union
+		// must match the discovery document while ordinary PAR stays base-only.
+		cfg = oauth.NewLocalhostConfig(input.CallbackURL.String(), advertised)
+		cfg.Scopes = append([]string(nil), input.Scopes...)
 	case ClientModeConfidential:
 		if err := validateConfidentialURLs(input); err != nil {
 			return ClientArtifacts{}, err
@@ -88,6 +95,7 @@ func BuildClientArtifacts(input ClientConfigInput) (ClientArtifacts, error) {
 	}
 
 	metadata := cfg.ClientMetadata()
+	metadata.Scope = strings.Join(advertised, " ")
 	if input.Mode == ClientModeConfidential {
 		jwksURL := input.JWKSURL.String()
 		metadata.JWKSURI = &jwksURL

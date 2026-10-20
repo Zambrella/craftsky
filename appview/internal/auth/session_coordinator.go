@@ -52,6 +52,67 @@ type OAuthSessionCoordinator struct {
 
 type OAuthSessionOperation func(context.Context, *oauth.ClientSession) error
 
+// WithCapability checks optional authority inside the existing owner/parent
+// fence. Missing optional consent must not revoke an otherwise valid base
+// session. Callers supply the fixed permissions for their specific operation.
+func (coordinator *OAuthSessionCoordinator) WithCapability(
+	ctx context.Context,
+	owner syntax.DID,
+	sessionID string,
+	required []string,
+	operation OAuthSessionOperation,
+) error {
+	if len(required) == 0 || operation == nil {
+		return ErrPDSPermissionsRequired
+	}
+	return coordinator.WithActiveSession(ctx, owner, sessionID, func(ctx context.Context, session *oauth.ClientSession) error {
+		if !validRegistrationTokenScopes(strings.Join(session.Data.Scopes, " "), required) {
+			return ErrPDSPermissionsRequired
+		}
+		trackOptionalGrant(session, required)
+		err := operation(ctx, session)
+		if errors.Is(err, errBaseScopesLost) {
+			return err
+		}
+		if errors.Is(TranslatePDSError(err), ErrPDSPermissionsRequired) {
+			return &optionalCapabilityFailure{cause: err}
+		}
+		return err
+	})
+}
+
+// WithCapabilityEffect preserves the complete participant/parent lock order
+// while applying the same optional-grant and refresh behavior as foreground
+// reads. It must be entered outside any existing owner/session fence.
+func (coordinator *OAuthSessionCoordinator) WithCapabilityEffect(ctx context.Context, expected []ownerlifecycle.ExpectedOwner, owner syntax.DID, sessionID string, required []string, operation OAuthSessionOperation) error {
+	if len(required) == 0 || operation == nil {
+		return ErrPDSPermissionsRequired
+	}
+	return coordinator.WithActiveEffectSession(ctx, expected, owner, sessionID, func(ctx context.Context, session *oauth.ClientSession) error {
+		if !validRegistrationTokenScopes(strings.Join(session.Data.Scopes, " "), required) {
+			return ErrPDSPermissionsRequired
+		}
+		trackOptionalGrant(session, required)
+		err := operation(ctx, session)
+		if errors.Is(err, errBaseScopesLost) {
+			return err
+		}
+		if errors.Is(TranslatePDSError(err), ErrPDSPermissionsRequired) {
+			return &optionalCapabilityFailure{cause: err}
+		}
+		return err
+	})
+}
+
+// Keep the original typed cause without lending private provider prose to the
+// public error string. Only the optional operation boundary creates this type.
+type optionalCapabilityFailure struct{ cause error }
+
+func (*optionalCapabilityFailure) Error() string { return "optional OAuth permission requires consent" }
+func (failure *optionalCapabilityFailure) Unwrap() []error {
+	return []error{ErrPDSPermissionsRequired, failure.cause}
+}
+
 func NewOAuthSessionCoordinator(options OAuthSessionCoordinatorOptions) (*OAuthSessionCoordinator, error) {
 	if options.App == nil || options.App.Client == nil || options.App.Config == nil ||
 		options.Store == nil || options.Owners == nil || options.AuthorityVerifier == nil {
@@ -228,6 +289,10 @@ func (coordinator *OAuthSessionCoordinator) withFencedSession(
 		}
 		if operationErr == nil {
 			return nil
+		}
+		var optionalFailure *optionalCapabilityFailure
+		if errors.As(operationErr, &optionalFailure) {
+			return operationErr
 		}
 		translated := TranslatePDSError(operationErr)
 		if !errors.Is(translated, ErrPDSSessionExpired) {

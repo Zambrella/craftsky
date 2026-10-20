@@ -101,6 +101,8 @@ func TestDatabasePrivateCleanupDeletesOnlyOwnerPrivateState(t *testing.T) {
 		INSERT INTO actor_mutes(owner_did,subject_did) VALUES($1,$2),($2,$1);
 		INSERT INTO account_language_preferences(account_did,primary_language) VALUES($1,'en'),($2,'en');
 		INSERT INTO account_onboarding_completions(account_did,completed_at) VALUES($1,$3),($2,$3);
+		-- REG-006 / FR-016, NFR-002 / AC-014, AC-020.
+		INSERT INTO chat_accounts(owner_did,enabled) VALUES($1,true),($2,true);
 		INSERT INTO profile_customisations(owner_did,colour,profile_background)
 		VALUES($1,'blue','plain'),($2,'red','plain');
 		INSERT INTO profile_pins(owner_did,slot,post_uri,state_token,created_at,updated_at)
@@ -161,7 +163,7 @@ func TestDatabasePrivateCleanupDeletesOnlyOwnerPrivateState(t *testing.T) {
 
 	for _, table := range []string{
 		"craftsky_recent_searches", "actor_mutes", "account_language_preferences",
-		"account_onboarding_completions",
+		"account_onboarding_completions", "chat_accounts",
 		"profile_customisations", "profile_pins", "saved_post_folders", "saved_posts",
 		"notification_preferences", "notification_seen_state", "push_account_subscriptions",
 	} {

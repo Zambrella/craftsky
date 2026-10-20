@@ -22,11 +22,19 @@ import (
 type AuthInfo struct {
 	DID       syntax.DID
 	SessionID string
+	// Server-derived child identity for fenced private operations; never wire data.
+	ChildTokenHash [32]byte `json:"-"`
 }
 
 // AuthService validates a bearer token and returns the authenticated identity.
 type AuthService interface {
 	Authenticate(ctx context.Context, token string) (AuthInfo, error)
+}
+
+// NoActivityAuthService is selected only by server-owned automatic-route
+// policy. It validates ordinary credentials without recording user activity.
+type NoActivityAuthService interface {
+	AuthenticateWithoutActivity(ctx context.Context, token string) (AuthInfo, error)
 }
 
 // RecoveryAuthService authenticates the small route allowlist used for

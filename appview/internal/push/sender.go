@@ -49,6 +49,7 @@ type RoutingFacts struct {
 	CaseReference  string
 }
 type SendRequest struct {
+	Chat                  *ChatRouting
 	Token                 string
 	Category              notifications.Category
 	AccountSubscriptionID string
@@ -58,6 +59,14 @@ type SendRequest struct {
 	Semantics             DeliverySemantics
 	TTL                   time.Duration
 }
+
+// Chat routing is separate from social notification categories and targets.
+// The random reference is resolved by the authenticated owner inside AppView.
+type ChatRouting struct{ OpenReference string }
+
+func (ChatRouting) String() string   { return "ChatRouting([REDACTED])" }
+func (ChatRouting) GoString() string { return "ChatRouting([REDACTED])" }
+
 type Sender interface {
 	Send(context.Context, SendRequest) (ProviderResult, error)
 }

@@ -10,6 +10,13 @@ type Payload struct {
 	Data  map[string]string `json:"data"`
 }
 
+func BuildChatPayload(subscription, name, reference string) Payload {
+	if name == "" {
+		name = "Someone"
+	}
+	return Payload{Title: name, Body: "sent you a message", Data: map[string]string{"payloadVersion": "1", "type": "chat", "accountSubscriptionId": subscription, "openReference": reference}}
+}
+
 func BuildPayload(category notifications.Category, routingID, actorDisplayName string, facts RoutingFacts) Payload {
 	if category == notifications.Moderation {
 		data := map[string]string{

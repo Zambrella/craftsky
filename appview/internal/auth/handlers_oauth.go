@@ -150,6 +150,13 @@ func (h *HTTPHandlers) CallbackHandler() http.Handler {
 				deletionResult, err = callbacks.CompleteAttempt(callbackCtx, request, callbackResult.Attempt)
 				deletionFlow = err == nil
 				return err
+			case ChatOAuthPurpose:
+				if h.Handoffs == nil {
+					return ErrOAuthFlowInvalid
+				}
+				var err error
+				handoffCode, err = h.Handoffs.CreateExchange(callbackCtx, callbackResult.Attempt, callbackResult.Handle, callbackResult.Metadata.DeviceID)
+				return err
 			case LoginOAuthPurpose, RegistrationOAuthPurpose:
 				failureStage = "onboarding_client"
 				if h.NewPendingPDSClient == nil || h.OnboardingProfile == nil || h.Handoffs == nil {

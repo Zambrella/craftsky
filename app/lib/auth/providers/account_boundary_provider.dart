@@ -10,6 +10,7 @@ import 'package:craftsky_app/business/providers/owner_business_events_provider.d
 import 'package:craftsky_app/business/providers/products_controller.dart';
 import 'package:craftsky_app/business/providers/profile_business_events_provider.dart';
 import 'package:craftsky_app/business/providers/report_business_event_provider.dart';
+import 'package:craftsky_app/chat/providers/chat_draft_store_provider.dart';
 import 'package:craftsky_app/feed/providers/create_post_provider.dart';
 import 'package:craftsky_app/feed/providers/delete_post_provider.dart';
 import 'package:craftsky_app/feed/providers/post_comment_section_provider.dart';
@@ -190,6 +191,7 @@ final accountHomeResetProvider = Provider<AccountBoundaryAction>(
 final accountSessionPrivateStateCleanerProvider =
     Provider<AccountSessionInvalidator>(
       (ref) => (lease) async {
+        await ref.read(chatDraftStoreProvider).removeAccount(lease.account);
         try {
           await ref
               .read(instagramVerificationStorageProvider)

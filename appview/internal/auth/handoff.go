@@ -71,11 +71,13 @@ func (enqueue RepositoryJobTxEnqueuerFunc) EnqueueRepositoryJobTx(
 }
 
 type HandoffExchangeResult struct {
-	Token     string
-	DID       syntax.DID
-	Handle    syntax.Handle
-	ReceiptID uuid.UUID
-	ConfirmBy time.Time
+	Token           string
+	DID             syntax.DID
+	Handle          syntax.Handle
+	ReceiptID       uuid.UUID
+	ConfirmBy       time.Time
+	Purpose         OAuthPurpose
+	SourceTokenHash string
 }
 
 func NewHandoffService(options HandoffServiceOptions) (*HandoffService, error) {
@@ -118,7 +120,7 @@ func (service *HandoffService) CreateExchange(
 	deviceID string,
 ) (string, error) {
 	boundAttempt, ok := callbackAttemptFromContext(ctx)
-	if !ok || boundAttempt != attempt || !attempt.permitsOrdinaryOnboarding() ||
+	if !ok || boundAttempt != attempt || !attempt.permitsConsumerHandoff() ||
 		!attempt.validFor(attempt.Owner, attempt.State) || handle == "" || deviceID == "" {
 		return "", ErrHandoffInvalid
 	}
@@ -152,7 +154,7 @@ func (service *HandoffService) CreateExchange(
 		`, attempt.State).Scan(&purpose, &requestState, &requestAttempt, &storedDevice); err != nil {
 			return err
 		}
-		if purpose != attempt.Purpose || !attempt.permitsOrdinaryOnboarding() || requestState != AuthRequestExchangeStarted ||
+		if purpose != attempt.Purpose || !attempt.permitsConsumerHandoff() || requestState != AuthRequestExchangeStarted ||
 			requestAttempt != attempt.AttemptID || storedDevice != deviceID {
 			return ErrHandoffInvalid
 		}
@@ -270,6 +272,27 @@ func (service *HandoffService) Exchange(ctx context.Context, code, deviceID stri
 				outcomeErr = ErrHandoffInvalid
 				return nil
 			}
+			var purpose OAuthPurpose
+			var source []byte
+			err := tx.QueryRow(authCtx, `SELECT purpose,chat_child_token_hash FROM oauth_auth_requests WHERE state=$1 FOR UPDATE`, discovery.OAuthSessionID).Scan(&purpose, &source)
+			if errors.Is(err, pgx.ErrNoRows) {
+				return ErrHandoffInvalid
+			}
+			if err != nil {
+				return err
+			}
+			var sourceHash string
+			if purpose == ChatOAuthPurpose {
+				if len(source) != sha256.Size {
+					return ErrHandoffInvalid
+				}
+				sourceHash = base64.RawURLEncoding.EncodeToString(source)
+			} else {
+				if purpose != LoginOAuthPurpose && purpose != RegistrationOAuthPurpose {
+					return ErrHandoffInvalid
+				}
+				purpose = ""
+			}
 			switch state {
 			case "ready":
 				token, childHash, err := service.sessions.createPendingTx(
@@ -305,6 +328,7 @@ func (service *HandoffService) Exchange(ctx context.Context, code, deviceID stri
 				result = HandoffExchangeResult{
 					Token: token, DID: discovery.Owner, Handle: handle,
 					ReceiptID: receiptID, ConfirmBy: confirmBy,
+					Purpose: purpose, SourceTokenHash: sourceHash,
 				}
 				return nil
 			case "redeemed":
@@ -333,6 +357,7 @@ func (service *HandoffService) Exchange(ctx context.Context, code, deviceID stri
 				result = HandoffExchangeResult{
 					Token: string(plaintext), DID: discovery.Owner, Handle: handle,
 					ReceiptID: receiptID, ConfirmBy: confirmBy.UTC(),
+					Purpose: purpose, SourceTokenHash: sourceHash,
 				}
 				return nil
 			default:
@@ -425,6 +450,10 @@ func (service *HandoffService) Confirm(
 				parentState != "pending_handoff" || childState != "pending_confirmation" || !now.Before(confirmBy) {
 				return ErrHandoffInvalid
 			}
+			chatConsent, err := confirmChatConsentTx(authCtx, tx, discovery.Owner, discovery.OAuthSessionID)
+			if err != nil {
+				return err
+			}
 			if _, err := tx.Exec(authCtx, `
 				UPDATE oauth_sessions SET lifecycle_state='active',row_version=row_version+1,updated_at=$3
 				WHERE account_did=$1 AND session_id=$2 AND lifecycle_state='pending_handoff'
@@ -450,6 +479,9 @@ func (service *HandoffService) Confirm(
 				WHERE id=$1 AND state='pending'
 			`, receiptID, now); err != nil {
 				return err
+			}
+			if chatConsent {
+				return nil
 			}
 			var hasPriorParent bool
 			if err := tx.QueryRow(authCtx, `
@@ -496,7 +528,7 @@ func collapseHandoffError(err error) error {
 	if err == nil {
 		return nil
 	}
-	if errors.Is(err, ErrHandoffInvalid) || errors.Is(err, ownerlifecycle.ErrTerminalOwner) ||
+	if errors.Is(err, ErrHandoffInvalid) || errors.Is(err, ErrOAuthFlowInvalid) || errors.Is(err, ownerlifecycle.ErrTerminalOwner) ||
 		errors.Is(err, pgx.ErrNoRows) {
 		return ErrHandoffInvalid
 	}

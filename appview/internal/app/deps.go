@@ -15,6 +15,7 @@ import (
 	"social.craftsky/appview/internal/api"
 	"social.craftsky/appview/internal/auth"
 	"social.craftsky/appview/internal/business"
+	"social.craftsky/appview/internal/chat"
 	"social.craftsky/appview/internal/followergrowth"
 	"social.craftsky/appview/internal/imagesafety"
 	"social.craftsky/appview/internal/index"
@@ -47,6 +48,9 @@ import (
 // Handler factories in internal/api take only the specific dependencies
 // they use.
 type Deps struct {
+	Chat                        *chat.Service
+	ChatSynchronizer            *chat.Synchronizer
+	ChatDispatcher              *chat.DeliveryDispatcher
 	OperatorConsole             *operatorconsole.Handlers
 	Config                      Config
 	Logger                      *slog.Logger
@@ -273,6 +277,14 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (
 	if err != nil {
 		return nil, nil, err
 	}
+	chatService, err := newChatDependencies(pool, ownerLifecycles, authCapability.sessionCoordinator, federated, cfg)
+	if err != nil {
+		return nil, nil, err
+	}
+	chatSynchronizer, err := newChatSynchronizer(pool, chatService, observer)
+	if err != nil {
+		return nil, nil, err
+	}
 	oauthStore := authCapability.store
 	operatorConsole, err := newOperatorConsole(pool, federated, cfg, logger)
 	if err != nil {
@@ -376,6 +388,8 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (
 	}
 	setBusinessAccessEnvironment(content, pool, subscriptionCapability.store.AccessEnvironment())
 	deps := &Deps{
+		Chat:                        chatService,
+		ChatSynchronizer:            chatSynchronizer,
 		Config:                      cfg,
 		Logger:                      logger,
 		DB:                          pool,
@@ -451,9 +465,16 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (
 		ScheduledMedia:              scheduledLifecycle.media,
 		ScheduledCleanup:            scheduledLifecycle.cleanup,
 	}
-	deps.PushDispatcher, err = newPushDependencies(ctx, pool, owners, observer, cfg)
+	pushCapability, err := newPushDependencies(ctx, pool, owners, observer, cfg)
 	if err != nil {
 		return nil, nil, err
+	}
+	if pushCapability != nil {
+		deps.PushDispatcher = pushCapability.dispatcher
+		deps.ChatDispatcher, err = newChatDeliveryDispatcher(pool, chatService, pushCapability.sender, observer)
+		if err != nil {
+			return nil, nil, err
+		}
 	}
 
 	instagramRuntime, err := newInstagramRuntimeDependencies(

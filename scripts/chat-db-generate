@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+root_dir=$(cd "$script_dir/.." && pwd)
+cd "$root_dir/appview"
+
+case ${1:-} in
+  "") ;;
+  --check)
+    snapshot=$(mktemp -d)
+    trap 'rm -rf "$snapshot"' EXIT
+    if [[ -d internal/chatdb ]]; then
+      cp -R internal/chatdb/. "$snapshot/"
+    fi
+    ;;
+  *) echo "usage: $0 [--check]" >&2; exit 2 ;;
+esac
+
+# Pin the generator independently of AppView runtime dependencies. sqlc reads
+# the real migration directory and ignores golang-migrate down migrations.
+go run github.com/sqlc-dev/sqlc/cmd/sqlc@v1.31.1 generate -f sqlc.chat.yaml
+
+if [[ ${1:-} == --check ]]; then
+  # Compare file contents even before new generated files have been staged.
+  diff -ru "$snapshot" internal/chatdb
+fi

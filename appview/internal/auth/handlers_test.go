@@ -455,35 +455,6 @@ func TestLogout_SharedInstallation_QueuesOwnerScopedCleanup(t *testing.T) {
 
 	ctx := context.Background()
 	if _, err := h.Pool.Exec(ctx, `
-		CREATE TABLE push_installations (
-		  id UUID PRIMARY KEY,
-		  device_id TEXT NOT NULL UNIQUE,
-		  platform TEXT NOT NULL,
-		  fcm_token TEXT NOT NULL,
-		  active BOOLEAN NOT NULL DEFAULT true,
-		  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-		  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-		  deactivated_at TIMESTAMPTZ
-		);
-		CREATE TABLE push_account_subscriptions (
-		  id UUID PRIMARY KEY,
-		  installation_id UUID NOT NULL REFERENCES push_installations(id) ON DELETE CASCADE,
-		  account_did TEXT NOT NULL,
-		  routing_id UUID NOT NULL UNIQUE,
-		  active BOOLEAN NOT NULL DEFAULT true,
-		  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-		  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-		  deactivated_at TIMESTAMPTZ,
-		  UNIQUE (installation_id, account_did)
-		);
-		CREATE TABLE push_deliveries (
-		  id UUID PRIMARY KEY,
-		  account_subscription_id UUID NOT NULL REFERENCES push_account_subscriptions(id) ON DELETE CASCADE,
-		  status TEXT NOT NULL,
-		  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-		  lease_owner TEXT,
-		  lease_expires_at TIMESTAMPTZ
-		);
 		INSERT INTO push_installations (id, device_id, platform, fcm_token)
 		VALUES ('10000000-0000-0000-0000-000000000001', 'shared-device', 'ios', 'shared-token');
 		INSERT INTO push_account_subscriptions (id, installation_id, account_did, routing_id)

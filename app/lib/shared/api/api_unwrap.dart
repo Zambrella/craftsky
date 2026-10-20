@@ -11,9 +11,19 @@ import 'package:dio/dio.dart';
 Future<T> unwrapApi<T>(Future<T> Function() body) async {
   try {
     return await body();
-  } on DioException catch (e) {
+  } on DioException catch (e, stack) {
+    final original = e.stackTrace == StackTrace.empty ? stack : e.stackTrace;
     final err = e.error;
-    if (err is ApiException) throw err;
-    throw ApiServerError(e.message ?? 'server_error');
+    if (err is ApiException) Error.throwWithStackTrace(err, original);
+    final details = ApiFailureDetails(
+      cause: err ?? e,
+      stackTrace: original,
+      statusCode: e.response?.statusCode,
+      method: e.requestOptions.method,
+    );
+    Error.throwWithStackTrace(
+      ApiServerError('server_error', details: details),
+      original,
+    );
   }
 }

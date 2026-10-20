@@ -241,6 +241,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "3.1.2"
+  cross_cache:
+    dependency: "direct main"
+    description:
+      name: cross_cache
+      sha256: "35dacce2ffc46c2fd28154736a77eecc2ac5a71008f9be25c503a7128bf466a8"
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.1.1"
   cross_file:
     dependency: transitive
     description:
@@ -329,6 +337,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "8.1.0"
+  diffutil_dart:
+    dependency: transitive
+    description:
+      name: diffutil_dart
+      sha256: "5e74883aedf87f3b703cb85e815bdc1ed9208b33501556e4a8a5572af9845c81"
+      url: "https://pub.dev"
+    source: hosted
+    version: "4.0.1"
   dio:
     dependency: "direct main"
     description:
@@ -550,6 +566,22 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "3.4.5"
+  flutter_chat_core:
+    dependency: "direct main"
+    description:
+      name: flutter_chat_core
+      sha256: "7e3c2b2db986c8981e9280aea7dd8ad4460f4f4579bf3567c8f70cf6c7d0cc90"
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.9.1"
+  flutter_chat_ui:
+    dependency: "direct main"
+    description:
+      name: flutter_chat_ui
+      sha256: de81af24364a3f881847477b0fbf4356d0fd1675eed780a9957976862d85c76c
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.12.0"
   flutter_driver:
     dependency: transitive
     description: flutter
@@ -831,6 +863,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "3.1.0"
+  idb_shim:
+    dependency: transitive
+    description:
+      name: idb_shim
+      sha256: "4f32cd03ce97e2996b57cea03b2d098f5153ac55435a27cf2c89716db571728d"
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.10.1+1"
   image:
     dependency: "direct main"
     description:
@@ -1172,6 +1212,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.19.5"
+  nested:
+    dependency: transitive
+    description:
+      name: nested
+      sha256: "03bac4c528c64c95c722ec99280375a6f2fc708eec17c7b3f07253b626cd2a20"
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.0.0"
   objective_c:
     dependency: transitive
     description:
@@ -1340,6 +1388,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.1.1"
+  provider:
+    dependency: transitive
+    description:
+      name: provider
+      sha256: "4e82183fa20e5ca25703ead7e05de9e4cceed1fbd1eadc1ac3cb6f565a09f272"
+      url: "https://pub.dev"
+    source: hosted
+    version: "6.1.5+1"
   pub_semver:
     dependency: "direct main"
     description:
@@ -1444,6 +1500,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.0.6"
+  scrollview_observer:
+    dependency: transitive
+    description:
+      name: scrollview_observer
+      sha256: "1d55007704444eb39c73c7097fc9d3ff8364266ed5d80e2694b8cb770a7897ab"
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.27.3"
   sealed_countries:
     dependency: "direct main"
     description:
@@ -1468,6 +1532,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "3.4.0"
+  sembast:
+    dependency: transitive
+    description:
+      name: sembast
+      sha256: "05da81104e6d4a1ecbeb9aa92062231620d360c8bd9303b82495842c4d92632b"
+      url: "https://pub.dev"
+    source: hosted
+    version: "3.9.0"
   sentry:
     dependency: transitive
     description:

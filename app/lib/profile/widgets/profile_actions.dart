@@ -50,6 +50,7 @@ final class VisitorProfileActionSet extends ProfileActionSet {
     this.isBlocking = false,
     this.canFollow = true,
     this.canToggleMute = true,
+    this.messagingAction,
   });
 
   final bool isFollowing;
@@ -66,6 +67,7 @@ final class VisitorProfileActionSet extends ProfileActionSet {
   final bool isBlocking;
   final bool canFollow;
   final bool canToggleMute;
+  final Widget? messagingAction;
 }
 
 class ProfileActions extends StatelessWidget {
@@ -194,6 +196,10 @@ class _VisitorActions extends StatelessWidget {
               ),
             ),
           ),
+          SizedBox(width: spacing.sp3),
+        ],
+        if (actions.messagingAction case final action?) ...[
+          action,
           SizedBox(width: spacing.sp3),
         ],
         if (actions.canToggleMute) ...[

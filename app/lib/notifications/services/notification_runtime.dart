@@ -7,6 +7,7 @@ import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/auth/providers/account_activation_coordinator.dart';
 import 'package:craftsky_app/notifications/models/foreground_notification_event.dart';
+import 'package:craftsky_app/notifications/models/notification_destination.dart';
 import 'package:craftsky_app/notifications/models/notification_effect.dart';
 import 'package:craftsky_app/notifications/models/notification_open_event.dart';
 import 'package:craftsky_app/notifications/services/notification_open_coordinator.dart';
@@ -29,6 +30,8 @@ final class NotificationRuntime {
     Future<AccountActivationResult> Function(AccountSessionLease lease)?
     activateRecipient,
     List<AccountSessionLease> Function()? eligibleAccounts,
+    ChatNotificationResolver? resolveChat,
+    FutureOr<void> Function(AccountKey account)? refreshChatCount,
   }) : _service = service,
        _registration = registration,
        _routingStorage = routingStorage,
@@ -38,7 +41,9 @@ final class NotificationRuntime {
        _refreshAccountCount = refreshAccountCount,
        _effects = effects,
        _activateRecipient = activateRecipient,
-       _eligibleAccounts = eligibleAccounts;
+       _eligibleAccounts = eligibleAccounts,
+       _resolveChat = resolveChat,
+       _refreshChatCount = refreshChatCount;
 
   final NotificationService _service;
   final NotificationRegistrationCoordinator _registration;
@@ -51,6 +56,8 @@ final class NotificationRuntime {
   final Future<AccountActivationResult> Function(AccountSessionLease lease)?
   _activateRecipient;
   final List<AccountSessionLease> Function()? _eligibleAccounts;
+  final ChatNotificationResolver? _resolveChat;
+  final FutureOr<void> Function(AccountKey account)? _refreshChatCount;
   final PendingNotificationOpen _pending = PendingNotificationOpen();
   final _subscriptions = <StreamSubscription<Object?>>[];
 
@@ -168,6 +175,13 @@ final class NotificationRuntime {
         recipient: recipient,
       ),
     );
+    if (event.openAttempt.facts is ChatNotificationFacts ||
+        event.openAttempt.facts is InvalidChatNotificationFacts) {
+      if (recipientAccount case final account?) {
+        await _refreshChatCount?.call(account);
+      }
+      return;
+    }
     if (recipientAccount case final account?) {
       await (_invalidateAccountList?.call(account) ?? _invalidateList());
       await (_refreshAccountCount?.call(account) ?? _refreshCount());
@@ -186,12 +200,26 @@ final class NotificationRuntime {
     final opener = NotificationOpenCoordinator(
       resolveRecipient: _routingStorage.resolve,
       isCurrentLease: _routingStorage.isCurrentLease,
+      isActiveLease: _routingStorage.isActiveLease,
+      resolveChat: _resolveChat,
       activate: (lease) async => _activateRecipient == null
           ? AccountActivationResult.alreadyActive
           : await _activateRecipient(lease),
       onOutcome: (outcome) {
         if (!_isCurrentOpen(work)) return;
-        _effects.add(NotificationNavigationEffect(outcome));
+        final activation = _routingStorage.activeLease;
+        _effects.add(
+          NotificationNavigationEffect(
+            NotificationOpenOutcome(
+              destination: outcome.destination,
+              feedback: outcome.feedback,
+              isCurrent: () =>
+                  _isCurrentOpen(work) &&
+                  _routingStorage.activeLease == activation &&
+                  (outcome.isCurrent?.call() ?? true),
+            ),
+          ),
+        );
       },
       onUnavailable: () {
         if (!_isCurrentOpen(work)) return;

@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/auth/models/auth_error.dart';
 import 'package:craftsky_app/auth/models/pending_handoff.dart';
 import 'package:craftsky_app/auth/models/session_registry.dart';
@@ -52,6 +53,8 @@ final authUrlLauncherProvider = Provider<AuthUrlLauncher>(
 /// Sign-in / sign-out orchestrator.
 @Riverpod(keepAlive: true)
 class AuthController extends _$AuthController {
+  ActiveAccountLease? _completedChatLease;
+  ActiveAccountLease? get completedChatLease => _completedChatLease;
   String? _confirmingReceiptId;
   Future<void>? _confirmationOperation;
 
@@ -123,6 +126,7 @@ class AuthController extends _$AuthController {
   }
 
   Future<void> completeFromDeepLink(String code) async {
+    _completedChatLease = null;
     state = const AsyncLoading();
     state = await AsyncValue.guard(() async {
       final registry = await ref.read(sessionRegistryProvider.future);
@@ -157,6 +161,8 @@ class AuthController extends _$AuthController {
       if (!ref.mounted) return;
       try {
         await ref.read(sessionRegistryProvider.notifier).stageHandoff(handoff);
+      } on ChatHandoffSourceUnavailable {
+        throw const SignInTimedOut();
       } on SessionRegistryStorageException catch (error, stackTrace) {
         _log.warning(
           DiagnosticMessage(
@@ -166,7 +172,11 @@ class AuthController extends _$AuthController {
               operation: 'auth.handoff',
               classification: 'storage.unavailable',
               safeDiagnostics: const {'failureStage': 'handoff_stage_storage'},
-              workflow: PublicRecordContext(actorDid: handoff.did),
+              workflow: handoff.purpose == HandoffPurpose.chat
+                  ? PrivateOperationalFailureContext(
+                      accountDid: handoff.did.value,
+                    )
+                  : PublicRecordContext(actorDid: handoff.did),
             ),
           ),
           error,
@@ -184,7 +194,11 @@ class AuthController extends _$AuthController {
               operation: 'auth.handoff',
               classification: 'storage.unavailable',
               safeDiagnostics: const {'failureStage': 'handoff_stage_mutation'},
-              workflow: PublicRecordContext(actorDid: handoff.did),
+              workflow: handoff.purpose == HandoffPurpose.chat
+                  ? PrivateOperationalFailureContext(
+                      accountDid: handoff.did.value,
+                    )
+                  : PublicRecordContext(actorDid: handoff.did),
             ),
           ),
           error,
@@ -202,6 +216,7 @@ class AuthController extends _$AuthController {
   /// response or process restart therefore cannot strand an active server
   /// session outside the local registry.
   Future<void> resumePendingHandoff() async {
+    _completedChatLease = null;
     state = const AsyncLoading();
     state = await AsyncValue.guard(() async {
       final registry = await ref.read(sessionRegistryProvider.future);
@@ -239,6 +254,19 @@ class AuthController extends _$AuthController {
   }
 
   Future<void> _runHandoffConfirmation(PendingHandoff handoff) async {
+    if (handoff.purpose == HandoffPurpose.chat) {
+      try {
+        ref
+            .read(sessionRegistryProvider)
+            .requireValue
+            .handoffForConfirmation(handoff.receiptId);
+      } on ChatHandoffSourceUnavailable {
+        await ref
+            .read(sessionRegistryProvider.notifier)
+            .discardHandoff(handoff.receiptId);
+        throw const SignInTimedOut();
+      }
+    }
     final api = ref.read(handoffApiClientProvider);
     try {
       await api.confirm(token: handoff.token, receiptId: handoff.receiptId);
@@ -263,10 +291,26 @@ class AuthController extends _$AuthController {
           .read(sessionRegistryProvider.notifier)
           .confirmHandoff(
             handoff.receiptId,
-            beforePublish: current.sessions.isEmpty
+            beforePublish:
+                current.sessions.isEmpty ||
+                    (handoff.purpose == HandoffPurpose.chat &&
+                        current.activeDid != handoff.did)
                 ? null
                 : ref.read(accountStateInvalidatorProvider),
           );
+      if (ref.mounted && handoff.purpose == HandoffPurpose.chat) {
+        final confirmed = ref.read(sessionRegistryProvider).requireValue;
+        final lease = confirmed.activeLease;
+        if (lease?.session.account.did == handoff.did &&
+            confirmed.sessions[handoff.did]?.token == handoff.token) {
+          _completedChatLease = lease;
+        }
+      }
+    } on ChatHandoffSourceUnavailable {
+      await ref
+          .read(sessionRegistryProvider.notifier)
+          .discardHandoff(handoff.receiptId);
+      throw const SignInTimedOut();
     } on SessionRegistryStorageException catch (error, stackTrace) {
       _log.warning(
         DiagnosticMessage(
@@ -276,7 +320,11 @@ class AuthController extends _$AuthController {
             operation: 'auth.handoff',
             classification: 'storage.unavailable',
             safeDiagnostics: const {'failureStage': 'handoff_confirm_storage'},
-            workflow: PublicRecordContext(actorDid: handoff.did),
+            workflow: handoff.purpose == HandoffPurpose.chat
+                ? PrivateOperationalFailureContext(
+                    accountDid: handoff.did.value,
+                  )
+                : PublicRecordContext(actorDid: handoff.did),
           ),
         ),
         error,
@@ -294,7 +342,11 @@ class AuthController extends _$AuthController {
             operation: 'auth.handoff',
             classification: 'storage.unavailable',
             safeDiagnostics: const {'failureStage': 'handoff_confirm_mutation'},
-            workflow: PublicRecordContext(actorDid: handoff.did),
+            workflow: handoff.purpose == HandoffPurpose.chat
+                ? PrivateOperationalFailureContext(
+                    accountDid: handoff.did.value,
+                  )
+                : PublicRecordContext(actorDid: handoff.did),
           ),
         ),
         error,

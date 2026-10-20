@@ -4611,4 +4611,274 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get postComposeClearPhotos => 'Clear all';
+
+  @override
+  String get chatEnableTitle => 'Enable messaging';
+
+  @override
+  String get chatSharedInboxDisclosure =>
+      'This is your shared Bluesky inbox, including conversations started in other apps. Read, accept, mute and leave actions also affect those apps.';
+
+  @override
+  String get chatStorageDisclosure =>
+      'Messages are stored by Bluesky, outside public PDS records. They are not end-to-end encrypted.';
+
+  @override
+  String get chatReportDisclosure =>
+      'Message reports go to Bluesky only. CraftSky moderators do not receive these reports.';
+
+  @override
+  String get chatPolicyDisclosure =>
+      'Your current shared incoming-message setting stays unchanged until you choose to change it.';
+
+  @override
+  String get chatPushTitle => 'Message notifications';
+
+  @override
+  String get chatPushDisclosure =>
+      'Show the sender’s name, without message text. This preference applies to all your devices; device notification permission still applies.';
+
+  @override
+  String get chatAuthorizeAction => 'Continue with Bluesky';
+
+  @override
+  String get chatReportTitle => 'Report message';
+
+  @override
+  String get chatReportEvidenceDisclosure =>
+      'Bluesky will receive a reference to this message, your selected reason and any explanation. CraftSky does not send a copied transcript.';
+
+  @override
+  String get chatReportReasonLabel => 'Reason';
+
+  @override
+  String get chatReportReasonSpam => 'Spam';
+
+  @override
+  String get chatReportReasonViolation => 'Illegal or prohibited content';
+
+  @override
+  String get chatReportReasonMisleading => 'Misleading content';
+
+  @override
+  String get chatReportReasonSexual => 'Sexual content';
+
+  @override
+  String get chatReportReasonRude => 'Harassment or abuse';
+
+  @override
+  String get chatReportReasonOther => 'Other';
+
+  @override
+  String get chatReportExplanationLabel => 'Explanation (optional)';
+
+  @override
+  String get chatReportInvalidExplanation =>
+      'Use at most 2,000 characters and 20,000 UTF-8 bytes. Your explanation has been kept for editing.';
+
+  @override
+  String get chatReportAction => 'Report to Bluesky';
+
+  @override
+  String get chatReportConfirmed => 'Report sent to Bluesky.';
+
+  @override
+  String get chatReportFailed =>
+      'Bluesky did not accept this report. Your explanation has been kept.';
+
+  @override
+  String get chatReportUncertain =>
+      'We could not confirm whether Bluesky received this report. Your explanation has been kept; it will not be sent again automatically.';
+
+  @override
+  String get chatMessageDeleted => 'Message deleted';
+
+  @override
+  String get chatMessageUnsupported => 'Unsupported message';
+
+  @override
+  String get chatLoadingOlder => 'Loading older messages';
+
+  @override
+  String get chatInboxTitle => 'Messages';
+
+  @override
+  String get chatInboxTab => 'Inbox';
+
+  @override
+  String get chatRequestsTab => 'Requests';
+
+  @override
+  String get chatNewMessage => 'New message';
+
+  @override
+  String get chatSettingsTitle => 'Message settings';
+
+  @override
+  String get chatUnavailable =>
+      'Messaging is temporarily unavailable. Try again.';
+
+  @override
+  String get chatRestricted =>
+      'Messaging is restricted by Bluesky. Other CraftSky features are still available.';
+
+  @override
+  String get chatEmptyInbox => 'No messages yet.';
+
+  @override
+  String get chatEmptyRequests => 'No message requests.';
+
+  @override
+  String get chatSomeone => 'Someone';
+
+  @override
+  String get chatMuted => 'Conversation muted';
+
+  @override
+  String get chatLoadMore => 'Load more';
+
+  @override
+  String get chatRefresh => 'Refresh';
+
+  @override
+  String get chatAcceptRequest => 'Accept request';
+
+  @override
+  String get chatRequestExplanation =>
+      'Accept this shared message request before sending a reply. Reading it does not accept it.';
+
+  @override
+  String get chatComposeLabel => 'Message';
+
+  @override
+  String get chatSend => 'Send message';
+
+  @override
+  String get chatSending => 'Sending…';
+
+  @override
+  String get chatSendFailed => 'This message was not sent. Your draft is kept.';
+
+  @override
+  String get chatSendUncertain =>
+      'We could not confirm whether this message was sent. Your text is kept. It will not be sent again automatically.';
+
+  @override
+  String get chatCheckStatus => 'Check status';
+
+  @override
+  String get chatDiscardDraft => 'Discard draft';
+
+  @override
+  String get chatDraftSaveFailed =>
+      'Could not save this draft on your device. Your text is kept here. Try saving again before leaving.';
+
+  @override
+  String get chatSaveDraft => 'Save draft';
+
+  @override
+  String get chatMessageInvalid =>
+      'Write a nonblank message with at most 1,000 characters and 10,000 UTF-8 bytes.';
+
+  @override
+  String get chatCannotSend =>
+      'You cannot send to this conversation right now.';
+
+  @override
+  String get chatSendAgain => 'Send again';
+
+  @override
+  String get chatSendAgainWarning =>
+      'The earlier message may already have been sent. Sending it again could create a duplicate. Any newer draft will be kept.';
+
+  @override
+  String get chatDisconnectTitle => 'Disconnect messaging';
+
+  @override
+  String get chatDisconnect => 'Disconnect';
+
+  @override
+  String get chatDisconnectExplanation =>
+      'CraftSky will stop accessing your shared inbox. Your local drafts stay on this device and will be hidden until you reconnect. Your shared incoming-message policy stays unchanged.';
+
+  @override
+  String get chatDisconnected => 'Messaging is disconnected.';
+
+  @override
+  String get chatIncomingTitle => 'Who can message me';
+
+  @override
+  String get chatIncomingExplanation =>
+      'This setting is shared with Bluesky and other apps. Changes may take time to appear there and do not remove existing conversations.';
+
+  @override
+  String get chatIncomingEveryone => 'Everyone';
+
+  @override
+  String get chatIncomingFollowing => 'People I follow';
+
+  @override
+  String get chatIncomingNobody => 'Nobody';
+
+  @override
+  String get chatPolicyUnavailable =>
+      'Reconnect with incoming-message settings permission to change this shared setting.';
+
+  @override
+  String get chatSearchCraftsky => 'Search CraftSky profiles';
+
+  @override
+  String get chatStartConversation => 'Start conversation';
+
+  @override
+  String get chatRecipientUnavailable =>
+      'This person cannot receive a new message from you right now.';
+
+  @override
+  String get chatConversationActions => 'Conversation actions';
+
+  @override
+  String get chatMute => 'Mute conversation';
+
+  @override
+  String get chatUnmute => 'Unmute conversation';
+
+  @override
+  String get chatLeaveTitle => 'Leave conversation';
+
+  @override
+  String get chatLeave => 'Leave';
+
+  @override
+  String get chatLeaveExplanation =>
+      'Leaving also affects your shared inbox in other apps. CraftSky will stop showing this conversation; this does not delete the other person’s messages.';
+
+  @override
+  String chatUnreadConversations(String count) {
+    return '$count unread conversations';
+  }
+
+  @override
+  String get chatSyncStale =>
+      'Messages may be out of date. Your loaded messages and draft are kept.';
+
+  @override
+  String get chatSyncUpdating => 'Updating your shared inbox…';
+
+  @override
+  String get chatPreviewPost => 'CraftSky post';
+
+  @override
+  String get chatPreviewProfile => 'CraftSky profile';
+
+  @override
+  String get chatPreviewEvent => 'CraftSky event';
+
+  @override
+  String get chatReviewPermissions => 'Review messaging permissions';
+
+  @override
+  String chatLastUpdated(String time) {
+    return 'Last updated $time';
+  }
 }

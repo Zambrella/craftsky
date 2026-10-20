@@ -13,6 +13,12 @@ type repoScopePermission struct {
 	actions     []string
 }
 
+// HasEffectiveScopes uses the same semantic evaluator as login, refresh and
+// the fenced optional-operation boundary. It does not authorize a session.
+func HasEffectiveScopes(granted, required []string) bool {
+	return validRegistrationTokenScopes(strings.Join(granted, " "), required)
+}
+
 func requiredScopeGranted(required string, granted []string, exact map[string]struct{}) bool {
 	if _, ok := exact[required]; ok {
 		return true
@@ -48,7 +54,83 @@ func requiredScopeGranted(required string, granted []string, exact map[string]st
 		}
 		return true
 	}
+	if permission, ok := parseRPCScope(required); ok {
+		for _, method := range permission.methods {
+			covered := false
+			for _, raw := range granted {
+				candidate, valid := parseRPCScope(raw)
+				if valid && candidate.audience == permission.audience {
+					for _, allowed := range candidate.methods {
+						covered = covered || allowed == method
+					}
+				}
+			}
+			if !covered {
+				return false
+			}
+		}
+		return true
+	}
 	return false
+}
+
+type rpcScopePermission struct {
+	methods  []syntax.NSID
+	audience string
+}
+
+// Parse only explicit method grants; wildcard RPC scopes cannot establish a
+// narrow chat capability. Audience equality includes the service fragment.
+// https://atproto.com/specs/permission defines repeated lxm parameters and
+// forbids specifying the positional parameter twice.
+func parseRPCScope(raw string) (rpcScopePermission, bool) {
+	resource, query, _ := strings.Cut(raw, "?")
+	name, positional, hasPositional := strings.Cut(resource, ":")
+	if name != "rpc" {
+		return rpcScopePermission{}, false
+	}
+	parameters, err := url.ParseQuery(query)
+	if err != nil {
+		return rpcScopePermission{}, false
+	}
+	for key := range parameters {
+		if key != "lxm" && key != "aud" {
+			return rpcScopePermission{}, false
+		}
+	}
+	audiences := parameters["aud"]
+	if len(audiences) != 1 || audiences[0] == "" {
+		return rpcScopePermission{}, false
+	}
+	if audiences[0] != "*" {
+		did, fragment, ok := strings.Cut(audiences[0], "#")
+		if _, err := syntax.ParseDID(did); err != nil || !ok || fragment == "" || strings.Contains(fragment, "#") {
+			return rpcScopePermission{}, false
+		}
+	}
+	methods := parameters["lxm"]
+	if hasPositional {
+		if _, present := parameters["lxm"]; present {
+			return rpcScopePermission{}, false
+		}
+		decoded, err := url.PathUnescape(positional)
+		if err != nil {
+			return rpcScopePermission{}, false
+		}
+		methods = []string{decoded}
+	}
+	if len(methods) == 0 {
+		return rpcScopePermission{}, false
+	}
+	permission := rpcScopePermission{audience: audiences[0]}
+	for _, rawMethod := range methods {
+		method, err := syntax.ParseNSID(rawMethod)
+		if err != nil {
+			return rpcScopePermission{}, false
+		}
+		permission.methods = append(permission.methods, method)
+	}
+	return permission, true
 }
 
 func repoAuthorityGranted(collection syntax.NSID, actions []string, granted []string) bool {

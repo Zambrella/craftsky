@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:craftsky_app/auth/data/auth_api_client.dart';
 import 'package:craftsky_app/auth/data/handoff_api_client.dart';
+import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/auth/models/auth_error.dart';
 import 'package:craftsky_app/auth/models/auth_state.dart';
 import 'package:craftsky_app/auth/models/pending_auth.dart' as model;
@@ -29,8 +30,10 @@ import 'package:craftsky_app/shared/observability/diagnostic_emitter.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_outcome.dart';
 import 'package:craftsky_app/shared/observability/error_reporter.dart';
+import 'package:crypto/crypto.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:logging/logging.dart';
 
@@ -169,6 +172,225 @@ ProviderContainer _container({
 
 void main() {
   setUpAll(initializeMappers);
+  setUp(() => FlutterSecureStorage.setMockInitialValues({}));
+  test(
+    'IT-018 chat handoff storage failure selects private serialized context',
+    () async {
+      final output = <String>[];
+      final emitter = DiagnosticEmitter(platformSink: output.add);
+      final subscription = Logger.root.onRecord.listen(emitter.emitLocal);
+      addTearDown(subscription.cancel);
+      final sourceHash = base64Url
+          .encode(sha256.convert(utf8.encode('private-source-token')).bytes)
+          .replaceAll('=', '');
+      final initial = SessionRegistry.empty().upsertAndActivate(
+        token: 'private-source-token',
+        did: 'did:plc:alice',
+        handle: 'alice.test',
+      );
+      final storage = _FakeRegistryStorage(initial)..failOnWrite = 2;
+      final handoff = _FakeHandoffApi(
+        onExchange: (_) async => PendingHandoff.fromMap({
+          'token': 'private-chat-child',
+          'did': 'did:plc:alice',
+          'handle': 'alice.test',
+          'receiptId': 'private-receipt',
+          'confirmBy': '2026-10-20T00:00:00Z',
+          'purpose': 'chat',
+          'sourceTokenHash': sourceHash,
+        }),
+      );
+      final container = _container(
+        handoff: handoff,
+        registryStorage: storage,
+        invalidateAccountState: () async {},
+      );
+      await container.read(sessionRegistryProvider.future);
+      await container
+          .read(authControllerProvider.notifier)
+          .completeFromDeepLink('private-browser-code');
+      await Future<void>.delayed(Duration.zero);
+      final diagnostic = output
+          .map((line) => jsonDecode(line) as Map<String, dynamic>)
+          .lastWhere((line) => line['feature'] == 'AuthController');
+      expect(diagnostic['failureStage'], 'handoff_confirm_storage');
+      final selected = diagnostic['diagnostic'] as Map<String, dynamic>;
+      expect(selected['operationAccountDid'], 'did:plc:alice');
+      expect(selected, isNot(contains('actorDid')));
+      final serialized = jsonEncode(diagnostic);
+      for (final value in [
+        'private-source-token',
+        'private-chat-child',
+        'private-receipt',
+        'private-browser-code',
+        sourceHash,
+      ]) {
+        expect(serialized, isNot(contains(value)));
+      }
+    },
+  );
+  for (final duringConfirmation in [false, true]) {
+    test('IT-015 replaced source rejects chat confirmation '
+        '(during=$duringConfirmation)', () async {
+      final sourceHash = base64Url
+          .encode(sha256.convert(utf8.encode('alice-token')).bytes)
+          .replaceAll('=', '');
+      var initial = SessionRegistry.empty().upsertAndActivate(
+        token: 'alice-token',
+        did: 'did:plc:alice',
+        handle: 'alice.test',
+      );
+      initial = initial.stageHandoff(
+        PendingHandoff.fromMap({
+          'token': 'chat-child',
+          'did': 'did:plc:alice',
+          'handle': 'alice.test',
+          'receiptId': 'chat-receipt',
+          'confirmBy': '2026-10-20T00:00:00Z',
+          'purpose': 'chat',
+          'sourceTokenHash': sourceHash,
+        }),
+      );
+      if (!duringConfirmation) {
+        initial = initial.upsertAndActivate(
+          token: 'newer-token',
+          did: 'did:plc:alice',
+          handle: 'alice.test',
+        );
+      }
+      final storage = _FakeRegistryStorage(initial);
+      late ProviderContainer container;
+      final handoff = _FakeHandoffApi(
+        onConfirm: (_, _) async {
+          if (duringConfirmation) {
+            await container
+                .read(sessionRegistryProvider.notifier)
+                .upsertAndActivate(
+                  token: 'newer-token',
+                  did: 'did:plc:alice',
+                  handle: 'alice.test',
+                );
+          }
+        },
+      );
+      container = _container(handoff: handoff, registryStorage: storage);
+      await container.read(sessionRegistryProvider.future);
+      await container
+          .read(authControllerProvider.notifier)
+          .resumePendingHandoff();
+      expect(
+        container.read(authControllerProvider).error,
+        isA<SignInTimedOut>(),
+      );
+      expect(storage.value.sessions['did:plc:alice']!.token, 'newer-token');
+      expect(storage.value.pendingHandoff, isNull);
+      expect(handoff.confirmations, hasLength(duringConfirmation ? 1 : 0));
+    });
+  }
+
+  test(
+    'IT-015 chat confirmation preserves another active account boundary',
+    () async {
+      final sourceHash = base64Url
+          .encode(sha256.convert(utf8.encode('alice-token')).bytes)
+          .replaceAll('=', '');
+      final initial = SessionRegistry.empty()
+          .upsertAndActivate(
+            token: 'alice-token',
+            did: 'did:plc:alice',
+            handle: 'alice.test',
+          )
+          .upsertAndActivate(
+            token: 'bob-token',
+            did: 'did:plc:bob',
+            handle: 'bob.test',
+          );
+      final storage = _FakeRegistryStorage(initial);
+      final handoff = _FakeHandoffApi(
+        onExchange: (_) async => PendingHandoff.fromMap({
+          'token': 'chat-child',
+          'did': 'did:plc:alice',
+          'handle': 'alice.test',
+          'receiptId': 'chat-receipt',
+          'confirmBy': '2026-10-20T00:00:00Z',
+          'purpose': 'chat',
+          'sourceTokenHash': sourceHash,
+        }),
+      );
+      var invalidations = 0;
+      final container = _container(
+        handoff: handoff,
+        registryStorage: storage,
+        invalidateAccountState: () async {
+          invalidations++;
+        },
+      );
+      await container.read(sessionRegistryProvider.future);
+      await container
+          .read(authControllerProvider.notifier)
+          .completeFromDeepLink('chat-code');
+      expect(container.read(authControllerProvider).hasError, isFalse);
+      expect(storage.value.activeLease, initial.activeLease);
+      expect(storage.value.sessions['did:plc:alice']!.token, 'chat-child');
+      expect(invalidations, 0);
+      expect(handoff.confirmations, hasLength(1));
+    },
+  );
+  test(
+    'IT-015 active chat confirmation publishes the exact completed activation',
+    () async {
+      final sourceHash = base64Url
+          .encode(sha256.convert(utf8.encode('alice-token')).bytes)
+          .replaceAll('=', '');
+      var initial = SessionRegistry.empty()
+          .upsertAndActivate(
+            token: 'alice-token',
+            did: 'did:plc:alice',
+            handle: 'alice.test',
+          )
+          .upsertAndActivate(
+            token: 'bob-token',
+            did: 'did:plc:bob',
+            handle: 'bob.test',
+          );
+      initial = initial.activate(
+        initial.leaseFor(AccountKey('did:plc:alice'))!,
+      );
+      final storage = _FakeRegistryStorage(initial);
+      final handoff = _FakeHandoffApi(
+        onExchange: (_) async => PendingHandoff.fromMap({
+          'token': 'chat-child',
+          'did': 'did:plc:alice',
+          'handle': 'alice.test',
+          'receiptId': 'chat-receipt',
+          'confirmBy': '2026-10-20T00:00:00Z',
+          'purpose': 'chat',
+          'sourceTokenHash': sourceHash,
+        }),
+      );
+      var invalidations = 0;
+      final container = _container(
+        handoff: handoff,
+        registryStorage: storage,
+        invalidateAccountState: () async {
+          invalidations++;
+        },
+      );
+      await container.read(sessionRegistryProvider.future);
+      await container
+          .read(authControllerProvider.notifier)
+          .completeFromDeepLink('chat-code');
+      expect(container.read(authControllerProvider).hasError, isFalse);
+      expect(
+        container.read(authControllerProvider.notifier).completedChatLease,
+        storage.value.activeLease,
+      );
+      expect(storage.value.activeLease, isNot(initial.activeLease));
+      expect(storage.value.sessions['did:plc:alice']!.token, 'chat-child');
+      expect(invalidations, 1);
+      expect(handoff.confirmations, hasLength(1));
+    },
+  );
 
   test('signIn trims handle + @ prefix and posts to /login', () async {
     final launch = _LaunchRecorder();

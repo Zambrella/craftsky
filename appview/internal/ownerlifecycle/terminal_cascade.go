@@ -18,6 +18,8 @@ import (
 // additional rows. The catalogue integration test rejects an unclassified new
 // cascading parent.
 var terminalCascadePolicies = map[string]string{
+	"chat_accounts":                     "dependency",
+	"chat_notifications":                "dependency",
 	"account_deletion_operations":       "dependency",
 	"craftsky_posts":                    "drain",
 	"craftsky_profiles":                 "dependency",
@@ -166,6 +168,16 @@ func terminalCascadeDrainSQL(entry TerminalDIDEntry) []string {
 		}
 	case "push_account_subscriptions":
 		return []string{`
+			WITH target AS (
+				SELECT child.owner_did,child.id
+				FROM chat_push_deliveries AS child
+				JOIN push_account_subscriptions AS parent ON parent.id=child.account_subscription_id
+				WHERE parent.account_did=$1 AND parent.ctid=ANY($3::tid[])
+				ORDER BY child.owner_did,child.id LIMIT $2 FOR UPDATE OF child NOWAIT
+			)
+			DELETE FROM chat_push_deliveries AS child USING target
+			WHERE child.owner_did=target.owner_did AND child.id=target.id
+		`, `
 			WITH target AS (
 				SELECT child.id
 				FROM push_deliveries AS child

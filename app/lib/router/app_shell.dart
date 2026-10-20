@@ -9,6 +9,7 @@ import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/auth/providers/unsaved_work_guard_provider.dart';
 import 'package:craftsky_app/auth/widgets/account_avatar.dart';
 import 'package:craftsky_app/auth/widgets/account_switcher_launcher.dart';
+import 'package:craftsky_app/chat/widgets/chat_unread_icon.dart';
 import 'package:craftsky_app/feed/providers/profile_pins_provider.dart';
 import 'package:craftsky_app/feed/widgets/post_composer_sheet.dart';
 import 'package:craftsky_app/feed/widgets/post_type_chooser.dart';
@@ -91,6 +92,10 @@ const _secondaryDestinations = <_DestinationSpec>[
   _DestinationSpec(
     icon: CraftskyIcons.settings,
     selectedIcon: CraftskyIcons.settingsSelected,
+  ),
+  _DestinationSpec(
+    icon: CraftskyIcons.comment,
+    selectedIcon: CraftskyIconsBold.comment,
   ),
 ];
 
@@ -205,6 +210,7 @@ class _AuthenticatedShellState extends State<AuthenticatedShell> {
       6 => RouteLocations.scheduledPosts,
       7 => RouteLocations.drafts,
       8 => RouteLocations.settings,
+      9 => RouteLocations.messages,
       _ => throw RangeError.index(index, _menuDestinations),
     };
     context.go(location);
@@ -701,6 +707,7 @@ class _AppShellState extends ConsumerState<AppShell> {
       1 => RouteLocations.scheduledPosts,
       2 => RouteLocations.drafts,
       3 => RouteLocations.settings,
+      4 => RouteLocations.messages,
       _ => throw RangeError.index(index, _menuDestinations),
     };
     context.go(location);
@@ -848,8 +855,11 @@ class _ShellDrawerState extends State<_ShellDrawer> {
                           selected:
                               selectedIndex ==
                               _primaryDestinations.length + offset,
-                          leading: Icon(
-                            selectedIndex ==
+                          leading: _DestinationIcon(
+                            messaging:
+                                _primaryDestinations.length + offset == 9,
+                            icon:
+                                selectedIndex ==
                                     _primaryDestinations.length + offset
                                 ? destination.selectedIcon
                                 : destination.icon,
@@ -1107,6 +1117,7 @@ class _ShellNavigationRail extends StatelessWidget {
                       NavigationRailDestination(
                         icon: _DestinationIcon(
                           icon: d.icon,
+                          messaging: index == 9,
                           badge: index == 3 ? notificationBadge : null,
                           profileIconOnly: index == 4,
                           onTapDestination: index == 4
@@ -1118,6 +1129,7 @@ class _ShellNavigationRail extends StatelessWidget {
                         ),
                         selectedIcon: _DestinationIcon(
                           icon: d.selectedIcon,
+                          messaging: index == 9,
                           badge: index == 3 ? notificationBadge : null,
                           profileIconOnly: index == 4,
                           onTapDestination: index == 4
@@ -1286,10 +1298,13 @@ String _destinationLabel(AppLocalizations l10n, int index) => switch (index) {
   6 => l10n.navigationScheduled,
   7 => l10n.draftsTitle,
   8 => l10n.profileSettingsAction,
+  9 => l10n.chatInboxTitle,
   _ => throw RangeError.index(index, _menuDestinations),
 };
 
 int _selectedDestinationIndex(String matchedLocation, int branchIndex) {
+  if (matchedLocation.startsWith(RouteLocations.messages)) return 9;
+  if (matchedLocation == RouteLocations.messagingSettings) return 8;
   if (matchedLocation.startsWith(RouteLocations.savedPosts)) return 5;
   if (matchedLocation.startsWith(RouteLocations.scheduledPosts)) return 6;
   if (matchedLocation.startsWith(RouteLocations.drafts)) return 7;
@@ -1323,6 +1338,7 @@ class _DestinationIcon extends StatelessWidget {
   const new({
     required this.icon,
     this.badge,
+    this.messaging = false,
     this.profileAvatarUrl,
     this.profileSeed = '',
     this.profileCustomisation = ProfileCustomisation.defaults,
@@ -1335,6 +1351,7 @@ class _DestinationIcon extends StatelessWidget {
 
   final IconData icon;
   final NotificationBadge? badge;
+  final bool messaging;
   final String? profileAvatarUrl;
   final String profileSeed;
   final ProfileCustomisation profileCustomisation;
@@ -1346,6 +1363,7 @@ class _DestinationIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (messaging) return ChatUnreadIcon(icon: icon);
     final value = badge;
     Widget child = onOpenAccountSwitcher == null || profileIconOnly
         ? Icon(icon)
