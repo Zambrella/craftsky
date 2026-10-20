@@ -242,3 +242,27 @@ runtime/device execution or live messaging. IR-006 is addressed locally; review
 approval is pending a fresh review rather than inferred from passing tests.
 Manual/live validation, report acceptance and key-provisioning boundaries remain
 unchanged. No commit, push, deployment or production mutation was performed.
+
+## Local manual-test configuration repair: 2026-10-20
+
+The owner reported the enable-messaging “Continue with Bluesky” action failing
+in the local development app. Read-only runtime inspection confirmed four POST
+`/v1/chat/authorization` responses with HTTP 503 around 15:32 UTC. This worktree's
+AppView had no CHAT_OPERATION_HMAC_KEY, and no .env.local existed. The route
+composition deliberately omits its authorization starter without that key.
+
+Provisioned a fresh dedicated 32-byte key with version 1 in ignored .env.local
+(mode 0600), without printing the key. No previous key was replaced. A count-only
+local DB check found zero enabled messaging accounts before the restart. Recreated
+only this worktree's AppView using `scripts/compose-dev up -d --no-deps appview`;
+other services/worktrees, production and application source were untouched.
+Runtime inspection confirms the key is loaded and decodes to 32 bytes. The DB
+health check passes and Tap is connected; initial aggregate health was degraded
+while Tap telemetry had no cursor-advance sample after the restart. A subsequent
+operator health check returns status ok, db ok and Tap telemetry progressing.
+
+The confirmed local configuration blocker is removed. OAuth consent/return and
+actual messaging remain owner-run validation; no account credentials, live chat
+messages, reports or push deliveries were used to test this repair. Preserve the
+local key across future restarts. Earlier statements that no key had been
+provisioned describe prior implementation passes, before this repair.
