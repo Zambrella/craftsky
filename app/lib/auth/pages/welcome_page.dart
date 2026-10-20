@@ -4,6 +4,7 @@ import 'package:craftsky_app/auth/models/auth_error.dart';
 import 'package:craftsky_app/auth/models/session_registry.dart';
 import 'package:craftsky_app/auth/providers/auth_controller.dart';
 import 'package:craftsky_app/auth/widgets/handle_typeahead_field.dart';
+import 'package:craftsky_app/keys.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/shared/link/external_link.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
@@ -127,6 +128,7 @@ class _WelcomePageState extends ConsumerState<WelcomePage> {
                           _OrDivider(label: l10n.welcomeOr),
                           SizedBox(height: spacing.sp5),
                           HandleTypeaheadField(
+                            key: keys.auth.handle,
                             hintText: 'your-handle.bsky.social',
                             controller: _handleController,
                             enabled: !busy,
@@ -134,6 +136,7 @@ class _WelcomePageState extends ConsumerState<WelcomePage> {
                           ),
                           SizedBox(height: spacing.sp4),
                           ChunkyButton(
+                            key: keys.auth.signIn,
                             variant: ChunkyButtonVariant.secondary,
                             onPressed: busy ? null : _signIn,
                             child: ActionProgress(

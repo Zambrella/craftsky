@@ -12,6 +12,7 @@ import 'package:craftsky_app/feed/widgets/inline_pinch_zoom.dart';
 import 'package:craftsky_app/feed/widgets/post_card.dart';
 import 'package:craftsky_app/feed/widgets/post_composer_sheet.dart';
 import 'package:craftsky_app/feed/widgets/post_type_chooser.dart';
+import 'package:craftsky_app/keys.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/moderation/widgets/report_flow.dart';
 import 'package:craftsky_app/router/app_shell_drawer.dart';
@@ -97,6 +98,7 @@ class _FeedPageState extends ConsumerState<FeedPage> {
       floatingActionButton: isCompact
           ? Builder(
               builder: (buttonContext) => CraftskyFloatingActionButton.extended(
+                key: keys.feed.compose,
                 tooltip: l10n.postComposeAction,
                 onPressed: () => _openComposer(buttonContext),
                 icon: const Icon(CraftskyIconsBold.add),
@@ -258,6 +260,7 @@ class _FeedLoadedSlivers extends ConsumerWidget {
               final item = items[index];
               final post = item.post;
               return PostCard(
+                key: keys.feed.post(post.uri),
                 post: post,
                 collapseBody: true,
                 imageInteractionMode: PostCardImageInteractionMode.navigate,

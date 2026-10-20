@@ -1,3 +1,4 @@
+import 'package:craftsky_app/keys.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/onboarding/models/onboarding_action_state.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
@@ -41,6 +42,7 @@ class OnboardingBottomAction extends StatelessWidget {
           child: SizedBox(
             width: double.infinity,
             child: ChunkyButton(
+              key: keys.onboarding.next(state.kind),
               onPressed: state.canSubmit ? onPressed : null,
               child: state.busy
                   ? const StitchProgressIndicator(size: 20)

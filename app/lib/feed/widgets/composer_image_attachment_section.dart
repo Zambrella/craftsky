@@ -4,6 +4,7 @@ import 'package:animated_list_plus/animated_list_plus.dart';
 import 'package:animated_list_plus/transitions.dart';
 import 'package:craftsky_app/feed/media/media_config.dart';
 import 'package:craftsky_app/feed/providers/composer_image_state.dart';
+import 'package:craftsky_app/keys.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/shared/image/craftsky_image_attachment_preview.dart';
 import 'package:craftsky_app/shared/media/image_source_menu.dart';
@@ -185,7 +186,7 @@ class ComposerImageAttachmentSection extends StatefulWidget {
           _AddPhotoCard(
             remainingCount: maxImages - imagesState.images.length,
             maxImages: maxImages,
-            addKey: Key('$keyPrefix-add-image'),
+            addKey: keys.composerImages.add(keyPrefix),
             hasImages: imagesState.images.isNotEmpty,
             supportsVideo:
                 allowVideo && supportsVideo && imagesState.images.isEmpty,
@@ -335,7 +336,7 @@ class _ComposerImageAttachmentSectionState
     final theme = Theme.of(context);
     final spacing = theme.extension<SpacingTheme>()!;
     return Scaffold(
-      key: Key('${section.keyPrefix}-photo-details'),
+      key: keys.composerImages.page(section.keyPrefix),
       backgroundColor: theme.extension<BrandSwatchTheme>()!.paper,
       appBar: AppBar(
         title: Text(
@@ -397,7 +398,7 @@ class _ComposerImageAttachmentSectionState
           ),
           clipBehavior: Clip.antiAlias,
           child: InkWell(
-            key: Key('${section.keyPrefix}-edit-images'),
+            key: keys.composerImages.details(section.keyPrefix),
             focusNode: _summaryFocusNode,
             onTap: section.enabled ? _openDetails : null,
             child: Padding(

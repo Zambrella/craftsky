@@ -423,6 +423,14 @@ app-test-integration DEVICE *ARGS:
 app-test-integration-ci DEVICE *ARGS:
     cd app && flutter test integration_test/critical_journeys_test.dart -d '{{DEVICE}}' --no-pub --reporter expanded {{ARGS}}
 
+# Explicit live writes with a disposable account. Never part of app-test or CI.
+app-test-e2e DEVICE:
+    python3 scripts/app-test-e2e '{{DEVICE}}'
+
+# No backend/account required; verifies the selected native Patrol runner.
+app-test-e2e-harness DEVICE:
+    python3 scripts/app-test-e2e '{{DEVICE}}' --harness
+
 # Install the standalone Instagram importer's checked dependency graph.
 importer-install:
     npm ci --prefix instagram-importer
