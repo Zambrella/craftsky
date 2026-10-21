@@ -3,6 +3,7 @@ import 'package:craftsky_app/instagram_migration/services/instagram_selected_exp
     if (dart.library.io) 'package:craftsky_app/instagram_migration/services/instagram_selected_export_parser_native.dart'
     as platform;
 import 'package:file_selector/file_selector.dart' as file_selector;
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 typedef InstagramExportFilePicker =
@@ -10,6 +11,9 @@ typedef InstagramExportFilePicker =
 
 final instagramExportFilePickerProvider = Provider<InstagramExportFilePicker>(
   (_) => () async {
+    if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+      return await platform.pickAndroidInstagramExport();
+    }
     const exportFiles = file_selector.XTypeGroup(
       label: 'Instagram export',
       extensions: ['json', 'zip'],

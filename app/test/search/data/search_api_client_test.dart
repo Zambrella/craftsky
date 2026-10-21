@@ -9,6 +9,7 @@ import 'package:craftsky_app/search/models/search_suggestions.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/api/providers/error_mapping_interceptor.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
+import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http_mock_adapter/http_mock_adapter.dart';
@@ -20,6 +21,39 @@ void main() {
     return Dio(BaseOptions(baseUrl: 'https://appview.example.com'))
       ..interceptors.add(const ErrorMappingInterceptor());
   }
+
+  test(
+    'hashtag decode failure selects schema facts and preserves the cause',
+    () async {
+      final dio = buildDio();
+      DioAdapter(dio: dio).onGet(
+        '/v1/search/hashtags',
+        (server) => server.reply(200, {
+          'items': [
+            {'tag': 'PRIVATE_SEARCH_VALUE', 'postCount': null},
+          ],
+        }),
+        queryParameters: {'q': 'PRIVATE_SEARCH_QUERY'},
+      );
+      await expectLater(
+        SearchApiClient(dio).searchHashtags(q: 'PRIVATE_SEARCH_QUERY'),
+        throwsA(
+          isA<DiagnosticFormatException>()
+              .having(
+                (error) => error.message,
+                'schema reason',
+                'Search hashtag postCount is null',
+              )
+              .having((error) => error.diagnosticCause, 'cause', isNotNull)
+              .having(
+                (error) => error.diagnosticStack,
+                'caught stack',
+                isNotNull,
+              ),
+        ),
+      );
+    },
+  );
 
   Map<String, dynamic> samplePost({String rkey = '3lf2abc'}) => {
     'uri': 'at://did:plc:alice/social.craftsky.feed.post/$rkey',

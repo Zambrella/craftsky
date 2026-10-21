@@ -248,6 +248,7 @@ class OnboardingFlow extends _$OnboardingFlow {
       final repository = await ref.read(
         accountProfileRepositoryProvider(lease).future,
       );
+      if (!_isCurrent()) return;
       final payload = OnboardingProfilePayload.fromState(
         current,
         avatar: current.avatarBlob,

@@ -5,7 +5,6 @@ import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/onboarding/models/onboarding_completion.dart';
 import 'package:craftsky_app/onboarding/providers/onboarding_repository_provider.dart';
-import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:logging/logging.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -43,7 +42,7 @@ class OnboardingStatus extends _$OnboardingStatus {
         )
         .requireValue;
     if (currentLease != lease) {
-      throw DiagnosticStateError('Account session unavailable');
+      throw AccountOperationCanceled();
     }
     final repository = await ref.watch(
       onboardingRepositoryProvider(lease).future,
@@ -66,6 +65,7 @@ class OnboardingStatus extends _$OnboardingStatus {
       final repository = await ref.read(
         onboardingRepositoryProvider(lease).future,
       );
+      if (!_ownsLease()) return;
       final delays = ref.read(onboardingCompletionRetryDelaysProvider);
       for (var attempt = 0; ; attempt++) {
         if (!_ownsLease()) return;
@@ -91,5 +91,6 @@ class OnboardingStatus extends _$OnboardingStatus {
   }
 
   bool _ownsLease() =>
+      ref.mounted &&
       ref.read(sessionRegistryProvider).value?.leaseFor(lease.account) == lease;
 }

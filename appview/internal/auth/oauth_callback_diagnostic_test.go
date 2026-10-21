@@ -35,3 +35,20 @@ func TestScopeDiagnosticRetainsOnlyFixedFacts(t *testing.T) {
 		t.Fatal("diagnostics changed authorization decisions")
 	}
 }
+
+func TestProviderCallbackReasonSelectsOnlyKnownCode(t *testing.T) {
+	for _, test := range []struct{ input, want string }{
+		{"access_denied", "provider_callback_error_access_denied"},
+		{"server_error", "provider_callback_error_server_error"},
+		{"PRIVATE_CODE https://private.invalid/?code=secret", "provider_callback_error_unknown"},
+	} {
+		err := providerCallbackDiagnostic(test.input)
+		var diagnostic *OAuthCallbackDiagnostic
+		if !errors.As(err, &diagnostic) || !errors.Is(err, ErrOAuthFlowInvalid) || diagnostic.Reason() != test.want {
+			t.Fatal("wrong callback reason")
+		}
+		if strings.Contains(diagnostic.DiagnosticMessage(), "PRIVATE_") || strings.Contains(diagnostic.DiagnosticMessage(), "secret") {
+			t.Fatal("private provider prose escaped")
+		}
+	}
+}

@@ -6,6 +6,7 @@ import 'package:craftsky_app/search/models/search_sort.dart';
 import 'package:craftsky_app/search/models/search_suggestions.dart';
 import 'package:craftsky_app/search/models/top_hashtags.dart';
 import 'package:craftsky_app/shared/api/api_unwrap.dart';
+import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
 import 'package:dio/dio.dart';
 
 /// Search-related AppView endpoints. Assumes the attached [Dio] has the
@@ -32,7 +33,18 @@ class SearchApiClient {
         'hashtagLimit': ?hashtagLimit?.toString(),
       },
     );
-    return SearchSuggestionsMapper.fromMap(res.data!);
+    try {
+      return SearchSuggestionsMapper.fromMap(res.data!);
+    } on Object catch (error, stack) {
+      Error.throwWithStackTrace(
+        DiagnosticFormatException(
+          _hashtagDecodeReason(res.data?['hashtags']),
+          diagnosticCause: error,
+          diagnosticStack: stack,
+        ),
+        stack,
+      );
+    }
   });
 
   /// GET /v1/search/hashtags
@@ -45,7 +57,18 @@ class SearchApiClient {
       '/v1/search/hashtags',
       queryParameters: {'q': q, 'limit': ?limit?.toString(), 'cursor': ?cursor},
     );
-    return HashtagSearchPageMapper.fromMap(res.data!);
+    try {
+      return HashtagSearchPageMapper.fromMap(res.data!);
+    } on Object catch (error, stack) {
+      Error.throwWithStackTrace(
+        DiagnosticFormatException(
+          _hashtagDecodeReason(res.data),
+          diagnosticCause: error,
+          diagnosticStack: stack,
+        ),
+        stack,
+      );
+    }
   });
 
   /// GET /v1/search/hashtags/{tag}/posts
@@ -151,4 +174,23 @@ class SearchApiClient {
   Future<void> deleteRecentSearch(String id) => unwrapApi(() async {
     await _dio.delete<void>('/v1/search/recent/${Uri.encodeComponent(id)}');
   });
+}
+
+// Select schema facts only. Search text and mapper messages stay private.
+String _hashtagDecodeReason(Object? section) {
+  if (section is! Map) return 'Search hashtag section missing or invalid';
+  final items = section['items'];
+  if (items is! List) return 'Search hashtag items missing or invalid';
+  for (final item in items) {
+    if (item is! Map) return 'Search hashtag item is not an object';
+    if (item['tag'] is! String) return 'Search hashtag tag missing or invalid';
+    if (!item.containsKey('postCount')) {
+      return 'Search hashtag postCount missing';
+    }
+    if (item['postCount'] == null) return 'Search hashtag postCount is null';
+    if (item['postCount'] is! int) {
+      return 'Search hashtag postCount is not an integer';
+    }
+  }
+  return 'Search response decoding failed with valid hashtag fields';
 }

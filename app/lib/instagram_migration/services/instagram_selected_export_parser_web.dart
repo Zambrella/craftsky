@@ -13,3 +13,6 @@ Future<InstagramImportParseResult> parseSelectedInstagramExport(
   }
   return const InstagramImportParser().parseJson(await file.readAsBytes());
 }
+
+Future<InstagramImportParseResult?> pickAndroidInstagramExport() =>
+    throw UnsupportedError('Android export picker is unavailable on web');

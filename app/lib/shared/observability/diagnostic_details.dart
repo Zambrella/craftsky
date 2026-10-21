@@ -1,4 +1,5 @@
 import 'package:craftsky_app/shared/api/api_exception.dart';
+import 'package:craftsky_app/shared/api/pds_mutation_contract.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_text.dart';
 import 'package:dio/dio.dart';
@@ -20,11 +21,18 @@ List<Map<String, Object?>> selectedCauses(Object error) {
     causes.add({
       'type': boundDiagnosticText(current.runtimeType.toString(), 256),
       'message': switch (current) {
-        DiagnosticStateError(:final message) => boundDiagnosticText(
-          message,
-          512,
-        ),
+        DiagnosticStateError(:final message) ||
+        DiagnosticFormatException(
+          :final message,
+        ) => boundDiagnosticText(message, 512),
         ApiUnauthorized() || ApiCanceled() => current.toString(),
+        TypeError()
+            when current.toString() ==
+                'Null check operator used on a null value' =>
+          'Null check operator used on a null value',
+        PdsMutationUnresolvedException() =>
+          'PDS mutation retry budget exhausted',
+        PdsMutationAmbiguousException() => 'PDS mutation outcome uncertain',
         DioException(:final response)
             when response?.statusCode != null &&
                 response!.statusCode! >= 100 &&
@@ -56,6 +64,8 @@ List<Map<String, Object?>> selectedCauses(Object error) {
     }
     current = switch (current) {
       DiagnosticFailureCause(:final diagnosticCause) => diagnosticCause,
+      PdsMutationAmbiguousException(:final diagnosticCause) ||
+      PdsMutationUnresolvedException(:final diagnosticCause) => diagnosticCause,
       ApiException(:final details) => details.cause,
       DioException(:final error) => error,
       _ => null,

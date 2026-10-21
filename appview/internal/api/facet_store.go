@@ -218,7 +218,7 @@ func (s *FacetStore) ResolveMention(ctx context.Context, viewerDID syntax.DID, h
 		if isDefinitiveHandleResolutionError(err) {
 			return IdentityCacheRow{}, ErrMentionNotFound
 		}
-		return IdentityCacheRow{}, fmt.Errorf("%w: %v", ErrMentionIdentityUnavailable, err)
+		return IdentityCacheRow{}, fmt.Errorf("%w: %w", ErrMentionIdentityUnavailable, err)
 	}
 	if did.String() == "" {
 		return IdentityCacheRow{}, ErrMentionNotFound
@@ -239,7 +239,7 @@ func (s *FacetStore) ResolveMention(ctx context.Context, viewerDID syntax.DID, h
 	}
 	canonicalHandle, err := s.resolver.ResolveHandle(ctx, did)
 	if err != nil {
-		return IdentityCacheRow{}, fmt.Errorf("%w: %v", ErrMentionIdentityUnavailable, err)
+		return IdentityCacheRow{}, fmt.Errorf("%w: %w", ErrMentionIdentityUnavailable, err)
 	}
 	if canonicalHandle.String() == "" || canonicalHandle.IsInvalidHandle() || canonicalHandle.Normalize() != handle.Normalize() {
 		return IdentityCacheRow{}, ErrMentionNotFound
