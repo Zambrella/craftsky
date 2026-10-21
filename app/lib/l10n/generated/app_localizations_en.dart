@@ -4616,8 +4616,19 @@ class AppLocalizationsEn extends AppLocalizations {
   String get chatEnableTitle => 'Enable messaging';
 
   @override
+  String get chatEnableExplanation =>
+      'Use messaging in CraftSky. Turning it off stops CraftSky message access and push notifications.';
+
+  @override
+  String get chatOpenMessages => 'Open messages';
+
+  @override
+  String get chatAuthorizationNeeded =>
+      'Approve messaging permissions to use direct messages in CraftSky.';
+
+  @override
   String get chatSharedInboxDisclosure =>
-      'This is your shared Bluesky inbox, including conversations started in other apps. Read, accept, mute and leave actions also affect those apps.';
+      'This is your shared Bluesky inbox, showing conversations with CraftSky members, including those started in other apps. Read, accept, mute and leave actions also affect those apps.';
 
   @override
   String get chatStorageDisclosure =>
@@ -4628,18 +4639,11 @@ class AppLocalizationsEn extends AppLocalizations {
       'Message reports go to Bluesky only. CraftSky moderators do not receive these reports.';
 
   @override
-  String get chatPolicyDisclosure =>
-      'Your current shared incoming-message setting stays unchanged until you choose to change it.';
-
-  @override
-  String get chatPushTitle => 'Message notifications';
+  String get chatPushTitle => 'Push notifications';
 
   @override
   String get chatPushDisclosure =>
-      'Show the sender’s name, without message text. This preference applies to all your devices; device notification permission still applies.';
-
-  @override
-  String get chatAuthorizeAction => 'Continue with Bluesky';
+      'Receive push notifications about new messages.';
 
   @override
   String get chatReportTitle => 'Report message';
@@ -4712,7 +4716,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get chatNewMessage => 'New message';
 
   @override
-  String get chatSettingsTitle => 'Message settings';
+  String get chatSettingsTitle => 'Direct messages';
 
   @override
   String get chatUnavailable =>
@@ -4790,19 +4794,6 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get chatSendAgainWarning =>
       'The earlier message may already have been sent. Sending it again could create a duplicate. Any newer draft will be kept.';
-
-  @override
-  String get chatDisconnectTitle => 'Disconnect messaging';
-
-  @override
-  String get chatDisconnect => 'Disconnect';
-
-  @override
-  String get chatDisconnectExplanation =>
-      'CraftSky will stop accessing your shared inbox. Your local drafts stay on this device and will be hidden until you reconnect. Your shared incoming-message policy stays unchanged.';
-
-  @override
-  String get chatDisconnected => 'Messaging is disconnected.';
 
   @override
   String get chatIncomingTitle => 'Who can message me';

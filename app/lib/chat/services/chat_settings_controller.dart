@@ -4,6 +4,7 @@ import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/auth/providers/account_operation_guard.dart';
 import 'package:craftsky_app/chat/data/chat_repository.dart';
 import 'package:craftsky_app/chat/models/chat_state.dart';
+import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/observability/error_reporter.dart';
 import 'package:flutter/foundation.dart';
 
@@ -13,7 +14,7 @@ final class ChatSettingsController extends ChangeNotifier {
     required this.account,
     required this._repository,
     required this._operation,
-    required this.canSetPolicy,
+    required this._status,
     this._onChanged,
     this._onConnectionChanged,
     ErrorReporter reporter = const NoopErrorReporter(),
@@ -21,7 +22,14 @@ final class ChatSettingsController extends ChangeNotifier {
   final AccountKey account;
   final ChatRepository _repository;
   final ActiveAccountOperation _operation;
-  final bool canSetPolicy;
+  ChatStatus _status;
+  bool get enabled => _status.enabled;
+  bool get canSetPolicy => _status.canSetPolicy;
+  bool get canRead => _status.canRead;
+  bool get needsAuthorization =>
+      _status.state == ChatConnectionState.authorizationNeeded;
+  bool get restricted => _status.state == ChatConnectionState.restricted;
+  bool initialized = false;
   final Future<void> Function()? _onChanged;
   final void Function(ChatStatus)? _onConnectionChanged;
   final ErrorReporter _reporter;
@@ -30,7 +38,7 @@ final class ChatSettingsController extends ChangeNotifier {
   bool loading = true;
   bool busy = false;
   bool failed = false;
-  bool disconnected = false;
+  bool get disconnected => !enabled;
   bool _disposed = false;
   bool get _current => !_disposed && _operation.isCurrent;
   void _publish(void Function() action) {
@@ -65,11 +73,15 @@ final class ChatSettingsController extends ChangeNotifier {
       busy = true;
     });
     try {
-      final push = await _operation.step(_repository.pushPreference);
-      final incoming = canSetPolicy
+      final push = enabled
+          ? await _operation.step(_repository.pushPreference)
+          : _status.pushEnabled;
+      if (!_current) return;
+      final incoming = enabled && canSetPolicy
           ? await _operation.step(_repository.incomingPolicy)
           : null;
       _publish(() {
+        initialized = true;
         pushEnabled = push;
         policy = incoming;
         failed = false;
@@ -124,16 +136,65 @@ final class ChatSettingsController extends ChangeNotifier {
     });
   }
 
-  Future<void> disconnect() => _effect(() async {
-    final status = await _operation.step(
-      () => _repository.setConnection(enabled: false),
-    );
-    if (status.enabled) {
-      throw const FormatException('Messaging disconnect not confirmed');
+  Future<void> setEnabled({required bool enabled}) async {
+    if (!_current || busy || loading || enabled == this.enabled) return;
+    _publish(() => busy = true);
+    ChatStatus? confirmed;
+    try {
+      final status = await _operation.step(
+        () => _repository.setConnection(enabled: enabled),
+      );
+      if (!_current) return;
+      if (status.enabled != enabled) {
+        throw const FormatException(
+          'Messaging connection change not confirmed',
+        );
+      }
+      confirmed = status;
+      _publish(() {
+        _status = status;
+        pushEnabled = status.pushEnabled;
+        policy = null;
+        failed = false;
+      });
+      if (enabled) {
+        final push = await _operation.step(_repository.pushPreference);
+        if (!_current) return;
+        final incoming = canSetPolicy
+            ? await _operation.step(_repository.incomingPolicy)
+            : null;
+        _publish(() {
+          pushEnabled = push;
+          policy = incoming;
+        });
+      }
+    } on AccountOperationDiscarded {
+      return;
+    } on Object catch (error, stack) {
+      if (_current) {
+        _report(error, stack);
+        _publish(() {
+          failed = true;
+          if (error is ApiBadRequest &&
+              error.code == 'chat_authorization_required') {
+            _status = _status.accessLost(
+              ChatConnectionState.authorizationNeeded,
+            );
+          } else if (error is ApiBadRequest &&
+              error.code == 'chat_restricted') {
+            _status = _status.accessLost(ChatConnectionState.restricted);
+          }
+        });
+      }
+    } finally {
+      _publish(() => busy = false);
+      if (confirmed != null && _current) {
+        _operation.publish(() => _onConnectionChanged?.call(_status));
+      }
     }
-    _publish(() => disconnected = true);
-    _operation.publish(() => _onConnectionChanged?.call(status));
-  });
+  }
+
+  Future<void> disconnect() => setEnabled(enabled: false);
   @override
   void dispose() {
     _disposed = true;

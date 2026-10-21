@@ -229,6 +229,32 @@ func (q *Queries) ChatLiveChild(ctx context.Context, arg ChatLiveChildParams) (b
 	return live, err
 }
 
+const chatProfileDIDs = `-- name: ChatProfileDIDs :many
+SELECT profile.did FROM craftsky_profiles profile
+LEFT JOIN owner_lifecycles owner ON owner.owner_did=profile.did
+WHERE profile.did=ANY($1::text[]) AND (owner.state IS NULL OR owner.state='active')
+`
+
+func (q *Queries) ChatProfileDIDs(ctx context.Context, dollar_1 []string) ([]string, error) {
+	rows, err := q.db.Query(ctx, chatProfileDIDs, dollar_1)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var did string
+		if err := rows.Scan(&did); err != nil {
+			return nil, err
+		}
+		items = append(items, did)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const chatSyncSnapshot = `-- name: ChatSyncSnapshot :one
 SELECT version,safe_state,last_success_at FROM chat_sync_state WHERE owner_did=$1
 `

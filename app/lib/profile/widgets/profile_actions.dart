@@ -171,12 +171,6 @@ class _VisitorActions extends StatelessWidget {
     final theme = Theme.of(context);
     final spacing = theme.extension<SpacingTheme>()!;
     final l10n = AppLocalizations.of(context);
-    final blockLabel = actions.isBlocking
-        ? l10n.profileUnblockAction
-        : l10n.profileBlockAction;
-    final muteLabel = actions.isMuted
-        ? l10n.profileUnmuteAction
-        : l10n.profileMuteAction;
     return Row(
       children: [
         if (actions.canFollow) ...[
@@ -202,53 +196,71 @@ class _VisitorActions extends StatelessWidget {
           action,
           SizedBox(width: spacing.sp3),
         ],
-        if (actions.canToggleMute) ...[
-          ChunkyIconButton(
-            onPressed: actions.isBusy ? null : actions.onMuteToggle,
-            icon: actions.isMuted
-                ? CraftskyIconsBold.unmuted
-                : CraftskyIconsBold.muted,
-            tooltip: muteLabel,
-          ),
-          SizedBox(width: spacing.sp3),
-        ],
-        CraftskyContextMenuButton(
-          tooltip: l10n.profileMoreActions,
-          enabled: !actions.isBusy,
-          isLoading: actions.isBlockingBusy,
-          groups: [
-            CraftskyContextMenuGroup(
-              items: [
-                if (actions.onCopyLink != null)
-                  CraftskyContextMenuItem(
-                    text: l10n.recordCopyLinkAction,
-                    icon: CraftskyIcons.link,
-                    onPressed: actions.onCopyLink,
-                  ),
-                CraftskyContextMenuItem(
-                  text: l10n.profileShareAction,
-                  icon: CraftskyIconsBold.share,
-                  onPressed: actions.onShare,
-                ),
-              ],
+        ProfileMoreActionsButton(actions: actions),
+      ],
+    );
+  }
+}
+
+/// Shared visitor actions for the expanded profile and collapsed AppBar.
+class ProfileMoreActionsButton extends StatelessWidget {
+  const new({required this.actions, this.style, super.key});
+  final VisitorProfileActionSet actions;
+  final ButtonStyle? style;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final blockLabel = actions.isBlocking
+        ? l10n.profileUnblockAction
+        : l10n.profileBlockAction;
+    final muteLabel = actions.isMuted
+        ? l10n.profileUnmuteAction
+        : l10n.profileMuteAction;
+    return CraftskyContextMenuButton(
+      tooltip: l10n.profileMoreActions,
+      style: style,
+      enabled: !actions.isBusy,
+      isLoading: actions.isBlockingBusy,
+      groups: [
+        CraftskyContextMenuGroup(
+          items: [
+            if (actions.onCopyLink != null)
+              CraftskyContextMenuItem(
+                text: l10n.recordCopyLinkAction,
+                icon: CraftskyIcons.link,
+                onPressed: actions.onCopyLink,
+              ),
+            CraftskyContextMenuItem(
+              text: l10n.profileShareAction,
+              icon: CraftskyIconsBold.share,
+              onPressed: actions.onShare,
             ),
-            CraftskyContextMenuGroup(
-              items: [
-                CraftskyContextMenuItem(
-                  text: blockLabel,
-                  icon: CraftskyIconsBold.block,
-                  onPressed: actions.onBlockToggle,
-                  style: CraftskyContextMenuItemStyle.destructive,
-                  semanticHint: actions.isBlocking
-                      ? null
-                      : l10n.destructiveActionHint,
-                ),
-                CraftskyContextMenuItem(
-                  text: l10n.profileReportAction,
-                  icon: CraftskyIconsBold.report,
-                  onPressed: actions.onReport,
-                ),
-              ],
+          ],
+        ),
+        CraftskyContextMenuGroup(
+          items: [
+            if (actions.canToggleMute)
+              CraftskyContextMenuItem(
+                text: muteLabel,
+                icon: actions.isMuted
+                    ? CraftskyIconsBold.unmuted
+                    : CraftskyIconsBold.muted,
+                onPressed: actions.onMuteToggle,
+              ),
+            CraftskyContextMenuItem(
+              text: blockLabel,
+              icon: CraftskyIconsBold.block,
+              onPressed: actions.onBlockToggle,
+              style: CraftskyContextMenuItemStyle.destructive,
+              semanticHint: actions.isBlocking
+                  ? null
+                  : l10n.destructiveActionHint,
+            ),
+            CraftskyContextMenuItem(
+              text: l10n.profileReportAction,
+              icon: CraftskyIconsBold.report,
+              onPressed: actions.onReport,
             ),
           ],
         ),

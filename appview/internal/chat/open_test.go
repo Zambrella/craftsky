@@ -40,6 +40,13 @@ func TestNotificationOpenResolvesOnlyCurrentAccessibleOwnerConversation(t *testi
 	if _, err := service.NotificationOpen(t.Context(), info, uuid.New()); err == nil || reads != 1 {
 		t.Fatal("unknown reference reached upstream")
 	}
+	if _, err := store.pool.Exec(t.Context(), `DELETE FROM craftsky_profiles WHERE did='did:plc:peer'`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.NotificationOpen(t.Context(), info, reference); err == nil {
+		t.Fatal("reference bypassed CraftSky profile eligibility")
+	}
+	seedCraftskyProfiles(t, store, "did:plc:peer")
 	member = false
 	if _, err := service.NotificationOpen(t.Context(), info, reference); err == nil {
 		t.Fatal("reference bypassed current membership")

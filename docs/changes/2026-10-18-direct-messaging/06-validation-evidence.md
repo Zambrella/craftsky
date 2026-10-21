@@ -1,5 +1,26 @@
 # Direct Messaging Validation Evidence
 
+## Existing AppMessenger correction: 2026-10-21
+
+UT-017 / NFR-006, FR-015 / AC-017, AC-023: replace custom inline alert banners with the existing AppMessenger. Routine sync has only a title spinner; initial loaders remain centered. State explanations and explicit uncertain-operation controls remain in the page. No alert wrapper adds layout above Scaffold.
+
+- Red: `/private/tmp/craftsky-chat-app-messenger-red.log` finds the old custom banner where a messenger dispatch is required.
+- Final Flutter: `flutter test --no-pub test/chat test/shared/messaging` passes **122 tests**, **no skips**, **9 seconds**, exit 0: `/private/tmp/craftsky-chat-messenger-tests-final.log`.
+- Actual `ScaffoldMessengerImpl` tests prove the standard floating snackbar and unchanged AppBar origin. Other regressions cover retry/dismiss semantics, deduplication, covered/disposed routes, routine sync, initial/background loaders, retained editor/draft/previews and report uncertainty without replay.
+- Whole-app analysis exits 0 with zero diagnostics (empty file): `/private/tmp/craftsky-chat-messenger-analyze-final.log`. Formatting and diff checks pass.
+- No backend/auth/API/schema/dependency changes or remote actions in this pass; no container rebuild, commit, push, production action, live message/report or device validation. Earlier backend evidence is retained unchanged.
+
+## Combined OAuth and setup revision: 2026-10-21
+
+- Approved scope: request narrow messaging permissions in login/registration while base grant validation remains independent; explicit account-wide CraftSky enablement; conditional push/audience settings; safe permission recovery. Tests use synthetic identities/transports and disposable local database schemas.
+- Flutter final: `flutter test --no-pub test/chat test/auth test/router test/settings test/profile` exits 0: **929 passed**, **11 configured subscription skips**, **66 seconds**. No chat test is skipped. Artifact: `/private/tmp/craftsky-combined-flutter-final.log`.
+- Whole-app `dart analyze --format=machine` exits 0 with **zero diagnostics** (empty file): `/private/tmp/craftsky-combined-analyze-final.log`. Localization generation, scoped formatting and diff checks pass.
+- Backend initial full auth/chat/API run: auth and chat pass under race (51.903s/71.889s); API exposes an older profile-eligibility fixture mismatch. After seeding required synthetic CraftSky profiles, its focused chat contracts pass (4.024s), then the full API suite passes under race (142.542s): `/private/tmp/craftsky-combined-api-final.log`.
+- Final-source full auth race suite passes (37.002s), including combined requests, base-only and chat-capable handoffs, already-enabled-only sync recovery and stale initiating-session/generation rejection: `/private/tmp/craftsky-combined-auth-final.log`.
+- Full handoff tests prove ordinary session access for both base-only and chat-capable grants, with messaging remaining disabled (3.335s under race): `/private/tmp/craftsky-combined-handoff-green.log`.
+- Red/green paths, permission-loss/disposal failures, fixture corrections and the final already-enabled recovery extension are recorded in `05-implementation-plan.md`. The first broad Flutter run's five failures are retained in `/private/tmp/craftsky-combined-flutter-regressions.log`; all are resolved in the final run.
+- These checks do not prove current provider consent screens, device interactions or live notification/report acceptance. No local runtime container rebuild, commit, push, production mutation or live message/report occurred. Existing owner-run manual validation remains separate.
+
 ## Boundaries
 
 The owner approved local auth, permission, private-data and migration implementation

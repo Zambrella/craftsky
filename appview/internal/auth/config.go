@@ -69,7 +69,7 @@ func BuildClientArtifacts(input ClientConfigInput) (ClientArtifacts, error) {
 			return ClientArtifacts{}, errors.New("localhost OAuth mode cannot configure confidential-client fields")
 		}
 		// Localhost metadata is encoded in the client ID. Its advertised union
-		// must match the discovery document while ordinary PAR stays base-only.
+		// must match discovery and consumer PAR; Config.Scopes stays the required base.
 		cfg = oauth.NewLocalhostConfig(input.CallbackURL.String(), advertised)
 		cfg.Scopes = append([]string(nil), input.Scopes...)
 	case ClientModeConfidential:

@@ -9,7 +9,8 @@ import 'package:material_ui/material_ui.dart';
 enum MessageSeverity { info, warning, error }
 
 /// The visual payload of every message dispatched through `AppMessenger`.
-/// Owns the row layout `[icon · text · action? · close?]`.
+/// Shares `[icon · text · action? · close?]` with persistent banners, moving
+/// the action below the message on narrow screens or at larger text sizes.
 ///
 /// `onDismiss` controls whether a trailing close icon is rendered:
 /// `null` → no close icon (info messages don't need one because they
@@ -21,6 +22,7 @@ class CraftskySnackBarContent extends StatelessWidget {
     required this.severity,
     required this.message,
     this.action,
+    this.actionEnabled = true,
     this.onDismiss,
     super.key,
   });
@@ -28,6 +30,7 @@ class CraftskySnackBarContent extends StatelessWidget {
   final MessageSeverity severity;
   final String message;
   final MessageAction? action;
+  final bool actionEnabled;
   final VoidCallback? onDismiss;
 
   @override
@@ -37,30 +40,59 @@ class CraftskySnackBarContent extends StatelessWidget {
     final spacing = theme.extension<SpacingTheme>()!;
     final semantic = theme.extension<SemanticColorsTheme>()!;
 
-    return Row(
-      children: [
-        Icon(
-          _iconFor(severity),
-          size: 20,
-          color: _colorFor(severity, semantic),
-        ),
-        SizedBox(width: spacing.sp3),
-        Expanded(
-          child: Text(message, style: theme.textTheme.bodyMedium),
-        ),
-        if (action != null) ...[
-          SizedBox(width: spacing.sp2),
-          _MessageActionButton(action: action!),
-        ],
-        if (onDismiss != null) ...[
-          SizedBox(width: spacing.sp2),
-          IconButton(
-            icon: const Icon(CraftskyIconsBold.close, size: 20),
-            tooltip: l10n.messengerDismiss,
-            onPressed: onDismiss,
-          ),
-        ],
-      ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final stackAction =
+            action != null &&
+            (constraints.maxWidth < 320 ||
+                MediaQuery.textScalerOf(context).scale(14) > 20);
+        final notice = Row(
+          children: [
+            Icon(
+              _iconFor(severity),
+              size: 20,
+              // The light warning surface is itself butter yellow.
+              color:
+                  severity == MessageSeverity.warning &&
+                      theme.brightness == Brightness.light
+                  ? theme.colorScheme.onSurface
+                  : _colorFor(severity, semantic),
+            ),
+            SizedBox(width: spacing.sp3),
+            Expanded(
+              child: Text(message, style: theme.textTheme.bodyMedium),
+            ),
+            if (action != null && !stackAction) ...[
+              SizedBox(width: spacing.sp2),
+              _MessageActionButton(action: action!, enabled: actionEnabled),
+            ],
+            if (onDismiss != null) ...[
+              SizedBox(width: spacing.sp2),
+              IconButton(
+                icon: const Icon(CraftskyIconsBold.close, size: 20),
+                tooltip: l10n.messengerDismiss,
+                onPressed: onDismiss,
+              ),
+            ],
+          ],
+        );
+        if (!stackAction) return notice;
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            notice,
+            SizedBox(height: spacing.sp2),
+            Align(
+              alignment: AlignmentDirectional.centerEnd,
+              child: _MessageActionButton(
+                action: action!,
+                enabled: actionEnabled,
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -79,15 +111,16 @@ class CraftskySnackBarContent extends StatelessWidget {
 }
 
 class _MessageActionButton extends StatelessWidget {
-  const new({required this.action});
+  const new({required this.action, required this.enabled});
 
   final MessageAction action;
+  final bool enabled;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return TextButton(
-      onPressed: action.onPressed,
+      onPressed: enabled ? action.onPressed : null,
       child: Text(action.label, style: theme.textTheme.labelLarge),
     );
   }

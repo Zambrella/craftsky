@@ -8157,10 +8157,28 @@ abstract class AppLocalizations {
   /// **'Enable messaging'**
   String get chatEnableTitle;
 
+  /// No description provided for @chatEnableExplanation.
+  ///
+  /// In en, this message translates to:
+  /// **'Use messaging in CraftSky. Turning it off stops CraftSky message access and push notifications.'**
+  String get chatEnableExplanation;
+
+  /// No description provided for @chatOpenMessages.
+  ///
+  /// In en, this message translates to:
+  /// **'Open messages'**
+  String get chatOpenMessages;
+
+  /// No description provided for @chatAuthorizationNeeded.
+  ///
+  /// In en, this message translates to:
+  /// **'Approve messaging permissions to use direct messages in CraftSky.'**
+  String get chatAuthorizationNeeded;
+
   /// No description provided for @chatSharedInboxDisclosure.
   ///
   /// In en, this message translates to:
-  /// **'This is your shared Bluesky inbox, including conversations started in other apps. Read, accept, mute and leave actions also affect those apps.'**
+  /// **'This is your shared Bluesky inbox, showing conversations with CraftSky members, including those started in other apps. Read, accept, mute and leave actions also affect those apps.'**
   String get chatSharedInboxDisclosure;
 
   /// No description provided for @chatStorageDisclosure.
@@ -8175,29 +8193,17 @@ abstract class AppLocalizations {
   /// **'Message reports go to Bluesky only. CraftSky moderators do not receive these reports.'**
   String get chatReportDisclosure;
 
-  /// No description provided for @chatPolicyDisclosure.
-  ///
-  /// In en, this message translates to:
-  /// **'Your current shared incoming-message setting stays unchanged until you choose to change it.'**
-  String get chatPolicyDisclosure;
-
   /// No description provided for @chatPushTitle.
   ///
   /// In en, this message translates to:
-  /// **'Message notifications'**
+  /// **'Push notifications'**
   String get chatPushTitle;
 
   /// No description provided for @chatPushDisclosure.
   ///
   /// In en, this message translates to:
-  /// **'Show the sender’s name, without message text. This preference applies to all your devices; device notification permission still applies.'**
+  /// **'Receive push notifications about new messages.'**
   String get chatPushDisclosure;
-
-  /// No description provided for @chatAuthorizeAction.
-  ///
-  /// In en, this message translates to:
-  /// **'Continue with Bluesky'**
-  String get chatAuthorizeAction;
 
   /// No description provided for @chatReportTitle.
   ///
@@ -8334,7 +8340,7 @@ abstract class AppLocalizations {
   /// No description provided for @chatSettingsTitle.
   ///
   /// In en, this message translates to:
-  /// **'Message settings'**
+  /// **'Direct messages'**
   String get chatSettingsTitle;
 
   /// No description provided for @chatUnavailable.
@@ -8474,30 +8480,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'The earlier message may already have been sent. Sending it again could create a duplicate. Any newer draft will be kept.'**
   String get chatSendAgainWarning;
-
-  /// No description provided for @chatDisconnectTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Disconnect messaging'**
-  String get chatDisconnectTitle;
-
-  /// No description provided for @chatDisconnect.
-  ///
-  /// In en, this message translates to:
-  /// **'Disconnect'**
-  String get chatDisconnect;
-
-  /// No description provided for @chatDisconnectExplanation.
-  ///
-  /// In en, this message translates to:
-  /// **'CraftSky will stop accessing your shared inbox. Your local drafts stay on this device and will be hidden until you reconnect. Your shared incoming-message policy stays unchanged.'**
-  String get chatDisconnectExplanation;
-
-  /// No description provided for @chatDisconnected.
-  ///
-  /// In en, this message translates to:
-  /// **'Messaging is disconnected.'**
-  String get chatDisconnected;
 
   /// No description provided for @chatIncomingTitle.
   ///

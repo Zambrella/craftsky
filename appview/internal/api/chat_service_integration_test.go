@@ -64,6 +64,10 @@ func newConsumerChatService(t *testing.T, upstream http.RoundTripper) (*chat.Ser
 	if _, err := pool.Exec(t.Context(), `INSERT INTO owner_lifecycles(owner_did,state,generation,auth_epoch,transition_reason,transitioned_at) VALUES($1,'active',1,1,'test',now())`, owner); err != nil {
 		t.Fatal(err)
 	}
+	// Consumer message operations require both participants to have CraftSky profiles.
+	if _, err := pool.Exec(t.Context(), `INSERT INTO craftsky_profiles(did,record_cid) VALUES($1,'synthetic-profile'),('did:plc:external-peer','synthetic-profile')`, owner); err != nil {
+		t.Fatal(err)
+	}
 	store, err := chat.NewStore(pool, owners)
 	if err != nil {
 		t.Fatal(err)

@@ -77,7 +77,7 @@ func (service *Service) Send(ctx context.Context, info auth.AuthInfo, id uuid.UU
 	}
 	var peer syntax.DID
 	err = service.withRPC(ctx, info, []syntax.NSID{"chat.bsky.convo.getConvo"}, func(ctx context.Context, transport *Transport) error {
-		conversation, err := currentConversation(ctx, transport, info.DID, conversationID)
+		conversation, err := service.supportedConversation(ctx, transport, info.DID, conversationID)
 		if err != nil {
 			return err
 		}
@@ -119,7 +119,7 @@ func (service *Service) Send(ctx context.Context, info auth.AuthInfo, id uuid.UU
 		if *status.ChatDisabled {
 			return ErrRestricted
 		}
-		conversation, err := currentConversation(ctx, transport, info.DID, conversationID)
+		conversation, err := service.supportedConversation(ctx, transport, info.DID, conversationID)
 		if err != nil {
 			return err
 		}

@@ -46,7 +46,7 @@ func (service *Service) NotificationOpen(ctx context.Context, info auth.AuthInfo
 		if err != nil {
 			return ErrInaccessibleConversation
 		}
-		if _, err := currentConversation(ctx, transport, info.DID, id); err != nil {
+		if _, err := service.supportedConversation(ctx, transport, info.DID, id); err != nil {
 			return err
 		}
 		result = NotificationTarget{Type: "conversation", ConversationID: id}

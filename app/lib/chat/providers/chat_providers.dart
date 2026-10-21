@@ -239,14 +239,20 @@ Future<ChatSettingsController> chatSettingsController(
   AccountKey account,
 ) async {
   final operation = chatAccountOperation(ref, account);
-  final status = await operation.step(
+  await operation.step(
     () => ref.watch(
       chatStatusProvider(account).selectAsync(
-        (value) =>
-            (generation: value.generation, canSetPolicy: value.canSetPolicy),
+        (value) => (
+          generation: value.generation,
+          enabled: value.enabled,
+          state: value.state,
+          canRead: value.canRead,
+          canSetPolicy: value.canSetPolicy,
+        ),
       ),
     ),
   );
+  final status = ref.read(chatStatusProvider(account)).requireValue;
   final repository = await operation.step(
     () => ref.watch(accountChatRepositoryProvider(account).future),
   );
@@ -254,7 +260,7 @@ Future<ChatSettingsController> chatSettingsController(
     account: account,
     repository: repository,
     operation: operation,
-    canSetPolicy: status.canSetPolicy,
+    status: status,
     onConnectionChanged: (status) => ref
         .read(chatStatusProvider(account).notifier)
         .publishConfirmedStatus(status),

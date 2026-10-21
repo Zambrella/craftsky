@@ -1,6 +1,11 @@
 -- name: EnsureChatAccount :exec
 INSERT INTO chat_accounts (owner_did) VALUES ($1) ON CONFLICT DO NOTHING;
 
+-- name: ChatProfileDIDs :many
+SELECT profile.did FROM craftsky_profiles profile
+LEFT JOIN owner_lifecycles owner ON owner.owner_did=profile.did
+WHERE profile.did=ANY($1::text[]) AND (owner.state IS NULL OR owner.state='active');
+
 -- name: ChatConnection :one
 SELECT owner_did, enabled, generation, push_enabled
 FROM chat_accounts WHERE owner_did=$1;

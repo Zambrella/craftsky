@@ -11,6 +11,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"testing"
 
@@ -18,55 +19,67 @@ import (
 )
 
 // IT-015 / FR-001, RULE-004, NFR-001 / AC-002, AC-019.
-func TestChatConsentHandoffEnablesOnlyAfterConfirmation(t *testing.T) {
-	f := newChatConsentFixture(t)
-	if _, err := f.pool.Exec(t.Context(), `INSERT INTO chat_sync_state(owner_did,phase,cursor,safe_state,next_due_at,failure_count) VALUES($1,'ready','saved-consent-cursor','authorizationNeeded',now()+interval '5 minutes',2)`, f.owner); err != nil {
-		t.Fatal(err)
-	}
-	var code string
-	err := f.complete(func(ctx context.Context, result auth.OAuthCallbackResult) error {
-		var err error
-		code, err = f.handoffs.CreateExchange(ctx, result.Attempt, result.Handle, "recovery-device")
-		return err
-	})
-	if err != nil {
-		t.Fatalf("chat callback: %v", err)
-	}
-	if f.departures != 0 || f.pds.applyCalls != 0 {
-		t.Fatal("chat consent ran profile onboarding")
-	}
-	var enabled bool
-	if err := f.pool.QueryRow(t.Context(), `SELECT enabled FROM chat_accounts WHERE owner_did=$1`, f.owner).Scan(&enabled); err != nil || enabled {
-		t.Fatalf("enabled before confirmation: %t %v", enabled, err)
-	}
-	exchange, err := f.handoffs.Exchange(t.Context(), code, "recovery-device")
-	if err != nil {
-		t.Fatal(err)
-	}
-	source := sha256.Sum256([]byte("old-bearer"))
-	if exchange.Purpose != auth.ChatOAuthPurpose || exchange.SourceTokenHash != base64.RawURLEncoding.EncodeToString(source[:]) {
-		t.Fatal("chat handoff does not identify the exact retained source session")
-	}
-	if err := f.handoffs.Confirm(t.Context(), exchange.Token, exchange.ReceiptID, "recovery-device"); err != nil {
-		t.Fatal(err)
-	}
-	var push bool
-	var generation int64
-	if err := f.pool.QueryRow(t.Context(), `SELECT enabled,generation,push_enabled FROM chat_accounts WHERE owner_did=$1`, f.owner).Scan(&enabled, &generation, &push); err != nil || !enabled || generation != 2 || push {
-		t.Fatalf("confirmed connection %t/%d/%t: %v", enabled, generation, push, err)
-	}
-	if f.repositoryJobs != 0 {
-		t.Fatal("optional consent queued unrelated repository onboarding work")
-	}
-	var resumed bool
-	if err := f.pool.QueryRow(t.Context(), `SELECT cursor='saved-consent-cursor' AND phase='ready' AND failure_count=0 AND recovery_id IS NOT NULL AND next_due_at<=now() FROM chat_sync_state WHERE owner_did=$1`, f.owner).Scan(&resumed); err != nil || !resumed {
-		t.Fatalf("confirmed consent did not resume retained progress: %v", err)
-	}
-	if _, err := f.children.Lookup(t.Context(), "old-bearer"); err != nil {
-		t.Fatalf("base child lost: %v", err)
-	}
-	if err := f.handoffs.Confirm(t.Context(), exchange.Token, exchange.ReceiptID, "recovery-device"); err != nil {
-		t.Fatalf("repeat confirmation: %v", err)
+func TestChatPermissionRecoveryPreservesMessagingChoice(t *testing.T) {
+	for _, initial := range []bool{false, true} {
+		t.Run(map[bool]string{false: "disabled", true: "enabled"}[initial], func(t *testing.T) {
+			f := newChatConsentFixture(t)
+			if _, err := f.pool.Exec(t.Context(), `UPDATE chat_accounts SET enabled=$2 WHERE owner_did=$1`, f.owner, initial); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := f.pool.Exec(t.Context(), `INSERT INTO chat_sync_state(owner_did,phase,cursor,safe_state,next_due_at,failure_count) VALUES($1,'ready','saved-consent-cursor','authorizationNeeded',now()+interval '5 minutes',2)`, f.owner); err != nil {
+				t.Fatal(err)
+			}
+			var code string
+			err := f.complete(func(ctx context.Context, result auth.OAuthCallbackResult) error {
+				var err error
+				code, err = f.handoffs.CreateExchange(ctx, result.Attempt, result.Handle, "recovery-device")
+				return err
+			})
+			if err != nil {
+				t.Fatalf("chat callback: %v", err)
+			}
+			if f.departures != 0 || f.pds.applyCalls != 0 {
+				t.Fatal("chat consent ran profile onboarding")
+			}
+			var enabled bool
+			if err := f.pool.QueryRow(t.Context(), `SELECT enabled FROM chat_accounts WHERE owner_did=$1`, f.owner).Scan(&enabled); err != nil || enabled != initial {
+				t.Fatalf("enabled before confirmation: %t %v", enabled, err)
+			}
+			exchange, err := f.handoffs.Exchange(t.Context(), code, "recovery-device")
+			if err != nil {
+				t.Fatal(err)
+			}
+			source := sha256.Sum256([]byte("old-bearer"))
+			if exchange.Purpose != auth.ChatOAuthPurpose || exchange.SourceTokenHash != base64.RawURLEncoding.EncodeToString(source[:]) {
+				t.Fatal("chat handoff does not identify the exact retained source session")
+			}
+			if err := f.handoffs.Confirm(t.Context(), exchange.Token, exchange.ReceiptID, "recovery-device"); err != nil {
+				t.Fatal(err)
+			}
+			var push bool
+			var generation int64
+			if err := f.pool.QueryRow(t.Context(), `SELECT enabled,generation,push_enabled FROM chat_accounts WHERE owner_did=$1`, f.owner).Scan(&enabled, &generation, &push); err != nil || enabled != initial || generation != 1 || !push {
+				t.Fatalf("confirmed connection %t/%d/%t: %v", enabled, generation, push, err)
+			}
+			if f.repositoryJobs != 0 {
+				t.Fatal("optional consent queued unrelated repository onboarding work")
+			}
+			var resumed bool
+			query := `SELECT cursor='saved-consent-cursor' AND phase='ready' AND failure_count=2 AND recovery_id IS NULL AND next_due_at>now() FROM chat_sync_state WHERE owner_did=$1`
+			if initial {
+				query = `SELECT cursor='saved-consent-cursor' AND phase='ready' AND failure_count=0 AND recovery_id IS NOT NULL AND next_due_at<=now() FROM chat_sync_state WHERE owner_did=$1`
+			}
+			if err := f.pool.QueryRow(t.Context(), query, f.owner).Scan(&resumed); err != nil || !resumed {
+				t.Fatalf("permission recovery changed retained progress: %v", err)
+			}
+			if _, err := f.children.Lookup(t.Context(), "old-bearer"); err != nil {
+				t.Fatalf("base child lost: %v", err)
+			}
+			if err := f.handoffs.Confirm(t.Context(), exchange.Token, exchange.ReceiptID, "recovery-device"); err != nil {
+				t.Fatalf("repeat confirmation: %v", err)
+			}
+
+		})
 	}
 }
 
@@ -256,5 +269,132 @@ func TestChatConsentStaleGenerationConfirmationIsInvalidHandoff(t *testing.T) {
 	}
 	if _, err := f.children.Lookup(t.Context(), "old-bearer"); err != nil {
 		t.Fatal("stale optional consent damaged base access")
+	}
+}
+
+// AUTH-001 / BR-002, RULE-004 / AC-002, AC-019: request chat up front;
+// the durable required baseline and explicit messaging choice remain separate.
+func TestConsumerOAuthRequestsChatWithoutEnablingMessaging(t *testing.T) {
+	for _, registration := range []bool{false, true} {
+		t.Run(map[bool]string{false: "login", true: "registration"}[registration], func(t *testing.T) {
+			f := newRecoveryFixture(t)
+			var requested url.Values
+			client := &http.Client{Transport: callbackRoundTripFunc(func(r *http.Request) (*http.Response, error) {
+				body := `{}`
+				status := http.StatusOK
+				switch r.URL.Path {
+				case "/.well-known/oauth-protected-resource":
+					body = `{"authorization_servers":["https://auth.example.com"]}`
+				case "/.well-known/oauth-authorization-server":
+					body = `{"issuer":"https://auth.example.com","authorization_endpoint":"https://auth.example.com/authorize","token_endpoint":"https://auth.example.com/token","pushed_authorization_request_endpoint":"https://auth.example.com/par","revocation_endpoint":"https://auth.example.com/revoke","response_types_supported":["code"],"grant_types_supported":["authorization_code","refresh_token"],"code_challenge_methods_supported":["S256"],"token_endpoint_auth_methods_supported":["none","private_key_jwt"],"token_endpoint_auth_signing_alg_values_supported":["ES256"],"scopes_supported":["atproto"],"dpop_signing_alg_values_supported":["ES256"],"authorization_response_iss_parameter_supported":true,"require_pushed_authorization_requests":true,"client_id_metadata_document_supported":true}`
+				case "/par":
+					raw, err := io.ReadAll(r.Body)
+					if err != nil {
+						return nil, err
+					}
+					requested, err = url.ParseQuery(string(raw))
+					if err != nil {
+						return nil, err
+					}
+					body = `{"request_uri":"urn:synthetic:chat","expires_in":600}`
+					status = http.StatusCreated
+				default:
+					return nil, errors.New("unexpected request")
+				}
+				return &http.Response{StatusCode: status, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(body)), Request: r}, nil
+			})}
+			cfg := oauth.NewPublicConfig("https://appview.example/oauth-client-metadata.json", "https://appview.example/oauth/callback", auth.DefaultScopes())
+			dir := &callbackDirectory{identity: &identity.Identity{DID: f.owner, Handle: "recover.example", Services: map[string]identity.ServiceEndpoint{"atproto_pds": {Type: "AtprotoPersonalDataServer", URL: "https://pds.example.com"}}}}
+			app := &oauth.ClientApp{Config: &cfg, Client: client, Resolver: &oauth.Resolver{Client: client}, Dir: dir}
+			adapter, err := auth.NewRegistrationOAuthAdapter(app)
+			if err != nil {
+				t.Fatal(err)
+			}
+			flow, err := auth.NewOAuthFlowService(auth.OAuthFlowServiceOptions{App: app, RegistrationProviderOrigin: "https://pds.example.com", RegistrationOAuth: adapter, Store: f.store, Owners: f.owners, AuthorityVerifier: &fakeOAuthAuthorityVerifier{authority: auth.OAuthAuthority{DID: f.owner, PDSOrigin: "https://pds.example.com", IssuerOrigin: "https://auth.example.com"}}})
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if registration {
+				_, err = flow.StartRegistration(t.Context(), auth.HandoffVerifiedLink, "", "combined-device")
+			} else {
+				_, err = flow.StartLogin(t.Context(), "recover.example", auth.HandoffVerifiedLink, "", "combined-device")
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			granted := strings.Fields(requested.Get("scope"))
+			for _, scope := range append(auth.DefaultScopes(), auth.OptionalChatScopes()...) {
+				if !slices.Contains(granted, scope) {
+					t.Fatalf("consumer request omitted %s", scope)
+				}
+			}
+			if !slices.Equal(cfg.Scopes, auth.DefaultScopes()) {
+				t.Fatal("chat became a mandatory base permission")
+			}
+			if registration && requested.Get("login_hint") != "" {
+				t.Fatal("registration has a login hint")
+			}
+			if !registration && requested.Get("login_hint") != f.owner.String() {
+				t.Fatal("login lost its DID binding")
+			}
+			var raw []byte
+			if err := f.pool.QueryRow(t.Context(), `SELECT data FROM oauth_auth_requests WHERE state=$1`, requested.Get("state")).Scan(&raw); err != nil {
+				t.Fatal(err)
+			}
+			var request oauth.AuthRequestData
+			if err := json.Unmarshal(raw, &request); err != nil || !slices.Equal(request.Scopes, granted) {
+				t.Fatalf("requested scopes not persisted: %v", err)
+			}
+			var enabled bool
+			if err := f.pool.QueryRow(t.Context(), `SELECT EXISTS(SELECT 1 FROM chat_accounts WHERE owner_did=$1 AND enabled)`, f.owner).Scan(&enabled); err != nil || enabled {
+				t.Fatalf("OAuth enabled messaging: %v", err)
+			}
+		})
+	}
+}
+
+// AUTH-001 / AC-002, AC-019: ordinary OAuth completion accepts partial chat
+// grants and never substitutes provider permission for the owner's enable action.
+func TestConsumerOAuthHandoffKeepsMessagingDisabledForBaseAndChatGrants(t *testing.T) {
+	for _, capable := range []bool{false, true} {
+		t.Run(map[bool]string{false: "base only", true: "with chat"}[capable], func(t *testing.T) {
+			var extra []string
+			if capable {
+				extra = auth.OptionalChatScopes()
+			}
+			f := newRecoveryFixture(t, extra...)
+			var code string
+			if err := f.complete(func(ctx context.Context, result auth.OAuthCallbackResult) error {
+				if auth.HasEffectiveScopes(result.Session.Scopes, auth.OptionalChatScopes()) != capable {
+					t.Fatal("effective chat capability differs from the grant")
+				}
+				if _, err := f.store.ResumePendingOnboardingSession(ctx, result.Attempt); err != nil {
+					return err
+				}
+				if err := auth.InitializeProfileAndIdentityCache(ctx, f.pds, result.Attempt, f.writer, nil, f, nil, nil); err != nil {
+					return err
+				}
+				var err error
+				code, err = f.handoffs.CreateExchange(ctx, result.Attempt, result.Handle, "recovery-device")
+				return err
+			}); err != nil {
+				t.Fatal(err)
+			}
+			exchange, err := f.handoffs.Exchange(t.Context(), code, "recovery-device")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := f.handoffs.Confirm(t.Context(), exchange.Token, exchange.ReceiptID, "recovery-device"); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := f.children.Lookup(t.Context(), exchange.Token); err != nil {
+				t.Fatalf("ordinary access lost: %v", err)
+			}
+			var enabled bool
+			if err := f.pool.QueryRow(t.Context(), `SELECT EXISTS(SELECT 1 FROM chat_accounts WHERE owner_did=$1 AND enabled)`, f.owner).Scan(&enabled); err != nil || enabled {
+				t.Fatalf("OAuth completion enabled messaging: %v", err)
+			}
+		})
 	}
 }

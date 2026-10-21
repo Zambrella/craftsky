@@ -5,6 +5,7 @@ import 'package:craftsky_app/chat/models/chat_state.dart';
 import 'package:craftsky_app/chat/providers/chat_providers.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
+import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/theme/chunky_icon_button.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -38,6 +39,7 @@ class ProfileMessageButton extends ConsumerWidget {
         status?.state == ChatConnectionState.disabled ||
         status?.state == ChatConnectionState.authorizationNeeded;
     var available = false;
+    var recipientUnavailable = false;
     if (status?.state == ChatConnectionState.ready && status?.canSend == true) {
       final availability = ref.watch(
         chatRecipientAvailabilityProvider(
@@ -49,21 +51,33 @@ class ProfileMessageButton extends ConsumerWidget {
           !availability.isLoading &&
           !availability.hasError &&
           availability.value?.canChat == true;
+      recipientUnavailable =
+          !availability.isLoading &&
+          !availability.hasError &&
+          availability.value?.canChat == false;
     }
     return ChunkyIconButton(
-      icon: CraftskyIcons.comment,
-      tooltip: needsConsent
-          ? l10n.chatEnableTitle
-          : available
-          ? l10n.chatComposeLabel
-          : l10n.chatRecipientUnavailable,
-      onPressed: disabled || (!needsConsent && !available)
+      icon: CraftskyIconsBold.comment,
+      tooltip: needsConsent ? l10n.chatEnableTitle : l10n.chatComposeLabel,
+      onPressed: disabled
           ? null
           : () {
               ActiveAccountOperation.fromWidget(
                 ref,
                 lease,
-              ).publish(needsConsent ? onEnable : onOpen);
+              ).publish(() {
+                if (needsConsent) {
+                  onEnable();
+                } else if (available) {
+                  onOpen();
+                } else {
+                  context.showInfo(
+                    recipientUnavailable
+                        ? l10n.chatRecipientUnavailable
+                        : l10n.chatUnavailable,
+                  );
+                }
+              });
             },
     );
   }

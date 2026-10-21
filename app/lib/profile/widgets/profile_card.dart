@@ -39,6 +39,7 @@ class ProfileCard extends StatelessWidget {
     required this.onClose,
     required this.onVisitProfile,
     required this.onPrimaryAction,
+    this.messagingAction,
     this.isPrimaryActionBusy = false,
     this.expansionProgress = 0,
     this.transitionProgress = 0,
@@ -52,6 +53,7 @@ class ProfileCard extends StatelessWidget {
   final VoidCallback onClose;
   final VoidCallback onVisitProfile;
   final VoidCallback onPrimaryAction;
+  final Widget? messagingAction;
   final bool isPrimaryActionBusy;
   final double expansionProgress;
   final double transitionProgress;
@@ -73,6 +75,7 @@ class ProfileCard extends StatelessWidget {
         onClose: onClose,
         onVisitProfile: onVisitProfile,
         onPrimaryAction: onPrimaryAction,
+        messagingAction: messagingAction,
       ),
     );
   }
@@ -90,6 +93,7 @@ class _ProfileCardSurface extends StatelessWidget {
     required this.onClose,
     required this.onVisitProfile,
     required this.onPrimaryAction,
+    required this.messagingAction,
   });
 
   final Profile profile;
@@ -102,6 +106,7 @@ class _ProfileCardSurface extends StatelessWidget {
   final VoidCallback onClose;
   final VoidCallback onVisitProfile;
   final VoidCallback onPrimaryAction;
+  final Widget? messagingAction;
 
   @override
   Widget build(BuildContext context) {
@@ -328,6 +333,7 @@ class _ProfileCardSurface extends StatelessWidget {
                                       child: SizedBox(
                                         width: double.infinity,
                                         child: _ProfileCardActions(
+                                          messagingAction: messagingAction,
                                           did: profile.did,
                                           isOwnProfile: isOwnProfile,
                                           isFollowing:
@@ -458,6 +464,7 @@ class _ProfileCardActions extends StatelessWidget {
     required this.expandedOpacity,
     required this.onVisitProfile,
     required this.onPrimaryAction,
+    required this.messagingAction,
   });
 
   final Did did;
@@ -468,6 +475,7 @@ class _ProfileCardActions extends StatelessWidget {
   final double expandedOpacity;
   final VoidCallback onVisitProfile;
   final VoidCallback onPrimaryAction;
+  final Widget? messagingAction;
 
   @override
   Widget build(BuildContext context) {
@@ -600,6 +608,7 @@ class _ProfileCardActions extends StatelessWidget {
             if (expandedOpacity > 0)
               ClipRect(
                 child: Align(
+                  key: const Key('profile-card-expanded-actions'),
                   alignment: Alignment.centerLeft,
                   widthFactor: expandedOpacity,
                   child: Opacity(
@@ -607,12 +616,10 @@ class _ProfileCardActions extends StatelessWidget {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        ChunkyIconButton(
-                          onPressed: () {},
-                          icon: CraftskyIconsBold.muted,
-                          tooltip: l10n.profileMuteAction,
-                        ),
-                        SizedBox(width: spacing.sp3),
+                        if (messagingAction case final action?) ...[
+                          action,
+                          SizedBox(width: spacing.sp3),
+                        ],
                         CraftskyContextMenuButton(
                           tooltip: l10n.profileMoreActions,
                           groups: _expandedMenuGroups(context, l10n),

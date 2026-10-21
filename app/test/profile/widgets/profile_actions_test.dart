@@ -112,12 +112,7 @@ void main() {
         ),
         findsNothing,
       );
-      expect(
-        tester
-            .widget<ChunkyIconButton>(find.byType(ChunkyIconButton))
-            .onPressed,
-        isNull,
-      );
+      expect(find.byType(ChunkyIconButton), findsNothing);
       expect(
         tester
             .widget<CraftskyContextMenuButton>(
@@ -127,7 +122,7 @@ void main() {
         isFalse,
       );
     });
-    testWidgets('optimistic mute keeps its icon and disables Follow', (
+    testWidgets('optimistic mute disables competing profile actions', (
       tester,
     ) async {
       await _pump(
@@ -146,7 +141,7 @@ void main() {
         ),
       );
       expect(find.byType(StitchProgressIndicator), findsNothing);
-      expect(find.byTooltip('Unmute account'), findsOneWidget);
+      expect(find.byTooltip('Unmute account'), findsNothing);
       expect(
         tester.widget<ChunkyButton>(find.byType(ChunkyButton).first).onPressed,
         isNull,
@@ -154,7 +149,7 @@ void main() {
     });
 
     testWidgets(
-      'visitor profile exposes mute and moves share into compact More menu',
+      'visitor profile moves mute and share into compact More menu',
       (
         tester,
       ) async {
@@ -177,21 +172,22 @@ void main() {
           ),
         );
 
-        expect(find.byTooltip('Mute account'), findsOneWidget);
+        expect(find.byTooltip('Mute account'), findsNothing);
         expect(find.byTooltip('Share'), findsNothing);
-
-        await tester.tap(find.byTooltip('Mute account'));
-        await tester.pumpAndSettle();
-        expect(mutes, 1);
 
         await tester.tap(find.byTooltip('More profile actions'));
         await tester.pumpAndSettle();
         expect(find.byType(BottomSheet), findsOneWidget);
         expect(find.text('Share'), findsOneWidget);
-        expect(find.text('Mute account'), findsNothing);
+        expect(find.text('Mute account'), findsOneWidget);
         expect(find.text('Block account'), findsOneWidget);
         expect(find.text('Report profile'), findsOneWidget);
 
+        await tester.tap(find.text('Mute account'));
+        await tester.pumpAndSettle();
+        expect(mutes, 1);
+        await tester.tap(find.byTooltip('More profile actions'));
+        await tester.pumpAndSettle();
         await tester.tap(find.text('Share'));
         await tester.pumpAndSettle();
         expect(shares, 1);
@@ -213,6 +209,7 @@ void main() {
     testWidgets('current relationship state changes visible mute action', (
       tester,
     ) async {
+      var unmuted = 0;
       await _pump(
         tester,
         ProfileActions(
@@ -224,17 +221,20 @@ void main() {
             onFollowToggle: () {},
             onShare: () {},
             onReport: () {},
-            onMuteToggle: () {},
+            onMuteToggle: () => unmuted++,
             onBlockToggle: () {},
           ),
         ),
       );
 
-      expect(find.byTooltip('Unmute account'), findsOneWidget);
+      expect(find.byTooltip('Unmute account'), findsNothing);
       await tester.tap(find.byTooltip('More profile actions'));
       await tester.pumpAndSettle();
-      expect(find.text('Unmute account'), findsNothing);
+      expect(find.text('Unmute account'), findsOneWidget);
       expect(find.text('Unblock account'), findsOneWidget);
+      await tester.tap(find.text('Unmute account'));
+      await tester.pumpAndSettle();
+      expect(unmuted, 1);
     });
 
     testWidgets('wide profile More menu opens an anchored popup', (
@@ -266,7 +266,7 @@ void main() {
       expect(find.byType(BottomSheet), findsNothing);
       expect(
         find.byType(PopupMenuItem<CraftskyContextMenuItem>),
-        findsNWidgets(3),
+        findsNWidgets(4),
       );
       expect(find.text('Share'), findsOneWidget);
     });

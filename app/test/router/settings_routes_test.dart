@@ -149,7 +149,7 @@ void main() {
     expect(find.byType(NavigationRail), findsOneWidget);
     expect(
       tester.widget<NavigationRail>(find.byType(NavigationRail)).selectedIndex,
-      8,
+      9,
     );
     expect(find.byType(NavigationBar), findsNothing);
 
@@ -358,7 +358,7 @@ void main() {
             tester
                 .widget<NavigationRail>(find.byType(NavigationRail))
                 .selectedIndex,
-            8,
+            9,
           );
         }
       },
@@ -407,7 +407,7 @@ void main() {
       'Customisation',
       'Languages',
       'Notifications',
-      'Message settings',
+      'Direct messages',
       'Privacy',
       'Connections',
       'Growth',
@@ -636,7 +636,7 @@ const _emptyAccountPage = ProfileAccountPage(
 
 final _routeCases = <_SettingsRouteCase>[
   _SettingsRouteCase(
-    label: 'Message settings',
+    label: 'Direct messages',
     location: '/settings/messaging',
     matchesPage: (widget) => widget is MessagingSettingsView,
   ),

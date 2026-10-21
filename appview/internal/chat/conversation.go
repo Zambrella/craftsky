@@ -35,7 +35,7 @@ func (service *Service) Conversation(ctx context.Context, info auth.AuthInfo, id
 		return result, ErrInvalidIdentifier
 	}
 	err := service.withRPC(ctx, info, []syntax.NSID{"chat.bsky.convo.getConvo"}, func(ctx context.Context, transport *Transport) error {
-		current, err := currentConversation(ctx, transport, info.DID, id)
+		current, err := service.supportedConversation(ctx, transport, info.DID, id)
 		if err != nil {
 			return err
 		}

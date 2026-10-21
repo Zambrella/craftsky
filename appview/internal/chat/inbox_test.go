@@ -12,7 +12,7 @@ import (
 )
 
 // IT-001 / FR-002, FR-008: filtered-empty pages retain a private opaque
-// continuation; external peers need no CraftSky profile or registration.
+// continuation; peers with indexed CraftSky profiles need no local registration.
 func TestInboxContinuesThroughFilteredGroupsAndKeepsCursorPrivate(t *testing.T) {
 	for _, bucket := range []string{"accepted", "request"} {
 		t.Run(bucket, func(t *testing.T) {

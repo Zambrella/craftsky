@@ -21,6 +21,10 @@ func TestEitherDirectionBlockPreservesReadAndPreventsEffects(t *testing.T) {
 				case "/xrpc/chat.bsky.actor.getStatus":
 				case "/xrpc/chat.bsky.convo.getConvo":
 					body = `{"convo":{"id":"direct-1","status":"accepted","members":[{"did":"did:plc:chat-service-owner"},{"did":"did:plc:external-peer"}]}}`
+				case "/xrpc/chat.bsky.convo.listConvos":
+					body = `{"convos":[{"id":"direct-1","status":"accepted","unreadCount":1,"members":[{"did":"did:plc:chat-service-owner"},{"did":"did:plc:external-peer"}]}]}`
+				case "/xrpc/chat.bsky.convo.listConvoRequests":
+					body = `{"requests":[]}`
 				default:
 					t.Fatalf("blocked relationship reached effect %s", r.URL.Path)
 				}
@@ -42,6 +46,10 @@ func TestEitherDirectionBlockPreservesReadAndPreventsEffects(t *testing.T) {
 			summary, err := service.Conversation(t.Context(), info, "direct-1")
 			if err != nil || summary.CanSend {
 				t.Fatalf("blocked summary=%+v err=%v", summary, err)
+			}
+			counts, err := service.UnreadCounts(t.Context(), info)
+			if err != nil || counts.Accepted != 0 {
+				t.Fatalf("local block contributed to badge: counts=%+v err=%v", counts, err)
 			}
 			available, err := service.Availability(t.Context(), info, "did:plc:external-peer")
 			if err != nil || available.CanChat {

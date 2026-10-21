@@ -12,7 +12,7 @@ import (
 	"social.craftsky/appview/internal/ownerlifecycle"
 )
 
-// StartChatAuthorization is an authenticated, same-owner opt-in. The bearer
+// StartChatAuthorization is authenticated, same-owner permission recovery. The bearer
 // is hashed immediately and never persisted in an authorization request.
 func (service *OAuthFlowService) StartChatAuthorization(ctx context.Context, info AuthInfo, bearer string, mode HandoffMode, loopback, device string, push *bool) (string, error) {
 	ctx, cancel := oauthOperationContext(ctx, service.startOperationTimeout)
@@ -129,13 +129,14 @@ func confirmChatConsentTx(ctx context.Context, tx pgx.Tx, owner syntax.DID, stat
 	if err := validateChatConsentTx(ctx, tx, metadata); err != nil {
 		return true, err
 	}
-	command, err := tx.Exec(ctx, `UPDATE chat_accounts SET enabled=true,generation=generation+1,
-		push_enabled=COALESCE($3,push_enabled) WHERE owner_did=$1 AND generation=$2`, owner, metadata.ChatGeneration, metadata.ChatPushEnabled)
-	if err != nil {
+	// Permission recovery never changes the owner's enablement or push choice.
+	// Only an already-enabled connection resumes from its retained sync progress.
+	var enabled bool
+	if err := tx.QueryRow(ctx, `SELECT enabled FROM chat_accounts WHERE owner_did=$1`, owner).Scan(&enabled); err != nil {
 		return true, err
 	}
-	if command.RowsAffected() != 1 {
-		return true, ErrOAuthFlowInvalid
+	if enabled {
+		return true, chatdb.New(tx).ResumeChatSync(ctx, owner.String())
 	}
-	return true, chatdb.New(tx).ResumeChatSync(ctx, owner.String())
+	return true, nil
 }

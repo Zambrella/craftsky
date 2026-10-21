@@ -1,16 +1,20 @@
 import 'package:craftsky_app/auth/models/account_key.dart';
-import 'package:craftsky_app/auth/providers/account_operation_guard.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/chat/models/chat_state.dart';
-import 'package:craftsky_app/chat/pages/messaging_consent_page.dart';
+import 'package:craftsky_app/chat/pages/chat_settings_page.dart';
 import 'package:craftsky_app/chat/providers/chat_providers.dart';
-import 'package:craftsky_app/chat/widgets/chat_sync_timestamp.dart';
+import 'package:craftsky_app/chat/widgets/chat_app_bar_title.dart';
+import 'package:craftsky_app/chat/widgets/chat_message_effect.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
+import 'package:craftsky_app/shared/messaging/message_action.dart';
+import 'package:craftsky_app/shared/messaging/widgets/craftsky_snack_bar.dart';
+import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
 /// Private content is reconstructed only for the current authorized account.
-class ChatContentGate extends ConsumerWidget {
+class ChatContentGate extends ConsumerStatefulWidget {
   const new({
     required this.account,
     required this.onAuthorize,
@@ -24,7 +28,22 @@ class ChatContentGate extends ConsumerWidget {
   final Widget Function(BuildContext, WidgetRef, ChatStatus) builder;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ChatContentGate> createState() => _ChatContentGateState();
+}
+
+class _ChatContentGateState extends ConsumerState<ChatContentGate> {
+  bool _showSetup = false;
+
+  @override
+  void didUpdateWidget(covariant ChatContentGate oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.account != widget.account) _showSetup = false;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final account = widget.account;
+    final onClose = widget.onClose;
     final lease = ref.watch(
       sessionRegistryProvider.select((value) => value.value?.activeLease),
     );
@@ -44,30 +63,20 @@ class ChatContentGate extends ConsumerWidget {
         .watch(chatStatusProvider(account))
         .when(
           loading: () =>
-              const Scaffold(body: Center(child: CircularProgressIndicator())),
+              ChatLoadingPage(title: l10n.chatInboxTitle, onClose: onClose),
           error: (_, _) => retry(l10n.chatUnavailable),
           data: (status) {
             if (status.state == ChatConnectionState.disabled ||
                 status.state == ChatConnectionState.authorizationNeeded) {
-              return MessagingConsentPage(
-                key: ValueKey(account),
-                initialPushEnabled: status.pushEnabled,
+              _showSetup = true;
+            }
+            if (_showSetup) {
+              return MessagingSettingsPage(
+                key: ValueKey(lease),
+                account: account,
                 onClose: onClose,
-                onAuthorize: (push) {
-                  if (ref
-                          .read(sessionRegistryProvider)
-                          .value
-                          ?.activeLease
-                          ?.session
-                          .account !=
-                      account) {
-                    return;
-                  }
-                  ActiveAccountOperation.fromWidget(
-                    ref,
-                    lease,
-                  ).publish(() => onAuthorize(push));
-                },
+                onAuthorize: widget.onAuthorize,
+                onOpenMessages: () => setState(() => _showSetup = false),
               );
             }
             final degraded =
@@ -80,42 +89,14 @@ class ChatContentGate extends ConsumerWidget {
                     : l10n.chatUnavailable,
               );
             }
-            return Column(
-              children: [
-                if (degraded)
-                  Material(
-                    child: SafeArea(
-                      bottom: false,
-                      child: Padding(
-                        padding: const EdgeInsets.all(12),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: Semantics(
-                                liveRegion: true,
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(l10n.chatSyncStale),
-                                    ChatSyncTimestamp(at: status.lastSuccessAt),
-                                  ],
-                                ),
-                              ),
-                            ),
-                            TextButton(
-                              onPressed: () =>
-                                  ref.invalidate(chatStatusProvider(account)),
-                              child: Text(l10n.chatRefresh),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  )
-                else
-                  const SizedBox.shrink(),
-                Expanded(child: builder(context, ref, status)),
-              ],
+            return ChatMessageEffect(
+              message: degraded ? l10n.chatSyncStale : null,
+              severity: MessageSeverity.warning,
+              action: MessageAction(
+                label: l10n.chatRefresh,
+                onPressed: () => ref.invalidate(chatStatusProvider(account)),
+              ),
+              child: widget.builder(context, ref, status),
             );
           },
         );
@@ -127,20 +108,11 @@ class ChatFailurePanel extends StatelessWidget {
   final String message;
   final VoidCallback onRetry;
   @override
-  Widget build(BuildContext context) => Center(
-    child: Padding(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(message, textAlign: TextAlign.center),
-          const SizedBox(height: 12),
-          TextButton(
-            onPressed: onRetry,
-            child: Text(AppLocalizations.of(context).chatRefresh),
-          ),
-        ],
-      ),
-    ),
+  Widget build(BuildContext context) => CraftskyEmptyState(
+    icon: CraftskyIcons.error,
+    title: AppLocalizations.of(context).chatInboxTitle,
+    subtitle: message,
+    actionLabel: AppLocalizations.of(context).chatRefresh,
+    onAction: onRetry,
   );
 }

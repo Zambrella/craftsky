@@ -74,6 +74,10 @@ func (service *Service) ListConversations(ctx context.Context, info auth.AuthInf
 					}
 				}
 			}
+			views, err = service.profileConversations(ctx, info.DID, views)
+			if err != nil {
+				return err
+			}
 			for _, view := range views {
 				conversation, err := conversationFromView(info.DID, view)
 				if err == nil && conversation.Status == bucket {

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:craftsky_app/auth/models/auth_state.dart';
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
+import 'package:craftsky_app/chat/widgets/profile_message_button.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/pages/profile_page.dart';
@@ -145,6 +146,19 @@ class _ProfileRoutePresentationState
           profile: value,
           isOwnProfile: _isOwnProfile(auth, value.did),
           isPrimaryActionBusy: toggleState.isLoading,
+          messagingAction:
+              _isOwnProfile(auth, value.did) ||
+                  value.blocking ||
+                  value.blockedBy
+              ? null
+              : ProfileMessageButton(
+                  recipient: value.did,
+                  disabled: toggleState.isLoading,
+                  // The route absorbs input during expansion. The full
+                  // profile owns navigation and feedback after the handoff.
+                  onOpen: () {},
+                  onEnable: () {},
+                ),
           expansionProgress: expansionProgress,
           transitionProgress: transitionProgress,
           compactHeight: _compactHeight,

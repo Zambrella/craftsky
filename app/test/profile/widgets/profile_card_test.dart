@@ -1,6 +1,14 @@
+import 'package:craftsky_app/auth/models/account_key.dart';
+import 'package:craftsky_app/auth/models/session_registry.dart';
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
+import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
+import 'package:craftsky_app/auth/providers/session_registry_provider.dart'
+    show sessionRegistryProvider;
 import 'package:craftsky_app/business/models/business_profile.dart';
 import 'package:craftsky_app/business/widgets/business_profile_summary.dart';
+import 'package:craftsky_app/chat/data/chat_repository.dart';
+import 'package:craftsky_app/chat/models/chat_state.dart';
+import 'package:craftsky_app/chat/providers/chat_providers.dart';
 import 'package:craftsky_app/feed/models/post_page.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
@@ -24,6 +32,7 @@ import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/widgets/craft_icon.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:cupertino_ui/cupertino_ui.dart'
     show CupertinoPageTransition, CupertinoPageTransitionsBuilder;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -807,6 +816,12 @@ void main() {
             overrides: [
               profileRepositoryProvider.overrideWithValue(repository),
               authSessionProvider.overrideWith(SignedInAuthSession.new),
+              secureSessionRegistryStorageProvider.overrideWithValue(
+                _TransitionRegistryStorage(),
+              ),
+              accountChatRepositoryProvider(AccountKey('did:plc:test'))
+                  .overrideWith((ref) async => _TransitionChatRepository()),
+              postRepositoryProvider.overrideWithValue(_emptyPostRepository),
             ],
             child: MaterialApp.router(
               theme: AppTheme.lightThemeData.copyWith(
@@ -824,6 +839,8 @@ void main() {
           ),
         );
 
+        await ProviderScope.containerOf(tester.element(find.text('Open card')))
+            .read(sessionRegistryProvider.future);
         final originRect = tester.getRect(find.text('Open card'));
         await tester.tap(find.text('Open card'));
         await tester.pump();
@@ -839,6 +856,7 @@ void main() {
           find.byKey(const Key('test-material-page-transition')),
           findsNothing,
         );
+        expect(find.byIcon(CraftskyIconsBold.comment), findsNothing);
         final routeBeforeExpansion = router.state.uri;
         final compactCardRect = tester.getRect(
           find.byKey(const Key('profile-card-transition-surface')),
@@ -863,6 +881,21 @@ void main() {
           const Key('profile-card-transition-surface'),
         );
         expect(responsiveSurface, findsOneWidget);
+        final messageIcon = find.byIcon(CraftskyIconsBold.comment);
+        expect(messageIcon, findsOneWidget);
+        final messageDuringReveal = tester.getRect(messageIcon);
+        final slidingActions = find.byKey(
+          const Key('profile-card-expanded-actions'),
+        );
+        expect(
+          find.descendant(of: slidingActions, matching: messageIcon),
+          findsOneWidget,
+        );
+        final partialReveal = tester.widget<Align>(slidingActions).widthFactor!;
+        expect(partialReveal, greaterThan(0));
+        expect(partialReveal, lessThan(1));
+        expect(find.byIcon(CraftskyIconsBold.muted), findsNothing);
+        expect(find.byIcon(CraftskyIconsBold.unmuted), findsNothing);
         expect(
           tester.getRect(responsiveSurface).width,
           greaterThan(compactCardRect.width),
@@ -978,6 +1011,11 @@ void main() {
           greaterThan(0.95),
         );
         final expandedCardGaps = _profileVerticalGaps(tester);
+        final messageBeforeHandoff = tester.getRect(messageIcon);
+        expect(messageBeforeHandoff.left, lessThan(messageDuringReveal.left));
+        expect(tester.widget<Align>(slidingActions).widthFactor, 1);
+        expect(find.byIcon(CraftskyIconsBold.muted), findsNothing);
+        expect(find.byIcon(CraftskyIconsBold.unmuted), findsNothing);
 
         await tester.pump(const Duration(milliseconds: 2));
         await tester.pump();
@@ -987,6 +1025,10 @@ void main() {
         expect(find.byType(ProfileCard), findsNothing);
         expect(find.byKey(const Key('profile-route-expanded')), findsOneWidget);
         final fullProfileGaps = _profileVerticalGaps(tester);
+        expect(messageIcon, findsOneWidget);
+        final messageAfterHandoff = tester.getRect(messageIcon);
+        expect(messageAfterHandoff.left, closeTo(messageBeforeHandoff.left, 1));
+        expect(messageAfterHandoff.top, closeTo(messageBeforeHandoff.top, 1));
         for (final MapEntry(:key, :value) in expandedCardGaps.entries) {
           expect(
             fullProfileGaps[key],
@@ -1233,4 +1275,37 @@ void main() {
 
     expect(route, isA<MaterialRouteTransitionMixin<void>>());
   });
+}
+
+class _TransitionRegistryStorage implements SessionRegistryStorage {
+  SessionRegistry value = SessionRegistry.empty().upsertAndActivate(
+    token: 'synthetic-transition-token',
+    did: 'did:plc:test',
+    handle: 'test.bsky.social',
+  );
+  @override
+  Future<SessionRegistry> read() async => value;
+  @override
+  Future<void> write(SessionRegistry registry) async => value = registry;
+}
+
+class _TransitionChatRepository implements ChatRepository {
+  @override
+  Future<ChatStatus> status() async => ChatStatus.fromMap(const {
+    'generation': 1,
+    'enabled': true,
+    'pushEnabled': true,
+    'state': 'ready',
+    'capabilities': {
+      'canRead': true,
+      'canSend': true,
+      'canReport': true,
+      'canSetPolicy': true,
+    },
+  });
+  @override
+  Future<ChatAvailability> availability(Did recipient) async =>
+      ChatAvailability.fromMap(const {'canChat': true});
+  @override
+  dynamic noSuchMethod(Invocation invocation) => throw UnimplementedError();
 }

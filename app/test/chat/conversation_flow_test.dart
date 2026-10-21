@@ -18,12 +18,17 @@ import 'package:craftsky_app/chat/providers/chat_providers.dart';
 import 'package:craftsky_app/chat/services/chat_conversation_controller.dart';
 import 'package:craftsky_app/chat/services/chat_preview_resolver.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
+import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
+import 'package:craftsky_app/theme/chunky_button.dart';
+import 'package:craftsky_app/theme/chunky_icon_button.dart';
+import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../fakes/recording_messenger.dart';
 import '../feed/fakes/fake_post_repository.dart';
 import '../profile/fakes/fake_profile_repository.dart';
 import '../test_support/post_fixtures.dart';
@@ -90,7 +95,10 @@ void main() {
               textScaler: const TextScaler.linear(2),
               viewInsets: const EdgeInsets.only(bottom: 250),
             ),
-            child: child!,
+            child: MessengerScope(
+              messenger: RecordingMessenger(),
+              child: child!,
+            ),
           ),
           home: MessagingConversationPage(
             account: account,
@@ -118,6 +126,7 @@ void main() {
     'one bubble card',
     (tester) async {
       FlutterSecureStorage.setMockInitialValues({});
+      final messenger = RecordingMessenger();
       final account = AccountKey('did:plc:owner');
       final id = ChatConversationId.parse('conversation-1');
       final repository = _Repository()
@@ -173,6 +182,8 @@ void main() {
                 .overrideWith((ref) async => resolver),
           ],
           child: MaterialApp(
+            builder: (context, child) =>
+                MessengerScope(messenger: messenger, child: child!),
             theme: AppTheme.lightThemeData,
             localizationsDelegates: appLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
@@ -209,7 +220,12 @@ void main() {
       repository.connectionState = 'unavailable';
       container.invalidate(chatStatusProvider(account));
       await tester.pumpAndSettle();
-      expect(find.textContaining('Last updated'), findsOneWidget);
+      expect(
+        messenger.calls.any(
+          (call) => call.$1 == 'warning' && call.$2.contains('out of date'),
+        ),
+        true,
+      );
       expect(find.text('Permitted preview excerpt'), findsOneWidget);
       expect(
         tester.widget<TextField>(find.byType(TextField)).controller,
@@ -217,8 +233,8 @@ void main() {
       );
       expect(
         tester
-            .widget<IconButton>(
-              find.widgetWithIcon(IconButton, Icons.send_outlined),
+            .widget<ChunkyIconButton>(
+              find.byType(ChunkyIconButton),
             )
             .onPressed,
         isNull,
@@ -234,7 +250,7 @@ void main() {
   );
 
   testWidgets(
-    'IT-007 conversation offers shared mute, confirmed leave '
+    'IT-007/UT-013 conversation offers shared mute, confirmed leave '
     'and message report',
     (tester) async {
       FlutterSecureStorage.setMockInitialValues({});
@@ -279,6 +295,8 @@ void main() {
             ).overrideWith((ref) async => controller),
           ],
           child: MaterialApp(
+            builder: (context, child) =>
+                MessengerScope(messenger: RecordingMessenger(), child: child!),
             theme: AppTheme.lightThemeData,
             localizationsDelegates: appLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
@@ -293,6 +311,38 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
+      expect(
+        tester.widget<TextField>(find.byType(TextField)).decoration?.hintText,
+        'Message',
+      );
+      expect(
+        tester.getCenter(find.byType(TextField)).dy,
+        closeTo(tester.getCenter(find.byType(ChunkyIconButton)).dy, 4),
+      );
+      final previousPage = await repository.history(id);
+      final pendingHistory = Completer<ChatMessagePage>();
+      repository.pendingHistory = pendingHistory;
+      final refreshed = controller.refresh();
+      await tester.pump();
+      expect(find.text('private-peer'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byType(AppBar),
+          matching: find.byType(StitchProgressIndicator),
+        ),
+        findsOneWidget,
+      );
+      pendingHistory.complete(previousPage);
+      await refreshed;
+      repository.pendingHistory = null;
+      await tester.pumpAndSettle();
+      expect(
+        find.descendant(
+          of: find.byType(AppBar),
+          matching: find.byType(StitchProgressIndicator),
+        ),
+        findsNothing,
+      );
       controller.edit('private-retained');
       final container = ProviderScope.containerOf(
         tester.element(find.byType(MessagingConversationPage)),
@@ -327,7 +377,7 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('Leave conversation'));
       await tester.pumpAndSettle();
-      await tester.tap(find.widgetWithText(FilledButton, 'Leave'));
+      await tester.tap(find.widgetWithText(ChunkyButton, 'Leave'));
       await tester.pumpAndSettle();
       expect(repository.leaves, 1);
       expect(closed, true);
@@ -387,6 +437,8 @@ void main() {
           ).overrideWith((ref) async => controller),
         ],
         child: MaterialApp(
+          builder: (context, child) =>
+              MessengerScope(messenger: RecordingMessenger(), child: child!),
           theme: AppTheme.lightThemeData,
           localizationsDelegates: appLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
@@ -409,7 +461,7 @@ void main() {
     expect(repository.sentText, isNull);
     await tester.tap(find.text('Send again'));
     await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(FilledButton, 'Send again'));
+    await tester.tap(find.widgetWithText(ChunkyButton, 'Send again'));
     await tester.pumpAndSettle();
     expect(repository.sentText, 'private-original');
     expect(repository.operation, isNot(original));
@@ -470,6 +522,8 @@ void main() {
             ).overrideWith((ref) async => controller),
           ],
           child: MaterialApp(
+            builder: (context, child) =>
+                MessengerScope(messenger: RecordingMessenger(), child: child!),
             theme: AppTheme.lightThemeData,
             localizationsDelegates: appLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
@@ -525,6 +579,7 @@ void main() {
 }
 
 class _Repository implements ChatRepository {
+  Completer<ChatMessagePage>? pendingHistory;
   String connectionState = 'ready';
   bool muted = false;
   int leaves = 0;
@@ -579,19 +634,23 @@ class _Repository implements ChatRepository {
     ChatConversationId id, {
     ChatCursor? cursor,
     int limit = 50,
-  }) async => ChatMessagePage.fromMap({
-    'items': [
-      if (seedMessage)
-        {
-          'id': 'peer-message',
-          'revision': 'r',
-          'kind': 'text',
-          'text': seedText,
-          'senderDid': 'did:plc:peer',
-          'sentAt': '2026-10-19T12:00:00Z',
-        },
-    ],
-  });
+  }) async =>
+      await (pendingHistory?.future ??
+          Future.value(
+            ChatMessagePage.fromMap({
+              'items': [
+                if (seedMessage)
+                  {
+                    'id': 'peer-message',
+                    'revision': 'r',
+                    'kind': 'text',
+                    'text': seedText,
+                    'senderDid': 'did:plc:peer',
+                    'sentAt': '2026-10-19T12:00:00Z',
+                  },
+              ],
+            }),
+          ));
   @override
   Future<ChatConversation> accept(ChatConversationId id) async {
     acceptCalls++;

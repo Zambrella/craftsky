@@ -74,7 +74,7 @@ func (service *Service) History(ctx context.Context, info auth.AuthInfo, id Conv
 		if err != nil {
 			return err
 		}
-		conversation, err := currentConversation(ctx, transport, info.DID, id)
+		conversation, err := service.supportedConversation(ctx, transport, info.DID, id)
 		if err != nil {
 			return err
 		}

@@ -1,8 +1,13 @@
 import 'dart:async';
 
 import 'package:craftsky_app/chat/models/text_validation.dart';
+import 'package:craftsky_app/chat/widgets/chat_message_effect.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
+import 'package:craftsky_app/shared/messaging/widgets/craftsky_snack_bar.dart';
 import 'package:craftsky_app/shared/observability/error_reporter.dart';
+import 'package:craftsky_app/shared/widgets/action_progress.dart';
+import 'package:craftsky_app/theme/chunky_button.dart';
+import 'package:craftsky_app/theme/craftsky_field_scaffold.dart';
 import 'package:craftsky_app/theme/craftsky_select_inputs.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -30,6 +35,7 @@ class ReportPage extends StatefulWidget {
 
 class _ReportPageState extends State<ReportPage> {
   final _explanation = TextEditingController();
+  final _explanationFocus = FocusNode();
   String _reasonType = 'com.atproto.moderation.defs#reasonOther';
   bool _submitting = false;
   bool _submitted = false;
@@ -39,6 +45,7 @@ class _ReportPageState extends State<ReportPage> {
   @override
   void dispose() {
     _explanation.dispose();
+    _explanationFocus.dispose();
     super.dispose();
   }
 
@@ -99,7 +106,13 @@ class _ReportPageState extends State<ReportPage> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     return Scaffold(
-      appBar: AppBar(title: Text(l10n.chatReportTitle)),
+      appBar: AppBar(
+        title: Text(
+          l10n.chatReportTitle,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+      ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Center(
@@ -151,24 +164,30 @@ class _ReportPageState extends State<ReportPage> {
                         },
                 ),
                 const SizedBox(height: 16),
-                TextField(
-                  key: const Key('chat-report-explanation'),
-                  controller: _explanation,
-                  minLines: 3,
-                  maxLines: 6,
-                  readOnly:
-                      _submitting || _result == ReportSubmissionState.confirmed,
-                  decoration: InputDecoration(
-                    labelText: l10n.chatReportExplanationLabel,
-                    errorText: _invalid
-                        ? l10n.chatReportInvalidExplanation
-                        : null,
+                CraftskyFieldScaffold(
+                  label: l10n.chatReportExplanationLabel,
+                  focusNode: _explanationFocus,
+                  errorText: _invalid
+                      ? l10n.chatReportInvalidExplanation
+                      : null,
+                  child: TextField(
+                    key: const Key('chat-report-explanation'),
+                    controller: _explanation,
+                    focusNode: _explanationFocus,
+                    minLines: 3,
+                    maxLines: 6,
+                    readOnly:
+                        _submitting ||
+                        _result == ReportSubmissionState.confirmed,
                   ),
                 ),
                 const SizedBox(height: 24),
-                FilledButton(
+                ChunkyButton(
                   onPressed: _submitted ? null : _submit,
-                  child: Text(l10n.chatReportAction),
+                  child: ActionProgress(
+                    isLoading: _submitting && _result == null,
+                    child: Text(l10n.chatReportAction),
+                  ),
                 ),
                 if (_result == ReportSubmissionState.uncertain &&
                     widget.onCheckStatus != null)
@@ -176,12 +195,27 @@ class _ReportPageState extends State<ReportPage> {
                     onPressed: _submitting
                         ? null
                         : () => unawaited(_checkStatus()),
-                    child: Text(l10n.chatCheckStatus),
+                    child: ActionProgress(
+                      isLoading: _submitting,
+                      child: Text(l10n.chatCheckStatus),
+                    ),
                   ),
                 if (_result case final result?) ...[
                   const SizedBox(height: 16),
-                  Semantics(
-                    liveRegion: true,
+                  ChatMessageEffect(
+                    severity: switch (result) {
+                      ReportSubmissionState.confirmed => MessageSeverity.info,
+                      ReportSubmissionState.failed => MessageSeverity.error,
+                      ReportSubmissionState.uncertain =>
+                        MessageSeverity.warning,
+                    },
+                    message: switch (result) {
+                      ReportSubmissionState.confirmed =>
+                        l10n.chatReportConfirmed,
+                      ReportSubmissionState.failed => l10n.chatReportFailed,
+                      ReportSubmissionState.uncertain =>
+                        l10n.chatReportUncertain,
+                    },
                     child: Text(switch (result) {
                       ReportSubmissionState.confirmed =>
                         l10n.chatReportConfirmed,

@@ -2,6 +2,7 @@ package chat
 
 import (
 	"context"
+	"errors"
 	upstream "github.com/bluesky-social/indigo/api/chat"
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -31,6 +32,12 @@ func (service *Service) Availability(ctx context.Context, info auth.AuthInfo, pe
 		return result, ErrInvalidIdentifier
 	}
 	err := service.withRPC(ctx, info, []syntax.NSID{"chat.bsky.convo.getConvoAvailability"}, func(ctx context.Context, transport *Transport) error {
+		if err := service.requireProfiles(ctx, info.DID, peer); err != nil {
+			if errors.Is(err, ErrInaccessibleConversation) {
+				return nil
+			}
+			return err
+		}
 		blocked, err := service.blocked(ctx, info.DID, peer)
 		if err != nil || blocked {
 			return err
@@ -85,6 +92,9 @@ func (service *Service) StartConversation(ctx context.Context, info auth.AuthInf
 		}
 		if !current.Enabled || current.Generation != initial.Generation {
 			return ErrConnectionChanged
+		}
+		if err := service.requireProfiles(ctx, info.DID, peer); err != nil {
+			return err
 		}
 		blocked, err := service.blocked(ctx, info.DID, peer)
 		if err != nil {

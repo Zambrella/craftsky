@@ -4,7 +4,7 @@ import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
-/// Native accepted-conversation aggregate; requests have a separate inbox tab.
+/// CraftSky-filtered accepted unread count; requests have a separate route.
 class ChatUnreadIcon extends ConsumerWidget {
   const new({required this.icon, super.key});
   final IconData icon;

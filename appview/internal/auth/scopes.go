@@ -11,8 +11,8 @@ const (
 	ChatReportAudience  = "did:plc:ar7c4by46qjdydhdevvrndac#atproto_labeler"
 )
 
-// OptionalChatScopes advertises only implemented v1 operations. Advertising
-// these permissions does not request them during an ordinary CraftSky login.
+// OptionalChatScopes contains only implemented v1 operations. Consumer login
+// and registration request these alongside the independently required base.
 // The report destination is deliberately distinct from the chat service.
 func OptionalChatScopes() []string {
 	methods := []string{
@@ -20,7 +20,7 @@ func OptionalChatScopes() []string {
 		"chat.bsky.convo.listConvos", "chat.bsky.convo.listConvoRequests",
 		"chat.bsky.convo.getConvo", "chat.bsky.convo.getMessages",
 		"chat.bsky.convo.getConvoAvailability", "chat.bsky.convo.getConvoForMembers",
-		"chat.bsky.convo.getUnreadCounts", "chat.bsky.convo.sendMessage",
+		"chat.bsky.convo.sendMessage",
 		"chat.bsky.convo.updateRead", "chat.bsky.convo.acceptConvo",
 		"chat.bsky.convo.muteConvo", "chat.bsky.convo.unmuteConvo",
 		"chat.bsky.convo.leaveConvo", "chat.bsky.convo.getLog",

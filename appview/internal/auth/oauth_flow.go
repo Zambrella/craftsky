@@ -170,7 +170,7 @@ func (service *OAuthFlowService) StartRegistration(
 	if err != nil {
 		return "", err
 	}
-	requestInfo, err := service.registrationOAuth.SendAuthorizationRequest(ctx, metadata, service.app.Config.Scopes)
+	requestInfo, err := service.registrationOAuth.SendAuthorizationRequest(ctx, metadata, advertisedConsumerScopes(service.app.Config.Scopes))
 	if err != nil {
 		return "", err
 	}
@@ -229,7 +229,7 @@ func (service *OAuthFlowService) StartLogin(
 			return loginDiagnostic("provider_metadata", err)
 		}
 		requestInfo, err := service.app.SendAuthRequest(
-			authCtx, serverMetadata, service.app.Config.Scopes, identity.DID.String(),
+			authCtx, serverMetadata, advertisedConsumerScopes(service.app.Config.Scopes), identity.DID.String(),
 		)
 		if err != nil {
 			return loginDiagnostic("authorization_request", err)

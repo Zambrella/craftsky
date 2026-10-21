@@ -46,7 +46,7 @@ func NewDeliveryDispatcher(service *Service, selector BackgroundSessions, sender
 	return &DeliveryDispatcher{service: service, selector: selector, sender: sender, now: options.Now, observer: options.Observer}, nil
 }
 
-func dispatchConversation(ctx context.Context, transport *Transport, owner syntax.DID, id ConversationID) (*upstream.ConvoDefs_ConvoView, error) {
+func (service *Service) dispatchConversation(ctx context.Context, transport *Transport, owner syntax.DID, id ConversationID) (*upstream.ConvoDefs_ConvoView, error) {
 	var status struct {
 		ChatDisabled *bool `json:"chatDisabled"`
 	}
@@ -59,7 +59,7 @@ func dispatchConversation(ctx context.Context, transport *Transport, owner synta
 	if *status.ChatDisabled {
 		return nil, ErrRestricted
 	}
-	return currentConversation(ctx, transport, owner, id)
+	return service.supportedConversation(ctx, transport, owner, id)
 }
 
 func (dispatcher *DeliveryDispatcher) terminate(ctx context.Context, item chatdb.ChatPushDelivery, status string) error {
@@ -176,7 +176,7 @@ func (dispatcher *DeliveryDispatcher) processClaim(ctx context.Context, owner sy
 		if err != nil {
 			return err
 		}
-		view, err := dispatchConversation(ctx, transport, owner, conversationID)
+		view, err := dispatcher.service.dispatchConversation(ctx, transport, owner, conversationID)
 		if err != nil {
 			return err
 		}
@@ -204,7 +204,7 @@ func (dispatcher *DeliveryDispatcher) processClaim(ctx context.Context, owner sy
 		if err != nil {
 			return err
 		}
-		view, err := dispatchConversation(ctx, transport, owner, conversationID)
+		view, err := dispatcher.service.dispatchConversation(ctx, transport, owner, conversationID)
 		if err != nil {
 			return err
 		}

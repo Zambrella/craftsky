@@ -412,7 +412,9 @@ class _ProfileFlexibleSpace extends StatelessWidget {
             ignoring: collapsed < 0.5,
             child: Opacity(
               opacity: collapsed,
-              child: _CollapsedTrailingAction(actions: actions),
+              child: collapsed < 0.5
+                  ? const SizedBox.shrink()
+                  : _CollapsedTrailingAction(actions: actions),
             ),
           ),
         ),
@@ -469,24 +471,10 @@ class _CollapsedTrailingAction extends StatelessWidget {
         onPressed: onSettings,
         style: style,
       ),
-      VisitorProfileActionSet(
-        :final isMuted,
-        :final isBusy,
-        :final canToggleMute,
-        :final onMuteToggle,
-      ) =>
-        canToggleMute
-            ? IconButton(
-                tooltip: isMuted
-                    ? l10n.profileUnmuteAction
-                    : l10n.profileMuteAction,
-                icon: Icon(
-                  isMuted ? CraftskyIconsBold.unmuted : CraftskyIconsBold.muted,
-                ),
-                onPressed: isBusy ? null : onMuteToggle,
-                style: style,
-              )
-            : const SizedBox.shrink(),
+      final VisitorProfileActionSet visitor => ProfileMoreActionsButton(
+        actions: visitor,
+        style: style,
+      ),
     };
   }
 }

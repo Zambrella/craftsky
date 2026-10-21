@@ -12,7 +12,7 @@ import 'package:material_ui/material_ui.dart';
 
 void main() {
   testWidgets(
-    'UT-004 shell badge uses native accepted count, excluding requests',
+    'UT-004 shell badge uses filtered accepted count, excluding requests',
     (tester) async {
       final account = AccountKey('did:plc:owner');
       var accepted = 100;

@@ -211,6 +211,16 @@ func (worker *Synchronizer) pollClaim(ctx context.Context, owner syntax.DID, con
 		if err != nil {
 			return err
 		}
+		// Baseline suppression retains only the existing opaque dedupe IDs and
+		// request-lifetime flags, including hidden peers. Otherwise a peer
+		// joining CraftSky later could replay pre-enable history as new push.
+		// No profile identity or message body is stored or exposed here.
+		if !baseline {
+			views, err = worker.service.profileConversations(ctx, owner, views)
+			if err != nil {
+				return err
+			}
+		}
 		for _, view := range views {
 			peer, err := directPeer(owner, view)
 			if err != nil {
@@ -278,7 +288,7 @@ func (worker *Synchronizer) pollClaim(ctx context.Context, owner syntax.DID, con
 			processed++
 			observation := syncObservation{event: event}
 			if event.Kind != "unknown" && event.Kind != "leave" {
-				view, err := currentConversation(ctx, transport, owner, event.ConversationID)
+				view, err := worker.service.supportedConversation(ctx, transport, owner, event.ConversationID)
 				var apiError *atclient.APIError
 				switch {
 				case errors.Is(err, ErrInaccessibleConversation), errors.As(err, &apiError) && apiError.StatusCode == 404:

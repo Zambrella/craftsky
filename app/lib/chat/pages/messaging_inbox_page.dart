@@ -8,8 +8,16 @@ import 'package:craftsky_app/chat/models/chat_identifier.dart';
 import 'package:craftsky_app/chat/models/chat_message.dart';
 import 'package:craftsky_app/chat/models/chat_state.dart';
 import 'package:craftsky_app/chat/providers/chat_providers.dart';
+import 'package:craftsky_app/chat/services/chat_inbox_controller.dart';
+import 'package:craftsky_app/chat/widgets/chat_app_bar_title.dart';
 import 'package:craftsky_app/chat/widgets/chat_content_gate.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
+import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
+import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
+import 'package:craftsky_app/theme/craftsky_floating_action_button.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
+import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
+import 'package:craftsky_app/theme/yarn_refresh_scroll_view.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -18,17 +26,18 @@ class MessagingInboxPage extends ConsumerWidget {
     required this.account,
     required this.onOpen,
     required this.onNewMessage,
+    required this.onRequests,
     required this.onSettings,
     required this.onAuthorize,
-    this.initialBucket = ChatBucket.accepted,
+    this.bucket = ChatBucket.accepted,
     this.onClose,
     super.key,
   });
-
   final AccountKey account;
-  final ChatBucket initialBucket;
+  final ChatBucket bucket;
   final ValueChanged<ChatConversationId> onOpen;
   final VoidCallback onNewMessage;
+  final VoidCallback onRequests;
   final VoidCallback onSettings;
   final ValueChanged<bool> onAuthorize;
   final VoidCallback? onClose;
@@ -48,189 +57,195 @@ class MessagingInboxPage extends ConsumerWidget {
       onClose: onClose,
       builder: (context, ref, status) {
         final counts = ref.watch(chatUnreadCountsProvider(account)).value;
-        Widget tab(String title, int? count, String? label) => Tab(
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Flexible(child: Text(title, overflow: TextOverflow.ellipsis)),
-              if (count != null && count > 0) ...[
-                const SizedBox(width: 8),
-                Badge(label: Text(label!)),
-              ],
-            ],
-          ),
-        );
-        return DefaultTabController(
-          key: ValueKey((account, status.generation)),
-          length: 2,
-          initialIndex: initialBucket == ChatBucket.request ? 1 : 0,
-          child: Scaffold(
-            appBar: AppBar(
-              leading: onClose == null ? null : BackButton(onPressed: onClose),
-              title: Text(l10n.chatInboxTitle),
-              actions: [
-                IconButton(
-                  tooltip: l10n.chatNewMessage,
-                  icon: const Icon(Icons.edit_outlined),
-                  onPressed:
-                      status.canSend &&
-                          status.state == ChatConnectionState.ready
-                      ? () => _owned(ref, onNewMessage)
-                      : null,
-                ),
-                IconButton(
-                  tooltip: l10n.chatSettingsTitle,
-                  icon: const Icon(Icons.settings_outlined),
-                  onPressed: () => _owned(ref, onSettings),
-                ),
-              ],
-              bottom: TabBar(
-                tabs: [
-                  tab(
-                    l10n.chatInboxTab,
-                    counts?.accepted,
-                    counts?.acceptedLabel,
+        final family = chatInboxControllerProvider(account, bucket);
+        Future<void> refresh(ChatInboxController controller) async {
+          await controller.refresh();
+          if (context.mounted) {
+            _owned(
+              ref,
+              () => ref.invalidate(chatUnreadCountsProvider(account)),
+            );
+          }
+        }
+
+        Widget page({ChatInboxController? controller, Widget? error}) =>
+            Scaffold(
+              key: ValueKey((account, bucket, status.generation)),
+              appBar: AppBar(
+                leading: onClose == null
+                    ? null
+                    : BackButton(onPressed: onClose),
+                title: ChatAppBarTitle(
+                  showBackgroundLoading: controller != null,
+                  loading:
+                      controller != null &&
+                      (controller.loading || controller.loadingMore),
+                  child: Text(
+                    bucket == ChatBucket.request
+                        ? l10n.chatRequestsTab
+                        : l10n.chatInboxTitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  tab(
-                    l10n.chatRequestsTab,
-                    counts?.requests,
-                    counts?.requestsLabel,
-                  ),
+                ),
+                actions: [
+                  if (bucket == ChatBucket.accepted)
+                    IconButton(
+                      tooltip: l10n.chatRequestsTab,
+                      onPressed: () => _owned(ref, onRequests),
+                      icon: Badge(
+                        isLabelVisible: (counts?.requests ?? 0) > 0,
+                        label: Text(counts?.requestsLabel ?? '0'),
+                        child: const Icon(CraftskyIcons.email),
+                      ),
+                    ),
+                  if (bucket == ChatBucket.accepted)
+                    IconButton(
+                      tooltip: l10n.chatSettingsTitle,
+                      icon: const Icon(CraftskyIcons.settings),
+                      onPressed: () => _owned(ref, onSettings),
+                    ),
                 ],
               ),
-            ),
-            body: TabBarView(
-              children: [
-                for (final bucket in ChatBucket.values)
-                  _Bucket(
-                    account: account,
-                    bucket: bucket,
-                    onOpen: (id) => _owned(ref, () => onOpen(id)),
-                  ),
-              ],
-            ),
-          ),
-        );
+              floatingActionButton: bucket == ChatBucket.accepted
+                  ? CraftskyFloatingActionButton.extended(
+                      tooltip: l10n.chatNewMessage,
+                      onPressed:
+                          status.canSend &&
+                              status.state == ChatConnectionState.ready
+                          ? () => _owned(ref, onNewMessage)
+                          : null,
+                      icon: const Icon(CraftskyIcons.edit),
+                      label: Text(l10n.chatNewMessage),
+                    )
+                  : null,
+              body:
+                  error ??
+                  (controller == null
+                      ? const Center(child: StitchProgressIndicator())
+                      : _Bucket(
+                          controller: controller,
+                          onRefresh: () => refresh(controller),
+                          onOpen: (id) => _owned(ref, () => onOpen(id)),
+                        )),
+            );
+        return ref
+            .watch(family)
+            .when(
+              skipLoadingOnRefresh: false,
+              loading: page,
+              error: (_, _) => page(
+                error: ChatFailurePanel(
+                  message: l10n.chatUnavailable,
+                  onRetry: () => ref.invalidate(family),
+                ),
+              ),
+              data: (controller) => ListenableBuilder(
+                listenable: controller,
+                builder: (_, _) => page(controller: controller),
+              ),
+            );
       },
     );
   }
 }
 
-class _Bucket extends ConsumerWidget {
+class _Bucket extends StatelessWidget {
   const new({
-    required this.account,
-    required this.bucket,
+    required this.controller,
     required this.onOpen,
+    required this.onRefresh,
   });
-  final AccountKey account;
-  final ChatBucket bucket;
+  final ChatInboxController controller;
   final ValueChanged<ChatConversationId> onOpen;
+  final Future<void> Function() onRefresh;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final family = chatInboxControllerProvider(account, bucket);
-    return ref
-        .watch(family)
-        .when(
-          skipLoadingOnRefresh: false,
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error: (_, _) => ChatFailurePanel(
+    final bucket = controller.bucket;
+    return YarnRefreshScrollView.list(
+      onRefresh: onRefresh,
+      // The controller retains errors rather than throwing to the refresh UI.
+      showSuccess: false,
+      padding: EdgeInsets.only(bottom: bucket == ChatBucket.accepted ? 96 : 24),
+      children: [
+        if (controller.failed)
+          ChatFailurePanel(
             message: l10n.chatUnavailable,
-            onRetry: () => ref.invalidate(family),
+            onRetry: () => unawaited(onRefresh()),
           ),
-          data: (controller) => ListenableBuilder(
-            listenable: controller,
-            builder: (context, _) {
-              return RefreshIndicator(
-                onRefresh: controller.refresh,
-                child: ListView(
-                  physics: const AlwaysScrollableScrollPhysics(),
-                  children: [
-                    if (controller.loading) const LinearProgressIndicator(),
-                    if (controller.failed)
-                      ChatFailurePanel(
-                        message: l10n.chatUnavailable,
-                        onRetry: () => unawaited(controller.refresh()),
-                      ),
-                    if (controller.items.isEmpty &&
-                        !controller.loading &&
-                        !controller.failed)
-                      Padding(
-                        padding: const EdgeInsets.all(32),
-                        child: Center(
-                          child: Text(
-                            bucket == ChatBucket.accepted
-                                ? l10n.chatEmptyInbox
-                                : l10n.chatEmptyRequests,
-                          ),
-                        ),
-                      ),
-                    for (final conversation in controller.items)
-                      ListTile(
-                        key: ValueKey(conversation.id),
-                        leading: const CircleAvatar(
-                          child: Icon(Icons.person_outline),
-                        ),
-                        title: Text(
-                          conversation.peer.displayName ??
-                              conversation.peer.handle ??
-                              l10n.chatSomeone,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        subtitle: conversation.lastMessage == null
-                            ? null
-                            : Text(
-                                switch (conversation.lastMessage!.kind) {
-                                  ChatMessageKind.text =>
-                                    conversation.lastMessage!.text!,
-                                  ChatMessageKind.deleted =>
-                                    l10n.chatMessageDeleted,
-                                  ChatMessageKind.unsupported =>
-                                    l10n.chatMessageUnsupported,
-                                },
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            if (conversation.muted)
-                              Icon(
-                                Icons.notifications_off_outlined,
-                                semanticLabel: l10n.chatMuted,
-                              ),
-                            if (conversation.unreadCount > 0)
-                              Padding(
-                                padding: const EdgeInsets.only(left: 8),
-                                child: Badge(
-                                  label: Text(
-                                    conversation.unreadCount >= 100
-                                        ? '99+'
-                                        : '${conversation.unreadCount}',
-                                  ),
-                                ),
-                              ),
-                          ],
-                        ),
-                        onTap: () => onOpen(conversation.id),
-                      ),
-                    if (controller.loadingMore)
-                      const Padding(
-                        padding: EdgeInsets.all(16),
-                        child: Center(child: CircularProgressIndicator()),
-                      ),
-                    if (controller.hasMore && !controller.loadingMore)
-                      TextButton(
-                        onPressed: () => unawaited(controller.loadMore()),
-                        child: Text(l10n.chatLoadMore),
-                      ),
-                  ],
-                ),
-              );
-            },
+        if (controller.items.isEmpty && !controller.failed)
+          CraftskyEmptyState(
+            icon: bucket == ChatBucket.request
+                ? CraftskyIcons.email
+                : CraftskyIcons.comment,
+            title: bucket == ChatBucket.accepted
+                ? l10n.chatInboxTab
+                : l10n.chatRequestsTab,
+            subtitle: bucket == ChatBucket.accepted
+                ? l10n.chatEmptyInbox
+                : l10n.chatEmptyRequests,
           ),
-        );
+        for (final conversation in controller.items)
+          ListTile(
+            key: ValueKey(conversation.id),
+            leading: ProfileAvatar(
+              seed:
+                  conversation.peer.displayName ??
+                  conversation.peer.handle ??
+                  l10n.chatSomeone,
+              avatarUrl: conversation.peer.avatar,
+              size: ProfileAvatarSize.small,
+            ),
+            title: Text(
+              conversation.peer.displayName ??
+                  conversation.peer.handle ??
+                  l10n.chatSomeone,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            subtitle: conversation.lastMessage == null
+                ? null
+                : Text(
+                    switch (conversation.lastMessage!.kind) {
+                      ChatMessageKind.text => conversation.lastMessage!.text!,
+                      ChatMessageKind.deleted => l10n.chatMessageDeleted,
+                      ChatMessageKind.unsupported =>
+                        l10n.chatMessageUnsupported,
+                    },
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (conversation.muted)
+                  Icon(
+                    CraftskyIcons.muted,
+                    semanticLabel: l10n.chatMuted,
+                  ),
+                if (conversation.unreadCount > 0)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 8),
+                    child: Badge(
+                      label: Text(
+                        conversation.unreadCount >= 100
+                            ? '99+'
+                            : '${conversation.unreadCount}',
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+            onTap: () => onOpen(conversation.id),
+          ),
+        if (controller.hasMore && !controller.loadingMore)
+          TextButton(
+            onPressed: () => unawaited(controller.loadMore()),
+            child: Text(l10n.chatLoadMore),
+          ),
+      ],
+    );
   }
 }

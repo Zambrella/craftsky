@@ -131,7 +131,7 @@ func TestDeliveryIgnoresProfileMuteAndChecksCurrentConversationMute(t *testing.T
 				}
 				return &http.Response{StatusCode: 200, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(body)), Request: r}, nil
 			}))
-			if _, err := store.pool.Exec(t.Context(), `INSERT INTO craftsky_profiles(did,record_cid) VALUES($1,'synthetic-cid');`, info.DID); err != nil {
+			if _, err := store.pool.Exec(t.Context(), `INSERT INTO craftsky_profiles(did,record_cid) VALUES($1,'synthetic-cid') ON CONFLICT DO NOTHING`, info.DID); err != nil {
 				t.Fatal(err)
 			}
 			if _, err := store.pool.Exec(t.Context(), `INSERT INTO actor_mutes(owner_did,subject_did) VALUES($1,'did:plc:peer')`, info.DID); err != nil {

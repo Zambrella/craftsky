@@ -35,6 +35,18 @@ func currentConversation(ctx context.Context, transport *Transport, owner syntax
 	return response.Convo, nil
 }
 
+func (service *Service) supportedConversation(ctx context.Context, transport *Transport, owner syntax.DID, id ConversationID) (*upstream.ConvoDefs_ConvoView, error) {
+	view, err := currentConversation(ctx, transport, owner, id)
+	if err != nil {
+		return nil, err
+	}
+	peer, _ := directPeer(owner, view)
+	if err := service.requireProfiles(ctx, owner, peer); err != nil {
+		return nil, err
+	}
+	return view, nil
+}
+
 func currentMessage(ctx context.Context, transport *Transport, conversation ConversationID, messageID MessageID, pageHint string) (*upstream.ConvoDefs_MessageView, error) {
 	if !validOpaqueID(string(messageID)) {
 		return nil, ErrInaccessibleConversation
@@ -82,7 +94,7 @@ func (service *Service) Report(ctx context.Context, info auth.AuthInfo, id uuid.
 		if err != nil {
 			return err
 		}
-		conversation, err := currentConversation(ctx, transport, info.DID, conversationID)
+		conversation, err := service.supportedConversation(ctx, transport, info.DID, conversationID)
 		if err != nil {
 			return err
 		}

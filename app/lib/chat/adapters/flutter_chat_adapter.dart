@@ -7,6 +7,8 @@ import 'package:craftsky_app/chat/models/chat_message.dart';
 import 'package:craftsky_app/chat/widgets/chat_message_text.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
+import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_chat_core/flutter_chat_core.dart' as core;
 import 'package:flutter_chat_ui/flutter_chat_ui.dart' as ui;
@@ -153,6 +155,9 @@ class _FlutterChatAdapterState extends State<FlutterChatAdapter> {
       unawaited(_controller.setMessages(messages, animated: false));
     }
     final theme = Theme.of(context);
+    final spacing = theme.extension<SpacingTheme>()!;
+    final radii = theme.extension<RadiusTheme>()!;
+    final swatches = theme.extension<BrandSwatchTheme>()!;
     return Column(
       children: [
         Expanded(
@@ -171,7 +176,7 @@ class _FlutterChatAdapterState extends State<FlutterChatAdapter> {
                   resolveUser: (id) async => core.User(id: id),
                   chatController: _controller,
                   crossCache: const DisabledChatMediaCache(),
-                  backgroundColor: theme.colorScheme.surface,
+                  backgroundColor: theme.scaffoldBackgroundColor,
                   builders: core.Builders(
                     chatAnimatedListBuilder: (_, itemBuilder) =>
                         ui.ChatAnimatedList(
@@ -183,7 +188,7 @@ class _FlutterChatAdapterState extends State<FlutterChatAdapter> {
                               ? _loadOlder
                               : null,
                         ),
-                    // Loading overlays the top padding; a changing sliver
+                    // The page title owns loading feedback; a changing sliver
                     // height would move the owner's current message anchor.
                     loadMoreBuilder: (_) => const SizedBox.shrink(),
                     composerBuilder: (_) => const SizedBox.shrink(),
@@ -200,17 +205,21 @@ class _FlutterChatAdapterState extends State<FlutterChatAdapter> {
                               ? Alignment.centerRight
                               : Alignment.centerLeft,
                           child: Container(
-                            margin: const EdgeInsets.symmetric(
-                              vertical: 4,
-                              horizontal: 12,
+                            margin: EdgeInsets.symmetric(
+                              vertical: spacing.sp1,
+                              horizontal: spacing.sp3,
                             ),
-                            padding: const EdgeInsets.all(12),
+                            padding: EdgeInsets.all(spacing.sp3),
                             constraints: const BoxConstraints(maxWidth: 560),
                             decoration: BoxDecoration(
                               color: isSentByMe
                                   ? theme.colorScheme.primaryContainer
-                                  : theme.colorScheme.surfaceContainerHighest,
-                              borderRadius: BorderRadius.circular(16),
+                                  : swatches.paper3,
+                              borderRadius: BorderRadius.circular(radii.r3),
+                              border: Border.all(
+                                color: theme.colorScheme.onSurface,
+                                width: 1.5,
+                              ),
                             ),
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
@@ -239,7 +248,7 @@ class _FlutterChatAdapterState extends State<FlutterChatAdapter> {
                                   IconButton(
                                     tooltip: AppLocalizations.of(context)
                                         .chatReportTitle,
-                                    icon: const Icon(Icons.flag_outlined),
+                                    icon: const Icon(CraftskyIcons.report),
                                     onPressed: () {
                                       final original = _messages[message.id];
                                       if (original != null) {
@@ -274,16 +283,6 @@ class _FlutterChatAdapterState extends State<FlutterChatAdapter> {
                   ),
                 ),
               ),
-              if (_loadingOlder)
-                IgnorePointer(
-                  child: Align(
-                    alignment: Alignment.topCenter,
-                    child: LinearProgressIndicator(
-                      semanticsLabel: AppLocalizations.of(context)
-                          .chatLoadingOlder,
-                    ),
-                  ),
-                ),
             ],
           ),
         ),

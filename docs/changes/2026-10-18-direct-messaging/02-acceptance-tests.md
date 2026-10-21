@@ -1,5 +1,41 @@
 # Acceptance Test Specification: Direct Messaging
 
+## Feedback correction cases: 2026-10-21
+
+UT-017 / NFR-006, FR-015 / AC-017, AC-023: synchronization and operation alerts reach the existing AppMessenger. Verify actual floating snackbar rendering, unchanged Scaffold/AppBar origin, deduplication across rebuilds, retry callbacks, hidden/disposed-page guards and no dismissal of unrelated messages. Routine syncing emits no alert and shows only the 16px title spinner; initial loads retain only the centered loader. Composer focus, drafts, loaded previews, explicit request acceptance and uncertain send/report recovery remain intact. Persistent state text need not become an alert. Remove tests for the abandoned custom banner renderer.
+
+## Approved revision cases: combined OAuth/setup, 2026-10-21
+
+The latest requirements revision supersedes prior additional-consent-at-enable assertions. Execute these vertical loops in order; existing auth/chat suites remain regression coverage.
+
+| Test | Requirements / AC | Observable behavior |
+|---|---|---|
+| AUTH-001 | BR-002, RULE-004, NFR-001 / AC-002, AC-019 | Real login and registration PAR requests include base plus narrow chat scopes. Base-only callback/session/refresh stays valid; granting authority does not enable messaging. Operator/deletion purposes retain their existing scope boundaries. |
+| AUTH-002 | FR-001, FR-016, RULE-004 / AC-002, AC-014 | Permission-recovery handoff preserves the disabled/enabled choice, push preference, generation and sync cursor. Already-enabled accounts resume promptly; disabled accounts stay paused. A stale/disconnected initiating generation still fails closed. |
+| SETUP-001 | BR-003, FR-001, FR-011, FR-014, FR-016 / AC-002, AC-011, AC-015 | Off settings disclose shared history/privacy/reporting, show only the enable switch and make no preference fetch/write. Explicit enable confirms the connection then reveals existing push/audience and Open messages. Disable/re-enable preserves choices, hides/shows controls and retains drafts; failure does not claim success. |
+| ROUTE-001 | FR-001, FR-016, NFR-001, NFR-006 / AC-002, AC-014, AC-016, AC-023 | First Messages visit stays in setup after enable until Open messages. Enabled later visits open the inbox; settings are reachable from app settings and inbox. Missing authority has explicit recovery, no private fetch, and no auto-enable. Account switches/disposal discard pending setup results. Material switches and existing loading/feedback conventions remain. |
+
+## Approved revision: profile actions, 2026-10-20
+
+| Test | Requirements / AC | Acceptance change |
+|---|---|---|
+| UT-015 | NFR-006, NFR-008 / AC-023 | Profile mute/unmute is available only through the shared More menu in expanded and collapsed headers, reflects relationship state, invokes the existing action, respects canToggleMute and busy state, and works in compact sheets and wide popups. |
+| UT-016 | FR-004, NFR-006, NFR-008 / AC-005, AC-023, AC-027 | A denied recipient leaves Message tappable; tapping shows themed informational feedback without opening/creating/sending. Provider/check failures use generic unavailable feedback. Available recipients still open selection; explicit consent and ownership/block/busy protections remain. |
+
+
+## Approved follow-up cases: 2026-10-20
+
+The revision at the top of `01-requirements.md` supersedes earlier non-CraftSky correspondent/native aggregate/tab assertions in this document.
+
+| Test | Requirements / AC | Observable behavior |
+|---|---|---|
+| IT-021 | BR-001, FR-002, FR-003, FR-004, FR-018, NFR-001 / AC-030 | Mixed accepted/request pages omit non-CraftSky peers and continue opaque pagination. Known ID/history/actions/availability/start/report/open paths cannot expose or act on missing/inactive-profile participants. Existing external conversations work when both indexed profiles exist, without requiring a local registration. Profile removal revokes subsequent access. |
+| UT-012 | FR-007, RULE-002, RULE-005, NFR-004 / AC-008, AC-031 | Enumerate filtered authoritative pages, deduplicate IDs, count eligible accepted unread conversations and all pending requests (even read), exclude hidden peers from both counts, cap at 100. Accepted muted/blocked/disabled peers do not count. Cursor cycles, budget exhaustion and provider/database failures never produce successful partial counts. |
+| IT-022 | FR-012, FR-013 / AC-030 | Baseline/recovery/log processing excludes ineligible participants without stalling cursors; final delivery rechecks profile eligibility, including profile removal after enqueue and between initial/final checks. No notification is sent for a hidden peer. |
+| UT-013 | FR-002, FR-015, FR-018, NFR-006, NFR-008 / AC-023, AC-031 | No chat tabs; New message is a FAB; AppBar request button has pending badge and opens the separate typed request route. Requests have their own title/list/back behavior. Yarn refresh invokes existing refresh, retains rows, and a small title spinner reflects loading. Composer shows `Message` as hint without heading; field/send alignment, semantics, drafts, narrow/large-text/keyboard usability survive. |
+
+Execution order: IT-021 eligibility, UT-012 counts, IT-022 delivery, then UT-013 Flutter presentation/navigation. Existing acceptance tests remain regression coverage with superseded fixtures/assertions updated to this policy.
+
 ## 1. Test Strategy
 
 Status: Test design complete; tests proposed, not implemented or executed. Risk: **High**, carried forward from requirements (private messages, optional authority, ambiguous writes and durable delivery).
@@ -85,8 +121,11 @@ Automation Target: UT-011: Flutter `app/test/chat/messaging_consent_test.dart` v
 Feature: Direct messaging
   Scenario: Optional enablement and honest state
     Given messaging is disabled and ordinary CraftSky access is valid
-    When the owner enables messaging with cancelled, refused, insufficient, valid, service-disabled or unavailable outcomes
-    Then shared history/settings, Bluesky storage and Bluesky-only reporting disclosures precede consent
+    When login/registration requests chat permissions alongside base authority
+    Then a base-only grant retains ordinary access and OAuth alone does not enable messaging
+    When the owner visits Messages and explicitly enables CraftSky messaging
+    Then Direct messages setup explains shared history/settings, Bluesky storage and Bluesky-only reporting before enablement
+    And push/audience controls appear only once enabled and Open messages explicitly enters the inbox
     And enablement and accompanying messaging explanations promise neither a CraftSky-only inbox/privacy boundary, PDS message portability nor end-to-end encryption
     And these meaning-based assertions cover localized copy and allow an accurate explicit denial of those promises
     And ordinary access survives rejected chat authority

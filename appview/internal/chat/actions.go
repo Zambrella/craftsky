@@ -15,7 +15,7 @@ func (service *Service) Accept(ctx context.Context, info auth.AuthInfo, id Conve
 		return result, ErrInvalidIdentifier
 	}
 	err := service.withRPC(ctx, info, []syntax.NSID{"chat.bsky.convo.getConvo", "chat.bsky.convo.acceptConvo"}, func(ctx context.Context, transport *Transport) error {
-		current, err := currentConversation(ctx, transport, info.DID, id)
+		current, err := service.supportedConversation(ctx, transport, info.DID, id)
 		if err != nil {
 			return err
 		}
@@ -24,7 +24,7 @@ func (service *Service) Accept(ctx context.Context, info auth.AuthInfo, id Conve
 			if err := transport.Procedure(ctx, "chat.bsky.convo.acceptConvo", upstream.ConvoAcceptConvo_Input{ConvoId: string(id)}, &response); err != nil {
 				return err
 			}
-			current, err = currentConversation(ctx, transport, info.DID, id)
+			current, err = service.supportedConversation(ctx, transport, info.DID, id)
 			if err != nil {
 				return err
 			}
@@ -48,7 +48,7 @@ func (service *Service) SetMuted(ctx context.Context, info auth.AuthInfo, id Con
 		method = "chat.bsky.convo.muteConvo"
 	}
 	err := service.withRPC(ctx, info, []syntax.NSID{"chat.bsky.convo.getConvo", method}, func(ctx context.Context, transport *Transport) error {
-		if _, err := currentConversation(ctx, transport, info.DID, id); err != nil {
+		if _, err := service.supportedConversation(ctx, transport, info.DID, id); err != nil {
 			return err
 		}
 		var response upstream.ConvoMuteConvo_Output
@@ -70,7 +70,7 @@ func (service *Service) Leave(ctx context.Context, info auth.AuthInfo, id Conver
 		return ErrInvalidIdentifier
 	}
 	return service.withRPC(ctx, info, []syntax.NSID{"chat.bsky.convo.getConvo", "chat.bsky.convo.leaveConvo"}, func(ctx context.Context, transport *Transport) error {
-		if _, err := currentConversation(ctx, transport, info.DID, id); err != nil {
+		if _, err := service.supportedConversation(ctx, transport, info.DID, id); err != nil {
 			return err
 		}
 		var response upstream.ConvoLeaveConvo_Output

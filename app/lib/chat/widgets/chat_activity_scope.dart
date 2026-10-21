@@ -3,8 +3,11 @@ import 'package:craftsky_app/chat/models/chat_identifier.dart';
 import 'package:craftsky_app/chat/models/chat_state.dart';
 import 'package:craftsky_app/chat/providers/chat_providers.dart';
 import 'package:craftsky_app/chat/services/chat_sync_coordinator.dart';
-import 'package:craftsky_app/chat/widgets/chat_sync_timestamp.dart';
+import 'package:craftsky_app/chat/widgets/chat_app_bar_title.dart';
+import 'package:craftsky_app/chat/widgets/chat_message_effect.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
+import 'package:craftsky_app/shared/messaging/message_action.dart';
+import 'package:craftsky_app/shared/messaging/widgets/craftsky_snack_bar.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -120,51 +123,17 @@ class _AttachedChatActivityState extends State<_AttachedChatActivity> {
             snapshot.state != 'ready' &&
             snapshot.state != 'syncing');
     final l10n = AppLocalizations.of(context);
-    return Column(
-      children: [
-        if (stale || snapshot?.state == 'syncing')
-          Material(
-            child: SafeArea(
-              bottom: false,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 8,
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Semantics(
-                        liveRegion: true,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              stale
-                                  ? l10n.chatSyncStale
-                                  : l10n.chatSyncUpdating,
-                            ),
-                            ChatSyncTimestamp(at: snapshot?.lastSuccessAt),
-                          ],
-                        ),
-                      ),
-                    ),
-                    if (stale)
-                      TextButton(
-                        onPressed: coordinator?.busy == true
-                            ? null
-                            : coordinator?.retry,
-                        child: Text(l10n.chatRefresh),
-                      ),
-                  ],
-                ),
-              ),
-            ),
-          )
-        else
-          const SizedBox.shrink(),
-        Expanded(child: widget.child),
-      ],
+    return ChatMessageEffect(
+      severity: MessageSeverity.warning,
+      message: stale ? l10n.chatSyncStale : null,
+      action: MessageAction(
+        label: l10n.chatRefresh,
+        onPressed: () => coordinator?.retry(),
+      ),
+      child: ChatBackgroundLoading(
+        loading: coordinator?.busy == true || snapshot?.state == 'syncing',
+        child: widget.child,
+      ),
     );
   }
 }

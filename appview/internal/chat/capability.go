@@ -38,7 +38,7 @@ func rpcScopes(methods ...syntax.NSID) []string {
 
 func EvaluateCapabilities(scopes []string) Capabilities {
 	return Capabilities{
-		CanRead:      auth.HasEffectiveScopes(scopes, rpcScopes("chat.bsky.actor.getStatus", "chat.bsky.convo.listConvos", "chat.bsky.convo.listConvoRequests", "chat.bsky.convo.getConvo", "chat.bsky.convo.getMessages", "chat.bsky.convo.getUnreadCounts", "chat.bsky.convo.getLog")),
+		CanRead:      auth.HasEffectiveScopes(scopes, rpcScopes("chat.bsky.actor.getStatus", "chat.bsky.convo.listConvos", "chat.bsky.convo.listConvoRequests", "chat.bsky.convo.getConvo", "chat.bsky.convo.getMessages", "chat.bsky.convo.getLog")),
 		CanSend:      auth.HasEffectiveScopes(scopes, rpcScopes("chat.bsky.convo.getConvoAvailability", "chat.bsky.convo.getConvoForMembers", "chat.bsky.convo.sendMessage")),
 		CanReport:    auth.HasEffectiveScopes(scopes, rpcScopes("com.atproto.moderation.createReport")),
 		CanSetPolicy: auth.HasEffectiveScopes(scopes, []string{"repo:chat.bsky.actor.declaration?action=create&action=update"}),

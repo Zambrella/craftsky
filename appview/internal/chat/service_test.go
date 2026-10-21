@@ -56,6 +56,7 @@ func newServiceFixture(t *testing.T, enabled bool, scopes []string, upstream htt
 	if err != nil {
 		t.Fatal(err)
 	}
+	seedCraftskyProfiles(t, store, owner.String(), "did:plc:external-peer", "did:plc:peer", "did:plc:sender")
 	if _, err := store.Connection(t.Context(), owner); err != nil {
 		t.Fatal(err)
 	}

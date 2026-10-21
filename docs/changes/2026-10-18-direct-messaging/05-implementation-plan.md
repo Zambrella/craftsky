@@ -1,5 +1,112 @@
 # TDD Implementation Plan: Direct Messaging
 
+## AppMessenger correction: 2026-10-21
+
+UIP-028 / NFR-006, FR-015, AC-017, AC-023: the maintainer's screenshot showed the custom sync banner above the page Scaffold, leaving a black region and moving the AppBar. The preceding pass reused snackbar styling in a separate inline renderer; it did not complete the requested migration to the existing message delivery system.
+
+Remove the bespoke CraftskyMessageBanner renderer and its renderer-only tests. Chat alerts now dispatch through the existing AppMessenger/context.showInfo/showWarning/showError flow, using a non-rendering ChatMessageEffect to publish controller state after layout. It deduplicates unchanged messages, ignores covered/disposed routes, guards stale retry actions and never dismisses another feature's message. Authorization failures use the existing guarded async message path directly.
+
+Apply this across synchronization/degraded-state warnings, settings/recipient errors, draft saves, send failures/uncertainty and report outcomes. Request instructions, incoming-policy/permission states and durable send/report results remain normal in-page text with their existing controls. Uncertain operations retain their explicit retry checks; no automatic remote action is added.
+
+Routine synchronization emits no alert. An inherited loading value supplies only the existing 16px title spinner. Initial inbox/conversation loads keep their centered spinner without an extra title loader. No feedback wrapper adds geometry above the Scaffold; the composer and keyboard state remain stable.
+
+Observed red: the synchronization test still found the custom inline banner. Green dispatches one warning through the recording AppMessenger with the existing retry action, preserving the same editor/controller. The real ScaffoldMessengerImpl test verifies the floating themed snackbar and an unchanged AppBar origin. Additional regressions cover routine syncing, covered-route/disposal guards, deduplication, draft retention, private previews, request acceptance and uncertain report status without replay.
+
+Verification: all **122 chat/shared-messenger tests pass**, exit 0, 9 seconds: `/private/tmp/craftsky-chat-messenger-tests.log`. The first runs exposed a duplicate test-builder argument, missing test localizations, obsolete timestamp/copy assertions, and an initial/background spinner overlap; all are corrected in the green suite. Final-source verification passes the same 122 tests again after cleanup: `/private/tmp/craftsky-chat-messenger-tests-final.log`. Whole-app analysis exits 0 with an empty diagnostics file: `/private/tmp/craftsky-chat-messenger-analyze-final.log`. Formatting and `git diff --check` pass. No backend, auth/permission, API, migration, dependency or live action changed in this correction.
+
+## Combined OAuth/setup execution: 2026-10-21
+
+Inputs: approved 2026-10-21 revisions of requirements, acceptance tests and coding plan. Local auth/permission changes explicitly authorized; existing unrelated work preserved. No commit/push/deployment or live message/report.
+
+| Order | Test | Requirements / AC | State |
+|---|---|---|---|
+| 1 | AUTH-001 | BR-002, RULE-004, NFR-001 / AC-002, AC-019 | Complete |
+| 2 | AUTH-002 | FR-001, FR-016, RULE-004 / AC-002, AC-014 | Complete |
+| 3 | SETUP-001 | BR-003, FR-001, FR-011, FR-014, FR-016 / AC-002, AC-011, AC-015 | Complete |
+| 4 | ROUTE-001 | FR-001, FR-016, NFR-001, NFR-006 / AC-002, AC-014, AC-016, AC-023 | Complete |
+
+First red: real consumer login/registration PAR omits chat scopes. Scope request and base grant validation stay distinct. Then recovery confirmation independence, settings enablement, and route journey. Relevant existing tests provide the ordinary-session, policy-preservation, background/delivery fencing and draft regressions.
+
+AUTH-001 red: both real PAR requests omitted the chat status grant. Green requests the narrow union in login/registration only; Config.Scopes remains the required base. Combined request, semantic capability and base scope tests pass (2.042s). An initial test read lacked its required owner fence; the fixture now reads persisted request JSON directly without weakening production fences. Logs: `/private/tmp/craftsky-combined-auth-{red,green}.log`.
+
+AUTH-002 red: permission recovery changed the connection to enabled/generation 2/push false for both initial choices. Green validates existing same-owner/device/generation authority without changing enablement, generation or push preference; disabled sync remains paused. Recovery and stale authority/handoff regressions pass (9.846s). Logs: `/private/tmp/craftsky-combined-recovery-{red,green}.log`.
+
+SETUP-001 red: disabled Messages rendered the old authorization screen rather than Direct messages setup. Green reuses one settings surface, makes the account switch reversible, hides preferences while off, preserves push/audience choices and keeps setup visible until Open messages. Initial, iOS Material-switch, background-loader and exact-policy regressions pass. The route assertion deliberately checks persisted effects rather than incidental read counts. Logs: `/private/tmp/craftsky-combined-setup-{red,green}.log`, `/private/tmp/craftsky-combined-settings-tests.log`.
+
+ROUTE-001: extended the original setup journey through enable, disable, re-enable and explicit Open messages; cold enabled visits open Messages directly. A separate meaningful red found permission loss during post-enable preference loading republishing a stale ready status. Green publishes the latest classified status. The pending/disposed-owner case also found a preference request starting after disposal; explicit current-lifetime checks now prevent subsequent private fetches. Both guards retain already-submitted remote outcomes without replay or stale publication. Logs: `/private/tmp/craftsky-combined-access-loss-{red,green}.log`, `/private/tmp/craftsky-combined-flutter-regressions.log` (initial disposal failure), `/private/tmp/craftsky-combined-boundary-regressions.log` (green).
+
+Broader regressions exposed prior follow-up fixture drift: API rejected-send fixtures lacked the newly required CraftSky profiles, and route fixtures used old Messages/Settings/Saved labels or indices. Updated only those synthetic profiles/assertions; production eligibility and navigation behavior remain intact. The three API contract tests pass under race (4.024s); the settings/disposal/router group passes 41 tests with 5 configured subscription skips. Initial broad auth/chat packages pass under race (51.903s/71.889s); the corrected full API package passes under race (142.542s).
+
+Final Flutter verification passes **929 tests**, with **11 pre-existing configured subscription skips**, in 66 seconds, exit 0. It covers chat, auth, router, settings and profile suites. Whole-app static analysis exits 0 with a zero-byte diagnostics file. Logs: `/private/tmp/craftsky-combined-flutter-final.log`, `/private/tmp/craftsky-combined-analyze-final.log`. Localization generation, scoped Dart formatting, Go formatting and diff checks pass. No provider/router generation, dependency or schema change was needed.
+
+AUTH-001 complete ordinary handoff coverage also passes for base-only and chat-capable grants (3.335s under race): both get usable CraftSky child sessions and neither enables messaging. AUTH-002's final extension caught a previously enabled account staying paused after permission recovery. Its red is `/private/tmp/craftsky-combined-enabled-recovery-red.log`; the minimum change resumes retained sync only for an already-enabled account. Enablement, generation, push choice and cursor remain preserved, and disabled accounts stay paused. The final full auth race suite passes (37.002s): `/private/tmp/craftsky-combined-auth-final.log`.
+
+- [x] Approved requirements/tests/design revisions recorded before code changes; all four vertical loops executed and notes read back.
+- [x] Preferences remain conditional, shared audience is unchanged on toggles, and hidden local drafts retain existing account fencing.
+- [x] Initial centered and background title loaders, Material switches and CraftSky themed feedback retained.
+- [x] Flutter regression suites and whole-app analysis pass; full chat/API race suites pass.
+- [x] Final full auth race suite passes on the final source; stale-generation, missing-purpose, session/permission loss, base-only access and both recovery choices remain covered.
+- [x] No commit, push, deployment, runtime AppView rebuild, production change or live message/report. Owner-run device/OAuth/provider validation remains separate; report acceptance remains unverified.
+- [x] Implementation review remains a separate next-stage choice, not automatically performed or relabeled approved.
+
+## Profile action follow-up: 2026-10-20
+
+Explicit maintainer direction is recorded in the approved revisions of requirements, acceptance tests and coding plan. No backend, permission, migration or live-message action is in scope.
+
+| Order | Test | Requirements / AC | State |
+|---|---|---|---|
+| 1 | UT-015 | NFR-006, NFR-008 / AC-023 | Complete: expanded/collapsed shared menu |
+| 2 | UT-016 | FR-004, NFR-006, NFR-008 / AC-005, AC-023, AC-027 | Complete: themed denial/failure feedback and allowed navigation |
+
+
+UT-015 red found standalone mute controls and missing menu entries. Green uses one shared ProfileMoreActionsButton in the action row and collapsed AppBar, preserving state-dependent labels and guards. Profile action tests pass; actual expanded/collapsed mute-and-Unmute page test passes. Logs: `/private/tmp/craftsky-profile-menu-{red,green,collapsed-green}.log`. The first page regression exposed the separate collapsed mute control, which is now removed; the menu is built only when that header control is visible.
+
+UT-016 red showed the denied recipient still had a disabled Message button. Green keeps it tappable and uses the existing guarded context.showInfo call: known denial shows the neutral recipient-unavailable copy, failed/incomplete checks show generic unavailability, and only a confirmed available recipient opens selection. Exact account/consent/busy/block guards remain. The widget test covers denial, provider failure and recovery to available without hidden create/send calls. Provider retry is disabled only in the test harness to make the failure case deterministic. Logs: `/private/tmp/craftsky-profile-message-{red,green}.log`.
+
+Final profile follow-up verification: `flutter test --no-pub test/chat test/profile/widgets/profile_actions_test.dart test/profile/profile_page_test.dart` passes **139 tests**, no failures/skips, 12 seconds. After test-fixture lint cleanup, the two profile suites plus Message button suite pass **49 tests** on the final files. `dart analyze --format=machine lib/chat lib/profile test/chat test/profile` exits 0 with no findings. Formatting and `git diff --check` pass. Logs: `/private/tmp/craftsky-profile-actions-{tests-final,focused-final,analyze-final}.log`.
+
+- [x] UT-015 and UT-016 completed with meaningful red/green evidence.
+- [x] Shared More menu retains mute/unmute callbacks, busy/block eligibility, share/report/block/copy and responsive presentation; actual page tests include collapsed-header use.
+- [x] Message denial and provider failure use the existing AppMessenger informational path without navigation; available recipients retain explicit selection flow.
+- [x] Requirements, acceptance, coding/implementation and UI notes updated and read back.
+- [x] No backend/API/permission/dependency changes, migration, commit, deployment or live message/report. Native/device/live checks were not repeated for these client-only changes; final implementation review remains separate.
+
+## Follow-up execution: 2026-10-20 CraftSky eligibility and chat UI
+
+Inputs are the explicit maintainer revision now recorded at the top of `01-requirements.md`, `02-acceptance-tests.md` and `04-coding-plan.md`. Earlier completed loops remain historical evidence; external-peer/native-count/tab expectations are superseded. Existing uncommitted UI polish is retained. No commit, deployment, live message/report or migration is requested.
+
+| Order | Test ID | Requirements | AC | State |
+|---|---|---|---|---|
+| 1 | IT-021 | BR-001, FR-002, FR-003, FR-004, FR-018, NFR-001 | AC-030 | Complete: filtered pagination and profile-removal denial |
+| 2 | UT-012 | FR-007, RULE-002, RULE-005, NFR-004 | AC-008, AC-031 | Complete: filtered/capped/bounded counts and narrower permission |
+| 3 | IT-022 | FR-012, FR-013 | AC-030 | Complete: sync/delivery/open eligibility and baseline lifetime preservation |
+| 4 | UT-013 | FR-002, FR-015, FR-018, NFR-006, NFR-008 | AC-023, AC-031 | Complete: navigation, themed refresh, loading and composer |
+
+IT-021: list-filter red showed both buckets exposing the hidden first-page peer (one RPC instead of continuing). Green uses a batched sqlc profile query and preserves opaque continuation. Known-ID/profile-removal red exposed history, actions, start and send; green centralizes consumer access through `supportedConversation`, checks availability/start, and retains existing owner/capability fencing. Nearby pagination/history/action/start/send/open tests pass (9.733s). Logs: `/private/tmp/craftsky-dm-{eligibility-red,eligibility-green,profile-access-red,profile-access-green}.log`. Existing positive fixtures now seed public CraftSky profiles without creating peer OAuth sessions.
+
+UT-012: red returned global `100/100` with zero list calls where filtered totals are `2/3`. Green enumerates authoritative lists, batches profile eligibility, deduplicates IDs, counts all pending requests (including read/muted), excludes accepted muted/blocked/disabled peers, caps at 100, and rejects cycles, provider failure and 20-page budget exhaustion without publishing partial counts. Overall count handling is bounded to 20 seconds. A further red showed an unused global-count grant preventing readiness; it is now removed from optional permissions and read capability checks, narrowing authority without changing existing grant compatibility. Count/capability/status tests pass (8.248s). Logs: `/private/tmp/craftsky-dm-{counts-red,count-scope-red,counts-green}.log`.
+
+IT-022: red sent both queued notifications despite profile removal at initial/final check. Green routes both delivery checks and incremental sync through the same profile boundary; recovery pages use batched filtering. Hidden events still advance the cursor. Further red proved that dropping hidden baseline state replayed pre-enable history when the peer later joined CraftSky. Final green retains only existing private opaque baseline dedupe IDs/request-lifetime flags (no peer identity or message body) so later membership neither replays accepted history nor resets baseline request suppression, even for a later request message. These tombstones never populate views/counts or authorize push. Focused join/recovery/delivery tests pass under race (6.941s). Notification-open profile denial and either-direction local-block badge tests also pass under race (4.111s). Logs: `/private/tmp/craftsky-dm-profile-{push-red,push-green,join-red,join-green,open-block}.log`.
+
+UT-013: navigation red found the old tab bar and no FAB. Green uses the existing typed request route, pending badge and branded FAB; request return/cold fallback resolves to chats. Composer red lacked the requested hint and title refresh feedback. Green hides the visible field label (retaining its accessible label), shows localized `Message` as hint and centers the send control; controlled refresh retains message/editor content and shows a 16px stitch indicator next to the title. Both accepted/request views pass actual yarn pull gestures, retained-row and title-spinner assertions at 320px / 2x text scale. Remaining loading surfaces use the same title pattern, and history pagination adds no loading geometry. Logs: `/private/tmp/craftsky-dm-{navigation-red,navigation-green,composer-red,composer-green,yarn-refresh}.log`.
+
+Final Flutter verification: `flutter test --no-pub test/chat test/notifications test/router/notification_open_routing_test.dart test/theme/yarn_refresh_scroll_view_test.dart` passes **233 tests, no failures or skips**, 19 seconds. Whole-app `dart analyze --format=machine` exits 0 with no findings. SQL generation check passes. Three synthetic capture tests pass; visually inspected chats, requests, conversation composer and retained-history refresh using bundled fonts; temporary capture harness removed. Images: `/private/tmp/craftsky-dm-followup-{inbox-accepted,inbox-request,conversation,refresh}.png`. No real account or transcript data used.
+
+Final backend verification: complete `./internal/chat` race suite passes on the final source (67.196s); `./internal/auth` (42.801s) and `./internal/routes` (29.306s) race suites pass on their unchanged final source. The first broad run found a duplicate positive-profile fixture after shared fixture seeding; corrected the fixture with `ON CONFLICT DO NOTHING` and reran successfully. Logs: `/private/tmp/craftsky-dm-followup-{chat-final,backend,backend-final}.log`. The optional permission reduction changes no stored OAuth credential or migration and requests no wider authority.
+
+Runtime: rebuilt/restarted only the local development AppView with `scripts/compose-dev up -d --build --no-deps appview`, including the final baseline fix. Final `/healthz` returns HTTP 200, status `ok`, database `ok`, Tap connected. Build log: `/private/tmp/craftsky-dm-followup-local-build-final.log`. No production deployment or live message/report was performed. Reload the app client to load its new widgets.
+
+Completion checklist:
+
+- [x] IT-021 / UT-012 / IT-022 / UT-013 completed with meaningful red/green evidence and regressions.
+- [x] Revised user instructions and changed product behavior recorded in requirements, acceptance cases and coding plan.
+- [x] 233 focused Flutter tests pass; whole-app analysis has no findings; SQL generation check and `git diff --check` pass.
+- [x] Chat/auth/routes race suites pass; synthetic screens inspected; local runtime rebuilt and healthy.
+- [x] No commit/push, dependency addition, migration, production action or live messaging/reporting performed.
+- [x] Implementation and UI notes updated and read back before handoff.
+
+The local scope approval already given and the explicit behavior instructions authorize this narrower eligibility implementation. Physical-device, assistive-technology and live/provider validation remain maintainer-owned. Full Flutter suite and supported-platform native rebuilds were not repeated for these client presentation changes; no current-source device proof is claimed. Final implementation review remains a separate next-stage choice.
+
 ## Inputs
 - Requirements: `01-requirements.md`
 - Tests: `02-acceptance-tests.md`

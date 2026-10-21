@@ -45,7 +45,7 @@ func (service *Service) Heartbeat(ctx context.Context, info auth.AuthInfo, activ
 	}
 	err := service.withRPC(ctx, info, methods, func(ctx context.Context, transport *Transport) error {
 		if activity.View == "conversation" {
-			if _, err := currentConversation(ctx, transport, info.DID, activity.ConversationID); err != nil {
+			if _, err := service.supportedConversation(ctx, transport, info.DID, activity.ConversationID); err != nil {
 				return err
 			}
 		}

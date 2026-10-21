@@ -15,6 +15,41 @@ Widget _wrap(Widget child) => MaterialApp(
 
 void main() {
   group('CraftskySnackBarContent', () {
+    testWidgets('large text keeps both action and dismissal reachable', (
+      tester,
+    ) async {
+      await tester.binding.setSurfaceSize(const Size(320, 568));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      var retried = false;
+      var dismissed = false;
+      await tester.pumpWidget(
+        _wrap(
+          MediaQuery(
+            data: const MediaQueryData(textScaler: TextScaler.linear(2)),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(16),
+              child: CraftskySnackBarContent(
+                severity: MessageSeverity.error,
+                message: 'Try again.',
+                action: MessageAction(
+                  label: 'Retry',
+                  onPressed: () => retried = true,
+                ),
+                onDismiss: () => dismissed = true,
+              ),
+            ),
+          ),
+        ),
+      );
+      expect(tester.takeException(), isNull);
+      await tester.ensureVisible(find.text('Retry'));
+      await tester.tap(find.text('Retry'));
+      expect(retried, isTrue);
+      await tester.ensureVisible(find.byIcon(CraftskyIconsBold.close));
+      await tester.tap(find.byIcon(CraftskyIconsBold.close));
+      expect(dismissed, isTrue);
+    });
+
     testWidgets(
       'info renders info_outline icon and no close icon',
       (tester) async {

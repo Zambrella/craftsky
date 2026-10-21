@@ -10,6 +10,7 @@ import 'package:craftsky_app/chat/models/chat_preview.dart';
 import 'package:craftsky_app/chat/providers/chat_providers.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/router/router.dart';
+import 'package:craftsky_app/theme/craftsky_card.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -95,8 +96,7 @@ class _ChatMessagePreviewState extends ConsumerState<ChatMessagePreview> {
         : localizations.formatTimeOfDay(TimeOfDay.fromDateTime(start));
     return Padding(
       padding: const EdgeInsets.only(top: 8),
-      child: Card(
-        clipBehavior: Clip.antiAlias,
+      child: CraftskyCard(
         child: InkWell(
           onTap: () => _open(preview),
           child: Padding(

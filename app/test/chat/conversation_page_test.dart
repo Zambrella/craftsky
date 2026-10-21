@@ -7,6 +7,7 @@ import 'package:craftsky_app/chat/models/chat_message.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
+import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:flutter_chat_ui/flutter_chat_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
@@ -63,7 +64,8 @@ void main() {
       // Settle the drag's boundary spring while the loading spinner runs.
       await tester.pump(const Duration(seconds: 1));
       expect(loads, 1);
-      expect(find.byType(LinearProgressIndicator), findsOneWidget);
+      // Loading feedback is in the page AppBar, never in history geometry.
+      expect(find.byType(StitchProgressIndicator), findsNothing);
       final before = tester.getTopLeft(find.text('Message 10')).dy;
       setView(() {
         history = history.merge(

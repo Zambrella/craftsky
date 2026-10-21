@@ -1,8 +1,11 @@
 import 'package:craftsky_app/chat/pages/report_page.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
+import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
+
+import '../fakes/recording_messenger.dart';
 
 void main() {
   testWidgets(
@@ -13,6 +16,8 @@ void main() {
       var checks = 0;
       await tester.pumpWidget(
         MaterialApp(
+          builder: (context, child) =>
+              MessengerScope(messenger: RecordingMessenger(), child: child!),
           theme: AppTheme.lightThemeData,
           localizationsDelegates: appLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
@@ -57,6 +62,8 @@ void main() {
       var calls = 0;
       await tester.pumpWidget(
         MaterialApp(
+          builder: (context, child) =>
+              MessengerScope(messenger: RecordingMessenger(), child: child!),
           theme: AppTheme.lightThemeData,
           localizationsDelegates: appLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
