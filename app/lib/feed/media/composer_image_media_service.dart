@@ -492,7 +492,7 @@ class ComposerImageMediaService {
       };
       // Inspect the header and dimensions, then let the codec attempt decoding.
       // isValid also requires an exact file footer, rejecting readable photos
-      // with appended data (such as JPEG motion photos) before the codec can try.
+      // with appended data, including JPEG motion photos, before decoding.
       // Preparation always re-encodes the image; original trailing data is
       // never uploaded. Keep dimension checks before any full pixel decode.
       if (lookupMimeType('', headerBytes: request.bytes) !=
