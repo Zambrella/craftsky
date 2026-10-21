@@ -6,9 +6,9 @@ RUN npm ci --no-audit --no-fund
 COPY admin/ ./
 RUN npm test && npm run build
 
-FROM golang:1.27.2-alpine@sha256:85dc1069ac644ea3c527b177303a406eb3358192816cd7f9e5848eb658851673 AS build-base
+FROM golang:1.27.3-alpine@sha256:f2c872bcee949b7be9c490efd02b48a8a2fbf947cdf533f1c58525ec9d8170fd AS build-base
 WORKDIR /src
-RUN test "$(go env GOVERSION)" = "go1.27.2"
+RUN test "$(go env GOVERSION)" = "go1.27.3"
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .

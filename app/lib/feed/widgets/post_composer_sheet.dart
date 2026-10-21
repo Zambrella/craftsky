@@ -1115,6 +1115,8 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
       }
       return;
     }
+    // Release the editor's input connection before async work or route removal.
+    FocusScope.of(context).unfocus();
     final activeLease = ref.read(sessionRegistryProvider).value?.activeLease;
     SelectedLinkPreview? previewSelection;
     var scheduledExternalDisposition = _ScheduledExternalDisposition.remove;

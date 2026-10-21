@@ -14,7 +14,7 @@
 - `git diff --check`: passed.
 - Final Sentry inventory: **25 unresolved**, no pagination remaining. Nine original issues are resolved using the next-release setting; their saved activities contain an empty future target and the existing semantic-version anchor. No other issues were resolved, archived, merged or deleted.
 
-## Release gate limitation
+## Initial release gate limitation
 
 `GOFLAGS='-p=1' ./scripts/appview-check` passed module verification, code-generation comparison, formatting/vet/static analysis stages, then stopped at the source vulnerability scan:
 
@@ -40,3 +40,32 @@ The six newly fixed issues remain open until their uncommitted local fixes are i
 The subsequent audit added operation-scoped retention for like/repost/follow, retained the resource-owning mute/unmute repository, guarded onboarding invalidation, and removed deferred provider initialization from widget builds. Five new regressions demonstrated the original defects before the fixes. The affected **400-test** suite passed, including read-provider disposal, mutation completion after listener removal, invalidation, avatar lifetime and relationship rollback/rendering coverage. The earlier full Flutter suite predates these follow-up changes; it was not rerun for this follow-up.
 
 Final follow-up checks: `fvm flutter analyze --no-pub` reported **no issues**; `git diff --check` passed.
+
+
+## PR #208 release gate repair
+
+Reproduced the unchanged `AppView release gate` locally before editing:
+`GOFLAGS=-p=1 APPVIEW_CHECK_ARTIFACT_DIR=/tmp/craftsky-pr208-reproduce ./scripts/appview-check`
+exited 3 at the source vulnerability scan with the same reachable
+`GO-2026-6809` / `crypto/x509@go1.27.2` finding as GitHub run `39621479159`.
+The aggregate `PR checks` job failed solely because `APPVIEW_RESULT=failure`;
+its other applicable job results were successful.
+
+Updated Go 1.27.2 to 1.27.3 consistently in the CI workflow, both local test/gate
+scripts, AppView and tools modules, and the Docker build stage. The official
+`golang:1.27.3-alpine` image is pinned to index digest
+`sha256:f2c872bcee949b7be9c490efd02b48a8a2fbf947cdf533f1c58525ec9d8170fd`.
+No application behavior, dependency versions, or vulnerability policy changed.
+
+Validation after the fix:
+
+- Full `GOFLAGS=-p=1 APPVIEW_CHECK_ARTIFACT_DIR=/tmp/craftsky-pr208-fixed ./scripts/appview-check`: **passed**, exit 0.
+- Normal Go suite: **6,300 passed**, no failed or skipped test cases.
+- Full Go race suite: **6,300 passed**, no failed or skipped test cases.
+- Module/code-generation/format/vet/Staticcheck checks passed. Source scan reports zero reachable vulnerabilities; the existing unused-module advisory remains non-reachable.
+- Release and evidence images, binary vulnerability/provenance checks, migration rollback/reapply and failure handling, media probes, startup/console boundaries, and pinned Tap handshake passed.
+- Temporary gate containers, volumes, and images were cleaned up by the gate.
+- CI-pinned actionlint 1.7.7, shell syntax checks, and `git diff --check`: passed.
+
+This supersedes the initial toolchain-related gate limitation above. Validation
+is local; no commit, push, release, or deployment was performed for this repair.

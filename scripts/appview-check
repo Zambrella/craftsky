@@ -90,10 +90,10 @@ cleanup() {
 }
 trap cleanup EXIT
 
-export GOTOOLCHAIN="go1.27.2"
+export GOTOOLCHAIN="go1.27.3"
 actual_go_version=$(go env GOVERSION)
-if [[ "$actual_go_version" != "go1.27.2" ]]; then
-  echo "appview-check: Go version is $actual_go_version, want go1.27.2" >&2
+if [[ "$actual_go_version" != "go1.27.3" ]]; then
+  echo "appview-check: Go version is $actual_go_version, want go1.27.3" >&2
   exit 1
 fi
 toolchain_goroot=$(go env GOROOT)
