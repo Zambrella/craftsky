@@ -25,74 +25,81 @@ class ToggleLikePost extends _$ToggleLikePost {
   FutureOr<Post?> build() => null;
 
   Future<void> toggle({required Post post}) async {
-    final operation = ActiveAccountOperation.capture(ref);
-    final desiredLiked = !post.viewerHasLiked;
-    final next = post.copyWith(
-      viewerHasLiked: desiredLiked,
-      likeCount: post.viewerHasLiked
-          ? (post.likeCount > 0 ? post.likeCount - 1 : 0)
-          : post.likeCount + 1,
-    );
-    final endpoint = '/v1/posts/${post.author.did}/${post.rkey}/likes';
-    final immutableBody = desiredLiked ? 'POST\n' : 'DELETE\n';
-    final controller = ref.read(pdsRecordOperationControllerProvider);
-    final scope = likePostMutationScope(ref, post);
-    final token = controller.beginOrRetry(
-      scope: scope,
-      endpoint: endpoint,
-      immutableBody: immutableBody,
-      newOperationKey: newPdsMutationOperationKey,
-    );
-    final operationKey = token.operationKey;
-    late final repo = ref.read(postRepositoryProvider);
-
-    state = AsyncData(next);
+    // A submitted mutation owns its completion even if its UI listener leaves.
+    // Explicit invalidation/account changes still end its authority.
+    final lifetime = ref.keepAlive();
     try {
-      await runPdsMutation<void>(
-        ref: ref,
-        controller: controller,
-        token: token,
-        isCurrent: () => operation.isCurrent,
-        send: () async {
-          if (desiredLiked) {
-            await repo.like(
-              post.author.did,
-              post.rkey,
-              operationKey: operationKey,
-            );
-          } else {
-            await repo.unlike(
-              post.author.did,
-              post.rkey,
-              operationKey: operationKey,
-            );
-          }
-        },
+      final operation = ActiveAccountOperation.capture(ref);
+      final desiredLiked = !post.viewerHasLiked;
+      final next = post.copyWith(
+        viewerHasLiked: desiredLiked,
+        likeCount: post.viewerHasLiked
+            ? (post.likeCount > 0 ? post.likeCount - 1 : 0)
+            : post.likeCount + 1,
       );
-    } on PdsMutationObsoleteException {
-      return;
-    } on PdsMutationUnresolvedException catch (error, stackTrace) {
-      operation.publish(() => state = AsyncError<Post?>(error, stackTrace));
-      return;
-    } on Object catch (error, stackTrace) {
-      if (!operation.isCurrent) return;
-      controller.markFailed(token);
-      state = const AsyncData(null);
-      state = AsyncError<Post?>(error, stackTrace);
-      return;
-    }
+      final endpoint = '/v1/posts/${post.author.did}/${post.rkey}/likes';
+      final immutableBody = desiredLiked ? 'POST\n' : 'DELETE\n';
+      final controller = ref.read(pdsRecordOperationControllerProvider);
+      final scope = likePostMutationScope(ref, post);
+      final token = controller.beginOrRetry(
+        scope: scope,
+        endpoint: endpoint,
+        immutableBody: immutableBody,
+        newOperationKey: newPdsMutationOperationKey,
+      );
+      final operationKey = token.operationKey;
+      late final repo = ref.read(postRepositoryProvider);
 
-    if (!operation.isCurrent) return;
-    final reconciliation = PdsSetReconciliation(active: desiredLiked);
-    if (!controller.markAccepted(
-      token,
-      optimisticValue: desiredLiked,
-      agrees: (value) => value is bool && reconciliation.agrees(value),
-      refresh: () => _invalidateLikeReads(ref, post),
-    )) {
-      return;
+      state = AsyncData(next);
+      try {
+        await runPdsMutation<void>(
+          ref: ref,
+          controller: controller,
+          token: token,
+          isCurrent: () => operation.isCurrent,
+          send: () async {
+            if (desiredLiked) {
+              await repo.like(
+                post.author.did,
+                post.rkey,
+                operationKey: operationKey,
+              );
+            } else {
+              await repo.unlike(
+                post.author.did,
+                post.rkey,
+                operationKey: operationKey,
+              );
+            }
+          },
+        );
+      } on PdsMutationObsoleteException {
+        return;
+      } on PdsMutationUnresolvedException catch (error, stackTrace) {
+        operation.publish(() => state = AsyncError<Post?>(error, stackTrace));
+        return;
+      } on Object catch (error, stackTrace) {
+        if (!operation.isCurrent) return;
+        controller.markFailed(token);
+        state = const AsyncData(null);
+        state = AsyncError<Post?>(error, stackTrace);
+        return;
+      }
+
+      if (!operation.isCurrent) return;
+      final reconciliation = PdsSetReconciliation(active: desiredLiked);
+      if (!controller.markAccepted(
+        token,
+        optimisticValue: desiredLiked,
+        agrees: (value) => value is bool && reconciliation.agrees(value),
+        refresh: () => _invalidateLikeReads(ref, post),
+      )) {
+        return;
+      }
+      state = AsyncData<Post?>(next);
+    } finally {
+      lifetime.close();
     }
-    state = AsyncData<Post?>(next);
   }
 
   void reset() => state = const AsyncData(null);

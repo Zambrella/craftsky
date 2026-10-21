@@ -464,14 +464,17 @@ Future<T> runPdsMutation<T>({
   while (true) {
     try {
       return await send();
-    } on PdsMutationAmbiguousException catch (error) {
+    } on PdsMutationAmbiguousException catch (error, stack) {
       final decision = await retry.wait(error);
       if (!isCurrent()) throw const PdsMutationObsoleteException();
       switch (decision) {
         case PdsMutationRetryDecision.obsolete:
           throw const PdsMutationObsoleteException();
         case PdsMutationRetryDecision.exhausted:
-          throw const PdsMutationUnresolvedException();
+          throw PdsMutationUnresolvedException(
+            diagnosticCause: error,
+            diagnosticStack: stack,
+          );
         case PdsMutationRetryDecision.retry:
           continue;
       }

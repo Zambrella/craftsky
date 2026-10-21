@@ -348,13 +348,6 @@ class _ProfileBody extends ConsumerWidget {
         ? null
         : profileRelationshipProvider(account, profile.did);
     final cached = provider == null ? null : ref.watch(provider);
-    if (provider != null && !(cached?.initialized ?? false)) {
-      unawaited(
-        Future<void>.microtask(
-          () => ref.read(provider.notifier).seed(serverRelationship),
-        ),
-      );
-    }
     final relationship = applyBlockRelationshipOverlay(
       ref.read,
       cached?.initialized ?? false ? cached! : serverRelationship,
@@ -433,6 +426,7 @@ class _ProfileBody extends ConsumerWidget {
         _mutateRelationship(
           context,
           ref,
+          relationship,
           relationship.muted
               ? ProfileRelationshipAction.unmute
               : ProfileRelationshipAction.mute,
@@ -495,6 +489,7 @@ class _ProfileBody extends ConsumerWidget {
   Future<void> _mutateRelationship(
     BuildContext context,
     WidgetRef ref,
+    ProfileRelationship baseline,
     ProfileRelationshipAction action,
   ) async {
     final account = viewerAccount;
@@ -503,7 +498,7 @@ class _ProfileBody extends ConsumerWidget {
       account,
       profile.did,
     );
-    await ref.read(provider.notifier).mutate(action);
+    await ref.read(provider.notifier).mutate(action, baseline: baseline);
     if (!context.mounted) return;
     final l10n = AppLocalizations.of(context);
     final result = ref.read(provider);

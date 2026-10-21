@@ -100,12 +100,22 @@ void registerErrorHandlers() {
       ),
     );
     log.severe(
-      const DiagnosticMessage(
+      DiagnosticMessage(
         'FlutterError: Framework failure',
         context: ReportContext(
           feature: 'flutter',
           operation: 'framework_error',
           classification: 'flutter.framework',
+          safeDiagnostics: {
+            'failureStage': switch (details.library) {
+              'rendering library' => 'rendering',
+              'widgets library' => 'widgets',
+              'scheduler library' => 'scheduler',
+              'semantics library' => 'semantics',
+              'gestures library' => 'gestures',
+              _ => 'framework',
+            },
+          },
         ),
       ),
       details.exception,

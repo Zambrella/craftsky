@@ -85,16 +85,6 @@ class NotificationRow extends ConsumerWidget {
           : const ProfileRelationship(initialized: true),
       actorNotification.actor.did,
     );
-    if (actorRelationshipProvider != null &&
-        !(cachedRelationship?.initialized ?? false)) {
-      unawaited(
-        Future<void>.microtask(
-          () => ref
-              .read(actorRelationshipProvider.notifier)
-              .seed(serverRelationship),
-        ),
-      );
-    }
     final relationship = applyBlockRelationshipOverlay(
       ref.read,
       cachedRelationship?.initialized ?? false

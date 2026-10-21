@@ -14,6 +14,39 @@ import '../fakes/fake_profile_repository.dart';
 
 void main() {
   final bobDid = Did.parse('did:plc:bob');
+  test('follow finalizes after its last UI listener leaves', () async {
+    final profile = Profile(
+      did: bobDid.value,
+      handle: 'bob.test',
+      crafts: const [],
+    );
+    final response = Completer<Profile>();
+    final container = ProviderContainer.test(
+      overrides: [
+        profileRepositoryProvider.overrideWithValue(
+          FakeProfileRepository(onFollow: (_) => response.future),
+        ),
+      ],
+    );
+    final subscription = container.listen(
+      toggleFollowProfileProvider,
+      (_, _) {},
+    );
+    final controller = container.read(pdsRecordOperationControllerProvider);
+    final pending = container
+        .read(toggleFollowProfileProvider.notifier)
+        .toggle(cacheKey: bobDid, profile: profile);
+    subscription.close();
+    await container.pump();
+    final retainedDuringWrite = container.exists(toggleFollowProfileProvider);
+    response.complete(profile.copyWith(viewerIsFollowing: true));
+    await pending;
+    expect(retainedDuringWrite, isTrue);
+    expect(controller.activeOverlays, hasLength(1));
+    await container.pump();
+    expect(container.exists(toggleFollowProfileProvider), isFalse);
+  });
+
   group('ToggleFollowProfile', () {
     test(
       'sets loading without speculative visible state while request is '

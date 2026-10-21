@@ -233,15 +233,6 @@ class PostCard extends ConsumerWidget {
           : const ProfileRelationship(initialized: true),
       post.author.did,
     );
-    if (relationshipProvider != null && !(relationship?.initialized ?? false)) {
-      unawaited(
-        Future<void>.microtask(
-          () => ref
-              .read(relationshipProvider.notifier)
-              .seed(authorViewerRelationship),
-        ),
-      );
-    }
     final effectiveRelationship = applyBlockRelationshipOverlay(
       ref.read,
       relationship?.initialized ?? false
@@ -278,17 +269,6 @@ class PostCard extends ConsumerWidget {
                 : const ProfileRelationship(initialized: true),
             reposter.did,
           );
-    if (reposterRelationshipProvider != null &&
-        reposterRelationshipProvider != relationshipProvider &&
-        !(reposterRelationship?.initialized ?? false)) {
-      unawaited(
-        Future<void>.microtask(
-          () => ref
-              .read(reposterRelationshipProvider.notifier)
-              .seed(reposterViewerRelationship!),
-        ),
-      );
-    }
     final effectiveReposterRelationship = reposter == null
         ? null
         : applyBlockRelationshipOverlay(
@@ -701,6 +681,7 @@ class PostCard extends ConsumerWidget {
                                   _mutateAuthorRelationship(
                                     context,
                                     ref,
+                                    effectiveRelationship,
                                     effectiveRelationship.muted
                                         ? ProfileRelationshipAction.unmute
                                         : ProfileRelationshipAction.mute,
@@ -828,6 +809,7 @@ class PostCard extends ConsumerWidget {
   Future<void> _mutateAuthorRelationship(
     BuildContext context,
     WidgetRef ref,
+    ProfileRelationship baseline,
     ProfileRelationshipAction action,
   ) async {
     final auth = ref.read(authSessionProvider).value;
@@ -836,7 +818,7 @@ class PostCard extends ConsumerWidget {
       AccountKey(auth.did.toString()),
       post.author.did,
     );
-    await ref.read(provider.notifier).mutate(action);
+    await ref.read(provider.notifier).mutate(action, baseline: baseline);
     if (!context.mounted) return;
     final failed = ref.read(provider).lastError != null;
     ScaffoldMessenger.of(context).showSnackBar(

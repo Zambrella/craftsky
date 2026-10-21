@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/bluesky-social/indigo/atproto/atclient"
+	"github.com/bluesky-social/indigo/atproto/identity"
 	"log/slog"
 	"path/filepath"
 	"reflect"
@@ -60,7 +61,7 @@ func DescribeError(err error, eventCtx EventContext) []DiagnosticCause {
 		case *runtime.TypeAssertionError, *runtime.PanicNilError:
 			cause.Message = sanitizeKnownDiagnosticText(current.Error())
 		}
-		for _, sentinel := range []error{context.DeadlineExceeded, context.Canceled, auth.ErrRecordNotFound, auth.ErrAuthTokenInvalid, auth.ErrCraftskySessionNotFound, auth.ErrOAuthSessionNotFound, auth.ErrPDSSessionExpired, auth.ErrPDSLatestCommitMissingCID} {
+		for _, sentinel := range []error{context.DeadlineExceeded, context.Canceled, identity.ErrHandleResolutionFailed, identity.ErrHandleNotFound, identity.ErrHandleMismatch, identity.ErrHandleNotDeclared, identity.ErrHandleReservedTLD, identity.ErrDIDNotFound, identity.ErrDIDResolutionFailed, identity.ErrKeyNotDeclared, identity.ErrInvalidHandle, auth.ErrRecordNotFound, auth.ErrAuthTokenInvalid, auth.ErrCraftskySessionNotFound, auth.ErrOAuthSessionNotFound, auth.ErrPDSSessionExpired, auth.ErrPDSLatestCommitMissingCID} {
 			if sameDiagnosticError(current, sentinel) {
 				cause.Message = sentinel.Error()
 				break

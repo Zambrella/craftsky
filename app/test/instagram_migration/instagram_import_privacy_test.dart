@@ -5,8 +5,6 @@ import 'dart:typed_data';
 import 'package:archive/archive.dart';
 import 'package:craftsky_app/instagram_migration/models/instagram_import.dart';
 import 'package:craftsky_app/instagram_migration/services/instagram_export_file_parser.dart';
-import 'package:craftsky_app/instagram_migration/services/instagram_selected_export_parser_native.dart';
-import 'package:file_selector/file_selector.dart' show XFile;
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -54,7 +52,9 @@ void main() {
       final file = File('${directory.path}/$pathCanary.zip')
         ..writeAsBytesSync(ZipEncoder().encodeBytes(archive));
 
-      final parsed = await parseSelectedInstagramExport(XFile(file.path));
+      final parsed = await const InstagramExportFileParser().parsePath(
+        file.path,
+      );
       final request = InstagramImportRequest(
         sourceType: InstagramImportSourceType.instagramJson,
         entries: parsed.entries,

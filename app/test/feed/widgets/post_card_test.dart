@@ -194,6 +194,33 @@ Future<void> _doubleTap(WidgetTester tester, Finder finder) async {
 void main() {
   group('PostCard', () {
     for (final kind in ['post', 'comment', 'reply']) {
+      testWidgets('rendering does not initialize relationship providers', (
+        tester,
+      ) async {
+        await _pump(
+          tester,
+          PostCard(post: _post()),
+          overrides: [
+            authSessionProvider.overrideWith(SignedInAuthSession.new),
+          ],
+        );
+        await tester.pumpAndSettle();
+        final container = ProviderScope.containerOf(
+          tester.element(find.byType(PostCard)),
+        );
+        expect(
+          container
+              .read(
+                profileRelationshipProvider(
+                  AccountKey('did:plc:test'),
+                  Did.parse('did:plc:alice'),
+                ),
+              )
+              .initialized,
+          isFalse,
+        );
+      });
+
       testWidgets('$kind menu copies the selected record link', (tester) async {
         final root = PostRef(
           uri: 'at://did:plc:bob/social.craftsky.feed.post/root',

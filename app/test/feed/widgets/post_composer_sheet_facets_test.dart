@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/feed/widgets/post_composer_sheet.dart';
@@ -29,7 +31,58 @@ void main() {
       await tester.pump();
 
       expect(find.text('Add something to your post.'), findsOneWidget);
+      expect(tester.testTextInput.isVisible, isTrue);
     });
+
+    for (final succeeds in [true, false]) {
+      testWidgets(
+        'Post dismisses the keyboard before publishing (success=$succeeds)',
+        (tester) async {
+          final pending = Completer<Post>();
+          final repo = FakePostRepository(
+            onCreate: ({required text, reply, images}) => pending.future,
+          );
+          await _openComposer(
+            tester,
+            overrides: [
+              activeLanguagePreferencesProvider.overrideWith(
+                (ref) => const LanguagePreferences(
+                  primaryLanguage: 'en',
+                  contentLanguages: ['en'],
+                ),
+              ),
+              postRepositoryProvider.overrideWithValue(repo),
+            ],
+          );
+          final field = find.byType(TextField).first;
+          await tester.enterText(field, 'My finished scarf');
+          await _pumpUntilPostEnabled(tester);
+          expect(tester.testTextInput.isVisible, isTrue);
+
+          await tester.tap(find.widgetWithText(ChunkyButton, 'Post'));
+          expect(tester.testTextInput.isVisible, isFalse);
+          await tester.pump();
+          await tester.pump(const Duration(milliseconds: 100));
+          expect(tester.testTextInput.isVisible, isFalse);
+
+          if (succeeds) {
+            pending.complete(_post('My finished scarf'));
+          } else {
+            pending.completeError(StateError('Synthetic publication failure'));
+          }
+          await tester.pumpAndSettle();
+          expect(tester.testTextInput.isVisible, isFalse);
+          if (succeeds) {
+            expect(find.byType(PostComposerSheet), findsNothing);
+            expect(tester.testTextInput.hasAnyClients, isFalse);
+          } else {
+            expect(find.text('My finished scarf'), findsOneWidget);
+            await tester.showKeyboard(find.byType(TextField).first);
+            expect(tester.testTextInput.isVisible, isTrue);
+          }
+        },
+      );
+    }
 
     testWidgets('AT-001 submits generated mention, link, and tag facets', (
       tester,

@@ -1,6 +1,6 @@
 module social.craftsky/appview
 
-go 1.27.2
+go 1.27.3
 
 require (
 	firebase.google.com/go/v4 v4.21.0

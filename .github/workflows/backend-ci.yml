@@ -90,7 +90,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
         with:
-          go-version: 1.27.2
+          go-version: 1.27.3
           cache-dependency-path: appview/go.sum
 
       - name: Run unit-only AppView tests
@@ -111,7 +111,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
         with:
-          go-version: 1.27.2
+          go-version: 1.27.3
           cache-dependency-path: appview/go.sum
 
       - name: Install release-gate tools
@@ -212,7 +212,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
         with:
-          go-version: 1.27.2
+          go-version: 1.27.3
 
       - name: Lint workflows
         run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.7
@@ -229,7 +229,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
         with:
-          go-version: 1.27.2
+          go-version: 1.27.3
           cache-dependency-path: appview/go.sum
 
       - name: Exercise fuzz targets

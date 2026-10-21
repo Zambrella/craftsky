@@ -91,6 +91,71 @@ InteractionWriteResponse _interaction(Post post) => InteractionWriteResponse(
 void main() {
   setUpAll(initializeMappers);
 
+  test('operation retention does not survive explicit invalidation', () async {
+    final post = _post(rkey: 'invalidated');
+    final response = Completer<InteractionWriteResponse>();
+    final container = ProviderContainer.test(
+      overrides: [
+        postRepositoryProvider.overrideWithValue(
+          FakePostRepository(onLike: (_, _) => response.future),
+        ),
+      ],
+    );
+    final subscription = container.listen(toggleLikePostProvider, (_, _) {});
+    addTearDown(subscription.close);
+    final controller = container.read(pdsRecordOperationControllerProvider);
+    final pending = container
+        .read(toggleLikePostProvider.notifier)
+        .toggle(post: post);
+    container.invalidate(toggleLikePostProvider);
+    await container.pump();
+    response.complete(_interaction(post));
+    await pending;
+    expect(controller.activeOverlays, isEmpty);
+    expect(container.read(toggleLikePostProvider).value, isNull);
+  });
+
+  for (final repost in [false, true]) {
+    test(
+      '${repost ? 'repost' : 'like'} finalizes '
+      'after its last UI listener leaves',
+      () async {
+        final post = _post(rkey: 'pending');
+        final response = Completer<InteractionWriteResponse>();
+        final repo = FakePostRepository(
+          onLike: (_, _) => response.future,
+          onRepost: (_, _) => response.future,
+        );
+        final container = ProviderContainer.test(
+          overrides: [
+            postRepositoryProvider.overrideWithValue(repo),
+          ],
+        );
+        final provider = repost
+            ? toggleRepostPostProvider
+            : toggleLikePostProvider;
+        final subscription = container.listen(provider, (_, _) {});
+        final controller = container.read(pdsRecordOperationControllerProvider);
+        final pending = repost
+            ? container
+                  .read(toggleRepostPostProvider.notifier)
+                  .toggle(post: post)
+            : container
+                  .read(toggleLikePostProvider.notifier)
+                  .toggle(post: post);
+        subscription.close();
+        await container.pump();
+        final retainedDuringWrite = container.exists(provider);
+        response.complete(_interaction(post));
+        await pending;
+        expect(retainedDuringWrite, isTrue);
+        expect(controller.activeOverlays, hasLength(1));
+        await container.pump();
+        expect(container.exists(provider), isFalse);
+      },
+    );
+  }
+
   test(
     'REG-001 toggle providers keep writes separate from interaction lists',
     () async {
