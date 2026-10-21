@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:craftsky_app/service_status/data/announcement_dismissal_store.dart';
 import 'package:craftsky_app/service_status/data/service_status_repository.dart';
 import 'package:craftsky_app/service_status/models/service_status_document.dart';
+import 'package:craftsky_app/service_status/providers/status_runtime_provider.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_emitter.dart';
 import 'package:craftsky_app/shared/observability/error_reporter.dart';
 import 'package:dio/dio.dart';
@@ -37,6 +38,8 @@ final serviceStatusControllerProvider =
       ServiceStatusController.new,
     );
 
+enum StatusPresentation { none, maintenance, updateRequired, message }
+
 final class ServiceStatusState {
   const new({
     this.document,
@@ -44,12 +47,18 @@ final class ServiceStatusState {
     this.dismissalReady = false,
     this.dismissedRevision,
     this.dismissing = false,
+    this.updatePolicyTrusted = false,
+    this.activating = false,
+    this.actionFailed = false,
   });
   final ServiceStatusDocument? document;
   final bool fetching;
   final bool dismissalReady;
   final String? dismissedRevision;
   final bool dismissing;
+  final bool updatePolicyTrusted;
+  final bool activating;
+  final bool actionFailed;
 
   ServiceStatusState copyWith({
     ServiceStatusDocument? document,
@@ -57,12 +66,22 @@ final class ServiceStatusState {
     bool? dismissalReady,
     String? dismissedRevision,
     bool? dismissing,
+    bool? updatePolicyTrusted,
+    bool? activating,
+    bool? actionFailed,
+    bool clearDocument = false,
+    bool clearDismissedRevision = false,
   }) => ServiceStatusState(
-    document: document ?? this.document,
+    document: clearDocument ? null : document ?? this.document,
     fetching: fetching ?? this.fetching,
     dismissalReady: dismissalReady ?? this.dismissalReady,
-    dismissedRevision: dismissedRevision ?? this.dismissedRevision,
+    dismissedRevision: clearDismissedRevision
+        ? null
+        : dismissedRevision ?? this.dismissedRevision,
     dismissing: dismissing ?? this.dismissing,
+    updatePolicyTrusted: updatePolicyTrusted ?? this.updatePolicyTrusted,
+    activating: activating ?? this.activating,
+    actionFailed: actionFailed ?? this.actionFailed,
   );
 
   @override
@@ -73,8 +92,14 @@ final class ServiceStatusState {
 
 class ServiceStatusController extends Notifier<ServiceStatusState> {
   static final _log = Logger('ServiceStatus');
-  void _diagnostic(Object error, StackTrace stack, String operation) {
+  void _diagnostic(
+    Object error,
+    StackTrace stack,
+    String operation, {
+    bool expectedContentFailure = false,
+  }) {
     final expected =
+        expectedContentFailure ||
         error is FormatException ||
         error is TimeoutException ||
         error is StatusNetworkFailure ||
@@ -111,6 +136,20 @@ class ServiceStatusController extends Notifier<ServiceStatusState> {
     }
   }
 
+  void reportImageFailure(
+    Object error,
+    StackTrace stack, {
+    bool expectedContentFailure = false,
+  }) => _diagnostic(
+    error,
+    stack,
+    'image',
+    expectedContentFailure: expectedContentFailure,
+  );
+
+  void reportActionFailure(Object error, StackTrace stack) =>
+      _diagnostic(error, stack, 'action');
+
   void _cancelRequest() {
     try {
       _request?.cancel();
@@ -139,9 +178,23 @@ class ServiceStatusController extends Notifier<ServiceStatusState> {
   var _started = false;
   var _disposed = false;
   var _epoch = 0;
+  var _dismissalGeneration = 0;
+  var _dismissalOrder = 0;
+  var _persistedDismissalOrder = 0;
+  final _activatingRevisions = <String>{};
+  final _failedActionRevisions = <String>{};
+  final _sessionDismissed = <String>{};
+  final _dismissingRevisions = <String>{};
+  Future<void> _writeTail = Future.value();
 
   @override
   ServiceStatusState build() {
+    ref.listen(statusRuntimeVersionProvider, (_, _) {
+      if (!_disposed) state = state.copyWith();
+    });
+    ref.listen(statusPlatformProvider, (_, _) {
+      if (!_disposed) state = state.copyWith();
+    });
     ref.onDispose(() {
       _disposed = true;
       _epoch++;
@@ -156,14 +209,39 @@ class ServiceStatusController extends Notifier<ServiceStatusState> {
     return const ServiceStatusState();
   }
 
-  ServiceStatusDocument? get announcement =>
-      state.dismissalReady &&
-          state.document?.mode == ServiceStatusMode.announcement &&
-          state.document?.revision != state.dismissedRevision
-      ? state.document
+  StatusPresentation get presentation {
+    if (maintenanceActive) return StatusPresentation.maintenance;
+    final version = ref.read(statusRuntimeVersionProvider).value;
+    final platform = ref.read(statusPlatformProvider);
+    if (state.updatePolicyTrusted &&
+        requiresStatusUpdate(
+          state.document?.minimumVersions,
+          platform,
+          version,
+        )) {
+      return StatusPresentation.updateRequired;
+    }
+    final message = state.document?.message;
+    if (platform != null &&
+        state.dismissalReady &&
+        statusMessageEligible(message, version) &&
+        message!.revision != state.dismissedRevision &&
+        !_sessionDismissed.contains(message.revision)) {
+      return StatusPresentation.message;
+    }
+    return StatusPresentation.none;
+  }
+
+  bool get blockingActive =>
+      presentation == StatusPresentation.maintenance ||
+      presentation == StatusPresentation.updateRequired;
+
+  StatusMessage? get announcement => presentation == StatusPresentation.message
+      ? state.document?.message
       : null;
 
   Future<void> _loadDismissal() async {
+    final generation = _dismissalGeneration;
     String? revision;
     try {
       revision = await _resolve(
@@ -173,34 +251,106 @@ class ServiceStatusController extends Notifier<ServiceStatusState> {
       _diagnostic(error, stack, 'dismissalRead');
     }
     if (!_disposed) {
-      state = state.copyWith(dismissalReady: true, dismissedRevision: revision);
+      state = state.copyWith(
+        dismissalReady: true,
+        dismissedRevision: generation == _dismissalGeneration
+            ? revision
+            : state.dismissedRevision,
+      );
     }
+  }
+
+  Future<bool> _persistRevision(String revision, int order) {
+    final operation = _writeTail.then((_) async {
+      // Destination futures can finish out of order. Check inside the write
+      // queue, after any newer dismissal ahead of us has finished saving.
+      if (order < _persistedDismissalOrder) return false;
+      try {
+        final store = _resolve(announcementDismissalStoreProvider);
+        if (store == null) return false;
+        await store.writeRevision(revision);
+        _persistedDismissalOrder = order;
+        if (!_disposed) {
+          _dismissalGeneration++;
+          state = state.copyWith(dismissedRevision: revision);
+        }
+        return true;
+      } on Object catch (error, stack) {
+        _diagnostic(error, stack, 'dismissalWrite');
+        return false;
+      }
+    });
+    _writeTail = operation.then((_) {});
+    return operation;
   }
 
   Future<bool> dismissAnnouncement() async {
     final revision = announcement?.revision;
-    if (_disposed || revision == null || state.dismissing) return false;
-    state = state.copyWith(dismissing: true);
-    try {
-      final store = _resolve(announcementDismissalStoreProvider);
-      if (store == null) {
-        state = state.copyWith(dismissing: false);
-        return false;
-      }
-      await store.writeRevision(revision);
-      if (_disposed) return false;
-      state = state.copyWith(dismissedRevision: revision, dismissing: false);
-      return true;
-    } on Object catch (error, stack) {
-      _diagnostic(error, stack, 'dismissalWrite');
-      if (!_disposed) state = state.copyWith(dismissing: false);
+    if (_disposed || revision == null || !_dismissingRevisions.add(revision)) {
       return false;
     }
+    final order = ++_dismissalOrder;
+    state = state.copyWith(dismissing: true);
+    final saved = await _persistRevision(revision, order);
+    _dismissingRevisions.remove(revision);
+    if (_disposed) return false;
+    state = state.copyWith(
+      dismissing: _dismissingRevisions.contains(
+        state.document?.message?.revision,
+      ),
+    );
+    return saved;
+  }
+
+  void _updateActionState() {
+    if (_disposed) return;
+    final revision = state.document?.message?.revision;
+    state = state.copyWith(
+      activating: _activatingRevisions.contains(revision),
+      actionFailed: _failedActionRevisions.contains(revision),
+    );
+  }
+
+  Future<bool> activateMessage(
+    String revision,
+    Future<bool> Function() invoke,
+  ) async {
+    if (_disposed ||
+        announcement?.revision != revision ||
+        !_activatingRevisions.add(revision)) {
+      return false;
+    }
+    final order = ++_dismissalOrder;
+    _failedActionRevisions.remove(revision);
+    _updateActionState();
+    var activated = false;
+    try {
+      // Start the destination directly from the gesture, before persistence.
+      activated = await invoke();
+    } on Object catch (error, stack) {
+      _diagnostic(error, stack, 'action');
+    }
+    if (_disposed) return false;
+    if (!activated) {
+      _failedActionRevisions.add(revision);
+      _activatingRevisions.remove(revision);
+      _updateActionState();
+      return false;
+    }
+    _sessionDismissed.add(revision);
+    _updateActionState();
+    final saved = await _persistRevision(revision, order);
+    if (_disposed) return true;
+    if (saved) {
+      _sessionDismissed.remove(revision);
+    }
+    _activatingRevisions.remove(revision);
+    _updateActionState();
+    return true;
   }
 
   bool get maintenanceActive {
-    if (state.document?.mode != ServiceStatusMode.maintenance ||
-        _acceptedAt == null) {
+    if (state.document?.maintenance == null || _acceptedAt == null) {
       return false;
     }
     final now = ref.read(serviceStatusClockProvider).sample();
@@ -220,7 +370,7 @@ class ServiceStatusController extends Notifier<ServiceStatusState> {
 
   void _scheduleExpiry() {
     _expiry?.cancel();
-    if (state.document?.mode == ServiceStatusMode.maintenance) {
+    if (state.document?.maintenance != null) {
       _expiry = Timer(const Duration(minutes: 5), () {
         if (!_disposed) {
           _acceptedAt = null;
@@ -260,12 +410,12 @@ class ServiceStatusController extends Notifier<ServiceStatusState> {
     _pending = completion;
     final epoch = ++_epoch;
     state = state.copyWith(fetching: true);
-    void finish() {
+    void finish({bool accepted = false}) {
       if (_disposed || epoch != _epoch) return;
       _deadline?.cancel();
       _request = null;
       _pending = null;
-      state = state.copyWith(fetching: false);
+      state = state.copyWith(fetching: false, updatePolicyTrusted: accepted);
       completion.complete();
     }
 
@@ -286,7 +436,19 @@ class ServiceStatusController extends Notifier<ServiceStatusState> {
           (document) {
             if (_disposed || epoch != _epoch) return;
             _acceptedAt = ref.read(serviceStatusClockProvider).sample();
-            state = state.copyWith(document: document, fetching: true);
+            state = state.copyWith(
+              document: document,
+              fetching: true,
+              dismissing: _dismissingRevisions.contains(
+                document.message?.revision,
+              ),
+              activating: _activatingRevisions.contains(
+                document.message?.revision,
+              ),
+              actionFailed: _failedActionRevisions.contains(
+                document.message?.revision,
+              ),
+            );
             _scheduleExpiry();
             try {
               _log.fine(
@@ -303,7 +465,7 @@ class ServiceStatusController extends Notifier<ServiceStatusState> {
             } on Object {
               /* Diagnostics must not change acceptance. */
             }
-            finish();
+            finish(accepted: true);
           },
           onError: (Object error, StackTrace stack) {
             if (_disposed || epoch != _epoch) return;

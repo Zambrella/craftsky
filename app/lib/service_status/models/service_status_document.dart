@@ -1,9 +1,12 @@
 import 'dart:convert';
 
+import 'package:craftsky_app/service_status/models/status_app_version.dart';
+
 import 'package:dart_mappable/dart_mappable.dart';
 
 part 'service_status_document.mapper.dart';
 
+// A presentation summary only; independent controls live on the document.
 @MappableEnum()
 enum ServiceStatusMode { normal, announcement, maintenance }
 
@@ -13,12 +16,11 @@ enum ServiceStatusMode { normal, announcement, maintenance }
 )
 final class ServiceStatusDocument with ServiceStatusDocumentMappable {
   const new({
-    required this.mode,
     required this.revision,
-    this.schemaVersion = 1,
-    this.title,
+    this.schemaVersion = 2,
+    this.maintenance,
+    this.minimumVersions,
     this.message,
-    this.estimatedRecoveryAt,
   });
 
   factory decode(List<int> bytes) {
@@ -26,44 +28,109 @@ final class ServiceStatusDocument with ServiceStatusDocumentMappable {
     final value = jsonDecode(utf8.decode(bytes));
     if (value is! Map<String, dynamic> ||
         value['schemaVersion'] is! int ||
-        value['schemaVersion'] != 1) {
+        value['schemaVersion'] != 2) {
       throw const FormatException('Status schema');
     }
-    // Mapping handles types and enum decoding; validation handles the contract.
-    if (value.containsKey('estimatedRecoveryAt')) {
-      _estimate(value['estimatedRecoveryAt']);
+    _validateRevision(value['revision']);
+    for (final section in ['maintenance', 'minimumVersions', 'message']) {
+      if (!value.containsKey(section)) continue;
+      final item = value[section];
+      if (item is! Map<String, dynamic>) {
+        throw const FormatException('Status section');
+      }
+      if (section == 'minimumVersions') {
+        for (final platform in ['ios', 'android', 'web']) {
+          if (item.containsKey(platform)) _version(item[platform]);
+        }
+        continue;
+      }
+      _text(item['title'], 160);
+      _text(item['description'], 2400);
+      if (section == 'maintenance' && item.containsKey('estimatedRecoveryAt')) {
+        _estimate(item['estimatedRecoveryAt']);
+      }
+      if (section == 'message') {
+        _validateRevision(item['revision']);
+        _version(item['minVersion']);
+        if (item.containsKey('maxVersion')) {
+          _version(item['maxVersion']);
+          if (StatusAppVersion.parse(item['minVersion'] as String).compareTo(
+                StatusAppVersion.parse(item['maxVersion'] as String),
+              ) >
+              0) {
+            throw const FormatException('Status range');
+          }
+        }
+        if (item.containsKey('imageUrl')) _url(item['imageUrl']);
+        if (item.containsKey('cta')) {
+          final cta = item['cta'];
+          if (cta is! Map<String, dynamic> ||
+              cta.containsKey('url') == cta.containsKey('destination')) {
+            throw const FormatException('Status CTA');
+          }
+          _text(cta['text'], 160);
+          if (cta.containsKey('url')) {
+            _url(cta['url']);
+          } else if (![
+            'feed',
+            'projects',
+            'search',
+            'notifications',
+            'profile',
+            'settings',
+          ].contains(cta['destination'])) {
+            throw const FormatException('Status destination');
+          }
+        }
+      }
     }
-    final ServiceStatusDocument document;
     try {
-      document = ServiceStatusDocumentMapper.fromMap(value);
+      return ServiceStatusDocumentMapper.fromMap(value);
     } on MapperException {
       throw const FormatException('Status fields');
     }
-    if (value['revision'] is! String ||
-        !_revision.hasMatch(document.revision)) {
-      throw const FormatException('Status revision');
-    }
-    void validateText(String key, String? text, int limit) {
-      if (!value.containsKey(key) &&
-          document.mode == ServiceStatusMode.normal) {
-        return;
-      }
-      if (value[key] is! String ||
-          text == null ||
-          text.trim().isEmpty ||
-          text.runes.length > limit ||
-          text.runes.any((rune) => rune >= 0xd800 && rune <= 0xdfff)) {
-        throw const FormatException('Status text');
-      }
-    }
-
-    validateText('title', document.title, 160);
-    validateText('message', document.message, 2400);
-    return document;
   }
 
   static const maxBytes = 16384;
   static final _revision = RegExp(r'^[A-Za-z0-9_-]{1,64}$');
+  static void _validateRevision(Object? value) {
+    if (value is! String || !_revision.hasMatch(value)) {
+      throw const FormatException('Status revision');
+    }
+  }
+
+  static void _text(Object? value, int limit) {
+    if (value is! String ||
+        value.trim().isEmpty ||
+        value.runes.length > limit ||
+        value.runes.any((r) => r >= 0xd800 && r <= 0xdfff)) {
+      throw const FormatException('Status text');
+    }
+  }
+
+  static void _version(Object? value) {
+    if (value is! String) throw const FormatException('Status version');
+    StatusAppVersion.parse(value);
+  }
+
+  static void _url(Object? value) {
+    if (value is! String ||
+        value.codeUnits.any(
+          (unit) => unit <= 32 || unit >= 127 || unit == 92,
+        ) ||
+        RegExp('%(?![0-9A-Fa-f]{2})').hasMatch(value)) {
+      throw const FormatException('Status URL');
+    }
+    final uri = Uri.tryParse(value);
+    if (uri == null ||
+        uri.scheme != 'https' ||
+        uri.host.isEmpty ||
+        RegExp('^[^:]+://[^/?#]*@').hasMatch(value) ||
+        uri.port > 65535) {
+      throw const FormatException('Status URL');
+    }
+  }
+
   static final _timestamp = RegExp(
     r'^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.(\d{1,6}))?(Z|[+-]\d{2}:\d{2})$',
   );
@@ -94,12 +161,81 @@ final class ServiceStatusDocument with ServiceStatusDocumentMappable {
   }
 
   final int schemaVersion;
-  final ServiceStatusMode mode;
   final String revision;
-  final String? title;
-  final String? message;
-  final DateTime? estimatedRecoveryAt;
-
+  final StatusMaintenance? maintenance;
+  final StatusMinimumVersions? minimumVersions;
+  final StatusMessage? message;
+  ServiceStatusMode get mode => maintenance != null
+      ? ServiceStatusMode.maintenance
+      : message != null
+      ? ServiceStatusMode.announcement
+      : ServiceStatusMode.normal;
   @override
   String toString() => 'ServiceStatusDocument(mode: ${mode.name})';
+}
+
+@MappableClass(
+  ignoreNull: true,
+  generateMethods: GenerateMethods.decode | GenerateMethods.encode,
+)
+final class StatusMaintenance with StatusMaintenanceMappable {
+  const new({
+    required this.title,
+    required this.description,
+    this.estimatedRecoveryAt,
+  });
+  final String title;
+  final String description;
+  final DateTime? estimatedRecoveryAt;
+  @override
+  String toString() => 'StatusMaintenance()';
+}
+
+@MappableClass(
+  ignoreNull: true,
+  generateMethods: GenerateMethods.decode | GenerateMethods.encode,
+)
+final class StatusMinimumVersions with StatusMinimumVersionsMappable {
+  const new({this.ios, this.android, this.web});
+  final String? ios;
+  final String? android;
+  final String? web;
+}
+
+@MappableClass(
+  ignoreNull: true,
+  generateMethods: GenerateMethods.decode | GenerateMethods.encode,
+)
+final class StatusMessage with StatusMessageMappable {
+  const new({
+    required this.revision,
+    required this.minVersion,
+    required this.title,
+    required this.description,
+    this.maxVersion,
+    this.imageUrl,
+    this.cta,
+  });
+  final String revision;
+  final String minVersion;
+  final String? maxVersion;
+  final String title;
+  final String description;
+  final String? imageUrl;
+  final StatusMessageCta? cta;
+  @override
+  String toString() => 'StatusMessage()';
+}
+
+@MappableClass(
+  ignoreNull: true,
+  generateMethods: GenerateMethods.decode | GenerateMethods.encode,
+)
+final class StatusMessageCta with StatusMessageCtaMappable {
+  const new({required this.text, this.url, this.destination});
+  final String text;
+  final String? url;
+  final String? destination;
+  @override
+  String toString() => 'StatusMessageCta()';
 }

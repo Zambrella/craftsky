@@ -3508,5 +3508,10 @@
   "postComposeClearPhotos": "Clear all",
   "@postComposeClearPhotos": { "description": "Action to remove all attached photos from the composer." },
   "projectComposerAdditionalCraftsLabel": "Additional crafts",
-  "projectComposerAdditionalCraftsSearchHint": "Find other crafts used in this project"
+  "projectComposerAdditionalCraftsSearchHint": "Find other crafts used in this project",
+  "serviceStatusUpdateTitle": "Update required",
+  "serviceStatusUpdateDescription": "Please update CraftSky to continue.",
+  "serviceStatusUpdate": "Update",
+  "serviceStatusReload": "Reload",
+  "serviceStatusActionFailed": "Could not open this action. Please try again."
 }

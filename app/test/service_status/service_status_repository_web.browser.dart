@@ -53,7 +53,7 @@ void main() {
           expect(web.Headers(init.headers).get('authorization'), isNull);
           expect(web.Headers(init.headers).get('cookie'), isNull);
           return web.Response(
-            '{"schemaVersion":1,"mode":"normal","revision":"A"}'.toJS,
+            '{"schemaVersion":2,"revision":"A"}'.toJS,
             web.ResponseInit(
               status: 200,
               headers: web.Headers()..set('content-type', 'application/json'),

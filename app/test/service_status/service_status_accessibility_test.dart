@@ -9,6 +9,7 @@ import 'package:material_ui/material_ui.dart';
 
 import 'announcement_dismissal_test.dart' show FakeDismissalStore;
 import 'service_status_controller_test.dart' show FakeStatusRepository;
+import 'support/status_test_fixtures.dart';
 
 void main() {
   // AT-009 / NFR-003 / AC-017.
@@ -18,6 +19,7 @@ void main() {
       final repository = FakeStatusRepository();
       final container = ProviderContainer(
         overrides: [
+          ...statusRuntimeOverrides,
           serviceStatusRepositoryProvider.overrideWithValue(repository),
           announcementDismissalStoreProvider.overrideWithValue(
             FakeDismissalStore(),
@@ -45,7 +47,7 @@ void main() {
       expect(editor.hasFocus, isTrue);
       final fetch = controller.refresh();
       repository.requests.last.complete(
-        const ServiceStatusDocument(
+        statusDocument(
           mode: ServiceStatusMode.maintenance,
           revision: 'A',
           title: 'Maintenance',
@@ -59,7 +61,7 @@ void main() {
       expect(FocusManager.instance.primaryFocus?.context?.widget, isNotNull);
       final clear = controller.refresh();
       repository.requests.last.complete(
-        const ServiceStatusDocument(
+        statusDocument(
           mode: ServiceStatusMode.normal,
           revision: 'B',
         ),
@@ -78,6 +80,7 @@ void main() {
       for (final mode in [
         ServiceStatusMode.maintenance,
         ServiceStatusMode.announcement,
+        ServiceStatusMode.normal,
       ]) {
         testWidgets(
           '$mode dark=$dark width=$width long scaled text is reachable',
@@ -88,6 +91,7 @@ void main() {
             final repository = FakeStatusRepository();
             final container = ProviderContainer(
               overrides: [
+                ...statusRuntimeOverrides,
                 serviceStatusRepositoryProvider.overrideWithValue(repository),
                 announcementDismissalStoreProvider.overrideWithValue(
                   FakeDismissalStore(),
@@ -99,13 +103,18 @@ void main() {
             );
             final fetch = controller.refresh();
             repository.requests.last.complete(
-              ServiceStatusDocument(
-                mode: mode,
-                revision: 'A',
-                title: 'Notice ${'x' * 153}',
-                message: 'Public ${'long text\n' * 239}',
-                estimatedRecoveryAt: DateTime.utc(2026),
-              ),
+              mode == ServiceStatusMode.normal
+                  ? const ServiceStatusDocument(
+                      revision: 'U',
+                      minimumVersions: StatusMinimumVersions(ios: '1.9.0'),
+                    )
+                  : statusDocument(
+                      mode: mode,
+                      revision: 'A',
+                      title: 'Notice ${'x' * 153}',
+                      message: 'Public ${'long text\n' * 239}',
+                      estimatedRecoveryAt: DateTime.utc(2026),
+                    ),
             );
             await tester.pump();
             await fetch;
@@ -145,14 +154,22 @@ void main() {
               );
             }
             final action = find.text(
-              mode == ServiceStatusMode.maintenance ? 'Try again' : 'Dismiss',
+              mode == ServiceStatusMode.maintenance
+                  ? 'Try again'
+                  : mode == ServiceStatusMode.normal
+                  ? 'Update'
+                  : 'Dismiss',
             );
             await tester.ensureVisible(action);
             await tester.pump();
             expect(action.hitTestable(), findsOneWidget);
             expect(
               tester.getSemantics(action).label,
-              mode == ServiceStatusMode.maintenance ? 'Try again' : 'Dismiss',
+              mode == ServiceStatusMode.maintenance
+                  ? 'Try again'
+                  : mode == ServiceStatusMode.normal
+                  ? 'Update'
+                  : 'Dismiss',
             );
             expect(find.bySemanticsLabel('Covered action'), findsNothing);
             expect(tester.takeException(), isNull);

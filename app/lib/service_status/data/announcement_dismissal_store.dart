@@ -8,7 +8,7 @@ abstract interface class AnnouncementDismissalStore {
 
 final class PreferencesAnnouncementDismissalStore
     implements AnnouncementDismissalStore {
-  static const key = 'service_status.dismissed_revision';
+  static const key = 'service_status.dismissed_message_revision';
   @override
   Future<String?> readRevision() async {
     final preferences = await SharedPreferences.getInstance();

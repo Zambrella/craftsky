@@ -35,11 +35,14 @@ void main() {
     'and fresh controller',
     (tester) async {
       harness.status.document = {
-        'schemaVersion': 1,
-        'mode': 'announcement',
+        'schemaVersion': 2,
         'revision': 'A',
-        'title': 'Notice',
-        'message': 'Public test notice',
+        'message': {
+          'revision': 'A',
+          'minVersion': '0.0.0',
+          'title': 'Notice',
+          'description': 'Public test notice',
+        },
       };
       ProviderContainer fresh() => ProviderContainer(
         overrides: [
@@ -72,12 +75,28 @@ void main() {
                 'A',
       );
       expect(restarted.announcement, isNull);
-      harness.status.document = {...harness.status.document, 'revision': 'B'};
+      harness.status.document = {
+        ...harness.status.document,
+        'revision': 'unrelated',
+      };
+      await restarted.refresh();
+      expect(restarted.announcement, isNull);
+      harness.status.document = {
+        ...harness.status.document,
+        'revision': 'B',
+        'message': {
+          ...harness.status.document['message']! as Map<String, dynamic>,
+          'revision': 'B',
+        },
+      };
       await restarted.refresh();
       expect(restarted.announcement?.revision, 'B');
       harness.status.document = {
         ...harness.status.document,
-        'mode': 'maintenance',
+        'maintenance': {
+          'title': 'Maintenance',
+          'description': 'Public integration notice',
+        },
       };
       await restarted.refresh();
       expect(restarted.maintenanceActive, isTrue);
@@ -184,11 +203,12 @@ void main() {
         ),
       );
       harness.status.document = {
-        'schemaVersion': 1,
-        'mode': 'maintenance',
+        'schemaVersion': 2,
+        'maintenance': {
+          'title': 'Maintenance',
+          'description': 'Public integration notice',
+        },
         'revision': 'maintenance-A',
-        'title': 'Maintenance',
-        'message': 'Public integration notice',
       };
       await harness.container
           .read(serviceStatusControllerProvider.notifier)
@@ -204,8 +224,7 @@ void main() {
       await _pumpUntilAbsent(tester, find.byType(PostComposerSheet));
       expect(find.text('Maintenance'), findsOneWidget);
       harness.status.document = {
-        'schemaVersion': 1,
-        'mode': 'normal',
+        'schemaVersion': 2,
         'revision': 'normal-B',
       };
       await harness.container

@@ -1,15 +1,18 @@
 import 'dart:async';
 
+import 'package:craftsky_app/service_status/data/status_actions.dart';
 import 'package:craftsky_app/service_status/providers/service_status_controller.dart';
 import 'package:craftsky_app/service_status/widgets/announcement_modal.dart';
 import 'package:craftsky_app/service_status/widgets/maintenance_screen.dart';
+import 'package:craftsky_app/service_status/widgets/update_required_screen.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
 class ServiceStatusHost extends ConsumerStatefulWidget {
-  const new({required this.child, super.key});
+  const new({required this.child, this.onDestination, super.key});
   final Widget child;
+  final Future<bool> Function(String destination)? onDestination;
 
   @override
   ConsumerState<ServiceStatusHost> createState() => _ServiceStatusHostState();
@@ -25,7 +28,8 @@ class _ServiceStatusHostState extends ConsumerState<ServiceStatusHost> {
     final controller = ref.watch(serviceStatusControllerProvider.notifier);
     final maintenance = controller.maintenanceActive;
     final notice = controller.announcement;
-    final covered = maintenance || notice != null;
+    final update = controller.presentation == StatusPresentation.updateRequired;
+    final covered = controller.blockingActive || notice != null;
     if (covered && !_wasCovered) {
       _retainedFocus = FocusManager.instance.primaryFocus;
     } else if (!covered && _wasCovered) {
@@ -80,19 +84,63 @@ class _ServiceStatusHostState extends ConsumerState<ServiceStatusHost> {
               child: AnnouncementModal(
                 document: notice,
                 dismissing: state.dismissing,
+                activating: state.activating,
+                actionFailed: state.actionFailed,
+                onActivate: notice.cta == null
+                    ? null
+                    : () {
+                        unawaited(
+                          controller.activateMessage(notice.revision, () {
+                            final cta = notice.cta!;
+                            if (cta.url != null) {
+                              return ref.read(statusExternalLauncherProvider)(
+                                Uri.parse(cta.url!),
+                              );
+                            }
+                            return widget.onDestination?.call(
+                                  cta.destination!,
+                                ) ??
+                                Future.value(false);
+                          }),
+                        );
+                      },
                 onDismiss: dismiss,
               ),
             ),
           ),
         ],
+        if (update) const UpdateRequiredScreen(),
         if (maintenance)
           MaintenanceScreen(
-            document: state.document!,
+            document: state.document!.maintenance!,
             fetching: state.fetching,
             onRetry: () =>
                 ref.read(serviceStatusControllerProvider.notifier).refresh(),
           ),
       ],
+    );
+  }
+}
+
+/// Installed inside Navigator routes for initialization hosts; the ready router
+/// uses its root dispatcher. Both read the same presentation selector.
+class ServiceStatusBackGuard extends ConsumerWidget {
+  const new({required this.child, super.key});
+  final Widget child;
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    ref.watch(serviceStatusControllerProvider);
+    final controller = ref.read(serviceStatusControllerProvider.notifier);
+    return PopScope<Object?>(
+      canPop: !controller.blockingActive && controller.announcement == null,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop &&
+            !controller.blockingActive &&
+            controller.announcement != null) {
+          unawaited(controller.dismissAnnouncement());
+        }
+      },
+      child: child,
     );
   }
 }

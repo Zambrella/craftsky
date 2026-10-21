@@ -10,6 +10,7 @@ import 'package:timezone/timezone.dart' as tz;
 
 import 'announcement_dismissal_test.dart' show FakeDismissalStore;
 import 'service_status_controller_test.dart' show FakeStatusRepository;
+import 'support/status_test_fixtures.dart';
 
 void main() {
   // UT-006 / FR-002, NFR-003, RULE-001 / AC-003, AC-017.
@@ -38,14 +39,14 @@ void main() {
       );
       final document = ServiceStatusDocument.decode(
         utf8.encode(
-          '{"schemaVersion":1,"mode":"maintenance","revision":"A",'
-          '"title":"Maintenance","message":"Public",'
-          '"estimatedRecoveryAt":"2026-03-29T03:30:00+02:00"}',
+          '{"schemaVersion":2,"revision":"A","maintenance":{'
+          '"title":"Maintenance","description":"Public",'
+          '"estimatedRecoveryAt":"2026-03-29T03:30:00+02:00"}}',
         ),
       );
       expect(
         formatServiceStatusEstimate(
-          document.estimatedRecoveryAt!,
+          document.maintenance!.estimatedRecoveryAt!,
           'en',
           localize: localize,
         ),
@@ -61,6 +62,7 @@ void main() {
       final repository = FakeStatusRepository();
       final container = ProviderContainer(
         overrides: [
+          ...statusRuntimeOverrides,
           serviceStatusRepositoryProvider.overrideWithValue(repository),
           announcementDismissalStoreProvider.overrideWithValue(
             FakeDismissalStore(),
@@ -72,7 +74,7 @@ void main() {
       );
       final fetch = controller.refresh();
       repository.requests.last.complete(
-        ServiceStatusDocument(
+        statusDocument(
           mode: ServiceStatusMode.maintenance,
           revision: 'A',
           title: 'Maintenance',

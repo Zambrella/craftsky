@@ -1,6 +1,6 @@
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/service_status/models/service_status_document.dart';
-import 'package:craftsky_app/service_status/service_status_estimate_formatter.dart';
+import 'package:craftsky_app/service_status/widgets/status_message_image.dart';
 import 'package:craftsky_app/shared/widgets/action_progress.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
@@ -11,11 +11,17 @@ class AnnouncementModal extends StatelessWidget {
     required this.document,
     required this.onDismiss,
     this.dismissing = false,
+    this.activating = false,
+    this.actionFailed = false,
+    this.onActivate,
     super.key,
   });
-  final ServiceStatusDocument document;
+  final StatusMessage document;
   final VoidCallback onDismiss;
   final bool dismissing;
+  final bool activating;
+  final bool actionFailed;
+  final VoidCallback? onActivate;
 
   @override
   Widget build(BuildContext context) {
@@ -28,26 +34,29 @@ class AnnouncementModal extends StatelessWidget {
         namesRoute: true,
         label: document.title,
         child: CraftskyDialog(
-          title: document.title!,
+          title: document.title,
           body: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(document.message!),
-              if (document.estimatedRecoveryAt != null) ...[
-                const SizedBox(height: 16),
-                Text(
-                  l10n.serviceStatusEstimatedRecovery(
-                    formatServiceStatusEstimate(
-                      document.estimatedRecoveryAt!,
-                      l10n.localeName,
-                    ),
-                  ),
+              Text(document.description),
+              if (document.imageUrl != null)
+                StatusMessageImage(
+                  url: document.imageUrl!,
+                  key: ValueKey(document.imageUrl),
                 ),
-              ],
+              if (actionFailed) Text(l10n.serviceStatusActionFailed),
             ],
           ),
           actions: [
+            if (document.cta != null)
+              ChunkyButton(
+                onPressed: activating || dismissing ? null : onActivate,
+                child: ActionProgress(
+                  isLoading: activating,
+                  child: Text(document.cta!.text),
+                ),
+              ),
             ChunkyButton(
               autofocus: true,
               backgroundColor: theme.colorScheme.primary,
