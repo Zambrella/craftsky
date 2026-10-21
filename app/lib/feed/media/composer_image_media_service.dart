@@ -490,7 +490,13 @@ class ComposerImageMediaService {
           'HEIC requires Apple decoding',
         ),
       };
-      if (!decoder.isValid(input)) {
+      // Inspect the header and dimensions, then let the codec attempt decoding.
+      // isValid also requires an exact file footer, rejecting readable photos
+      // with appended data (such as JPEG motion photos) before the codec can try.
+      // Preparation always re-encodes the image; original trailing data is
+      // never uploaded. Keep dimension checks before any full pixel decode.
+      if (lookupMimeType('', headerBytes: request.bytes) !=
+          _mimeTypeFor(format)) {
         throw const FormatException('Unsupported or corrupt image bytes');
       }
       final dimensions = decoder.getSize(input);

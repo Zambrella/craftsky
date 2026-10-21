@@ -281,6 +281,53 @@ void main() {
       expect((inspected.width, inspected.height), (16, 8));
     });
 
+    for (final png in [false, true]) {
+      test('prepares ${png ? 'PNG' : 'JPEG'} with appended data', () async {
+        final source = img.Image(width: 20, height: 30)
+          ..exif.imageIfd.orientation = png ? 1 : 6;
+        final appended = 'CraftSkyAppendedMotionData'.codeUnits;
+        final bytes = Uint8List.fromList([
+          ...png ? img.encodePng(source) : img.encodeJpg(source),
+          ...appended,
+        ]);
+        final fileName = png ? 'photo.png' : 'photo.jpg';
+        final mimeType = png ? 'image/png' : 'image/jpeg';
+        final inspected = await service
+            .inspectImage(bytes: bytes, fileName: fileName, mimeType: mimeType)
+            .future;
+        expect(
+          (inspected.width, inspected.height),
+          png ? (20, 30) : (30, 20),
+        );
+
+        final prepared = await service
+            .prepareImage(bytes: bytes, fileName: fileName, mimeType: mimeType)
+            .future;
+        final decoded = img.decodeImage(prepared.bytes)!;
+        expect(
+          (decoded.width, decoded.height),
+          (inspected.width, inspected.height),
+        );
+        expect(prepared.bytes.length, lessThanOrEqualTo(service.maxImageBytes));
+        expect(
+          String.fromCharCodes(prepared.bytes),
+          isNot(contains(String.fromCharCodes(appended))),
+        );
+      });
+    }
+
+    test('inspects a JPEG without requiring an end marker', () async {
+      final bytes = _jpegHeader(width: 16, height: 8);
+      final inspected = await service
+          .inspectImage(
+            bytes: bytes.sublist(0, bytes.length - 2),
+            fileName: 'photo.jpg',
+            mimeType: 'image/jpeg',
+          )
+          .future;
+      expect((inspected.width, inspected.height), (16, 8));
+    });
+
     test(
       'strips PNG text metadata and reports retained transparency',
       () async {
