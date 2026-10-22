@@ -11,6 +11,8 @@ String statusDestinationLocation(String destination) => switch (destination) {
   _ => throw const FormatException('Status destination'),
 };
 
+/// The status host lives in MaterialApp.router.builder, above the Router
+/// inherited widget, so navigate directly using the typed route's location.
 bool activateStatusDestination(GoRouter router, String destination) {
   router.go(statusDestinationLocation(destination));
   return true;
