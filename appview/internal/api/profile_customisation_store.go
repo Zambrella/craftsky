@@ -25,7 +25,7 @@ type ProfileCustomisationStore struct {
 // ProfileCustomisationBatchQuery is kept as one statement so response
 // hydration remains bounded and its PostgreSQL plan can be regression-tested.
 const ProfileCustomisationBatchQuery = `
-	SELECT p.did, c.colour, c.profile_background
+	SELECT p.did, c.colour, c.profile_background, p.crafts
 	FROM craftsky_profiles p
 	LEFT JOIN profile_customisations c ON c.owner_did = p.did
 	WHERE p.did = ANY($1::text[])
@@ -99,10 +99,31 @@ func (s *ProfileCustomisationStore) Put(
 	return EffectiveProfileCustomisation(stored), nil
 }
 
+// ProfileIdentityDecoration is public profile metadata hydrated in one batch.
+type ProfileIdentityDecoration struct {
+	Customisation ProfileCustomisation
+	Crafts        []string
+}
+
 func (s *ProfileCustomisationStore) ReadBatch(
 	ctx context.Context,
 	owners []syntax.DID,
 ) (map[syntax.DID]ProfileCustomisation, error) {
+	decorations, err := s.ReadIdentityBatch(ctx, owners)
+	if err != nil {
+		return nil, err
+	}
+	result := make(map[syntax.DID]ProfileCustomisation, len(decorations))
+	for did, value := range decorations {
+		result[did] = value.Customisation
+	}
+	return result, nil
+}
+
+func (s *ProfileCustomisationStore) ReadIdentityBatch(
+	ctx context.Context,
+	owners []syntax.DID,
+) (map[syntax.DID]ProfileIdentityDecoration, error) {
 	unique := make(map[syntax.DID]struct{}, len(owners))
 	dids := make([]string, 0, len(owners))
 	for _, owner := range owners {
@@ -115,7 +136,7 @@ func (s *ProfileCustomisationStore) ReadBatch(
 		unique[owner] = struct{}{}
 		dids = append(dids, owner.String())
 	}
-	result := make(map[syntax.DID]ProfileCustomisation, len(dids))
+	result := make(map[syntax.DID]ProfileIdentityDecoration, len(dids))
 	if len(dids) == 0 {
 		return result, nil
 	}
@@ -129,8 +150,9 @@ func (s *ProfileCustomisationStore) ReadBatch(
 		var (
 			owner              string
 			colour, background *string
+			crafts             []string
 		)
-		if err := rows.Scan(&owner, &colour, &background); err != nil {
+		if err := rows.Scan(&owner, &colour, &background, &crafts); err != nil {
 			return nil, fmt.Errorf("profile customisation batch scan: %w", err)
 		}
 		value := DefaultProfileCustomisation
@@ -140,7 +162,10 @@ func (s *ProfileCustomisationStore) ReadBatch(
 		if background != nil {
 			value.Background = *background
 		}
-		result[syntax.DID(owner)] = EffectiveProfileCustomisation(value)
+		result[syntax.DID(owner)] = ProfileIdentityDecoration{
+			Customisation: EffectiveProfileCustomisation(value),
+			Crafts:        crafts,
+		}
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("profile customisation batch rows: %w", err)

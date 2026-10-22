@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:craftsky_app/auth/providers/handle_typeahead_provider.dart';
 import 'package:craftsky_app/auth/services/handle_typeahead_service.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
+import 'package:craftsky_app/profile/widgets/compact_profile_identity.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
 import 'package:craftsky_app/theme/brand_text_field.dart';
 import 'package:craftsky_app/theme/craftsky_select_inputs.dart';
@@ -261,6 +262,8 @@ class _HandleTypeaheadFieldState extends ConsumerState<HandleTypeaheadField> {
                   children: [
                     for (var index = 0; index < _suggestions.length; index++)
                       ListTile(
+                        horizontalTitleGap: 12,
+                        minLeadingWidth: 0,
                         key: _suggestionKeys[index],
                         dense: true,
                         selected: index == _highlight,
@@ -274,16 +277,9 @@ class _HandleTypeaheadFieldState extends ConsumerState<HandleTypeaheadField> {
                             showShadow: false,
                           ),
                         ),
-                        title: Text(
-                          _suggestions[index].displayName ??
-                              _suggestions[index].handle.toString(),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        subtitle: Text(
-                          '@${_suggestions[index].handle}',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                        title: CompactProfileIdentity(
+                          handle: _suggestions[index].handle.toString(),
+                          displayName: _suggestions[index].displayName,
                         ),
                         onTap: () => _select(_suggestions[index]),
                       ),

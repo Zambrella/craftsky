@@ -44,6 +44,8 @@ import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/languages/models/post_language_selection.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
 import 'package:craftsky_app/profile/models/profile_handle.dart';
+import 'package:craftsky_app/profile/widgets/compact_profile_identity.dart';
+import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
 import 'package:craftsky_app/router/responsive_modal_navigation.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/scheduled_posts/composer/schedule_capacity_state.dart';
@@ -1791,15 +1793,26 @@ class _ComposerTargetPreview extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (displayName != null && displayName.trim().isNotEmpty)
-              Text(displayName, style: theme.textTheme.titleSmall),
-            Text(
-              ProfileHandle(post.author.handle).currentLabel(
-                unavailableLabel: l10n.handleUnavailable,
-              ),
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.outline,
-              ),
+            Row(
+              children: [
+                ProfileAvatar(
+                  seed: ProfileHandle(post.author.handle).displayLabel(
+                    displayName: displayName,
+                    unavailableLabel: l10n.handleUnavailable,
+                  ),
+                  avatarUrl: post.author.avatar,
+                  size: ProfileAvatarSize.small,
+                  customisation: post.author.customisation,
+                ),
+                SizedBox(width: spacing.sp3),
+                Expanded(
+                  child: CompactProfileIdentity(
+                    handle: post.author.handle.toString(),
+                    displayName: displayName,
+                    crafts: post.author.crafts,
+                  ),
+                ),
+              ],
             ),
             SizedBox(height: spacing.sp2),
             Text(

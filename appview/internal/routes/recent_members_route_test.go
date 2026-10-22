@@ -73,7 +73,7 @@ func TestRecentMembersRouteAuthentication(t *testing.T) {
 func TestRecentMembersRouteSerializedContract(t *testing.T) {
 	pool := testdb.WithMigratedSchema(t)
 	if _, err := pool.Exec(t.Context(), `
- INSERT INTO craftsky_profiles(did,record_cid,crafts) VALUES('did:plc:test','viewer',ARRAY['private-viewer-crafts']),('did:plc:aaaaaaaaaaaaaaaaaaaaaaaa','member',ARRAY['private-member-crafts']),('did:plc:bbbbbbbbbbbbbbbbbbbbbbbb','member',ARRAY['private-other-crafts']);
+ INSERT INTO craftsky_profiles(did,record_cid,crafts) VALUES('did:plc:test','viewer',ARRAY['private-viewer-crafts']),('did:plc:aaaaaaaaaaaaaaaaaaaaaaaa','member',ARRAY['knitting']),('did:plc:bbbbbbbbbbbbbbbbbbbbbbbb','member',ARRAY[]::text[]);
  INSERT INTO owner_lifecycles(owner_did,state,generation,auth_epoch,transition_reason,transitioned_at) VALUES('did:plc:test','active',1,1,'test',now()),('did:plc:aaaaaaaaaaaaaaaaaaaaaaaa','active',1,1,'test',now()),('did:plc:bbbbbbbbbbbbbbbbbbbbbbbb','active',1,1,'test',now());
  INSERT INTO account_onboarding_completions(account_did,completed_at) VALUES('did:plc:aaaaaaaaaaaaaaaaaaaaaaaa','2026-10-03T00:00:00Z'),('did:plc:bbbbbbbbbbbbbbbbbbbbbbbb','2026-10-02T00:00:00Z');
  INSERT INTO atproto_identity_cache(did,handle,handle_lower,resolved_at) VALUES('did:plc:aaaaaaaaaaaaaaaaaaaaaaaa','alice.test','alice.test',now());
@@ -112,15 +112,15 @@ func TestRecentMembersRouteSerializedContract(t *testing.T) {
 	}
 	for i, raw := range items {
 		item := raw.(map[string]any)
-		wanted := 3
+		wanted := 4
 		if i == 0 {
-			wanted = 5
+			wanted = 6
 		}
 		if len(item) != wanted {
 			t.Fatalf("item key count %d, want %d: %v", len(item), wanted, item)
 		}
 		for key := range item {
-			if key != "did" && key != "handle" && key != "isCraftskyProfile" && key != "displayName" && key != "avatar" {
+			if key != "did" && key != "handle" && key != "isCraftskyProfile" && key != "displayName" && key != "avatar" && key != "crafts" {
 				t.Fatalf("unexpected summary field %s", key)
 			}
 		}
@@ -129,6 +129,12 @@ func TestRecentMembersRouteSerializedContract(t *testing.T) {
 		}
 	}
 	first := items[0].(map[string]any)
+	firstCrafts, _ := first["crafts"].([]any)
+	secondCrafts, _ := items[1].(map[string]any)["crafts"].([]any)
+	if len(firstCrafts) != 1 || firstCrafts[0] != "knitting" || len(secondCrafts) != 0 {
+		t.Fatalf("discovery crafts: %v / %v", firstCrafts, secondCrafts)
+	}
+
 	if first["did"] != "did:plc:aaaaaaaaaaaaaaaaaaaaaaaa" || first["handle"] != "alice.test" || first["displayName"] != "Alice" || first["avatar"] != "https://cdn.bsky.app/img/avatar/plain/did:plc:aaaaaaaaaaaaaaaaaaaaaaaa/avatar-cid@jpeg" {
 		t.Fatalf("public presentation: %v", first)
 	}
@@ -137,7 +143,7 @@ func TestRecentMembersRouteSerializedContract(t *testing.T) {
 	}
 	assertPrivate := func(rec *httptest.ResponseRecorder) {
 		t.Helper()
-		for _, canary := range []string{"private-token-canary", "private-device-canary", "private-member-crafts", "private-viewer-crafts", "private-description-canary", "2026-10-03"} {
+		for _, canary := range []string{"private-token-canary", "private-device-canary", "private-viewer-crafts", "private-description-canary", "2026-10-03"} {
 			if strings.Contains(rec.Body.String(), canary) {
 				t.Fatalf("private value leaked: %s", canary)
 			}

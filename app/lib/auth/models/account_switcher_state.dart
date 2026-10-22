@@ -14,6 +14,7 @@ final class AccountSwitcherRow {
     required this.avatarUrl,
     required this.customisation,
     required this.isCurrent,
+    this.crafts = const [],
   });
 
   final AccountSessionLease lease;
@@ -22,6 +23,7 @@ final class AccountSwitcherRow {
   final String? avatarUrl;
   final ProfileCustomisation customisation;
   final bool isCurrent;
+  final List<String> crafts;
 
   String displayLabel(String unavailableHandleLabel) =>
       ProfileHandle(
@@ -53,6 +55,7 @@ final class AccountSwitcherState {
           handle: session.handle.value,
           displayName: session.cachedDisplayName,
           avatarUrl: session.cachedAvatarUrl,
+          crafts: session.cachedCrafts,
           customisation: session.cachedCustomisation,
           isCurrent: session.did == registry.activeDid,
         ),

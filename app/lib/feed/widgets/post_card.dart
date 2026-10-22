@@ -27,6 +27,7 @@ import 'package:craftsky_app/profile/models/profile_relationship.dart';
 import 'package:craftsky_app/profile/providers/block_profile_overlay.dart';
 import 'package:craftsky_app/profile/providers/profile_relationship_provider.dart';
 import 'package:craftsky_app/profile/providers/toggle_block_profile_provider.dart';
+import 'package:craftsky_app/profile/widgets/compact_profile_identity.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
 import 'package:craftsky_app/profile/widgets/profile_card_modal.dart';
 import 'package:craftsky_app/projects/widgets/project_card.dart';
@@ -470,9 +471,8 @@ class PostCard extends ConsumerWidget {
                             alignment: AlignmentDirectional.centerStart,
                             child: _PostCardHeader(
                               displayName: displayName,
-                              handle: authorHandle.currentLabel(
-                                unavailableLabel: l10n.handleUnavailable,
-                              ),
+                              handle: post.author.handle.toString(),
+                              crafts: post.author.crafts,
                               onTap: openAuthorProfile,
                             ),
                           ),
@@ -998,37 +998,24 @@ class _PostCardHeader extends StatelessWidget {
   const new({
     required this.displayName,
     required this.handle,
+    required this.crafts,
     required this.onTap,
   });
 
   final String displayName;
   final String handle;
+  final List<String> crafts;
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return _PostCardAuthorTapTarget(
-      onTap: onTap,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            displayName,
-            style: theme.textTheme.titleSmall,
-            overflow: TextOverflow.ellipsis,
-          ),
-          Text(
-            handle,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.outline,
-            ),
-            overflow: TextOverflow.ellipsis,
-          ),
-        ],
-      ),
-    );
-  }
+  Widget build(BuildContext context) => _PostCardAuthorTapTarget(
+    onTap: onTap,
+    child: CompactProfileIdentity(
+      handle: handle,
+      displayName: displayName,
+      crafts: crafts,
+    ),
+  );
 }
 
 class _PostCardAuthorTapTarget extends StatelessWidget {

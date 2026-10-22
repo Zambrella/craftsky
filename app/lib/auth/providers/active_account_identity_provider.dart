@@ -46,6 +46,7 @@ final activeAccountIdentityProvider =
               target.lease,
               displayName: profile.displayName,
               avatarUrl: profile.avatar,
+              crafts: profile.crafts,
               customisation: profile.customisation,
             );
         if (!ref.mounted) return null;

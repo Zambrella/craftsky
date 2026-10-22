@@ -331,6 +331,7 @@ class PostAuthor with PostAuthorMappable {
     required String handle,
     this.displayName,
     this.avatar,
+    this.crafts = const [],
     String? avatarCid,
     this.muted,
     this.blocking,
@@ -344,6 +345,7 @@ class PostAuthor with PostAuthorMappable {
   final Handle handle;
   final String? displayName;
   final String? avatar;
+  final List<String> crafts;
   final Cid? avatarCid;
   final bool? muted;
   final bool? blocking;

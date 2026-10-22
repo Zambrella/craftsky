@@ -4,6 +4,7 @@ import 'package:craftsky_app/feed/widgets/external_card.dart';
 import 'package:craftsky_app/feed/widgets/post_image_carousel.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/profile/models/profile_handle.dart';
+import 'package:craftsky_app/profile/widgets/compact_profile_identity.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
 import 'package:craftsky_app/shared/image/image_cache_providers.dart';
 import 'package:craftsky_app/shared/time/relative_time_text.dart';
@@ -347,15 +348,12 @@ class _PostSummaryAuthor extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final l10n = AppLocalizations.of(context);
-    final displayName = author.displayName;
-    final handle = ProfileHandle(author.handle);
     return Row(
       children: [
         ProfileAvatar(
-          seed: handle.displayLabel(
-            displayName: displayName,
+          seed: ProfileHandle(author.handle).displayLabel(
+            displayName: author.displayName,
             unavailableLabel: l10n.handleUnavailable,
           ),
           avatarUrl: author.avatar,
@@ -364,25 +362,10 @@ class _PostSummaryAuthor extends StatelessWidget {
         ),
         const SizedBox(width: 12),
         Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (displayName != null && displayName.trim().isNotEmpty)
-                Text(
-                  displayName,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.titleSmall,
-                ),
-              Text(
-                handle.currentLabel(unavailableLabel: l10n.handleUnavailable),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.outline,
-                ),
-              ),
-            ],
+          child: CompactProfileIdentity(
+            handle: author.handle.toString(),
+            displayName: author.displayName,
+            crafts: author.crafts,
           ),
         ),
       ],
