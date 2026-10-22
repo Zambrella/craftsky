@@ -19,9 +19,7 @@ final serviceStatusRouterConfigProvider =
     Provider<RouterConfig<RouteMatchList>>(
       (ref) => serviceStatusRouterConfig(
         ref.watch(goRouterProvider),
-        () => ref
-            .read(serviceStatusControllerProvider.notifier)
-            .maintenanceActive,
+        () => ref.read(serviceStatusControllerProvider.notifier).blockingActive,
         dismissAnnouncement: () async {
           final controller = ref.read(serviceStatusControllerProvider.notifier);
           if (controller.announcement == null) return false;

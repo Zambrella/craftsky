@@ -22,117 +22,132 @@ import '../fakes/recording_messenger.dart';
 import 'announcement_dismissal_test.dart' show FakeDismissalStore;
 import 'service_status_controller_test.dart'
     show FakeStatusRepository, maintenance;
+import 'support/status_test_fixtures.dart';
 
 void main() {
   // AT-004 / FR-005, FR-009, RULE-004 / AC-008, AC-012.
   for (final project in [false, true]) {
-    testWidgets(
-      'cover retains ${project ? 'project' : 'post'} editor '
-      'and one delayed operation',
-      (tester) async {
-        const composerId = 'status-editor';
-        final repository = FakeStatusRepository();
-        final container = ProviderContainer(
-          overrides: [
-            serviceStatusRepositoryProvider.overrideWithValue(repository),
-            announcementDismissalStoreProvider.overrideWithValue(
-              FakeDismissalStore(),
-            ),
-            activeLanguagePreferencesProvider.overrideWith(
-              (ref) => const LanguagePreferences(
-                primaryLanguage: 'en',
-                contentLanguages: ['en'],
+    for (final update in [false, true]) {
+      testWidgets(
+        '${update ? 'update' : 'maintenance'} cover retains '
+        '${project ? 'project' : 'post'} editor '
+        'and one delayed operation',
+        (tester) async {
+          const composerId = 'status-editor';
+          final repository = FakeStatusRepository();
+          final container = ProviderContainer(
+            overrides: [
+              ...statusRuntimeOverrides,
+              serviceStatusRepositoryProvider.overrideWithValue(repository),
+              announcementDismissalStoreProvider.overrideWithValue(
+                FakeDismissalStore(),
+              ),
+              activeLanguagePreferencesProvider.overrideWith(
+                (ref) => const LanguagePreferences(
+                  primaryLanguage: 'en',
+                  contentLanguages: ['en'],
+                ),
+              ),
+              composerImagesProvider(composerId).overrideWithValue(images),
+            ],
+          );
+          await tester.pumpWidget(
+            UncontrolledProviderScope(
+              container: container,
+              child: MessengerScope(
+                messenger: RecordingMessenger(),
+                child: MaterialApp(
+                  theme: AppTheme.lightThemeData,
+                  localizationsDelegates: appLocalizationsDelegates,
+                  supportedLocales: AppLocalizations.supportedLocales,
+                  builder: (context, child) => ServiceStatusHost(child: child!),
+                  home: project
+                      ? const ProjectComposerSheet(composerId: composerId)
+                      : const PostComposerSheet(composerId: composerId),
+                ),
               ),
             ),
-            composerImagesProvider(composerId).overrideWithValue(images),
-          ],
-        );
-        await tester.pumpWidget(
-          UncontrolledProviderScope(
-            container: container,
-            child: MessengerScope(
-              messenger: RecordingMessenger(),
-              child: MaterialApp(
-                theme: AppTheme.lightThemeData,
-                localizationsDelegates: appLocalizationsDelegates,
-                supportedLocales: AppLocalizations.supportedLocales,
-                builder: (context, child) => ServiceStatusHost(child: child!),
-                home: project
-                    ? const ProjectComposerSheet(composerId: composerId)
-                    : const PostComposerSheet(composerId: composerId),
-              ),
+          );
+          await tester.pumpAndSettle();
+          final field = project
+              ? find.descendant(
+                  of: find.byKey(const Key('project-composer-body-editor')),
+                  matching: find.byType(TextField),
+                )
+              : find.byType(TextField).first;
+          await tester.ensureVisible(field);
+          await tester.enterText(field, 'Unsent cardigan work');
+          await tester.pumpAndSettle();
+          final element = tester.element(field);
+          final textController = tester.widget<TextField>(field).controller!;
+          final delayed = Completer<void>();
+          var operations = 0;
+          var cleanups = 0;
+          final coordinator = ComposerSubmissionCoordinator(
+            screenAwake: _Awake(),
+          );
+          final inFlight = coordinator.run(
+            presentOverlay: () async {},
+            ownershipIsCurrent: () => true,
+            saveOriginSnapshot: () async {},
+            operation: () async {
+              operations++;
+              await delayed.future;
+            },
+            didSucceed: () => true,
+            deleteOriginAfterSuccess: () async {
+              cleanups++;
+            },
+            onRunningChanged: ({required running}) {},
+            onFailure: (_) => fail('Unexpected failure'),
+          );
+          await tester.pump();
+          final controller = container.read(
+            serviceStatusControllerProvider.notifier,
+          );
+          final cover = controller.refresh();
+          repository.requests.last.complete(
+            update
+                ? const ServiceStatusDocument(
+                    revision: 'U',
+                    minimumVersions: StatusMinimumVersions(ios: '1.9.0'),
+                  )
+                : maintenance,
+          );
+          await tester.pump();
+          await cover;
+          expect(
+            find.text(update ? 'Update required' : 'Maintenance'),
+            findsOneWidget,
+          );
+          expect(tester.element(field), same(element));
+          expect(textController.text, 'Unsent cardigan work');
+          expect(
+            container.read(composerImagesProvider(composerId)),
+            same(images),
+          );
+          expect(operations, 1);
+          delayed.complete();
+          await tester.pump();
+          await inFlight;
+          expect(cleanups, 1);
+          final clear = controller.refresh();
+          repository.requests.last.complete(
+            statusDocument(
+              mode: ServiceStatusMode.normal,
+              revision: 'B',
             ),
-          ),
-        );
-        await tester.pumpAndSettle();
-        final field = project
-            ? find.descendant(
-                of: find.byKey(const Key('project-composer-body-editor')),
-                matching: find.byType(TextField),
-              )
-            : find.byType(TextField).first;
-        await tester.ensureVisible(field);
-        await tester.enterText(field, 'Unsent cardigan work');
-        await tester.pumpAndSettle();
-        final element = tester.element(field);
-        final textController = tester.widget<TextField>(field).controller!;
-        final delayed = Completer<void>();
-        var operations = 0;
-        var cleanups = 0;
-        final coordinator = ComposerSubmissionCoordinator(
-          screenAwake: _Awake(),
-        );
-        final inFlight = coordinator.run(
-          presentOverlay: () async {},
-          ownershipIsCurrent: () => true,
-          saveOriginSnapshot: () async {},
-          operation: () async {
-            operations++;
-            await delayed.future;
-          },
-          didSucceed: () => true,
-          deleteOriginAfterSuccess: () async {
-            cleanups++;
-          },
-          onRunningChanged: ({required running}) {},
-          onFailure: (_) => fail('Unexpected failure'),
-        );
-        await tester.pump();
-        final controller = container.read(
-          serviceStatusControllerProvider.notifier,
-        );
-        final cover = controller.refresh();
-        repository.requests.last.complete(maintenance);
-        await tester.pump();
-        await cover;
-        expect(find.text('Maintenance'), findsOneWidget);
-        expect(tester.element(field), same(element));
-        expect(textController.text, 'Unsent cardigan work');
-        expect(
-          container.read(composerImagesProvider(composerId)),
-          same(images),
-        );
-        expect(operations, 1);
-        delayed.complete();
-        await tester.pump();
-        await inFlight;
-        expect(cleanups, 1);
-        final clear = controller.refresh();
-        repository.requests.last.complete(
-          const ServiceStatusDocument(
-            mode: ServiceStatusMode.normal,
-            revision: 'B',
-          ),
-        );
-        await tester.pump();
-        await clear;
-        expect(tester.element(field), same(element));
-        expect(textController.text, 'Unsent cardigan work');
-        expect(operations, 1);
-        await tester.pumpWidget(const SizedBox.shrink());
-        container.dispose();
-      },
-    );
+          );
+          await tester.pump();
+          await clear;
+          expect(tester.element(field), same(element));
+          expect(textController.text, 'Unsent cardigan work');
+          expect(operations, 1);
+          await tester.pumpWidget(const SizedBox.shrink());
+          container.dispose();
+        },
+      );
+    }
   }
 }
 

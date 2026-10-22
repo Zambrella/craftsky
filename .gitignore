@@ -63,3 +63,4 @@ __pycache__/
 
 # Dedicated status host local tooling
 service-status/.wrangler/
+service-status/.venv/
