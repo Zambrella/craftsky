@@ -945,12 +945,14 @@ class PostThreadRoute extends GoRouteData with $PostThreadRoute {
     required this.did,
     required this.rkey,
     this.focus,
+    this.showComments = false,
     this.$extra,
   });
 
   final String did;
   final String rkey;
   final String? focus;
+  final bool showComments;
   final Post? $extra;
 
   @override
@@ -959,6 +961,7 @@ class PostThreadRoute extends GoRouteData with $PostThreadRoute {
     rkey: RecordKey.parse(rkey),
     focus: focus == null ? null : AtUri.parse(focus!),
     initialCreatedPost: $extra,
+    showComments: showComments,
   );
 }
 

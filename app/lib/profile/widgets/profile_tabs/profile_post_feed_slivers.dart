@@ -60,7 +60,6 @@ class ProfilePostFeedSlivers extends ConsumerWidget {
     required this.isOwnProfile,
     required this.emptyState,
     required this.onLoadMore,
-    required this.onReplyCreated,
     required this.pinnedPostUri,
     super.key,
   });
@@ -72,7 +71,6 @@ class ProfilePostFeedSlivers extends ConsumerWidget {
   final bool isOwnProfile;
   final Widget emptyState;
   final Future<void> Function() onLoadMore;
-  final VoidCallback onReplyCreated;
   final String? pinnedPostUri;
 
   @override
@@ -115,7 +113,11 @@ class ProfilePostFeedSlivers extends ConsumerWidget {
                   did: post.author.did,
                   rkey: post.rkey,
                 ).push<void>(context),
-                onReply: () => _replyAndOpenThread(context, post),
+                onReply: () => PostThreadRoute(
+                  did: post.author.did,
+                  rkey: post.rkey,
+                  showComments: true,
+                ).push<void>(context),
                 replyTooltip: l10n.postCommentAction,
                 onLike: () => ref
                     .read(toggleLikePostProvider.notifier)
@@ -169,18 +171,6 @@ class ProfilePostFeedSlivers extends ConsumerWidget {
       confirmLabel: l10n.postDeleteConfirm,
       onConfirm: () => ref.read(deletePostProvider.notifier).delete(post: post),
     );
-  }
-
-  Future<void> _replyAndOpenThread(BuildContext context, Post post) async {
-    final created = await showPostComposerSheet(context, replyTarget: post);
-    if (created == null || !context.mounted) return;
-    onReplyCreated();
-    await PostThreadRoute(
-      did: post.author.did,
-      rkey: post.rkey,
-      focus: created.uri,
-      $extra: created,
-    ).push<void>(context);
   }
 }
 

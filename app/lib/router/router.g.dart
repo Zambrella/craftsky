@@ -1045,6 +1045,13 @@ mixin $PostThreadRoute on GoRouteData {
     did: state.pathParameters['did']!,
     rkey: state.pathParameters['rkey']!,
     focus: state.uri.queryParameters['focus'],
+    showComments:
+        _$convertMapValue(
+          'show-comments',
+          state.uri.queryParameters,
+          _$boolConverter,
+        ) ??
+        false,
     $extra: state.extra as Post?,
   );
 
@@ -1053,7 +1060,11 @@ mixin $PostThreadRoute on GoRouteData {
   @override
   String get location => GoRouteData.$location(
     '/posts/${Uri.encodeComponent(_self.did)}/${Uri.encodeComponent(_self.rkey)}',
-    queryParams: {if (_self.focus != null) 'focus': _self.focus},
+    queryParams: {
+      if (_self.focus != null) 'focus': _self.focus,
+      if (_self.showComments != false)
+        'show-comments': _self.showComments.toString(),
+    },
   );
 
   @override
@@ -1275,6 +1286,17 @@ T? _$convertMapValue<T>(
 extension<T extends Enum> on Map<T, String> {
   T? _$fromName(String? value) =>
       entries.where((element) => element.value == value).firstOrNull?.key;
+}
+
+bool _$boolConverter(String value) {
+  switch (value) {
+    case 'true':
+      return true;
+    case 'false':
+      return false;
+    default:
+      throw UnsupportedError('Cannot convert "$value" into a bool.');
+  }
 }
 
 RouteBase get $welcomeRoute => GoRouteData.$route(

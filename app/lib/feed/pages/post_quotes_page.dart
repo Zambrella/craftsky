@@ -85,7 +85,11 @@ class PostQuotesPage extends ConsumerWidget {
                 did: post.author.did,
                 rkey: post.rkey,
               ).push<void>(context),
-              onReply: () => unawaited(_reply(context, ref, provider, post)),
+              onReply: () => PostThreadRoute(
+                did: post.author.did,
+                rkey: post.rkey,
+                showComments: true,
+              ).push<void>(context),
               replyTooltip: l10n.postCommentAction,
               onLike: () => unawaited(_toggleLike(context, ref, post)),
               onRepost: () => unawaited(_toggleRepost(context, ref, post)),
@@ -157,23 +161,6 @@ class PostQuotesPage extends ConsumerWidget {
     } finally {
       notifier.reset();
     }
-  }
-
-  Future<void> _reply(
-    BuildContext context,
-    WidgetRef ref,
-    PostQuotesProvider provider,
-    Post post,
-  ) async {
-    final created = await showPostComposerSheet(context, replyTarget: post);
-    if (created == null || !context.mounted) return;
-    ref.invalidate(provider);
-    await PostThreadRoute(
-      did: post.author.did,
-      rkey: post.rkey,
-      focus: created.uri,
-      $extra: created,
-    ).push<void>(context);
   }
 
   Future<void> _confirmDelete(

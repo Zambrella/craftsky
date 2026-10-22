@@ -42,6 +42,7 @@ class PostThreadPage extends ConsumerStatefulWidget {
     required this.rkey,
     this.focus,
     this.initialCreatedPost,
+    this.showComments = false,
     super.key,
   });
 
@@ -49,6 +50,7 @@ class PostThreadPage extends ConsumerStatefulWidget {
   final RecordKey rkey;
   final AtUri? focus;
   final craftsky_post.Post? initialCreatedPost;
+  final bool showComments;
 
   @override
   ConsumerState<PostThreadPage> createState() => _PostThreadPageState();
@@ -169,6 +171,7 @@ class _PostThreadPageState extends ConsumerState<PostThreadPage> {
                       rkey: widget.rkey,
                       focus: widget.focus,
                       createdTargetUri: _createdTargetUri,
+                      showComments: widget.showComments,
                       viewerDid: viewerDid,
                       showInlineComposer: formFactor.isLarge,
                       isLoadingMoreComments: pageLoaderAsync.isLoading,
@@ -365,6 +368,7 @@ class _CommentSectionBody extends ConsumerStatefulWidget {
     required this.rkey,
     required this.focus,
     required this.createdTargetUri,
+    required this.showComments,
     required this.viewerDid,
     required this.showInlineComposer,
     required this.isLoadingMoreComments,
@@ -381,6 +385,7 @@ class _CommentSectionBody extends ConsumerStatefulWidget {
   final RecordKey rkey;
   final AtUri? focus;
   final AtUri? createdTargetUri;
+  final bool showComments;
   final Did? viewerDid;
   final bool showInlineComposer;
   final bool isLoadingMoreComments;
@@ -401,6 +406,8 @@ class _CommentSectionBodyState extends ConsumerState<_CommentSectionBody> {
   final GlobalKey _focusedTargetKey = GlobalKey(
     debugLabel: 'focusedCommentTarget',
   );
+  final GlobalKey _commentsKey = GlobalKey(debugLabel: 'commentsSection');
+  bool _commentsRevealed = false;
   AtUri? _scrolledTargetUri;
   AtUri? _highlightedTargetUri;
   bool _focusRevealScheduled = false;
@@ -499,6 +506,21 @@ class _CommentSectionBodyState extends ConsumerState<_CommentSectionBody> {
     });
   }
 
+  void _scheduleCommentsReveal() {
+    if (!widget.showComments ||
+        _commentsRevealed ||
+        _targetUri(widget) != null) {
+      return;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _commentsRevealed || _targetUri(widget) != null) return;
+      final context = _commentsKey.currentContext;
+      if (context == null) return;
+      _commentsRevealed = true;
+      Scrollable.ensureVisible(context);
+    });
+  }
+
   void _scheduleClearHighlight(AtUri targetUri) {
     _clearHighlightTimer?.cancel();
     _clearHighlightTimer = Timer(const Duration(seconds: 3), () {
@@ -512,6 +534,7 @@ class _CommentSectionBodyState extends ConsumerState<_CommentSectionBody> {
     final l10n = AppLocalizations.of(context);
     final spacing = Theme.of(context).extension<SpacingTheme>()!;
     _scheduleFocusedReveal();
+    _scheduleCommentsReveal();
     return YarnRefreshScrollView(
       onRefresh: widget.onRefresh,
       controller: _controller,
@@ -575,6 +598,7 @@ class _CommentSectionBodyState extends ConsumerState<_CommentSectionBody> {
           padding: EdgeInsets.only(bottom: spacing.sp5),
           sliver: SliverToBoxAdapter(
             child: Column(
+              key: _commentsKey,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Padding(

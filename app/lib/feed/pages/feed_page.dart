@@ -285,7 +285,11 @@ class _FeedLoadedSlivers extends ConsumerWidget {
                 onQuote: () => unawaited(
                   showPostComposerSheet(context, quoteTarget: post),
                 ),
-                onReply: () => _replyAndOpenThread(context, ref, post),
+                onReply: () => PostThreadRoute(
+                  did: post.author.did,
+                  rkey: post.rkey,
+                  showComments: true,
+                ).push<void>(context),
                 onDelete: auth is SignedIn && post.author.did == auth.did
                     ? () => _confirmDelete(context, ref, post)
                     : null,
@@ -316,22 +320,6 @@ class _FeedLoadedSlivers extends ConsumerWidget {
           ),
       ],
     );
-  }
-
-  Future<void> _replyAndOpenThread(
-    BuildContext context,
-    WidgetRef ref,
-    Post post,
-  ) async {
-    final created = await showPostComposerSheet(context, replyTarget: post);
-    if (created == null || !context.mounted) return;
-    ref.invalidate(timelineProvider);
-    await PostThreadRoute(
-      did: post.author.did,
-      rkey: post.rkey,
-      focus: created.uri,
-      $extra: created,
-    ).push<void>(context);
   }
 
   Future<void> _confirmDelete(
