@@ -78,7 +78,7 @@ func (s *FirebaseSender) buildMessage(request SendRequest) (*messaging.Message, 
 		Notification: &messaging.Notification{
 			Title: safePushDisplayText(payload.Title, "CraftSky"),
 			Body: safePushDisplayText(
-				payload.Body,
+				previewBody(request.Category, payload.Body, request.Preview),
 				"You have a new notification",
 			),
 		},

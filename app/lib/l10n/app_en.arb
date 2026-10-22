@@ -3522,5 +3522,45 @@
   "serviceStatusUpdateDescription": "Please update CraftSky to continue.",
   "serviceStatusUpdate": "Update",
   "serviceStatusReload": "Reload",
-  "serviceStatusActionFailed": "Could not open this action. Please try again."
+  "serviceStatusActionFailed": "Could not open this action. Please try again.",
+  "notificationMentionPostRow": "{actor} mentioned you in a post",
+  "@notificationMentionPostRow": {
+    "placeholders": {
+      "actor": {
+        "type": "String"
+      }
+    }
+  },
+  "notificationMentionCommentRow": "{actor} mentioned you in a comment",
+  "@notificationMentionCommentRow": {
+    "placeholders": {
+      "actor": {
+        "type": "String"
+      }
+    }
+  },
+  "notificationMentionReplyRow": "{actor} mentioned you in a reply",
+  "@notificationMentionReplyRow": {
+    "placeholders": {
+      "actor": {
+        "type": "String"
+      }
+    }
+  },
+  "notificationQuoteCommentRow": "{actor} quoted your comment",
+  "@notificationQuoteCommentRow": {
+    "placeholders": {
+      "actor": {
+        "type": "String"
+      }
+    }
+  },
+  "notificationQuoteReplyRow": "{actor} quoted your reply",
+  "@notificationQuoteReplyRow": {
+    "placeholders": {
+      "actor": {
+        "type": "String"
+      }
+    }
+  }
 }

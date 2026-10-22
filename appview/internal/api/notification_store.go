@@ -67,9 +67,11 @@ type NotificationRow struct {
 	CreatedAt time.Time
 	IndexedAt time.Time
 
-	SubjectPost *PostRow
-	Reply       *NotificationReplyRef
-	References  NotificationReferences
+	Preview       *notifications.Preview
+	QuotedPreview *notifications.Preview
+	SubjectPost   *PostRow
+	Reply         *NotificationReplyRef
+	References    NotificationReferences
 }
 
 func (s *PostStore) NotificationHandles(ctx context.Context, dids []string) (map[string]syntax.Handle, error) {
@@ -328,6 +330,49 @@ func (s *PostStore) ListNotifications(ctx context.Context, viewerDID string, lim
 	}
 	if err := rows.Err(); err != nil {
 		return nil, "", fmt.Errorf("notification list iter: %w", err)
+	}
+	// Release the page connection before the bounded preview batch.
+	rows.Close()
+	previewURIs := make([]syntax.ATURI, 0, len(out)*4)
+	for _, row := range out {
+		previewURIs = append(previewURIs, syntax.ATURI(row.URI))
+		if row.References.Subject != nil {
+			previewURIs = append(previewURIs, syntax.ATURI(row.References.Subject.URI))
+		}
+		if row.References.Root != nil {
+			previewURIs = append(previewURIs, syntax.ATURI(row.References.Root.URI))
+		}
+		if row.References.Quoted != nil {
+			previewURIs = append(previewURIs, syntax.ATURI(row.References.Quoted.URI))
+		}
+	}
+	previews, err := notifications.ReadPreviews(ctx, s.pool, syntax.DID(viewerDID), previewURIs)
+	if err != nil {
+		return nil, "", err
+	}
+	for _, row := range out {
+		uri := row.URI
+		if row.Type == NotificationTypeLike || row.Type == NotificationTypeRepost {
+			if row.References.Subject != nil {
+				uri = row.References.Subject.URI
+			}
+		}
+		row.Preview = previews[syntax.ATURI(uri)]
+		if row.Type == NotificationTypeReply && row.Preview != nil && row.Preview.ProjectTitle == "" {
+			for _, ref := range []*NotificationReference{row.References.Subject, row.References.Root} {
+				if ref != nil {
+					if context := previews[syntax.ATURI(ref.URI)]; context != nil && context.ProjectTitle != "" {
+						copy := *row.Preview
+						copy.ProjectTitle = context.ProjectTitle
+						row.Preview = &copy
+						break
+					}
+				}
+			}
+		}
+		if row.References.Quoted != nil {
+			row.QuotedPreview = previews[syntax.ATURI(row.References.Quoted.URI)]
+		}
 	}
 	if len(out) <= limit {
 		return out, "", nil

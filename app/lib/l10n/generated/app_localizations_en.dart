@@ -4660,4 +4660,29 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get serviceStatusActionFailed =>
       'Could not open this action. Please try again.';
+
+  @override
+  String notificationMentionPostRow(String actor) {
+    return '$actor mentioned you in a post';
+  }
+
+  @override
+  String notificationMentionCommentRow(String actor) {
+    return '$actor mentioned you in a comment';
+  }
+
+  @override
+  String notificationMentionReplyRow(String actor) {
+    return '$actor mentioned you in a reply';
+  }
+
+  @override
+  String notificationQuoteCommentRow(String actor) {
+    return '$actor quoted your comment';
+  }
+
+  @override
+  String notificationQuoteReplyRow(String actor) {
+    return '$actor quoted your reply';
+  }
 }

@@ -589,3 +589,76 @@ func TestNotificationStoreModeratesEveryReferenceRoleAcrossStates(t *testing.T) 
 		}
 	}
 }
+
+func TestNotificationPreviewsUseNewContentAndVisibleQuoteContext(t *testing.T) {
+	pool := testdb.WithSchema(t, timelineStoreDDL)
+	ctx := context.Background()
+	migration, err := testdb.ReadMigration("000021_appview_notifications.up.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, string(migration)); err != nil {
+		t.Fatal(err)
+	}
+	seedMember(t, pool, "did:plc:viewer")
+	seedMember(t, pool, "did:plc:actor")
+	now := time.Now().UTC()
+	parent := seedPost(t, pool, "did:plc:viewer", "parent", "Parent text", now)
+	seedProjectMaterialization(t, pool, parent, "social.craftsky.feed.defs#knitting", "Winter scarf")
+	reply := seedReplyPost(t, pool, "did:plc:actor", "reply", "New comment", parent, parent, now)
+	quote := seedPost(t, pool, "did:plc:actor", "quote", "New quote", now)
+	if _, err := pool.Exec(ctx, `UPDATE craftsky_posts SET quote_uri=$1,quote_cid='bafycid' WHERE uri=$2`, parent, quote); err != nil {
+		t.Fatal(err)
+	}
+	for i, event := range []struct{ category, source, subject, quoted string }{
+		{"reply", reply, parent, ""}, {"mention", reply, reply, ""}, {"quote", quote, quote, parent}, {"like", "at://did:plc:actor/social.craftsky.feed.like/like", parent, ""},
+	} {
+		id := fmt.Sprintf("00000000-0000-0000-0000-%012d", i+1)
+		if _, err := pool.Exec(ctx, `INSERT INTO notification_events (
+   id,recipient_did,actor_did,category,subject_key,source_uri,source_cid,source_rkey,subject_uri,subject_cid,quoted_uri,quoted_cid,
+   eligibility_scope,recipient_followed_actor,push_enabled_snapshot,state,first_activity_at,activity_at,indexed_at,initial_push_evaluated_at
+  ) VALUES ($1::uuid,'did:plc:viewer','did:plc:actor',$2,$1::text,$3,'bafycid','source',$4,'bafycid',NULLIF($5,''),'bafycid','everyone',false,true,'active',$6,$6,$6,$6)`, id, event.category, event.source, event.subject, event.quoted, now); err != nil {
+			t.Fatal(err)
+		}
+	}
+	store := api.NewPostStore(pool)
+	rows, _, err := store.ListNotifications(ctx, "did:plc:viewer", 20, "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 4 {
+		t.Fatalf("rows=%d", len(rows))
+	}
+	for _, row := range rows {
+		if row.Preview == nil {
+			t.Fatalf("missing preview for %s", row.Type)
+		}
+		switch row.Type {
+		case api.NotificationTypeReply, api.NotificationTypeMention:
+			if row.Preview.Text != "New comment" || row.Preview.Role != "comment" || (row.Type == api.NotificationTypeReply && row.Preview.ProjectTitle != "Winter scarf") {
+				t.Fatalf("preview=%+v", row.Preview)
+			}
+		case api.NotificationTypeQuote:
+			if row.Preview.Text != "New quote" || row.QuotedPreview == nil || row.QuotedPreview.Text != "Parent text" || row.QuotedPreview.ProjectTitle != "Winter scarf" {
+				t.Fatalf("quote=%+v context=%+v", row.Preview, row.QuotedPreview)
+			}
+		case api.NotificationTypeLike:
+			if row.Preview.Text != "Parent text" || row.Preview.ProjectTitle != "Winter scarf" {
+				t.Fatalf("like=%+v", row.Preview)
+			}
+		}
+	}
+	seedModerationOutput(t, pool, "post", "did:plc:viewer", parent, "hide", now)
+	rows, _, err = store.ListNotifications(ctx, "did:plc:viewer", 20, "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, row := range rows {
+		if row.QuotedPreview != nil {
+			t.Fatal("hidden quote preview was exposed")
+		}
+		if row.Type == api.NotificationTypeLike && row.Preview != nil {
+			t.Fatal("hidden subject preview was exposed")
+		}
+	}
+}
