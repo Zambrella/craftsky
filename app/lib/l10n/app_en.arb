@@ -79,6 +79,13 @@
   "externalLinkConfirmAction": "Open link",
   "@externalLinkConfirmAction": { "description": "Confirmation action for opening an external link." },
 
+  "craftsDefaultLabel": "Default",
+  "craftsMoveUp": "Move up",
+  "craftsMoveDown": "Move down",
+  "craftsReorderLabel": "Reorder {craft}",
+  "@craftsReorderLabel": { "placeholders": { "craft": { "type": "String" } } },
+  "craftsDragLabel": "Drag to reorder {craft}",
+  "@craftsDragLabel": { "placeholders": { "craft": { "type": "String" } } },
   "craftsRequestMoreAction": "Request more",
   "@craftsRequestMoreAction": { "description": "Action below a crafts picker that opens the craft request form." },
 

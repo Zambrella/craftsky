@@ -250,6 +250,36 @@ abstract class AppLocalizations {
   /// **'Open link'**
   String get externalLinkConfirmAction;
 
+  /// No description provided for @craftsDefaultLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Default'**
+  String get craftsDefaultLabel;
+
+  /// No description provided for @craftsMoveUp.
+  ///
+  /// In en, this message translates to:
+  /// **'Move up'**
+  String get craftsMoveUp;
+
+  /// No description provided for @craftsMoveDown.
+  ///
+  /// In en, this message translates to:
+  /// **'Move down'**
+  String get craftsMoveDown;
+
+  /// No description provided for @craftsReorderLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Reorder {craft}'**
+  String craftsReorderLabel(String craft);
+
+  /// No description provided for @craftsDragLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Drag to reorder {craft}'**
+  String craftsDragLabel(String craft);
+
   /// Action below a crafts picker that opens the craft request form.
   ///
   /// In en, this message translates to:

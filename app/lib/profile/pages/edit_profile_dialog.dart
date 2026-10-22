@@ -287,12 +287,12 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
 
     final initialIds = _ordinaryBaseline.crafts
         .where(isCanonicalSelectableCraft)
-        .toSet();
+        .toSet()
+        .toList();
     final currentIds = (values[_fieldCrafts] as Set<Craft>? ?? const <Craft>{})
         .map((c) => c.id)
-        .toSet();
-    if (currentIds.length != initialIds.length) return true;
-    if (!currentIds.containsAll(initialIds)) return true;
+        .toList();
+    if (!listEquals(currentIds, initialIds)) return true;
     if (_avatarDraft.changed) return true;
     return false;
   }
@@ -631,6 +631,9 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
                           final selected = field.value ?? const <Craft>{};
                           return EditProfileCraftsPicker(
                             selected: selected,
+                            enabled: !isSaving,
+                            onReorder: (crafts) =>
+                                field.didChange(crafts.toSet()),
                             onToggle: isSaving
                                 ? (_) {}
                                 : (craft) {

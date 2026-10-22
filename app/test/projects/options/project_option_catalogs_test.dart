@@ -23,21 +23,24 @@ Set<String> _knownSubtypeValues(String craft) {
 
 void main() {
   group('ProjectOptionCatalogs', () {
-    test('preferred crafts come first in catalog order', () {
-      expect(
-        ProjectOptionCatalogs.craftTypesForPreferences([
-          'quilting',
-          'sewing',
-          'sewing',
-          'pottery',
-        ]).map((option) => option.label),
-        ['Sewing', 'Quilting', 'Knitting', 'Crochet', 'Embroidery'],
-      );
-      expect(
-        ProjectOptionCatalogs.craftTypesForPreferences([]),
-        ProjectOptionCatalogs.craftTypes,
-      );
-    });
+    test(
+      'preferred crafts retain profile order and skip duplicates and unknowns',
+      () {
+        expect(
+          ProjectOptionCatalogs.craftTypesForPreferences([
+            'quilting',
+            'sewing',
+            'sewing',
+            'pottery',
+          ]).map((option) => option.label),
+          ['Quilting', 'Sewing', 'Knitting', 'Crochet', 'Embroidery'],
+        );
+        expect(
+          ProjectOptionCatalogs.craftTypesForPreferences([]),
+          ProjectOptionCatalogs.craftTypes,
+        );
+      },
+    );
 
     test('UT-006 exposes representative known labels and token values', () {
       expect(

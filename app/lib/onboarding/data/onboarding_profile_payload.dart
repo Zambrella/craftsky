@@ -1,5 +1,4 @@
 import 'package:craftsky_app/onboarding/models/onboarding_flow_state.dart';
-import 'package:craftsky_app/profile/data/crafts_catalog.dart';
 import 'package:craftsky_app/shared/media/uploaded_image_blob.dart';
 
 final class OnboardingProfilePayload {
@@ -18,9 +17,6 @@ final class OnboardingProfilePayload {
     UploadedBlob? avatar,
   }) {
     final savesIdentity = state.step == OnboardingStep.profile;
-    final selectedCraftIds = savesIdentity
-        ? state.baseline.crafts.toSet()
-        : state.selectedCraftIds;
     return OnboardingProfilePayload(
       displayName: savesIdentity
           ? state.identity.displayName.trim()
@@ -31,11 +27,9 @@ final class OnboardingProfilePayload {
       description: savesIdentity
           ? state.identity.bio.trim()
           : (state.baseline.description ?? '').trim(),
-      crafts: [
-        for (final craft in canonicalSelectableCrafts)
-          if (selectedCraftIds.contains(craft.id)) craft.id,
-        ...state.unknownCraftIds,
-      ],
+      crafts: savesIdentity
+          ? List.of(state.baseline.crafts)
+          : [...state.selectedCraftIds, ...state.unknownCraftIds],
       avatar: savesIdentity ? avatar : null,
     );
   }

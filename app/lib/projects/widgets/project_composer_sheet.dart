@@ -149,6 +149,7 @@ class ProjectComposerSheet extends ConsumerStatefulWidget {
 class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
     with WidgetsBindingObserver {
   late final Map<String, dynamic> _initialFormValues;
+  bool _craftChosen = false;
   late final Map<String, dynamic> _detailFormValues;
   static const List<String> _patternDetailFieldNames = [
     ProjectComposerFields.patternDesigner,
@@ -281,6 +282,25 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
         : hydrateScheduledProjectComposer(
             project is Map<String, dynamic> ? project : null,
           );
+    if (widget.draftSeed == null && widget.scheduledPost == null) {
+      final defaultCraft = ref.read(defaultProjectCraftProvider);
+      if (defaultCraft != null) {
+        _initialFormValues[ProjectComposerFields.craftType] = defaultCraft;
+      }
+      ref.listenManual(defaultProjectCraftProvider, (_, craft) {
+        if (!mounted ||
+            craft == null ||
+            _craftChosen ||
+            _activeCraftType != null) {
+          return;
+        }
+        // Apply a late profile load once, keeping the form pristine.
+        _initialFormValues[ProjectComposerFields.craftType] = craft;
+        _formKey.currentState?.fields[ProjectComposerFields.craftType]
+            ?.didChange(craft);
+        setState(() => _activeCraftType = craft);
+      });
+    }
     _detailFormValues = {
       for (final name in [
         ..._patternDetailFieldNames,
@@ -1590,6 +1610,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
   }
 
   void _onCraftTypeChanged(String? value) {
+    _craftChosen = true;
     if (value == _activeCraftType) return;
     final additionalField =
         _formKey.currentState?.fields[ProjectComposerFields.additionalCrafts];

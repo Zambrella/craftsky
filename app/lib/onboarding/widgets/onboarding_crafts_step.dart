@@ -8,12 +8,14 @@ class OnboardingCraftsStep extends StatelessWidget {
   const new({
     required this.state,
     required this.onToggle,
+    required this.onReorder,
     required this.onRequestMore,
     super.key,
   });
 
   final OnboardingFlowState state;
   final ValueChanged<Craft> onToggle;
+  final ValueChanged<List<Craft>> onReorder;
   final VoidCallback onRequestMore;
 
   @override
@@ -31,10 +33,11 @@ class OnboardingCraftsStep extends StatelessWidget {
         const SizedBox(height: 24),
         EditProfileCraftsPicker(
           selected: {
-            for (final craft in Craft.values)
-              if (state.selectedCraftIds.contains(craft.id)) craft,
+            for (final id in state.selectedCraftIds) ?Craft.fromId(id),
           },
           onToggle: onToggle,
+          onReorder: onReorder,
+          enabled: !state.saving,
           onRequestMore: onRequestMore,
         ),
       ],

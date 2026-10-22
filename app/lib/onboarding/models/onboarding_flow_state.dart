@@ -1,9 +1,8 @@
-import 'dart:typed_data';
-
 import 'package:craftsky_app/profile/data/crafts_catalog.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/models/profile_image_failure.dart';
 import 'package:craftsky_app/shared/media/uploaded_image_blob.dart';
+import 'package:flutter/foundation.dart';
 
 enum OnboardingStep { profile, crafts, guidelines }
 
@@ -97,8 +96,10 @@ final class OnboardingFlowState {
 
   bool get craftsDirty {
     final baselineKnown = baseline.crafts.where(isCanonicalSelectableCraft);
-    return baselineKnown.toSet().length != selectedCraftIds.length ||
-        !selectedCraftIds.containsAll(baselineKnown);
+    return !listEquals(
+      baselineKnown.toSet().toList(),
+      selectedCraftIds.toList(),
+    );
   }
 
   OnboardingFlowState copyWith({

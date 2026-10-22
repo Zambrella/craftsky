@@ -116,11 +116,11 @@ void main() {
     final tabs = tester.widget<TabBar>(find.byType(TabBar));
     expect(
       tabs.tabs.map((tab) => ((tab as Tab).child! as CraftIconLabel).label),
-      ['Sewing', 'Quilting', 'Knitting', 'Crochet', 'Embroidery'],
+      ['Quilting', 'Sewing', 'Knitting', 'Crochet', 'Embroidery'],
     );
     expect(tabs.controller!.index, 0);
-    expect(requestedCrafts, contains(ProjectOptionCatalogs.sewingCraftToken));
-    await tester.tap(find.text('Quilting'));
+    expect(requestedCrafts, contains(ProjectOptionCatalogs.quiltingCraftToken));
+    await tester.tap(find.text('Sewing'));
     await tester.pumpAndSettle();
     expect(tabs.controller!.index, 1);
     final container = ProviderScope.containerOf(
@@ -136,8 +136,15 @@ void main() {
           ),
         );
     await tester.pumpAndSettle();
-    expect(tabs.controller!.index, 0);
-    expect(requestedCrafts, contains(ProjectOptionCatalogs.quiltingCraftToken));
+    expect(
+      tabs.controller!.index,
+      ProjectOptionCatalogs.craftTypesForPreferences(['quilting']).indexWhere(
+        (craft) => craft.value == ProjectOptionCatalogs.sewingCraftToken,
+      ),
+    );
+    expect(requestedCrafts, contains(ProjectOptionCatalogs.sewingCraftToken));
+    await tester.tap(find.text('Quilting'));
+    await tester.pumpAndSettle();
     await tester.tap(
       find.widgetWithText(CraftskyFloatingActionButton, 'Filters'),
     );
