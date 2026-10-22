@@ -23,6 +23,8 @@ import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/models/profile_relationship.dart';
 import 'package:craftsky_app/profile/providers/profile_relationship_provider.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
+import 'package:craftsky_app/profile/providers/toggle_follow_profile_provider.dart';
+import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
@@ -777,6 +779,54 @@ void main() {
     await tester.pumpAndSettle();
     expect(calls, ['unfollow:did:plc:alice', 'follow:did:plc:alice']);
     expect(find.text('Unfollow'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 31));
+  });
+
+  testWidgets('notification follows profile mutations in both directions', (
+    tester,
+  ) async {
+    var profile = Profile(
+      did: 'did:plc:alice',
+      handle: 'alice.craftsky.social',
+      crafts: const [],
+    );
+    final repository = FakeProfileRepository(
+      onFetch: (_) async => profile,
+      onFollow: (_) async =>
+          profile = profile.copyWith(viewerIsFollowing: true),
+      onUnfollow: (_) async =>
+          profile = profile.copyWith(viewerIsFollowing: false),
+    );
+    final container = ProviderContainer.test(
+      overrides: [profileRepositoryProvider.overrideWithValue(repository)],
+    );
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: _TestApp(
+          home: Scaffold(
+            body: NotificationRow(notification: _follow('profile-follow')),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Follow'), findsOneWidget);
+
+    // Use the profile page mutation without tapping the notification row.
+    for (final following in [true, false]) {
+      final current = await container.read(
+        userProfileProvider(profile.did).future,
+      );
+      await container
+          .read(toggleFollowProfileProvider.notifier)
+          .toggle(
+            cacheKey: profile.did,
+            profile: current,
+          );
+      await tester.pumpAndSettle();
+      expect(find.text(following ? 'Unfollow' : 'Follow'), findsOneWidget);
+    }
     await tester.pump(const Duration(seconds: 31));
   });
 
