@@ -72,6 +72,9 @@ class _OnboardingProfileStepState extends State<OnboardingProfileStep> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final profile = widget.state.baseline;
+    final onPickAvatar = widget.state.saving || widget.state.uploadingAvatar
+        ? null
+        : widget.onPickAvatar;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -87,9 +90,7 @@ class _OnboardingProfileStepState extends State<OnboardingProfileStep> {
             button: true,
             label: l10n.editProfileChangeAvatar,
             child: InkWell(
-              onTap: widget.state.saving || widget.state.uploadingAvatar
-                  ? null
-                  : widget.onPickAvatar,
+              onTap: onPickAvatar,
               borderRadius: BorderRadius.circular(56),
               child: CircleAvatar(
                 radius: 52,
@@ -103,6 +104,12 @@ class _OnboardingProfileStepState extends State<OnboardingProfileStep> {
                     : null,
               ),
             ),
+          ),
+        ),
+        Center(
+          child: TextButton(
+            onPressed: onPickAvatar,
+            child: Text(l10n.editProfileChangeAvatar),
           ),
         ),
         if (widget.state.uploadingAvatar) ...[

@@ -9,6 +9,7 @@ import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/providers/profile_image_picker_provider.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/shared/api/providers/dio_provider.dart';
+import 'package:craftsky_app/shared/media/uploaded_image_blob.dart';
 import 'package:craftsky_app/shared/observability/error_reporter_provider.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -21,6 +22,68 @@ import '../test_support/recording_error_reporter.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  test('repeated avatar selections save the latest uploaded picture', () async {
+    final registry = SessionRegistry.empty().upsertAndActivate(
+      token: 'test-token',
+      did: 'did:plc:alice',
+      handle: 'alice.test',
+    );
+    final lease = registry.activeLease!;
+    final profile = Profile(
+      did: 'did:plc:alice',
+      handle: 'alice.test',
+      crafts: const [],
+    );
+    final picker = _RepeatingPicker();
+    UploadedBlob? savedAvatar;
+    final repository = FakeProfileRepository(
+      onFetchMe: () async => profile,
+      onUpdateMe:
+          ({
+            displayName,
+            pronouns,
+            description,
+            crafts,
+            avatar,
+            clearAvatar = false,
+            banner,
+            clearBanner = false,
+          }) async {
+            savedAvatar = avatar;
+            return profile;
+          },
+    );
+    final container = ProviderContainer.test(
+      overrides: [
+        secureSessionRegistryStorageProvider.overrideWithValue(
+          _Storage(registry),
+        ),
+        accountProfileRepositoryProvider.overrideWith(
+          (ref, lease) async => repository,
+        ),
+        accountProfileImagePickerProvider.overrideWith(
+          (ref, lease) async => picker,
+        ),
+      ],
+    );
+    final flow = onboardingFlowProvider(lease);
+    final subscription = container.listen(flow, (_, _) {});
+    addTearDown(subscription.close);
+    await container.read(flow.future);
+    final notifier = container.read(flow.notifier);
+    for (var i = 1; i <= 3; i++) {
+      await notifier.pickAvatar(ImageSource.gallery);
+      await container.pump();
+      final state = container.read(flow).requireValue;
+      expect(state.avatarPreview, [i]);
+      expect(state.avatarBlob?.ref.link, 'photo-$i');
+      expect(state.uploadingAvatar, isFalse);
+      expect(state.avatarUploadFailed, isFalse);
+    }
+    await notifier.saveAndNext();
+    expect(savedAvatar?.ref.link, 'photo-3');
+  });
 
   test('onboarding reports an unknown photo error once '
       'while keeping failure state', () async {
@@ -155,6 +218,33 @@ void main() {
           isFalse,
         );
       },
+    );
+  }
+}
+
+class _RepeatingPicker extends Fake implements ProfileImagePicker {
+  int picks = 0;
+
+  @override
+  Future<ProfileImagePickResult?> pickAndUpload({
+    required ImageSource source,
+    required void Function(Uint8List bytes) onPreviewReady,
+  }) async {
+    final bytes = Uint8List.fromList([++picks]);
+    onPreviewReady(bytes);
+    return ProfileImagePickResult(
+      previewBytes: bytes,
+      uploaded: UploadedImageBlob(
+        blob: UploadedBlob(
+          type: 'blob',
+          ref: UploadedBlobRef(link: 'photo-$picks'),
+          mimeType: 'image/png',
+          size: bytes.length,
+        ),
+        cid: 'photo-$picks',
+        mime: 'image/png',
+        size: bytes.length,
+      ),
     );
   }
 }
