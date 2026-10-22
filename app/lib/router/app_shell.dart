@@ -9,6 +9,7 @@ import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/auth/providers/unsaved_work_guard_provider.dart';
 import 'package:craftsky_app/auth/widgets/account_avatar.dart';
 import 'package:craftsky_app/auth/widgets/account_switcher_launcher.dart';
+import 'package:craftsky_app/feed/providers/feed_reselect_provider.dart';
 import 'package:craftsky_app/feed/providers/profile_pins_provider.dart';
 import 'package:craftsky_app/feed/widgets/post_composer_sheet.dart';
 import 'package:craftsky_app/feed/widgets/post_type_chooser.dart';
@@ -144,7 +145,7 @@ BorderDirectional _navigationRailBorder(ThemeData theme) => BorderDirectional(
 /// Keeps signed-in detail routes beside the navigation rail on large screens.
 /// Compact routes remain full-screen because their navigator is returned
 /// unchanged.
-class AuthenticatedShell extends StatefulWidget {
+class AuthenticatedShell extends ConsumerStatefulWidget {
   const new({
     required this.child,
     this.navigatorKey,
@@ -155,10 +156,10 @@ class AuthenticatedShell extends StatefulWidget {
   final GlobalKey<NavigatorState>? navigatorKey;
 
   @override
-  State<AuthenticatedShell> createState() => _AuthenticatedShellState();
+  ConsumerState<AuthenticatedShell> createState() => _AuthenticatedShellState();
 }
 
-class _AuthenticatedShellState extends State<AuthenticatedShell> {
+class _AuthenticatedShellState extends ConsumerState<AuthenticatedShell> {
   BuildContext? _composerContext;
 
   @override
@@ -195,6 +196,11 @@ class _AuthenticatedShellState extends State<AuthenticatedShell> {
   }
 
   void _goDestination(BuildContext context, int index) {
+    if (index == 0 &&
+        GoRouter.of(context).state.matchedLocation == RouteLocations.feed) {
+      ref.read(feedReselectProvider.notifier).reselect();
+      return;
+    }
     final location = switch (index) {
       0 => RouteLocations.feed,
       1 => RouteLocations.projects,
@@ -685,6 +691,11 @@ class _AppShellState extends ConsumerState<AppShell> {
   }
 
   void _goBranch(int index) {
+    if (index == 0 &&
+        GoRouter.of(context).state.matchedLocation == RouteLocations.feed) {
+      ref.read(feedReselectProvider.notifier).reselect();
+      return;
+    }
     widget.navigationShell.goBranch(
       index,
       initialLocation: index == widget.navigationShell.currentIndex,
