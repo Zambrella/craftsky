@@ -155,6 +155,14 @@ void main() {
       tester.widget<PostCard>(find.byType(PostCard)).onTap!();
       await tester.pumpAndSettle();
       expect(destinations.last.path, '/posts/did%3Aplc%3Adana/dana-one');
+      expect(destinations.last.queryParameters, isEmpty);
+      router.pop();
+      await tester.pumpAndSettle();
+      tester.widget<PostCard>(find.byType(PostCard)).onReply!();
+      await tester.pumpAndSettle();
+      expect(destinations.last.path, '/posts/did%3Aplc%3Adana/dana-one');
+      expect(destinations.last.queryParameters['show-comments'], 'true');
+      expect(find.byType(TextField), findsNothing);
     },
   );
 

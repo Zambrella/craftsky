@@ -538,9 +538,11 @@ class _ProjectPostSlivers extends ConsumerWidget {
             did: post.author.did,
             rkey: post.rkey,
           ).push<void>(context),
-          onReply: () => unawaited(
-            showPostComposerSheet(context, replyTarget: post),
-          ),
+          onReply: () => PostThreadRoute(
+            did: post.author.did,
+            rkey: post.rkey,
+            showComments: true,
+          ).push<void>(context),
           onLike: () =>
               ref.read(toggleLikePostProvider.notifier).toggle(post: post),
           onRepost: () =>

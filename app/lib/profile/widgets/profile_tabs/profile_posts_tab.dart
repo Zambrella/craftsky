@@ -40,7 +40,6 @@ class ProfilePostsTab extends ConsumerWidget {
           subtitle: l10n.profilePostsEmpty,
         ),
         onLoadMore: () => ref.read(userPostsProvider(did).notifier).loadMore(),
-        onReplyCreated: () => ref.invalidate(userPostsProvider(did)),
       ),
       AsyncError() => ProfileTabErrorSliver(
         message: l10n.profilePostsLoadError,

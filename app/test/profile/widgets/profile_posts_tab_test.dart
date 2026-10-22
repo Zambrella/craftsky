@@ -20,7 +20,6 @@ import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
 import 'package:craftsky_app/subscriptions/providers/subscription_access_provider.dart';
 import 'package:craftsky_app/subscriptions/subscription_build_config.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
-import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -396,7 +395,7 @@ void main() {
       expect(find.text('Load more posts'), findsNothing);
     });
 
-    testWidgets('wires reply composer, like, and repost actions', (
+    testWidgets('wires like and repost actions', (
       tester,
     ) async {
       final calls = <String>[];
@@ -429,11 +428,6 @@ void main() {
 
       await _pump(tester, repo: repo, isOwnProfile: false);
       await tester.pumpAndSettle();
-      await tester.tap(find.byIcon(CraftskyIconsBold.comment));
-      await tester.pumpAndSettle();
-      expect(find.text('Comment'), findsWidgets);
-      await tester.tap(find.byType(CloseButton));
-      await tester.pumpAndSettle();
       await tester.tap(find.byIcon(CraftskyIconsBold.like));
       await tester.pump();
       await tester.tap(find.byIcon(CraftskyIconsBold.repost));
@@ -449,15 +443,13 @@ void main() {
       await tester.pumpAndSettle();
     });
 
-    testWidgets('reply create opens thread focused on the new comment', (
+    testWidgets('comment button opens the thread comments without composing', (
       tester,
     ) async {
       GoRouterState? threadState;
       final root = _post('root');
-      final created = _post('created');
       final repo = FakePostRepository(
         onListByAuthor: (_, {cursor, limit}) async => PostPage(items: [root]),
-        onCreate: ({required text, reply, images}) async => created,
       );
       final router = GoRouter(
         initialLocation: '/',
@@ -485,6 +477,8 @@ void main() {
         ],
       );
 
+      addTearDown(router.dispose);
+
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
@@ -511,18 +505,14 @@ void main() {
 
       await tester.tap(find.byIcon(CraftskyIconsBold.comment));
       await tester.pumpAndSettle();
-      await tester.enterText(find.byType(TextField), 'new comment');
-      await tester.pump();
-      await tester.tap(find.widgetWithText(ChunkyButton, 'Comment'));
-      await tester.pumpAndSettle();
+      expect(find.byType(TextField), findsNothing);
 
       expect(find.text('Thread route'), findsOneWidget);
       expect(threadState?.pathParameters['did'], root.author.did);
       expect(threadState?.pathParameters['rkey'], root.rkey);
-      expect(threadState?.uri.queryParameters['focus'], created.uri);
-      expect(threadState?.extra, isA<Post>());
-      expect((threadState!.extra! as Post).uri, created.uri);
-      expect((threadState!.extra! as Post).reply?.root.uri, root.uri);
+      expect(threadState?.uri.queryParameters['show-comments'], 'true');
+      expect(threadState?.uri.queryParameters['focus'], isNull);
+      expect(threadState?.extra, isNull);
     });
 
     testWidgets('delete confirmation removes a post', (tester) async {

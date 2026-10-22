@@ -14,6 +14,8 @@ import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/feed/widgets/post_card.dart';
 import 'package:craftsky_app/feed/widgets/post_interaction_summary.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
+import 'package:craftsky_app/languages/models/language_preferences.dart';
+import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
@@ -21,6 +23,7 @@ import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
 import 'package:craftsky_app/subscriptions/providers/subscription_access_provider.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
+import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/craftsky_card.dart';
 import 'package:craftsky_app/theme/craftsky_context_menu.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
@@ -201,6 +204,79 @@ Future<GoRouter> _pumpThreadRoute(
 }
 
 void main() {
+  for (final showComments in [false, true]) {
+    for (final hasComments in [false, true]) {
+      testWidgets(
+        'comments entry scrolls past long post: $showComments, '
+        'comments: $hasComments',
+        (tester) async {
+          final rootRef = PostRef(
+            uri: 'at://did:plc:alice/social.craftsky.feed.post/root',
+            cid: 'bafyroot',
+          );
+          await _pumpThread(
+            tester,
+            FakePostRepository(
+              onCommentSection:
+                  (did, rkey, {cursor, sort, focus, limit}) async => _section(
+                    List.filled(60, 'A long project update.').join('\n'),
+                    comments: [
+                      if (hasComments)
+                        CommentItem(
+                          placement: CommentPlacement.normal,
+                          replies: const ReplyPage(loaded: false, items: []),
+                          post: _responsePost(
+                            did: 'did:plc:bob',
+                            rkey: 'first-comment',
+                            parent: rootRef,
+                          ),
+                        ),
+                    ],
+                  ),
+            ),
+            showComments: showComments,
+          );
+          final scrollable = tester.state<ScrollableState>(
+            find
+                .descendant(
+                  of: find.byType(YarnRefreshScrollView),
+                  matching: find.byType(Scrollable),
+                )
+                .first,
+          );
+          expect(scrollable.position.pixels, showComments ? greaterThan(0) : 0);
+          expect(find.byType(TextField), findsNothing);
+          if (showComments && hasComments) {
+            expect(
+              find.text('response first-comment').hitTestable(),
+              findsOneWidget,
+            );
+          }
+          // A rebuild after the user scrolls must not force them back down.
+          scrollable.position.jumpTo(0);
+          await tester.pumpAndSettle();
+          expect(scrollable.position.pixels, 0);
+        },
+      );
+    }
+  }
+
+  testWidgets('detail comment button still opens the comment composer', (
+    tester,
+  ) async {
+    await _pumpThread(
+      tester,
+      FakePostRepository(
+        onCommentSection: (did, rkey, {cursor, sort, focus, limit}) async =>
+            _section('Thread root'),
+      ),
+    );
+    await tester.tap(find.byIcon(CraftskyIconsBold.comment).first);
+    await tester.pumpAndSettle();
+    expect(find.byType(TextField), findsOneWidget);
+    expect(find.widgetWithText(ChunkyButton, 'Comment'), findsOneWidget);
+  });
+
   for (final hasReposted in [false, true]) {
     testWidgets(
       'root repost menu offers Quote when viewerHasReposted is $hasReposted',
@@ -1544,11 +1620,20 @@ void main() {
 
 Future<void> _pumpThread(
   WidgetTester tester,
-  FakePostRepository repository,
-) async {
+  FakePostRepository repository, {
+  bool showComments = false,
+}) async {
   await tester.pumpWidget(
     ProviderScope(
-      overrides: [postRepositoryProvider.overrideWithValue(repository)],
+      overrides: [
+        activeLanguagePreferencesProvider.overrideWith(
+          (ref) => const LanguagePreferences(
+            primaryLanguage: 'en',
+            contentLanguages: ['en'],
+          ),
+        ),
+        postRepositoryProvider.overrideWithValue(repository),
+      ],
       child: MaterialApp(
         theme: AppTheme.lightThemeData,
         localizationsDelegates: appLocalizationsDelegates,
@@ -1557,6 +1642,7 @@ Future<void> _pumpThread(
           child: PostThreadPage(
             did: Did.parse('did:plc:alice'),
             rkey: RecordKey.parse('root'),
+            showComments: showComments,
           ),
         ),
       ),
