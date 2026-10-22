@@ -43,6 +43,7 @@ ProjectComposerPayloadResult buildProjectComposerPayload({
 
   final textLimits = <String, RecordTextLimit>{
     ProjectComposerFields.title: RecordTextLimits.projectTitle,
+    ProjectComposerFields.duration: RecordTextLimits.projectDuration,
     ProjectComposerFields.patternName: RecordTextLimits.patternText,
     ProjectComposerFields.patternDesigner: RecordTextLimits.patternText,
     ProjectComposerFields.patternPublisher: RecordTextLimits.patternText,
@@ -95,6 +96,7 @@ ProjectComposerPayloadResult buildProjectComposerPayload({
         _stringValue(formValues[ProjectComposerFields.status]) ??
         ProjectOptionCatalogs.finishedStatusToken,
     title: _stringValue(formValues[ProjectComposerFields.title]),
+    duration: _stringValue(formValues[ProjectComposerFields.duration]),
     pattern: _patternFrom(formValues),
     materials: _materialsList(formValues[ProjectComposerFields.materials]),
     colors: _stringList(formValues[ProjectComposerFields.colours]),

@@ -1738,6 +1738,18 @@ abstract class AppLocalizations {
   /// **'Add a short project title'**
   String get projectComposerProjectTitleHint;
 
+  /// No description provided for @projectComposerDurationLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Duration'**
+  String get projectComposerDurationLabel;
+
+  /// No description provided for @projectComposerDurationHint.
+  ///
+  /// In en, this message translates to:
+  /// **'e.g. 2 days or 4 weeks'**
+  String get projectComposerDurationHint;
+
   /// Label above the main project description text field in the project composer.
   ///
   /// In en, this message translates to:
