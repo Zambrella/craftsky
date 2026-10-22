@@ -8174,6 +8174,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Find other crafts used in this project'**
   String get projectComposerAdditionalCraftsSearchHint;
+
+  /// No description provided for @serviceStatusUpdateTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Update required'**
+  String get serviceStatusUpdateTitle;
+
+  /// No description provided for @serviceStatusUpdateDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Please update CraftSky to continue.'**
+  String get serviceStatusUpdateDescription;
+
+  /// No description provided for @serviceStatusUpdate.
+  ///
+  /// In en, this message translates to:
+  /// **'Update'**
+  String get serviceStatusUpdate;
+
+  /// No description provided for @serviceStatusReload.
+  ///
+  /// In en, this message translates to:
+  /// **'Reload'**
+  String get serviceStatusReload;
+
+  /// No description provided for @serviceStatusActionFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not open this action. Please try again.'**
+  String get serviceStatusActionFailed;
 }
 
 class _AppLocalizationsDelegate

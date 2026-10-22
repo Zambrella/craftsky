@@ -39,7 +39,7 @@ void main() {
         } else {
           response.headers.contentType = ContentType.json;
           response.write(
-            jsonEncode({'schemaVersion': 1, 'mode': 'normal', 'revision': 'A'}),
+            jsonEncode({'schemaVersion': 2, 'revision': 'A'}),
           );
         }
         unawaited(response.close());

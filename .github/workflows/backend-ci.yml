@@ -180,6 +180,11 @@ jobs:
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: '24'
+      - name: Set up status validator
+        run: |
+          python3 -m venv service-status/.venv
+          service-status/.venv/bin/python -m pip install -r service-status/requirements.txt
+          echo "$GITHUB_WORKSPACE/service-status/.venv/bin" >> "$GITHUB_PATH"
       - name: Validate operator and website independence
         run: |
           python3 -m unittest discover -s scripts -p test_service_status_publish.py

@@ -4624,4 +4624,21 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get projectComposerAdditionalCraftsSearchHint =>
       'Find other crafts used in this project';
+
+  @override
+  String get serviceStatusUpdateTitle => 'Update required';
+
+  @override
+  String get serviceStatusUpdateDescription =>
+      'Please update CraftSky to continue.';
+
+  @override
+  String get serviceStatusUpdate => 'Update';
+
+  @override
+  String get serviceStatusReload => 'Reload';
+
+  @override
+  String get serviceStatusActionFailed =>
+      'Could not open this action. Please try again.';
 }

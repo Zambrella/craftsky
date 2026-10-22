@@ -17,10 +17,124 @@ import '../service_status/announcement_dismissal_test.dart'
     show FakeDismissalStore;
 import '../service_status/service_status_controller_test.dart'
     show FakeStatusRepository;
+import '../service_status/support/status_test_fixtures.dart';
 import '../test_support/diagnostic_evidence.dart';
 import '../test_support/serialized_sentry_transport.dart';
 
 void main() {
+  // IT-006 / NFR-003 / AC-020: new consumed action/media/storage failures.
+  test('status action image and persistence failures preserve causes '
+      'without exporting protected values', () async {
+    final transport = SerializedTransport();
+    await Sentry.init((options) {
+      options
+        ..dsn = 'https://public@example.invalid/1'
+        ..transport = transport;
+      configureDiagnosticOptions(options);
+    });
+    addTearDown(Sentry.close);
+    final lines = <String>[];
+    final emitter = DiagnosticEmitter(platformSink: lines.add, debugLogs: true);
+    Logger.root.level = Level.ALL;
+    final subscription = Logger.root.onRecord.listen(emitter.emitLocal);
+    addTearDown(subscription.cancel);
+    final repository = FakeStatusRepository();
+    final recording = _Reporter(const SentryErrorReporter());
+    final storageError = StateError('private-storage-capability-canary');
+    final container = ProviderContainer(
+      overrides: [
+        ...statusRuntimeOverrides,
+        serviceStatusRepositoryProvider.overrideWithValue(repository),
+        announcementDismissalStoreProvider.overrideWithValue(
+          _FailedStore(storageError),
+        ),
+        serviceStatusReporterProvider.overrideWithValue(recording),
+      ],
+    );
+    addTearDown(container.dispose);
+    final controller = container.read(serviceStatusControllerProvider.notifier);
+    final stack = StackTrace.fromString(
+      '#0 statusAction (package:craftsky_app/service_status/action.dart:17:3)',
+    );
+    final actionError = StateError(
+      'private-action-prose-canary https://example.test/?token=private-url-canary',
+    );
+    final imageError = StateError('private-image-cookie-canary');
+    controller
+      ..reportActionFailure(actionError, stack)
+      ..reportImageFailure(imageError, stack)
+      ..reportImageFailure(
+        const FormatException('private-media-response-canary'),
+        stack,
+      )
+      ..reportImageFailure(
+        Exception('private-image-decode-canary'),
+        stack,
+        expectedContentFailure: true,
+      );
+    final ready = controller.refresh();
+    repository.requests.last.complete(
+      const ServiceStatusDocument(
+        revision: 'D',
+        message: StatusMessage(
+          revision: 'A',
+          minVersion: '0.0.0',
+          title: 'private-message-title-canary',
+          description: 'private-message-description-canary',
+        ),
+      ),
+    );
+    await ready;
+    // Resolve initial dismissal/runtime futures without a widget clock.
+    await Future<void>.delayed(Duration.zero);
+    expect(await controller.dismissAnnouncement(), isFalse);
+    expect(controller.announcement?.revision, 'A');
+    await transport.issueReceived.future.timeout(const Duration(seconds: 3));
+    await Future.wait(recording.pending);
+    expect(recording.errors, [
+      same(actionError),
+      same(imageError),
+      same(storageError),
+    ]);
+    expect(recording.stacks.take(2), everyElement(same(stack)));
+    final serialized = [...lines, ...transport.payloads].join('\n');
+    for (final positive in [
+      'ServiceStatus',
+      'action',
+      'image',
+      'dismissalWrite',
+      'StateError',
+      'action.dart',
+    ]) {
+      expect(serialized, contains(positive));
+    }
+    for (final canary in [
+      'private-storage-capability-canary',
+      'private-action-prose-canary',
+      'private-url-canary',
+      'private-image-cookie-canary',
+      'private-image-decode-canary',
+      'private-media-response-canary',
+      'private-message-title-canary',
+      'private-message-description-canary',
+    ]) {
+      expect(serialized, isNot(contains(canary)));
+    }
+    expect(
+      transport.payloads.where((line) => line.contains('"exception"')),
+      hasLength(3),
+    );
+    recording.fail = true;
+    expect(
+      await controller.activateMessage(
+        'A',
+        () async => throw StateError('private-throwing-reporter-canary'),
+      ),
+      isFalse,
+    );
+    expect(controller.announcement?.revision, 'A');
+  });
+
   test(
     'provider-owned resolution failure is not captured again by the controller',
     () async {
@@ -29,6 +143,7 @@ void main() {
         retry: (_, _) => null,
         observers: [ProviderLogger(reporter: reporter)],
         overrides: [
+          ...statusRuntimeOverrides,
           serviceStatusRepositoryProvider.overrideWith(
             (ref) => throw StateError('provider-secret-canary'),
           ),
@@ -50,6 +165,7 @@ void main() {
     final reporter = _Reporter(const NoopErrorReporter())..fail = true;
     final container = ProviderContainer(
       overrides: [
+        ...statusRuntimeOverrides,
         serviceStatusRepositoryProvider.overrideWithValue(_ThrowingCancel()),
         announcementDismissalStoreProvider.overrideWithValue(
           FakeDismissalStore(),
@@ -92,6 +208,7 @@ void main() {
       final container = ProviderContainer(
         observers: [const ProviderLogger()],
         overrides: [
+          ...statusRuntimeOverrides,
           serviceStatusRepositoryProvider.overrideWithValue(repository),
           announcementDismissalStoreProvider.overrideWithValue(
             FakeDismissalStore(),
@@ -117,7 +234,7 @@ void main() {
       expect(recording.errors, isEmpty);
       final ready = controller.refresh();
       repository.requests.last.complete(
-        const ServiceStatusDocument(
+        statusDocument(
           mode: ServiceStatusMode.maintenance,
           revision: 'private-revision-canary',
           title: 'private-title-canary',
@@ -179,6 +296,7 @@ class _Reporter implements ErrorReporter {
   final ErrorReporter delegate;
   final errors = <Object>[];
   final stacks = <StackTrace?>[];
+  final pending = <Future<String?>>[];
   bool fail = false;
   @override
   bool get enabled => true;
@@ -191,11 +309,13 @@ class _Reporter implements ErrorReporter {
     errors.add(error);
     stacks.add(stackTrace);
     if (fail) throw StateError('reporter-failure-canary');
-    return await delegate.captureException(
+    final capture = delegate.captureException(
       error,
       context: context,
       stackTrace: stackTrace,
     );
+    pending.add(capture);
+    return await capture;
   }
 }
 
@@ -205,4 +325,11 @@ class _ThrowingCancel extends ServiceStatusRepository {
     Completer<ServiceStatusDocument>().future,
     () => throw StateError('cancel-secret-canary'),
   );
+}
+
+class _FailedStore extends FakeDismissalStore {
+  new(this.error);
+  final StateError error;
+  @override
+  Future<void> writeRevision(String value) async => throw error;
 }

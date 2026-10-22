@@ -9,8 +9,10 @@ import 'package:craftsky_app/initialization_loading_screen.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/languages/providers/app_language_provider.dart';
 import 'package:craftsky_app/notifications/widgets/notification_effect_host.dart';
+import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/service_status/providers/service_status_controller.dart';
 import 'package:craftsky_app/service_status/service_status_router_config.dart';
+import 'package:craftsky_app/service_status/status_destinations.dart';
 import 'package:craftsky_app/service_status/widgets/service_status_host.dart';
 import 'package:craftsky_app/service_status/widgets/service_status_lifecycle_host.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
@@ -103,7 +105,7 @@ class _AppState extends ConsumerState<App> {
     };
     ref.watch(serviceStatusControllerProvider);
     if (initializationResolved ||
-        ref.read(serviceStatusControllerProvider.notifier).maintenanceActive) {
+        ref.read(serviceStatusControllerProvider.notifier).blockingActive) {
       _scheduleInitializationResolved();
     }
 
@@ -158,6 +160,11 @@ class _ReadyApp extends ConsumerWidget {
             child: TextScaleFactorClamper(
               child: FormFactorWidget(
                 child: ServiceStatusHost(
+                  onDestination: (destination) async =>
+                      activateStatusDestination(
+                        ref.read(goRouterProvider),
+                        destination,
+                      ),
                   child: NotificationEffectHost(
                     child: ActiveAccountInitializationGate(
                       child: child ?? const SizedBox.shrink(),
@@ -192,7 +199,9 @@ class _LoadingApp extends StatelessWidget {
         builder: (context, child) => MaterialUiCompatibilityBridge(
           child: ServiceStatusHost(child: child ?? const SizedBox.shrink()),
         ),
-        home: const InitializationLoadingScreen(),
+        home: const ServiceStatusBackGuard(
+          child: InitializationLoadingScreen(),
+        ),
       ),
     );
   }
@@ -219,9 +228,11 @@ class _ErrorApp extends ConsumerWidget {
         builder: (context, child) => MaterialUiCompatibilityBridge(
           child: ServiceStatusHost(child: child ?? const SizedBox.shrink()),
         ),
-        home: InitializationErrorScreen(
-          error: error,
-          onRetry: () => ref.invalidate(appDependenciesProvider),
+        home: ServiceStatusBackGuard(
+          child: InitializationErrorScreen(
+            error: error,
+            onRetry: () => ref.invalidate(appDependenciesProvider),
+          ),
         ),
       ),
     );

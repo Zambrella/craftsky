@@ -1,22 +1,916 @@
 [
-  {"name":"normal","accepted":true,"document":{"schemaVersion":1,"mode":"normal","revision":"A"}},
-  {"name":"maintenance","accepted":true,"document":{"schemaVersion":1,"mode":"maintenance","revision":"A","title":"Back soon","message":"Maintenance in progress"}},
-  {"name":"announcement and additive controls","accepted":true,"document":{"schemaVersion":1,"mode":"announcement","revision":"B","title":"News","message":"<script>plain text</script> https://example.invalid","estimatedRecoveryAt":"2026-10-09T14:30:00.123456+02:00","externalLink":"https://example.invalid","startsAt":"2099-01-01T00:00:00Z"}},
-  {"name":"unsupported schema","accepted":false,"document":{"schemaVersion":2,"mode":"normal","revision":"A"}},
-  {"name":"boolean schema","accepted":false,"document":{"schemaVersion":true,"mode":"normal","revision":"A"}},
-  {"name":"float schema","accepted":false,"document":{"schemaVersion":1.0,"mode":"normal","revision":"A"}},
-  {"name":"missing schema","accepted":false,"document":{"mode":"normal","revision":"A"}},
-  {"name":"unknown mode","accepted":false,"document":{"schemaVersion":1,"mode":"partial","revision":"A"}},
-  {"name":"invalid revision","accepted":false,"document":{"schemaVersion":1,"mode":"normal","revision":"A B"}},
-  {"name":"missing revision","accepted":false,"document":{"schemaVersion":1,"mode":"normal"}},
-  {"name":"missing text","accepted":false,"document":{"schemaVersion":1,"mode":"maintenance","revision":"A"}},
-  {"name":"blank text","accepted":false,"document":{"schemaVersion":1,"mode":"announcement","revision":"A","title":"  ","message":"x"}},
-  {"name":"wrong text type","accepted":false,"document":{"schemaVersion":1,"mode":"normal","revision":"A","title":42}},
-  {"name":"null estimate","accepted":false,"document":{"schemaVersion":1,"mode":"normal","revision":"A","estimatedRecoveryAt":null}},
-  {"name":"impossible day","accepted":false,"document":{"schemaVersion":1,"mode":"normal","revision":"A","estimatedRecoveryAt":"2026-02-30T12:00:00Z"}},
-  {"name":"missing zone","accepted":false,"document":{"schemaVersion":1,"mode":"normal","revision":"A","estimatedRecoveryAt":"2026-10-09T12:00:00"}},
-  {"name":"leap second","accepted":false,"document":{"schemaVersion":1,"mode":"normal","revision":"A","estimatedRecoveryAt":"2026-10-09T12:00:60Z"}},
-  {"name":"invalid offset","accepted":false,"document":{"schemaVersion":1,"mode":"normal","revision":"A","estimatedRecoveryAt":"2026-10-09T12:00:00+24:00"}},
-  {"name":"too precise","accepted":false,"document":{"schemaVersion":1,"mode":"normal","revision":"A","estimatedRecoveryAt":"2026-10-09T12:00:00.1234567Z"}},
-  {"name":"unpaired surrogate","accepted":false,"document":{"schemaVersion":1,"mode":"normal","revision":"A","title":"\ud800"}}
+  {
+    "name": "empty full clear",
+    "accepted": true,
+    "document": {
+      "schemaVersion": 2,
+      "revision": "D1"
+    }
+  },
+  {
+    "name": "all independent controls",
+    "accepted": true,
+    "document": {
+      "schemaVersion": 2,
+      "revision": "D1",
+      "maintenance": {
+        "title": "Break",
+        "description": "Back soon",
+        "estimatedRecoveryAt": "2026-10-20T18:00:00.123456+02:00"
+      },
+      "minimumVersions": {
+        "ios": "1.8.0",
+        "android": "1.9.0",
+        "web": "1.10.0"
+      },
+      "message": {
+        "revision": "A",
+        "minVersion": "1.8.0",
+        "title": "News",
+        "description": "<script>Plain text</script>",
+        "maxVersion": "1.9.0",
+        "imageUrl": "https://example.test/image.png",
+        "cta": {
+          "text": "Settings",
+          "destination": "settings"
+        }
+      }
+    }
+  },
+  {
+    "name": "maintenance alone",
+    "accepted": true,
+    "document": {
+      "schemaVersion": 2,
+      "revision": "D1",
+      "maintenance": {
+        "title": "Break",
+        "description": "Back soon",
+        "estimatedRecoveryAt": "2026-10-20T18:00:00.123456+02:00"
+      }
+    }
+  },
+  {
+    "name": "message minimum fields",
+    "accepted": true,
+    "document": {
+      "schemaVersion": 2,
+      "revision": "D1",
+      "message": {
+        "revision": "A",
+        "minVersion": "1.8.0",
+        "title": "News",
+        "description": "<script>Plain text</script>"
+      }
+    }
+  },
+  {
+    "name": "empty minima and additive unknown controls",
+    "accepted": true,
+    "document": {
+      "schemaVersion": 2,
+      "revision": "D1",
+      "minimumVersions": {},
+      "future": {
+        "private": null
+      },
+      "mode": "unsupported"
+    }
+  },
+  {
+    "name": "HTTPS CTA metadata equal boundaries",
+    "accepted": true,
+    "document": {
+      "schemaVersion": 2,
+      "revision": "D1",
+      "message": {
+        "revision": "A",
+        "minVersion": "1.8.0+99",
+        "title": "News",
+        "description": "<script>Plain text</script>",
+        "maxVersion": "1.8.0+13",
+        "cta": {
+          "text": "Read",
+          "url": "https://example.test/news?q=public#section"
+        }
+      }
+    }
+  },
+  {
+    "name": "destination feed",
+    "accepted": true,
+    "document": {
+      "schemaVersion": 2,
+      "revision": "D1",
+      "message": {
+        "revision": "A",
+        "minVersion": "1.8.0",
+        "title": "News",
+        "description": "<script>Plain text</script>",
+        "cta": {
+          "text": "Go",
+          "destination": "feed"
+        }
+      }
+    }
+  },
+  {
+    "name": "destination projects",
+    "accepted": true,
+    "document": {
+      "schemaVersion": 2,
+      "revision": "D1",
+      "message": {
+        "revision": "A",
+        "minVersion": "1.8.0",
+        "title": "News",
+        "description": "<script>Plain text</script>",
+        "cta": {
+          "text": "Go",
+          "destination": "projects"
+        }
+      }
+    }
+  },
+  {
+    "name": "destination search",
+    "accepted": true,
+    "document": {
+      "schemaVersion": 2,
+      "revision": "D1",
+      "message": {
+        "revision": "A",
+        "minVersion": "1.8.0",
+        "title": "News",
+        "description": "<script>Plain text</script>",
+        "cta": {
+          "text": "Go",
+          "destination": "search"
+        }
+      }
+    }
+  },
+  {
+    "name": "destination notifications",
+    "accepted": true,
+    "document": {
+      "schemaVersion": 2,
+      "revision": "D1",
+      "message": {
+        "revision": "A",
+        "minVersion": "1.8.0",
+        "title": "News",
+        "description": "<script>Plain text</script>",
+        "cta": {
+          "text": "Go",
+          "destination": "notifications"
+        }
+      }
+    }
+  },
+  {
+    "name": "destination profile",
+    "accepted": true,
+    "document": {
+      "schemaVersion": 2,
+      "revision": "D1",
+      "message": {
+        "revision": "A",
+        "minVersion": "1.8.0",
+        "title": "News",
+        "description": "<script>Plain text</script>",
+        "cta": {
+          "text": "Go",
+          "destination": "profile"
+        }
+      }
+    }
+  },
+  {
+    "name": "destination settings",
+    "accepted": true,
+    "document": {
+      "schemaVersion": 2,
+      "revision": "D1",
+      "message": {
+        "revision": "A",
+        "minVersion": "1.8.0",
+        "title": "News",
+        "description": "<script>Plain text</script>",
+        "cta": {
+          "text": "Go",
+          "destination": "settings"
+        }
+      }
+    }
+  },
+  {
+    "name": "legacy schema",
+    "accepted": false,
+    "document": {
+      "schemaVersion": 1,
+      "mode": "normal",
+      "revision": "A"
+    }
+  },
+  {
+    "name": "boolean schema",
+    "accepted": false,
+    "document": {
+      "schemaVersion": true,
+      "revision": "D1"
+    }
+  },
+  {
+    "name": "float schema",
+    "accepted": false,
+    "document": {
+      "schemaVersion": 2.5,
+      "revision": "D1"
+    }
+  },
+  {
+    "name": "missing schema",
+    "accepted": false,
+    "document": {
+      "revision": "A"
+    }
+  },
+  {
+    "name": "bad revision",
+    "accepted": false,
+    "document": {
+      "schemaVersion": 2,
+      "revision": "A B"
+    }
+  },
+  {
+    "name": "missing revision",
+    "accepted": false,
+    "document": {
+      "schemaVersion": 2
+    }
+  },
+  {
+    "name": "null section",
+    "accepted": false,
+    "document": {
+      "schemaVersion": 2,
+      "revision": "D1",
+      "maintenance": null
+    }
+  },
+  {
+    "name": "null minima",
+    "accepted": false,
+    "document": {
+      "schemaVersion": 2,
+      "revision": "D1",
+      "minimumVersions": null
+    }
+  },
+  {
+    "name": "null message",
+    "accepted": false,
+    "document": {
+      "schemaVersion": 2,
+      "revision": "D1",
+      "message": null
+    }
+  },
+  {
+    "name": "empty maintenance",
+    "accepted": false,
+    "document": {
+      "schemaVersion": 2,
+      "revision": "D1",
+      "maintenance": {}
+    }
+  },
+  {
+    "name": "missing message min",
+    "accepted": false,
+    "document": {
+      "schemaVersion": 2,
+      "revision": "D1",
+      "message": {
+        "revision": "A",
+        "title": "News",
+        "description": "Body"
+      }
+    }
+  },
+  {
+    "name": "invalid message title  ",
+    "accepted": false,
+    "document": {
+      "schemaVersion": 2,
+      "revision": "D1",
+      "message": {
+        "revision": "A",
+        "minVersion": "1.8.0",
+        "title": " ",
+        "description": "<script>Plain text</script>"
+      }
+    }
+  },
+  {
+    "name": "invalid message title 42",
+    "accepted": false,
+    "document": {
+      "schemaVersion": 2,
+      "revision": "D1",
+      "message": {
+        "revision": "A",
+        "minVersion": "1.8.0",
+        "title": 42,
+        "description": "<script>Plain text</script>"
+      }
+    }
+  },
+  {
+    "name": "invalid message description None",
+    "accepted": false,
+    "document": {
+      "schemaVersion": 2,
+      "revision": "D1",
+      "message": {
+        "revision": "A",
+        "minVersion": "1.8.0",
+        "title": "News",
+        "description": null
+      }
+    }
+  },
+  {
+    "name": "invalid message title \ud800",
+    "accepted": false,
+    "document": {
+      "schemaVersion": 2,
+      "revision": "D1",
+      "message": {
+        "revision": "A",
+        "minVersion": "1.8.0",
+        "title": "\ud800",
+        "description": "<script>Plain text</script>"
+      }
+    }
+  },
+  {
+    "name": "invalid message revision None",
+    "accepted": false,
+    "document": {
+      "schemaVersion": 2,
+      "revision": "D1",
+      "message": {
+        "revision": null,
+        "minVersion": "1.8.0",
+        "title": "News",
+        "description": "<script>Plain text</script>"
+      }
+    }
+  },
+  {
+    "name": "invalid message minVersion None",
+    "accepted": false,
+    "document": {
+      "schemaVersion": 2,
+      "revision": "D1",
+      "message": {
+        "revision": "A",
+        "minVersion": null,
+        "title": "News",
+        "description": "<script>Plain text</script>"
+      }
+    }
+  },
+  {
+    "name": "invalid message maxVersion None",
+    "accepted": false,
+    "document": {
+      "schemaVersion": 2,
+      "revision": "D1",
+      "message": {
+        "revision": "A",
+        "minVersion": "1.8.0",
+        "title": "News",
+        "description": "<script>Plain text</script>",
+        "maxVersion": null
+      }
+    }
+  },
+  {
+    "name": "invalid message cta None",
+    "accepted": false,
+    "document": {
+      "schemaVersion": 2,
+      "revision": "D1",
+      "message": {
+        "revision": "A",
+        "minVersion": "1.8.0",
+        "title": "News",
+        "description": "<script>Plain text</script>",
+        "cta": null
+      }
+    }
+  },
+  {
+    "name": "invalid message imageUrl None",
+    "accepted": false,
+    "document": {
+      "schemaVersion": 2,
+      "revision": "D1",
+      "message": {
+        "revision": "A",
+        "minVersion": "1.8.0",
+        "title": "News",
+        "description": "<script>Plain text</script>",
+        "imageUrl": null
+      }
+    }
+  },
+  {
+    "name": "invalid message maxVersion 1.7.9",
+    "accepted": false,
+    "document": {
+      "schemaVersion": 2,
+      "revision": "D1",
+      "message": {
+        "revision": "A",
+        "minVersion": "1.8.0",
+        "title": "News",
+        "description": "<script>Plain text</script>",
+        "maxVersion": "1.7.9"
+      }
+    }
+  },
+  {
+    "name": "bad minimum '01.8.0'",
+    "accepted": false,
+    "document": {
+      "schemaVersion": 2,
+      "revision": "D1",
+      "minimumVersions": {
+        "ios": "01.8.0"
+      }
+    }
+  },
+  {
+    "name": "bad minimum '1.08.0'",
+    "accepted": false,
+    "document": {
+      "schemaVersion": 2,
+      "revision": "D1",
+      "minimumVersions": {
+        "ios": "1.08.0"
+      }
+    }
+  },
+  {
+    "name": "bad minimum '1.8.00'",
+    "accepted": false,
+    "document": {
+      "schemaVersion": 2,
+      "revision": "D1",
+      "minimumVersions": {
+        "ios": "1.8.00"
+      }
+    }
+  },
+  {
+    "name": "bad minimum '1.8'",
+    "accepted": false,
+    "document": {
+      "schemaVersion": 2,
+      "revision": "D1",
+      "minimumVersions": {
+        "ios": "1.8"
+      }
+    }
+  },
+  {
+    "name": "bad minimum 'v1.8.0'",
+    "accepted": false,
+    "document": {
+      "schemaVersion": 2,
+      "revision": "D1",
+      "minimumVersions": {
+        "ios": "v1.8.0"
+      }
+    }
+  },
+  {
+    "name": "bad minimum '1.8.0-01'",
+    "accepted": false,
+    "document": {
+      "schemaVersion": 2,
+      "revision": "D1",
+      "minimumVersions": {
+        "ios": "1.8.0-01"
+      }
+    }
+  },
+  {
+    "name": "bad minimum '1.8.0+'",
+    "accepted": false,
+    "document": {
+      "schemaVersion": 2,
+      "revision": "D1",
+      "minimumVersions": {
+        "ios": "1.8.0+"
+      }
+    }
+  },
+  {
+    "name": "bad minimum '1.8.0\\n'",
+    "accepted": false,
+    "document": {
+      "schemaVersion": 2,
+      "revision": "D1",
+      "minimumVersions": {
+        "ios": "1.8.0\n"
+      }
+    }
+  },
+  {
+    "name": "bad CTA {}",
+    "accepted": false,
+    "document": {
+      "schemaVersion": 2,
+      "revision": "D1",
+      "message": {
+        "revision": "A",
+        "minVersion": "1.8.0",
+        "title": "News",
+        "description": "<script>Plain text</script>",
+        "cta": {}
+      }
+    }
+  },
+  {
+    "name": "bad CTA {'text': 'Go'}",
+    "accepted": false,
+    "document": {
+      "schemaVersion": 2,
+      "revision": "D1",
+      "message": {
+        "revision": "A",
+        "minVersion": "1.8.0",
+        "title": "News",
+        "description": "<script>Plain text</script>",
+        "cta": {
+          "text": "Go"
+        }
+      }
+    }
+  },
+  {
+    "name": "bad CTA {'text': 'Go', 'url': 'https://example.test', 'destination': 'feed'}",
+    "accepted": false,
+    "document": {
+      "schemaVersion": 2,
+      "revision": "D1",
+      "message": {
+        "revision": "A",
+        "minVersion": "1.8.0",
+        "title": "News",
+        "description": "<script>Plain text</script>",
+        "cta": {
+          "text": "Go",
+          "url": "https://example.test",
+          "destination": "feed"
+        }
+      }
+    }
+  },
+  {
+    "name": "bad CTA {'text': 'Go', 'destination': '/profile/settings'}",
+    "accepted": false,
+    "document": {
+      "schemaVersion": 2,
+      "revision": "D1",
+      "message": {
+        "revision": "A",
+        "minVersion": "1.8.0",
+        "title": "News",
+        "description": "<script>Plain text</script>",
+        "cta": {
+          "text": "Go",
+          "destination": "/profile/settings"
+        }
+      }
+    }
+  },
+  {
+    "name": "bad CTA {'text': ' ', 'destination': 'feed'}",
+    "accepted": false,
+    "document": {
+      "schemaVersion": 2,
+      "revision": "D1",
+      "message": {
+        "revision": "A",
+        "minVersion": "1.8.0",
+        "title": "News",
+        "description": "<script>Plain text</script>",
+        "cta": {
+          "text": " ",
+          "destination": "feed"
+        }
+      }
+    }
+  },
+  {
+    "name": "bad CTA {'text': 'Go', 'url': None}",
+    "accepted": false,
+    "document": {
+      "schemaVersion": 2,
+      "revision": "D1",
+      "message": {
+        "revision": "A",
+        "minVersion": "1.8.0",
+        "title": "News",
+        "description": "<script>Plain text</script>",
+        "cta": {
+          "text": "Go",
+          "url": null
+        }
+      }
+    }
+  },
+  {
+    "name": "bad image URL 'http://example.test'",
+    "accepted": false,
+    "document": {
+      "schemaVersion": 2,
+      "revision": "D1",
+      "message": {
+        "revision": "A",
+        "minVersion": "1.8.0",
+        "title": "News",
+        "description": "<script>Plain text</script>",
+        "imageUrl": "http://example.test"
+      }
+    }
+  },
+  {
+    "name": "bad image URL 'javascript:alert(1)'",
+    "accepted": false,
+    "document": {
+      "schemaVersion": 2,
+      "revision": "D1",
+      "message": {
+        "revision": "A",
+        "minVersion": "1.8.0",
+        "title": "News",
+        "description": "<script>Plain text</script>",
+        "imageUrl": "javascript:alert(1)"
+      }
+    }
+  },
+  {
+    "name": "bad image URL 'data:image/png,abc'",
+    "accepted": false,
+    "document": {
+      "schemaVersion": 2,
+      "revision": "D1",
+      "message": {
+        "revision": "A",
+        "minVersion": "1.8.0",
+        "title": "News",
+        "description": "<script>Plain text</script>",
+        "imageUrl": "data:image/png,abc"
+      }
+    }
+  },
+  {
+    "name": "bad image URL 'https:///missing'",
+    "accepted": false,
+    "document": {
+      "schemaVersion": 2,
+      "revision": "D1",
+      "message": {
+        "revision": "A",
+        "minVersion": "1.8.0",
+        "title": "News",
+        "description": "<script>Plain text</script>",
+        "imageUrl": "https:///missing"
+      }
+    }
+  },
+  {
+    "name": "bad image URL 'https://user:pass@example.test'",
+    "accepted": false,
+    "document": {
+      "schemaVersion": 2,
+      "revision": "D1",
+      "message": {
+        "revision": "A",
+        "minVersion": "1.8.0",
+        "title": "News",
+        "description": "<script>Plain text</script>",
+        "imageUrl": "https://user:pass@example.test"
+      }
+    }
+  },
+  {
+    "name": "bad image URL 'https://@example.test'",
+    "accepted": false,
+    "document": {
+      "schemaVersion": 2,
+      "revision": "D1",
+      "message": {
+        "revision": "A",
+        "minVersion": "1.8.0",
+        "title": "News",
+        "description": "<script>Plain text</script>",
+        "imageUrl": "https://@example.test"
+      }
+    }
+  },
+  {
+    "name": "bad image URL 'https://example.test/\\n'",
+    "accepted": false,
+    "document": {
+      "schemaVersion": 2,
+      "revision": "D1",
+      "message": {
+        "revision": "A",
+        "minVersion": "1.8.0",
+        "title": "News",
+        "description": "<script>Plain text</script>",
+        "imageUrl": "https://example.test/\n"
+      }
+    }
+  },
+  {
+    "name": "bad image URL 'https://example.test/%ZZ'",
+    "accepted": false,
+    "document": {
+      "schemaVersion": 2,
+      "revision": "D1",
+      "message": {
+        "revision": "A",
+        "minVersion": "1.8.0",
+        "title": "News",
+        "description": "<script>Plain text</script>",
+        "imageUrl": "https://example.test/%ZZ"
+      }
+    }
+  },
+  {
+    "name": "bad image URL 'https://example.test/\\\\bad'",
+    "accepted": false,
+    "document": {
+      "schemaVersion": 2,
+      "revision": "D1",
+      "message": {
+        "revision": "A",
+        "minVersion": "1.8.0",
+        "title": "News",
+        "description": "<script>Plain text</script>",
+        "imageUrl": "https://example.test/\\bad"
+      }
+    }
+  },
+  {
+    "name": "invalid estimate None",
+    "accepted": false,
+    "document": {
+      "schemaVersion": 2,
+      "revision": "D1",
+      "maintenance": {
+        "title": "Break",
+        "description": "Back soon",
+        "estimatedRecoveryAt": null
+      }
+    }
+  },
+  {
+    "name": "invalid estimate 2026-02-30T12:00:00Z",
+    "accepted": false,
+    "document": {
+      "schemaVersion": 2,
+      "revision": "D1",
+      "maintenance": {
+        "title": "Break",
+        "description": "Back soon",
+        "estimatedRecoveryAt": "2026-02-30T12:00:00Z"
+      }
+    }
+  },
+  {
+    "name": "invalid estimate 2026-10-20T12:00:00",
+    "accepted": false,
+    "document": {
+      "schemaVersion": 2,
+      "revision": "D1",
+      "maintenance": {
+        "title": "Break",
+        "description": "Back soon",
+        "estimatedRecoveryAt": "2026-10-20T12:00:00"
+      }
+    }
+  },
+  {
+    "name": "invalid estimate 2026-10-20T12:00:60Z",
+    "accepted": false,
+    "document": {
+      "schemaVersion": 2,
+      "revision": "D1",
+      "maintenance": {
+        "title": "Break",
+        "description": "Back soon",
+        "estimatedRecoveryAt": "2026-10-20T12:00:60Z"
+      }
+    }
+  },
+  {
+    "name": "invalid estimate 2026-10-20T12:00:00+24:00",
+    "accepted": false,
+    "document": {
+      "schemaVersion": 2,
+      "revision": "D1",
+      "maintenance": {
+        "title": "Break",
+        "description": "Back soon",
+        "estimatedRecoveryAt": "2026-10-20T12:00:00+24:00"
+      }
+    }
+  },
+  {
+    "name": "invalid estimate 2026-10-20T12:00:00.1234567Z",
+    "accepted": false,
+    "document": {
+      "schemaVersion": 2,
+      "revision": "D1",
+      "maintenance": {
+        "title": "Break",
+        "description": "Back soon",
+        "estimatedRecoveryAt": "2026-10-20T12:00:00.1234567Z"
+      }
+    }
+  },
+  {
+    "name": "revision trailing newline",
+    "accepted": false,
+    "document": {
+      "schemaVersion": 2,
+      "revision": "A\n"
+    }
+  },
+  {
+    "name": "bounded-numeric-core",
+    "accepted": true,
+    "document": {
+      "schemaVersion": 2,
+      "revision": "numeric-limit",
+      "minimumVersions": {
+        "ios": "999999999999999.0.0"
+      }
+    }
+  },
+  {
+    "name": "bounded-numeric-prerelease",
+    "accepted": true,
+    "document": {
+      "schemaVersion": 2,
+      "revision": "numeric-limit",
+      "minimumVersions": {
+        "ios": "1.8.0-999999999999999"
+      }
+    }
+  },
+  {
+    "name": "oversized-numeric-core",
+    "accepted": false,
+    "document": {
+      "schemaVersion": 2,
+      "revision": "numeric-limit",
+      "minimumVersions": {
+        "ios": "1000000000000000.0.0"
+      }
+    }
+  },
+  {
+    "name": "oversized-numeric-prerelease",
+    "accepted": false,
+    "document": {
+      "schemaVersion": 2,
+      "revision": "numeric-limit",
+      "minimumVersions": {
+        "ios": "1.8.0-1000000000000000"
+      }
+    }
+  },
+  {
+    "name": "unbounded-ignored-build-metadata",
+    "accepted": true,
+    "document": {
+      "schemaVersion": 2,
+      "revision": "numeric-limit",
+      "minimumVersions": {
+        "ios": "1.8.0+999999999999999999999999"
+      }
+    }
+  }
 ]

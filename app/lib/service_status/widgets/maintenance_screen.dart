@@ -12,7 +12,7 @@ class MaintenanceScreen extends StatelessWidget {
     this.fetching = false,
     super.key,
   });
-  final ServiceStatusDocument document;
+  final StatusMaintenance document;
   final VoidCallback onRetry;
   final bool fetching;
 
@@ -44,14 +44,14 @@ class MaintenanceScreen extends StatelessWidget {
                         Semantics(
                           headingLevel: 1,
                           child: Text(
-                            document.title!,
+                            document.title,
                             textAlign: TextAlign.center,
                             style: theme.textTheme.headlineMedium,
                           ),
                         ),
                         const SizedBox(height: 16),
                         Text(
-                          document.message!,
+                          document.description,
                           textAlign: TextAlign.center,
                           style: theme.textTheme.bodyLarge,
                         ),
