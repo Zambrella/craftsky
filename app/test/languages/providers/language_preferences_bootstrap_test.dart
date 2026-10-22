@@ -73,7 +73,7 @@ void main() {
       expect(
         preferences,
         const LanguagePreferences(
-          primaryLanguage: 'fr',
+          primaryLanguage: 'en',
           contentLanguages: ['fr', 'en'],
         ),
       );

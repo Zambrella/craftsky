@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:craftsky_app/app_dependencies.dart';
 import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
 import 'package:craftsky_app/feed/models/post_page.dart';
@@ -46,6 +47,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../fakes/auth_session_fakes.dart';
 import '../fakes/image_cache_fakes.dart';
@@ -190,9 +192,13 @@ void main() {
       );
       final repo = FakeProfileRepository(onFetch: (_) async => profile);
 
+      SharedPreferences.setMockInitialValues({});
+      final preferences = await SharedPreferences.getInstance();
+
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            sharedPreferencesProvider.overrideWithValue(preferences),
             authSessionProvider.overrideWith(SignedInAuthSession.new),
             profileRepositoryProvider.overrideWithValue(repo),
             postRepositoryProvider.overrideWithValue(_emptyPostRepository),

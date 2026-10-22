@@ -434,33 +434,26 @@ class _NotificationFollowButton extends ConsumerStatefulWidget {
 
 class _NotificationFollowButtonState
     extends ConsumerState<_NotificationFollowButton> {
-  late bool _isFollowing;
   bool _isBusy = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _isFollowing = widget.actor.viewerIsFollowing;
-  }
-
-  @override
-  void didUpdateWidget(covariant _NotificationFollowButton oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.actor.did != widget.actor.did ||
-        oldWidget.actor.viewerIsFollowing != widget.actor.viewerIsFollowing) {
-      _isFollowing = widget.actor.viewerIsFollowing;
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final swatches = theme.extension<BrandSwatchTheme>()!;
     final l10n = AppLocalizations.of(context);
+    // Share the profile page's reconciled follow state. The notification's
+    // snapshot is only a fallback while the profile is unavailable.
+    final isFollowing =
+        ref.watch(
+          userProfileProvider(widget.actor.did).select(
+            (profile) => profile.value?.viewerIsFollowing,
+          ),
+        ) ??
+        widget.actor.viewerIsFollowing;
     return ChunkyButton(
       onPressed: _isBusy ? null : _toggle,
-      backgroundColor: _isFollowing ? swatches.paper3 : null,
-      foregroundColor: _isFollowing ? theme.colorScheme.onSurface : null,
+      backgroundColor: isFollowing ? swatches.paper3 : null,
+      foregroundColor: isFollowing ? theme.colorScheme.onSurface : null,
       style: const ButtonStyle(
         minimumSize: WidgetStatePropertyAll(Size(64, 36)),
         padding: WidgetStatePropertyAll(
@@ -470,7 +463,7 @@ class _NotificationFollowButtonState
       child: ActionProgress(
         isLoading: _isBusy,
         child: Text(
-          _isFollowing ? l10n.profileFollowingAction : l10n.profileFollowAction,
+          isFollowing ? l10n.profileFollowingAction : l10n.profileFollowAction,
         ),
       ),
     );
@@ -503,7 +496,6 @@ class _NotificationFollowButtonState
       if (result.hasError) throw Exception('Follow mutation failed');
       final updated = result.value;
       if (updated != null) {
-        setState(() => _isFollowing = updated.viewerIsFollowing);
         return !profile.viewerIsFollowing && updated.viewerIsFollowing;
       }
       return false;

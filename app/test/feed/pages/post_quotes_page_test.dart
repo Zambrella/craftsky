@@ -39,6 +39,10 @@ void main() {
     'AT-004 renders repeated authors as normal post cards in server order '
     'with a plain title',
     (tester) async {
+      tester.view.physicalSize = const Size(800, 1400);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
       final repository = FakePostRepository(
         onListQuotes: (did, rkey, {cursor, limit}) async => PostPage(
           items: [
