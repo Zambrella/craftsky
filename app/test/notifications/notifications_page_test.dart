@@ -23,10 +23,12 @@ import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/models/profile_relationship.dart';
 import 'package:craftsky_app/profile/providers/profile_relationship_provider.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
+import 'package:craftsky_app/profile/widgets/compact_profile_identity.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
+import 'package:craftsky_app/shared/widgets/craft_icon.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/shared/widgets/post_summary.dart';
 import 'package:craftsky_app/shared/widgets/sort_menu_button.dart';
@@ -592,6 +594,115 @@ void main() {
             .every((tooltip) => tooltip.message?.contains('2026') ?? false),
         isTrue,
       );
+    },
+  );
+
+  for (final scale in [1.0, 2.0]) {
+    testWidgets('notification uses the unified identity at text scale $scale', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _TestApp(
+          home: Scaffold(
+            body: Center(
+              child: MediaQuery(
+                data: MediaQueryData(textScaler: TextScaler.linear(scale)),
+                child: SizedBox(
+                  width: 360,
+                  child: NotificationRow(
+                    notification: _follow(
+                      'unified-identity',
+                      crafts: const ['knitting', 'crochet', 'sewing'],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byType(CompactProfileIdentity), findsOneWidget);
+      final identity = tester.widget<CompactProfileIdentity>(
+        find.byType(CompactProfileIdentity),
+      );
+      expect(identity.crafts, ['knitting', 'crochet', 'sewing']);
+      final name = tester.getRect(find.text('Alice'));
+      final handle = tester.getRect(find.text('@alice.craftsky.social'));
+      final avatar = tester.getRect(find.byType(ProfileAvatar));
+      expect(avatar.right, lessThan(name.left));
+      expect(name.left, handle.left);
+      expect(handle.top, greaterThanOrEqualTo(name.bottom));
+      expect(
+        tester.getTopLeft(find.text('Alice followed you')).dy,
+        greaterThanOrEqualTo(handle.bottom),
+      );
+      expect(
+        tester.widget<Text>(find.text('@alice.craftsky.social')).style?.color,
+        AppTheme.lightThemeData.colorScheme.outline,
+      );
+      if (scale == 1) expect(find.byType(CraftIcon), findsNWidgets(3));
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  testWidgets('notification identity handle opens the actor profile', (
+    tester,
+  ) async {
+    GoRouterState? openedProfile;
+    final router = GoRouter(
+      routes: [
+        GoRoute(
+          path: '/',
+          builder: (_, _) => Scaffold(
+            body: NotificationRow(notification: _like('identity-tap')),
+          ),
+        ),
+        GoRoute(
+          path: '/profiles/:did',
+          builder: (_, state) {
+            openedProfile = state;
+            return const Scaffold(body: Text('Actor profile'));
+          },
+        ),
+      ],
+    );
+    addTearDown(router.dispose);
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp.router(
+          theme: AppTheme.lightThemeData,
+          localizationsDelegates: appLocalizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          routerConfig: router,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('@alice.craftsky.social'));
+    await tester.pumpAndSettle();
+    expect(openedProfile?.pathParameters['did'], 'did:plc:alice');
+  });
+
+  testWidgets(
+    'unavailable notifications do not show a profile handle or crafts',
+    (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _TestApp(
+          home: Scaffold(
+            body: NotificationRow(
+              notification: _unavailable('unavailable-identity'),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byType(CompactProfileIdentity), findsNothing);
+      expect(find.byType(CraftIcon), findsNothing);
+      expect(find.text('@alice.craftsky.social'), findsNothing);
+      expect(tester.takeException(), isNull);
     },
   );
 
@@ -1339,6 +1450,7 @@ FollowNotification _follow(
   bool includeAvatarUrl = true,
   String avatarCid = 'bafyavatar',
   bool viewerIsFollowing = false,
+  List<String> crafts = const [],
 }) => CraftskyNotification.fromMap({
   'uri': 'at://did:plc:alice/app.bsky.graph.follow/$rkey',
   'cid': 'bafy$rkey',
@@ -1351,6 +1463,7 @@ FollowNotification _follow(
     if (includeAvatarUrl) 'avatar': 'https://cdn.example/avatar/alice.jpg',
     'avatarCid': avatarCid,
     'viewerIsFollowing': viewerIsFollowing,
+    'crafts': crafts,
   },
   'createdAt': '2026-05-28T13:00:00Z',
   'indexedAt': '2026-05-28T13:00:01Z',

@@ -350,6 +350,7 @@ final class NotificationActor with NotificationActorMappable {
     required this.handle,
     this.displayName,
     this.avatar,
+    this.crafts = const [],
     this.avatarCid,
     this.viewerIsFollowing = false,
     this.available = true,
@@ -374,6 +375,7 @@ final class NotificationActor with NotificationActorMappable {
   final Handle handle;
   final String? displayName;
   final String? avatar;
+  final List<String> crafts;
   final Cid? avatarCid;
   final bool viewerIsFollowing;
   final bool available;

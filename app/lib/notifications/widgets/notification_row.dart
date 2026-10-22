@@ -14,6 +14,7 @@ import 'package:craftsky_app/profile/providers/profile_relationship_provider.dar
 import 'package:craftsky_app/profile/providers/toggle_block_profile_provider.dart';
 import 'package:craftsky_app/profile/providers/toggle_follow_profile_provider.dart';
 import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
+import 'package:craftsky_app/profile/widgets/compact_profile_identity.dart';
 import 'package:craftsky_app/profile/widgets/follow_reaction.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
 import 'package:craftsky_app/profile/widgets/profile_card_modal.dart';
@@ -197,14 +198,35 @@ class NotificationRow extends ConsumerWidget {
                     GestureDetector(
                       behavior: HitTestBehavior.opaque,
                       onTap: onActorTap,
-                      child: FollowReactionAvatar(
-                        compact: true,
-                        child: ProfileAvatar(
-                          seed: actor,
-                          avatarUrl: actorNotification.actor.displayAvatarUrl,
-                          size: ProfileAvatarSize.small,
-                          customisation: actorNotification.actor.customisation,
-                        ),
+                      child: Row(
+                        children: [
+                          FollowReactionAvatar(
+                            compact: true,
+                            child: ProfileAvatar(
+                              seed: actor,
+                              avatarUrl:
+                                  actorNotification.actor.displayAvatarUrl,
+                              size: ProfileAvatarSize.small,
+                              customisation:
+                                  actorNotification.actor.customisation,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: actorNotification.actor.available
+                                ? CompactProfileIdentity(
+                                    handle: actorNotification.actor.handle
+                                        .toString(),
+                                    displayName:
+                                        actorNotification.actor.displayName,
+                                    crafts: actorNotification.actor.crafts,
+                                  )
+                                : Text(
+                                    actor,
+                                    style: theme.textTheme.titleSmall,
+                                  ),
+                          ),
+                        ],
                       ),
                     ),
                     const SizedBox(height: 8),
