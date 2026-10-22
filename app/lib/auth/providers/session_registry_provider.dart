@@ -97,12 +97,14 @@ class SessionRegistry extends _$SessionRegistry {
     required String? displayName,
     required String? avatarUrl,
     required ProfileCustomisation customisation,
+    List<String> crafts = const [],
   }) => _mutate(
     (current) => current.updateCachedIdentity(
       lease,
       displayName: displayName,
       avatarUrl: avatarUrl,
       customisation: customisation,
+      crafts: crafts,
     ),
   );
 

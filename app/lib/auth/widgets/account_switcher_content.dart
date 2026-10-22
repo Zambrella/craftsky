@@ -2,6 +2,7 @@ import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/auth/models/account_switcher_state.dart';
 import 'package:craftsky_app/auth/widgets/account_avatar.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
+import 'package:craftsky_app/profile/widgets/compact_profile_identity.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -92,6 +93,8 @@ class AccountSwitcherRowTile extends StatelessWidget {
       child: Material(
         type: MaterialType.transparency,
         child: ListTile(
+          horizontalTitleGap: 12,
+          minLeadingWidth: 0,
           selected: selected,
           enabled: enabled,
           leading: AccountAvatar(
@@ -100,24 +103,12 @@ class AccountSwitcherRowTile extends StatelessWidget {
             customisation: row.customisation,
             selected: selected,
           ),
-          title: Row(
-            children: [
-              Expanded(
-                child: Text(
-                  row.displayLabel(l10n.handleUnavailable),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              if (badge case final badge?) ...[
-                const SizedBox(width: 8),
-                Flexible(child: badge),
-              ],
-            ],
+          title: CompactProfileIdentity(
+            handle: row.handle,
+            displayName: row.displayName,
+            crafts: row.crafts,
+            badge: badge,
           ),
-          subtitle: row.displayName?.trim().isEmpty ?? true
-              ? null
-              : Text(row.currentHandleLabel(l10n.handleUnavailable)),
           trailing: trailing,
           onTap: enabled ? onTap : null,
         ),

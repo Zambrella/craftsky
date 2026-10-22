@@ -99,8 +99,8 @@ func copyProfileCustomisationHeaders(destination, source http.Header) {
 }
 
 // HydrateJSON decorates every retained identity object in a response using a
-// single deduplicated member lookup. Identity objects are recognized by their
-// existing did+handle contract; stripped placeholders and actorless responses
+// single deduplicated member lookup, including public crafts when supported.
+// Identity objects are recognized by their existing did+handle contract; stripped placeholders and actorless responses
 // therefore remain untouched.
 func (h *IdentityCustomisationHydrator) HydrateJSON(
 	ctx context.Context,
@@ -125,7 +125,20 @@ func (h *IdentityCustomisationHydrator) HydrateJSON(
 	for did := range identities {
 		dids = append(dids, did)
 	}
-	values, err := h.reader.ReadBatch(ctx, dids)
+	var values map[syntax.DID]ProfileCustomisation
+	var decorations map[syntax.DID]ProfileIdentityDecoration
+	var err error
+	if reader, ok := h.reader.(interface {
+		ReadIdentityBatch(context.Context, []syntax.DID) (map[syntax.DID]ProfileIdentityDecoration, error)
+	}); ok {
+		decorations, err = reader.ReadIdentityBatch(ctx, dids)
+		values = make(map[syntax.DID]ProfileCustomisation, len(decorations))
+		for did, value := range decorations {
+			values[did] = value.Customisation
+		}
+	} else {
+		values, err = h.reader.ReadBatch(ctx, dids)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -150,6 +163,24 @@ func (h *IdentityCustomisationHydrator) HydrateJSON(
 			identity["customisation"] = value
 		}
 	}
+	for did, decoration := range decorations {
+		for _, identity := range identities[did] {
+			// Preserve explicit crafts (including intentionally empty arrays) and
+			// never fill metadata into blocked or unavailable identity shells.
+			if _, exists := identity["crafts"]; exists {
+				continue
+			}
+			if identity["blocking"] == true || identity["blockedBy"] == true || identity["available"] == false {
+				continue
+			}
+			crafts := decoration.Crafts
+			if crafts == nil {
+				crafts = []string{}
+			}
+			identity["crafts"] = crafts
+		}
+	}
+
 	hydrated, err := json.Marshal(root)
 	if err != nil {
 		return nil, fmt.Errorf("profile customisation response encode: %w", err)

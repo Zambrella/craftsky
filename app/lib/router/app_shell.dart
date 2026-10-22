@@ -444,14 +444,7 @@ class _LargeShellNavigationFrameState
     const dividerHeight = 16.0;
 
     return verticalPadding +
-        state.rows.fold<double>(
-          0,
-          (height, row) =>
-              height +
-              ((row.displayName?.trim().isEmpty ?? true)
-                  ? singleLineTileHeight
-                  : twoLineTileHeight),
-        ) +
+        state.rows.length * twoLineTileHeight +
         dividerHeight +
         (state.canAddAccount ? singleLineTileHeight : twoLineTileHeight);
   }

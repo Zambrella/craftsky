@@ -614,6 +614,13 @@ class PostAuthorMapper extends ClassMapperBase<PostAuthor> {
     _$avatar,
     opt: true,
   );
+  static List<String> _$crafts(PostAuthor v) => v.crafts;
+  static const Field<PostAuthor, List<String>> _f$crafts = Field(
+    'crafts',
+    _$crafts,
+    opt: true,
+    def: const [],
+  );
   static Cid? _$avatarCid(PostAuthor v) => v.avatarCid;
   static dynamic _arg$avatarCid(f) => f<Cid>();
   static const Field<PostAuthor, String> _f$avatarCid = Field(
@@ -654,6 +661,7 @@ class PostAuthorMapper extends ClassMapperBase<PostAuthor> {
     #handle: _f$handle,
     #displayName: _f$displayName,
     #avatar: _f$avatar,
+    #crafts: _f$crafts,
     #avatarCid: _f$avatarCid,
     #muted: _f$muted,
     #blocking: _f$blocking,
@@ -669,6 +677,7 @@ class PostAuthorMapper extends ClassMapperBase<PostAuthor> {
       handle: data.dec(_f$handle),
       displayName: data.dec(_f$displayName),
       avatar: data.dec(_f$avatar),
+      crafts: data.dec(_f$crafts),
       avatarCid: data.dec(_f$avatarCid),
       muted: data.dec(_f$muted),
       blocking: data.dec(_f$blocking),
@@ -737,11 +746,13 @@ extension PostAuthorValueCopy<$R, $Out>
 
 abstract class PostAuthorCopyWith<$R, $In extends PostAuthor, $Out>
     implements ClassCopyWith<$R, $In, $Out> {
+  ListCopyWith<$R, String, ObjectCopyWith<$R, String, String>> get crafts;
   $R call({
     String? did,
     String? handle,
     String? displayName,
     String? avatar,
+    List<String>? crafts,
     String? avatarCid,
     bool? muted,
     bool? blocking,
@@ -760,11 +771,19 @@ class _PostAuthorCopyWithImpl<$R, $Out>
   late final ClassMapperBase<PostAuthor> $mapper =
       PostAuthorMapper.ensureInitialized();
   @override
+  ListCopyWith<$R, String, ObjectCopyWith<$R, String, String>> get crafts =>
+      ListCopyWith(
+        $value.crafts,
+        (v, t) => ObjectCopyWith(v, $identity, t),
+        (v) => call(crafts: v),
+      );
+  @override
   $R call({
     String? did,
     String? handle,
     Object? displayName = $none,
     Object? avatar = $none,
+    List<String>? crafts,
     Object? avatarCid = $none,
     Object? muted = $none,
     Object? blocking = $none,
@@ -776,6 +795,7 @@ class _PostAuthorCopyWithImpl<$R, $Out>
       if (handle != null) #handle: handle,
       if (displayName != $none) #displayName: displayName,
       if (avatar != $none) #avatar: avatar,
+      if (crafts != null) #crafts: crafts,
       if (avatarCid != $none) #avatarCid: avatarCid,
       if (muted != $none) #muted: muted,
       if (blocking != $none) #blocking: blocking,
@@ -789,6 +809,7 @@ class _PostAuthorCopyWithImpl<$R, $Out>
     handle: data.get(#handle, or: $value.handle),
     displayName: data.get(#displayName, or: $value.displayName),
     avatar: data.get(#avatar, or: $value.avatar),
+    crafts: data.get(#crafts, or: $value.crafts),
     avatarCid: data.get(#avatarCid, or: $value.avatarCid),
     muted: data.get(#muted, or: $value.muted),
     blocking: data.get(#blocking, or: $value.blocking),

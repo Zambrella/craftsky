@@ -55,54 +55,52 @@ class CraftskyDialog extends StatelessWidget {
         ),
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: _maxWidth),
-          child: IntrinsicHeight(
-            child: Stack(
-              children: [
-                Positioned.fill(
-                  child: Transform.translate(
-                    offset: shadowOffset,
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        color: shadowColor,
-                        borderRadius: radius,
-                      ),
-                    ),
-                  ),
-                ),
-                Material(
-                  color: Colors.transparent,
-                  child: Container(
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: Transform.translate(
+                  offset: shadowOffset,
+                  child: DecoratedBox(
                     decoration: BoxDecoration(
-                      color: swatches.paper3,
+                      color: shadowColor,
                       borderRadius: radius,
-                      border: Border.all(color: colors.onSurface, width: 1.5),
-                    ),
-                    padding: EdgeInsets.all(spacing.sp5),
-                    child: SingleChildScrollView(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Text(title, style: theme.textTheme.titleLarge),
-                          SizedBox(height: spacing.sp4),
-                          DefaultTextStyle.merge(
-                            style: theme.textTheme.bodyMedium,
-                            child: body,
-                          ),
-                          SizedBox(height: spacing.sp5),
-                          Wrap(
-                            alignment: WrapAlignment.end,
-                            spacing: spacing.sp2,
-                            runSpacing: spacing.sp2,
-                            children: actions,
-                          ),
-                        ],
-                      ),
                     ),
                   ),
                 ),
-              ],
-            ),
+              ),
+              Material(
+                color: Colors.transparent,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: swatches.paper3,
+                    borderRadius: radius,
+                    border: Border.all(color: colors.onSurface, width: 1.5),
+                  ),
+                  padding: EdgeInsets.all(spacing.sp5),
+                  child: SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Text(title, style: theme.textTheme.titleLarge),
+                        SizedBox(height: spacing.sp4),
+                        DefaultTextStyle.merge(
+                          style: theme.textTheme.bodyMedium,
+                          child: body,
+                        ),
+                        SizedBox(height: spacing.sp5),
+                        Wrap(
+                          alignment: WrapAlignment.end,
+                          spacing: spacing.sp2,
+                          runSpacing: spacing.sp2,
+                          children: actions,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),

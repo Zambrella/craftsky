@@ -28,6 +28,7 @@ class AccountSuggestion with AccountSuggestionMappable {
     required this.handle,
     required this.displayName,
     required this.avatar,
+    this.crafts = const [],
     this.isCraftskyProfile = false,
     this.viewerIsFollowing = false,
   });
@@ -43,6 +44,8 @@ class AccountSuggestion with AccountSuggestionMappable {
 
   /// Avatar URL shown in suggestions.
   final String? avatar;
+
+  final List<String> crafts;
 
   /// Whether the account belongs to CraftSky for this Flutter-only slice.
   final bool isCraftskyProfile;

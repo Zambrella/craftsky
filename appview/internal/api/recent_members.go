@@ -17,6 +17,7 @@ type RecentMembersReader interface {
 
 // Dedicated allowlist: extending full profile summaries cannot expand discovery.
 type recentMemberSummary struct {
+	Crafts            []string      `json:"crafts"`
 	DID               syntax.DID    `json:"did"`
 	Handle            syntax.Handle `json:"handle"`
 	IsCraftskyProfile bool          `json:"isCraftskyProfile"`
@@ -47,7 +48,12 @@ func GetRecentMembersHandler(reader RecentMembersReader) http.Handler {
 					displayName = &name
 				}
 			}
+			crafts := row.Crafts
+			if crafts == nil {
+				crafts = []string{}
+			}
 			items = append(items, recentMemberSummary{
+				Crafts:            crafts,
 				DID:               row.DID,
 				Handle:            row.Handle,
 				IsCraftskyProfile: true,

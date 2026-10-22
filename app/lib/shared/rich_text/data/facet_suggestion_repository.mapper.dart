@@ -39,6 +39,13 @@ class AccountSuggestionMapper extends ClassMapperBase<AccountSuggestion> {
     'avatar',
     _$avatar,
   );
+  static List<String> _$crafts(AccountSuggestion v) => v.crafts;
+  static const Field<AccountSuggestion, List<String>> _f$crafts = Field(
+    'crafts',
+    _$crafts,
+    opt: true,
+    def: const [],
+  );
   static bool _$isCraftskyProfile(AccountSuggestion v) => v.isCraftskyProfile;
   static const Field<AccountSuggestion, bool> _f$isCraftskyProfile = Field(
     'isCraftskyProfile',
@@ -60,6 +67,7 @@ class AccountSuggestionMapper extends ClassMapperBase<AccountSuggestion> {
     #handle: _f$handle,
     #displayName: _f$displayName,
     #avatar: _f$avatar,
+    #crafts: _f$crafts,
     #isCraftskyProfile: _f$isCraftskyProfile,
     #viewerIsFollowing: _f$viewerIsFollowing,
   };
@@ -70,6 +78,7 @@ class AccountSuggestionMapper extends ClassMapperBase<AccountSuggestion> {
       handle: data.dec(_f$handle),
       displayName: data.dec(_f$displayName),
       avatar: data.dec(_f$avatar),
+      crafts: data.dec(_f$crafts),
       isCraftskyProfile: data.dec(_f$isCraftskyProfile),
       viewerIsFollowing: data.dec(_f$viewerIsFollowing),
     );
@@ -146,11 +155,13 @@ abstract class AccountSuggestionCopyWith<
   $Out
 >
     implements ClassCopyWith<$R, $In, $Out> {
+  ListCopyWith<$R, String, ObjectCopyWith<$R, String, String>> get crafts;
   $R call({
     String? did,
     String? handle,
     String? displayName,
     String? avatar,
+    List<String>? crafts,
     bool? isCraftskyProfile,
     bool? viewerIsFollowing,
   });
@@ -168,11 +179,19 @@ class _AccountSuggestionCopyWithImpl<$R, $Out>
   late final ClassMapperBase<AccountSuggestion> $mapper =
       AccountSuggestionMapper.ensureInitialized();
   @override
+  ListCopyWith<$R, String, ObjectCopyWith<$R, String, String>> get crafts =>
+      ListCopyWith(
+        $value.crafts,
+        (v, t) => ObjectCopyWith(v, $identity, t),
+        (v) => call(crafts: v),
+      );
+  @override
   $R call({
     String? did,
     String? handle,
     Object? displayName = $none,
     Object? avatar = $none,
+    List<String>? crafts,
     bool? isCraftskyProfile,
     bool? viewerIsFollowing,
   }) => $apply(
@@ -181,6 +200,7 @@ class _AccountSuggestionCopyWithImpl<$R, $Out>
       if (handle != null) #handle: handle,
       if (displayName != $none) #displayName: displayName,
       if (avatar != $none) #avatar: avatar,
+      if (crafts != null) #crafts: crafts,
       if (isCraftskyProfile != null) #isCraftskyProfile: isCraftskyProfile,
       if (viewerIsFollowing != null) #viewerIsFollowing: viewerIsFollowing,
     }),
@@ -191,6 +211,7 @@ class _AccountSuggestionCopyWithImpl<$R, $Out>
     handle: data.get(#handle, or: $value.handle),
     displayName: data.get(#displayName, or: $value.displayName),
     avatar: data.get(#avatar, or: $value.avatar),
+    crafts: data.get(#crafts, or: $value.crafts),
     isCraftskyProfile: data.get(
       #isCraftskyProfile,
       or: $value.isCraftskyProfile,

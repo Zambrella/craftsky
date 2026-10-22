@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/profile/models/profile_handle.dart';
+import 'package:craftsky_app/profile/widgets/compact_profile_identity.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
 import 'package:craftsky_app/shared/rich_text/data/facet_suggestion_repository.dart';
 import 'package:craftsky_app/shared/rich_text/facet_autocomplete_controller.dart';
@@ -643,21 +644,10 @@ class _MentionSuggestionList extends StatelessWidget {
                     ),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            ProfileHandle(suggestion.handle).displayLabel(
-                              displayName: suggestion.displayName,
-                              unavailableLabel: unavailableHandleLabel,
-                            ),
-                          ),
-                          Text(
-                            ProfileHandle(suggestion.handle).currentLabel(
-                              unavailableLabel: unavailableHandleLabel,
-                            ),
-                          ),
-                        ],
+                      child: CompactProfileIdentity(
+                        handle: suggestion.handle,
+                        displayName: suggestion.displayName,
+                        crafts: suggestion.crafts,
                       ),
                     ),
                   ],

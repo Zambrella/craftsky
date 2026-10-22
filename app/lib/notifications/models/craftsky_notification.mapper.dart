@@ -203,6 +203,13 @@ class NotificationActorMapper extends ClassMapperBase<NotificationActor> {
     _$avatar,
     opt: true,
   );
+  static List<String> _$crafts(NotificationActor v) => v.crafts;
+  static const Field<NotificationActor, List<String>> _f$crafts = Field(
+    'crafts',
+    _$crafts,
+    opt: true,
+    def: const [],
+  );
   static Cid? _$avatarCid(NotificationActor v) => v.avatarCid;
   static const Field<NotificationActor, Cid> _f$avatarCid = Field(
     'avatarCid',
@@ -257,6 +264,7 @@ class NotificationActorMapper extends ClassMapperBase<NotificationActor> {
     #handle: _f$handle,
     #displayName: _f$displayName,
     #avatar: _f$avatar,
+    #crafts: _f$crafts,
     #avatarCid: _f$avatarCid,
     #viewerIsFollowing: _f$viewerIsFollowing,
     #available: _f$available,
@@ -272,6 +280,7 @@ class NotificationActorMapper extends ClassMapperBase<NotificationActor> {
       handle: data.dec(_f$handle),
       displayName: data.dec(_f$displayName),
       avatar: data.dec(_f$avatar),
+      crafts: data.dec(_f$crafts),
       avatarCid: data.dec(_f$avatarCid),
       viewerIsFollowing: data.dec(_f$viewerIsFollowing),
       available: data.dec(_f$available),
@@ -346,11 +355,13 @@ abstract class NotificationActorCopyWith<
   $Out
 >
     implements ClassCopyWith<$R, $In, $Out> {
+  ListCopyWith<$R, String, ObjectCopyWith<$R, String, String>> get crafts;
   $R call({
     Did? did,
     Handle? handle,
     String? displayName,
     String? avatar,
+    List<String>? crafts,
     Cid? avatarCid,
     bool? viewerIsFollowing,
     bool? available,
@@ -373,11 +384,19 @@ class _NotificationActorCopyWithImpl<$R, $Out>
   late final ClassMapperBase<NotificationActor> $mapper =
       NotificationActorMapper.ensureInitialized();
   @override
+  ListCopyWith<$R, String, ObjectCopyWith<$R, String, String>> get crafts =>
+      ListCopyWith(
+        $value.crafts,
+        (v, t) => ObjectCopyWith(v, $identity, t),
+        (v) => call(crafts: v),
+      );
+  @override
   $R call({
     Did? did,
     Handle? handle,
     Object? displayName = $none,
     Object? avatar = $none,
+    List<String>? crafts,
     Object? avatarCid = $none,
     bool? viewerIsFollowing,
     bool? available,
@@ -391,6 +410,7 @@ class _NotificationActorCopyWithImpl<$R, $Out>
       if (handle != null) #handle: handle,
       if (displayName != $none) #displayName: displayName,
       if (avatar != $none) #avatar: avatar,
+      if (crafts != null) #crafts: crafts,
       if (avatarCid != $none) #avatarCid: avatarCid,
       if (viewerIsFollowing != null) #viewerIsFollowing: viewerIsFollowing,
       if (available != null) #available: available,
@@ -406,6 +426,7 @@ class _NotificationActorCopyWithImpl<$R, $Out>
     handle: data.get(#handle, or: $value.handle),
     displayName: data.get(#displayName, or: $value.displayName),
     avatar: data.get(#avatar, or: $value.avatar),
+    crafts: data.get(#crafts, or: $value.crafts),
     avatarCid: data.get(#avatarCid, or: $value.avatarCid),
     viewerIsFollowing: data.get(
       #viewerIsFollowing,

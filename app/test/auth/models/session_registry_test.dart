@@ -370,6 +370,7 @@ void main() {
     final updated = registry.updateCachedIdentity(
       lease,
       displayName: 'Alice',
+      crafts: const ['knitting', 'crochet'],
       avatarUrl: 'https://example.test/alice.jpg',
       customisation: const ProfileCustomisation(colour: 'teal'),
     );
@@ -400,5 +401,18 @@ void main() {
       recoloured.sessions[lease.account.did]?.cachedCustomisation.colour,
       'rose',
     );
+    final restored = SessionRegistry.fromJson(recoloured.toJson());
+    expect(
+      restored.sessions[lease.account.did]?.cachedCrafts,
+      ['knitting', 'crochet'],
+    );
+    final changedCrafts = restored.updateCachedIdentity(
+      lease,
+      displayName: 'Alice',
+      avatarUrl: 'https://example.test/alice.jpg',
+      customisation: const ProfileCustomisation(colour: 'rose'),
+      crafts: const ['sewing'],
+    );
+    expect(changedCrafts.sessions[lease.account.did]?.cachedCrafts, ['sewing']);
   });
 }

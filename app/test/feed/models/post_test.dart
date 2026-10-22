@@ -29,6 +29,7 @@ void main() {
           'createdAt': '2026-07-29T10:00:00.000Z',
           'indexedAt': '2026-07-29T10:00:01.000Z',
           'author': {
+            'crafts': <String>[],
             'did': 'did:plc:alice',
             'handle': 'alice.craftsky.social',
           },
@@ -65,6 +66,7 @@ void main() {
         'createdAt': '2026-07-21T10:00:00.000Z',
         'indexedAt': '2026-07-21T10:00:01.000Z',
         'author': {
+          'crafts': <String>[],
           'did': 'did:plc:alice',
           'handle': 'alice.craftsky.social',
         },
@@ -202,6 +204,7 @@ void main() {
         'createdAt': '2026-05-04T18:23:45.000Z',
         'indexedAt': '2026-05-04T18:23:47.000Z',
         'author': {
+          'crafts': <String>[],
           'did': 'did:plc:alice',
           'handle': 'alice.craftsky.social',
           'displayName': 'Alice',
@@ -264,6 +267,7 @@ void main() {
         'createdAt': '2026-05-04T18:23:45.000Z',
         'indexedAt': '2026-05-04T18:23:47.000Z',
         'author': {
+          'crafts': <String>[],
           'did': 'did:plc:alice',
           'handle': 'alice.craftsky.social',
           'customisation': {
@@ -305,6 +309,7 @@ void main() {
         'createdAt': '2020-05-04T18:23:45.000Z',
         'indexedAt': '2026-07-23T10:00:00.000Z',
         'author': {
+          'crafts': <String>[],
           'did': 'did:plc:alice',
           'handle': 'alice.craftsky.social',
         },
@@ -335,6 +340,7 @@ void main() {
         'createdAt': '2020-05-04T18:23:45.000Z',
         'indexedAt': '2026-07-23T10:00:00.000Z',
         'author': {
+          'crafts': <String>[],
           'did': 'did:plc:alice',
           'handle': 'alice.craftsky.social',
         },
@@ -347,6 +353,7 @@ void main() {
         'sponsored': false,
         'createdAt': '2020-05-04T18:20:00.000Z',
         'author': {
+          'crafts': <String>[],
           'did': 'did:plc:carol',
           'handle': 'carol.craftsky.social',
         },
@@ -404,6 +411,7 @@ void main() {
             'sponsored': false,
             'createdAt': '2026-05-04T18:20:00.000Z',
             'author': {
+              'crafts': <String>[],
               'did': 'did:plc:carol',
               'handle': 'carol.craftsky.social',
               'displayName': 'Carol',
@@ -425,6 +433,7 @@ void main() {
         'createdAt': '2026-05-04T18:23:45.000Z',
         'indexedAt': '2026-05-04T18:23:47.000Z',
         'author': {
+          'crafts': <String>[],
           'did': 'did:plc:bob',
           'handle': 'bob.craftsky.social',
           'customisation': {
@@ -468,6 +477,7 @@ void main() {
         'createdAt': '2026-05-04T18:23:45.000Z',
         'indexedAt': '2026-05-04T18:23:47.000Z',
         'author': {
+          'crafts': <String>[],
           'did': 'did:plc:alice',
           'handle': 'alice.craftsky.social',
           'customisation': {
@@ -491,6 +501,7 @@ void main() {
         'sponsored': false,
         'createdAt': '2020-05-04T18:20:00.000Z',
         'author': {
+          'crafts': <String>[],
           'did': 'did:plc:carol',
           'handle': 'carol.craftsky.social',
         },
@@ -522,6 +533,7 @@ void main() {
         'createdAt': '2026-05-04T18:23:45.000Z',
         'indexedAt': '2026-05-04T18:23:47.000Z',
         'author': {
+          'crafts': <String>[],
           'did': 'did:plc:alice',
           'handle': 'alice.craftsky.social',
           'customisation': {
@@ -569,6 +581,7 @@ void main() {
         'createdAt': '2026-05-04T18:23:45.000Z',
         'indexedAt': '2026-05-04T18:23:47.000Z',
         'author': {
+          'crafts': <String>[],
           'did': 'did:plc:alice',
           'handle': 'alice.craftsky.social',
           'customisation': {
