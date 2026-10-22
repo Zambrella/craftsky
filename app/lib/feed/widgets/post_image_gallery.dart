@@ -1,6 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/widgets/post_image_page_indicator.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/shared/image/image_cache_providers.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -95,12 +96,8 @@ Future<void> showPostImageGallery(
 }
 
 class PostImageGallery extends ConsumerStatefulWidget {
-  new({
-    required this.images,
-    this.initialIndex = 0,
-    this.heroTags,
-    super.key,
-  }) : galleryImages = images.map(GalleryImage.fromPostImage).toList();
+  new({required this.images, this.initialIndex = 0, this.heroTags, super.key})
+    : galleryImages = images.map(GalleryImage.fromPostImage).toList();
 
   const new items({
     required this.galleryImages,
@@ -159,29 +156,36 @@ class _PostImageGalleryState extends ConsumerState<PostImageGallery> {
         : const Duration(milliseconds: 180);
     final content = Stack(
       children: [
-        PageView.builder(
-          key: const Key('post-image-gallery-page-view'),
-          controller: _controller,
-          physics: _isCurrentPageZoomed
-              ? const NeverScrollableScrollPhysics()
-              : const PageScrollPhysics(),
-          itemCount: widget.galleryImages.length,
-          onPageChanged: (value) => setState(() {
-            _currentIndex = value;
-            _isCurrentPageZoomed = false;
-          }),
-          itemBuilder: (context, index) {
-            final image = widget.galleryImages[index];
-            final url = image.fullsize ?? image.thumb;
-            return _ZoomableGalleryImage(
-              image: image,
-              imageUrl: url,
-              heroTag: widget.heroTags?[index],
-              onZoomChanged: index == _currentIndex
-                  ? _setCurrentPageZoomed
-                  : null,
-            );
-          },
+        Listener(
+          behavior: HitTestBehavior.translucent,
+          onPointerDown: _handlePointerDown,
+          onPointerMove: (event) => _handlePointerMove(event, height),
+          onPointerUp: (_) => _handlePointerEnd(context, height),
+          onPointerCancel: (_) => _cancelDismissDrag(),
+          child: PageView.builder(
+            key: const Key('post-image-gallery-page-view'),
+            controller: _controller,
+            physics: _isCurrentPageZoomed
+                ? const NeverScrollableScrollPhysics()
+                : const PageScrollPhysics(),
+            itemCount: widget.galleryImages.length,
+            onPageChanged: (value) => setState(() {
+              _currentIndex = value;
+              _isCurrentPageZoomed = false;
+            }),
+            itemBuilder: (context, index) {
+              final image = widget.galleryImages[index];
+              final url = image.fullsize ?? image.thumb;
+              return _ZoomableGalleryImage(
+                image: image,
+                imageUrl: url,
+                heroTag: widget.heroTags?[index],
+                onZoomChanged: index == _currentIndex
+                    ? _setCurrentPageZoomed
+                    : null,
+              );
+            },
+          ),
         ),
         if (hasMultipleImages)
           Positioned(
@@ -234,9 +238,9 @@ class _PostImageGalleryState extends ConsumerState<PostImageGallery> {
                   ),
                   child: SizedBox(
                     width: double.infinity,
-                    child: Text(
-                      current.alt,
-                      style: const TextStyle(color: Colors.white),
+                    child: _GalleryAltText(
+                      key: ValueKey(_currentIndex),
+                      text: current.alt,
                     ),
                   ),
                 ),
@@ -247,22 +251,15 @@ class _PostImageGalleryState extends ConsumerState<PostImageGallery> {
       ],
     );
 
-    return Listener(
-      behavior: HitTestBehavior.translucent,
-      onPointerDown: _handlePointerDown,
-      onPointerMove: (event) => _handlePointerMove(event, height),
-      onPointerUp: (_) => _handlePointerEnd(context, height),
-      onPointerCancel: (_) => _cancelDismissDrag(),
-      child: AnimatedOpacity(
+    return AnimatedOpacity(
+      duration: dragAnimationDuration,
+      curve: Curves.easeOutCubic,
+      opacity: opacity,
+      child: AnimatedContainer(
         duration: dragAnimationDuration,
         curve: Curves.easeOutCubic,
-        opacity: opacity,
-        child: AnimatedContainer(
-          duration: dragAnimationDuration,
-          curve: Curves.easeOutCubic,
-          transform: Matrix4.translationValues(0, _dismissDragOffset, 0),
-          child: content,
-        ),
+        transform: Matrix4.translationValues(0, _dismissDragOffset, 0),
+        child: content,
       ),
     );
   }
@@ -315,6 +312,67 @@ class _PostImageGalleryState extends ConsumerState<PostImageGallery> {
       _isDismissDragging = false;
       _dismissDragOffset = 0;
     });
+  }
+}
+
+class _GalleryAltText extends StatefulWidget {
+  const new({required this.text, super.key});
+
+  final String text;
+
+  @override
+  State<_GalleryAltText> createState() => _GalleryAltTextState();
+}
+
+class _GalleryAltTextState extends State<_GalleryAltText> {
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final style = DefaultTextStyle.of(context).style
+        .copyWith(color: Colors.white);
+    final l10n = AppLocalizations.of(context);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final painter = TextPainter(
+          text: TextSpan(text: widget.text, style: style),
+          textDirection: Directionality.of(context),
+          textScaler: MediaQuery.textScalerOf(context),
+          locale: Localizations.localeOf(context),
+          maxLines: 2,
+        )..layout(maxWidth: constraints.maxWidth);
+        final overflows = painter.didExceedMaxLines;
+        painter.dispose();
+
+        final text = Text(
+          widget.text,
+          style: style,
+          maxLines: _expanded ? null : 2,
+          overflow: _expanded ? TextOverflow.clip : TextOverflow.ellipsis,
+        );
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (_expanded)
+              ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.sizeOf(context).height * 0.4,
+                ),
+                child: SingleChildScrollView(child: text),
+              )
+            else
+              text,
+            if (overflows)
+              TextButton(
+                onPressed: () => setState(() => _expanded = !_expanded),
+                style: TextButton.styleFrom(foregroundColor: Colors.white),
+                child: Text(_expanded ? l10n.postShowLess : l10n.postShowMore),
+              ),
+          ],
+        );
+      },
+    );
   }
 }
 

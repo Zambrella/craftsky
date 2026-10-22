@@ -1,5 +1,6 @@
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/widgets/post_image_gallery.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/shared/image/image_cache_providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -18,6 +19,8 @@ Future<void> _pump(
     ProviderScope(
       overrides: List.from(overrides),
       child: MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
         builder: (context, routeChild) {
           final mediaQuery = MediaQuery.of(context);
           return MediaQuery(
@@ -39,6 +42,8 @@ Future<void> _pumpRoute(
     ProviderScope(
       overrides: List.from(overrides),
       child: MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
         home: Builder(
           builder: (context) => Scaffold(
             body: Center(
@@ -57,13 +62,12 @@ Future<void> _pumpRoute(
   );
 }
 
-Future<void> _pumpNestedRoute(
-  WidgetTester tester, {
-  required Object heroTag,
-}) {
+Future<void> _pumpNestedRoute(WidgetTester tester, {required Object heroTag}) {
   return tester.pumpWidget(
     ProviderScope(
       child: MaterialApp(
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
         home: Scaffold(
           body: Row(
             children: [
@@ -78,9 +82,7 @@ Future<void> _pumpNestedRoute(
                           child: ElevatedButton(
                             onPressed: () => showImageGallery(
                               context,
-                              images: const [
-                                GalleryImage(alt: 'Blue shawl'),
-                              ],
+                              images: const [GalleryImage(alt: 'Blue shawl')],
                               heroTags: [heroTag],
                             ),
                             child: const Text('Open nested gallery'),
@@ -143,6 +145,60 @@ void main() {
 
     expect(find.text('Close-up stitch detail'), findsOneWidget);
     expect(find.text('2/2'), findsOneWidget);
+  });
+
+  testWidgets('long alt text expands, collapses, and resets on image changes', (
+    tester,
+  ) async {
+    final alt = List.generate(
+      100,
+      (index) => 'Description line $index',
+    ).join('\n');
+    await _pump(
+      tester,
+      PostImageGallery.items(
+        galleryImages: [
+          GalleryImage(alt: alt),
+          GalleryImage(alt: alt),
+        ],
+      ),
+    );
+    final description = find.text(alt);
+    final collapsedHeight = tester.getSize(description).height;
+    expect(tester.widget<Text>(description).maxLines, 2);
+    await tester.tap(find.text('Show more'));
+    await tester.pump();
+    expect(tester.widget<Text>(description).maxLines, isNull);
+    final scrollView = find.byType(SingleChildScrollView);
+    expect(tester.getSize(scrollView).height, lessThanOrEqualTo(240));
+    await tester.drag(scrollView, const Offset(0, -100));
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    await tester.tap(find.text('Show less'));
+    await tester.pump();
+    expect(tester.getSize(description).height, collapsedHeight);
+    await tester.tap(find.text('Show more'));
+    await tester.pump();
+    await tester.dragFrom(
+      tester.getTopLeft(find.byKey(const Key('post-image-gallery-page-view'))) +
+          const Offset(700, 100),
+      const Offset(-650, 0),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('2/2'), findsOneWidget);
+    expect(find.text('Show more'), findsOneWidget);
+    expect(tester.widget<Text>(description).maxLines, 2);
+  });
+
+  testWidgets('short alt text needs no expansion control', (tester) async {
+    await _pump(
+      tester,
+      const PostImageGallery.items(
+        galleryImages: [GalleryImage(alt: 'Blue shawl')],
+      ),
+    );
+    expect(find.text('Show more'), findsNothing);
+    expect(find.text('Show less'), findsNothing);
   });
 
   testWidgets('gallery images are zoom-enabled via InteractiveViewer', (
