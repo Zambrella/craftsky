@@ -8204,6 +8204,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Could not open this action. Please try again.'**
   String get serviceStatusActionFailed;
+
+  /// No description provided for @notificationMentionPostRow.
+  ///
+  /// In en, this message translates to:
+  /// **'{actor} mentioned you in a post'**
+  String notificationMentionPostRow(String actor);
+
+  /// No description provided for @notificationMentionCommentRow.
+  ///
+  /// In en, this message translates to:
+  /// **'{actor} mentioned you in a comment'**
+  String notificationMentionCommentRow(String actor);
+
+  /// No description provided for @notificationMentionReplyRow.
+  ///
+  /// In en, this message translates to:
+  /// **'{actor} mentioned you in a reply'**
+  String notificationMentionReplyRow(String actor);
+
+  /// No description provided for @notificationQuoteCommentRow.
+  ///
+  /// In en, this message translates to:
+  /// **'{actor} quoted your comment'**
+  String notificationQuoteCommentRow(String actor);
+
+  /// No description provided for @notificationQuoteReplyRow.
+  ///
+  /// In en, this message translates to:
+  /// **'{actor} quoted your reply'**
+  String notificationQuoteReplyRow(String actor);
 }
 
 class _AppLocalizationsDelegate

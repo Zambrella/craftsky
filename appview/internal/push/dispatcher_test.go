@@ -1474,7 +1474,10 @@ func TestDispatcherBoundsInFlightSendByAbsoluteDeadline(t *testing.T) {
 func TestDispatcherRunRecoversFromTransientStoreFailure(t *testing.T) {
 	pool := testdb.WithSchema(t, `
 		CREATE TABLE bluesky_profiles(did TEXT PRIMARY KEY,display_name TEXT,avatar_cid TEXT);
-		CREATE TABLE craftsky_posts(uri TEXT PRIMARY KEY,reply_root_uri TEXT,reply_parent_uri TEXT);
+		CREATE TABLE craftsky_posts(uri TEXT PRIMARY KEY,did TEXT NOT NULL DEFAULT 'did:plc:viewer',text TEXT NOT NULL DEFAULT '',reply_root_uri TEXT,reply_parent_uri TEXT,quote_uri TEXT);
+        CREATE TABLE craftsky_project_posts(uri TEXT PRIMARY KEY,raw_project JSONB);
+        CREATE TABLE craftsky_post_mentions(post_uri TEXT,mentioned_did TEXT);
+        CREATE TABLE moderation_outputs(source_did TEXT,subject_type TEXT,subject_did TEXT,subject_uri TEXT,value TEXT,action TEXT,expires_at TIMESTAMPTZ,indexed_at TIMESTAMPTZ);
 		CREATE TABLE actor_mutes(owner_did TEXT NOT NULL, subject_did TEXT NOT NULL, PRIMARY KEY(owner_did, subject_did));
 		CREATE TABLE pds_set_aggregates(kind TEXT NOT NULL, actor_did TEXT NOT NULL, subject_did TEXT);
 	`)
@@ -1728,7 +1731,10 @@ func dispatcherPool(t *testing.T) *pgxpool.Pool {
 	t.Helper()
 	pool := testdb.WithSchema(t, `
 		CREATE TABLE bluesky_profiles(did TEXT PRIMARY KEY,display_name TEXT,avatar_cid TEXT);
-		CREATE TABLE craftsky_posts(uri TEXT PRIMARY KEY,reply_root_uri TEXT,reply_parent_uri TEXT);
+		CREATE TABLE craftsky_posts(uri TEXT PRIMARY KEY,did TEXT NOT NULL DEFAULT 'did:plc:viewer',text TEXT NOT NULL DEFAULT '',reply_root_uri TEXT,reply_parent_uri TEXT,quote_uri TEXT);
+        CREATE TABLE craftsky_project_posts(uri TEXT PRIMARY KEY,raw_project JSONB);
+        CREATE TABLE craftsky_post_mentions(post_uri TEXT,mentioned_did TEXT);
+        CREATE TABLE moderation_outputs(source_did TEXT,subject_type TEXT,subject_did TEXT,subject_uri TEXT,value TEXT,action TEXT,expires_at TIMESTAMPTZ,indexed_at TIMESTAMPTZ);
 		CREATE TABLE actor_mutes(owner_did TEXT NOT NULL, subject_did TEXT NOT NULL, PRIMARY KEY(owner_did, subject_did));
 		CREATE TABLE pds_set_aggregates(kind TEXT NOT NULL, actor_did TEXT NOT NULL, subject_did TEXT);
 	`)
@@ -1895,5 +1901,39 @@ func TestIT007PushFinalizationFailureRetainsProviderCauseAndOriginalOutcome(t *t
 		if strings.Contains(output.String(), private) {
 			t.Errorf("private routing leaked %s", private)
 		}
+	}
+}
+
+func TestDispatcherLoadsVisibleSourceTextAndProjectContext(t *testing.T) {
+	for _, category := range []string{"reply", "mention", "quote"} {
+		t.Run(category, func(t *testing.T) {
+			pool := dispatcherPool(t)
+			now := time.Now().UTC()
+			seedDelivery(t, pool, "pending", now.Add(time.Hour))
+			const source = "at://did:plc:actor/social.craftsky.feed.post/source"
+			const target = "at://did:plc:viewer/social.craftsky.feed.post/project"
+			if _, err := pool.Exec(t.Context(), `INSERT INTO craftsky_posts(uri,did,text) VALUES($1,'did:plc:actor','New content'),($2,'did:plc:viewer','Parent content')`, source, target); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := pool.Exec(t.Context(), `INSERT INTO craftsky_project_posts(uri,raw_project) VALUES($1,'{"common":{"title":"Winter scarf"}}')`, target); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := pool.Exec(t.Context(), `UPDATE notification_events SET category=$1,source_uri=$2,subject_uri=CASE WHEN $1='reply' THEN $3 ELSE $2 END,root_uri=$3,quoted_uri=CASE WHEN $1='quote' THEN $3 ELSE NULL END`, category, source, target); err != nil {
+				t.Fatal(err)
+			}
+			now = time.Now().UTC()
+			sender := &scriptedSender{}
+			d := newTestDispatcher(t, pool, sender, DispatcherOptions{Now: func() time.Time { return now }})
+			if n, err := d.ProcessBatch(t.Context(), "worker"); err != nil || n != 1 {
+				t.Fatalf("n=%d err=%v", n, err)
+			}
+			if len(sender.requests) != 1 {
+				t.Fatalf("requests=%d", len(sender.requests))
+			}
+			preview := sender.requests[0].Preview
+			if preview == nil || preview.Text != "New content" || preview.ProjectTitle != "Winter scarf" {
+				t.Fatalf("preview=%+v", preview)
+			}
+		})
 	}
 }

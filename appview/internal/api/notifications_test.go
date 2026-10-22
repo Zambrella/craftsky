@@ -217,7 +217,8 @@ func TestNotificationsHandler_ReturnsCamelCaseNotificationPage(t *testing.T) {
 		{
 			Type: api.NotificationTypeReply, URI: "at://did:plc:alice/social.craftsky.feed.post/reply1", CID: "bafyreply", Rkey: "reply1",
 			ActorDID: "did:plc:alice", CreatedAt: subject.CreatedAt, IndexedAt: subject.IndexedAt, SubjectPost: subject,
-			Reply: &api.NotificationReplyRef{URI: "at://did:plc:alice/social.craftsky.feed.post/reply1", CID: "bafyreply", Rkey: "reply1"},
+			Preview: &notifications.Preview{Text: "New comment", ProjectTitle: "Winter scarf", Role: "comment"},
+			Reply:   &api.NotificationReplyRef{URI: "at://did:plc:alice/social.craftsky.feed.post/reply1", CID: "bafyreply", Rkey: "reply1"},
 		},
 	}, cursor: "next-cursor"}
 	handler := hydrateProductionSummaries(api.ListNotificationsHandler(store, fakeResolver{handlesByDID: map[string]syntax.Handle{
@@ -259,6 +260,9 @@ func TestNotificationsHandler_ReturnsCamelCaseNotificationPage(t *testing.T) {
 	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &accountTypes); err != nil || accountTypes.Items[0].Actor.AccountType != "business" || accountTypes.Items[0].SubjectPost == nil || accountTypes.Items[0].SubjectPost.Author.AccountType != "regular" {
 		t.Fatalf("notification account types = %+v, error %v", accountTypes, err)
+	}
+	if preview := page.Items[1].Preview; preview == nil || preview.Text != "New comment" || preview.ProjectTitle != "Winter scarf" || preview.Role != "comment" {
+		t.Fatalf("wire preview=%+v", preview)
 	}
 	item := page.Items[0]
 	if item.Type != api.NotificationTypeLike || item.Actor.Handle != "alice.example" || item.SubjectPost == nil || item.SubjectPost.URI != subject.URI {

@@ -28,6 +28,11 @@ void main() {
     expect(data.state, PostSummaryState.visible);
     expect(data.text, post.text);
     expect(data.projectTitle, 'Hitchhiker shawl');
+    final notificationData = PostSummaryData.notificationSubject(post);
+    expect(notificationData.projectTitle, 'Hitchhiker shawl');
+    expect(notificationData.text, post.text);
+    expect(notificationData.image, isNull);
+    expect(notificationData.external, isNull);
     expect(data.image, same(post.images!.first));
     expect(data.externalImport, same(post.externalImport));
     expect(data.sponsored, isFalse);

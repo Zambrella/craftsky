@@ -75,8 +75,11 @@ final class PostSummaryData with PostSummaryDataMappable {
     _ => const PostSummaryData(state: PostSummaryState.unavailable),
   };
 
-  factory notificationSubject(Post post) =>
-      PostSummaryData(state: PostSummaryState.visible, text: post.text);
+  factory notificationSubject(Post post) => PostSummaryData(
+    state: PostSummaryState.visible,
+    text: post.text,
+    projectTitle: post.project?.common.title,
+  );
 
   factory savedPost(Post post) {
     if (post.availability == 'muted') {

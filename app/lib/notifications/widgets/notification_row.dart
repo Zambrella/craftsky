@@ -48,9 +48,8 @@ class NotificationRow extends ConsumerWidget {
     }
     return FollowReactionScope(
       identity: notification.id,
-      builder: (context) => Consumer(
-        builder: (context, ref, _) => _build(context, ref),
-      ),
+      builder: (context) =>
+          Consumer(builder: (context, ref, _) => _build(context, ref)),
     );
   }
 
@@ -67,10 +66,7 @@ class NotificationRow extends ConsumerWidget {
             !actorNotification.actor.available ||
             account.did == actorNotification.actor.did
         ? null
-        : profileRelationshipProvider(
-            account,
-            actorNotification.actor.did,
-          );
+        : profileRelationshipProvider(account, actorNotification.actor.did);
     final cachedRelationship = actorRelationshipProvider == null
         ? null
         : ref.watch(actorRelationshipProvider);
@@ -143,11 +139,24 @@ class NotificationRow extends ConsumerWidget {
         subjectPost,
       ),
       MentionNotification(:final subjectPost) => (
-        l10n.notificationMentionRow(actor),
+        switch (_roleOf(subjectPost)) {
+          _NotificationContentRole.post => l10n.notificationMentionPostRow(
+            actor,
+          ),
+          _NotificationContentRole.comment =>
+            l10n.notificationMentionCommentRow(actor),
+          _NotificationContentRole.reply => l10n.notificationMentionReplyRow(
+            actor,
+          ),
+        },
         subjectPost,
       ),
       QuoteNotification(:final subjectPost) => (
-        l10n.notificationQuoteRow(actor),
+        switch (actorNotification.quotedPreview?.role) {
+          'comment' => l10n.notificationQuoteCommentRow(actor),
+          'reply' => l10n.notificationQuoteReplyRow(actor),
+          _ => l10n.notificationQuoteRow(actor),
+        },
         subjectPost,
       ),
       GenericNotification() => (l10n.notificationGenericRow, null),
@@ -158,10 +167,7 @@ class NotificationRow extends ConsumerWidget {
         : () => _open(context, ref);
     final onActorTap = actorNotification.actor.available
         ? () => unawaited(
-            showUserProfileCard(
-              context,
-              did: actorNotification.actor.did,
-            ),
+            showUserProfileCard(context, did: actorNotification.actor.did),
           )
         : null;
     return Material(
@@ -225,8 +231,34 @@ class NotificationRow extends ConsumerWidget {
                     if (subjectPost != null) ...[
                       const SizedBox(height: 4),
                       PostSummary(
-                        data: PostSummaryData.notificationSubject(subjectPost),
+                        data: _previewData(
+                          actorNotification as SubjectPostNotification,
+                        ),
                         padding: EdgeInsets.zero,
+                      ),
+                    ],
+                    if (actorNotification case QuoteNotification(
+                      :final quotedPreview?,
+                    )) ...[
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.only(left: 12),
+                        decoration: BoxDecoration(
+                          border: Border(
+                            left: BorderSide(
+                              color: theme.colorScheme.outlineVariant,
+                              width: 2,
+                            ),
+                          ),
+                        ),
+                        child: PostSummary(
+                          data: PostSummaryData(
+                            state: PostSummaryState.visible,
+                            text: quotedPreview.text,
+                            projectTitle: quotedPreview.projectTitle,
+                          ),
+                          padding: EdgeInsets.zero,
+                        ),
                       ),
                     ],
                     if ((actorNotification is FollowNotification ||
@@ -245,6 +277,26 @@ class NotificationRow extends ConsumerWidget {
           ),
         ),
       ),
+    );
+  }
+
+  PostSummaryData _previewData(SubjectPostNotification notification) {
+    final preview = notification.preview;
+    if (preview == null) {
+      // A reply's parent is context, never a substitute for the new reply.
+      if (notification is ReplyNotification) {
+        return const PostSummaryData(state: PostSummaryState.visible);
+      }
+      return PostSummaryData.notificationSubject(notification.subjectPost);
+    }
+    return PostSummaryData(
+      state: PostSummaryState.visible,
+      text: preview.text,
+      projectTitle:
+          preview.projectTitle ??
+          (notification is ReplyNotification
+              ? notification.subjectPost.project?.common.title
+              : null),
     );
   }
 
@@ -313,9 +365,7 @@ class NotificationRow extends ConsumerWidget {
     switch (notification) {
       case FollowNotification(:final actor):
       case InstagramMatchNotification(:final actor):
-        unawaited(
-          UserProfileRoute(did: actor.did).push<void>(context),
-        );
+        unawaited(UserProfileRoute(did: actor.did).push<void>(context));
       case LikeNotification(:final subjectPost):
       case RepostNotification(:final subjectPost):
       case MentionNotification(:final subjectPost):
@@ -326,9 +376,7 @@ class NotificationRow extends ConsumerWidget {
       case GenericSystemNotification():
         break;
       case ModerationNotification():
-        unawaited(
-          const AccountStandingRoute().push<void>(context),
-        );
+        unawaited(const AccountStandingRoute().push<void>(context));
       case UnavailableNotification():
         context.showWarning(
           AppLocalizations.of(context).notificationUnavailableRow,
@@ -439,9 +487,7 @@ class _NotificationFollowButtonState
       return false;
     } on Object {
       if (!mounted || !_isOwnerCurrent()) return false;
-      context.showError(
-        AppLocalizations.of(context).profileFollowToggleError,
-      );
+      context.showError(AppLocalizations.of(context).profileFollowToggleError);
       return false;
     } finally {
       profileSubscription.close();
@@ -460,21 +506,19 @@ class _NotificationFollowButtonState
   }
 }
 
-Color _actionColor(
-  CraftskyNotification notification,
-  ColorScheme colors,
-) => switch (notification) {
-  FollowNotification() => colors.primary,
-  InstagramMatchNotification() => colors.primary,
-  LikeNotification() => colors.error,
-  RepostNotification() => colors.tertiary,
-  ReplyNotification() => colors.primary,
-  MentionNotification() || QuoteNotification() => colors.secondary,
-  GenericNotification() => colors.outline,
-  GenericSystemNotification() => colors.outline,
-  ModerationNotification() => colors.primary,
-  UnavailableNotification() => colors.error,
-};
+Color _actionColor(CraftskyNotification notification, ColorScheme colors) =>
+    switch (notification) {
+      FollowNotification() => colors.primary,
+      InstagramMatchNotification() => colors.primary,
+      LikeNotification() => colors.error,
+      RepostNotification() => colors.tertiary,
+      ReplyNotification() => colors.primary,
+      MentionNotification() || QuoteNotification() => colors.secondary,
+      GenericNotification() => colors.outline,
+      GenericSystemNotification() => colors.outline,
+      ModerationNotification() => colors.primary,
+      UnavailableNotification() => colors.error,
+    };
 
 class _NotificationTitleText extends StatefulWidget {
   const new({

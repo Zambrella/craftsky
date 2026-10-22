@@ -429,7 +429,8 @@ void main() {
     expect(find.text('Alice liked your post'), findsOneWidget);
     expect(find.text('Alice reposted your post'), findsOneWidget);
     expect(find.text('Alice commented on your post'), findsOneWidget);
-    expect(find.text('viewer post'), findsNWidgets(3));
+    expect(find.text('viewer post'), findsNWidgets(2));
+    expect(find.text('new reply text'), findsOneWidget);
     expect(find.text('alice.craftsky.social followed you'), findsOneWidget);
     final customisedAvatars = tester
         .widgetList<ProfileAvatar>(find.byType(ProfileAvatar))
@@ -619,10 +620,85 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(PostSummary), findsNWidgets(5));
-    expect(find.text('viewer post'), findsNWidgets(5));
+    expect(find.text('viewer post'), findsNWidgets(4));
+    expect(find.text('new reply text'), findsOneWidget);
     expect(find.byIcon(CraftskyIcons.saved), findsNothing);
     expect(find.byIcon(CraftskyIconsBold.unsaved), findsNothing);
   });
+
+  testWidgets(
+    'text previews show project titles and quote context without media',
+    (tester) async {
+      tester.view.physicalSize = const Size(1000, 1600);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final quote = CraftskyNotification.fromMap({
+        ..._baseNotification('quote', 'quote-preview'),
+        'subjectPost': _post(),
+        'preview': {
+          'text': 'Look at this stitch',
+          'projectTitle': 'My sweater',
+          'role': 'post',
+        },
+        'quotedPreview': {
+          'text': 'Original comment',
+          'projectTitle': 'Winter scarf',
+          'role': 'comment',
+        },
+      });
+      final mention = CraftskyNotification.fromMap({
+        ..._baseNotification('mention', 'mention-preview'),
+        'subjectPost': {
+          ..._post(),
+          'reply': {
+            'root': {
+              'uri': 'at://did:plc:viewer/social.craftsky.feed.post/root',
+              'cid': 'rootcid',
+            },
+            'parent': {
+              'uri': 'at://did:plc:viewer/social.craftsky.feed.post/parent',
+              'cid': 'parentcid',
+            },
+          },
+        },
+        'preview': {'text': 'What do you think?', 'role': 'reply'},
+      });
+      await tester.pumpWidget(
+        _TestApp(
+          home: Scaffold(
+            body: Column(
+              children: [
+                NotificationRow(notification: quote),
+                NotificationRow(notification: mention),
+                NotificationRow(notification: _reply('reply-preview')),
+              ],
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Alice quoted your comment'), findsOneWidget);
+      expect(find.text('Alice mentioned you in a reply'), findsOneWidget);
+      for (final text in [
+        'Look at this stitch',
+        'My sweater',
+        'Original comment',
+        'Winter scarf',
+        'What do you think?',
+        'new reply text',
+      ]) {
+        expect(find.text(text), findsOneWidget);
+      }
+      expect(find.text('viewer post'), findsNothing);
+      for (final summary in tester.widgetList<PostSummary>(
+        find.byType(PostSummary),
+      )) {
+        expect(summary.data.image, isNull);
+        expect(summary.data.external, isNull);
+      }
+    },
+  );
 
   testWidgets('UT-021 derives an actor avatar URL from an older CID response', (
     tester,
@@ -1314,6 +1390,7 @@ ReplyNotification _reply(
   ..._baseNotification('reply', rkey),
   'uri': 'at://did:plc:alice/social.craftsky.feed.post/$rkey',
   'subjectPost': subjectPost ?? _post(),
+  'preview': {'text': 'new reply text', 'role': 'comment'},
   if (includeFocus)
     'reply': {
       'uri': 'at://did:plc:alice/social.craftsky.feed.post/$rkey',

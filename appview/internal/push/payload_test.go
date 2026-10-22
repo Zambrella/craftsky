@@ -76,6 +76,9 @@ func TestBuildPayloadUT017UsesConversationRoleInVisibleCopy(t *testing.T) {
 		role     ContentRole
 		want     string
 	}{
+		{"mention post", notifications.Mention, ContentRolePost, "mentioned you in a post"},
+		{"mention comment", notifications.Mention, ContentRoleComment, "mentioned you in a comment"},
+		{"mention reply", notifications.Mention, ContentRoleReply, "mentioned you in a reply"},
 		{"like post", notifications.Like, ContentRolePost, "liked your post"},
 		{"like comment", notifications.Like, ContentRoleComment, "liked your comment"},
 		{"like reply", notifications.Like, ContentRoleReply, "liked your reply"},
@@ -153,5 +156,21 @@ func TestBuildModerationPayloadIsActorlessAndRoutesByPublicReference(t *testing.
 		if _, exists := payload.Data[forbidden]; exists {
 			t.Fatalf("payload contains forbidden key %q: %+v", forbidden, payload.Data)
 		}
+	}
+}
+
+func TestPreviewBodyKeepsProjectAndTextBoundedWithoutChangingRouting(t *testing.T) {
+	for _, category := range []notifications.Category{notifications.Reply, notifications.Mention, notifications.Quote} {
+		body := previewBody(category, "mentioned you in a reply", &notifications.Preview{Text: "  Beautiful\nwork!\x00  ", ProjectTitle: "Winter scarf"})
+		if body != "mentioned you in a reply: Winter scarf: Beautiful work!" {
+			t.Fatalf("body=%q", body)
+		}
+		body = previewBody(category, "replied to your comment", &notifications.Preview{Text: strings.Repeat("🧶", 300), ProjectTitle: strings.Repeat("é", 300)})
+		if len(body) > 256 || safePushDisplayText(body, "") == "" || !strings.Contains(body, "🧶") {
+			t.Fatalf("bounded body=%q (%d bytes)", body, len(body))
+		}
+	}
+	if got := previewBody(notifications.Follow, "followed you", &notifications.Preview{Text: "ignored"}); got != "followed you" {
+		t.Fatal(got)
 	}
 }
