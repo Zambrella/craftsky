@@ -150,7 +150,7 @@ void main() {
     expect(find.text('Signed in as @alice.test'), findsOneWidget);
     expect(find.byType(LinearProgressIndicator), findsOneWidget);
 
-    await tester.tap(find.bySemanticsLabel('Change avatar'));
+    await tester.tap(find.text('Change avatar'));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('onboarding-avatar-take-photo')));
     await tester.pumpAndSettle();

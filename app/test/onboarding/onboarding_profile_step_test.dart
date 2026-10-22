@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/onboarding/models/onboarding_flow_state.dart';
 import 'package:craftsky_app/onboarding/widgets/onboarding_profile_step.dart';
@@ -8,6 +10,7 @@ import 'package:craftsky_app/theme/brand_text_field.dart';
 import 'package:craftsky_app/theme/craftsky_field_scaffold.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:image/image.dart' as img;
 import 'package:material_ui/material_ui.dart';
 
 void main() {
@@ -87,14 +90,58 @@ void main() {
       'she/they',
     );
     await tester.enterText(find.byKey(const Key('onboarding-bio')), 'New bio');
-    await tester.ensureVisible(find.bySemanticsLabel('Change avatar'));
-    await tester.tap(find.bySemanticsLabel('Change avatar'));
+    await tester.ensureVisible(find.text('Change avatar'));
+    await tester.tap(find.text('Change avatar'));
     expect(changedName, 'Alicia');
     expect(changedPronouns, 'she/they');
     expect(changedBio, 'New bio');
     expect(avatarPicks, 1);
     expect(find.byIcon(CraftskyIcons.camera), findsNothing);
     expect(find.textContaining('Remove'), findsNothing);
+  });
+
+  testWidgets('keeps the change action available after repeated selections', (
+    tester,
+  ) async {
+    var state = OnboardingFlowState.fromProfile(
+      Profile(did: 'did:plc:alice', handle: 'alice.test', crafts: const []),
+    );
+    final previews = [
+      for (var i = 1; i <= 3; i++)
+        Uint8List.fromList(img.encodePng(img.Image(width: i, height: 1))),
+    ];
+    var picks = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.lightThemeData,
+        localizationsDelegates: appLocalizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: StatefulBuilder(
+              builder: (context, setState) => OnboardingProfileStep(
+                state: state,
+                onDisplayNameChanged: (_) {},
+                onPronounsChanged: (_) {},
+                onBioChanged: (_) {},
+                onPickAvatar: () => setState(() {
+                  state = state.copyWith(avatarPreview: previews[picks++]);
+                }),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    for (final preview in previews) {
+      await tester.tap(find.text('Change avatar'));
+      await tester.pumpAndSettle();
+      final avatar = tester.widget<CircleAvatar>(find.byType(CircleAvatar));
+      expect((avatar.backgroundImage! as MemoryImage).bytes, same(preview));
+      expect(find.text('Change avatar'), findsOneWidget);
+    }
+    expect(picks, 3);
   });
 
   testWidgets('AT-004 shows avatar upload progress and failure feedback', (
@@ -107,6 +154,16 @@ void main() {
     await _pumpStep(tester, initial.copyWith(uploadingAvatar: true));
     expect(find.text('Uploading photo...'), findsOneWidget);
     expect(find.byType(LinearProgressIndicator), findsOneWidget);
+    expect(
+      tester.widget<TextButton>(find.byType(TextButton)).onPressed,
+      isNull,
+    );
+
+    await _pumpStep(tester, initial.copyWith(saving: true));
+    expect(
+      tester.widget<TextButton>(find.byType(TextButton)).onPressed,
+      isNull,
+    );
 
     await _pumpStep(tester, initial.copyWith(avatarUploadFailed: true));
     expect(find.text('Photo upload failed. Try again.'), findsOneWidget);
