@@ -4,6 +4,31 @@ import 'package:craftsky_app/projects/models/project.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('scheduled project duration can be changed or cleared', () async {
+    const existing = Project(
+      common: ProjectCommon(
+        craftType: 'social.craftsky.feed.defs#knitting',
+        duration: '2 days',
+      ),
+    );
+    for (final duration in ['4 weeks', null]) {
+      final args = await buildProjectComposerSubmitArguments(
+        text: 'Project',
+        langs: const ['en'],
+        project: Project(common: existing.common.copyWith(duration: duration)),
+        existingProject: existing,
+        imagesState: const ComposerImagesState(images: []),
+        generateFacets: (
+          text, {
+          includeMentions = true,
+          includeLinks = true,
+          includeTags = true,
+        }) async => [],
+      );
+      expect(args.project.common.duration, duration);
+    }
+  });
+
   test(
     'scheduled form rebuild retains future metadata and additional crafts',
     () async {

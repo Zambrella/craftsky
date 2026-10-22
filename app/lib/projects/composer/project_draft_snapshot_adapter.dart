@@ -118,6 +118,7 @@ class ProjectDraftSnapshotAdapter {
     ProjectComposerFields.additionalCrafts,
     ProjectComposerFields.status,
     ProjectComposerFields.title,
+    ProjectComposerFields.duration,
     ProjectComposerFields.materials,
     ProjectComposerFields.colours,
     ProjectComposerFields.designTags,

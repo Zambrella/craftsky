@@ -42,6 +42,7 @@ void main() {
         'craftType': ProjectOptionCatalogs.knittingCraftToken,
         'status': ProjectOptionCatalogs.finishedStatusToken,
         'title': 'Cardigan',
+        'duration': '4 weeks',
         'colors': ['blue'],
         'designTags': ['cables'],
         'materials': [
@@ -72,6 +73,7 @@ void main() {
     });
 
     expect(values[ProjectComposerFields.title], 'Cardigan');
+    expect(values[ProjectComposerFields.duration], '4 weeks');
     expect(values[ProjectComposerFields.materials], [
       const ProjectMaterial(text: 'Wool'),
     ]);

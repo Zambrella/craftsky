@@ -103,6 +103,9 @@ void main() {
     );
 
     await _selectCraft(tester, 'Embroidery');
+    final duration = find.byKey(const Key('project-duration-input'));
+    await tester.ensureVisible(duration);
+    await tester.enterText(duration, '  4 weeks  ');
     await _goNext(tester);
     await _goNext(tester);
     await tester.enterText(
@@ -133,6 +136,7 @@ void main() {
       capturedProject!.common.craftType,
       ProjectOptionCatalogs.embroideryCraftToken,
     );
+    expect(capturedProject!.common.duration, '4 weeks');
     expect(capturedProject!.details, isNull);
     expect(capturedProject!.common.title, isNull);
     expect(capturedProject!.common.materials, isNull);

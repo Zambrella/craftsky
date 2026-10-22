@@ -74,6 +74,27 @@ void main() {
     );
     expect(find.text('Project title'), findsOneWidget);
     expect(find.text('Pattern tag or name'), findsOneWidget);
+    expect(find.text('Duration'), findsOneWidget);
+    expect(find.text('e.g. 2 days or 4 weeks'), findsOneWidget);
+    final duration = find.byKey(const Key('project-duration-input'));
+    expect(
+      tester.getTopLeft(duration).dy,
+      greaterThan(
+        tester
+            .getBottomLeft(
+              find.byKey(const Key('project-composer-pattern-name-field')),
+            )
+            .dy,
+      ),
+    );
+    expect(
+      tester.getBottomLeft(duration).dy,
+      lessThan(
+        tester
+            .getTopLeft(find.byKey(const Key('project-composer-body-editor')))
+            .dy,
+      ),
+    );
     expect(
       find.byKey(const Key('project-composer-body-editor')),
       findsOneWidget,

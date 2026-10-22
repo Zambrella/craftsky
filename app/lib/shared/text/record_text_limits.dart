@@ -22,6 +22,7 @@ abstract final class RecordTextLimits {
   static const displayName = RecordTextLimit(64, 640);
   static const pronouns = RecordTextLimit(20, 200);
   static const bio = RecordTextLimit(256, 2560);
+  static const projectDuration = RecordTextLimit(100, 500);
   static const projectTitle = RecordTextLimit(200, 500);
   static const patternText = RecordTextLimit(200, 500);
   static const projectSize = RecordTextLimit(100, 500);

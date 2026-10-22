@@ -21,6 +21,7 @@ Map<String, dynamic> hydrateScheduledProjectComposer(
     ..[ProjectComposerFields.status] =
         common['status'] ?? ProjectOptionCatalogs.finishedStatusToken
     ..[ProjectComposerFields.title] = common['title']
+    ..[ProjectComposerFields.duration] = common['duration']
     ..[ProjectComposerFields.colours] = common['colors']
     ..[ProjectComposerFields.designTags] = common['designTags'];
 

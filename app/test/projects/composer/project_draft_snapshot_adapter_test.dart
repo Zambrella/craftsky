@@ -11,6 +11,7 @@ void main() {
     final encoded = adapter.encodeKnownFields({
       ProjectComposerFields.craftType: 'knitting',
       ProjectComposerFields.title: 'Half-finished cardigan',
+      ProjectComposerFields.duration: '4 weeks',
       ProjectComposerFields.materials: const [
         ProjectMaterial(
           text: 'Wool',
@@ -29,6 +30,7 @@ void main() {
     });
 
     expect(encoded, isNot(contains('unknownRuntimeField')));
+    expect(encoded[ProjectComposerFields.duration], '4 weeks');
     expect(encoded[ProjectComposerFields.knittingGaugeRows], isNull);
     expect(encoded[ProjectComposerFields.materials], [
       {
@@ -41,6 +43,7 @@ void main() {
 
     final decoded = adapter.decodeKnownFields(encoded);
     expect(decoded[ProjectComposerFields.title], 'Half-finished cardigan');
+    expect(decoded[ProjectComposerFields.duration], '4 weeks');
     expect(
       decoded[ProjectComposerFields.materials],
       isA<List<ProjectMaterial>>(),
