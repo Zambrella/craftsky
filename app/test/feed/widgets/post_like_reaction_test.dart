@@ -108,6 +108,98 @@ void main() {
   });
 
   testWidgets(
+    'centres feedback in the visible post and follows scrolling without replay',
+    (tester) async {
+      final container = await containerForTest();
+      final scroll = ScrollController();
+      addTearDown(scroll.dispose);
+      const viewportKey = Key('feed-viewport');
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp(
+            home: Scaffold(
+              body: Center(
+                child: SizedBox(
+                  key: viewportKey,
+                  width: 360,
+                  height: 300,
+                  child: SingleChildScrollView(
+                    controller: scroll,
+                    child: Column(
+                      children: [
+                        const SizedBox(height: 200),
+                        RepaintBoundary(
+                          child: SizedBox(
+                            height: 800,
+                            child: PostLikeReaction(
+                              liked: false,
+                              onLike: () {},
+                              builder: (context, react) => Align(
+                                alignment: Alignment.topCenter,
+                                child: TextButton(
+                                  onPressed: react,
+                                  child: const Text('Like'),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 600),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('Like'));
+      await tester.pump();
+      final animation = find.byType(rive.RiveWidget);
+      final controller = tester.widget<rive.RiveWidget>(animation).controller;
+      final viewport = tester.getRect(find.byKey(viewportKey));
+
+      void expectVisibleCentre() {
+        final post = tester.getRect(find.byType(PostLikeReaction));
+        final visible = post.intersect(viewport);
+        final heart = tester.getRect(animation);
+        expect(heart.center, visible.center);
+        expect(heart.left, greaterThanOrEqualTo(visible.left));
+        expect(heart.top, greaterThanOrEqualTo(visible.top));
+        expect(heart.right, lessThanOrEqualTo(visible.right));
+        expect(heart.bottom, lessThanOrEqualTo(visible.bottom));
+        expect(
+          tester.widget<rive.RiveWidget>(animation).controller,
+          controller,
+        );
+      }
+
+      // Only the top 100 pixels of this tall post are initially visible.
+      expectVisibleCentre();
+      scroll.jumpTo(250);
+      await tester.pump();
+      expectVisibleCentre();
+      scroll.jumpTo(900);
+      await tester.pump();
+      expectVisibleCentre();
+
+      // The card is still mounted but fully outside the viewport.
+      scroll.jumpTo(1050);
+      await tester.pump();
+      expect(find.byType(PostLikeReaction), findsOneWidget);
+      expect(animation.hitTestable(), findsNothing);
+      scroll.jumpTo(250);
+      await tester.pump();
+      expectVisibleCentre();
+      await tester.pump(const Duration(milliseconds: 1500));
+      expect(find.byKey(const Key('post-like-reaction')), findsNothing);
+      await tester.pumpWidget(const SizedBox());
+    },
+  );
+
+  testWidgets(
     'rapid unlike, replay, rollback and recycled cards clear feedback',
     (
       tester,
