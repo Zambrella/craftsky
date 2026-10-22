@@ -36,51 +36,58 @@ class CompactProfileIdentity extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            Expanded(
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  final nameWidth = _textWidth(
-                    context,
-                    name,
-                    theme.textTheme.titleSmall,
-                  );
-                  // The name takes priority over craft glyphs. Reserve only
-                  // the overflow count when the full name and crafts cannot
-                  // share the row.
-                  final iconBudget = math.min(
-                    constraints.maxWidth,
-                    math.max(
-                      constraints.maxWidth - nameWidth,
-                      8 + _craftCountWidth(context, crafts.length),
-                    ),
-                  );
-                  return Row(
-                    children: [
-                      Flexible(
-                        child: Text(
-                          name,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: theme.textTheme.titleSmall,
-                        ),
+        LayoutBuilder(
+          builder: (context, rowConstraints) => Row(
+            children: [
+              Expanded(
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final nameWidth = _textWidth(
+                      context,
+                      name,
+                      theme.textTheme.titleSmall,
+                    );
+                    // The name takes priority over craft glyphs. Reserve only
+                    // the overflow count when the full name and crafts cannot
+                    // share the row.
+                    final iconBudget = math.min(
+                      constraints.maxWidth,
+                      math.max(
+                        constraints.maxWidth - nameWidth,
+                        8 + _craftCountWidth(context, crafts.length),
                       ),
-                      if (crafts.isNotEmpty)
-                        ConstrainedBox(
-                          constraints: BoxConstraints(maxWidth: iconBudget),
-                          child: _CompactCraftIcons(crafts: crafts),
+                    );
+                    return Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.titleSmall,
+                          ),
                         ),
-                    ],
-                  );
-                },
+                        if (crafts.isNotEmpty)
+                          ConstrainedBox(
+                            constraints: BoxConstraints(maxWidth: iconBudget),
+                            child: _CompactCraftIcons(crafts: crafts),
+                          ),
+                      ],
+                    );
+                  },
+                ),
               ),
-            ),
-            if (badge case final badge?) ...[
-              const SizedBox(width: 8),
-              Flexible(child: badge),
+              if (badge case final badge?) ...[
+                const SizedBox(width: 8),
+                ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxWidth: rowConstraints.maxWidth * .4,
+                  ),
+                  child: badge,
+                ),
+              ],
             ],
-          ],
+          ),
         ),
         Text(
           identity.currentLabel(unavailableLabel: l10n.handleUnavailable),
