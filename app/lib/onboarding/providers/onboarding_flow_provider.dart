@@ -144,6 +144,16 @@ class OnboardingFlow extends _$OnboardingFlow {
     state = AsyncData(current.copyWith(selectedCraftIds: selected));
   }
 
+  void reorderCrafts(List<String> ids) {
+    final current = state.value;
+    if (current == null || current.saving) return;
+    if (ids.length != current.selectedCraftIds.length ||
+        !ids.toSet().containsAll(current.selectedCraftIds)) {
+      return;
+    }
+    state = AsyncData(current.copyWith(selectedCraftIds: ids.toSet()));
+  }
+
   // This method is passed directly as a ValueChanged<bool> callback.
   // ignore: avoid_positional_boolean_parameters
   void setMeetsMinimumAge(bool value) {

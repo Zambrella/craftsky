@@ -288,6 +288,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    await tester.ensureVisible(find.text('Request more'));
     await tester.tap(find.text('Request more'));
     await tester.pump();
 

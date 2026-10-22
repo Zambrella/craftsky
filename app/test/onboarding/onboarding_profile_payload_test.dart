@@ -234,6 +234,30 @@ void main() {
     },
   );
 
+  test('craft order alone is dirty and payloads retain the intended order', () {
+    final profile = _fullProfile().copyWith(
+      crafts: ['knitting', 'future-craft', 'sewing'],
+    );
+    final initial = OnboardingFlowState.fromProfile(profile);
+    expect(initial.craftsDirty, isFalse);
+    // Saving identity must preserve the full existing array verbatim.
+    expect(OnboardingProfilePayload.fromState(initial).crafts, [
+      'knitting',
+      'future-craft',
+      'sewing',
+    ]);
+    final reordered = initial.copyWith(
+      step: OnboardingStep.crafts,
+      selectedCraftIds: {'sewing', 'knitting'},
+    );
+    expect(reordered.craftsDirty, isTrue);
+    expect(OnboardingProfilePayload.fromState(reordered).crafts, [
+      'sewing',
+      'knitting',
+      'future-craft',
+    ]);
+  });
+
   test('step payloads preserve fields owned by the other step', () {
     final profile = Profile(
       did: 'did:plc:alice',

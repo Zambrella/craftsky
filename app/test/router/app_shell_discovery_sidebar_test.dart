@@ -1157,9 +1157,9 @@ void main() {
         );
         await tester.tap(find.text('Choose your crafts'));
         await tester.pumpAndSettle();
-        final chip = find.widgetWithText(FilterChip, 'Knitting');
-        await tester.ensureVisible(chip);
-        await tester.tap(chip);
+        final craft = find.byKey(const ValueKey('craft-choice-knitting'));
+        await tester.ensureVisible(craft);
+        await tester.tap(craft);
         await tester.pumpAndSettle();
         await tester.tap(find.widgetWithText(TextButton, 'Save'));
         await tester.pumpAndSettle();
@@ -1229,7 +1229,7 @@ void main() {
     });
   }
   testWidgets(
-    'AT-002 distinct supported preferred craft links in catalog order',
+    'AT-002 distinct supported preferred craft links in profile order',
     (tester) async {
       await _pumpSidebar(
         tester,
@@ -1247,8 +1247,8 @@ void main() {
         matching: find.byType(TextButton),
       );
       expect(tester.widgetList<TextButton>(links).map((button) => button.key), [
-        const ValueKey('discovery-craft-knitting'),
         const ValueKey('discovery-craft-quilting'),
+        const ValueKey('discovery-craft-knitting'),
       ]);
       expect(find.byKey(const Key('discovery-craft-sewing')), findsNothing);
     },

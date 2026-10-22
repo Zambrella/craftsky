@@ -1,5 +1,8 @@
 import 'dart:async';
 
+import 'package:craftsky_app/auth/models/account_key.dart';
+import 'package:craftsky_app/drafts/composer/draft_composer_hydrator.dart';
+import 'package:craftsky_app/drafts/models/local_post_draft.dart';
 import 'package:craftsky_app/feed/providers/composer_image_state.dart';
 import 'package:craftsky_app/feed/providers/composer_images_provider.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
@@ -15,6 +18,7 @@ import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/craftsky_form_builder_select_fields.dart';
 import 'package:craftsky_app/theme/publishing_progress_indicator.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_form_builder/flutter_form_builder.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
@@ -23,6 +27,116 @@ import 'package:rive/rive.dart' as rive;
 import '../../fakes/recording_messenger.dart';
 
 void main() {
+  for (final savedCraft in [ProjectOptionCatalogs.sewingCraftToken, null]) {
+    testWidgets('restored drafts retain their saved selection ($savedCraft)', (
+      tester,
+    ) async {
+      final seed = LocalPostDraftSeed(
+        draft: LocalPostDraft(
+          id: 'craft-draft',
+          owner: AccountKey('did:plc:test'),
+          kind: LocalPostDraftKind.project,
+          createdAt: DateTime.utc(2026, 10, 22),
+          updatedAt: DateTime.utc(2026, 10, 22),
+          content: ProjectDraftContent(
+            body: '',
+            languages: const ['en'],
+            knownProjectFieldValues: {'craftType': savedCraft},
+          ),
+          schedule: const DraftScheduleIntent.now(),
+          media: const [],
+        ),
+        media: const [],
+      );
+      await _pumpComposer(
+        tester,
+        'restored-craft-composer',
+        defaultCraft: ProjectOptionCatalogs.quiltingCraftToken,
+        draftSeed: seed,
+      );
+      expect(
+        tester
+            .state<FormBuilderState>(find.byType(FormBuilder))
+            .fields['craftType']!
+            .value,
+        savedCraft,
+      );
+    });
+  }
+
+  testWidgets('new projects preselect the default craft', (tester) async {
+    await _pumpComposer(
+      tester,
+      'default-craft-composer',
+      defaultCraft: ProjectOptionCatalogs.quiltingCraftToken,
+    );
+    expect(
+      tester
+          .state<FormBuilderState>(find.byType(FormBuilder))
+          .fields['craftType']!
+          .value,
+      ProjectOptionCatalogs.quiltingCraftToken,
+    );
+    expect(
+      find.byKey(const Key('project-composer-craft-details-action')),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('late preferences apply once and preserve a manual selection', (
+    tester,
+  ) async {
+    final preference = ValueNotifier<String?>(null);
+    addTearDown(preference.dispose);
+    await _pumpComposer(tester, 'late-craft-composer', preference: preference);
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ProjectComposerSheet)),
+    );
+    preference.value = ProjectOptionCatalogs.quiltingCraftToken;
+    container.invalidate(defaultProjectCraftProvider);
+    await tester.pumpAndSettle();
+    FormBuilderState form() =>
+        tester.state<FormBuilderState>(find.byType(FormBuilder));
+    expect(
+      form().fields['craftType']!.value,
+      ProjectOptionCatalogs.quiltingCraftToken,
+    );
+    await _selectCraft(tester, 'Sewing');
+    preference.value = ProjectOptionCatalogs.knittingCraftToken;
+    container.invalidate(defaultProjectCraftProvider);
+    await tester.pumpAndSettle();
+    expect(
+      form().fields['craftType']!.value,
+      ProjectOptionCatalogs.sewingCraftToken,
+    );
+  });
+
+  testWidgets('a manual selection before preferences load is retained', (
+    tester,
+  ) async {
+    final preference = ValueNotifier<String?>(null);
+    addTearDown(preference.dispose);
+    await _pumpComposer(
+      tester,
+      'manual-craft-composer',
+      preference: preference,
+    );
+    await _selectCraft(tester, 'Sewing');
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ProjectComposerSheet)),
+    );
+    preference.value = ProjectOptionCatalogs.knittingCraftToken;
+    container.invalidate(defaultProjectCraftProvider);
+    await tester.pumpAndSettle();
+    expect(
+      tester
+          .state<FormBuilderState>(find.byType(FormBuilder))
+          .fields['craftType']!
+          .value,
+      ProjectOptionCatalogs.sewingCraftToken,
+    );
+  });
+
   testWidgets('sewing fit notes stop at the lexicon character boundary', (
     tester,
   ) async {
@@ -170,7 +284,7 @@ void main() {
         .widgetList<CraftIcon>(find.byType(CraftIcon))
         .map((widget) => widget.craft.split('#').last)
         .toList();
-    expect(labels, ['sewing', 'quilting', 'knitting', 'crochet', 'embroidery']);
+    expect(labels, ['quilting', 'sewing', 'knitting', 'crochet', 'embroidery']);
 
     await tester.tap(find.text('Knitting').last);
     await tester.pumpAndSettle();
@@ -213,11 +327,17 @@ Future<void> _pumpComposer(
   WidgetTester tester,
   String composerId, {
   double bottomInset = 0,
+  String? defaultCraft,
+  LocalPostDraftSeed? draftSeed,
+  ValueNotifier<String?>? preference,
   List<String> crafts = const [],
 }) async {
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
+        defaultProjectCraftProvider.overrideWith(
+          (ref) => preference?.value ?? defaultCraft,
+        ),
         publishingAnimationFileProvider.overrideWith(
           (ref) => Completer<rive.File>().future,
         ),
@@ -230,7 +350,9 @@ Future<void> _pumpComposer(
             contentLanguages: ['en'],
           ),
         ),
-        composerImagesProvider(composerId).overrideWithValue(_readyImagesState),
+        if (draftSeed == null)
+          composerImagesProvider(composerId)
+              .overrideWithValue(_readyImagesState),
       ],
       child: MessengerScope(
         messenger: RecordingMessenger(),
@@ -244,7 +366,10 @@ Future<void> _pumpComposer(
                 padding: EdgeInsets.only(bottom: bottomInset),
                 viewPadding: EdgeInsets.only(bottom: bottomInset),
               ),
-              child: ProjectComposerSheet(composerId: composerId),
+              child: ProjectComposerSheet(
+                composerId: composerId,
+                draftSeed: draftSeed,
+              ),
             ),
           ),
         ),

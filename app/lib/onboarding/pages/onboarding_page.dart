@@ -180,6 +180,9 @@ class _OnboardingFlowScaffold extends ConsumerWidget {
                                 state: state,
                                 onToggle: (craft) =>
                                     notifier.toggleCraft(craft.id),
+                                onReorder: (crafts) => notifier.reorderCrafts(
+                                  crafts.map((craft) => craft.id).toList(),
+                                ),
                                 onRequestMore: () => unawaited(
                                   _openTrustedLink(context, settingsSupportUri),
                                 ),

@@ -670,7 +670,7 @@ void main() {
           (_, _) {},
         );
         addTearDown(subscription.close);
-        final knitting = find.widgetWithText(FilterChip, 'Knitting');
+        final knitting = find.byKey(const ValueKey('craft-choice-knitting'));
         await tester.ensureVisible(knitting);
         await tester.pumpAndSettle();
         await tester.tap(knitting);
@@ -690,8 +690,13 @@ void main() {
         await tester.pumpAndSettle();
         expect(
           tester
-              .widget<FilterChip>(find.widgetWithText(FilterChip, 'Knitting'))
-              .selected,
+              .widget<Checkbox>(
+                find.descendant(
+                  of: find.byKey(const ValueKey('craft-choice-knitting')),
+                  matching: find.byType(Checkbox),
+                ),
+              )
+              .value,
           isTrue,
         );
       },
@@ -1202,14 +1207,58 @@ void main() {
       },
     );
 
-    testWidgets('tapping a craft chip toggles its selection state', (
+    testWidgets('reordering alone saves and survives reopening', (
+      tester,
+    ) async {
+      List<String>? savedCrafts;
+      final repo = FakeProfileRepository(
+        onFetch: (_) async => _seedProfile,
+        onUpdateMe:
+            ({
+              displayName,
+              pronouns,
+              description,
+              crafts,
+              avatar,
+              clearAvatar = false,
+              banner,
+              clearBanner = false,
+            }) async {
+              savedCrafts = crafts;
+              return _seedProfile.copyWith(crafts: crafts);
+            },
+      );
+      await _pumpEditDialog(tester, repo: repo);
+      final reorder = find.byTooltip('Reorder Quilting');
+      await tester.ensureVisible(reorder);
+      await tester.tap(reorder);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Move up'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(TextButton, 'Save'));
+      await tester.pumpAndSettle();
+      expect(savedCrafts, ['quilting', 'sewing']);
+      await tester.tap(find.text('Open'));
+      await tester.pumpAndSettle();
+      expect(
+        find.descendant(
+          of: find.byKey(const ValueKey('craft-choice-quilting')),
+          matching: find.text('Default'),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('tapping a craft row toggles its selection state', (
       tester,
     ) async {
       final repo = FakeProfileRepository(onFetch: (_) async => _seedProfile);
       await _pumpEditDialog(tester, repo: repo);
 
       // 'Knitting' starts unselected (seed has only sewing + quilting).
-      final knittingFinder = find.widgetWithText(FilterChip, 'Knitting');
+      final knittingFinder = find.byKey(
+        const ValueKey('craft-choice-knitting'),
+      );
       expect(knittingFinder, findsOneWidget);
 
       // The crafts grid is below the fold in the default 800x600 test
@@ -1217,16 +1266,18 @@ void main() {
       await tester.ensureVisible(knittingFinder);
       await tester.pumpAndSettle();
 
-      FilterChip knitting() => tester.widget<FilterChip>(knittingFinder);
-      expect(knitting().selected, isFalse);
+      Checkbox knitting() => tester.widget<Checkbox>(
+        find.descendant(of: knittingFinder, matching: find.byType(Checkbox)),
+      );
+      expect(knitting().value, isFalse);
 
       await tester.tap(knittingFinder);
       await tester.pump();
-      expect(knitting().selected, isTrue);
+      expect(knitting().value, isTrue);
 
       await tester.tap(knittingFinder);
       await tester.pump();
-      expect(knitting().selected, isFalse);
+      expect(knitting().value, isFalse);
     });
   });
 }

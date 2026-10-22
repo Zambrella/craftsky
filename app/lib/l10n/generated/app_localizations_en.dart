@@ -92,6 +92,25 @@ class AppLocalizationsEn extends AppLocalizations {
   String get externalLinkConfirmAction => 'Open link';
 
   @override
+  String get craftsDefaultLabel => 'Default';
+
+  @override
+  String get craftsMoveUp => 'Move up';
+
+  @override
+  String get craftsMoveDown => 'Move down';
+
+  @override
+  String craftsReorderLabel(String craft) {
+    return 'Reorder $craft';
+  }
+
+  @override
+  String craftsDragLabel(String craft) {
+    return 'Drag to reorder $craft';
+  }
+
+  @override
   String get craftsRequestMoreAction => 'Request more';
 
   @override

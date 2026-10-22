@@ -20,7 +20,7 @@ preferredCraftLinksProvider = Provider.autoDispose
       if (profileState.isLoading) return const AsyncLoading();
       return profileState.whenData((profile) {
         final selected = profile.crafts.toSet();
-        return ProjectOptionCatalogs.craftTypes
+        return ProjectOptionCatalogs.craftTypesForPreferences(profile.crafts)
             .where((option) => selected.contains(option.value.split('#').last))
             .toList(growable: false);
       });
