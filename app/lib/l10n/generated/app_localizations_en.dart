@@ -947,6 +947,17 @@ class AppLocalizationsEn extends AppLocalizations {
   String get postComposeTitle => 'New post';
 
   @override
+  String get postTypeExplainerTitle => 'What would you like to share?';
+
+  @override
+  String get postTypeExplainerRegularDescription =>
+      'Share a quick update, ask a question, or show what’s inspiring you.';
+
+  @override
+  String get postTypeExplainerProjectDescription =>
+      'Document something you’re making, with details like the craft, pattern, materials, and progress.';
+
+  @override
   String get postTypeRegularLabel => 'Regular post';
 
   @override

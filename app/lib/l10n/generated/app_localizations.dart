@@ -1702,6 +1702,24 @@ abstract class AppLocalizations {
   /// **'New post'**
   String get postComposeTitle;
 
+  /// Title of the first-use post type explainer.
+  ///
+  /// In en, this message translates to:
+  /// **'What would you like to share?'**
+  String get postTypeExplainerTitle;
+
+  /// Why someone would choose a regular post in the first-use explainer.
+  ///
+  /// In en, this message translates to:
+  /// **'Share a quick update, ask a question, or show what’s inspiring you.'**
+  String get postTypeExplainerRegularDescription;
+
+  /// Why someone would choose a project post in the first-use explainer.
+  ///
+  /// In en, this message translates to:
+  /// **'Document something you’re making, with details like the craft, pattern, materials, and progress.'**
+  String get postTypeExplainerProjectDescription;
+
   /// Label for the regular-post option in the top-level post-type chooser.
   ///
   /// In en, this message translates to:

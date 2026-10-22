@@ -808,6 +808,15 @@
   "postComposeTitle": "New post",
   "@postComposeTitle": { "description": "Title of the text-only post composer sheet." },
 
+  "postTypeExplainerTitle": "What would you like to share?",
+  "@postTypeExplainerTitle": { "description": "Title of the first-use post type explainer." },
+
+  "postTypeExplainerRegularDescription": "Share a quick update, ask a question, or show what’s inspiring you.",
+  "@postTypeExplainerRegularDescription": { "description": "Why someone would choose a regular post in the first-use explainer." },
+
+  "postTypeExplainerProjectDescription": "Document something you’re making, with details like the craft, pattern, materials, and progress.",
+  "@postTypeExplainerProjectDescription": { "description": "Why someone would choose a project post in the first-use explainer." },
+
   "postTypeRegularLabel": "Regular post",
   "@postTypeRegularLabel": { "description": "Label for the regular-post option in the top-level post-type chooser." },
 
