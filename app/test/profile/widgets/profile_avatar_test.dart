@@ -133,16 +133,14 @@ void main() {
       expect(decoration.boxShadow, isNotEmpty);
     });
 
-    testWidgets('renders the selected customisation border inside the avatar', (
+    testWidgets('renders the selected customisation border around the photo', (
       tester,
     ) async {
       await tester.pumpWidget(
         _wrap(
           const ProfileAvatar(
             seed: 'F',
-            customisation: ProfileCustomisation(
-              colour: 'rose',
-            ),
+            customisation: ProfileCustomisation(colour: 'rose'),
           ),
         ),
       );
@@ -169,5 +167,22 @@ void main() {
           );
       expect(borderedLayers, hasLength(1));
     });
+
+    for (final size in ProfileAvatarSize.values) {
+      testWidgets('${size.name} reserves border space outside the full photo', (
+        tester,
+      ) async {
+        await tester.pumpWidget(_wrap(ProfileAvatar(seed: 'A', size: size)));
+
+        final photo = tester.getRect(find.byType(ClipOval));
+        final border = tester.getRect(
+          find.byKey(const Key('profile-avatar-border')),
+        );
+        expect(photo.size, Size.square(size.dimension));
+        expect(border, photo.inflate(size.borderWidth));
+        expect(tester.getRect(find.byType(ProfileAvatar)), border);
+        expect(tester.takeException(), isNull);
+      });
+    }
   });
 }
