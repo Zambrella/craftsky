@@ -5,6 +5,7 @@ import 'package:craftsky_app/drafts/models/draft_manifest_error.dart';
 import 'package:craftsky_app/drafts/models/draft_media_descriptor.dart';
 import 'package:craftsky_app/drafts/models/local_post_draft.dart';
 import 'package:craftsky_app/drafts/models/video_draft_descriptor.dart';
+import 'package:craftsky_app/feed/media/media_config.dart';
 
 export 'package:craftsky_app/drafts/models/draft_manifest_error.dart';
 
@@ -214,7 +215,7 @@ abstract final class DraftManifestCodec {
   }
 
   static void _validateMediaList(List<DraftMediaDescriptor> descriptors) {
-    if (descriptors.length > 4) {
+    if (descriptors.length > defaultMaxPostImages) {
       throw const DraftManifestException(
         DraftManifestFailureReason.invalidMedia,
       );

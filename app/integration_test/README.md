@@ -1,5 +1,8 @@
 # Flutter integration tests
 
+For the separate, opt-in journey using real OAuth, AppView/PDS writes and the
+native photo picker, see [`../patrol_test/README.md`](../patrol_test/README.md).
+
 This directory owns device/process coverage. The fast `app-test` recipe still
 runs only `test/`; use `just app-test-integration <device-id>` locally and
 `just app-test-integration-ci <device-id>` in CI.
@@ -23,7 +26,7 @@ Covered journeys:
 - Mobile startup dependency resolution through package-info, device-info, and
   shared-preferences plugins.
 
-Not responsibly automated yet:
+Outside this loopback suite:
 
 - Initial OAuth login/add-account requires a disposable PDS identity and a
   browser redirect service. The suite covers retained-account activation, not
@@ -55,7 +58,8 @@ flutter test integration_test/image_compression_test.dart -d <ios-device-id>
 ```
 
 It checks JPEG orientation and metadata removal, Apple HEIC-to-JPEG conversion,
-PNG transparency, real 48 MP input, and the quality/resize loop's hard byte limit. The HEIC fixture
+JPEG/PNG files with appended data, PNG transparency, real 48 MP input, and the
+quality/resize loop's hard byte limit. The HEIC fixture
 is a synthetic red/blue image generated with Apple ImageIO and includes only
 synthetic metadata canaries. HEIC conversion runs on iOS; JPEG/PNG
 checks also apply to Android. An iPhone run remains necessary to assess camera

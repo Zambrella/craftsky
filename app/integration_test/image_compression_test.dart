@@ -58,6 +58,33 @@ void main() {
     },
   );
 
+  for (final png in [false, true]) {
+    testWidgets('native codec accepts ${png ? 'PNG' : 'JPEG'} appended data', (
+      tester,
+    ) async {
+      final image = img.Image(width: 40, height: 60);
+      final appended = 'CraftSkyAppendedMotionData'.codeUnits;
+      final prepared = await const ComposerImageMediaService()
+          .prepareImage(
+            bytes: Uint8List.fromList([
+              ...png ? img.encodePng(image) : img.encodeJpg(image),
+              ...appended,
+            ]),
+            fileName: png ? 'photo.png' : 'photo.jpg',
+            mimeType: png ? 'image/png' : 'image/jpeg',
+          )
+          .future;
+      expect((prepared.width, prepared.height), (40, 60));
+      final decoded = img.decodeImage(prepared.bytes)!;
+      expect((decoded.width, decoded.height), (40, 60));
+      expect(prepared.bytes.length, lessThanOrEqualTo(2000000));
+      expect(
+        String.fromCharCodes(prepared.bytes),
+        isNot(contains(String.fromCharCodes(appended))),
+      );
+    });
+  }
+
   testWidgets('native processing accepts a real 48 MP source', (tester) async {
     // Generate in a disposable isolate so the source bitmap is not retained
     // by the test while the native decoder processes the encoded photo.

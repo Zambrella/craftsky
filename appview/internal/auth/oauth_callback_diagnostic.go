@@ -119,3 +119,14 @@ func canonicalDiagnosticScope(scope string) (string, bool) {
 	}
 	return name + "?" + parameters.Encode(), true
 }
+
+// Select a closed OAuth error code; descriptions, URLs and unknown prose stay private.
+func providerCallbackDiagnostic(code string) error {
+	reason := "provider_callback_error_unknown"
+	switch code {
+	case "access_denied", "invalid_request", "invalid_client", "invalid_scope",
+		"unauthorized_client", "unsupported_response_type", "server_error", "temporarily_unavailable":
+		reason = "provider_callback_error_" + code
+	}
+	return callbackDiagnostic(reason, ErrOAuthFlowInvalid)
+}

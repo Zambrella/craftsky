@@ -3,6 +3,7 @@ abstract final class ProjectComposerFields {
   static const additionalCrafts = 'additionalCrafts';
   static const status = 'status';
   static const title = 'title';
+  static const duration = 'duration';
   static const materials = 'materials';
   static const colours = 'colors';
   static const designTags = 'designTags';

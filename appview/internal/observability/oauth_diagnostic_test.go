@@ -5,6 +5,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"github.com/bluesky-social/indigo/atproto/identity"
 	"log/slog"
 	"strings"
 	"testing"
@@ -80,5 +82,28 @@ func TestOAuthFailureFactsSurviveLocalAndSDKSinks(t *testing.T) {
 	}
 	if OAuthRequestFailure(nil) != nil {
 		t.Fatal("success acquired a failure")
+	}
+}
+
+func TestIdentitySentinelFactsSurviveSinksWithoutInput(t *testing.T) {
+	for _, sentinel := range []error{identity.ErrHandleNotFound, identity.ErrHandleMismatch, identity.ErrDIDResolutionFailed} {
+		var local bytes.Buffer
+		transport := &sentry.MockTransport{}
+		observer := New(Config{Env: "test", Logger: slog.New(NewDiagnosticHandler(slog.NewJSONHandler(&local, nil))), SentryDSN: "https://public@example.invalid/1", SentryTransport: transport})
+		ctx := WithRequestObserver(ctxkeys.WithRunID(context.Background(), "10000000-0000-4000-8000-000000000001"), observer)
+		ReportRequestFailure(ctx, fmt.Errorf("PRIVATE_IDENTITY_INPUT: %w", sentinel), "login.start", "identity")
+		observer.Flush(time.Second)
+		payload, err := json.Marshal(transport.Events())
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, sink := range []string{local.String(), string(payload)} {
+			if !strings.Contains(sink, sentinel.Error()) || !strings.Contains(sink, "login.start") {
+				t.Fatal("identity fact lost")
+			}
+			if strings.Contains(sink, "PRIVATE_IDENTITY_INPUT") {
+				t.Fatal("identity input escaped")
+			}
+		}
 	}
 }

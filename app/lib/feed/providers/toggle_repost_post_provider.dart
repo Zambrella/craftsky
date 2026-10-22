@@ -25,74 +25,81 @@ class ToggleRepostPost extends _$ToggleRepostPost {
   FutureOr<Post?> build() => null;
 
   Future<void> toggle({required Post post}) async {
-    final operation = ActiveAccountOperation.capture(ref);
-    final desiredReposted = !post.viewerHasReposted;
-    final next = post.copyWith(
-      viewerHasReposted: desiredReposted,
-      repostCount: post.viewerHasReposted
-          ? (post.repostCount > 0 ? post.repostCount - 1 : 0)
-          : post.repostCount + 1,
-    );
-    final endpoint = '/v1/posts/${post.author.did}/${post.rkey}/reposts';
-    final immutableBody = desiredReposted ? 'POST\n' : 'DELETE\n';
-    final controller = ref.read(pdsRecordOperationControllerProvider);
-    final scope = repostPostMutationScope(ref, post);
-    final token = controller.beginOrRetry(
-      scope: scope,
-      endpoint: endpoint,
-      immutableBody: immutableBody,
-      newOperationKey: newPdsMutationOperationKey,
-    );
-    final operationKey = token.operationKey;
-    late final repo = ref.read(postRepositoryProvider);
-
-    state = AsyncData(next);
+    // A submitted mutation owns its completion even if its UI listener leaves.
+    // Explicit invalidation/account changes still end its authority.
+    final lifetime = ref.keepAlive();
     try {
-      await runPdsMutation<void>(
-        ref: ref,
-        controller: controller,
-        token: token,
-        isCurrent: () => operation.isCurrent,
-        send: () async {
-          if (desiredReposted) {
-            await repo.repost(
-              post.author.did,
-              post.rkey,
-              operationKey: operationKey,
-            );
-          } else {
-            await repo.unrepost(
-              post.author.did,
-              post.rkey,
-              operationKey: operationKey,
-            );
-          }
-        },
+      final operation = ActiveAccountOperation.capture(ref);
+      final desiredReposted = !post.viewerHasReposted;
+      final next = post.copyWith(
+        viewerHasReposted: desiredReposted,
+        repostCount: post.viewerHasReposted
+            ? (post.repostCount > 0 ? post.repostCount - 1 : 0)
+            : post.repostCount + 1,
       );
-    } on PdsMutationObsoleteException {
-      return;
-    } on PdsMutationUnresolvedException catch (error, stackTrace) {
-      operation.publish(() => state = AsyncError<Post?>(error, stackTrace));
-      return;
-    } on Object catch (error, stackTrace) {
-      if (!operation.isCurrent) return;
-      controller.markFailed(token);
-      state = const AsyncData(null);
-      state = AsyncError<Post?>(error, stackTrace);
-      return;
-    }
+      final endpoint = '/v1/posts/${post.author.did}/${post.rkey}/reposts';
+      final immutableBody = desiredReposted ? 'POST\n' : 'DELETE\n';
+      final controller = ref.read(pdsRecordOperationControllerProvider);
+      final scope = repostPostMutationScope(ref, post);
+      final token = controller.beginOrRetry(
+        scope: scope,
+        endpoint: endpoint,
+        immutableBody: immutableBody,
+        newOperationKey: newPdsMutationOperationKey,
+      );
+      final operationKey = token.operationKey;
+      late final repo = ref.read(postRepositoryProvider);
 
-    if (!operation.isCurrent) return;
-    final reconciliation = PdsSetReconciliation(active: desiredReposted);
-    if (!controller.markAccepted(
-      token,
-      optimisticValue: desiredReposted,
-      agrees: (value) => value is bool && reconciliation.agrees(value),
-      refresh: () => _invalidateRepostReads(ref, post),
-    )) {
-      return;
+      state = AsyncData(next);
+      try {
+        await runPdsMutation<void>(
+          ref: ref,
+          controller: controller,
+          token: token,
+          isCurrent: () => operation.isCurrent,
+          send: () async {
+            if (desiredReposted) {
+              await repo.repost(
+                post.author.did,
+                post.rkey,
+                operationKey: operationKey,
+              );
+            } else {
+              await repo.unrepost(
+                post.author.did,
+                post.rkey,
+                operationKey: operationKey,
+              );
+            }
+          },
+        );
+      } on PdsMutationObsoleteException {
+        return;
+      } on PdsMutationUnresolvedException catch (error, stackTrace) {
+        operation.publish(() => state = AsyncError<Post?>(error, stackTrace));
+        return;
+      } on Object catch (error, stackTrace) {
+        if (!operation.isCurrent) return;
+        controller.markFailed(token);
+        state = const AsyncData(null);
+        state = AsyncError<Post?>(error, stackTrace);
+        return;
+      }
+
+      if (!operation.isCurrent) return;
+      final reconciliation = PdsSetReconciliation(active: desiredReposted);
+      if (!controller.markAccepted(
+        token,
+        optimisticValue: desiredReposted,
+        agrees: (value) => value is bool && reconciliation.agrees(value),
+        refresh: () => _invalidateRepostReads(ref, post),
+      )) {
+        return;
+      }
+      state = AsyncData<Post?>(next);
+    } finally {
+      lifetime.close();
     }
-    state = AsyncData<Post?>(next);
   }
 
   void reset() => state = const AsyncData(null);

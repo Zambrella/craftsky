@@ -519,6 +519,9 @@ func (service *OAuthFlowService) finalizeOnboardingCallback(
 	if err == nil {
 		err = finalize(ctx, result)
 	}
+	if err == nil && result.Attempt.permitsOrdinaryOnboarding() && service.onboardingReconciler != nil {
+		err = service.onboardingReconciler.Activate(ctx, result)
+	}
 	if err != nil {
 		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), service.callbackOperationTimeout)
 		defer cancel()
@@ -649,7 +652,7 @@ func (service *OAuthFlowService) processInitialCallback(
 	}
 	if callbackError := params.Get("error"); callbackError != "" {
 		_ = service.store.MarkExchangeFailed(ctx, attempt.State, attempt.AttemptID)
-		return OAuthCallbackResult{}, callbackDiagnostic("provider_callback_error", ErrOAuthFlowInvalid)
+		return OAuthCallbackResult{}, providerCallbackDiagnostic(callbackError)
 	}
 	issuer, authorizationCode := params.Get("iss"), params.Get("code")
 	if issuer == "" || authorizationCode == "" || issuer != info.AuthServerURL {

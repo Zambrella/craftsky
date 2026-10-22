@@ -834,6 +834,8 @@
   "projectComposerProjectTitleHint": "Add a short project title",
   "@projectComposerProjectTitleHint": { "description": "Placeholder text for the optional project-title field in the project composer." },
 
+  "projectComposerDurationLabel": "Duration",
+  "projectComposerDurationHint": "e.g. 2 days or 4 weeks",
   "projectComposerDescriptionLabel": "Project description",
   "@projectComposerDescriptionLabel": { "description": "Label above the main project description text field in the project composer." },
 

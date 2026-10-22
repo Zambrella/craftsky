@@ -81,6 +81,9 @@ func ResolveFacetMentionHandler(resolver FacetMentionResolver, logger *slog.Logg
 			return
 		}
 		if errors.Is(err, ErrMentionIdentityUnavailable) {
+			logger.Error("facet mention identity unavailable",
+				apiLogErrorAttrs(r.Context(), middleware.GetRunID(r.Context()), "facet.mention.resolve", "identity", err)...)
+
 			envelope.WriteError(w, http.StatusServiceUnavailable, "identity_unavailable", "identity verification is temporarily unavailable", middleware.GetRunID(r.Context()), nil)
 			return
 		}

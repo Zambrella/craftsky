@@ -10,3 +10,15 @@ abstract interface class DiagnosticFailureCause {
 final class DiagnosticStateError extends StateError {
   new(super.message);
 }
+
+/// A static, reviewed format explanation with an optional original cause.
+/// Never construct the message from input, mapper prose, or dependency output.
+final class DiagnosticFormatException extends FormatException
+    implements DiagnosticFailureCause {
+  const new(super.message, {this.diagnosticCause, this.diagnosticStack});
+
+  @override
+  final Object? diagnosticCause;
+  @override
+  final StackTrace? diagnosticStack;
+}

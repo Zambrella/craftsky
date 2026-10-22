@@ -234,6 +234,14 @@ func (f *recoveryFixture) complete(finalize auth.OAuthCallbackFinalizer) error {
 	return f.flow.CompleteCallback(context.Background(), url.Values{"state": {f.state}, "iss": {"https://auth.example.com"}, "code": {"single-use-code"}}, finalize)
 }
 
+func (f *recoveryFixture) ProjectCraftskyProfile(ctx context.Context, owner syntax.DID, cid syntax.CID, _ map[string]any) error {
+	return f.owners.WithAuthTransaction(ctx, func(tx pgx.Tx) error {
+		_, err := tx.Exec(ctx, `INSERT INTO craftsky_profiles(did,crafts,record_cid) VALUES($1,ARRAY[]::text[],$2)
+			ON CONFLICT(did) DO UPDATE SET record_cid=EXCLUDED.record_cid`, owner, cid)
+		return err
+	})
+}
+
 func TestOAuthMissingProfileReconciliationCompletesSameSignIn(t *testing.T) {
 	f := newRecoveryFixture(t)
 	var code string
@@ -245,7 +253,7 @@ func TestOAuthMissingProfileReconciliationCompletesSameSignIn(t *testing.T) {
 		if _, err := f.store.ResumePendingOnboardingSession(ctx, result.Attempt); err != nil {
 			return err
 		}
-		if err := auth.InitializeProfileAndIdentityCache(ctx, f.pds, result.Attempt, f.writer, nil, nil, nil, nil); err != nil {
+		if err := auth.InitializeProfileAndIdentityCache(ctx, f.pds, result.Attempt, f.writer, nil, f, nil, nil); err != nil {
 			return err
 		}
 		var err error
@@ -279,13 +287,7 @@ func TestOAuthMissingProfileReconciliationCompletesSameSignIn(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	sessions, err := auth.NewSessionLifecycleService(auth.SessionLifecycleOptions{Pool: f.pool, Owners: f.owners, Sessions: f.children})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err = f.owners.TransitionWith(context.Background(), ownerlifecycle.TransitionRequest{Owner: f.owner, ExpectedGeneration: 3, To: ownerlifecycle.StateActive, Reason: "profileActivated"}, sessions.ProfileActivationParticipant()); err != nil {
-		t.Fatal(err)
-	}
+	// No Tap event or manual activation occurs between callback and first use.
 	if err = f.handoffs.Confirm(context.Background(), exchange.Token, exchange.ReceiptID, "recovery-device"); err != nil {
 		t.Fatal(err)
 	}
@@ -333,7 +335,7 @@ func TestOAuthMissingProfileReconciliationPreservesConcurrentProfile(t *testing.
 	f := newRecoveryFixture(t)
 	f.pds.concurrentRecord = map[string]any{"$type": "social.craftsky.actor.profile", "crafts": []string{"crochet"}}
 	err := f.complete(func(ctx context.Context, result auth.OAuthCallbackResult) error {
-		return auth.InitializeProfileAndIdentityCache(ctx, f.pds, result.Attempt, f.writer, nil, nil, nil, nil)
+		return auth.InitializeProfileAndIdentityCache(ctx, f.pds, result.Attempt, f.writer, nil, f, nil, nil)
 	})
 	if err != nil {
 		t.Fatalf("concurrent profile: %v", err)
@@ -403,6 +405,7 @@ func TestOAuthMissingProfileReconciliationRollsBackOnParticipantFailure(t *testi
 
 func TestOAuthMissingProfileReconciliationRejectsStaleAttemptAfterRebinding(t *testing.T) {
 	f := newRecoveryFixture(t)
+	want := errors.New("stop after stale attempt check")
 	err := f.complete(func(ctx context.Context, result auth.OAuthCallbackResult) error {
 		result.Attempt.OwnerGeneration--
 		result.Attempt.AuthEpoch--
@@ -410,10 +413,35 @@ func TestOAuthMissingProfileReconciliationRejectsStaleAttemptAfterRebinding(t *t
 		if !errors.Is(err, auth.ErrCallbackAttemptInvalid) {
 			t.Fatalf("stale attempt accepted: %v", err)
 		}
-		return nil
+		return want
 	})
-	if err != nil || f.departures != 1 {
+	if !errors.Is(err, want) || f.departures != 1 {
 		t.Fatalf("stale attempt changed recovery: %v, departures=%d", err, f.departures)
+	}
+}
+
+func TestOAuthOnboardingActivationFailsClosedWithoutProjectedProfile(t *testing.T) {
+	f := newRecoveryFixture(t)
+	err := f.complete(func(ctx context.Context, result auth.OAuthCallbackResult) error {
+		_, err := f.handoffs.CreateExchange(ctx, result.Attempt, result.Handle, "recovery-device")
+		return err
+	})
+	if !errors.Is(err, auth.ErrProfileInitFailed) {
+		t.Fatalf("unprojected callback = %v", err)
+	}
+	authority, err := f.owners.Get(context.Background(), f.owner)
+	if err != nil || authority.State != ownerlifecycle.StateDeparted || authority.Generation != 3 {
+		t.Fatalf("activation did not roll back: %+v, %v", authority, err)
+	}
+	var parentState, exchangeState string
+	if err := f.pool.QueryRow(context.Background(), `SELECT parent.lifecycle_state,exchange.state
+		FROM oauth_sessions parent JOIN oauth_handoff_exchanges exchange
+		ON exchange.owner_did=parent.account_did AND exchange.oauth_session_id=parent.session_id
+		WHERE parent.session_id=$1`, f.state).Scan(&parentState, &exchangeState); err != nil {
+		t.Fatal(err)
+	}
+	if parentState != "revocation_pending" || exchangeState != "revoked" {
+		t.Fatalf("failed activation left usable handoff: %s/%s", parentState, exchangeState)
 	}
 }
 

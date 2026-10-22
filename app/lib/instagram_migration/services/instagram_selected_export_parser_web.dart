@@ -1,15 +1,17 @@
 import 'package:craftsky_app/instagram_migration/models/instagram_import.dart';
 import 'package:craftsky_app/instagram_migration/services/instagram_import_parser.dart';
-import 'package:file_selector/file_selector.dart' show XFile;
+import 'package:file_picker/file_picker.dart';
 
 Future<InstagramImportParseResult> parseSelectedInstagramExport(
-  XFile file,
+  PlatformFile file,
 ) async {
   final length = await file.length();
-  if (length > InstagramImportParser.maxFileBytes) {
+  if (length == null || length > InstagramImportParser.maxFileBytes) {
     throw const InstagramImportParseException(
       InstagramImportParseErrorCode.fileTooLarge,
     );
   }
   return const InstagramImportParser().parseJson(await file.readAsBytes());
 }
+
+Future<void> clearExportPickerCache() async {}

@@ -3,6 +3,7 @@ package api_test
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"github.com/getsentry/sentry-go"
 	"github.com/jackc/pgx/v5/pgconn"
 	"log/slog"
@@ -63,5 +64,35 @@ func TestProjectReadRecurrenceRetainsStageAndRequestCorrelation(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestMentionIdentityFailureRetainsCauseAndSingleIssue(t *testing.T) {
+	var local bytes.Buffer
+	logger := slog.New(observability.NewDiagnosticHandler(slog.NewJSONHandler(&local, nil)))
+	transport := &sentry.MockTransport{}
+	observer := observability.New(observability.Config{Env: "test", Logger: logger, SentryDSN: "https://public@example.invalid/1", SentryTransport: transport})
+	cause := fmt.Errorf("%w: %w", api.ErrMentionIdentityUnavailable, &net.DNSError{Err: "PRIVATE_DNS_REASON", Name: "PRIVATE_HOST"})
+	handler := middleware.Logging(logger)(middleware.HTTPMetrics(observer)(api.ResolveFacetMentionHandler(fakeFacetMentionResolver{err: cause}, logger)))
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, authedReq("GET", "/v1/facets/mentions/resolve?handle=private.example", "", "did:plc:viewer"))
+	observer.Flush(time.Second)
+	events := transport.Events()
+	if rec.Code != 503 || len(events) != 1 {
+		t.Fatalf("response/ownership changed: status=%d issues=%d", rec.Code, len(events))
+	}
+	if events[0].Tags["operation"] != "facet.mention.resolve" || events[0].Tags["failure_stage"] != "identity" {
+		t.Fatal("missing stage")
+	}
+	payload, _ := json.Marshal(events)
+	for _, sink := range []string{local.String(), string(payload)} {
+		if !strings.Contains(sink, "DNSError") || !strings.Contains(sink, rec.Header().Get("X-Request-ID")) {
+			t.Fatal("cause/correlation lost")
+		}
+		for _, private := range []string{"PRIVATE_DNS_REASON", "PRIVATE_HOST", "private.example"} {
+			if strings.Contains(sink, private) {
+				t.Fatal("protected value escaped")
+			}
+		}
 	}
 }

@@ -198,6 +198,7 @@ void main() {
       FlutterError.onError!(
         FlutterErrorDetails(
           exception: PlatformOpaqueFailure(),
+          library: 'rendering library',
           stack: safeStack,
         ),
       );
@@ -216,6 +217,7 @@ void main() {
       expect(serialized, isNot(contains('path-canary')));
       expect(serialized, contains('PlatformOpaqueFailure'));
       expect(serialized, contains('loadPublicRecord'));
+      expect(serialized, contains('rendering'));
       for (final record in records) {
         expect(utf8.encode(record).length, lessThanOrEqualTo(2048));
         expect(jsonDecode(record), isA<Map<String, dynamic>>());

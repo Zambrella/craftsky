@@ -1494,6 +1494,16 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
           normalizeValue: _patternFormValue,
           onChanged: _onPatternNameChanged,
         ),
+        SizedBox(height: spacing.sp4),
+        CraftskyFormBuilderTextField(
+          name: ProjectComposerFields.duration,
+          label: l10n.projectComposerDurationLabel,
+          hintText: l10n.projectComposerDurationHint,
+          maxLength: RecordTextLimits.projectDuration.graphemes,
+          maxBytes: RecordTextLimits.projectDuration.bytes,
+          textFieldKey: const Key('project-duration-input'),
+          enabled: controlsEnabled,
+        ),
       ],
     );
   }

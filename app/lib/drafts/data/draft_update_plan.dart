@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:craftsky_app/drafts/data/local_post_draft_repository.dart';
 import 'package:craftsky_app/drafts/models/draft_media_descriptor.dart';
+import 'package:craftsky_app/feed/media/media_config.dart';
 import 'package:crypto/crypto.dart';
 
 final class PlannedDraftMediaWrite {
@@ -31,7 +32,7 @@ final class DraftUpdatePlan {
     required List<DraftMediaWrite> orderedMedia,
     required String Function() nextStorageRevision,
   }) {
-    if (orderedMedia.length > 4) {
+    if (orderedMedia.length > defaultMaxPostImages) {
       throw const DraftRepositoryException(
         DraftRepositoryFailureReason.invalidRequest,
       );

@@ -2,16 +2,147 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:craftsky_app/auth/models/account_key.dart';
+import 'package:craftsky_app/auth/models/account_session_lease.dart';
+import 'package:craftsky_app/drafts/composer/composer_draft_session.dart';
+import 'package:craftsky_app/drafts/composer/draft_composer_hydrator.dart';
+import 'package:craftsky_app/drafts/composer/draft_media_write_adapter.dart';
 import 'package:craftsky_app/drafts/data/draft_file_store.dart';
 import 'package:craftsky_app/drafts/data/draft_storage_paths.dart';
 import 'package:craftsky_app/drafts/data/file_local_post_draft_repository.dart';
 import 'package:craftsky_app/drafts/data/local_post_draft_repository.dart';
 import 'package:craftsky_app/drafts/models/draft_manifest_codec.dart';
 import 'package:craftsky_app/drafts/models/local_post_draft.dart';
+import 'package:craftsky_app/feed/providers/composer_image_state.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
 
 void main() {
+  for (final kind in LocalPostDraftKind.values) {
+    for (final count in [5, 6, 8]) {
+      test('saves, reopens and snapshots a ${kind.name} draft '
+          'with $count photos', () async {
+        final root = await Directory.systemTemp.createTemp(
+          'local-drafts-photos-',
+        );
+        addTearDown(() => root.delete(recursive: true));
+        final owner = AccountKey('did:plc:alice');
+        final lease = ActiveAccountLease(
+          session: AccountSessionLease(account: owner, sessionGeneration: 1),
+          activationGeneration: 1,
+        );
+        const draftId = '00000000-0000-4000-8000-000000000001';
+        final content = switch (kind) {
+          LocalPostDraftKind.standard => const StandardDraftContent(
+            text: 'Work',
+            languages: ['en'],
+          ),
+          LocalPostDraftKind.project => const ProjectDraftContent(
+            body: 'Work',
+            languages: ['en'],
+            knownProjectFieldValues: {'title': 'Jumper'},
+          ),
+        };
+        final repository = FileLocalPostDraftRepository(
+          documentsRoot: root.path,
+          owner: owner,
+        );
+        final saved = await repository.save(
+          DraftWriteRequest(
+            id: draftId,
+            owner: owner,
+            kind: kind,
+            content: content,
+            schedule: const DraftScheduleIntent.now(),
+            orderedMedia: [
+              for (var index = 0; index < count; index++)
+                PreparedDraftMedia(
+                  mediaId:
+                      '00000000-0000-4000-8000-'
+                      '${(index + 2).toString().padLeft(12, '0')}',
+                  displayFileName: 'image-$index.png',
+                  mimeType: 'image/png',
+                  bytes: Uint8List.fromList([index + 1]),
+                  width: 1,
+                  height: 1,
+                  altText: 'Photo $index',
+                ),
+            ],
+          ),
+        );
+        final restarted = FileLocalPostDraftRepository(
+          documentsRoot: root.path,
+          owner: owner,
+        );
+        final restored = await restarted.get(draftId);
+        expect(restored.media, hasLength(count));
+        expect((await restarted.list()).single.canEdit, isTrue);
+        final seed = await const DraftComposerHydrator().hydrate(
+          repository: restarted,
+          draft: restored,
+        );
+        expect(seed.canSubmit, isTrue);
+        for (var index = 0; index < count; index++) {
+          expect(seed.media[index].bytes, [index + 1]);
+          expect(seed.media[index].descriptor.order, index);
+          expect(seed.media[index].descriptor.altText, 'Photo $index');
+        }
+
+        // Publishing an existing draft first persists this recovery snapshot.
+        final origin = ComposerDraftSession(restored);
+        await origin.saveOriginSnapshot(
+          expectedOwner: lease,
+          activeOwner: lease,
+          save: (_) => restarted.save(
+            DraftWriteRequest(
+              id: draftId,
+              owner: owner,
+              kind: kind,
+              content: content,
+              expectedRevision: restored.revision,
+              schedule: const DraftScheduleIntent.now(),
+              orderedMedia: draftMediaWritesFromComposer([
+                for (final item in seed.media.reversed)
+                  ComposerImageDraft(
+                    id: item.descriptor.mediaId,
+                    fileName: item.descriptor.displayFileName,
+                    mimeType: item.descriptor.mimeType,
+                    altText: item.descriptor.altText,
+                    phase: ImageReady(
+                      bytes: item.bytes!,
+                      mimeType: item.descriptor.mimeType,
+                      width: item.descriptor.width,
+                      height: item.descriptor.height,
+                      sha256: item.descriptor.sha256,
+                      storedOrigin: StoredDraftMediaOrigin(
+                        mediaId: item.descriptor.mediaId,
+                        storageRevision: item.descriptor.storageRevision,
+                        sha256: item.descriptor.sha256,
+                        byteLength: item.descriptor.byteLength,
+                      ),
+                    ),
+                  ),
+              ]),
+            ),
+          ),
+        );
+        final snapshot = await restarted.get(draftId);
+        expect(origin.draft?.revision, saved.revision + 1);
+        expect(
+          snapshot.media.map((item) => item.mediaId),
+          restored.media.reversed.map((item) => item.mediaId),
+        );
+        expect(
+          snapshot.media.map((item) => item.order),
+          List.generate(count, (index) => index),
+        );
+        expect(
+          snapshot.media.map((item) => item.storageFileName),
+          restored.media.reversed.map((item) => item.storageFileName),
+        );
+      });
+    }
+  }
+
   test(
     'saves prepared bytes and restores them after repository restart',
     () async {

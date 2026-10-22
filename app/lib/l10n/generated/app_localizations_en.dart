@@ -965,6 +965,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get projectComposerProjectTitleHint => 'Add a short project title';
 
   @override
+  String get projectComposerDurationLabel => 'Duration';
+
+  @override
+  String get projectComposerDurationHint => 'e.g. 2 days or 4 weeks';
+
+  @override
   String get projectComposerDescriptionLabel => 'Project description';
 
   @override
