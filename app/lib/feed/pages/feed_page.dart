@@ -5,6 +5,7 @@ import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/timeline_page.dart';
 import 'package:craftsky_app/feed/providers/delete_post_provider.dart';
+import 'package:craftsky_app/feed/providers/feed_reselect_provider.dart';
 import 'package:craftsky_app/feed/providers/timeline_provider.dart';
 import 'package:craftsky_app/feed/providers/toggle_like_post_provider.dart';
 import 'package:craftsky_app/feed/providers/toggle_repost_post_provider.dart';
@@ -70,6 +71,10 @@ class _FeedPageState extends ConsumerState<FeedPage> {
       MediaQuery.sizeOf(context).width,
     ).isSmall;
     ref
+      ..listen(feedReselectProvider, (_, _) {
+        _scrollToTop();
+        ref.invalidate(timelineProvider);
+      })
       ..listen(deletePostProvider, (previous, next) {
         switch ((previous, next)) {
           case (AsyncLoading(), AsyncData(value: != null)):
