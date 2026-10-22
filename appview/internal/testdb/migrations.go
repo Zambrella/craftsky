@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgconn"
 )
@@ -102,4 +103,20 @@ func ApplyAllUpMigrations(ctx context.Context, executor MigrationExecutor) error
 		return err
 	}
 	return ApplyMigrations(ctx, executor, names...)
+}
+
+func applyUpMigrationsWithTimeout(ctx context.Context, executor MigrationExecutor, timeout time.Duration) error {
+	names, err := UpMigrationNames()
+	if err != nil {
+		return err
+	}
+	for _, name := range names {
+		migrationCtx, cancel := context.WithTimeout(ctx, timeout)
+		err := ApplyMigrations(migrationCtx, executor, name)
+		cancel()
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }

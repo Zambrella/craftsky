@@ -22,18 +22,11 @@ void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
   configureCriticalJourneyPreferences();
 
-  late CriticalJourneyHarness harness;
-
-  setUp(() async {
-    harness = await CriticalJourneyHarness.start();
-    addTearDown(harness.close);
-  });
-
   // IT-002 / FR-006, FR-008 / AC-009, AC-011; IT-001 real native socket corroboration.
-  testWidgets(
+  _criticalJourney(
     'status dismissal persists after actual preferences reload '
     'and fresh controller',
-    (tester) async {
+    (tester, harness) async {
       harness.status.document = {
         'schemaVersion': 2,
         'revision': 'A',
@@ -53,11 +46,14 @@ void main() {
         ],
       );
       final first = fresh();
-      final controller = first.read(serviceStatusControllerProvider.notifier)
-        ..start();
-      await _pumpUntil(tester, () => controller.announcement != null);
-      expect(await controller.dismissAnnouncement(), isTrue);
-      first.dispose();
+      try {
+        final controller = first.read(serviceStatusControllerProvider.notifier)
+          ..start();
+        await _pumpUntil(tester, () => controller.announcement != null);
+        expect(await controller.dismissAnnouncement(), isTrue);
+      } finally {
+        first.dispose();
+      }
       final preferences = await SharedPreferences.getInstance();
       await preferences.reload();
       expect(
@@ -65,54 +61,57 @@ void main() {
         'A',
       );
       final second = fresh();
-      addTearDown(second.dispose);
-      final restarted = second.read(serviceStatusControllerProvider.notifier)
-        ..start();
-      await _pumpUntil(
-        tester,
-        () =>
-            second.read(serviceStatusControllerProvider).dismissalReady &&
-            second.read(serviceStatusControllerProvider).document?.revision ==
-                'A',
-      );
-      expect(restarted.announcement, isNull);
-      harness.status.document = {
-        ...harness.status.document,
-        'revision': 'unrelated',
-      };
-      await restarted.refresh();
-      expect(restarted.announcement, isNull);
-      harness.status.document = {
-        ...harness.status.document,
-        'revision': 'B',
-        'message': {
-          ...harness.status.document['message']! as Map<String, dynamic>,
+      try {
+        final restarted = second.read(serviceStatusControllerProvider.notifier)
+          ..start();
+        await _pumpUntil(
+          tester,
+          () =>
+              second.read(serviceStatusControllerProvider).dismissalReady &&
+              second.read(serviceStatusControllerProvider).document?.revision ==
+                  'A',
+        );
+        expect(restarted.announcement, isNull);
+        harness.status.document = {
+          ...harness.status.document,
+          'revision': 'unrelated',
+        };
+        await restarted.refresh();
+        expect(restarted.announcement, isNull);
+        harness.status.document = {
+          ...harness.status.document,
           'revision': 'B',
-        },
-      };
-      await restarted.refresh();
-      expect(restarted.announcement?.revision, 'B');
-      harness.status.document = {
-        ...harness.status.document,
-        'maintenance': {
-          'title': 'Maintenance',
-          'description': 'Public integration notice',
-        },
-      };
-      await restarted.refresh();
-      expect(restarted.maintenanceActive, isTrue);
-      expect(harness.status.requests.length, greaterThanOrEqualTo(4));
-      for (final headers in harness.status.requests) {
-        expect(headers['authorization'], isNull);
-        expect(headers['cookie'], isNull);
-        expect(headers['x-device-id'], isNull);
+          'message': {
+            ...harness.status.document['message']! as Map<String, dynamic>,
+            'revision': 'B',
+          },
+        };
+        await restarted.refresh();
+        expect(restarted.announcement?.revision, 'B');
+        harness.status.document = {
+          ...harness.status.document,
+          'maintenance': {
+            'title': 'Maintenance',
+            'description': 'Public integration notice',
+          },
+        };
+        await restarted.refresh();
+        expect(restarted.maintenanceActive, isTrue);
+        expect(harness.status.requests.length, greaterThanOrEqualTo(4));
+        for (final headers in harness.status.requests) {
+          expect(headers['authorization'], isNull);
+          expect(headers['cookie'], isNull);
+          expect(headers['x-device-id'], isNull);
+        }
+      } finally {
+        second.dispose();
       }
     },
   );
 
-  testWidgets(
+  _criticalJourney(
     'authenticated read switches retained accounts and reloads account data',
-    (tester) async {
+    (tester, harness) async {
       final dependencies = await harness.loadPlatformDependencies();
       expect(dependencies.packageInfo.version, isNotEmpty);
       expect(dependencies.deviceInfo.platform, anyOf('Android', 'iOS'));
@@ -166,9 +165,9 @@ void main() {
     },
   );
 
-  testWidgets(
+  _criticalJourney(
     'composer publishes through the AppView client and updates the live feed',
-    (tester) async {
+    (tester, harness) async {
       await harness.loadPlatformDependencies();
       await _mountApp(tester, harness);
       await _pumpUntilFound(tester, find.text('Alice timeline'));
@@ -256,9 +255,9 @@ void main() {
     },
   );
 
-  testWidgets(
+  _criticalJourney(
     'notification open traverses the runtime and pushes a profile deep link',
-    (tester) async {
+    (tester, harness) async {
       await harness.loadPlatformDependencies();
       await _mountApp(tester, harness);
       await _pumpUntilFound(tester, find.text('Alice timeline'));
@@ -292,6 +291,26 @@ void main() {
   );
 }
 
+// Keep socket creation, provider disposal, and awaited server shutdown inside
+// testWidgets' guarded zone. A package-level setUp/addTearDown can otherwise
+// deliver connection cancellation into a test that has already completed.
+void _criticalJourney(
+  String description,
+  Future<void> Function(WidgetTester, CriticalJourneyHarness) body,
+) {
+  testWidgets(description, (tester) async {
+    final harness = await CriticalJourneyHarness.start();
+    try {
+      await body(tester, harness);
+    } finally {
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump();
+      await harness.close();
+      tester.view.reset();
+    }
+  });
+}
+
 Future<void> _mountApp(
   WidgetTester tester,
   CriticalJourneyHarness harness,
@@ -300,11 +319,6 @@ Future<void> _mountApp(
   tester.view
     ..devicePixelRatio = 1
     ..physicalSize = const Size(402, 874);
-  addTearDown(tester.view.reset);
-  addTearDown(() async {
-    await tester.pumpWidget(const SizedBox.shrink());
-    await tester.pump();
-  });
   await tester.pumpWidget(harness.app);
 }
 

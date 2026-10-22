@@ -133,9 +133,9 @@ Then from the repository root:
 ```sh
 CRAFTSKY_STATUS_BUILD_A=/tmp/craftsky-status-build-a \
 CRAFTSKY_STATUS_BUILD_B=/tmp/craftsky-status-build-b \
-  npm exec --prefix web -- playwright test --config web/playwright.status.config.js
+  npm run --prefix web test:status
 ```
 
-The dedicated runner starts only disposable loopback app/status servers on ports 4175/4176. It checks a compiled marker plus real package-info metadata, recovery to B, still-old gating, unavailable-status fail-open, and actual browser message dismissal across document reload. It counts document requests rather than router history updates. The current URL including an added fragment is preserved by the browser's committed reload; the existing app path strategy may normalize fragments again during startup. This harness does not change that routing policy or establish deployed cache behavior.
+The normal website `npm test` excludes this compiled Flutter suite; run both commands when checking all browser tests. The dedicated runner starts only disposable loopback app/status servers on ports 4175/4176. It checks a compiled marker plus real package-info metadata, recovery to B, still-old gating, unavailable-status fail-open, and actual browser message dismissal across document reload. It counts document requests rather than router history updates. The current URL including an added fragment is preserved by the browser's committed reload; the existing app path strategy may normalize fragments again during startup. This harness does not change that routing policy or establish deployed cache behavior.
 
 The anonymous status RequestInit tests remain runnable without that server in `service_status_repository_web.browser.dart`. Trusted-host images use Flutter network loading; the former custom image transport probes were removed.
