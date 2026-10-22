@@ -1,5 +1,6 @@
 import 'package:craftsky_app/service_status/models/service_status_document.dart';
 import 'package:craftsky_app/service_status/models/status_app_version.dart';
+import 'package:craftsky_app/service_status/providers/service_status_controller.dart';
 import 'package:craftsky_app/service_status/providers/status_runtime_provider.dart';
 import 'package:flutter_riverpod/misc.dart';
 
@@ -31,7 +32,10 @@ ServiceStatusDocument statusDocument({
       : null,
 );
 
+// Existing message tests model a signed-in, onboarded audience. Dedicated
+// auth/onboarding suites exercise the real audience projection.
 final List<Override> statusRuntimeOverrides = [
+  statusMessageAudienceReadyProvider.overrideWithValue(true),
   statusPlatformProvider.overrideWithValue(StatusPlatform.ios),
   statusRuntimeVersionProvider.overrideWith(
     (ref) async => StatusAppVersion.parse('1.8.0+13'),

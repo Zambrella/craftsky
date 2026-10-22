@@ -55,6 +55,7 @@ void main() {
       final store = Store();
       final container = ProviderContainer(
         overrides: [
+          statusMessageAudienceReadyProvider.overrideWithValue(true),
           serviceStatusRepositoryProvider.overrideWithValue(repository),
           announcementDismissalStoreProvider.overrideWithValue(store),
           statusRuntimeVersionProvider.overrideWith(
@@ -110,6 +111,7 @@ void main() {
         final store = Store();
         final container = ProviderContainer(
           overrides: [
+            statusMessageAudienceReadyProvider.overrideWithValue(true),
             serviceStatusRepositoryProvider.overrideWithValue(repository),
             announcementDismissalStoreProvider.overrideWithValue(store),
             statusRuntimeVersionProvider.overrideWith(
@@ -177,6 +179,7 @@ void main() {
       final container = ProviderContainer(
         retry: (_, _) => null,
         overrides: [
+          statusMessageAudienceReadyProvider.overrideWithValue(true),
           serviceStatusRepositoryProvider.overrideWith((ref) {
             if (failConstruction) throw StateError('construction failure');
             return repository;
@@ -228,6 +231,7 @@ void main() {
       final store = Store();
       final container = ProviderContainer(
         overrides: [
+          statusMessageAudienceReadyProvider.overrideWithValue(true),
           serviceStatusRepositoryProvider.overrideWithValue(repository),
           announcementDismissalStoreProvider.overrideWithValue(store),
           statusRuntimeVersionProvider.overrideWith(
@@ -306,6 +310,7 @@ void main() {
       final store = Store();
       final container = ProviderContainer(
         overrides: [
+          statusMessageAudienceReadyProvider.overrideWithValue(true),
           serviceStatusRepositoryProvider.overrideWithValue(repository),
           announcementDismissalStoreProvider.overrideWithValue(store),
           statusRuntimeVersionProvider.overrideWith(
@@ -369,6 +374,7 @@ void main() {
       final store = Store();
       final container = ProviderContainer(
         overrides: [
+          statusMessageAudienceReadyProvider.overrideWithValue(true),
           serviceStatusRepositoryProvider.overrideWithValue(repository),
           announcementDismissalStoreProvider.overrideWithValue(store),
           statusRuntimeVersionProvider.overrideWith(
@@ -440,6 +446,7 @@ void main() {
       final store = Store();
       final container = ProviderContainer(
         overrides: [
+          statusMessageAudienceReadyProvider.overrideWithValue(true),
           serviceStatusRepositoryProvider.overrideWithValue(repository),
           announcementDismissalStoreProvider.overrideWithValue(store),
           statusRuntimeVersionProvider.overrideWith(

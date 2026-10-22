@@ -12,7 +12,8 @@ import 'package:material_ui/material_ui.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 // Dedicated executable fixture: production runtime version/controller/actions,
-// no sessions, API clients or identity. The external runner survives reload.
+// Simulated signed-in, onboarded audience, no sessions/API identity.
+// The external runner survives reload.
 const _compiledBuild = String.fromEnvironment('STATUS_HARNESS_COMPILED_BUILD');
 final _buildMarker = FutureProvider<String>((ref) async {
   final info = await PackageInfo.fromPlatform();
@@ -23,7 +24,10 @@ void main() {
   usePathUrlStrategy();
   SemanticsBinding.instance.ensureSemantics();
   runApp(
-    const ProviderScope(child: ServiceStatusLifecycleHost(child: _Harness())),
+    ProviderScope(
+      overrides: [statusMessageAudienceReadyProvider.overrideWithValue(true)],
+      child: const ServiceStatusLifecycleHost(child: _Harness()),
+    ),
   );
 }
 

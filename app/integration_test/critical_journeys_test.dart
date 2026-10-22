@@ -46,6 +46,7 @@ void main() {
       };
       ProviderContainer fresh() => ProviderContainer(
         overrides: [
+          statusMessageAudienceReadyProvider.overrideWithValue(true),
           serviceStatusRepositoryProvider.overrideWithValue(
             harness.status.repository,
           ),

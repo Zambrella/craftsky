@@ -4,6 +4,7 @@ import 'package:craftsky_app/service_status/widgets/status_message_image.dart';
 import 'package:craftsky_app/shared/widgets/action_progress.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
+import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:material_ui/material_ui.dart';
 
 class AnnouncementModal extends StatelessWidget {
@@ -25,7 +26,7 @@ class AnnouncementModal extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final spacing = Theme.of(context).extension<SpacingTheme>()!;
     final l10n = AppLocalizations.of(context);
     return SafeArea(
       child: Semantics(
@@ -41,29 +42,45 @@ class AnnouncementModal extends StatelessWidget {
             children: [
               Text(document.description),
               if (document.imageUrl != null)
-                StatusMessageImage(
-                  url: document.imageUrl!,
-                  key: ValueKey(document.imageUrl),
+                Padding(
+                  padding: EdgeInsets.only(
+                    top: spacing.sp5,
+                    bottom: spacing.sp2,
+                  ),
+                  child: StatusMessageImage(
+                    url: document.imageUrl!,
+                    key: ValueKey(document.imageUrl),
+                  ),
                 ),
               if (actionFailed) Text(l10n.serviceStatusActionFailed),
             ],
           ),
           actions: [
-            if (document.cta != null)
-              ChunkyButton(
-                onPressed: activating || dismissing ? null : onActivate,
-                child: ActionProgress(
-                  isLoading: activating,
-                  child: Text(document.cta!.text),
-                ),
-              ),
-            ChunkyButton(
-              autofocus: true,
-              backgroundColor: theme.colorScheme.primary,
-              onPressed: dismissing ? null : onDismiss,
-              child: ActionProgress(
-                isLoading: dismissing,
-                child: Text(l10n.serviceStatusDismiss),
+            SizedBox(
+              width: double.infinity,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (document.cta != null) ...[
+                    ChunkyButton(
+                      onPressed: activating || dismissing ? null : onActivate,
+                      child: ActionProgress(
+                        isLoading: activating,
+                        child: Text(document.cta!.text),
+                      ),
+                    ),
+                    SizedBox(height: spacing.sp3),
+                  ],
+                  TextButton(
+                    autofocus: true,
+                    onPressed: dismissing ? null : onDismiss,
+                    child: ActionProgress(
+                      isLoading: dismissing,
+                      child: Text(l10n.serviceStatusDismiss),
+                    ),
+                  ),
+                ],
               ),
             ),
           ],

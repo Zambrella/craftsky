@@ -1,5 +1,10 @@
 import 'dart:async';
 
+import 'package:craftsky_app/auth/models/auth_state.dart';
+import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
+import 'package:craftsky_app/auth/providers/session_registry_provider.dart'
+    show sessionRegistryProvider;
+import 'package:craftsky_app/onboarding/providers/onboarding_status_provider.dart';
 import 'package:craftsky_app/service_status/data/announcement_dismissal_store.dart';
 import 'package:craftsky_app/service_status/data/service_status_repository.dart';
 import 'package:craftsky_app/service_status/models/service_status_document.dart';
@@ -10,6 +15,23 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:logging/logging.dart';
+
+// Message audience only: fetches and blocking pages never await account setup.
+final statusMessageAudienceReadyProvider = Provider<bool>((ref) {
+  final auth = ref.watch(authSessionProvider);
+  final signedIn = auth.asData?.value;
+  if (auth.isLoading || signedIn is! SignedIn) return false;
+
+  final registry = ref.watch(sessionRegistryProvider);
+  final lease = registry.asData?.value.activeLease?.session;
+  if (registry.isLoading ||
+      lease == null ||
+      lease.account.did != signedIn.did) {
+    return false;
+  }
+  final onboarding = ref.watch(onboardingStatusProvider(lease));
+  return !onboarding.isLoading && onboarding.asData?.value.completed == true;
+});
 
 final serviceStatusReporterProvider = Provider<ErrorReporter>(
   (ref) => const NoopErrorReporter(),
@@ -192,6 +214,9 @@ class ServiceStatusController extends Notifier<ServiceStatusState> {
     ref.listen(statusRuntimeVersionProvider, (_, _) {
       if (!_disposed) state = state.copyWith();
     });
+    ref.listen(statusMessageAudienceReadyProvider, (_, _) {
+      if (!_disposed) state = state.copyWith();
+    });
     ref.listen(statusPlatformProvider, (_, _) {
       if (!_disposed) state = state.copyWith();
     });
@@ -222,7 +247,8 @@ class ServiceStatusController extends Notifier<ServiceStatusState> {
       return StatusPresentation.updateRequired;
     }
     final message = state.document?.message;
-    if (platform != null &&
+    if (ref.read(statusMessageAudienceReadyProvider) &&
+        platform != null &&
         state.dismissalReady &&
         statusMessageEligible(message, version) &&
         message!.revision != state.dismissedRevision &&

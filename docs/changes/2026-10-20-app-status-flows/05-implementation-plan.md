@@ -251,3 +251,27 @@ User approved replacing custom Dart version parsing/comparison with the existing
 - No application flow, status transport, action, persistence, deployment or publication change. The numeric contract limit is the deliberate D-015 change; unknown/invalid runtime versions retain existing fail-open behavior. Physical/manual release gaps remain as previously recorded.
 
 D-015 implementation complete. Final static analysis reported no issues; `git diff --check` passed. No commit or deployment.
+
+## Signed-in Message Audience — D-016 (2026-10-22)
+
+User corrected the intended audience: messages must appear only while logged in. Maintenance/update remain universal. Updated FR-007/AC-010, acceptance/coding-plan notes, README and local/operator instructions.
+
+- Added a boolean projection of the existing auth UI state. It is true only for resolved, non-loading `AsyncData<SignedIn>`; signed-out, pending, failed and refreshing-with-previous-data states suppress messages. No auth/session mutation, token validation or permission logic was changed.
+- Controller listens to audience changes without rebuilding or restarting status requests/timers. Only the message branch uses the audience condition; both blockers and all status fetching remain independent. Host, Back/Escape, dismissal and CTA paths share that selector, so a hidden message neither covers content nor accepts actions.
+- Auth suppression does not persist a dismissal. Signing back in reevaluates the retained snapshot; previously saved dismissals remain effective and a new revision becomes eligible. Message content remains public JSON: this is audience presentation, not private-data protection.
+- Red: the new widget regression observed a visible message while signed out. Green: sign-in reveals it; sign-out/loading/error hides it without a write; actual provider refresh with retained signed-in data also hides it; explicit dismissal survives subsequent auth cycles; a replacement published while signed out appears after sign-in. Auth changes do not create additional status requests.
+- Two further regressions prove that an update and maintenance are accepted/presented before the auth future resolves. The dedicated auth suite exercises the real projection with test auth sessions, rather than overriding its boolean. Existing isolated message tests and native/browser storage harnesses now explicitly simulate a signed-in audience. Harness edits do not claim new physical-device persistence evidence.
+- Final relevant native gate: **139 tests passed**, output `/private/tmp/craftsky-status-message-auth-tests.txt`. Static analysis passed with no issues, output `/private/tmp/craftsky-status-message-auth-analyze.txt`. Native/Chrome tests are run sequentially after an initial concurrent attempt raced Flutter's shared native-assets output and failed before tests loaded. Test setup/style findings were corrected; the final suite uses public provider invalidation to exercise auth refresh.
+- No wire/schema, publisher, backend, credential storage, dependency, status transport or deployment change. Existing physical/manual release checks remain open. The prior implementation approval predates D-016; this is implementation/verification evidence, not a new independent review.
+
+D-016 implementation complete. Final Chrome audience/refresh/blocker suite passed **3 tests** (`/private/tmp/craftsky-status-message-auth-browser.txt`); all **139 native Flutter regressions** and static analysis passed; `git diff --check` passed. No commit or deployment.
+
+## Onboarded Message Audience — D-017 (2026-10-22)
+
+User additionally requires completed onboarding before presenting messages. Extended the message-only audience projection to reuse existing onboarding status for the current active session lease, with a resolved signed-in auth projection and matching active-account DID. Incomplete/loading/error onboarding and registry/auth transitions fail closed. Completing onboarding reevaluates the retained snapshot without another status fetch or a dismissal write. Universal maintenance/update handling and polling remain independent.
+
+- Red: the new widget regression observed `News` while signed in with incomplete onboarding. Green: completion reveals the message; incomplete/loading/error and refresh hide it without dismissal; switching accounts suppresses it until the newly active account completes onboarding. A late completion for the previous account cannot reveal it. The entire transition sequence uses one status request.
+- Updated existing auth regressions to model completed onboarding and generic message harnesses to explicitly model a ready audience. Existing dismissal persistence and universal blocker regressions remain covered.
+- Updated FR-007/AC-010, acceptance/coding notes and local/operator guidance. No backend, wire/schema, dependency, credential-storage or deployment changes. This amendment does not claim an independent implementation review or physical-device verification.
+
+D-017 validation: **140 native Flutter regressions passed** (`/private/tmp/craftsky-status-message-onboarding-tests.txt`); **4 Chrome tests passed** (`/private/tmp/craftsky-status-message-onboarding-browser.txt`); `flutter analyze` reported no issues (`/private/tmp/craftsky-status-message-onboarding-analyze.txt`). `git diff --check` passed. No commit or deployment.

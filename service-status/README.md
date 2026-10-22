@@ -1,6 +1,6 @@
 # CraftSky public app status
 
-A dedicated read-only Worker serves `/app.json` from private R2. Schema 2 has independent maintenance, platform minimum versions and one version-targeted message. The app presents maintenance, then required update, then an eligible undismissed message.
+A dedicated read-only Worker serves `/app.json` from private R2. Schema 2 has independent maintenance, platform minimum versions and one version-targeted message. The app presents maintenance, then required update, then an eligible undismissed message for signed-in users who have completed onboarding for the active account/session. Messages are hidden while signed out, auth is unresolved, or current-account onboarding is incomplete/unresolved; maintenance and update pages apply regardless of sign-in.
 
 Set up the pinned offline validator explicitly from the repository root:
 

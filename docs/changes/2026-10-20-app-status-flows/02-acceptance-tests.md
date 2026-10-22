@@ -20,6 +20,10 @@ User amendment D-014 (2026-10-21): optional images now use standard `Image.netwo
 
 User amendment D-015 (2026-10-21): version parsing uses the existing `pub_semver` package behind strict syntax/build-omission handling. UT-001/007 and the shared corpus accept core/numeric prerelease components through 15 digits and reject longer numeric components; ignored build identifiers have no such numeric cap. Run eligibility tests on native and Chrome for consistent ordering.
 
+User amendment D-016 (2026-10-22): message eligibility also requires resolved signed-in auth. Test signed-out/loading/error (including retained previous signed-in data) suppression, sign-in reveal, sign-out hide without dismissal, saved dismissal across sign-in cycles and next-revision eligibility. Assert status requests/blockers proceed while auth is pending. `message_auth_visibility_test.dart` exercises the actual auth projection; generic version/message fixtures explicitly model a signed-in audience.
+
+User amendment D-017 (2026-10-22): message eligibility additionally requires completed onboarding for the active session. `message_onboarding_visibility_test.dart` covers incomplete/loading/error states, refresh with retained completion, completion reveal without another fetch, account switching and late previous-account completion. Suppression never writes dismissal. Auth fixtures now model completed onboarding where appropriate; generic message fixtures model a ready audience.
+
 ## 2. Requirement Coverage Matrix
 
 | Requirement ID | Acceptance Criteria | Test IDs | Test Level | Automated? |
