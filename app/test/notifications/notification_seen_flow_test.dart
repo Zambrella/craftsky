@@ -14,12 +14,13 @@ import 'package:craftsky_app/notifications/providers/notifications_provider.dart
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 
 void main() {
   setUpAll(initializeMappers);
 
-  testWidgets('a filtered render does not clear the account-wide badge', (
+  testWidgets('a filtered visit acknowledges newness only on departure', (
     tester,
   ) async {
     final newness = _RecordingNewnessRepository();
@@ -50,13 +51,13 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(newness.seenCalls, 0);
-    await tester.tap(find.text('Show all notifications'));
+    await tester.pumpWidget(const SizedBox.shrink());
     await tester.pumpAndSettle();
     expect(newness.seenCalls, 1);
   });
 
   testWidgets(
-    'IT-005 / REG-008 marks seen only after successful first-page renders',
+    'marks seen on departure only after a successful render',
     (tester) async {
       final firstPage = Completer<NotificationPage>();
       final list = _QueuedNotificationRepository([
@@ -100,32 +101,131 @@ void main() {
       await tester.tap(find.text('Retry'));
       await tester.pumpAndSettle();
       expect(find.text('Alice followed you'), findsOneWidget);
-      expect(newness.seenCalls, 1);
-      expect(newness.countCalls, 1);
+      expect(newness.seenCalls, 0);
+      expect(newness.countCalls, 0);
 
       container.invalidate(notificationsProvider);
       await tester.pumpAndSettle();
       expect(find.text('No notifications yet.'), findsOneWidget);
+      expect(newness.seenCalls, 0);
+      expect(newness.countCalls, 0);
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pumpAndSettle();
+      expect(newness.seenCalls, 1);
+      expect(newness.countCalls, 1);
+    },
+  );
+  testWidgets(
+    'new highlights survive refresh and filters, '
+    'and clear after leaving a retained tab',
+    (tester) async {
+      final newness = _RecordingNewnessRepository();
+      final seen = Completer<void>();
+      newness.seenResult = seen.future;
+      final list = _VisitRepository(newness);
+      final container = ProviderContainer.test(
+        overrides: [
+          notificationRepositoryProvider.overrideWithValue(list),
+          notificationNewnessRepositoryProvider.overrideWithValue(newness),
+        ],
+      );
+      final router = GoRouter(
+        initialLocation: '/notifications',
+        routes: [
+          StatefulShellRoute.indexedStack(
+            builder: (context, state, shell) => shell,
+            branches: [
+              StatefulShellBranch(
+                routes: [
+                  GoRoute(
+                    path: '/notifications',
+                    builder: (_, _) => const NotificationsPage(),
+                  ),
+                ],
+              ),
+              StatefulShellBranch(
+                routes: [
+                  GoRoute(
+                    path: '/elsewhere',
+                    builder: (_, _) => const Scaffold(body: Text('Elsewhere')),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          GoRoute(
+            path: '/detail',
+            builder: (_, _) => const Scaffold(body: Text('Detail')),
+          ),
+        ],
+      );
+      addTearDown(router.dispose);
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp.router(
+            routerConfig: router,
+            theme: AppTheme.lightThemeData,
+            localizationsDelegates: appLocalizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final highlight = find.byKey(
+        const ValueKey('new-notification-highlight'),
+      );
+      expect(highlight, findsOneWidget);
+      expect(newness.seenCalls, 0);
+      container.invalidate(notificationsProvider);
+      await tester.pumpAndSettle();
+      expect(highlight, findsOneWidget);
+      container
+          .read(notificationFilterProvider.notifier)
+          .select(NotificationCategory.follow);
+      await tester.pumpAndSettle();
+      expect(highlight, findsOneWidget);
+      container.read(notificationFilterProvider.notifier).select(null);
+      await tester.pumpAndSettle();
+      router.go('/elsewhere');
+      await tester.pumpAndSettle();
+      expect(newness.seenCalls, 1);
+      router.go('/notifications');
+      await tester.pump();
+      expect(highlight, findsNothing);
+      seen.complete();
+      await tester.pumpAndSettle();
+      expect(find.text('Alice followed you'), findsOneWidget);
+      expect(highlight, findsNothing);
+      // A pushed detail route also ends the visit while the tab stays mounted.
+      unawaited(router.push<void>('/detail'));
+      await tester.pumpAndSettle();
       expect(newness.seenCalls, 2);
-      expect(newness.countCalls, 2);
+      list.hasNew = true;
+      router.pop();
+      await tester.pumpAndSettle();
+      expect(highlight, findsOneWidget);
+      expect(tester.takeException(), isNull);
     },
   );
 }
 
-FollowNotification _follow(String rkey) => CraftskyNotification.fromMap({
-  'id': '00000000-0000-0000-0000-000000000001',
-  'uri': 'at://did:plc:alice/app.bsky.graph.follow/$rkey',
-  'cid': 'bafy$rkey',
-  'rkey': rkey,
-  'type': 'follow',
-  'actor': {
-    'did': 'did:plc:alice',
-    'handle': 'alice.craftsky.social',
-    'displayName': 'Alice',
-  },
-  'createdAt': '2026-05-28T13:00:00Z',
-  'indexedAt': '2026-05-28T13:00:01Z',
-}) as FollowNotification;
+FollowNotification _follow(String rkey, {bool isNew = false}) =>
+    CraftskyNotification.fromMap({
+      'isNew': isNew,
+      'id': '00000000-0000-0000-0000-000000000001',
+      'uri': 'at://did:plc:alice/app.bsky.graph.follow/$rkey',
+      'cid': 'bafy$rkey',
+      'rkey': rkey,
+      'type': 'follow',
+      'actor': {
+        'did': 'did:plc:alice',
+        'handle': 'alice.craftsky.social',
+        'displayName': 'Alice',
+      },
+      'createdAt': '2026-05-28T13:00:00Z',
+      'indexedAt': '2026-05-28T13:00:01Z',
+    }) as FollowNotification;
 
 final class _QueuedNotificationRepository implements NotificationRepository {
   new(this.responses);
@@ -144,6 +244,7 @@ final class _RecordingNewnessRepository
     implements NotificationNewnessRepository {
   int seenCalls = 0;
   int countCalls = 0;
+  Future<void>? seenResult;
 
   @override
   Future<int> count() async {
@@ -152,5 +253,22 @@ final class _RecordingNewnessRepository
   }
 
   @override
-  Future<void> markSeen() async => seenCalls++;
+  Future<void> markSeen() async {
+    seenCalls++;
+    await seenResult;
+  }
+}
+
+final class _VisitRepository implements NotificationRepository {
+  new(this.newness);
+  final _RecordingNewnessRepository newness;
+  bool hasNew = false;
+  @override
+  Future<NotificationPage> list({
+    String? cursor,
+    int? limit,
+    NotificationCategory? category,
+  }) async => NotificationPage(
+    items: [_follow('one', isNew: hasNew || newness.seenCalls == 0)],
+  );
 }

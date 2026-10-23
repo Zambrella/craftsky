@@ -171,8 +171,8 @@ class NotificationRow extends ConsumerWidget {
             showUserProfileCard(context, did: actorNotification.actor.did),
           )
         : null;
-    return Material(
-      type: MaterialType.transparency,
+    return _NotificationSurface(
+      isNew: notification.isNew,
       child: InkWell(
         onTap: onTap,
         child: Padding(
@@ -333,8 +333,8 @@ class NotificationRow extends ConsumerWidget {
       ModerationNotification() => l10n.notificationModerationRow,
       GenericSystemNotification() => l10n.notificationGenericRow,
     };
-    return Material(
-      type: MaterialType.transparency,
+    return _NotificationSurface(
+      isNew: notification.isNew,
       child: InkWell(
         onTap: system is ModerationNotification
             ? () => _open(context, ref)
@@ -417,6 +417,46 @@ class NotificationRow extends ConsumerWidget {
         rkey: (rootParts?.rkey ?? post.rkey).toString(),
         focus: (focus ?? (root == null ? null : post.uri))?.toString(),
       ).push<void>(context),
+    );
+  }
+}
+
+class _NotificationSurface extends StatelessWidget {
+  const new({required this.isNew, required this.child});
+
+  final bool isNew;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final row = Material(type: MaterialType.transparency, child: child);
+    if (!isNew) return row;
+    final color = Theme.of(context).colorScheme.primary;
+    return Semantics(
+      label: AppLocalizations.of(context).notificationNew,
+      child: ColoredBox(
+        key: const ValueKey('new-notification-highlight'),
+        color: color.withValues(alpha: .07),
+        child: Stack(
+          children: [
+            row,
+            PositionedDirectional(
+              top: 8,
+              end: 8,
+              child: ExcludeSemantics(
+                child: Container(
+                  width: 6,
+                  height: 6,
+                  decoration: BoxDecoration(
+                    color: color,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

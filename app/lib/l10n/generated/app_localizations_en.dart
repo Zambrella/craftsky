@@ -189,6 +189,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get notificationGenericRow => 'New activity';
 
   @override
+  String get notificationNew => 'New notification';
+
+  @override
   String get notificationModerationRow =>
       'Review an update to your account standing';
 
