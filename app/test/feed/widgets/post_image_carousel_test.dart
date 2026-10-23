@@ -506,6 +506,37 @@ void main() {
     expect(indicator.effect, isA<WormEffect>());
   });
 
+  testWidgets('alt badge follows the current image and preserves image taps', (
+    tester,
+  ) async {
+    int? tappedIndex;
+    await _pumpCarousel(
+      tester,
+      PostImageCarousel(
+        images: [
+          for (final alt in ['Stitch detail', '', '   '])
+            PostImage(cid: 'bafkimage', mime: 'image/jpeg', size: 10, alt: alt),
+        ],
+        onImageTap: (index, _) => tappedIndex = index,
+      ),
+    );
+
+    final badge = find.byKey(const Key('post-image-alt-text-badge'));
+    expect(badge, findsOneWidget);
+    await tester.tapAt(tester.getCenter(badge));
+    await tester.pump(const Duration(milliseconds: 350));
+    expect(tappedIndex, 0);
+
+    for (var index = 1; index < 3; index++) {
+      await tester.drag(
+        find.byKey(const Key('post-image-carousel')),
+        const Offset(-500, 0),
+      );
+      await tester.pumpAndSettle();
+      expect(badge, findsNothing);
+    }
+  });
+
   testWidgets('uses stable unique Hero tags for each image', (tester) async {
     final carousel = PostImageCarousel(images: _images('hero'));
     await _pumpCarousel(tester, carousel);

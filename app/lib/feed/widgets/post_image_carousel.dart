@@ -6,6 +6,7 @@ import 'package:craftsky_app/feed/widgets/inline_pinch_zoom.dart';
 import 'package:craftsky_app/feed/widgets/post_image_page_indicator.dart';
 import 'package:craftsky_app/shared/image/image_cache_providers.dart';
 import 'package:craftsky_app/shared/widgets/root_overlay_scope.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -217,6 +218,30 @@ class _PostImageCarouselState extends ConsumerState<PostImageCarousel> {
                     ),
                   ),
                 ),
+                if (current.alt.trim().isNotEmpty)
+                  Positioned(
+                    right: 8,
+                    bottom: 8,
+                    child: IgnorePointer(
+                      child: ExcludeSemantics(
+                        child: DecoratedBox(
+                          key: const Key('post-image-alt-text-badge'),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.55),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: const Padding(
+                            padding: EdgeInsets.all(4),
+                            child: Icon(
+                              CraftskyIcons.altText,
+                              color: Colors.white,
+                              size: 16,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
                 if (widget.images.length > 1)
                   Positioned(
                     right: 8,
