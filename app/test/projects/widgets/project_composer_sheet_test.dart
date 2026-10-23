@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/drafts/composer/draft_composer_hydrator.dart';
@@ -8,6 +9,7 @@ import 'package:craftsky_app/feed/providers/composer_images_provider.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/languages/models/language_preferences.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
+import 'package:craftsky_app/projects/composer/project_draft_snapshot_adapter.dart';
 import 'package:craftsky_app/projects/options/project_option_catalogs.dart';
 import 'package:craftsky_app/projects/providers/preferred_project_crafts_provider.dart';
 import 'package:craftsky_app/projects/widgets/project_composer_sheet.dart';
@@ -27,6 +29,55 @@ import 'package:rive/rive.dart' as rive;
 import '../../fakes/recording_messenger.dart';
 
 void main() {
+  for (final status in ProjectOptionCatalogs.statuses) {
+    testWidgets('restored drafts retain saved status (${status.value})', (
+      tester,
+    ) async {
+      const adapter = ProjectDraftSnapshotAdapter();
+      final savedFields = jsonDecode(
+        jsonEncode(adapter.encodeKnownFields({'status': status.value})),
+      ) as Map<String, dynamic>;
+      final seed = LocalPostDraftSeed(
+        draft: LocalPostDraft(
+          id: 'status-draft',
+          owner: AccountKey('did:plc:test'),
+          kind: LocalPostDraftKind.project,
+          createdAt: DateTime.utc(2026, 10, 23),
+          updatedAt: DateTime.utc(2026, 10, 23),
+          content: ProjectDraftContent(
+            body: '',
+            languages: const ['en'],
+            knownProjectFieldValues: savedFields,
+          ),
+          schedule: const DraftScheduleIntent.now(),
+          media: const [],
+        ),
+        media: const [],
+      );
+      await _pumpComposer(tester, 'restored-status-composer', draftSeed: seed);
+
+      final statusButton = find.byKey(const Key('status-select-button'));
+      expect(
+        find.descendant(of: statusButton, matching: find.text(status.label)),
+        findsOneWidget,
+      );
+      final form = tester.state<FormBuilderState>(find.byType(FormBuilder))
+        ..save();
+      expect(form.value['status'], status.value);
+    });
+  }
+
+  testWidgets('new projects default to complete', (tester) async {
+    await _pumpComposer(tester, 'default-status-composer');
+    expect(
+      tester
+          .state<FormBuilderState>(find.byType(FormBuilder))
+          .fields['status']!
+          .value,
+      ProjectOptionCatalogs.finishedStatusToken,
+    );
+  });
+
   for (final savedCraft in [ProjectOptionCatalogs.sewingCraftToken, null]) {
     testWidgets('restored drafts retain their saved selection ($savedCraft)', (
       tester,

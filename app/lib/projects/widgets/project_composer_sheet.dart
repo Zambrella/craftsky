@@ -1493,7 +1493,9 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
         CraftskyFormBuilderDropdownField<String>(
           name: ProjectComposerFields.status,
           label: l10n.projectComposerStatusLabel,
-          initialValue: ProjectOptionCatalogs.finishedStatusToken,
+          initialValue:
+              _initialFormValues[ProjectComposerFields.status] as String? ??
+              ProjectOptionCatalogs.finishedStatusToken,
           options: _selectOptions(ProjectOptionCatalogs.statuses),
           enabled: controlsEnabled,
         ),
