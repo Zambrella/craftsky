@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/drafts/models/local_post_draft.dart';
 import 'package:craftsky_app/projects/composer/project_composer_fields.dart';
@@ -6,6 +8,23 @@ import 'package:craftsky_app/projects/models/project.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  for (final selfDrafted in [true, false]) {
+    test('round-trips self-drafted pattern $selfDrafted', () {
+      const adapter = ProjectDraftSnapshotAdapter();
+      final encoded = adapter.encodeKnownFields({
+        ProjectComposerFields.patternSelfDrafted: selfDrafted,
+      });
+
+      expect(encoded[ProjectComposerFields.patternSelfDrafted], selfDrafted);
+      expect(
+        adapter.decodeKnownFields(
+          jsonDecode(jsonEncode(encoded)) as Map<String, dynamic>,
+        )[ProjectComposerFields.patternSelfDrafted],
+        selfDrafted,
+      );
+    });
+  }
+
   test('whitelists partial project fields and adapts materials explicitly', () {
     const adapter = ProjectDraftSnapshotAdapter();
     final encoded = adapter.encodeKnownFields({

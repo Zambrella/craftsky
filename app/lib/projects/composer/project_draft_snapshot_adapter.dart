@@ -125,6 +125,7 @@ class ProjectDraftSnapshotAdapter {
     ProjectComposerFields.patternUrl,
     ProjectComposerFields.patternName,
     ProjectComposerFields.patternDifficulty,
+    ProjectComposerFields.patternSelfDrafted,
     ProjectComposerFields.patternDesigner,
     ProjectComposerFields.patternPublisher,
     ProjectComposerFields.sewingProjectType,
