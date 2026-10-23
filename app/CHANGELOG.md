@@ -1,5 +1,36 @@
 # App Changelog
 
+## 1.9.0+14 - 2026-10-23
+
+- test(app): add Patrol account post flow
+- test(e2e): support iOS account post flow
+- fix(drafts): support the configured image limit
+- feat(service-status): add versioned notice flows
+- fix(media): accept images with appended data
+- docs(media): clarify JPEG trailing-data validation
+- fix(observability): improve Sentry triage diagnostics
+- fix(instagram-import): replace Android export picker with file_picker
+- fix(app): dismiss composer keyboard on post submission
+- feat(projects): add duration field to project composer
+- feat(service-status): gate messages on account readiness
+- feat(app): let users reorder preferred crafts
+- fix(service-status): navigate from router builder
+- fix(feed): keep like feedback centered in visible post
+- test(app): assert preferred crafts follow profile order
+- feat(notifications): show text previews in notifications
+- fix(onboarding): keep avatar change action available
+- fix(profile): place avatar border outside the photo
+- fix(languages): prefer English as primary when available
+- fix(feed): refresh on Home reselection
+- fix(notifications): sync follow buttons with profile state
+- feat(feed): explain post types on first use
+- feat(feed): limit fullscreen alt text with expansion
+- refactor(profile): unify compact identity layouts
+- fix(profile): constrain identity badge width
+- feat(notifications): show unified actor identity
+- feat(feed): open post comments from comment actions
+- fix(tests): isolate flaky integration and migration setup
+
 ## 1.8.0+13 - 2026-10-20
 
 - feat(projects): add multi-craft discovery and search
