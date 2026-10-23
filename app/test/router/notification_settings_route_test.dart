@@ -87,6 +87,8 @@ void main() {
       '/notifications/settings',
     );
     expect(find.byType(NavigationBar), findsNothing);
+    // Leaving the visit marks activity seen and reloads the list.
+    expect(notifications.listCalls, 2);
 
     await tester.pageBack();
     await tester.pumpAndSettle();
@@ -98,8 +100,7 @@ void main() {
       ).matchedLocation,
       '/notifications',
     );
-    // Leaving acknowledges the visit and invalidates the list; returning
-    // refreshes it again so seen state and newly arrived notifications load.
+    // Returning starts a fresh visit and reloads the list again.
     expect(notifications.listCalls, 3);
   });
 }
