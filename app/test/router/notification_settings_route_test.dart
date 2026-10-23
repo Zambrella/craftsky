@@ -98,7 +98,9 @@ void main() {
       ).matchedLocation,
       '/notifications',
     );
-    expect(notifications.listCalls, 1);
+    // Leaving acknowledges the visit and invalidates the list; returning
+    // refreshes it again so seen state and newly arrived notifications load.
+    expect(notifications.listCalls, 3);
   });
 }
 
