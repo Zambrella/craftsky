@@ -78,6 +78,8 @@ class ComposerImageAttachmentSection extends StatefulWidget {
 
   Widget _buildDetails(
     BuildContext context, {
+    required TextEditingController Function(ComposerImageDraft)
+    altTextControllerFor,
     Future<void> Function()? addImages,
     Future<void> Function()? takePhoto,
     bool allowVideo = true,
@@ -125,6 +127,7 @@ class ComposerImageAttachmentSection extends StatefulWidget {
                   sizeFraction: 0.85,
                   child: _DraftImageTile(
                     image: image,
+                    altTextController: altTextControllerFor(image),
                     index: index,
                     enabled: enabled,
                     altTextKey: Key('$keyPrefix-alt-${image.id}'),
@@ -161,6 +164,7 @@ class ComposerImageAttachmentSection extends StatefulWidget {
                   sizeFraction: 0.85,
                   child: _DraftImageTile(
                     image: image,
+                    altTextController: altTextControllerFor(image),
                     index: 0,
                     enabled: false,
                     altTextKey: Key('$keyPrefix-alt-${image.id}'),
@@ -258,7 +262,17 @@ class _ComposerImageAttachmentSectionState
   late final ValueNotifier<ComposerImageAttachmentSection> _details =
       ValueNotifier(widget);
   final _summaryFocusNode = FocusNode();
+  // These editors own the in-progress text, selection, and IME composition.
+  // Route forwarding and animated-list diffs can echo older image snapshots;
+  // only seed from those snapshots when an editor is first created.
+  final _altTextControllers = <String, TextEditingController>{};
   bool _detailsOpen = false;
+
+  TextEditingController _altTextControllerFor(ComposerImageDraft image) =>
+      _altTextControllers.putIfAbsent(
+        image.id,
+        () => TextEditingController(text: image.altText),
+      );
 
   @override
   void didUpdateWidget(covariant ComposerImageAttachmentSection oldWidget) {
@@ -271,6 +285,9 @@ class _ComposerImageAttachmentSectionState
 
   @override
   void dispose() {
+    for (final controller in _altTextControllers.values) {
+      controller.dispose();
+    }
     _details.dispose();
     _summaryFocusNode.dispose();
     super.dispose();
@@ -359,6 +376,7 @@ class _ComposerImageAttachmentSectionState
             ),
             child: section._buildDetails(
               context,
+              altTextControllerFor: _altTextControllerFor,
               allowVideo: false,
               currentImagesState: imagesState,
             ),
@@ -371,10 +389,16 @@ class _ComposerImageAttachmentSectionState
   @override
   Widget build(BuildContext context) {
     final section = widget;
-    if (!section.useDetailsRoute) return section._buildDetails(context);
+    if (!section.useDetailsRoute) {
+      return section._buildDetails(
+        context,
+        altTextControllerFor: _altTextControllerFor,
+      );
+    }
     if (section.imagesState.images.isEmpty) {
       return section._buildDetails(
         context,
+        altTextControllerFor: _altTextControllerFor,
         addImages: section.onAddImages == null
             ? null
             : () => _selectPhotos(section.onAddImages!),
@@ -561,6 +585,7 @@ class _PhotosHeader extends StatelessWidget {
 class _DraftImageTile extends StatelessWidget {
   const new({
     required this.image,
+    required this.altTextController,
     required this.index,
     required this.enabled,
     required this.altTextKey,
@@ -580,6 +605,7 @@ class _DraftImageTile extends StatelessWidget {
   });
 
   final ComposerImageDraft image;
+  final TextEditingController altTextController;
   final int index;
   final bool enabled;
   final Key altTextKey;
@@ -708,7 +734,7 @@ class _DraftImageTile extends StatelessWidget {
               BrandTextField(
                 key: altTextKey,
                 label: l10n.postComposeAltTextLabel,
-                initialValue: image.altText,
+                controller: altTextController,
                 maxLength: RecordTextLimits.imageAlt.graphemes,
                 maxBytes: RecordTextLimits.imageAlt.bytes,
                 hintText: l10n.postComposeAltTextHint,
