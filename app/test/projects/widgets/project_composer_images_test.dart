@@ -61,15 +61,67 @@ void main() {
         await tester.pump(const Duration(seconds: 1));
         expect(find.text('Preparing image'), findsWidgets);
 
+        final alt = find.byKey(const Key('composer-alt-first'));
+        await tester.ensureVisible(alt);
+        await tester.enterText(
+          alt,
+          'The corner increase. The perspective is askew.',
+        );
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 300));
+        final editable = find.descendant(
+          of: alt,
+          matching: find.byType(EditableText),
+        );
+        var text = 'The corner increase. The perspective is askew.';
+        const insertion = ', not folded in half';
+        for (var i = 0; i < insertion.length; i++) {
+          final offset = 19 + i;
+          text = text.replaceRange(offset, offset, insertion[i]);
+          final edit = TextEditingValue(
+            text: text,
+            selection: TextSelection.collapsed(offset: offset + 1),
+            composing: TextRange(start: 19, end: offset + 1),
+          );
+          tester.testTextInput.updateEditingValue(edit);
+          await tester.pump();
+          expect(
+            tester.widget<EditableText>(editable).controller.value,
+            edit,
+            reason: 'After keystroke $i',
+          );
+        }
+        final expectedEdit = tester
+            .widget<EditableText>(editable)
+            .controller
+            .value;
+
         imagesNotifier.finishPreparing();
         await tester.pump();
         await tester.pump(const Duration(milliseconds: 300));
         expect(find.text('Preparing image'), findsNothing);
         expect(
+          tester.widget<EditableText>(editable).controller.value,
+          expectedEdit,
+        );
+        expect(
+          container
+              .read(composerImagesProvider(composerId))
+              .images
+              .first
+              .altText,
+          text,
+        );
+        FocusManager.instance.primaryFocus?.unfocus();
+        await tester.pumpAndSettle();
+        expect(
           find.byKey(const Key('composer-preview-overlay-first')),
           findsNothing,
         );
 
+        await tester.ensureVisible(
+          find.byKey(const Key('composer-move-down-first')),
+        );
         await tester.tap(find.byKey(const Key('composer-move-down-first')));
         await tester.pumpAndSettle();
         final list = tester
@@ -79,6 +131,10 @@ void main() {
               ),
             );
         expect(list.items.first.id, 'second');
+        expect(find.text(text), findsOneWidget);
+        await tester.ensureVisible(
+          find.byKey(const Key('composer-remove-second')),
+        );
         await tester.tap(find.byKey(const Key('composer-remove-second')));
         await tester.pumpAndSettle();
         expect(find.byKey(const Key('composer-alt-second')), findsNothing);
