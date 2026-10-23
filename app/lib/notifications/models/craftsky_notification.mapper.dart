@@ -41,6 +41,13 @@ class ActorNotificationCommonMapper
     'indexedAt',
     _$indexedAt,
   );
+  static bool _$isNew(ActorNotificationCommon v) => v.isNew;
+  static const Field<ActorNotificationCommon, bool> _f$isNew = Field(
+    'isNew',
+    _$isNew,
+    opt: true,
+    def: false,
+  );
 
   @override
   final MappableFields<ActorNotificationCommon> fields = const {
@@ -48,6 +55,7 @@ class ActorNotificationCommonMapper
     #actor: _f$actor,
     #createdAt: _f$createdAt,
     #indexedAt: _f$indexedAt,
+    #isNew: _f$isNew,
   };
 
   static ActorNotificationCommon _instantiate(DecodingData data) {
@@ -56,6 +64,7 @@ class ActorNotificationCommonMapper
       actor: data.dec(_f$actor),
       createdAt: data.dec(_f$createdAt),
       indexedAt: data.dec(_f$indexedAt),
+      isNew: data.dec(_f$isNew),
     );
   }
 
@@ -118,6 +127,7 @@ abstract class ActorNotificationCommonCopyWith<
     NotificationActor? actor,
     DateTime? createdAt,
     DateTime? indexedAt,
+    bool? isNew,
   });
   ActorNotificationCommonCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(
     Then<$Out2, $R2> t,
@@ -142,12 +152,14 @@ class _ActorNotificationCommonCopyWithImpl<$R, $Out>
     NotificationActor? actor,
     DateTime? createdAt,
     DateTime? indexedAt,
+    bool? isNew,
   }) => $apply(
     FieldCopyWithData({
       if (id != null) #id: id,
       if (actor != null) #actor: actor,
       if (createdAt != null) #createdAt: createdAt,
       if (indexedAt != null) #indexedAt: indexedAt,
+      if (isNew != null) #isNew: isNew,
     }),
   );
   @override
@@ -156,6 +168,7 @@ class _ActorNotificationCommonCopyWithImpl<$R, $Out>
     actor: data.get(#actor, or: $value.actor),
     createdAt: data.get(#createdAt, or: $value.createdAt),
     indexedAt: data.get(#indexedAt, or: $value.indexedAt),
+    isNew: data.get(#isNew, or: $value.isNew),
   );
 
   @override
@@ -477,12 +490,20 @@ class SystemNotificationCommonMapper
     'indexedAt',
     _$indexedAt,
   );
+  static bool _$isNew(SystemNotificationCommon v) => v.isNew;
+  static const Field<SystemNotificationCommon, bool> _f$isNew = Field(
+    'isNew',
+    _$isNew,
+    opt: true,
+    def: false,
+  );
 
   @override
   final MappableFields<SystemNotificationCommon> fields = const {
     #id: _f$id,
     #createdAt: _f$createdAt,
     #indexedAt: _f$indexedAt,
+    #isNew: _f$isNew,
   };
 
   static SystemNotificationCommon _instantiate(DecodingData data) {
@@ -490,6 +511,7 @@ class SystemNotificationCommonMapper
       id: data.dec(_f$id),
       createdAt: data.dec(_f$createdAt),
       indexedAt: data.dec(_f$indexedAt),
+      isNew: data.dec(_f$isNew),
     );
   }
 
@@ -546,7 +568,7 @@ abstract class SystemNotificationCommonCopyWith<
   $Out
 >
     implements ClassCopyWith<$R, $In, $Out> {
-  $R call({String? id, DateTime? createdAt, DateTime? indexedAt});
+  $R call({String? id, DateTime? createdAt, DateTime? indexedAt, bool? isNew});
   SystemNotificationCommonCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(
     Then<$Out2, $R2> t,
   );
@@ -562,11 +584,17 @@ class _SystemNotificationCommonCopyWithImpl<$R, $Out>
   late final ClassMapperBase<SystemNotificationCommon> $mapper =
       SystemNotificationCommonMapper.ensureInitialized();
   @override
-  $R call({String? id, DateTime? createdAt, DateTime? indexedAt}) => $apply(
+  $R call({
+    String? id,
+    DateTime? createdAt,
+    DateTime? indexedAt,
+    bool? isNew,
+  }) => $apply(
     FieldCopyWithData({
       if (id != null) #id: id,
       if (createdAt != null) #createdAt: createdAt,
       if (indexedAt != null) #indexedAt: indexedAt,
+      if (isNew != null) #isNew: isNew,
     }),
   );
   @override
@@ -574,6 +602,7 @@ class _SystemNotificationCommonCopyWithImpl<$R, $Out>
     id: data.get(#id, or: $value.id),
     createdAt: data.get(#createdAt, or: $value.createdAt),
     indexedAt: data.get(#indexedAt, or: $value.indexedAt),
+    isNew: data.get(#isNew, or: $value.isNew),
   );
 
   @override
@@ -770,6 +799,13 @@ class NotificationCommonMapper extends ClassMapperBase<NotificationCommon> {
     'indexedAt',
     _$indexedAt,
   );
+  static bool _$isNew(NotificationCommon v) => v.isNew;
+  static const Field<NotificationCommon, bool> _f$isNew = Field(
+    'isNew',
+    _$isNew,
+    opt: true,
+    def: false,
+  );
 
   @override
   final MappableFields<NotificationCommon> fields = const {
@@ -780,6 +816,7 @@ class NotificationCommonMapper extends ClassMapperBase<NotificationCommon> {
     #actor: _f$actor,
     #createdAt: _f$createdAt,
     #indexedAt: _f$indexedAt,
+    #isNew: _f$isNew,
   };
 
   static NotificationCommon _instantiate(DecodingData data) {
@@ -791,6 +828,7 @@ class NotificationCommonMapper extends ClassMapperBase<NotificationCommon> {
       actor: data.dec(_f$actor),
       createdAt: data.dec(_f$createdAt),
       indexedAt: data.dec(_f$indexedAt),
+      isNew: data.dec(_f$isNew),
     );
   }
 
@@ -867,6 +905,7 @@ abstract class NotificationCommonCopyWith<
     NotificationActor? actor,
     DateTime? createdAt,
     DateTime? indexedAt,
+    bool? isNew,
   });
   NotificationCommonCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(
     Then<$Out2, $R2> t,
@@ -893,6 +932,7 @@ class _NotificationCommonCopyWithImpl<$R, $Out>
     NotificationActor? actor,
     DateTime? createdAt,
     DateTime? indexedAt,
+    bool? isNew,
   }) => $apply(
     FieldCopyWithData({
       if (id != null) #id: id,
@@ -902,6 +942,7 @@ class _NotificationCommonCopyWithImpl<$R, $Out>
       if (actor != null) #actor: actor,
       if (createdAt != null) #createdAt: createdAt,
       if (indexedAt != null) #indexedAt: indexedAt,
+      if (isNew != null) #isNew: isNew,
     }),
   );
   @override
@@ -913,6 +954,7 @@ class _NotificationCommonCopyWithImpl<$R, $Out>
     actor: data.get(#actor, or: $value.actor),
     createdAt: data.get(#createdAt, or: $value.createdAt),
     indexedAt: data.get(#indexedAt, or: $value.indexedAt),
+    isNew: data.get(#isNew, or: $value.isNew),
   );
 
   @override

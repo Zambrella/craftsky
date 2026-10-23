@@ -173,6 +173,8 @@
     "placeholders": { "actor": { "type": "String", "example": "Alice" } }
   },
   "notificationGenericRow": "New activity",
+  "notificationNew": "New notification",
+  "@notificationNew": {"description": "Accessibility label for a notification that is new since the previous visit."},
   "notificationModerationRow": "Review an update to your account standing",
   "notificationUnavailableRow": "Activity unavailable",
   "notificationInstagramMatchActorRow": "You found {actor} through your Instagram following",

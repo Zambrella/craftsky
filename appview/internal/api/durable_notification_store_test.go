@@ -18,7 +18,7 @@ import (
 
 func TestNotificationStoreListsOnlyActiveDurableEventsWithStablePagination(t *testing.T) {
 	pool := testdb.WithSchema(t, timelineStoreDDL)
-	migration, err := testdb.ReadMigration("000021_appview_notifications.up.sql")
+	migration, err := readNotificationEventsMigration()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -92,7 +92,7 @@ func TestNotificationStoreListsOnlyActiveDurableEventsWithStablePagination(t *te
 
 func TestNotificationListHydratesImportedSubjectProvenanceForLaterEngagement(t *testing.T) {
 	pool := testdb.WithSchema(t, timelineStoreDDL)
-	migration, err := testdb.ReadMigration("000021_appview_notifications.up.sql")
+	migration, err := readNotificationEventsMigration()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -282,7 +282,7 @@ func TestNotificationListAndNewCountDynamicallySuppressAndRestoreRelationships(t
 
 func TestNotificationStoreKeepsDurableRowButWithholdsTakenDownContent(t *testing.T) {
 	pool := testdb.WithSchema(t, timelineStoreDDL)
-	migration, err := testdb.ReadMigration("000021_appview_notifications.up.sql")
+	migration, err := readNotificationEventsMigration()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -307,7 +307,7 @@ func TestNotificationStoreKeepsDurableRowButWithholdsTakenDownContent(t *testing
 
 func TestNotificationListWithholdsModeratedReplySourceAndQuoteTarget(t *testing.T) {
 	pool := testdb.WithSchema(t, timelineStoreDDL)
-	migration, err := testdb.ReadMigration("000021_appview_notifications.up.sql")
+	migration, err := readNotificationEventsMigration()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -377,7 +377,7 @@ func TestNotificationListWithholdsModeratedReplySourceAndQuoteTarget(t *testing.
 
 func TestNotificationListHidesThirdPartyBlockedReferenceGraph(t *testing.T) {
 	pool := testdb.WithSchema(t, timelineStoreDDL)
-	migration, err := testdb.ReadMigration("000021_appview_notifications.up.sql")
+	migration, err := readNotificationEventsMigration()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -432,7 +432,7 @@ func TestNotificationListHidesThirdPartyBlockedReferenceGraph(t *testing.T) {
 
 func TestNotificationStoreModeratesEveryReferenceRoleAcrossStates(t *testing.T) {
 	pool := testdb.WithSchema(t, timelineStoreDDL)
-	migration, err := testdb.ReadMigration("000021_appview_notifications.up.sql")
+	migration, err := readNotificationEventsMigration()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -593,7 +593,7 @@ func TestNotificationStoreModeratesEveryReferenceRoleAcrossStates(t *testing.T) 
 func TestNotificationPreviewsUseNewContentAndVisibleQuoteContext(t *testing.T) {
 	pool := testdb.WithSchema(t, timelineStoreDDL)
 	ctx := context.Background()
-	migration, err := testdb.ReadMigration("000021_appview_notifications.up.sql")
+	migration, err := readNotificationEventsMigration()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -661,4 +661,17 @@ func TestNotificationPreviewsUseNewContentAndVisibleQuoteContext(t *testing.T) {
 			t.Fatal("hidden subject preview was exposed")
 		}
 	}
+}
+
+// Notification list fixtures include the newness columns and seen marker used by production reads.
+func readNotificationEventsMigration() ([]byte, error) {
+	events, err := testdb.ReadMigration("000021_appview_notifications.up.sql")
+	if err != nil {
+		return nil, err
+	}
+	newness, err := testdb.ReadMigration("000022_notification_newness.up.sql")
+	if err != nil {
+		return nil, err
+	}
+	return append(append(events, '\n'), newness...), nil
 }

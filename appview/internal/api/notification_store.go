@@ -51,11 +51,12 @@ type NotificationReferences struct {
 }
 
 type NotificationRow struct {
-	ID   string
-	Type NotificationType
-	URI  string
-	CID  string
-	Rkey string
+	IsNew bool
+	ID    string
+	Type  NotificationType
+	URI   string
+	CID   string
+	Rkey  string
 
 	ActorDID               string
 	ActorDisplayName       *string
@@ -223,6 +224,7 @@ func (s *PostStore) ListNotifications(ctx context.Context, viewerDID string, lim
 		)
 		SELECT
 			e.id::text, e.category,
+			e.newness_revision > COALESCE((SELECT last_seen_revision FROM notification_seen_state WHERE account_did = $1), 0),
 			e.source_uri, e.source_cid, e.source_rkey,
 			CASE WHEN e.category IN ('reply','mention','quote') THEN source_post.uri IS NOT NULL ELSE true END,
 			e.subject_uri,e.subject_cid,(e.subject_uri IS NOT NULL AND sp.uri IS NOT NULL AND blocked_reference.id IS NULL),
@@ -282,6 +284,7 @@ func (s *PostStore) ListNotifications(ctx context.Context, viewerDID string, lim
 		if err := rows.Scan(
 			&row.ID,
 			&eventType,
+			&row.IsNew,
 			&sourceURI, &sourceCID, &sourceRkey, &sourceAvailable,
 			&subjectURI, &subjectCID, &subjectAvailable,
 			&parentURI, &parentCID, &parentAvailable,

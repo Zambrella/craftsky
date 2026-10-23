@@ -388,6 +388,12 @@ abstract class AppLocalizations {
   /// **'New activity'**
   String get notificationGenericRow;
 
+  /// Accessibility label for a notification that is new since the previous visit.
+  ///
+  /// In en, this message translates to:
+  /// **'New notification'**
+  String get notificationNew;
+
   /// No description provided for @notificationModerationRow.
   ///
   /// In en, this message translates to:
