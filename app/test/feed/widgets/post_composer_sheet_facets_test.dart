@@ -50,6 +50,9 @@ void main() {
           await _pumpUntilPostEnabled(tester);
           final controller = tester.widget<TextField>(field).controller!;
           final selection = controller.selection;
+          final fullWidth = tester
+              .getSize(find.widgetWithText(ChunkyButton, 'Post'))
+              .width;
           expect(find.text('Done'), findsNothing);
           await tester.pumpAndSettle();
 
@@ -58,16 +61,10 @@ void main() {
           );
           await tester.pump();
           await tester.pump(const Duration(milliseconds: 60));
-          final transition = tester.widget<FadeTransition>(
-            find
-                .ancestor(
-                  of: find.widgetWithText(ChunkyButton, 'Done'),
-                  matching: find.byType(FadeTransition),
-                )
-                .first,
+          expect(
+            tester.getSize(find.widgetWithText(ChunkyButton, 'Done')).width,
+            lessThan(fullWidth),
           );
-          expect(transition.opacity.value, greaterThan(0));
-          expect(transition.opacity.value, lessThan(1));
           await tester.pumpAndSettle();
           final done = find.widgetWithText(ChunkyButton, 'Done');
           expect(done, findsOneWidget);

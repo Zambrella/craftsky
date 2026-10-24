@@ -75,7 +75,6 @@ import 'package:craftsky_app/shared/widgets/composer_bottom_action.dart';
 import 'package:craftsky_app/shared/widgets/craft_icon.dart';
 import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
 import 'package:craftsky_app/subscriptions/providers/subscription_access_provider.dart';
-import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:craftsky_app/theme/craftsky_form_builder_select_fields.dart';
 import 'package:craftsky_app/theme/craftsky_form_builder_text_field.dart';
@@ -861,18 +860,16 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
                         child: ComposerBottomAction(
                           keyboardVisible: keyboardVisible,
                           doneKey: const Key('project-composer-done'),
-                          child: ChunkyButton(
-                            key: const Key('project-composer-primary-action'),
-                            focusNode: _primaryActionFocusNode,
-                            onPressed: canSubmit
-                                ? () => _submitProject(trimmedBody: trimmedBody)
-                                : null,
-                            child: Text(
-                              _scheduleChoice == ScheduleChoice.later
-                                  ? l10n.scheduledPostAction
-                                  : l10n.postComposeSubmit,
-                            ),
+                          actionKey: const Key(
+                            'project-composer-primary-action',
                           ),
+                          focusNode: _primaryActionFocusNode,
+                          onPressed: canSubmit
+                              ? () => _submitProject(trimmedBody: trimmedBody)
+                              : null,
+                          label: _scheduleChoice == ScheduleChoice.later
+                              ? l10n.scheduledPostAction
+                              : l10n.postComposeSubmit,
                         ),
                       ),
                     ),

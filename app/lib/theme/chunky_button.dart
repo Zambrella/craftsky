@@ -85,7 +85,12 @@ class ChunkyButton extends ButtonStyleButton {
     this.backgroundColor,
     this.foregroundColor,
     this.variant = ChunkyButtonVariant.primary,
-  });
+    this.variantProgress,
+  }) : assert(
+         variantProgress == null ||
+             (variantProgress >= 0 && variantProgress <= 1),
+         'variantProgress must be between 0 and 1',
+       );
 
   /// Surface color at rest. Defaults to `colorScheme.primary` (cobalt).
   final Color? backgroundColor;
@@ -94,6 +99,12 @@ class ChunkyButton extends ButtonStyleButton {
   final Color? foregroundColor;
 
   final ChunkyButtonVariant variant;
+
+  /// Optional animated blend from primary (0) to secondary (1).
+  ///
+  /// Callers supplying this value drive the animation themselves. Ordinary
+  /// buttons continue to resolve their appearance from [variant].
+  final double? variantProgress;
 
   /// Extra lift applied on hover (negative Y = up).
   static const Offset _hoverLift = Offset(-1, -1);
@@ -112,24 +123,29 @@ class ChunkyButton extends ButtonStyleButton {
     final localColours = theme.extension<ChunkyButtonColourTheme>();
 
     final isSecondary = variant == ChunkyButtonVariant.secondary;
+    final blend = variantProgress ?? (isSecondary ? 1.0 : 0.0);
     final surface =
         backgroundColor ??
-        (isSecondary
-            ? localColours?.softContainer ?? swatches.paper3
-            : localColours?.base ?? colors.primary);
+        Color.lerp(
+          localColours?.base ?? colors.primary,
+          localColours?.softContainer ?? swatches.paper3,
+          blend,
+        )!;
     final onSurface =
         foregroundColor ??
-        (isSecondary
-            ? localColours?.onSoftContainer ?? colors.onSurface
-            : localColours?.foreground ?? colors.onPrimary);
+        Color.lerp(
+          localColours?.foreground ?? colors.onPrimary,
+          localColours?.onSoftContainer ?? colors.onSurface,
+          blend,
+        )!;
     final contentColor = WidgetStateProperty.resolveWith<Color>((states) {
-      if (foregroundColor != null || localColours == null || !isSecondary) {
+      if (foregroundColor != null || localColours == null || blend == 0) {
         return onSurface;
       }
       if (states.contains(WidgetState.pressed) ||
           states.contains(WidgetState.hovered) ||
           states.contains(WidgetState.focused)) {
-        return localColours.foreground;
+        return Color.lerp(onSurface, localColours.foreground, blend)!;
       }
       return onSurface;
     });
@@ -194,7 +210,9 @@ class ChunkyButton extends ButtonStyleButton {
       }),
       visualDensity: theme.visualDensity,
       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-      animationDuration: durations.medium,
+      animationDuration: variantProgress == null
+          ? durations.medium
+          : Duration.zero,
       enableFeedback: true,
       alignment: Alignment.center,
 

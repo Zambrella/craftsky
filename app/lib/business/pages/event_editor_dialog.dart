@@ -17,7 +17,6 @@ import 'package:craftsky_app/shared/media/blob_api_client_provider.dart';
 import 'package:craftsky_app/shared/media/uploaded_image_blob.dart';
 import 'package:craftsky_app/shared/widgets/action_progress.dart';
 import 'package:craftsky_app/shared/widgets/composer_bottom_action.dart';
-import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -179,26 +178,25 @@ class _EventEditorDialogState extends ConsumerState<EventEditorDialog> {
                         child: ComposerBottomAction(
                           keyboardVisible: keyboardVisible,
                           doneKey: const Key('event-composer-done'),
-                          child: ChunkyButton(
-                            key: const ValueKey('event-submit'),
-                            onPressed: _saving || _reloading || conflict
-                                ? null
-                                : _submit,
-                            style: ButtonStyle(
-                              minimumSize: WidgetStatePropertyAll(
-                                Size.fromHeight(spacing.sp7),
-                              ),
+                          actionKey: const ValueKey('event-submit'),
+                          onPressed: _saving || _reloading || conflict
+                              ? null
+                              : _submit,
+                          style: ButtonStyle(
+                            minimumSize: WidgetStatePropertyAll(
+                              Size.fromHeight(spacing.sp7),
                             ),
-                            child: _saving
-                                ? SizedBox.square(
-                                    dimension: spacing.sp5,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      semanticsLabel: l10n.businessSaving,
-                                    ),
-                                  )
-                                : Text(submitLabel),
                           ),
+                          label: submitLabel,
+                          child: _saving
+                              ? SizedBox.square(
+                                  dimension: spacing.sp5,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    semanticsLabel: l10n.businessSaving,
+                                  ),
+                                )
+                              : null,
                         ),
                       ),
                     ),
