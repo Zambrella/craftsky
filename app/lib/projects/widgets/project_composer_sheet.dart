@@ -71,10 +71,10 @@ import 'package:craftsky_app/shared/rich_text/providers/facet_suggestion_provide
 import 'package:craftsky_app/shared/rich_text/widgets/facet_autocomplete_editor.dart';
 import 'package:craftsky_app/shared/text/record_text_limits.dart';
 import 'package:craftsky_app/shared/widgets/action_progress.dart';
+import 'package:craftsky_app/shared/widgets/composer_bottom_action.dart';
 import 'package:craftsky_app/shared/widgets/craft_icon.dart';
 import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
 import 'package:craftsky_app/subscriptions/providers/subscription_access_provider.dart';
-import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:craftsky_app/theme/craftsky_form_builder_select_fields.dart';
 import 'package:craftsky_app/theme/craftsky_form_builder_text_field.dart';
@@ -439,6 +439,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
     final theme = Theme.of(context);
     final spacing = theme.extension<SpacingTheme>()!;
     final swatches = theme.extension<BrandSwatchTheme>()!;
+    final keyboardVisible = MediaQuery.viewInsetsOf(context).bottom > 0;
     final createState = ref.watch(createPostProvider);
     final videoUploadsEnabled = ref.watch(videoUploadsEnabledProvider);
     final preferences = ref.watch(activeLanguagePreferencesProvider);
@@ -856,17 +857,19 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
                       top: false,
                       child: Padding(
                         padding: EdgeInsets.only(bottom: spacing.sp4),
-                        child: ChunkyButton(
-                          key: const Key('project-composer-primary-action'),
+                        child: ComposerBottomAction(
+                          keyboardVisible: keyboardVisible,
+                          doneKey: const Key('project-composer-done'),
+                          actionKey: const Key(
+                            'project-composer-primary-action',
+                          ),
                           focusNode: _primaryActionFocusNode,
                           onPressed: canSubmit
                               ? () => _submitProject(trimmedBody: trimmedBody)
                               : null,
-                          child: Text(
-                            _scheduleChoice == ScheduleChoice.later
-                                ? l10n.scheduledPostAction
-                                : l10n.postComposeSubmit,
-                          ),
+                          label: _scheduleChoice == ScheduleChoice.later
+                              ? l10n.scheduledPostAction
+                              : l10n.postComposeSubmit,
                         ),
                       ),
                     ),

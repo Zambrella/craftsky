@@ -432,7 +432,7 @@ void main() {
       expect(controller.selected?.preview.thumbnail?.bytes, thumbnailBytes);
       tester
           .widget<ChunkyButton>(
-            find.byKey(const Key('post-composer-primary-action')),
+            _postPrimaryActionButton(),
           )
           .onPressed!();
       await tester.pumpAndSettle();
@@ -600,7 +600,7 @@ void main() {
       await tester.pumpAndSettle();
       tester
           .widget<ChunkyButton>(
-            find.byKey(const Key('post-composer-primary-action')),
+            _postPrimaryActionButton(),
           )
           .onPressed!();
       await tester.pumpAndSettle();
@@ -683,7 +683,7 @@ void main() {
     );
     tester
         .widget<ChunkyButton>(
-          find.byKey(const Key('post-composer-primary-action')),
+          _postPrimaryActionButton(),
         )
         .onPressed!();
     await tester.pumpAndSettle();
@@ -747,7 +747,7 @@ void main() {
     await tester.pumpAndSettle();
     tester
         .widget<ChunkyButton>(
-          find.byKey(const Key('post-composer-primary-action')),
+          _postPrimaryActionButton(),
         )
         .onPressed!();
     await tester.pumpAndSettle();
@@ -813,7 +813,7 @@ void main() {
       await tester.pumpAndSettle();
       tester
           .widget<ChunkyButton>(
-            find.byKey(const Key('post-composer-primary-action')),
+            _postPrimaryActionButton(),
           )
           .onPressed!();
       await tester.pumpAndSettle();
@@ -887,7 +887,7 @@ void main() {
       await tester.pumpAndSettle();
       tester
           .widget<ChunkyButton>(
-            find.byKey(const Key('post-composer-primary-action')),
+            _postPrimaryActionButton(),
           )
           .onPressed!();
       await tester.pumpAndSettle();
@@ -963,7 +963,7 @@ void main() {
       await tester.pumpAndSettle();
       tester
           .widget<ChunkyButton>(
-            find.byKey(const Key('post-composer-primary-action')),
+            _postPrimaryActionButton(),
           )
           .onPressed!();
       await tester.pumpAndSettle();
@@ -979,7 +979,7 @@ void main() {
       await tester.pumpAndSettle();
       tester
           .widget<ChunkyButton>(
-            find.byKey(const Key('post-composer-primary-action')),
+            _postPrimaryActionButton(),
           )
           .onPressed!();
       await tester.pumpAndSettle();
@@ -1607,6 +1607,11 @@ void main() {
 
 Uint8List _pngBytes({required int width, required int height}) =>
     Uint8List.fromList(img.encodePng(img.Image(width: width, height: height)));
+
+Finder _postPrimaryActionButton() => find.descendant(
+  of: find.byKey(const Key('post-composer-primary-action')),
+  matching: find.byType(ChunkyButton),
+);
 
 final _scheduledDetail = ScheduledPostDetail(
   id: 'schedule-1',

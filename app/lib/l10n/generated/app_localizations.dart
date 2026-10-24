@@ -2230,6 +2230,12 @@ abstract class AppLocalizations {
   /// **'What would you like to share?'**
   String get postComposeHint;
 
+  /// Dismisses the keyboard in the post composer without publishing.
+  ///
+  /// In en, this message translates to:
+  /// **'Done'**
+  String get postComposeDone;
+
   /// Hint text inside the main post composer text field.
   ///
   /// In en, this message translates to:

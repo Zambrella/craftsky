@@ -21,6 +21,86 @@ import '../fakes/fake_post_repository.dart';
 
 void main() {
   group('PostComposerSheet facets', () {
+    for (final text in ['', List.filled(18, 'Another line').join('\n')]) {
+      testWidgets(
+        'Done dismisses keyboard without publishing (empty=${text.isEmpty})',
+        (tester) async {
+          addTearDown(tester.view.resetViewInsets);
+          var published = false;
+          final repo = FakePostRepository(
+            onCreate: ({required text, reply, images}) async {
+              published = true;
+              return _post(text);
+            },
+          );
+          await _openComposer(
+            tester,
+            overrides: [
+              activeLanguagePreferencesProvider.overrideWith(
+                (ref) => const LanguagePreferences(
+                  primaryLanguage: 'en',
+                  contentLanguages: ['en'],
+                ),
+              ),
+              postRepositoryProvider.overrideWithValue(repo),
+            ],
+          );
+          final field = find.byType(TextField).first;
+          await tester.enterText(field, text);
+          await _pumpUntilPostEnabled(tester);
+          final controller = tester.widget<TextField>(field).controller!;
+          final selection = controller.selection;
+          final fullWidth = tester
+              .getSize(find.widgetWithText(ChunkyButton, 'Post'))
+              .width;
+          expect(find.text('Done'), findsNothing);
+          await tester.pumpAndSettle();
+
+          tester.view.viewInsets = FakeViewPadding(
+            bottom: 300 * tester.view.devicePixelRatio,
+          );
+          await tester.pump();
+          await tester.pump(const Duration(milliseconds: 60));
+          expect(
+            tester.getSize(find.widgetWithText(ChunkyButton, 'Done')).width,
+            lessThan(fullWidth),
+          );
+          await tester.pumpAndSettle();
+          final done = find.widgetWithText(ChunkyButton, 'Done');
+          expect(done, findsOneWidget);
+          expect(find.widgetWithText(ChunkyButton, 'Post'), findsNothing);
+          expect(
+            tester.getSize(done).width,
+            lessThan(tester.getSize(find.byType(PostComposerSheet)).width / 2),
+          );
+          final textField = tester.widget<TextField>(field);
+          expect(textField.keyboardType, TextInputType.multiline);
+          expect(textField.textInputAction, TextInputAction.newline);
+          expect(textField.maxLines, 12);
+
+          await tester.tap(done);
+          await tester.pump();
+          expect(tester.testTextInput.isVisible, isFalse);
+          expect(controller.text, text);
+          expect(controller.selection, selection);
+          expect(published, isFalse);
+
+          tester.view.resetViewInsets();
+          await tester.pumpAndSettle();
+          expect(find.text('Done'), findsNothing);
+          expect(find.widgetWithText(ChunkyButton, 'Post'), findsOneWidget);
+
+          await tester.showKeyboard(field);
+          tester.view.viewInsets = FakeViewPadding(
+            bottom: 300 * tester.view.devicePixelRatio,
+          );
+          await tester.pumpAndSettle();
+          expect(find.widgetWithText(ChunkyButton, 'Done'), findsOneWidget);
+          expect(controller.text, text);
+        },
+      );
+    }
+
     testWidgets('blank post stays actionable and validates on press', (
       tester,
     ) async {

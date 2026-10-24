@@ -67,8 +67,8 @@ import 'package:craftsky_app/shared/rich_text/providers/facet_suggestion_provide
 import 'package:craftsky_app/shared/rich_text/widgets/facet_autocomplete_editor.dart';
 import 'package:craftsky_app/shared/text/record_text_limits.dart';
 import 'package:craftsky_app/shared/widgets/action_progress.dart';
+import 'package:craftsky_app/shared/widgets/composer_bottom_action.dart';
 import 'package:craftsky_app/subscriptions/providers/subscription_access_provider.dart';
-import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/publishing_progress_indicator.dart';
@@ -324,6 +324,7 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
     final theme = Theme.of(context);
     final spacing = theme.extension<SpacingTheme>()!;
     final swatches = theme.extension<BrandSwatchTheme>()!;
+    final keyboardVisible = MediaQuery.viewInsetsOf(context).bottom > 0;
     final createState = ref.watch(createPostProvider);
     final videoUploadsEnabled = ref.watch(videoUploadsEnabledProvider);
     final preferences = ref.watch(activeLanguagePreferencesProvider);
@@ -781,14 +782,18 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
                     top: false,
                     child: Padding(
                       padding: EdgeInsets.only(bottom: spacing.sp4),
-                      child: _PostAction(
+                      child: ComposerBottomAction(
+                        keyboardVisible: keyboardVisible,
+                        doneKey: const Key('post-composer-done'),
                         actionKey: keys.feed.submit,
-                        isSaving:
-                            createState.isLoading ||
-                            (_isScheduling && !_isDeletingSchedule),
                         label: submitLabel,
                         onPressed: canSubmit
                             ? () => _submitPost(trimmedText: trimmedText)
+                            : null,
+                        child:
+                            createState.isLoading ||
+                                (_isScheduling && !_isDeletingSchedule)
+                            ? const StitchProgressIndicator(size: 18)
                             : null,
                       ),
                     ),
@@ -1824,29 +1829,6 @@ class _ComposerTargetPreview extends StatelessWidget {
           ],
         ),
       ),
-    );
-  }
-}
-
-class _PostAction extends StatelessWidget {
-  const new({
-    required this.actionKey,
-    required this.isSaving,
-    required this.label,
-    required this.onPressed,
-  });
-
-  final Key actionKey;
-  final bool isSaving;
-  final String label;
-  final VoidCallback? onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return ChunkyButton(
-      key: actionKey,
-      onPressed: onPressed,
-      child: isSaving ? const StitchProgressIndicator(size: 18) : Text(label),
     );
   }
 }
