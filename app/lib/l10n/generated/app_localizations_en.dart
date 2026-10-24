@@ -1239,6 +1239,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get postComposeHint => 'What would you like to share?';
 
   @override
+  String get postComposeDone => 'Done';
+
+  @override
   String get postComposeBodyHint =>
       'Share what you\'re making, learning, or thinking...';
 

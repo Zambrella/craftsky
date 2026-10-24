@@ -16,6 +16,7 @@ import 'package:craftsky_app/router/responsive_modal_navigation.dart';
 import 'package:craftsky_app/shared/media/blob_api_client_provider.dart';
 import 'package:craftsky_app/shared/media/uploaded_image_blob.dart';
 import 'package:craftsky_app/shared/widgets/action_progress.dart';
+import 'package:craftsky_app/shared/widgets/composer_bottom_action.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
@@ -107,6 +108,7 @@ class _EventEditorDialogState extends ConsumerState<EventEditorDialog> {
     final theme = Theme.of(context);
     final spacing = theme.extension<SpacingTheme>()!;
     final swatches = theme.extension<BrandSwatchTheme>()!;
+    final keyboardVisible = MediaQuery.viewInsetsOf(context).bottom > 0;
     final mutation = ref.watch(businessEventMutationControllerProvider);
     final conflict = mutation.status == EventMutationStatus.conflict;
     final submitLabel = _event == null
@@ -174,25 +176,29 @@ class _EventEditorDialogState extends ConsumerState<EventEditorDialog> {
                       top: false,
                       child: Padding(
                         padding: EdgeInsets.only(bottom: spacing.sp4),
-                        child: ChunkyButton(
-                          key: const ValueKey('event-submit'),
-                          onPressed: _saving || _reloading || conflict
-                              ? null
-                              : _submit,
-                          style: ButtonStyle(
-                            minimumSize: WidgetStatePropertyAll(
-                              Size.fromHeight(spacing.sp7),
+                        child: ComposerBottomAction(
+                          keyboardVisible: keyboardVisible,
+                          doneKey: const Key('event-composer-done'),
+                          child: ChunkyButton(
+                            key: const ValueKey('event-submit'),
+                            onPressed: _saving || _reloading || conflict
+                                ? null
+                                : _submit,
+                            style: ButtonStyle(
+                              minimumSize: WidgetStatePropertyAll(
+                                Size.fromHeight(spacing.sp7),
+                              ),
                             ),
+                            child: _saving
+                                ? SizedBox.square(
+                                    dimension: spacing.sp5,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      semanticsLabel: l10n.businessSaving,
+                                    ),
+                                  )
+                                : Text(submitLabel),
                           ),
-                          child: _saving
-                              ? SizedBox.square(
-                                  dimension: spacing.sp5,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    semanticsLabel: l10n.businessSaving,
-                                  ),
-                                )
-                              : Text(submitLabel),
                         ),
                       ),
                     ),
