@@ -585,7 +585,7 @@ void main() {
   });
 
   for (final (label, path) in [
-    ('Connect Instagram', '/profile/settings/instagram'),
+    ('Connect Instagram', '/settings/instagram'),
     ('Search CraftSky', '/search'),
     ('View projects', '/projects'),
   ]) {

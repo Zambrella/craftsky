@@ -37,6 +37,6 @@ void main() {
     );
 
     expect(route, isA<AccountStandingRoute>());
-    expect(route.location, '/profile/settings/moderation');
+    expect(route.location, '/settings/moderation');
   });
 }

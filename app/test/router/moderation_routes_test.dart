@@ -6,7 +6,7 @@ void main() {
   test('moderation typed routes use canonical settings locations', () {
     expect(
       const AccountStandingRoute().location,
-      '/profile/settings/moderation',
+      '/settings/moderation',
     );
   });
 

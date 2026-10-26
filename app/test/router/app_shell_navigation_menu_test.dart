@@ -465,7 +465,7 @@ void main() {
     ('Saved', '/saved'),
     ('Scheduled', '/scheduled'),
     ('Drafts', '/drafts'),
-    ('Settings', '/profile/settings'),
+    ('Settings', '/settings'),
   ]) {
     testWidgets('CORR-005 compact drawer selects $label once', (tester) async {
       var navigations = 0;
@@ -498,7 +498,7 @@ void main() {
     ('Saved', '/saved'),
     ('Scheduled', '/scheduled'),
     ('Drafts', '/drafts'),
-    ('Settings', '/profile/settings'),
+    ('Settings', '/settings'),
   ]) {
     testWidgets('CORR-005 large rail selects $label once', (tester) async {
       var navigations = 0;
@@ -918,7 +918,7 @@ void main() {
     await tester.tap(find.text('Settings'));
     await tester.pumpAndSettle();
 
-    expect(router.state.matchedLocation, '/profile/settings');
+    expect(router.state.matchedLocation, '/settings');
     expect(tester.getRect(content).width, 800);
   });
 
@@ -1044,7 +1044,7 @@ void main() {
     await tester.tap(find.text('Settings'));
     await tester.pumpAndSettle();
 
-    expect(router.state.matchedLocation, '/profile/settings');
+    expect(router.state.matchedLocation, '/settings');
     expect(find.text('Settings'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
@@ -1114,9 +1114,19 @@ Future<GoRouter> _pumpShell(
               : shell;
         },
         branches: [
-          StatefulShellBranch(
-            routes: [
-              for (final path in ['/feed', '/saved', '/scheduled', '/drafts'])
+          for (final path in [
+            '/feed',
+            '/projects',
+            '/search',
+            '/notifications',
+            '/profile',
+            '/saved',
+            '/scheduled',
+            '/drafts',
+            '/settings',
+          ])
+            StatefulShellBranch(
+              routes: [
                 GoRoute(
                   path: path,
                   builder: (context, state) =>
@@ -1127,39 +1137,8 @@ Future<GoRouter> _pumpShell(
                           body: Text(path),
                         ),
                 ),
-            ],
-          ),
-          for (final path in ['/projects', '/search', '/notifications'])
-            StatefulShellBranch(
-              routes: [
-                GoRoute(
-                  path: path,
-                  builder: (context, state) => Scaffold(
-                    appBar: AppBar(leading: const AppShellDrawerButton()),
-                    body: Text(path),
-                  ),
-                ),
               ],
             ),
-          StatefulShellBranch(
-            routes: [
-              GoRoute(
-                path: '/profile',
-                builder: (context, state) => Scaffold(
-                  appBar: AppBar(leading: const AppShellDrawerButton()),
-                  body: const Text('/profile'),
-                ),
-                routes: [
-                  for (final path in ['settings'])
-                    GoRoute(
-                      path: path,
-                      builder: (context, state) =>
-                          Scaffold(body: Text('/profile/$path')),
-                    ),
-                ],
-              ),
-            ],
-          ),
         ],
       ),
     ],

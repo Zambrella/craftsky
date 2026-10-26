@@ -348,11 +348,11 @@ void main() {
         '/search',
         '/notifications',
         '/profile',
-        '/profile/settings',
+        '/settings',
       ],
     );
     expect(
-      () => statusDestinationLocation('/profile/settings/account'),
+      () => statusDestinationLocation('/settings/account'),
       throwsFormatException,
     );
   });
