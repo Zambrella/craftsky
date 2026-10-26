@@ -128,6 +128,7 @@ RouteBase get $authenticatedShellRoute => ShellRouteData.$route(
                   path: 'tags',
                   name: 'search-tag',
                   hasOverriddenOnExit: false,
+                  parentNavigatorKey: TagSearchRoute.$parentNavigatorKey,
                   factory: $TagSearchRoute._fromState,
                 ),
               ],
