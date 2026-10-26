@@ -18,6 +18,7 @@ import 'package:craftsky_app/notifications/models/notification_badge.dart';
 import 'package:craftsky_app/notifications/providers/notification_new_count_provider.dart';
 import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:craftsky_app/profile/providers/follower_growth_provider.dart';
+import 'package:craftsky_app/profile/providers/profile_reselect_provider.dart';
 import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
 import 'package:craftsky_app/projects/widgets/project_composer_sheet.dart';
 import 'package:craftsky_app/router/app_shell_drawer.dart';
@@ -201,6 +202,11 @@ class _AuthenticatedShellState extends ConsumerState<AuthenticatedShell> {
 
   void _goDestination(BuildContext context, int index) {
     if (_selectBranch?.call(index) ?? false) return;
+    if (index == 4 &&
+        GoRouter.of(context).state.matchedLocation == RouteLocations.profile) {
+      ref.read(profileReselectProvider.notifier).reselect();
+      return;
+    }
     if (index == 0 &&
         GoRouter.of(context).state.matchedLocation == RouteLocations.feed) {
       ref.read(feedReselectProvider.notifier).reselect();
@@ -708,6 +714,11 @@ class _AppShellState extends ConsumerState<AppShell> {
   }
 
   void _goBranch(int index) {
+    if (index == 4 &&
+        GoRouter.of(context).state.matchedLocation == RouteLocations.profile) {
+      ref.read(profileReselectProvider.notifier).reselect();
+      return;
+    }
     if (index == 0 &&
         GoRouter.of(context).state.matchedLocation == RouteLocations.feed) {
       ref.read(feedReselectProvider.notifier).reselect();

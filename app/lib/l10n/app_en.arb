@@ -875,6 +875,12 @@
   "projectComposerMaterialsAddAction": "Add",
   "@projectComposerMaterialsAddAction": { "description": "Button label for adding a typed material in the project composer." },
 
+  "projectComposerMaterialsEditAction": "Edit material",
+  "@projectComposerMaterialsEditAction": { "description": "Tooltip for moving an existing material into the project composer input for editing." },
+
+  "projectComposerMaterialsEditBlockedHint": "Add or clear the current material first",
+  "@projectComposerMaterialsEditBlockedHint": { "description": "Tooltip explaining why material edit buttons are disabled while the material input contains text." },
+
   "projectComposerMaterialsMaxLengthError": "Keep each material to {max} characters or fewer.",
   "@projectComposerMaterialsMaxLengthError": {
     "description": "Validation error for a project composer material entry that is too long.",
