@@ -518,6 +518,10 @@ class SearchRoute extends GoRouteData with $SearchRoute {
 class TagSearchRoute extends GoRouteData with $TagSearchRoute {
   const new({required this.tag});
 
+  // Hashtags can be opened from detail routes outside the tab navigators.
+  static final GlobalKey<NavigatorState> $parentNavigatorKey =
+      _NavigatorKeys.authenticatedShellNavigatorKey;
+
   final String tag;
 
   @override

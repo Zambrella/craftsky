@@ -9,6 +9,8 @@ import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/post_comment_section.dart';
 import 'package:craftsky_app/feed/models/post_page.dart';
+import 'package:craftsky_app/feed/models/timeline_page.dart';
+import 'package:craftsky_app/feed/pages/feed_page.dart';
 import 'package:craftsky_app/feed/pages/post_interaction_accounts_page.dart';
 import 'package:craftsky_app/feed/pages/post_quotes_page.dart';
 import 'package:craftsky_app/feed/pages/post_thread_page.dart';
@@ -18,7 +20,11 @@ import 'package:craftsky_app/feed/widgets/post_card.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/languages/models/language_preferences.dart';
 import 'package:craftsky_app/profile/models/profile_account_page.dart';
+import 'package:craftsky_app/projects/models/project.dart';
 import 'package:craftsky_app/router/router.dart';
+import 'package:craftsky_app/search/models/search_post_page.dart';
+import 'package:craftsky_app/search/pages/tag_search_page.dart';
+import 'package:craftsky_app/search/providers/search_repository_provider.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
@@ -29,6 +35,7 @@ import 'package:material_ui/material_ui.dart';
 
 import '../fakes/auth_session_fakes.dart';
 import '../feed/fakes/fake_post_repository.dart';
+import '../search/fakes/fake_search_repository.dart';
 
 const _did = 'did:plc:alice';
 const _rkey = 'root';
@@ -138,6 +145,7 @@ FakePostRepository _repositoryWithResponse({void Function()? onThreadLoad}) {
 ProviderContainer _container({
   required bool signedIn,
   FakePostRepository? repo,
+  FakeSearchRepository? searchRepo,
 }) {
   return ProviderContainer.test(
     overrides: [
@@ -151,6 +159,8 @@ ProviderContainer _container({
         _MemoryRegistryStorage(),
       ),
       postRepositoryProvider.overrideWithValue(repo ?? _repository()),
+      if (searchRepo != null)
+        searchRepositoryProvider.overrideWithValue(searchRepo),
     ],
     retry: (_, _) => null,
   );
@@ -224,6 +234,87 @@ void _expectDestination(String suffix, WidgetTester tester) {
 }
 
 void main() {
+  for (final size in [const Size(390, 844), const Size(1200, 800)]) {
+    for (final fromDetail in [false, true]) {
+      testWidgets(
+        '${fromDetail ? 'project detail' : 'feed'} hashtag opens results '
+        'and returns at $size',
+        (
+          tester,
+        ) async {
+          final project = _post().copyWith(
+            text: '#SockKAL',
+            facets: [
+              {
+                'index': {'byteStart': 0, 'byteEnd': 8},
+                'features': [
+                  {r'$type': 'app.bsky.richtext.facet#tag', 'tag': 'SockKAL'},
+                ],
+              },
+            ],
+            project: const Project(
+              common: ProjectCommon(craftType: 'knitting', title: 'My socks'),
+            ),
+          );
+          var detailLoads = 0;
+          final searchedTags = <String>[];
+          final container = _container(
+            signedIn: true,
+            repo: FakePostRepository(
+              onListTimeline: ({cursor, limit}) async => TimelinePage(
+                items: [
+                  TimelineItem(itemKey: project.uri.toString(), post: project),
+                ],
+              ),
+              onCommentSection:
+                  (did, rkey, {cursor, sort, focus, limit}) async {
+                    detailLoads++;
+                    return PostCommentSection(
+                      post: project,
+                      comments: const CommentPage(items: []),
+                      sort: CommentSort.oldest,
+                    );
+                  },
+            ),
+            searchRepo: FakeSearchRepository(
+              onSearchHashtagPosts: (tag, {sort, limit, cursor}) async {
+                searchedTags.add(tag);
+                return SearchPostPage(items: [_post()]);
+              },
+            ),
+          );
+          await _pumpRouter(
+            tester,
+            container,
+            initialLocation: '/feed',
+            size: size,
+          );
+          if (fromDetail) {
+            await tester.tap(find.text('My socks'));
+            await tester.pumpAndSettle();
+            expect(find.byType(PostThreadPage), findsOneWidget);
+          }
+          await tester.tapAt(
+            tester.getTopLeft(find.text('#SockKAL')) + const Offset(16, 8),
+          );
+          await tester.pumpAndSettle();
+
+          expect(find.byType(TagSearchPage), findsOneWidget);
+          expect(find.text('Originating thread state'), findsOneWidget);
+          expect(searchedTags, ['SockKAL']);
+
+          container.read(goRouterProvider).pop();
+          await tester.pumpAndSettle();
+          expect(
+            fromDetail ? find.byType(PostThreadPage) : find.byType(FeedPage),
+            findsOneWidget,
+          );
+          expect(find.text('#SockKAL'), findsOneWidget);
+          expect(detailLoads, fromDetail ? 1 : 0);
+        },
+      );
+    }
+  }
   group('AT-009 interaction detail routes', () {
     for (final suffix in ['likes', 'reposts', 'quotes']) {
       testWidgets('authenticated direct $suffix parses DID and rkey', (
