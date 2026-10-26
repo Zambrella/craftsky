@@ -12,6 +12,7 @@ import 'package:craftsky_app/languages/models/language_preferences.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
 import 'package:craftsky_app/notifications/data/notification_repository.dart';
 import 'package:craftsky_app/notifications/providers/notification_repository_provider.dart';
+import 'package:craftsky_app/profile/providers/profile_reselect_provider.dart';
 import 'package:craftsky_app/projects/widgets/project_composer_sheet.dart';
 import 'package:craftsky_app/router/app_shell.dart';
 import 'package:craftsky_app/settings/settings_links.dart';
@@ -42,6 +43,38 @@ void main() {
     'rail',
     'authenticated rail',
   ]) {
+    testWidgets('reselecting Profile from $surface requests the top', (
+      tester,
+    ) async {
+      final large = surface.contains('rail');
+      final router = await _pumpShell(
+        tester,
+        Size(large ? 1200 : 500, 800),
+        wrapInAuthenticatedShell: surface == 'authenticated rail',
+      );
+      router.go('/profile');
+      await tester.pumpAndSettle();
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(AppShell)),
+      );
+      final before = container.read(profileReselectProvider);
+      if (surface == 'drawer') {
+        await tester.tap(find.byTooltip('Open navigation menu'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.widgetWithText(ListTile, 'Profile'));
+      } else {
+        await tester.tap(
+          find.descendant(
+            of: find.byType(large ? NavigationRail : NavigationBar),
+            matching: find.text('Profile'),
+          ),
+        );
+      }
+      await tester.pumpAndSettle();
+      expect(router.state.matchedLocation, '/profile');
+      expect(container.read(profileReselectProvider), before + 1);
+    });
+
     testWidgets(
       'reselecting Home from $surface scrolls and refreshes the feed',
       (tester) async {
