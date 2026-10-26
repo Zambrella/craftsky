@@ -73,6 +73,7 @@ class EditProfileCraftsPicker extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     final label = craftLabel(craft, l10n);
     final isSelected = index != null;
+    final canReorder = enabled && crafts.length > 1;
     return ListTile(
       key: ValueKey('craft-choice-${craft.id}'),
       contentPadding: EdgeInsets.zero,
@@ -92,45 +93,58 @@ class EditProfileCraftsPicker extends StatelessWidget {
               ],
             )
           : null,
-      trailing: isSelected
-          ? Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                CraftskyContextMenuButton(
-                  enabled: enabled && crafts.length > 1,
-                  tooltip: l10n.craftsReorderLabel(label),
-                  groups: [
-                    CraftskyContextMenuGroup(
-                      items: [
-                        if (index > 0)
-                          CraftskyContextMenuItem(
-                            text: l10n.craftsMoveUp,
-                            icon: CraftskyIcons.moveUp,
-                            onPressed: () => _move(crafts, index, index - 1),
-                          ),
-                        if (index < crafts.length - 1)
-                          CraftskyContextMenuItem(
-                            text: l10n.craftsMoveDown,
-                            icon: CraftskyIcons.moveDown,
-                            onPressed: () => _move(crafts, index, index + 1),
-                          ),
-                      ],
-                    ),
-                  ],
-                ),
-                _CraftDragStartListener(
-                  index: index,
-                  enabled: enabled && crafts.length > 1,
-                  child: Semantics(
-                    label: l10n.craftsDragLabel(label),
-                    child: const SizedBox(
-                      width: 48,
-                      height: 48,
-                      child: Icon(Icons.drag_handle),
+      trailing: isSelected && crafts.length > 1
+          ? GestureDetector(
+              // Consume taps on controls, including disabled ones, so they do
+              // not toggle the enclosing selection row.
+              behavior: HitTestBehavior.opaque,
+              excludeFromSemantics: true,
+              onTap: () {},
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CraftskyContextMenuButton(
+                    enabled: canReorder,
+                    tooltip: l10n.craftsReorderLabel(label),
+                    groups: [
+                      CraftskyContextMenuGroup(
+                        items: [
+                          if (index > 0)
+                            CraftskyContextMenuItem(
+                              text: l10n.craftsMoveUp,
+                              icon: CraftskyIcons.moveUp,
+                              onPressed: () => _move(crafts, index, index - 1),
+                            ),
+                          if (index < crafts.length - 1)
+                            CraftskyContextMenuItem(
+                              text: l10n.craftsMoveDown,
+                              icon: CraftskyIcons.moveDown,
+                              onPressed: () => _move(crafts, index, index + 1),
+                            ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  _CraftDragStartListener(
+                    index: index,
+                    enabled: canReorder,
+                    child: Semantics(
+                      label: l10n.craftsDragLabel(label),
+                      enabled: canReorder,
+                      child: SizedBox(
+                        width: 48,
+                        height: 48,
+                        child: Icon(
+                          Icons.drag_handle,
+                          color: canReorder
+                              ? null
+                              : Theme.of(context).disabledColor,
+                        ),
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             )
           : null,
     );
