@@ -24,7 +24,7 @@ import 'package:craftsky_app/profile/models/profile_relationship.dart';
 import 'package:craftsky_app/profile/providers/profile_relationship_provider.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
-import 'package:craftsky_app/profile/widgets/profile_presentation_page.dart';
+import 'package:craftsky_app/profile/widgets/profile_avatar_hero.dart';
 import 'package:craftsky_app/projects/models/project.dart';
 import 'package:craftsky_app/projects/options/project_option_catalogs.dart';
 import 'package:craftsky_app/saved_posts/data/saved_post_repository.dart';
@@ -559,7 +559,7 @@ void main() {
       },
     );
 
-    testWidgets('AT-003 author identity opens the compact DID profile route', (
+    testWidgets('AT-003 author identity opens the full DID profile route', (
       tester,
     ) async {
       GoRouterState? destination;
@@ -601,10 +601,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(destination?.uri.path, '/profiles/did%3Aplc%3Aalice');
-      expect(
-        (destination?.extra as ProfilePresentationRequest?)?.startsCompact,
-        isTrue,
-      );
+      expect(destination?.extra, isA<ProfileAvatarTransition>());
     });
 
     testWidgets('AT-001 renders bookmark immediately before overflow', (

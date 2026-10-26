@@ -29,7 +29,7 @@ import 'package:craftsky_app/profile/providers/profile_relationship_provider.dar
 import 'package:craftsky_app/profile/providers/toggle_block_profile_provider.dart';
 import 'package:craftsky_app/profile/widgets/compact_profile_identity.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
-import 'package:craftsky_app/profile/widgets/profile_card_modal.dart';
+import 'package:craftsky_app/profile/widgets/profile_avatar_hero.dart';
 import 'package:craftsky_app/projects/widgets/project_card.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/saved_posts/widgets/saved_post_bookmark_button.dart';
@@ -369,9 +369,6 @@ class PostCard extends ConsumerWidget {
     final borderRadius = isFlat
         ? BorderRadius.zero
         : BorderRadius.circular(radii.r3);
-    void openAuthorProfile() => unawaited(
-      showUserProfileCard(context, did: post.author.did),
-    );
     final quotedPost = post.quoteView?.post;
     final quotedPostParts = quotedPost == null
         ? null
@@ -384,25 +381,12 @@ class PostCard extends ConsumerWidget {
                 did: quotedPostParts.did,
                 rkey: quotedPostParts.rkey,
               ).push<void>(context));
-    final openQuotedAuthor =
-        onQuotedAuthorTap ??
-        (quotedPost == null
-            ? null
-            : () => unawaited(
-                showUserProfileCard(
-                  context,
-                  did: quotedPost.author.did,
-                ),
-              ));
     final openReposter =
         onReposterTap ??
         (repostReason == null
             ? null
             : () => unawaited(
-                showUserProfileCard(
-                  context,
-                  did: repostReason!.by.did,
-                ),
+                UserProfileRoute(did: repostReason!.by.did).push<void>(context),
               ));
 
     final content = AnimatedContainer(
@@ -454,45 +438,52 @@ class PostCard extends ConsumerWidget {
                       ),
                       SizedBox(height: spacing.sp2),
                     ],
-                    Row(
-                      children: [
-                        _PostCardAuthorTapTarget(
-                          onTap: openAuthorProfile,
-                          child: ProfileAvatar(
-                            seed: displayName,
-                            avatarUrl: post.author.avatar,
-                            size: ProfileAvatarSize.small,
-                            customisation: post.author.customisation,
+                    ProfileAvatarHeroSource(
+                      did: post.author.did,
+                      handle: post.author.handle.toString(),
+                      displayName: post.author.displayName,
+                      crafts: post.author.crafts,
+                      avatar: ProfileAvatar(
+                        seed: displayName,
+                        avatarUrl: post.author.avatar,
+                        size: ProfileAvatarSize.small,
+                        customisation: post.author.customisation,
+                      ),
+                      builder: (context, avatar, openAuthorProfile) => Row(
+                        children: [
+                          _PostCardAuthorTapTarget(
+                            onTap: openAuthorProfile,
+                            child: avatar,
                           ),
-                        ),
-                        SizedBox(width: spacing.sp3),
-                        Expanded(
-                          child: Align(
-                            alignment: AlignmentDirectional.centerStart,
-                            child: _PostCardHeader(
-                              displayName: displayName,
-                              handle: post.author.handle.toString(),
-                              crafts: post.author.crafts,
-                              onTap: openAuthorProfile,
-                            ),
-                          ),
-                        ),
-                        GestureDetector(
-                          behavior: HitTestBehavior.opaque,
-                          onTap: onTap,
-                          onDoubleTap: likeOnDoubleTap,
-                          child: SizedBox(
-                            width: _postCardMenuWidth,
+                          SizedBox(width: spacing.sp3),
+                          Expanded(
                             child: Align(
-                              alignment: AlignmentDirectional.centerEnd,
-                              child: RelativeTimeText(
-                                timestamp: post.createdAt,
-                                textAlign: TextAlign.end,
+                              alignment: AlignmentDirectional.centerStart,
+                              child: _PostCardHeader(
+                                displayName: displayName,
+                                handle: post.author.handle.toString(),
+                                crafts: post.author.crafts,
+                                onTap: openAuthorProfile,
                               ),
                             ),
                           ),
-                        ),
-                      ],
+                          GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTap: onTap,
+                            onDoubleTap: likeOnDoubleTap,
+                            child: SizedBox(
+                              width: _postCardMenuWidth,
+                              child: Align(
+                                alignment: AlignmentDirectional.centerEnd,
+                                child: RelativeTimeText(
+                                  timestamp: post.createdAt,
+                                  textAlign: TextAlign.end,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                     if (post.externalImport?.isInstagram ?? false) ...[
                       SizedBox(height: spacing.sp2),
@@ -570,7 +561,7 @@ class PostCard extends ConsumerWidget {
                       _QuotePreviewCard(
                         quoteView: quoteView,
                         onPostTap: openQuotedPost,
-                        onAuthorTap: openQuotedAuthor,
+                        onAuthorTap: onQuotedAuthorTap,
                         onReveal: onRevealQuotedPost,
                       ),
                     ],
@@ -1179,6 +1170,7 @@ class _QuotePreviewCard extends StatelessWidget {
         data: PostSummaryData.fromQuoteView(quoteView),
         onTap: onPostTap,
         onAuthorTap: onAuthorTap,
+        enableAuthorNavigation: true,
         onReveal: onReveal,
       ),
     );

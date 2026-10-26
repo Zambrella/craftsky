@@ -1,3 +1,4 @@
+import 'package:craftsky_app/profile/widgets/profile_craft_hero.dart';
 import 'package:craftsky_app/shared/widgets/craft_icon.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:material_ui/material_ui.dart';
@@ -20,20 +21,28 @@ class ProfileCraftChips extends StatelessWidget {
   Widget build(BuildContext context) {
     if (crafts.isEmpty) return const SizedBox.shrink();
     final spacing = Theme.of(context).extension<SpacingTheme>()!;
+    final animatedCrafts = <String>{};
     return Wrap(
       alignment: alignment,
       spacing: spacing.sp2,
       runSpacing: spacing.sp2,
-      children: [for (final craft in crafts) _CraftChip(label: craft)],
+      children: [
+        for (final craft in crafts)
+          _CraftChip(
+            label: craft,
+            animate: animatedCrafts.add(ProfileCraftHero.idFor(craft)),
+          ),
+      ],
     );
   }
 }
 
 /// A single craft pill using the active profile colour theme.
 class _CraftChip extends StatelessWidget {
-  const new({required this.label});
+  const new({required this.label, required this.animate});
 
   final String label;
+  final bool animate;
 
   @override
   Widget build(BuildContext context) {
@@ -41,7 +50,7 @@ class _CraftChip extends StatelessWidget {
     final spacing = theme.extension<SpacingTheme>()!;
     final radii = theme.extension<RadiusTheme>()!;
     final display = _toSentenceCase(label);
-    return Container(
+    final chip = Container(
       padding: EdgeInsets.symmetric(horizontal: spacing.sp3, vertical: 6),
       decoration: BoxDecoration(
         color: theme.colorScheme.primaryContainer,
@@ -58,6 +67,14 @@ class _CraftChip extends StatelessWidget {
         ),
       ),
     );
+    return animate
+        ? ProfileCraftHero.destination(
+            context,
+            craft: label,
+            label: display,
+            child: chip,
+          )
+        : chip;
   }
 
   String _toSentenceCase(String value) {

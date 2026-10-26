@@ -1222,7 +1222,7 @@ mixin $ProfileAliasRoute on GoRouteData {
 mixin $UserProfileRoute on GoRouteData {
   static UserProfileRoute _fromState(GoRouterState state) => UserProfileRoute(
     did: _decodeDidRouteParameter(state.pathParameters['did']!),
-    $extra: state.extra as ProfilePresentationRequest?,
+    $extra: state.extra as ProfileAvatarTransition?,
   );
 
   UserProfileRoute get _self => this as UserProfileRoute;

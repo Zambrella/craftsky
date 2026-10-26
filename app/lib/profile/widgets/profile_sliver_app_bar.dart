@@ -15,7 +15,7 @@ import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:material_ui/material_ui.dart';
 
-/// Collapsing profile header styled like the compact profile card.
+/// Collapsing header for the full profile page.
 ///
 /// The expanded state shows the themed illustration band, overlapping avatar,
 /// and centred identity. It collapses to the same compact identity and trailing
@@ -23,7 +23,7 @@ import 'package:material_ui/material_ui.dart';
 class ProfileSliverAppBar extends StatelessWidget {
   const new({
     required this.handle,
-    required this.actions,
+    this.actions,
     this.crafts = const [],
     this.displayName,
     this.pronouns,
@@ -35,7 +35,7 @@ class ProfileSliverAppBar extends StatelessWidget {
   });
 
   final String handle;
-  final ProfileActionSet actions;
+  final ProfileActionSet? actions;
   final List<String> crafts;
   final String? displayName;
   final String? pronouns;
@@ -297,7 +297,7 @@ class _ProfileFlexibleSpace extends StatelessWidget {
   final String? avatarUrl;
   final ProfileCustomisation customisation;
   final bool isBusiness;
-  final ProfileActionSet actions;
+  final ProfileActionSet? actions;
   final VoidCallback? onAvatarTap;
   final double expandedHeight;
   final double identityHeight;
@@ -412,7 +412,10 @@ class _ProfileFlexibleSpace extends StatelessWidget {
             ignoring: collapsed < 0.5,
             child: Opacity(
               opacity: collapsed,
-              child: _CollapsedTrailingAction(actions: actions),
+              child: switch (actions) {
+                null => const SizedBox.shrink(),
+                final actions => _CollapsedTrailingAction(actions: actions),
+              },
             ),
           ),
         ),

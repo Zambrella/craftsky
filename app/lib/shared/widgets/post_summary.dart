@@ -6,6 +6,7 @@ import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/profile/models/profile_handle.dart';
 import 'package:craftsky_app/profile/widgets/compact_profile_identity.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
+import 'package:craftsky_app/profile/widgets/profile_avatar_hero.dart';
 import 'package:craftsky_app/shared/image/image_cache_providers.dart';
 import 'package:craftsky_app/shared/time/relative_time_text.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
@@ -162,6 +163,7 @@ class PostSummary extends StatelessWidget {
     required this.data,
     this.onTap,
     this.onAuthorTap,
+    this.enableAuthorNavigation = false,
     this.onReveal,
     this.padding = const EdgeInsets.all(12),
     super.key,
@@ -170,6 +172,7 @@ class PostSummary extends StatelessWidget {
   final PostSummaryData data;
   final VoidCallback? onTap;
   final VoidCallback? onAuthorTap;
+  final bool enableAuthorNavigation;
   final VoidCallback? onReveal;
   final EdgeInsetsGeometry padding;
 
@@ -188,10 +191,10 @@ class PostSummary extends StatelessWidget {
                 Row(
                   children: [
                     Expanded(
-                      child: GestureDetector(
-                        behavior: HitTestBehavior.opaque,
+                      child: _PostSummaryAuthor(
+                        author: author,
                         onTap: onAuthorTap,
-                        child: _PostSummaryAuthor(author: author),
+                        enableNavigation: enableAuthorNavigation,
                       ),
                     ),
                     if (data.createdAt case final createdAt?)
@@ -342,34 +345,52 @@ class SponsoredLabel extends StatelessWidget {
 }
 
 class _PostSummaryAuthor extends StatelessWidget {
-  const new({required this.author});
+  const new({required this.author, this.onTap, this.enableNavigation = false});
 
   final PostAuthor author;
+  final VoidCallback? onTap;
+  final bool enableNavigation;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return Row(
-      children: [
-        ProfileAvatar(
-          seed: ProfileHandle(author.handle).displayLabel(
-            displayName: author.displayName,
-            unavailableLabel: l10n.handleUnavailable,
+    final avatar = ProfileAvatar(
+      seed: ProfileHandle(author.handle).displayLabel(
+        displayName: author.displayName,
+        unavailableLabel: l10n.handleUnavailable,
+      ),
+      avatarUrl: author.avatar,
+      size: ProfileAvatarSize.small,
+      customisation: author.customisation,
+    );
+    Widget identity(Widget avatar, VoidCallback? onTap) => GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Row(
+        children: [
+          avatar,
+          const SizedBox(width: 12),
+          Expanded(
+            child: CompactProfileIdentity(
+              handle: author.handle.toString(),
+              displayName: author.displayName,
+              crafts: author.crafts,
+            ),
           ),
-          avatarUrl: author.avatar,
-          size: ProfileAvatarSize.small,
-          customisation: author.customisation,
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: CompactProfileIdentity(
+        ],
+      ),
+    );
+    return enableNavigation
+        ? ProfileAvatarHeroSource(
+            did: author.did,
             handle: author.handle.toString(),
             displayName: author.displayName,
             crafts: author.crafts,
-          ),
-        ),
-      ],
-    );
+            avatar: avatar,
+            builder: (context, avatar, openProfile) =>
+                identity(avatar, onTap ?? openProfile),
+          )
+        : identity(avatar, onTap);
   }
 }
 

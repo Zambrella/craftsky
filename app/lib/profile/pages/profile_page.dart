@@ -26,7 +26,9 @@ import 'package:craftsky_app/profile/providers/toggle_follow_profile_provider.da
 import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
 import 'package:craftsky_app/profile/widgets/follow_reaction.dart';
 import 'package:craftsky_app/profile/widgets/profile_actions.dart';
+import 'package:craftsky_app/profile/widgets/profile_avatar_hero.dart';
 import 'package:craftsky_app/profile/widgets/profile_customisation_theme.dart';
+import 'package:craftsky_app/profile/widgets/profile_entrance.dart';
 import 'package:craftsky_app/profile/widgets/profile_meta_section.dart';
 import 'package:craftsky_app/profile/widgets/profile_sliver_app_bar.dart';
 import 'package:craftsky_app/profile/widgets/profile_tab_bar.dart';
@@ -197,7 +199,9 @@ class _ProfileScaffold extends ConsumerWidget {
         body: _destinationErrorState(context, ref, error),
       ),
       _ => Scaffold(
-        appBar: _profileNavigationAppBar(context),
+        appBar: ProfileAvatarHeroDestination.maybeOf(context) == null
+            ? _profileNavigationAppBar(context)
+            : null,
         body: const _ProfileShellSkeleton(),
       ),
     };
@@ -227,6 +231,10 @@ class _ProfileShellSkeleton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final transition = ProfileAvatarHeroDestination.maybeOf(context);
+    if (transition != null) {
+      return _ProfileAvatarLoadingShell(transition: transition);
+    }
     final textTheme = Theme.of(context).textTheme;
     return CraftskySkeleton(
       child: ListView(
@@ -281,6 +289,38 @@ class _ProfileShellSkeleton extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Keeps the hero at the final header position even during a cold fetch.
+class _ProfileAvatarLoadingShell extends StatelessWidget {
+  const new({required this.transition});
+
+  final ProfileAvatarTransition transition;
+
+  @override
+  Widget build(BuildContext context) => CustomScrollView(
+    physics: const NeverScrollableScrollPhysics(),
+    slivers: [
+      ProfileCustomisationTheme(
+        customisation: transition.avatar.customisation,
+        child: ProfileSliverAppBar(
+          handle: transition.handle,
+          displayName: transition.displayName,
+          crafts: transition.crafts,
+          avatarUrl: transition.avatar.avatarUrl,
+          customisation: transition.avatar.customisation,
+        ),
+      ),
+      const SliverToBoxAdapter(
+        child: CraftskySkeleton(
+          child: Padding(
+            padding: EdgeInsets.all(16),
+            child: PostCardSkeleton(showMedia: true),
+          ),
+        ),
+      ),
+    ],
+  );
 }
 
 PreferredSizeWidget? _profileNavigationAppBar(BuildContext context) {
@@ -358,20 +398,22 @@ class _ProfileBody extends ConsumerWidget {
     );
     final actions = _actionsFor(context, ref, relationship);
 
-    if (relationship.hasBlock) {
-      return _BlockedProfileView(
-        profile: presented,
-        actions: actions,
-        relationship: relationship,
-      );
-    }
-    return _ProfileTabbedBody(
+    return ProfileEntrance(
       key: ValueKey(profile.did),
-      profile: presented,
-      actions: actions,
-      isOwnProfile: isOwnProfile,
-      relationship: relationship,
-      viewerAccount: viewerAccount,
+      child: relationship.hasBlock
+          ? _BlockedProfileView(
+              profile: presented,
+              actions: actions,
+              relationship: relationship,
+            )
+          : _ProfileTabbedBody(
+              key: ValueKey(profile.did),
+              profile: presented,
+              actions: actions,
+              isOwnProfile: isOwnProfile,
+              relationship: relationship,
+              viewerAccount: viewerAccount,
+            ),
     );
   }
 
@@ -782,8 +824,11 @@ class _ProfileScrollViewState extends ConsumerState<_ProfileScrollView> {
               SliverToBoxAdapter(
                 child: ProfileCustomisationTheme(
                   customisation: widget.profile.customisation,
-                  child: _RelationshipAnnotation(
-                    relationship: widget.relationship,
+                  child: ProfileEntranceFade(
+                    stage: ProfileEntranceStage.bio,
+                    child: _RelationshipAnnotation(
+                      relationship: widget.relationship,
+                    ),
                   ),
                 ),
               ),
@@ -795,27 +840,30 @@ class _ProfileScrollViewState extends ConsumerState<_ProfileScrollView> {
               ),
             ),
           ],
-          body: TabBarView(
-            controller: widget.controller,
-            children: [
-              for (final tab in widget.tabs)
-                NotificationListener<ScrollNotification>(
-                  onNotification: (notification) {
-                    if (notification.metrics.axis == Axis.vertical &&
-                        notification.depth == 0) {
-                      _innerOffsets[tab] = notification.metrics.pixels;
-                      _updateThreshold();
-                    }
-                    return false;
-                  },
-                  child: _ProfileTabScrollView(
-                    tab: tab,
-                    profile: widget.profile,
-                    isOwnProfile: widget.isOwnProfile,
-                    viewerAccount: widget.viewerAccount,
+          body: ProfileEntranceFade(
+            stage: ProfileEntranceStage.content,
+            child: TabBarView(
+              controller: widget.controller,
+              children: [
+                for (final tab in widget.tabs)
+                  NotificationListener<ScrollNotification>(
+                    onNotification: (notification) {
+                      if (notification.metrics.axis == Axis.vertical &&
+                          notification.depth == 0) {
+                        _innerOffsets[tab] = notification.metrics.pixels;
+                        _updateThreshold();
+                      }
+                      return false;
+                    },
+                    child: _ProfileTabScrollView(
+                      tab: tab,
+                      profile: widget.profile,
+                      isOwnProfile: widget.isOwnProfile,
+                      viewerAccount: widget.viewerAccount,
+                    ),
                   ),
-                ),
-            ],
+              ],
+            ),
           ),
         ),
         Positioned(
@@ -884,11 +932,17 @@ class _BlockedProfileView extends StatelessWidget {
       SliverToBoxAdapter(
         child: Padding(
           padding: const EdgeInsets.all(16),
-          child: ProfileActionSection(actions: actions),
+          child: ProfileEntranceFade(
+            stage: ProfileEntranceStage.actions,
+            child: ProfileActionSection(actions: actions),
+          ),
         ),
       ),
       SliverToBoxAdapter(
-        child: _RelationshipAnnotation(relationship: relationship),
+        child: ProfileEntranceFade(
+          stage: ProfileEntranceStage.bio,
+          child: _RelationshipAnnotation(relationship: relationship),
+        ),
       ),
     ],
   );

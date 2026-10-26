@@ -1024,7 +1024,7 @@ abstract class AppLocalizations {
   /// **'Edit profile'**
   String get profileEditAction;
 
-  /// Label on the secondary action in a profile card, opens the full profile page.
+  /// Accessibility hint for opening the full profile page.
   ///
   /// In en, this message translates to:
   /// **'Visit profile'**
