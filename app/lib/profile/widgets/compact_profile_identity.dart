@@ -3,6 +3,8 @@ import 'dart:math' as math;
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/profile/data/crafts_catalog.dart';
 import 'package:craftsky_app/profile/models/profile_handle.dart';
+import 'package:craftsky_app/profile/widgets/profile_avatar_hero.dart';
+import 'package:craftsky_app/profile/widgets/profile_craft_hero.dart';
 import 'package:craftsky_app/shared/widgets/craft_icon.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -60,11 +62,15 @@ class CompactProfileIdentity extends StatelessWidget {
                     return Row(
                       children: [
                         Flexible(
-                          child: Text(
-                            name,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: theme.textTheme.titleSmall,
+                          child: ProfileIdentityTextHero.source(
+                            context,
+                            part: ProfileIdentityHeroPart.name,
+                            child: Text(
+                              name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: theme.textTheme.titleSmall,
+                            ),
                           ),
                         ),
                         if (crafts.isNotEmpty)
@@ -89,12 +95,16 @@ class CompactProfileIdentity extends StatelessWidget {
             ],
           ),
         ),
-        Text(
-          identity.currentLabel(unavailableLabel: l10n.handleUnavailable),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: theme.colorScheme.outline,
+        ProfileIdentityTextHero.source(
+          context,
+          part: ProfileIdentityHeroPart.handle,
+          child: Text(
+            identity.currentLabel(unavailableLabel: l10n.handleUnavailable),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.outline,
+            ),
           ),
         ),
       ],
@@ -159,7 +169,11 @@ class _CompactCraftIcons extends StatelessWidget {
                   children: [
                     for (var i = 0; i < visible; i++) ...[
                       if (i > 0) const SizedBox(width: gap),
-                      CraftIcon(craft: icons[i], size: iconSize),
+                      ProfileCraftHero.source(
+                        context,
+                        craft: icons[i],
+                        child: CraftIcon(craft: icons[i], size: iconSize),
+                      ),
                     ],
                     if (hidden > 0) ...[
                       if (visible > 0) const SizedBox(width: gap),

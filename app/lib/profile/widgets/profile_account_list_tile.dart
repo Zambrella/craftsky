@@ -32,6 +32,9 @@ class ProfileAccountListTile extends StatelessWidget {
     final name = account.displayName?.trim();
     return ProfileAvatarHeroSource(
       did: account.did,
+      handle: account.handle.toString(),
+      displayName: account.displayName,
+      crafts: account.crafts,
       beforeOpen: beforeOpen,
       avatar: ProfileAvatar(
         seed: handle.displayLabel(

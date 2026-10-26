@@ -383,6 +383,9 @@ class _PostSummaryAuthor extends StatelessWidget {
     return enableNavigation
         ? ProfileAvatarHeroSource(
             did: author.did,
+            handle: author.handle.toString(),
+            displayName: author.displayName,
+            crafts: author.crafts,
             avatar: avatar,
             builder: (context, avatar, openProfile) =>
                 identity(avatar, onTap ?? openProfile),

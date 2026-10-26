@@ -440,6 +440,9 @@ class PostCard extends ConsumerWidget {
                     ],
                     ProfileAvatarHeroSource(
                       did: post.author.did,
+                      handle: post.author.handle.toString(),
+                      displayName: post.author.displayName,
+                      crafts: post.author.crafts,
                       avatar: ProfileAvatar(
                         seed: displayName,
                         avatarUrl: post.author.avatar,

@@ -27,8 +27,6 @@ import 'package:craftsky_app/profile/widgets/follow_reaction.dart';
 import 'package:craftsky_app/profile/widgets/profile_actions.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar_hero.dart';
 import 'package:craftsky_app/profile/widgets/profile_customisation_theme.dart';
-import 'package:craftsky_app/profile/widgets/profile_framed_avatar.dart';
-import 'package:craftsky_app/profile/widgets/profile_header_background.dart';
 import 'package:craftsky_app/profile/widgets/profile_meta_section.dart';
 import 'package:craftsky_app/profile/widgets/profile_sliver_app_bar.dart';
 import 'package:craftsky_app/profile/widgets/profile_tab_bar.dart';
@@ -296,67 +294,29 @@ class _ProfileAvatarLoadingShell extends StatelessWidget {
   final ProfileAvatarTransition transition;
 
   @override
-  Widget build(BuildContext context) {
-    final avatar = transition.avatar;
-    final topPadding = MediaQuery.paddingOf(context).top;
-    return CustomScrollView(
-      physics: const NeverScrollableScrollPhysics(),
-      slivers: [
-        SliverAppBar(
-          pinned: true,
-          expandedHeight: ProfileSliverAppBar.identityTop,
-          leading: AppShellDrawerScope.maybeOf(context) != null
-              ? const AppShellDrawerButton()
-              : null,
-          flexibleSpace: Stack(
-            children: [
-              Positioned(
-                top: 0,
-                left: 0,
-                right: 0,
-                height: topPadding + ProfileSliverAppBar.backgroundHeight,
-                child: ProfileHeaderBackground(
-                  customisation: avatar.customisation,
-                ),
-              ),
-              Positioned(
-                top: topPadding + ProfileSliverAppBar.avatarTop,
-                left: 0,
-                right: 0,
-                child: ProfileFramedAvatar(
-                  seed: avatar.seed,
-                  avatarUrl: avatar.avatarUrl,
-                  customisation: avatar.customisation,
-                ),
-              ),
-            ],
+  Widget build(BuildContext context) => CustomScrollView(
+    physics: const NeverScrollableScrollPhysics(),
+    slivers: [
+      ProfileCustomisationTheme(
+        customisation: transition.avatar.customisation,
+        child: ProfileSliverAppBar(
+          handle: transition.handle,
+          displayName: transition.displayName,
+          crafts: transition.crafts,
+          avatarUrl: transition.avatar.avatarUrl,
+          customisation: transition.avatar.customisation,
+        ),
+      ),
+      const SliverToBoxAdapter(
+        child: CraftskySkeleton(
+          child: Padding(
+            padding: EdgeInsets.all(16),
+            child: PostCardSkeleton(showMedia: true),
           ),
         ),
-        SliverToBoxAdapter(
-          child: CraftskySkeleton(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                children: [
-                  Bone.text(
-                    width: 176,
-                    style: Theme.of(context).textTheme.headlineSmall,
-                  ),
-                  const SizedBox(height: 12),
-                  Bone.text(
-                    width: 128,
-                    style: Theme.of(context).textTheme.bodyMedium,
-                  ),
-                  const SizedBox(height: 24),
-                  const PostCardSkeleton(showMedia: true),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
+      ),
+    ],
+  );
 }
 
 PreferredSizeWidget? _profileNavigationAppBar(BuildContext context) {

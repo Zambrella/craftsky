@@ -198,6 +198,9 @@ class NotificationRow extends ConsumerWidget {
                   children: [
                     ProfileAvatarHeroSource(
                       did: actorNotification.actor.did,
+                      handle: actorNotification.actor.handle.toString(),
+                      displayName: actorNotification.actor.displayName,
+                      crafts: actorNotification.actor.crafts,
                       avatar: ProfileAvatar(
                         seed: actor,
                         avatarUrl: actorNotification.actor.displayAvatarUrl,
