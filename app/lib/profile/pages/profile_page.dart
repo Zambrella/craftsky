@@ -25,7 +25,10 @@ import 'package:craftsky_app/profile/providers/toggle_follow_profile_provider.da
 import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
 import 'package:craftsky_app/profile/widgets/follow_reaction.dart';
 import 'package:craftsky_app/profile/widgets/profile_actions.dart';
+import 'package:craftsky_app/profile/widgets/profile_avatar_hero.dart';
 import 'package:craftsky_app/profile/widgets/profile_customisation_theme.dart';
+import 'package:craftsky_app/profile/widgets/profile_framed_avatar.dart';
+import 'package:craftsky_app/profile/widgets/profile_header_background.dart';
 import 'package:craftsky_app/profile/widgets/profile_meta_section.dart';
 import 'package:craftsky_app/profile/widgets/profile_sliver_app_bar.dart';
 import 'package:craftsky_app/profile/widgets/profile_tab_bar.dart';
@@ -194,7 +197,9 @@ class _ProfileScaffold extends ConsumerWidget {
         body: _destinationErrorState(context, ref, error),
       ),
       _ => Scaffold(
-        appBar: _profileNavigationAppBar(context),
+        appBar: ProfileAvatarHeroDestination.maybeOf(context) == null
+            ? _profileNavigationAppBar(context)
+            : null,
         body: const _ProfileShellSkeleton(),
       ),
     };
@@ -224,6 +229,10 @@ class _ProfileShellSkeleton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final transition = ProfileAvatarHeroDestination.maybeOf(context);
+    if (transition != null) {
+      return _ProfileAvatarLoadingShell(transition: transition);
+    }
     final textTheme = Theme.of(context).textTheme;
     return CraftskySkeleton(
       child: ListView(
@@ -276,6 +285,76 @@ class _ProfileShellSkeleton extends StatelessWidget {
           const PostCardSkeleton(showMedia: true),
         ],
       ),
+    );
+  }
+}
+
+/// Keeps the hero at the final header position even during a cold fetch.
+class _ProfileAvatarLoadingShell extends StatelessWidget {
+  const new({required this.transition});
+
+  final ProfileAvatarTransition transition;
+
+  @override
+  Widget build(BuildContext context) {
+    final avatar = transition.avatar;
+    final topPadding = MediaQuery.paddingOf(context).top;
+    return CustomScrollView(
+      physics: const NeverScrollableScrollPhysics(),
+      slivers: [
+        SliverAppBar(
+          pinned: true,
+          expandedHeight: ProfileSliverAppBar.identityTop,
+          leading: AppShellDrawerScope.maybeOf(context) != null
+              ? const AppShellDrawerButton()
+              : null,
+          flexibleSpace: Stack(
+            children: [
+              Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                height: topPadding + ProfileSliverAppBar.backgroundHeight,
+                child: ProfileHeaderBackground(
+                  customisation: avatar.customisation,
+                ),
+              ),
+              Positioned(
+                top: topPadding + ProfileSliverAppBar.avatarTop,
+                left: 0,
+                right: 0,
+                child: ProfileFramedAvatar(
+                  seed: avatar.seed,
+                  avatarUrl: avatar.avatarUrl,
+                  customisation: avatar.customisation,
+                ),
+              ),
+            ],
+          ),
+        ),
+        SliverToBoxAdapter(
+          child: CraftskySkeleton(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                children: [
+                  Bone.text(
+                    width: 176,
+                    style: Theme.of(context).textTheme.headlineSmall,
+                  ),
+                  const SizedBox(height: 12),
+                  Bone.text(
+                    width: 128,
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                  const SizedBox(height: 24),
+                  const PostCardSkeleton(showMedia: true),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

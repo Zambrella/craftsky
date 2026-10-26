@@ -9,6 +9,7 @@ import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/profile/models/profile_account_page.dart';
 import 'package:craftsky_app/profile/models/profile_account_summary.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
+import 'package:craftsky_app/profile/widgets/profile_avatar_hero.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/widgets/auto_paginated_list_view.dart';
@@ -137,7 +138,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(destination?.uri.path, '/profiles/did%3Aplc%3Adana');
-    expect(destination?.extra, isNull);
+    expect(destination?.extra, isA<ProfileAvatarTransition>());
   });
 
   testWidgets('AT-006 transient initial failure retries from page one', (

@@ -7,6 +7,7 @@ import 'package:craftsky_app/profile/models/profile_account_summary.dart';
 import 'package:craftsky_app/profile/pages/profile_page.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/profile/widgets/profile_account_list_tile.dart';
+import 'package:craftsky_app/profile/widgets/profile_avatar_hero.dart';
 import 'package:craftsky_app/profile/widgets/profile_tab_bar.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
@@ -50,6 +51,7 @@ void main() {
               path: '/profiles/:did',
               builder: (context, state) => UserProfileRoute(
                 did: Did.parse(state.pathParameters['did']!),
+                $extra: state.extra as ProfileAvatarTransition?,
               ).build(context, state),
             ),
           ],

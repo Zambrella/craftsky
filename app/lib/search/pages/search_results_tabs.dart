@@ -278,12 +278,7 @@ class _ProfileResultsSliver extends ConsumerWidget {
         onNearEnd: () => ref.read(provider.notifier).loadMore(),
         itemBuilder: (context, index) {
           final profile = value.items[index];
-          return _ProfileResultTile(
-            profile: profile,
-            onTap: () => unawaited(
-              UserProfileRoute(did: profile.did).push<void>(context),
-            ),
-          );
+          return _ProfileResultTile(profile: profile);
         },
       ),
       _ when profileResultsAsync.hasError => _ErrorView(

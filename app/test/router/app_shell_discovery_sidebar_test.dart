@@ -22,6 +22,7 @@ import 'package:craftsky_app/profile/providers/toggle_block_profile_provider.dar
 import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
 import 'package:craftsky_app/profile/widgets/profile_account_list_tile.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
+import 'package:craftsky_app/profile/widgets/profile_avatar_hero.dart';
 import 'package:craftsky_app/projects/pages/projects_page.dart';
 import 'package:craftsky_app/projects/providers/preferred_craft_links_provider.dart';
 import 'package:craftsky_app/projects/providers/project_repository_provider.dart';
@@ -125,6 +126,7 @@ Future<GoRouter> _pumpSidebar(
                     key: state.pageKey,
                     child: UserProfileRoute(
                       did: Did.parse(state.pathParameters['did']!),
+                      $extra: state.extra as ProfileAvatarTransition?,
                     ).build(context, state),
                   )
                 : MaterialPage(

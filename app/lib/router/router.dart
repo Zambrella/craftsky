@@ -30,6 +30,7 @@ import 'package:craftsky_app/profile/models/profile_handle.dart';
 import 'package:craftsky_app/profile/pages/profile_mutual_followers_page.dart';
 import 'package:craftsky_app/profile/pages/profile_page.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
+import 'package:craftsky_app/profile/widgets/profile_avatar_hero.dart';
 import 'package:craftsky_app/projects/pages/projects_page.dart';
 import 'package:craftsky_app/router/app_shell.dart';
 import 'package:craftsky_app/router/error_screen.dart';
@@ -1046,13 +1047,18 @@ class UserProfileRoute extends GoRouteData with $UserProfileRoute {
       decoder: _decodeDidRouteParameter,
     )
     required this.did,
+    this.$extra,
   });
 
   final Did did;
+  final ProfileAvatarTransition? $extra;
 
   @override
   Widget build(BuildContext context, GoRouterState state) =>
-      ProfilePage(did: did);
+      ProfileAvatarHeroDestination(
+        transition: $extra,
+        child: ProfilePage(did: did),
+      );
 }
 
 class ProfileMutualFollowersRoute extends GoRouteData

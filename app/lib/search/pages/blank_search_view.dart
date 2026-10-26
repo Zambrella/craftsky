@@ -93,7 +93,6 @@ class _RecentSearchSection extends ConsumerWidget {
                 avatar: avatar,
                 crafts: crafts,
               ),
-              onTap: () => _openRecent(recent),
               trailing: IconButton(
                 tooltip: l10n.searchDeleteRecentAction,
                 icon: const Icon(CraftskyIconsBold.close),

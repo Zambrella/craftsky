@@ -164,7 +164,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     SearchRoute(q: query, tab: tab).go(context);
   }
 
-  Future<void> _openProfile(ProfileSearchResult profile) async {
+  Future<void> _saveProfileRecent(ProfileSearchResult profile) async {
     final handle = ProfileHandle(profile.handle);
     await ref
         .read(saveRecentSearchProvider.notifier)
@@ -183,8 +183,6 @@ class _SearchPageState extends ConsumerState<SearchPage> {
             ),
           ),
         );
-    if (!mounted) return;
-    await UserProfileRoute(did: profile.did).push<void>(context);
   }
 
   Future<void> _openHashtag(String tag) async {
@@ -264,7 +262,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
         ref: ref,
         query: _debouncedQuery.trim(),
         isWaitingForDebounce: _debouncedQuery.trim() != draft,
-        onOpenProfile: _openProfile,
+        beforeOpenProfile: _saveProfileRecent,
         onOpenHashtag: _openHashtag,
         onViewAllProfiles: () => _openResultTab(SearchResultsTab.profiles),
         onViewAllHashtags: () => _openResultTab(SearchResultsTab.tags),
@@ -452,16 +450,16 @@ class _PostList extends StatelessWidget {
 }
 
 class _ProfileResultTile extends StatelessWidget {
-  const new({required this.profile, required this.onTap});
+  const new({required this.profile, this.beforeOpen});
 
   final ProfileSearchResult profile;
-  final VoidCallback onTap;
+  final Future<void> Function()? beforeOpen;
 
   @override
   Widget build(BuildContext context) {
     return ProfileAccountListTile(
       account: profile.summary,
-      onTap: onTap,
+      beforeOpen: beforeOpen,
     );
   }
 }
