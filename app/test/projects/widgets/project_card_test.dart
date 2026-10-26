@@ -164,7 +164,7 @@ void main() {
       expect(find.text('COLOURS'), findsOneWidget);
       expect(find.text('Blue'), findsOneWidget);
       expect(find.text('Natural'), findsOneWidget);
-      expect(find.text('DESIGN TAGS'), findsOneWidget);
+      expect(find.text('DESIGN'), findsOneWidget);
       expect(find.text('Minimalist'), findsOneWidget);
       expect(find.text('TAGS'), findsOneWidget);
       expect(find.text('jacket'), findsOneWidget);
