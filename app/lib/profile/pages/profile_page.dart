@@ -27,6 +27,7 @@ import 'package:craftsky_app/profile/widgets/follow_reaction.dart';
 import 'package:craftsky_app/profile/widgets/profile_actions.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar_hero.dart';
 import 'package:craftsky_app/profile/widgets/profile_customisation_theme.dart';
+import 'package:craftsky_app/profile/widgets/profile_entrance.dart';
 import 'package:craftsky_app/profile/widgets/profile_meta_section.dart';
 import 'package:craftsky_app/profile/widgets/profile_sliver_app_bar.dart';
 import 'package:craftsky_app/profile/widgets/profile_tab_bar.dart';
@@ -394,20 +395,22 @@ class _ProfileBody extends ConsumerWidget {
     );
     final actions = _actionsFor(context, ref, relationship);
 
-    if (relationship.hasBlock) {
-      return _BlockedProfileView(
-        profile: presented,
-        actions: actions,
-        relationship: relationship,
-      );
-    }
-    return _ProfileTabbedBody(
+    return ProfileEntrance(
       key: ValueKey(profile.did),
-      profile: presented,
-      actions: actions,
-      isOwnProfile: isOwnProfile,
-      relationship: relationship,
-      viewerAccount: viewerAccount,
+      child: relationship.hasBlock
+          ? _BlockedProfileView(
+              profile: presented,
+              actions: actions,
+              relationship: relationship,
+            )
+          : _ProfileTabbedBody(
+              key: ValueKey(profile.did),
+              profile: presented,
+              actions: actions,
+              isOwnProfile: isOwnProfile,
+              relationship: relationship,
+              viewerAccount: viewerAccount,
+            ),
     );
   }
 
@@ -751,7 +754,10 @@ class _ProfileScrollView extends StatelessWidget {
           SliverToBoxAdapter(
             child: ProfileCustomisationTheme(
               customisation: profile.customisation,
-              child: _RelationshipAnnotation(relationship: relationship),
+              child: ProfileEntranceFade(
+                stage: ProfileEntranceStage.bio,
+                child: _RelationshipAnnotation(relationship: relationship),
+              ),
             ),
           ),
         SliverPersistentHeader(
@@ -759,17 +765,20 @@ class _ProfileScrollView extends StatelessWidget {
           delegate: ProfileTabBarDelegate(tabs: tabs, controller: controller),
         ),
       ],
-      body: TabBarView(
-        controller: controller,
-        children: [
-          for (final tab in tabs)
-            _ProfileTabScrollView(
-              tab: tab,
-              profile: profile,
-              isOwnProfile: isOwnProfile,
-              viewerAccount: viewerAccount,
-            ),
-        ],
+      body: ProfileEntranceFade(
+        stage: ProfileEntranceStage.content,
+        child: TabBarView(
+          controller: controller,
+          children: [
+            for (final tab in tabs)
+              _ProfileTabScrollView(
+                tab: tab,
+                profile: profile,
+                isOwnProfile: isOwnProfile,
+                viewerAccount: viewerAccount,
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -827,11 +836,17 @@ class _BlockedProfileView extends StatelessWidget {
       SliverToBoxAdapter(
         child: Padding(
           padding: const EdgeInsets.all(16),
-          child: ProfileActionSection(actions: actions),
+          child: ProfileEntranceFade(
+            stage: ProfileEntranceStage.actions,
+            child: ProfileActionSection(actions: actions),
+          ),
         ),
       ),
       SliverToBoxAdapter(
-        child: _RelationshipAnnotation(relationship: relationship),
+        child: ProfileEntranceFade(
+          stage: ProfileEntranceStage.bio,
+          child: _RelationshipAnnotation(relationship: relationship),
+        ),
       ),
     ],
   );
