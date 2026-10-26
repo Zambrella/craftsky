@@ -29,6 +29,7 @@ type NotificationPage struct {
 }
 
 type NotificationItem struct {
+	IsNew            bool                    `json:"isNew"`
 	ID               string                  `json:"id"`
 	URI              string                  `json:"uri,omitempty"`
 	CID              string                  `json:"cid,omitempty"`
@@ -148,6 +149,7 @@ func parseNotificationLimit(raw string) int {
 
 func buildNotificationItem(row *NotificationRow, handles map[string]syntax.Handle, summaries map[string]EngagementSummary, playbackSource any) *NotificationItem {
 	item := &NotificationItem{
+		IsNew:         row.IsNew,
 		ID:            row.ID,
 		Preview:       row.Preview,
 		QuotedPreview: row.QuotedPreview,

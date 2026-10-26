@@ -24,6 +24,47 @@ import '../../test_support/deterministic_pump.dart';
 import '../accessibility_test_helpers.dart';
 
 void main() {
+  testWidgets('Done dismisses event keyboard without submitting', (
+    tester,
+  ) async {
+    addTearDown(tester.view.resetViewInsets);
+    var submitted = false;
+    await tester.pumpWidget(
+      _app(
+        EventEditorDialog(
+          initialDraft: _draft(),
+          onSubmit: (_) async {
+            submitted = true;
+            return false;
+          },
+        ),
+      ),
+    );
+    final field = find.byKey(const ValueKey('event-summary'));
+    await tester.ensureVisible(field);
+    await tester.pumpAndSettle();
+    const text = 'A craft fair\nwith workshops';
+    await tester.enterText(field, text);
+    tester.view.viewInsets = FakeViewPadding(
+      bottom: 300 * tester.view.devicePixelRatio,
+    );
+    await tester.pumpAndSettle();
+
+    final done = find.byKey(const Key('event-composer-done'));
+    expect(done, findsOneWidget);
+    expect(find.byKey(const ValueKey('event-submit')), findsNothing);
+    await tester.tap(done);
+    await tester.pump();
+    expect(tester.testTextInput.isVisible, isFalse);
+    expect(tester.widget<TextField>(field).controller!.text, text);
+    expect(submitted, isFalse);
+
+    tester.view.resetViewInsets();
+    await tester.pumpAndSettle();
+    expect(done, findsNothing);
+    expect(find.byKey(const ValueKey('event-submit')), findsOneWidget);
+  });
+
   for (final constraint in businessAccessibilityMatrix) {
     testWidgets('AT-012 REG-010 event editor fits '
         '${businessConstraintLabel(constraint)}', (tester) async {

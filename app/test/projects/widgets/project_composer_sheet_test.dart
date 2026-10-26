@@ -29,6 +29,44 @@ import 'package:rive/rive.dart' as rive;
 import '../../fakes/recording_messenger.dart';
 
 void main() {
+  testWidgets('Done dismisses project keyboard and restores Post', (
+    tester,
+  ) async {
+    addTearDown(tester.view.resetViewInsets);
+    await _pumpComposer(tester, 'keyboard-composer');
+    final field = _bodyTextField();
+    final text = List.filled(18, 'Another line').join('\n');
+    await tester.enterText(field, text);
+    final controller = tester.widget<TextField>(field).controller!;
+    final selection = controller.selection;
+    tester.view.viewInsets = FakeViewPadding(
+      bottom: 300 * tester.view.devicePixelRatio,
+    );
+    await tester.pumpAndSettle();
+
+    final done = find.byKey(const Key('project-composer-done'));
+    expect(done, findsOneWidget);
+    expect(
+      find.byKey(const Key('project-composer-primary-action')),
+      findsNothing,
+    );
+    expect(tester.getSize(done).width, lessThan(200));
+    await tester.tap(done);
+    await tester.pump();
+    expect(tester.testTextInput.isVisible, isFalse);
+    expect(controller.text, text);
+    expect(controller.selection, selection);
+
+    tester.view.resetViewInsets();
+    await tester.pumpAndSettle();
+    expect(done, findsNothing);
+    expect(
+      find.byKey(const Key('project-composer-primary-action')),
+      findsOneWidget,
+    );
+    expect(find.byType(ProjectComposerSheet), findsOneWidget);
+  });
+
   for (final status in ProjectOptionCatalogs.statuses) {
     testWidgets('restored drafts retain saved status (${status.value})', (
       tester,

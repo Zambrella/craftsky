@@ -14,6 +14,61 @@ ComposerImageDraft _image(String id) => ComposerImageDraft(
 );
 
 void main() {
+  for (final useDetailsRoute in [true, false]) {
+    for (final composing in [true, false]) {
+      testWidgets('rapid mid-sentence edits preserve editing value '
+          '(details: $useDetailsRoute, composing: $composing)', (tester) async {
+        const original = 'The corner increase. The perspective is askew.';
+        final state = ValueNotifier(
+          ComposerImagesState(
+            images: [
+              _image('1').copyWith(altText: original),
+              _image('2'),
+              _image('3'),
+            ],
+          ),
+        );
+        addTearDown(state.dispose);
+        await _pump(tester, state, useDetailsRoute: useDetailsRoute);
+        if (useDetailsRoute) {
+          await tester.tap(find.byKey(const Key('composer-edit-images')));
+        }
+        await tester.pumpAndSettle();
+        final alt = find.byKey(const Key('composer-alt-1'));
+        await tester.ensureVisible(alt);
+        await tester.showKeyboard(alt);
+        final editable = find.descendant(
+          of: alt,
+          matching: find.byType(EditableText),
+        );
+        TextEditingValue currentValue() =>
+            tester.widget<EditableText>(editable).controller.value;
+        const insertionOffset = 19;
+        var text = original;
+        const insertion = ', not folded in half';
+        for (var i = 0; i < insertion.length; i++) {
+          final offset = insertionOffset + i;
+          text = text.replaceRange(offset, offset, insertion[i]);
+          final edit = TextEditingValue(
+            text: text,
+            selection: TextSelection.collapsed(offset: offset + 1),
+            composing: composing
+                ? TextRange(start: insertionOffset, end: offset + 1)
+                : TextRange.empty,
+          );
+          tester.testTextInput.updateEditingValue(edit);
+          // Render a frame without waiting for the list's async diff.
+          await tester.pump();
+          expect(currentValue(), edit, reason: 'After keystroke $i');
+        }
+        final expected = currentValue();
+        await tester.pumpAndSettle();
+        expect(currentValue(), expected);
+        expect(state.value.images.first.altText, text);
+      });
+    }
+  }
+
   testWidgets(
     'selection opens details; edits persist in the thumbnail summary',
     (
@@ -134,6 +189,7 @@ Future<void> _pump(
   int maxImages = 4,
   bool cancelSelection = false,
   bool enabled = true,
+  bool useDetailsRoute = true,
 }) => tester.pumpWidget(
   MaterialApp(
     theme: AppTheme.lightThemeData,
@@ -144,7 +200,7 @@ Future<void> _pump(
         child: ValueListenableBuilder(
           valueListenable: state,
           builder: (context, images, _) => ComposerImageAttachmentSection(
-            useDetailsRoute: true,
+            useDetailsRoute: useDetailsRoute,
             imagesState: images,
             enabled: enabled,
             maxImages: maxImages,

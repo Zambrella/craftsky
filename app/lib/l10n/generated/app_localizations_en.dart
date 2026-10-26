@@ -189,6 +189,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get notificationGenericRow => 'New activity';
 
   @override
+  String get notificationNew => 'New notification';
+
+  @override
   String get notificationModerationRow =>
       'Review an update to your account standing';
 
@@ -1234,6 +1237,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get postComposeHint => 'What would you like to share?';
+
+  @override
+  String get postComposeDone => 'Done';
 
   @override
   String get postComposeBodyHint =>

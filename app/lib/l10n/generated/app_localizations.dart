@@ -388,6 +388,12 @@ abstract class AppLocalizations {
   /// **'New activity'**
   String get notificationGenericRow;
 
+  /// Accessibility label for a notification that is new since the previous visit.
+  ///
+  /// In en, this message translates to:
+  /// **'New notification'**
+  String get notificationNew;
+
   /// No description provided for @notificationModerationRow.
   ///
   /// In en, this message translates to:
@@ -2223,6 +2229,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'What would you like to share?'**
   String get postComposeHint;
+
+  /// Dismisses the keyboard in the post composer without publishing.
+  ///
+  /// In en, this message translates to:
+  /// **'Done'**
+  String get postComposeDone;
 
   /// Hint text inside the main post composer text field.
   ///

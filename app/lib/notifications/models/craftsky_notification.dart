@@ -19,11 +19,13 @@ sealed class CraftskyNotification {
     required this.id,
     required this.createdAt,
     required this.indexedAt,
+    this.isNew = false,
   });
 
   final String id;
   final DateTime createdAt;
   final DateTime indexedAt;
+  final bool isNew;
 
   NotificationCategory get type;
 
@@ -157,6 +159,7 @@ sealed class ActorNotification extends CraftskyNotification {
     required this.actor,
     required super.createdAt,
     required super.indexedAt,
+    super.isNew,
   });
 
   final NotificationActor actor;
@@ -172,6 +175,7 @@ sealed class SocialNotification extends ActorNotification {
         actor: common.actor,
         createdAt: common.createdAt,
         indexedAt: common.indexedAt,
+        isNew: common.isNew,
       );
 
   final AtUri uri;
@@ -261,6 +265,7 @@ sealed class SystemNotification extends CraftskyNotification {
         id: common.id,
         createdAt: common.createdAt,
         indexedAt: common.indexedAt,
+        isNew: common.isNew,
       );
 }
 
@@ -271,6 +276,7 @@ final class InstagramMatchNotification extends ActorNotification {
         actor: common.actor,
         createdAt: common.createdAt,
         indexedAt: common.indexedAt,
+        isNew: common.isNew,
       );
 
   @override
@@ -287,6 +293,7 @@ final class ActorNotificationCommon with ActorNotificationCommonMappable {
     required this.actor,
     required this.createdAt,
     required this.indexedAt,
+    this.isNew = false,
   });
 
   factory fromMap(Map<String, dynamic> map) =>
@@ -296,6 +303,7 @@ final class ActorNotificationCommon with ActorNotificationCommonMappable {
   final NotificationActor actor;
   final DateTime createdAt;
   final DateTime indexedAt;
+  final bool isNew;
 }
 
 final class GenericSystemNotification extends SystemNotification {
@@ -325,6 +333,7 @@ final class SystemNotificationCommon with SystemNotificationCommonMappable {
     required this.id,
     required this.createdAt,
     required this.indexedAt,
+    this.isNew = false,
   });
 
   factory fromMap(Map<String, dynamic> map) =>
@@ -333,6 +342,7 @@ final class SystemNotificationCommon with SystemNotificationCommonMappable {
   final String id;
   final DateTime createdAt;
   final DateTime indexedAt;
+  final bool isNew;
 }
 
 @MappableClass(
@@ -433,6 +443,7 @@ final class NotificationCommon with NotificationCommonMappable {
     required this.actor,
     required this.createdAt,
     required this.indexedAt,
+    this.isNew = false,
   });
 
   factory fromMap(Map<String, dynamic> map) {
@@ -459,6 +470,7 @@ final class NotificationCommon with NotificationCommonMappable {
   final NotificationActor actor;
   final DateTime createdAt;
   final DateTime indexedAt;
+  final bool isNew;
 }
 
 // Text-only preview: intentionally excludes media and routing capabilities.

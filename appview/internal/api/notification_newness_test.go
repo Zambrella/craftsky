@@ -85,6 +85,11 @@ func TestNotificationNewCountUsesAccountMarkerAndListVisibility(t *testing.T) {
 	if len(listed) != 2 {
 		t.Fatalf("listed=%d, want 2 to match new count visibility", len(listed))
 	}
+	for _, row := range listed {
+		if !row.IsNew {
+			t.Fatal("first-use notification must be new")
+		}
+	}
 	var markerRows int
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM notification_seen_state`).Scan(&markerRows); err != nil {
 		t.Fatal(err)
@@ -101,6 +106,52 @@ func TestNotificationNewCountUsesAccountMarkerAndListVisibility(t *testing.T) {
 	}
 	if count := requestCount(); count != 1 {
 		t.Fatalf("count after marker=%d, want 1", count)
+	}
+	listed, _, err = api.NewPostStore(pool).ListNotifications(ctx, "did:plc:viewer", 20, "", "follow")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var highlighted int
+	for _, row := range listed {
+		if row.IsNew {
+			highlighted++
+		}
+	}
+	if len(listed) != 2 || highlighted != 1 {
+		t.Fatalf("filtered list: rows=%d new=%d, want 2 rows and 1 new", len(listed), highlighted)
+	}
+	listHandler := api.ListNotificationsHandler(api.NewPostStore(pool), nil, nilLogger())
+	if _, err := pool.Exec(ctx, `CREATE TABLE atproto_identity_cache (did TEXT PRIMARY KEY, handle TEXT NOT NULL)`); err != nil {
+		t.Fatal(err)
+	}
+	recorder := httptest.NewRecorder()
+	listHandler.ServeHTTP(recorder, authedReq(http.MethodGet, "/v1/notifications", "", "did:plc:viewer"))
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("list status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+	var body struct {
+		Items []struct {
+			IsNew *bool `json:"isNew"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if len(body.Items) != 2 {
+		t.Fatalf("wire items=%d, want 2", len(body.Items))
+	}
+	for _, item := range body.Items {
+		if item.IsNew == nil {
+			t.Fatal("isNew must be present, including false")
+		}
+	}
+	first, cursor, err := api.NewPostStore(pool).ListNotifications(ctx, "did:plc:viewer", 1, "", "follow")
+	if err != nil || len(first) != 1 || !first[0].IsNew || cursor == "" {
+		t.Fatalf("first page must contain the new notification: rows=%v cursor=%q err=%v", first, cursor, err)
+	}
+	second, _, err := api.NewPostStore(pool).ListNotifications(ctx, "did:plc:viewer", 1, cursor, "follow")
+	if err != nil || len(second) != 1 || second[0].IsNew {
+		t.Fatalf("second page must contain the seen notification: rows=%v err=%v", second, err)
 	}
 }
 

@@ -173,6 +173,8 @@
     "placeholders": { "actor": { "type": "String", "example": "Alice" } }
   },
   "notificationGenericRow": "New activity",
+  "notificationNew": "New notification",
+  "@notificationNew": {"description": "Accessibility label for a notification that is new since the previous visit."},
   "notificationModerationRow": "Review an update to your account standing",
   "notificationUnavailableRow": "Activity unavailable",
   "notificationInstagramMatchActorRow": "You found {actor} through your Instagram following",
@@ -1075,6 +1077,8 @@
   "@projectComposerPatternPublisherHint": { "description": "Placeholder text for the optional pattern publisher field in the project composer." },
 
   "postComposeHint": "What would you like to share?",
+  "postComposeDone": "Done",
+  "@postComposeDone": { "description": "Dismisses the keyboard in the post composer without publishing." },
   "@postComposeHint": { "description": "Label above the text field in the text-only post composer." },
 
   "postComposeBodyHint": "Share what you're making, learning, or thinking...",
