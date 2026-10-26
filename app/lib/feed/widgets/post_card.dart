@@ -29,7 +29,6 @@ import 'package:craftsky_app/profile/providers/profile_relationship_provider.dar
 import 'package:craftsky_app/profile/providers/toggle_block_profile_provider.dart';
 import 'package:craftsky_app/profile/widgets/compact_profile_identity.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
-import 'package:craftsky_app/profile/widgets/profile_card_modal.dart';
 import 'package:craftsky_app/projects/widgets/project_card.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/saved_posts/widgets/saved_post_bookmark_button.dart';
@@ -370,7 +369,7 @@ class PostCard extends ConsumerWidget {
         ? BorderRadius.zero
         : BorderRadius.circular(radii.r3);
     void openAuthorProfile() => unawaited(
-      showUserProfileCard(context, did: post.author.did),
+      UserProfileRoute(did: post.author.did).push<void>(context),
     );
     final quotedPost = post.quoteView?.post;
     final quotedPostParts = quotedPost == null
@@ -389,20 +388,15 @@ class PostCard extends ConsumerWidget {
         (quotedPost == null
             ? null
             : () => unawaited(
-                showUserProfileCard(
-                  context,
-                  did: quotedPost.author.did,
-                ),
+                UserProfileRoute(did: quotedPost.author.did)
+                    .push<void>(context),
               ));
     final openReposter =
         onReposterTap ??
         (repostReason == null
             ? null
             : () => unawaited(
-                showUserProfileCard(
-                  context,
-                  did: repostReason!.by.did,
-                ),
+                UserProfileRoute(did: repostReason!.by.did).push<void>(context),
               ));
 
     final content = AnimatedContainer(

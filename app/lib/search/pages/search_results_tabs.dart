@@ -281,10 +281,7 @@ class _ProfileResultsSliver extends ConsumerWidget {
           return _ProfileResultTile(
             profile: profile,
             onTap: () => unawaited(
-              showUserProfileCard(
-                context,
-                did: profile.did,
-              ),
+              UserProfileRoute(did: profile.did).push<void>(context),
             ),
           );
         },

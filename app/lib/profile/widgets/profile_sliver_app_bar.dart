@@ -15,7 +15,7 @@ import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:material_ui/material_ui.dart';
 
-/// Collapsing profile header styled like the compact profile card.
+/// Collapsing header for the full profile page.
 ///
 /// The expanded state shows the themed illustration band, overlapping avatar,
 /// and centred identity. It collapses to the same compact identity and trailing

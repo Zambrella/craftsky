@@ -5,7 +5,7 @@ import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/feed/widgets/post_composer_sheet.dart';
 import 'package:craftsky_app/notifications/models/notification_open_event.dart';
 import 'package:craftsky_app/notifications/providers/notification_runtime_provider.dart';
-import 'package:craftsky_app/profile/widgets/profile_route_presentation.dart';
+import 'package:craftsky_app/profile/pages/profile_page.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/service_status/data/announcement_dismissal_store.dart';
 import 'package:craftsky_app/service_status/providers/service_status_controller.dart';
@@ -277,7 +277,7 @@ void main() {
         }),
       );
 
-      await _pumpUntilFound(tester, find.byType(ProfileRoutePresentation));
+      await _pumpUntilFound(tester, find.byType(ProfilePage));
       await _pumpUntilFound(tester, find.text('Notified Maker'));
       expect(
         harness.container.read(goRouterProvider).state.uri.path,

@@ -5,7 +5,7 @@ import 'package:craftsky_app/profile/models/profile_account_summary.dart';
 import 'package:craftsky_app/profile/models/profile_handle.dart';
 import 'package:craftsky_app/profile/widgets/compact_profile_identity.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
-import 'package:craftsky_app/profile/widgets/profile_card_modal.dart';
+import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -32,7 +32,7 @@ class ProfileAccountListTile extends StatelessWidget {
     final name = account.displayName?.trim();
     void openProfile() => onTap != null
         ? onTap!()
-        : unawaited(showUserProfileCard(context, did: account.did));
+        : unawaited(UserProfileRoute(did: account.did).push<void>(context));
     return Semantics(
       label: [
         title,

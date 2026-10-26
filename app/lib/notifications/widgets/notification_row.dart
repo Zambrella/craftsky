@@ -17,7 +17,6 @@ import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
 import 'package:craftsky_app/profile/widgets/compact_profile_identity.dart';
 import 'package:craftsky_app/profile/widgets/follow_reaction.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
-import 'package:craftsky_app/profile/widgets/profile_card_modal.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
@@ -168,7 +167,8 @@ class NotificationRow extends ConsumerWidget {
         : () => _open(context, ref);
     final onActorTap = actorNotification.actor.available
         ? () => unawaited(
-            showUserProfileCard(context, did: actorNotification.actor.did),
+            UserProfileRoute(did: actorNotification.actor.did)
+                .push<void>(context),
           )
         : null;
     return _NotificationSurface(

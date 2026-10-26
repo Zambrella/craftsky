@@ -43,7 +43,7 @@ void main() {
     'follow list': (
       source: 'lib/profile/widgets/profile_account_list_tile.dart',
       behaviorTest: 'test/settings/follow_list_page_test.dart',
-      didContracts: ['showUserProfileCard(context, did: account.did)'],
+      didContracts: ['UserProfileRoute(did: account.did).push<void>(context)'],
     ),
     'relationship list': (
       source: 'lib/settings/pages/relationship_list_page.dart',

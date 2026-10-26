@@ -13,7 +13,6 @@ import 'package:craftsky_app/feed/widgets/post_card.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/languages/models/language_preferences.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
-import 'package:craftsky_app/profile/widgets/profile_presentation_page.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
@@ -133,10 +132,7 @@ void main() {
       _tapGestureForText(tester, 'Dana');
       await tester.pumpAndSettle();
       expect(destinations.last.path, '/profiles/did%3Aplc%3Adana');
-      expect(
-        (extras.last! as ProfilePresentationRequest).startsCompact,
-        isTrue,
-      );
+      expect(extras.last, isNull);
       router.pop();
       await tester.pumpAndSettle();
 

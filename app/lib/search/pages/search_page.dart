@@ -6,7 +6,6 @@ import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/profile/models/profile_account_summary.dart';
 import 'package:craftsky_app/profile/models/profile_handle.dart';
 import 'package:craftsky_app/profile/widgets/profile_account_list_tile.dart';
-import 'package:craftsky_app/profile/widgets/profile_card_modal.dart';
 import 'package:craftsky_app/projects/options/project_option.dart';
 import 'package:craftsky_app/projects/options/project_option_catalogs.dart';
 import 'package:craftsky_app/router/app_shell_drawer.dart';
@@ -185,7 +184,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
           ),
         );
     if (!mounted) return;
-    await showUserProfileCard(context, did: profile.did);
+    await UserProfileRoute(did: profile.did).push<void>(context);
   }
 
   Future<void> _openHashtag(String tag) async {
@@ -276,7 +275,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
         onOpenQuery: (query) => SearchRoute(q: query).go(context),
         onOpenHashtag: (tag) => TagSearchRoute(tag: tag).push<void>(context),
         onOpenProfile: (did) => unawaited(
-          showUserProfileCard(context, did: did),
+          UserProfileRoute(did: did).push<void>(context),
         ),
       ),
     };

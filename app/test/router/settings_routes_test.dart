@@ -21,8 +21,8 @@ import 'package:craftsky_app/moderation/pages/account_standing_page.dart';
 import 'package:craftsky_app/notifications/pages/notification_settings_page.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/models/profile_account_page.dart';
+import 'package:craftsky_app/profile/pages/profile_page.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
-import 'package:craftsky_app/profile/widgets/profile_route_presentation.dart';
 import 'package:craftsky_app/projects/widgets/project_composer_sheet.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/settings/pages/about_page.dart';
@@ -208,7 +208,7 @@ void main() {
         );
         await tester.pumpAndSettle();
         expect(
-          find.byType(ProfileRoutePresentation).hitTestable(),
+          find.byType(ProfilePage).hitTestable(),
           findsOneWidget,
         );
 
@@ -220,7 +220,7 @@ void main() {
         expect(find.byType(NavigationRail), findsOneWidget);
         expect(find.byType(composerType).hitTestable(), findsOneWidget);
         expect(
-          find.byType(ProfileRoutePresentation).hitTestable(),
+          find.byType(ProfilePage).hitTestable(),
           findsNothing,
         );
       },

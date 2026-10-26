@@ -1221,7 +1221,6 @@ mixin $ProfileAliasRoute on GoRouteData {
 mixin $UserProfileRoute on GoRouteData {
   static UserProfileRoute _fromState(GoRouterState state) => UserProfileRoute(
     did: _decodeDidRouteParameter(state.pathParameters['did']!),
-    $extra: state.extra as ProfilePresentationRequest?,
   );
 
   UserProfileRoute get _self => this as UserProfileRoute;
@@ -1232,19 +1231,17 @@ mixin $UserProfileRoute on GoRouteData {
   );
 
   @override
-  void go(BuildContext context) => context.go(location, extra: _self.$extra);
+  void go(BuildContext context) => context.go(location);
 
   @override
-  Future<T?> push<T>(BuildContext context) =>
-      context.push<T>(location, extra: _self.$extra);
+  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
 
   @override
   void pushReplacement(BuildContext context) =>
-      context.pushReplacement(location, extra: _self.$extra);
+      context.pushReplacement(location);
 
   @override
-  void replace(BuildContext context) =>
-      context.replace(location, extra: _self.$extra);
+  void replace(BuildContext context) => context.replace(location);
 }
 
 mixin $ProfileMutualFollowersRoute on GoRouteData {
