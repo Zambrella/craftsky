@@ -1045,10 +1045,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get projectComposerColoursSearchHint => 'Search colours';
 
   @override
-  String get projectComposerDesignTagsLabel => 'Design tags';
+  String get projectComposerDesignTagsLabel => 'Design';
 
   @override
-  String get projectComposerDesignTagsSearchHint => 'Search design tags';
+  String get projectComposerDesignTagsSearchHint => 'Search designs';
 
   @override
   String get projectComposerAddPatternAction => 'Add pattern';

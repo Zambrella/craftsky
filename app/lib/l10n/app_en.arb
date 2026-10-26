@@ -896,10 +896,10 @@
   "projectComposerColoursSearchHint": "Search colours",
   "@projectComposerColoursSearchHint": { "description": "Placeholder text for searching known colour options in the project composer." },
 
-  "projectComposerDesignTagsLabel": "Design tags",
+  "projectComposerDesignTagsLabel": "Design",
   "@projectComposerDesignTagsLabel": { "description": "Label for the project composer design-tags field." },
 
-  "projectComposerDesignTagsSearchHint": "Search design tags",
+  "projectComposerDesignTagsSearchHint": "Search designs",
   "@projectComposerDesignTagsSearchHint": { "description": "Placeholder text for searching known design-tag options in the project composer." },
 
   "projectComposerAddPatternAction": "Add pattern",

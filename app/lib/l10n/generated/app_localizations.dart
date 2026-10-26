@@ -1879,13 +1879,13 @@ abstract class AppLocalizations {
   /// Label for the project composer design-tags field.
   ///
   /// In en, this message translates to:
-  /// **'Design tags'**
+  /// **'Design'**
   String get projectComposerDesignTagsLabel;
 
   /// Placeholder text for searching known design-tag options in the project composer.
   ///
   /// In en, this message translates to:
-  /// **'Search design tags'**
+  /// **'Search designs'**
   String get projectComposerDesignTagsSearchHint;
 
   /// Action that reveals optional project pattern fields in the project composer.
