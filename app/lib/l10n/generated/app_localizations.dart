@@ -1846,6 +1846,18 @@ abstract class AppLocalizations {
   /// **'Add'**
   String get projectComposerMaterialsAddAction;
 
+  /// Tooltip for moving an existing material into the project composer input for editing.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit material'**
+  String get projectComposerMaterialsEditAction;
+
+  /// Tooltip explaining why material edit buttons are disabled while the material input contains text.
+  ///
+  /// In en, this message translates to:
+  /// **'Add or clear the current material first'**
+  String get projectComposerMaterialsEditBlockedHint;
+
   /// Validation error for a project composer material entry that is too long.
   ///
   /// In en, this message translates to:

@@ -1026,6 +1026,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get projectComposerMaterialsAddAction => 'Add';
 
   @override
+  String get projectComposerMaterialsEditAction => 'Edit material';
+
+  @override
+  String get projectComposerMaterialsEditBlockedHint =>
+      'Add or clear the current material first';
+
+  @override
   String projectComposerMaterialsMaxLengthError(int max) {
     return 'Keep each material to $max characters or fewer.';
   }
