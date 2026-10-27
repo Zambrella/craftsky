@@ -25,7 +25,6 @@ import 'package:craftsky_app/shared/widgets/action_progress.dart';
 import 'package:craftsky_app/shared/widgets/post_summary.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
-import 'package:flutter/gestures.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -35,9 +34,15 @@ bool canOpenNotificationRow(
 ) => registry.activeLease?.session == owner;
 
 class NotificationRow extends ConsumerWidget {
-  const new({required this.notification, this.owner, super.key});
+  const new({
+    required this.notification,
+    this.owner,
+    this.showNewness = true,
+    super.key,
+  });
 
   final CraftskyNotification notification;
+  final bool showNewness;
   final AccountSessionLease? owner;
 
   @override
@@ -165,167 +170,180 @@ class NotificationRow extends ConsumerWidget {
     final replyContext = actorNotification is ReplyNotification
         ? _replyContext(actorNotification.subjectPost, l10n)
         : null;
-    final onTap = actorNotification is GenericNotification
-        ? null
-        : () => _open(context, ref);
-    final onActorTap = actorNotification.actor.available
-        ? () => unawaited(
-            UserProfileRoute(did: actorNotification.actor.did)
-                .push<void>(context),
-          )
-        : null;
-    return _NotificationSurface(
-      isNew: notification.isNew,
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              ProfileAvatarHeroSource(
-                did: actorNotification.actor.did,
-                handle: actorNotification.actor.handle.toString(),
-                displayName: actorNotification.actor.displayName,
-                crafts: actorNotification.actor.crafts,
-                avatar: ProfileAvatar(
-                  seed: actor,
-                  avatarUrl: actorNotification.actor.displayAvatarUrl,
-                  showShadow: false,
-                  customisation: actorNotification.actor.customisation,
-                ),
-                builder: (context, avatar, openProfile) => Semantics(
-                  button: actorNotification.actor.available,
-                  label: actor,
-                  child: GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTap: actorNotification.actor.available
-                        ? openProfile
-                        : null,
-                    child: Stack(
+    return ProfileAvatarHeroSource(
+      did: actorNotification.actor.did,
+      handle: actorNotification.actor.handle.toString(),
+      displayName: actorNotification.actor.displayName,
+      crafts: actorNotification.actor.crafts,
+      avatar: ProfileAvatar(
+        seed: actor,
+        avatarUrl: actorNotification.actor.displayAvatarUrl,
+        showShadow: false,
+        customisation: actorNotification.actor.customisation,
+      ),
+      builder: (context, avatar, openProfile) {
+        void openActorProfile() {
+          final rowOwner = owner;
+          if (rowOwner != null &&
+              !canOpenNotificationRow(
+                rowOwner,
+                ref.read(sessionRegistryProvider).requireValue,
+              )) {
+            return;
+          }
+          openProfile();
+        }
+
+        return _NotificationSurface(
+          isNew: notification.isNew && showNewness,
+          child: InkWell(
+            onTap: actorNotification is GenericNotification
+                ? null
+                : (actorNotification is FollowNotification ||
+                      actorNotification is InstagramMatchNotification)
+                ? openActorProfile
+                : () => _open(context, ref),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Semantics(
+                    button: actorNotification.actor.available,
+                    label: actor,
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: actorNotification.actor.available
+                          ? openActorProfile
+                          : null,
+                      child: Stack(
+                        children: [
+                          Padding(
+                            padding: const EdgeInsetsDirectional.only(
+                              end: 4,
+                              bottom: 4,
+                            ),
+                            child: FollowReactionAvatar(
+                              compact: true,
+                              child: avatar,
+                            ),
+                          ),
+                          PositionedDirectional(
+                            end: 0,
+                            bottom: 0,
+                            child: ExcludeSemantics(
+                              child: Container(
+                                width: 26,
+                                height: 26,
+                                decoration: BoxDecoration(
+                                  color: actionColor,
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: theme.scaffoldBackgroundColor,
+                                    width: 2,
+                                  ),
+                                ),
+                                child: Icon(
+                                  notificationCategoryIcon(
+                                    notification.type,
+                                    filled: true,
+                                  ),
+                                  color:
+                                      ThemeData.estimateBrightnessForColor(
+                                            actionColor,
+                                          ) ==
+                                          Brightness.dark
+                                      ? Colors.white
+                                      : Colors.black,
+                                  size: 14,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Padding(
-                          padding: const EdgeInsetsDirectional.only(
-                            end: 4,
-                            bottom: 4,
-                          ),
-                          child: FollowReactionAvatar(
-                            compact: true,
-                            child: avatar,
-                          ),
+                        _NotificationTitleText(
+                          title: title,
+                          actor: actor,
+                          onActorTap: actorNotification.actor.available
+                              ? openActorProfile
+                              : null,
+                          style: theme.textTheme.bodyLarge,
                         ),
-                        PositionedDirectional(
-                          end: 0,
-                          bottom: 0,
-                          child: ExcludeSemantics(
-                            child: Container(
-                              width: 26,
-                              height: 26,
-                              decoration: BoxDecoration(
-                                color: actionColor,
-                                shape: BoxShape.circle,
-                                border: Border.all(
-                                  color: theme.scaffoldBackgroundColor,
+                        if (replyContext != null) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            replyContext,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.outline,
+                            ),
+                          ),
+                        ],
+                        if (subjectPost != null) ...[
+                          const SizedBox(height: 4),
+                          PostSummary(
+                            maxTextLines: 3,
+                            data: _previewData(
+                              actorNotification as SubjectPostNotification,
+                            ),
+                            padding: EdgeInsets.zero,
+                          ),
+                        ],
+                        if (actorNotification case QuoteNotification(
+                          :final quotedPreview?,
+                        )) ...[
+                          const SizedBox(height: 8),
+                          Container(
+                            padding: const EdgeInsets.only(left: 12),
+                            decoration: BoxDecoration(
+                              border: Border(
+                                left: BorderSide(
+                                  color: theme.colorScheme.outlineVariant,
                                   width: 2,
                                 ),
                               ),
-                              child: Icon(
-                                notificationCategoryIcon(
-                                  notification.type,
-                                  filled: true,
-                                ),
-                                color:
-                                    ThemeData.estimateBrightnessForColor(
-                                          actionColor,
-                                        ) ==
-                                        Brightness.dark
-                                    ? Colors.white
-                                    : Colors.black,
-                                size: 14,
+                            ),
+                            child: PostSummary(
+                              maxTextLines: 3,
+                              data: PostSummaryData(
+                                state: PostSummaryState.visible,
+                                text: quotedPreview.text,
+                                projectTitle: quotedPreview.projectTitle,
                               ),
+                              padding: EdgeInsets.zero,
                             ),
                           ),
-                        ),
+                        ],
+                        const SizedBox(height: 4),
+                        RelativeTimeText(timestamp: notification.createdAt),
+                        if ((actorNotification is FollowNotification ||
+                                actorNotification
+                                    is InstagramMatchNotification) &&
+                            actorNotification.actor.available) ...[
+                          const SizedBox(height: 8),
+                          _NotificationFollowButton(
+                            actor: actorNotification.actor,
+                            owner: owner,
+                          ),
+                        ],
                       ],
                     ),
                   ),
-                ),
+                ],
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _NotificationTitleText(
-                      title: title,
-                      actor: actor,
-                      onActorTap: onActorTap,
-                      style: theme.textTheme.bodyLarge,
-                    ),
-                    if (replyContext != null) ...[
-                      const SizedBox(height: 4),
-                      Text(
-                        replyContext,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.outline,
-                        ),
-                      ),
-                    ],
-                    if (subjectPost != null) ...[
-                      const SizedBox(height: 4),
-                      PostSummary(
-                        maxTextLines: 3,
-                        data: _previewData(
-                          actorNotification as SubjectPostNotification,
-                        ),
-                        padding: EdgeInsets.zero,
-                      ),
-                    ],
-                    if (actorNotification case QuoteNotification(
-                      :final quotedPreview?,
-                    )) ...[
-                      const SizedBox(height: 8),
-                      Container(
-                        padding: const EdgeInsets.only(left: 12),
-                        decoration: BoxDecoration(
-                          border: Border(
-                            left: BorderSide(
-                              color: theme.colorScheme.outlineVariant,
-                              width: 2,
-                            ),
-                          ),
-                        ),
-                        child: PostSummary(
-                          maxTextLines: 3,
-                          data: PostSummaryData(
-                            state: PostSummaryState.visible,
-                            text: quotedPreview.text,
-                            projectTitle: quotedPreview.projectTitle,
-                          ),
-                          padding: EdgeInsets.zero,
-                        ),
-                      ),
-                    ],
-                    const SizedBox(height: 4),
-                    RelativeTimeText(timestamp: notification.createdAt),
-                    if ((actorNotification is FollowNotification ||
-                            actorNotification is InstagramMatchNotification) &&
-                        actorNotification.actor.available) ...[
-                      const SizedBox(height: 8),
-                      _NotificationFollowButton(
-                        actor: actorNotification.actor,
-                        owner: owner,
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 
@@ -373,7 +391,7 @@ class NotificationRow extends ConsumerWidget {
       GenericSystemNotification() => l10n.notificationGenericRow,
     };
     return _NotificationSurface(
-      isNew: notification.isNew,
+      isNew: notification.isNew && showNewness,
       child: InkWell(
         onTap: system is ModerationNotification
             ? () => _open(context, ref)
@@ -613,7 +631,7 @@ Color _actionColor(CraftskyNotification notification, ColorScheme colors) =>
       UnavailableNotification() => colors.error,
     };
 
-class _NotificationTitleText extends StatefulWidget {
+class _NotificationTitleText extends StatelessWidget {
   const new({
     required this.title,
     required this.actor,
@@ -627,73 +645,51 @@ class _NotificationTitleText extends StatefulWidget {
   final TextStyle? style;
 
   @override
-  State<_NotificationTitleText> createState() => _NotificationTitleTextState();
-}
-
-class _NotificationTitleTextState extends State<_NotificationTitleText> {
-  late final TapGestureRecognizer _actorTapRecognizer;
-
-  @override
-  void initState() {
-    super.initState();
-    _actorTapRecognizer = TapGestureRecognizer()..onTap = widget.onActorTap;
-  }
-
-  @override
-  void didUpdateWidget(covariant _NotificationTitleText oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    _actorTapRecognizer.onTap = widget.onActorTap;
-  }
-
-  @override
-  void dispose() {
-    _actorTapRecognizer.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    return Text.rich(
-      _titleSpan(
-        title: widget.title,
-        actor: widget.actor,
-        actorRecognizer: _actorTapRecognizer,
-      ),
-      style: widget.style,
-    );
-  }
-}
-
-TextSpan _titleSpan({
-  required String title,
-  required String actor,
-  GestureRecognizer? actorRecognizer,
-}) {
-  final actorIndex = title.indexOf(actor);
-  if (actorIndex < 0) {
-    return TextSpan(
-      children: [
+    final actorIndex = title.indexOf(actor);
+    return LayoutBuilder(
+      builder: (context, constraints) => Text.rich(
         TextSpan(
-          text: actor,
-          style: const TextStyle(fontWeight: FontWeight.w600),
-          recognizer: actorRecognizer,
+          children: [
+            if (actorIndex > 0) TextSpan(text: title.substring(0, actorIndex)),
+            WidgetSpan(
+              alignment: PlaceholderAlignment.baseline,
+              baseline: TextBaseline.alphabetic,
+              child: Semantics(
+                label: actor,
+                button: onActorTap != null,
+                onTap: onActorTap,
+                excludeSemantics: true,
+                child: GestureDetector(
+                  onTap: onActorTap,
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(maxWidth: constraints.maxWidth),
+                    child: ProfileIdentityTextHero.source(
+                      context,
+                      part: ProfileIdentityHeroPart.name,
+                      preservePlaceholderBaseline: true,
+                      child: Text(
+                        actor,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: style?.copyWith(fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            TextSpan(
+              text: actorIndex < 0
+                  ? ' · $title'
+                  : title.substring(actorIndex + actor.length),
+            ),
+          ],
         ),
-        TextSpan(text: ' · $title'),
-      ],
+        style: style,
+      ),
     );
   }
-  return TextSpan(
-    children: [
-      if (actorIndex > 0) TextSpan(text: title.substring(0, actorIndex)),
-      TextSpan(
-        text: actor,
-        style: const TextStyle(fontWeight: FontWeight.w600),
-        recognizer: actorRecognizer,
-      ),
-      if (actorIndex + actor.length < title.length)
-        TextSpan(text: title.substring(actorIndex + actor.length)),
-    ],
-  );
 }
 
 enum _NotificationContentRole { post, comment, reply }

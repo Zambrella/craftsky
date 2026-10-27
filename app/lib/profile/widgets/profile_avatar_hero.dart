@@ -187,6 +187,7 @@ class ProfileIdentityTextHero extends StatelessWidget {
     required this.part,
     required this.child,
     this.heroKey,
+    this.preservePlaceholderBaseline = false,
     super.key,
   });
 
@@ -194,11 +195,13 @@ class ProfileIdentityTextHero extends StatelessWidget {
   final ProfileIdentityHeroPart part;
   final Text child;
   final GlobalKey? heroKey;
+  final bool preservePlaceholderBaseline;
 
   static Widget source(
     BuildContext context, {
     required ProfileIdentityHeroPart part,
     required Text child,
+    bool preservePlaceholderBaseline = false,
   }) {
     final scope = context
         .dependOnInheritedWidgetOfExactType<_ProfileIdentityHeroSourceScope>();
@@ -209,6 +212,7 @@ class ProfileIdentityTextHero extends StatelessWidget {
     return ProfileIdentityTextHero(
       tag: (scope.tag, part),
       part: part,
+      preservePlaceholderBaseline: preservePlaceholderBaseline,
       child: child,
     );
   }
@@ -267,6 +271,16 @@ class ProfileIdentityTextHero extends StatelessWidget {
           ),
         );
       },
+      // An empty box preserves size but loses the baseline of inline text,
+      // making its surrounding paragraph reflow until the hero lands.
+      placeholderBuilder: preservePlaceholderBaseline
+          ? (context, size, child) => SizedBox.fromSize(
+              size: size,
+              child: ExcludeSemantics(
+                child: Opacity(opacity: 0, child: child),
+              ),
+            )
+          : null,
       child: child,
     ),
   );

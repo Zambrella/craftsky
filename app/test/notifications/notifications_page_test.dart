@@ -48,6 +48,8 @@ import '../feed/fakes/fake_post_repository.dart';
 import '../profile/fakes/fake_profile_repository.dart';
 import '../test_support/deterministic_pump.dart';
 
+import '../test_support/notification_text.dart';
+
 void main() {
   setUpAll(initializeMappers);
 
@@ -164,7 +166,7 @@ void main() {
         );
         await tester.pumpAndSettle();
         await tester.tap(
-          find.text(
+          notificationText(
             systemNotification
                 ? 'Open system notification'
                 : 'Alice replied to your comment',
@@ -232,7 +234,7 @@ void main() {
         find.text('No notifications in this category yet.'),
         findsOneWidget,
       );
-      expect(find.text('Alice followed you'), findsNothing);
+      expect(notificationText('Alice followed you'), findsNothing);
       await tester.drag(find.byType(CustomScrollView), const Offset(0, 400));
       await tester.pumpAndSettle();
       expect(repo.calls.last.category, NotificationCategory.mention);
@@ -244,7 +246,7 @@ void main() {
         NotificationCategory.mention,
         null,
       ]);
-      expect(find.text('Alice followed you'), findsOneWidget);
+      expect(notificationText('Alice followed you'), findsOneWidget);
     },
   );
 
@@ -286,7 +288,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Mentions'));
     await tester.pump(const Duration(milliseconds: 400));
-    expect(find.text('Alice followed you'), findsNothing);
+    expect(notificationText('Alice followed you'), findsNothing);
     expect(find.byType(CraftskySkeletonSliverList), findsOneWidget);
     pending.complete(const NotificationPage(items: []));
     await tester.pumpAndSettle();
@@ -403,7 +405,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(repo.calls.map((call) => call.cursor), [null, null]);
-    expect(find.text('Alice followed you'), findsOneWidget);
+    expect(notificationText('Alice followed you'), findsOneWidget);
   });
 
   testWidgets('renders empty state and mixed rows', (tester) async {
@@ -428,13 +430,16 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    expect(find.text('Alice followed you'), findsOneWidget);
-    expect(find.text('Alice liked your post'), findsOneWidget);
-    expect(find.text('Alice reposted your post'), findsOneWidget);
-    expect(find.text('Alice commented on your post'), findsOneWidget);
+    expect(notificationText('Alice followed you'), findsOneWidget);
+    expect(notificationText('Alice liked your post'), findsOneWidget);
+    expect(notificationText('Alice reposted your post'), findsOneWidget);
+    expect(notificationText('Alice commented on your post'), findsOneWidget);
     expect(find.text('viewer post'), findsNWidgets(2));
     expect(find.text('new reply text'), findsOneWidget);
-    expect(find.text('alice.craftsky.social followed you'), findsOneWidget);
+    expect(
+      notificationText('alice.craftsky.social followed you'),
+      findsOneWidget,
+    );
     final customisedAvatars = tester
         .widgetList<ProfileAvatar>(find.byType(ProfileAvatar))
         .where((avatar) => avatar.customisation.colour == 'rose')
@@ -508,7 +513,7 @@ void main() {
       'Alice replied to your comment',
       'Alice replied to your reply',
     ]) {
-      expect(find.text(text), findsOneWidget, reason: text);
+      expect(notificationText(text), findsOneWidget, reason: text);
     }
   });
 
@@ -547,7 +552,7 @@ void main() {
       expect(find.byType(ProfileAvatar), findsNWidgets(8));
       expect(find.text('Follow'), findsNWidgets(2));
       expect(
-        find.text('You found Alice through your Instagram following'),
+        notificationText('You found Alice through your Instagram following'),
         findsOneWidget,
       );
       expect(
@@ -569,18 +574,12 @@ void main() {
         expect(find.byIcon(icon), findsOneWidget, reason: '$icon');
       }
 
-      final actorText = find.byWidgetPredicate(
-        (widget) =>
-            widget is Text &&
-            widget.textSpan?.toPlainText().startsWith('Alice ') == true,
+      final actorText = find.text('Alice');
+      expect(actorText, findsNWidgets(8));
+      expect(
+        tester.widget<Text>(actorText.first).style?.fontWeight,
+        FontWeight.w600,
       );
-      expect(actorText, findsWidgets);
-      final actorSpan =
-          tester.widget<Text>(actorText.first).textSpan! as TextSpan;
-      final boldActor = actorSpan.children!.whereType<TextSpan>().firstWhere(
-        (span) => span.text == 'Alice',
-      );
-      expect(boldActor.style?.fontWeight, FontWeight.w600);
       expect(
         tester.getTopLeft(find.byType(ProfileAvatar).first).dy,
         equals(tester.getTopLeft(actorText.first).dy),
@@ -623,11 +622,11 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      expect(find.text('Alice followed you'), findsOneWidget);
-      expect(find.text('Alice'), findsNothing);
+      expect(notificationText('Alice followed you'), findsOneWidget);
+      expect(find.text('Alice'), findsOneWidget);
       expect(find.text('@alice.craftsky.social'), findsNothing);
       expect(find.byType(CraftIcon), findsNothing);
-      final title = tester.getRect(find.text('Alice followed you'));
+      final title = tester.getRect(notificationText('Alice followed you'));
       final avatar = tester.getRect(find.byType(ProfileAvatar));
       final badge = tester.getRect(find.byIcon(CraftskyIconsFill.follow));
       expect(avatar.right, lessThan(title.left));
@@ -777,8 +776,11 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      expect(find.text('Alice quoted your comment'), findsOneWidget);
-      expect(find.text('Alice mentioned you in a reply'), findsOneWidget);
+      expect(notificationText('Alice quoted your comment'), findsOneWidget);
+      expect(
+        notificationText('Alice mentioned you in a reply'),
+        findsOneWidget,
+      );
       for (final text in [
         'Look at this stitch',
         'My sweater',
@@ -787,7 +789,7 @@ void main() {
         'What do you think?',
         'new reply text',
       ]) {
-        expect(find.text(text), findsOneWidget);
+        expect(notificationText(text), findsOneWidget);
       }
       expect(find.text('viewer post'), findsNothing);
       for (final summary in tester.widgetList<PostSummary>(
@@ -1142,7 +1144,7 @@ void main() {
     );
     await tester.pump();
 
-    expect(find.text('Alice followed you'), findsNothing);
+    expect(notificationText('Alice followed you'), findsNothing);
     completer.complete(const ProfileRelationship(muted: true));
     await tester.pumpAndSettle();
   });
@@ -1164,22 +1166,22 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    expect(find.text('Alice followed you'), findsOneWidget);
+    expect(notificationText('Alice followed you'), findsOneWidget);
 
     await tester.tap(find.text('Load more'));
     await tester.pump();
-    expect(find.text('Alice followed you'), findsOneWidget);
+    expect(notificationText('Alice followed you'), findsOneWidget);
     expect(find.byType(StitchProgressIndicator), findsOneWidget);
 
     nextPage.completeError(Exception('boom'));
     await tester.pumpAndSettle();
-    expect(find.text('Alice followed you'), findsOneWidget);
+    expect(notificationText('Alice followed you'), findsOneWidget);
     expect(find.text('Retry'), findsOneWidget);
 
     await tester.tap(find.text('Retry'));
     await tester.pumpAndSettle();
     expect(repo.calls.map((call) => call.cursor), [null, 'c1', 'c1']);
-    expect(find.text('Alice followed you'), findsNWidgets(2));
+    expect(notificationText('Alice followed you'), findsNWidgets(2));
   });
 
   testWidgets('row taps navigate to profile, subject thread, and focus', (
@@ -1242,13 +1244,13 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Alice followed you'));
+    await tester.tap(notificationText('Alice followed you'));
     await tester.pumpAndSettle();
     expect(profileState?.pathParameters['did'], 'did:plc:alice');
     router.go('/');
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Alice liked your post'));
+    await tester.tap(notificationText('Alice liked your post'));
     await tester.pumpAndSettle();
     expect(threadStates.last.pathParameters['did'], 'did:plc:viewer');
     expect(threadStates.last.pathParameters['rkey'], 'root');
@@ -1256,14 +1258,14 @@ void main() {
     router.go('/');
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Alice reposted your post'));
+    await tester.tap(notificationText('Alice reposted your post'));
     await tester.pumpAndSettle();
     expect(threadStates.last.pathParameters['did'], 'did:plc:viewer');
     expect(threadStates.last.pathParameters['rkey'], 'root');
     router.go('/');
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Alice commented on your post').first);
+    await tester.tap(notificationText('Alice commented on your post').first);
     await tester.pumpAndSettle();
     expect(
       threadStates.last.uri.queryParameters['focus'],
@@ -1272,7 +1274,7 @@ void main() {
     router.go('/');
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Alice commented on your post').last);
+    await tester.tap(notificationText('Alice commented on your post').last);
     await tester.pumpAndSettle();
     expect(threadStates.last.pathParameters['did'], 'did:plc:viewer');
     expect(threadStates.last.pathParameters['rkey'], 'root');
@@ -1316,7 +1318,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Alice liked your comment'));
+    await tester.tap(notificationText('Alice liked your comment'));
     await tester.pumpAndSettle();
 
     expect(threadState?.pathParameters['did'], 'did:plc:root-author');
