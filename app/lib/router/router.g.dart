@@ -168,136 +168,6 @@ RouteBase get $authenticatedShellRoute => ShellRouteData.$route(
               factory: $ProfileRoute._fromState,
               routes: [
                 GoRouteData.$route(
-                  path: 'settings',
-                  name: 'settings',
-                  hasOverriddenOnExit: false,
-                  parentNavigatorKey: SettingsRoute.$parentNavigatorKey,
-                  factory: $SettingsRoute._fromState,
-                  routes: [
-                    GoRouteData.$route(
-                      path: 'appearance',
-                      name: 'appearance',
-                      hasOverriddenOnExit: false,
-                      parentNavigatorKey: AppearanceRoute.$parentNavigatorKey,
-                      factory: $AppearanceRoute._fromState,
-                    ),
-                    GoRouteData.$route(
-                      path: 'privacy',
-                      name: 'settings-privacy',
-                      hasOverriddenOnExit: false,
-                      parentNavigatorKey: PrivacyRoute.$parentNavigatorKey,
-                      factory: $PrivacyRoute._fromState,
-                    ),
-                    GoRouteData.$route(
-                      path: 'growth',
-                      name: 'follower-growth',
-                      hasOverriddenOnExit: false,
-                      parentNavigatorKey:
-                          FollowerGrowthRoute.$parentNavigatorKey,
-                      factory: $FollowerGrowthRoute._fromState,
-                    ),
-                    GoRouteData.$route(
-                      path: 'customisation',
-                      name: 'profile-customisation',
-                      hasOverriddenOnExit: false,
-                      parentNavigatorKey:
-                          ProfileCustomisationRoute.$parentNavigatorKey,
-                      factory: $ProfileCustomisationRoute._fromState,
-                    ),
-                    GoRouteData.$route(
-                      path: 'account',
-                      name: 'settings-account',
-                      hasOverriddenOnExit: false,
-                      parentNavigatorKey: AccountRoute.$parentNavigatorKey,
-                      factory: $AccountRoute._fromState,
-                    ),
-                    GoRouteData.$route(
-                      path: 'subscriptions',
-                      name: 'settings-subscriptions',
-                      hasOverriddenOnExit: false,
-                      parentNavigatorKey:
-                          SubscriptionsRoute.$parentNavigatorKey,
-                      factory: $SubscriptionsRoute._fromState,
-                    ),
-                    GoRouteData.$route(
-                      path: 'moderation',
-                      name: 'account-standing',
-                      hasOverriddenOnExit: false,
-                      parentNavigatorKey:
-                          AccountStandingRoute.$parentNavigatorKey,
-                      factory: $AccountStandingRoute._fromState,
-                    ),
-                    GoRouteData.$route(
-                      path: 'about',
-                      name: 'settings-about',
-                      hasOverriddenOnExit: false,
-                      parentNavigatorKey: AboutRoute.$parentNavigatorKey,
-                      factory: $AboutRoute._fromState,
-                    ),
-                    GoRouteData.$route(
-                      path: 'products',
-                      name: 'settings-business-products',
-                      hasOverriddenOnExit: false,
-                      parentNavigatorKey:
-                          BusinessProductsRoute.$parentNavigatorKey,
-                      factory: $BusinessProductsRoute._fromState,
-                    ),
-                    GoRouteData.$route(
-                      path: 'events',
-                      name: 'settings-business-events',
-                      hasOverriddenOnExit: false,
-                      parentNavigatorKey:
-                          BusinessEventsRoute.$parentNavigatorKey,
-                      factory: $BusinessEventsRoute._fromState,
-                    ),
-                    GoRouteData.$route(
-                      path: 'languages',
-                      name: 'languages',
-                      hasOverriddenOnExit: false,
-                      parentNavigatorKey: LanguagesRoute.$parentNavigatorKey,
-                      factory: $LanguagesRoute._fromState,
-                    ),
-                    GoRouteData.$route(
-                      path: 'instagram',
-                      name: 'instagram-migration',
-                      hasOverriddenOnExit: false,
-                      parentNavigatorKey:
-                          InstagramMigrationRoute.$parentNavigatorKey,
-                      factory: $InstagramMigrationRoute._fromState,
-                    ),
-                    GoRouteData.$route(
-                      path: 'followers',
-                      name: 'settings-followers',
-                      hasOverriddenOnExit: false,
-                      parentNavigatorKey: FollowersRoute.$parentNavigatorKey,
-                      factory: $FollowersRoute._fromState,
-                    ),
-                    GoRouteData.$route(
-                      path: 'following',
-                      name: 'settings-following',
-                      hasOverriddenOnExit: false,
-                      parentNavigatorKey: FollowingRoute.$parentNavigatorKey,
-                      factory: $FollowingRoute._fromState,
-                    ),
-                    GoRouteData.$route(
-                      path: 'muted',
-                      name: 'settings-muted-accounts',
-                      hasOverriddenOnExit: false,
-                      parentNavigatorKey:
-                          MutedAccountsRoute.$parentNavigatorKey,
-                      factory: $MutedAccountsRoute._fromState,
-                    ),
-                    GoRouteData.$route(
-                      path: 'blocked',
-                      name: 'settings-blocked-accounts',
-                      hasOverriddenOnExit: false,
-                      parentNavigatorKey:
-                          BlockedAccountsRoute.$parentNavigatorKey,
-                      factory: $BlockedAccountsRoute._fromState,
-                    ),
-                  ],
-                ),
-                GoRouteData.$route(
                   path: 'playground',
                   name: 'playground',
                   hasOverriddenOnExit: false,
@@ -308,35 +178,159 @@ RouteBase get $authenticatedShellRoute => ShellRouteData.$route(
             ),
           ],
         ),
-      ],
-    ),
-    GoRouteData.$route(
-      path: '/scheduled',
-      name: 'scheduled-posts',
-      hasOverriddenOnExit: false,
-      parentNavigatorKey: ScheduledPostsRoute.$parentNavigatorKey,
-      factory: $ScheduledPostsRoute._fromState,
-    ),
-    GoRouteData.$route(
-      path: '/drafts',
-      name: 'drafts',
-      hasOverriddenOnExit: false,
-      parentNavigatorKey: DraftsRoute.$parentNavigatorKey,
-      factory: $DraftsRoute._fromState,
-    ),
-    GoRouteData.$route(
-      path: '/saved',
-      name: 'saved-posts',
-      hasOverriddenOnExit: false,
-      parentNavigatorKey: SavedPostsRoute.$parentNavigatorKey,
-      factory: $SavedPostsRoute._fromState,
-      routes: [
-        GoRouteData.$route(
-          path: 'folder',
-          name: 'saved-post-folder',
-          hasOverriddenOnExit: false,
-          parentNavigatorKey: SavedPostFolderRoute.$parentNavigatorKey,
-          factory: $SavedPostFolderRoute._fromState,
+        StatefulShellBranchData.$branch(
+          navigatorKey: SavedPostsBranch.$navigatorKey,
+          observers: SavedPostsBranch.$observers,
+          routes: [
+            GoRouteData.$route(
+              path: '/saved',
+              name: 'saved-posts',
+              hasOverriddenOnExit: false,
+              factory: $SavedPostsRoute._fromState,
+              routes: [
+                GoRouteData.$route(
+                  path: 'folder',
+                  name: 'saved-post-folder',
+                  hasOverriddenOnExit: false,
+                  factory: $SavedPostFolderRoute._fromState,
+                ),
+              ],
+            ),
+          ],
+        ),
+        StatefulShellBranchData.$branch(
+          navigatorKey: ScheduledPostsBranch.$navigatorKey,
+          observers: ScheduledPostsBranch.$observers,
+          routes: [
+            GoRouteData.$route(
+              path: '/scheduled',
+              name: 'scheduled-posts',
+              hasOverriddenOnExit: false,
+              factory: $ScheduledPostsRoute._fromState,
+            ),
+          ],
+        ),
+        StatefulShellBranchData.$branch(
+          navigatorKey: DraftsBranch.$navigatorKey,
+          observers: DraftsBranch.$observers,
+          routes: [
+            GoRouteData.$route(
+              path: '/drafts',
+              name: 'drafts',
+              hasOverriddenOnExit: false,
+              factory: $DraftsRoute._fromState,
+            ),
+          ],
+        ),
+        StatefulShellBranchData.$branch(
+          navigatorKey: SettingsBranch.$navigatorKey,
+          observers: SettingsBranch.$observers,
+          routes: [
+            GoRouteData.$route(
+              path: '/settings',
+              name: 'settings',
+              hasOverriddenOnExit: false,
+              factory: $SettingsRoute._fromState,
+              routes: [
+                GoRouteData.$route(
+                  path: 'appearance',
+                  name: 'appearance',
+                  hasOverriddenOnExit: false,
+                  factory: $AppearanceRoute._fromState,
+                ),
+                GoRouteData.$route(
+                  path: 'privacy',
+                  name: 'settings-privacy',
+                  hasOverriddenOnExit: false,
+                  factory: $PrivacyRoute._fromState,
+                ),
+                GoRouteData.$route(
+                  path: 'growth',
+                  name: 'follower-growth',
+                  hasOverriddenOnExit: false,
+                  factory: $FollowerGrowthRoute._fromState,
+                ),
+                GoRouteData.$route(
+                  path: 'customisation',
+                  name: 'profile-customisation',
+                  hasOverriddenOnExit: false,
+                  factory: $ProfileCustomisationRoute._fromState,
+                ),
+                GoRouteData.$route(
+                  path: 'account',
+                  name: 'settings-account',
+                  hasOverriddenOnExit: false,
+                  factory: $AccountRoute._fromState,
+                ),
+                GoRouteData.$route(
+                  path: 'subscriptions',
+                  name: 'settings-subscriptions',
+                  hasOverriddenOnExit: false,
+                  factory: $SubscriptionsRoute._fromState,
+                ),
+                GoRouteData.$route(
+                  path: 'moderation',
+                  name: 'account-standing',
+                  hasOverriddenOnExit: false,
+                  factory: $AccountStandingRoute._fromState,
+                ),
+                GoRouteData.$route(
+                  path: 'about',
+                  name: 'settings-about',
+                  hasOverriddenOnExit: false,
+                  factory: $AboutRoute._fromState,
+                ),
+                GoRouteData.$route(
+                  path: 'products',
+                  name: 'settings-business-products',
+                  hasOverriddenOnExit: false,
+                  factory: $BusinessProductsRoute._fromState,
+                ),
+                GoRouteData.$route(
+                  path: 'events',
+                  name: 'settings-business-events',
+                  hasOverriddenOnExit: false,
+                  factory: $BusinessEventsRoute._fromState,
+                ),
+                GoRouteData.$route(
+                  path: 'languages',
+                  name: 'languages',
+                  hasOverriddenOnExit: false,
+                  factory: $LanguagesRoute._fromState,
+                ),
+                GoRouteData.$route(
+                  path: 'instagram',
+                  name: 'instagram-migration',
+                  hasOverriddenOnExit: false,
+                  factory: $InstagramMigrationRoute._fromState,
+                ),
+                GoRouteData.$route(
+                  path: 'followers',
+                  name: 'settings-followers',
+                  hasOverriddenOnExit: false,
+                  factory: $FollowersRoute._fromState,
+                ),
+                GoRouteData.$route(
+                  path: 'following',
+                  name: 'settings-following',
+                  hasOverriddenOnExit: false,
+                  factory: $FollowingRoute._fromState,
+                ),
+                GoRouteData.$route(
+                  path: 'muted',
+                  name: 'settings-muted-accounts',
+                  hasOverriddenOnExit: false,
+                  factory: $MutedAccountsRoute._fromState,
+                ),
+                GoRouteData.$route(
+                  path: 'blocked',
+                  name: 'settings-blocked-accounts',
+                  hasOverriddenOnExit: false,
+                  factory: $BlockedAccountsRoute._fromState,
+                ),
+              ],
+            ),
+          ],
         ),
       ],
     ),
@@ -578,408 +572,12 @@ mixin $ProfileRoute on GoRouteData {
   void replace(BuildContext context) => context.replace(location);
 }
 
-mixin $SettingsRoute on GoRouteData {
-  static SettingsRoute _fromState(GoRouterState state) => const SettingsRoute();
-
-  @override
-  String get location => GoRouteData.$location('/profile/settings');
-
-  @override
-  void go(BuildContext context) => context.go(location);
-
-  @override
-  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
-
-  @override
-  void pushReplacement(BuildContext context) =>
-      context.pushReplacement(location);
-
-  @override
-  void replace(BuildContext context) => context.replace(location);
-}
-
-mixin $AppearanceRoute on GoRouteData {
-  static AppearanceRoute _fromState(GoRouterState state) =>
-      const AppearanceRoute();
-
-  @override
-  String get location => GoRouteData.$location('/profile/settings/appearance');
-
-  @override
-  void go(BuildContext context) => context.go(location);
-
-  @override
-  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
-
-  @override
-  void pushReplacement(BuildContext context) =>
-      context.pushReplacement(location);
-
-  @override
-  void replace(BuildContext context) => context.replace(location);
-}
-
-mixin $PrivacyRoute on GoRouteData {
-  static PrivacyRoute _fromState(GoRouterState state) => const PrivacyRoute();
-
-  @override
-  String get location => GoRouteData.$location('/profile/settings/privacy');
-
-  @override
-  void go(BuildContext context) => context.go(location);
-
-  @override
-  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
-
-  @override
-  void pushReplacement(BuildContext context) =>
-      context.pushReplacement(location);
-
-  @override
-  void replace(BuildContext context) => context.replace(location);
-}
-
-mixin $FollowerGrowthRoute on GoRouteData {
-  static FollowerGrowthRoute _fromState(GoRouterState state) =>
-      const FollowerGrowthRoute();
-
-  @override
-  String get location => GoRouteData.$location('/profile/settings/growth');
-
-  @override
-  void go(BuildContext context) => context.go(location);
-
-  @override
-  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
-
-  @override
-  void pushReplacement(BuildContext context) =>
-      context.pushReplacement(location);
-
-  @override
-  void replace(BuildContext context) => context.replace(location);
-}
-
-mixin $ProfileCustomisationRoute on GoRouteData {
-  static ProfileCustomisationRoute _fromState(GoRouterState state) =>
-      const ProfileCustomisationRoute();
-
-  @override
-  String get location =>
-      GoRouteData.$location('/profile/settings/customisation');
-
-  @override
-  void go(BuildContext context) => context.go(location);
-
-  @override
-  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
-
-  @override
-  void pushReplacement(BuildContext context) =>
-      context.pushReplacement(location);
-
-  @override
-  void replace(BuildContext context) => context.replace(location);
-}
-
-mixin $AccountRoute on GoRouteData {
-  static AccountRoute _fromState(GoRouterState state) => const AccountRoute();
-
-  @override
-  String get location => GoRouteData.$location('/profile/settings/account');
-
-  @override
-  void go(BuildContext context) => context.go(location);
-
-  @override
-  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
-
-  @override
-  void pushReplacement(BuildContext context) =>
-      context.pushReplacement(location);
-
-  @override
-  void replace(BuildContext context) => context.replace(location);
-}
-
-mixin $SubscriptionsRoute on GoRouteData {
-  static SubscriptionsRoute _fromState(GoRouterState state) =>
-      const SubscriptionsRoute();
-
-  @override
-  String get location =>
-      GoRouteData.$location('/profile/settings/subscriptions');
-
-  @override
-  void go(BuildContext context) => context.go(location);
-
-  @override
-  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
-
-  @override
-  void pushReplacement(BuildContext context) =>
-      context.pushReplacement(location);
-
-  @override
-  void replace(BuildContext context) => context.replace(location);
-}
-
-mixin $AccountStandingRoute on GoRouteData {
-  static AccountStandingRoute _fromState(GoRouterState state) =>
-      const AccountStandingRoute();
-
-  @override
-  String get location => GoRouteData.$location('/profile/settings/moderation');
-
-  @override
-  void go(BuildContext context) => context.go(location);
-
-  @override
-  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
-
-  @override
-  void pushReplacement(BuildContext context) =>
-      context.pushReplacement(location);
-
-  @override
-  void replace(BuildContext context) => context.replace(location);
-}
-
-mixin $AboutRoute on GoRouteData {
-  static AboutRoute _fromState(GoRouterState state) => const AboutRoute();
-
-  @override
-  String get location => GoRouteData.$location('/profile/settings/about');
-
-  @override
-  void go(BuildContext context) => context.go(location);
-
-  @override
-  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
-
-  @override
-  void pushReplacement(BuildContext context) =>
-      context.pushReplacement(location);
-
-  @override
-  void replace(BuildContext context) => context.replace(location);
-}
-
-mixin $BusinessProductsRoute on GoRouteData {
-  static BusinessProductsRoute _fromState(GoRouterState state) =>
-      const BusinessProductsRoute();
-
-  @override
-  String get location => GoRouteData.$location('/profile/settings/products');
-
-  @override
-  void go(BuildContext context) => context.go(location);
-
-  @override
-  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
-
-  @override
-  void pushReplacement(BuildContext context) =>
-      context.pushReplacement(location);
-
-  @override
-  void replace(BuildContext context) => context.replace(location);
-}
-
-mixin $BusinessEventsRoute on GoRouteData {
-  static BusinessEventsRoute _fromState(GoRouterState state) =>
-      const BusinessEventsRoute();
-
-  @override
-  String get location => GoRouteData.$location('/profile/settings/events');
-
-  @override
-  void go(BuildContext context) => context.go(location);
-
-  @override
-  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
-
-  @override
-  void pushReplacement(BuildContext context) =>
-      context.pushReplacement(location);
-
-  @override
-  void replace(BuildContext context) => context.replace(location);
-}
-
-mixin $LanguagesRoute on GoRouteData {
-  static LanguagesRoute _fromState(GoRouterState state) =>
-      const LanguagesRoute();
-
-  @override
-  String get location => GoRouteData.$location('/profile/settings/languages');
-
-  @override
-  void go(BuildContext context) => context.go(location);
-
-  @override
-  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
-
-  @override
-  void pushReplacement(BuildContext context) =>
-      context.pushReplacement(location);
-
-  @override
-  void replace(BuildContext context) => context.replace(location);
-}
-
-mixin $InstagramMigrationRoute on GoRouteData {
-  static InstagramMigrationRoute _fromState(GoRouterState state) =>
-      const InstagramMigrationRoute();
-
-  @override
-  String get location => GoRouteData.$location('/profile/settings/instagram');
-
-  @override
-  void go(BuildContext context) => context.go(location);
-
-  @override
-  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
-
-  @override
-  void pushReplacement(BuildContext context) =>
-      context.pushReplacement(location);
-
-  @override
-  void replace(BuildContext context) => context.replace(location);
-}
-
-mixin $FollowersRoute on GoRouteData {
-  static FollowersRoute _fromState(GoRouterState state) =>
-      const FollowersRoute();
-
-  @override
-  String get location => GoRouteData.$location('/profile/settings/followers');
-
-  @override
-  void go(BuildContext context) => context.go(location);
-
-  @override
-  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
-
-  @override
-  void pushReplacement(BuildContext context) =>
-      context.pushReplacement(location);
-
-  @override
-  void replace(BuildContext context) => context.replace(location);
-}
-
-mixin $FollowingRoute on GoRouteData {
-  static FollowingRoute _fromState(GoRouterState state) =>
-      const FollowingRoute();
-
-  @override
-  String get location => GoRouteData.$location('/profile/settings/following');
-
-  @override
-  void go(BuildContext context) => context.go(location);
-
-  @override
-  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
-
-  @override
-  void pushReplacement(BuildContext context) =>
-      context.pushReplacement(location);
-
-  @override
-  void replace(BuildContext context) => context.replace(location);
-}
-
-mixin $MutedAccountsRoute on GoRouteData {
-  static MutedAccountsRoute _fromState(GoRouterState state) =>
-      const MutedAccountsRoute();
-
-  @override
-  String get location => GoRouteData.$location('/profile/settings/muted');
-
-  @override
-  void go(BuildContext context) => context.go(location);
-
-  @override
-  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
-
-  @override
-  void pushReplacement(BuildContext context) =>
-      context.pushReplacement(location);
-
-  @override
-  void replace(BuildContext context) => context.replace(location);
-}
-
-mixin $BlockedAccountsRoute on GoRouteData {
-  static BlockedAccountsRoute _fromState(GoRouterState state) =>
-      const BlockedAccountsRoute();
-
-  @override
-  String get location => GoRouteData.$location('/profile/settings/blocked');
-
-  @override
-  void go(BuildContext context) => context.go(location);
-
-  @override
-  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
-
-  @override
-  void pushReplacement(BuildContext context) =>
-      context.pushReplacement(location);
-
-  @override
-  void replace(BuildContext context) => context.replace(location);
-}
-
 mixin $PlaygroundRoute on GoRouteData {
   static PlaygroundRoute _fromState(GoRouterState state) =>
       const PlaygroundRoute();
 
   @override
   String get location => GoRouteData.$location('/profile/playground');
-
-  @override
-  void go(BuildContext context) => context.go(location);
-
-  @override
-  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
-
-  @override
-  void pushReplacement(BuildContext context) =>
-      context.pushReplacement(location);
-
-  @override
-  void replace(BuildContext context) => context.replace(location);
-}
-
-mixin $ScheduledPostsRoute on GoRouteData {
-  static ScheduledPostsRoute _fromState(GoRouterState state) =>
-      const ScheduledPostsRoute();
-
-  @override
-  String get location => GoRouteData.$location('/scheduled');
-
-  @override
-  void go(BuildContext context) => context.go(location);
-
-  @override
-  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
-
-  @override
-  void pushReplacement(BuildContext context) =>
-      context.pushReplacement(location);
-
-  @override
-  void replace(BuildContext context) => context.replace(location);
-}
-
-mixin $DraftsRoute on GoRouteData {
-  static DraftsRoute _fromState(GoRouterState state) => const DraftsRoute();
-
-  @override
-  String get location => GoRouteData.$location('/drafts');
 
   @override
   void go(BuildContext context) => context.go(location);
@@ -1039,6 +637,400 @@ mixin $SavedPostFolderRoute on GoRouteData {
   @override
   void replace(BuildContext context) =>
       context.replace(location, extra: _self.$extra);
+}
+
+mixin $ScheduledPostsRoute on GoRouteData {
+  static ScheduledPostsRoute _fromState(GoRouterState state) =>
+      const ScheduledPostsRoute();
+
+  @override
+  String get location => GoRouteData.$location('/scheduled');
+
+  @override
+  void go(BuildContext context) => context.go(location);
+
+  @override
+  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
+
+  @override
+  void pushReplacement(BuildContext context) =>
+      context.pushReplacement(location);
+
+  @override
+  void replace(BuildContext context) => context.replace(location);
+}
+
+mixin $DraftsRoute on GoRouteData {
+  static DraftsRoute _fromState(GoRouterState state) => const DraftsRoute();
+
+  @override
+  String get location => GoRouteData.$location('/drafts');
+
+  @override
+  void go(BuildContext context) => context.go(location);
+
+  @override
+  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
+
+  @override
+  void pushReplacement(BuildContext context) =>
+      context.pushReplacement(location);
+
+  @override
+  void replace(BuildContext context) => context.replace(location);
+}
+
+mixin $SettingsRoute on GoRouteData {
+  static SettingsRoute _fromState(GoRouterState state) => const SettingsRoute();
+
+  @override
+  String get location => GoRouteData.$location('/settings');
+
+  @override
+  void go(BuildContext context) => context.go(location);
+
+  @override
+  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
+
+  @override
+  void pushReplacement(BuildContext context) =>
+      context.pushReplacement(location);
+
+  @override
+  void replace(BuildContext context) => context.replace(location);
+}
+
+mixin $AppearanceRoute on GoRouteData {
+  static AppearanceRoute _fromState(GoRouterState state) =>
+      const AppearanceRoute();
+
+  @override
+  String get location => GoRouteData.$location('/settings/appearance');
+
+  @override
+  void go(BuildContext context) => context.go(location);
+
+  @override
+  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
+
+  @override
+  void pushReplacement(BuildContext context) =>
+      context.pushReplacement(location);
+
+  @override
+  void replace(BuildContext context) => context.replace(location);
+}
+
+mixin $PrivacyRoute on GoRouteData {
+  static PrivacyRoute _fromState(GoRouterState state) => const PrivacyRoute();
+
+  @override
+  String get location => GoRouteData.$location('/settings/privacy');
+
+  @override
+  void go(BuildContext context) => context.go(location);
+
+  @override
+  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
+
+  @override
+  void pushReplacement(BuildContext context) =>
+      context.pushReplacement(location);
+
+  @override
+  void replace(BuildContext context) => context.replace(location);
+}
+
+mixin $FollowerGrowthRoute on GoRouteData {
+  static FollowerGrowthRoute _fromState(GoRouterState state) =>
+      const FollowerGrowthRoute();
+
+  @override
+  String get location => GoRouteData.$location('/settings/growth');
+
+  @override
+  void go(BuildContext context) => context.go(location);
+
+  @override
+  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
+
+  @override
+  void pushReplacement(BuildContext context) =>
+      context.pushReplacement(location);
+
+  @override
+  void replace(BuildContext context) => context.replace(location);
+}
+
+mixin $ProfileCustomisationRoute on GoRouteData {
+  static ProfileCustomisationRoute _fromState(GoRouterState state) =>
+      const ProfileCustomisationRoute();
+
+  @override
+  String get location => GoRouteData.$location('/settings/customisation');
+
+  @override
+  void go(BuildContext context) => context.go(location);
+
+  @override
+  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
+
+  @override
+  void pushReplacement(BuildContext context) =>
+      context.pushReplacement(location);
+
+  @override
+  void replace(BuildContext context) => context.replace(location);
+}
+
+mixin $AccountRoute on GoRouteData {
+  static AccountRoute _fromState(GoRouterState state) => const AccountRoute();
+
+  @override
+  String get location => GoRouteData.$location('/settings/account');
+
+  @override
+  void go(BuildContext context) => context.go(location);
+
+  @override
+  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
+
+  @override
+  void pushReplacement(BuildContext context) =>
+      context.pushReplacement(location);
+
+  @override
+  void replace(BuildContext context) => context.replace(location);
+}
+
+mixin $SubscriptionsRoute on GoRouteData {
+  static SubscriptionsRoute _fromState(GoRouterState state) =>
+      const SubscriptionsRoute();
+
+  @override
+  String get location => GoRouteData.$location('/settings/subscriptions');
+
+  @override
+  void go(BuildContext context) => context.go(location);
+
+  @override
+  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
+
+  @override
+  void pushReplacement(BuildContext context) =>
+      context.pushReplacement(location);
+
+  @override
+  void replace(BuildContext context) => context.replace(location);
+}
+
+mixin $AccountStandingRoute on GoRouteData {
+  static AccountStandingRoute _fromState(GoRouterState state) =>
+      const AccountStandingRoute();
+
+  @override
+  String get location => GoRouteData.$location('/settings/moderation');
+
+  @override
+  void go(BuildContext context) => context.go(location);
+
+  @override
+  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
+
+  @override
+  void pushReplacement(BuildContext context) =>
+      context.pushReplacement(location);
+
+  @override
+  void replace(BuildContext context) => context.replace(location);
+}
+
+mixin $AboutRoute on GoRouteData {
+  static AboutRoute _fromState(GoRouterState state) => const AboutRoute();
+
+  @override
+  String get location => GoRouteData.$location('/settings/about');
+
+  @override
+  void go(BuildContext context) => context.go(location);
+
+  @override
+  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
+
+  @override
+  void pushReplacement(BuildContext context) =>
+      context.pushReplacement(location);
+
+  @override
+  void replace(BuildContext context) => context.replace(location);
+}
+
+mixin $BusinessProductsRoute on GoRouteData {
+  static BusinessProductsRoute _fromState(GoRouterState state) =>
+      const BusinessProductsRoute();
+
+  @override
+  String get location => GoRouteData.$location('/settings/products');
+
+  @override
+  void go(BuildContext context) => context.go(location);
+
+  @override
+  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
+
+  @override
+  void pushReplacement(BuildContext context) =>
+      context.pushReplacement(location);
+
+  @override
+  void replace(BuildContext context) => context.replace(location);
+}
+
+mixin $BusinessEventsRoute on GoRouteData {
+  static BusinessEventsRoute _fromState(GoRouterState state) =>
+      const BusinessEventsRoute();
+
+  @override
+  String get location => GoRouteData.$location('/settings/events');
+
+  @override
+  void go(BuildContext context) => context.go(location);
+
+  @override
+  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
+
+  @override
+  void pushReplacement(BuildContext context) =>
+      context.pushReplacement(location);
+
+  @override
+  void replace(BuildContext context) => context.replace(location);
+}
+
+mixin $LanguagesRoute on GoRouteData {
+  static LanguagesRoute _fromState(GoRouterState state) =>
+      const LanguagesRoute();
+
+  @override
+  String get location => GoRouteData.$location('/settings/languages');
+
+  @override
+  void go(BuildContext context) => context.go(location);
+
+  @override
+  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
+
+  @override
+  void pushReplacement(BuildContext context) =>
+      context.pushReplacement(location);
+
+  @override
+  void replace(BuildContext context) => context.replace(location);
+}
+
+mixin $InstagramMigrationRoute on GoRouteData {
+  static InstagramMigrationRoute _fromState(GoRouterState state) =>
+      const InstagramMigrationRoute();
+
+  @override
+  String get location => GoRouteData.$location('/settings/instagram');
+
+  @override
+  void go(BuildContext context) => context.go(location);
+
+  @override
+  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
+
+  @override
+  void pushReplacement(BuildContext context) =>
+      context.pushReplacement(location);
+
+  @override
+  void replace(BuildContext context) => context.replace(location);
+}
+
+mixin $FollowersRoute on GoRouteData {
+  static FollowersRoute _fromState(GoRouterState state) =>
+      const FollowersRoute();
+
+  @override
+  String get location => GoRouteData.$location('/settings/followers');
+
+  @override
+  void go(BuildContext context) => context.go(location);
+
+  @override
+  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
+
+  @override
+  void pushReplacement(BuildContext context) =>
+      context.pushReplacement(location);
+
+  @override
+  void replace(BuildContext context) => context.replace(location);
+}
+
+mixin $FollowingRoute on GoRouteData {
+  static FollowingRoute _fromState(GoRouterState state) =>
+      const FollowingRoute();
+
+  @override
+  String get location => GoRouteData.$location('/settings/following');
+
+  @override
+  void go(BuildContext context) => context.go(location);
+
+  @override
+  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
+
+  @override
+  void pushReplacement(BuildContext context) =>
+      context.pushReplacement(location);
+
+  @override
+  void replace(BuildContext context) => context.replace(location);
+}
+
+mixin $MutedAccountsRoute on GoRouteData {
+  static MutedAccountsRoute _fromState(GoRouterState state) =>
+      const MutedAccountsRoute();
+
+  @override
+  String get location => GoRouteData.$location('/settings/muted');
+
+  @override
+  void go(BuildContext context) => context.go(location);
+
+  @override
+  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
+
+  @override
+  void pushReplacement(BuildContext context) =>
+      context.pushReplacement(location);
+
+  @override
+  void replace(BuildContext context) => context.replace(location);
+}
+
+mixin $BlockedAccountsRoute on GoRouteData {
+  static BlockedAccountsRoute _fromState(GoRouterState state) =>
+      const BlockedAccountsRoute();
+
+  @override
+  String get location => GoRouteData.$location('/settings/blocked');
+
+  @override
+  void go(BuildContext context) => context.go(location);
+
+  @override
+  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
+
+  @override
+  void pushReplacement(BuildContext context) =>
+      context.pushReplacement(location);
+
+  @override
+  void replace(BuildContext context) => context.replace(location);
 }
 
 mixin $PostThreadRoute on GoRouteData {

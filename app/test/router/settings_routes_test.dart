@@ -64,43 +64,43 @@ void main() {
   test('Settings list routes use canonical typed locations', () {
     expect(
       const AppearanceRoute().location,
-      '/profile/settings/appearance',
+      '/settings/appearance',
     );
     expect(
       const ProfileCustomisationRoute().location,
-      '/profile/settings/customisation',
+      '/settings/customisation',
     );
     expect(
       const FollowerGrowthRoute().location,
-      '/profile/settings/growth',
+      '/settings/growth',
     );
     expect(
       const FollowersRoute().location,
-      '/profile/settings/followers',
+      '/settings/followers',
     );
     expect(
       const FollowingRoute().location,
-      '/profile/settings/following',
+      '/settings/following',
     );
     expect(
       const MutedAccountsRoute().location,
-      '/profile/settings/muted',
+      '/settings/muted',
     );
     expect(
       const BlockedAccountsRoute().location,
-      '/profile/settings/blocked',
+      '/settings/blocked',
     );
-    expect(const AccountRoute().location, '/profile/settings/account');
+    expect(const AccountRoute().location, '/settings/account');
     expect(
       const SubscriptionsRoute().location,
-      '/profile/settings/subscriptions',
+      '/settings/subscriptions',
     );
     expect(
       const AccountStandingRoute().location,
-      '/profile/settings/moderation',
+      '/settings/moderation',
     );
-    expect(const AboutRoute().location, '/profile/settings/about');
-    expect(const PrivacyRoute().location, '/profile/settings/privacy');
+    expect(const AboutRoute().location, '/settings/about');
+    expect(const PrivacyRoute().location, '/settings/privacy');
   });
 
   testWidgets('Profile Settings action keeps one large navigation rail', (
@@ -149,7 +149,13 @@ void main() {
     );
     expect(find.byType(NavigationBar), findsNothing);
 
-    await tester.pageBack();
+    expect(find.byType(BackButton), findsNothing);
+    await tester.tap(
+      find.descendant(
+        of: find.byType(NavigationRail),
+        matching: find.text('Profile'),
+      ),
+    );
     await tester.pumpAndSettle();
 
     expect(router.state.matchedLocation, const ProfileRoute().location);
@@ -227,7 +233,7 @@ void main() {
     );
   }
 
-  testWidgets('Back from Settings reselects Profile in the compact drawer', (
+  testWidgets('Settings is a peer destination in the compact drawer', (
     tester,
   ) async {
     addTearDown(tester.view.resetPhysicalSize);
@@ -266,9 +272,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(SettingsPage), findsOneWidget);
 
-    await tester.pageBack();
-    await tester.pumpAndSettle();
-    expect(router.state.matchedLocation, const ProfileRoute().location);
+    expect(find.byType(BackButton), findsNothing);
 
     await tester.tap(find.byTooltip('Open navigation menu'));
     await tester.pumpAndSettle();
@@ -283,9 +287,63 @@ void main() {
       matching: find.byType(ListTile),
     );
 
-    expect(tester.widget<ListTile>(profileTile).selected, isTrue);
-    expect(tester.widget<ListTile>(settingsTile).selected, isFalse);
+    expect(tester.widget<ListTile>(profileTile).selected, isFalse);
+    expect(tester.widget<ListTile>(settingsTile).selected, isTrue);
+    await tester.tap(profileTile);
+    await tester.pumpAndSettle();
+    expect(router.state.matchedLocation, const ProfileRoute().location);
   });
+
+  testWidgets(
+    'iOS Settings child edge swipe goes back instead of opening the drawer',
+    (tester) async {
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(500, 800);
+      final container = _container();
+      addTearDown(container.dispose);
+      final subscription = container.listen(
+        goRouterProvider,
+        (_, _) {},
+        fireImmediately: true,
+      );
+      addTearDown(subscription.close);
+      final router = subscription.read()..go(const SettingsRoute().location);
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp.router(
+            routerConfig: router,
+            theme: AppTheme.lightThemeData.copyWith(
+              platform: TargetPlatform.iOS,
+            ),
+            localizationsDelegates: appLocalizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            builder: (context, child) => MessengerScope(
+              messenger: RecordingMessenger(),
+              child: FormFactorWidget(child: child!),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Appearance'));
+      await tester.pumpAndSettle();
+      expect(find.byType(AppearancePage), findsOneWidget);
+
+      await tester.dragFrom(const Offset(1, 300), const Offset(450, 0));
+      await tester.pumpAndSettle();
+      expect(find.byType(Drawer), findsNothing);
+      expect(router.state.matchedLocation, const SettingsRoute().location);
+      expect(find.byType(SettingsPage), findsOneWidget);
+
+      // The edge gesture still opens the drawer at the section root.
+      await tester.dragFrom(const Offset(1, 300), const Offset(450, 0));
+      await tester.pumpAndSettle();
+      expect(find.byType(Drawer), findsOneWidget);
+    },
+  );
 
   for (final layout in <(String, Size, bool)>[
     ('compact', const Size(500, 800), false),
@@ -630,22 +688,22 @@ const _emptyAccountPage = ProfileAccountPage(
 final _routeCases = <_SettingsRouteCase>[
   _SettingsRouteCase(
     label: 'Privacy',
-    location: '/profile/settings/privacy',
+    location: '/settings/privacy',
     matchesPage: (widget) => widget is PrivacyPage,
   ),
   _SettingsRouteCase(
     label: 'Appearance',
-    location: '/profile/settings/appearance',
+    location: '/settings/appearance',
     matchesPage: (widget) => widget is AppearancePage,
   ),
   _SettingsRouteCase(
     label: 'Growth',
-    location: '/profile/settings/growth',
+    location: '/settings/growth',
     matchesPage: (widget) => widget is FollowerGrowthPage,
   ),
   _SettingsRouteCase(
     label: 'Customisation',
-    location: '/profile/settings/customisation',
+    location: '/settings/customisation',
     matchesPage: (widget) => widget is ProfileCustomisationPage,
   ),
   _SettingsRouteCase(
@@ -655,56 +713,56 @@ final _routeCases = <_SettingsRouteCase>[
   ),
   _SettingsRouteCase(
     label: 'View subscription',
-    location: '/profile/settings/subscriptions',
+    location: '/settings/subscriptions',
     matchesPage: (widget) => widget is SubscriptionPage,
   ),
   _SettingsRouteCase(
     label: 'Account standing',
-    location: '/profile/settings/moderation',
+    location: '/settings/moderation',
     matchesPage: (widget) => widget is AccountStandingPage,
   ),
   _SettingsRouteCase(
     label: 'Account',
-    location: '/profile/settings/account',
+    location: '/settings/account',
     matchesPage: (widget) => widget is AccountPage,
   ),
   _SettingsRouteCase(
     label: 'About',
-    location: '/profile/settings/about',
+    location: '/settings/about',
     matchesPage: (widget) => widget is AboutPage,
   ),
   _SettingsRouteCase(
     label: 'Languages',
-    location: '/profile/settings/languages',
+    location: '/settings/languages',
     matchesPage: (widget) => widget is LanguagesPage,
   ),
   _SettingsRouteCase(
     label: 'Find people from Instagram',
-    location: '/profile/settings/instagram',
+    location: '/settings/instagram',
     matchesPage: (widget) => widget is InstagramMigrationPage,
   ),
   _SettingsRouteCase(
     label: 'Followers',
-    location: '/profile/settings/followers',
+    location: '/settings/followers',
     matchesPage: (widget) =>
         widget is FollowListPage && widget.kind == FollowListKind.followers,
   ),
   _SettingsRouteCase(
     label: 'Following',
-    location: '/profile/settings/following',
+    location: '/settings/following',
     matchesPage: (widget) =>
         widget is FollowListPage && widget.kind == FollowListKind.following,
   ),
   _SettingsRouteCase(
     label: 'Muted accounts',
-    location: '/profile/settings/muted',
+    location: '/settings/muted',
     matchesPage: (widget) =>
         widget is RelationshipListPage &&
         widget.kind == RelationshipListKind.muted,
   ),
   _SettingsRouteCase(
     label: 'Blocked accounts',
-    location: '/profile/settings/blocked',
+    location: '/settings/blocked',
     matchesPage: (widget) =>
         widget is RelationshipListPage &&
         widget.kind == RelationshipListKind.blocked,

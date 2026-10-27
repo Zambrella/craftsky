@@ -24,7 +24,7 @@ void main() {
   test('AT-006 owner Events route uses the canonical settings location', () {
     expect(
       const BusinessEventsRoute().location,
-      '/profile/settings/events',
+      '/settings/events',
     );
   });
 

@@ -89,11 +89,11 @@ void main() {
   test('UT-018 owner routes use canonical settings locations', () {
     expect(
       const BusinessProductsRoute().location,
-      '/profile/settings/products',
+      '/settings/products',
     );
     expect(
       const BusinessEventsRoute().location,
-      '/profile/settings/events',
+      '/settings/events',
     );
   });
 
