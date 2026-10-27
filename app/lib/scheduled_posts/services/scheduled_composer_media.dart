@@ -77,6 +77,10 @@ Future<List<Map<String, dynamic>>> materializeScheduledComposerMedia(
   final media = <Map<String, dynamic>>[];
   for (final draft in images) {
     switch (draft.phase) {
+      case PublishedImageReady():
+        throw DiagnosticStateError(
+          'published images cannot be staged as scheduled media',
+        );
       case ScheduledImageReady(:final width, :final height):
         media.add({
           'id': draft.id,

@@ -101,17 +101,26 @@ PostCommentSection applyPostCommentSectionInteractionOverlays(
     }
   }
   return visible.copyWith(
-    post: applyPostInteractionOverlays(ref, visible.post),
+    post: applyPostInteractionOverlays(
+      ref,
+      applyPostRecordOverlay(ref, visible.post) ?? visible.post,
+    ),
     comments: visible.comments.copyWith(
       items: [
         for (final item in visible.comments.items)
           item.copyWith(
-            post: applyPostInteractionOverlays(ref, item.post),
+            post: applyPostInteractionOverlays(
+              ref,
+              applyPostRecordOverlay(ref, item.post) ?? item.post,
+            ),
             replies: item.replies.copyWith(
               items: [
                 for (final reply in item.replies.items)
                   reply.copyWith(
-                    post: applyPostInteractionOverlays(ref, reply.post),
+                    post: applyPostInteractionOverlays(
+                      ref,
+                      applyPostRecordOverlay(ref, reply.post) ?? reply.post,
+                    ),
                   ),
               ],
             ),

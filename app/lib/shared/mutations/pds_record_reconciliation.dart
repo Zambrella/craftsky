@@ -6,11 +6,46 @@ final class PdsRecordProjection {
     required this.uri,
     required this.cid,
     required this.content,
+    this.recordRevision,
   });
 
   final String uri;
   final String cid;
   final Map<String, Object?> content;
+  final String? recordRevision;
+}
+
+/// A post edit requires exact content identity or demonstrably later source
+/// order. Similar text alone cannot acknowledge a complete media/project edit.
+final class PdsPostEditReconciliation
+    implements PdsReconciliation<PdsRecordProjection?> {
+  const new({
+    required this.uri,
+    required this.acceptedCid,
+    this.recordRevision,
+    this.observationRevision,
+  });
+
+  final String uri;
+  final String acceptedCid;
+  final String? recordRevision;
+  final String? observationRevision;
+
+  @override
+  bool agrees(PdsRecordProjection? authoritativeValue) {
+    if (authoritativeValue == null || authoritativeValue.uri != uri) {
+      return false;
+    }
+    if (authoritativeValue.cid == acceptedCid) return true;
+    final bound = recordRevision ?? observationRevision;
+    final observed = authoritativeValue.recordRevision;
+    final tid = RegExp(r'^[2-7a-z]{13}$');
+    return bound != null &&
+        observed != null &&
+        tid.hasMatch(bound) &&
+        tid.hasMatch(observed) &&
+        observed.compareTo(bound) > 0;
+  }
 }
 
 @immutable

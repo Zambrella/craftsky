@@ -1086,3 +1086,63 @@ func claimSpecificTerminalComponent(
 		LeaseToken: token, LeaseExpiresAt: leaseExpiresAt,
 	}
 }
+
+// REG-008: a source parent cannot cascade through original publication facts
+// and an arbitrarily large mention fanout outside the configured row budget.
+func TestTerminalPurgeDrainsPublicationFactsBeforeSource(t *testing.T) {
+	pool, store, processor, owner, generation := newTerminalPurgeProcessorTest(t, 2)
+	ctx := context.Background()
+	uri := "at://" + owner.String() + "/social.craftsky.feed.post/publication-fanout"
+	if _, err := pool.Exec(ctx, `INSERT INTO tap_source_records(uri,did,collection,rkey,source_event_id,source_fingerprint,revision,action,record_bytes,live,ordering_status,projection_disposition)
+ VALUES($1,$2,'social.craftsky.feed.post','publication-fanout',1,$3,'1','delete',0,false,'authoritative','denied_terminal')`, uri, owner, bytes.Repeat([]byte{1}, 32)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO post_publication_state(uri,owner_did,origin_status) VALUES($1,$2,'unknown')`, uri, owner); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 5; i++ {
+		if _, err := pool.Exec(ctx, `INSERT INTO post_publication_mentions(post_uri,recipient_did) VALUES($1,$2)`, uri, fmt.Sprintf("did:plc:recipient%d", i)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO craftsky_post_edit_state(uri,source_cid,source_revision,content_digest) VALUES($1,'cid','1',$2)`, uri, bytes.Repeat([]byte{1}, 32)); err != nil {
+		t.Fatal(err)
+	}
+	sourceClaim := claimSpecificTerminalComponent(t, store, owner, generation, "tap_source_records", "owner")
+	result, err := processor.ProcessClaim(ctx, sourceClaim)
+	if err != nil || result.RowsAffected != 0 || result.Complete {
+		t.Fatalf("source cascaded publication fanout: %+v %v", result, err)
+	}
+	publicationClaim := claimSpecificTerminalComponent(t, store, owner, generation, "post_publication_state", "owner")
+	result, err = processor.ProcessClaim(ctx, publicationClaim)
+	if err != nil || result.RowsAffected != 2 || result.Complete {
+		t.Fatalf("publication fanout batch: %+v %v", result, err)
+	}
+	var parents, mentions int
+	if err := pool.QueryRow(ctx, `SELECT (SELECT count(*) FROM post_publication_state WHERE uri=$1),(SELECT count(*) FROM post_publication_mentions WHERE post_uri=$1)`, uri).Scan(&parents, &mentions); err != nil {
+		t.Fatal(err)
+	}
+	if parents != 1 || mentions != 3 {
+		t.Fatalf("unbounded cleanup: parents=%d mentions=%d", parents, mentions)
+	}
+	for i := 0; i < 3; i++ {
+		publicationClaim = claimSpecificTerminalComponent(t, store, owner, generation, "post_publication_state", "owner")
+		result, err = processor.ProcessClaim(ctx, publicationClaim)
+		if err != nil || result.RowsAffected > 2 {
+			t.Fatalf("publication batch %d: %+v %v", i, result, err)
+		}
+	}
+	sourceClaim = claimSpecificTerminalComponent(t, store, owner, generation, "tap_source_records", "owner")
+	result, err = processor.ProcessClaim(ctx, sourceClaim)
+	if err != nil || result.RowsAffected != 1 || result.Complete {
+		t.Fatalf("source bypassed edit-state budget: %+v %v", result, err)
+	}
+	var sources, states int
+	if err := pool.QueryRow(ctx, `SELECT (SELECT count(*) FROM tap_source_records WHERE uri=$1),(SELECT count(*) FROM craftsky_post_edit_state WHERE uri=$1)`, uri).Scan(&sources, &states); err != nil {
+		t.Fatal(err)
+	}
+	if sources != 1 || states != 0 {
+		t.Fatalf("source/current edit state after drain=%d/%d", sources, states)
+	}
+
+}

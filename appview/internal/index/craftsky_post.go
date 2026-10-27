@@ -219,7 +219,10 @@ func (c *CraftskyPost) handleUpsert(ctx context.Context, ev tap.Event) error {
 			record           = EXCLUDED.record,
 			created_at       = EXCLUDED.created_at,
 			external_import_source = EXCLUDED.external_import_source,
-			profile_sort_at  = EXCLUDED.profile_sort_at,
+			profile_sort_at  = craftsky_posts.profile_sort_at,
+			edited_at        = NULL,
+			edit_time_source = NULL,
+			record_revision  = NULL,
 			indexed_at       = now()
 		WHERE craftsky_posts.cid IS DISTINCT FROM EXCLUDED.cid
 	`
@@ -373,7 +376,7 @@ func (c *CraftskyPost) activatePostNotifications(ctx context.Context, tx pgx.Tx,
 		if !recipientIsMember {
 			continue
 		}
-		if err := c.lifecycle.Activate(ctx, tx, notifications.Activation{
+		if err := notifications.ActivatePublication(ctx, c.lifecycle, tx, notifications.Activation{
 			RecipientDID: recipient,
 			ActorDID:     ev.DID,
 			Category:     category,

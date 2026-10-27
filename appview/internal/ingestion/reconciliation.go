@@ -12,6 +12,8 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"social.craftsky/appview/internal/ownerlifecycle"
+	"social.craftsky/appview/internal/postfence"
+	"social.craftsky/appview/internal/postpublication"
 	"social.craftsky/appview/internal/sourcevalidation"
 	"social.craftsky/appview/internal/tap"
 )
@@ -217,6 +219,11 @@ func (store *Store) reconcileSourceTx(
 	authority sourceAuthority,
 	now time.Time,
 ) (tap.Outcome, error) {
+	if event.Collection == "social.craftsky.feed.post" {
+		if err := postfence.LockTx(ctx, tx, event.URI); err != nil {
+			return tap.Outcome{}, err
+		}
+	}
 	current, err := sourceTx(ctx, tx, expected.URI)
 	if err != nil {
 		return tap.Outcome{}, err
@@ -249,6 +256,14 @@ func (store *Store) reconcileSourceTx(
 		dependencyKey = outcome.Dependency.Key
 	}
 	var cid, record any
+	publication, err := preparePostPublicationTx(ctx, tx, event, validation, orderingStatus, disposition)
+	if err != nil {
+		return tap.Outcome{}, err
+	}
+	editState, err := preparePostEditStateTx(ctx, tx, event, validation, orderingStatus, disposition, now)
+	if err != nil {
+		return tap.Outcome{}, err
+	}
 	recordBytes := 0
 	if event.Action != "delete" {
 		cid = event.CID
@@ -271,6 +286,15 @@ func (store *Store) reconcileSourceTx(
 	}
 	if sourceResult.RowsAffected() != 1 {
 		return tap.Outcome{}, ErrReconciliationSourceChanged
+	}
+	if err := postpublication.Persist(ctx, tx, event.URI, event.DID, publication); err != nil {
+		return tap.Outcome{}, err
+	}
+	if err := restrictPostPublicationTx(ctx, tx, event, validation, orderingStatus, disposition, now); err != nil {
+		return tap.Outcome{}, err
+	}
+	if err := persistPostEditStateTx(ctx, tx, event, editState, disposition); err != nil {
+		return tap.Outcome{}, err
 	}
 	jobResult, err := tx.Exec(ctx, `
 		UPDATE tap_projection_jobs

@@ -61,6 +61,13 @@ void main() {
           'addBreadcrumb',
           'analytics',
         ]) {
+          // Published-post explicit refresh owns consumed failures through
+          // ErrorReporter. Its serialized public refs/private URL boundary is
+          // exercised by published_post_external_edit_test.dart.
+          if (path == 'lib/feed/widgets/post_composer_sheet.dart' &&
+              forbidden == 'captureException') {
+            continue;
+          }
           expect(source, isNot(contains(forbidden)), reason: path);
         }
       }

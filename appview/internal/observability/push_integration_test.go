@@ -72,12 +72,14 @@ func TestPushPrivacySentinelsAcrossRegistrationEnqueueDispatchAndTelemetry(t *te
 			value TEXT,action TEXT,expires_at TIMESTAMPTZ,indexed_at TIMESTAMPTZ
 		);
 	`)
-	migration, err := testdb.ReadMigration("000021_appview_notifications.up.sql")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := pool.Exec(context.Background(), string(migration)); err != nil {
-		t.Fatal(err)
+	for _, name := range []string{"000021_appview_notifications.up.sql", "000106_post_publication_facts.up.sql"} {
+		migration, err := testdb.ReadMigration(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := pool.Exec(context.Background(), string(migration)); err != nil {
+			t.Fatal(err)
+		}
 	}
 	if _, err := pool.Exec(context.Background(), `
 		CREATE TABLE actor_mutes (

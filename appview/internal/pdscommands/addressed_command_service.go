@@ -8,9 +8,11 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 
 	"social.craftsky/appview/internal/auth"
 	"social.craftsky/appview/internal/ownerlifecycle"
+	"social.craftsky/appview/internal/postfence"
 )
 
 var ErrRecordConflict = errors.New("PDS record changed")
@@ -56,9 +58,18 @@ type AddressedPutCommandRequest struct {
 	ExpectedCID     syntax.CID
 	Intent          json.RawMessage
 	Blobs           []BlobReference
-	BuildRecord     func(AuthoritativeRecord) (json.RawMessage, error)
-	Accepted        func(AuthoritativeRecord) (TerminalResult, error)
-	Rejected        func(error) TerminalResult
+	// StrictExpectedCID rejects a stale base even when current content happens
+	// to equal the desired content. Recovery still uses the stored dispatch.
+	StrictExpectedCID bool
+	BuildRecord       func(AuthoritativeRecord) (json.RawMessage, error)
+	// BuildPreparedRecord permits values such as edit time to use the durable
+	// command timestamp. When set it takes precedence over BuildRecord.
+	BuildPreparedRecord func(AuthoritativeRecord, PreparedCommand) (json.RawMessage, error)
+	Accepted            func(AuthoritativeRecord) (TerminalResult, error)
+	// FinalizeAccepted runs only for changed records, in the terminal command
+	// transaction. Failure must roll back all local acceptance state.
+	FinalizeAccepted func(context.Context, pgx.Tx, PreparedCommand, AuthoritativeRecord) error
+	Rejected         func(error) TerminalResult
 }
 
 func NewAddressedCommandService(config AddressedCommandServiceConfig) (*AddressedCommandService, error) {
@@ -150,10 +161,15 @@ func (service *AddressedCommandService) Put(ctx context.Context, request Address
 	if err != nil {
 		return CommandResult{}, err
 	}
+	var targetURI syntax.ATURI
+	if request.StrictExpectedCID {
+		targetURI = request.URI
+	}
 	conditions, err := json.Marshal(struct {
-		OwnerGeneration int64      `json:"ownerGeneration"`
-		ExpectedCID     syntax.CID `json:"expectedCid"`
-	}{OwnerGeneration: request.OwnerGeneration, ExpectedCID: request.ExpectedCID})
+		OwnerGeneration int64        `json:"ownerGeneration"`
+		ExpectedCID     syntax.CID   `json:"expectedCid"`
+		TargetURI       syntax.ATURI `json:"targetUri,omitempty"`
+	}{OwnerGeneration: request.OwnerGeneration, ExpectedCID: request.ExpectedCID, TargetURI: targetURI})
 	if err != nil {
 		return CommandResult{}, err
 	}
@@ -216,7 +232,7 @@ func (service *AddressedCommandService) Put(ctx context.Context, request Address
 func validateAddressedPutRequest(request AddressedPutCommandRequest) (syntax.RecordKey, error) {
 	if request.Owner == "" || request.OwnerGeneration < 1 || request.SessionID == "" || request.OperationKind == "" ||
 		request.OperationKey == uuid.Nil || request.URI == "" || request.ExpectedCID == "" ||
-		!json.Valid(request.Intent) || request.BuildRecord == nil || request.Accepted == nil || request.Rejected == nil {
+		!json.Valid(request.Intent) || (request.BuildRecord == nil && request.BuildPreparedRecord == nil) || request.Accepted == nil || request.Rejected == nil {
 		return "", ErrMalformedCommand
 	}
 	for _, blob := range request.Blobs {
@@ -354,6 +370,44 @@ func (service *AddressedCommandService) putFenced(
 	if firstAttempt > 3 {
 		return service.rejectPut(ctx, command.ID, request, ErrRepositoryConflict)
 	}
+	if request.StrictExpectedCID && command.State != CommandPrepared {
+		record, observeErr := transport.observeRecord(ctx, request.Owner, request.URI)
+		if observeErr != nil {
+			return service.store.UnresolvedResult(ctx, command)
+		}
+		dispatched, err := service.store.addressedUpdateBody(ctx, command, request.URI)
+		if err != nil {
+			return CommandResult{}, err
+		}
+		matches, err := equalCanonicalJSON(record.Record, dispatched)
+		if err != nil {
+			return CommandResult{}, err
+		}
+		if matches {
+			terminal, err := request.Accepted(record)
+			if err != nil {
+				return CommandResult{}, err
+			}
+			if err := service.store.completeAddressedRecovery(ctx, command, record, terminal, func(tx pgx.Tx) error {
+				if request.StrictExpectedCID {
+					if err := postfence.LockTx(ctx, tx, request.URI); err != nil {
+						return err
+					}
+				}
+				if request.FinalizeAccepted != nil {
+					return request.FinalizeAccepted(ctx, tx, command, record)
+				}
+				return nil
+			}); err != nil {
+				if errors.Is(err, ErrIllegalTransition) {
+					return service.store.Result(ctx, command.ID)
+				}
+				return CommandResult{}, err
+			}
+			return service.store.Result(ctx, command.ID)
+		}
+		return service.store.UnresolvedResult(ctx, command)
+	}
 	for attemptNumber := firstAttempt; attemptNumber <= 3; attemptNumber++ {
 		record, err := transport.GetRecord(ctx, request.Owner, request.URI)
 		absent := errors.Is(err, auth.ErrRecordNotFound)
@@ -369,8 +423,21 @@ func (service *AddressedCommandService) putFenced(
 		if absent {
 			record = AuthoritativeRecord{URI: request.URI}
 		}
-		desired, buildErr := request.BuildRecord(record)
+
+		if request.StrictExpectedCID && command.State == CommandPrepared && (absent || record.CID != request.ExpectedCID) {
+			return service.rejectPut(ctx, command.ID, request, ErrRecordConflict)
+		}
+		var desired json.RawMessage
+		var buildErr error
+		if request.BuildPreparedRecord != nil {
+			desired, buildErr = request.BuildPreparedRecord(record, command)
+		} else {
+			desired, buildErr = request.BuildRecord(record)
+		}
 		if buildErr != nil || !json.Valid(desired) {
+			if request.StrictExpectedCID && errors.Is(buildErr, ErrDispatchUnavailable) {
+				return CommandResult{}, buildErr
+			}
 			return service.rejectPut(ctx, command.ID, request, errors.Join(ErrMalformedCommand, buildErr))
 		}
 		if !absent {
@@ -391,7 +458,17 @@ func (service *AddressedCommandService) putFenced(
 		if command.State != CommandPrepared {
 			return service.store.UnresolvedResult(ctx, command)
 		}
-		head, err := transport.LatestCommit(ctx, request.Owner)
+		var head syntax.CID
+		var headRevision syntax.TID
+		if request.StrictExpectedCID {
+			if !transport.hasWriteReceipts() {
+				return CommandResult{}, errors.Join(ErrDispatchUnavailable, auth.ErrCommitMetadataUnavailable)
+			}
+			commit, readErr := transport.LatestCommitMetadata(ctx, request.Owner)
+			head, headRevision, err = commit.CID, commit.Revision, readErr
+		} else {
+			head, err = transport.LatestCommit(ctx, request.Owner)
+		}
 		if err != nil {
 			return CommandResult{}, errors.Join(ErrDispatchUnavailable, err)
 		}
@@ -410,7 +487,7 @@ func (service *AddressedCommandService) putFenced(
 		}
 		attempt, err := service.store.BeginDispatch(ctx, command.ID, ExactPlan{
 			Version: command.ActivePlanVersion + attemptNumber, FingerprintVersion: 1,
-			Fingerprint: dispatchFingerprint, RepositoryCID: head,
+			Fingerprint: dispatchFingerprint, RepositoryCID: head, RepositoryRevision: headRevision,
 			RemoteDeadline: service.now().UTC().Add(30 * time.Second), Steps: []DispatchStep{step},
 		})
 		if err != nil {
@@ -419,7 +496,15 @@ func (service *AddressedCommandService) putFenced(
 			}
 			return CommandResult{}, err
 		}
-		err = transport.ApplyWrites(ctx, request.Owner, head, []DispatchStep{step})
+		var receipt auth.RepositoryWriteReceipt
+		if request.StrictExpectedCID {
+			receipt, err = transport.ApplyWritesWithCommit(ctx, request.Owner, head, []DispatchStep{step})
+			if err == nil && (receipt.Commit.CID == "" || receipt.Commit.Revision == "" || len(receipt.Records) != 1 || receipt.Records[0].URI != request.URI || receipt.Records[0].CID == "") {
+				err = auth.ErrCommitMetadataUnavailable
+			}
+		} else {
+			err = transport.ApplyWrites(ctx, request.Owner, head, []DispatchStep{step})
+		}
 		if errors.Is(err, ErrRepositorySwapConflict) {
 			delay, retry := InvalidSwapRetryDelay(attemptNumber, service.jitter)
 			if !retry {
@@ -449,7 +534,16 @@ func (service *AddressedCommandService) putFenced(
 			}
 			return service.store.Result(ctx, command.ID)
 		}
-		authoritative, err := transport.GetRecord(ctx, request.Owner, request.URI)
+		var authoritative AuthoritativeRecord
+		if request.StrictExpectedCID && receipt.Commit.CID != "" && receipt.Commit.Revision != "" && len(receipt.Records) == 1 && receipt.Records[0].URI == request.URI && receipt.Records[0].CID != "" {
+			authoritative = AuthoritativeRecord{URI: request.URI, CID: receipt.Records[0].CID, Record: desired, CommitCID: receipt.Commit.CID, Revision: receipt.Commit.Revision}
+		} else {
+			authoritative, err = transport.GetRecord(ctx, request.Owner, request.URI)
+			if request.StrictExpectedCID {
+				authoritative.CommitCID = receipt.Commit.CID
+				authoritative.Revision = receipt.Commit.Revision
+			}
+		}
 		if err != nil {
 			if completeErr := service.store.CompleteDispatch(ctx, attempt.ID, DispatchCompletion{Outcome: CommandAmbiguous, RetryAfterSeconds: 1, ErrorClass: "result_read"}); completeErr != nil {
 				return CommandResult{}, completeErr
@@ -467,11 +561,22 @@ func (service *AddressedCommandService) putFenced(
 		if err != nil {
 			return CommandResult{}, err
 		}
-		if err := service.store.CompleteDispatchAndCommand(
+		if err := service.store.completeDispatchAndCommand(
 			ctx,
 			attempt.ID,
-			DispatchCompletion{Outcome: CommandAccepted, ResultRecords: authoritative.Record},
+			DispatchCompletion{Outcome: CommandAccepted, ResultRecords: authoritative.Record, ResultCommitCID: authoritative.CommitCID, ResultCommitRevision: authoritative.Revision},
 			terminal,
+			func(tx pgx.Tx) error {
+				if request.StrictExpectedCID {
+					if err := postfence.LockTx(ctx, tx, request.URI); err != nil {
+						return err
+					}
+				}
+				if request.FinalizeAccepted != nil {
+					return request.FinalizeAccepted(ctx, tx, command, authoritative)
+				}
+				return nil
+			},
 		); err != nil {
 			return CommandResult{}, err
 		}

@@ -112,12 +112,16 @@ func (s *Service) Activate(ctx context.Context, tx pgx.Tx, activation Activation
 				parent_uri,parent_cid,root_uri,root_cid,quoted_uri,quoted_cid,
 				eligibility_scope, recipient_followed_actor, push_enabled_snapshot,
 				state, first_activity_at, activity_at, indexed_at, initial_push_evaluated_at
-			) VALUES (
+			) SELECT
 				$1, $2, $3, $4, $5,
 				$6, $7, $8, NULLIF($14, ''), NULLIF($15, ''),
 				NULLIF($16,''),NULLIF($17,''),NULLIF($18,''),NULLIF($19,''),NULLIF($20,''),NULLIF($21,''),
 				$9, $10, $11,
 				'active', $12, $12, $13, $13
+			WHERE NOT $22 OR NOT EXISTS (
+				SELECT 1 FROM notification_events prior
+				WHERE prior.recipient_did=$2 AND prior.actor_did=$3
+				  AND prior.subject_key=$5 AND prior.category IN ('reply','mention','quote')
 			)
 			ON CONFLICT DO NOTHING
 			RETURNING id, true AS inserted
@@ -131,6 +135,7 @@ func (s *Service) Activate(ctx context.Context, tx pgx.Tx, activation Activation
 				state='active', activity_at=$12, indexed_at=$13,
 				retracted_at=NULL, retraction_reason=NULL
 			WHERE NOT EXISTS (SELECT 1 FROM inserted_event)
+			  AND NOT $22
 			  AND recipient_did=$2 AND actor_did=$3
 			  AND category=$4 AND subject_key=$5
 			  AND (
@@ -147,7 +152,7 @@ func (s *Service) Activate(ctx context.Context, tx pgx.Tx, activation Activation
 	`, notificationID, activation.RecipientDID, activation.ActorDID, activation.Category, activation.SubjectKey,
 		activation.SourceURI, activation.SourceCID, activation.SourceRkey,
 		preference.Scope, followsActor, decision.PushEnabled, activation.ActivityAt, now,
-		activation.SubjectURI, activation.SubjectCID, activation.ParentURI, activation.ParentCID, activation.RootURI, activation.RootCID, activation.QuotedURI, activation.QuotedCID).Scan(&insertedID, &inserted)
+		activation.SubjectURI, activation.SubjectCID, activation.ParentURI, activation.ParentCID, activation.RootURI, activation.RootCID, activation.QuotedURI, activation.QuotedCID, activation.publication).Scan(&insertedID, &inserted)
 	if err == pgx.ErrNoRows {
 		if s.observer != nil {
 			s.observer.ObserveNotificationDecision(string(activation.Category), "duplicate")

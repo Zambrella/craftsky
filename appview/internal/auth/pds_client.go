@@ -18,6 +18,7 @@ var (
 	ErrConditionalDeleteUnsupported = errors.New("pds: conditional record delete is unsupported")
 	ErrRepositorySwapConflict       = errors.New("pds: repository changed before atomic mutation")
 	ErrApplyWritesUnsupported       = errors.New("pds: atomic applyWrites is unsupported")
+	ErrCommitMetadataUnavailable    = errors.New("pds: repository commit metadata is unavailable")
 )
 
 // PDSClient is the minimal surface users of this package exercise against
@@ -90,6 +91,33 @@ type RepositoryWrite struct {
 	RKey        syntax.RecordKey
 	Record      any
 	ExpectedCID syntax.CID
+}
+
+// RepositoryCommit is authoritative repository ordering evidence. Record CIDs
+// identify content; only a repository revision can establish version order.
+type RepositoryCommit struct {
+	CID      syntax.CID `json:"cid"`
+	Revision syntax.TID `json:"rev"`
+}
+
+type RepositoryHeadMetadataClient interface {
+	LatestCommitMetadata(context.Context, syntax.DID) (RepositoryCommit, error)
+}
+
+type RepositoryRecordResult struct {
+	URI syntax.ATURI `json:"uri"`
+	CID syntax.CID   `json:"cid"`
+}
+
+// RepositoryWriteReceipt retains the actual response for this write, rather
+// than substituting a later repository read for its commit or record identity.
+type RepositoryWriteReceipt struct {
+	Commit  RepositoryCommit
+	Records []RepositoryRecordResult
+}
+
+type RepositoryWriteMetadataClient interface {
+	ApplyWritesWithCommit(context.Context, syntax.DID, syntax.CID, []RepositoryWrite) (RepositoryWriteReceipt, error)
 }
 
 type RepositoryCommandPDSClient interface {

@@ -1,7 +1,9 @@
 import 'package:craftsky_app/bootstrap.dart';
+import 'package:craftsky_app/feed/data/api_post_repository.dart';
 import 'package:craftsky_app/feed/data/post_api_client.dart';
 import 'package:craftsky_app/feed/models/create_post_image.dart';
 import 'package:craftsky_app/feed/models/post.dart';
+import 'package:craftsky_app/feed/models/post_edit.dart';
 import 'package:craftsky_app/feed/models/profile_pin_state.dart';
 import 'package:craftsky_app/feed/models/timeline_page.dart';
 import 'package:craftsky_app/moderation/models/report_result.dart';
@@ -61,6 +63,67 @@ void main() {
       common: ProjectCommon(craftType: 'social.craftsky.feed.defs#embroidery'),
     );
   }
+
+  test('UT-009 accepted pending edit preserves concrete precondition and '
+      'operation key', () async {
+    final dio = buildDio();
+    DioAdapter(dio: dio).onPatch(
+      '/v1/posts/did:plc:alice/3lf2abc',
+      (server) => server.reply(200, {
+        'post': null,
+        'changed': true,
+        'acceptedCid': 'bafyaccepted',
+        'editedAt': '2026-10-26T12:00:00Z',
+        'editTimeSource': 'confirmed',
+        'projectionPending': true,
+        'observationCid': 'bafyobservedhead',
+        'observationRevision': '3aaaaaaaaaaa3',
+      }),
+      data: {
+        'changes': {'text': 'Updated caption'},
+      },
+      headers: {'If-Match': 'bafybase', 'Idempotency-Key': createOperationKey},
+    );
+    final result = await ApiPostRepository(PostApiClient(dio)).edit(
+      aliceDid,
+      postRkey,
+      changes: PostEditChanges({'text': 'Updated caption'}),
+      expectedCid: 'bafybase',
+      operationKey: createOperationKey,
+    );
+    expect(result.post, isNull);
+    expect(result.changed, isTrue);
+    expect(result.projectionPending, isTrue);
+    expect(result.acceptedCid.toString(), 'bafyaccepted');
+    expect(result.recordRevision, isNull);
+    expect(result.observationRevision, '3aaaaaaaaaaa3');
+  });
+
+  test(
+    'UT-009 owner edit seed keeps base version and editable values',
+    () async {
+      final dio = buildDio();
+      DioAdapter(dio: dio).onGet(
+        '/v1/posts/did:plc:alice/3lf2abc/edit',
+        (server) => server.reply(200, {
+          'post': samplePost(),
+          'baseCid': 'bafy123',
+          'recordRevision': '3aaaaaaaaaaa2',
+          'editable': {
+            'text': 'hello',
+            'sponsored': false,
+            'langs': ['en'],
+          },
+        }),
+      );
+      final seed = await PostApiClient(dio).getPostEdit(aliceDid, postRkey);
+      expect(seed.baseCid.toString(), 'bafy123');
+      expect(seed.recordRevision, '3aaaaaaaaaaa2');
+      expect(seed.editable['text'], 'hello');
+      expect(seed.post.likeCount, 2);
+      expect(() => seed.editable['text'] = 'mutated', throwsUnsupportedError);
+    },
+  );
 
   group('PostApiClient.createPost', () {
     test('keeps an undecodable accepted create response unresolved', () async {
@@ -1463,7 +1526,8 @@ void main() {
     };
 
     test(
-      'UT-005 REG-004 GETs exact encoded /v1 paths and omits optional query parameters',
+      'UT-005 REG-004 GETs exact encoded /v1 paths and omits optional query '
+      'parameters',
       () async {
         final dio = buildDio();
         final requests = <RequestOptions>[];

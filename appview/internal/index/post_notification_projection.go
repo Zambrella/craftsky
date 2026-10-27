@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/jackc/pgx/v5"
@@ -13,6 +12,7 @@ import (
 	"social.craftsky/appview/internal/ingestion"
 	craftskylex "social.craftsky/appview/internal/lexicon/craftsky"
 	"social.craftsky/appview/internal/notifications"
+	"social.craftsky/appview/internal/postpublication"
 	"social.craftsky/appview/internal/tap"
 )
 
@@ -36,6 +36,24 @@ func (c *CraftskyPost) ProjectNotifications(ctx context.Context, tx pgx.Tx, sour
 	}
 	if !current {
 		return tap.Blocked(tap.ReasonMissingSubject, tap.Dependency{Kind: "subject_uri", Key: source.URI.String()}), nil
+	}
+	original, err := postpublication.Read(ctx, tx, source.URI)
+	if err != nil {
+		return tap.Retryable(tap.ReasonProjectionFailure), err
+	}
+	if !original.Known || original.CreatedAt == nil {
+		return tap.Applied(), nil
+	}
+	if rec.Reply != nil && (!original.ReplyEligible || rec.Reply.Parent == nil || rec.Reply.Root == nil ||
+		rec.Reply.Parent.Uri != original.ParentURI || rec.Reply.Parent.Cid != original.ParentCID ||
+		rec.Reply.Root.Uri != original.RootURI || rec.Reply.Root.Cid != original.RootCID) {
+		rec.Reply = nil
+	}
+	if rec.Embed != nil && rec.Embed.FeedPost_QuoteEmbed != nil {
+		quote := rec.Embed.FeedPost_QuoteEmbed.Record
+		if !original.QuoteEligible || quote == nil || quote.Uri != original.QuotedURI || quote.Cid != original.QuotedCID {
+			rec.Embed = nil
+		}
 	}
 	var references []string
 	if rec.Reply != nil && rec.Reply.Parent != nil {
@@ -70,6 +88,20 @@ func (c *CraftskyPost) ProjectNotifications(ctx context.Context, tx pgx.Tx, sour
 	if err != nil {
 		return tap.Retryable(tap.ReasonProjectionFailure), err
 	}
+	mentions, err = postpublication.OriginalMentions(ctx, tx, source.URI, mentions)
+	if err != nil {
+		return tap.Retryable(tap.ReasonProjectionFailure), err
+	}
+	allowed := make(map[syntax.DID]bool, len(mentions)+len(references))
+	for _, did := range mentions {
+		allowed[syntax.DID(did)] = true
+	}
+	for _, uri := range references {
+		allowed[syntax.ATURI(uri).Authority().DID()] = true
+	}
+	if err := notifications.RestrictPublication(ctx, c.lifecycle, tx, source.URI, allowed); err != nil {
+		return tap.Retryable(tap.ReasonProjectionFailure), err
+	}
 	for _, did := range mentions {
 		if did == source.DID.String() {
 			continue
@@ -82,10 +114,7 @@ func (c *CraftskyPost) ProjectNotifications(ctx context.Context, tx pgx.Tx, sour
 			missingMember = syntax.DID(did)
 		}
 	}
-	createdAt, err := time.Parse(time.RFC3339Nano, rec.CreatedAt)
-	if err != nil {
-		return tap.PermanentInvalid(tap.ReasonMalformedRecord), nil
-	}
+	createdAt := *original.CreatedAt
 	if err := c.activatePostNotifications(ctx, tx, eventFromSource(source), rec, mentions, createdAt); err != nil {
 		return tap.Retryable(tap.ReasonProjectionFailure), fmt.Errorf("project post notifications: %w", err)
 	}

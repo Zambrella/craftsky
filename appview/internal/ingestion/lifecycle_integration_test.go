@@ -396,6 +396,8 @@ func lifecycleIngestionPool(t *testing.T) *pgxpool.Pool {
 		"000056_tap_source_projection_generation.up.sql",
 		"000057_tap_identity_refresh_version.up.sql",
 		"000058_tap_projection_generation_column.up.sql",
+		"000102_post_edit_state.up.sql",
+		"000106_post_publication_facts.up.sql",
 	} {
 		sql, err := testdb.ReadMigration(path)
 		if err != nil {

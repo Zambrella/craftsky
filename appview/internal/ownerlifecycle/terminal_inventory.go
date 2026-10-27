@@ -125,6 +125,8 @@ var terminalDIDInventory = []TerminalDIDEntry{
 	deleteDID("pds_set_aggregates", "subject_did", "subject", "kind", "actor_did", "scope_key"),
 	deleteDID("pds_set_sources", "actor_did", "actor", "source_uri"),
 	deleteDID("pds_set_sources", "subject_did", "subject", "source_uri"),
+	deleteDID("post_publication_state", "owner_did", "owner", "uri"),
+	deleteDID("post_publication_mentions", "recipient_did", "recipient", "post_uri", "recipient_did"),
 	deleteDID("profile_customisations", "owner_did", "owner", "owner_did"),
 	deleteDID("profile_image_candidates", "profile_did", "owner", "profile_did", "slot"),
 	deleteDID("profile_pins", "owner_did", "owner", "owner_did", "slot"),

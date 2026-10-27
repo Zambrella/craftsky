@@ -1,6 +1,7 @@
 import 'package:craftsky_app/feed/providers/composer_image_state.dart';
 import 'package:craftsky_app/feed/widgets/composer_image_attachment_section.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
+import 'package:craftsky_app/shared/image/craftsky_image_attachment_preview.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
@@ -14,6 +15,44 @@ ComposerImageDraft _image(String id) => ComposerImageDraft(
 );
 
 void main() {
+  testWidgets(
+    'UT-001 retained published images show their current URL in summary and '
+    'details',
+    (tester) async {
+      final state = ValueNotifier(
+        ComposerImagesState(
+          images: [
+            _image('retained').copyWith(
+              phase: const PublishedImageReady(
+                existingIndex: 0,
+                url: 'https://cdn.example/published.jpg',
+              ),
+            ),
+          ],
+        ),
+      );
+      addTearDown(state.dispose);
+      await _pump(tester, state);
+      expect(
+        tester
+            .widget<CraftskyImageAttachmentPreview>(
+              find.byType(CraftskyImageAttachmentPreview).first,
+            )
+            .imageUrl,
+        'https://cdn.example/published.jpg',
+      );
+      await tester.tap(find.byKey(const Key('composer-edit-images')));
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .widget<CraftskyImageAttachmentPreview>(
+              find.byType(CraftskyImageAttachmentPreview).last,
+            )
+            .imageUrl,
+        'https://cdn.example/published.jpg',
+      );
+    },
+  );
   for (final useDetailsRoute in [true, false]) {
     for (final composing in [true, false]) {
       testWidgets('rapid mid-sentence edits preserve editing value '

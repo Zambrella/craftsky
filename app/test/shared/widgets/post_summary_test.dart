@@ -20,6 +20,47 @@ import '../../fakes/image_cache_fakes.dart';
 void main() {
   setUpAll(initializeMappers);
 
+  testWidgets(
+    'AT-003 compact post and quote summaries retain edit disclosure',
+    (tester) async {
+      final when = DateTime.utc(2026, 10, 26, 12);
+      final post = _post().copyWith(
+        images: null,
+        editedAt: when,
+        editTimeSource: PostEditTimeSource.reported,
+      );
+      final quote = QuoteView(
+        state: 'visible',
+        post: QuotePreviewPost(
+          uri: post.uri,
+          cid: post.cid,
+          text: post.text,
+          author: post.author,
+          createdAt: post.createdAt,
+          sponsored: false,
+          editedAt: when,
+          editTimeSource: PostEditTimeSource.observed,
+        ),
+      );
+      for (final data in [
+        PostSummaryData.fromPost(post),
+        PostSummaryData.savedPost(post),
+        PostSummaryData.fromQuoteView(quote),
+        PostSummaryData.notificationSubject(post),
+      ]) {
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: AppTheme.lightThemeData,
+            localizationsDelegates: appLocalizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: Scaffold(body: PostSummary(data: data)),
+          ),
+        );
+        expect(find.byIcon(CraftskyIcons.edit), findsOneWidget);
+      }
+    },
+  );
+
   testWidgets('UT-008 adapts bounded visible and policy summaries', (
     tester,
   ) async {

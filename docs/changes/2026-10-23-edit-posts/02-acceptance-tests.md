@@ -361,7 +361,8 @@ Requirement IDs: FR-006, FR-007, FR-012, RULE-006. Acceptance Criteria: AC-006, 
 |---|---|---|
 | Confirmed edit | CraftSky operation at T1 succeeds, then response is lost and the operation retried | Current-version state exposes `Edited T1`; replay returns T1, not retry/dispatch time |
 | Known external edit with declaration | Authoritative content V2 carries valid external edit metadata at declared T2 | Current content shown with `Edit reported T2`; never claim the declaration is verified evidence |
-| Known external edit without usable declaration | Content V2 observed at O2; metadata absent, removed, malformed or future-dated | `Edit observed O2`, with current-version source association; not `Edited O2` claiming exact author time |
+| Known valid external edit without usable declaration | Schema-valid content V2 observed at O2; metadata absent, removed or future-dated | `Edit observed O2`, with current-version source association; not `Edited O2` claiming exact author time |
+| Schema-invalid external declaration | Content V2 carries malformed datetime or wrong-type `editedAt` | Existing invalid-record rejection hides V2 and prevents its editor seed; do not project its content or assign an observed-time disclosure to it |
 | Same external event replay | Repeat V2 later, including duplicate record/source delivery | Do not advance O2 or create another content edit |
 | Out-of-order event | Apply authoritative V3, then deliver stale V2 | Neither content nor its edit time/source rolls back |
 | Metadata-only/no-op update | Published content unchanged and an edit already known | Preserve the existing content edit time; no new content edit manufactured |
@@ -371,7 +372,7 @@ Requirement IDs: FR-006, FR-007, FR-012, RULE-006. Acceptance Criteria: AC-006, 
 | Public-record-only rebuild | Drop local observation state in disposable fixture; rebuild from public current record | Portable metadata remains reported; absent declaration does not reconstruct a previously observed time; no history archive added |
 | Tamper on same confirmed version | Arbitrary client/read metadata attempts to replace accepted operation time | Server-confirmed time for that version remains T1; a real newer authoritative content version follows normal update rules |
 
-If malformed optional metadata would make the entire record invalid under its eventual schema, assert the existing invalid-record behavior instead of projecting an invalid record. Test the fallback with valid records whose metadata is absent/unusable at the application boundary. Wire names, schema validation and version correlation are implementation design tasks, not invented fixture fields.
+The maintainer confirmed strict Lexicon validation on 2026-10-27. Malformed `editedAt` values that violate the datetime schema follow existing invalid-record rejection. Test observed-time fallback only with schema-valid records whose metadata is absent, removed or future-dated at the application boundary. ADR 022 defines the selected wire field and version correlation.
 
 ### IT-012 original-publication notification outcome matrix (DR-002)
 

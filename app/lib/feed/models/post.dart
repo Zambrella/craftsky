@@ -6,6 +6,9 @@ import 'package:dart_mappable/dart_mappable.dart';
 
 part 'post.mapper.dart';
 
+@MappableEnum(defaultValue: PostEditTimeSource.unknown)
+enum PostEditTimeSource { confirmed, reported, observed, unknown }
+
 /// Wire shape for `social.craftsky.feed.post` records as returned by
 /// the AppView's post endpoints. Author hydration (`{did, handle,
 /// displayName, avatarCid}`) is embedded so the client can render a
@@ -46,6 +49,9 @@ class Post with PostMappable {
     required this.viewerHasReposted,
     required this.viewerHasSaved,
     required this.sponsored,
+    this.editedAt,
+    this.editTimeSource,
+    this.recordRevision,
     this.langs = const [],
     this.quoteCount = 0,
     this.viewerHasReplied = false,
@@ -80,6 +86,9 @@ class Post with PostMappable {
   final PostExternal? external;
   final DateTime createdAt;
   final DateTime indexedAt;
+  final DateTime? editedAt;
+  final PostEditTimeSource? editTimeSource;
+  final String? recordRevision;
   final PostAuthor author;
   final int likeCount;
   final int repostCount;
@@ -227,6 +236,9 @@ class QuotePreviewPost with QuotePreviewPostMappable {
     required this.author,
     required this.createdAt,
     required this.sponsored,
+    this.editedAt,
+    this.editTimeSource,
+    this.recordRevision,
     this.images,
     this.project,
     this.externalImport,
@@ -239,6 +251,9 @@ class QuotePreviewPost with QuotePreviewPostMappable {
   final String text;
   final PostAuthor author;
   final DateTime createdAt;
+  final DateTime? editedAt;
+  final PostEditTimeSource? editTimeSource;
+  final String? recordRevision;
   final bool sponsored;
   final List<PostImage>? images;
   final Project? project;

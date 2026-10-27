@@ -7,6 +7,7 @@ import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
 import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
 import 'package:craftsky_app/feed/models/interaction_write_response.dart';
 import 'package:craftsky_app/feed/models/post.dart';
+import 'package:craftsky_app/feed/models/post_edit.dart';
 import 'package:craftsky_app/feed/models/profile_pin_state.dart';
 import 'package:craftsky_app/feed/models/timeline_page.dart';
 import 'package:craftsky_app/feed/providers/like_post_overlay.dart';
@@ -18,6 +19,8 @@ import 'package:craftsky_app/feed/widgets/post_card.dart';
 import 'package:craftsky_app/feed/widgets/post_image_gallery.dart';
 import 'package:craftsky_app/feed/widgets/post_interaction_summary.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
+import 'package:craftsky_app/languages/models/language_preferences.dart';
+import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
 import 'package:craftsky_app/moderation/models/moderation_metadata.dart';
 import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:craftsky_app/profile/models/profile_relationship.dart';
@@ -192,6 +195,127 @@ Future<void> _doubleTap(WidgetTester tester, Finder finder) async {
 }
 
 void main() {
+  for (final kind in ['general', 'project', 'reply', 'quote']) {
+    for (final owner in [false, true]) {
+      testWidgets('REG-005 $kind menu exposes Edit only to the active owner '
+          '(owner=$owner)', (tester) async {
+        final reference = PostRef(
+          uri: 'at://did:plc:target/social.craftsky.feed.post/target',
+          cid: 'bafytarget',
+        );
+        final post = _post(
+          createdAt: DateTime.utc(2020),
+          project: kind == 'project'
+              ? const Project(
+                  common: ProjectCommon(
+                    craftType: 'social.craftsky.feed.defs#sewing',
+                    title: 'Shirt',
+                  ),
+                )
+              : null,
+          reply: kind == 'reply'
+              ? PostReply(root: reference, parent: reference)
+              : null,
+        ).copyWith(quote: kind == 'quote' ? reference : null);
+        await _pump(
+          tester,
+          PostCard(post: post),
+          overrides: [
+            authSessionProvider.overrideWith(
+              () => SignedInAuthSession(
+                did: owner ? 'did:plc:alice' : 'did:plc:bob',
+              ),
+            ),
+            secureSessionRegistryStorageProvider.overrideWithValue(
+              _PinRegistryStorage(),
+            ),
+          ],
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(find.byIcon(CraftskyIconsBold.more));
+        await tester.pumpAndSettle();
+        expect(find.text('Edit'), owner ? findsOneWidget : findsNothing);
+      });
+    }
+  }
+
+  testWidgets('AT-001 owner menu opens a fresh editor for an old publication', (
+    tester,
+  ) async {
+    final post = _post(createdAt: DateTime.utc(2020));
+    var reads = 0;
+    await _pump(
+      tester,
+      PostCard(post: post),
+      overrides: [
+        activeLanguagePreferencesProvider.overrideWith(
+          (ref) => const LanguagePreferences(
+            primaryLanguage: 'en',
+            contentLanguages: ['en'],
+          ),
+        ),
+        authSessionProvider.overrideWith(
+          () => SignedInAuthSession(did: 'did:plc:alice'),
+        ),
+        secureSessionRegistryStorageProvider.overrideWithValue(
+          _PinRegistryStorage(),
+        ),
+        postRepositoryProvider.overrideWithValue(
+          FakePostRepository(
+            onFetchEdit: (did, key) async {
+              reads++;
+              expect(did, post.author.did);
+              expect(key, post.rkey);
+              return PostEditSeed(
+                post: post,
+                baseCid: post.cid,
+                recordRevision: '3aaaaaaaaaaa2',
+                editable: {
+                  'text': post.text,
+                  'sponsored': false,
+                  'langs': ['en'],
+                },
+              );
+            },
+          ),
+        ),
+      ],
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byIcon(CraftskyIconsBold.more));
+    await tester.pumpAndSettle();
+    expect(find.text('Edit'), findsOneWidget);
+    await tester.tap(find.text('Edit'));
+    await tester.pumpAndSettle();
+    expect(reads, 1);
+    expect(find.text('Save changes'), findsOneWidget);
+    expect(
+      tester.widget<TextField>(find.byType(TextField).first).controller?.text,
+      post.text,
+    );
+  });
+
+  testWidgets(
+    'AT-003 edited cards disclose their latest edit beside publication time',
+    (tester) async {
+      final post = _post().copyWith(
+        editedAt: DateTime.utc(2026, 10, 26, 12),
+        editTimeSource: PostEditTimeSource.confirmed,
+      );
+      await _pump(tester, PostCard(post: post));
+      await tester.pumpAndSettle();
+      expect(find.byIcon(CraftskyIcons.edit), findsOneWidget);
+      final labels = tester
+          .widgetList<Tooltip>(find.byType(Tooltip))
+          .map((tooltip) => tooltip.message ?? '');
+      expect(
+        labels.any(
+          (label) => label.startsWith('Edited ') && label.contains('2026'),
+        ),
+        isTrue,
+      );
+    },
+  );
   group('PostCard', () {
     for (final kind in ['post', 'comment', 'reply']) {
       testWidgets('rendering does not initialize relationship providers', (

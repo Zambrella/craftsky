@@ -200,6 +200,8 @@ func withRepositoryJobAuthSchema(t *testing.T) *pgxpool.Pool {
 	if err := testdb.ApplyMigrations(context.Background(), pool,
 		"000045_tap_ingestion_durability.up.sql",
 		"000058_tap_projection_generation_column.up.sql",
+		"000102_post_edit_state.up.sql",
+		"000106_post_publication_facts.up.sql",
 	); err != nil {
 		t.Fatalf("apply Tap durability migrations: %v", err)
 	}

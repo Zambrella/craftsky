@@ -68,7 +68,9 @@ func TestCraftskyPostImportProvenanceFollowsAuthoritativeReplacement(t *testing.
 	if err := idx.Handle(context.Background(), ev); err != nil {
 		t.Fatalf("omitting replacement: %v", err)
 	}
-	assertPostImportClassification(t, pool, string(ev.URI), nil, time.Time{}, true)
+	// Provenance classification follows the current record, while editing cannot
+	// move the original publication position even when provenance is removed.
+	assertPostImportClassification(t, pool, string(ev.URI), nil, time.Date(2019, 3, 4, 5, 6, 7, 0, time.UTC), false)
 	assertStoredPostRecord(t, pool, string(ev.URI), ev.Record)
 
 	ev.CID = "bafy-future-4"
@@ -81,7 +83,7 @@ func TestCraftskyPostImportProvenanceFollowsAuthoritativeReplacement(t *testing.
 	if err := idx.Handle(context.Background(), ev); err != nil {
 		t.Fatalf("unknown-source replacement: %v", err)
 	}
-	assertPostImportClassification(t, pool, string(ev.URI), nil, time.Time{}, true)
+	assertPostImportClassification(t, pool, string(ev.URI), nil, time.Date(2019, 3, 4, 5, 6, 7, 0, time.UTC), false)
 	assertStoredPostRecord(t, pool, string(ev.URI), ev.Record)
 
 	ev.Action = "delete"

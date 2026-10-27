@@ -17,6 +17,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"social.craftsky/appview/internal/ownerlifecycle"
+	"social.craftsky/appview/internal/postfence"
+	"social.craftsky/appview/internal/postpublication"
 	"social.craftsky/appview/internal/sourcevalidation"
 	"social.craftsky/appview/internal/tap"
 )
@@ -170,6 +172,11 @@ func (store *Store) ingestRecordTx(
 	if err != nil {
 		return tap.Outcome{}, err
 	}
+	if event.Collection == "social.craftsky.feed.post" {
+		if err := postfence.LockTx(ctx, tx, event.URI); err != nil {
+			return tap.Outcome{}, err
+		}
+	}
 	decision, err := lockSourceVersionTx(ctx, tx, event)
 	if err != nil {
 		return tap.Outcome{}, err
@@ -291,6 +298,14 @@ func installSourceProjectionTx(
 	now time.Time,
 ) error {
 	validation := sourcevalidation.Validate(event)
+	publication, err := preparePostPublicationTx(ctx, tx, event, validation, orderingStatus, disposition)
+	if err != nil {
+		return err
+	}
+	editState, err := preparePostEditStateTx(ctx, tx, event, validation, orderingStatus, disposition, now)
+	if err != nil {
+		return err
+	}
 	var record, cid any
 	recordBytes := 0
 	if event.Action != "delete" {
@@ -328,6 +343,15 @@ func installSourceProjectionTx(
 		disposition, projectionGeneration, effectOperationID, 1,
 		validation.StructuralStatus, validation.SemanticStatus, nullableString(validation.Reason), now); err != nil {
 		return fmt.Errorf("upsert Tap source: %w", err)
+	}
+	if err := postpublication.Persist(ctx, tx, event.URI, event.DID, publication); err != nil {
+		return err
+	}
+	if err := restrictPostPublicationTx(ctx, tx, event, validation, orderingStatus, disposition, now); err != nil {
+		return err
+	}
+	if err := persistPostEditStateTx(ctx, tx, event, editState, disposition); err != nil {
+		return err
 	}
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO tap_projection_jobs(
@@ -625,6 +649,11 @@ func (store *Store) project(ctx context.Context, claim ProjectionClaim, projecto
 			// create a row-lock/advisory-lock deadlock.
 			if _, err := ownerlifecycle.LockOwnerStatesTx(ctx, tx, []syntax.DID{fencedActor}); err != nil {
 				return fmt.Errorf("lock Tap projection actor lifecycle: %w", err)
+			}
+		}
+		if claim.SourceURI.Collection() == "social.craftsky.feed.post" {
+			if err := postfence.LockTx(ctx, tx, claim.SourceURI); err != nil {
+				return err
 			}
 		}
 		source, err := sourceTx(ctx, tx, claim.SourceURI)

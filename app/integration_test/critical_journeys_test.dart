@@ -165,6 +165,102 @@ void main() {
     },
   );
 
+  // Edit posts IT-015 / FR-001, FR-004, FR-009 / AC-001, AC-008, AC-012, AC-024.
+  _criticalJourney(
+    'published edit saves, reports conflict and cancels over HTTP',
+    (tester, harness) async {
+      await harness.loadPlatformDependencies();
+      await _mountApp(tester, harness);
+      await _pumpUntilFound(tester, find.text('Alice timeline'));
+      Future<void> openEdit() async {
+        await tester.tap(
+          find.byIcon(CraftskyIconsBold.more).hitTestable().first,
+        );
+        await _pumpUntilFound(tester, find.text('Edit').hitTestable());
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Edit').hitTestable());
+        await _pumpUntilFound(tester, find.byType(PostComposerSheet));
+        await tester.pumpAndSettle();
+      }
+
+      await openEdit();
+      expect(
+        tester
+            .widget<EditableText>(find.byType(EditableText).first)
+            .controller
+            .text,
+        'Alice timeline',
+      );
+      await tester.enterText(
+        find.byType(EditableText).first,
+        'Edited over HTTP',
+      );
+      FocusManager.instance.primaryFocus?.unfocus();
+      await tester.pumpAndSettle();
+      await _pumpUntilFound(
+        tester,
+        find.byKey(const Key('post-composer-primary-action')).hitTestable(),
+      );
+      await tester.tap(
+        find.byKey(const Key('post-composer-primary-action')).hitTestable(),
+      );
+      await _pumpUntilAbsent(tester, find.byType(PostComposerSheet));
+      await _pumpUntilFound(tester, find.text('Edited over HTTP'));
+      expect(harness.server.editBodies, hasLength(1));
+      final update = harness.server.requests.singleWhere(
+        (r) => r.method == 'PATCH',
+      );
+      expect(update.path, '/v1/posts/did:plc:alice/alice-read');
+      expect(update.authorization, 'Bearer alice-token');
+      expect(update.expectedCid, 'bafyalice-read');
+      expect(update.operationKey, isNotEmpty);
+      expect(update.body!['changes'], containsPair('text', 'Edited over HTTP'));
+      expect(harness.server.createBodies, isEmpty);
+
+      harness.server.conflictNextEdit = true;
+      await openEdit();
+      await tester.enterText(
+        find.byType(EditableText).first,
+        'Recoverable input',
+      );
+      FocusManager.instance.primaryFocus?.unfocus();
+      await tester.pumpAndSettle();
+      await _pumpUntilFound(
+        tester,
+        find.byKey(const Key('post-composer-primary-action')).hitTestable(),
+      );
+      await tester.tap(
+        find.byKey(const Key('post-composer-primary-action')).hitTestable(),
+      );
+      await _pumpUntilFound(tester, find.textContaining('This post changed.'));
+      expect(
+        tester
+            .widget<EditableText>(find.byType(EditableText).first)
+            .controller
+            .text,
+        'Recoverable input',
+      );
+      await tester.tap(find.byType(CloseButton).hitTestable().first);
+      await _pumpUntilFound(tester, find.text('Discard'));
+      await tester.tap(find.text('Discard'));
+      await _pumpUntilAbsent(tester, find.byType(PostComposerSheet));
+      expect(
+        harness.server.requests.where((r) => r.method == 'PATCH'),
+        hasLength(2),
+      );
+      expect(harness.server.editBodies, hasLength(1));
+      expect(harness.server.createBodies, isEmpty);
+      expect(
+        harness.server.requests.where(
+          (r) =>
+              r.method == 'POST' &&
+              (r.path.contains('scheduled') || r.path.contains('draft')),
+        ),
+        isEmpty,
+      );
+    },
+  );
+
   _criticalJourney(
     'composer publishes through the AppView client and updates the live feed',
     (tester, harness) async {
@@ -316,9 +412,9 @@ Future<void> _mountApp(
   CriticalJourneyHarness harness,
 ) async {
   await tester.pumpWidget(const SizedBox.shrink());
-  tester.view
-    ..devicePixelRatio = 1
-    ..physicalSize = const Size(402, 874);
+  // Keep native keyboard insets and the logical viewport in the same scale.
+  tester.view.physicalSize =
+      const Size(402, 874) * tester.view.devicePixelRatio;
   await tester.pumpWidget(harness.app);
 }
 

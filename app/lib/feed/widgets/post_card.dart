@@ -16,9 +16,11 @@ import 'package:craftsky_app/feed/providers/toggle_like_post_provider.dart';
 import 'package:craftsky_app/feed/providers/toggle_repost_post_provider.dart';
 import 'package:craftsky_app/feed/widgets/external_card.dart';
 import 'package:craftsky_app/feed/widgets/native_video_player.dart';
+import 'package:craftsky_app/feed/widgets/post_edit_indicator.dart';
 import 'package:craftsky_app/feed/widgets/post_image_carousel.dart';
 import 'package:craftsky_app/feed/widgets/post_image_gallery.dart';
 import 'package:craftsky_app/feed/widgets/post_like_reaction.dart';
+import 'package:craftsky_app/feed/widgets/published_post_editor.dart';
 import 'package:craftsky_app/keys.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/moderation/widgets/moderation_warning_banner.dart';
@@ -338,9 +340,8 @@ class PostCard extends ConsumerWidget {
       isProject: post.project != null,
       hasQuote: post.quote != null,
     );
-    final activeLease = allowProfilePinAction
-        ? ref.watch(sessionRegistryProvider).value?.activeLease
-        : null;
+    final ownerLease = ref.watch(sessionRegistryProvider).value?.activeLease;
+    final activeLease = allowProfilePinAction ? ownerLease : null;
     final pinProvider =
         isViewerOwned &&
             pinSlot != null &&
@@ -477,6 +478,16 @@ class PostCard extends ConsumerWidget {
                             ),
                           ),
                         ),
+                        if (post.editedAt != null)
+                          Padding(
+                            padding: EdgeInsetsDirectional.only(
+                              end: spacing.sp1,
+                            ),
+                            child: PostEditIndicator(
+                              editedAt: post.editedAt,
+                              source: post.editTimeSource,
+                            ),
+                          ),
                         GestureDetector(
                           behavior: HitTestBehavior.opaque,
                           onTap: onTap,
@@ -665,6 +676,19 @@ class PostCard extends ConsumerWidget {
                                     isCurrentPin,
                                   ),
                                 ),
+                          onEdit:
+                              isViewerOwned &&
+                                  ownerLease != null &&
+                                  ownerLease.session.account.did ==
+                                      post.author.did
+                              ? () => unawaited(
+                                  showPublishedPostEditor(
+                                    context,
+                                    post: post,
+                                    ownership: ownerLease,
+                                  ),
+                                )
+                              : null,
                           onDelete: onDelete,
                           onReport: onReport,
                           tooltip: deleteTooltip,
@@ -1047,6 +1071,7 @@ class _PostCardMenu extends StatelessWidget {
     required this.pinLocked,
     required this.onPinToggle,
     required this.onDelete,
+    required this.onEdit,
     required this.onReport,
     required this.isMuted,
     required this.isBlocking,
@@ -1066,6 +1091,7 @@ class _PostCardMenu extends StatelessWidget {
   final bool pinLocked;
   final VoidCallback? onPinToggle;
   final VoidCallback? onDelete;
+  final VoidCallback? onEdit;
   final VoidCallback? onReport;
   final String? tooltip;
   final String? label;
@@ -1101,6 +1127,12 @@ class _PostCardMenu extends StatelessWidget {
           CraftskyContextMenuGroup(items: [copyLinkMenuItem(context, url)]),
           CraftskyContextMenuGroup(
             items: [
+              if (onEdit != null)
+                CraftskyContextMenuItem(
+                  text: l10n.postEditAction,
+                  icon: CraftskyIcons.edit,
+                  onPressed: onEdit,
+                ),
               if (pinLabel != null)
                 CraftskyContextMenuItem(
                   text: pinLabel!,

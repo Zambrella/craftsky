@@ -1,15 +1,15 @@
 # Coding Plan: Edit Published Posts
 
-Date: 2026-10-26. Status: Draft for maintainer approval. Risk: Medium.
+Date: 2026-10-26. Status: Approved by maintainer; timestamp edge clarified 2026-10-27. Risk: Medium.
 
-This is an implementation design, not implemented behavior. Only this planning artifact is created in this stage.
+This document records the approved implementation design. Execution and verification evidence is maintained in `05-implementation-plan.md`.
 
 ## 1. Inputs
 
 - Requirements: [01-requirements.md](01-requirements.md), revised 2026-10-26; BR-001–BR-002, FR-001–FR-012, RULE-001–RULE-007, NFR-001–NFR-003 and AC-001–AC-026.
 - Tests: [02-acceptance-tests.md](02-acceptance-tests.md), including the revised timestamp and publication-recipient outcome matrices and TD-010/TD-011 field/surface inventories.
 - Document review: [03-document-review.md](03-document-review.md), verdict **Approved with notes**. It reviewed the preceding drafts; this plan responds to DR-001–DR-004 and the subsequently authorized revisions. It does not claim a fresh independent review occurred.
-- Authorization: the maintainer selected coding planning after authorizing revision of both earlier documents. No implementation, commit, push or deployment was requested.
+- Authorization: the maintainer approved this coding plan and subsequently requested TDD implementation. On 2026-10-27, the maintainer confirmed strict Lexicon rejection for malformed external edit timestamps. Commits, pushes and deployments remain unauthorized.
 - Architecture: `atproto-craft-social-app-reference.md`, API architecture and wire-alignment specs, existing command/ingestion/notification boundaries, mandatory logging guide and project atproto-lexicon skill. Earlier product vision/discovery remain the product context.
 
 ## 2. Implementation Strategy
@@ -224,7 +224,7 @@ active account lease
 | Stale base / target deleted | Strict conflict, retain working input, fetch/review current seed; no recreation | FR-009, RULE-007 | AT-005, IT-004, IT-006 |
 | Lost response / rate limit | Existing immutable keyed retry and Retry-After; exact-plan read-only recovery when ambiguous | FR-010, FR-011 | AT-006, IT-005 |
 | Accepted, source/safety projection pending | Keep confirmed operation separate from visibility; avoid stale final rollback or revealing unapproved media | FR-011, RULE-005 | AT-006, IT-007, IT-013 |
-| External absent/future/invalid metadata | Source-aware observed/first-seen contract; schema-invalid records follow current rejection rules | FR-006, FR-012 | IT-010, IT-014 |
+| External absent/future/malformed metadata | Schema-valid absent/future declarations use the observed/first-seen contract; malformed datetime or wrong-type declarations follow strict invalid-record rejection (confirmed 2026-10-27) | FR-006, FR-012 | IT-010, IT-014 |
 | Retained video/no original job | Preserve raw existing ref and metadata; verify only replacement media | FR-003, FR-005 | AT-002, IT-008 |
 | Unsupported nested fields/variant | Preserve server raw data; edit supported unrelated leaves only | FR-005 | UT-001, IT-009 |
 | Account changes/lifecycle invalidated | Existing owner fences; no cross-account seed, UI completion or submission | RULE-002 | AT-007, IT-003 |

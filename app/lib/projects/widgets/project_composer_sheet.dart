@@ -17,15 +17,22 @@ import 'package:craftsky_app/drafts/widgets/draft_close_dialog.dart';
 import 'package:craftsky_app/feed/composer/composer_media_uploader.dart';
 import 'package:craftsky_app/feed/composer/composer_submission_coordinator.dart';
 import 'package:craftsky_app/feed/composer/composer_video_publication.dart';
+import 'package:craftsky_app/feed/composer/post_edit_changes.dart';
+import 'package:craftsky_app/feed/composer/post_edit_hydrator.dart';
+import 'package:craftsky_app/feed/composer/post_edit_origin.dart';
+import 'package:craftsky_app/feed/composer/post_edit_validation_message.dart';
+import 'package:craftsky_app/feed/composer/published_post_embed_edit.dart';
 import 'package:craftsky_app/feed/composer/submission_screen_awake.dart';
 import 'package:craftsky_app/feed/composer/video_failure_message.dart';
 import 'package:craftsky_app/feed/composer/video_publication_coordinator.dart';
 import 'package:craftsky_app/feed/models/create_post_video.dart';
 import 'package:craftsky_app/feed/models/post.dart';
+import 'package:craftsky_app/feed/models/post_edit.dart';
 import 'package:craftsky_app/feed/providers/composer_image_state.dart';
 import 'package:craftsky_app/feed/providers/composer_images_provider.dart';
 import 'package:craftsky_app/feed/providers/composer_video_controller.dart';
 import 'package:craftsky_app/feed/providers/create_post_provider.dart';
+import 'package:craftsky_app/feed/providers/edit_post_provider.dart';
 import 'package:craftsky_app/feed/providers/image_picker_existing_video.dart';
 import 'package:craftsky_app/feed/providers/post_api_client_provider.dart';
 import 'package:craftsky_app/feed/providers/video_service_client_provider.dart';
@@ -33,6 +40,8 @@ import 'package:craftsky_app/feed/providers/video_upload_feature_provider.dart';
 import 'package:craftsky_app/feed/widgets/composer_image_attachment_section.dart';
 import 'package:craftsky_app/feed/widgets/composer_metadata_controls.dart';
 import 'package:craftsky_app/feed/widgets/composer_video_attachment_card.dart';
+import 'package:craftsky_app/feed/widgets/published_post_edit_context.dart';
+import 'package:craftsky_app/feed/widgets/published_post_editor.dart';
 import 'package:craftsky_app/feed/widgets/submission_blocking_overlay.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/languages/models/post_language_selection.dart';
@@ -63,6 +72,8 @@ import 'package:craftsky_app/scheduled_posts/widgets/schedule_choice_menu.dart';
 import 'package:craftsky_app/scheduled_posts/widgets/schedule_time_picker.dart';
 import 'package:craftsky_app/scheduled_posts/widgets/scheduled_post_capacity_warning.dart';
 import 'package:craftsky_app/scheduled_posts/widgets/scheduled_staging_progress.dart';
+import 'package:craftsky_app/shared/api/api_exception.dart';
+import 'package:craftsky_app/shared/api/pds_mutation_contract.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/shared/messaging/message_action.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
@@ -93,6 +104,7 @@ Future<Post?> showProjectComposerSheet(
   BuildContext context, {
   ScheduledPostDetail? scheduledPost,
   ActiveAccountLease? scheduledOwner,
+  PostEditOrigin? publishedEdit,
   LocalPostDraftSeed? draftSeed,
   ActiveAccountLease? draftOwner,
 }) {
@@ -101,6 +113,7 @@ Future<Post?> showProjectComposerSheet(
       builder: (_) => ProjectComposerSheet(
         scheduledPost: scheduledPost,
         scheduledOwner: scheduledOwner,
+        publishedEdit: publishedEdit,
         draftSeed: draftSeed,
         draftOwner: draftOwner,
       ),
@@ -121,11 +134,16 @@ class ProjectComposerSheet extends ConsumerStatefulWidget {
     this.composerId,
     this.scheduledPost,
     this.scheduledOwner,
+    this.publishedEdit,
     this.draftSeed,
     this.draftOwner,
     this.videoController,
     this.prepareVideoProof,
   }) : assert(
+         publishedEdit == null || (scheduledPost == null && draftSeed == null),
+         'Published, scheduled and draft origins are mutually exclusive',
+       ),
+       assert(
          scheduledPost == null || draftSeed == null,
          'Scheduled and local draft edits are mutually exclusive',
        );
@@ -135,6 +153,7 @@ class ProjectComposerSheet extends ConsumerStatefulWidget {
   final String? composerId;
   final ScheduledPostDetail? scheduledPost;
   final ActiveAccountLease? scheduledOwner;
+  final PostEditOrigin? publishedEdit;
   final LocalPostDraftSeed? draftSeed;
   final ActiveAccountLease? draftOwner;
   final ComposerVideoController? videoController;
@@ -262,6 +281,10 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
   bool _submissionSucceeded = false;
   Post? _pendingPublishedDraftPost;
   late final ComposerDraftSession _origin;
+  late final PublishedPostEmbedEdit? _publishedEmbed;
+  Future<void> Function()? _retryPublishedEdit;
+  PostEditResult? _acceptedEditPending;
+  List<ComposerImageDraft> _publishedImages = const [];
   String _initialBodyText = '';
   List<String>? _initialLanguages;
   ScheduleChoice _initialScheduleChoice = ScheduleChoice.now;
@@ -272,17 +295,27 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _origin = ComposerDraftSession(widget.draftSeed?.draft);
+    _publishedEmbed = widget.publishedEdit == null
+        ? null
+        : PublishedPostEmbedEdit(
+            (widget.publishedEdit!.seed.editable['embed'] as Map?)
+                ?.cast<String, Object?>(),
+          );
     _scheduledOwner = widget.scheduledOwner;
     final draftContent = widget.draftSeed?.draft.content;
     final project = widget.scheduledPost?.payload['project'];
-    _initialFormValues = draftContent is ProjectDraftContent
+    _initialFormValues = widget.publishedEdit != null
+        ? hydratePublishedProjectComposer(widget.publishedEdit!.seed)
+        : draftContent is ProjectDraftContent
         ? const ProjectDraftSnapshotAdapter().decodeKnownFields(
             Map<String, dynamic>.from(draftContent.knownProjectFieldValues),
           )
         : hydrateScheduledProjectComposer(
             project is Map<String, dynamic> ? project : null,
           );
-    if (widget.draftSeed == null && widget.scheduledPost == null) {
+    if (widget.draftSeed == null &&
+        widget.scheduledPost == null &&
+        widget.publishedEdit == null) {
       final defaultCraft = ref.read(defaultProjectCraftProvider);
       if (defaultCraft != null) {
         _initialFormValues[ProjectComposerFields.craftType] = defaultCraft;
@@ -344,6 +377,24 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
           checkEligibility: () =>
               ref.read(postApiClientProvider).getVideoUploadLimits(),
         );
+    if (widget.publishedEdit case final edit?) {
+      _bodyText = edit.seed.editable['text']! as String;
+      _initialBodyText = _bodyText;
+      _bodyController.text = _bodyText;
+      _sponsored = edit.seed.editable['sponsored']! as bool;
+      final languages = (edit.seed.editable['langs'] as List? ?? const [])
+          .cast<String>();
+      _languages = PostLanguageSelection.forPublishedEdit(languages);
+      _initialLanguages = List.of(languages);
+      _publishedImages = hydratePublishedPostImages(edit.seed);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          ref
+              .read(composerImagesProvider(_composerId).notifier)
+              .seedPublishedImages(_publishedImages);
+        }
+      });
+    }
     if (draftContent is ProjectDraftContent) {
       _bodyText = draftContent.body;
       _initialBodyText = draftContent.body;
@@ -441,6 +492,14 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
     final swatches = theme.extension<BrandSwatchTheme>()!;
     final keyboardVisible = MediaQuery.viewInsetsOf(context).bottom > 0;
     final createState = ref.watch(createPostProvider);
+    final editState = widget.publishedEdit == null
+        ? null
+        : ref.watch(editPostProvider);
+    final editUnresolved = editState?.error is PdsMutationUnresolvedException;
+    final editUnavailable = switch (editState?.error) {
+      ApiBadRequest(code: 'post_not_found') => true,
+      _ => false,
+    };
     final videoUploadsEnabled = ref.watch(videoUploadsEnabledProvider);
     final preferences = ref.watch(activeLanguagePreferencesProvider);
     _languages ??= PostLanguageSelection.fromPrimary(
@@ -467,6 +526,17 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
         }
       });
     }
+    if (widget.publishedEdit case final edit?) {
+      if (ref.read(sessionRegistryProvider).hasValue &&
+          activeLease != edit.ownership) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && Navigator.of(context).canPop()) {
+            Navigator.of(context).pop();
+          }
+        });
+        return const SizedBox.shrink();
+      }
+    }
     final account = activeLease?.session.account;
     final scheduleAccess = activeLease == null
         ? const AsyncLoading<SubscriptionAccess>()
@@ -487,6 +557,8 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
       ownsExistingSlot: widget.scheduledPost != null,
     );
     final controlsEnabled =
+        !editUnresolved &&
+        _acceptedEditPending == null &&
         !_isSavingDraft &&
         !createState.isLoading &&
         !_isSubmitting &&
@@ -496,6 +568,11 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
     final trimmedBody = _bodyText.trim();
     final tooLong = !RecordTextLimits.post.accepts(_bodyText);
     final canSubmit =
+        !editUnresolved &&
+        !editUnavailable &&
+        _acceptedEditPending == null &&
+        (widget.publishedEdit == null ||
+            activeLease == widget.publishedEdit!.ownership) &&
         !_isSavingDraft &&
         !_isScheduling &&
         !createState.isLoading &&
@@ -503,7 +580,9 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
         !_isLoadingScheduledMedia &&
         !_scheduledMediaLoadFailed &&
         _languages != null &&
-        (selectedVideo != null || imagesState.canSubmitImages()) &&
+        (_publishedEmbed?.hasRetainedVideo == true ||
+            selectedVideo != null ||
+            imagesState.canSubmitImages()) &&
         (selectedVideo == null || _scheduleChoice == ScheduleChoice.now) &&
         (_scheduleChoice == ScheduleChoice.now ||
             (capacity.scheduleEnabled && maySchedule));
@@ -514,7 +593,10 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
     };
     final formValues = _combinedFormValues();
     final photoErrorText =
-        _attemptedSubmit && imagesState.images.isEmpty && selectedVideo == null
+        _attemptedSubmit &&
+            imagesState.images.isEmpty &&
+            selectedVideo == null &&
+            _publishedEmbed?.hasRetainedVideo != true
         ? l10n.projectComposerPhotoRequiredError
         : null;
     final hasDraft =
@@ -533,6 +615,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
         _sponsored != _initialSponsored;
     final canSaveDraft =
         widget.scheduledPost == null &&
+        widget.publishedEdit == null &&
         hasDraft &&
         imagesState.canSaveDraftMedia() &&
         !_isSavingDraft &&
@@ -581,7 +664,8 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
           !_isSavingDraft &&
           !_isDeletingSchedule &&
           !_isSubmitting &&
-          (_pendingPublishedDraftPost != null ||
+          (_acceptedEditPending != null ||
+              _pendingPublishedDraftPost != null ||
               !hasDraft ||
               createState.isLoading),
       onPopInvokedWithResult: (didPop, _) async {
@@ -602,7 +686,8 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
                 style: theme.textTheme.titleLarge,
               ),
               actions: [
-                if (widget.scheduledPost == null)
+                if (widget.scheduledPost == null &&
+                    widget.publishedEdit == null)
                   TextButton(
                     onPressed: canSaveDraft
                         ? () => _saveProjectDraft(imagesState)
@@ -638,6 +723,8 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
+                          if (widget.publishedEdit case final edit?)
+                            PublishedPostEditContext(post: edit.seed.post),
                           FormBuilder(
                             key: _formKey,
                             initialValue: _initialFormValues,
@@ -699,6 +786,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
                                       ? (value) =>
                                             setState(() => _sponsored = value)
                                       : null,
+                                  showSchedule: widget.publishedEdit == null,
                                   scheduledAtLocal: _scheduledAtLocal,
                                   scheduleAccess: scheduleAccess,
                                   onScheduleAccessRetry: activeLease == null
@@ -817,25 +905,30 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
                             enabled: controlsEnabled,
                             onTap: _openCommonDetails,
                           ),
-                          if (_craftDetailsTitle(l10n)
-                              case final craftDetailsTitle?)
-                            ProjectDetailActionTile(
-                              key: const Key(
-                                'project-composer-craft-details-action',
+                          if (widget
+                                  .publishedEdit
+                                  ?.seed
+                                  .editable['unsupportedProjectDetails'] !=
+                              true)
+                            if (_craftDetailsTitle(l10n)
+                                case final craftDetailsTitle?)
+                              ProjectDetailActionTile(
+                                key: const Key(
+                                  'project-composer-craft-details-action',
+                                ),
+                                focusNode: _craftDetailsFocusNode,
+                                icon: CraftskyIcons.adjustments,
+                                title: craftDetailsTitle,
+                                subtitle: _detailSummary(
+                                  _activeCraftDetailFieldNames,
+                                  empty: l10n
+                                      .projectComposerCraftDetailsDescription,
+                                  l10n: l10n,
+                                ),
+                                errorText: _formValidationError,
+                                enabled: controlsEnabled,
+                                onTap: _openCraftDetails,
                               ),
-                              focusNode: _craftDetailsFocusNode,
-                              icon: CraftskyIcons.adjustments,
-                              title: craftDetailsTitle,
-                              subtitle: _detailSummary(
-                                _activeCraftDetailFieldNames,
-                                empty:
-                                    l10n.projectComposerCraftDetailsDescription,
-                                l10n: l10n,
-                              ),
-                              errorText: _formValidationError,
-                              enabled: controlsEnabled,
-                              onTap: _openCraftDetails,
-                            ),
                           SizedBox(height: spacing.sp4),
                           SizedBox(
                             key: const Key(
@@ -864,10 +957,29 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
                             'project-composer-primary-action',
                           ),
                           focusNode: _primaryActionFocusNode,
-                          onPressed: canSubmit
+                          onPressed: _acceptedEditPending != null
+                              ? (!_isSubmitting &&
+                                        activeLease ==
+                                            widget.publishedEdit?.ownership
+                                    ? _refreshPublishedAccepted
+                                    : null)
+                              : editUnresolved
+                              ? (!_isSubmitting &&
+                                        _submissionOwnershipIsCurrent(
+                                          widget.publishedEdit?.ownership,
+                                        )
+                                    ? _retryPublishedEdit
+                                    : null)
+                              : canSubmit
                               ? () => _submitProject(trimmedBody: trimmedBody)
                               : null,
-                          label: _scheduleChoice == ScheduleChoice.later
+                          label: _acceptedEditPending != null
+                              ? l10n.postEditRefresh
+                              : editUnresolved
+                              ? l10n.postEditRetrySave
+                              : widget.publishedEdit != null
+                              ? l10n.postEditSaveChanges
+                              : _scheduleChoice == ScheduleChoice.later
                               ? l10n.scheduledPostAction
                               : l10n.postComposeSubmit,
                         ),
@@ -880,6 +992,11 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
           ),
           if (_isSubmitting)
             SubmissionBlockingOverlay(
+              kind: widget.publishedEdit != null
+                  ? (_acceptedEditPending != null
+                        ? SubmissionKind.refreshPost
+                        : SubmissionKind.edit)
+                  : SubmissionKind.post,
               scheduling: _scheduleChoice == ScheduleChoice.later,
               videoProgress: _videoProgress,
               onCancelVideo: _videoPublication?.cancel,
@@ -927,7 +1044,9 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
   }
 
   Future<bool> _confirmProjectClose(ComposerImagesState imagesState) async {
-    if (widget.scheduledPost != null) return await _confirmDiscard();
+    if (widget.scheduledPost != null || widget.publishedEdit != null) {
+      return await _confirmDiscard();
+    }
     final choice = await showDraftCloseDialog(
       context,
       existingDraft: widget.draftSeed != null,
@@ -945,6 +1064,12 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
   }
 
   bool _draftMediaChanged(ComposerImagesState imagesState) {
+    if (widget.publishedEdit != null) {
+      return !listEquals(
+        imagesState.images.map((image) => (image.id, image.altText)).toList(),
+        _publishedImages.map((image) => (image.id, image.altText)).toList(),
+      );
+    }
     final baseline = widget.draftSeed?.draft.media ?? const [];
     if (widget.draftSeed == null) return imagesState.images.isNotEmpty;
     if (imagesState.images.length != baseline.length) return true;
@@ -1073,10 +1198,12 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
   }
 
   bool _hasUnsavedProject() {
+    if (_acceptedEditPending != null) return false;
     if (!mounted) return false;
     final imagesState = ref.read(composerImagesProvider(_composerId));
     final formValues = _combinedFormValues();
-    return ProjectComposerDraftState.hasDraft(
+    return (_publishedEmbed?.changes.isNotEmpty ?? false) ||
+        ProjectComposerDraftState.hasDraft(
           bodyText: _bodyText,
           initialBodyText: _initialBodyText,
           imageCount: _draftMediaChanged(imagesState) || _draftVideoChanged()
@@ -1403,6 +1530,16 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
                 child: Text(l10n.scheduledPostsRetryAction),
               ),
             ],
+          )
+        else if (_publishedEmbed?.hasRetainedVideo == true &&
+            selectedVideo == null)
+          ComposerVideoAttachmentCard.published(
+            altText: _publishedEmbed!.videoAlt,
+            enabled: controlsEnabled,
+            onAltTextChanged: (value) =>
+                setState(() => _publishedEmbed.videoAlt = value),
+            onReplace: () => unawaited(_selectVideo(replace: true)),
+            onRemove: () => setState(() => _publishedEmbed.remove()),
           )
         else if (selectedVideo != null)
           ComposerVideoAttachmentCard(
@@ -2040,6 +2177,218 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
     ];
   }
 
+  Future<void> _savePublishedProject(
+    PostEditOrigin edit,
+    Project project,
+    ComposerImagesState images,
+    String trimmedBody,
+  ) async {
+    FocusScope.of(context).unfocus();
+    await _runSubmission(edit.ownership, () async {
+      final operation = ActiveAccountOperation.fromWidget(ref, edit.ownership)
+        ..requireCurrent();
+      final initialPayload = buildProjectComposerPayload(
+        formValues: _initialFormValues,
+      ).project!;
+      final initial = restorePublishedProjectEntries(
+        seed: edit.seed,
+        payload: initialPayload,
+        formValues: _initialFormValues,
+      );
+      final current = restorePublishedProjectEntries(
+        seed: edit.seed,
+        payload: project,
+        formValues: _combinedFormValues(saved: true),
+      );
+      final args = await buildProjectComposerSubmitArguments(
+        text: trimmedBody,
+        langs: _languages!.values,
+        project: current,
+        imagesState: images,
+        generateFacets: ref.read(facetGeneratorProvider).generate,
+        existingText: edit.seed.editable['text']! as String,
+        existingFacets: (edit.seed.editable['facets'] as List?)
+            ?.map((value) => Map<String, dynamic>.from(value as Map))
+            .toList(),
+        existingProject: ProjectMapper.fromMap(
+          Map<String, dynamic>.from(edit.seed.editable['project']! as Map),
+        ),
+        materializeImagesFromState: false,
+      );
+      operation.requireCurrent();
+      final changes = <String, Object?>{...?_publishedEmbed?.changes};
+      final projectChanges = buildPublishedProjectPatch(
+        initial: initial,
+        current: args.project,
+      );
+      if (projectChanges.isNotEmpty) changes['project'] = projectChanges;
+      if (_bodyText != _initialBodyText) {
+        changes['text'] = args.text;
+        changes['facets'] = args.facets;
+      }
+      if (_sponsored != _initialSponsored) changes['sponsored'] = _sponsored;
+      if (!listEquals(_languages?.values, _initialLanguages)) {
+        changes['langs'] = _languages!.values;
+      }
+      if (_draftMediaChanged(images)) {
+        final needsUpload = images.images.any(
+          (image) => image.phase is ImageReady,
+        );
+        final client = needsUpload ? ref.read(postApiClientProvider) : null;
+        changes['images'] = await _mediaUploader.materializePostEdit(
+          composerId: _composerId,
+          images: images.images,
+          ownershipIsCurrent: () => operation.isCurrent,
+          upload: ({required bytes, required mimeType, required cancelToken}) =>
+              client!.uploadImage(
+                bytes: bytes,
+                mimeType: mimeType,
+                cancelToken: cancelToken,
+              ),
+        );
+        operation.requireCurrent();
+      }
+      Future<void> submit(
+        CreatePostVideo? video, {
+        bool allowBlobRecovery = false,
+      }) async {
+        if (video != null) {
+          changes['embed'] = {
+            r'$type': 'app.bsky.embed.video',
+            'video': video.blob.toMap(),
+            'jobId': video.jobId,
+            'alt': video.alt,
+            if (video.aspectRatio != null)
+              'aspectRatio': video.aspectRatio!.toMap(),
+          };
+          if (edit.seed.post.images?.isNotEmpty ?? false) {
+            changes['images'] = null;
+          }
+        }
+        final frozenChanges = PostEditChanges(changes);
+        Future<void> sendFrozen({bool recoverBlob = false}) async {
+          operation.requireCurrent();
+          final result = await ref
+              .read(editPostProvider.notifier)
+              .save(
+                seed: edit.seed,
+                changes: frozenChanges,
+                ownership: edit.ownership,
+                allowVideoBlobRecovery: recoverBlob,
+              );
+          operation.requireCurrent();
+          if (result == null) throw const ComposerSubmissionFailure();
+          _submissionSucceeded = true;
+          var visible = result.post;
+          if (visible == null) {
+            try {
+              visible = await ref
+                  .read(editPostProvider.notifier)
+                  .refreshAccepted(
+                    seed: edit.seed,
+                    accepted: result,
+                    ownership: edit.ownership,
+                  );
+            } on Object {
+              // Acceptance is final even if the eligible completion read fails.
+            }
+            operation.requireCurrent();
+          }
+          if (!mounted) return;
+          if (visible case final post?) {
+            _pendingPublishedDraftPost = post;
+            context.showInfo(AppLocalizations.of(context).postEditSuccess);
+          } else {
+            setState(() => _acceptedEditPending = result);
+            context.showInfo(AppLocalizations.of(context).postEditPending);
+          }
+        }
+
+        _retryPublishedEdit = () => _runSubmission(edit.ownership, sendFrozen);
+        await sendFrozen(recoverBlob: allowBlobRecovery);
+      }
+
+      final selectedVideo = _videoController.selection;
+      if (selectedVideo == null) {
+        await submit(null);
+      } else if (widget.prepareVideoProof case final prepare?) {
+        final video = await prepare(selectedVideo);
+        operation.requireCurrent();
+        await submit(video);
+      } else {
+        final coordinator = composerVideoPublication(
+          owner: edit.ownership,
+          selection: selectedVideo,
+          api: ref.read(postApiClientProvider),
+          service: ref.read(videoServiceClientProvider),
+          publish: submit,
+          onProgress: (progress) {
+            if (mounted) setState(() => _videoProgress = progress);
+          },
+        );
+        _videoPublication = coordinator;
+        _videoPublicationOwner = edit.ownership;
+        try {
+          await coordinator.publish(
+            altText: selectedVideo.altText,
+            aspectRatio: (selectedVideo.width, selectedVideo.height),
+          );
+        } finally {
+          if (identical(_videoPublication, coordinator)) {
+            _videoPublication = null;
+            _videoPublicationOwner = null;
+            if (mounted) setState(() => _videoProgress = null);
+          }
+        }
+      }
+    });
+  }
+
+  Future<void> _reviewCurrentPublishedPost() async {
+    final edit = widget.publishedEdit;
+    if (edit == null) return;
+    final operation = ActiveAccountOperation.fromWidget(ref, edit.ownership);
+    if (!operation.isCurrent) return;
+    final current = await showPublishedPostEditor(
+      context,
+      post: edit.seed.post,
+      ownership: edit.ownership,
+    );
+    if (!mounted || !operation.isCurrent || current == null) return;
+    setState(() => _pendingPublishedDraftPost = current);
+    await WidgetsBinding.instance.endOfFrame;
+    if (mounted && operation.isCurrent && Navigator.of(context).canPop()) {
+      Navigator.of(context).pop(current);
+    }
+  }
+
+  Future<void> _refreshPublishedAccepted() async {
+    final edit = widget.publishedEdit;
+    final accepted = _acceptedEditPending;
+    if (edit == null || accepted == null) return;
+    await _runSubmission(edit.ownership, () async {
+      final operation = ActiveAccountOperation.fromWidget(ref, edit.ownership)
+        ..requireCurrent();
+      final post = await ref
+          .read(editPostProvider.notifier)
+          .refreshAccepted(
+            seed: edit.seed,
+            accepted: accepted,
+            ownership: edit.ownership,
+          );
+      operation.requireCurrent();
+      if (!mounted) return;
+      if (post == null) {
+        context.showInfo(AppLocalizations.of(context).postEditPending);
+        return;
+      }
+      setState(() => _acceptedEditPending = null);
+      _submissionSucceeded = true;
+      _pendingPublishedDraftPost = post;
+      context.showInfo(AppLocalizations.of(context).postEditSuccess);
+    });
+  }
+
   Future<void> _submitProject({required String trimmedBody}) async {
     setState(() {
       _attemptedSubmit = true;
@@ -2051,7 +2400,9 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
     final imagesState = ref.read(composerImagesProvider(_composerId));
     final hasRequiredBody = trimmedBody.isNotEmpty;
     final hasRequiredPhoto =
-        imagesState.images.isNotEmpty || _videoController.selection != null;
+        imagesState.images.isNotEmpty ||
+        _videoController.selection != null ||
+        _publishedEmbed?.hasRetainedVideo == true;
     final isBodyLengthValid = RecordTextLimits.post.accepts(_bodyText);
     if (!isFormValid ||
         !hasRequiredBody ||
@@ -2116,6 +2467,11 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
         cancelLabel: l10n.postComposeMissingAltCancel,
       );
       if (!shouldPost || !mounted) return;
+    }
+
+    if (widget.publishedEdit case final edit?) {
+      await _savePublishedProject(edit, project, imagesState, trimmedBody);
+      return;
     }
 
     final args = await buildProjectComposerSubmitArguments(
@@ -2289,9 +2645,43 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
         if (mounted) setState(() => _isSubmitting = running);
       },
       onFailure: (_) {
-        if (mounted) {
+        if (mounted &&
+            (widget.publishedEdit == null ||
+                _submissionOwnershipIsCurrent(submissionOwner))) {
           final l10n = AppLocalizations.of(context);
-          final retryOperation = _videoController.selection == null
+          final validationMessage = widget.publishedEdit == null
+              ? null
+              : postEditValidationMessage(
+                  l10n,
+                  ref.read(editPostProvider).error,
+                );
+          final unavailable =
+              widget.publishedEdit != null &&
+              switch (ref.read(editPostProvider).error) {
+                ApiBadRequest(code: 'post_not_found') => true,
+                _ => false,
+              };
+          final conflict =
+              widget.publishedEdit != null &&
+              switch (ref.read(editPostProvider).error) {
+                ApiBadRequest(code: 'pds_record_conflict') => true,
+                _ => false,
+              };
+          final unresolved =
+              widget.publishedEdit != null &&
+              ref.read(editPostProvider).error
+                  is PdsMutationUnresolvedException;
+          final retryOperation = unresolved && _retryPublishedEdit != null
+              ? MessageAction(
+                  label: l10n.postEditRetrySave,
+                  onPressed: () => unawaited(_retryPublishedEdit!()),
+                )
+              : conflict
+              ? MessageAction(
+                  label: l10n.postEditReviewCurrent,
+                  onPressed: () => unawaited(_reviewCurrentPublishedPost()),
+                )
+              : _videoController.selection == null
               ? null
               : MessageAction(
                   label: l10n.retryButton,
@@ -2300,9 +2690,23 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
                   ),
                 );
           context.showError(
-            retryOperation == null
-                ? l10n.postCreateError
-                : videoPublicationFailureMessage(l10n, _videoFailure),
+            unresolved
+                ? l10n.postEditUnresolved
+                : unavailable
+                ? l10n.postEditUnavailable
+                : conflict
+                ? l10n.postEditConflict
+                : validationMessage ??
+                      (retryOperation == null
+                          ? (widget.publishedEdit == null
+                                ? l10n.postCreateError
+                                : _acceptedEditPending != null
+                                ? l10n.postEditRefreshError
+                                : l10n.postEditError)
+                          : videoPublicationFailureMessage(
+                              l10n,
+                              _videoFailure,
+                            )),
             action: retryOperation,
           );
         }
@@ -2310,7 +2714,11 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
     );
     final published = _pendingPublishedDraftPost;
     if (published != null) await WidgetsBinding.instance.endOfFrame;
-    if (mounted && published != null && Navigator.of(context).canPop()) {
+    if (mounted &&
+        published != null &&
+        Navigator.of(context).canPop() &&
+        (widget.publishedEdit == null ||
+            _submissionOwnershipIsCurrent(submissionOwner))) {
       Navigator.of(context).pop(published);
     }
   }

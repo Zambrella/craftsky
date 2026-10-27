@@ -8294,6 +8294,174 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'{actor} quoted your reply'**
   String notificationQuoteReplyRow(String actor);
+
+  /// Accessible tooltip for an AppView-confirmed edit time.
+  ///
+  /// In en, this message translates to:
+  /// **'Edited {timestamp}'**
+  String postEditTimeConfirmed(String timestamp);
+
+  /// Author-reported edit time, not independently verified.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit reported for {timestamp}'**
+  String postEditTimeReported(String timestamp);
+
+  /// When AppView first observed an edit whose author time is unavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit first observed {timestamp}'**
+  String postEditTimeObserved(String timestamp);
+
+  /// Edit disclosure when the time source is unfamiliar.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit time: {timestamp}'**
+  String postEditTimeUnknown(String timestamp);
+
+  /// No description provided for @postEditSaveChanges.
+  ///
+  /// In en, this message translates to:
+  /// **'Save changes'**
+  String get postEditSaveChanges;
+
+  /// No description provided for @postEditSuccess.
+  ///
+  /// In en, this message translates to:
+  /// **'Changes saved'**
+  String get postEditSuccess;
+
+  /// No description provided for @postEditError.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not save changes. Please try again.'**
+  String get postEditError;
+
+  /// No description provided for @postEditPending.
+  ///
+  /// In en, this message translates to:
+  /// **'Changes saved. Updating post…'**
+  String get postEditPending;
+
+  /// No description provided for @postEditRefresh.
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh post'**
+  String get postEditRefresh;
+
+  /// No description provided for @postEditRefreshError.
+  ///
+  /// In en, this message translates to:
+  /// **'Changes are saved. Could not refresh the post. Please try again.'**
+  String get postEditRefreshError;
+
+  /// No description provided for @postEditSaving.
+  ///
+  /// In en, this message translates to:
+  /// **'Saving changes…'**
+  String get postEditSaving;
+
+  /// No description provided for @postEditUpdating.
+  ///
+  /// In en, this message translates to:
+  /// **'Updating post…'**
+  String get postEditUpdating;
+
+  /// No description provided for @postEditExternalUrl.
+  ///
+  /// In en, this message translates to:
+  /// **'Link URL'**
+  String get postEditExternalUrl;
+
+  /// No description provided for @postEditExternalTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Link title'**
+  String get postEditExternalTitle;
+
+  /// No description provided for @postEditExternalDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Link description'**
+  String get postEditExternalDescription;
+
+  /// No description provided for @postEditRemovePreviewImage.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove preview image'**
+  String get postEditRemovePreviewImage;
+
+  /// No description provided for @postEditRefreshPreview.
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh preview'**
+  String get postEditRefreshPreview;
+
+  /// No description provided for @postEditAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit'**
+  String get postEditAction;
+
+  /// No description provided for @postEditTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit post'**
+  String get postEditTitle;
+
+  /// No description provided for @postEditLoadError.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not load this post for editing. Please try again.'**
+  String get postEditLoadError;
+
+  /// No description provided for @postEditConflict.
+  ///
+  /// In en, this message translates to:
+  /// **'This post changed. Your changes are still here. Review the current version before saving.'**
+  String get postEditConflict;
+
+  /// No description provided for @postEditReviewCurrent.
+  ///
+  /// In en, this message translates to:
+  /// **'Review current version'**
+  String get postEditReviewCurrent;
+
+  /// No description provided for @postEditUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'This post is no longer available. Your changes are still here.'**
+  String get postEditUnavailable;
+
+  /// No description provided for @postEditUnresolved.
+  ///
+  /// In en, this message translates to:
+  /// **'Saving is not confirmed. Retry to check the same save.'**
+  String get postEditUnresolved;
+
+  /// No description provided for @postEditRetrySave.
+  ///
+  /// In en, this message translates to:
+  /// **'Retry save'**
+  String get postEditRetrySave;
+
+  /// No description provided for @postEditCaptionLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Caption'**
+  String get postEditCaptionLabel;
+
+  /// No description provided for @postEditContentLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Post content'**
+  String get postEditContentLabel;
+
+  /// Actionable edit validation feedback using localized control names.
+  ///
+  /// In en, this message translates to:
+  /// **'Check these fields and try again: {fields}.'**
+  String postEditValidationFields(String fields);
 }
 
 class _AppLocalizationsDelegate

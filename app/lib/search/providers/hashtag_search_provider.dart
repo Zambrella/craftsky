@@ -1,4 +1,5 @@
 import 'package:craftsky_app/auth/providers/account_operation_guard.dart';
+import 'package:craftsky_app/feed/providers/post_record_overlay.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
 import 'package:craftsky_app/search/models/search_queries.dart';
 import 'package:craftsky_app/search/models/search_result_state.dart';
@@ -23,7 +24,11 @@ class HashtagSearch extends _$HashtagSearch {
           limit: searchResultsPageLimit,
         );
     return SearchPostResultsState(
-      items: page.items,
+      items: applyPostRecordListOverlays(
+        ref,
+        page.items,
+        includes: (_) => false,
+      ),
       cursor: page.cursor,
       hashtag: page.hashtag,
     );
@@ -45,7 +50,10 @@ class HashtagSearch extends _$HashtagSearch {
             cursor: current.cursor,
           );
       return SearchPostResultsState(
-        items: appendUniquePosts(current.items, page.items),
+        items: appendUniquePosts(
+          current.items,
+          applyPostRecordListOverlays(ref, page.items, includes: (_) => false),
+        ),
         cursor: page.cursor,
         hashtag: page.hashtag ?? current.hashtag,
       );

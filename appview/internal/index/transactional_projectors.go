@@ -69,6 +69,16 @@ func (indexer *CraftskyPost) Project(ctx context.Context, tx pgx.Tx, source inge
 	if err := clone.Handle(ctx, event); err != nil {
 		return tap.Retryable(tap.ReasonProjectionFailure), err
 	}
+	// Versioned durable projection copies only metadata for this exact serving
+	// CID. Source ingestion or accepted writes may already be a version ahead.
+	if event.Action != "delete" && source.Revision != "" {
+		if _, err := tx.Exec(ctx, `UPDATE craftsky_posts post
+			SET edited_at=edit.edited_at,edit_time_source=edit.edit_time_source,record_revision=$3
+			FROM craftsky_post_edit_state edit
+			WHERE post.uri=$1 AND post.cid=$2 AND edit.uri=post.uri AND edit.source_cid=post.cid`, source.URI, source.CID, source.Revision); err != nil {
+			return tap.Retryable(tap.ReasonProjectionFailure), fmt.Errorf("project current post edit metadata: %w", err)
+		}
+	}
 	if !clone.deferNotifications {
 		return tap.Applied(), nil
 	}

@@ -13,6 +13,7 @@ import (
 
 	"social.craftsky/appview/internal/api/envelope"
 	"social.craftsky/appview/internal/observability"
+	"social.craftsky/appview/internal/postrecord"
 )
 
 // ErrPostNotFound is returned by PostStore.ReadOne when no row matches.
@@ -45,6 +46,9 @@ type PostRow struct {
 	Langs                []string
 	CreatedAt            time.Time
 	IndexedAt            time.Time
+	EditedAt             *time.Time
+	EditTimeSource       *postrecord.EditTimeSource
+	RecordRevision       *syntax.TID
 	ExternalImportSource *string
 	ProfileSortAt        time.Time
 	IsProject            bool
@@ -62,10 +66,14 @@ type PostRow struct {
 
 // SortAt bounds an author-controlled creation time by the AppView's observation.
 func (row *PostRow) SortAt() time.Time {
-	if row.IndexedAt.IsZero() || !row.CreatedAt.After(row.IndexedAt) {
+	observedAt := row.IndexedAt
+	if !row.ProfileSortAt.IsZero() && (observedAt.IsZero() || row.ProfileSortAt.Before(observedAt)) {
+		observedAt = row.ProfileSortAt
+	}
+	if observedAt.IsZero() || !row.CreatedAt.After(observedAt) {
 		return row.CreatedAt
 	}
-	return row.IndexedAt
+	return observedAt
 }
 
 func (row *PostRow) IsRoot() bool {
@@ -178,6 +186,7 @@ const postSelectColumns = `
 	p.uri, p.did, p.rkey, p.cid, p.text, p.sponsored, p.facets, p.images, p.record -> 'embed', p.record -> 'crafts',
 	p.reply_root_uri, p.reply_root_cid, p.reply_parent_uri, p.reply_parent_cid,
 	p.quote_uri, p.quote_cid, p.tags, p.langs, p.created_at, p.indexed_at,
+	p.edited_at, p.edit_time_source, p.record_revision,
 	p.external_import_source, p.profile_sort_at,
 	p.is_project, p.project_craft_type, pp.raw_project,
 	bp.display_name, bp.avatar_cid, bp.avatar_mime,
@@ -332,6 +341,7 @@ func scanPostRowWithExtra(scanner pgx.Row, extraDestinations ...any) (*PostRow, 
 		&out.URI, &out.DID, &out.Rkey, &out.CID, &out.Text, &out.Sponsored, &out.Facets, &out.Images, &out.RawEmbed, &out.Crafts,
 		&out.ReplyRootURI, &out.ReplyRootCID, &out.ReplyParentURI, &out.ReplyParentCID,
 		&out.QuoteURI, &out.QuoteCID, &out.Tags, &out.Langs, &out.CreatedAt, &out.IndexedAt,
+		&out.EditedAt, &out.EditTimeSource, &out.RecordRevision,
 		&out.ExternalImportSource, &out.ProfileSortAt,
 		&out.IsProject, &out.ProjectCraftType, &rawProject,
 		&out.AuthorDisplayName, &out.AuthorAvatarCID, &out.AuthorAvatarMime,

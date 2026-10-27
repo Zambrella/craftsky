@@ -104,7 +104,7 @@ func (s *PostStore) listTimelineObserved(
 			SELECT
 				'post'::text AS item_kind,
 				'post:' || p.uri AS item_key,
-				LEAST(p.created_at, p.indexed_at) AS activity_at,
+				LEAST(p.created_at, p.indexed_at, p.profile_sort_at) AS activity_at,
 				p.uri AS post_uri,
 				NULL::text AS repost_uri,
 				NULL::text AS repost_cid,
@@ -255,6 +255,7 @@ func scanTimelineFeedItemRow(scanner interface{ Scan(...any) error }) (*Timeline
 		&out.Post.URI, &out.Post.DID, &out.Post.Rkey, &out.Post.CID, &out.Post.Text, &out.Post.Sponsored, &out.Post.Facets, &out.Post.Images, &out.Post.RawEmbed, &out.Post.Crafts,
 		&out.Post.ReplyRootURI, &out.Post.ReplyRootCID, &out.Post.ReplyParentURI, &out.Post.ReplyParentCID,
 		&out.Post.QuoteURI, &out.Post.QuoteCID, &out.Post.Tags, &out.Post.Langs, &out.Post.CreatedAt, &out.Post.IndexedAt,
+		&out.Post.EditedAt, &out.Post.EditTimeSource, &out.Post.RecordRevision,
 		&out.Post.ExternalImportSource, &out.Post.ProfileSortAt,
 		&out.Post.IsProject, &out.Post.ProjectCraftType, &rawProject,
 		&out.Post.AuthorDisplayName, &out.Post.AuthorAvatarCID, &out.Post.AuthorAvatarMime,

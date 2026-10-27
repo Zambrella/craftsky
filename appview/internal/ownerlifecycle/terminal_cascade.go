@@ -35,6 +35,7 @@ var terminalCascadePolicies = map[string]string{
 	"oauth_handoff_exchanges":           "fixed",
 	"oauth_sessions":                    "dependency",
 	"pds_commands":                      "drain",
+	"post_publication_state":            "drain",
 	"push_account_subscriptions":        "drain",
 	"saved_post_folders":                "dependency",
 	"scheduled_posts":                   "dependency",
@@ -133,6 +134,18 @@ func drainTerminalCascadeBatchTx(
 func terminalCascadeDrainSQL(entry TerminalDIDEntry) []string {
 	role := quoteIdentifier(entry.Column)
 	switch entry.Table {
+	case "post_publication_state":
+		return []string{`
+			WITH target AS (
+				SELECT child.post_uri,child.recipient_did
+				FROM post_publication_mentions child
+				JOIN post_publication_state parent ON parent.uri=child.post_uri
+				WHERE parent.owner_did=$1 AND parent.ctid=ANY($3::tid[])
+				ORDER BY child.post_uri,child.recipient_did LIMIT $2 FOR UPDATE OF child NOWAIT
+			)
+			DELETE FROM post_publication_mentions child USING target
+			WHERE child.post_uri=target.post_uri AND child.recipient_did=target.recipient_did
+		`}
 	case "craftsky_posts":
 		return []string{
 			deletePostDependentSQL("craftsky_post_mentions", "post_uri", "post_uri,mentioned_did"),
@@ -259,6 +272,17 @@ func terminalCascadeDrainSQL(entry TerminalDIDEntry) []string {
 		`}
 	case "tap_source_records":
 		return []string{
+			`
+			WITH target AS (
+				SELECT child.uri
+				FROM craftsky_post_edit_state child
+				JOIN tap_source_records parent ON parent.uri=child.uri
+				WHERE parent.did=$1 AND parent.ctid=ANY($3::tid[])
+				ORDER BY child.uri LIMIT $2 FOR UPDATE OF child NOWAIT
+			)
+			DELETE FROM craftsky_post_edit_state child USING target
+			WHERE child.uri=target.uri
+			`,
 			`
 			WITH target AS (
 				SELECT child.id

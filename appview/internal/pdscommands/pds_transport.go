@@ -57,6 +57,64 @@ func (transport *PDSTransport) LatestCommit(ctx context.Context, repo syntax.DID
 	return transport.client.LatestCommit(ctx, repo)
 }
 
+func (transport *PDSTransport) LatestCommitMetadata(ctx context.Context, repo syntax.DID) (auth.RepositoryCommit, error) {
+	client, ok := transport.client.(auth.RepositoryHeadMetadataClient)
+	if !ok {
+		return auth.RepositoryCommit{}, auth.ErrCommitMetadataUnavailable
+	}
+	commit, err := client.LatestCommitMetadata(ctx, repo)
+	if err != nil {
+		return auth.RepositoryCommit{}, err
+	}
+	if commit.CID == "" || commit.Revision == "" {
+		return auth.RepositoryCommit{}, auth.ErrCommitMetadataUnavailable
+	}
+	return commit, nil
+}
+
+func (transport *PDSTransport) hasWriteReceipts() bool {
+	_, ok := transport.client.(auth.RepositoryWriteMetadataClient)
+	return ok
+}
+
+// observeRecord brackets a read with an unchanged repository head. Its revision
+// is an observation bound, never evidence of the record's original write commit.
+func (transport *PDSTransport) observeRecord(ctx context.Context, repo syntax.DID, uri syntax.ATURI) (AuthoritativeRecord, error) {
+	for attempt := 0; attempt < 3; attempt++ {
+		before, err := transport.LatestCommitMetadata(ctx, repo)
+		if err != nil {
+			return AuthoritativeRecord{}, err
+		}
+		record, err := transport.GetRecord(ctx, repo, uri)
+		if err != nil {
+			return AuthoritativeRecord{}, err
+		}
+		after, err := transport.LatestCommitMetadata(ctx, repo)
+		if err != nil {
+			return AuthoritativeRecord{}, err
+		}
+		if before == after {
+			record.ObservationCID = after.CID
+			record.ObservationRevision = after.Revision
+			return record, nil
+		}
+	}
+	return AuthoritativeRecord{}, ErrRepositoryConflict
+}
+
+func (transport *PDSTransport) ApplyWritesWithCommit(ctx context.Context, repo syntax.DID, head syntax.CID, steps []DispatchStep) (auth.RepositoryWriteReceipt, error) {
+	client, ok := transport.client.(auth.RepositoryWriteMetadataClient)
+	if !ok {
+		return auth.RepositoryWriteReceipt{}, auth.ErrCommitMetadataUnavailable
+	}
+	writes, err := repositoryWrites(steps)
+	if err != nil {
+		return auth.RepositoryWriteReceipt{}, err
+	}
+	receipt, err := client.ApplyWritesWithCommit(ctx, repo, head, writes)
+	return receipt, translateProtocolError(err)
+}
+
 func (transport *PDSTransport) ListRecords(
 	ctx context.Context,
 	repo syntax.DID,
@@ -85,24 +143,31 @@ func (transport *PDSTransport) ApplyWrites(
 	head syntax.CID,
 	steps []DispatchStep,
 ) error {
+	writes, err := repositoryWrites(steps)
+	if err != nil {
+		return err
+	}
+	return translateProtocolError(transport.client.ApplyWrites(ctx, repo, head, writes))
+}
+
+func repositoryWrites(steps []DispatchStep) ([]auth.RepositoryWrite, error) {
 	writes := make([]auth.RepositoryWrite, len(steps))
 	for index, step := range steps {
 		collection, rkey, err := uriParts(step.URI)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		write := auth.RepositoryWrite{Action: step.Action, Collection: collection, RKey: rkey, ExpectedCID: step.ExpectedCID}
 		if len(step.Body) > 0 {
 			var value any
 			if err := recordjson.Unmarshal(step.Body, &value); err != nil {
-				return fmt.Errorf("decode dispatch record: %w", err)
+				return nil, fmt.Errorf("decode dispatch record: %w", err)
 			}
 			write.Record = value
 		}
 		writes[index] = write
 	}
-	err := transport.client.ApplyWrites(ctx, repo, head, writes)
-	return translateProtocolError(err)
+	return writes, nil
 }
 
 func (transport *PDSTransport) DeleteRecordWithRepositorySwap(

@@ -6,6 +6,13 @@ import 'package:craftsky_app/shared/mutations/pds_record_operation_controller.da
 import 'package:craftsky_app/shared/mutations/pds_record_reconciliation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+/// An accepted edit can replace a visible row, but cannot insert a publication
+/// into another list. Keep this distinct from ordinary create overlays.
+final class PostEditOverlay {
+  const new(this.post);
+  final Post post;
+}
+
 PdsMutationScope postRecordMutationScope(Ref ref, Post post) =>
     postRecordMutationScopeForUri(
       ref,
@@ -42,6 +49,7 @@ PdsMutationScope postCreateOperationScope(
 PdsRecordProjection postRecordProjection(Post? post) => PdsRecordProjection(
   uri: post?.uri.toString() ?? '',
   cid: post?.cid.toString() ?? '',
+  recordRevision: post?.recordRevision,
   content: post == null
       ? const {}
       : <String, Object?>{
@@ -51,14 +59,77 @@ PdsRecordProjection postRecordProjection(Post? post) => PdsRecordProjection(
         },
 );
 
-Post? applyPostRecordOverlay(Ref ref, Post post) {
+Post? applyPostRecordOverlay(Ref ref, Post source) {
+  final post = _applyQuotedPostEdit(ref, source);
   final controller = ref.read(pdsRecordOperationControllerProvider);
   final scope = postRecordMutationScope(ref, post);
   final overlay = controller.overlayFor(scope);
   if (overlay == null) return post;
   if (controller.reconcile(scope, postRecordProjection(post))) return post;
   final optimistic = overlay.optimisticValue;
+  if (optimistic case PostEditOverlay(post: final edited)) {
+    if (post.isProtected) return post;
+    return post.copyWith(
+      cid: edited.cid,
+      text: edited.text,
+      facets: edited.facets,
+      langs: edited.langs,
+      sponsored: edited.sponsored,
+      images: edited.images,
+      video: edited.video,
+      external: edited.external,
+      project: edited.project,
+      editedAt: edited.editedAt,
+      editTimeSource: edited.editTimeSource,
+      recordRevision: edited.recordRevision,
+    );
+  }
   return optimistic is Post ? optimistic : null;
+}
+
+Post _applyQuotedPostEdit(Ref ref, Post post) {
+  final view = post.quoteView;
+  final quoted = view?.post;
+  if (post.isProtected || view?.state != 'visible' || quoted == null) {
+    return post;
+  }
+  final scope = postRecordMutationScopeForUri(
+    ref,
+    quoted.uri.value,
+    quoted.author.did.value,
+  );
+  final overlay = ref
+      .read(pdsRecordOperationControllerProvider)
+      .overlayFor(scope);
+  if (overlay?.optimisticValue case PostEditOverlay(post: final edited)) {
+    if (edited.isProtected ||
+        overlay!.agreesWith(
+          PdsRecordProjection(
+            uri: quoted.uri.value,
+            cid: quoted.cid.value,
+            recordRevision: quoted.recordRevision,
+            content: const {},
+          ),
+        )) {
+      return post;
+    }
+    return post.copyWith(
+      quoteView: view!.copyWith(
+        post: quoted.copyWith(
+          cid: edited.cid,
+          text: edited.text,
+          sponsored: edited.sponsored,
+          images: edited.images,
+          project: edited.project,
+          external: edited.external,
+          editedAt: edited.editedAt,
+          editTimeSource: edited.editTimeSource,
+          recordRevision: edited.recordRevision,
+        ),
+      ),
+    );
+  }
+  return post;
 }
 
 Iterable<Post> optimisticPostRecordOverlays(Ref ref) sync* {
