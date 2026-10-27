@@ -14,6 +14,7 @@ import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:craftsky_app/profile/models/profile_handle.dart';
 import 'package:craftsky_app/profile/widgets/compact_profile_identity.dart';
+import 'package:craftsky_app/router/app_shell_drawer.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/settings/models/settings_identity.dart';
 import 'package:craftsky_app/settings/models/settings_row.dart';
@@ -90,7 +91,10 @@ class SettingsPage extends ConsumerWidget {
         ? null
         : AccountSwitcherState.fromRegistry(registry);
     return Scaffold(
-      appBar: AppBar(title: Text(l10n.settingsTitle)),
+      appBar: AppBar(
+        leading: const AppShellDrawerButton(),
+        title: Text(l10n.settingsTitle),
+      ),
       body: ListView(
         children: [
           if (identity != null) _SettingsIdentityHeader(identity: identity),

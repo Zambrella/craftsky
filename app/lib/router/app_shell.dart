@@ -18,6 +18,7 @@ import 'package:craftsky_app/notifications/models/notification_badge.dart';
 import 'package:craftsky_app/notifications/providers/notification_new_count_provider.dart';
 import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:craftsky_app/profile/providers/follower_growth_provider.dart';
+import 'package:craftsky_app/profile/providers/profile_reselect_provider.dart';
 import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
 import 'package:craftsky_app/projects/widgets/project_composer_sheet.dart';
 import 'package:craftsky_app/router/app_shell_drawer.dart';
@@ -161,6 +162,7 @@ class AuthenticatedShell extends ConsumerStatefulWidget {
 
 class _AuthenticatedShellState extends ConsumerState<AuthenticatedShell> {
   BuildContext? _composerContext;
+  bool Function(int)? _selectBranch;
 
   @override
   Widget build(BuildContext context) {
@@ -179,6 +181,9 @@ class _AuthenticatedShellState extends ConsumerState<AuthenticatedShell> {
           registerComposerContext: (branchContext) {
             _composerContext = branchContext;
           },
+          registerBranchSelection: (selectBranch) {
+            _selectBranch = selectBranch;
+          },
           child: _LargeShellNavigationFrame(
             selectedIndex: _destinationIndexForLocation(
               router.state.matchedLocation,
@@ -196,6 +201,12 @@ class _AuthenticatedShellState extends ConsumerState<AuthenticatedShell> {
   }
 
   void _goDestination(BuildContext context, int index) {
+    if (_selectBranch?.call(index) ?? false) return;
+    if (index == 4 &&
+        GoRouter.of(context).state.matchedLocation == RouteLocations.profile) {
+      ref.read(profileReselectProvider.notifier).reselect();
+      return;
+    }
     if (index == 0 &&
         GoRouter.of(context).state.matchedLocation == RouteLocations.feed) {
       ref.read(feedReselectProvider.notifier).reselect();
@@ -220,10 +231,12 @@ class _AuthenticatedShellState extends ConsumerState<AuthenticatedShell> {
 class _AuthenticatedShellNavigationScope extends InheritedWidget {
   const new({
     required this.registerComposerContext,
+    required this.registerBranchSelection,
     required super.child,
   });
 
   final ValueChanged<BuildContext> registerComposerContext;
+  final ValueChanged<bool Function(int)> registerBranchSelection;
 
   static _AuthenticatedShellNavigationScope? maybeOf(
     BuildContext context,
@@ -606,6 +619,11 @@ class _AppShellState extends ConsumerState<AppShell> {
                   .currentContext ??
               context,
         );
+        scope.registerBranchSelection((index) {
+          if (!mounted) return false;
+          _goDestination(index);
+          return true;
+        });
         return widget.navigationShell;
       }
       return _LargeShellNavigationFrame(
@@ -628,6 +646,14 @@ class _AppShellState extends ConsumerState<AppShell> {
 
     return Scaffold(
       key: _compactScaffoldKey,
+      // Child pages own the edge gesture for platform Back navigation.
+      drawerEnableOpenDragGesture:
+          router.state.topRoute ==
+          widget
+              .navigationShell
+              .route
+              .branches[widget.navigationShell.currentIndex]
+              .defaultRoute,
       body: AppShellDrawerScope(
         openDrawer: () => _compactScaffoldKey.currentState?.openDrawer(),
         isDrawerOpen: _isDrawerOpen,
@@ -668,22 +694,31 @@ class _AppShellState extends ConsumerState<AppShell> {
           onOpenFeedback: _openFeedback,
         ),
       ),
-      bottomNavigationBar: _ShellNavigationBar(
-        selectedIndex: widget.navigationShell.currentIndex,
-        onDestinationSelected: _goBranch,
-        notificationBadge: notificationBadge,
-        profileAvatarUrl: activeAvatarUrl,
-        profileSeed: activeProfile?.displayName ?? activeProfile?.handle ?? '',
-        profileCustomisation: activeCustomisation,
-        profileFocusNode: _profileSwitcherFocusNode,
-        onOpenAccountSwitcher: switcherState == null
-            ? null
-            : () => _showCompactSwitcher(switcherState),
-      ),
+      bottomNavigationBar:
+          widget.navigationShell.currentIndex < _primaryDestinations.length
+          ? _ShellNavigationBar(
+              selectedIndex: widget.navigationShell.currentIndex,
+              onDestinationSelected: _goBranch,
+              notificationBadge: notificationBadge,
+              profileAvatarUrl: activeAvatarUrl,
+              profileSeed:
+                  activeProfile?.displayName ?? activeProfile?.handle ?? '',
+              profileCustomisation: activeCustomisation,
+              profileFocusNode: _profileSwitcherFocusNode,
+              onOpenAccountSwitcher: switcherState == null
+                  ? null
+                  : () => _showCompactSwitcher(switcherState),
+            )
+          : null,
     );
   }
 
   void _goBranch(int index) {
+    if (index == 4 &&
+        GoRouter.of(context).state.matchedLocation == RouteLocations.profile) {
+      ref.read(profileReselectProvider.notifier).reselect();
+      return;
+    }
     if (index == 0 &&
         GoRouter.of(context).state.matchedLocation == RouteLocations.feed) {
       ref.read(feedReselectProvider.notifier).reselect();
@@ -696,18 +731,7 @@ class _AppShellState extends ConsumerState<AppShell> {
   }
 
   void _goDestination(int index) {
-    if (index < _primaryDestinations.length) {
-      _goBranch(index);
-      return;
-    }
-    final location = switch (index - _primaryDestinations.length) {
-      0 => RouteLocations.savedPosts,
-      1 => RouteLocations.scheduledPosts,
-      2 => RouteLocations.drafts,
-      3 => RouteLocations.settings,
-      _ => throw RangeError.index(index, _menuDestinations),
-    };
-    context.go(location);
+    _goBranch(index);
   }
 
   Future<void> _openExternalLink(Uri uri) async {

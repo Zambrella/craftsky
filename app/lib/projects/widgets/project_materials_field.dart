@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/projects/composer/project_composer_fields.dart';
 import 'package:craftsky_app/projects/models/project.dart';
 import 'package:craftsky_app/shared/rich_text/facet_autocomplete_controller.dart';
@@ -91,6 +92,7 @@ class _MaterialsInputState extends ConsumerState<_MaterialsInput> {
   final _controller = FacetTextEditingController();
   final _focusNode = FocusNode(debugLabel: 'projectMaterials');
   String? _errorText;
+  ProjectMaterial? _editingMaterial;
 
   bool get _canAdd => widget.enabled && _controller.text.trim().isNotEmpty;
 
@@ -151,8 +153,13 @@ class _MaterialsInputState extends ConsumerState<_MaterialsInput> {
 
       widget.onChanged([
         ...widget.values,
-        ProjectMaterial(text: text, facets: facets.isEmpty ? null : facets),
+        ProjectMaterial(
+          text: text,
+          facets: facets.isEmpty ? null : facets,
+          extraFields: _editingMaterial?.extraFields ?? const {},
+        ),
       ]);
+      _editingMaterial = null;
       _controller.clear();
       setState(() => _errorText = null);
       _focusNode.requestFocus();
@@ -167,6 +174,17 @@ class _MaterialsInputState extends ConsumerState<_MaterialsInput> {
       List<ProjectMaterial>.from(widget.values)..remove(material),
     );
     setState(() => _errorText = null);
+  }
+
+  void _edit(ProjectMaterial material) {
+    if (!widget.enabled || _isAdding || _controller.text.isNotEmpty) return;
+    _editingMaterial = material;
+    _controller.value = TextEditingValue(
+      text: material.text,
+      selection: TextSelection.collapsed(offset: material.text.length),
+    );
+    _remove(material);
+    _focusNode.requestFocus();
   }
 
   @override
@@ -192,6 +210,8 @@ class _MaterialsInputState extends ConsumerState<_MaterialsInput> {
               : _MaterialEntryList(
                   values: widget.values,
                   enabled: widget.enabled && !_isAdding,
+                  hasPendingText: _controller.text.isNotEmpty,
+                  onEdit: _edit,
                   onRemove: _remove,
                 ),
           suffixIcon: Padding(
@@ -236,11 +256,15 @@ class _MaterialEntryList extends StatelessWidget {
   const new({
     required this.values,
     required this.enabled,
+    required this.hasPendingText,
+    required this.onEdit,
     required this.onRemove,
   });
 
   final List<ProjectMaterial> values;
   final bool enabled;
+  final bool hasPendingText;
+  final ValueChanged<ProjectMaterial> onEdit;
   final ValueChanged<ProjectMaterial> onRemove;
 
   @override
@@ -277,6 +301,29 @@ class _MaterialEntryList extends StatelessWidget {
                         color: colors.onSurface,
                       ),
                     ),
+                  ),
+                  IconButton(
+                    key: Key(
+                      '${ProjectComposerFields.materials}-edit-'
+                      '${material.text}',
+                    ),
+                    icon: const Icon(CraftskyIconsBold.edit),
+                    tooltip: hasPendingText
+                        ? AppLocalizations.of(
+                            context,
+                          ).projectComposerMaterialsEditBlockedHint
+                        : AppLocalizations.of(
+                            context,
+                          ).projectComposerMaterialsEditAction,
+                    visualDensity: VisualDensity.compact,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints.tightFor(
+                      width: 32,
+                      height: 32,
+                    ),
+                    onPressed: enabled && !hasPendingText
+                        ? () => onEdit(material)
+                        : null,
                   ),
                   IconButton(
                     key: Key(

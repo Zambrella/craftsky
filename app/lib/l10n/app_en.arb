@@ -443,7 +443,7 @@
   "@profileEditAction": { "description": "Label on the primary action button shown on a self-profile, opens the edit-profile flow." },
 
   "profileVisitAction": "Visit profile",
-  "@profileVisitAction": { "description": "Label on the secondary action in a profile card, opens the full profile page." },
+  "@profileVisitAction": { "description": "Accessibility hint for opening the full profile page." },
 
   "profileSettingsAction": "Settings",
   "@profileSettingsAction": { "description": "Tooltip on the settings icon button shown next to Edit profile on a self-profile, and on the collapsed-bar trailing action." },
@@ -875,6 +875,12 @@
   "projectComposerMaterialsAddAction": "Add",
   "@projectComposerMaterialsAddAction": { "description": "Button label for adding a typed material in the project composer." },
 
+  "projectComposerMaterialsEditAction": "Edit material",
+  "@projectComposerMaterialsEditAction": { "description": "Tooltip for moving an existing material into the project composer input for editing." },
+
+  "projectComposerMaterialsEditBlockedHint": "Add or clear the current material first",
+  "@projectComposerMaterialsEditBlockedHint": { "description": "Tooltip explaining why material edit buttons are disabled while the material input contains text." },
+
   "projectComposerMaterialsMaxLengthError": "Keep each material to {max} characters or fewer.",
   "@projectComposerMaterialsMaxLengthError": {
     "description": "Validation error for a project composer material entry that is too long.",
@@ -896,10 +902,10 @@
   "projectComposerColoursSearchHint": "Search colours",
   "@projectComposerColoursSearchHint": { "description": "Placeholder text for searching known colour options in the project composer." },
 
-  "projectComposerDesignTagsLabel": "Design tags",
+  "projectComposerDesignTagsLabel": "Design",
   "@projectComposerDesignTagsLabel": { "description": "Label for the project composer design-tags field." },
 
-  "projectComposerDesignTagsSearchHint": "Search design tags",
+  "projectComposerDesignTagsSearchHint": "Search designs",
   "@projectComposerDesignTagsSearchHint": { "description": "Placeholder text for searching known design-tag options in the project composer." },
 
   "projectComposerAddPatternAction": "Add pattern",

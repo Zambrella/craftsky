@@ -53,7 +53,6 @@ void main() {
       final path = file.path;
       final source = file.source;
       if (source.contains('UserProfileRoute(handle:') ||
-          source.contains('showUserProfileCard(context, handleOrDid:') ||
           source.contains("'/profile/:handle'") ||
           source.contains("'${r'$'}{RouteLocations.profile}/:handle'")) {
         violations.add(path);

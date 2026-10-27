@@ -11,10 +11,12 @@ import 'package:craftsky_app/languages/models/language_preferences.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
+import 'package:craftsky_app/projects/models/project_browse_filters.dart';
 import 'package:craftsky_app/projects/options/project_option.dart';
 import 'package:craftsky_app/projects/options/project_option_catalogs.dart';
 import 'package:craftsky_app/projects/pages/projects_page.dart';
 import 'package:craftsky_app/projects/providers/preferred_project_crafts_provider.dart';
+import 'package:craftsky_app/projects/providers/project_feed_provider.dart';
 import 'package:craftsky_app/projects/providers/project_repository_provider.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
@@ -422,45 +424,193 @@ void main() {
     expect(find.byTooltip('Back to top'), findsOneWidget);
   });
 
-  testWidgets(
-    'project back-to-top counts nested scrolling and resets header and list',
-    (tester) async {
-      tester.view.physicalSize = const Size(800, 600);
-      tester.view.devicePixelRatio = 1;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
-      await _pumpProjects(
-        tester,
-        FakeProjectRepository(
-          onListProjects: ({required query, limit, cursor}) async =>
-              PostPage(items: List.generate(20, _post)),
-        ),
-      );
-      await tester.pumpAndSettle();
-      final nested = tester.state<NestedScrollViewState>(
-        find.byType(NestedScrollView),
-      );
+  testWidgets('craft tabs retain independent offsets and fixed headers', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(800, 600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await _pumpProjects(
+      tester,
+      FakeProjectRepository(
+        onListProjects: ({required query, limit, cursor}) async =>
+            PostPage(items: List.generate(20, _post)),
+      ),
+    );
+    await tester.pumpAndSettle();
 
-      await tester.drag(
-        find.byType(CustomScrollView).first,
-        const Offset(0, -250),
-      );
-      await tester.pumpAndSettle();
+    ScrollPosition position(String craft) => tester
+        .state<ScrollableState>(
+          find.descendant(
+            of: find.byKey(PageStorageKey<String>('projects_tab_$craft')),
+            matching: find.byWidgetPredicate(
+              (widget) =>
+                  widget is Scrollable &&
+                  widget.axisDirection == AxisDirection.down,
+            ),
+          ),
+        )
+        .position;
+    const knitting = ProjectOptionCatalogs.knittingCraftToken;
+    const crochet = ProjectOptionCatalogs.crochetCraftToken;
+    final headerPosition = tester.getTopLeft(find.byType(TabBar));
+    expect(position(knitting).pixels, 0);
+    await tester.drag(
+      find.byType(CustomScrollView).first,
+      const Offset(0, -600),
+    );
+    await tester.pumpAndSettle();
+    final knittingOffset = position(knitting).pixels;
+    expect(knittingOffset, greaterThan(200));
+    expect(tester.getTopLeft(find.byType(TabBar)), headerPosition);
 
-      expect(
-        nested.outerController.offset + nested.innerController.offset,
-        greaterThanOrEqualTo(200),
-      );
-      expect(find.byTooltip('Back to top'), findsOneWidget);
+    await tester.drag(find.byType(TabBarView), const Offset(-800, 0));
+    await tester.pumpAndSettle();
+    expect(position(crochet).pixels, 0);
+    expect(
+      tester.getTopLeft(find.byType(PostCard).first).dy,
+      greaterThanOrEqualTo(tester.getBottomLeft(find.byType(TabBar)).dy),
+    );
+    await tester.drag(
+      find.byType(CustomScrollView).first,
+      const Offset(0, -350),
+    );
+    await tester.pumpAndSettle();
+    final crochetOffset = position(crochet).pixels;
+    expect(crochetOffset, greaterThan(200));
 
-      await tester.tap(find.byTooltip('Back to top'));
-      await tester.pumpAndSettle();
+    // Tab taps and swipes must both restore the previous craft position.
+    await tester.tap(find.text('Knitting'));
+    await tester.pumpAndSettle();
+    expect(position(knitting).pixels, closeTo(knittingOffset, 0.01));
+    await tester.tap(find.byTooltip('Back to top'));
+    await tester.pumpAndSettle();
+    expect(position(knitting).pixels, 0);
+    expect(find.byTooltip('Back to top'), findsNothing);
+    expect(tester.getTopLeft(find.byType(TabBar)), headerPosition);
 
-      expect(nested.outerController.offset, 0);
-      expect(nested.innerController.offset, 0);
-      expect(find.byTooltip('Back to top'), findsNothing);
-    },
-  );
+    await tester.tap(find.text('Crochet'));
+    await tester.pumpAndSettle();
+    expect(position(crochet).pixels, closeTo(crochetOffset, 0.01));
+    expect(find.byTooltip('Back to top'), findsOneWidget);
+
+    // Visit a distant tab and verify earlier crafts still retain their offsets.
+    final tabs = tester.widget<TabBar>(find.byType(TabBar));
+    tabs.controller!.animateTo(tabs.tabs.length - 1);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Knitting'));
+    await tester.pumpAndSettle();
+    expect(position(knitting).pixels, 0);
+    await tester.tap(find.text('Crochet'));
+    await tester.pumpAndSettle();
+    expect(position(crochet).pixels, closeTo(crochetOffset, 0.01));
+  });
+
+  testWidgets('returning to a craft keeps its loaded feed and deep offset', (
+    tester,
+  ) async {
+    final requests = <String, int>{};
+    final reload = Completer<PostPage>();
+    addTearDown(() {
+      if (!reload.isCompleted) reload.complete(const PostPage(items: []));
+    });
+    await _pumpProjects(
+      tester,
+      FakeProjectRepository(
+        onListProjects: ({required query, limit, cursor}) {
+          final craft = query.craftTypes.single;
+          final count = requests.update(craft, (n) => n + 1, ifAbsent: () => 1);
+          // A repeat request stays pending to expose loading-state scroll loss.
+          return count == 1
+              ? Future.value(PostPage(items: List.generate(30, _post)))
+              : reload.future;
+        },
+      ),
+    );
+    await tester.pumpAndSettle();
+    const knitting = ProjectOptionCatalogs.knittingCraftToken;
+    const listKey = PageStorageKey<String>('projects_tab_$knitting');
+    ScrollPosition position() => tester
+        .state<ScrollableState>(
+          find.descendant(
+            of: find.byKey(listKey),
+            matching: find.byWidgetPredicate(
+              (widget) =>
+                  widget is Scrollable &&
+                  widget.axisDirection == AxisDirection.down,
+            ),
+          ),
+        )
+        .position;
+    await tester.drag(find.byKey(listKey), const Offset(0, -1800));
+    await tester.pumpAndSettle();
+    final offset = position().pixels;
+    expect(offset, greaterThan(1000));
+
+    await tester.drag(find.byType(TabBarView), const Offset(-800, 0));
+    await tester.pumpAndSettle();
+    await tester.drag(find.byType(TabBarView), const Offset(800, 0));
+    await tester.pump(const Duration(milliseconds: 350));
+    await tester.pump();
+    expect(requests[knitting], 1);
+    expect(position().pixels, closeTo(offset, 0.01));
+    expect(find.byType(CraftskySkeletonSliverList), findsNothing);
+
+    final tabs = tester.widget<TabBar>(find.byType(TabBar));
+    tabs.controller!.animateTo(tabs.tabs.length - 1);
+    await tester.pumpAndSettle();
+    tabs.controller!.animateTo(0);
+    await tester.pumpAndSettle();
+    expect(requests[knitting], 1);
+    expect(position().pixels, closeTo(offset, 0.01));
+
+    // Retention ends when the Projects page is removed.
+    final context = tester.element(find.byType(ProjectsPage));
+    final container = ProviderScope.containerOf(context);
+    final feed = projectFeedProvider(
+      const ProjectBrowseQuery(craftTypes: [knitting]),
+    );
+    expect(container.exists(feed), isTrue);
+    Navigator.of(context).pushReplacement<void, void>(
+      MaterialPageRoute<void>(builder: (_) => const SizedBox()),
+    );
+    await tester.pumpAndSettle();
+    await tester.pump();
+    expect(container.exists(feed), isFalse);
+  });
+
+  testWidgets('back-to-top jumps immediately with reduced motion', (
+    tester,
+  ) async {
+    tester.platformDispatcher.accessibilityFeaturesTestValue =
+        const FakeAccessibilityFeatures(disableAnimations: true);
+    addTearDown(tester.platformDispatcher.clearAccessibilityFeaturesTestValue);
+    await _pumpProjects(
+      tester,
+      FakeProjectRepository(
+        onListProjects: ({required query, limit, cursor}) async =>
+            PostPage(items: List.generate(20, _post)),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.drag(
+      find.byType(CustomScrollView).first,
+      const Offset(0, -500),
+    );
+    await tester.pumpAndSettle();
+    final scrollable = tester.state<ScrollableState>(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is Scrollable && widget.axisDirection == AxisDirection.down,
+      ),
+    );
+    expect(scrollable.position.pixels, greaterThan(200));
+    await tester.tap(find.byTooltip('Back to top'));
+    expect(scrollable.position.pixels, 0);
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('Back to top'), findsNothing);
+  });
 
   testWidgets('applying a filter returns the project list to the top', (
     tester,
@@ -541,6 +691,102 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Project 0'), findsOneWidget);
+  });
+
+  testWidgets('each craft retains its own filters and clears independently', (
+    tester,
+  ) async {
+    final queries = <ProjectBrowseQuery>[];
+    await _pumpProjects(
+      tester,
+      FakeProjectRepository(
+        onListProjects: ({required query, limit, cursor}) async {
+          queries.add(query);
+          return PostPage(items: List.generate(20, _post));
+        },
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    Future<void> openFilters({required bool selected}) async {
+      await tester.tap(find.text('Filters'));
+      await tester.pumpAndSettle();
+      await tester.drag(find.byType(ListView).last, const Offset(0, -1000));
+      await tester.pumpAndSettle();
+      final checkbox = find.widgetWithText(CheckboxListTile, 'Self drafted');
+      await tester.ensureVisible(checkbox);
+      await tester.pumpAndSettle();
+      expect(tester.widget<CheckboxListTile>(checkbox).value, selected);
+    }
+
+    Future<void> applyFilters() async {
+      await tester.tap(find.widgetWithText(FilledButton, 'Apply filters'));
+      await tester.pumpAndSettle();
+    }
+
+    Future<void> toggleSelfDrafted() async {
+      await tester.tap(find.widgetWithText(CheckboxListTile, 'Self drafted'));
+      await tester.pump();
+      await applyFilters();
+    }
+
+    Future<void> switchTo(String label) async {
+      await tester.tap(find.text(label));
+      await tester.pumpAndSettle();
+    }
+
+    await openFilters(selected: false);
+    await toggleSelfDrafted();
+    expect(find.widgetWithText(InputChip, 'Self drafted'), findsOneWidget);
+    await switchTo('Crochet');
+    await openFilters(selected: false);
+    await toggleSelfDrafted();
+    final knittingRequests = queries
+        .where(
+          (query) =>
+              query.craftTypes.single ==
+              ProjectOptionCatalogs.knittingCraftToken,
+        )
+        .length;
+
+    await switchTo('Knitting');
+    await openFilters(selected: true);
+    await applyFilters();
+    expect(
+      queries
+          .where(
+            (query) =>
+                query.craftTypes.single ==
+                ProjectOptionCatalogs.knittingCraftToken,
+          )
+          .length,
+      knittingRequests,
+    );
+
+    // Removing a chip only changes the current craft.
+    tester
+        .widget<InputChip>(find.widgetWithText(InputChip, 'Self drafted'))
+        .onDeleted!();
+    await tester.pumpAndSettle();
+    expect(find.byType(InputChip), findsNothing);
+    await switchTo('Crochet');
+    await openFilters(selected: true);
+    await applyFilters();
+    await switchTo('Knitting');
+    await openFilters(selected: false);
+    await toggleSelfDrafted();
+
+    // Clear-all is scoped to the current craft too.
+    await switchTo('Crochet');
+    await tester.tap(find.widgetWithText(TextButton, 'Clear all'));
+    await tester.pumpAndSettle();
+    expect(find.byType(InputChip), findsNothing);
+    await switchTo('Knitting');
+    await openFilters(selected: true);
+    await applyFilters();
+    await switchTo('Crochet');
+    await openFilters(selected: false);
+    await applyFilters();
   });
 
   testWidgets('swiping craft tabs updates the filter sheet craft', (

@@ -1024,7 +1024,7 @@ abstract class AppLocalizations {
   /// **'Edit profile'**
   String get profileEditAction;
 
-  /// Label on the secondary action in a profile card, opens the full profile page.
+  /// Accessibility hint for opening the full profile page.
   ///
   /// In en, this message translates to:
   /// **'Visit profile'**
@@ -1846,6 +1846,18 @@ abstract class AppLocalizations {
   /// **'Add'**
   String get projectComposerMaterialsAddAction;
 
+  /// Tooltip for moving an existing material into the project composer input for editing.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit material'**
+  String get projectComposerMaterialsEditAction;
+
+  /// Tooltip explaining why material edit buttons are disabled while the material input contains text.
+  ///
+  /// In en, this message translates to:
+  /// **'Add or clear the current material first'**
+  String get projectComposerMaterialsEditBlockedHint;
+
   /// Validation error for a project composer material entry that is too long.
   ///
   /// In en, this message translates to:
@@ -1879,13 +1891,13 @@ abstract class AppLocalizations {
   /// Label for the project composer design-tags field.
   ///
   /// In en, this message translates to:
-  /// **'Design tags'**
+  /// **'Design'**
   String get projectComposerDesignTagsLabel;
 
   /// Placeholder text for searching known design-tag options in the project composer.
   ///
   /// In en, this message translates to:
-  /// **'Search design tags'**
+  /// **'Search designs'**
   String get projectComposerDesignTagsSearchHint;
 
   /// Action that reveals optional project pattern fields in the project composer.

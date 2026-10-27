@@ -3,7 +3,7 @@ import 'package:craftsky_app/auth/models/session_registry.dart';
 import 'package:craftsky_app/auth/widgets/account_switcher_content.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
-import 'package:craftsky_app/profile/widgets/profile_card.dart';
+import 'package:craftsky_app/profile/widgets/profile_identity.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -40,12 +40,9 @@ void main() {
               children: [
                 SizedBox(
                   height: 640,
-                  child: ProfileCard(
-                    profile: profile,
-                    isOwnProfile: true,
-                    onClose: () {},
-                    onVisitProfile: () {},
-                    onPrimaryAction: () {},
+                  child: ProfileIdentity(
+                    handle: profile.handle.toString(),
+                    displayName: profile.displayName,
                   ),
                 ),
                 SizedBox(

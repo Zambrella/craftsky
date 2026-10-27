@@ -12,6 +12,7 @@ import 'package:craftsky_app/languages/models/language_preferences.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
 import 'package:craftsky_app/notifications/data/notification_repository.dart';
 import 'package:craftsky_app/notifications/providers/notification_repository_provider.dart';
+import 'package:craftsky_app/profile/providers/profile_reselect_provider.dart';
 import 'package:craftsky_app/projects/widgets/project_composer_sheet.dart';
 import 'package:craftsky_app/router/app_shell.dart';
 import 'package:craftsky_app/settings/settings_links.dart';
@@ -42,6 +43,38 @@ void main() {
     'rail',
     'authenticated rail',
   ]) {
+    testWidgets('reselecting Profile from $surface requests the top', (
+      tester,
+    ) async {
+      final large = surface.contains('rail');
+      final router = await _pumpShell(
+        tester,
+        Size(large ? 1200 : 500, 800),
+        wrapInAuthenticatedShell: surface == 'authenticated rail',
+      );
+      router.go('/profile');
+      await tester.pumpAndSettle();
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(AppShell)),
+      );
+      final before = container.read(profileReselectProvider);
+      if (surface == 'drawer') {
+        await tester.tap(find.byTooltip('Open navigation menu'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.widgetWithText(ListTile, 'Profile'));
+      } else {
+        await tester.tap(
+          find.descendant(
+            of: find.byType(large ? NavigationRail : NavigationBar),
+            matching: find.text('Profile'),
+          ),
+        );
+      }
+      await tester.pumpAndSettle();
+      expect(router.state.matchedLocation, '/profile');
+      expect(container.read(profileReselectProvider), before + 1);
+    });
+
     testWidgets(
       'reselecting Home from $surface scrolls and refreshes the feed',
       (tester) async {
@@ -465,7 +498,7 @@ void main() {
     ('Saved', '/saved'),
     ('Scheduled', '/scheduled'),
     ('Drafts', '/drafts'),
-    ('Settings', '/profile/settings'),
+    ('Settings', '/settings'),
   ]) {
     testWidgets('CORR-005 compact drawer selects $label once', (tester) async {
       var navigations = 0;
@@ -498,7 +531,7 @@ void main() {
     ('Saved', '/saved'),
     ('Scheduled', '/scheduled'),
     ('Drafts', '/drafts'),
-    ('Settings', '/profile/settings'),
+    ('Settings', '/settings'),
   ]) {
     testWidgets('CORR-005 large rail selects $label once', (tester) async {
       var navigations = 0;
@@ -918,7 +951,7 @@ void main() {
     await tester.tap(find.text('Settings'));
     await tester.pumpAndSettle();
 
-    expect(router.state.matchedLocation, '/profile/settings');
+    expect(router.state.matchedLocation, '/settings');
     expect(tester.getRect(content).width, 800);
   });
 
@@ -1044,7 +1077,7 @@ void main() {
     await tester.tap(find.text('Settings'));
     await tester.pumpAndSettle();
 
-    expect(router.state.matchedLocation, '/profile/settings');
+    expect(router.state.matchedLocation, '/settings');
     expect(find.text('Settings'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
@@ -1114,9 +1147,19 @@ Future<GoRouter> _pumpShell(
               : shell;
         },
         branches: [
-          StatefulShellBranch(
-            routes: [
-              for (final path in ['/feed', '/saved', '/scheduled', '/drafts'])
+          for (final path in [
+            '/feed',
+            '/projects',
+            '/search',
+            '/notifications',
+            '/profile',
+            '/saved',
+            '/scheduled',
+            '/drafts',
+            '/settings',
+          ])
+            StatefulShellBranch(
+              routes: [
                 GoRoute(
                   path: path,
                   builder: (context, state) =>
@@ -1127,39 +1170,8 @@ Future<GoRouter> _pumpShell(
                           body: Text(path),
                         ),
                 ),
-            ],
-          ),
-          for (final path in ['/projects', '/search', '/notifications'])
-            StatefulShellBranch(
-              routes: [
-                GoRoute(
-                  path: path,
-                  builder: (context, state) => Scaffold(
-                    appBar: AppBar(leading: const AppShellDrawerButton()),
-                    body: Text(path),
-                  ),
-                ),
               ],
             ),
-          StatefulShellBranch(
-            routes: [
-              GoRoute(
-                path: '/profile',
-                builder: (context, state) => Scaffold(
-                  appBar: AppBar(leading: const AppShellDrawerButton()),
-                  body: const Text('/profile'),
-                ),
-                routes: [
-                  for (final path in ['settings'])
-                    GoRoute(
-                      path: path,
-                      builder: (context, state) =>
-                          Scaffold(body: Text('/profile/$path')),
-                    ),
-                ],
-              ),
-            ],
-          ),
         ],
       ),
     ],

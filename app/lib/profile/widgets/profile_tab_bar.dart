@@ -1,5 +1,6 @@
 import 'package:craftsky_app/business/models/business_profile.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
+import 'package:craftsky_app/profile/widgets/profile_entrance.dart';
 import 'package:craftsky_app/theme/craftsky_divider.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:material_ui/material_ui.dart';
@@ -108,10 +109,13 @@ class ProfileTabBarDelegate extends SliverPersistentHeaderDelegate {
     BuildContext context,
     double shrinkOffset,
     bool overlapsContent,
-  ) => ProfileTabBar(
-    tabs: tabs,
-    controller: controller,
-    projectsCountLabel: projectsCountLabel,
+  ) => ProfileEntranceFade(
+    stage: ProfileEntranceStage.tabs,
+    child: ProfileTabBar(
+      tabs: tabs,
+      controller: controller,
+      projectsCountLabel: projectsCountLabel,
+    ),
   );
 
   @override

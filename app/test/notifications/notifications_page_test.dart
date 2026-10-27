@@ -1381,7 +1381,7 @@ void main() {
               Scaffold(body: NotificationRow(notification: notification)),
         ),
         GoRoute(
-          path: '/profile/settings/moderation',
+          path: '/settings/moderation',
           builder: (_, _) {
             openedModeration = true;
             return const Scaffold(body: Text('Moderation case'));
@@ -1436,7 +1436,7 @@ void main() {
               Scaffold(body: NotificationRow(notification: notification)),
         ),
         GoRoute(
-          path: '/profile/settings/moderation',
+          path: '/settings/moderation',
           builder: (_, _) => const Scaffold(body: Text('Moderation case')),
         ),
       ],

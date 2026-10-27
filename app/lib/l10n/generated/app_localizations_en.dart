@@ -1026,6 +1026,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get projectComposerMaterialsAddAction => 'Add';
 
   @override
+  String get projectComposerMaterialsEditAction => 'Edit material';
+
+  @override
+  String get projectComposerMaterialsEditBlockedHint =>
+      'Add or clear the current material first';
+
+  @override
   String projectComposerMaterialsMaxLengthError(int max) {
     return 'Keep each material to $max characters or fewer.';
   }
@@ -1045,10 +1052,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get projectComposerColoursSearchHint => 'Search colours';
 
   @override
-  String get projectComposerDesignTagsLabel => 'Design tags';
+  String get projectComposerDesignTagsLabel => 'Design';
 
   @override
-  String get projectComposerDesignTagsSearchHint => 'Search design tags';
+  String get projectComposerDesignTagsSearchHint => 'Search designs';
 
   @override
   String get projectComposerAddPatternAction => 'Add pattern';
