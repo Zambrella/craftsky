@@ -4,7 +4,6 @@ import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/notifications/models/craftsky_notification.dart';
-import 'package:craftsky_app/notifications/models/notifications_state.dart';
 import 'package:craftsky_app/notifications/providers/notification_filter_provider.dart';
 import 'package:craftsky_app/notifications/providers/notification_seen_provider.dart';
 import 'package:craftsky_app/notifications/providers/notifications_provider.dart';
@@ -130,9 +129,9 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
     final loaded = owner == null
         ? ref.watch(notificationsProvider)
         : ref.watch(accountNotificationsProvider(owner.account));
-    final notifications = _waitingForSeen
-        ? const AsyncLoading<NotificationsState>()
-        : loaded;
+    // Keep the rendered rows (and their hero sources/scroll extent) mounted
+    // while the previous visit is acknowledged and the provider refreshes.
+    final notifications = loaded;
     final l10n = AppLocalizations.of(context);
     final category = ref.watch(notificationFilterProvider);
     return Scaffold(
@@ -170,6 +169,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                 renderToken: value.renderToken,
                 owner: value.owner,
                 onRendered: _rendered,
+                showNewness: !_waitingForSeen,
               ),
             _ when notifications.hasError && !notifications.isLoading =>
               _NotificationsErrorSliver(
@@ -206,9 +206,11 @@ class _NotificationsLoadedSlivers extends ConsumerWidget {
     required this.renderToken,
     required this.owner,
     required this.onRendered,
+    required this.showNewness,
   });
 
   final List<CraftskyNotification> items;
+  final bool showNewness;
   final bool hasMore;
   final bool isLoadingMore;
   final bool hasLoadMoreError;
@@ -248,10 +250,22 @@ class _NotificationsLoadedSlivers extends ConsumerWidget {
     }
     return SliverMainAxisGroup(
       slivers: [
-        SliverList.builder(
+        SliverList.separated(
           itemCount: items.length,
-          itemBuilder: (context, index) =>
-              NotificationRow(notification: items[index], owner: owner),
+          itemBuilder: (context, index) => NotificationRow(
+            notification: items[index],
+            owner: owner,
+            showNewness: showNewness,
+          ),
+          separatorBuilder: (context, index) => Divider(
+            height: 1,
+            thickness: .5,
+            indent: 16,
+            endIndent: 16,
+            color: Theme.of(context).colorScheme.outlineVariant.withValues(
+              alpha: .5,
+            ),
+          ),
         ),
         if (isLoadingMore || hasLoadMoreError || hasMore)
           SliverToBoxAdapter(

@@ -143,6 +143,16 @@
     "placeholders": { "actor": { "type": "String", "example": "Alice" } }
   },
 
+  "notificationPostContext": "↳ Your post: {context}",
+  "@notificationPostContext": {
+    "description": "Single-line parent post context above a new comment preview.",
+    "placeholders": { "context": { "type": "String" } }
+  },
+  "notificationReplyContext": "↳ You: “{context}”",
+  "@notificationReplyContext": {
+    "description": "Single-line immediate parent comment context above a new reply preview.",
+    "placeholders": { "context": { "type": "String" } }
+  },
   "notificationReplyRow": "{actor} commented on your post",
   "@notificationReplyRow": {
     "description": "Notification row title for a direct comment activity on the viewer's root post.",

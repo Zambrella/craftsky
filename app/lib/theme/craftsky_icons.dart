@@ -4,7 +4,8 @@ import 'package:phosphor_icons/phosphor_icons.dart';
 /// The semantic icon vocabulary used throughout CraftSky.
 ///
 /// Keep package-specific choices here so features describe meaning rather than
-/// a glyph style. Regular icons are the default; fill marks selected state.
+/// a glyph style. Regular icons are the default; fill marks selected state
+/// and event badges.
 abstract final class CraftskyIcons {
   static const IconData add = PhosphorIconsRegular.plus;
   static const IconData addAccount = PhosphorIconsRegular.userPlus;
@@ -196,4 +197,17 @@ abstract final class CraftskyIconsBold {
   static const IconData unmuted = PhosphorIconsBold.speakerHigh;
   static const IconData unsaved = PhosphorIconsBold.bookmark;
   static const IconData verifiedAccount = PhosphorIconsBold.sealCheck;
+}
+
+/// Filled glyphs for compact notification event badges.
+abstract final class CraftskyIconsFill {
+  static const IconData like = PhosphorIconsFill.heart;
+  static const IconData follow = PhosphorIconsFill.userPlus;
+  static const IconData comment = PhosphorIconsFill.chatCircle;
+  static const IconData mention = PhosphorIconsFill.at;
+  static const IconData quote = PhosphorIconsFill.quotes;
+  static const IconData repost = PhosphorIconsFill.repeat;
+  static const IconData findPeople = PhosphorIconsFill.userFocus;
+  static const IconData privacy = PhosphorIconsFill.shieldCheck;
+  static const IconData notification = PhosphorIconsFill.bellSimple;
 }

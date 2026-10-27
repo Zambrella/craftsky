@@ -17,6 +17,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../test_support/notification_text.dart';
+
 void main() {
   setUpAll(initializeMappers);
 
@@ -100,7 +102,7 @@ void main() {
 
       await tester.tap(find.text('Retry'));
       await tester.pumpAndSettle();
-      expect(find.text('Alice followed you'), findsOneWidget);
+      expect(notificationText('Alice followed you'), findsOneWidget);
       expect(newness.seenCalls, 0);
       expect(newness.countCalls, 0);
 
@@ -195,7 +197,7 @@ void main() {
       expect(highlight, findsNothing);
       seen.complete();
       await tester.pumpAndSettle();
-      expect(find.text('Alice followed you'), findsOneWidget);
+      expect(notificationText('Alice followed you'), findsOneWidget);
       expect(highlight, findsNothing);
       // A pushed detail route also ends the visit while the tab stays mounted.
       unawaited(router.push<void>('/detail'));

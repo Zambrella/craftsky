@@ -352,6 +352,18 @@ abstract class AppLocalizations {
   /// **'{actor} reposted your reply'**
   String notificationRepostReplyRow(String actor);
 
+  /// Single-line parent post context above a new comment preview.
+  ///
+  /// In en, this message translates to:
+  /// **'↳ Your post: {context}'**
+  String notificationPostContext(String context);
+
+  /// Single-line immediate parent comment context above a new reply preview.
+  ///
+  /// In en, this message translates to:
+  /// **'↳ You: “{context}”'**
+  String notificationReplyContext(String context);
+
   /// Notification row title for a direct comment activity on the viewer's root post.
   ///
   /// In en, this message translates to:

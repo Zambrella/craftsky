@@ -166,6 +166,7 @@ class PostSummary extends StatelessWidget {
     this.enableAuthorNavigation = false,
     this.onReveal,
     this.padding = const EdgeInsets.all(12),
+    this.maxTextLines = 4,
     super.key,
   });
 
@@ -175,6 +176,7 @@ class PostSummary extends StatelessWidget {
   final bool enableAuthorNavigation;
   final VoidCallback? onReveal;
   final EdgeInsetsGeometry padding;
+  final int maxTextLines;
 
   @override
   Widget build(BuildContext context) {
@@ -225,7 +227,11 @@ class PostSummary extends StatelessWidget {
                     data.externalImport != null ||
                     data.sponsored)
                   const SizedBox(height: 8),
-                Text(text, maxLines: 4, overflow: TextOverflow.ellipsis),
+                Text(
+                  text,
+                  maxLines: maxTextLines,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ],
               if (data.image case final image?) ...[
                 const SizedBox(height: 8),
