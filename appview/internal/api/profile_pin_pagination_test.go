@@ -6,13 +6,13 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"slices"
 	"testing"
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 
 	"social.craftsky/appview/internal/api"
-	"social.craftsky/appview/internal/languages"
 	"social.craftsky/appview/internal/ownerlifecycle"
 	"social.craftsky/appview/internal/testdb"
 )
@@ -256,43 +256,28 @@ func TestProfilePinPromotionRespectsAndRetainsViewerPolicy(t *testing.T) {
 	if _, err := pinStore.Pin(ctx, owner, owner, syntax.RecordKey("french-pin")); err != nil {
 		t.Fatalf("pin french post: %v", err)
 	}
-	preferences := &fakeLanguagePreferenceReader{preferences: languages.Preferences{
-		PrimaryLanguage:  "en",
-		ContentLanguages: []string{"en"},
-	}}
 	handler := api.ListPostsByAuthorHandler(
 		api.NewPostStore(pool),
 		fakeResolver{handlesByDID: map[string]syntax.Handle{"did:plc:alice": "alice.example"}},
 		nilLogger(),
 		pinStore,
-		preferences,
 	)
 
-	filtered := serveProfilePinPage(t, handler, "did:plc:alice", 2)
-	if got := postResponseURIs(filtered.Items); len(got) != 2 || got[0] != englishNewest || got[1] != englishOlder || filtered.HasPinnedPostURI {
-		t.Fatalf("language-filtered page = items:%v hasPinnedPostUri:%v", got, filtered.HasPinnedPostURI)
-	}
-	state, err := pinStore.Read(ctx, owner)
-	if err != nil || state.StandardPostURI == nil || state.StandardPostURI.String() != pinnedURI {
-		t.Fatalf("retained language-filtered state = %+v err=%v", state, err)
-	}
-
-	preferences.preferences.ContentLanguages = []string{"fr"}
-	restored := serveProfilePinPage(t, handler, "did:plc:alice", 2)
-	if len(restored.Items) != 1 || restored.Items[0].URI != pinnedURI || !restored.HasPinnedPostURI {
-		t.Fatalf("language-restored page = items:%v hasPinnedPostUri:%v", postResponseURIs(restored.Items), restored.HasPinnedPostURI)
+	page := serveProfilePinPage(t, handler, "did:plc:alice", 2)
+	if got := postResponseURIs(page.Items); len(got) != 2 || got[0] != pinnedURI || got[1] != englishNewest || !page.HasPinnedPostURI {
+		t.Fatalf("all-language page = items:%v hasPinnedPostUri:%v", got, page.HasPinnedPostURI)
 	}
 
 	seedModerationOutput(t, pool, "post", owner.String(), pinnedURI, "hide", base.Add(3*time.Minute))
 	moderated := serveProfilePinPage(t, handler, "did:plc:alice", 2)
-	if len(moderated.Items) != 0 || moderated.HasPinnedPostURI {
+	if got := postResponseURIs(moderated.Items); !slices.Equal(got, []string{englishNewest, englishOlder}) || moderated.HasPinnedPostURI {
 		t.Fatalf("moderated page = items:%v hasPinnedPostUri:%v", postResponseURIs(moderated.Items), moderated.HasPinnedPostURI)
 	}
 	if _, err := pool.Exec(ctx, `DELETE FROM moderation_outputs WHERE subject_uri = $1`, pinnedURI); err != nil {
 		t.Fatalf("reverse moderation: %v", err)
 	}
 	moderationRestored := serveProfilePinPage(t, handler, "did:plc:alice", 2)
-	if len(moderationRestored.Items) != 1 || moderationRestored.Items[0].URI != pinnedURI || !moderationRestored.HasPinnedPostURI {
+	if len(moderationRestored.Items) != 2 || moderationRestored.Items[0].URI != pinnedURI || !moderationRestored.HasPinnedPostURI {
 		t.Fatalf("moderation-restored page = items:%v hasPinnedPostUri:%v", postResponseURIs(moderationRestored.Items), moderationRestored.HasPinnedPostURI)
 	}
 
@@ -305,7 +290,7 @@ func TestProfilePinPromotionRespectsAndRetainsViewerPolicy(t *testing.T) {
 		t.Fatalf("reverse block: %v", err)
 	}
 	blockRestored := serveProfilePinPage(t, handler, "did:plc:alice", 2)
-	if len(blockRestored.Items) != 1 || blockRestored.Items[0].URI != pinnedURI || !blockRestored.HasPinnedPostURI {
+	if len(blockRestored.Items) != 2 || blockRestored.Items[0].URI != pinnedURI || !blockRestored.HasPinnedPostURI {
 		t.Fatalf("block-restored page = items:%v hasPinnedPostUri:%v", postResponseURIs(blockRestored.Items), blockRestored.HasPinnedPostURI)
 	}
 }
