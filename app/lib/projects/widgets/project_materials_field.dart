@@ -9,6 +9,7 @@ import 'package:craftsky_app/shared/rich_text/widgets/facet_autocomplete_editor.
 import 'package:craftsky_app/shared/rich_text/widgets/faceted_text.dart';
 import 'package:craftsky_app/shared/text/record_text_limits.dart';
 import 'package:craftsky_app/shared/widgets/action_progress.dart';
+import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter_form_builder/flutter_form_builder.dart';
@@ -93,8 +94,11 @@ class _MaterialsInputState extends ConsumerState<_MaterialsInput> {
   final _focusNode = FocusNode(debugLabel: 'projectMaterials');
   String? _errorText;
   ProjectMaterial? _editingMaterial;
+  bool _confirmingClose = false;
 
   bool get _canAdd => widget.enabled && _controller.text.trim().isNotEmpty;
+  bool get _hasPendingChanges =>
+      _controller.text != (_editingMaterial?.text ?? '');
 
   @override
   void initState() {
@@ -135,7 +139,8 @@ class _MaterialsInputState extends ConsumerState<_MaterialsInput> {
       _focusNode.requestFocus();
       return;
     }
-    if (widget.values.length >= _MaterialsInput.maxSelected) {
+    if (_editingMaterial == null &&
+        widget.values.length >= _MaterialsInput.maxSelected) {
       setState(() => _errorText = widget.maxSelectedErrorText);
       _focusNode.requestFocus();
       return;
@@ -151,14 +156,21 @@ class _MaterialsInputState extends ConsumerState<_MaterialsInput> {
           );
       if (!mounted) return;
 
-      widget.onChanged([
-        ...widget.values,
-        ProjectMaterial(
-          text: text,
-          facets: facets.isEmpty ? null : facets,
-          extraFields: _editingMaterial?.extraFields ?? const {},
-        ),
-      ]);
+      final material = ProjectMaterial(
+        text: text,
+        facets: facets.isEmpty ? null : facets,
+        extraFields: _editingMaterial?.extraFields ?? const {},
+      );
+      final values = List<ProjectMaterial>.from(widget.values);
+      final index = values.indexWhere(
+        (value) => identical(value, _editingMaterial),
+      );
+      if (index < 0) {
+        values.add(material);
+      } else {
+        values[index] = material;
+      }
+      widget.onChanged(values);
       _editingMaterial = null;
       _controller.clear();
       setState(() => _errorText = null);
@@ -183,71 +195,101 @@ class _MaterialsInputState extends ConsumerState<_MaterialsInput> {
       text: material.text,
       selection: TextSelection.collapsed(offset: material.text.length),
     );
-    _remove(material);
     _focusNode.requestFocus();
+  }
+
+  Future<void> _confirmClose() async {
+    if (_confirmingClose || _isAdding) return;
+    _confirmingClose = true;
+    try {
+      final l10n = AppLocalizations.of(context);
+      final discard = await showCraftskyConfirmDialog(
+        context,
+        title: l10n.projectComposerMaterialsDiscardTitle,
+        message: l10n.projectComposerMaterialsDiscardMessage,
+        confirmLabel: l10n.postComposeDiscardConfirm,
+        cancelLabel: l10n.postComposeDiscardCancel,
+      );
+      if (!mounted || !discard) return;
+      _editingMaterial = null;
+      _controller.clear();
+      await WidgetsBinding.instance.endOfFrame;
+      if (mounted) Navigator.of(context).pop();
+    } finally {
+      _confirmingClose = false;
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final spacing = theme.extension<SpacingTheme>()!;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        FacetAutocompleteEditor(
-          maxLength: RecordTextLimits.material.graphemes,
-          maxBytes: RecordTextLimits.material.bytes,
-          key: const Key('${ProjectComposerFields.materials}-custom-input'),
-          label: widget.label,
-          hintText: widget.inputHintText,
-          controller: _controller,
-          textCapitalization: TextCapitalization.words,
-          focusNode: _focusNode,
-          enabled: widget.enabled && !_isAdding,
-          errorText: _errorText,
-          betweenLabelAndField: widget.values.isEmpty
-              ? null
-              : _MaterialEntryList(
-                  values: widget.values,
-                  enabled: widget.enabled && !_isAdding,
-                  hasPendingText: _controller.text.isNotEmpty,
-                  onEdit: _edit,
-                  onRemove: _remove,
+    final visibleMaterials = widget.values
+        .where((material) => !identical(material, _editingMaterial))
+        .toList();
+    return PopScope(
+      canPop: !_hasPendingChanges && !_isAdding,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) unawaited(_confirmClose());
+      },
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          FacetAutocompleteEditor(
+            maxLength: RecordTextLimits.material.graphemes,
+            maxBytes: RecordTextLimits.material.bytes,
+            key: const Key('${ProjectComposerFields.materials}-custom-input'),
+            label: widget.label,
+            hintText: widget.inputHintText,
+            controller: _controller,
+            textCapitalization: TextCapitalization.words,
+            focusNode: _focusNode,
+            enabled: widget.enabled && !_isAdding,
+            errorText: _errorText,
+            betweenLabelAndField: visibleMaterials.isEmpty
+                ? null
+                : _MaterialEntryList(
+                    values: visibleMaterials,
+                    enabled: widget.enabled && !_isAdding,
+                    hasPendingText: _controller.text.isNotEmpty,
+                    onEdit: _edit,
+                    onRemove: _remove,
+                  ),
+            suffixIcon: Padding(
+              padding: const EdgeInsetsDirectional.only(end: 8),
+              child: TextButton(
+                key: const Key('${ProjectComposerFields.materials}-add-custom'),
+                style: TextButton.styleFrom(
+                  minimumSize: Size.zero,
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 ),
-          suffixIcon: Padding(
-            padding: const EdgeInsetsDirectional.only(end: 8),
-            child: TextButton(
-              key: const Key('${ProjectComposerFields.materials}-add-custom'),
-              style: TextButton.styleFrom(
-                minimumSize: Size.zero,
-                padding: const EdgeInsets.symmetric(horizontal: 8),
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              ),
-              onPressed: _canAdd && !_isAdding ? _addCurrent : null,
-              child: ActionProgress(
-                isLoading: _isAdding,
-                child: Text(widget.addButtonLabel),
+                onPressed: _canAdd && !_isAdding ? _addCurrent : null,
+                child: ActionProgress(
+                  isLoading: _isAdding,
+                  child: Text(widget.addButtonLabel),
+                ),
               ),
             ),
+            allowedTokenKinds: const {
+              ActiveFacetTokenKind.mention,
+              ActiveFacetTokenKind.hashtag,
+            },
+            textInputAction: TextInputAction.done,
+            onSubmitted: (_) => unawaited(_addCurrent()),
           ),
-          allowedTokenKinds: const {
-            ActiveFacetTokenKind.mention,
-            ActiveFacetTokenKind.hashtag,
-          },
-          textInputAction: TextInputAction.done,
-          onSubmitted: (_) => unawaited(_addCurrent()),
-        ),
-        if (!widget.enabled)
-          Padding(
-            padding: EdgeInsets.only(top: spacing.sp2),
-            child: Text(
-              widget.disabledText,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.outline,
+          if (!widget.enabled)
+            Padding(
+              padding: EdgeInsets.only(top: spacing.sp2),
+              child: Text(
+                widget.disabledText,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.outline,
+                ),
               ),
             ),
-          ),
-      ],
+        ],
+      ),
     );
   }
 }

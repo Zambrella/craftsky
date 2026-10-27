@@ -1033,6 +1033,14 @@ class AppLocalizationsEn extends AppLocalizations {
       'Add or clear the current material first';
 
   @override
+  String get projectComposerMaterialsDiscardTitle =>
+      'Discard material changes?';
+
+  @override
+  String get projectComposerMaterialsDiscardMessage =>
+      'Your current material input won\'t be saved. Materials you\'ve already added will be kept.';
+
+  @override
   String projectComposerMaterialsMaxLengthError(int max) {
     return 'Keep each material to $max characters or fewer.';
   }

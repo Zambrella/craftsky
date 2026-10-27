@@ -1858,6 +1858,18 @@ abstract class AppLocalizations {
   /// **'Add or clear the current material first'**
   String get projectComposerMaterialsEditBlockedHint;
 
+  /// Title when leaving project details with uncommitted material input.
+  ///
+  /// In en, this message translates to:
+  /// **'Discard material changes?'**
+  String get projectComposerMaterialsDiscardTitle;
+
+  /// Explains that discarding pending material input preserves committed material entries.
+  ///
+  /// In en, this message translates to:
+  /// **'Your current material input won\'t be saved. Materials you\'ve already added will be kept.'**
+  String get projectComposerMaterialsDiscardMessage;
+
   /// Validation error for a project composer material entry that is too long.
   ///
   /// In en, this message translates to:

@@ -1,6 +1,6 @@
 # TDD Implementation Plan: Edit Published Posts
 
-Status: Automated review corrections complete, 2026-10-27. IR-001/IR-002 are corrected and verified; IR-003 awaits the maintainer's manual results. A new implementation review has not been run.
+Status: IR-004 code correction and automated verification complete, 2026-10-27, ready for renewed implementation review. IR-001/IR-002 remain resolved; IR-003 awaits the maintainer's manual results. Overall manual acceptance is not complete.
 
 ## Inputs
 
@@ -542,3 +542,39 @@ Order follows the first occurrence of IDs in the approved coding-plan section 9.
 - Found a semantic interaction with main's new material editor: removing/re-adding an edited material lost `existingIndex`, preventing preservation of unknown server-side entry fields. The regression failed with expected `{'existingIndex': 0}`, actual `{}` (`/tmp/craftsky-edit-main-merge-material-red.log`). Retain the original material's metadata through editing and reset it after successful Add. Tests cover full text replacement and ensure a subsequent new entry has no inherited identity. Material/patch/composer regressions pass 30 tests (`/tmp/craftsky-edit-main-merge-material-final.log`). Test setup initially needed a pump before tapping the newly enabled Add control; that failed run is not passing evidence.
 - The first full-suite run was deliberately stopped when this semantic issue was found; it is not completion evidence. On the final merged code, full `fvm exec just app-test` passes **3,432 tests, 38 existing skips**, exit 0 (`/tmp/craftsky-edit-main-merge-full-final.log`). The earlier focused header/summary/editor/material/avatar-navigation run passed 182 tests before the material fix (`/tmp/craftsky-edit-main-merge-focused.log`).
 - Final Flutter analysis passes with no issues (`/tmp/craftsky-edit-main-merge-analysis-final.log`); formatting, whitespace and unresolved-index checks pass. No backend or Lexicon changes came from main, so backend suites were not rerun for this client merge. No new manual/browser/native-device or production evidence is claimed. MAN-001/MAN-002 still await the maintainer's results; this merge does not close IR-003 or constitute a new implementation review.
+
+### IR-004 correction pass, 2026-10-27
+
+- Input: renewed `06-implementation-review.md`, Changes required; maintainer selected Address required changes. Start from merged HEAD `947b7f24`; the review artifact is an existing uncommitted input and stays unchanged during implementation.
+- AT-002 / FR-003, FR-005, FR-010 / AC-003, AC-009, AC-013: first promote the actual-composer pending material → Back → Save reproduction to a permanent test. Keep committed entries until explicit Add/Remove; changed pending input must offer Keep editing or Discard before leaving. Unchanged input can leave without manufacturing an edit.
+- UT-002/UT-003 / FR-003, FR-005, FR-006 / AC-003, AC-009, AC-010: then cover unchanged exit, retained pending input through Keep editing/Add, explicit removal, cancellation and shared material-field behavior including a full list. Preserve source-entry identity and order when replacing a committed entry.
+- Verification: focused field/project/patch/editor and shared create/draft/schedule regressions, then complete Flutter tests and analysis. No backend/schema/auth/permission changes are planned. No commit, push or live service mutation is authorized. IR-003 remains pending the promised human results.
+
+#### AT-002 / IR-004: pending edit exit
+
+- RED: permanent actual-composer `AT-002 discarding a pending material edit preserves the published entry` failed because Back left without any pending-input confirmation (`/tmp/craftsky-edit-ir004-red.log`). The prior review reproduction separately proved the resulting `materials:null` patch.
+- GREEN: keep committed material values until Add, replace the original entry in place with its existing metadata, and guard changed material input on route exit with localized Keep editing/Discard confirmation. Discard leaves the original committed list intact. The same permanent regression passes (`/tmp/craftsky-edit-ir004-green.log`). No public write or schema behavior changes.
+- Nearby shared-field tests were checked before extending remaining cases. Updated their temporary removal/reordering assertions to reflect committed-value preservation; visible editing still moves the item into the input until Add.
+
+#### UT-002/UT-003/UT-006 / IR-004: adjacent committed/pending semantics
+
+- Existing shared-field tests initially failed because they expected Edit to remove the committed form entry and Add to append it. Updated those assertions to retain committed data and replace in place, preserving source identity and order. The visible item still moves into the input. Focused field/editor material checks pass (`/tmp/craftsky-edit-ir004-field-green.log`).
+- Permanent actual-composer cases pass individually: Keep editing preserves the pending text and explicit Add produces the retained-index text patch, including after reopening common details (`/tmp/craftsky-edit-ir004-keep.log`); untouched Edit → Back → Save emits an empty patch (`/tmp/craftsky-edit-ir004-noop.log`); explicit Remove still emits the intentional materials clear (`/tmp/craftsky-edit-ir004-remove.log`); discard pending input then close performs no write (`/tmp/craftsky-edit-ir004-cancel.log`). These checks extend the first behavior's green implementation rather than claim separate missing-behavior REDs.
+- Shared-field unchanged Add preserves the order and unknown extension fields (`/tmp/craftsky-edit-ir004-order.log`). Existing complete-text-replacement, next-new-entry identity isolation and full-capacity editing cases remain part of the focused regression run.
+- All source changes remain within the shared material field and its localized confirmation copy/accessors. No backend, schema, permissions, credentials, diagnostics or durable edit-draft behavior changes. Final broader verification is recorded below.
+
+- Broader project/published-editor/patch/draft/scheduled-post regression run passes **333 tests, 2 existing skips**, exit 0 (`/tmp/craftsky-edit-ir004-regressions.log`). First analysis found an import-order info; sorted the imports and final analysis passes **No issues**, exit 0 (`/tmp/craftsky-edit-ir004-analysis-final.log`). No behavioral source change followed the focused green results.
+- Complete repository `fvm exec just app-test` passes **3,438 tests, 38 existing skips**, exit 0 (`/tmp/craftsky-edit-ir004-full-flutter.log`, 3m48s). Includes required Rive host setup and all six added regression cases. Final source/test formatting check reports zero changes; `git diff --check` passes. No source changes followed the passing full run or clean final analysis.
+- No backend rerun is required for this client-only correction; earlier backend evidence is not relabeled as fresh. No actual assistive technology, native picker, browser interaction or live PDS check was performed. MAN-001/MAN-002 and IR-003 remain pending the maintainer's promised results; MAN-003 stays optional and unauthorized.
+
+#### IR-004 completion and handoff
+
+- [x] Permanent actual-composer RED reproduced before implementation.
+- [x] Original committed entry preserved until explicit Add/Remove; changed pending input remains recoverable through Keep editing or may be explicitly discarded.
+- [x] Actual editor tests cover discard/save, keep/Add/reopen/save, unchanged exit/no-op, explicit removal and cancellation/no write; shared field tests retain full-capacity, full-text replacement, identity isolation, order and extension-field coverage.
+- [x] Broader regressions, full Flutter suite, clean analysis, scoped formatting and whitespace checks passed.
+- [x] Implementation record updated; review artifact retained as the historical correction input.
+- [ ] Follow-up implementation review: offered as the next stage, not silently performed.
+- [ ] IR-003 manual results: still awaited, not waived or marked passed.
+
+IR-004 is implemented and ready for review, not self-approved by this execution record. `06-implementation-review.md` remains unchanged from the renewed review that requested this correction. Changes are uncommitted; no push, deployment, production action or live service mutation was performed.

@@ -881,6 +881,12 @@
   "projectComposerMaterialsEditBlockedHint": "Add or clear the current material first",
   "@projectComposerMaterialsEditBlockedHint": { "description": "Tooltip explaining why material edit buttons are disabled while the material input contains text." },
 
+  "projectComposerMaterialsDiscardTitle": "Discard material changes?",
+  "@projectComposerMaterialsDiscardTitle": { "description": "Title when leaving project details with uncommitted material input." },
+
+  "projectComposerMaterialsDiscardMessage": "Your current material input won't be saved. Materials you've already added will be kept.",
+  "@projectComposerMaterialsDiscardMessage": { "description": "Explains that discarding pending material input preserves committed material entries." },
+
   "projectComposerMaterialsMaxLengthError": "Keep each material to {max} characters or fewer.",
   "@projectComposerMaterialsMaxLengthError": {
     "description": "Validation error for a project composer material entry that is too long.",

@@ -44,6 +44,129 @@ import '../../test_support/session_registry_storage.dart';
 import '../fakes/fake_post_repository.dart';
 
 void main() {
+  testWidgets(
+    'AT-002 discarding a pending material edit preserves the published entry',
+    (tester) async {
+      PostEditChanges? saved;
+      await _pumpMaterialEditor(tester, onSave: (changes) => saved = changes);
+      await _openMaterialDetails(tester);
+      await tester.tap(find.byKey(const Key('materials-edit-Wool')));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(EditableText).first, 'Merino wool');
+      FocusManager.instance.primaryFocus?.unfocus();
+      await tester.pumpAndSettle();
+      await tester.tap(find.byType(BackButton).last);
+      await tester.pumpAndSettle();
+      expect(find.text('Discard material changes?'), findsOneWidget);
+      await tester.tap(find.text('Discard'));
+      await tester.pumpAndSettle();
+      await _save(tester);
+      expect(saved, isNotNull);
+      expect(saved!.toMap(), isEmpty);
+    },
+  );
+
+  testWidgets('AT-002 Keep editing retains pending material input until Add', (
+    tester,
+  ) async {
+    PostEditChanges? saved;
+    await _pumpMaterialEditor(tester, onSave: (changes) => saved = changes);
+    await _openMaterialDetails(tester);
+    await tester.tap(find.byKey(const Key('materials-edit-Wool')));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(EditableText).first, 'Merino wool');
+    FocusManager.instance.primaryFocus?.unfocus();
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(BackButton).last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Keep editing'));
+    await tester.pumpAndSettle();
+    expect(
+      tester
+          .widget<EditableText>(find.byType(EditableText).first)
+          .controller
+          .text,
+      'Merino wool',
+    );
+    await tester.tap(find.byKey(const Key('materials-add-custom')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(BackButton).last);
+    await tester.pumpAndSettle();
+    await _openMaterialDetails(tester);
+    expect(find.byKey(const Key('materials-edit-Merino wool')), findsOneWidget);
+    await tester.tap(find.byType(BackButton).last);
+    await tester.pumpAndSettle();
+    await _save(tester);
+    expect(saved!.toMap(), {
+      'project': {
+        'common': {
+          'materials': [
+            {'existingIndex': 0, 'text': 'Merino wool'},
+          ],
+        },
+      },
+    });
+  });
+
+  testWidgets(
+    'UT-003 leaving an unchanged material edit does not change the post',
+    (tester) async {
+      PostEditChanges? saved;
+      await _pumpMaterialEditor(tester, onSave: (changes) => saved = changes);
+      await _openMaterialDetails(tester);
+      await tester.tap(find.byKey(const Key('materials-edit-Wool')));
+      await tester.pumpAndSettle();
+      FocusManager.instance.primaryFocus?.unfocus();
+      await tester.pumpAndSettle();
+      await tester.tap(find.byType(BackButton).last);
+      await tester.pumpAndSettle();
+      expect(find.text('Discard material changes?'), findsNothing);
+      await _save(tester);
+      expect(saved!.toMap(), isEmpty);
+    },
+  );
+
+  testWidgets(
+    'UT-002 explicit material removal still clears the published entry',
+    (tester) async {
+      PostEditChanges? saved;
+      await _pumpMaterialEditor(tester, onSave: (changes) => saved = changes);
+      await _openMaterialDetails(tester);
+      await tester.tap(find.byKey(const Key('materials-remove-Wool')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byType(BackButton).last);
+      await tester.pumpAndSettle();
+      await _save(tester);
+      expect(saved!.toMap(), {
+        'project': {
+          'common': {'materials': null},
+        },
+      });
+    },
+  );
+
+  testWidgets(
+    'UT-006 cancelling after a discarded material edit performs no write',
+    (tester) async {
+      var writes = 0;
+      await _pumpMaterialEditor(tester, onSave: (_) => writes++);
+      await _openMaterialDetails(tester);
+      await tester.tap(find.byKey(const Key('materials-edit-Wool')));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(EditableText).first, 'Merino wool');
+      FocusManager.instance.primaryFocus?.unfocus();
+      await tester.pumpAndSettle();
+      await tester.tap(find.byType(BackButton).last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Discard'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byType(CloseButton).first);
+      await tester.pumpAndSettle();
+      expect(find.text('Open edit'), findsOneWidget);
+      expect(writes, 0);
+    },
+  );
+
   for (final project in [false, true]) {
     testWidgets('UT-002 published editor clears the final language '
         '(project=$project)', (tester) async {
@@ -834,6 +957,59 @@ void main() {
       expect(find.text('Original caption'), findsNothing);
     },
   );
+}
+
+Future<void> _pumpMaterialEditor(
+  WidgetTester tester, {
+  required ValueChanged<PostEditChanges> onSave,
+}) async {
+  final base = _seed(project: true);
+  final rawProject = Map<String, Object?>.from(
+    base.editable['project']! as Map,
+  );
+  final common = Map<String, Object?>.from(rawProject['common']! as Map);
+  common['materials'] = [
+    {'text': 'Wool', 'existingIndex': 0},
+  ];
+  rawProject['common'] = common;
+  final seed = PostEditSeed(
+    post: base.post,
+    baseCid: base.baseCid,
+    recordRevision: base.recordRevision,
+    editable: {...base.editable, 'project': rawProject},
+  );
+  await _pumpEditor(
+    tester,
+    FakePostRepository(
+      onFetchEdit: (did, key) async => seed,
+      onEdit:
+          (
+            did,
+            key, {
+            required changes,
+            required expectedCid,
+            required operationKey,
+          }) async {
+            onSave(changes);
+            return PostEditResult(
+              post: seed.post,
+              acceptedCid: seed.baseCid,
+              changed: false,
+              projectionPending: false,
+            );
+          },
+    ),
+    seed: seed,
+  );
+}
+
+Future<void> _openMaterialDetails(WidgetTester tester) async {
+  final details = find.byKey(
+    const Key('project-composer-common-details-action'),
+  );
+  await tester.ensureVisible(details);
+  await tester.tap(details);
+  await tester.pumpAndSettle();
 }
 
 PostEditSeed _seed({bool project = false}) {
