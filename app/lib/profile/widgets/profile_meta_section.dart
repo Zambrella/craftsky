@@ -119,7 +119,7 @@ class ProfileMetaSection extends StatelessWidget {
               stage: ProfileEntranceStage.bio,
               child: ProfileLinks(
                 links: profile.links,
-                isOwnProfile: isOwnProfile,
+                confirmExternal: confirmExternal,
                 launchExternal: launchExternal,
               ),
             ),

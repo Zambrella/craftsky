@@ -4756,10 +4756,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get profileLinkChecking => 'Checking link…';
 
   @override
-  String get profileLinkMoveEarlier => 'Move link earlier';
+  String get profileLinkMoveEarlier => 'Move up';
 
   @override
-  String get profileLinkMoveLater => 'Move link later';
+  String get profileLinkMoveLater => 'Move down';
 
   @override
   String get profileLinkRemove => 'Remove link';

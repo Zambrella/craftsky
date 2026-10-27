@@ -1,16 +1,78 @@
 import 'package:craftsky_app/l10n/app_localizations.dart';
+import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/models/profile_customisation.dart';
+import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/profile/widgets/profile_bio.dart';
 import 'package:craftsky_app/profile/widgets/profile_customisation_theme.dart';
+import 'package:craftsky_app/router/router.dart';
+import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/rich_text/providers/facet_action_providers.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/brand_colors.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
+
+import '../fakes/fake_profile_repository.dart';
 
 void main() {
   group('ProfileBio', () {
+    for (final handle in ['stashhubapp.com', 'craftsky.social']) {
+      testWidgets('bio mention @$handle resolves and opens its profile', (
+        tester,
+      ) async {
+        final requested = <String>[];
+        final repo = FakeProfileRepository(
+          onFetch: (identifier) async {
+            requested.add(identifier);
+            return Profile(
+              did: 'did:plc:mentioned',
+              handle: handle,
+              crafts: const [],
+            );
+          },
+        );
+        final router = GoRouter(
+          routes: [
+            GoRoute(
+              path: '/',
+              builder: (_, _) =>
+                  Scaffold(body: ProfileBio(description: '@$handle')),
+            ),
+            GoRoute(
+              path: '/profiles/@:handle',
+              redirect: (context, state) => ProfileAliasRoute(
+                handle: Handle.parse(state.pathParameters['handle']!),
+              ).redirect(context, state),
+            ),
+            GoRoute(
+              path: '/profiles/:did',
+              builder: (_, state) => Scaffold(
+                body: Text('profile:${state.pathParameters['did']}'),
+              ),
+            ),
+          ],
+        );
+        addTearDown(router.dispose);
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [profileRepositoryProvider.overrideWithValue(repo)],
+            child: MaterialApp.router(
+              theme: AppTheme.lightThemeData,
+              routerConfig: router,
+            ),
+          ),
+        );
+        expect(requested, isEmpty);
+        await tester.tap(find.text('@$handle'));
+        await tester.pumpAndSettle();
+        expect(requested, [handle]);
+        expect(find.text('profile:did:plc:mentioned'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      });
+    }
+
     testWidgets(
       'AT-005 detects and styles plain bio tokens with theme primary color',
       (

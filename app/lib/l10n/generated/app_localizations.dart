@@ -8388,13 +8388,13 @@ abstract class AppLocalizations {
   /// No description provided for @profileLinkMoveEarlier.
   ///
   /// In en, this message translates to:
-  /// **'Move link earlier'**
+  /// **'Move up'**
   String get profileLinkMoveEarlier;
 
   /// No description provided for @profileLinkMoveLater.
   ///
   /// In en, this message translates to:
-  /// **'Move link later'**
+  /// **'Move down'**
   String get profileLinkMoveLater;
 
   /// No description provided for @profileLinkRemove.

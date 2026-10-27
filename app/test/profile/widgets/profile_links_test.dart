@@ -59,7 +59,7 @@ void main() {
     },
   );
 
-  testWidgets('tap opens directly; long press previews the complete URL', (
+  testWidgets('tap confirms external link; cancel does not open it', (
     tester,
   ) async {
     Uri? opened;
@@ -78,16 +78,28 @@ void main() {
         ),
       ),
     );
+    final ink = tester.widget<InkWell>(
+      find.descendant(
+        of: find.byType(ProfileLinkPill),
+        matching: find.byType(InkWell),
+      ),
+    );
+    expect(ink.onLongPress, isNull);
     await tester.tap(find.text('Shop'));
-    await tester.pump();
-    expect(opened.toString(), link.url);
-    await tester.longPress(find.text('Shop'));
     await tester.pumpAndSettle();
+    expect(opened, isNull);
     expect(find.byType(CraftskyDialog), findsOneWidget);
+    expect(find.text('Open link?'), findsOneWidget);
+    expect(find.text('This will open outside CraftSky.'), findsOneWidget);
     expect(find.text(link.url), findsOneWidget);
-    expect(find.text('Copy link'), findsOneWidget);
+    expect(find.text('Copy link'), findsNothing);
     expect(find.text('Report link'), findsNothing);
-    opened = null;
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    expect(opened, isNull);
+    expect(find.byType(CraftskyDialog), findsNothing);
+    await tester.tap(find.text('Shop'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Open link'));
     await tester.pumpAndSettle();
     expect(opened.toString(), link.url);

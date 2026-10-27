@@ -30,7 +30,15 @@ class FacetActionHandler {
     try {
       switch (feature) {
         case MentionFacetFeature(:final did):
-          await UserProfileRoute(did: Did.parse(did)).push<void>(context);
+          if (did.isEmpty && visibleText.startsWith('@')) {
+            // Plain-text bios have handles but no persisted mention DIDs.
+            // The existing alias route resolves the current owner in AppView.
+            await ProfileAliasRoute(
+              handle: Handle.parse(visibleText.substring(1)),
+            ).push<void>(context);
+          } else {
+            await UserProfileRoute(did: Did.parse(did)).push<void>(context);
+          }
         case LinkFacetFeature(uri: final uriText):
           final uri = normalizeExternalLinkUri(uriText);
           if (uri == null) return;

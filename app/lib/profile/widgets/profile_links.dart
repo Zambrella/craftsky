@@ -1,36 +1,28 @@
-import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
 
-import 'package:craftsky_app/l10n/app_localizations.dart';
-import 'package:craftsky_app/moderation/widgets/report_flow.dart';
 import 'package:craftsky_app/profile/data/profile_link_policy.dart';
 import 'package:craftsky_app/profile/models/profile_link.dart';
 import 'package:craftsky_app/shared/link/external_link.dart';
-import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
-import 'package:craftsky_app/theme/chunky_button.dart';
-import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:material_ui/material_ui.dart';
 
-class ProfileLinks extends ConsumerStatefulWidget {
+class ProfileLinks extends StatefulWidget {
   const new({
     required this.links,
-    this.isOwnProfile = false,
+    this.confirmExternal = showOpenLinkDialog,
     this.launchExternal = launchExternalLink,
     super.key,
   });
   final List<ProfileLink> links;
-  final bool isOwnProfile;
+  final ExternalLinkConfirmer confirmExternal;
   final ExternalLinkLauncher launchExternal;
   @override
-  ConsumerState<ProfileLinks> createState() => _ProfileLinksState();
+  State<ProfileLinks> createState() => _ProfileLinksState();
 }
 
-class _ProfileLinksState extends ConsumerState<ProfileLinks> {
+class _ProfileLinksState extends State<ProfileLinks> {
   bool _expanded = false;
 
   @override
@@ -42,53 +34,11 @@ class _ProfileLinksState extends ConsumerState<ProfileLinks> {
   Future<void> _open(ProfileLink link) async {
     final uri = normalizeProfileLink(link.url);
     if (uri == null) return;
-    try {
-      if (!await widget.launchExternal(uri) && mounted) {
-        context.showError(AppLocalizations.of(context).profileLinkOpenFailed);
-      }
-    } on Object {
-      if (mounted) {
-        context.showError(AppLocalizations.of(context).profileLinkOpenFailed);
-      }
-    }
-  }
-
-  Future<void> _preview(ProfileLink link) async {
-    final l10n = AppLocalizations.of(context);
-    await showCraftskyModal<void>(
+    await confirmAndLaunchExternalLink(
       context,
-      builder: (context) => CraftskyDialog(
-        title: link.label,
-        body: SelectableText(link.url),
-        actions: [
-          TextButton.icon(
-            onPressed: () async {
-              await Clipboard.setData(ClipboardData(text: link.url));
-              if (context.mounted) Navigator.of(context).pop();
-            },
-            icon: const Icon(Icons.copy),
-            label: Text(l10n.profileLinkCopy),
-          ),
-          if (!widget.isOwnProfile && link.uri != null && link.cid != null)
-            TextButton.icon(
-              onPressed: () {
-                Navigator.of(context).pop();
-                unawaited(
-                  showProfileLinkReportSheet(this.context, ref, link.uri!),
-                );
-              },
-              icon: const Icon(Icons.flag_outlined),
-              label: Text(l10n.profileLinkReport),
-            ),
-          ChunkyButton(
-            onPressed: () {
-              Navigator.of(context).pop();
-              unawaited(_open(link));
-            },
-            child: Text(l10n.profileLinkOpen),
-          ),
-        ],
-      ),
+      uri: uri,
+      launchUrl: widget.launchExternal,
+      confirmOpenLink: widget.confirmExternal,
     );
   }
 
@@ -117,7 +67,6 @@ class _ProfileLinksState extends ConsumerState<ProfileLinks> {
                 child: ProfileLinkPill(
                   link: safe[i],
                   onTap: () => _open(safe[i]),
-                  onLongPress: () => _preview(safe[i]),
                 ),
               ),
             if (count < safe.length)
@@ -182,10 +131,9 @@ double profileLinkPillWidth(
 }
 
 class ProfileLinkPill extends StatelessWidget {
-  const new({required this.link, this.onTap, this.onLongPress, super.key});
+  const new({required this.link, this.onTap, super.key});
   final ProfileLink link;
   final VoidCallback? onTap;
-  final VoidCallback? onLongPress;
 
   @override
   Widget build(BuildContext context) {
@@ -193,8 +141,7 @@ class ProfileLinkPill extends StatelessWidget {
     final colors = Theme.of(context).colorScheme;
     return Tooltip(
       message: link.url,
-      // Long press belongs to drag-reordering or the destination dialog.
-      // Mouse hover still displays the URL without a competing recognizer.
+      // Show the destination on hover without adding a long-press action.
       triggerMode: TooltipTriggerMode.manual,
       child: Semantics(
         link: true,
@@ -206,7 +153,6 @@ class ProfileLinkPill extends StatelessWidget {
           borderRadius: BorderRadius.circular(24),
           child: InkWell(
             onTap: onTap,
-            onLongPress: onLongPress,
             borderRadius: BorderRadius.circular(24),
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),

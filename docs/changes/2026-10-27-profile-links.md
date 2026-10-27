@@ -17,8 +17,9 @@ image capability flow. The record itself retains Bluesky's 40-grapheme /
 320-byte title and 100,000-byte PNG/JPEG/WebP icon constraints.
 
 Public profiles show a two-line wrapping row with expandable overflow,
-recognized support-platform logos/green pills, direct opening, hover URL
-tooltips, and long-press destination/copy/report actions. Profile-link reports
+recognized support-platform logos/green pills and hover URL tooltips. Tapping
+a link uses the shared external-link confirmation modal; there is no separate
+long-press action. Profile-link reports
 use the existing private intake and case adjudication system. Operator previews
 show the captured link version without automatically fetching its destination
 or rendering its icon.
