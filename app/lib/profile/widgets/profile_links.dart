@@ -8,6 +8,8 @@ import 'package:craftsky_app/profile/data/profile_link_policy.dart';
 import 'package:craftsky_app/profile/models/profile_link.dart';
 import 'package:craftsky_app/shared/link/external_link.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
+import 'package:craftsky_app/theme/chunky_button.dart';
+import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -51,59 +53,41 @@ class _ProfileLinksState extends ConsumerState<ProfileLinks> {
     }
   }
 
-  void _preview(ProfileLink link) {
+  Future<void> _preview(ProfileLink link) async {
     final l10n = AppLocalizations.of(context);
-    showModalBottomSheet<void>(
-      context: context,
-      showDragHandle: true,
-      builder: (context) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                link.label,
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-              const SizedBox(height: 12),
-              SelectableText(link.url),
-              const SizedBox(height: 12),
-              TextButton.icon(
-                onPressed: () {
-                  Navigator.of(context).pop();
-                  unawaited(_open(link));
-                },
-                icon: const Icon(Icons.open_in_new),
-                label: Text(l10n.profileLinkOpen),
-              ),
-              if (!widget.isOwnProfile && link.uri != null && link.cid != null)
-                TextButton.icon(
-                  onPressed: () {
-                    Navigator.of(context).pop();
-                    unawaited(
-                      showProfileLinkReportSheet(
-                        this.context,
-                        ref,
-                        link.uri!,
-                      ),
-                    );
-                  },
-                  icon: const Icon(Icons.flag_outlined),
-                  label: Text(l10n.profileLinkReport),
-                ),
-              TextButton.icon(
-                onPressed: () async {
-                  await Clipboard.setData(ClipboardData(text: link.url));
-                  if (context.mounted) Navigator.of(context).pop();
-                },
-                icon: const Icon(Icons.copy),
-                label: Text(l10n.profileLinkCopy),
-              ),
-            ],
+    await showCraftskyModal<void>(
+      context,
+      builder: (context) => CraftskyDialog(
+        title: link.label,
+        body: SelectableText(link.url),
+        actions: [
+          TextButton.icon(
+            onPressed: () async {
+              await Clipboard.setData(ClipboardData(text: link.url));
+              if (context.mounted) Navigator.of(context).pop();
+            },
+            icon: const Icon(Icons.copy),
+            label: Text(l10n.profileLinkCopy),
           ),
-        ),
+          if (!widget.isOwnProfile && link.uri != null && link.cid != null)
+            TextButton.icon(
+              onPressed: () {
+                Navigator.of(context).pop();
+                unawaited(
+                  showProfileLinkReportSheet(this.context, ref, link.uri!),
+                );
+              },
+              icon: const Icon(Icons.flag_outlined),
+              label: Text(l10n.profileLinkReport),
+            ),
+          ChunkyButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              unawaited(_open(link));
+            },
+            child: Text(l10n.profileLinkOpen),
+          ),
+        ],
       ),
     );
   }
@@ -209,7 +193,7 @@ class ProfileLinkPill extends StatelessWidget {
     final colors = Theme.of(context).colorScheme;
     return Tooltip(
       message: link.url,
-      // Long press belongs to drag-reordering or the destination sheet.
+      // Long press belongs to drag-reordering or the destination dialog.
       // Mouse hover still displays the URL without a competing recognizer.
       triggerMode: TooltipTriggerMode.manual,
       child: Semantics(
@@ -241,7 +225,7 @@ class ProfileLinkPill extends StatelessWidget {
                     )
                   else if (link.icon case final String icon
                       when icon.isNotEmpty)
-                    _LinkIcon(url: icon)
+                    ProfileLinkIcon(url: icon)
                   else
                     const Icon(Icons.language, size: 18),
                   const SizedBox(width: 6),
@@ -275,8 +259,8 @@ class ProfileLinkPill extends StatelessWidget {
   }
 }
 
-class _LinkIcon extends StatelessWidget {
-  const new({required this.url});
+class ProfileLinkIcon extends StatelessWidget {
+  const new({required this.url, super.key});
   final String url;
   @override
   Widget build(BuildContext context) {

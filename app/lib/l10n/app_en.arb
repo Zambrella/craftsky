@@ -3593,7 +3593,7 @@
     }
   },
   "profileLinksTitle": "Links",
-  "profileLinksHelper": "Add up to 10 links. Press and hold to drag them into order. Changes are saved with your profile.",
+  "profileLinksHelper": "Add up to 10 links",
   "profileLinkAdd": "Add link",
   "profileLinkEdit": "Edit link",
   "profileLinkUrl": "URL",

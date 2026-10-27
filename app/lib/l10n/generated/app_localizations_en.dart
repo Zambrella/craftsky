@@ -4724,8 +4724,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get profileLinksTitle => 'Links';
 
   @override
-  String get profileLinksHelper =>
-      'Add up to 10 links. Press and hold to drag them into order. Changes are saved with your profile.';
+  String get profileLinksHelper => 'Add up to 10 links';
 
   @override
   String get profileLinkAdd => 'Add link';

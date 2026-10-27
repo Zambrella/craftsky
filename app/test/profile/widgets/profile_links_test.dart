@@ -5,6 +5,8 @@ import 'package:craftsky_app/profile/widgets/profile_links.dart';
 import 'package:craftsky_app/profile/widgets/profile_links_editor.dart';
 import 'package:craftsky_app/shared/api/providers/dio_provider.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
+import 'package:craftsky_app/theme/craftsky_context_menu.dart';
+import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -81,9 +83,15 @@ void main() {
     expect(opened.toString(), link.url);
     await tester.longPress(find.text('Shop'));
     await tester.pumpAndSettle();
+    expect(find.byType(CraftskyDialog), findsOneWidget);
     expect(find.text(link.url), findsOneWidget);
     expect(find.text('Copy link'), findsOneWidget);
     expect(find.text('Report link'), findsNothing);
+    opened = null;
+    await tester.tap(find.text('Open link'));
+    await tester.pumpAndSettle();
+    expect(opened.toString(), link.url);
+    expect(find.byType(CraftskyDialog), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
@@ -157,8 +165,17 @@ void main() {
           RegExp(r'^[234567abcdefghij][234567abcdefghijklmnopqrstuvwxyz]{12}$'),
         ),
       );
-      final firstPill = tester.getCenter(find.byType(ProfileLinkPill).first);
-      final lastPill = tester.getCenter(find.byType(ProfileLinkPill).last);
+      expect(find.text('Add up to 10 links'), findsOneWidget);
+      expect(find.byType(ProfileLinkPill), findsNothing);
+      await tester.tap(
+        find.byKey(ValueKey('profile-link-drag-${links.last.recordKey}')),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byType(TextField), findsNothing);
+      final firstPill = tester.getCenter(find.byType(ListTile).first);
+      final lastPill = tester.getCenter(
+        find.byKey(ValueKey('profile-link-drag-${links.last.recordKey}')),
+      );
       final drag = await tester.startGesture(lastPill);
       await tester.pump(const Duration(milliseconds: 600));
       await drag.moveTo(firstPill);
@@ -166,13 +183,19 @@ void main() {
       await drag.up();
       await tester.pumpAndSettle();
       expect(links.first.title, 'My website');
-      await tester.tap(find.byType(ProfileLinkPill).last);
+      await tester.tap(find.byType(ListTile).last);
+      await tester.pumpAndSettle();
+      expect(find.text('Remove link'), findsNothing);
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byType(CraftskyContextMenuButton).last);
       await tester.pumpAndSettle();
       await tester.tap(find.text('Remove link'));
       await tester.pumpAndSettle();
       expect(links.single.url, 'https://example.com/');
+      expect(find.byIcon(Icons.drag_handle), findsNothing);
       // Reopening uses the same local draft until the parent profile is saved.
-      await tester.tap(find.byType(ProfileLinkPill).first);
+      await tester.tap(find.byType(ListTile).first);
       await tester.pumpAndSettle();
       expect(
         find.widgetWithText(TextField, 'https://example.com/'),

@@ -115,10 +115,13 @@ class ProfileMetaSection extends StatelessWidget {
               !profile.blocking &&
               !profile.blockedBy) ...[
             SizedBox(height: spacing.sp3),
-            ProfileLinks(
-              links: profile.links,
-              isOwnProfile: isOwnProfile,
-              launchExternal: launchExternal,
+            ProfileEntranceFade(
+              stage: ProfileEntranceStage.bio,
+              child: ProfileLinks(
+                links: profile.links,
+                isOwnProfile: isOwnProfile,
+                launchExternal: launchExternal,
+              ),
             ),
           ],
         ],

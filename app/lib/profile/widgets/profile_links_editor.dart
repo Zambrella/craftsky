@@ -10,7 +10,10 @@ import 'package:craftsky_app/shared/api/providers/dio_provider.dart';
 import 'package:craftsky_app/shared/media/blob_api_client_provider.dart';
 import 'package:craftsky_app/shared/media/uploaded_image_blob.dart';
 import 'package:craftsky_app/theme/brand_text_field.dart';
+import 'package:craftsky_app/theme/craftsky_card.dart';
+import 'package:craftsky_app/theme/craftsky_context_menu.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -33,9 +36,6 @@ class ProfileLinksEditor extends StatelessWidget {
       builder: (_) => _LinkForm(
         link: link,
         others: links.where((other) => other != link).toList(),
-        onRemove: link == null
-            ? null
-            : () => onChanged([...links]..remove(link)),
       ),
     );
     if (result == null || !context.mounted) return;
@@ -68,83 +68,143 @@ class ProfileLinksEditor extends StatelessWidget {
         const SizedBox(height: 4),
         Text(l10n.profileLinksHelper),
         const SizedBox(height: 8),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
+        ReorderableListView(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          buildDefaultDragHandles: false,
+          proxyDecorator: (child, index, animation) =>
+              CraftskyCard(child: child),
+          onReorderItem: (from, to) {
+            if (enabled) _move(from, to);
+          },
           children: [
             for (var i = 0; i < links.length; i++)
-              DragTarget<ProfileLink>(
+              CallbackShortcuts(
                 key: ValueKey('profile-link-editor-${links[i].recordKey}'),
-                onWillAcceptWithDetails: (details) =>
-                    enabled && details.data != links[i],
-                onAcceptWithDetails: (details) =>
-                    _move(links.indexOf(details.data), i),
-                builder: (context, candidates, rejected) =>
-                    LongPressDraggable<ProfileLink>(
-                      data: links[i],
-                      maxSimultaneousDrags: enabled ? 1 : 0,
-                      feedback: Material(
-                        child: ProfileLinkPill(link: links[i]),
-                      ),
-                      child: CallbackShortcuts(
-                        bindings: enabled
-                            ? {
-                                const SingleActivator(
-                                  LogicalKeyboardKey.arrowLeft,
-                                  alt: true,
-                                ): () =>
-                                    _move(i, i - 1),
-                                const SingleActivator(
-                                  LogicalKeyboardKey.arrowRight,
-                                  alt: true,
-                                ): () =>
-                                    _move(i, i + 1),
-                              }
-                            : const {},
-                        child: Semantics(
-                          customSemanticsActions: enabled
-                              ? {
+                bindings: enabled
+                    ? {
+                        const SingleActivator(
+                          LogicalKeyboardKey.arrowUp,
+                          alt: true,
+                        ): () =>
+                            _move(i, i - 1),
+                        const SingleActivator(
+                          LogicalKeyboardKey.arrowDown,
+                          alt: true,
+                        ): () =>
+                            _move(i, i + 1),
+                      }
+                    : const {},
+                child: Semantics(
+                  customSemanticsActions: enabled
+                      ? {
+                          if (i > 0)
+                            CustomSemanticsAction(
+                              label: l10n.profileLinkMoveEarlier,
+                            ): () =>
+                                _move(i, i - 1),
+                          if (i + 1 < links.length)
+                            CustomSemanticsAction(
+                              label: l10n.profileLinkMoveLater,
+                            ): () =>
+                                _move(i, i + 1),
+                        }
+                      : null,
+                  child: ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    enabled: enabled,
+                    onTap: enabled ? () => _edit(context, links[i]) : null,
+                    leading: Padding(
+                      padding: const EdgeInsets.only(left: 8),
+                      child: links[i].icon != null
+                          ? ProfileLinkIcon(url: links[i].icon!)
+                          : const Icon(Icons.language, size: 18),
+                    ),
+                    title: Text(links[i].label),
+                    trailing: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      excludeFromSemantics: true,
+                      onTap: () {},
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          CraftskyContextMenuButton(
+                            enabled: enabled,
+                            tooltip: l10n.profileLinkEdit,
+                            groups: [
+                              CraftskyContextMenuGroup(
+                                items: [
+                                  CraftskyContextMenuItem(
+                                    text: l10n.profileLinkEdit,
+                                    icon: Icons.edit_outlined,
+                                    onPressed: () => _edit(context, links[i]),
+                                  ),
                                   if (i > 0)
-                                    CustomSemanticsAction(
-                                      label: l10n.profileLinkMoveEarlier,
-                                    ): () =>
-                                        _move(i, i - 1),
+                                    CraftskyContextMenuItem(
+                                      text: l10n.profileLinkMoveEarlier,
+                                      icon: CraftskyIcons.moveUp,
+                                      onPressed: () => _move(i, i - 1),
+                                    ),
                                   if (i + 1 < links.length)
-                                    CustomSemanticsAction(
-                                      label: l10n.profileLinkMoveLater,
-                                    ): () =>
-                                        _move(i, i + 1),
-                                }
-                              : null,
-                          child: ProfileLinkPill(
-                            link: links[i],
-                            onTap: enabled
-                                ? () => _edit(context, links[i])
-                                : null,
+                                    CraftskyContextMenuItem(
+                                      text: l10n.profileLinkMoveLater,
+                                      icon: CraftskyIcons.moveDown,
+                                      onPressed: () => _move(i, i + 1),
+                                    ),
+                                  CraftskyContextMenuItem(
+                                    text: l10n.profileLinkRemove,
+                                    icon: Icons.delete_outline,
+                                    style: CraftskyContextMenuItemStyle
+                                        .destructive,
+                                    onPressed: () =>
+                                        onChanged([...links]..removeAt(i)),
+                                  ),
+                                ],
+                              ),
+                            ],
                           ),
-                        ),
+                          if (links.length > 1)
+                            ReorderableDragStartListener(
+                              key: ValueKey(
+                                'profile-link-drag-${links[i].recordKey}',
+                              ),
+                              index: i,
+                              enabled: enabled,
+                              child: SizedBox(
+                                width: 48,
+                                height: 48,
+                                child: Icon(
+                                  Icons.drag_handle,
+                                  color: enabled
+                                      ? null
+                                      : Theme.of(context).disabledColor,
+                                ),
+                              ),
+                            ),
+                        ],
                       ),
                     ),
-              ),
-            if (links.length < maxProfileLinks)
-              ActionChip(
-                key: const Key('profile-link-add'),
-                avatar: const Icon(Icons.add, size: 18),
-                label: Text(l10n.profileLinkAdd),
-                onPressed: enabled ? () => _edit(context, null) : null,
+                  ),
+                ),
               ),
           ],
         ),
+        if (links.length < maxProfileLinks)
+          ActionChip(
+            key: const Key('profile-link-add'),
+            avatar: const Icon(Icons.add, size: 18),
+            label: Text(l10n.profileLinkAdd),
+            onPressed: enabled ? () => _edit(context, null) : null,
+          ),
       ],
     );
   }
 }
 
 class _LinkForm extends ConsumerStatefulWidget {
-  const new({required this.link, required this.others, this.onRemove});
+  const new({required this.link, required this.others});
   final ProfileLink? link;
   final List<ProfileLink> others;
-  final VoidCallback? onRemove;
   @override
   ConsumerState<_LinkForm> createState() => _LinkFormState();
 }
@@ -268,19 +328,6 @@ class _LinkFormState extends ConsumerState<_LinkForm> {
               maxBytes: 320,
               enabled: !_busy,
             ),
-            if (widget.onRemove != null) ...[
-              const SizedBox(height: 16),
-              TextButton.icon(
-                onPressed: _busy
-                    ? null
-                    : () {
-                        widget.onRemove!();
-                        Navigator.of(context).pop();
-                      },
-                icon: const Icon(Icons.delete_outline),
-                label: Text(l10n.profileLinkRemove),
-              ),
-            ],
             if (_unreachable) ...[
               const SizedBox(height: 16),
               Text(l10n.profileLinkUnreachable),

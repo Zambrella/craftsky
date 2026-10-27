@@ -7,6 +7,7 @@ import 'package:craftsky_app/profile/providers/profile_repository_provider.dart'
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/shared/messaging/scaffold_messenger_impl.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
+import 'package:craftsky_app/theme/craftsky_context_menu.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
@@ -71,7 +72,15 @@ void main() {
       await tester.enterText(find.byType(TextField).last, 'My website');
       await tester.tap(find.byKey(const Key('profile-link-save')));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Other'));
+      await tester.tap(
+        find.descendant(
+          of: find.ancestor(
+            of: find.text('Other'),
+            matching: find.byType(ListTile),
+          ),
+          matching: find.byType(CraftskyContextMenuButton),
+        ),
+      );
       await tester.pumpAndSettle();
       await tester.tap(find.text('Remove link'));
       await tester.pumpAndSettle();

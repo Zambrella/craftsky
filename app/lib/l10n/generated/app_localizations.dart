@@ -8328,7 +8328,7 @@ abstract class AppLocalizations {
   /// No description provided for @profileLinksHelper.
   ///
   /// In en, this message translates to:
-  /// **'Add up to 10 links. Press and hold to drag them into order. Changes are saved with your profile.'**
+  /// **'Add up to 10 links'**
   String get profileLinksHelper;
 
   /// No description provided for @profileLinkAdd.
