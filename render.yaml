@@ -255,7 +255,7 @@ projects:
               - key: SCHEDULED_POSTS_S3_REGION
                 value: eu-central-1
               - key: LINK_PREVIEWS_ENABLED
-                value: "false"
+                value: "true"
               - key: VIDEO_SERVICE_URL
                 value: https://video.bsky.app
               - key: VIDEO_PLAYLIST_URL_TEMPLATE
