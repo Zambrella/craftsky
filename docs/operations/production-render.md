@@ -421,6 +421,24 @@ complete it asynchronously. An eligible credential bound to an accepted account
 deletion remains available to its deletion worker. The user must sign in again.
 No PDS records or account membership are deleted.
 
+To require every existing account to sign in again, use the explicit bulk option:
+
+```sh
+/app/cli --env prod sessions revoke --all
+```
+
+`--all` cannot be combined with a DID. It snapshots all non-terminal account
+owners and runs the same logout-all flow for each, preserving the accepted
+account-deletion credential exception. Each account has its own transaction and
+30-second timeout. If one fails, the command attempts the remaining accounts,
+reports the successful count and failed DIDs, and exits unsuccessfully. Successful
+revocations remain effective; rerunning is supported. OAuth and push cleanup
+remain asynchronous.
+
+This is a one-time revocation, not a login block: accounts created after the
+snapshot or new sign-ins after an account is processed are not revoked by that
+run. Deploy the new OAuth scopes before using it for a permission rollout.
+
 The command requires database access and the normal environment configuration;
 it does not require a user's bearer token. Use it only for an explicitly
 authorized session revocation. Do not delete OAuth rows directly, because the

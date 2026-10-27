@@ -52,6 +52,64 @@ Future<void> showProfileReportSheet(
   );
 }
 
+Future<void> showProfileLinkReportSheet(
+  BuildContext context,
+  WidgetRef ref,
+  String uri,
+) {
+  final successMessage = AppLocalizations.of(context).reportSubmitSuccess;
+  ref.read(reportProfileLinkProvider.notifier).reset();
+  return responsiveModalNavigator(context).push<void>(
+    FullscreenModalRoute<void>(
+      builder: (_) => _ProfileLinkReportRouteBody(
+        parentContext: context,
+        successMessage: successMessage,
+        uri: uri,
+      ),
+    ),
+  );
+}
+
+class _ProfileLinkReportRouteBody extends ConsumerWidget {
+  const new({
+    required this.parentContext,
+    required this.successMessage,
+    required this.uri,
+  });
+  final BuildContext parentContext;
+  final String successMessage;
+  final String uri;
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final state = ref.watch(reportProfileLinkProvider);
+    ref.listen<AsyncValue<ReportResult?>>(reportProfileLinkProvider, (_, next) {
+      _handleAcceptedReport(
+        context: parentContext,
+        routeContext: context,
+        successMessage: successMessage,
+        reset: () => ref.read(reportProfileLinkProvider.notifier).reset(),
+        state: next,
+      );
+    });
+    return ReportSubjectSheet(
+      subjectType: ReportSubjectType.profileLink,
+      isSubmitting: state.isLoading,
+      submitError: state.hasError
+          ? AppLocalizations.of(context).reportSubmitError
+          : null,
+      onChanged: state.hasError
+          ? () => ref.read(reportProfileLinkProvider.notifier).reset()
+          : null,
+      onExternalRoute: ref.read(moderationMailLauncherProvider),
+      onSubmit: (submission) => unawaited(
+        ref
+            .read(reportProfileLinkProvider.notifier)
+            .submit(uri: uri, submission: submission),
+      ),
+    );
+  }
+}
+
 Future<void> showBusinessEventReportSheet(
   BuildContext context,
   WidgetRef ref, {

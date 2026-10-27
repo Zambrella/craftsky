@@ -52,6 +52,7 @@ const indexerWiringDDL = `
     created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE TABLE bluesky_profiles (
+ links JSONB NOT NULL DEFAULT '[]',
     did          TEXT        NOT NULL PRIMARY KEY,
     display_name TEXT,
     description  TEXT,

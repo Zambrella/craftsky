@@ -20,6 +20,7 @@ class ProfileMapper extends ClassMapperBase<Profile> {
         HandleMapper(),
         ProfileCustomisationMapper(),
       ]);
+      ProfileLinkMapper.ensureInitialized();
       ModerationMetadataMapper.ensureInitialized();
       AccountTypeMapper.ensureInitialized();
       BusinessProfileMapper.ensureInitialized();
@@ -48,6 +49,19 @@ class ProfileMapper extends ClassMapperBase<Profile> {
   static const Field<Profile, List<String>> _f$crafts = Field(
     'crafts',
     _$crafts,
+  );
+  static List<ProfileLink> _$links(Profile v) => v.links;
+  static const Field<Profile, List<ProfileLink>> _f$links = Field(
+    'links',
+    _$links,
+    opt: true,
+    def: const [],
+  );
+  static List<ProfileLink>? _$editableLinks(Profile v) => v.editableLinks;
+  static const Field<Profile, List<ProfileLink>> _f$editableLinks = Field(
+    'editableLinks',
+    _$editableLinks,
+    opt: true,
   );
   static String? _$displayName(Profile v) => v.displayName;
   static const Field<Profile, String> _f$displayName = Field(
@@ -194,6 +208,8 @@ class ProfileMapper extends ClassMapperBase<Profile> {
     #did: _f$did,
     #handle: _f$handle,
     #crafts: _f$crafts,
+    #links: _f$links,
+    #editableLinks: _f$editableLinks,
     #displayName: _f$displayName,
     #pronouns: _f$pronouns,
     #description: _f$description,
@@ -223,6 +239,8 @@ class ProfileMapper extends ClassMapperBase<Profile> {
       did: data.dec(_f$did),
       handle: data.dec(_f$handle),
       crafts: data.dec(_f$crafts),
+      links: data.dec(_f$links),
+      editableLinks: data.dec(_f$editableLinks),
       displayName: data.dec(_f$displayName),
       pronouns: data.dec(_f$pronouns),
       description: data.dec(_f$description),
@@ -306,6 +324,18 @@ extension ProfileValueCopy<$R, $Out> on ObjectCopyWith<$R, Profile, $Out> {
 abstract class ProfileCopyWith<$R, $In extends Profile, $Out>
     implements ClassCopyWith<$R, $In, $Out> {
   ListCopyWith<$R, String, ObjectCopyWith<$R, String, String>> get crafts;
+  ListCopyWith<
+    $R,
+    ProfileLink,
+    ProfileLinkCopyWith<$R, ProfileLink, ProfileLink>
+  >
+  get links;
+  ListCopyWith<
+    $R,
+    ProfileLink,
+    ProfileLinkCopyWith<$R, ProfileLink, ProfileLink>
+  >?
+  get editableLinks;
   ModerationMetadataCopyWith<$R, ModerationMetadata, ModerationMetadata>?
   get moderation;
   BusinessProfileCopyWith<$R, BusinessProfile, BusinessProfile>? get business;
@@ -313,6 +343,8 @@ abstract class ProfileCopyWith<$R, $In extends Profile, $Out>
     String? did,
     String? handle,
     List<String>? crafts,
+    List<ProfileLink>? links,
+    List<ProfileLink>? editableLinks,
     String? displayName,
     String? pronouns,
     String? description,
@@ -355,6 +387,30 @@ class _ProfileCopyWithImpl<$R, $Out>
         (v) => call(crafts: v),
       );
   @override
+  ListCopyWith<
+    $R,
+    ProfileLink,
+    ProfileLinkCopyWith<$R, ProfileLink, ProfileLink>
+  >
+  get links => ListCopyWith(
+    $value.links,
+    (v, t) => v.copyWith.$chain(t),
+    (v) => call(links: v),
+  );
+  @override
+  ListCopyWith<
+    $R,
+    ProfileLink,
+    ProfileLinkCopyWith<$R, ProfileLink, ProfileLink>
+  >?
+  get editableLinks => $value.editableLinks != null
+      ? ListCopyWith(
+          $value.editableLinks!,
+          (v, t) => v.copyWith.$chain(t),
+          (v) => call(editableLinks: v),
+        )
+      : null;
+  @override
   ModerationMetadataCopyWith<$R, ModerationMetadata, ModerationMetadata>?
   get moderation =>
       $value.moderation?.copyWith.$chain((v) => call(moderation: v));
@@ -366,6 +422,8 @@ class _ProfileCopyWithImpl<$R, $Out>
     String? did,
     String? handle,
     List<String>? crafts,
+    List<ProfileLink>? links,
+    Object? editableLinks = $none,
     Object? displayName = $none,
     Object? pronouns = $none,
     Object? description = $none,
@@ -393,6 +451,8 @@ class _ProfileCopyWithImpl<$R, $Out>
       if (did != null) #did: did,
       if (handle != null) #handle: handle,
       if (crafts != null) #crafts: crafts,
+      if (links != null) #links: links,
+      if (editableLinks != $none) #editableLinks: editableLinks,
       if (displayName != $none) #displayName: displayName,
       if (pronouns != $none) #pronouns: pronouns,
       if (description != $none) #description: description,
@@ -423,6 +483,8 @@ class _ProfileCopyWithImpl<$R, $Out>
     did: data.get(#did, or: $value.did),
     handle: data.get(#handle, or: $value.handle),
     crafts: data.get(#crafts, or: $value.crafts),
+    links: data.get(#links, or: $value.links),
+    editableLinks: data.get(#editableLinks, or: $value.editableLinks),
     displayName: data.get(#displayName, or: $value.displayName),
     pronouns: data.get(#pronouns, or: $value.pronouns),
     description: data.get(#description, or: $value.description),

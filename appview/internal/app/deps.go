@@ -592,6 +592,7 @@ func newTransactionalIndexerDispatcher(
 	}
 	transactional := index.NewTransactionalDispatcher()
 	blueskyIdx := index.NewBlueskyProfile(pool)
+	var profileLink index.TransactionalIndexer = index.NewBlueskyProfileLink()
 	profile := index.NewTransactionalCraftskyProfile(pool, logger, actorDeletion)
 	var post index.TransactionalIndexer = index.NewCraftskyPostWithVideoPolicy(pool, logger, videoEnabled, lifecycle)
 	like := index.NewCraftskyLike(pool, logger, lifecycle)
@@ -602,6 +603,7 @@ func newTransactionalIndexerDispatcher(
 	var businessEvent index.TransactionalIndexer = index.NewCraftskyBusinessEvent()
 	if imageScanKey.ScannerID != "" && imageScanKey.PolicyVersion != "" && imageScanKey.CorpusVersion != "" {
 		blueskyIdx = index.NewImageSafetyBlueskyProfile(pool, imageScanKey)
+		profileLink = index.NewImageSafetyBlueskyProfileLink(profileLink, imageScanKey)
 		post = index.NewImageSafetyCraftskyPost(post, imageScanKey)
 		businessProfile = index.NewImageSafetyCraftskyBusinessProfile(businessProfile, imageScanKey)
 		businessEvent = index.NewImageSafetyCraftskyBusinessEvent(businessEvent, imageScanKey)
@@ -617,6 +619,7 @@ func newTransactionalIndexerDispatcher(
 		{collection: "social.craftsky.business.profile", indexer: businessProfile},
 		{collection: "social.craftsky.business.event", indexer: businessEvent},
 		{collection: "app.bsky.actor.profile", indexer: blueskyIdx},
+		{collection: "app.bsky.actor.link", indexer: profileLink},
 		{collection: "app.bsky.graph.follow", indexer: follow},
 		{collection: "app.bsky.graph.block", indexer: block},
 	}

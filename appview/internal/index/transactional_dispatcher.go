@@ -398,6 +398,8 @@ func validateProjectionRecord(event tap.Event) error {
 		return validateInteractionRecord(event.Record, decodeCraftskyLike)
 	case craftskyRepostNSID:
 		return validateInteractionRecord(event.Record, decodeCraftskyRepost)
+	case "app.bsky.actor.link":
+		return lexiconschema.ValidateCraftskyRecord(event.Record, event.Collection.String())
 	case blueskyProfileNSID:
 		var record blueskyProfileRecord
 		return json.Unmarshal(event.Record, &record)

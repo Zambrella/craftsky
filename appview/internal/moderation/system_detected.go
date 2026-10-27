@@ -50,10 +50,12 @@ func (store *Store) ConfirmSystemDetection(ctx context.Context, command ConfirmS
 		switch kind {
 		case "profile", "business_profile":
 			subjectType = SubjectAccount
+		case "profile_link":
+			subjectType = SubjectProfileLink
 		case "business_event":
 			subjectType = SubjectEvent
 		}
-		if subjectType != SubjectPost && subjectType != SubjectEvent && subjectType != SubjectAccount {
+		if subjectType != SubjectPost && subjectType != SubjectEvent && subjectType != SubjectAccount && subjectType != SubjectProfileLink {
 			return ErrInvalidCommand
 		}
 		parts := strings.Split(command.SubjectURI.String(), "/")

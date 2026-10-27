@@ -34,9 +34,10 @@ type ModerationAction string
 type ModerationSourceAuthority string
 
 const (
-	ModerationSubjectPost    ModerationSubjectType = "post"
-	ModerationSubjectAccount ModerationSubjectType = "account"
-	ModerationSubjectEvent   ModerationSubjectType = "event"
+	ModerationSubjectPost        ModerationSubjectType = "post"
+	ModerationSubjectAccount     ModerationSubjectType = "account"
+	ModerationSubjectEvent       ModerationSubjectType = "event"
+	ModerationSubjectProfileLink ModerationSubjectType = "profileLink"
 
 	ModerationValueHide     ModerationValue = "hide"
 	ModerationValueTakedown ModerationValue = "takedown"

@@ -1,6 +1,7 @@
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
+import 'package:craftsky_app/profile/models/profile_link.dart';
 import 'package:craftsky_app/profile/pages/edit_profile_dialog.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
@@ -22,6 +23,70 @@ final _seedProfile = Profile(
 );
 
 void main() {
+  testWidgets(
+    'profile save and reopen retains edited links and explicit removals',
+    (tester) async {
+      const first = ProfileLink(
+        url: 'https://example.com/',
+        title: 'Website',
+        uri: 'at://did:plc:test/app.bsky.actor.link/3m5abc2345672',
+        cid: 'first-cid',
+        createdAt: '2026-10-27T12:00:00Z',
+      );
+      const second = ProfileLink(
+        url: 'https://other.example/',
+        title: 'Other',
+        uri: 'at://did:plc:test/app.bsky.actor.link/3m5abc2345673',
+        cid: 'second-cid',
+        createdAt: '2026-10-27T12:00:00Z',
+      );
+      var stored = _seedProfile.copyWith(
+        links: const [first, second],
+        editableLinks: const [first, second],
+      );
+      late final FakeProfileRepository repo;
+      repo = FakeProfileRepository(
+        onFetch: (_) async => stored,
+        onUpdateMe:
+            ({
+              displayName,
+              pronouns,
+              description,
+              crafts,
+              avatar,
+              clearAvatar = false,
+              banner,
+              clearBanner = false,
+            }) async {
+              return stored = stored.copyWith(
+                links: repo.lastUpdatedLinks,
+                editableLinks: repo.lastUpdatedLinks,
+              );
+            },
+      );
+      await _pumpEditDialog(tester, repo: repo);
+      await tester.ensureVisible(find.text('Website'));
+      await tester.tap(find.text('Website'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField).last, 'My website');
+      await tester.tap(find.byKey(const Key('profile-link-save')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Other'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Remove link'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(TextButton, 'Save'));
+      await tester.pumpAndSettle();
+      expect(repo.lastUpdatedLinks!.single.title, 'My website');
+      expect(repo.lastRemovedLinks!.single.uri, second.uri);
+      await tester.tap(find.text('Open'));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(find.text('My website'));
+      expect(find.text('My website'), findsOneWidget);
+      expect(find.text('Other'), findsNothing);
+      expect(tester.takeException(), isNull);
+    },
+  );
   group('EditProfileDialog plain bio', () {
     testWidgets(
       'AT-004 saves description as plain text and shows no autocomplete',

@@ -113,6 +113,7 @@ flutter:
     - assets/animations/
     - assets/design/icons/
     - assets/profile_backgrounds/
+    - assets/profile-link-providers/
     - assets/fonts/Outfit-OFL.txt
     - assets/fonts/DMSerifDisplay-OFL.txt
   fonts:

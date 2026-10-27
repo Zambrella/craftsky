@@ -13,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"social.craftsky/appview/internal/imagesafety"
+	"social.craftsky/appview/internal/profilelinks"
 	"social.craftsky/appview/internal/tap"
 )
 
@@ -48,11 +49,12 @@ type blueskyBlobRef struct {
 }
 
 type blueskyProfileRecord struct {
-	DisplayName *string         `json:"displayName,omitempty"`
-	Description *string         `json:"description,omitempty"`
-	Pronouns    *string         `json:"pronouns,omitempty"`
-	Avatar      *blueskyBlobRef `json:"avatar,omitempty"`
-	Banner      *blueskyBlobRef `json:"banner,omitempty"`
+	Links       []profilelinks.StrongRef `json:"links,omitempty"`
+	DisplayName *string                  `json:"displayName,omitempty"`
+	Description *string                  `json:"description,omitempty"`
+	Pronouns    *string                  `json:"pronouns,omitempty"`
+	Avatar      *blueskyBlobRef          `json:"avatar,omitempty"`
+	Banner      *blueskyBlobRef          `json:"banner,omitempty"`
 }
 
 func (b *BlueskyProfile) Handle(ctx context.Context, ev tap.Event) error {
@@ -69,11 +71,15 @@ func (b *BlueskyProfile) Handle(ctx context.Context, ev tap.Event) error {
 		if err := json.Unmarshal(ev.Record, &rec); err != nil {
 			return fmt.Errorf("unmarshal %s: %w", ev.URI, err)
 		}
+		links, err := profileLinkRefsJSON(rec.Links)
+		if err != nil {
+			return err
+		}
 		const q = `
 			INSERT INTO bluesky_profiles
 				(did, display_name, description, pronouns,
-				 avatar_cid, avatar_mime, banner_cid, banner_mime, record_cid)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+				 avatar_cid, avatar_mime, banner_cid, banner_mime, record_cid, links)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 			ON CONFLICT (did) DO UPDATE SET
 				display_name = EXCLUDED.display_name,
 				description  = EXCLUDED.description,
@@ -83,6 +89,7 @@ func (b *BlueskyProfile) Handle(ctx context.Context, ev tap.Event) error {
 				banner_cid   = EXCLUDED.banner_cid,
 				banner_mime  = EXCLUDED.banner_mime,
 				record_cid   = EXCLUDED.record_cid,
+ links = EXCLUDED.links,
 				indexed_at   = now()
 			WHERE bluesky_profiles.record_cid IS DISTINCT FROM EXCLUDED.record_cid
 		`
@@ -100,7 +107,7 @@ func (b *BlueskyProfile) Handle(ctx context.Context, ev tap.Event) error {
 		}
 		if _, err := b.database().Exec(ctx, q,
 			ev.DID, rec.DisplayName, rec.Description, rec.Pronouns,
-			avatarCID, avatarMime, bannerCID, bannerMime, ev.CID); err != nil {
+			avatarCID, avatarMime, bannerCID, bannerMime, ev.CID, links); err != nil {
 			return fmt.Errorf("upsert %s: %w", ev.URI, err)
 		}
 		return nil
@@ -131,17 +138,28 @@ func (b *BlueskyProfile) handleWithImageSafety(ctx context.Context, ev tap.Event
 		if err := json.Unmarshal(ev.Record, &record); err != nil {
 			return fmt.Errorf("unmarshal %s: %w", ev.URI, err)
 		}
+		var refs struct {
+			Links []profilelinks.StrongRef `json:"links"`
+		}
+		if err := json.Unmarshal(ev.Record, &refs); err != nil {
+			return err
+		}
+		links, err := profileLinkRefsJSON(refs.Links)
+		if err != nil {
+			return err
+		}
 		if _, err := tx.Exec(ctx, `
-			INSERT INTO bluesky_profiles(did,display_name,description,pronouns,record_cid)
-			VALUES($1,$2,$3,$4,$5)
+			INSERT INTO bluesky_profiles(did,display_name,description,pronouns,record_cid,links)
+			VALUES($1,$2,$3,$4,$5,$6)
 			ON CONFLICT(did) DO UPDATE SET
 				display_name=EXCLUDED.display_name,
 				description=EXCLUDED.description,
 				pronouns=EXCLUDED.pronouns,
 				record_cid=EXCLUDED.record_cid,
+ links=EXCLUDED.links,
 				indexed_at=now()
 			WHERE bluesky_profiles.record_cid IS DISTINCT FROM EXCLUDED.record_cid
-		`, ev.DID, record.DisplayName, record.Description, record.Pronouns, ev.CID); err != nil {
+		`, ev.DID, record.DisplayName, record.Description, record.Pronouns, ev.CID, links); err != nil {
 			return fmt.Errorf("upsert safe profile fields %s: %w", ev.URI, err)
 		}
 		if err := b.reconcileProfileImage(ctx, tx, ev, "avatar", record.Avatar); err != nil {
@@ -245,4 +263,11 @@ func (b *BlueskyProfile) database() transactionalDatabase {
 		return b.projectionDB
 	}
 	return b.pool
+}
+
+func profileLinkRefsJSON(refs []profilelinks.StrongRef) ([]byte, error) {
+	if refs == nil {
+		refs = []profilelinks.StrongRef{}
+	}
+	return json.Marshal(refs)
 }

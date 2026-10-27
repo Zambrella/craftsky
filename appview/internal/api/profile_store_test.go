@@ -28,6 +28,7 @@ CREATE TABLE craftsky_profiles (
     created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE TABLE bluesky_profiles (
+ links JSONB NOT NULL DEFAULT '[]',
     did          TEXT        NOT NULL PRIMARY KEY,
     display_name TEXT,
     description  TEXT,
@@ -39,6 +40,8 @@ CREATE TABLE bluesky_profiles (
     record_cid   TEXT        NOT NULL,
     indexed_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+CREATE TABLE bluesky_profile_links (uri TEXT PRIMARY KEY,did TEXT NOT NULL,cid TEXT NOT NULL,record JSONB NOT NULL,indexed_at TIMESTAMPTZ DEFAULT now());
+CREATE TABLE image_subject_states (subject_uri TEXT PRIMARY KEY,visibility_state TEXT NOT NULL);
 CREATE TABLE tap_source_records (
     uri        TEXT PRIMARY KEY,
     rkey       TEXT        NOT NULL,

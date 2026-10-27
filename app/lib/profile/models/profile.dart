@@ -1,6 +1,7 @@
 import 'package:craftsky_app/business/models/business_profile.dart';
 import 'package:craftsky_app/moderation/models/moderation_metadata.dart';
 import 'package:craftsky_app/profile/models/profile_customisation.dart';
+import 'package:craftsky_app/profile/models/profile_link.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:dart_mappable/dart_mappable.dart';
 
@@ -24,6 +25,8 @@ class Profile with ProfileMappable {
     required String did,
     required String handle,
     required this.crafts,
+    this.links = const [],
+    this.editableLinks,
     this.displayName,
     this.pronouns,
     this.description,
@@ -57,6 +60,9 @@ class Profile with ProfileMappable {
   final String? avatar;
   final String? banner;
   final List<String> crafts;
+  final List<ProfileLink> links;
+  final List<ProfileLink>? editableLinks;
+  List<ProfileLink> get editingLinks => editableLinks ?? links;
   final DateTime? createdAt;
   final bool viewerIsFollowing;
   final bool muted;

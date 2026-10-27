@@ -82,7 +82,7 @@ func canonicalSubjectKey(report AcceptedReport) (string, error) {
 			return "", ErrInvalidAcceptedReport
 		}
 		return "account:" + report.SubjectDID.String(), nil
-	case SubjectPost, SubjectEvent:
+	case SubjectPost, SubjectEvent, SubjectProfileLink:
 		if report.SubjectCollection == "" || report.SubjectRkey == "" || report.SubjectURI == "" {
 			return "", ErrInvalidAcceptedReport
 		}

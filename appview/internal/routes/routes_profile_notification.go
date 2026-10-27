@@ -49,6 +49,7 @@ func registerProfileRelationshipRoutes(routes profileRelationshipRouteBundle) {
 	routes.mux.Handle("DELETE /v1/profiles/{handleOrDid}/blocks", routes.middleware.wrap(mustPolicy("DELETE", "/v1/profiles/{handleOrDid}/blocks"), api.CommandUnblockProfileHandler(routes.relationshipStore, routes.authoritativeResolver, routes.pdsCommands, routes.relationshipMutations, routes.logger)))
 	routes.mux.Handle("GET /v1/profiles/me/mutes", routes.middleware.wrap(mustPolicy("GET", "/v1/profiles/me/mutes"), api.ListMutedProfilesHandler(routes.relationshipStore, routes.handleResolver, routes.logger)))
 	routes.mux.Handle("GET /v1/profiles/me/blocks", routes.middleware.wrap(mustPolicy("GET", "/v1/profiles/me/blocks"), api.ListBlockedProfilesHandler(routes.relationshipStore, routes.handleResolver, routes.logger)))
+	routes.mux.Handle("POST /v1/profile-links/{did}/{rkey}/reports", routes.middleware.wrap(mustPolicy("POST", "/v1/profile-links/{did}/{rkey}/reports"), api.ReportProfileLinkHandler(routes.profileStore, routes.reportStore, routes.reportForwarder, routes.logger)))
 	routes.mux.Handle("POST /v1/profiles/{handleOrDid}/reports", routes.middleware.wrap(mustPolicy("POST", "/v1/profiles/{handleOrDid}/reports"), api.ReportProfileHandler(api.NewProfileReportTargetResolver(routes.profileStore, routes.authoritativeResolver), routes.reportStore, routes.reportForwarder, routes.logger)))
 }
 

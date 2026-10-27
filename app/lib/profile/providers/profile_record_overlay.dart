@@ -32,6 +32,16 @@ Map<String, Object?> personalBlueskyProfileControlledContent(Profile profile) =>
       'displayName': profile.displayName,
       'pronouns': profile.pronouns,
       'description': profile.description,
+      'links': profile.links
+          .map(
+            (link) => {
+              'url': link.url,
+              'title': link.title,
+              'uri': link.uri,
+              'cid': link.cid,
+            },
+          )
+          .toList(),
       'avatar': profile.avatar,
       'banner': profile.banner,
     };
@@ -80,6 +90,8 @@ final class AcceptedPersonalProfile {
     displayName: profile.displayName,
     pronouns: profile.pronouns,
     description: profile.description,
+    links: profile.links,
+    editableLinks: profile.editableLinks,
     crafts: profile.crafts,
     avatar: clearAvatar ? null : authoritative.avatar,
     banner: clearBanner ? null : authoritative.banner,

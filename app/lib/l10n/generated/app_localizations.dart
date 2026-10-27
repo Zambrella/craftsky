@@ -8318,6 +8318,114 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'{actor} quoted your reply'**
   String notificationQuoteReplyRow(String actor);
+
+  /// No description provided for @profileLinksTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Links'**
+  String get profileLinksTitle;
+
+  /// No description provided for @profileLinksHelper.
+  ///
+  /// In en, this message translates to:
+  /// **'Add up to 10 links. Press and hold to drag them into order. Changes are saved with your profile.'**
+  String get profileLinksHelper;
+
+  /// No description provided for @profileLinkAdd.
+  ///
+  /// In en, this message translates to:
+  /// **'Add link'**
+  String get profileLinkAdd;
+
+  /// No description provided for @profileLinkEdit.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit link'**
+  String get profileLinkEdit;
+
+  /// No description provided for @profileLinkUrl.
+  ///
+  /// In en, this message translates to:
+  /// **'URL'**
+  String get profileLinkUrl;
+
+  /// No description provided for @profileLinkTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Title (optional)'**
+  String get profileLinkTitle;
+
+  /// No description provided for @profileLinkInvalid.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter an HTTPS link. URL shorteners are not supported.'**
+  String get profileLinkInvalid;
+
+  /// No description provided for @profileLinkDuplicate.
+  ///
+  /// In en, this message translates to:
+  /// **'This link is already on your profile.'**
+  String get profileLinkDuplicate;
+
+  /// No description provided for @profileLinkUnreachable.
+  ///
+  /// In en, this message translates to:
+  /// **'We couldn’t reach this website. You can still save the link.'**
+  String get profileLinkUnreachable;
+
+  /// No description provided for @profileLinkSaveAnyway.
+  ///
+  /// In en, this message translates to:
+  /// **'Save anyway'**
+  String get profileLinkSaveAnyway;
+
+  /// No description provided for @profileLinkChecking.
+  ///
+  /// In en, this message translates to:
+  /// **'Checking link…'**
+  String get profileLinkChecking;
+
+  /// No description provided for @profileLinkMoveEarlier.
+  ///
+  /// In en, this message translates to:
+  /// **'Move link earlier'**
+  String get profileLinkMoveEarlier;
+
+  /// No description provided for @profileLinkMoveLater.
+  ///
+  /// In en, this message translates to:
+  /// **'Move link later'**
+  String get profileLinkMoveLater;
+
+  /// No description provided for @profileLinkRemove.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove link'**
+  String get profileLinkRemove;
+
+  /// No description provided for @profileLinkOpen.
+  ///
+  /// In en, this message translates to:
+  /// **'Open link'**
+  String get profileLinkOpen;
+
+  /// No description provided for @profileLinkCopy.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy link'**
+  String get profileLinkCopy;
+
+  /// No description provided for @profileLinkOpenFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn’t open this link.'**
+  String get profileLinkOpenFailed;
+
+  /// No description provided for @profileLinkReport.
+  ///
+  /// In en, this message translates to:
+  /// **'Report link'**
+  String get profileLinkReport;
 }
 
 class _AppLocalizationsDelegate

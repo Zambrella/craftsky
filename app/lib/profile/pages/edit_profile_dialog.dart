@@ -15,6 +15,7 @@ import 'package:craftsky_app/profile/data/profile_field_constraints.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/models/profile_feature_access.dart';
 import 'package:craftsky_app/profile/models/profile_image_failure.dart';
+import 'package:craftsky_app/profile/models/profile_link.dart';
 import 'package:craftsky_app/profile/models/profile_save_result.dart';
 import 'package:craftsky_app/profile/providers/profile_image_picker_provider.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
@@ -23,6 +24,7 @@ import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
 import 'package:craftsky_app/profile/services/profile_image_error_reporting.dart';
 import 'package:craftsky_app/profile/widgets/edit_profile_banner_avatar.dart';
 import 'package:craftsky_app/profile/widgets/edit_profile_crafts_picker.dart';
+import 'package:craftsky_app/profile/widgets/profile_links_editor.dart';
 import 'package:craftsky_app/profile/widgets/profile_page_error.dart';
 import 'package:craftsky_app/router/responsive_modal_navigation.dart';
 import 'package:craftsky_app/settings/settings_links.dart';
@@ -213,6 +215,7 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
   /// legacy enum values and unknown values from newer clients.
   late final List<String> _preservedCrafts;
   late Profile _ordinaryBaseline;
+  late List<ProfileLink> _links;
   late BusinessDeclarationDraft _businessBaseline;
 
   _ProfileImageDraft _avatarDraft = const _ProfileImageDraft();
@@ -226,6 +229,7 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
     super.initState();
     _unsavedGuard = ref.read(unsavedWorkGuardProvider);
     _ordinaryBaseline = widget.profile;
+    _links = List.of(widget.profile.editingLinks);
     _businessBaseline = BusinessDeclarationDraft.fromProfile(
       widget.profile.business,
     );
@@ -293,6 +297,7 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
         .map((c) => c.id)
         .toList();
     if (!listEquals(currentIds, initialIds)) return true;
+    if (!listEquals(_links, _ordinaryBaseline.editingLinks)) return true;
     if (_avatarDraft.changed) return true;
     return false;
   }
@@ -351,6 +356,7 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
             pronouns: pronounsValue.isEmpty ? null : pronounsValue,
             description: description,
             crafts: craftsPayload,
+            links: _links,
             avatar: _avatarDraft.uploaded?.blob,
           ),
     );
@@ -610,6 +616,12 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
                         ),
                       ),
                       SizedBox(height: spacing.sp5),
+                      ProfileLinksEditor(
+                        links: _links,
+                        enabled: !isSaving,
+                        onChanged: (links) => setState(() => _links = links),
+                      ),
+                      SizedBox(height: spacing.sp5),
                       Text(
                         l10n.editProfileCraftsLabel,
                         style: theme.textTheme.titleMedium?.copyWith(
@@ -698,6 +710,7 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
   void _applySaveResult(CombinedProfileSaveResult result) {
     if (result.ordinary.value case final Profile saved?) {
       _ordinaryBaseline = saved;
+      _links = List.of(saved.editingLinks);
       _avatarDraft = const _ProfileImageDraft();
     }
     if (result.business.value case final BusinessProfile saved?) {

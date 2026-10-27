@@ -5,6 +5,7 @@ import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/models/profile_account_page.dart';
 import 'package:craftsky_app/profile/models/profile_account_summary.dart';
 import 'package:craftsky_app/profile/models/profile_customisation.dart';
+import 'package:craftsky_app/profile/models/profile_link.dart';
 import 'package:craftsky_app/profile/models/profile_relationship.dart';
 import 'package:craftsky_app/shared/media/uploaded_image_blob.dart';
 
@@ -34,6 +35,8 @@ abstract interface class ProfileRepository {
     String? pronouns,
     String? description,
     List<String>? crafts,
+    List<ProfileLink>? links,
+    List<ProfileLink>? removedLinks,
     UploadedBlob? avatar,
     bool clearAvatar = false,
     UploadedBlob? banner,

@@ -3591,5 +3591,23 @@
         "type": "String"
       }
     }
-  }
+  },
+  "profileLinksTitle": "Links",
+  "profileLinksHelper": "Add up to 10 links. Press and hold to drag them into order. Changes are saved with your profile.",
+  "profileLinkAdd": "Add link",
+  "profileLinkEdit": "Edit link",
+  "profileLinkUrl": "URL",
+  "profileLinkTitle": "Title (optional)",
+  "profileLinkInvalid": "Enter an HTTPS link. URL shorteners are not supported.",
+  "profileLinkDuplicate": "This link is already on your profile.",
+  "profileLinkUnreachable": "We couldn’t reach this website. You can still save the link.",
+  "profileLinkSaveAnyway": "Save anyway",
+  "profileLinkChecking": "Checking link…",
+  "profileLinkMoveEarlier": "Move link earlier",
+  "profileLinkMoveLater": "Move link later",
+  "profileLinkRemove": "Remove link",
+  "profileLinkOpen": "Open link",
+  "profileLinkCopy": "Copy link",
+  "profileLinkOpenFailed": "Couldn’t open this link.",
+  "profileLinkReport": "Report link"
 }

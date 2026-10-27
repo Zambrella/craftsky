@@ -20,7 +20,7 @@ compose_file="$check_root/docker-compose.yml"
 migration_failure_override="$check_root/scripts/appview-check-migration-failure.override.yml"
 tap_acceptance_override="$check_root/scripts/appview-check-tap.override.yml"
 tap_image="ghcr.io/bluesky-social/indigo/tap:0.1.10@sha256:5e20bfe416d29fcd215ed8bf99f10b2ab825a6de4e5599846dd33967ade2abeb"
-tap_collection_filters="social.craftsky.actor.profile,social.craftsky.feed.post,social.craftsky.feed.like,social.craftsky.feed.repost,social.craftsky.business.profile,social.craftsky.business.event,app.bsky.actor.profile,app.bsky.graph.follow,app.bsky.graph.block"
+tap_collection_filters="social.craftsky.actor.profile,social.craftsky.feed.post,social.craftsky.feed.like,social.craftsky.feed.repost,social.craftsky.business.profile,social.craftsky.business.event,app.bsky.actor.profile,app.bsky.actor.link,app.bsky.graph.follow,app.bsky.graph.block"
 artifact_dir=${APPVIEW_CHECK_ARTIFACT_DIR:-}
 if [[ -z "$artifact_dir" ]]; then
   artifact_dir=$(mktemp -d)

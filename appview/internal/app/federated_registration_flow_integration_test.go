@@ -1551,6 +1551,7 @@ func testSharedOnboardingAndConfirmedHandoff(t *testing.T, purpose string) {
 			ADD COLUMN record_cid TEXT,
 			ADD COLUMN indexed_at TIMESTAMPTZ NOT NULL DEFAULT now();
 		CREATE TABLE bluesky_profiles (
+ links JSONB NOT NULL DEFAULT '[]',
 			did TEXT PRIMARY KEY,
 			display_name TEXT,
 			description TEXT,
