@@ -248,10 +248,19 @@ class _NotificationsLoadedSlivers extends ConsumerWidget {
     }
     return SliverMainAxisGroup(
       slivers: [
-        SliverList.builder(
+        SliverList.separated(
           itemCount: items.length,
           itemBuilder: (context, index) =>
               NotificationRow(notification: items[index], owner: owner),
+          separatorBuilder: (context, index) => Divider(
+            height: 1,
+            thickness: .5,
+            indent: 16,
+            endIndent: 16,
+            color: Theme.of(context).colorScheme.outlineVariant.withValues(
+              alpha: .5,
+            ),
+          ),
         ),
         if (isLoadingMore || hasLoadMoreError || hasMore)
           SliverToBoxAdapter(

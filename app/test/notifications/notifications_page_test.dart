@@ -25,7 +25,6 @@ import 'package:craftsky_app/profile/providers/profile_relationship_provider.dar
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/profile/providers/toggle_follow_profile_provider.dart';
 import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
-import 'package:craftsky_app/profile/widgets/compact_profile_identity.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
@@ -558,14 +557,14 @@ void main() {
         'https://cdn.example/avatar/alice.jpg',
       );
       for (final icon in [
-        CraftskyIcons.follow,
-        CraftskyIcons.like,
-        CraftskyIcons.repost,
-        CraftskyIcons.comment,
-        CraftskyIcons.mention,
-        CraftskyIcons.quote,
-        CraftskyIcons.findPeople,
-        CraftskyIcons.notification,
+        CraftskyIconsFill.follow,
+        CraftskyIconsFill.like,
+        CraftskyIconsFill.repost,
+        CraftskyIconsFill.comment,
+        CraftskyIconsFill.mention,
+        CraftskyIconsFill.quote,
+        CraftskyIconsFill.findPeople,
+        CraftskyIconsFill.notification,
       ]) {
         expect(find.byIcon(icon), findsOneWidget, reason: '$icon');
       }
@@ -584,7 +583,7 @@ void main() {
       expect(boldActor.style?.fontWeight, FontWeight.w600);
       expect(
         tester.getTopLeft(find.byType(ProfileAvatar).first).dy,
-        lessThan(tester.getTopLeft(actorText.first).dy),
+        equals(tester.getTopLeft(actorText.first).dy),
       );
 
       final createdAt = DateTime.parse('2026-05-28T13:00:00Z');
@@ -600,7 +599,7 @@ void main() {
   );
 
   for (final scale in [1.0, 2.0]) {
-    testWidgets('notification uses the unified identity at text scale $scale', (
+    testWidgets('notification shows one actor sentence at text scale $scale', (
       tester,
     ) async {
       await tester.pumpWidget(
@@ -624,33 +623,23 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      expect(find.byType(CompactProfileIdentity), findsOneWidget);
-      final identity = tester.widget<CompactProfileIdentity>(
-        find.byType(CompactProfileIdentity),
-      );
-      expect(identity.crafts, ['knitting', 'crochet', 'sewing']);
-      final name = tester.getRect(find.text('Alice'));
-      final handle = tester.getRect(find.text('@alice.craftsky.social'));
+      expect(find.text('Alice followed you'), findsOneWidget);
+      expect(find.text('Alice'), findsNothing);
+      expect(find.text('@alice.craftsky.social'), findsNothing);
+      expect(find.byType(CraftIcon), findsNothing);
+      final title = tester.getRect(find.text('Alice followed you'));
       final avatar = tester.getRect(find.byType(ProfileAvatar));
-      expect(avatar.right, lessThan(name.left));
-      expect(name.left, handle.left);
-      expect(handle.top, greaterThanOrEqualTo(name.bottom));
-      expect(
-        tester.getTopLeft(find.text('Alice followed you')).dy,
-        greaterThanOrEqualTo(handle.bottom),
-      );
-      expect(
-        tester.widget<Text>(find.text('@alice.craftsky.social')).style?.color,
-        AppTheme.lightThemeData.colorScheme.outline,
-      );
-      if (scale == 1) expect(find.byType(CraftIcon), findsNWidgets(3));
+      final badge = tester.getRect(find.byIcon(CraftskyIconsFill.follow));
+      expect(avatar.right, lessThan(title.left));
+      expect(title.top, avatar.top);
+      expect(avatar.overlaps(badge), isTrue);
+      expect(badge.center.dx, greaterThan(avatar.center.dx));
+      expect(badge.center.dy, greaterThan(avatar.center.dy));
       expect(tester.takeException(), isNull);
     });
   }
 
-  testWidgets('notification identity handle opens the actor profile', (
-    tester,
-  ) async {
+  testWidgets('notification avatar opens the actor profile', (tester) async {
     GoRouterState? openedProfile;
     final router = GoRouter(
       routes: [
@@ -681,16 +670,14 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.text('@alice.craftsky.social'));
+    await tester.tap(find.byType(ProfileAvatar));
     await tester.pumpAndSettle();
     expect(openedProfile?.pathParameters['did'], 'did:plc:alice');
   });
 
   testWidgets(
     'unavailable notifications do not show a profile handle or crafts',
-    (
-      tester,
-    ) async {
+    (tester) async {
       await tester.pumpWidget(
         _TestApp(
           home: Scaffold(
@@ -701,7 +688,6 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      expect(find.byType(CompactProfileIdentity), findsNothing);
       expect(find.byType(CraftIcon), findsNothing);
       expect(find.text('@alice.craftsky.social'), findsNothing);
       expect(tester.takeException(), isNull);
@@ -812,6 +798,56 @@ void main() {
       }
     },
   );
+
+  testWidgets('reply context is compact and uses the immediate parent', (
+    tester,
+  ) async {
+    for (final (parent, expected) in <(Map<String, dynamic>, String?)>[
+      (
+        {
+          ..._post(),
+          'project': {
+            'common': {'craftType': 'knitting', 'title': 'Summer cardigan'},
+          },
+        },
+        '↳ Your post: Summer cardigan',
+      ),
+      (_post(), '↳ Your post: viewer post'),
+      (_commentPost(), '↳ You: “viewer comment”'),
+      ({..._replyPost(), 'text': 'Parent\nreply'}, '↳ You: “Parent reply”'),
+      ({..._post(), 'text': '  '}, null),
+      ({..._post(), 'availability': 'muted'}, null),
+    ]) {
+      await tester.pumpWidget(
+        _TestApp(
+          home: Scaffold(
+            body: NotificationRow(
+              notification: _reply('context', subjectPost: parent),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final contexts = find.byWidgetPredicate(
+        (widget) => widget is Text && (widget.data?.startsWith('↳') ?? false),
+      );
+      if (expected == null) {
+        expect(contexts, findsNothing);
+      } else {
+        expect(find.text(expected), findsOneWidget);
+        final context = tester.widget<Text>(contexts);
+        expect(context.maxLines, 1);
+        expect(context.overflow, TextOverflow.ellipsis);
+        expect(
+          tester.getTopLeft(contexts).dy,
+          lessThan(tester.getTopLeft(find.text('new reply text')).dy),
+        );
+      }
+      expect(tester.widget<Text>(find.text('new reply text')).maxLines, 3);
+      expect(find.text('Summer cardigan'), findsNothing);
+      expect(tester.takeException(), isNull);
+    }
+  });
 
   testWidgets('UT-021 derives an actor avatar URL from an older CID response', (
     tester,

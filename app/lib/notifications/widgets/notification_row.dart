@@ -14,7 +14,6 @@ import 'package:craftsky_app/profile/providers/profile_relationship_provider.dar
 import 'package:craftsky_app/profile/providers/toggle_block_profile_provider.dart';
 import 'package:craftsky_app/profile/providers/toggle_follow_profile_provider.dart';
 import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
-import 'package:craftsky_app/profile/widgets/compact_profile_identity.dart';
 import 'package:craftsky_app/profile/widgets/follow_reaction.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar_hero.dart';
@@ -163,6 +162,9 @@ class NotificationRow extends ConsumerWidget {
       GenericNotification() => (l10n.notificationGenericRow, null),
       UnavailableNotification() => (l10n.notificationUnavailableRow, null),
     };
+    final replyContext = actorNotification is ReplyNotification
+        ? _replyContext(actorNotification.subjectPost, l10n)
+        : null;
     final onTap = actorNotification is GenericNotification
         ? null
         : () => _open(context, ref);
@@ -181,13 +183,71 @@ class NotificationRow extends ConsumerWidget {
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Padding(
-                padding: const EdgeInsets.only(top: 6),
-                child: ExcludeSemantics(
-                  child: Icon(
-                    notificationCategoryIcon(notification.type),
-                    color: actionColor,
-                    size: 24,
+              ProfileAvatarHeroSource(
+                did: actorNotification.actor.did,
+                handle: actorNotification.actor.handle.toString(),
+                displayName: actorNotification.actor.displayName,
+                crafts: actorNotification.actor.crafts,
+                avatar: ProfileAvatar(
+                  seed: actor,
+                  avatarUrl: actorNotification.actor.displayAvatarUrl,
+                  showShadow: false,
+                  customisation: actorNotification.actor.customisation,
+                ),
+                builder: (context, avatar, openProfile) => Semantics(
+                  button: actorNotification.actor.available,
+                  label: actor,
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: actorNotification.actor.available
+                        ? openProfile
+                        : null,
+                    child: Stack(
+                      children: [
+                        Padding(
+                          padding: const EdgeInsetsDirectional.only(
+                            end: 4,
+                            bottom: 4,
+                          ),
+                          child: FollowReactionAvatar(
+                            compact: true,
+                            child: avatar,
+                          ),
+                        ),
+                        PositionedDirectional(
+                          end: 0,
+                          bottom: 0,
+                          child: ExcludeSemantics(
+                            child: Container(
+                              width: 26,
+                              height: 26,
+                              decoration: BoxDecoration(
+                                color: actionColor,
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: theme.scaffoldBackgroundColor,
+                                  width: 2,
+                                ),
+                              ),
+                              child: Icon(
+                                notificationCategoryIcon(
+                                  notification.type,
+                                  filled: true,
+                                ),
+                                color:
+                                    ThemeData.estimateBrightnessForColor(
+                                          actionColor,
+                                        ) ==
+                                        Brightness.dark
+                                    ? Colors.white
+                                    : Colors.black,
+                                size: 14,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -196,74 +256,27 @@ class NotificationRow extends ConsumerWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    ProfileAvatarHeroSource(
-                      did: actorNotification.actor.did,
-                      handle: actorNotification.actor.handle.toString(),
-                      displayName: actorNotification.actor.displayName,
-                      crafts: actorNotification.actor.crafts,
-                      avatar: ProfileAvatar(
-                        seed: actor,
-                        avatarUrl: actorNotification.actor.displayAvatarUrl,
-                        size: ProfileAvatarSize.small,
-                        customisation: actorNotification.actor.customisation,
+                    _NotificationTitleText(
+                      title: title,
+                      actor: actor,
+                      onActorTap: onActorTap,
+                      style: theme.textTheme.bodyLarge,
+                    ),
+                    if (replyContext != null) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        replyContext,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.outline,
+                        ),
                       ),
-                      builder: (context, avatar, openProfile) =>
-                          GestureDetector(
-                            behavior: HitTestBehavior.opaque,
-                            onTap: actorNotification.actor.available
-                                ? openProfile
-                                : null,
-                            child: Row(
-                              children: [
-                                FollowReactionAvatar(
-                                  compact: true,
-                                  child: avatar,
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: actorNotification.actor.available
-                                      ? CompactProfileIdentity(
-                                          handle: actorNotification.actor.handle
-                                              .toString(),
-                                          displayName: actorNotification
-                                              .actor
-                                              .displayName,
-                                          crafts:
-                                              actorNotification.actor.crafts,
-                                        )
-                                      : Text(
-                                          actor,
-                                          style: theme.textTheme.titleSmall,
-                                        ),
-                                ),
-                              ],
-                            ),
-                          ),
-                    ),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: 2,
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      children: [
-                        _NotificationTitleText(
-                          title: title,
-                          actor: actor,
-                          onActorTap: onActorTap,
-                          style: theme.textTheme.bodyLarge,
-                        ),
-                        Text(
-                          '·',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.outline,
-                          ),
-                        ),
-                        RelativeTimeText(timestamp: notification.createdAt),
-                      ],
-                    ),
+                    ],
                     if (subjectPost != null) ...[
                       const SizedBox(height: 4),
                       PostSummary(
+                        maxTextLines: 3,
                         data: _previewData(
                           actorNotification as SubjectPostNotification,
                         ),
@@ -285,6 +298,7 @@ class NotificationRow extends ConsumerWidget {
                           ),
                         ),
                         child: PostSummary(
+                          maxTextLines: 3,
                           data: PostSummaryData(
                             state: PostSummaryState.visible,
                             text: quotedPreview.text,
@@ -294,6 +308,8 @@ class NotificationRow extends ConsumerWidget {
                         ),
                       ),
                     ],
+                    const SizedBox(height: 4),
+                    RelativeTimeText(timestamp: notification.createdAt),
                     if ((actorNotification is FollowNotification ||
                             actorNotification is InstagramMatchNotification) &&
                         actorNotification.actor.available) ...[
@@ -313,6 +329,22 @@ class NotificationRow extends ConsumerWidget {
     );
   }
 
+  String? _replyContext(Post parent, AppLocalizations l10n) {
+    if (parent.availability != null && parent.availability != 'visible') {
+      return null;
+    }
+    final isPost = parent.reply == null;
+    final projectTitle = isPost ? parent.project?.common.title?.trim() : null;
+    final text =
+        (projectTitle?.isNotEmpty == true ? projectTitle! : parent.text)
+            .replaceAll(RegExp(r'\s+'), ' ')
+            .trim();
+    if (text.isEmpty) return null;
+    return isPost
+        ? l10n.notificationPostContext(text)
+        : l10n.notificationReplyContext(text);
+  }
+
   PostSummaryData _previewData(SubjectPostNotification notification) {
     final preview = notification.preview;
     if (preview == null) {
@@ -325,11 +357,7 @@ class NotificationRow extends ConsumerWidget {
     return PostSummaryData(
       state: PostSummaryState.visible,
       text: preview.text,
-      projectTitle:
-          preview.projectTitle ??
-          (notification is ReplyNotification
-              ? notification.subjectPost.project?.common.title
-              : null),
+      projectTitle: preview.projectTitle,
     );
   }
 

@@ -161,6 +161,16 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String notificationPostContext(String context) {
+    return '↳ Your post: $context';
+  }
+
+  @override
+  String notificationReplyContext(String context) {
+    return '↳ You: “$context”';
+  }
+
+  @override
   String notificationReplyRow(String actor) {
     return '$actor commented on your post';
   }
