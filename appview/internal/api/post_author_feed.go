@@ -50,7 +50,6 @@ func ListPostsByAuthorHandler(
 	resolver HandleResolver,
 	logger *slog.Logger,
 	pinReader ProfilePinListReader,
-	preferenceReaders ...LanguagePreferenceReader,
 ) http.Handler {
 	var filtered authorLanguageList
 	if languageStore, ok := store.(interface {
@@ -58,7 +57,7 @@ func ListPostsByAuthorHandler(
 	}); ok {
 		filtered = languageStore.ListByAuthorWithLanguages
 	}
-	return listAuthorPostsHandler(store, resolver, logger, "post list", ProfilePinSlotStandard, pinReader, store.ListByAuthor, filtered, preferenceReaders, false)
+	return listAuthorPostsHandler(store, resolver, logger, "post list", ProfilePinSlotStandard, pinReader, store.ListByAuthor, filtered, false)
 }
 
 // ListProjectsByAuthorHandler serves GET /v1/profiles/{handleOrDid}/projects.
@@ -67,7 +66,6 @@ func ListProjectsByAuthorHandler(
 	resolver HandleResolver,
 	logger *slog.Logger,
 	pinReader ProfilePinListReader,
-	preferenceReaders ...LanguagePreferenceReader,
 ) http.Handler {
 	var filtered authorLanguageList
 	if languageStore, ok := store.(interface {
@@ -75,7 +73,7 @@ func ListProjectsByAuthorHandler(
 	}); ok {
 		filtered = languageStore.ListProjectsByAuthorWithLanguages
 	}
-	return listAuthorPostsHandler(store, resolver, logger, "project list", ProfilePinSlotProject, pinReader, store.ListProjectsByAuthor, filtered, preferenceReaders, false)
+	return listAuthorPostsHandler(store, resolver, logger, "project list", ProfilePinSlotProject, pinReader, store.ListProjectsByAuthor, filtered, false)
 }
 
 // ListCommentsByAuthorHandler serves GET /v1/profiles/{handleOrDid}/comments.
@@ -83,7 +81,6 @@ func ListCommentsByAuthorHandler(
 	store authorCommentsStore,
 	resolver HandleResolver,
 	logger *slog.Logger,
-	preferenceReaders ...LanguagePreferenceReader,
 ) http.Handler {
 	var filtered authorLanguageList
 	if languageStore, ok := store.(interface {
@@ -91,7 +88,7 @@ func ListCommentsByAuthorHandler(
 	}); ok {
 		filtered = languageStore.ListCommentsByAuthorWithLanguages
 	}
-	return listAuthorPostsHandler(store, resolver, logger, "comment list", "", nil, store.ListCommentsByAuthor, filtered, preferenceReaders, false)
+	return listAuthorPostsHandler(store, resolver, logger, "comment list", "", nil, store.ListCommentsByAuthor, filtered, false)
 }
 
 // ListRepostsByAuthorHandler serves GET /v1/profiles/{handleOrDid}/reposts.
@@ -99,7 +96,6 @@ func ListRepostsByAuthorHandler(
 	store authorRepostsStore,
 	resolver HandleResolver,
 	logger *slog.Logger,
-	preferenceReaders ...LanguagePreferenceReader,
 ) http.Handler {
 	var filtered authorLanguageList
 	if languageStore, ok := store.(interface {
@@ -107,7 +103,7 @@ func ListRepostsByAuthorHandler(
 	}); ok {
 		filtered = languageStore.ListRepostsByAuthorWithLanguages
 	}
-	return listAuthorPostsHandler(store, resolver, logger, "repost list", "", nil, store.ListRepostsByAuthor, filtered, preferenceReaders, true)
+	return listAuthorPostsHandler(store, resolver, logger, "repost list", "", nil, store.ListRepostsByAuthor, filtered, true)
 }
 
 type authorLanguageList func(context.Context, string, string, []string, int, string) ([]*PostRow, string, error)
@@ -121,7 +117,6 @@ func listAuthorPostsHandler(
 	pinReader ProfilePinListReader,
 	list func(context.Context, string, int, string) ([]*PostRow, string, error),
 	filteredList authorLanguageList,
-	preferenceReaders []LanguagePreferenceReader,
 	resolveRowAuthors bool,
 ) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -170,18 +165,9 @@ func listAuthorPostsHandler(
 				slog.Int("limit", limit),
 				slog.Bool("has_cursor", cursor != ""))...)
 
+		// Profile feeds deliberately show every language. Keep the viewer identity
+		// for block checks, but bypass language filtering for rows, pins and counts.
 		contentLanguages := []string{}
-		if len(preferenceReaders) > 0 {
-			var preferenceErr error
-			contentLanguages, preferenceErr = authoritativeContentLanguages(r.Context(), viewerDID, preferenceReaders)
-			if preferenceErr != nil {
-				logger.Error(logLabel+": language preferences failed",
-					apiLogErrorAttrs(r.Context(), runID, operation, "language_preferences", preferenceErr)...)
-				envelope.WriteError(w, http.StatusInternalServerError,
-					"internal_error", "language preferences lookup failed", runID, nil)
-				return
-			}
-		}
 
 		var profilePin *ProfileListPin
 		if pinReader != nil {
@@ -220,16 +206,9 @@ func listAuthorPostsHandler(
 
 		var rows []*PostRow
 		var nextCursor string
-		if len(preferenceReaders) == 0 {
+		if filteredList == nil {
 			rows, nextCursor, err = list(r.Context(), did.String(), storeLimit, storeCursor)
 		} else {
-			if filteredList == nil {
-				logger.Error(logLabel+": language filtering unavailable",
-					apiLogErrorAttrs(r.Context(), runID, operation, "language_filter", errors.New("language filter unavailable"))...)
-				envelope.WriteError(w, http.StatusInternalServerError,
-					"internal_error", "post language filtering unavailable", runID, nil)
-				return
-			}
 			rows, nextCursor, err = filteredList(
 				r.Context(),
 				viewerDID.String(),
