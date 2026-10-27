@@ -2,6 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/widgets/post_image_page_indicator.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
+import 'package:craftsky_app/shared/image/adjacent_image_preloader.dart';
 import 'package:craftsky_app/shared/image/image_cache_providers.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -251,15 +252,22 @@ class _PostImageGalleryState extends ConsumerState<PostImageGallery> {
       ],
     );
 
-    return AnimatedOpacity(
-      duration: dragAnimationDuration,
-      curve: Curves.easeOutCubic,
-      opacity: opacity,
-      child: AnimatedContainer(
+    return AdjacentImagePreloader(
+      urls: [
+        for (final image in widget.galleryImages) image.fullsize ?? image.thumb,
+      ],
+      currentIndex: _currentIndex,
+      cacheManager: ref.watch(feedImageCacheManagerProvider),
+      child: AnimatedOpacity(
         duration: dragAnimationDuration,
         curve: Curves.easeOutCubic,
-        transform: Matrix4.translationValues(0, _dismissDragOffset, 0),
-        child: content,
+        opacity: opacity,
+        child: AnimatedContainer(
+          duration: dragAnimationDuration,
+          curve: Curves.easeOutCubic,
+          transform: Matrix4.translationValues(0, _dismissDragOffset, 0),
+          child: content,
+        ),
       ),
     );
   }
