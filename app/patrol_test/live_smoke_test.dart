@@ -1,7 +1,7 @@
 import 'support/test_app.dart';
 
 void main() {
-  testApp('OAuth, onboarding bio, two-image post, like and delete', (
+  testApp('OAuth, onboarding bio, two-image post, like, edit and delete', (
     modules,
     system,
     api,
@@ -19,6 +19,9 @@ void main() {
     try {
       await modules.posts.like(post);
       await api.verifyLiked(post);
+      final editedText = '$text edited';
+      await modules.posts.editTextAndRemoveSecondImage(post, editedText);
+      await api.verifyEdited(post, editedText);
     } finally {
       await modules.posts.delete(post);
       await api.verifyDeleted(post);

@@ -1119,6 +1119,7 @@ class _PostCardMenu extends StatelessWidget {
             items: [
               if (onEdit != null)
                 CraftskyContextMenuItem(
+                  key: keys.feed.edit,
                   text: l10n.postEditAction,
                   icon: CraftskyIcons.edit,
                   onPressed: onEdit,

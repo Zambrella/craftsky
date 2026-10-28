@@ -1,9 +1,6 @@
-import 'dart:io';
-
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/widgets/composer_image_attachment_section.dart';
 import 'package:craftsky_app/keys.dart';
-import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:flutter/widgets.dart';
 import 'package:image/image.dart' as image;
 import 'package:patrol/patrol.dart';
@@ -26,18 +23,14 @@ final class PostsModule {
   }
 
   Future<void> publish() async {
-    if (Platform.isIOS) {
-      await $.platform.ios.swipeBack();
-    } else {
-      await $.platform.android.pressBack();
-    }
-    await $(keys.feed.submit)
-        .which<ChunkyButton>((button) => button.onPressed != null)
+    await $.tester.pageBack();
+    await $(keys.composerImages.section('composer'))
+        .which<ComposerImageAttachmentSection>(
+          (section) => section.enabled && section.imagesState.isSubmitReady,
+        )
         .waitUntilVisible();
     _verifySelectedFixtures();
-    await $(keys.feed.submit)
-        .which<ChunkyButton>((button) => button.onPressed != null)
-        .tap(settlePolicy: SettlePolicy.noSettle);
+    await $(keys.feed.submit).tap(settlePolicy: SettlePolicy.noSettle);
     await $(keys.dialog.confirm).tap(settlePolicy: SettlePolicy.noSettle);
   }
 
@@ -83,6 +76,33 @@ final class PostsModule {
     await $(keys.feed.post(post.uri))
         .$(keys.feed.action('Like'))
         .tap(settlePolicy: SettlePolicy.noSettle);
+  }
+
+  Future<void> editTextAndRemoveSecondImage(Post post, String text) async {
+    await $(keys.feed.post(post.uri)).$(keys.feed.menu).tap();
+    await $(keys.feed.edit).tap(settlePolicy: SettlePolicy.noSettle);
+    await $(keys.feed.composerBody).enterText(text);
+    FocusManager.instance.primaryFocus?.unfocus();
+    await $(keys.composerImages.details('composer')).scrollTo();
+    final section =
+        $(keys.composerImages.section('composer')).evaluate().single.widget
+            as ComposerImageAttachmentSection;
+    final images = section.imagesState.images;
+    if (images.length != 2) {
+      throw StateError('Expected two published images in the post editor.');
+    }
+    final remove = keys.composerImages.remove('composer', images[1].id);
+    await $(keys.composerImages.details('composer')).tap();
+    await $(remove).scrollTo();
+    await $(remove).tap();
+    await $.tester.pageBack();
+    await $(keys.composerImages.section('composer'))
+        .which<ComposerImageAttachmentSection>(
+          (section) => section.enabled && section.imagesState.isSubmitReady,
+        )
+        .waitUntilVisible();
+    await $(keys.feed.submit).tap(settlePolicy: SettlePolicy.noSettle);
+    await $(keys.feed.post(post.uri)).waitUntilVisible();
   }
 
   Future<void> delete(Post post) async {
