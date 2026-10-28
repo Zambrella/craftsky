@@ -20,18 +20,6 @@ final class PublishedPostEmbedEdit {
   String get externalDescription => _external['description'] as String? ?? '';
   bool get hasExternalThumbnail => _external['thumb'] != null;
 
-  void updateExternal({String? uri, String? title, String? description}) {
-    if (!hasExternal) throw const FormatException('Unsupported embed change');
-    if (uri != null) _external['uri'] = uri;
-    if (title != null) _external['title'] = title;
-    if (description != null) _external['description'] = description;
-  }
-
-  void removeExternalThumbnail() {
-    if (!hasExternal) throw const FormatException('Unsupported embed change');
-    _external['thumb'] = null;
-  }
-
   bool get hasRetainedVideo =>
       !_removed && _original?[r'$type'] == 'app.bsky.embed.video';
 
@@ -44,18 +32,6 @@ final class PublishedPostEmbedEdit {
 
   Map<String, Object?> get changes {
     if (_removed) return {'embed': null};
-    if (hasExternal) {
-      final original = _original?['external'] as Map? ?? const {};
-      final changed = <String, Object?>{
-        for (final field in const ['uri', 'title', 'description', 'thumb'])
-          if (_external[field] != original[field]) field: _external[field],
-      };
-      return changed.isEmpty
-          ? const {}
-          : {
-              'embed': {'external': changed},
-            };
-    }
     if (hasRetainedVideo && videoAlt != (_original?['alt'] ?? '')) {
       return {
         'embed': {'alt': videoAlt},

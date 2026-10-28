@@ -1,14 +1,12 @@
-import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:material_ui/material_ui.dart';
 
 /// Latest edit disclosure; it exposes no history or previous version.
 class PostEditIndicator extends StatefulWidget {
-  const new({super.key, this.editedAt, this.source});
+  const new({super.key, this.editedAt});
 
   final DateTime? editedAt;
-  final PostEditTimeSource? source;
 
   @override
   State<PostEditIndicator> createState() => _PostEditIndicatorState();
@@ -31,12 +29,7 @@ class _PostEditIndicatorState extends State<PostEditIndicator> {
     );
     final timestamp = '$date, $time ${when.timeZoneName}';
     final l10n = AppLocalizations.of(context);
-    final label = switch (widget.source) {
-      PostEditTimeSource.confirmed => l10n.postEditTimeConfirmed(timestamp),
-      PostEditTimeSource.reported => l10n.postEditTimeReported(timestamp),
-      PostEditTimeSource.observed => l10n.postEditTimeObserved(timestamp),
-      _ => l10n.postEditTimeUnknown(timestamp),
-    };
+    final label = l10n.postEditTime(timestamp);
     return Semantics(
       label: label,
       excludeSemantics: true,

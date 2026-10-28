@@ -27,7 +27,6 @@ void main() {
       final post = _post().copyWith(
         images: null,
         editedAt: when,
-        editTimeSource: PostEditTimeSource.reported,
       );
       final quote = QuoteView(
         state: 'visible',
@@ -39,7 +38,6 @@ void main() {
           createdAt: post.createdAt,
           sponsored: false,
           editedAt: when,
-          editTimeSource: PostEditTimeSource.observed,
         ),
       );
       for (final data in [

@@ -219,7 +219,7 @@ func (store *Store) reconcileSourceTx(
 	authority sourceAuthority,
 	now time.Time,
 ) (tap.Outcome, error) {
-	if event.Collection == "social.craftsky.feed.post" {
+	if event.Collection == "social.craftsky.feed.post" && event.Action == "delete" {
 		if err := postfence.LockTx(ctx, tx, event.URI); err != nil {
 			return tap.Outcome{}, err
 		}
@@ -260,10 +260,6 @@ func (store *Store) reconcileSourceTx(
 	if err != nil {
 		return tap.Outcome{}, err
 	}
-	editState, err := preparePostEditStateTx(ctx, tx, event, validation, orderingStatus, disposition, now)
-	if err != nil {
-		return tap.Outcome{}, err
-	}
 	recordBytes := 0
 	if event.Action != "delete" {
 		cid = event.CID
@@ -291,9 +287,6 @@ func (store *Store) reconcileSourceTx(
 		return tap.Outcome{}, err
 	}
 	if err := restrictPostPublicationTx(ctx, tx, event, validation, orderingStatus, disposition, now); err != nil {
-		return tap.Outcome{}, err
-	}
-	if err := persistPostEditStateTx(ctx, tx, event, editState, disposition); err != nil {
 		return tap.Outcome{}, err
 	}
 	jobResult, err := tx.Exec(ctx, `

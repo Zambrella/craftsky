@@ -33,6 +33,13 @@ func TestPostEditProjectionExposesCurrentMetadata(t *testing.T) {
 	if response.Code != 200 {
 		t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
 	}
+	var wire map[string]any
+	if err := json.Unmarshal(response.Body.Bytes(), &wire); err != nil {
+		t.Fatal(err)
+	}
+	if _, present := wire["editTimeSource"]; present {
+		t.Fatal("edit timestamps must not expose provenance modes")
+	}
 	var result struct {
 		Text                           string
 		EditedAt                       *time.Time
@@ -42,7 +49,7 @@ func TestPostEditProjectionExposesCurrentMetadata(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := time.Date(2020, 1, 2, 12, 0, 0, 0, time.UTC)
-	if result.Text != "published edit" || result.EditedAt == nil || !result.EditedAt.Equal(want) || result.EditTimeSource != "reported" || result.RecordRevision != event.Rev.String() {
+	if result.Text != "published edit" || result.EditedAt == nil || !result.EditedAt.Equal(want) || result.RecordRevision != event.Rev.String() {
 		t.Fatalf("current response lost edit metadata: %s", response.Body.String())
 	}
 }
@@ -132,7 +139,7 @@ func TestPostEditQuotePreviewExposesLatestOriginalMetadata(t *testing.T) {
 	}
 	preview := result.QuoteView.Post
 	want := time.Date(2020, 1, 2, 12, 0, 0, 0, time.UTC)
-	if result.Text != "hello recipient" || result.EditedAt != nil || result.QuoteView.State != "visible" || preview.Text != "latest original" || preview.EditedAt == nil || !preview.EditedAt.Equal(want) || preview.EditTimeSource != "reported" || preview.RecordRevision != target.Rev.String() {
+	if result.Text != "hello recipient" || result.EditedAt != nil || result.QuoteView.State != "visible" || preview.Text != "latest original" || preview.EditedAt == nil || !preview.EditedAt.Equal(want) || preview.RecordRevision != target.Rev.String() {
 		t.Fatalf("quote metadata/identity mismatch: %s", response.Body.String())
 	}
 }
@@ -176,14 +183,12 @@ func TestPostEditMalformedExternalDeclarationIsNotProjected(t *testing.T) {
 				t.Fatalf("malformed declaration accepted: validation=%s/%s", structural, semantic)
 			}
 			f.assertCount(`SELECT count(*) FROM craftsky_posts`, 0)
-			f.assertCount(`SELECT count(*) FROM craftsky_post_edit_state WHERE source_cid='cid-malformed-edit-time'`, 0)
 		})
 	}
 }
 
-// IT-014: absent and future-dated declarations remain valid records, so a
-// known authoritative content transition must disclose its observation time.
-func TestPostEditValidExternalFallbackUsesObservedTime(t *testing.T) {
+// IT-014: external edit timestamps are declarations, never inferred times.
+func TestPostEditExternalTimestampUsesOnlyCurrentDeclaration(t *testing.T) {
 	for _, extra := range []string{"", `,"editedAt":"2099-01-01T00:00:00Z"`} {
 		t.Run(extra, func(t *testing.T) {
 			f := newNotificationPipeline(t)
@@ -192,18 +197,18 @@ func TestPostEditValidExternalFallbackUsesObservedTime(t *testing.T) {
 			f.drain()
 			event.ID++
 			event.Action = "update"
-			event.CID = "cid-external-observed"
+			event.CID = "cid-external-edited"
 			event.Rev = "3aaaaaaaaaaa3"
 			event.Record = json.RawMessage(`{"$type":"social.craftsky.feed.post","text":"external correction","sponsored":false,"createdAt":"2026-05-04T12:00:00Z"` + extra + `}`)
 			f.ingest(event)
 			f.drain()
-			var text, source string
-			var at, observed time.Time
-			if err := f.pool.QueryRow(context.Background(), `SELECT p.text,p.edit_time_source,p.edited_at,s.observed_at FROM craftsky_posts p JOIN tap_source_records s USING(uri) WHERE p.uri=$1`, event.URI).Scan(&text, &source, &at, &observed); err != nil {
+			var text string
+			var at *time.Time
+			if err := f.pool.QueryRow(context.Background(), `SELECT text,edited_at FROM craftsky_posts WHERE uri=$1`, event.URI).Scan(&text, &at); err != nil {
 				t.Fatal(err)
 			}
-			if text != "external correction" || source != "observed" || !at.Equal(observed) {
-				t.Fatalf("fallback=%q %s %s, observation=%s", text, source, at, observed)
+			if text != "external correction" || (extra == "" && at != nil) || (extra != "" && (at == nil || at.Year() != 2099)) {
+				t.Fatalf("declaration=%q text=%q timestamp=%v", extra, text, at)
 			}
 		})
 	}

@@ -14,6 +14,13 @@ part 'post_search_provider.g.dart';
 class PostSearch extends _$PostSearch {
   @override
   Future<SearchPostResultsState> build(PostSearchQuery query) async {
+    listenForPostEdits(ref, () {
+      final current = state.value;
+      if (current == null) return;
+      state = AsyncData(
+        current.copyWith(items: applyLoadedPostEdits(ref, current.items)),
+      );
+    });
     ref.watch(activeContentLanguagePolicyProvider);
     final page = await ref
         .watch(searchRepositoryProvider)
@@ -53,6 +60,11 @@ class PostSearch extends _$PostSearch {
         cursor: page.cursor,
       );
     });
-    accountOperation.publish(() => state = next);
+    accountOperation.publish(
+      () => state = next.whenData(
+        (value) =>
+            value.copyWith(items: applyLoadedPostEdits(ref, value.items)),
+      ),
+    );
   }
 }

@@ -13,7 +13,6 @@ import 'package:craftsky_app/feed/pages/post_quotes_page.dart';
 import 'package:craftsky_app/feed/pages/post_thread_page.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/feed/widgets/post_card.dart';
-import 'package:craftsky_app/feed/widgets/post_edit_indicator.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/languages/models/language_preferences.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
@@ -99,7 +98,6 @@ void main() {
         }
         target = target.copyWith(
           editedAt: DateTime.utc(2026, 10, 26),
-          editTimeSource: PostEditTimeSource.confirmed,
         );
         final rootPost = target.rkey.value == 'root' ? target : root;
         final commentPost = target.rkey.value == 'comment' ? target : comment;
@@ -236,7 +234,7 @@ void main() {
           await tester.pumpAndSettle();
         }
         if (surface == _Surface.saved) {
-          expect(find.byType(PostEditIndicator), findsOneWidget);
+          expect(find.byIcon(CraftskyIcons.edit), findsOneWidget);
           await tester.tap(find.byTooltip('Saved post actions'));
           await tester.pumpAndSettle();
           expect(find.text('Edit'), findsNothing);
@@ -247,7 +245,7 @@ void main() {
         );
         expect(card, findsOneWidget);
         expect(
-          find.descendant(of: card, matching: find.byType(PostEditIndicator)),
+          find.descendant(of: card, matching: find.byIcon(CraftskyIcons.edit)),
           findsOneWidget,
         );
         await tester.ensureVisible(card);

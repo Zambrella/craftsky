@@ -12,9 +12,8 @@ String? postEditValidationMessage(AppLocalizations l10n, Object? error) {
         'langs' => l10n.languagesTitle,
         final value when value.startsWith('images') =>
           l10n.postComposePhotosTitle,
-        'embed.external.uri' => l10n.postEditExternalUrl,
-        'embed.external.title' => l10n.postEditExternalTitle,
-        'embed.external.description' => l10n.postEditExternalDescription,
+        final value when value.startsWith('embed.external') =>
+          l10n.postEditContentLabel,
         final value when value.startsWith('embed.video') =>
           l10n.postComposeVideoSelected,
         'project.common.title' => l10n.projectComposerProjectTitleLabel,

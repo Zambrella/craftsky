@@ -11,12 +11,12 @@ import 'package:craftsky_app/feed/models/timeline_page.dart';
 import 'package:craftsky_app/feed/providers/author_post_cache.dart';
 import 'package:craftsky_app/feed/providers/like_post_overlay.dart';
 import 'package:craftsky_app/feed/providers/post_api_client_provider.dart';
+import 'package:craftsky_app/feed/providers/post_record_overlay.dart';
 import 'package:craftsky_app/feed/providers/profile_pins_provider.dart';
 import 'package:craftsky_app/feed/providers/toggle_like_post_provider.dart';
 import 'package:craftsky_app/feed/providers/toggle_repost_post_provider.dart';
 import 'package:craftsky_app/feed/widgets/external_card.dart';
 import 'package:craftsky_app/feed/widgets/native_video_player.dart';
-import 'package:craftsky_app/feed/widgets/post_edit_indicator.dart';
 import 'package:craftsky_app/feed/widgets/post_image_carousel.dart';
 import 'package:craftsky_app/feed/widgets/post_image_gallery.dart';
 import 'package:craftsky_app/feed/widgets/post_like_reaction.dart';
@@ -177,7 +177,10 @@ class PostCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final post = _postWithInteractionState(ref, this.post);
+    final post = _postWithInteractionState(
+      ref,
+      ref.watch(postRecordPresentationProvider(this.post)),
+    );
     if (post.isProtected) {
       return _ProtectedPostCard(
         post: post,
@@ -468,26 +471,22 @@ class PostCard extends ConsumerWidget {
                               ),
                             ),
                           ),
-                          if (post.editedAt != null)
-                            Padding(
-                              padding: EdgeInsetsDirectional.only(
-                                end: spacing.sp1,
-                              ),
-                              child: PostEditIndicator(
-                                editedAt: post.editedAt,
-                                source: post.editTimeSource,
-                              ),
-                            ),
                           GestureDetector(
                             behavior: HitTestBehavior.opaque,
-                            onTap: onTap,
-                            onDoubleTap: likeOnDoubleTap,
+                            onTap: post.editedAt == null ? onTap : null,
+                            onDoubleTap: post.editedAt == null
+                                ? likeOnDoubleTap
+                                : null,
                             child: SizedBox(
-                              width: _postCardMenuWidth,
+                              width: post.editedAt == null
+                                  ? _postCardMenuWidth
+                                  : null,
                               child: Align(
+                                widthFactor: post.editedAt == null ? null : 1,
                                 alignment: AlignmentDirectional.centerEnd,
                                 child: RelativeTimeText(
                                   timestamp: post.createdAt,
+                                  editedAt: post.editedAt,
                                   textAlign: TextAlign.end,
                                 ),
                               ),

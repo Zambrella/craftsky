@@ -16,7 +16,6 @@ class PostSummaryDataMapper extends ClassMapperBase<PostSummaryData> {
     if (_instance == null) {
       MapperContainer.globals.use(_instance = PostSummaryDataMapper._());
       PostAuthorMapper.ensureInitialized();
-      PostEditTimeSourceMapper.ensureInitialized();
       PostImageMapper.ensureInitialized();
       ExternalImportMapper.ensureInitialized();
       PostExternalMapper.ensureInitialized();
@@ -56,10 +55,6 @@ class PostSummaryDataMapper extends ClassMapperBase<PostSummaryData> {
     _$editedAt,
     opt: true,
   );
-  static PostEditTimeSource? _$editTimeSource(PostSummaryData v) =>
-      v.editTimeSource;
-  static const Field<PostSummaryData, PostEditTimeSource> _f$editTimeSource =
-      Field('editTimeSource', _$editTimeSource, opt: true);
   static String? _$projectTitle(PostSummaryData v) => v.projectTitle;
   static const Field<PostSummaryData, String> _f$projectTitle = Field(
     'projectTitle',
@@ -107,7 +102,6 @@ class PostSummaryDataMapper extends ClassMapperBase<PostSummaryData> {
     #text: _f$text,
     #createdAt: _f$createdAt,
     #editedAt: _f$editedAt,
-    #editTimeSource: _f$editTimeSource,
     #projectTitle: _f$projectTitle,
     #image: _f$image,
     #externalImport: _f$externalImport,
@@ -123,7 +117,6 @@ class PostSummaryDataMapper extends ClassMapperBase<PostSummaryData> {
       text: data.dec(_f$text),
       createdAt: data.dec(_f$createdAt),
       editedAt: data.dec(_f$editedAt),
-      editTimeSource: data.dec(_f$editTimeSource),
       projectTitle: data.dec(_f$projectTitle),
       image: data.dec(_f$image),
       externalImport: data.dec(_f$externalImport),
@@ -180,7 +173,6 @@ abstract class PostSummaryDataCopyWith<$R, $In extends PostSummaryData, $Out>
     String? text,
     DateTime? createdAt,
     DateTime? editedAt,
-    PostEditTimeSource? editTimeSource,
     String? projectTitle,
     PostImage? image,
     ExternalImport? externalImport,
@@ -221,7 +213,6 @@ class _PostSummaryDataCopyWithImpl<$R, $Out>
     Object? text = $none,
     Object? createdAt = $none,
     Object? editedAt = $none,
-    Object? editTimeSource = $none,
     Object? projectTitle = $none,
     Object? image = $none,
     Object? externalImport = $none,
@@ -235,7 +226,6 @@ class _PostSummaryDataCopyWithImpl<$R, $Out>
       if (text != $none) #text: text,
       if (createdAt != $none) #createdAt: createdAt,
       if (editedAt != $none) #editedAt: editedAt,
-      if (editTimeSource != $none) #editTimeSource: editTimeSource,
       if (projectTitle != $none) #projectTitle: projectTitle,
       if (image != $none) #image: image,
       if (externalImport != $none) #externalImport: externalImport,
@@ -251,7 +241,6 @@ class _PostSummaryDataCopyWithImpl<$R, $Out>
     text: data.get(#text, or: $value.text),
     createdAt: data.get(#createdAt, or: $value.createdAt),
     editedAt: data.get(#editedAt, or: $value.editedAt),
-    editTimeSource: data.get(#editTimeSource, or: $value.editTimeSource),
     projectTitle: data.get(#projectTitle, or: $value.projectTitle),
     image: data.get(#image, or: $value.image),
     externalImport: data.get(#externalImport, or: $value.externalImport),

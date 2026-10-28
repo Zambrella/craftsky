@@ -8319,30 +8319,6 @@ abstract class AppLocalizations {
   /// **'{actor} quoted your reply'**
   String notificationQuoteReplyRow(String actor);
 
-  /// Accessible tooltip for an AppView-confirmed edit time.
-  ///
-  /// In en, this message translates to:
-  /// **'Edited {timestamp}'**
-  String postEditTimeConfirmed(String timestamp);
-
-  /// Author-reported edit time, not independently verified.
-  ///
-  /// In en, this message translates to:
-  /// **'Edit reported for {timestamp}'**
-  String postEditTimeReported(String timestamp);
-
-  /// When AppView first observed an edit whose author time is unavailable.
-  ///
-  /// In en, this message translates to:
-  /// **'Edit first observed {timestamp}'**
-  String postEditTimeObserved(String timestamp);
-
-  /// Edit disclosure when the time source is unfamiliar.
-  ///
-  /// In en, this message translates to:
-  /// **'Edit time: {timestamp}'**
-  String postEditTimeUnknown(String timestamp);
-
   /// No description provided for @postEditSaveChanges.
   ///
   /// In en, this message translates to:
@@ -8361,65 +8337,11 @@ abstract class AppLocalizations {
   /// **'Could not save changes. Please try again.'**
   String get postEditError;
 
-  /// No description provided for @postEditPending.
-  ///
-  /// In en, this message translates to:
-  /// **'Changes saved. Updating post…'**
-  String get postEditPending;
-
-  /// No description provided for @postEditRefresh.
-  ///
-  /// In en, this message translates to:
-  /// **'Refresh post'**
-  String get postEditRefresh;
-
-  /// No description provided for @postEditRefreshError.
-  ///
-  /// In en, this message translates to:
-  /// **'Changes are saved. Could not refresh the post. Please try again.'**
-  String get postEditRefreshError;
-
   /// No description provided for @postEditSaving.
   ///
   /// In en, this message translates to:
   /// **'Saving changes…'**
   String get postEditSaving;
-
-  /// No description provided for @postEditUpdating.
-  ///
-  /// In en, this message translates to:
-  /// **'Updating post…'**
-  String get postEditUpdating;
-
-  /// No description provided for @postEditExternalUrl.
-  ///
-  /// In en, this message translates to:
-  /// **'Link URL'**
-  String get postEditExternalUrl;
-
-  /// No description provided for @postEditExternalTitle.
-  ///
-  /// In en, this message translates to:
-  /// **'Link title'**
-  String get postEditExternalTitle;
-
-  /// No description provided for @postEditExternalDescription.
-  ///
-  /// In en, this message translates to:
-  /// **'Link description'**
-  String get postEditExternalDescription;
-
-  /// No description provided for @postEditRemovePreviewImage.
-  ///
-  /// In en, this message translates to:
-  /// **'Remove preview image'**
-  String get postEditRemovePreviewImage;
-
-  /// No description provided for @postEditRefreshPreview.
-  ///
-  /// In en, this message translates to:
-  /// **'Refresh preview'**
-  String get postEditRefreshPreview;
 
   /// No description provided for @postEditAction.
   ///
@@ -8486,6 +8408,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Check these fields and try again: {fields}.'**
   String postEditValidationFields(String fields);
+
+  /// Accessible tooltip for the current record edit timestamp.
+  ///
+  /// In en, this message translates to:
+  /// **'Edited {timestamp}'**
+  String postEditTime(String timestamp);
 }
 
 class _AppLocalizationsDelegate

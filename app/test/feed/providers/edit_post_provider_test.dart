@@ -10,8 +10,10 @@ import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/post_comment_section.dart' as comments;
 import 'package:craftsky_app/feed/models/post_edit.dart';
 import 'package:craftsky_app/feed/models/timeline_page.dart';
+import 'package:craftsky_app/feed/providers/create_post_provider.dart';
 import 'package:craftsky_app/feed/providers/edit_post_provider.dart';
 import 'package:craftsky_app/feed/providers/post_comment_section_provider.dart';
+import 'package:craftsky_app/feed/providers/post_edit_refresh.dart';
 import 'package:craftsky_app/feed/providers/post_edit_seed_provider.dart';
 import 'package:craftsky_app/feed/providers/post_provider.dart';
 import 'package:craftsky_app/feed/providers/post_record_overlay.dart';
@@ -40,6 +42,421 @@ import '../../test_support/session_registry_storage.dart';
 import '../fakes/fake_post_repository.dart';
 
 void main() {
+  test(
+    'UT-007 a loaded card updates before any public read completes',
+    () async {
+      final seed = _seed();
+      final pending = Completer<Post>();
+      final container = ProviderContainer.test(
+        overrides: [
+          postRepositoryProvider.overrideWithValue(
+            FakePostRepository(
+              onFetch: (_, _) => pending.future,
+              onEdit:
+                  (
+                    did,
+                    key, {
+                    required changes,
+                    required expectedCid,
+                    required operationKey,
+                  }) async => PostEditResult(
+                    acceptedCid: Cid.parse('bafyaccepted'),
+                    changed: true,
+                    editedAt: DateTime.utc(2026),
+                  ),
+            ),
+          ),
+        ],
+      );
+      final card = postRecordPresentationProvider(seed.post);
+      final subscription = container.listen(card, (_, _) {});
+      addTearDown(subscription.close);
+      final mutation = container.listen(editPostProvider, (_, _) {});
+      addTearDown(mutation.close);
+      expect(container.read(card).text, 'Before');
+      await container.read(editPostProvider.future);
+      await container
+          .read(editPostProvider.notifier)
+          .save(seed: seed, changes: PostEditChanges({'text': 'After'}));
+      expect(pending.isCompleted, isFalse);
+      expect(container.read(card).text, 'After');
+      expect(container.read(card).likeCount, 7);
+      final local = container.read(card);
+      final renderedAgain = postRecordPresentationProvider(local);
+      final second = container.listen(renderedAgain, (_, _) {});
+      addTearDown(second.close);
+      expect(container.read(renderedAgain).text, 'After');
+      expect(
+        container.read(pdsRecordOperationControllerProvider).activeOverlays,
+        hasLength(1),
+      );
+    },
+  );
+  test(
+    'UT-007 IR-005 matching detail read cannot release a lagging feed',
+    () async {
+      final seed = _seed();
+      final lag = Completer<TimelinePage>();
+      var reads = 0;
+      final container = ProviderContainer.test(
+        overrides: [
+          postRepositoryProvider.overrideWithValue(
+            FakePostRepository(
+              onListTimeline: ({cursor, limit}) async {
+                reads++;
+                return reads == 1
+                    ? TimelinePage(
+                        items: [TimelineItem(itemKey: 'base', post: seed.post)],
+                      )
+                    : await lag.future;
+              },
+              onFetch: (_, _) async => seed.post.copyWith(
+                cid: 'bafyaccepted',
+                text: 'After',
+                recordRevision: '3aaaaaaaaaaa3',
+              ),
+              onEdit:
+                  (
+                    did,
+                    key, {
+                    required changes,
+                    required expectedCid,
+                    required operationKey,
+                  }) async => PostEditResult(
+                    acceptedCid: Cid.parse('bafyaccepted'),
+                    changed: true,
+                    editedAt: DateTime.utc(2026),
+                    recordRevision: '3aaaaaaaaaaa3',
+                  ),
+            ),
+          ),
+          activeLanguagePreferencesProvider.overrideWith(
+            (ref) => const LanguagePreferences(
+              primaryLanguage: 'en',
+              contentLanguages: ['en'],
+            ),
+          ),
+        ],
+      );
+      final timeline = container.listen(timelineProvider, (_, _) {});
+      final edit = container.listen(editPostProvider, (_, _) {});
+      addTearDown(timeline.close);
+      addTearDown(edit.close);
+      await container.read(timelineProvider.future);
+      await container.read(editPostProvider.future);
+      await container
+          .read(editPostProvider.notifier)
+          .save(seed: seed, changes: PostEditChanges({'text': 'After'}));
+      await Future<void>.delayed(Duration.zero);
+      expect(
+        (await container.read(
+          postProvider(seed.post.author.did, seed.post.rkey).future,
+        )).text,
+        'After',
+      );
+      lag.complete(
+        TimelinePage(
+          items: [TimelineItem(itemKey: 'base', post: seed.post)],
+        ),
+      );
+      expect(
+        (await container.read(timelineProvider.future)).items.single.post.text,
+        'After',
+      );
+    },
+  );
+  test(
+    'REG-004 IR-006 editing page two preserves loaded items and cursor',
+    () async {
+      final seed = _seed();
+      final first = seed.post.copyWith(
+        uri: 'at://did:plc:alice/social.craftsky.feed.post/first',
+        rkey: 'first',
+      );
+      final container = ProviderContainer.test(
+        overrides: [
+          activeLanguagePreferencesProvider.overrideWith(
+            (ref) => const LanguagePreferences(
+              primaryLanguage: 'en',
+              contentLanguages: ['en'],
+            ),
+          ),
+          postRepositoryProvider.overrideWithValue(
+            FakePostRepository(
+              onListTimeline: ({cursor, limit}) async => TimelinePage(
+                items: [
+                  TimelineItem(
+                    itemKey: cursor == null ? 'first' : 'base',
+                    post: cursor == null ? first : seed.post,
+                  ),
+                ],
+                cursor: cursor == null ? 'page-two' : 'page-three',
+              ),
+              onFetch: (_, _) async => seed.post,
+              onEdit:
+                  (
+                    did,
+                    key, {
+                    required changes,
+                    required expectedCid,
+                    required operationKey,
+                  }) async => PostEditResult(
+                    acceptedCid: Cid.parse('bafyaccepted'),
+                    changed: true,
+                    editedAt: DateTime.utc(2026),
+                    recordRevision: '3aaaaaaaaaaa3',
+                  ),
+            ),
+          ),
+        ],
+      );
+      final timeline = container.listen(timelineProvider, (_, _) {});
+      final edit = container.listen(editPostProvider, (_, _) {});
+      addTearDown(timeline.close);
+      addTearDown(edit.close);
+      await container.read(timelineProvider.future);
+      await container.read(timelineProvider.notifier).loadMore();
+      await container.read(editPostProvider.future);
+      await container
+          .read(editPostProvider.notifier)
+          .save(seed: seed, changes: PostEditChanges({'text': 'After'}));
+      final result = await container.read(timelineProvider.future);
+      expect(result.items.map((item) => item.post.rkey.value), [
+        'first',
+        'base',
+      ]);
+      expect(result.items.last.post.text, 'After');
+      expect(result.cursor, 'page-three');
+    },
+  );
+  test(
+    'REG-004 IR-006 a page in flight cannot restore pre-edit rows',
+    () async {
+      final seed = _seed();
+      final next = Completer<TimelinePage>();
+      final container = ProviderContainer.test(
+        overrides: [
+          activeLanguagePreferencesProvider.overrideWith(
+            (ref) => const LanguagePreferences(
+              primaryLanguage: 'en',
+              contentLanguages: ['en'],
+            ),
+          ),
+          postRepositoryProvider.overrideWithValue(
+            FakePostRepository(
+              onListTimeline: ({cursor, limit}) async => cursor == null
+                  ? TimelinePage(
+                      items: [TimelineItem(itemKey: 'base', post: seed.post)],
+                      cursor: 'next',
+                    )
+                  : await next.future,
+              onFetch: (_, _) async => seed.post,
+              onEdit:
+                  (
+                    did,
+                    key, {
+                    required changes,
+                    required expectedCid,
+                    required operationKey,
+                  }) async => PostEditResult(
+                    acceptedCid: Cid.parse('bafyaccepted'),
+                    changed: true,
+                    editedAt: DateTime.utc(2026),
+                    recordRevision: '3aaaaaaaaaaa3',
+                  ),
+            ),
+          ),
+        ],
+      );
+      final timeline = container.listen(timelineProvider, (_, _) {});
+      final edit = container.listen(editPostProvider, (_, _) {});
+      addTearDown(timeline.close);
+      addTearDown(edit.close);
+      await container.read(timelineProvider.future);
+      final more = container.read(timelineProvider.notifier).loadMore();
+      await container.read(editPostProvider.future);
+      await container
+          .read(editPostProvider.notifier)
+          .save(seed: seed, changes: PostEditChanges({'text': 'After'}));
+      next.complete(
+        TimelinePage(
+          items: [
+            TimelineItem(
+              itemKey: 'second',
+              post: seed.post.copyWith(
+                uri: 'at://did:plc:alice/social.craftsky.feed.post/second',
+                rkey: 'second',
+              ),
+            ),
+          ],
+          cursor: 'third',
+        ),
+      );
+      await more;
+      final result = container.read(timelineProvider).requireValue;
+      expect(result.items.first.post.text, 'After');
+      expect(result.items.length, 2);
+      expect(result.cursor, 'third');
+    },
+  );
+  for (final detailIndexed in [false, true]) {
+    test(
+      'AT-002 IR-007 an immediate edit retains create membership '
+      '(detail indexed: $detailIndexed)',
+      () async {
+        final seed = _seed();
+        var indexed = false;
+        var writes = 0;
+        final container = ProviderContainer.test(
+          overrides: [
+            activeLanguagePreferencesProvider.overrideWith(
+              (ref) => const LanguagePreferences(
+                primaryLanguage: 'en',
+                contentLanguages: ['en'],
+              ),
+            ),
+            postRepositoryProvider.overrideWithValue(
+              FakePostRepository(
+                onListTimeline: ({cursor, limit}) async => TimelinePage(
+                  items: indexed
+                      ? [
+                          TimelineItem(
+                            itemKey: 'base',
+                            post: seed.post.copyWith(
+                              cid: 'bafyaccepted',
+                              text: 'After',
+                              recordRevision: '3aaaaaaaaaaa3',
+                            ),
+                          ),
+                        ]
+                      : [],
+                ),
+                onCreate: ({required text, reply, images}) async => seed.post,
+                onFetch: (_, _) async {
+                  if (!detailIndexed) {
+                    throw const ApiBadRequest('post_not_found');
+                  }
+                  return seed.post.copyWith(
+                    cid: 'bafyaccepted',
+                    text: 'After',
+                    recordRevision: '3aaaaaaaaaaa3',
+                  );
+                },
+                onEdit:
+                    (
+                      did,
+                      key, {
+                      required changes,
+                      required expectedCid,
+                      required operationKey,
+                    }) async {
+                      writes++;
+                      return PostEditResult(
+                        acceptedCid: Cid.parse('bafyaccepted'),
+                        changed: true,
+                        editedAt: DateTime.utc(2026),
+                        recordRevision: '3aaaaaaaaaaa3',
+                      );
+                    },
+              ),
+            ),
+          ],
+        );
+        final timeline = container.listen(timelineProvider, (_, _) {});
+        final edit = container.listen(editPostProvider, (_, _) {});
+        final create = container.listen(createPostProvider, (_, _) {});
+        addTearDown(timeline.close);
+        addTearDown(edit.close);
+        addTearDown(create.close);
+        await container.read(timelineProvider.future);
+        await container.read(createPostProvider.future);
+        await container
+            .read(createPostProvider.notifier)
+            .create(text: seed.post.text, langs: const [], sponsored: false);
+        expect(
+          (await container.read(timelineProvider.future))
+              .items
+              .single
+              .post
+              .text,
+          'Before',
+        );
+        await container.read(editPostProvider.future);
+        await container
+            .read(editPostProvider.notifier)
+            .save(seed: seed, changes: PostEditChanges({'text': 'After'}));
+        await container.pump();
+        container.invalidate(timelineProvider);
+        final pending = await container.read(timelineProvider.future);
+        expect(pending.items.map((item) => item.post.text), ['After']);
+        expect(pending.items.single.post.createdAt, seed.post.createdAt);
+        indexed = true;
+        container.invalidate(timelineProvider);
+        expect(
+          (await container.read(timelineProvider.future)).items
+              .map((item) => item.post.text),
+          ['After'],
+        );
+        indexed = false;
+        container.invalidate(timelineProvider);
+        expect((await container.read(timelineProvider.future)).items, isEmpty);
+        expect(writes, 1);
+      },
+    );
+  }
+  test(
+    'UT-007 IR-005 newer public observations update already-loaded cards',
+    () async {
+      final seed = _seed();
+      final c = ProviderContainer.test(
+        overrides: [
+          postEditRefreshProvider.overrideWithValue((_, _) {}),
+          postRepositoryProvider.overrideWithValue(
+            FakePostRepository(
+              onEdit:
+                  (
+                    did,
+                    key, {
+                    required changes,
+                    required expectedCid,
+                    required operationKey,
+                  }) async => PostEditResult(
+                    acceptedCid: Cid.parse('bafyaccepted'),
+                    changed: true,
+                    editedAt: DateTime.utc(2026),
+                    recordRevision: '3aaaaaaaaaaa3',
+                  ),
+            ),
+          ),
+        ],
+      );
+      final card = postRecordPresentationProvider(seed.post);
+      final cards = c.listen(card, (_, _) {});
+      final edit = c.listen(editPostProvider, (_, _) {});
+      addTearDown(cards.close);
+      addTearDown(edit.close);
+      await c.read(editPostProvider.future);
+      await c
+          .read(editPostProvider.notifier)
+          .save(seed: seed, changes: PostEditChanges({'text': 'After'}));
+      expect(c.read(card).text, 'After');
+      final observed = Provider(
+        (ref) => applyPostRecordOverlay(
+          ref,
+          seed.post.copyWith(
+            cid: 'bafynewer',
+            text: 'Newer external',
+            recordRevision: '3aaaaaaaaaaa4',
+          ),
+        ),
+      );
+      expect(c.read(observed)?.text, 'Newer external');
+      await c.pump();
+      expect(c.read(card).text, 'Newer external');
+      final stale = Provider((ref) => applyPostRecordOverlay(ref, seed.post));
+      expect(c.read(stale)?.text, 'Newer external');
+    },
+  );
   test('IT-008 replacement video exposes a missing blob to the '
       'bounded recovery coordinator', () async {
     final seed = _seed();
@@ -118,9 +535,7 @@ void main() {
                       post: acceptedPost,
                       acceptedCid: acceptedPost.cid,
                       changed: true,
-                      projectionPending: false,
                       editedAt: DateTime.utc(2026),
-                      editTimeSource: PostEditTimeSource.confirmed,
                     );
                   },
             ),
@@ -175,13 +590,11 @@ void main() {
                     return PostEditResult(
                       acceptedCid: Cid.parse('bafyaccepted'),
                       changed: true,
-                      projectionPending: false,
                       post: original.copyWith(
                         cid: 'bafyaccepted',
                         text: 'After',
                       ),
                       editedAt: DateTime.utc(2026, 10, 26),
-                      editTimeSource: PostEditTimeSource.confirmed,
                     );
                   },
             ),
@@ -253,14 +666,7 @@ void main() {
           }) async => PostEditResult(
             acceptedCid: Cid.parse('bafyaccepted'),
             changed: true,
-            projectionPending: false,
-            post: seed.post.copyWith(
-              cid: 'bafyaccepted',
-              text: 'After',
-              likeCount: 7,
-            ),
             editedAt: DateTime.utc(2026, 10, 26),
-            editTimeSource: PostEditTimeSource.confirmed,
             recordRevision: '3aaaaaaaaaaa3',
           ),
     );
@@ -311,7 +717,7 @@ void main() {
     final search = await container.read(searchProvider.future);
     expect(search.items.single.text, 'After');
     final timeline = await container.read(timelineProvider.future);
-    expect(timelineReads, greaterThan(1));
+    expect(timelineReads, 1);
     expect(timeline.items.single.post.text, 'After');
     final visible = Provider(
       (ref) => applyPostRecordListOverlays(ref, [
@@ -359,6 +765,14 @@ void main() {
           applyPostRecordListOverlays(ref, const [], includes: (_) => true),
     );
     expect(container.read(filtered), isEmpty);
+    final protected = Provider(
+      (ref) => applyPostRecordOverlay(
+        ref,
+        seed.post.copyWith(availability: 'blocked'),
+      ),
+    );
+    expect(container.read(protected)?.text, 'Before');
+    expect(container.read(protected)?.availability, 'blocked');
   });
   test(
     'UT-007 later authoritative revision supersedes an accepted edit',
@@ -378,13 +792,11 @@ void main() {
                   }) async => PostEditResult(
                     acceptedCid: Cid.parse('bafyaccepted'),
                     changed: true,
-                    projectionPending: false,
                     post: seed.post.copyWith(
                       cid: 'bafyaccepted',
                       text: 'After',
                     ),
                     editedAt: DateTime.utc(2026, 10, 26),
-                    editTimeSource: PostEditTimeSource.confirmed,
                     recordRevision: '3aaaaaaaaaaa3',
                   ),
             ),
@@ -454,21 +866,12 @@ void main() {
     await rejected;
   });
   test(
-    'IT-015 accepted pending edit refreshes reads without resending the write',
+    'UT-007 IR-009 IR-011 newer quoted originals cannot regress on stale reads',
     () async {
-      final seed = _seed();
-      var writes = 0;
-      var reads = 0;
-      final accepted = PostEditResult(
-        acceptedCid: Cid.parse('bafyaccepted'),
-        changed: true,
-        projectionPending: true,
-        editedAt: DateTime.utc(2026, 10, 26),
-        editTimeSource: PostEditTimeSource.confirmed,
-        recordRevision: '3aaaaaaaaaaa3',
-      );
-      final container = ProviderContainer.test(
+      final base = _seed().post;
+      final c = ProviderContainer.test(
         overrides: [
+          postEditRefreshProvider.overrideWithValue((_, _) {}),
           postRepositoryProvider.overrideWithValue(
             FakePostRepository(
               onEdit:
@@ -478,47 +881,160 @@ void main() {
                     required changes,
                     required expectedCid,
                     required operationKey,
-                  }) async {
-                    writes++;
-                    return accepted;
-                  },
-              onFetchEdit: (did, key) async {
-                reads++;
-                if (reads == 1) return seed;
-                final current = seed.post.copyWith(
-                  cid: 'bafyaccepted',
-                  text: 'After',
-                  recordRevision: '3aaaaaaaaaaa3',
-                );
-                return PostEditSeed(
-                  post: current,
-                  baseCid: current.cid,
-                  recordRevision: '3aaaaaaaaaaa3',
-                  editable: {'text': current.text, 'sponsored': false},
-                );
-              },
+                  }) async => PostEditResult(
+                    acceptedCid: Cid.parse('bafyaccepted'),
+                    changed: true,
+                    editedAt: DateTime.utc(2026),
+                    recordRevision: '3aaaaaaaaaaa3',
+                  ),
             ),
           ),
         ],
       );
-      final sub = container.listen(editPostProvider, (_, _) {});
+      final sub = c.listen(editPostProvider, (_, _) {});
       addTearDown(sub.close);
-      await container.read(editPostProvider.future);
-      final notifier = container.read(editPostProvider.notifier);
-      await notifier.save(
-        seed: seed,
-        changes: PostEditChanges({'text': 'After'}),
+      await c.read(editPostProvider.future);
+      await c
+          .read(editPostProvider.notifier)
+          .save(
+            seed: PostEditSeed(
+              post: base,
+              baseCid: base.cid,
+              recordRevision: '3aaaaaaaaaaa2',
+              editable: {'text': base.text, 'sponsored': false},
+            ),
+            changes: PostEditChanges({'text': 'Accepted V2'}),
+          );
+      Post quote(String cid, String text, String? revision) => base.copyWith(
+        uri: 'at://did:plc:alice/social.craftsky.feed.post/quote',
+        rkey: 'quote',
+        quote: PostRef(uri: base.uri.value, cid: base.cid.value),
+        quoteView: QuoteView(
+          state: 'visible',
+          post: QuotePreviewPost(
+            uri: base.uri.value,
+            cid: cid,
+            text: text,
+            author: base.author,
+            createdAt: base.createdAt,
+            sponsored: false,
+            recordRevision: revision,
+          ),
+        ),
       );
+      final cachedSource = quote(base.cid.value, base.text, '3aaaaaaaaaaa2');
+      final presentation = postRecordPresentationProvider(cachedSource);
+      final card = c.listen(presentation, (_, _) {});
+      addTearDown(card.close);
+      expect(c.read(presentation).quoteView!.post!.text, 'Accepted V2');
+      // Rendering cached/local previews cannot certify or promote a version.
+      final cachedLater = postRecordPresentationProvider(
+        quote('bafynewer', 'External V3', '3aaaaaaaaaaa4'),
+      );
+      expect(c.read(cachedLater).quoteView!.post!.text, 'External V3');
+      expect(c.read(presentation).quoteView!.post!.text, 'Accepted V2');
+      final newer = Provider(
+        (ref) => applyPostRecordOverlay(
+          ref,
+          quote('bafynewer', 'External V3', '3aaaaaaaaaaa4'),
+        )!,
+      );
+      expect(c.read(newer).quoteView!.post!.text, 'External V3');
+      await c.pump();
+      expect(c.read(presentation).quoteView!.post!.text, 'External V3');
+      // A partial preview must not create a made-up full record.
+      final full = Provider((ref) => applyPostRecordOverlay(ref, base)!);
+      expect(c.read(full).text, 'Accepted V2');
+      final protected = Provider(
+        (ref) => applyPostRecordOverlay(
+          ref,
+          cachedSource.copyWith(quoteView: const QuoteView(state: 'blocked')),
+        )!,
+      );
+      expect(c.read(protected).quoteView!.state, 'blocked');
+      final stale = Provider(
+        (ref) => applyPostRecordOverlay(
+          ref,
+          quote(base.cid.value, base.text, '3aaaaaaaaaaa2'),
+        )!,
+      );
+      expect(c.read(stale).quoteView!.post!.text, 'External V3');
+      // A complete later observation replaces the partial preview floor.
+      final latestFull = Provider(
+        (ref) => applyPostRecordOverlay(
+          ref,
+          base.copyWith(
+            cid: 'bafylatest',
+            text: 'External V4',
+            recordRevision: '3aaaaaaaaaaa5',
+          ),
+        )!,
+      );
+      expect(c.read(latestFull).text, 'External V4');
+      await c.pump();
+      expect(c.read(presentation).quoteView!.post!.text, 'External V4');
+      final staleQuote3 = Provider(
+        (ref) => applyPostRecordOverlay(
+          ref,
+          quote('bafynewer', 'External V3', '3aaaaaaaaaaa4'),
+        )!,
+      );
+      expect(c.read(staleQuote3).quoteView!.post!.text, 'External V4');
+      // An external client can restore identical record bytes at a later
+      // repository revision. Equal CIDs must still advance the quote floor.
+      final restored = Provider(
+        (ref) => applyPostRecordOverlay(
+          ref,
+          quote('bafylatest', 'External V4', '3aaaaaaaaaaa7'),
+        )!,
+      );
+      expect(c.read(restored).quoteView!.post!.text, 'External V4');
+      for (final revision in ['3aaaaaaaaaaa5', null]) {
+        final sameContent = Provider(
+          (ref) => applyPostRecordOverlay(
+            ref,
+            quote('bafylatest', 'External V4', revision),
+          )!,
+        );
+        expect(c.read(sameContent).quoteView!.post!.text, 'External V4');
+      }
+      final delayedIntermediate = Provider(
+        (ref) => applyPostRecordOverlay(
+          ref,
+          quote('bafyintermediate', 'Older intermediate', '3aaaaaaaaaaa6'),
+        )!,
+      );
+      expect(c.read(delayedIntermediate).quoteView!.post!.text, 'External V4');
+      await c.pump();
+      expect(c.read(presentation).quoteView!.post!.text, 'External V4');
       expect(
-        await notifier.refreshAccepted(seed: seed, accepted: accepted),
-        isNull,
+        c.read(presentation).quoteView!.post!.recordRevision,
+        '3aaaaaaaaaaa7',
       );
-      expect(
-        (await notifier.refreshAccepted(seed: seed, accepted: accepted))?.text,
-        'After',
-      );
-      expect(writes, 1);
-      expect(reads, 2);
+      // Handing the partial view back to an identical full record must not
+      // discard ordering evidence, even if that response lacks a revision.
+      for (final revision in ['3aaaaaaaaaaa5', null]) {
+        final matchingFull = Provider(
+          (ref) => applyPostRecordOverlay(
+            ref,
+            base.copyWith(
+              cid: 'bafylatest',
+              text: 'External V4',
+              recordRevision: revision,
+            ),
+          )!,
+        );
+        expect(c.read(matchingFull).text, 'External V4');
+        final delayed = Provider(
+          (ref) => applyPostRecordOverlay(
+            ref,
+            quote('bafyintermediate', 'Older intermediate', '3aaaaaaaaaaa6'),
+          )!,
+        );
+        expect(c.read(delayed).quoteView!.post!.text, 'External V4');
+        await c.pump();
+        expect(c.read(presentation).quoteView!.post!.text, 'External V4');
+      }
     },
   );
 }

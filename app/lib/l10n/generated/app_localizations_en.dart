@@ -4719,26 +4719,6 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String postEditTimeConfirmed(String timestamp) {
-    return 'Edited $timestamp';
-  }
-
-  @override
-  String postEditTimeReported(String timestamp) {
-    return 'Edit reported for $timestamp';
-  }
-
-  @override
-  String postEditTimeObserved(String timestamp) {
-    return 'Edit first observed $timestamp';
-  }
-
-  @override
-  String postEditTimeUnknown(String timestamp) {
-    return 'Edit time: $timestamp';
-  }
-
-  @override
   String get postEditSaveChanges => 'Save changes';
 
   @override
@@ -4748,35 +4728,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get postEditError => 'Could not save changes. Please try again.';
 
   @override
-  String get postEditPending => 'Changes saved. Updating post…';
-
-  @override
-  String get postEditRefresh => 'Refresh post';
-
-  @override
-  String get postEditRefreshError =>
-      'Changes are saved. Could not refresh the post. Please try again.';
-
-  @override
   String get postEditSaving => 'Saving changes…';
-
-  @override
-  String get postEditUpdating => 'Updating post…';
-
-  @override
-  String get postEditExternalUrl => 'Link URL';
-
-  @override
-  String get postEditExternalTitle => 'Link title';
-
-  @override
-  String get postEditExternalDescription => 'Link description';
-
-  @override
-  String get postEditRemovePreviewImage => 'Remove preview image';
-
-  @override
-  String get postEditRefreshPreview => 'Refresh preview';
 
   @override
   String get postEditAction => 'Edit';
@@ -4815,5 +4767,10 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String postEditValidationFields(String fields) {
     return 'Check these fields and try again: $fields.';
+  }
+
+  @override
+  String postEditTime(String timestamp) {
+    return 'Edited $timestamp';
   }
 }

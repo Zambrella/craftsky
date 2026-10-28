@@ -536,7 +536,7 @@ func TestPostEditFinalizationRollsBackAndRecoversWithoutAnotherWrite(t *testing.
 }
 
 // IT-010: source arrival can precede the PDS acknowledgement (or its loss).
-func TestPostEditSourceBeforeAcknowledgementIsConfirmed(t *testing.T) {
+func TestPostEditSourceBeforeAcknowledgementPreservesDeclaration(t *testing.T) {
 	ctx := context.Background()
 	now := time.Date(2026, 10, 26, 12, 0, 0, 0, time.UTC)
 	service, pds, request := postEditCommandFixture(t, &now)
@@ -572,12 +572,12 @@ func TestPostEditSourceBeforeAcknowledgementIsConfirmed(t *testing.T) {
 		if _, err := source.IngestRecord(ctx, event); err != nil {
 			t.Fatal(err)
 		}
-		if err := service.store.pool.QueryRow(ctx, `SELECT edit_time_source FROM craftsky_post_edit_state WHERE uri=$1`, request.URI).Scan(&observedSource); err != nil {
+		if err := service.store.pool.QueryRow(ctx, `SELECT record->>'editedAt' FROM tap_source_records WHERE uri=$1`, request.URI).Scan(&observedSource); err != nil {
 			t.Fatal(err)
 		}
 	}
 	result, err := service.Put(ctx, request)
-	if err != nil || result.State != CommandAccepted || observedSource != "confirmed" {
+	if err != nil || result.State != CommandAccepted || observedSource != now.Format(time.RFC3339Nano) {
 		t.Fatalf("source raced ack: result=%+v source=%s error=%v", result, observedSource, err)
 	}
 	// Once exact acceptance is known, restoring that old body at a newer
@@ -603,10 +603,10 @@ func TestPostEditSourceBeforeAcknowledgementIsConfirmed(t *testing.T) {
 	if _, err := source.IngestRecord(ctx, event); err != nil {
 		t.Fatal(err)
 	}
-	if err := service.store.pool.QueryRow(ctx, `SELECT edit_time_source FROM craftsky_post_edit_state WHERE uri=$1`, request.URI).Scan(&observedSource); err != nil {
+	if err := service.store.pool.QueryRow(ctx, `SELECT record->>'editedAt' FROM tap_source_records WHERE uri=$1`, request.URI).Scan(&observedSource); err != nil {
 		t.Fatal(err)
 	}
-	if observedSource != "reported" {
+	if observedSource != now.Format(time.RFC3339Nano) {
 		t.Fatalf("later restored body reused old confirmation: %s", observedSource)
 	}
 

@@ -16,7 +16,7 @@ This document records the approved implementation design. Execution and verifica
 
 Reuse the current general/project composers, `PostRepository`, addressed PDS commands, Riverpod mutation controller and durable ingestion projections. Add a narrowly scoped owner edit seed and partial update contract. Keep raw unknown record data server-side and build the outgoing record from the current authoritative PDS record under an exact version precondition.
 
-Add an optional portable `editedAt` record field, plus current-version AppView edit metadata distinguishing confirmed/reported/observed time. Preserve original sorting and interaction identity. Establish original publication recipients before a source update overwrites the previous current record; edit notification processing intersects those recipients with current applicable reasons rather than treating the edited record as another publication.
+Add an optional portable `editedAt` record field, projected directly from the current record. Preserve original sorting and interaction identity. Establish original publication recipients before a source update overwrites the previous current record; edit notification processing retains that fixed original set rather than treating the edited record as another publication.
 
 Important existing behaviors verified during planning:
 
@@ -54,7 +54,7 @@ Paths marked Create are proposed. Migration numbers and ADR number must use the 
 | `appview/internal/api/post_store.go`, `post_response.go`, `post_response_shape.go`; read stores including search/saved-post queries | Change | Current metadata, revision and complete edit seed; quote/saved projections carry edited state with current visibility | FR-002, FR-006–FR-008, FR-011, FR-012 | AT-003, AT-004, IT-007, IT-011, IT-014, REG-005 |
 | `appview/internal/pdscommands/addressed_command_service.go`, `store.go`, `pds_transport.go` | Change | Opt-in strict edit mode, prepared-time builder, exact-plan replay, atomic accepted-state hook and revision evidence | FR-005, FR-006, FR-009–FR-011, RULE-002, RULE-007 | IT-001, IT-003–IT-006, IT-009, IT-010, IT-016 |
 | `appview/internal/auth/pds_client.go`, `pds_client_indigo.go`, `coordinated_pds_client.go` | Change | Additive typed head/write-result capability retaining returned revision; keep purpose-bound auth and old adapters intact | FR-010, FR-011, NFR-002 | IT-004, IT-005, IT-016 |
-| `appview/internal/ingestion/store.go`, `reconciliation.go`, `post_notifications.go`; new `post_edit_state.go` | Change/create | Compute transition facts before overwriting source; persist current timestamp/revision; capture original publication eligibility | FR-006, FR-011, FR-012, RULE-004 | IT-007, IT-010, IT-012, IT-014 |
+| `appview/internal/ingestion/store.go`, `reconciliation.go`, `post_publication.go` | Change/create | Capture original publication facts before coalescing; project current-record timestamp and exact revision without transition state | FR-006, FR-011, FR-012, RULE-004 | IT-007, IT-010, IT-012, IT-014 |
 | `appview/internal/index/craftsky_post.go`, `transactional_projectors.go`, `post_notification_projection.go`, `image_safety_post.go` | Change | Stable sort fields, CID-bound metadata, current project/search data and no edit reactivation of notifications | FR-006, FR-008, FR-012, RULE-003–RULE-005 | IT-001, IT-007, IT-011–IT-014, REG-004, REG-007 |
 | `appview/internal/notifications/post_publication.go`; `service.go`/`lifecycle.go` | Create/change | Original-reason facts and insert-once publication activation; separate current visibility/delivery reconciliation from activation | RULE-004, RULE-005, RULE-006 | IT-012, IT-013, REG-007, REG-008 |
 | `appview/internal/push/dispatcher.go`; existing lifecycle/cleanup paths | Change | Current-source reason eligibility recheck and consistent per-source dispatch fence; cleanup of new current state | RULE-002, RULE-004–RULE-006 | IT-003, IT-012, IT-013, REG-007, REG-008 |
@@ -75,12 +75,12 @@ Paths marked Create are proposed. Migration numbers and ADR number must use the 
 
 Choose two additive endpoints, governed by existing `/v1/` routing, camelCase JSON and error envelope:
 
-- `GET /v1/posts/{did}/{rkey}/edit`: owner-only, `Cache-Control: private, no-store`. Load the current eligible indexed source and presentation in one consistent snapshot; return `post`, `baseCid`, `recordRevision`, and typed `editable` values. If serving/source CIDs differ or required safety/member projection is pending, return a retryable existing-style pending/unavailable outcome; never seed a partial/empty form. Return no raw extension object, credentials or previous version.
+- `GET /v1/posts/{did}/{rkey}/edit`: owner-only, `Cache-Control: private, no-store`. Load the authoritative owner record from the PDS through the existing AppView session/lifecycle-fenced read capability; return private `post`, `baseCid`, and typed `editable` values without waiting for Tap. Include `recordRevision` only if exact record-revision evidence is available; never substitute a head revision. Keep current owner/account/post restrictions and strict record validation, with missing/dependency failures surfaced safely; never seed a partial/empty form. See section 13 for the approved refinement. Return no raw extension object, credentials or previous version.
 - `PATCH /v1/posts/{did}/{rkey}`: requires `If-Match` with the concrete base CID, existing `Idempotency-Key`, session/device headers and owner lifecycle generation. Body is `{changes: ...}` containing only supported leaf changes; omitted means unchanged and explicit null removes an optional field. A complete editor form is not permission to drop unspecified record fields.
-- `200` accepted result: `{post, changed, editedAt, editTimeSource, recordRevision, projectionPending}`. `recordRevision` is ordered evidence for the accepted/verified version (see 5.4). `changed:false` returns the existing post/edit time with no record mutation. `202 {status: "ambiguous"}` and `Retry-After` retain the existing command convention. Do not conflate uncertain PDS outcome with accepted-but-not-indexed state.
+- `200` accepted result: `{changed, acceptedCid, editedAt?, recordRevision?, observationCid?, observationRevision?}`. `recordRevision` is ordered evidence for the accepted/verified version (see 5.4). `changed:false` returns unchanged acceptance metadata with no record mutation. `202 {status: "ambiguous"}` and `Retry-After` retain the existing command convention. Do not conflate uncertain PDS outcome with accepted-but-not-indexed state.
 - Standard existing error envelope for validation, forbidden, unavailable and conflict. Missing or wildcard `If-Match` is rejected using the existing concrete-CID precondition policy. Use `409 pds_record_conflict` for stale/missing-at-save records; owner UI explains unavailable versus changed after reloading the edit seed. Missing initial load is `404`; malformed input is `400`; content validation uses existing `422` conventions; existing lifecycle/auth/rate-limit outcomes remain.
 - Reject supplied identity, general/project classification, reply/quote context, provenance and editedAt fields, including relationship insertion/removal and CID-only changes. A supported project craft/details discriminator is editable within the project and is not this fixed general/project classification. Do not silently ignore a malicious protected-field request.
-- Record identity and original creation/sort values always come from the server base. Current read APIs continue using AppView, not direct Flutter PDS reads. Authoritative PDS reads remain inside command preparation/reconciliation.
+- Record identity and original creation/sort values always come from the server base. Current read APIs continue using AppView, not direct Flutter PDS reads. Authoritative PDS reads remain server-side inside owner editor loading and command preparation/reconciliation.
 
 Partial interface sketches (names proposed; no production bodies):
 
@@ -89,15 +89,15 @@ PostRepository.fetchEdit(Did, RecordKey) -> PostEditSeed
 PostRepository.edit(Did, RecordKey, changes, expectedCid, operationKey)
   -> PostEditResult  // existing ambiguous/rate-limit response handling
 
-PostEditSeed { post, baseCid, recordRevision, editable }
-PostEditResult { post, changed, editedAt?, editTimeSource?, recordRevision?, projectionPending }
+PostEditSeed { post, baseCid, recordRevision?, editable }
+PostEditResult { changed, acceptedCid, editedAt?, recordRevision?, observationCid?, observationRevision? }
 PostEditChanges { presence-aware text/facets/langs/sponsored/images/embed/project changes }
 
 AddressedPutCommandRequest:
   existing BuildRecord retained for current callers
   optional BuildPreparedRecord(AuthoritativeRecord, PreparedCommand) -> raw desired record
   opt-in StrictExpectedCID for post.edit
-  optional accepted-transaction callback for current edit metadata
+  original-create acceptance callback only; edits need no notification/provenance callback
 ```
 
 ### 5.2 Lossless supported changes and media
@@ -126,46 +126,13 @@ Adapt existing `AddressedCommandService.Put`, scoped to operation kind `post.edi
 
 The current service's equal-content-before-precondition behavior must have a regression test proving existing callers are unchanged and edits enforce FR-009. Replay equality must use stored desired content so unknown fields and prepared time remain stable.
 
-### 5.4 Timestamp persistence and ordered reconciliation (DR-001)
+### 5.4 Current-record timestamps and ordered reconciliation (approved 2026-10-27)
 
-Proposed public addition: `social.craftsky.feed.post.editedAt`, optional string with `format: datetime`, author-declared latest edit time. Do not change required fields or add a new collection. Absence remains valid for all existing posts. Create flows omit it; the edit API alone assigns it for CraftSky saves. An ADR and generated schema/type checks precede schema changes in implementation.
+Keep optional public editedAt and stable command-prepared timestamps, no-op detection and strict schema validation. Serving projection copies editedAt from the exact current source record. Remove digest/transition state and timestamp provenance correlation. Keep authoritative record revisions and observation bounds for stale-read reconciliation; these are independent of timestamp provenance.
 
-Use a current-only `craftsky_post_edit_state` row keyed by URI, storing current source CID/revision, content digest, nullable edit time/source (`confirmed`, `reported`, `observed`) and observed transition time. No `(URI, version)` history table. Confirmations may additionally retain the last accepted CID/time/revision on this same row for pending correlation; never accumulate earlier bodies or an unbounded CID list.
+### 5.5 Fixed original publication recipients (approved 2026-10-27)
 
-- Update transition state in the authoritative ingestion transaction **before** replacing `tap_source_records.record`, while both old and new current content are available. Reconciliation/snapshot installs call the same helper with their authority/first-seen classification. Stale/duplicate/uncertain/invalid events cannot advance or regress metadata.
-- Content digest excludes only the edit metadata, includes unknown authored fields, and uses the existing canonical AT-data path. It is not a digest of a lossy UI view. Metadata-only updates carry the known content edit time forward onto the new CID without creating a new edit.
-- Match a current record to server-prepared/accepted exact dispatch evidence to mark it confirmed, including a source event that races a lost response. Otherwise usable author editedAt is `reported`; an observed content transition without usable editedAt is `observed`; first-seen state without a valid declaration has no edit icon. Do not treat `Action=update`, repository revision or a TID key alone as proof of a previously seen content change.
-- Preserve source qualifier, same-version observation time, no-op state and normal restart durability. Public-record-only rebuild loses unexported observation/confirmation evidence; valid portable metadata becomes reported. Malformed schema-invalid records follow current validation rejection; valid future-declared times use the observed fallback for known transitions.
-- Copy/join edit state into visible post/quote rows only when its current CID matches the serving row. Source ingestion can run ahead of safety/serving projection, so never join latest metadata by URI alone.
-- Add nullable `editedAt`, `editTimeSource`, and `recordRevision` fields to normal `PostResponse`, `QuotePreviewPost` and saved-summary projections. Unknown/legacy state omits them. `recordRevision` is the authoritative per-record source revision, not `indexedAt` or a CID sort order.
-
-For acceptance ordering, add an optional typed transport capability exposing `{cid, rev}` from `getLatestCommit` and the `commit` returned by `applyWrites`. Keep current error-only methods as wrappers for existing callers. Forward the capability through `CoordinatedPDSClient` under the same active/purpose-bound fence. Retain the actual returned commit revision, not a later unrelated repo head guessed as the write's revision.
-
-After a lost response, if stored desired content equals the current PDS record, take a stable head/record/head bracket. If the two heads match, that head revision is an **observation bound**, not a claim about the original write's exact commit. It is safe for reconciliation: matching accepted CID can clear the overlay immediately; a different projected record can supersede it only with a later authoritative revision than that bound. If heads race, bounded retry/read-only unresolved handling applies. If revision metadata is unavailable, do not fabricate ordering: keep accepted/pending state and retry reconciliation; existing no-atomic-write failure behavior remains safe.
-
-### 5.5 Original publication eligibility and edit-safe delivery (DR-002)
-
-Add bounded operational tables:
-
-- `post_publication_state(uri PK, owner, original_creation_time, origin_status, original_parent_ref?, original_quote_ref?)`: marker that original publication eligibility has been established or is unknown; no text, attachments or old record body.
-- `post_publication_mentions(post_uri, recipient_did PK within post)`: original validated mention candidates, bounded by current record limits. Reply/quote recipients may be resolved later from original fixed references; do not freeze an empty result simply because a target has not been indexed yet.
-- Existing `notification_events` and `push_deliveries` remain the event/delivery ledger. No separate lifetime history of edits or recipient changes.
-
-Capture original facts at trusted initial live create ingestion, after version selection/validation and before source replacement. For locally created posts whose first observed event is an update, recover original facts only from the existing proven `post.create` command/dispatch intent, never from the edited snapshot. Original append-command acceptance also seeds the same facts idempotently. Backfill, imports and first-seen edited snapshots without original evidence are `unknown` and cannot produce guessed catch-up recipients. Proven original create evidence may populate an unknown marker; updates cannot expand an established original set.
-
-At current notification projection:
-
-1. Retain current membership, terminal-owner, safety and relationship gates.
-2. Intersect original candidate reasons with current applicable reasons. Resolve original parent/quote owner under existing dependency rules; current mentions come from current authoritative content/derived mention data. No new edit-only mention can enter the original set.
-3. For a candidate with no previous publication event and an applicable original reason, use an explicit **insert-once** post-publication activation path. Existing generic set/follow activation keeps its behavior. Preserve original activity time; never use edit time as notification activity.
-4. Existing post events use a separate update/retraction path that may refresh permitted source references/preview eligibility without changing activity, read state or creating another push. A retracted original event is not reactivated merely because a mention reappears in a later edit.
-5. A pending removed reason suppresses dispatch; if another original reason remains, evaluate that reason once. Already dispatched alerts follow existing no-recall semantics. Replay cannot reset completed/suppressed delivery state.
-
-For the last check before a provider send, use the same current-source eligibility helper in `push.Dispatcher.currentDeliveryStatus`. A background notification projection alone is not sufficient because it may lag a source edit. A command acceptance hook can restrict pending applicability as soon as a local edit is confirmed, before Tap catches up; ingestion makes external edits effective at its authoritative local commit.
-
-Use a narrowly scoped per-post advisory fence shared by eligibility-changing source/command commits and final push eligibility/send/finalization. Acquire owner lifecycle fences first, then the post fence, then source/job rows and the existing subscription/delivery locks in one documented order. Ingestion must acquire it before `lockSourceVersionTx`; post-notification workers acquire it from the claimed URI before locking source/job rows, not afterward. Command finalization takes it before its feature-state changes. This avoids a source-row→post-fence path opposing a post-fence→source-row path. Hold the post fence through the bounded provider call so a removal committed before dispatch cannot race past the final check; never hold a serving/source projection transaction across remote PDS calls. Release on all failures/cancellation; test contention/deadlock order. No new global queue lock.
-
-The dispatch cutoff is the final fenced local decision/provider attempt. A remote edit not yet received/confirmed locally cannot recall a provider send already in flight. This follows the existing asynchronous visibility/no-recall boundary, not a promise of atomicity across PDS, AppView and FCM/APNs.
+Preserve bounded original recipient facts from proven creation before coalescing. Edits cannot expand them or reset existing deliveries. Do not withdraw original mention recipients due to edits, intersect with current mentions, or serialize edit acceptance with push dispatch for that purpose. Retain independent owner, block, moderation, deletion and delivery controls. Unknown first edited snapshots cannot establish notification recipients.
 
 ### 5.6 Sorting, safety, persistence and cleanup
 
@@ -190,7 +157,7 @@ active account lease
   -> editPostProvider(account session, post URI) [autoDispose AsyncNotifier]
        -> pdsRecordOperationControllerProvider [existing application lifetime]
        -> existing immutable operation key/body, retry policy and account checks
-       -> accepted current-post overlay + read-provider invalidation
+       -> accepted current-post overlay + loaded-list notifications and bounded single-record reads
 ```
 
 - `PostEditOrigin` is distinct from draft and scheduled origin; assert they cannot coexist. Capture `ActiveAccountLease` at open/load/save boundaries. Seed callbacks and async media completions must still match the captured lease and editor identity.
@@ -198,7 +165,7 @@ active account lease
 - Reuse the shared submission lifecycle for progress/screen-awake/ownership. Give origin-specific callbacks no-op draft persistence/cleanup for published edits. Do not route through `createPostProvider`; call the edit notifier and preserve meaningful failures before any content-free UI failure wrapper.
 - Use the existing mutation controller's scoped identity `post:<URI>` so delete/edit cannot run incompatible unresolved operations for the same owner post. Uncertain save freezes the attempted payload until resolved; further edits do not mutate an in-flight operation. A different deliberate edit after resolution gets a new operation key.
 - Extend post reconciliation's controlled content to include all edited supported leaves/media/project information. For an edit, require accepted CID or verified later authoritative `recordRevision`; matching caption alone cannot clear a media/project overlay. Do not compare CIDs lexically or use client time as version order.
-- Edit overlays replace existing rows in place and **never** participate in create-overlay insertion at list head. Invalidate/refetch feeds, user posts/projects/comments/reposts, search/tag, saved posts, detail/comments and quote representations through their existing repository providers. Filtering changes are reconciled by real read results, not by guessing feed positions.
+- Edit overlays replace existing rows in place. An immediate edit may inherit only the lists that actually displayed its pending create. Notify loaded lists in place, preserving cursor/depth; normal raw public reads reconcile versions. Do not invalidate whole accumulated collections. Filtering changes are reconciled by real read results, not by guessing feed positions.
 - Preserve newer projected versions over an older accepted overlay; deleted/hidden/blocked results continue through current policy. Apply source-post overlays to embedded quotes and summaries only while visibility is confirmed; do not restore suppressed content from cached edit state.
 - Account switch clears visible edit state and ignores late completions; it does not undo an already accepted owner write. Background retry ownership remains with the captured session, never the newly active account.
 
@@ -209,7 +176,7 @@ active account lease
 - Prefill through shared/edit-specific hydration adapters that cover TD-010, including self-drafted patterns, non-default craft/status, duration, materials, optional fields, facets and retained attachments. Seed fixed reply/quote presentation separately from new-post target selection.
 - Composer layout and controls stay familiar; CTA is localized `Save changes`. Disable during submission, expose existing validation feedback, and prevent general/project conversion and adding/removing/replacing reply/quote context. Existing ordinary creation/draft/scheduled entry points retain their CTA and behavior.
 - Conflict UI retains the user's working values and offers loading/reviewing the current post. Do not replace the base CID behind the scenes. A deliberate resubmission occurs only after reviewing the new base; no merge editor or automatic overwrite is added.
-- Add shared `PostEditIndicator` using the project's icon/Tooltip/time/localization/semantics widgets. A keyboard-focusable, touch-activatable icon exposes confirmed/reported/observed date/time; no history navigation. Suppress for no known edit metadata.
+- Add shared `PostEditIndicator` using the project's icon/Tooltip/time/localization/semantics widgets. A keyboard-focusable, touch-activatable icon exposes the current record date/time; no history navigation. Suppress for no known edit metadata.
 - Extend `PostSummaryData` and its normal/quote/saved constructors with edit metadata, not just PostCard. Keep quoted-original metadata separate from the quoting author's metadata. Existing notification summaries without author/date metadata need no new unsolicited timestamp row.
 - Route/call-site inventory is TD-011: home/feed/repost, profile posts/projects/reposts/comments, search/tag search, detail/thread/comment/reply, quote list/preview, saved summaries and project cards. Add Edit only to existing eligible owner post menus; do not invent a menu on an embedded preview or save-folder controls.
 - Use the existing design system and mobile/web modal conventions; no desktop native builds. Add localized save/conflict/pending/load/error/time-source labels and stable test keys without exposing CID/protocol jargon in product copy.
@@ -224,11 +191,11 @@ active account lease
 | Stale base / target deleted | Strict conflict, retain working input, fetch/review current seed; no recreation | FR-009, RULE-007 | AT-005, IT-004, IT-006 |
 | Lost response / rate limit | Existing immutable keyed retry and Retry-After; exact-plan read-only recovery when ambiguous | FR-010, FR-011 | AT-006, IT-005 |
 | Accepted, source/safety projection pending | Keep confirmed operation separate from visibility; avoid stale final rollback or revealing unapproved media | FR-011, RULE-005 | AT-006, IT-007, IT-013 |
-| External absent/future/malformed metadata | Schema-valid absent/future declarations use the observed/first-seen contract; malformed datetime or wrong-type declarations follow strict invalid-record rejection (confirmed 2026-10-27) | FR-006, FR-012 | IT-010, IT-014 |
+| External absent/future/malformed metadata | Absent editedAt produces no indicator; schema-valid future declarations are displayed as declarations; malformed datetime or wrong-type declarations follow strict invalid-record rejection (confirmed 2026-10-27) | FR-006, FR-012 | IT-010, IT-014 |
 | Retained video/no original job | Preserve raw existing ref and metadata; verify only replacement media | FR-003, FR-005 | AT-002, IT-008 |
 | Unsupported nested fields/variant | Preserve server raw data; edit supported unrelated leaves only | FR-005 | UT-001, IT-009 |
 | Account changes/lifecycle invalidated | Existing owner fences; no cross-account seed, UI completion or submission | RULE-002 | AT-007, IT-003 |
-| New or removed mentions before initial delivery | Original-reason facts plus current applicability and final dispatch fence | RULE-004 | IT-012, REG-007 |
+| New or removed mentions before initial delivery | Fixed original-recipient facts; edits do not withdraw pending original reasons | RULE-004 | IT-012, REG-007 |
 | Old-CID quote / hidden original | Latest URI-hydrated original with indicator if visible; existing placeholders if unavailable/blocked | FR-008, RULE-005 | AT-004, IT-011, IT-013 |
 | Diagnostics failure paths | Existing single issue owner, original causes/stacks and safe bounded refs; no private edit payloads/credentials | NFR-003 | IT-017 |
 
@@ -241,9 +208,9 @@ Implement named test cases in red-green-refactor slices; do not create a large p
 | 1 | IT-001, AT-001 | Proposed `appview/internal/api/post_edit_commands_test.go`; later edit-flow widget suites | Eligible owner, base record/engagement, stable prepared time | No supported edit command/route; cannot update same URI with no create effect |
 | 2 | UT-001–UT-004, UT-008; IT-006, IT-009 | `postrecord/edit_test.go`, API request tests, existing raw JSON/project evolution fixtures | TD-002/TD-004/TD-010; unknown large integer, nullable clears and fixed context presence | Missing lossless supported-change builder/no-op/structural validation |
 | 3 | IT-002–IT-005, IT-016; UT-009 | Routed edit HTTP, addressed command, auth transport and Dart API/repository suites | TD-006/TD-007; concurrent PDS write, deletion, lost response, exact-plan and same-key mismatch | No strict edit preconditions/commit metadata recovery/owner endpoint |
-| 4 | IT-010, IT-014; UT-003 | Schema validation, migrated current-state and ingestion tests | T1/T2, duplicate/stale/metadata-only/first-seen/rebuild matrices | No portable/current source-aware metadata or ordered read fields |
+| 4 | IT-010, IT-014; UT-003 | Schema validation, migrated current-state and ingestion tests | T1/T2, duplicate/stale/metadata-only/first-seen/rebuild matrices | No direct current-record timestamp projection or ordered read fields |
 | 5 | IT-007, IT-008, IT-011, IT-013; REG-004, REG-006, REG-008 | Post/index/search/saved/pin/image-safety/current-state suites | TD-003/TD-005/TD-009; future createdAt and coalesced ingestion | Sort movement, stale derived fields, missing media preservation/current quote state |
-| 6 | IT-012; REG-007 | Ingestion publication facts, notification lifecycle and push dispatcher integration suites | TD-008; all eight revised recipient/delivery matrix cases, blocked dependencies and dispatch barriers | Edit reactivates events or first snapshot creates alerts for new recipients |
+| 6 | IT-012; REG-007 | Ingestion publication facts, notification lifecycle and push dispatcher integration suites | TD-008; fixed original-recipient/delivery matrix cases, blocked dependencies and dispatch barriers | Edit reactivates events or first snapshot creates alerts for new recipients |
 | 7 | AT-001, AT-002, AT-008; UT-001, UT-002, UT-006; REG-001–REG-003 | General/project edit prefill/flow widgets and existing composer/draft/schedule suites | TD-010 all supported fields and retained media, unrelated ordinary draft | No Edit menu/prefilled mode/Save changes, accidental create/draft/schedule effects |
 | 8 | AT-005–AT-007; UT-007 | Edit conflict/submission/account widget/provider suites and shared mutation tests | Deferred seed/read/save completions, second session and V3 after accepted V2 | Silent overwrite, cross-account completion, partial content reconciliation or edit inserted at list head |
 | 9 | AT-003, AT-004; UT-005; REG-005 | Indicator/PostCard/PostSummary and route fixture tests | TD-011 edited/unedited/owner/non-owner, time zone/locale, old-CID quoted original | Missing/incorrect tooltip semantics or embedded edit metadata |
@@ -266,7 +233,7 @@ Focused implementation commands (not run in planning):
 - First TDD step: write the narrow owner-caption-edit integration case IT-001 with fixed URI/expected CID and an asserted absence of create calls. Add only the missing boundary needed to get a meaningful failing test. Follow immediately with no-op, strict stale precondition and unknown-field preservation cases before broader editor wiring.
 - Design prerequisites: approve the intended metadata/recipient behavior and this plan; author the required ADR before optional Lexicon changes. Generation/migration work is future implementation work, not completed by this document.
 - Dependencies: lossless builder and strict/replayable command semantics → portable/current metadata and revision evidence → source/publication transition capture and safety/read projections → Flutter model/repository/state → prefill/menus/indicator → regressions and runtime evidence. Notifications/ordering/safety are required completion work, not optional follow-ups after exposing Edit.
-- DR-001 response: section 5.4 selects optional editedAt, current-only source metadata and ordered commit evidence; wire fields and restart/rebuild handling are explicit.
+- DR-001 response: section 5.4 selects optional current-record editedAt and ordered commit evidence; wire fields and restart/rebuild handling are explicit.
 - DR-002 response: section 5.5 selects original publication facts captured before coalescing, insert-once activation, current reason intersection and final fenced dispatch cutoff.
 - DR-003 response: sections 5.2/6/7 use TD-010/TD-011, including patternSelfDrafted and fixed relationship presence/CID. Retain numbered tests; no full Cartesian matrix or general patch framework.
 - DR-004 response: test and analysis commands are separate in section 9.
@@ -277,7 +244,7 @@ Focused implementation commands (not run in planning):
 
 | ID | Type | Description | Impact | Resolution |
 |---|---|---|---|---|
-| CPQ-001 | Non-blocking for plan; approval note | Revised ASM-002/ASM-003 propose reported/observed tooltip qualifiers and suppression of removed pending reasons; earlier broader assumptions remain labeled | Maintainer may prefer different copy or pending-original delivery policy | Carry these exact proposed outcomes into plan approval; do not implement a different policy silently |
+| CPQ-001 | Resolved 2026-10-27 | Maintainer approved simplifications 1–5: single timestamp label, fixed original recipients, confirmation-only save, shared orchestration and normal previews | Supersedes prior proposal | Verify the revised implementation; no further product decision pending |
 | CPQ-002 | Implementation prerequisite | Optional public editedAt requires an ADR, schema generation and project Lexicon workflow | Unreviewed schema evolution would violate repository rules | atproto-lexicon skill read/applied for this plan. The separately named `writing-architecture-decision-records` skill was not found in the checked project/skill roots; locate an applicable copy or resolve that workflow prerequisite before authoring the ADR/schema. It does not block writing this plan |
 | CPQ-003 | Non-blocking design risk | Some PDS write adapters may omit revision/atomic-write capability | Cannot safely claim ordered reconciliation from CIDs alone | Additive typed adapters preserve available commit metadata; use stable authoritative recovery bracket and fail unresolved safely when evidence is unavailable. Test capability failures explicitly; no unconditional write fallback |
 | CPQ-004 | Non-blocking design risk | Long provider calls and multiple lock domains can cause source-dispatch contention | Removal/send race or deadlocks | Fixed owner→post→delivery order, bounded provider timeout, all-exit cleanup and deterministic concurrency/race tests; no network call inside source projection transaction |
@@ -295,3 +262,27 @@ No unresolved implementation-shape question prevents starting the specified TDD 
 - Focused command: root `just test` under the existing compose test setup for the first backend slice; proposed Flutter `fvm exec just app-test test/feed/widgets/post_edit_flow_test.dart` plus separate analysis when that slice is introduced.
 - Notes: preserve requirement/AC/test IDs, resolve the ADR skill prerequisite before schema changes, and keep CPQ-001's proposed policy details visible in approval. Existing source, tests, generated output, migrations and earlier workflow documents are unchanged in this stage.
 - Status: plan written only; no runtime tests, generators, migrations, commits, pushes or live actions performed. Leave uncommitted. Next maintainer choice: implement with TDD, add a manual note, or stop for review.
+
+## 13. Approved immediate-edit refinement, 2026-10-27
+
+The maintainer explicitly approved loading the owner editor through AppView from the authoritative PDS record, without a Tap prerequisite. This supersedes section 5.1's indexed-seed selection and any initial-load/source-pending gate in this plan. Ordinary public reads and accepted-result hydration remain projection/safety-gated.
+
+- Existing owner-only GET retains its URL, no-store policy, account/write eligibility and session/lifecycle fences. Inject a narrow post-record read capability implemented with the existing fenced `pdseffects.ReadRecord`; no raw PDS factory is exposed to routes and no credentials or direct PDS reads reach Flutter.
+- Validate the authoritative record using the existing schema/semantic validator. Build the private owner prefill from that same raw record/CID, preserving all supported fields and existing attachment refs. Keep raw extensions server-side. A record revision absent from getRecord is omitted, never fabricated from repository head time. Exact-CID save preconditions remain authoritative.
+- Local membership/lifecycle and current post/account moderation restrictions apply independently of post/source-row existence. Private editor previews may show retained media before a scan is complete; known unsafe matches/restrictions remain denied. Public reads, quotes/reposts and accepted overlays retain their existing safety gates.
+- Remove the indexed-source prerequisite from save preparation; preserve all authoritative-CID, immutable retry, deletion and new-media verification rules. Original publication facts already seeded by accepted create remain the notification source before Tap arrives.
+- Accepted-result refresh must use a normal public AppView post read, not the private authoritative editor seed. An owner prefill is not evidence of public visibility or projection convergence.
+- Cover immediate general/project/media load and save, authoritative content ahead of Tap, absent/malformed records, ownership/session/lifecycle denial, moderation/matched-media denial, failures with safe original diagnostics, lossless fields and public-refresh isolation. No schema or migration change is planned.
+
+## 14. Approved confirmed-save navigation refinement, 2026-10-27
+
+The maintainer explicitly requests that a PDS-confirmed edit immediately dismiss the composer to its originating route and optimistically update loaded representations. This supersedes the composer-held accepted/pending refresh flow. FR-011/AC-014 and AT-001/AT-006/UT-007 apply.
+
+- Definite accepted responses close both general and project editors without waiting for another AppView read. Ambiguous/conflicting/failed saves remain in the composer with recoverable input and existing exact-request retries.
+- Build the optimistic presentation from the frozen supported editor seed and submitted changes, stamped only with returned accepted CID/edit metadata. It is local presentation, never raw extension storage or proof that public indexing/safety has completed.
+- Register the existing URI-scoped/account-scoped edit overlay before closing. Replace loaded visible rows/quotes/reposts without inserting a post into unrelated feeds, changing engagement, overriding protected responses or altering fixed context/order. Matching or demonstrably newer AppView versions reconcile it. Confirmed content must not revert merely because the normal transient overlay timeout elapsed.
+- No API, Lexicon, migration, direct client PDS reads or new write authority is introduced. New/retained media and project leaves must render coherently from the same frozen intent; no accepted command is resent to wait for projection.
+
+## 15. Approved simplifications 1–5, 2026-10-27
+
+This section supersedes earlier incompatible implementation details: use current-record editedAt with a single tooltip; no timestamp-source field/state/correlation. Return acceptance metadata only, remove public accepted-result hydration/ReadEditSnapshot and unused client refreshAccepted/waiting messages. Keep exact CID/revision evidence, immediate owner load and optimistic loaded-list behavior. Freeze original publication recipients without edit-driven withdrawals. Extract common published-edit submission/video-recovery/retry completion orchestration, retaining composer-specific patch construction. Replace bespoke manual link-card metadata editing with normal preview retention/removal/replacement. Do not relax field preservation or add a general framework. Existing migrations remain immutable; schema cleanup is additive. Review must use this revised scope.

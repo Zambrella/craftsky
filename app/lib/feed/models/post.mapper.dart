@@ -8,60 +8,6 @@
 
 part of 'post.dart';
 
-class PostEditTimeSourceMapper extends EnumMapper<PostEditTimeSource> {
-  PostEditTimeSourceMapper._();
-
-  static PostEditTimeSourceMapper? _instance;
-  static PostEditTimeSourceMapper ensureInitialized() {
-    if (_instance == null) {
-      MapperContainer.globals.use(_instance = PostEditTimeSourceMapper._());
-    }
-    return _instance!;
-  }
-
-  static PostEditTimeSource fromValue(dynamic value) {
-    ensureInitialized();
-    return MapperContainer.globals.fromValue(value);
-  }
-
-  @override
-  PostEditTimeSource decode(dynamic value) {
-    switch (value) {
-      case r'confirmed':
-        return PostEditTimeSource.confirmed;
-      case r'reported':
-        return PostEditTimeSource.reported;
-      case r'observed':
-        return PostEditTimeSource.observed;
-      case r'unknown':
-        return PostEditTimeSource.unknown;
-      default:
-        return PostEditTimeSource.values[3];
-    }
-  }
-
-  @override
-  dynamic encode(PostEditTimeSource self) {
-    switch (self) {
-      case PostEditTimeSource.confirmed:
-        return r'confirmed';
-      case PostEditTimeSource.reported:
-        return r'reported';
-      case PostEditTimeSource.observed:
-        return r'observed';
-      case PostEditTimeSource.unknown:
-        return r'unknown';
-    }
-  }
-}
-
-extension PostEditTimeSourceMapperExtension on PostEditTimeSource {
-  String toValue() {
-    PostEditTimeSourceMapper.ensureInitialized();
-    return MapperContainer.globals.toValue<PostEditTimeSource>(this) as String;
-  }
-}
-
 class PostMapper extends ClassMapperBase<Post> {
   PostMapper._();
 
@@ -77,7 +23,6 @@ class PostMapper extends ClassMapperBase<Post> {
         RecordKeyMapper(),
       ]);
       PostAuthorMapper.ensureInitialized();
-      PostEditTimeSourceMapper.ensureInitialized();
       PostImageMapper.ensureInitialized();
       PostVideoMapper.ensureInitialized();
       PostReplyMapper.ensureInitialized();
@@ -157,12 +102,6 @@ class PostMapper extends ClassMapperBase<Post> {
   static const Field<Post, DateTime> _f$editedAt = Field(
     'editedAt',
     _$editedAt,
-    opt: true,
-  );
-  static PostEditTimeSource? _$editTimeSource(Post v) => v.editTimeSource;
-  static const Field<Post, PostEditTimeSource> _f$editTimeSource = Field(
-    'editTimeSource',
-    _$editTimeSource,
     opt: true,
   );
   static String? _$recordRevision(Post v) => v.recordRevision;
@@ -289,7 +228,6 @@ class PostMapper extends ClassMapperBase<Post> {
     #viewerHasSaved: _f$viewerHasSaved,
     #sponsored: _f$sponsored,
     #editedAt: _f$editedAt,
-    #editTimeSource: _f$editTimeSource,
     #recordRevision: _f$recordRevision,
     #langs: _f$langs,
     #quoteCount: _f$quoteCount,
@@ -331,7 +269,6 @@ class PostMapper extends ClassMapperBase<Post> {
       viewerHasSaved: data.dec(_f$viewerHasSaved),
       sponsored: data.dec(_f$sponsored),
       editedAt: data.dec(_f$editedAt),
-      editTimeSource: data.dec(_f$editTimeSource),
       recordRevision: data.dec(_f$recordRevision),
       langs: data.dec(_f$langs),
       quoteCount: data.dec(_f$quoteCount),
@@ -438,7 +375,6 @@ abstract class PostCopyWith<$R, $In extends Post, $Out>
     bool? viewerHasSaved,
     bool? sponsored,
     DateTime? editedAt,
-    PostEditTimeSource? editTimeSource,
     String? recordRevision,
     List<String>? langs,
     int? quoteCount,
@@ -553,7 +489,6 @@ class _PostCopyWithImpl<$R, $Out> extends ClassCopyWithBase<$R, Post, $Out>
     bool? viewerHasSaved,
     bool? sponsored,
     Object? editedAt = $none,
-    Object? editTimeSource = $none,
     Object? recordRevision = $none,
     List<String>? langs,
     int? quoteCount,
@@ -589,7 +524,6 @@ class _PostCopyWithImpl<$R, $Out> extends ClassCopyWithBase<$R, Post, $Out>
       if (viewerHasSaved != null) #viewerHasSaved: viewerHasSaved,
       if (sponsored != null) #sponsored: sponsored,
       if (editedAt != $none) #editedAt: editedAt,
-      if (editTimeSource != $none) #editTimeSource: editTimeSource,
       if (recordRevision != $none) #recordRevision: recordRevision,
       if (langs != null) #langs: langs,
       if (quoteCount != null) #quoteCount: quoteCount,
@@ -631,7 +565,6 @@ class _PostCopyWithImpl<$R, $Out> extends ClassCopyWithBase<$R, Post, $Out>
     viewerHasSaved: data.get(#viewerHasSaved, or: $value.viewerHasSaved),
     sponsored: data.get(#sponsored, or: $value.sponsored),
     editedAt: data.get(#editedAt, or: $value.editedAt),
-    editTimeSource: data.get(#editTimeSource, or: $value.editTimeSource),
     recordRevision: data.get(#recordRevision, or: $value.recordRevision),
     langs: data.get(#langs, or: $value.langs),
     quoteCount: data.get(#quoteCount, or: $value.quoteCount),
@@ -2011,7 +1944,6 @@ class QuotePreviewPostMapper extends ClassMapperBase<QuotePreviewPost> {
       MapperContainer.globals.use(_instance = QuotePreviewPostMapper._());
       MapperContainer.globals.useAll([AtUriMapper(), CidMapper()]);
       PostAuthorMapper.ensureInitialized();
-      PostEditTimeSourceMapper.ensureInitialized();
       PostImageMapper.ensureInitialized();
       ProjectMapper.ensureInitialized();
       ExternalImportMapper.ensureInitialized();
@@ -2060,10 +1992,6 @@ class QuotePreviewPostMapper extends ClassMapperBase<QuotePreviewPost> {
     _$editedAt,
     opt: true,
   );
-  static PostEditTimeSource? _$editTimeSource(QuotePreviewPost v) =>
-      v.editTimeSource;
-  static const Field<QuotePreviewPost, PostEditTimeSource> _f$editTimeSource =
-      Field('editTimeSource', _$editTimeSource, opt: true);
   static String? _$recordRevision(QuotePreviewPost v) => v.recordRevision;
   static const Field<QuotePreviewPost, String> _f$recordRevision = Field(
     'recordRevision',
@@ -2102,7 +2030,6 @@ class QuotePreviewPostMapper extends ClassMapperBase<QuotePreviewPost> {
     #createdAt: _f$createdAt,
     #sponsored: _f$sponsored,
     #editedAt: _f$editedAt,
-    #editTimeSource: _f$editTimeSource,
     #recordRevision: _f$recordRevision,
     #images: _f$images,
     #project: _f$project,
@@ -2121,7 +2048,6 @@ class QuotePreviewPostMapper extends ClassMapperBase<QuotePreviewPost> {
       createdAt: data.dec(_f$createdAt),
       sponsored: data.dec(_f$sponsored),
       editedAt: data.dec(_f$editedAt),
-      editTimeSource: data.dec(_f$editTimeSource),
       recordRevision: data.dec(_f$recordRevision),
       images: data.dec(_f$images),
       project: data.dec(_f$project),
@@ -2207,7 +2133,6 @@ abstract class QuotePreviewPostCopyWith<$R, $In extends QuotePreviewPost, $Out>
     DateTime? createdAt,
     bool? sponsored,
     DateTime? editedAt,
-    PostEditTimeSource? editTimeSource,
     String? recordRevision,
     List<PostImage>? images,
     Project? project,
@@ -2258,7 +2183,6 @@ class _QuotePreviewPostCopyWithImpl<$R, $Out>
     DateTime? createdAt,
     bool? sponsored,
     Object? editedAt = $none,
-    Object? editTimeSource = $none,
     Object? recordRevision = $none,
     Object? images = $none,
     Object? project = $none,
@@ -2273,7 +2197,6 @@ class _QuotePreviewPostCopyWithImpl<$R, $Out>
       if (createdAt != null) #createdAt: createdAt,
       if (sponsored != null) #sponsored: sponsored,
       if (editedAt != $none) #editedAt: editedAt,
-      if (editTimeSource != $none) #editTimeSource: editTimeSource,
       if (recordRevision != $none) #recordRevision: recordRevision,
       if (images != $none) #images: images,
       if (project != $none) #project: project,
@@ -2290,7 +2213,6 @@ class _QuotePreviewPostCopyWithImpl<$R, $Out>
     createdAt: data.get(#createdAt, or: $value.createdAt),
     sponsored: data.get(#sponsored, or: $value.sponsored),
     editedAt: data.get(#editedAt, or: $value.editedAt),
-    editTimeSource: data.get(#editTimeSource, or: $value.editTimeSource),
     recordRevision: data.get(#recordRevision, or: $value.recordRevision),
     images: data.get(#images, or: $value.images),
     project: data.get(#project, or: $value.project),

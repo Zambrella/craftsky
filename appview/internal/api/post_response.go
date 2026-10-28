@@ -12,7 +12,6 @@ import (
 	"github.com/ipfs/go-cid"
 	"golang.org/x/text/language"
 
-	"social.craftsky/appview/internal/postrecord"
 	"social.craftsky/appview/internal/relationships"
 	"social.craftsky/appview/internal/video"
 )
@@ -84,41 +83,40 @@ type ExternalThumbResponse struct {
 // PostResponse is the canonical wire shape returned by every
 // post-shaped endpoint (POST, GET single, list items).
 type PostResponse struct {
-	URI                 string                     `json:"uri"`
-	CID                 string                     `json:"cid"`
-	Rkey                string                     `json:"rkey"`
-	Text                string                     `json:"text"`
-	Sponsored           bool                       `json:"sponsored"`
-	Images              []PostImageView            `json:"images,omitempty"`
-	Facets              json.RawMessage            `json:"facets"`
-	Tags                []string                   `json:"tags"`
-	Langs               []string                   `json:"langs"`
-	Crafts              json.RawMessage            `json:"crafts,omitempty"`
-	LikeCount           int                        `json:"likeCount"`
-	RepostCount         int                        `json:"repostCount"`
-	QuoteCount          int                        `json:"quoteCount"`
-	ReplyCount          int                        `json:"replyCount"`
-	ViewerHasLiked      bool                       `json:"viewerHasLiked"`
-	ViewerHasReposted   bool                       `json:"viewerHasReposted"`
-	ViewerHasReplied    bool                       `json:"viewerHasReplied"`
-	ViewerHasSaved      bool                       `json:"viewerHasSaved"`
-	ViewerSavedFolderID *string                    `json:"viewerSavedFolderId"`
-	Reply               *ResponseReply             `json:"reply"`
-	Quote               *ResponseStrongRef         `json:"quote"`
-	QuoteView           *QuoteView                 `json:"quoteView,omitempty"`
-	CreatedAt           time.Time                  `json:"createdAt"`
-	IndexedAt           time.Time                  `json:"indexedAt"`
-	EditedAt            *time.Time                 `json:"editedAt,omitempty"`
-	EditTimeSource      *postrecord.EditTimeSource `json:"editTimeSource,omitempty"`
-	RecordRevision      *syntax.TID                `json:"recordRevision,omitempty"`
-	ExternalImport      *ExternalImportResponse    `json:"externalImport,omitempty"`
-	External            *ExternalResponse          `json:"external,omitempty"`
-	Video               *PostVideoView             `json:"video,omitempty"`
-	Author              PostAuthor                 `json:"author"`
-	Moderation          *ModerationMetadata        `json:"moderation,omitempty"`
-	Project             *Project                   `json:"project,omitempty"`
-	Availability        string                     `json:"-"`
-	Relationship        *ContentRelationship       `json:"-"`
+	URI                 string                  `json:"uri"`
+	CID                 string                  `json:"cid"`
+	Rkey                string                  `json:"rkey"`
+	Text                string                  `json:"text"`
+	Sponsored           bool                    `json:"sponsored"`
+	Images              []PostImageView         `json:"images,omitempty"`
+	Facets              json.RawMessage         `json:"facets"`
+	Tags                []string                `json:"tags"`
+	Langs               []string                `json:"langs"`
+	Crafts              json.RawMessage         `json:"crafts,omitempty"`
+	LikeCount           int                     `json:"likeCount"`
+	RepostCount         int                     `json:"repostCount"`
+	QuoteCount          int                     `json:"quoteCount"`
+	ReplyCount          int                     `json:"replyCount"`
+	ViewerHasLiked      bool                    `json:"viewerHasLiked"`
+	ViewerHasReposted   bool                    `json:"viewerHasReposted"`
+	ViewerHasReplied    bool                    `json:"viewerHasReplied"`
+	ViewerHasSaved      bool                    `json:"viewerHasSaved"`
+	ViewerSavedFolderID *string                 `json:"viewerSavedFolderId"`
+	Reply               *ResponseReply          `json:"reply"`
+	Quote               *ResponseStrongRef      `json:"quote"`
+	QuoteView           *QuoteView              `json:"quoteView,omitempty"`
+	CreatedAt           time.Time               `json:"createdAt"`
+	IndexedAt           time.Time               `json:"indexedAt"`
+	EditedAt            *time.Time              `json:"editedAt,omitempty"`
+	RecordRevision      *syntax.TID             `json:"recordRevision,omitempty"`
+	ExternalImport      *ExternalImportResponse `json:"externalImport,omitempty"`
+	External            *ExternalResponse       `json:"external,omitempty"`
+	Video               *PostVideoView          `json:"video,omitempty"`
+	Author              PostAuthor              `json:"author"`
+	Moderation          *ModerationMetadata     `json:"moderation,omitempty"`
+	Project             *Project                `json:"project,omitempty"`
+	Availability        string                  `json:"-"`
+	Relationship        *ContentRelationship    `json:"-"`
 }
 
 type PostVideoView struct {
@@ -227,20 +225,19 @@ func ApplyQuoteRelationshipPolicy(view *QuoteView, state relationships.State) {
 // QuotePreviewPost is intentionally smaller than PostResponse and never
 // includes nested quote previews.
 type QuotePreviewPost struct {
-	URI            string                     `json:"uri"`
-	CID            string                     `json:"cid"`
-	Text           string                     `json:"text"`
-	Sponsored      bool                       `json:"sponsored"`
-	Crafts         json.RawMessage            `json:"crafts,omitempty"`
-	Author         PostAuthor                 `json:"author"`
-	Images         []PostImageView            `json:"images,omitempty"`
-	Project        *Project                   `json:"project,omitempty"`
-	CreatedAt      time.Time                  `json:"createdAt"`
-	EditedAt       *time.Time                 `json:"editedAt,omitempty"`
-	EditTimeSource *postrecord.EditTimeSource `json:"editTimeSource,omitempty"`
-	RecordRevision *syntax.TID                `json:"recordRevision,omitempty"`
-	ExternalImport *ExternalImportResponse    `json:"externalImport,omitempty"`
-	External       *ExternalResponse          `json:"external,omitempty"`
+	URI            string                  `json:"uri"`
+	CID            string                  `json:"cid"`
+	Text           string                  `json:"text"`
+	Sponsored      bool                    `json:"sponsored"`
+	Crafts         json.RawMessage         `json:"crafts,omitempty"`
+	Author         PostAuthor              `json:"author"`
+	Images         []PostImageView         `json:"images,omitempty"`
+	Project        *Project                `json:"project,omitempty"`
+	CreatedAt      time.Time               `json:"createdAt"`
+	EditedAt       *time.Time              `json:"editedAt,omitempty"`
+	RecordRevision *syntax.TID             `json:"recordRevision,omitempty"`
+	ExternalImport *ExternalImportResponse `json:"externalImport,omitempty"`
+	External       *ExternalResponse       `json:"external,omitempty"`
 }
 
 // ModerationMetadata is the safe, generic moderation response shape shared by
@@ -346,7 +343,6 @@ func BuildPostResponse(row *PostRow, handle syntax.Handle, playbackBuilders ...P
 		CreatedAt:      row.CreatedAt.UTC(),
 		IndexedAt:      row.IndexedAt.UTC(),
 		EditedAt:       postEditTimeUTC(row.EditedAt),
-		EditTimeSource: row.EditTimeSource,
 		RecordRevision: row.RecordRevision,
 		ExternalImport: buildExternalImportResponse(row.ExternalImportSource),
 		Author: PostAuthor{
@@ -491,7 +487,6 @@ func BuildQuoteView(row *QuoteViewRow, handle syntax.Handle) *QuoteView {
 		Project:        row.Post.Project,
 		CreatedAt:      row.Post.CreatedAt.UTC(),
 		EditedAt:       postEditTimeUTC(row.Post.EditedAt),
-		EditTimeSource: row.Post.EditTimeSource,
 		RecordRevision: row.Post.RecordRevision,
 		ExternalImport: buildExternalImportResponse(row.Post.ExternalImportSource),
 	}

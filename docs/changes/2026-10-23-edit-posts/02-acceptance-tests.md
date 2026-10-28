@@ -2,9 +2,9 @@
 
 Date: 2026-10-26
 
-Status: Revised draft for document review (2026-10-26, DR-001–DR-004). Risk: Medium, carried forward from requirements.
+Status: Simplifications approved 2026-10-27; renewed implementation review and manual acceptance pending. Risk: Medium.
 
-Source: [01-requirements.md](01-requirements.md). The maintainer explicitly requested continuation to acceptance-test design. This does not mark the requirements' labeled assumptions as separately approved or authorize implementation. Requirement and acceptance-criterion IDs remain unchanged.
+Source: [01-requirements.md](01-requirements.md). The maintainer explicitly requested continuation to acceptance-test design. Implementation and simplifications 1–5 were subsequently authorized by the maintainer on 2026-10-27. Requirement and acceptance-criterion IDs remain unchanged; prior review applies to its historical scope.
 
 ## 1. Test Strategy
 
@@ -39,7 +39,7 @@ The concrete field/surface inventory below addresses DR-003. For each editable f
 
 | Named fixture | Fields / values to exercise | Primary cases |
 |---|---|---|
-| General and shared content | Text, UTF-8 facets (mention/link/tag), sponsorship true→false and false→true, languages, image ordering/removal/addition, alt text, retained and replacement video, external URL/title/description/thumbnail supported by existing composer | AT-002, UT-001, UT-002, UT-004, IT-008 |
+| General and shared content | Text, UTF-8 facets (mention/link/tag), sponsorship true→false and false→true, languages, image ordering/removal/addition, alt text, retained and replacement video, external link-preview retention/removal/replacement through the normal creation flow | AT-002, UT-001, UT-002, UT-004, IT-008 |
 | Project common | `craftType`, `additionalCrafts`, `status`, `title`, `duration`, `materials`, `colors`, `designTags`; preserve other common extension data | AT-002, UT-001, UT-002, IT-007, IT-009 |
 | Project pattern | `patternUrl`, `patternName`, `patternDifficulty`, `patternSelfDrafted`, `patternDesigner`, `patternPublisher`; existing facet annotations on supported text fields | AT-002, UT-001, UT-002, IT-009 |
 | Sewing | `sewingProjectType`, `sewingProjectSubtype`, `sewingSizeMade`, `sewingFitNotes` | AT-002, UT-001, UT-002 |
@@ -86,7 +86,7 @@ Every row refers to actual cases specified below. All acceptance criteria have a
 | FR-009 | AC-012 | AT-005, IT-004 | Acceptance / Integration | Yes |
 | FR-010 | AC-004, AC-013 | AT-006, AT-008, UT-004, IT-005 | Acceptance / Unit / Integration | Yes |
 | FR-011 | AC-014 | AT-006, UT-007, IT-007 | Acceptance / Unit / Integration | Yes |
-| FR-012 | AC-015, AC-019 | IT-007, IT-014, REG-006 | Integration / Regression | Yes; source-aware timestamp contract in requirements section 12 |
+| FR-012 | AC-015, AC-019 | IT-007, IT-014, REG-006 | Integration / Regression | Yes; current-record timestamp contract in requirements section 12 |
 | RULE-001 | AC-001, AC-016 | AT-001, IT-002 | Acceptance / Integration | Yes |
 | RULE-002 | AC-016, AC-017 | AT-007, IT-002, IT-003 | Acceptance / Integration | Yes |
 | RULE-003 | AC-005, AC-018 | UT-008, IT-001, IT-006, REG-004 | Unit / Integration / Regression | Yes |
@@ -144,6 +144,7 @@ Scenario: Edit supported content without losing unrelated data
   Given I own a post containing saved content, media and optional fields
   When I choose Edit
   Then the corresponding composer shows every existing supported value
+  And the editor can open and save immediately after publication before Tap has ingested or projected the post
   And existing attachments and their alt text are already present
   And reply or quote context is shown without a target-changing control
   And a general/project conversion control is not offered
@@ -181,7 +182,7 @@ Scenario: Show the latest edit time without a history interface
   Then the edit time remains T2
 ```
 
-Assert all named metadata surfaces. Freeze locale/time zone and clock; test another locale and a daylight-saving boundary. For external updates assert the localized `Edit reported` or `Edit observed` qualifier from requirements section 12. A first-seen snapshot without usable metadata has no inferred edit icon. These assertions establish consistent formatting, not a new date-format convention.
+Assert all named metadata surfaces. Freeze locale/time zone and clock; test another locale and a daylight-saving boundary. For external updates assert one localized Edited label for declared editedAt; absent metadata produces no icon even on a known transition. These assertions establish consistent formatting, not a new date-format convention.
 
 ### AT-004: Reposts and quotes display the latest visible original
 
@@ -348,50 +349,19 @@ Each PostgreSQL case uses a disposable migrated schema. Fake PDS transports must
 | IT-011 | FR-008, RULE-005 | AC-011, AC-021 | Hydrate old-CID shares using latest visible original | TD-005 with old CID; current original visible, hidden, blocked and deleted cases | Read quote/repost representations after edit | Visible current original returned with edit metadata; surrounding share text/time fixed; old CID alone causes no warning; existing hidden/blocked/deleted policies still enforced | Existing `appview/internal/api/post_store_test.go` and read/quote suites extended |
 | IT-012 | RULE-004 | AC-020 | No social notifications caused by edits | TD-008; existing unread/read notifications and pending push deliveries; added/removed mentions | Project edit, retry/replay it, complete prior pending work | No new edit-caused notification/outbox/push; existing read/activity state not reset; old reply/quote notifications not reactivated; pending original eligible reasons deliver at most once and newly added/removed recipients follow the explicit matrix below | Existing `post_notification_projection_test.go` and notification lifecycle/push integration suites extended |
 | IT-013 | RULE-005 | AC-021 | Safety and evidence survive new versions | TD-009; report/hold/enforcement; cached clear scan for same image and new pending/rejected image | Edit content/media; deliver stale scan result; read direct/share views | Current-version gates apply; stale approval cannot clear new content; identical-image reuse follows current policy; reports/evidence not erased; existing enforcement persists | Existing ingestion image-safety replay and moderation test suites extended |
-| IT-014 | FR-012 | AC-019 | Valid external updates and ordering | Previously indexed V1; V2/V3 external events; duplicate, stale and first-seen snapshot cases | Ingest with authoritative ordering and backfill | Latest valid content wins without losing derived data; stale/duplicate events cannot regress it; confirmed/reported/observed and first-seen behavior follows requirements section 12 and the explicit matrix below | Existing `appview/internal/ingestion/` and index suites; metadata source behavior specified below; persistence/wire mechanism selected in coding plan |
+| IT-014 | FR-012 | AC-019 | Valid external updates and ordering | Previously indexed V1; V2/V3 external events; duplicate, stale and first-seen snapshot cases | Ingest with authoritative ordering and backfill | Latest valid content wins without losing derived data; stale/duplicate events cannot regress it; current-record and first-seen behavior follows requirements section 12 and the explicit matrix below | Existing `appview/internal/ingestion/` and index suites; current-record timestamp behavior specified below; persistence/wire mechanism selected in coding plan |
 | IT-015 | NFR-001 | AC-024 | Native running-app edit/save/cancel/error path | TD-001 served by existing critical-journey loopback service; iOS/Android runner | Edit via menu, save, receive conflict and cancel another edit | Running UI/client sends an update contract; correct outcome displayed; no create/schedule request | Existing `app/integration_test/critical_journeys_test.dart` extended; no native picker/federation proof claimed |
 | IT-016 | NFR-002 | AC-025 | API and credential boundary | Authenticated routed request, recording client socket and PDS transport; credential canaries | Load/save edit and decode every response state | `/v1/`, camelCase and error envelope preserved; only AppView performs record write; Flutter never receives/persists OAuth or DPoP material; approved media exceptions unchanged | Existing post API client, routed HTTP and auth transport suites extended |
 | IT-017 | NFR-003 | AC-026 | Serialized safe diagnostics with one issue owner | Credential/private payload canaries and typed cause/stack; consent/sink variants | Fail load/upload/conditional write/projection and serialize configured local/SDK sinks | Permitted operation references and original cause retained; canaries absent; one capture owner; routine conflicts not spuriously escalated beyond existing policy | Existing Go testlog/observability and Flutter reporter suites, extended for edit paths |
 
-### IT-010 / IT-014 timestamp outcome matrix (DR-001)
+### IT-010 / IT-014 current-record timestamp outcomes (approved 2026-10-27)
 
-Requirement IDs: FR-006, FR-007, FR-012, RULE-006. Acceptance Criteria: AC-006, AC-010, AC-019, AC-022. These rows refine the existing case IDs, not a new suite or schema definition.
+FR-006/FR-012; AC-006/AC-010/AC-019. Verify: CraftSky assigns one stable editedAt for a changed operation; no-op/failure/retry does not advance it; external declarations are displayed using one Edited label; missing metadata has no icon even after a known transition; future schema-valid declarations remain declarations; malformed/wrong-type records remain rejected; stale events cannot restore older metadata. No content digest, observation fallback or confirmation-evidence correlation is required.
 
-| Named case | Setup / event | Required result |
-|---|---|---|
-| Confirmed edit | CraftSky operation at T1 succeeds, then response is lost and the operation retried | Current-version state exposes `Edited T1`; replay returns T1, not retry/dispatch time |
-| Known external edit with declaration | Authoritative content V2 carries valid external edit metadata at declared T2 | Current content shown with `Edit reported T2`; never claim the declaration is verified evidence |
-| Known valid external edit without usable declaration | Schema-valid content V2 observed at O2; metadata absent, removed or future-dated | `Edit observed O2`, with current-version source association; not `Edited O2` claiming exact author time |
-| Schema-invalid external declaration | Content V2 carries malformed datetime or wrong-type `editedAt` | Existing invalid-record rejection hides V2 and prevents its editor seed; do not project its content or assign an observed-time disclosure to it |
-| Same external event replay | Repeat V2 later, including duplicate record/source delivery | Do not advance O2 or create another content edit |
-| Out-of-order event | Apply authoritative V3, then deliver stale V2 | Neither content nor its edit time/source rolls back |
-| Metadata-only/no-op update | Published content unchanged and an edit already known | Preserve the existing content edit time; no new content edit manufactured |
-| First-seen current snapshot | No earlier state, no valid edit declaration; discover through backfill or rebuild | No inferred edit icon/time; createdAt/repository revision is not proof of a content edit |
-| First-seen declared snapshot | No earlier state, valid author edit declaration | `Edit reported` with declaration; do not claim completeness of earlier history |
-| Local restart | Retain current database, recreate app/server process | Current-version timestamp/source survives; no timestamp changes merely from restart |
-| Public-record-only rebuild | Drop local observation state in disposable fixture; rebuild from public current record | Portable metadata remains reported; absent declaration does not reconstruct a previously observed time; no history archive added |
-| Tamper on same confirmed version | Arbitrary client/read metadata attempts to replace accepted operation time | Server-confirmed time for that version remains T1; a real newer authoritative content version follows normal update rules |
+### IT-012 original publication notifications (approved 2026-10-27)
 
-The maintainer confirmed strict Lexicon validation on 2026-10-27. Malformed `editedAt` values that violate the datetime schema follow existing invalid-record rejection. Test observed-time fallback only with schema-valid records whose metadata is absent, removed or future-dated at the application boundary. ADR 022 defines the selected wire field and version correlation.
+RULE-004; AC-020. Hold original work pending. Original recipients may receive once after edits, including removed mentions. Edit-added recipients never receive a notification. Replays and removal/re-addition neither create a delivery nor reset activity/read state. Original eligibility must remain bounded before source coalescing; unknown edited snapshots cannot establish recipients. Existing deletion/blocking/moderation controls remain independently tested. Notification retraction purely because an edit removes a mention is no longer required.
 
-### IT-012 original-publication notification outcome matrix (DR-002)
-
-Requirement IDs: RULE-004. Acceptance Criteria: AC-020. Hold initial projection or dispatch explicitly; inspect notification rows, read/activity state, delivery/outbox transitions and recorded push sends. Ordinary initial publication must continue to notify eligible recipients; suppressing all notification work is not a passing implementation.
-
-| Named case | Setup / event | Required result |
-|---|---|---|
-| Original recipient remains eligible | Original publication mentions A; work pending; edit leaves A mentioned | A may receive the original publication notification once under existing safety/eligibility rules; edit adds no activity/delivery |
-| Mention introduced only by edit | Original publication mentions A; edit adds B before initial work runs | B receives no notification, even though latest mention materialisation includes B |
-| Original pending reason removed | Original mention A is removed before dispatch and no original reason remains | A's pending delivery is suppressed; no catch-up alert on later edit/replay |
-| Another original reason remains | A originally qualifies through both reply/quote and mention; edit removes the mention | Evaluate only remaining original reason under existing policy; at most one original publication delivery |
-| Original delivery already sent/read | Original alert was sent; in-app notification read; edit changes text or adds/removes mentions | No second push, new event, activity bump or unread reset; existing visibility/retraction policy still applies |
-| Removal races with dispatch | Gate before committed dispatch eligibility check, then remove original mention | Apply removed-reason rule if removal precedes dispatch; if delivery already committed, do not claim recall; no duplicate outcome |
-| Duplicate update / retry | Replay accepted edit and delayed original work | Preserve original recipient bound and one-delivery state; no reactivation |
-| Only edited snapshot available | Original recipient eligibility cannot be established | Never derive catch-up recipients from newly present mentions; no speculative edit-caused notification |
-
-Original eligibility may be retained as bounded operational classification/recipient data. These tests neither require storing old post bodies nor permit a user-visible edit archive. The removed-pending-reason outcome is explicitly labeled ASM-003 in the revised requirements for maintainer review.
-
-For IT-010/IT-012, inspect actual persisted records and outbox transitions, not just a mock callback count. No-history review must examine new persistence introduced by the feature; absence of a history button alone is insufficient. Do not prohibit existing command recovery or moderation evidence simply because it contains earlier data under existing policy.
 
 ## 6. Regression Tests
 
@@ -440,11 +410,11 @@ Manual verification supplements the automated contract; it is not evidence of au
 
 | ID | Gap / Risk | Affected Requirement IDs | Reason | Follow-Up |
 |---|---|---|---|---|
-| GAP-001 | Observable timestamp behavior specified; persistence/wire design remains | FR-006, FR-007, FR-012, RULE-006 | Revised requirements section 12 and IT-010/IT-014 define confirmed/reported/observed and first-seen outcomes; exact schema/source association is not selected | Coding plan chooses storage, optional public metadata representation, validation and current-version linkage. No unresolved test expectation is delegated to implementation; proposed qualifier wording remains ASM-002 for review |
+| GAP-001 | Observable timestamp behavior specified; persistence/wire design remains | FR-006, FR-007, FR-012, RULE-006 | Revised requirements section 12 and IT-010/IT-014 define current-record and first-seen outcomes; exact schema/source association is not selected | Coding plan chooses storage, optional public metadata representation, validation and current-version linkage. No unresolved test expectation is delegated to implementation; the single-label declaration contract is approved under ASM-002 |
 | GAP-002 | Assumptions remain labeled, not separately approved | FR-001, RULE-004, RULE-002 | Requirements ASM-001–ASM-005 include replies/imports, suppression of newly added mention alerts, removed pending reasons, timestamp qualifiers, restricted posts and no durable edit drafts | Carry into document review; revise test expectations only with explicit product decisions, not by changing requirements during this stage |
 | GAP-003 | Web and real OS interactions lack a shared existing E2E runner | NFR-001, FR-007 | Critical-journeys suite uses dart:io and native targets; widget tests do not prove real screen-reader/picker/browser behavior | Automate widget contracts plus iOS/Android loopback journey; perform MAN-001/MAN-002. A future browser runner can replace repetitive manual web checks |
 | GAP-004 | Fake PDS/scan/push boundaries do not prove live provider behavior | FR-008, FR-010, FR-011, RULE-005 | Local integration proves transport/state logic, not remote replication timing, real scanners or push delivery | Keep MAN-003 optional and evidence separate; default automated suite remains hermetic with disposable Postgres |
-| GAP-005 | Observable delayed-publication outcomes specified; classification mechanism remains | RULE-004 | Revised requirements section 12 and IT-012 distinguish original/new/removed recipients and already delivered work | Coding plan must show feasible bounded operational eligibility/dispatch handling without retaining earlier bodies as feature history; pending-removal policy remains ASM-003 for review |
+| GAP-005 | Observable delayed-publication outcomes specified; classification mechanism remains | RULE-004 | Revised requirements section 12 and IT-012 distinguish original/new/removed recipients and already delivered work | Coding plan must show feasible bounded operational eligibility/dispatch handling without retaining earlier bodies as feature history; fixed original-recipient policy is approved under ASM-003 |
 | GAP-006 | "No history" cannot be proved by a UI assertion alone | RULE-006 | Existing operational/evidence records legitimately retain data, and tests cannot prove absence of every possible future archive | Pair IT-010/REG-008 with design/schema review; prohibit new feature archives without deleting existing required evidence |
 
 No blocking product question prevents coding planning. DR-001/DR-002 now have explicit proposed observable outcomes and named test cases; GAP-001/GAP-005 retain only implementation design dependencies and labeled review assumptions. The gaps above are explicit limitations, not claims of passing coverage. Overall risk remains Medium; document review is recommended.
@@ -475,5 +445,13 @@ No blocking product question prevents coding planning. DR-001/DR-002 now have ex
   - Root: `just app-test-integration <device-id>` runs the existing iOS/Android loopback critical journeys after extension. It is not a web or real PDS runner.
   - Root: `just lexgen-check` if design introduces public record schema changes; follow existing Lexicon generation/validation workflow. This is a later implementation check, not an instruction to change schemas now.
 - Blocking gaps: none for writing a coding plan. The plan must implement the explicit timestamp/notification outcome matrices, select persistence/classification mechanisms and carry ASM-002/ASM-003 proposed clarifications into maintainer review. See GAP-001, GAP-002 and GAP-005.
-- Review response: DR-001 is addressed by source-aware timestamp rules and IT-010/IT-014 matrix; DR-002 by original-recipient rules and IT-012 matrix; DR-003 by TD-010/TD-011 and explicit structural insertion/removal/CID-mutation cases; DR-004 by corrected requirements/test command descriptions. `03-document-review.md` remains the unchanged historical report, not a fresh review of these revisions.
+- Review response: DR-001 is addressed by current-record timestamp rules and IT-010/IT-014 matrix; DR-002 by original-recipient rules and IT-012 matrix; DR-003 by TD-010/TD-011 and explicit structural insertion/removal/CID-mutation cases; DR-004 by corrected requirements/test command descriptions. `03-document-review.md` remains the unchanged historical report, not a fresh review of these revisions.
 - Status/evidence: all tests are planned, none implemented or executed. Leave both documents uncommitted unless the maintainer requests a commit. Continue only after the maintainer chooses document review, explicitly skips review for coding planning, adds a note or stops.
+
+### Confirmed-save navigation refinement, 2026-10-27
+
+AT-001/FR-011/AC-014: for both general and project posts, a confirmed PDS save with no hydrated AppView post immediately closes to the caller and presents the frozen edited version. No blocking follow-up read or Refresh post step. Check text, project leaves and retained/replaced attachments, exact accepted metadata, existing-row/quote overlays and unchanged engagement/order. AT-006 uncertain/conflict failures retain existing input/retry behavior. UT-007 confirmed overlays survive slow indexing beyond the transient timeout and reconcile to matching or demonstrably newer safe reads; protected/missing rows are never resurrected.
+
+### Approved simplification regression scope, 2026-10-27
+
+AT-002/IT-008 retain unchanged cards and replace/remove them through normal preview controls; no manual title/description/thumbnail fields. UT-007 verifies confirmation-only responses with no public hydration dependency. Shared general/project submission tests retain success, frozen ambiguous retry, media recovery, account fencing and dismissal behavior. Previous timestamp-source and removed-mention withdrawal assertions are superseded by the matrices above. MAN-001/MAN-002 remain pending maintainer results.

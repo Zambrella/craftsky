@@ -10,6 +10,7 @@ import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/post_edit.dart';
 import 'package:craftsky_app/feed/models/profile_pin_state.dart';
 import 'package:craftsky_app/feed/models/timeline_page.dart';
+import 'package:craftsky_app/feed/providers/edit_post_provider.dart';
 import 'package:craftsky_app/feed/providers/like_post_overlay.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/feed/providers/toggle_like_post_provider.dart';
@@ -40,6 +41,7 @@ import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/shared/mutations/pds_record_operation_controller.dart';
 import 'package:craftsky_app/shared/rich_text/providers/facet_action_providers.dart';
+import 'package:craftsky_app/shared/time/relative_time_text.dart';
 import 'package:craftsky_app/shared/widgets/post_summary.dart';
 import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
 import 'package:craftsky_app/subscriptions/providers/subscription_access_provider.dart';
@@ -195,6 +197,67 @@ Future<void> _doubleTap(WidgetTester tester, Finder finder) async {
 }
 
 void main() {
+  testWidgets(
+    'UT-007 visible card shows a confirmed edit without a public read',
+    (tester) async {
+      final post = _post(text: 'Original caption', likeCount: 7);
+      final pending = Completer<Post>();
+      await _pump(
+        tester,
+        PostCard(post: post),
+        overrides: [
+          authSessionProvider.overrideWith(SignedInAuthSession.new),
+          secureSessionRegistryStorageProvider.overrideWithValue(
+            _PinRegistryStorage(),
+          ),
+          postRepositoryProvider.overrideWithValue(
+            FakePostRepository(
+              onFetch: (_, _) => pending.future,
+              onEdit:
+                  (
+                    did,
+                    key, {
+                    required changes,
+                    required expectedCid,
+                    required operationKey,
+                  }) async => PostEditResult(
+                    acceptedCid: Cid.parse('bafyaccepted'),
+                    changed: true,
+                    editedAt: DateTime.utc(2026),
+                  ),
+            ),
+          ),
+        ],
+      );
+      await tester.pumpAndSettle();
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(PostCard)),
+      );
+      final listener = container.listen(editPostProvider, (_, _) {});
+      addTearDown(listener.close);
+      await container.read(editPostProvider.future);
+      await container
+          .read(editPostProvider.notifier)
+          .save(
+            seed: PostEditSeed(
+              post: post,
+              baseCid: post.cid,
+              recordRevision: null,
+              editable: {'text': post.text, 'sponsored': false},
+            ),
+            changes: PostEditChanges({'text': 'Edited caption'}),
+          );
+      await tester.pumpAndSettle();
+      expect(pending.isCompleted, isFalse);
+      expect(find.text('Edited caption', findRichText: true), findsOneWidget);
+      expect(find.text('Original caption', findRichText: true), findsNothing);
+      expect(
+        container.read(pdsRecordOperationControllerProvider).activeOverlays,
+        hasLength(1),
+      );
+    },
+  );
+
   for (final kind in ['general', 'project', 'reply', 'quote']) {
     for (final owner in [false, true]) {
       testWidgets('REG-005 $kind menu exposes Edit only to the active owner '
@@ -296,24 +359,54 @@ void main() {
   });
 
   testWidgets(
-    'AT-003 edited cards disclose their latest edit beside publication time',
+    'AT-003 post time includes edit icon with one combined timestamp tooltip',
     (tester) async {
       final post = _post().copyWith(
         editedAt: DateTime.utc(2026, 10, 26, 12),
-        editTimeSource: PostEditTimeSource.confirmed,
       );
       await _pump(tester, PostCard(post: post));
       await tester.pumpAndSettle();
       expect(find.byIcon(CraftskyIcons.edit), findsOneWidget);
-      final labels = tester
-          .widgetList<Tooltip>(find.byType(Tooltip))
-          .map((tooltip) => tooltip.message ?? '');
-      expect(
-        labels.any(
-          (label) => label.startsWith('Edited ') && label.contains('2026'),
-        ),
-        isTrue,
+      final time = find.byType(RelativeTimeText).first;
+      expect(tester.widget<RelativeTimeText>(time).editedAt, post.editedAt);
+      final text = tester.widget<Text>(
+        find.descendant(of: time, matching: find.byType(Text)).first,
       );
+      expect(
+        tester.getCenter(find.byIcon(CraftskyIcons.edit)).dx,
+        lessThan(tester.getCenter(time).dx),
+      );
+      expect(text.textSpan!.toPlainText(), isNot(contains('·')));
+
+      expect(find.textContaining('Edited', findRichText: true), findsNothing);
+      final tooltips = find.descendant(
+        of: time,
+        matching: find.byType(Tooltip),
+      );
+      expect(tooltips, findsOneWidget);
+      final message = tester.widget<Tooltip>(tooltips).message!;
+      expect(message.split('\n'), hasLength(2));
+      expect(message.split('\n').last, startsWith('Edited '));
+      expect(message, contains('2026'));
+      final hold = await tester.startGesture(tester.getCenter(time));
+      await tester.pump(const Duration(milliseconds: 800));
+      await tester.pump(const Duration(milliseconds: 250));
+      expect(find.text(message), findsOneWidget);
+      await hold.up();
+      Tooltip.dismissAllToolTips();
+      await tester.pump(const Duration(milliseconds: 250));
+      await tester.tap(find.byIcon(CraftskyIcons.edit));
+      await tester.pump(const Duration(milliseconds: 250));
+      expect(find.text(message), findsOneWidget);
+      Tooltip.dismissAllToolTips();
+      await tester.pump(const Duration(milliseconds: 250));
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: Offset.zero);
+      await mouse.moveTo(tester.getCenter(time));
+      await tester.pump(const Duration(seconds: 1));
+      await tester.pump(const Duration(milliseconds: 250));
+      expect(find.text(message), findsOneWidget);
+      await mouse.removePointer();
     },
   );
   group('PostCard', () {

@@ -3588,31 +3588,10 @@
       }
     }
   },
-  "postEditTimeConfirmed": "Edited {timestamp}",
-  "@postEditTimeConfirmed": {"description": "Accessible tooltip for an AppView-confirmed edit time.", "placeholders": {"timestamp": {"type": "String"}}},
-  "postEditTimeReported": "Edit reported for {timestamp}",
-  "@postEditTimeReported": {"description": "Author-reported edit time, not independently verified.", "placeholders": {"timestamp": {"type": "String"}}},
-  "postEditTimeObserved": "Edit first observed {timestamp}",
-  "@postEditTimeObserved": {"description": "When AppView first observed an edit whose author time is unavailable.", "placeholders": {"timestamp": {"type": "String"}}},
-  "postEditTimeUnknown": "Edit time: {timestamp}",
-  "@postEditTimeUnknown": {"description": "Edit disclosure when the time source is unfamiliar.", "placeholders": {"timestamp": {"type": "String"}}}
-,
   "postEditSaveChanges": "Save changes",
   "postEditSuccess": "Changes saved",
-  "postEditError": "Could not save changes. Please try again."
-,
-  "postEditPending": "Changes saved. Updating post…"
-,
-  "postEditRefresh": "Refresh post",
-  "postEditRefreshError": "Changes are saved. Could not refresh the post. Please try again."
-,
+  "postEditError": "Could not save changes. Please try again.",
   "postEditSaving": "Saving changes…",
-  "postEditUpdating": "Updating post…",
-  "postEditExternalUrl": "Link URL",
-  "postEditExternalTitle": "Link title",
-  "postEditExternalDescription": "Link description",
-  "postEditRemovePreviewImage": "Remove preview image",
-  "postEditRefreshPreview": "Refresh preview",
   "postEditAction": "Edit",
   "postEditTitle": "Edit post",
   "postEditLoadError": "Could not load this post for editing. Please try again.",
@@ -3624,5 +3603,21 @@
   "postEditCaptionLabel": "Caption",
   "postEditContentLabel": "Post content",
   "postEditValidationFields": "Check these fields and try again: {fields}.",
-  "@postEditValidationFields": {"description": "Actionable edit validation feedback using localized control names.", "placeholders": {"fields": {"type": "String"}}}
+  "@postEditValidationFields": {
+    "description": "Actionable edit validation feedback using localized control names.",
+    "placeholders": {
+      "fields": {
+        "type": "String"
+      }
+    }
+  },
+  "postEditTime": "Edited {timestamp}",
+  "@postEditTime": {
+    "description": "Accessible tooltip for the current record edit timestamp.",
+    "placeholders": {
+      "timestamp": {
+        "type": "String"
+      }
+    }
+  }
 }

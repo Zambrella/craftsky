@@ -1,7 +1,6 @@
 package api
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -10,12 +9,10 @@ import (
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
-	"github.com/jackc/pgx/v5"
 	"social.craftsky/appview/internal/api/envelope"
 	lexiconschema "social.craftsky/appview/internal/lexicon/schema"
 	"social.craftsky/appview/internal/middleware"
 	"social.craftsky/appview/internal/pdscommands"
-	"social.craftsky/appview/internal/postpublication"
 	"social.craftsky/appview/internal/recordjson"
 	"social.craftsky/appview/internal/relationships"
 	"social.craftsky/appview/internal/video"
@@ -97,8 +94,8 @@ func CommandEditPostHandler(store postAuthorReader, commands AddressedPutCommand
 			OperationKind: "post.edit", OperationKey: operationKey, URI: uri, ExpectedCID: expected, Intent: intent,
 			StrictExpectedCID: true,
 			BuildPreparedRecord: func(current pdscommands.AuthoritativeRecord, prepared pdscommands.PreparedCommand) (json.RawMessage, error) {
-				if reader, ok := store.(postEditSeedStore); ok {
-					if _, err := reader.ReadEditSnapshot(r.Context(), owner, key); err != nil {
+				if reader, ok := store.(postEditEligibilityStore); ok {
+					if err := reader.CheckPostEditAllowed(r.Context(), owner, key); err != nil {
 						if errors.Is(err, ErrPostNotFound) {
 							return nil, err
 						}
@@ -247,19 +244,6 @@ func CommandEditPostHandler(store postAuthorReader, commands AddressedPutCommand
 				fields["editedAt"], _ = json.Marshal(prepared.CreatedAt.UTC().Format(time.RFC3339Nano))
 				return json.Marshal(fields)
 			},
-			FinalizeAccepted: func(ctx context.Context, tx pgx.Tx, prepared pdscommands.PreparedCommand, record pdscommands.AuthoritativeRecord) error {
-				// Existing posts may predate this feature. Capture bounded facts
-				// from the prior source before restricting the accepted version.
-				facts, err := postpublication.Prepare(ctx, tx, postpublication.Source{URI: record.URI, DID: owner, Action: "update", Record: record.Record})
-				if err != nil {
-					return err
-				}
-				if err := postpublication.Persist(ctx, tx, record.URI, owner, facts); err != nil {
-					return err
-				}
-				_, err = postpublication.RestrictCurrent(ctx, tx, record.URI, record.Record, prepared.CreatedAt)
-				return err
-			},
 			Accepted: func(record pdscommands.AuthoritativeRecord) (pdscommands.TerminalResult, error) {
 				return acceptedPostEditResult(record, expected)
 			},
@@ -292,7 +276,6 @@ func CommandEditPostHandler(store postAuthorReader, commands AddressedPutCommand
 			WriteCommandError(w, runID, err, r.Context())
 			return
 		}
-		result = hydratePostEditResult(r.Context(), store, resolver, owner, key, result)
 		WriteCommandResponse(w, CommandResultFromStored(result))
 	})
 }

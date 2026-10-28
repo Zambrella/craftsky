@@ -23,6 +23,7 @@ import 'package:craftsky_app/feed/composer/link_preview_controller.dart';
 import 'package:craftsky_app/feed/composer/post_edit_hydrator.dart';
 import 'package:craftsky_app/feed/composer/post_edit_origin.dart';
 import 'package:craftsky_app/feed/composer/post_edit_validation_message.dart';
+import 'package:craftsky_app/feed/composer/published_post_edit_submission.dart';
 import 'package:craftsky_app/feed/composer/published_post_embed_edit.dart';
 import 'package:craftsky_app/feed/composer/submission_screen_awake.dart';
 import 'package:craftsky_app/feed/composer/video_failure_message.dart';
@@ -30,7 +31,6 @@ import 'package:craftsky_app/feed/composer/video_publication_coordinator.dart';
 import 'package:craftsky_app/feed/models/create_post_video.dart';
 import 'package:craftsky_app/feed/models/link_preview.dart';
 import 'package:craftsky_app/feed/models/post.dart';
-import 'package:craftsky_app/feed/models/post_edit.dart';
 import 'package:craftsky_app/feed/providers/composer_image_state.dart';
 import 'package:craftsky_app/feed/providers/composer_images_provider.dart';
 import 'package:craftsky_app/feed/providers/composer_video_controller.dart';
@@ -44,7 +44,6 @@ import 'package:craftsky_app/feed/widgets/composer_image_attachment_section.dart
 import 'package:craftsky_app/feed/widgets/composer_link_preview_carousel.dart';
 import 'package:craftsky_app/feed/widgets/composer_metadata_controls.dart';
 import 'package:craftsky_app/feed/widgets/composer_video_attachment_card.dart';
-import 'package:craftsky_app/feed/widgets/published_external_edit_card.dart';
 import 'package:craftsky_app/feed/widgets/published_post_edit_context.dart';
 import 'package:craftsky_app/feed/widgets/published_post_editor.dart';
 import 'package:craftsky_app/feed/widgets/submission_blocking_overlay.dart';
@@ -70,14 +69,10 @@ import 'package:craftsky_app/scheduled_posts/widgets/scheduled_post_capacity_war
 import 'package:craftsky_app/scheduled_posts/widgets/scheduled_staging_progress.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/api/pds_mutation_contract.dart';
-import 'package:craftsky_app/shared/errors/app_error_mapper.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/shared/messaging/message_action.dart';
 import 'package:craftsky_app/shared/messaging/widgets/craftsky_snack_bar.dart';
-import 'package:craftsky_app/shared/observability/diagnostic_emitter.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
-import 'package:craftsky_app/shared/observability/error_reporter.dart';
-import 'package:craftsky_app/shared/observability/error_reporter_provider.dart';
 import 'package:craftsky_app/shared/rich_text/providers/facet_suggestion_providers.dart';
 import 'package:craftsky_app/shared/rich_text/widgets/facet_autocomplete_editor.dart';
 import 'package:craftsky_app/shared/text/record_text_limits.dart';
@@ -89,10 +84,8 @@ import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/publishing_progress_indicator.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
-import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:logging/logging.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:uuid/uuid.dart';
 
@@ -224,13 +217,8 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
   Post? _pendingPublishedDraftPost;
   late final ComposerDraftSession _origin;
   List<ComposerImageDraft> _publishedImages = const [];
-  bool _isRefreshingExternal = false;
-  bool _hasExternalReplacement = false;
-  LinkPreviewThumbnail? _replacementExternalThumbnail;
-  CancelToken? _externalRefreshCancel;
   late final PublishedPostEmbedEdit? _publishedEmbed;
   Future<void> Function()? _retryPublishedEdit;
-  PostEditResult? _acceptedEditPending;
   List<String>? _initialLanguages;
   ScheduleChoice _initialScheduleChoice = ScheduleChoice.now;
   DateTime? _initialScheduledAtLocal;
@@ -357,7 +345,6 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
 
   @override
   void dispose() {
-    _externalRefreshCancel?.cancel('editor disposed');
     WidgetsBinding.instance.removeObserver(this);
     _unsavedGuard.unregister(_unsavedRegistration);
     unawaited(_submissionCoordinator.dispose());
@@ -391,10 +378,7 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
         ? null
         : ref.watch(editPostProvider);
     final controlsBusy =
-        _isSubmitting ||
-        _acceptedEditPending != null ||
-        _isRefreshingExternal ||
-        editState?.error is PdsMutationUnresolvedException;
+        _isSubmitting || editState?.error is PdsMutationUnresolvedException;
     final editUnresolved = editState?.error is PdsMutationUnresolvedException;
     final editUnavailable = switch (editState?.error) {
       ApiBadRequest(code: 'post_not_found') => true,
@@ -514,7 +498,6 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
         (widget.publishedEdit == null ||
             activeLease == widget.publishedEdit!.ownership) &&
         !(editState?.isLoading ?? false) &&
-        _acceptedEditPending == null &&
         !_isSavingDraft &&
         !createState.isLoading &&
         !controlsBusy &&
@@ -531,9 +514,7 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
       _ when tooLong => l10n.postComposeTooLong,
       _ => null,
     };
-    final submitLabel = _acceptedEditPending != null
-        ? l10n.postEditRefresh
-        : editUnresolved
+    final submitLabel = editUnresolved
         ? l10n.postEditRetrySave
         : widget.publishedEdit != null
         ? l10n.postEditSaveChanges
@@ -585,8 +566,7 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
           !_isSavingDraft &&
           !_isDeletingSchedule &&
           !_isSubmitting &&
-          (_acceptedEditPending != null ||
-              _pendingPublishedDraftPost != null ||
+          (_pendingPublishedDraftPost != null ||
               !hasDraft ||
               createState.isLoading),
       onPopInvokedWithResult: (didPop, _) async {
@@ -652,6 +632,13 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
                       children: [
                         if (widget.publishedEdit case final edit?)
                           PublishedPostEditContext(post: edit.seed.post),
+                        if (editUnresolved) ...[
+                          Semantics(
+                            liveRegion: true,
+                            child: Text(l10n.postEditUnresolved),
+                          ),
+                          SizedBox(height: spacing.sp4),
+                        ],
                         if (widget.replyTarget case final replyTarget?) ...[
                           _ComposerTargetPreview(post: replyTarget),
                           SizedBox(height: spacing.sp4),
@@ -779,36 +766,29 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
                           ],
                         ],
                         if (_publishedEmbed?.hasExternal == true)
-                          PublishedExternalEditCard(
-                            edit: _publishedEmbed!,
-                            enabled:
-                                !controlsBusy &&
-                                !_isSavingDraft &&
-                                !_isScheduling,
-                            thumbnailUrl: _hasExternalReplacement
-                                ? null
-                                : widget
-                                      .publishedEdit
-                                      ?.seed
-                                      .post
-                                      .external
-                                      ?.thumb
-                                      ?.url,
-                            thumbnailBytes:
-                                _replacementExternalThumbnail?.bytes,
-                            onRefresh: _refreshPublishedExternal,
-                            onRemove: () {
-                              previewController?.dismiss();
-                              setState(() {
-                                _publishedEmbed.remove();
-                                _replacementExternalThumbnail = null;
-                              });
+                          ComposerLinkPreviewCarousel(
+                            preview: (
+                              uri: _publishedEmbed!.externalUri,
+                              title: _publishedEmbed.externalTitle,
+                              description: _publishedEmbed.externalDescription,
+                              thumbnail: null,
+                            ),
+                            thumbnailUrl: widget
+                                .publishedEdit
+                                ?.seed
+                                .post
+                                .external
+                                ?.thumb
+                                ?.url,
+                            current: 1,
+                            total: 1,
+                            loading: false,
+                            onPrevious: () {},
+                            onNext: () {},
+                            onDismiss: () {
+                              if (controlsBusy) return;
+                              setState(() => _publishedEmbed.remove());
                             },
-                            onRemoveThumbnail: () => setState(() {
-                              _publishedEmbed.removeExternalThumbnail();
-                              _replacementExternalThumbnail = null;
-                            }),
-                            onChanged: () => setState(() {}),
                           ),
                         if (!publishedEmbedIsFixed &&
                             selectedVideo == null &&
@@ -817,7 +797,16 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
                             !previewState.dismissed &&
                             !previewState.suppressed) ...[
                           ComposerLinkPreviewCarousel(
-                            selected: selectedPreview,
+                            preview: selectedPreview == null
+                                ? null
+                                : (
+                                    uri: selectedPreview.preview.url.toString(),
+                                    title: selectedPreview.preview.title,
+                                    description:
+                                        selectedPreview.preview.description,
+                                    thumbnail:
+                                        selectedPreview.preview.thumbnail,
+                                  ),
                             current: selectedPreview == null
                                 ? 0
                                 : availablePreviews.indexWhere(
@@ -955,13 +944,7 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
                         doneKey: const Key('post-composer-done'),
                         actionKey: keys.feed.submit,
                         label: submitLabel,
-                        onPressed: _acceptedEditPending != null
-                            ? (!_isSubmitting &&
-                                      activeLease ==
-                                          widget.publishedEdit?.ownership
-                                  ? _refreshPublishedAccepted
-                                  : null)
-                            : editUnresolved
+                        onPressed: editUnresolved
                             ? (!_isSubmitting &&
                                       _submissionOwnershipIsCurrent(
                                         widget.publishedEdit?.ownership,
@@ -987,9 +970,7 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
             SubmissionBlockingOverlay(
               scheduling: _scheduleChoice == ScheduleChoice.later,
               kind: widget.publishedEdit != null
-                  ? (_acceptedEditPending != null
-                        ? SubmissionKind.refreshPost
-                        : SubmissionKind.edit)
+                  ? SubmissionKind.edit
                   : isComment
                   ? SubmissionKind.comment
                   : isResponse
@@ -1047,7 +1028,6 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
   }
 
   bool _hasDraft(ComposerImagesState imagesState) {
-    if (_acceptedEditPending != null) return false;
     if (widget.publishedEdit != null) {
       return (_publishedEmbed?.changes.isNotEmpty ?? false) ||
           _text != _initialText ||
@@ -1318,78 +1298,6 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
     _publishedImages.map((image) => (image.id, image.altText)).toList(),
   );
 
-  Future<void> _refreshPublishedExternal() async {
-    final edit = widget.publishedEdit;
-    final media = _publishedEmbed;
-    if (edit == null || media == null || _isRefreshingExternal) return;
-    final operation = ActiveAccountOperation.fromWidget(ref, edit.ownership);
-    final reporter = GuardedErrorReporter(ref.read(errorReporterProvider));
-    final cancel = CancelToken();
-    _externalRefreshCancel = cancel;
-    setState(() => _isRefreshingExternal = true);
-    try {
-      operation.requireCurrent();
-      final candidate = LinkPreviewCandidate.parse(media.externalUri);
-      final preview = await ref
-          .read(linkPreviewRepositoryProvider)
-          .fetch(candidate.transportUri, cancel);
-      operation.requireCurrent();
-      if (!mounted || !media.hasExternal) return;
-      setState(() {
-        media
-          ..updateExternal(
-            uri: candidate.navigationUri(preview.url).toString(),
-            title: preview.title,
-            description: preview.description,
-          )
-          ..removeExternalThumbnail();
-        _hasExternalReplacement = true;
-        _replacementExternalThumbnail = preview.thumbnail;
-      });
-    } on Object catch (error, stack) {
-      final mapped = AppErrorMapper.map(
-        error,
-        source: 'post_mutation',
-        fallbackClassification: 'post.edit.preview.failed',
-      );
-      final diagnostic = ReportContext(
-        feature: 'PostEditComposer',
-        operation: 'post.edit.preview',
-        classification: mapped.sentryClassification,
-        safeDiagnostics: {
-          ...mapped.safeDiagnostics,
-          'failureStage': 'preview_refresh',
-        },
-        workflow: PublicRecordContext(
-          actorDid: edit.ownership.session.account.did.value,
-          recordUri: edit.seed.post.uri.value,
-        ),
-      );
-      Logger('PostEditComposer').warning(
-        DiagnosticMessage('post edit preview failed', context: diagnostic),
-        error,
-        stack,
-      );
-      if (mapped.reportable) {
-        unawaited(
-          reporter.captureException(
-            error,
-            stackTrace: stack,
-            context: diagnostic,
-          ),
-        );
-      }
-      if (mounted && operation.isCurrent) {
-        context.showError(AppLocalizations.of(context).postEditError);
-      }
-    } finally {
-      if (identical(_externalRefreshCancel, cancel)) {
-        _externalRefreshCancel = null;
-      }
-      if (mounted) setState(() => _isRefreshingExternal = false);
-    }
-  }
-
   Future<void> _savePublishedPostEdit(
     PostEditOrigin edit,
     ComposerImagesState images,
@@ -1447,38 +1355,6 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
         );
         operation.requireCurrent();
       }
-      if (_hasExternalReplacement &&
-          _publishedEmbed?.hasExternal == true &&
-          _videoController.selection == null) {
-        final media = _publishedEmbed!;
-        final selection = SelectedLinkPreview(
-          candidate: LinkPreviewCandidate.parse(media.externalUri),
-          preview: LinkPreview(
-            url: Uri.parse(media.externalUri),
-            title: media.externalTitle,
-            description: media.externalDescription,
-            thumbnail: _replacementExternalThumbnail,
-          ),
-        );
-        final client = _replacementExternalThumbnail == null
-            ? null
-            : ref.read(postApiClientProvider);
-        final external = await _mediaUploader.materializeImmediateExternal(
-          composerId: _composerId,
-          selection: selection,
-          ownershipIsCurrent: () => operation.isCurrent,
-          upload: ({required bytes, required mimeType, required cancelToken}) =>
-              client!.uploadImage(
-                bytes: bytes,
-                mimeType: mimeType,
-                cancelToken: cancelToken,
-              ),
-        );
-        operation.requireCurrent();
-        changes['embed'] = {
-          'external': {...external.toMap(), 'thumb': external.thumb?.toMap()},
-        };
-      }
       if (newExternal != null) {
         final client = newExternal.preview.thumbnail == null
             ? null
@@ -1500,102 +1376,34 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
           'external': external.toMap(),
         };
       }
-      Future<void> submit(
-        CreatePostVideo? video, {
-        bool allowBlobRecovery = false,
-      }) async {
-        if (video != null) {
-          changes['embed'] = {
-            r'$type': 'app.bsky.embed.video',
-            'video': video.blob.toMap(),
-            'jobId': video.jobId,
-            'alt': video.alt,
-            if (video.aspectRatio != null)
-              'aspectRatio': video.aspectRatio!.toMap(),
-          };
-          if (edit.seed.post.images?.isNotEmpty ?? false) {
-            changes['images'] = null;
-          }
-        }
-        final frozenChanges = PostEditChanges(changes);
-        Future<void> sendFrozen({bool recoverBlob = false}) async {
-          operation.requireCurrent();
-          final result = await ref
-              .read(editPostProvider.notifier)
-              .save(
-                seed: edit.seed,
-                changes: frozenChanges,
-                ownership: edit.ownership,
-                allowVideoBlobRecovery: recoverBlob,
-              );
-          operation.requireCurrent();
-          if (result == null) {
-            throw const ComposerSubmissionFailure();
-          }
+      await submitPublishedPostEdit(
+        ref: ref,
+        edit: edit,
+        changes: changes,
+        selectedVideo: _videoController.selection,
+        prepareVideo: widget.prepareVideoProof,
+        onRetry: (retry) =>
+            _retryPublishedEdit = () => _runSubmission(edit.ownership, retry),
+        onAccepted: (result) {
           _submissionSucceeded = true;
-          var visible = result.post;
-          if (visible == null) {
-            try {
-              visible = await ref
-                  .read(editPostProvider.notifier)
-                  .refreshAccepted(
-                    seed: edit.seed,
-                    accepted: result,
-                    ownership: edit.ownership,
-                  );
-            } on Object {
-              // Acceptance is already final; a read failure cannot cause a
-              // second write or present the edit as rejected.
-            }
-            operation.requireCurrent();
-          }
           if (!mounted) return;
-          if (visible case final post?) {
-            _pendingPublishedDraftPost = post;
-            context.showInfo(AppLocalizations.of(context).postEditSuccess);
-          } else {
-            setState(() => _acceptedEditPending = result);
-            context.showInfo(AppLocalizations.of(context).postEditPending);
-          }
-        }
-
-        _retryPublishedEdit = () => _runSubmission(edit.ownership, sendFrozen);
-        await sendFrozen(recoverBlob: allowBlobRecovery);
-      }
-
-      final selectedVideo = _videoController.selection;
-      if (selectedVideo == null) {
-        await submit(null);
-      } else if (widget.prepareVideoProof case final prepare?) {
-        final video = await prepare(selectedVideo);
-        operation.requireCurrent();
-        await submit(video);
-      } else {
-        final coordinator = composerVideoPublication(
-          owner: edit.ownership,
-          selection: selectedVideo,
-          api: ref.read(postApiClientProvider),
-          service: ref.read(videoServiceClientProvider),
-          publish: submit,
-          onProgress: (progress) {
-            if (mounted) setState(() => _videoProgress = progress);
-          },
-        );
-        _videoPublication = coordinator;
-        _videoPublicationOwner = edit.ownership;
-        try {
-          await coordinator.publish(
-            altText: selectedVideo.altText,
-            aspectRatio: (selectedVideo.width, selectedVideo.height),
-          );
-        } finally {
-          if (identical(_videoPublication, coordinator)) {
+          _pendingPublishedDraftPost = result.post;
+          context.showInfo(AppLocalizations.of(context).postEditSuccess);
+        },
+        onProgress: (progress) {
+          if (mounted) setState(() => _videoProgress = progress);
+        },
+        onVideo: (coordinator, {required active}) {
+          if (active) {
+            _videoPublication = coordinator;
+            _videoPublicationOwner = edit.ownership;
+          } else if (identical(_videoPublication, coordinator)) {
             _videoPublication = null;
             _videoPublicationOwner = null;
             if (mounted) setState(() => _videoProgress = null);
           }
-        }
-      }
+        },
+      );
     });
   }
 
@@ -1615,33 +1423,6 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
     if (mounted && operation.isCurrent && Navigator.of(context).canPop()) {
       Navigator.of(context).pop(current);
     }
-  }
-
-  Future<void> _refreshPublishedAccepted() async {
-    final edit = widget.publishedEdit;
-    final accepted = _acceptedEditPending;
-    if (edit == null || accepted == null) return;
-    await _runSubmission(edit.ownership, () async {
-      final operation = ActiveAccountOperation.fromWidget(ref, edit.ownership)
-        ..requireCurrent();
-      final post = await ref
-          .read(editPostProvider.notifier)
-          .refreshAccepted(
-            seed: edit.seed,
-            accepted: accepted,
-            ownership: edit.ownership,
-          );
-      operation.requireCurrent();
-      if (!mounted) return;
-      if (post == null) {
-        context.showInfo(AppLocalizations.of(context).postEditPending);
-        return;
-      }
-      setState(() => _acceptedEditPending = null);
-      _submissionSucceeded = true;
-      _pendingPublishedDraftPost = post;
-      context.showInfo(AppLocalizations.of(context).postEditSuccess);
-    });
   }
 
   Future<void> _submitPost({required String trimmedText}) async {
@@ -1880,8 +1661,6 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
                       (retryOperation == null
                           ? (widget.publishedEdit == null
                                 ? l10n.postCreateError
-                                : _acceptedEditPending != null
-                                ? l10n.postEditRefreshError
                                 : l10n.postEditError)
                           : videoPublicationFailureMessage(
                               l10n,

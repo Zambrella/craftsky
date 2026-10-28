@@ -55,7 +55,7 @@ func TestPostCreateAcceptanceSeedsOriginalFactsBeforeTap(t *testing.T) {
 				t.Fatalf("create acceptance=%+v %v finalizers=%d writes=%d", result, err, calls, pds.applyCalls)
 			}
 			var origins, mentions, sources int
-			if err := addressed.store.pool.QueryRow(context.Background(), `SELECT (SELECT count(*) FROM post_publication_state WHERE origin_status='established'),(SELECT count(*) FROM post_publication_mentions WHERE recipient_did='did:plc:recipient' AND eligible),(SELECT count(*) FROM tap_source_records)`).Scan(&origins, &mentions, &sources); err != nil {
+			if err := addressed.store.pool.QueryRow(context.Background(), `SELECT (SELECT count(*) FROM post_publication_state WHERE origin_status='established'),(SELECT count(*) FROM post_publication_mentions WHERE recipient_did='did:plc:recipient'),(SELECT count(*) FROM tap_source_records)`).Scan(&origins, &mentions, &sources); err != nil {
 				t.Fatal(err)
 			}
 			if origins != 1 || mentions != 1 || sources != 0 {

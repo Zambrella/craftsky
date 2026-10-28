@@ -18,13 +18,15 @@ final class PostEditSeed {
   factory fromMap(Map<String, dynamic> value) => PostEditSeed(
     post: PostMapper.fromMap(value['post'] as Map<String, dynamic>),
     baseCid: Cid.parse(value['baseCid'] as String),
-    recordRevision: value['recordRevision'] as String,
+    recordRevision: value['recordRevision'] as String?,
     editable: Map<String, Object?>.from(value['editable'] as Map),
   );
 
   final Post post;
   final Cid baseCid;
-  final String recordRevision;
+
+  /// getRecord does not supply an exact repository revision.
+  final String? recordRevision;
   final Map<String, Object?> editable;
 
   @override
@@ -61,10 +63,8 @@ final class PostEditResult {
   const new({
     required this.acceptedCid,
     required this.changed,
-    required this.projectionPending,
     this.post,
     this.editedAt,
-    this.editTimeSource,
     this.recordRevision,
     this.observationCid,
     this.observationRevision,
@@ -74,19 +74,9 @@ final class PostEditResult {
     final result = PostEditResult(
       acceptedCid: Cid.parse(value['acceptedCid'] as String),
       changed: value['changed'] as bool,
-      projectionPending: value['projectionPending'] as bool,
-      post: value['post'] == null
-          ? null
-          : PostMapper.fromMap(value['post'] as Map<String, dynamic>),
       editedAt: value['editedAt'] == null
           ? null
           : DateTime.parse(value['editedAt'] as String).toUtc(),
-      editTimeSource: value['editTimeSource'] == null
-          ? null
-          : PostEditTimeSource.values.firstWhere(
-              (source) => source.name == value['editTimeSource'],
-              orElse: () => PostEditTimeSource.unknown,
-            ),
       recordRevision: value['recordRevision'] as String?,
       observationCid: value['observationCid'] == null
           ? null
@@ -94,7 +84,6 @@ final class PostEditResult {
       observationRevision: value['observationRevision'] as String?,
     );
     if ((result.changed && result.editedAt == null) ||
-        (result.post == null && !result.projectionPending) ||
         (result.post != null && result.post!.cid != result.acceptedCid)) {
       throw const FormatException('Incoherent accepted edit response');
     }
@@ -103,10 +92,10 @@ final class PostEditResult {
 
   final Cid acceptedCid;
   final bool changed;
-  final bool projectionPending;
+
+  /// Local presentation supplied by the client after confirmed acceptance.
   final Post? post;
   final DateTime? editedAt;
-  final PostEditTimeSource? editTimeSource;
 
   /// Exact accepted/verified record revision, when available.
   final String? recordRevision;

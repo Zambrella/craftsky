@@ -3,7 +3,7 @@ import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/theme/publishing_progress_indicator.dart';
 import 'package:material_ui/material_ui.dart';
 
-enum SubmissionKind { post, comment, reply, edit, refreshPost }
+enum SubmissionKind { post, comment, reply, edit }
 
 final class SubmissionBlockingOverlay extends StatelessWidget {
   const new({
@@ -37,7 +37,6 @@ final class SubmissionBlockingOverlay extends StatelessWidget {
         SubmissionKind.comment => l10n.submissionPublishingComment,
         SubmissionKind.reply => l10n.submissionPublishingReply,
         SubmissionKind.edit => l10n.postEditSaving,
-        SubmissionKind.refreshPost => l10n.postEditUpdating,
       },
     };
     final canCancel =

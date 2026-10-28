@@ -274,17 +274,6 @@ func terminalCascadeDrainSQL(entry TerminalDIDEntry) []string {
 		return []string{
 			`
 			WITH target AS (
-				SELECT child.uri
-				FROM craftsky_post_edit_state child
-				JOIN tap_source_records parent ON parent.uri=child.uri
-				WHERE parent.did=$1 AND parent.ctid=ANY($3::tid[])
-				ORDER BY child.uri LIMIT $2 FOR UPDATE OF child NOWAIT
-			)
-			DELETE FROM craftsky_post_edit_state child USING target
-			WHERE child.uri=target.uri
-			`,
-			`
-			WITH target AS (
 				SELECT child.id
 				FROM tap_projection_jobs AS child
 				JOIN tap_source_records AS parent ON parent.uri=child.source_uri

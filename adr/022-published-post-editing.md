@@ -24,12 +24,12 @@ server timestamp for each successful logical edit; no-op, failed and replayed
 requests do not manufacture further edit times. All record replacements
 preserve unknown fields and retain original timestamp strings.
 
-AppView stores only current-version edit metadata. Its presentation separates
-server-confirmed, externally reported and locally observed edit times. A
-first-seen current snapshot without valid metadata does not prove a previous
-edit. Observation metadata need not survive a rebuild from public records
-alone. There is no revision collection, public history API or old-media archive.
-Existing command recovery and moderation evidence keep their normal policies.
+AppView projects editedAt directly from the current source record and displays
+one Edited label. External clients may omit or misreport it; no observation
+fallback or verified provenance is promised. Current timestamps need no
+separate digest/transition/provenance table. Normal record validation and
+ordered serving remain required. There is no revision collection, history API
+or old-media archive. This simplification was approved on 2026-10-27.
 
 Record writes stay server-side, under existing session, lifecycle, media and
 moderation controls. Require a concrete expected record CID and an immutable
@@ -37,11 +37,12 @@ operation key; an edit must not recreate a deleted record or overwrite a newer
 version. Existing OAuth scopes already authorize the collection; no broader
 credential handoff is introduced.
 
-Edits do not generate social alerts. Preserve bounded operational facts about
-original publication recipients before current-source coalescing, intersect
-them with current applicable reasons, and never add recipients introduced only
-by an edit. Removed pending reasons suppress dispatch; already dispatched
-notifications cannot be recalled. Retain existing safety and eligibility gates.
+Edits do not generate social alerts. Preserve bounded original publication
+recipients before coalescing; never add edit-only recipients or replay original
+notifications. Original pending recipients may receive a notification even if
+an edit removes their mention. Do not recall/retract original notifications
+solely due to edits. Existing deletion, safety and eligibility gates remain.
+The maintainer approved this relaxed policy on 2026-10-27.
 
 ## Alternatives and consequences
 

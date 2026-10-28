@@ -6,36 +6,43 @@ import (
 	"strings"
 )
 
-// Creation's supported-craft inventory cannot invalidate an untouched open-enum
-// value in an existing record. New unsupported values and duplicates still fail.
+// Creation constraints cannot invalidate retained schema-valid external URIs or
+// untouched open-enum craft values. New unsupported values still fail.
 func validatePostEditCandidate(candidate PostCreateRequest, prior json.RawMessage, limits MediaLimits) error {
 	err := validatePostCreateWithLimits(candidate, limits, false)
 	var fields *FieldError
-	if err == nil || candidate.Project == nil || !errors.As(err, &fields) {
+	if err == nil || !errors.As(err, &fields) {
 		return err
 	}
 	original, decodeErr := postEditCandidate(prior)
-	if decodeErr != nil || original.Project == nil {
+	if decodeErr != nil {
 		return err
 	}
-	common, previous := candidate.Project.Common, original.Project.Common
-	if common.CraftType == previous.CraftType && strings.TrimSpace(common.CraftType) != "" {
-		delete(fields.Fields, "project.common.craftType")
+	if candidate.Embed != nil && candidate.Embed.External != nil &&
+		original.Embed != nil && original.Embed.External != nil &&
+		candidate.Embed.External.URI == original.Embed.External.URI {
+		delete(fields.Fields, "embed.external.uri")
 	}
-	retained := map[string]bool{}
-	for _, craft := range previous.AdditionalCrafts {
-		retained[craft.CraftType] = true
-	}
-	seen := map[string]bool{common.CraftType: true}
-	valid := true
-	for _, craft := range common.AdditionalCrafts {
-		if strings.TrimSpace(craft.CraftType) == "" || seen[craft.CraftType] || (!IsSupportedProjectCraftType(craft.CraftType) && !retained[craft.CraftType]) {
-			valid = false
+	if candidate.Project != nil && original.Project != nil {
+		common, previous := candidate.Project.Common, original.Project.Common
+		if common.CraftType == previous.CraftType && strings.TrimSpace(common.CraftType) != "" {
+			delete(fields.Fields, "project.common.craftType")
 		}
-		seen[craft.CraftType] = true
-	}
-	if valid {
-		delete(fields.Fields, "project.common.additionalCrafts")
+		retained := map[string]bool{}
+		for _, craft := range previous.AdditionalCrafts {
+			retained[craft.CraftType] = true
+		}
+		seen := map[string]bool{common.CraftType: true}
+		valid := true
+		for _, craft := range common.AdditionalCrafts {
+			if strings.TrimSpace(craft.CraftType) == "" || seen[craft.CraftType] || (!IsSupportedProjectCraftType(craft.CraftType) && !retained[craft.CraftType]) {
+				valid = false
+			}
+			seen[craft.CraftType] = true
+		}
+		if valid {
+			delete(fields.Fields, "project.common.additionalCrafts")
+		}
 	}
 	if len(fields.Fields) == 0 {
 		return nil

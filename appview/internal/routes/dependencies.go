@@ -167,6 +167,7 @@ type Dependencies struct {
 	PDSCommands               api.SetCommandExecutor
 	PDSAppendCommands         api.AppendCommandExecutor
 	PDSAddressedCommands      api.AddressedCommandExecutor
+	PostEditRecords           api.PostEditRecordReader
 	PDSCompoundCommands       api.CompoundPutCommandExecutor
 	BusinessStore             *business.Store
 	Subscriptions             *subscriptions.Store

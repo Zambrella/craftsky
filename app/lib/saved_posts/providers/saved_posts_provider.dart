@@ -58,6 +58,20 @@ bool isInvalidSavedPostCursorError(Object error) =>
 class SavedPosts extends _$SavedPosts {
   @override
   Future<SavedPostListState> build(SavedPostListKey key) async {
+    listenForPostEdits(ref, () {
+      final current = state.value;
+      if (current == null) return;
+      state = AsyncData(
+        current.copyWith(
+          items: [
+            for (final item in current.items)
+              if (applyPostRecordOverlay(ref, item.post, reconcile: false)
+                  case final post?)
+                item.copyWith(post: post),
+          ],
+        ),
+      );
+    });
     final generation = captureSavedPostAccountBoundary(ref);
     ref.watch(savedPostAccountBoundaryProvider);
     final repository = await ref.watch(
@@ -90,7 +104,17 @@ class SavedPosts extends _$SavedPosts {
       );
       if (!isSavedPostAccountBoundaryCurrent(ref, generation)) return;
       _reconcilePage(page);
-      state = AsyncData(current.appendPage(_withPostEdits(page)));
+      final appended = current.appendPage(_withPostEdits(page));
+      state = AsyncData(
+        appended.copyWith(
+          items: [
+            for (final item in appended.items)
+              if (applyPostRecordOverlay(ref, item.post, reconcile: false)
+                  case final post?)
+                item.copyWith(post: post),
+          ],
+        ),
+      );
     } on Object catch (error) {
       if (!isSavedPostAccountBoundaryCurrent(ref, generation)) return;
       if (isInvalidSavedPostCursorError(error)) {

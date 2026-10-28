@@ -15,6 +15,13 @@ const searchResultsPageLimit = 25;
 class HashtagSearch extends _$HashtagSearch {
   @override
   Future<SearchPostResultsState> build(HashtagSearchQuery query) async {
+    listenForPostEdits(ref, () {
+      final current = state.value;
+      if (current == null) return;
+      state = AsyncData(
+        current.copyWith(items: applyLoadedPostEdits(ref, current.items)),
+      );
+    });
     ref.watch(activeContentLanguagePolicyProvider);
     final page = await ref
         .watch(searchRepositoryProvider)
@@ -58,6 +65,11 @@ class HashtagSearch extends _$HashtagSearch {
         hashtag: page.hashtag ?? current.hashtag,
       );
     });
-    accountOperation.publish(() => state = next);
+    accountOperation.publish(
+      () => state = next.whenData(
+        (value) =>
+            value.copyWith(items: applyLoadedPostEdits(ref, value.items)),
+      ),
+    );
   }
 }

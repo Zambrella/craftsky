@@ -74,8 +74,6 @@ void main() {
         'changed': true,
         'acceptedCid': 'bafyaccepted',
         'editedAt': '2026-10-26T12:00:00Z',
-        'editTimeSource': 'confirmed',
-        'projectionPending': true,
         'observationCid': 'bafyobservedhead',
         'observationRevision': '3aaaaaaaaaaa3',
       }),
@@ -93,7 +91,6 @@ void main() {
     );
     expect(result.post, isNull);
     expect(result.changed, isTrue);
-    expect(result.projectionPending, isTrue);
     expect(result.acceptedCid.toString(), 'bafyaccepted');
     expect(result.recordRevision, isNull);
     expect(result.observationRevision, '3aaaaaaaaaaa3');

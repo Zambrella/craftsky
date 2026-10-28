@@ -25,8 +25,10 @@ import 'package:craftsky_app/projects/options/project_option_catalogs.dart';
 import 'package:craftsky_app/projects/providers/preferred_project_crafts_provider.dart';
 import 'package:craftsky_app/projects/widgets/project_composer_sheet.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
+import 'package:craftsky_app/shared/api/pds_mutation_contract.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
+import 'package:craftsky_app/shared/mutations/pds_record_operation_controller.dart';
 import 'package:craftsky_app/shared/rich_text/data/mock_facet_suggestion_repository.dart';
 import 'package:craftsky_app/shared/rich_text/providers/facet_suggestion_providers.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
@@ -48,27 +50,35 @@ void main() {
         retainedVideo,
         replaceVideo,
         realUpload,
+        timeoutRecovery,
       )
       in [
-        (false, false, false, false, false, false),
-        (true, false, false, false, false, false),
-        (true, true, false, false, false, false),
-        (false, false, true, false, false, false),
-        (true, false, true, false, false, false),
-        (true, true, true, false, false, false),
-        (false, false, false, true, false, false),
-        (false, false, true, true, false, false),
-        (false, false, false, true, true, false),
-        (false, false, true, true, true, false),
-        (false, false, false, true, true, true),
-        (false, false, true, true, true, true),
+        (false, false, false, false, false, false, false),
+        (true, false, false, false, false, false, false),
+        (true, true, false, false, false, false, false),
+        (false, false, true, false, false, false, false),
+        (true, false, true, false, false, false, false),
+        (true, true, true, false, false, false, false),
+        (false, false, false, true, false, false, false),
+        (false, false, true, true, false, false, false),
+        (false, false, false, true, true, false, false),
+        (false, false, true, true, true, false, false),
+        (false, false, false, true, true, true, false),
+        (false, false, true, true, true, true, false),
+        (true, true, false, true, false, false, false),
+        (true, true, true, true, false, false, false),
+        (true, true, false, true, true, false, false),
+        (true, true, true, true, true, true, false),
+        (false, false, false, false, false, false, true),
+        (false, false, true, false, false, false, true),
       ]) {
     for (final missingBlob in realUpload ? [false, true] : [false]) {
       testWidgets(
         'AT-001 published post (project=$projectEdit, video=$retainedVideo, '
         'replace=$replaceVideo, realUpload=$realUpload) opens prefilled '
         'and saves through edit '
-        '(pending=$pending, lag=$lag, missingBlob=$missingBlob)',
+        '(pending=$pending, lag=$lag, missingBlob=$missingBlob, '
+        'timeout=$timeoutRecovery)',
         (tester) async {
           final registry = SessionRegistry.empty().upsertAndActivate(
             token: 'alice-token',
@@ -187,7 +197,12 @@ void main() {
                   {
                     'existingIndex': 0,
                     'alt': 'Linen shirt',
-                    'image': {'mimeType': 'image/jpeg'},
+                    'image': {
+                      r'$type': 'blob',
+                      'ref': {r'$link': 'bafyimage'},
+                      'mimeType': 'image/jpeg',
+                      'size': 200,
+                    },
                   },
                 ],
             },
@@ -198,37 +213,30 @@ void main() {
           );
           var edits = 0;
           final editKeys = <String>[];
+          var recovered = false;
           var creates = 0;
           var reads = 0;
           final repository = FakePostRepository(
-            onFetch: (did, key) async => post.copyWith(
-              uri: 'at://$did/social.craftsky.feed.post/$key',
-              rkey: key,
-              text: 'Original parent context',
-              reply: null,
-              quote: null,
-              quoteView: null,
-            ),
-            onFetchEdit: (did, key) async {
-              if (edits == 0) return seed;
-              reads++;
-              if (lag && reads == 1) return seed;
-              final current = post.copyWith(
-                cid: 'bafyaccepted',
-                text: 'Changed caption',
-                recordRevision: '3aaaaaaaaaaa3',
-              );
-              return PostEditSeed(
-                post: current,
-                baseCid: current.cid,
-                recordRevision: '3aaaaaaaaaaa3',
-                editable: {
-                  'text': current.text,
-                  'sponsored': false,
-                  'langs': ['en'],
-                },
+            onFetch: (did, key) async {
+              if (did == post.author.did && key == post.rkey && edits > 0) {
+                reads++;
+                if (lag) return await Completer<Post>().future;
+                return post.copyWith(
+                  cid: 'bafyaccepted',
+                  text: 'Changed caption',
+                  recordRevision: '3aaaaaaaaaaa3',
+                );
+              }
+              return post.copyWith(
+                uri: 'at://$did/social.craftsky.feed.post/$key',
+                rkey: key,
+                text: 'Original parent context',
+                reply: null,
+                quote: null,
+                quoteView: null,
               );
             },
+            onFetchEdit: (did, key) async => seed,
             onCreate: ({required text, reply, images}) async {
               creates++;
               return post;
@@ -242,6 +250,12 @@ void main() {
                   required operationKey,
                 }) async {
                   edits++;
+                  if (timeoutRecovery && !recovered) {
+                    editKeys.add(operationKey);
+                    throw const PdsMutationAmbiguousException(
+                      retryAfterSeconds: 1,
+                    );
+                  }
                   editKeys.add(operationKey);
                   expect(find.text('Saving changes…'), findsOneWidget);
                   expect(expectedCid, post.cid);
@@ -284,7 +298,6 @@ void main() {
                   return PostEditResult(
                     acceptedCid: Cid.parse('bafyaccepted'),
                     changed: true,
-                    projectionPending: pending,
                     post: pending
                         ? null
                         : post.copyWith(
@@ -292,7 +305,6 @@ void main() {
                             text: 'Changed caption',
                           ),
                     editedAt: DateTime.utc(2026, 10, 26),
-                    editTimeSource: PostEditTimeSource.confirmed,
                   );
                 },
           );
@@ -331,6 +343,8 @@ void main() {
             ProviderScope(
               retry: (_, _) => null,
               overrides: [
+                pdsMutationDelayProvider.overrideWithValue((_) async {}),
+                pdsMutationJitterProvider.overrideWithValue((_) => 0),
                 secureSessionRegistryStorageProvider.overrideWithValue(
                   InMemorySessionRegistryStorage(registry),
                 ),
@@ -466,26 +480,68 @@ void main() {
           await tester.pumpAndSettle();
           await tester.tap(find.widgetWithText(ChunkyButton, 'Save changes'));
           await tester.pumpAndSettle();
-          if (lag) {
-            expect(find.text('Refresh post'), findsOneWidget);
-            final editor = tester.widget<TextField>(
-              find.byType(TextField).first,
+          if (timeoutRecovery) {
+            expect(edits, 7);
+            expect(completed.isCompleted, isFalse);
+            expect(
+              tester.widget<TextField>(field).controller?.text,
+              'Changed caption',
             );
-            expect(editor.readOnly || editor.enabled == false, isTrue);
-            await tester.tap(find.widgetWithText(ChunkyButton, 'Refresh post'));
+            final frozenField = tester.widget<TextField>(field);
+            expect(
+              frozenField.readOnly || frozenField.enabled == false,
+              isTrue,
+            );
+            expect(
+              messenger.calls.last.$2,
+              'Saving is not confirmed. Retry to check the same save.',
+            );
+            expect(
+              find.text(
+                'Saving is not confirmed. Retry to check the same save.',
+              ),
+              findsOneWidget,
+            );
+            final retry = find.widgetWithText(ChunkyButton, 'Retry save');
+            expect(tester.widget<ChunkyButton>(retry).onPressed, isNotNull);
+            recovered = true;
+            await tester.tap(retry);
             await tester.pumpAndSettle();
-            expect(reads, 2);
           }
-          expect(edits, missingBlob ? 2 : 1);
-          expect(editKeys.toSet(), hasLength(edits));
+          expect(find.text('Refresh post'), findsNothing);
+          if (pending) expect(reads, 1);
+          expect(
+            edits,
+            timeoutRecovery
+                ? 8
+                : missingBlob
+                ? 2
+                : 1,
+          );
+          expect(editKeys.toSet(), hasLength(timeoutRecovery ? 1 : edits));
           expect(proofs, replaceVideo && !realUpload ? 1 : 0);
           expect(adapter.calls, realUpload ? (missingBlob ? 2 : 1) : 0);
           expect(creates, 0);
-          if (pending) {
-            expect(reads, greaterThan(0));
-          }
           expect(completed.isCompleted, isTrue);
-          expect((await completed.future)?.text, 'Changed caption');
+          final completedPost = await completed.future;
+          expect(completedPost?.text, 'Changed caption');
+          if (pending) {
+            expect(completedPost?.cid.value, 'bafyaccepted');
+            expect(completedPost?.createdAt, post.createdAt);
+            expect(completedPost?.editedAt, DateTime.utc(2026, 10, 26));
+            if (projectEdit) {
+              expect(completedPost?.project?.common.title, 'Updated shirt');
+            }
+            if (retainedVideo) {
+              expect(completedPost?.video?.alt, 'Updated video alt');
+              expect(
+                completedPost?.video?.cid.value,
+                replaceVideo
+                    ? (missingBlob ? 'bafyrecoveredvideo' : 'bafynewvideo')
+                    : 'bafyvideo',
+              );
+            }
+          }
           expect(
             messenger.calls.any((call) => call.$2 == 'Changes saved'),
             isTrue,

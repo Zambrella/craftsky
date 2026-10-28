@@ -27,10 +27,8 @@ func restrictPostPublicationTx(ctx context.Context, tx pgx.Tx, event tap.Event, 
 	if event.Action != "delete" && (validation.StructuralStatus != sourcevalidation.Valid || validation.SemanticStatus != sourcevalidation.Valid) {
 		return nil
 	}
-	raw := event.Record
-	if event.Action == "delete" {
-		raw = nil
+	if event.Action != "delete" {
+		return nil
 	}
-	_, err := postpublication.RestrictCurrent(ctx, tx, event.URI, raw, now)
-	return err
+	return postpublication.Delete(ctx, tx, event.URI, now)
 }

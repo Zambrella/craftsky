@@ -3,9 +3,9 @@ import 'dart:convert';
 import 'package:craftsky_app/auth/models/session_registry.dart';
 import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
 import 'package:craftsky_app/bootstrap.dart';
-import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/post_edit.dart';
 import 'package:craftsky_app/feed/providers/edit_post_provider.dart';
+import 'package:craftsky_app/feed/providers/post_edit_refresh.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_emitter.dart';
@@ -25,7 +25,7 @@ import '../test_support/session_registry_storage.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
-  for (final refresh in [false, true]) {
+  for (final refresh in [false]) {
     test('IT-017 edit failure has one protected diagnostic owner '
         '(refresh=$refresh)', () async {
       final transport = SerializedTransport();
@@ -57,9 +57,7 @@ void main() {
       final accepted = PostEditResult(
         acceptedCid: post.copyWith(cid: 'bafyaccepted').cid,
         changed: true,
-        projectionPending: true,
         editedAt: DateTime.utc(2026),
-        editTimeSource: PostEditTimeSource.confirmed,
       );
       final stack = StackTrace.fromString(
         '#0 editTransport (package:craftsky_app/feed/edit_transport.dart:42:3)',
@@ -86,6 +84,7 @@ void main() {
       final container = ProviderContainer.test(
         observers: [ProviderLogger(reporter: reporter)],
         overrides: [
+          postEditRefreshProvider.overrideWithValue((_, _) {}),
           secureSessionRegistryStorageProvider.overrideWithValue(
             InMemorySessionRegistryStorage(SessionRegistry.empty()),
           ),
@@ -103,7 +102,7 @@ void main() {
                     if (!refresh) Error.throwWithStackTrace(error, stack);
                     return accepted;
                   },
-              onFetchEdit: (did, key) async =>
+              onFetch: (did, key) async =>
                   Error.throwWithStackTrace(error, stack),
             ),
           ),
@@ -118,16 +117,7 @@ void main() {
         seed: seed,
         changes: PostEditChanges({'text': 'PRIVATE_EDIT_BODY_CANARY'}),
       );
-      if (refresh) {
-        expect(result, same(accepted));
-        await expectLater(
-          notifier.refreshAccepted(seed: seed, accepted: accepted),
-          throwsA(same(error)),
-        );
-        expect(container.read(editPostProvider).value, same(accepted));
-      } else {
-        expect(result, isNull);
-      }
+      expect(result, isNull);
       await transport.issueReceived.future.timeout(const Duration(seconds: 5));
       await Future.wait(reporter.pending);
       expect(reporter.errors, [same(error)]);

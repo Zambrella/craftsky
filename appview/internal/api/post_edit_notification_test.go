@@ -22,7 +22,7 @@ import (
 
 // IT-012: locally accepted removal restricts pending original delivery in the
 // command transaction, before the corresponding Tap source update arrives.
-func TestEditPostAcceptanceCancelsRemovedMentionBeforeTap(t *testing.T) {
+func TestEditPostAcceptanceKeepsOriginalMentionBeforeTap(t *testing.T) {
 	for _, legacy := range []bool{false, true} {
 		name := "tracked"
 		if legacy {
@@ -81,14 +81,14 @@ func testEditPostAcceptanceCancelsRemovedMentionBeforeTap(t *testing.T, legacy b
 	if response.Code != 200 {
 		t.Fatalf("edit status=%d body=%s", response.Code, response.Body.String())
 	}
-	var status, sourceCID string
-	var eligible bool
-	if err := pool.QueryRow(ctx, `SELECT d.status,m.eligible,s.cid FROM push_deliveries d CROSS JOIN post_publication_mentions m JOIN tap_source_records s ON s.uri=m.post_uri`).Scan(&status, &eligible, &sourceCID); err != nil {
+	var status string
+	if err := pool.QueryRow(ctx, `SELECT status FROM push_deliveries`).Scan(&status); err != nil {
 		t.Fatal(err)
 	}
-	if status != "cancelled" || eligible || sourceCID != priorCID.String() {
-		t.Fatalf("acceptance waited for Tap: status=%s eligible=%v sourceCID=%s", status, eligible, sourceCID)
+	if status != "pending" {
+		t.Fatalf("edit changed original delivery: %s", status)
 	}
+
 }
 
 // IT-012 / REG-007: normal create wiring seeds original eligibility in its
@@ -127,7 +127,7 @@ func TestCreatePostAcceptanceSeedsPublicationBeforeTap(t *testing.T) {
 		t.Fatalf("create status=%d body=%s", response.Code, response.Body.String())
 	}
 	var facts, mentions, sources int
-	if err := pool.QueryRow(ctx, `SELECT (SELECT count(*) FROM post_publication_state WHERE origin_status='established'),(SELECT count(*) FROM post_publication_mentions WHERE recipient_did='did:plc:recipient' AND eligible),(SELECT count(*) FROM tap_source_records)`).Scan(&facts, &mentions, &sources); err != nil {
+	if err := pool.QueryRow(ctx, `SELECT (SELECT count(*) FROM post_publication_state WHERE origin_status='established'),(SELECT count(*) FROM post_publication_mentions WHERE recipient_did='did:plc:recipient'),(SELECT count(*) FROM tap_source_records)`).Scan(&facts, &mentions, &sources); err != nil {
 		t.Fatal(err)
 	}
 	if facts != 1 || mentions != 1 || sources != 0 {

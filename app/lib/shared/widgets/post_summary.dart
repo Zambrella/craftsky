@@ -29,7 +29,6 @@ final class PostSummaryData with PostSummaryDataMappable {
     this.text,
     this.createdAt,
     this.editedAt,
-    this.editTimeSource,
     this.projectTitle,
     this.image,
     this.externalImport,
@@ -53,7 +52,6 @@ final class PostSummaryData with PostSummaryDataMappable {
       text: post.text,
       createdAt: post.createdAt,
       editedAt: post.editedAt,
-      editTimeSource: post.editTimeSource,
       projectTitle: post.project?.common.title,
       images: post.images,
       video: post.video,
@@ -68,7 +66,6 @@ final class PostSummaryData with PostSummaryDataMappable {
       text: post.text,
       createdAt: post.createdAt,
       editedAt: post.editedAt,
-      editTimeSource: post.editTimeSource,
       projectTitle: post.project?.common.title,
       images: post.images,
       externalImport: post.externalImport,
@@ -88,7 +85,6 @@ final class PostSummaryData with PostSummaryDataMappable {
     state: PostSummaryState.visible,
     text: post.text,
     editedAt: post.editedAt,
-    editTimeSource: post.editTimeSource,
     projectTitle: post.project?.common.title,
   );
 
@@ -107,7 +103,6 @@ final class PostSummaryData with PostSummaryDataMappable {
       text: post.text,
       createdAt: post.createdAt,
       editedAt: post.editedAt,
-      editTimeSource: post.editTimeSource,
       projectTitle: post.project?.common.title,
       images: post.images,
       video: post.video,
@@ -124,7 +119,6 @@ final class PostSummaryData with PostSummaryDataMappable {
     PostVideo? video,
     DateTime? createdAt,
     DateTime? editedAt,
-    PostEditTimeSource? editTimeSource,
     ExternalImport? externalImport,
     PostExternal? external,
     bool sponsored = false,
@@ -134,7 +128,6 @@ final class PostSummaryData with PostSummaryDataMappable {
     text: text,
     createdAt: createdAt,
     editedAt: editedAt,
-    editTimeSource: editTimeSource,
     projectTitle: switch (projectTitle?.trim()) {
       final title? when title.isNotEmpty => title,
       _ => null,
@@ -163,7 +156,6 @@ final class PostSummaryData with PostSummaryDataMappable {
   final String? text;
   final DateTime? createdAt;
   final DateTime? editedAt;
-  final PostEditTimeSource? editTimeSource;
   final String? projectTitle;
   final PostImage? image;
   final ExternalImport? externalImport;
@@ -214,21 +206,15 @@ class PostSummary extends StatelessWidget {
                         enableNavigation: enableAuthorNavigation,
                       ),
                     ),
-                    if (data.editedAt != null)
-                      Padding(
-                        padding: const EdgeInsetsDirectional.only(end: 4),
-                        child: PostEditIndicator(
-                          editedAt: data.editedAt,
-                          source: data.editTimeSource,
-                        ),
-                      ),
                     if (data.createdAt case final createdAt?)
                       SizedBox(
-                        width: 48,
+                        width: data.editedAt == null ? 48 : null,
                         child: Align(
                           alignment: Alignment.centerRight,
+                          widthFactor: data.editedAt == null ? null : 1,
                           child: RelativeTimeText(
                             timestamp: createdAt,
+                            editedAt: data.editedAt,
                             textAlign: TextAlign.end,
                           ),
                         ),
@@ -263,18 +249,17 @@ class PostSummary extends StatelessWidget {
                   variant: ExternalCardVariant.compact,
                 ),
               ],
-              if (data.author == null && data.editedAt != null)
+              if (data.editedAt != null && data.createdAt == null)
                 Padding(
                   padding: const EdgeInsets.only(top: 4),
                   child: PostEditIndicator(
                     editedAt: data.editedAt,
-                    source: data.editTimeSource,
                   ),
                 ),
               if (data.createdAt case final createdAt?
                   when data.author == null) ...[
                 const SizedBox(height: 4),
-                RelativeTimeText(timestamp: createdAt),
+                RelativeTimeText(timestamp: createdAt, editedAt: data.editedAt),
               ],
             ],
           ),

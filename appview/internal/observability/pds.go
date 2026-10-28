@@ -275,8 +275,29 @@ func (c observedPDSEffectClient) WithActiveEffects(
 			lister, hasLister := purposeClient.(auth.PDSRecordLister)
 			command, hasCommand := purposeClient.(auth.RepositoryCommandPDSClient)
 			if hasLister && lister != nil && hasCommand && command != nil {
-				callbackClient = observedRepositoryCommandPDSClient{
+				observedCommand := observedRepositoryCommandPDSClient{
 					observedPDSClient: observed, lister: lister, command: command,
+				}
+				callbackClient = observedCommand
+				head, hasHead := purposeClient.(auth.RepositoryHeadMetadataClient)
+				writes, hasWrites := purposeClient.(auth.RepositoryWriteMetadataClient)
+				switch {
+				case hasHead && hasWrites:
+					callbackClient = struct {
+						observedRepositoryCommandPDSClient
+						observedRepositoryHeadMetadata
+						observedRepositoryWriteMetadata
+					}{observedCommand, observedRepositoryHeadMetadata{observed, head}, observedRepositoryWriteMetadata{observed, writes}}
+				case hasHead:
+					callbackClient = struct {
+						observedRepositoryCommandPDSClient
+						observedRepositoryHeadMetadata
+					}{observedCommand, observedRepositoryHeadMetadata{observed, head}}
+				case hasWrites:
+					callbackClient = struct {
+						observedRepositoryCommandPDSClient
+						observedRepositoryWriteMetadata
+					}{observedCommand, observedRepositoryWriteMetadata{observed, writes}}
 				}
 				return operation(effectCtx, callbackClient)
 			}
@@ -305,6 +326,36 @@ func (c observedPDSEffectClient) WithActiveEffects(
 			return operation(effectCtx, callbackClient)
 		},
 	)
+}
+
+type observedRepositoryHeadMetadata struct {
+	base     observedPDSClient
+	metadata auth.RepositoryHeadMetadataClient
+}
+
+func (client observedRepositoryHeadMetadata) LatestCommitMetadata(ctx context.Context, repo syntax.DID) (auth.RepositoryCommit, error) {
+	ctx = withPDSRecordContext(ctx, client.base.actor, repo, "", "")
+	operationCtx, finish := client.base.observer.startPDSOperation(ctx, PDSOperationCommandHead)
+	started := time.Now()
+	commit, err := client.metadata.LatestCommitMetadata(operationCtx, repo)
+	client.base.observer.observePDSWrite(operationCtx, PDSOperationCommandHead, PDSStagePDSRequest, err, time.Since(started))
+	finish(pdsResult(err))
+	return commit, err
+}
+
+type observedRepositoryWriteMetadata struct {
+	base     observedPDSClient
+	metadata auth.RepositoryWriteMetadataClient
+}
+
+func (client observedRepositoryWriteMetadata) ApplyWritesWithCommit(ctx context.Context, repo syntax.DID, head syntax.CID, writes []auth.RepositoryWrite) (auth.RepositoryWriteReceipt, error) {
+	ctx = withPDSRecordContext(ctx, client.base.actor, repo, "", "")
+	operationCtx, finish := client.base.observer.startPDSOperation(ctx, PDSOperationCommandApply)
+	started := time.Now()
+	receipt, err := client.metadata.ApplyWritesWithCommit(operationCtx, repo, head, writes)
+	client.base.observer.observePDSWrite(operationCtx, PDSOperationCommandApply, PDSStagePDSRequest, err, time.Since(started))
+	finish(pdsResult(err))
+	return receipt, err
 }
 
 func (client observedRepositoryCommandPDSClient) ListRecords(

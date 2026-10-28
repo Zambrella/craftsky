@@ -7,6 +7,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -118,7 +119,7 @@ func TestEditPostUpdatesExistingRecord(t *testing.T) {
 	if err := json.Unmarshal(response.Body.Bytes(), &result); err != nil {
 		t.Fatal(err)
 	}
-	if result.Post != nil || !result.Changed || !result.ProjectionPending || result.AcceptedCID != "bafyreif7dhriwzuzrl3gsrxjo3mzxt5jdls7yo3jwoashfx74og6n3ck4m" || result.EditedAt == nil || !result.EditedAt.Equal(time.Date(2026, 10, 26, 12, 0, 0, 0, time.UTC)) || result.EditTimeSource != "confirmed" {
+	if !result.Changed || result.AcceptedCID != "bafyreif7dhriwzuzrl3gsrxjo3mzxt5jdls7yo3jwoashfx74og6n3ck4m" || result.EditedAt == nil || !result.EditedAt.Equal(time.Date(2026, 10, 26, 12, 0, 0, 0, time.UTC)) {
 		t.Fatalf("result=%s", response.Body.String())
 	}
 }
@@ -632,46 +633,21 @@ func (c *recordingPostEditCommands) Put(ctx context.Context, request pdscommands
 
 type seededPostEditStore struct {
 	*fakePostStore
-	snapshot *api.PostEditSnapshot
-	err      error
+	snapshot       *api.PostEditSnapshot
+	err            error
+	eligibilityErr error
+}
+
+func (s *seededPostEditStore) CheckPostEditAllowed(context.Context, syntax.DID, syntax.RecordKey) error {
+	return s.eligibilityErr
 }
 
 func (s *seededPostEditStore) ReadEditSnapshot(context.Context, syntax.DID, syntax.RecordKey) (*api.PostEditSnapshot, error) {
 	return s.snapshot, s.err
 }
 
-func TestEditPostHydratesAcceptedResultFromCurrentEligibleView(t *testing.T) {
-	const uri = "at://did:plc:alice/social.craftsky.feed.post/3existingpost"
-	const currentCID = "bafyreicdvexolyvp6j6yksqiib7hihwktt6ogalbvyzvtkj6ecrtqqw5fq"
-	const acceptedCID = "bafyreif7dhriwzuzrl3gsrxjo3mzxt5jdls7yo3jwoashfx74og6n3ck4m"
-	commands := &recordingPostEditCommands{current: pdscommands.AuthoritativeRecord{URI: uri, CID: currentCID, Record: json.RawMessage(`{"$type":"social.craftsky.feed.post","text":"before","sponsored":false,"createdAt":"2026-01-01T00:00:00Z"}`)}}
-	store := &seededPostEditStore{fakePostStore: &fakePostStore{engagement: map[string]api.EngagementSummary{uri: {LikeCount: 7, ViewerHasSaved: true}}}, snapshot: &api.PostEditSnapshot{Post: &api.PostRow{URI: uri, DID: "did:plc:alice", Rkey: "3existingpost", CID: acceptedCID, Text: "after"}, Revision: "3aaaaaaaaaaa3"}}
-	request := httptest.NewRequest(http.MethodPatch, "/edit", strings.NewReader(`{"changes":{"text":"after"}}`))
-	request.SetPathValue("did", "did:plc:alice")
-	request.SetPathValue("rkey", "3existingpost")
-	request.Header.Set("If-Match", currentCID)
-	request.Header.Set("Idempotency-Key", "018f4d5c-7a61-7d40-a1a2-777777777777")
-	ctx := middleware.WithDID(request.Context(), "did:plc:alice")
-	ctx = middleware.WithOwnerGeneration(ctx, 1)
-	ctx = middleware.WithOAuthSessionID(ctx, "session")
-	response := httptest.NewRecorder()
-	api.CommandEditPostHandler(store, commands, fakeResolver{handleFor: "alice.example"}, api.DefaultMediaLimits()).ServeHTTP(response, request.WithContext(ctx))
-	var result api.PostEditResult
-	if err := json.Unmarshal(response.Body.Bytes(), &result); err != nil {
-		t.Fatal(err)
-	}
-	if response.Code != 200 || result.Post == nil || result.Post.LikeCount != 7 || !result.Post.ViewerHasSaved || result.Post.Text != "after" || result.ProjectionPending {
-		t.Fatalf("accepted result is not current: %d %s", response.Code, response.Body.String())
-	}
-	if bytes.Contains(commands.terminal.ResponseBody, []byte(`"text"`)) {
-		t.Fatalf("stored replay contains post content: %s", commands.terminal.ResponseBody)
-	}
-}
-
-// IT-002 / RULE-002: cached client ownership is insufficient when current
-// moderation, membership or source eligibility no longer permits editing.
 func TestEditPostRejectsCurrentlyIneligiblePost(t *testing.T) {
-	store := &seededPostEditStore{fakePostStore: &fakePostStore{}, err: api.ErrPostNotFound}
+	store := &seededPostEditStore{fakePostStore: &fakePostStore{}, eligibilityErr: api.ErrPostNotFound}
 	commands, response := servePostEditUsingStore(t, store, `{"$type":"social.craftsky.feed.post","text":"before","sponsored":false,"createdAt":"2026-01-01T00:00:00Z"}`, `{"text":"after"}`)
 	if response.Code != 404 || len(commands.desired) != 0 {
 		t.Fatalf("ineligible post accepted: status=%d desired=%s body=%s", response.Code, commands.desired, response.Body.String())
@@ -683,5 +659,55 @@ func TestEditPostCannotAddMentionAcrossBlock(t *testing.T) {
 	commands, response := servePostEditUsingStore(t, store, `{"$type":"social.craftsky.feed.post","text":"hello recipient","sponsored":false,"createdAt":"2026-01-01T00:00:00Z"}`, `{"facets":[{"index":{"byteStart":6,"byteEnd":15},"features":[{"$type":"app.bsky.richtext.facet#mention","did":"did:plc:recipient"}]}]}`)
 	if response.Code != 403 || len(commands.desired) != 0 {
 		t.Fatalf("blocked mention accepted: %d %s", response.Code, response.Body.String())
+	}
+}
+
+// UT-007 / FR-011: acceptance does not depend on public projection hydration.
+type confirmationOnlyPostStore struct {
+	fakePostStore
+	reads int
+}
+
+func (s *confirmationOnlyPostStore) ReadEditSnapshot(context.Context, syntax.DID, syntax.RecordKey) (*api.PostEditSnapshot, error) {
+	s.reads++
+	return nil, api.ErrPostNotFound
+}
+func TestEditPostAcceptanceSkipsPublicHydration(t *testing.T) {
+	store := &confirmationOnlyPostStore{}
+	_, response := servePostEditUsingStore(t, store, `{"$type":"social.craftsky.feed.post","text":"before","sponsored":false,"createdAt":"2026-01-01T00:00:00Z"}`, `{"text":"after"}`)
+	if response.Code != 200 {
+		t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
+	}
+	if store.reads != 0 {
+		t.Fatalf("accepted write performed %d public projection reads", store.reads)
+	}
+}
+
+// IT-008 / IR-010: retained source values are not new preview fetch requests.
+func TestEditPostRetainsExternalURIAcrossCaptionChange(t *testing.T) {
+	const raw = `{"$type":"social.craftsky.feed.post","text":"before","sponsored":false,"createdAt":"2026-01-01T00:00:00Z","embed":{"$type":"app.bsky.embed.external","external":{"uri":"at://did:plc:other/social.craftsky.feed.post/target","title":"A link","description":"Existing card","futureField":"preserve"}}}`
+	commands, response := servePostEdit(t, raw, `{"text":"after"}`)
+	if response.Code != 200 {
+		t.Fatalf("unchanged valid URI was rejected: %d %s", response.Code, response.Body.String())
+	}
+	var post struct {
+		Embed json.RawMessage `json:"embed"`
+	}
+	if err := json.Unmarshal(commands.desired, &post); err != nil {
+		t.Fatal(err)
+	}
+	var original struct {
+		Embed json.RawMessage `json:"embed"`
+	}
+	_ = json.Unmarshal([]byte(raw), &original)
+	var before, after any
+	_ = json.Unmarshal(original.Embed, &before)
+	_ = json.Unmarshal(post.Embed, &after)
+	if !reflect.DeepEqual(before, after) {
+		t.Fatalf("retained embed changed: %s", post.Embed)
+	}
+	_, rejected := servePostEdit(t, raw, `{"embed":{"external":{"uri":"at://did:plc:other/social.craftsky.feed.post/new"}}}`)
+	if rejected.Code != 422 {
+		t.Fatalf("new unsupported preview URI accepted: %d %s", rejected.Code, rejected.Body.String())
 	}
 }

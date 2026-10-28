@@ -172,7 +172,7 @@ func (store *Store) ingestRecordTx(
 	if err != nil {
 		return tap.Outcome{}, err
 	}
-	if event.Collection == "social.craftsky.feed.post" {
+	if event.Collection == "social.craftsky.feed.post" && event.Action == "delete" {
 		if err := postfence.LockTx(ctx, tx, event.URI); err != nil {
 			return tap.Outcome{}, err
 		}
@@ -302,10 +302,6 @@ func installSourceProjectionTx(
 	if err != nil {
 		return err
 	}
-	editState, err := preparePostEditStateTx(ctx, tx, event, validation, orderingStatus, disposition, now)
-	if err != nil {
-		return err
-	}
 	var record, cid any
 	recordBytes := 0
 	if event.Action != "delete" {
@@ -348,9 +344,6 @@ func installSourceProjectionTx(
 		return err
 	}
 	if err := restrictPostPublicationTx(ctx, tx, event, validation, orderingStatus, disposition, now); err != nil {
-		return err
-	}
-	if err := persistPostEditStateTx(ctx, tx, event, editState, disposition); err != nil {
 		return err
 	}
 	if _, err := tx.Exec(ctx, `

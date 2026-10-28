@@ -159,6 +159,7 @@ type Deps struct {
 	PDSCommands          *pdscommands.SetCommandService
 	PDSAppendCommands    *pdscommands.AppendCommandService
 	PDSAddressedCommands *pdscommands.AddressedCommandService
+	PostEditRecords      api.PostEditRecordReader
 	PDSCompoundCommands  *pdscommands.CompoundCommandService
 	PDSCommandCompaction *pdscommands.CompactionProcessor
 	// BusinessStore owns account-type, declaration, and event read models.
@@ -410,6 +411,7 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (
 		PDSCommands:                 pdsEffects.commands,
 		PDSAppendCommands:           pdsEffects.append,
 		PDSAddressedCommands:        pdsEffects.addressed,
+		PostEditRecords:             pdsEffects.postEdits,
 		PDSCompoundCommands:         pdsEffects.compound,
 		PDSCommandCompaction:        pdsEffects.compaction,
 		LoginCompleteURL:            loginCompleteURL.String(),

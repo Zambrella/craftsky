@@ -18,8 +18,10 @@ import (
 	"social.craftsky/appview/internal/api"
 	"social.craftsky/appview/internal/auth"
 	"social.craftsky/appview/internal/middleware"
+	"social.craftsky/appview/internal/observability"
 	"social.craftsky/appview/internal/ownerlifecycle"
 	"social.craftsky/appview/internal/pdscommands"
+	"social.craftsky/appview/internal/pdseffects"
 	"social.craftsky/appview/internal/recordjson"
 )
 
@@ -28,12 +30,23 @@ import (
 // Authentication context is supplied by the fixture; policy gates have their
 // separate routed tests. This does not contact an external PDS.
 func TestPostEditHTTPCommandAndProjectionConverge(t *testing.T) {
+	for _, indexed := range []bool{false, true} {
+		name := "beforeTap"
+		if indexed {
+			name = "alreadyIndexed"
+		}
+		t.Run(name, func(t *testing.T) { testPostEditHTTPCommandAndProjectionConverge(t, indexed) })
+	}
+}
+func testPostEditHTTPCommandAndProjectionConverge(t *testing.T, indexed bool) {
 	f := newNotificationPipeline(t)
 	ctx := context.Background()
 	event := notificationEvent(901, "did:plc:actor", "3aaaaaaaaaaa5", `,"futureValue":9007199254740993`)
 	event.CID = httpEditRecordCID(t, event.Record)
-	f.ingest(event)
-	f.drain()
+	if indexed {
+		f.ingest(event)
+		f.drain()
+	}
 	pds := &httpEditPDS{t: t, uri: event.URI, record: event.Record, recordCID: event.CID,
 		commit: auth.RepositoryCommit{CID: httpEditRecordCID(t, json.RawMessage(`{"head":1}`)), Revision: event.Rev}}
 	store, err := pdscommands.NewStore(pdscommands.StoreConfig{Pool: f.pool, Now: time.Now, NewUUID: uuid.New})
@@ -48,16 +61,26 @@ func TestPostEditHTTPCommandAndProjectionConverge(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	observedFactory := observability.New(observability.Config{Env: "test"}).WrapPDSFactory(func(context.Context, syntax.DID, string) (auth.PDSClient, error) { return pds, nil })
+	observedClient, err := observedFactory(ctx, event.DID, "http-edit-session")
+	if err != nil {
+		t.Fatal(err)
+	}
+	observedBoundary := observedClient.(auth.ActiveEffectPDSBoundary)
 	commands, err := pdscommands.NewAddressedCommandService(pdscommands.AddressedCommandServiceConfig{
 		Store: store, Lifecycles: lifecycle, Now: time.Now, Sleep: func(time.Duration) {},
-		NewBoundary: func(context.Context, syntax.DID, string) (auth.ActiveEffectPDSBoundary, error) { return pds, nil },
+		NewBoundary: func(context.Context, syntax.DID, string) (auth.ActiveEffectPDSBoundary, error) {
+			return observedBoundary, nil
+		},
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	posts := api.NewPostStore(f.pool)
 	mux := http.NewServeMux()
-	mux.Handle("GET /v1/posts/{did}/{rkey}/edit", api.GetPostEditHandler(posts, postEditProjectionResolver{}))
+	mux.Handle("GET /v1/posts/{did}/{rkey}/edit", api.GetPostEditHandler(posts, postEditProjectionResolver{}, api.NewPostEditSeedLoader(posts, api.NewPostEditRecordReader(func(_ context.Context, owner syntax.DID, _ string) (pdseffects.EffectExecutor, error) {
+		return pdseffects.NewExecutor(lifecycle, pds, owner, time.Second, time.Now)
+	}))))
 	mux.Handle("PATCH /v1/posts/{did}/{rkey}", api.CommandEditPostHandler(posts, commands, postEditProjectionResolver{}, api.DefaultMediaLimits()))
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := middleware.WithDID(r.Context(), event.DID)
@@ -93,6 +116,12 @@ func TestPostEditHTTPCommandAndProjectionConverge(t *testing.T) {
 	if status, raw := call("GET", "/edit", "", "", ""); status != 200 || !bytes.Contains(raw, []byte(event.CID)) {
 		t.Fatalf("seed=%d %s", status, raw)
 	}
+	if !indexed {
+		var count int
+		if err := f.pool.QueryRow(ctx, `SELECT count(*) FROM tap_source_records`).Scan(&count); err != nil || count != 0 {
+			t.Fatalf("seed waits for/mutates Tap: %d %v", count, err)
+		}
+	}
 	key := uuid.NewString()
 	body := `{"changes":{"text":"edited over HTTP"}}`
 	status, raw := call("PATCH", "", body, key, event.CID)
@@ -103,7 +132,7 @@ func TestPostEditHTTPCommandAndProjectionConverge(t *testing.T) {
 	if err := json.Unmarshal(raw, &accepted); err != nil {
 		t.Fatal(err)
 	}
-	if !accepted.Changed || !accepted.ProjectionPending || accepted.Post != nil || accepted.AcceptedCID != pds.recordCID || accepted.EditedAt == nil || pds.writes != 1 {
+	if !accepted.Changed || accepted.AcceptedCID != pds.recordCID || accepted.EditedAt == nil || pds.writes != 1 {
 		t.Fatalf("acceptance=%s writes=%d", raw, pds.writes)
 	}
 	if !bytes.Contains(pds.record, []byte(`9007199254740993`)) {
@@ -128,7 +157,7 @@ func TestPostEditHTTPCommandAndProjectionConverge(t *testing.T) {
 	if err := json.Unmarshal(raw, &replay); err != nil {
 		t.Fatal(err)
 	}
-	if status != 200 || replay.Post == nil || replay.Post.Text != "edited over HTTP" || replay.ProjectionPending || pds.writes != 1 {
+	if status != 200 || replay.AcceptedCID != accepted.AcceptedCID || pds.writes != 1 {
 		t.Fatalf("replay=%d %s writes=%d", status, raw, pds.writes)
 	}
 	status, raw = call("PATCH", "", body, uuid.NewString(), event.CID)

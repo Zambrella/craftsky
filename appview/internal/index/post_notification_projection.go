@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 
+	comatproto "github.com/bluesky-social/indigo/api/atproto"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/jackc/pgx/v5"
 
@@ -44,16 +45,14 @@ func (c *CraftskyPost) ProjectNotifications(ctx context.Context, tx pgx.Tx, sour
 	if !original.Known || original.CreatedAt == nil {
 		return tap.Applied(), nil
 	}
-	if rec.Reply != nil && (!original.ReplyEligible || rec.Reply.Parent == nil || rec.Reply.Root == nil ||
-		rec.Reply.Parent.Uri != original.ParentURI || rec.Reply.Parent.Cid != original.ParentCID ||
-		rec.Reply.Root.Uri != original.RootURI || rec.Reply.Root.Cid != original.RootCID) {
-		rec.Reply = nil
+	// Notification reasons belong to original publication, not edited content.
+	rec.Reply = nil
+	if original.ParentURI != "" {
+		rec.Reply = &craftskylex.FeedPost_ReplyRef{Parent: &comatproto.RepoStrongRef{Uri: original.ParentURI, Cid: original.ParentCID}, Root: &comatproto.RepoStrongRef{Uri: original.RootURI, Cid: original.RootCID}}
 	}
-	if rec.Embed != nil && rec.Embed.FeedPost_QuoteEmbed != nil {
-		quote := rec.Embed.FeedPost_QuoteEmbed.Record
-		if !original.QuoteEligible || quote == nil || quote.Uri != original.QuotedURI || quote.Cid != original.QuotedCID {
-			rec.Embed = nil
-		}
+	rec.Embed = nil
+	if original.QuotedURI != "" {
+		rec.Embed = &craftskylex.FeedPost_Embed{FeedPost_QuoteEmbed: &craftskylex.FeedPost_QuoteEmbed{Record: &comatproto.RepoStrongRef{Uri: original.QuotedURI, Cid: original.QuotedCID}}}
 	}
 	var references []string
 	if rec.Reply != nil && rec.Reply.Parent != nil {
@@ -80,26 +79,8 @@ func (c *CraftskyPost) ProjectNotifications(ctx context.Context, tx pgx.Tx, sour
 			missingMember = did
 		}
 	}
-	rows, err := tx.Query(ctx, `SELECT mentioned_did FROM craftsky_post_mentions WHERE post_uri=$1 ORDER BY mentioned_did`, source.URI)
+	mentions, err := postpublication.OriginalMentions(ctx, tx, source.URI)
 	if err != nil {
-		return tap.Retryable(tap.ReasonProjectionFailure), err
-	}
-	mentions, err := pgx.CollectRows(rows, pgx.RowTo[string])
-	if err != nil {
-		return tap.Retryable(tap.ReasonProjectionFailure), err
-	}
-	mentions, err = postpublication.OriginalMentions(ctx, tx, source.URI, mentions)
-	if err != nil {
-		return tap.Retryable(tap.ReasonProjectionFailure), err
-	}
-	allowed := make(map[syntax.DID]bool, len(mentions)+len(references))
-	for _, did := range mentions {
-		allowed[syntax.DID(did)] = true
-	}
-	for _, uri := range references {
-		allowed[syntax.ATURI(uri).Authority().DID()] = true
-	}
-	if err := notifications.RestrictPublication(ctx, c.lifecycle, tx, source.URI, allowed); err != nil {
 		return tap.Retryable(tap.ReasonProjectionFailure), err
 	}
 	for _, did := range mentions {

@@ -1105,9 +1105,6 @@ func TestTerminalPurgeDrainsPublicationFactsBeforeSource(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if _, err := pool.Exec(ctx, `INSERT INTO craftsky_post_edit_state(uri,source_cid,source_revision,content_digest) VALUES($1,'cid','1',$2)`, uri, bytes.Repeat([]byte{1}, 32)); err != nil {
-		t.Fatal(err)
-	}
 	sourceClaim := claimSpecificTerminalComponent(t, store, owner, generation, "tap_source_records", "owner")
 	result, err := processor.ProcessClaim(ctx, sourceClaim)
 	if err != nil || result.RowsAffected != 0 || result.Complete {
@@ -1134,15 +1131,15 @@ func TestTerminalPurgeDrainsPublicationFactsBeforeSource(t *testing.T) {
 	}
 	sourceClaim = claimSpecificTerminalComponent(t, store, owner, generation, "tap_source_records", "owner")
 	result, err = processor.ProcessClaim(ctx, sourceClaim)
-	if err != nil || result.RowsAffected != 1 || result.Complete {
-		t.Fatalf("source bypassed edit-state budget: %+v %v", result, err)
+	if err != nil || result.RowsAffected > 2 {
+		t.Fatalf("source cleanup exceeded budget: %+v %v", result, err)
 	}
-	var sources, states int
-	if err := pool.QueryRow(ctx, `SELECT (SELECT count(*) FROM tap_source_records WHERE uri=$1),(SELECT count(*) FROM craftsky_post_edit_state WHERE uri=$1)`, uri).Scan(&sources, &states); err != nil {
+	var sources int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM tap_source_records WHERE uri=$1`, uri).Scan(&sources); err != nil {
 		t.Fatal(err)
 	}
-	if sources != 1 || states != 0 {
-		t.Fatalf("source/current edit state after drain=%d/%d", sources, states)
+	if sources != 0 {
+		t.Fatalf("source remains after bounded publication cleanup: %d", sources)
 	}
 
 }

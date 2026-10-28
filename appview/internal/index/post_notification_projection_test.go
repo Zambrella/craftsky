@@ -195,10 +195,12 @@ func TestPostNotificationUpdateCannotIntroduceWaitingQuoteRecipient(t *testing.T
 	f.drain()
 	f.ingest(notificationEvent(3, "did:plc:recipient", "3aaaaaaaaaaa2", ""))
 	f.drain()
-	f.assertCount(`SELECT count(*) FROM notification_events`, 0)
+	f.assertCount(`SELECT count(*) FROM notification_events WHERE category='reply'`, 1)
+	f.assertCount(`SELECT count(*) FROM notification_events WHERE category='quote'`, 0)
 	f.ingest(notificationEvent(4, "did:plc:recipient", "3aaaaaaaaaaa4", ""))
 	f.drain()
-	f.assertCount(`SELECT count(*) FROM notification_events`, 0)
+	f.assertCount(`SELECT count(*) FROM notification_events WHERE category='reply'`, 1)
+	f.assertCount(`SELECT count(*) FROM notification_events WHERE category='quote'`, 0)
 }
 
 func TestPostNotificationRetryRespectsPreferences(t *testing.T) {

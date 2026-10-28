@@ -189,7 +189,6 @@ void main() {
                   post: seed.post,
                   acceptedCid: seed.baseCid,
                   changed: false,
-                  projectionPending: false,
                 );
               },
         ),
@@ -241,7 +240,6 @@ void main() {
                         post: seed.post,
                         acceptedCid: seed.baseCid,
                         changed: false,
-                        projectionPending: false,
                       );
                     },
               ),
@@ -311,7 +309,6 @@ void main() {
                     post: seed.post,
                     acceptedCid: seed.baseCid,
                     changed: false,
-                    projectionPending: false,
                   );
                 },
           ),
@@ -382,9 +379,7 @@ void main() {
                     post: post,
                     acceptedCid: post.cid,
                     changed: true,
-                    projectionPending: false,
                     editedAt: DateTime.utc(2026),
-                    editTimeSource: PostEditTimeSource.confirmed,
                   );
                 },
           ),
@@ -452,9 +447,7 @@ void main() {
                   post: post,
                   acceptedCid: post.cid,
                   changed: true,
-                  projectionPending: false,
                   editedAt: DateTime.utc(2026),
-                  editTimeSource: PostEditTimeSource.confirmed,
                 );
               },
         ),
@@ -604,9 +597,7 @@ void main() {
                   post: accepted,
                   acceptedCid: accepted.cid,
                   changed: true,
-                  projectionPending: false,
                   editedAt: DateTime.utc(2026),
-                  editTimeSource: PostEditTimeSource.confirmed,
                 );
               },
         ),
@@ -679,9 +670,7 @@ void main() {
                 post: accepted,
                 acceptedCid: accepted.cid,
                 changed: true,
-                projectionPending: false,
                 editedAt: DateTime.utc(2026),
-                editTimeSource: PostEditTimeSource.confirmed,
               ),
             );
           }
@@ -732,9 +721,7 @@ void main() {
                     post: accepted,
                     acceptedCid: accepted.cid,
                     changed: true,
-                    projectionPending: false,
                     editedAt: DateTime.utc(2026),
-                    editTimeSource: PostEditTimeSource.confirmed,
                   );
                 },
           ),
@@ -860,9 +847,7 @@ void main() {
                     post: accepted,
                     acceptedCid: accepted.cid,
                     changed: true,
-                    projectionPending: false,
                     editedAt: DateTime.utc(2026),
-                    editTimeSource: PostEditTimeSource.confirmed,
                   );
                 },
           ),
@@ -995,7 +980,6 @@ Future<void> _pumpMaterialEditor(
               post: seed.post,
               acceptedCid: seed.baseCid,
               changed: false,
-              projectionPending: false,
             );
           },
     ),
@@ -1055,7 +1039,12 @@ PostEditSeed _seed({bool project = false}) {
           {
             'existingIndex': 0,
             'alt': 'Linen shirt',
-            'image': {'mimeType': 'image/jpeg'},
+            'image': {
+              r'$type': 'blob',
+              'ref': {r'$link': 'bafyimage'},
+              'mimeType': 'image/jpeg',
+              'size': 100,
+            },
           },
         ],
     },

@@ -82,7 +82,7 @@ func TestPostEditCannotReplaceOriginalMentionWithNewReplyReason(t *testing.T) {
 	edited.Rev = "3aaaaaaaaaaa3"
 	f.ingest(edited)
 	f.drain()
-	f.assertCount(`SELECT count(*) FROM notification_events`, 0)
+	f.assertCount(`SELECT count(*) FROM notification_events WHERE category='mention'`, 1)
 }
 
 // IT-012 / REG-007: backfill alone cannot prove original publication eligibility.
@@ -122,7 +122,7 @@ func TestPostEditPendingNotificationKeepsOriginalActivityTime(t *testing.T) {
 
 // IT-012: removing an original pending reason cancels its outbox work and a
 // later re-addition cannot turn it into a fresh publication.
-func TestPostEditRemovedMentionSuppressesPendingDelivery(t *testing.T) {
+func TestPostEditRemovedMentionKeepsPendingDelivery(t *testing.T) {
 	f := newNotificationPipeline(t)
 	f.exec(`INSERT INTO push_installations(id,device_id,platform,fcm_token) VALUES('00000000-0000-0000-0000-000000000001','edit-install','ios','edit-token')`)
 	f.exec(`INSERT INTO push_account_subscriptions(id,installation_id,account_did,routing_id) VALUES('00000000-0000-0000-0000-000000000002','00000000-0000-0000-0000-000000000001','did:plc:recipient','00000000-0000-0000-0000-000000000003')`)
@@ -135,7 +135,7 @@ func TestPostEditRemovedMentionSuppressesPendingDelivery(t *testing.T) {
 	edited.Rev = "3aaaaaaaaaaa3"
 	f.ingest(edited)
 	f.drain()
-	f.assertCount(`SELECT count(*) FROM push_deliveries WHERE status='cancelled'`, 1)
+	f.assertCount(`SELECT count(*) FROM push_deliveries WHERE status='pending'`, 1)
 	readded := original
 	readded.ID = 852
 	readded.Action = "update"
@@ -144,13 +144,13 @@ func TestPostEditRemovedMentionSuppressesPendingDelivery(t *testing.T) {
 	f.ingest(readded)
 	f.drain()
 	f.assertCount(`SELECT count(*) FROM push_deliveries`, 1)
-	f.assertCount(`SELECT count(*) FROM push_deliveries WHERE status='cancelled'`, 1)
-	f.assertCount(`SELECT count(*) FROM notification_events WHERE state='retracted'`, 1)
+	f.assertCount(`SELECT count(*) FROM push_deliveries WHERE status='pending'`, 1)
+	f.assertCount(`SELECT count(*) FROM notification_events WHERE state='active'`, 1)
 }
 
 // IT-012: an intervening removal retires the pending original reason even if
 // both updates are coalesced before any initial notification projection.
-func TestPostEditRemovedThenReaddedBeforeProjectionHasNoCatchup(t *testing.T) {
+func TestPostEditRemovedThenReaddedRetainsOriginalDelivery(t *testing.T) {
 	f := newNotificationPipeline(t)
 	original := notificationEvent(860, "did:plc:actor", "3aaaaaaaaaaa4", mentionExtra("did:plc:recipient"))
 	f.ingest(original)
@@ -166,12 +166,12 @@ func TestPostEditRemovedThenReaddedBeforeProjectionHasNoCatchup(t *testing.T) {
 	f.ingest(readded)
 	f.drain()
 	f.assertCount(`SELECT count(*) FROM craftsky_post_mentions`, 1)
-	f.assertCount(`SELECT count(*) FROM notification_events`, 0)
+	f.assertCount(`SELECT count(*) FROM notification_events`, 1)
 }
 
 // IT-012: another client's remove/re-add of a structural reason cannot revive
 // delayed original publication work either.
-func TestPostEditRemovedThenReaddedReferenceHasNoCatchup(t *testing.T) {
+func TestPostEditReferenceChangesRetainOriginalDelivery(t *testing.T) {
 	for _, kind := range []string{"reply", "quote"} {
 		t.Run(kind, func(t *testing.T) {
 			f := newNotificationPipeline(t)
@@ -194,7 +194,7 @@ func TestPostEditRemovedThenReaddedReferenceHasNoCatchup(t *testing.T) {
 			readded.CID = "cid-readded"
 			f.ingest(readded)
 			f.drain()
-			f.assertCount(`SELECT count(*) FROM notification_events`, 0)
+			f.assertCount(`SELECT count(*) FROM notification_events`, 1)
 		})
 	}
 }
@@ -213,7 +213,7 @@ func TestPostEditRemovingMentionKeepsOriginalReply(t *testing.T) {
 	f.ingest(edited)
 	f.drain()
 	f.assertCount(`SELECT count(*) FROM notification_events WHERE category='reply' AND state='active'`, 1)
-	f.assertCount(`SELECT count(*) FROM post_publication_mentions WHERE eligible`, 0)
+	f.assertCount(`SELECT count(*) FROM post_publication_mentions`, 1)
 	f.exec(`UPDATE tap_projection_jobs SET state='pending',completed_at=NULL WHERE projection_kind='post_notifications'`)
 	f.drain()
 	f.assertCount(`SELECT count(*) FROM notification_events`, 1)
@@ -276,7 +276,7 @@ func TestPostEditFirstSnapshotUsesAcceptedOriginalCreateEvidence(t *testing.T) {
 
 // IT-012: late original proof may establish unknown eligibility, but cannot
 // erase a removal observed while that proof was unavailable.
-func TestPostEditLateOriginalProofRespectsObservedApplicability(t *testing.T) {
+func TestPostEditLateOriginalProofEstablishesFixedRecipients(t *testing.T) {
 	for _, removed := range []bool{false, true} {
 		name := "kept"
 		if removed {
@@ -308,9 +308,6 @@ func TestPostEditLateOriginalProofRespectsObservedApplicability(t *testing.T) {
 			f.ingest(snapshot)
 			f.drain()
 			want := 1
-			if removed {
-				want = 0
-			}
 			f.assertCount(`SELECT count(*) FROM notification_events WHERE recipient_did='did:plc:recipient'`, want)
 		})
 	}

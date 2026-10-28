@@ -86,16 +86,18 @@ Post applyPostInteractionOverlays(Ref ref, Post post) {
 
 PostCommentSection applyPostCommentSectionInteractionOverlays(
   Ref ref,
-  PostCommentSection section,
-) {
+  PostCommentSection section, {
+  bool reconcile = true,
+}) {
   var visible = section;
   for (final item in section.comments.items) {
-    if (applyPostRecordOverlay(ref, item.post) == null) {
+    if (applyPostRecordOverlay(ref, item.post, reconcile: reconcile) == null) {
       visible = visible.removeDeletedResponse(item.post.uri);
       continue;
     }
     for (final reply in item.replies.items) {
-      if (applyPostRecordOverlay(ref, reply.post) == null) {
+      if (applyPostRecordOverlay(ref, reply.post, reconcile: reconcile) ==
+          null) {
         visible = visible.removeDeletedResponse(reply.post.uri);
       }
     }
@@ -103,7 +105,8 @@ PostCommentSection applyPostCommentSectionInteractionOverlays(
   return visible.copyWith(
     post: applyPostInteractionOverlays(
       ref,
-      applyPostRecordOverlay(ref, visible.post) ?? visible.post,
+      applyPostRecordOverlay(ref, visible.post, reconcile: reconcile) ??
+          visible.post,
     ),
     comments: visible.comments.copyWith(
       items: [
@@ -111,7 +114,8 @@ PostCommentSection applyPostCommentSectionInteractionOverlays(
           item.copyWith(
             post: applyPostInteractionOverlays(
               ref,
-              applyPostRecordOverlay(ref, item.post) ?? item.post,
+              applyPostRecordOverlay(ref, item.post, reconcile: reconcile) ??
+                  item.post,
             ),
             replies: item.replies.copyWith(
               items: [
@@ -119,7 +123,12 @@ PostCommentSection applyPostCommentSectionInteractionOverlays(
                   reply.copyWith(
                     post: applyPostInteractionOverlays(
                       ref,
-                      applyPostRecordOverlay(ref, reply.post) ?? reply.post,
+                      applyPostRecordOverlay(
+                            ref,
+                            reply.post,
+                            reconcile: reconcile,
+                          ) ??
+                          reply.post,
                     ),
                   ),
               ],

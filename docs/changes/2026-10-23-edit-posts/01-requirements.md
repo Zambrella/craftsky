@@ -4,9 +4,9 @@
 
 Users want to edit published CraftSky posts. The maintainer requested exploration of AT Protocol constraints before requirements, followed by a comparison of other platforms' editing UX. The confirmed direction is editing at any time through the post context menu, using the familiar composer prefilled with existing information and a different save action. Edited content displays an edit icon with a timestamp tooltip. Reposts and quote-reposts display the latest content. No edit history is wanted. General posts and project posts cannot be converted into each other.
 
-This document specifies published-post editing. It does not authorize implementation or production changes.
+This document specifies published-post editing. The maintainer authorized implementation and the five simplifications on 2026-10-27; production actions remain separate.
 
-## 2. Current Codebase Findings
+## 2. Discovery Baseline (before implementation)
 
 - Relevant files (paths relative to the repository root):
   - `lexicon/social/craftsky/feed/post.json`: general posts, project posts, replies, images, external/video/quote embeds, languages, sponsorship and provenance share one record type. There is no edit timestamp in the current schema. Quote and reply references contain a URI and CID.
@@ -138,7 +138,7 @@ Authors need to correct mistakes, improve accessibility, update project informat
 | Moderator | Existing moderation operator | Existing reports, evidence and restrictions remain meaningful |
 | External client | Another client editing the owner's PDS record | Valid updates converge through the existing ingestion boundary |
 
-## 10. Current Behavior
+## 10. Discovery Behavior (before implementation)
 
 Flutter provides creation composers and private draft/scheduled-post editing. Published-post editing has no supported app flow or API route. The backend can already ingest post updates and replace current materialised content. Engagement and conversation queries largely use stable post URIs; quote previews hydrate the latest visible target. No published edit timestamp is currently specified.
 
@@ -148,59 +148,40 @@ An eligible author chooses `Edit` from their post's context menu on any existing
 
 ## 12. Requirements
 
-### Timestamp interpretation (DR-001 revision)
+### Timestamp interpretation (approved simplification, 2026-10-27)
 
-The icon identifies a known edit; its tooltip must distinguish these sources rather than imply every timestamp is independently verified:
+CraftSky assigns the public current-record `editedAt` on a successful content change. Failed, unchanged and retried accepted operations do not advance it. The icon and localized `Edited <date/time>` tooltip display that value without claiming verified provenance. Valid external records display their declared `editedAt`, including future declarations; external records without it have no indicator even if a content change was observed. Malformed declarations remain subject to strict Lexicon validation. Do not infer edit times from observation, backfill or repository revisions. Current record metadata survives normal projection/rebuild without separate transition/provenance storage.
 
-| Case | Required observable behavior |
-|---|---|
-| Successful content edit through CraftSky | Use one server-assigned timestamp associated with the successful logical edit. Store it durably with the current edit state; retries of that operation return the same time. Show `Edited <date/time>` using existing localization conventions. Rejected and unchanged submissions do not advance it. |
-| External current record carries valid edit metadata | Show `Edit reported <date/time>` when the time is author-declared rather than confirmed by a CraftSky operation. An author can misreport this time; it is disclosure, not trusted evidence. The coding plan chooses the compatible public metadata representation. |
-| A schema-valid authoritative external content update is observed, but edit metadata is absent, removed or future-dated relative to server observation | Record the observation time for that current version and show `Edit observed <date/time>`. This is explicitly not the exact author edit time. Duplicate/stale events do not change this observation time or roll back the current version. |
-| External edit metadata makes the record schema-invalid, including a malformed `editedAt` datetime or wrong field type | Apply existing invalid-record rejection: do not serve or expose the invalid version for editing, and do not manufacture an observed-time disclosure for it. Strict Lexicon validation takes precedence over the timestamp fallback. |
-| A record is first encountered through backfill/rebuild, without valid edit metadata or prior state proving a content edit | Do not infer an edit merely from discovery, repository revision or creation time. Do not invent an edit timestamp or icon. A known valid external declaration may be shown as reported, as above. |
-| Same content replay or metadata-only/no-op change after the content edit is already known | Do not manufacture another content edit or advance its existing timestamp. Preserve current-version edit state. |
+### Publication notifications versus edits (approved simplification, 2026-10-27)
 
-Normal process restarts retain current edit metadata. A rebuild from public current records alone may lose locally observed metadata that is not portable; this limitation is explicit, not a promise to reconstruct history. The metadata source and current version must remain associated. Arbitrary external metadata must not replace a server-confirmed time for the same accepted CraftSky version. The coding plan defines storage, wire names, validation and version association without adding revision history. The reported/observed wording is a proposed clarification of the requested tooltip and remains visible for maintainer review (ASM-002).
+Original publication establishes a fixed recipient set. Edits must not add recipients, replay deliveries, change activity time or reset unread state. Original pending deliveries may still be sent after an edit removes a mention; edits do not recall or retract original notifications. Existing deletion, moderation, blocking and delivery eligibility policies still apply. Unknown original eligibility cannot be inferred from an edited snapshot. Retain bounded original publication facts, not prior bodies or an edit history.
 
-### Publication notifications versus edits (DR-002 revision)
+### Link previews and acceptance (approved simplification, 2026-10-27)
 
-Only the original publication can establish the set of potential publication-notification recipients. Subsequent edits must not expand that set, reset read state or create a fresh social notification. Preserve only bounded operational recipient/classification data needed by existing notification processing, not earlier post bodies or a product edit history.
+Existing link cards may be retained, removed or replaced through the normal link-preview flow. Titles, descriptions and thumbnails are generated from the linked page; no manual metadata/thumbnail editor is required. Unchanged cards retain their original data.
 
-- If initial publication work is pending, a person mentioned only by an edit must receive no notification from that work.
-- An original recipient whose reply/quote/mention reason remains applicable may receive the original publication notification once, under existing eligibility and safety rules. An edit does not refresh its activity time or reset its delivery/read state.
-- If an original recipient's mention reason is removed before dispatch and no original applicable reason remains, suppress the pending delivery. If another original reason still applies, evaluate that original reason under existing policy.
-- Already delivered push content cannot be recalled. Already recorded in-app notifications continue under existing visibility/retraction policy; an edit must not reactivate them or mark them unread again.
-- Retry/replay must preserve these outcomes. If processing has only a latest edited snapshot and cannot establish original recipient eligibility, it must not infer publication recipients from newly present mentions or send speculative catch-up alerts.
-
-These outcomes refine the no-edit-alert rule. Suppression of an original pending mention after its removal is an explicit review assumption in ASM-003; it does not authorize extra alerts. The coding plan must provide a feasible classification and persistence path.
-
-### Fixed relationship presence (DR-003 revision)
-
-RULE-003 fixes both presence and identity of reply/quote relationships: a standalone post cannot become a reply or quote, an existing reply/quote cannot lose its context, and an existing target cannot be changed. Existing strong-reference data is preserved; editing does not refresh its CID merely because the referenced post has changed. General/project type remains fixed; project craft-specific fields remain editable under existing validation.
-
-Sources: **U1** = initial feature request; **U2** = confirmed editing UX; **U3** = acceptance of explicit safeguards; **U4** = fixed general/project types; **D** = discovery and protocol constraints; **C** = verified codebase; **A** = explicit assumption below.
+A save returns acceptance metadata only, independent of indexed post availability. The app dismisses after definite acceptance, projects frozen submitted content, and reconciles through normal public reads. There is no accepted-but-waiting composer or manual accepted-result refresh action. The two composers share submission orchestration; their field preparation remains separate.
 
 | ID | Type | Priority | Requirement | Rationale | Source | Acceptance Criteria |
 |---|---|---|---|---|---|---|
 | BR-001 | Business | Must | Authors can correct and maintain published posts without losing their identity or accumulated conversation and engagement. | Core user need | U1, U2 | AC-001, AC-005 |
 | BR-002 | Business | Must | Readers can identify edited content and discover when its latest edit occurred, without a revision-history feature. | Transparent, unobtrusive editing | U2 | AC-006, AC-007 |
 | FR-001 | Functional | Must | Offer `Edit` in the eligible owner's existing post context menus wherever those menus appear, including replies and quote-posts. | Consistent entry point | U2, A/ASM-001 | AC-001, AC-002 |
-| FR-002 | Functional | Must | Open the corresponding general/project composer prefilled with every existing value supported for that post, including caption, rich-text annotations, project fields, sponsorship, languages, attachments, alt text and supported embed metadata. Display fixed reply/quote context. | Faithful draft-like editing | U2, U3 | AC-002, AC-003 |
-| FR-003 | Functional | Must | Permit changes and explicit clearing/removal of all author-editable fields supported for the existing post type, subject to existing content/media validation. This includes supported image/video/external embed changes, not changes to a quote's target. | "Anything" editable within fixed structure | U2, U3, U4 | AC-003, AC-004 |
+| FR-002 | Functional | Must | Open the corresponding general/project composer prefilled with every existing value supported for that post, including caption, rich-text annotations, project fields, sponsorship, languages, attachments, alt text and supported embed metadata. Display fixed reply/quote context. Permit opening and saving immediately after successful publication without waiting for Tap ingestion or public projection; AppView loads the authoritative owner record server-side. | Faithful draft-like editing | U2, U3 | AC-002, AC-003 |
+| FR-003 | Functional | Must | Permit changes and explicit clearing/removal of all author-editable fields supported for the existing post type, subject to existing content/media validation. This includes supported image/video changes and normal link-preview replacement/removal, not changes to a quote's target. | "Anything" editable within fixed structure | U2, U3, U4 | AC-003, AC-004 |
 | FR-004 | Functional | Must | Use `Save changes` for editing. Saving updates the existing published post; creation, scheduling and unrelated draft side effects must not run. Cancelling must not change the published post. | Distinguish editing from publication | U2, U3 | AC-001, AC-008 |
 | FR-005 | Functional | Must | Preserve fields outside the editor's supported changes, including unknown extension data and provenance. Retain existing media references without re-uploading unchanged files. | Avoid silent record and media loss | U3, D | AC-003, AC-009 |
-| FR-006 | Functional | Must | Record and display the latest successful content-edit time. Advance it on each subsequent content edit; do not mark an unchanged submission as a new edit. Previously unedited posts have no edit indicator. Apply the timestamp-source rules in section 12 for confirmed, reported and observed times. | Accurate current edit state | U2, A/ASM-002 | AC-006, AC-010 |
+| FR-006 | Functional | Must | Record and display the latest successful content-edit time. Advance it on each subsequent content edit; do not mark an unchanged submission as a new edit. Previously unedited posts have no edit indicator. Use the current-record timestamp contract in section 12. | Accurate current edit state | U2, A/ASM-002 | AC-006, AC-010 |
 | FR-007 | Functional | Must | Show the edit icon wherever a post's own metadata is rendered, including detail, feed/profile/search/saved-post presentations, comments, reposts and quoted previews. Expose a localized date/time by hover tooltip, keyboard focus, mobile tap and assistive technology. | Equivalent access on all platforms | U2, U3 | AC-006, AC-007 |
 | FR-008 | Functional | Must | Reposts and quote-reposts resolve the original post's latest visible content and edited state while preserving their own author text, identity and timestamps. An old referenced CID alone must not make current content unavailable. | Confirmed live-view semantics | U2, U3, C | AC-011 |
 | FR-009 | Functional | Must | Reject stale saves when the current post version differs from the editor's base version. Explain the conflict and retain unsaved input so the author can review current content before deliberately submitting against it. Do not silently overwrite or merge. | Prevent lost updates | U3, D | AC-012 |
 | FR-010 | Functional | Must | Handle loading, validation failure, media failure, write failure and uncertain submission outcomes without falsely confirming success or discarding unsaved input. Repeated save/retry must not create a second post or apply a different timestamp for the same accepted operation. | Reliable editing | U3, C | AC-004, AC-013 |
-| FR-011 | Functional | Must | Reconcile confirmed edits across loaded app representations and subsequent reads. While indexing is pending, distinguish accepted/pending state from failure and do not replace confirmed edited content with stale cached content as a final state. | PDS and AppView converge asynchronously | U3, D | AC-014 |
-| FR-012 | Functional | Must | Refresh derived project, tag, mention, language and discovery data after edits. Incoming valid external-client updates converge under the same visibility rules and expose edited state when an edit is known. | Correct reads beyond the main card | U3, C, D | AC-015, AC-019 |
+| FR-011 | Functional | Must | On PDS-confirmed success, dismiss the composer to its originating screen and optimistically update loaded app representations without waiting for indexing. Reconcile subsequent reads without replacing confirmed edited content with stale cached content as a final state. | PDS and AppView converge asynchronously | U3, D | AC-014 |
+| FR-012 | Functional | Must | Refresh derived project, tag, mention, language and discovery data after edits. Incoming valid external-client updates converge under the same visibility rules and expose the edit indicator only when current-record editedAt is declared. | Correct reads beyond the main card | U3, C, D | AC-015, AC-019 |
 | RULE-001 | Business rule | Must | No feature-specific edit-age window or edit-count cap applies. Existing account eligibility, validation and service rate limits remain applicable. | Unlimited maintenance without bypassing policy | U2, U3 | AC-001, AC-016 |
 | RULE-002 | Business rule | Must | Only the authenticated post owner may edit, under existing account/write eligibility and lifecycle rules. Account changes must not submit or expose another account's edit session. | Existing ownership boundary | U3, C | AC-016, AC-017 |
 | RULE-003 | Business rule | Must | Keep author DID, collection/key/URI, original publication time, general/project type, and the presence and full references of reply parent/root and quote target fixed. Preserve original feed/profile ordering and existing valid pins. | Same post and conversation | U3, U4 | AC-005, AC-018 |
-| RULE-004 | Business rule | Must | Edits must not send new social notifications or replay existing notifications, including reply, quote, repost and mention notifications. Use section 12 publication-recipient rules even when initial work is pending; already delivered notification content cannot be recalled. | Editing is not republishing | U3, A/ASM-003 | AC-020 |
+| RULE-004 | Business rule | Must | Edits must not send new social notifications or replay existing notifications, including reply, quote, repost and mention notifications. Keep the original recipient set fixed under section 12 even when initial work is pending. | Editing is not republishing | U3, A/ASM-003 | AC-020 |
 | RULE-005 | Business rule | Must | Apply existing moderation, blocking and media safety controls to the current version and all quoted/reposted views. Editing must not clear applicable enforcement, discard report evidence or expose unapproved replacement media. | Preserve safety boundaries | U3, C | AC-021 |
 | RULE-006 | Business rule | Must | Do not introduce storage of previous post bodies/media for an edit-history feature or expose a history UI/API. Retain only latest edit metadata for this feature; existing operational and moderation retention continues. | Explicit no-history decision | U2, U3 | AC-022 |
 | RULE-007 | Business rule | Must | If the target is deleted before save, reject the edit without recreating it or changing existing replies/reposts/quotes. | An edit cannot become a create | U3, D | AC-023 |
@@ -230,8 +211,8 @@ Sources: **U1** = initial feature request; **U2** = confirmed editing UX; **U3**
 | AC-016 | RULE-001, RULE-002 | Given unauthorized callers or accounts barred from existing write operations, when an edit is attempted, then it is denied under existing policy without changing the target; an eligible owner's old post remains editable. |
 | AC-017 | RULE-002 | Given an edit opened under account A, when the active account changes or A's lifecycle invalidates writes before save, then account B cannot submit A's session, the wrong account receives no edit data and no unauthorized write is performed. |
 | AC-018 | RULE-003 | Given general, project, reply and quote-post records, when structural changes are attempted through UI or crafted API input, then general/project conversion, changed authorship/publication time, and adding/removing/retargeting reply or quote relationships are rejected; normal content edits still succeed. |
-| AC-019 | FR-012 | Given a previously indexed post updated by another client, when a valid newer authoritative event arrives, then latest content is projected and edited state follows section 12: valid declarations are reported, known edits without usable metadata use labeled observation time, and first-seen snapshots alone prove no edit. Duplicate/stale events cannot roll content or edit state back; same-version replay does not advance time. |
-| AC-020 | RULE-004 | Given an ordinary post, reply or quote with existing notifications, when edited, including addition/removal of mentions and event replay, then no new social notification or repeated push is sent because of that edit. Pending original work must exclude newly added recipients, suppress removed original reasons before dispatch, preserve remaining original eligible deliveries once, and never reset existing read/activity state (section 12). |
+| AC-019 | FR-012 | Given a previously indexed post updated by another client, when a valid newer authoritative event arrives, then latest content is projected and the indicator displays its declared editedAt when present and no indicator otherwise; stale events cannot roll back current content or metadata. |
+| AC-020 | RULE-004 | Given an ordinary post, reply or quote with existing notifications, when edited, including addition/removal of mentions and event replay, then no new social notification or repeated push is sent because of that edit. Pending original work excludes newly added recipients, may deliver to removed original mentions once, and never resets existing read/activity state (section 12). |
 | AC-021 | RULE-005 | Given restricted content or replacement media awaiting/rejected by safety checks, when edited and read directly or via a quote/repost, then existing enforcement and new-version safety gates apply, report evidence remains available under existing policy and unsafe content is not exposed. |
 | AC-022 | RULE-006 | Given repeated edits, when current post data and supported product endpoints are inspected, then only current content/latest edit metadata is provided, no history feature or new historical-content archive exists, and existing operational/moderation retention is preserved. |
 | AC-023 | RULE-007 | Given a post deleted after the editor opened, when the author saves or retries, then the target stays deleted, the UI explains it is unavailable, unsaved text remains recoverable in the session and no replacement record is created. |
@@ -258,14 +239,17 @@ Sources: **U1** = initial feature request; **U2** = confirmed editing UX; **U3**
 
 ## 15. Data / Persistence Impact
 
-- New fields: latest edit metadata in the post read contract and an appropriate persistent representation. It must survive normal app/server restarts. Observable timestamp authority/source rules are in section 12; exact wire/schema names and storage mechanisms belong to coding design.
+- New fields: latest edit metadata in the post read contract and an appropriate persistent representation. It must survive normal app/server restarts. The current-record timestamp contract is in section 12; exact wire/schema names and storage mechanisms belong to coding design.
 - Changed fields: current published content and CID; current derived project/search/mention/language/media-safety state. Original publication time and fixed structural data do not change.
 - Migration required: expected for edit metadata/indexed presentation. If metadata is added to the public record, follow the project Lexicon skill, ADR, generation and validation requirements. No migration or schema change is authorized at this stage.
 - Backwards compatibility: absence of edit metadata on legacy posts means no known edit time, not an invented historical timestamp. There are no active app users requiring shipped-client compatibility, but existing PDS records, extension fields and production change controls remain relevant.
 - History: no revision collection or historical body/media archive for this feature. Existing current-source ingestion, command recovery and moderation records remain governed by their existing retention policies.
-- Public edit timestamps may be author-declared and cannot serve as tamper-proof evidence. Section 12 defines first-seen, reported and observed behavior; coding design must implement that distinction and keep current version/source association durable across normal restarts.
+- Public edit timestamps are author-declared metadata, not tamper-proof evidence. Project the current record value; maintain no separate timestamp provenance/observation state.
 
 ## 16. UI / API / CLI Impact
+
+Placement refinement approved 2026-10-28: edit disclosure is an icon without visible Edited text, part of the relative post time (for example `[edit icon] 2h`, with no separator dot), with a single tooltip containing publication and latest-edit timestamps. Full post cards use the header time; quoted/saved summaries merge their disclosure wherever they display post time. This supersedes separate footer and adjacent-indicator placements. Tap, long press, pointer hover, keyboard focus and accessible text expose both timestamps together.
+
 
 - UI: eligible-owner context menus; general/project composer edit mode; fixed reply/quote context; save/loading/conflict/error states; accessible localized edit indicator. Use existing unsaved-change protection, adapted so closing an edit cannot accidentally publish or create an ordinary new-post draft. No new durable edit-draft feature is required.
 - API: authenticated owner edit operation with explicit version precondition, fixed-structure validation, safe retry/outcome handling and current edit metadata on post/quote representations. Loading comes through AppView; server-side PDS reads for authoritative write preparation remain permitted. Exact route/body design is deferred under the API spec.
@@ -296,7 +280,7 @@ Sources: **U1** = initial feature request; **U2** = confirmed editing UX; **U3**
 | RISK-003 | Concurrent or uncertain writes overwrite content | Lost work or accidental recreation | Version preconditions, command reconciliation and deletion protection |
 | RISK-004 | Edit triggers old publication side effects | Duplicate posts, pushes or drafts | Distinct edit submission semantics and notification regression coverage |
 | RISK-005 | Media/content edits evade enforcement | Unsafe content or destroyed evidence | Apply existing controls to every current version and retain moderation evidence |
-| RISK-006 | Timestamp unavailable after external edits or rebuild | Incorrect transparency indicator | Define portable/observed metadata contract; never invent historical precision |
+| RISK-006 | Timestamp unavailable after external edits or rebuild | Incorrect transparency indicator | Display current-record declarations only; external records without editedAt have no indicator |
 | RISK-007 | Shared composer and post presentation changes affect many surfaces | Creation, drafts, scheduling or embeds regress | Explicit surface matrix and regression tests |
 
 ## 20. Assumptions
@@ -304,20 +288,20 @@ Sources: **U1** = initial feature request; **U2** = confirmed editing UX; **U3**
 | ID | Assumption | Impact If Wrong |
 |---|---|---|
 | ASM-001 | Published replies and quote-posts count as editable posts; their structural target stays fixed. Imported posts are editable under the same rules, preserving provenance. | Scope and menu/composer coverage need revision if any subtype should be excluded |
-| ASM-002 | The edit timestamp identifies the latest known content edit; unchanged submissions are not edits. Confirmed, reported and observed tooltip wording and first-seen fallback follow section 12. Reported/observed wording is a proposed clarification for review; exact storage/schema is still a design choice. | Indicator and no-op acceptance criteria need adjustment |
-| ASM-003 | No new social notifications are sent for edits, including newly added mentions or alerts to existing reposters/quoting authors. For original work pending at edit time, removed reasons suppress dispatch while remaining original eligible reasons may deliver once (section 12). This pending-removal policy is proposed for review. Existing previews may refresh without generating a new event. | Notification policy must be specified differently if any edit alerts are desired |
+| ASM-002 | CraftSky assigns editedAt for content changes; retries/no-ops preserve it. All indicators use one Edited label. External missing metadata produces no indicator; there is no verified provenance claim. | Relaxation explicitly approved 2026-10-27 |
+| ASM-003 | Edits add no social notifications. Fixed original recipients may still receive their pending publication notification after mention removal. Existing safety/deletion/delivery policies remain. | Relaxation explicitly approved 2026-10-27 |
 | ASM-004 | The draft-like request describes composer familiarity and prefill, not saving published edits as ordinary local/scheduled drafts. Existing cancellation protection is sufficient; durable recovery across process termination is not added. | Durable edit-draft storage would require separate scope |
 | ASM-005 | The same eligibility/access rules used for current post interactions and owner writes determine whether an unavailable/restricted post can be edited; no new moderation-remediation workflow is introduced. | Restricted-author UX may need additional requirements |
 
 ## 21. Open Questions
 
 - Blocking product questions: none identified. The confirmed direction is sufficient to proceed after requirements review.
-- Non-blocking review note: confirm ASM-001 through ASM-005, especially notifications for newly added mentions and inclusion of replies/imported posts.
-- Design handoff: implement the section 12 timestamp-source and original-publication recipient contracts; choose persistent/wire representations before coding-plan approval. Confirm ASM-002/ASM-003 clarifications during review. No public schema name or storage mechanism is fixed by these requirements.
+- Non-blocking review note: none outstanding for these simplifications; platform manual results remain pending.
+- Design handoff: implement the section 12 current-record timestamp and fixed original-publication recipient contracts; choose persistent/wire representations before coding-plan approval. ASM-002/ASM-003 simplifications are approved. No public schema name or storage mechanism is fixed by these requirements.
 
 ## 22. Review Status
 
-Status: Draft
+Status: Approved simplification scope (2026-10-27); manual acceptance pending
 
 Risk level: Medium
 
@@ -327,7 +311,7 @@ Reviewer: Maintainer review pending
 
 Date: 2026-10-26 (revised after document review)
 
-Notes: The product direction is confirmed; this artifact and its labeled assumptions have not yet been approved. Risk comes from persistent public writes, shared UI, concurrency, notification and moderation integration; no new privilege model is proposed. Review of the revised clarifications is recommended before coding-plan approval. Revised on 2026-10-26 with maintainer authorization to address DR-001–DR-004; the original review report remains a historical review of the prior drafts. Timestamp-source, pending-notification and structural-presence details are now explicit. No source changes, test implementation, schema changes, commits or production actions were performed.
+Notes: The product direction is confirmed; the five simplifications are explicitly approved; renewed implementation review is required. Risk comes from persistent public writes, shared UI, concurrency, notification and moderation integration; no new privilege model is proposed. Review of the revised clarifications is recommended before coding-plan approval. Revised on 2026-10-26 with maintainer authorization to address DR-001–DR-004; the original review report remains a historical review of the prior drafts. Current-record timestamp and fixed-recipient simplifications supersede prior timestamp-source/pending-withdrawal details. No source changes, test implementation, schema changes, commits or production actions were performed.
 
 ## 23. Handoff To Test Design
 
@@ -338,3 +322,5 @@ Notes: The product direction is confirmed; this artifact and its labeled assumpt
 - Include a surface/subtype matrix rather than assuming one successful composer path proves all entry points. Test historical CID references without requiring a historical record fetch.
 - Blocking open questions: none at the product requirements stage. Resolve the timestamp storage/wire representation and notification classification mechanism in coding design; the observable contract is in section 12.
 - Evidence boundary: local tests and mocks do not establish live PDS propagation, production deployment or physical-device behavior. Report those checks separately if performed later.
+
+Maintainer approved simplifications 1–5 on 2026-10-27. These supersede earlier source-provenance, pending-mention withdrawal, manual link-card metadata and accepted-waiting decisions. Stable requirement/acceptance IDs remain; implementation review must assess the revised scope.

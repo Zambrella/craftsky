@@ -19,6 +19,20 @@ const timelinePageLimit = 20;
 class Timeline extends _$Timeline {
   @override
   Future<TimelineState> build() async {
+    listenForPostEdits(ref, () {
+      final current = state.value;
+      if (current == null) return;
+      state = AsyncData(
+        current.copyWith(
+          items: [
+            for (final item in current.items)
+              if (applyPostRecordOverlay(ref, item.post, reconcile: false)
+                  case final post?)
+                item.copyWith(post: post),
+          ],
+        ),
+      );
+    });
     ref.watch(activeContentLanguagePolicyProvider);
     final accountOperation = ActiveAccountOperation.capture(ref);
     final repo = ref.watch(postRepositoryProvider);
@@ -57,7 +71,18 @@ class Timeline extends _$Timeline {
       );
     });
 
-    accountOperation.publish(() => state = next);
+    accountOperation.publish(
+      () => state = next.whenData(
+        (value) => value.copyWith(
+          items: [
+            for (final item in value.items)
+              if (applyPostRecordOverlay(ref, item.post, reconcile: false)
+                  case final post?)
+                item.copyWith(post: post),
+          ],
+        ),
+      ),
+    );
   }
 
   int suppressActor(String did) {
@@ -102,6 +127,7 @@ List<TimelineItem> _applyTimelineOverlays(Ref ref, List<TimelineItem> items) {
               )))
         item,
   ];
+  observePostListMembership(ref, items.map((item) => item.post), 'timeline');
   final result = <TimelineItem>[];
   final seen = <AtUri>{};
   for (final item in visible) {
@@ -110,8 +136,9 @@ List<TimelineItem> _applyTimelineOverlays(Ref ref, List<TimelineItem> items) {
     seen.add(post.uri);
     result.add(item.copyWith(post: applyPostInteractionOverlays(ref, post)));
   }
-  for (final post in optimisticPostRecordOverlays(ref)) {
+  for (final post in optimisticPostRecordOverlays(ref, listKey: 'timeline')) {
     if (post.reply == null && seen.add(post.uri)) {
+      recordPublicationList(ref, post, 'timeline');
       result.insert(
         0,
         TimelineItem(

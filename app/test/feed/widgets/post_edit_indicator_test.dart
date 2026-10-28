@@ -1,8 +1,8 @@
 import 'dart:io';
 
-import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/widgets/post_edit_indicator.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
+import 'package:craftsky_app/shared/time/relative_time_text.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -28,7 +28,6 @@ void main() {
               child: Scaffold(
                 body: PostEditIndicator(
                   editedAt: DateTime(2026, 10, 25, 12, 30),
-                  source: PostEditTimeSource.confirmed,
                 ),
               ),
             ),
@@ -57,7 +56,6 @@ void main() {
           home: Scaffold(
             body: PostEditIndicator(
               editedAt: DateTime.parse(timestamp),
-              source: PostEditTimeSource.confirmed,
             ),
           ),
         ),
@@ -72,58 +70,59 @@ void main() {
     }
   });
 
-  testWidgets('AT-003 edit time opens with touch and keyboard focus', (
-    tester,
-  ) async {
-    await tester.pumpWidget(
-      MaterialApp(
-        localizationsDelegates: appLocalizationsDelegates,
-        supportedLocales: AppLocalizations.supportedLocales,
-        home: Scaffold(
-          body: PostEditIndicator(
-            editedAt: DateTime.utc(2026, 10, 26, 12),
-            source: PostEditTimeSource.confirmed,
-          ),
-        ),
-      ),
-    );
-    final label = tester.widget<Tooltip>(find.byType(Tooltip)).message!;
-    await tester.tap(find.byIcon(CraftskyIcons.edit));
-    await tester.pump(const Duration(milliseconds: 250));
-    expect(find.text(label), findsOneWidget);
-    await tester.pump(const Duration(seconds: 5));
-    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
-    await tester.pump(const Duration(milliseconds: 250));
-    expect(find.text(label), findsOneWidget);
-  });
-
-  testWidgets(
-    'AT-003 edit disclosure qualifies its time in tooltip and semantics',
-    (tester) async {
-      final semantics = tester.ensureSemantics();
-      for (final entry in {
-        PostEditTimeSource.confirmed: 'Edited',
-        PostEditTimeSource.reported: 'Edit reported for',
-        PostEditTimeSource.observed: 'Edit first observed',
-      }.entries) {
+  for (final combined in [false, true]) {
+    testWidgets(
+      'AT-003 edit time opens with touch and keyboard focus '
+      '(combined=$combined)',
+      (
+        tester,
+      ) async {
         await tester.pumpWidget(
           MaterialApp(
             localizationsDelegates: appLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             home: Scaffold(
-              body: PostEditIndicator(
-                editedAt: DateTime.utc(2026, 10, 26, 12),
-                source: entry.key,
-              ),
+              body: combined
+                  ? RelativeTimeText(
+                      timestamp: DateTime.utc(2026, 10, 25),
+                      editedAt: DateTime.utc(2026, 10, 26, 12),
+                    )
+                  : PostEditIndicator(editedAt: DateTime.utc(2026, 10, 26, 12)),
             ),
           ),
         );
-        expect(find.byIcon(CraftskyIcons.edit), findsOneWidget);
-        final tooltip = tester.widget<Tooltip>(find.byType(Tooltip));
-        expect(tooltip.message, startsWith(entry.value));
-        expect(tooltip.message, contains('2026'));
-        expect(find.bySemanticsLabel(tooltip.message!), findsOneWidget);
-      }
+        final label = tester.widget<Tooltip>(find.byType(Tooltip)).message!;
+        await tester.tap(find.byIcon(CraftskyIcons.edit));
+        await tester.pump(const Duration(milliseconds: 250));
+        expect(find.text(label), findsOneWidget);
+        await tester.pump(const Duration(seconds: 5));
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.pump(const Duration(milliseconds: 250));
+        expect(find.text(label), findsOneWidget);
+      },
+    );
+  }
+
+  testWidgets(
+    'AT-003 edit disclosure uses one label in tooltip and semantics',
+    (tester) async {
+      final semantics = tester.ensureSemantics();
+      await tester.pumpWidget(
+        MaterialApp(
+          localizationsDelegates: appLocalizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(
+            body: PostEditIndicator(
+              editedAt: DateTime.utc(2026, 10, 26, 12),
+            ),
+          ),
+        ),
+      );
+      expect(find.byIcon(CraftskyIcons.edit), findsOneWidget);
+      final tooltip = tester.widget<Tooltip>(find.byType(Tooltip));
+      expect(tooltip.message, startsWith('Edited'));
+      expect(tooltip.message, contains('2026'));
+      expect(find.bySemanticsLabel(tooltip.message!), findsOneWidget);
       await tester.pumpWidget(const MaterialApp(home: PostEditIndicator()));
       expect(find.byIcon(CraftskyIcons.edit), findsNothing);
       semantics.dispose();

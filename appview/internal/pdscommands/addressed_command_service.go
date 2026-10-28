@@ -12,7 +12,6 @@ import (
 
 	"social.craftsky/appview/internal/auth"
 	"social.craftsky/appview/internal/ownerlifecycle"
-	"social.craftsky/appview/internal/postfence"
 )
 
 var ErrRecordConflict = errors.New("PDS record changed")
@@ -389,11 +388,6 @@ func (service *AddressedCommandService) putFenced(
 				return CommandResult{}, err
 			}
 			if err := service.store.completeAddressedRecovery(ctx, command, record, terminal, func(tx pgx.Tx) error {
-				if request.StrictExpectedCID {
-					if err := postfence.LockTx(ctx, tx, request.URI); err != nil {
-						return err
-					}
-				}
 				if request.FinalizeAccepted != nil {
 					return request.FinalizeAccepted(ctx, tx, command, record)
 				}
@@ -567,11 +561,6 @@ func (service *AddressedCommandService) putFenced(
 			DispatchCompletion{Outcome: CommandAccepted, ResultRecords: authoritative.Record, ResultCommitCID: authoritative.CommitCID, ResultCommitRevision: authoritative.Revision},
 			terminal,
 			func(tx pgx.Tx) error {
-				if request.StrictExpectedCID {
-					if err := postfence.LockTx(ctx, tx, request.URI); err != nil {
-						return err
-					}
-				}
 				if request.FinalizeAccepted != nil {
 					return request.FinalizeAccepted(ctx, tx, command, authoritative)
 				}
