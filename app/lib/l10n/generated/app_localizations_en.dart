@@ -1043,6 +1043,14 @@ class AppLocalizationsEn extends AppLocalizations {
       'Add or clear the current material first';
 
   @override
+  String get projectComposerMaterialsDiscardTitle =>
+      'Discard material changes?';
+
+  @override
+  String get projectComposerMaterialsDiscardMessage =>
+      'Your current material input won\'t be saved. Materials you\'ve already added will be kept.';
+
+  @override
   String projectComposerMaterialsMaxLengthError(int max) {
     return 'Keep each material to $max characters or fewer.';
   }
@@ -4718,5 +4726,61 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String notificationQuoteReplyRow(String actor) {
     return '$actor quoted your reply';
+  }
+
+  @override
+  String get postEditSaveChanges => 'Save changes';
+
+  @override
+  String get postEditSuccess => 'Changes saved';
+
+  @override
+  String get postEditError => 'Could not save changes. Please try again.';
+
+  @override
+  String get postEditSaving => 'Saving changes…';
+
+  @override
+  String get postEditAction => 'Edit';
+
+  @override
+  String get postEditTitle => 'Edit post';
+
+  @override
+  String get postEditLoadError =>
+      'Could not load this post for editing. Please try again.';
+
+  @override
+  String get postEditConflict =>
+      'This post changed. Your changes are still here. Review the current version before saving.';
+
+  @override
+  String get postEditReviewCurrent => 'Review current version';
+
+  @override
+  String get postEditUnavailable =>
+      'This post is no longer available. Your changes are still here.';
+
+  @override
+  String get postEditUnresolved =>
+      'Saving is not confirmed. Retry to check the same save.';
+
+  @override
+  String get postEditRetrySave => 'Retry save';
+
+  @override
+  String get postEditCaptionLabel => 'Caption';
+
+  @override
+  String get postEditContentLabel => 'Post content';
+
+  @override
+  String postEditValidationFields(String fields) {
+    return 'Check these fields and try again: $fields.';
+  }
+
+  @override
+  String postEditTime(String timestamp) {
+    return 'Edited $timestamp';
   }
 }

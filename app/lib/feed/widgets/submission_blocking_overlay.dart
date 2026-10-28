@@ -3,7 +3,7 @@ import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/theme/publishing_progress_indicator.dart';
 import 'package:material_ui/material_ui.dart';
 
-enum SubmissionKind { post, comment, reply }
+enum SubmissionKind { post, comment, reply, edit }
 
 final class SubmissionBlockingOverlay extends StatelessWidget {
   const new({
@@ -25,7 +25,10 @@ final class SubmissionBlockingOverlay extends StatelessWidget {
     final copy = switch (videoProgress?.stage) {
       VideoPublicationStage.uploading => l10n.postVideoUploading,
       VideoPublicationStage.processing => l10n.postVideoProcessing,
-      VideoPublicationStage.publishing => l10n.postVideoPublishing,
+      VideoPublicationStage.publishing =>
+        kind == SubmissionKind.edit
+            ? l10n.postEditSaving
+            : l10n.postVideoPublishing,
       _ => switch (kind) {
         SubmissionKind.post =>
           scheduling
@@ -33,6 +36,7 @@ final class SubmissionBlockingOverlay extends StatelessWidget {
               : l10n.submissionPublishingPost,
         SubmissionKind.comment => l10n.submissionPublishingComment,
         SubmissionKind.reply => l10n.submissionPublishingReply,
+        SubmissionKind.edit => l10n.postEditSaving,
       },
     };
     final canCancel =

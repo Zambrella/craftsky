@@ -27,6 +27,8 @@ type FeedPost struct {
 	Crafts []*FeedPost_Craft `json:"crafts,omitempty" cborgen:"crafts,omitempty"`
 	// createdAt: Client-declared creation timestamp.
 	CreatedAt string `json:"createdAt" cborgen:"createdAt"`
+	// editedAt: Optional author-declared time of the latest content edit. Not verified evidence of edit time and not an edit history. The original createdAt remains unchanged.
+	EditedAt *string `json:"editedAt,omitempty" cborgen:"editedAt,omitempty"`
 	// embed: Optional embedded content. Open union supporting local quote embeds, standard external cards, and standard video.
 	Embed *FeedPost_Embed `json:"embed,omitempty" cborgen:"embed,omitempty"`
 	// externalImport: Optional self-asserted provenance for content created by an external-history importer. This metadata does not verify ownership of an external account or grant trust.

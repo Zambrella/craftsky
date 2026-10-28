@@ -5,6 +5,7 @@ import 'package:craftsky_app/feed/models/create_post_video.dart';
 import 'package:craftsky_app/feed/models/interaction_write_response.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/post_comment_section.dart';
+import 'package:craftsky_app/feed/models/post_edit.dart';
 import 'package:craftsky_app/feed/models/post_page.dart';
 import 'package:craftsky_app/feed/models/profile_pin_state.dart';
 import 'package:craftsky_app/feed/models/timeline_page.dart';
@@ -33,6 +34,8 @@ import 'package:craftsky_app/shared/atproto/identifiers.dart';
 /// ```
 class FakePostRepository implements PostRepository {
   new({
+    this.onFetchEdit,
+    this.onEdit,
     this.onCreate,
     this.onCreateWithFacets,
     this.onFetch,
@@ -56,6 +59,37 @@ class FakePostRepository implements PostRepository {
     this.onListCommentsByAuthor,
     this.onListRepostsByAuthor,
   });
+
+  final Future<PostEditSeed> Function(Did, RecordKey)? onFetchEdit;
+  final Future<PostEditResult> Function(
+    Did,
+    RecordKey, {
+    required PostEditChanges changes,
+    required String expectedCid,
+    required String operationKey,
+  })?
+  onEdit;
+
+  @override
+  Future<PostEditSeed> fetchEdit(Did did, RecordKey rkey) =>
+      onFetchEdit?.call(did, rkey) ?? (throw UnimplementedError('fetchEdit'));
+
+  @override
+  Future<PostEditResult> edit(
+    Did did,
+    RecordKey rkey, {
+    required PostEditChanges changes,
+    required String expectedCid,
+    required String operationKey,
+  }) =>
+      onEdit?.call(
+        did,
+        rkey,
+        changes: changes,
+        expectedCid: expectedCid,
+        operationKey: operationKey,
+      ) ??
+      (throw UnimplementedError('edit'));
 
   final Future<Post> Function({
     required String text,

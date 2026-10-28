@@ -300,6 +300,7 @@ func TestUnifiedPDSRecordMutationsMigrationSeparatesCommandPersistenceBoundaries
 			"id", "command_id", "attempt_ordinal", "plan_version", "dispatch_fingerprint_version",
 			"dispatch_fingerprint", "repository_cid", "repository_revision", "remote_deadline", "outcome",
 			"error_class", "result_commit_cid", "result_records", "started_at", "completed_at", "retry_not_before",
+			"result_commit_revision", "observation_cid", "observation_revision",
 		},
 		"pds_command_tombstones": {
 			"owner_did", "operation_kind", "scoped_key_hash", "compacted_at",

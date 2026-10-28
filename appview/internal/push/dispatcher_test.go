@@ -1473,7 +1473,7 @@ func TestDispatcherBoundsInFlightSendByAbsoluteDeadline(t *testing.T) {
 
 func TestDispatcherRunRecoversFromTransientStoreFailure(t *testing.T) {
 	pool := testdb.WithSchema(t, `
-		CREATE TABLE bluesky_profiles(did TEXT PRIMARY KEY,display_name TEXT,avatar_cid TEXT);
+		CREATE TABLE bluesky_profiles(did TEXT PRIMARY KEY,display_name TEXT,avatar_cid TEXT,record_cid TEXT);
 		CREATE TABLE craftsky_posts(uri TEXT PRIMARY KEY,did TEXT NOT NULL DEFAULT 'did:plc:viewer',text TEXT NOT NULL DEFAULT '',reply_root_uri TEXT,reply_parent_uri TEXT,quote_uri TEXT);
         CREATE TABLE craftsky_project_posts(uri TEXT PRIMARY KEY,raw_project JSONB);
         CREATE TABLE craftsky_post_mentions(post_uri TEXT,mentioned_did TEXT);
@@ -1730,7 +1730,8 @@ func TestDispatcherProcessBatchAlertsOnStaleEligibleModerationWork(t *testing.T)
 func dispatcherPool(t *testing.T) *pgxpool.Pool {
 	t.Helper()
 	pool := testdb.WithSchema(t, `
-		CREATE TABLE bluesky_profiles(did TEXT PRIMARY KEY,display_name TEXT,avatar_cid TEXT);
+		CREATE TABLE tap_source_records(uri TEXT PRIMARY KEY);
+ CREATE TABLE bluesky_profiles(did TEXT PRIMARY KEY,display_name TEXT,avatar_cid TEXT,record_cid TEXT);
 		CREATE TABLE craftsky_posts(uri TEXT PRIMARY KEY,did TEXT NOT NULL DEFAULT 'did:plc:viewer',text TEXT NOT NULL DEFAULT '',reply_root_uri TEXT,reply_parent_uri TEXT,quote_uri TEXT);
         CREATE TABLE craftsky_project_posts(uri TEXT PRIMARY KEY,raw_project JSONB);
         CREATE TABLE craftsky_post_mentions(post_uri TEXT,mentioned_did TEXT);
@@ -1745,6 +1746,9 @@ func dispatcherPool(t *testing.T) *pgxpool.Pool {
 	if _, err := pool.Exec(context.Background(), string(migration)); err != nil {
 		t.Fatal(err)
 	}
+	if err := testdb.ApplyMigrations(context.Background(), pool, "000106_post_publication_facts.up.sql"); err != nil {
+		t.Fatal(err)
+	}
 	return pool
 }
 
@@ -1754,7 +1758,7 @@ func seedDelivery(t *testing.T, pool *pgxpool.Pool, status string, deadline time
 		sql  string
 		args []any
 	}{
-		{`INSERT INTO bluesky_profiles(did,display_name) VALUES('did:plc:actor','Alice')`, nil},
+		{`INSERT INTO bluesky_profiles(did,display_name,record_cid) VALUES('did:plc:actor','Alice','profile-cid')`, nil},
 		{`INSERT INTO notification_events(id,recipient_did,actor_did,category,subject_key,source_uri,source_cid,source_rkey,eligibility_scope,recipient_followed_actor,push_enabled_snapshot,state,first_activity_at,activity_at,indexed_at,initial_push_evaluated_at) VALUES('00000000-0000-0000-0000-000000000001','did:plc:viewer','did:plc:actor','like','subject','source','cid','r','everyone',false,true,'active',now(),now(),now(),now())`, nil},
 		{`INSERT INTO push_installations(id,device_id,platform,fcm_token) VALUES('10000000-0000-0000-0000-000000000001','device','ios','secret-token')`, nil},
 		{`INSERT INTO push_account_subscriptions(id,installation_id,account_did,routing_id) VALUES('20000000-0000-0000-0000-000000000001','10000000-0000-0000-0000-000000000001','did:plc:viewer','30000000-0000-0000-0000-000000000001')`, nil},

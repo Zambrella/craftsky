@@ -72,6 +72,13 @@ class ComposerImageAttachmentSection extends StatefulWidget {
   final Future<void> Function()? onTakePhoto;
   final bool? cameraSupported;
 
+  String? _previewUrl(ComposerImageDraft image) =>
+      imageUrlFor?.call(image) ??
+      switch (image.phase) {
+        PublishedImageReady(:final url) => url,
+        _ => null,
+      };
+
   @override
   State<ComposerImageAttachmentSection> createState() =>
       _ComposerImageAttachmentSectionState();
@@ -135,7 +142,7 @@ class ComposerImageAttachmentSection extends StatefulWidget {
                     moveUpKey: Key('$keyPrefix-move-up-${image.id}'),
                     moveDownKey: Key('$keyPrefix-move-down-${image.id}'),
                     previewKey: Key('$keyPrefix-preview-${image.id}'),
-                    previewUrl: imageUrlFor?.call(image),
+                    previewUrl: _previewUrl(image),
                     canMoveUp: index > 0,
                     canMoveDown: index < imagesState.images.length - 1,
                     onAltChanged: (value) => onAltTextChanged(image.id, value),
@@ -172,7 +179,7 @@ class ComposerImageAttachmentSection extends StatefulWidget {
                     moveUpKey: Key('$keyPrefix-move-up-${image.id}'),
                     moveDownKey: Key('$keyPrefix-move-down-${image.id}'),
                     previewKey: Key('$keyPrefix-preview-${image.id}'),
-                    previewUrl: imageUrlFor?.call(image),
+                    previewUrl: _previewUrl(image),
                     canMoveUp: false,
                     canMoveDown: false,
                     onAltChanged: (_) {},
@@ -451,7 +458,7 @@ class _ComposerImageAttachmentSectionState
                           dimension: 64,
                           child: CraftskyImageAttachmentPreview(
                             bytes: image.previewBytes,
-                            imageUrl: section.imageUrlFor?.call(image),
+                            imageUrl: section._previewUrl(image),
                             aspectRatio: 1,
                             unavailable: image.phase is ImageUnavailable,
                             placeholderIcon: CraftskyIcons.image,
@@ -1069,6 +1076,7 @@ String _statusLabel(BuildContext context, ComposerImageDraft image) {
     ImageReady() => l10n.postComposeUploadedImage,
     ImageUploaded() => l10n.postComposeUploadedImage,
     ScheduledImageReady() => l10n.postComposeUploadedImage,
+    PublishedImageReady() => l10n.postComposeUploadedImage,
     ImageUnavailable() => l10n.draftsImageUnavailable,
     ImageFailed() => l10n.postComposeImageFailed,
   };
@@ -1090,6 +1098,7 @@ _PreviewLoadingOverlay? _previewLoadingOverlay(
     ImageReady() ||
     ImageUploaded() ||
     ScheduledImageReady() ||
+    PublishedImageReady() ||
     ImageUnavailable() ||
     ImageFailed() => null,
   };

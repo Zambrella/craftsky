@@ -5,6 +5,31 @@ import 'package:craftsky_app/feed/providers/composer_image_state.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test(
+    'UT-004 published images submit retained indices without bytes or reupload',
+    () {
+      const state = ComposerImagesState(
+        images: [
+          ComposerImageDraft(
+            id: 'published:1',
+            fileName: 'Published image',
+            mimeType: 'image/jpeg',
+            altText: 'Kept image',
+            phase: PublishedImageReady(
+              existingIndex: 1,
+              url: 'https://cdn.example/image.jpeg',
+            ),
+          ),
+        ],
+      );
+      expect(state.isSubmitReady, isTrue);
+      expect(state.canSaveDraftMedia(), isFalse);
+      expect(state.toCreatePostImages(), isNull);
+      expect(state.toPostEditImages(), [
+        {'existingIndex': 1, 'alt': 'Kept image'},
+      ]);
+    },
+  );
   test('image alt permits 1000 graphemes and enforces 10000 UTF-8 bytes', () {
     for (final (alt, valid) in [
       ('a' * 1000, true),

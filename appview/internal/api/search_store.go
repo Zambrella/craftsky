@@ -68,6 +68,7 @@ func scanPostRowWithScoreAndTier(scanner pgx.Row, tier *int) (SearchPostRow, err
 		&post.URI, &post.DID, &post.Rkey, &post.CID, &post.Text, &post.Sponsored, &post.Facets, &post.Images, &post.RawEmbed, &post.Crafts,
 		&post.ReplyRootURI, &post.ReplyRootCID, &post.ReplyParentURI, &post.ReplyParentCID,
 		&post.QuoteURI, &post.QuoteCID, &post.Tags, &post.Langs, &post.CreatedAt, &post.IndexedAt,
+		&post.EditedAt, &post.RecordRevision,
 		&post.ExternalImportSource, &post.ProfileSortAt,
 		&post.IsProject, &post.ProjectCraftType, &rawProject,
 		&post.AuthorDisplayName, &post.AuthorAvatarCID, &post.AuthorAvatarMime,

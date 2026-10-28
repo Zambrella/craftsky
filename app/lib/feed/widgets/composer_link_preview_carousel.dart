@@ -1,22 +1,31 @@
-import 'package:craftsky_app/feed/composer/link_preview_controller.dart';
+import 'package:craftsky_app/feed/models/link_preview.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
+import 'package:craftsky_app/shared/image/craftsky_image_attachment_preview.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:material_ui/material_ui.dart';
 
 class ComposerLinkPreviewCarousel extends StatelessWidget {
   const new({
-    required this.selected,
+    required this.preview,
     required this.current,
     required this.total,
     required this.loading,
     required this.onPrevious,
     required this.onNext,
     required this.onDismiss,
+    this.thumbnailUrl,
     super.key,
   });
 
-  final SelectedLinkPreview? selected;
+  final ({
+    String uri,
+    String title,
+    String description,
+    LinkPreviewThumbnail? thumbnail,
+  })?
+  preview;
+  final String? thumbnailUrl;
   final int current;
   final int total;
   final bool loading;
@@ -27,7 +36,7 @@ class ComposerLinkPreviewCarousel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final preview = selected;
+    final preview = this.preview;
     if (preview == null) {
       if (!loading) return const SizedBox.shrink();
       return Semantics(
@@ -39,7 +48,7 @@ class ComposerLinkPreviewCarousel extends StatelessWidget {
     }
     final theme = Theme.of(context);
     final radii = theme.extension<RadiusTheme>()!;
-    final thumbnail = preview.preview.thumbnail;
+    final thumbnail = preview.thumbnail;
     return Material(
       key: const Key('link-preview-carousel'),
       color: Colors.transparent,
@@ -60,21 +69,26 @@ class ComposerLinkPreviewCarousel extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              if (thumbnail != null)
+              if (thumbnail != null || thumbnailUrl != null)
                 LayoutBuilder(
                   builder: (context, constraints) => SizedBox(
                     height: (constraints.maxWidth / (16 / 9)).clamp(0, 180),
-                    child: Image.memory(
-                      thumbnail.bytes,
-                      key: const Key('link-preview-thumbnail'),
-                      fit: BoxFit.cover,
-                      semanticLabel: l10n.externalCardThumbnail(
-                        preview.preview.title,
-                      ),
-                      errorBuilder: (_, _, _) => ColoredBox(
-                        color: theme.colorScheme.surfaceContainerHighest,
-                      ),
-                    ),
+                    child: thumbnail == null
+                        ? CraftskyImageAttachmentPreview(
+                            imageUrl: thumbnailUrl,
+                            aspectRatio: 16 / 9,
+                          )
+                        : Image.memory(
+                            thumbnail.bytes,
+                            key: const Key('link-preview-thumbnail'),
+                            fit: BoxFit.cover,
+                            semanticLabel: l10n.externalCardThumbnail(
+                              preview.title,
+                            ),
+                            errorBuilder: (_, _, _) => ColoredBox(
+                              color: theme.colorScheme.surfaceContainerHighest,
+                            ),
+                          ),
                   ),
                 ),
               Padding(
@@ -83,7 +97,7 @@ class ComposerLinkPreviewCarousel extends StatelessWidget {
                   children: [
                     Expanded(
                       child: Text(
-                        preview.preview.title,
+                        preview.title,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         style: theme.textTheme.titleMedium,
@@ -102,14 +116,14 @@ class ComposerLinkPreviewCarousel extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    if (preview.preview.description.isNotEmpty)
+                    if (preview.description.isNotEmpty)
                       Text(
-                        preview.preview.description,
+                        preview.description,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
                     Text(
-                      preview.navigationUri.host,
+                      Uri.tryParse(preview.uri)?.host ?? preview.uri,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: theme.textTheme.labelLarge?.copyWith(

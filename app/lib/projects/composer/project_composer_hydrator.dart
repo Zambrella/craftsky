@@ -12,6 +12,8 @@ Map<String, dynamic> hydrateScheduledProjectComposer(
 
   final common = project['common'];
   if (common is! Map<Object?, Object?>) return values;
+  final colours = common['colors'] as List<Object?>?;
+  final designTags = common['designTags'] as List<Object?>?;
   values
     ..[ProjectComposerFields.craftType] = common['craftType']
     ..[ProjectComposerFields.additionalCrafts] = <String>[
@@ -22,8 +24,12 @@ Map<String, dynamic> hydrateScheduledProjectComposer(
         common['status'] ?? ProjectOptionCatalogs.finishedStatusToken
     ..[ProjectComposerFields.title] = common['title']
     ..[ProjectComposerFields.duration] = common['duration']
-    ..[ProjectComposerFields.colours] = common['colors']
-    ..[ProjectComposerFields.designTags] = common['designTags'];
+    ..[ProjectComposerFields.colours] = colours == null
+        ? null
+        : List<String>.from(colours)
+    ..[ProjectComposerFields.designTags] = designTags == null
+        ? null
+        : List<String>.from(designTags);
 
   if (common['materials'] case final List<dynamic> materials) {
     values[ProjectComposerFields.materials] = [

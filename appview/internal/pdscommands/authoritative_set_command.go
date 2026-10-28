@@ -24,6 +24,11 @@ type AuthoritativeRecord struct {
 	URI    syntax.ATURI
 	CID    syntax.CID
 	Record json.RawMessage
+	// Exact write evidence is distinct from a later stable observation bound.
+	Revision            syntax.TID `json:"-"`
+	CommitCID           syntax.CID `json:"-"`
+	ObservationRevision syntax.TID `json:"-"`
+	ObservationCID      syntax.CID `json:"-"`
 }
 
 func InvalidSwapRetryDelay(completedAttempt int, jitterMillis func(maxInclusive int) int) (time.Duration, bool) {

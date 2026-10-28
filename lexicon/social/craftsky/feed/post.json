@@ -65,6 +65,11 @@
             "format": "datetime",
             "description": "Client-declared creation timestamp."
           },
+          "editedAt": {
+            "type": "string",
+            "format": "datetime",
+            "description": "Optional author-declared time of the latest content edit. Not verified evidence of edit time and not an edit history. The original createdAt remains unchanged."
+          },
           "langs": {
             "type": "array",
             "items": {

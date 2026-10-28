@@ -97,7 +97,7 @@ func (*fakeRepositoryCommandPDSClient) DeleteRecordWithRepositorySwap(context.Co
 
 type fakeRepositoryCommandEffectClient struct {
 	fakePDSClient
-	purpose *fakeRepositoryCommandPDSClient
+	purpose auth.PDSClient
 }
 
 func (client *fakeRepositoryCommandEffectClient) WithActiveEffects(ctx context.Context, _ []ownerlifecycle.ExpectedOwner, operation auth.ActiveEffectPDSOperation) error {
@@ -602,5 +602,102 @@ func TestIT006DirectPDSListRetainsCauseAndPublicReferences(t *testing.T) {
 	}
 	if strings.Contains(output.String(), "PRIVATE_") {
 		t.Fatal("private listing values leaked")
+	}
+}
+
+// IT-002/IT-005: production observability must retain edit write receipts.
+func TestWrapPDSFactoryPreservesEditCommitMetadataInsideActiveEffects(t *testing.T) {
+	observer := New(Config{Env: "test"})
+	wrapper := observer.WrapPDSFactory(func(context.Context, syntax.DID, string) (auth.PDSClient, error) {
+		return &fakeRepositoryCommandEffectClient{purpose: &fakeEditMetadataPDSClient{}}, nil
+	})
+	client, err := wrapper(context.Background(), "did:plc:alice", "session")
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = client.(auth.ActiveEffectPDSBoundary).WithActiveEffects(context.Background(), nil, func(ctx context.Context, callback auth.PDSClient) error {
+		head, ok := callback.(auth.RepositoryHeadMetadataClient)
+		if !ok {
+			return errors.New("observed callback lost repository head metadata")
+		}
+		writes, ok := callback.(auth.RepositoryWriteMetadataClient)
+		if !ok {
+			return errors.New("observed callback lost repository write receipts")
+		}
+		commit, err := head.LatestCommitMetadata(ctx, "did:plc:alice")
+		if err != nil {
+			return err
+		}
+		receipt, err := writes.ApplyWritesWithCommit(ctx, "did:plc:alice", commit.CID, nil)
+		if err != nil {
+			return err
+		}
+		if commit.Revision != "3aaaaaaaaaaa2" || receipt.Commit.Revision != "3aaaaaaaaaaa3" || len(receipt.Records) != 1 {
+			t.Fatal("metadata was not preserved")
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+type fakeEditMetadataPDSClient struct {
+	fakeRepositoryCommandPDSClient
+	metadataErr error
+}
+
+func (client *fakeEditMetadataPDSClient) LatestCommitMetadata(context.Context, syntax.DID) (auth.RepositoryCommit, error) {
+	return auth.RepositoryCommit{CID: "bafy-head", Revision: "3aaaaaaaaaaa2"}, client.metadataErr
+}
+func (client *fakeEditMetadataPDSClient) ApplyWritesWithCommit(context.Context, syntax.DID, syntax.CID, []auth.RepositoryWrite) (auth.RepositoryWriteReceipt, error) {
+	return auth.RepositoryWriteReceipt{Commit: auth.RepositoryCommit{CID: "bafy-after", Revision: "3aaaaaaaaaaa3"}, Records: []auth.RepositoryRecordResult{{URI: "at://did:plc:alice/social.craftsky.feed.post/base", CID: "bafy-record"}}}, client.metadataErr
+}
+
+func TestObservedEditMetadataRetainsCauseAndProtectsSerializedSinks(t *testing.T) {
+	var logs bytes.Buffer
+	metrics := NewInMemoryMetricRecorder()
+	observer := New(Config{Env: "test", Logger: slog.New(slog.NewJSONHandler(&logs, nil)), MetricRecorder: metrics})
+	cause := &atclient.APIError{StatusCode: 502, Message: "PRIVATE_PROVIDER_CANARY"}
+	wrapper := observer.WrapPDSFactory(func(context.Context, syntax.DID, string) (auth.PDSClient, error) {
+		return &fakeRepositoryCommandEffectClient{purpose: &fakeEditMetadataPDSClient{metadataErr: cause}}, nil
+	})
+	ctx := WithRequestDiagnosticContext(context.Background(), RequestDiagnosticContext{PublicTargets: true})
+	client, err := wrapper(ctx, "did:plc:alice", "PRIVATE_SESSION_CANARY")
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = client.(auth.ActiveEffectPDSBoundary).WithActiveEffects(ctx, nil, func(ctx context.Context, callback auth.PDSClient) error {
+		_, headErr := callback.(auth.RepositoryHeadMetadataClient).LatestCommitMetadata(ctx, "did:plc:alice")
+		if headErr != cause {
+			t.Fatal("head cause changed")
+		}
+		_, writeErr := callback.(auth.RepositoryWriteMetadataClient).ApplyWritesWithCommit(ctx, "did:plc:alice", "bafy-head", []auth.RepositoryWrite{{Record: map[string]any{"text": "PRIVATE_CONTENT_CANARY"}}})
+		if writeErr != cause {
+			t.Fatal("write cause changed")
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	encoded, err := json.Marshal(metrics.Calls())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{string(PDSOperationCommandHead), string(PDSOperationCommandApply), "HTTP 502", "atclient.APIError"} {
+		if !strings.Contains(logs.String(), want) {
+			t.Fatalf("missing diagnostic %s: %s", want, logs.String())
+		}
+	}
+	for _, secret := range []string{"PRIVATE_PROVIDER_CANARY", "PRIVATE_SESSION_CANARY", "PRIVATE_CONTENT_CANARY"} {
+		if strings.Contains(logs.String()+string(encoded), secret) {
+			t.Fatal("protected metadata-operation value leaked")
+		}
+	}
+	for _, call := range metrics.Calls() {
+		if err := ValidateMetricCall(call); err != nil {
+			t.Fatal(err)
+		}
 	}
 }

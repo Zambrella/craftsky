@@ -12,6 +12,47 @@ import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('UT-004 editing mixes retained and new images without reuploading '
+      'retained media', () async {
+    final uploader = ComposerMediaUploader();
+    var uploads = 0;
+    const retained = ComposerImageDraft(
+      id: 'published:2',
+      fileName: 'Published image',
+      mimeType: 'image/jpeg',
+      altText: 'Retained',
+      phase: PublishedImageReady(
+        existingIndex: 2,
+        url: 'https://cdn.example/image',
+      ),
+    );
+    final result = await uploader.materializePostEdit(
+      composerId: 'edit',
+      images: [
+        retained,
+        _image('new', 'a'),
+        retained.copyWith(
+          id: 'published:0',
+          phase: const PublishedImageReady(
+            existingIndex: 0,
+            url: 'https://cdn.example/other',
+          ),
+        ),
+      ],
+      ownershipIsCurrent: () => true,
+      upload:
+          ({required bytes, required mimeType, required cancelToken}) async {
+            uploads++;
+            return _uploaded('new-cid', bytes.length);
+          },
+    );
+    expect(uploads, 1);
+    expect(result, hasLength(3));
+    expect(result.first, {'existingIndex': 2, 'alt': 'Retained'});
+    expect((result[1]['image']! as Map)['ref'], {r'$link': 'new-cid'});
+    expect(result.last['existingIndex'], 0);
+    expect(result.toString(), isNot(contains('https://cdn.example')));
+  });
   test(
     'uploads ready images sequentially and returns current display order',
     () async {

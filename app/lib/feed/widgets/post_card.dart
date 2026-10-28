@@ -11,6 +11,7 @@ import 'package:craftsky_app/feed/models/timeline_page.dart';
 import 'package:craftsky_app/feed/providers/author_post_cache.dart';
 import 'package:craftsky_app/feed/providers/like_post_overlay.dart';
 import 'package:craftsky_app/feed/providers/post_api_client_provider.dart';
+import 'package:craftsky_app/feed/providers/post_record_overlay.dart';
 import 'package:craftsky_app/feed/providers/profile_pins_provider.dart';
 import 'package:craftsky_app/feed/providers/toggle_like_post_provider.dart';
 import 'package:craftsky_app/feed/providers/toggle_repost_post_provider.dart';
@@ -19,6 +20,7 @@ import 'package:craftsky_app/feed/widgets/native_video_player.dart';
 import 'package:craftsky_app/feed/widgets/post_image_carousel.dart';
 import 'package:craftsky_app/feed/widgets/post_image_gallery.dart';
 import 'package:craftsky_app/feed/widgets/post_like_reaction.dart';
+import 'package:craftsky_app/feed/widgets/published_post_editor.dart';
 import 'package:craftsky_app/keys.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/moderation/widgets/moderation_warning_banner.dart';
@@ -175,7 +177,10 @@ class PostCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final post = _postWithInteractionState(ref, this.post);
+    final post = _postWithInteractionState(
+      ref,
+      ref.watch(postRecordPresentationProvider(this.post)),
+    );
     if (post.isProtected) {
       return _ProtectedPostCard(
         post: post,
@@ -338,9 +343,8 @@ class PostCard extends ConsumerWidget {
       isProject: post.project != null,
       hasQuote: post.quote != null,
     );
-    final activeLease = allowProfilePinAction
-        ? ref.watch(sessionRegistryProvider).value?.activeLease
-        : null;
+    final ownerLease = ref.watch(sessionRegistryProvider).value?.activeLease;
+    final activeLease = allowProfilePinAction ? ownerLease : null;
     final pinProvider =
         isViewerOwned &&
             pinSlot != null &&
@@ -469,14 +473,20 @@ class PostCard extends ConsumerWidget {
                           ),
                           GestureDetector(
                             behavior: HitTestBehavior.opaque,
-                            onTap: onTap,
-                            onDoubleTap: likeOnDoubleTap,
+                            onTap: post.editedAt == null ? onTap : null,
+                            onDoubleTap: post.editedAt == null
+                                ? likeOnDoubleTap
+                                : null,
                             child: SizedBox(
-                              width: _postCardMenuWidth,
+                              width: post.editedAt == null
+                                  ? _postCardMenuWidth
+                                  : null,
                               child: Align(
+                                widthFactor: post.editedAt == null ? null : 1,
                                 alignment: AlignmentDirectional.centerEnd,
                                 child: RelativeTimeText(
                                   timestamp: post.createdAt,
+                                  editedAt: post.editedAt,
                                   textAlign: TextAlign.end,
                                 ),
                               ),
@@ -656,6 +666,19 @@ class PostCard extends ConsumerWidget {
                                     isCurrentPin,
                                   ),
                                 ),
+                          onEdit:
+                              isViewerOwned &&
+                                  ownerLease != null &&
+                                  ownerLease.session.account.did ==
+                                      post.author.did
+                              ? () => unawaited(
+                                  showPublishedPostEditor(
+                                    context,
+                                    post: post,
+                                    ownership: ownerLease,
+                                  ),
+                                )
+                              : null,
                           onDelete: onDelete,
                           onReport: onReport,
                           tooltip: deleteTooltip,
@@ -1038,6 +1061,7 @@ class _PostCardMenu extends StatelessWidget {
     required this.pinLocked,
     required this.onPinToggle,
     required this.onDelete,
+    required this.onEdit,
     required this.onReport,
     required this.isMuted,
     required this.isBlocking,
@@ -1057,6 +1081,7 @@ class _PostCardMenu extends StatelessWidget {
   final bool pinLocked;
   final VoidCallback? onPinToggle;
   final VoidCallback? onDelete;
+  final VoidCallback? onEdit;
   final VoidCallback? onReport;
   final String? tooltip;
   final String? label;
@@ -1092,6 +1117,12 @@ class _PostCardMenu extends StatelessWidget {
           CraftskyContextMenuGroup(items: [copyLinkMenuItem(context, url)]),
           CraftskyContextMenuGroup(
             items: [
+              if (onEdit != null)
+                CraftskyContextMenuItem(
+                  text: l10n.postEditAction,
+                  icon: CraftskyIcons.edit,
+                  onPressed: onEdit,
+                ),
               if (pinLabel != null)
                 CraftskyContextMenuItem(
                   text: pinLabel!,

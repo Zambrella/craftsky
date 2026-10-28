@@ -31,9 +31,15 @@ var _ PDSRecordLister = (*IndigoPDSClient)(nil)
 var _ ConditionalPDSRecordPutter = (*IndigoPDSClient)(nil)
 var _ ConditionalPDSRecordDeleter = (*IndigoPDSClient)(nil)
 var _ RepositoryCommandPDSClient = (*IndigoPDSClient)(nil)
+var _ RepositoryHeadMetadataClient = (*IndigoPDSClient)(nil)
+var _ RepositoryWriteMetadataClient = (*IndigoPDSClient)(nil)
 
 // A fixed protocol validation failure, distinct from arbitrary provider prose.
 var ErrPDSLatestCommitMissingCID = errors.New("PDS repository head response is missing its CID")
+
+var ErrPDSCommitMissingRevision = errors.New("PDS repository commit response is missing a valid revision")
+
+var ErrPDSWriteCommitMissingCID = errors.New("PDS write response is missing its commit CID")
 
 // NewIndigoPDSClient requires separate purpose-bound XRPC clients for JSON
 // requests and upload responses. Both may share the Boundary's connection
@@ -329,12 +335,48 @@ func (i *IndigoPDSClient) LatestCommit(ctx context.Context, repo syntax.DID) (sy
 	return syntax.CID(response.CID), nil
 }
 
+func (i *IndigoPDSClient) LatestCommitMetadata(ctx context.Context, repo syntax.DID) (RepositoryCommit, error) {
+	var response RepositoryCommit
+	if err := i.client.Get(ctx, syntax.NSID("com.atproto.sync.getLatestCommit"), map[string]any{"did": repo.String()}, &response); err != nil {
+		return RepositoryCommit{}, i.translateError(ctx, err)
+	}
+	if response.CID == "" {
+		return RepositoryCommit{}, ErrPDSLatestCommitMissingCID
+	}
+	if response.Revision == "" {
+		return RepositoryCommit{}, ErrPDSCommitMissingRevision
+	}
+	return response, nil
+}
+
 func (i *IndigoPDSClient) ApplyWrites(
 	ctx context.Context,
 	repo syntax.DID,
 	swapCommit syntax.CID,
 	writes []RepositoryWrite,
 ) error {
+	var response any
+	return i.applyWrites(ctx, repo, swapCommit, writes, &response)
+}
+
+func (i *IndigoPDSClient) ApplyWritesWithCommit(ctx context.Context, repo syntax.DID, swapCommit syntax.CID, writes []RepositoryWrite) (RepositoryWriteReceipt, error) {
+	var response struct {
+		Commit  *RepositoryCommit        `json:"commit"`
+		Results []RepositoryRecordResult `json:"results"`
+	}
+	if err := i.applyWrites(ctx, repo, swapCommit, writes, &response); err != nil {
+		return RepositoryWriteReceipt{}, err
+	}
+	if response.Commit == nil || response.Commit.CID == "" {
+		return RepositoryWriteReceipt{}, ErrPDSWriteCommitMissingCID
+	}
+	if response.Commit.Revision == "" {
+		return RepositoryWriteReceipt{}, ErrPDSCommitMissingRevision
+	}
+	return RepositoryWriteReceipt{Commit: *response.Commit, Records: response.Results}, nil
+}
+
+func (i *IndigoPDSClient) applyWrites(ctx context.Context, repo syntax.DID, swapCommit syntax.CID, writes []RepositoryWrite, response any) error {
 	if swapCommit == "" || len(writes) == 0 {
 		return errors.New("applyWrites requires a repository head and at least one write")
 	}
@@ -367,8 +409,7 @@ func (i *IndigoPDSClient) ApplyWrites(
 	body := map[string]any{
 		"repo": repo.String(), "swapCommit": swapCommit.String(), "writes": encoded,
 	}
-	var response any
-	if err := i.post(ctx, nsid, body, &response); err != nil {
+	if err := i.post(ctx, nsid, body, response); err != nil {
 		return i.translateError(ctx, translateRepositoryMutationError(err))
 	}
 	return nil

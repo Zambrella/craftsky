@@ -1,6 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/widgets/external_card.dart';
+import 'package:craftsky_app/feed/widgets/post_edit_indicator.dart';
 import 'package:craftsky_app/feed/widgets/post_image_carousel.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/profile/models/profile_handle.dart';
@@ -27,6 +28,7 @@ final class PostSummaryData with PostSummaryDataMappable {
     this.author,
     this.text,
     this.createdAt,
+    this.editedAt,
     this.projectTitle,
     this.image,
     this.externalImport,
@@ -49,6 +51,7 @@ final class PostSummaryData with PostSummaryDataMappable {
       author: post.author,
       text: post.text,
       createdAt: post.createdAt,
+      editedAt: post.editedAt,
       projectTitle: post.project?.common.title,
       images: post.images,
       video: post.video,
@@ -62,6 +65,7 @@ final class PostSummaryData with PostSummaryDataMappable {
       author: post.author,
       text: post.text,
       createdAt: post.createdAt,
+      editedAt: post.editedAt,
       projectTitle: post.project?.common.title,
       images: post.images,
       externalImport: post.externalImport,
@@ -80,6 +84,7 @@ final class PostSummaryData with PostSummaryDataMappable {
   factory notificationSubject(Post post) => PostSummaryData(
     state: PostSummaryState.visible,
     text: post.text,
+    editedAt: post.editedAt,
     projectTitle: post.project?.common.title,
   );
 
@@ -97,6 +102,7 @@ final class PostSummaryData with PostSummaryDataMappable {
       author: post.author,
       text: post.text,
       createdAt: post.createdAt,
+      editedAt: post.editedAt,
       projectTitle: post.project?.common.title,
       images: post.images,
       video: post.video,
@@ -112,6 +118,7 @@ final class PostSummaryData with PostSummaryDataMappable {
     required List<PostImage>? images,
     PostVideo? video,
     DateTime? createdAt,
+    DateTime? editedAt,
     ExternalImport? externalImport,
     PostExternal? external,
     bool sponsored = false,
@@ -120,6 +127,7 @@ final class PostSummaryData with PostSummaryDataMappable {
     author: author,
     text: text,
     createdAt: createdAt,
+    editedAt: editedAt,
     projectTitle: switch (projectTitle?.trim()) {
       final title? when title.isNotEmpty => title,
       _ => null,
@@ -147,6 +155,7 @@ final class PostSummaryData with PostSummaryDataMappable {
   final PostAuthor? author;
   final String? text;
   final DateTime? createdAt;
+  final DateTime? editedAt;
   final String? projectTitle;
   final PostImage? image;
   final ExternalImport? externalImport;
@@ -201,11 +210,13 @@ class PostSummary extends StatelessWidget {
                     ),
                     if (data.createdAt case final createdAt?)
                       SizedBox(
-                        width: 48,
+                        width: data.editedAt == null ? 48 : null,
                         child: Align(
                           alignment: Alignment.centerRight,
+                          widthFactor: data.editedAt == null ? null : 1,
                           child: RelativeTimeText(
                             timestamp: createdAt,
+                            editedAt: data.editedAt,
                             textAlign: TextAlign.end,
                           ),
                         ),
@@ -244,10 +255,17 @@ class PostSummary extends StatelessWidget {
                   variant: ExternalCardVariant.compact,
                 ),
               ],
+              if (data.editedAt != null && data.createdAt == null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: PostEditIndicator(
+                    editedAt: data.editedAt,
+                  ),
+                ),
               if (data.createdAt case final createdAt?
                   when data.author == null) ...[
                 const SizedBox(height: 4),
-                RelativeTimeText(timestamp: createdAt),
+                RelativeTimeText(timestamp: createdAt, editedAt: data.editedAt),
               ],
             ],
           ),

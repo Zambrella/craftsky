@@ -5,14 +5,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"time"
 
+	comatproto "github.com/bluesky-social/indigo/api/atproto"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/jackc/pgx/v5"
 
 	"social.craftsky/appview/internal/ingestion"
 	craftskylex "social.craftsky/appview/internal/lexicon/craftsky"
 	"social.craftsky/appview/internal/notifications"
+	"social.craftsky/appview/internal/postpublication"
 	"social.craftsky/appview/internal/tap"
 )
 
@@ -36,6 +37,22 @@ func (c *CraftskyPost) ProjectNotifications(ctx context.Context, tx pgx.Tx, sour
 	}
 	if !current {
 		return tap.Blocked(tap.ReasonMissingSubject, tap.Dependency{Kind: "subject_uri", Key: source.URI.String()}), nil
+	}
+	original, err := postpublication.Read(ctx, tx, source.URI)
+	if err != nil {
+		return tap.Retryable(tap.ReasonProjectionFailure), err
+	}
+	if !original.Known || original.CreatedAt == nil {
+		return tap.Applied(), nil
+	}
+	// Notification reasons belong to original publication, not edited content.
+	rec.Reply = nil
+	if original.ParentURI != "" {
+		rec.Reply = &craftskylex.FeedPost_ReplyRef{Parent: &comatproto.RepoStrongRef{Uri: original.ParentURI, Cid: original.ParentCID}, Root: &comatproto.RepoStrongRef{Uri: original.RootURI, Cid: original.RootCID}}
+	}
+	rec.Embed = nil
+	if original.QuotedURI != "" {
+		rec.Embed = &craftskylex.FeedPost_Embed{FeedPost_QuoteEmbed: &craftskylex.FeedPost_QuoteEmbed{Record: &comatproto.RepoStrongRef{Uri: original.QuotedURI, Cid: original.QuotedCID}}}
 	}
 	var references []string
 	if rec.Reply != nil && rec.Reply.Parent != nil {
@@ -62,11 +79,7 @@ func (c *CraftskyPost) ProjectNotifications(ctx context.Context, tx pgx.Tx, sour
 			missingMember = did
 		}
 	}
-	rows, err := tx.Query(ctx, `SELECT mentioned_did FROM craftsky_post_mentions WHERE post_uri=$1 ORDER BY mentioned_did`, source.URI)
-	if err != nil {
-		return tap.Retryable(tap.ReasonProjectionFailure), err
-	}
-	mentions, err := pgx.CollectRows(rows, pgx.RowTo[string])
+	mentions, err := postpublication.OriginalMentions(ctx, tx, source.URI)
 	if err != nil {
 		return tap.Retryable(tap.ReasonProjectionFailure), err
 	}
@@ -82,10 +95,7 @@ func (c *CraftskyPost) ProjectNotifications(ctx context.Context, tx pgx.Tx, sour
 			missingMember = syntax.DID(did)
 		}
 	}
-	createdAt, err := time.Parse(time.RFC3339Nano, rec.CreatedAt)
-	if err != nil {
-		return tap.PermanentInvalid(tap.ReasonMalformedRecord), nil
-	}
+	createdAt := *original.CreatedAt
 	if err := c.activatePostNotifications(ctx, tx, eventFromSource(source), rec, mentions, createdAt); err != nil {
 		return tap.Retryable(tap.ReasonProjectionFailure), fmt.Errorf("project post notifications: %w", err)
 	}

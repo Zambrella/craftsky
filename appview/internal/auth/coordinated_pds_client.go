@@ -262,6 +262,34 @@ func (client *CoordinatedPDSClient) LatestCommit(ctx context.Context, repo synta
 	return commit, err
 }
 
+func (client *CoordinatedPDSClient) LatestCommitMetadata(ctx context.Context, repo syntax.DID) (RepositoryCommit, error) {
+	var result RepositoryCommit
+	err := client.withClient(ctx, func(operationCtx context.Context, purposeClient PDSClient) error {
+		metadata, ok := purposeClient.(RepositoryHeadMetadataClient)
+		if !ok {
+			return ErrCommitMetadataUnavailable
+		}
+		var err error
+		result, err = metadata.LatestCommitMetadata(operationCtx, repo)
+		return err
+	})
+	return result, err
+}
+
+func (client *CoordinatedPDSClient) ApplyWritesWithCommit(ctx context.Context, repo syntax.DID, head syntax.CID, writes []RepositoryWrite) (RepositoryWriteReceipt, error) {
+	var result RepositoryWriteReceipt
+	err := client.withClient(ctx, func(operationCtx context.Context, purposeClient PDSClient) error {
+		metadata, ok := purposeClient.(RepositoryWriteMetadataClient)
+		if !ok {
+			return ErrCommitMetadataUnavailable
+		}
+		var err error
+		result, err = metadata.ApplyWritesWithCommit(operationCtx, repo, head, writes)
+		return err
+	})
+	return result, err
+}
+
 func (client *CoordinatedPDSClient) ApplyWrites(
 	ctx context.Context,
 	repo syntax.DID,
@@ -311,6 +339,8 @@ func (client *CoordinatedPDSClient) UploadBlob(
 var _ PDSClient = (*CoordinatedPDSClient)(nil)
 var _ PDSRecordLister = (*CoordinatedPDSClient)(nil)
 var _ RepositoryCommandPDSClient = (*CoordinatedPDSClient)(nil)
+var _ RepositoryHeadMetadataClient = (*CoordinatedPDSClient)(nil)
+var _ RepositoryWriteMetadataClient = (*CoordinatedPDSClient)(nil)
 var _ ActiveEffectPDSBoundary = (*CoordinatedPDSClient)(nil)
 var _ ConditionalPDSRecordPutter = (*CoordinatedPDSClient)(nil)
 var _ ConditionalPDSRecordDeleter = (*CoordinatedPDSClient)(nil)

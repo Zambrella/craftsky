@@ -372,6 +372,7 @@ func TestEveryAuthenticatedV1MutationHasExactSuspensionClassification(t *testing
 		"PUT /v1/languages/preferences",
 	}
 	wantDenied := []string{
+		"PATCH /v1/posts/{did}/{rkey}",
 		"DELETE /v1/posts/{did}/{rkey}/likes",
 		"DELETE /v1/posts/{did}/{rkey}/reposts",
 		"DELETE /v1/profiles/{handleOrDid}/follows",
@@ -425,7 +426,7 @@ func TestEveryAuthenticatedV1MutationHasExactSuspensionClassification(t *testing
 		if !policy.SuspensionClass.Valid() {
 			t.Errorf("%s %s has invalid suspension class %q", policy.Method, policy.PathPattern, policy.SuspensionClass)
 		}
-		if policy.Method == http.MethodGet && policy.SuspensionClass != SuspensionAllowed {
+		if policy.Method == http.MethodGet && policy.PathPattern != "/v1/posts/{did}/{rkey}/edit" && policy.SuspensionClass != SuspensionAllowed {
 			t.Errorf("read route %s must remain available", policy.PathPattern)
 		}
 		if policy.Method == http.MethodGet || policy.AccessClass == AccessAnonymous || policy.AccessClass == AccessModerator {

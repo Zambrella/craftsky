@@ -30,6 +30,33 @@ final class ComposerMediaUploader {
   final Map<_ExternalUploadKey, UploadedImageBlob> _successfulExternalUploads =
       {};
 
+  Future<List<Map<String, Object?>>> materializePostEdit({
+    required String composerId,
+    required List<ComposerImageDraft> images,
+    required bool Function() ownershipIsCurrent,
+    required PreparedImageUpload upload,
+  }) async {
+    requireComposerOwnership(ownershipIsCurrent);
+    final newImages = images
+        .where((image) => image.phase is! PublishedImageReady)
+        .toList();
+    final uploaded = await materializeImmediate(
+      composerId: composerId,
+      images: newImages,
+      ownershipIsCurrent: ownershipIsCurrent,
+      upload: upload,
+    );
+    requireComposerOwnership(ownershipIsCurrent);
+    var index = 0;
+    return [
+      for (final image in images)
+        if (image.phase case PublishedImageReady(:final existingIndex))
+          {'existingIndex': existingIndex, 'alt': image.altText}
+        else
+          uploaded![index++].toMap(),
+    ];
+  }
+
   Future<List<CreatePostImage>?> materializeImmediate({
     required String composerId,
     required List<ComposerImageDraft> images,

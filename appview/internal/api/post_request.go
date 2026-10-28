@@ -169,6 +169,10 @@ func ValidatePostCreate(req PostCreateRequest) error {
 
 // ValidatePostCreateWithLimits enforces lexicon rules and deployment media limits.
 func ValidatePostCreateWithLimits(req PostCreateRequest, limits MediaLimits) error {
+	return validatePostCreateWithLimits(req, limits, true)
+}
+
+func validatePostCreateWithLimits(req PostCreateRequest, limits MediaLimits, requireVideoJob bool) error {
 	limits = normalizeMediaLimits(limits)
 	fields := map[string]string{}
 	if !utf8.ValidString(req.Text) {
@@ -216,6 +220,9 @@ func ValidatePostCreateWithLimits(req PostCreateRequest, limits MediaLimits) err
 	}
 	if req.Embed != nil && req.Embed.Video != nil {
 		validateVideoEmbed(fields, *req.Embed.Video)
+		if !requireVideoJob {
+			delete(fields, "embed.video.jobId")
+		}
 		if req.Embed.Quote != nil || req.Embed.External != nil {
 			fields["embed"] = "video, quote, and external embeds are mutually exclusive"
 		}

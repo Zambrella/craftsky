@@ -68,7 +68,9 @@ void main() {
       ),
     );
 
-    await tester.pumpWidget(_app(selected: selected, current: 1, total: 1));
+    await tester.pumpWidget(
+      _app(selected: selected, current: 1, total: 1),
+    );
 
     final image = find.byKey(const Key('link-preview-thumbnail'));
     final outline = tester.widget<DecoratedBox>(
@@ -102,7 +104,14 @@ Widget _app({
   supportedLocales: AppLocalizations.supportedLocales,
   home: Scaffold(
     body: ComposerLinkPreviewCarousel(
-      selected: selected,
+      preview: selected == null
+          ? null
+          : (
+              uri: selected.preview.url.toString(),
+              title: selected.preview.title,
+              description: selected.preview.description,
+              thumbnail: selected.preview.thumbnail,
+            ),
       current: current,
       total: total,
       loading: loading,

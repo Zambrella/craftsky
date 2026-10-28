@@ -63,3 +63,13 @@ func (fence pushOwnerLifecycleFence) WithActiveOwners(
 }
 
 var _ push.DeliveryLifecycleFence = pushOwnerLifecycleFence{}
+
+func (fence pushOwnerLifecycleFence) WithPostPublicationFence(ctx context.Context, uri syntax.ATURI, callback func(context.Context) error) error {
+	store, ok := fence.store.(push.PublicationDeliveryFence)
+	if !ok {
+		return errors.New("push post publication fence unavailable")
+	}
+	return store.WithPostPublicationFence(ctx, uri, callback)
+}
+
+var _ push.PublicationDeliveryFence = pushOwnerLifecycleFence{}
