@@ -83,14 +83,29 @@ class _ActiveAccountInitializationGateState
   }) {
     final hasAlternative =
         registry != null && registry.orderedSessions.length > 1;
-    return ActiveAccountInitializationErrorScreen(
-      busy: _recovering || ref.watch(authControllerProvider).isLoading,
-      isSigningOut: _recovering,
-      onRetry: _retry,
-      onSwitchAccount: hasAlternative
-          ? () => unawaited(_showAccountSwitcher(registry))
-          : null,
-      onSignOut: () => unawaited(_signOut()),
+    // This gate lives in MaterialApp.builder, above the router Navigator.
+    // Recovery needs its own mounted Navigator while signed-in UI is absent.
+    final busy = _recovering || ref.watch(authControllerProvider).isLoading;
+    return Navigator(
+      pages: [
+        MaterialPage<void>(
+          child: Builder(
+            builder: (recoveryContext) =>
+                ActiveAccountInitializationErrorScreen(
+                  busy: busy,
+                  isSigningOut: _recovering,
+                  onRetry: _retry,
+                  onSwitchAccount: hasAlternative
+                      ? () => unawaited(
+                          _showAccountSwitcher(recoveryContext, registry),
+                        )
+                      : null,
+                  onSignOut: () => unawaited(_signOut()),
+                ),
+          ),
+        ),
+      ],
+      onDidRemovePage: (_) {},
     );
   }
 
@@ -114,6 +129,7 @@ class _ActiveAccountInitializationGateState
   }
 
   Future<void> _showAccountSwitcher(
+    BuildContext recoveryContext,
     registry_model.SessionRegistry registry,
   ) async {
     final state = AccountSwitcherState.fromRegistry(registry);
@@ -127,7 +143,7 @@ class _ActiveAccountInitializationGateState
     );
 
     await showModalBottomSheet<void>(
-      context: context,
+      context: recoveryContext,
       showDragHandle: true,
       builder: (sheetContext) => StatefulBuilder(
         builder: (context, setSheetState) => AccountSwitcherContent(

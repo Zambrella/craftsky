@@ -26,6 +26,10 @@ List<Map<String, Object?>> selectedCauses(Object error) {
         DiagnosticFormatException(
           :final message,
         ) => boundDiagnosticText(message, 512),
+        StateError(:final message)
+            when message ==
+                "Can't establish connection after the adapter was closed." =>
+          'HTTP client adapter already closed',
         FlutterError() => selectedFrameworkFailure(current),
         ApiUnauthorized() || ApiCanceled() => current.toString(),
         TypeError()
@@ -34,6 +38,8 @@ List<Map<String, Object?>> selectedCauses(Object error) {
           'Null check operator used on a null value',
         PdsMutationUnresolvedException() =>
           'PDS mutation retry budget exhausted',
+        PdsMutationAmbiguousException(responsePending: true) =>
+          'AppView accepted mutation; PDS outcome pending',
         PdsMutationAmbiguousException() => 'PDS mutation outcome uncertain',
         DioException(:final response)
             when response?.statusCode != null &&

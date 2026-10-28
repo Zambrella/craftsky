@@ -310,12 +310,13 @@ void main() {
           ),
           authControllerProvider.overrideWith(_RecordingAuthController.new),
         ],
-        child: const MaterialApp(
+        child: MaterialApp(
           localizationsDelegates: appLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
-          home: ActiveAccountInitializationGate(
-            child: Text('signed-in-content'),
+          builder: (context, child) => ActiveAccountInitializationGate(
+            child: child!,
           ),
+          home: const Text('signed-in-content'),
         ),
       ),
     );

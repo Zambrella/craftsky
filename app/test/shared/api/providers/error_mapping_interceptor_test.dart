@@ -1,6 +1,8 @@
 import 'package:craftsky_app/shared/api/api_exception.dart';
+import 'package:craftsky_app/shared/api/api_unwrap.dart';
 import 'package:craftsky_app/shared/api/providers/error_mapping_interceptor.dart';
 import 'package:craftsky_app/shared/errors/app_error_mapper.dart';
+import 'package:craftsky_app/shared/observability/diagnostic_details.dart';
 import 'package:craftsky_app/shared/observability/error_reporter.dart';
 import 'package:craftsky_app/shared/observability/sentry_error_reporter.dart';
 import 'package:craftsky_app/shared/observability/sentry_sanitizer.dart';
@@ -73,11 +75,80 @@ void main() {
           const Duration(seconds: 5),
         );
         final payload = transport.payloads.join();
-        for (final value in ['nonJson', requestId, '502', 'DioException']) {
+        for (final value in [
+          'nonJson',
+          requestId,
+          '502',
+          'DioException',
+          'badResponse',
+        ]) {
           expect(payload, contains(value));
         }
         for (final value in ['private-body-canary', 'private-cookie-canary']) {
           expect(payload, isNot(contains(value)));
+        }
+      },
+    );
+
+    test(
+      'unmapped transport errors retain causes and safe failure facts',
+      () async {
+        final originalCause = StateError(
+          "Can't establish connection after the adapter was closed.",
+        );
+        final original = DioException(
+          requestOptions: RequestOptions(
+            path: '/private-path-canary',
+            method: 'GET',
+          ),
+          error: originalCause,
+          message: 'private-message-canary',
+          stackTrace: StackTrace.current,
+        );
+        try {
+          await unwrapApi<void>(() async => throw original);
+          fail('expected API failure');
+        } on ApiServerError catch (error) {
+          expect(error.details.cause, same(originalCause));
+          expect(error.details.stackTrace, same(original.stackTrace));
+          final facts = AppErrorMapper.map(error).safeDiagnostics;
+          expect(facts, containsPair('transportFailure', 'unknown'));
+          final transport = SerializedTransport();
+          await Sentry.init((options) {
+            configureDiagnosticOptions(options);
+            options
+              ..dsn = 'https://public@example.invalid/1'
+              ..transport = transport;
+          });
+          addTearDown(Sentry.close);
+          await const SentryErrorReporter().captureException(
+            error,
+            stackTrace: original.stackTrace,
+            context: ReportContext(
+              feature: 'test',
+              operation: 'provider',
+              classification: 'api.server_error',
+              safeDiagnostics: facts,
+            ),
+          );
+          await transport.issueReceived.future.timeout(
+            const Duration(seconds: 5),
+          );
+          final serialized = transport.payloads.join();
+          expect(serialized, contains('transportFailure'));
+          expect(serialized, contains('HTTP client adapter already closed'));
+          expect(
+            selectedCause(error).toString(),
+            contains('HTTP client adapter already closed'),
+          );
+          expect(serialized, isNot(contains('private-message-canary')));
+          expect(serialized, isNot(contains('private-path-canary')));
+          expect(
+            SentrySanitizer.sanitizeContext({
+              'transportFailure': 'private-canary',
+            }),
+            isEmpty,
+          );
         }
       },
     );
