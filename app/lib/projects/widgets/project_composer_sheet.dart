@@ -1781,7 +1781,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
     if (value is! String) return '#';
     final trimmed = value.trim();
     if (trimmed.isEmpty || trimmed == '#') return '#';
-    return trimmed.startsWith('#') ? trimmed : '#$trimmed';
+    return trimmed;
   }
 
   static String? _patternFormValue(String value) {

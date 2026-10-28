@@ -22,7 +22,9 @@ import 'package:craftsky_app/feed/widgets/published_post_editor.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/languages/models/language_preferences.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
+import 'package:craftsky_app/projects/composer/project_composer_fields.dart';
 import 'package:craftsky_app/projects/models/project.dart';
+import 'package:craftsky_app/projects/options/project_option_catalogs.dart';
 import 'package:craftsky_app/projects/widgets/project_composer_sheet.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/api/pds_mutation_contract.dart';
@@ -34,6 +36,7 @@ import 'package:craftsky_app/shared/rich_text/providers/facet_suggestion_provide
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:dio/dio.dart';
+import 'package:flutter_form_builder/flutter_form_builder.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
@@ -44,6 +47,101 @@ import '../../test_support/session_registry_storage.dart';
 import '../fakes/fake_post_repository.dart';
 
 void main() {
+  testWidgets(
+    'AT-002 published materials and style restore populated selections',
+    (tester) async {
+      final colours = [ProjectOptionCatalogs.colours.first.value];
+      final designTags = [ProjectOptionCatalogs.designTags.first.value];
+      PostEditChanges? saved;
+      await _pumpMaterialEditor(
+        tester,
+        colours: colours,
+        designTags: designTags,
+        onSave: (changes) => saved = changes,
+      );
+      await _openMaterialDetails(tester);
+      expect(tester.takeException(), isNull);
+      for (final (name, expected) in [
+        (ProjectComposerFields.colours, colours),
+        (ProjectComposerFields.designTags, designTags),
+      ]) {
+        final field = find.byWidgetPredicate(
+          (widget) =>
+              widget is FormBuilderField<List<String>> && widget.name == name,
+        );
+        expect(
+          tester
+              .state<
+                FormBuilderFieldState<
+                  FormBuilderField<List<String>>,
+                  List<String>
+                >
+              >(field)
+              .value,
+          expected,
+        );
+      }
+      await tester.tap(find.byType(BackButton).last);
+      await tester.pumpAndSettle();
+      await _save(tester);
+      expect(saved, isNotNull);
+      expect(saved!.toMap(), isEmpty);
+    },
+  );
+
+  for (final patternName in ['SockKAL', '#SockKAL']) {
+    testWidgets(
+      'AT-002 published pattern prefill preserves its authored prefix '
+      '(name=$patternName)',
+      (tester) async {
+        final base = _seed(project: true);
+        final project = base.post.project!.copyWith(
+          common: base.post.project!.common.copyWith(
+            pattern: ProjectPattern(name: patternName),
+          ),
+        );
+        final seed = PostEditSeed(
+          post: base.post.copyWith(project: project),
+          baseCid: base.baseCid,
+          recordRevision: base.recordRevision,
+          editable: {...base.editable, 'project': project.toMap()},
+        );
+        PostEditChanges? saved;
+        await _pumpEditor(
+          tester,
+          FakePostRepository(
+            onFetchEdit: (did, key) async => seed,
+            onEdit:
+                (
+                  did,
+                  key, {
+                  required changes,
+                  required expectedCid,
+                  required operationKey,
+                }) async {
+                  saved = changes;
+                  return PostEditResult(
+                    acceptedCid: seed.baseCid,
+                    changed: false,
+                  );
+                },
+          ),
+          seed: seed,
+        );
+        final pattern = find.descendant(
+          of: find.byKey(const Key('project-composer-pattern-name-editor')),
+          matching: find.byType(TextField),
+        );
+        expect(tester.widget<TextField>(pattern).controller!.text, patternName);
+        await tester.enterText(_bodyField(true), 'Corrected caption');
+        await _save(tester);
+        expect(saved, isNotNull);
+        expect(saved!.toMap()['text'], 'Corrected caption');
+        expect(saved!.toMap().containsKey('project'), isFalse);
+      },
+    );
+  }
+
   testWidgets(
     'AT-002 discarding a pending material edit preserves the published entry',
     (tester) async {
@@ -947,12 +1045,16 @@ void main() {
 Future<void> _pumpMaterialEditor(
   WidgetTester tester, {
   required ValueChanged<PostEditChanges> onSave,
+  List<String>? colours,
+  List<String>? designTags,
 }) async {
   final base = _seed(project: true);
   final rawProject = Map<String, Object?>.from(
     base.editable['project']! as Map,
   );
   final common = Map<String, Object?>.from(rawProject['common']! as Map);
+  if (colours != null) common['colors'] = colours;
+  if (designTags != null) common['designTags'] = designTags;
   common['materials'] = [
     {'text': 'Wool', 'existingIndex': 0},
   ];
