@@ -3,6 +3,7 @@ import 'package:craftsky_app/shared/api/pds_mutation_contract.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_text.dart';
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 Map<String, Object?> selectedCause(Object error) {
@@ -25,6 +26,7 @@ List<Map<String, Object?>> selectedCauses(Object error) {
         DiagnosticFormatException(
           :final message,
         ) => boundDiagnosticText(message, 512),
+        FlutterError() => selectedFrameworkFailure(current),
         ApiUnauthorized() || ApiCanceled() => current.toString(),
         TypeError()
             when current.toString() ==
@@ -79,6 +81,24 @@ List<Map<String, Object?>> selectedCauses(Object error) {
     });
   }
   return causes;
+}
+
+/// Select structural framework failures, never widget dumps or arbitrary
+/// ErrorSummary prose (which can contain text supplied by the user).
+String selectedFrameworkFailure(FlutterError error) {
+  for (final node in error.diagnostics.whereType<ErrorSummary>()) {
+    final summary = node.toDescription();
+    if (summary == 'No Overlay widget found.' ||
+        summary ==
+            'No Overlay widget found within the closest LookupBoundary.') {
+      return summary;
+    }
+    if (summary == 'Floating SnackBar presented off screen.') return summary;
+    if (summary == 'Cannot get renderObject of inactive element.') {
+      return summary;
+    }
+  }
+  return 'Framework failure';
 }
 
 final _frame = RegExp(

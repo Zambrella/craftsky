@@ -3,6 +3,7 @@
 import 'dart:async';
 
 import 'package:craftsky_app/bootstrap.dart';
+import 'package:craftsky_app/shared/observability/diagnostic_details.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_emitter.dart';
 import 'package:craftsky_app/shared/observability/error_reporter.dart';
 import 'package:craftsky_app/shared/observability/error_reporting_controller.dart';
@@ -95,7 +96,9 @@ void registerErrorHandlers() {
     FlutterError.presentError(
       FlutterErrorDetails(
         exception: FlutterError(
-          'Framework failure (${details.exception.runtimeType})',
+          details.exception is FlutterError
+              ? selectedFrameworkFailure(details.exception as FlutterError)
+              : 'Framework failure (${details.exception.runtimeType})',
         ),
       ),
     );
@@ -140,11 +143,7 @@ void registerErrorHandlers() {
   };
 
   ErrorWidget.builder = (details) {
-    log.warning(
-      'FlutterError: Framework failure',
-      details.exception,
-      details.stack,
-    );
+    // FlutterError.onError already logs this occurrence with its caught stack.
     if (kDebugMode) {
       return ErrorWidget(
         'Rendering failure (${details.exception.runtimeType})',
