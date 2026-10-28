@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -28,6 +29,9 @@ type diagnosticFCMTransport struct {
 }
 
 func (transport diagnosticFCMTransport) RoundTrip(request *http.Request) (*http.Response, error) {
+	if transport.status == 0 {
+		return nil, errors.New("PRIVATE_TRANSPORT recipient@example.invalid")
+	}
 	body, _ := json.Marshal(map[string]any{"error": map[string]any{
 		"status": transport.platformCode, "message": "PRIVATE_PROVIDER_MESSAGE recipient@example.invalid",
 		"details": []any{map[string]any{"@type": "type.googleapis.com/google.firebase.fcm.v1.FcmError", "errorCode": transport.messagingCode}},
@@ -47,6 +51,7 @@ func TestFirebaseDiagnosticsKeepProviderCodesAcrossLocalAndSDKSinks(t *testing.T
 		{"UNAVAILABLE", "UNAVAILABLE", "fcm.UNAVAILABLE", 503},
 		{"RESOURCE_EXHAUSTED", "QUOTA_EXCEEDED", "fcm.QUOTA_EXCEEDED", 429},
 		{"PERMISSION_DENIED", "PRIVATE_UNKNOWN_CODE", "firebase.PERMISSION_DENIED", 403},
+		{"", "", "firebase.UNKNOWN", 0},
 	} {
 		t.Run(test.want, func(t *testing.T) {
 			app, err := firebase.NewApp(context.Background(), &firebase.Config{ProjectID: "PRIVATE_PROJECT"},
@@ -86,13 +91,20 @@ func TestFirebaseDiagnosticsKeepProviderCodesAcrossLocalAndSDKSinks(t *testing.T
 					}
 				}
 			}
-			if issue == nil || issue.Tags["provider_code"] != test.want || issue.Tags["upstream_status"] != fmt.Sprint(test.status) || !foundLog {
+			wantStatus := fmt.Sprint(test.status)
+			if test.status == 0 {
+				wantStatus = ""
+			}
+			if issue == nil || issue.Tags["provider_code"] != test.want || issue.Tags["upstream_status"] != wantStatus || !foundLog {
 				t.Fatalf("provider facts lost: issue=%+v log=%t", issue, foundLog)
 			}
 			if issue.Exception[0].Type != "*internal.FirebaseError" || issue.Contexts["correlation"]["run_id"] == nil || issue.Contexts["diagnostic"]["workflow_ref"] == nil {
 				t.Fatal("original typed cause or correlation lost")
 			}
-			for _, want := range []string{test.want, "upstream_status", "run_id", "push.send"} {
+			if test.status == 0 && !strings.Contains(string(data), "HTTP response unavailable") {
+				t.Fatal("missing evidence that no HTTP response was available")
+			}
+			for _, want := range []string{test.want, "run_id", "push.send"} {
 				if !strings.Contains(local.String(), want) {
 					t.Fatalf("local output missing %s", want)
 				}

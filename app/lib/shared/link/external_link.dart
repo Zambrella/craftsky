@@ -58,6 +58,7 @@ Future<bool> showOpenLinkDialog(BuildContext context, Uri uri) async {
   final spacing = theme.extension<SpacingTheme>()!;
   final durations = theme.extension<DurationTheme>()!;
   final result = await showGeneralDialog<bool>(
+    routeSettings: const RouteSettings(name: 'external-link-confirmation'),
     context: context,
     barrierDismissible: true,
     barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,

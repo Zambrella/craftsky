@@ -14,7 +14,7 @@ NavigatorState responsiveModalNavigator(BuildContext context) => Navigator.of(
 /// Full-screen task route: Android's default Material transition is
 /// horizontal, so use the same bottom-up modal presentation on both platforms.
 class FullscreenModalRoute<T> extends MaterialPageRoute<T> {
-  new({required super.builder}) : super(fullscreenDialog: true);
+  new({required super.builder, super.settings}) : super(fullscreenDialog: true);
 
   @override
   Widget buildTransitions(

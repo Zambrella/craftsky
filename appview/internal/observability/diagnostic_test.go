@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -827,5 +828,37 @@ func TestExpectedPrivateFailureLogsWithoutCreatingIssue(t *testing.T) {
 				t.Fatal("provider payload leaked")
 			}
 		})
+	}
+}
+
+func TestRecurrenceCauseFactsRemainPrivateAcrossSinks(t *testing.T) {
+	for _, test := range []struct {
+		cause error
+		want  string
+	}{
+		{auth.ErrCallbackAttemptInvalid, "OAuth callback attempt invalid"},
+		{&net.DNSError{Err: "private-provider-canary", Name: "private-host-canary", IsNotFound: true}, "not_found=true"},
+		{&net.OpError{Op: "private-operation-canary", Err: context.DeadlineExceeded}, "network request timed out"},
+	} {
+		var local bytes.Buffer
+		transport := &sentry.MockTransport{}
+		logger := slog.New(NewDiagnosticHandler(slog.NewJSONHandler(&local, nil)))
+		observer := New(Config{Env: "test", Logger: logger, SentryDSN: "https://public@example.invalid/1", SentryTransport: transport})
+		input := DiagnosticInput{Error: fmt.Errorf("private-wrapper-canary: %w", test.cause), Context: EventContext{"operation": "oauth.callback", "result": "terminal"}}
+		LogDiagnostic(context.Background(), logger, input)
+		observer.CaptureDiagnostic(context.Background(), input)
+		observer.Flush(time.Second)
+		serialized, err := json.Marshal(transport.Events())
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, data := range []string{local.String(), string(serialized)} {
+			if !strings.Contains(data, test.want) {
+				t.Fatalf("missing fixed cause fact %q", test.want)
+			}
+			if strings.Contains(data, "private-") {
+				t.Fatal("private cause input escaped")
+			}
+		}
 	}
 }

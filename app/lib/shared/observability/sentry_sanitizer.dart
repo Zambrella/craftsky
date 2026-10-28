@@ -73,6 +73,20 @@ final class SentrySanitizer {
     }.contains(responseKind)) {
       selected['responseKind'] = responseKind;
     }
+    final transportFailure = context['transportFailure'];
+    if (const {
+      'connectionTimeout',
+      'sendTimeout',
+      'receiveTimeout',
+      'transformTimeout',
+      'badCertificate',
+      'badResponse',
+      'cancel',
+      'connectionError',
+      'unknown',
+    }.contains(transportFailure)) {
+      selected['transportFailure'] = transportFailure;
+    }
     final method = context['httpMethod'];
     if (method is String &&
         const {

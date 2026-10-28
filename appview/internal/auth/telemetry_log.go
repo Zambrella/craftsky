@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"errors"
+	"github.com/bluesky-social/indigo/atproto/identity"
 	"log/slog"
 	"social.craftsky/appview/internal/ctxkeys"
 	"strings"
@@ -33,8 +34,15 @@ func authLogErrorAttrs(ctx context.Context, runID, operation, category string, e
 	var loginFailure *OAuthLoginDiagnostic
 	if errors.As(err, &loginFailure) {
 		fields["failure_stage"] = loginFailure.Stage()
+		if loginFailure.Stage() == "identity" &&
+			(errors.Is(err, identity.ErrHandleNotFound) || errors.Is(err, identity.ErrInvalidHandle) || errors.Is(err, identity.ErrHandleReservedTLD)) {
+			fields["error_category"] = "validation"
+		}
 	}
 	var diagnostic *OAuthCallbackDiagnostic
+	if errors.As(err, &diagnostic) && diagnostic.Reason() == "provider_callback_error_access_denied" {
+		fields["result"] = "expected"
+	}
 	if errors.As(err, &diagnostic) && errors.Is(err, ErrOAuthFlowInvalid) &&
 		(strings.HasPrefix(diagnostic.Reason(), "scope_") || diagnostic.Reason() == "callback_request_unavailable") {
 		fields["error_category"] = "validation"
@@ -49,5 +57,5 @@ func authLogErrorAttrs(ctx context.Context, runID, operation, category string, e
 	return append(attrs,
 		slog.String("result", result),
 		slog.String("failure_stage", fields["failure_stage"].(string)),
-		slog.String("error_category", category))
+		slog.String("error_category", fields["error_category"].(string)))
 }

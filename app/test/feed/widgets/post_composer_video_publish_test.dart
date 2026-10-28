@@ -15,6 +15,7 @@ import 'package:craftsky_app/feed/widgets/post_composer_sheet.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/languages/models/language_preferences.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
+import 'package:craftsky_app/shared/link/external_link.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
@@ -26,78 +27,95 @@ import '../../fakes/recording_messenger.dart';
 import '../fakes/fake_post_repository.dart';
 
 void main() {
-  testWidgets('AT-001 publishes completed video proof with metadata', (
-    tester,
-  ) async {
-    final repository = FakePostRepository(
-      onCreate: ({required text, reply, images}) async => _createdPost(text),
-    );
-    final videos = ComposerVideoController(picker: _NoopPicker())
-      ..restoredSelection = _selection();
-    final registry = SessionRegistry.empty().upsertAndActivate(
-      token: 'session-token',
-      did: 'did:plc:alice',
-      handle: 'alice.example',
-    );
+  testWidgets(
+    'AT-001 publication closes a pending link dialog',
+    (
+      tester,
+    ) async {
+      final pending = Completer<Post>();
+      final repository = FakePostRepository(
+        onCreate: ({required text, reply, images}) => pending.future,
+      );
+      final videos = ComposerVideoController(picker: _NoopPicker())
+        ..restoredSelection = _selection();
+      final registry = SessionRegistry.empty().upsertAndActivate(
+        token: 'session-token',
+        did: 'did:plc:alice',
+        handle: 'alice.example',
+      );
 
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          secureSessionRegistryStorageProvider.overrideWithValue(
-            _RegistryStorage(registry),
-          ),
-          activeLanguagePreferencesProvider.overrideWith(
-            (ref) => const LanguagePreferences(
-              primaryLanguage: 'en',
-              contentLanguages: ['en'],
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            secureSessionRegistryStorageProvider.overrideWithValue(
+              _RegistryStorage(registry),
             ),
-          ),
-          postRepositoryProvider.overrideWithValue(repository),
-        ],
-        child: MessengerScope(
-          messenger: RecordingMessenger(),
-          child: MaterialApp(
-            theme: AppTheme.lightThemeData,
-            localizationsDelegates: appLocalizationsDelegates,
-            supportedLocales: AppLocalizations.supportedLocales,
-            home: Builder(
-              builder: (context) => Scaffold(
-                body: ElevatedButton(
-                  onPressed: () => Navigator.of(context).push<void>(
-                    MaterialPageRoute<void>(
-                      builder: (_) => PostComposerSheet(
-                        composerId: 'video-publish',
-                        videoController: videos,
-                        prepareVideoProof: (_) async => _proof(),
+            activeLanguagePreferencesProvider.overrideWith(
+              (ref) => const LanguagePreferences(
+                primaryLanguage: 'en',
+                contentLanguages: ['en'],
+              ),
+            ),
+            postRepositoryProvider.overrideWithValue(repository),
+          ],
+          child: MessengerScope(
+            messenger: RecordingMessenger(),
+            child: MaterialApp(
+              theme: AppTheme.lightThemeData,
+              localizationsDelegates: appLocalizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
+              home: Builder(
+                builder: (context) => Scaffold(
+                  body: ElevatedButton(
+                    onPressed: () => Navigator.of(context).push<void>(
+                      MaterialPageRoute<void>(
+                        builder: (_) => PostComposerSheet(
+                          composerId: 'video-publish',
+                          videoController: videos,
+                          prepareVideoProof: (_) async => _proof(),
+                        ),
                       ),
                     ),
+                    child: const Text('Open composer'),
                   ),
-                  child: const Text('Open composer'),
                 ),
               ),
             ),
           ),
         ),
-      ),
-    );
-    final container = ProviderScope.containerOf(
-      tester.element(find.byType(MaterialApp)),
-    );
-    await container.read(registry_provider.sessionRegistryProvider.future);
-    await tester.tap(find.text('Open composer'));
-    await tester.pumpAndSettle();
-    await tester.enterText(find.byType(TextField).first, 'My latest project');
-    await _pumpUntilPostEnabled(tester);
+      );
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(MaterialApp)),
+      );
+      await container.read(registry_provider.sessionRegistryProvider.future);
+      await tester.tap(find.text('Open composer'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField).first, 'My latest project');
+      await _pumpUntilPostEnabled(tester);
 
-    await tester.tap(find.widgetWithText(ChunkyButton, 'Post'));
-    await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(ChunkyButton, 'Post'));
+      await tester.pump();
+      final linkResult = showOpenLinkDialog(
+        tester.element(find.byType(PostComposerSheet)),
+        Uri.parse('https://example.com'),
+      );
+      bool? linkConfirmed;
+      unawaited(linkResult.then((value) => linkConfirmed = value));
+      await tester.pump(const Duration(milliseconds: 500));
+      pending.complete(_createdPost('My latest project'));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      expect(find.byType(PostComposerSheet), findsNothing);
+      expect(find.text('Open composer'), findsOneWidget);
+      expect(linkConfirmed, isFalse);
 
-    expect(repository.lastCreateVideo?.jobId, 'job-1');
-    expect(repository.lastCreateVideo?.blob.cid, 'bafyvideo');
-    expect(repository.lastCreateVideo?.alt, 'A blue knitted shawl');
-    expect(repository.lastCreateVideo?.aspectRatio?.width, 1080);
-    expect(repository.lastCreateVideo?.aspectRatio?.height, 1920);
-  });
+      expect(repository.lastCreateVideo?.jobId, 'job-1');
+      expect(repository.lastCreateVideo?.blob.cid, 'bafyvideo');
+      expect(repository.lastCreateVideo?.alt, 'A blue knitted shawl');
+      expect(repository.lastCreateVideo?.aspectRatio?.width, 1080);
+      expect(repository.lastCreateVideo?.aspectRatio?.height, 1920);
+    },
+  );
 
   testWidgets('AT-004 quota failure retains video and Retry publishes', (
     tester,

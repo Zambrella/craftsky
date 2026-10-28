@@ -1,7 +1,11 @@
 package auth
 
 import (
+	"context"
 	"errors"
+	"github.com/bluesky-social/indigo/atproto/identity"
+	"log/slog"
+	"social.craftsky/appview/internal/ctxkeys"
 	"strings"
 	"testing"
 )
@@ -50,5 +54,36 @@ func TestProviderCallbackReasonSelectsOnlyKnownCode(t *testing.T) {
 		if strings.Contains(diagnostic.DiagnosticMessage(), "PRIVATE_") || strings.Contains(diagnostic.DiagnosticMessage(), "secret") {
 			t.Fatal("private provider prose escaped")
 		}
+	}
+}
+
+func TestExpectedAuthFailuresClassifiedAtIssueBoundary(t *testing.T) {
+	for _, test := range []struct {
+		name               string
+		cause              error
+		wantKey, wantValue string
+	}{
+		{"provider denial", providerCallbackDiagnostic("access_denied"), "result", "expected"},
+		{"unknown provider refusal", providerCallbackDiagnostic("private-provider-canary"), "error_category", "finalization"},
+		{"nonexistent handle", loginDiagnostic("identity", identity.ErrHandleNotFound), "error_category", "validation"},
+		{"identity dependency failure", loginDiagnostic("identity", errors.New("private-provider-canary")), "error_category", "finalization"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			called := false
+			ctx := ctxkeys.WithDiagnosticBoundary(context.Background(), func(_ context.Context, cause error, fields map[string]any) []slog.Attr {
+				called = true
+				if cause != test.cause {
+					t.Fatal("original cause replaced")
+				}
+				if fields[test.wantKey] != test.wantValue {
+					t.Fatalf("boundary facts = %v", fields)
+				}
+				return nil
+			})
+			authLogErrorAttrs(ctx, "", "oauth.callback", "finalization", test.cause)
+			if !called {
+				t.Fatal("diagnostic owner was not invoked")
+			}
+		})
 	}
 }

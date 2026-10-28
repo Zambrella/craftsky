@@ -106,6 +106,7 @@ Future<Post?> showPostComposerSheet(
 }) {
   return responsiveModalNavigator(context).push<Post?>(
     FullscreenModalRoute<Post?>(
+      settings: const RouteSettings(name: 'post-composer'),
       builder: (_) => PostComposerSheet(
         replyTarget: replyTarget,
         quoteTarget: quoteTarget,
@@ -535,8 +536,19 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
           case (AsyncLoading(), AsyncData(:final value?)):
             if (_origin.draft != null) {
               _pendingPublishedDraftPost = value;
-            } else if (Navigator.of(context).canPop()) {
-              Navigator.of(context).pop(value);
+            } else {
+              final route = ModalRoute.of(context);
+              final navigator = route?.navigator;
+              if (route != null &&
+                  navigator != null &&
+                  route.isActive &&
+                  !route.isFirst) {
+                // A link confirmation may be above the submitting composer.
+                // Dismiss it with null before returning the post.
+                navigator
+                  ..popUntil((candidate) => candidate == route)
+                  ..pop(value);
+              }
             }
             context.showInfo(l10n.postCreateSuccess);
             ref.read(createPostProvider.notifier).reset();

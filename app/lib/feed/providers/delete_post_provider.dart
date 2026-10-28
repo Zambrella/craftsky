@@ -65,7 +65,7 @@ class DeletePost extends _$DeletePost {
             operationKey: operationKey,
             expectedCid: post.cid.toString(),
           );
-        } on PdsMutationAmbiguousException catch (error) {
+        } on PdsMutationAmbiguousException catch (error, stackTrace) {
           final decision = await retry.wait(error);
           if (!accountOperation.isCurrent) return;
           switch (decision) {
@@ -73,8 +73,11 @@ class DeletePost extends _$DeletePost {
               return;
             case PdsMutationRetryDecision.exhausted:
               state = AsyncError<Post?>(
-                const PdsMutationUnresolvedException(),
-                StackTrace.current,
+                PdsMutationUnresolvedException(
+                  diagnosticCause: error,
+                  diagnosticStack: stackTrace,
+                ),
+                stackTrace,
               );
               return;
             case PdsMutationRetryDecision.retry:

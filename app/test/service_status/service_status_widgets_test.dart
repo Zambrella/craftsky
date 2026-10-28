@@ -18,6 +18,52 @@ import 'service_status_controller_test.dart' show FakeStatusRepository;
 import 'support/status_test_fixtures.dart';
 
 void main() {
+  testWidgets('Back dispatcher tolerates a temporarily unmounted router', (
+    tester,
+  ) async {
+    final router = GoRouter(
+      routes: [
+        GoRoute(path: '/', builder: (_, _) => const Text('Home')),
+      ],
+    );
+    addTearDown(router.dispose);
+    final config = serviceStatusRouterConfig(router, () => false);
+    var initializing = false;
+    late StateSetter rebuild;
+    await tester.pumpWidget(
+      StatefulBuilder(
+        builder: (context, setState) {
+          rebuild = setState;
+          return MaterialApp.router(
+            routerConfig: config,
+            builder: (_, child) =>
+                initializing ? const Text('Initializing') : child!,
+          );
+        },
+      ),
+    );
+    await tester.pumpAndSettle();
+    final matches = router.routerDelegate.currentConfiguration;
+    router.routerDelegate.currentConfiguration = RouteMatchList.empty;
+    expect(
+      await (config.backButtonDispatcher! as RootBackButtonDispatcher)
+          .didPopRoute(),
+      isTrue,
+    );
+    expect(tester.takeException(), isNull);
+    router.routerDelegate.currentConfiguration = matches;
+    rebuild(() => initializing = true);
+    await tester.pumpAndSettle();
+    expect(
+      await (config.backButtonDispatcher! as RootBackButtonDispatcher)
+          .didPopRoute(),
+      isTrue,
+    );
+    expect(tester.takeException(), isNull);
+    rebuild(() => initializing = false);
+    await tester.pumpAndSettle();
+    expect(find.text('Home'), findsOneWidget);
+  });
   // AT-002 / BR-001, FR-002, FR-005, NFR-003, RULE-001, RULE-003 / AC-003, AC-017, AC-019.
   testWidgets(
     'maintenance renders literal text, estimate and only status retry',
