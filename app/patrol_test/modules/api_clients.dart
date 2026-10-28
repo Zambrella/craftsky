@@ -67,6 +67,23 @@ final class ApiClients {
     return current.viewerHasLiked && current.likeCount >= 1;
   }, 'The like was not persisted.');
 
+  Future<void> verifyEdited(Post original, String text) => _until(
+    () async {
+      final current = await PostApiClient(_dio)
+          .getPost(original.author.did, original.rkey);
+      return current.uri == original.uri &&
+          current.cid != original.cid &&
+          current.editedAt != null &&
+          current.text == text &&
+          current.images?.length == 1 &&
+          current.images!.single.cid == original.images!.first.cid &&
+          current.viewerHasLiked &&
+          current.likeCount >= 1;
+    },
+    'The edited text and retained first image were not persisted, '
+    'or the existing like was lost.',
+  );
+
   Future<void> verifyDeleted(Post post) => _until(() async {
     final response = await _dio.get<Object?>(
       '/v1/posts/${post.author.did}/${post.rkey}',
