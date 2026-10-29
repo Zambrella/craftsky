@@ -209,11 +209,11 @@ class PostSummary extends StatelessWidget {
                       ),
                     ),
                     if (data.createdAt case final createdAt?)
-                      SizedBox(
-                        width: data.editedAt == null ? 48 : null,
+                      ConstrainedBox(
+                        constraints: const BoxConstraints(minWidth: 48),
                         child: Align(
                           alignment: Alignment.centerRight,
-                          widthFactor: data.editedAt == null ? null : 1,
+                          widthFactor: 1,
                           child: RelativeTimeText(
                             timestamp: createdAt,
                             editedAt: data.editedAt,

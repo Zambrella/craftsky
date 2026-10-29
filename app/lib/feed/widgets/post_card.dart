@@ -477,12 +477,12 @@ class PostCard extends ConsumerWidget {
                             onDoubleTap: post.editedAt == null
                                 ? likeOnDoubleTap
                                 : null,
-                            child: SizedBox(
-                              width: post.editedAt == null
-                                  ? _postCardMenuWidth
-                                  : null,
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(
+                                minWidth: _postCardMenuWidth,
+                              ),
                               child: Align(
-                                widthFactor: post.editedAt == null ? null : 1,
+                                widthFactor: 1,
                                 alignment: AlignmentDirectional.centerEnd,
                                 child: RelativeTimeText(
                                   timestamp: post.createdAt,
