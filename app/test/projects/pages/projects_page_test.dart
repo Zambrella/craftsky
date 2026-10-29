@@ -280,6 +280,37 @@ void main() {
     expect(find.text('Project 1'), findsOneWidget);
   });
 
+  testWidgets('Embroidery filters omit project type and subtype fields', (
+    tester,
+  ) async {
+    await _pumpProjects(
+      tester,
+      FakeProjectRepository(
+        onListProjects: ({required query, limit, cursor}) async =>
+            const PostPage(items: []),
+      ),
+      craftTypes: [
+        ProjectOptionCatalogs.craftTypes.singleWhere(
+          (craft) => craft.value == ProjectOptionCatalogs.embroideryCraftToken,
+        ),
+      ],
+    );
+    await pumpUntilFound(
+      tester,
+      find.text('Filters'),
+      description: 'the project filters action',
+    );
+
+    await tester.tap(find.text('Filters'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Filter Embroidery projects'), findsOneWidget);
+    expect(find.text('Project type'), findsNothing);
+    expect(find.text('Project subtype'), findsNothing);
+    expect(find.text('Pattern difficulty'), findsOneWidget);
+    expect(find.text('Color'), findsOneWidget);
+  });
+
   testWidgets('filter sheet orders and enables dependent controls', (
     tester,
   ) async {

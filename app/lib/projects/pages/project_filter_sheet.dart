@@ -69,7 +69,9 @@ class _ProjectFilterSheetState extends State<_ProjectFilterSheet> {
               options: _alphabetizedOptions(subtypeOptions),
               selectedValues: _filters.projectSubtype,
               enabled: subtypeOptions.isNotEmpty,
-              showWhenEmpty: true,
+              showWhenEmpty: ProjectOptionCatalogs.projectSubtypesForCraft(
+                widget.craftType,
+              ).isNotEmpty,
               onChanged: (values) => _replaceValues(
                 ProjectBrowseFilterFamily.projectSubtype,
                 values,
