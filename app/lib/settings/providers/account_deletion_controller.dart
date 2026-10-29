@@ -9,6 +9,11 @@ import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/settings/services/account_deletion_acceptance_coordinator.dart';
 import 'package:craftsky_app/settings/services/account_product_data_cleaner.dart';
 import 'package:craftsky_app/shared/api/providers/dio_provider.dart';
+import 'package:craftsky_app/shared/errors/app_error.dart';
+import 'package:craftsky_app/shared/errors/app_error_mapper.dart';
+import 'package:craftsky_app/shared/observability/diagnostic_emitter.dart';
+import 'package:craftsky_app/shared/observability/error_reporter.dart';
+import 'package:logging/logging.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'account_deletion_controller.g.dart';
@@ -22,6 +27,8 @@ final class AccountDeletionFlowException implements Exception {
   String toString() => 'AccountDeletionFlowException($reason)';
 }
 
+final _log = Logger('AccountDeletionController');
+
 @Riverpod(keepAlive: true)
 class AccountDeletionController extends _$AccountDeletionController {
   @override
@@ -29,13 +36,21 @@ class AccountDeletionController extends _$AccountDeletionController {
 
   Future<String?> startReauthentication() async {
     String? jobId;
+    String? accountDid;
+    String? workflowRef;
+    var stage = 'session';
     state = const AsyncLoading();
-    state = await AsyncValue.guard(() async {
+    final result = await AsyncValue.guard<void>(() async {
       final sessions = await ref.read(sessionRegistryProvider.future);
       final fence = AccountDeletionLeaseFence.capture(sessions);
+      accountDid = fence.account.did.value;
+      stage = 'client';
       final dio = await ref.read(accountDioProvider(fence.account).future);
       final client = AccountDeletionApiClient(dio);
+      stage = 'create_intent';
       final intent = await client.createIntent();
+      workflowRef = intent.jobId;
+      stage = 'stage_intent';
       try {
         await ref
             .read(sessionRegistryProvider.notifier)
@@ -49,17 +64,45 @@ class AccountDeletionController extends _$AccountDeletionController {
       } on Object {
         try {
           await client.cancelIntent(jobId: intent.jobId);
-        } on Object {
+        } on Object catch (error, stack) {
+          _log.warning(
+            DiagnosticMessage(
+              'Account deletion intent rollback failed',
+              context: _failureContext(
+                error,
+                'rollback_intent',
+                accountDid,
+                intent.jobId,
+              ),
+            ),
+            error,
+            stack,
+          );
           // Best effort: the short-lived unaccepted intent also expires.
         }
         rethrow;
       }
+      stage = 'invalidate_state';
       await ref.read(accountStateInvalidatorProvider)();
+      stage = 'launch_browser';
       final launched = await ref.read(authUrlLauncherProvider)(intent.authUrl);
       if (!launched) {
         try {
           await client.cancelIntent(jobId: intent.jobId);
-        } on Object {
+        } on Object catch (error, stack) {
+          _log.warning(
+            DiagnosticMessage(
+              'Account deletion intent rollback failed',
+              context: _failureContext(
+                error,
+                'rollback_intent',
+                accountDid,
+                intent.jobId,
+              ),
+            ),
+            error,
+            stack,
+          );
           // Best effort: the short-lived unaccepted intent also expires.
         }
         await ref
@@ -69,7 +112,31 @@ class AccountDeletionController extends _$AccountDeletionController {
       }
       jobId = intent.jobId;
     });
-    return state.hasError ? null : jobId;
+    if (result.hasError) {
+      final context = _failureContext(
+        result.error!,
+        stage,
+        accountDid,
+        workflowRef,
+      );
+      _log.warning(
+        DiagnosticMessage(
+          'Account deletion reauthentication failed',
+          context: context,
+        ),
+        result.error,
+        result.stackTrace,
+      );
+      // Riverpod remains the sole issue owner; enrich its synchronous report.
+      withFailureDiagnosticContext(
+        result.error!,
+        context,
+        () => state = result,
+      );
+    } else {
+      state = result;
+    }
+    return result.hasError ? null : jobId;
   }
 
   bool canComplete(String jobId) {
@@ -154,4 +221,31 @@ class AccountDeletionController extends _$AccountDeletionController {
     });
     return accepted;
   }
+}
+
+ReportContext _failureContext(
+  Object error,
+  String stage,
+  String? accountDid,
+  String? jobId,
+) {
+  final mapped = AppErrorMapper.map(
+    error,
+    fallbackKind: AppErrorKind.backgroundLoadFailed,
+    source: 'provider',
+    fallbackClassification: 'account.deletion',
+  );
+  return ReportContext(
+    feature: 'AccountDeletionController',
+    operation: 'account.delete',
+    classification: mapped.sentryClassification,
+    severity: mapped.metadata.severity.name,
+    safeDiagnostics: {...mapped.safeDiagnostics, 'failureStage': stage},
+    workflow: accountDid == null
+        ? null
+        : PrivateOperationalFailureContext(
+            accountDid: accountDid,
+            workflowRef: jobId,
+          ),
+  );
 }
