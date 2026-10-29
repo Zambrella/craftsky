@@ -330,3 +330,12 @@ Follow-up validation completed: shared Flutter API/error/observability suites pa
 ### 28 October 2026: current-release Sentry triage
 
 See [the triage record](../../development/sentry-triage-2026-10-28.md) for the live release inventory, per-issue evidence and recurrence-diagnostic changes. Serialized diagnostic tests retain safe transport/callback/provider facts and exclude protected-value canaries. Device reproduction, native hang breadcrumb delivery, native symbolication, live recurrence after a release, and Firebase delivery were not verified. No deployment was performed.
+
+### 29 October 2026: expired account-deletion retry
+
+- Reproduced FLUTTER-APP-2W locally: a persisted expired intent blocked staging a fresh server-issued intent. The regression failed at the same registry guard and controller start boundary before the fix. Expired local intents can now be replaced after server intent creation; live-intent and active-session fencing remain enforced.
+- Reauthentication failures identify session/client lookup, intent creation, local staging, state invalidation and browser launch. Best-effort rollback failures retain their original causes in supporting logs. Riverpod remains the only issue owner, with the initiating account and existing job UUID selected through private operational failure context; existing API status/code/request correlation is retained.
+- Serialized local and Sentry tests retain cause/stack, stage, account/job and request references, emit exactly one issue for a staging failure with a failed rollback, and exclude credential, OAuth URL/state, response and rollback-payload canaries.
+- Focused registry, settings, account-boundary and diagnostic suites: 130 passed, four existing skips (`/tmp/craftsky-deletion-focused.log`). Flutter analysis: no issues (`/tmp/craftsky-deletion-analysis.log`). The required `just test` attempt could not start because this worktree's local Postgres service is not running (`/tmp/craftsky-deletion-go.log`); no Go code changed.
+- Full Flutter suite: 3,509 passed, 38 existing skips (`/tmp/craftsky-deletion-full.log`), after preparing the checkout-local Rive host runtime. `git diff --check` passed.
+- Physical iOS/Android/web reproduction, updated client release, production log/Sentry delivery and post-release recurrence remain unverified. No production faults were injected and no deployment or Sentry issue-state change was performed.
