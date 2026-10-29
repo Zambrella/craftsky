@@ -53,6 +53,7 @@ import 'package:craftsky_app/theme/craftsky_card.dart';
 import 'package:craftsky_app/theme/craftsky_context_menu.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -197,6 +198,33 @@ Future<void> _doubleTap(WidgetTester tester, Finder finder) async {
 }
 
 void main() {
+  testWidgets('compact card date keeps the year on the same line', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(393, 852);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await _pump(
+      tester,
+      PostCard(post: _post(createdAt: DateTime(2025, 10, 8))),
+    );
+    await tester.pumpAndSettle();
+    final date = find.descendant(
+      of: find.byType(RelativeTimeText).first,
+      matching: find.byType(RichText),
+    );
+    final paragraph = tester.renderObject<RenderParagraph>(date);
+    expect(
+      paragraph.getBoxesForSelection(
+        const TextSelection(baseOffset: 0, extentOffset: 9),
+      ),
+      hasLength(1),
+    );
+    expect(tester.getSize(date).width, greaterThan(48));
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets(
     'UT-007 visible card shows a confirmed edit without a public read',
     (tester) async {

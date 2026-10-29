@@ -1,11 +1,13 @@
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
+import 'package:intl/intl.dart';
 import 'package:material_ui/material_ui.dart';
 
-/// Compact relative timestamp used by posts and other chronological surfaces.
+/// Compact timestamp used by posts and other chronological surfaces.
 ///
-/// The visible value stays deliberately terse (`now`, `3m`, `4h`, `2d`) while
-/// the tooltip preserves the complete localized timestamp. Edited posts include
+/// Recent values stay terse (`now`, `3m`, `4h`, `2d`); timestamps older than
+/// seven days show a compact date (`12 Jul 26`). The tooltip preserves the
+/// complete localized timestamp. Edited posts include
 /// their disclosure and include both timestamps in the same tooltip.
 class RelativeTimeText extends StatefulWidget {
   const new({
@@ -37,10 +39,9 @@ class _RelativeTimeTextState extends State<RelativeTimeText> {
     final theme = Theme.of(context);
     final style =
         widget.style ??
-        theme.textTheme.bodySmall?.copyWith(
-          color: theme.colorScheme.outline,
-        );
-    final relative = _relativeTime(
+        theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.outline);
+    final label = _compactTimestamp(
+      context,
       widget.timestamp,
       widget.now ?? DateTime.now(),
     );
@@ -49,7 +50,13 @@ class _RelativeTimeTextState extends State<RelativeTimeText> {
     if (editedAt == null) {
       return Tooltip(
         message: published,
-        child: Text(relative, style: style, textAlign: widget.textAlign),
+        child: Text(
+          label,
+          style: style,
+          textAlign: widget.textAlign,
+          maxLines: 1,
+          softWrap: false,
+        ),
       );
     }
     final l10n = AppLocalizations.of(context);
@@ -91,11 +98,13 @@ class _RelativeTimeTextState extends State<RelativeTimeText> {
                       color: style?.color,
                     ),
                   ),
-                  TextSpan(text: ' $relative'),
+                  TextSpan(text: ' $label'),
                 ],
               ),
               style: style,
               textAlign: widget.textAlign,
+              maxLines: 1,
+              softWrap: false,
             ),
           ),
         ),
@@ -115,8 +124,14 @@ String _fullTimestamp(BuildContext context, DateTime when) {
   return '$date at $time ${local.timeZoneName}';
 }
 
-String _relativeTime(DateTime when, DateTime now) {
+String _compactTimestamp(BuildContext context, DateTime when, DateTime now) {
   final delta = now.difference(when);
+  if (delta > const Duration(days: 7)) {
+    return DateFormat(
+      'd MMM yy',
+      Localizations.localeOf(context).toString(),
+    ).format(when.toLocal());
+  }
   if (delta.inMinutes < 1) return 'now';
   if (delta.inMinutes < 60) return '${delta.inMinutes}m';
   if (delta.inHours < 24) return '${delta.inHours}h';

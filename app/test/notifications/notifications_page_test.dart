@@ -518,7 +518,7 @@ void main() {
   });
 
   testWidgets(
-    'UT-018 rows show actor avatars, action icons, and relative time',
+    'UT-018 rows show actor avatars, action icons, and compact dates',
     (tester) async {
       tester.view.physicalSize = const Size(800, 1400);
       tester.view.devicePixelRatio = 1;
@@ -585,9 +585,7 @@ void main() {
         equals(tester.getTopLeft(actorText.first).dy),
       );
 
-      final createdAt = DateTime.parse('2026-05-28T13:00:00Z');
-      final elapsedDays = DateTime.now().difference(createdAt).inDays;
-      expect(find.text('${elapsedDays}d'), findsNWidgets(8));
+      expect(find.text('28 May 26'), findsNWidgets(8));
       expect(
         tester
             .widgetList<Tooltip>(find.byType(Tooltip))
