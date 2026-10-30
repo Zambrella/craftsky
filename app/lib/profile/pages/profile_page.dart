@@ -406,10 +406,8 @@ class _ProfileBody extends ConsumerWidget {
                   toggleState.isLoading ||
                   blockState.isLoading ||
                   relationship.pendingAction != null,
-              onOpen: () => unawaited(
-                NewMessageRoute(recipientDid: profile.did.value)
-                    .push<void>(context),
-              ),
+              onOpen: (id) =>
+                  ChatConversationRoute(conversationId: id.value).go(context),
               onEnable: () =>
                   unawaited(const ChatInboxRoute().push<void>(context)),
             ),

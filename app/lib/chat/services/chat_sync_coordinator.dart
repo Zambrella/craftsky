@@ -233,6 +233,8 @@ final class ChatSyncCoordinator extends ChangeNotifier {
       }
     } finally {
       busy = false;
+      // Listeners must observe the completed request, including its idle state.
+      if (_current) notifyListeners();
       if (_canPoll) {
         var delay = _restart ? Duration.zero : _cadence;
         final wait = _retryNotBefore?.difference(_now());

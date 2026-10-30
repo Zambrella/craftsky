@@ -17,6 +17,7 @@ import 'package:craftsky_app/chat/providers/chat_providers.dart';
 import 'package:craftsky_app/chat/widgets/chat_activity_scope.dart';
 import 'package:craftsky_app/chat/widgets/chat_app_bar_title.dart';
 import 'package:craftsky_app/chat/widgets/chat_content_gate.dart';
+import 'package:craftsky_app/chat/widgets/chat_skeleton.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
@@ -166,7 +167,7 @@ class _MessagingRoutePageState extends ConsumerState<MessagingRoutePage> {
               ? ChatBucket.request
               : ChatBucket.accepted,
           onOpen: _open,
-          onNewMessage: () => const NewMessageRoute().go(context),
+          onNewMessage: () => const NewMessageRoute().push<void>(context),
           onRequests: () => const ChatRequestsRoute().push<void>(context),
           onSettings: () => const ChatSettingsRoute().push<void>(context),
           onAuthorize: (push) => authorize(push: push),
@@ -197,6 +198,7 @@ class _MessagingRoutePageState extends ConsumerState<MessagingRoutePage> {
         }
         page = ChatContentGate(
           account: account,
+          loadingBody: const ChatListSkeleton(),
           onAuthorize: (push) => authorize(push: push),
           onClose: _close,
           builder: (context, ref, status) {
@@ -208,6 +210,7 @@ class _MessagingRoutePageState extends ConsumerState<MessagingRoutePage> {
                   loading: () => ChatLoadingPage(
                     title: AppLocalizations.of(context).chatNewMessage,
                     onClose: _close,
+                    body: const ChatListSkeleton(),
                   ),
                   error: (_, _) => failure(() => ref.invalidate(family)),
                   data: (controller) => NewMessageView(

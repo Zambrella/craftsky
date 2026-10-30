@@ -9,6 +9,57 @@ import 'package:http_mock_adapter/http_mock_adapter.dart';
 
 // IT-019 / FR-002 / NFR-003: fixed consumer route, bounded opaque paging.
 void main() {
+  for (final invalid in ['wrong conversation', 'missing messages']) {
+    test('IT-019 combined details rejects $invalid', () async {
+      final dio = Dio(BaseOptions(baseUrl: 'https://appview.test'));
+      DioAdapter(dio: dio).onGet(
+        '/v1/chat/conversations/conversation/details',
+        (server) => server.reply(200, {
+          'conversation': {
+            'id': invalid == 'wrong conversation' ? 'other' : 'conversation',
+            'revision': 'r',
+            'status': 'accepted',
+            'muted': false,
+            'unreadCount': 0,
+            'canSend': true,
+            'peer': {'did': 'did:plc:peer'},
+          },
+          if (invalid != 'missing messages')
+            'messages': {'items': <Map<String, Object?>>[]},
+        }),
+      );
+      await expectLater(
+        ApiChatRepository(dio)
+            .details(ChatConversationId.parse('conversation')),
+        throwsA(isA<FormatException>()),
+      );
+    });
+  }
+  test('IT-002 initial details use one fixed combined read', () async {
+    final dio = Dio(BaseOptions(baseUrl: 'https://appview.test'));
+    final adapter = DioAdapter(dio: dio);
+    final repository = ApiChatRepository(dio);
+    final id = ChatConversationId.parse('conversation');
+    adapter.onGet(
+      '/v1/chat/conversations/conversation/details',
+      (server) => server.reply(200, {
+        'conversation': {
+          'id': id.value,
+          'revision': 'r',
+          'status': 'request',
+          'muted': false,
+          'unreadCount': 1,
+          'canSend': false,
+          'peer': {'did': 'did:plc:peer', 'handle': 'peer.test'},
+        },
+        'messages': {'items': <Map<String, Object?>>[]},
+      }),
+    );
+    final details = await repository.details(id);
+    expect(details.conversation.id, id);
+    expect(details.conversation.bucket, ChatBucket.request);
+    expect(details.messages.items, isEmpty);
+  });
   test('IT-001 future last-message envelopes do not hide the conversation', () {
     final page = ChatConversationPage.fromMap(const {
       'items': [

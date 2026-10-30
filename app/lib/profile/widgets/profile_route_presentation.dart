@@ -156,7 +156,7 @@ class _ProfileRoutePresentationState
                   disabled: toggleState.isLoading,
                   // The route absorbs input during expansion. The full
                   // profile owns navigation and feedback after the handoff.
-                  onOpen: () {},
+                  onOpen: (_) {},
                   onEnable: () {},
                 ),
           expansionProgress: expansionProgress,

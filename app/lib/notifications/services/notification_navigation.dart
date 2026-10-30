@@ -48,10 +48,9 @@ void _navigate(
     case ChatInboxDestination():
       unawaited(const ChatInboxRoute().push<void>(navigationContext));
     case ChatConversationDestination(:final conversationId):
-      unawaited(
-        ChatConversationRoute(conversationId: conversationId.value)
-            .push<void>(navigationContext),
-      );
+      // Match the Messages parent too, so Back opens the conversation list.
+      ChatConversationRoute(conversationId: conversationId.value)
+          .go(navigationContext);
     case InstagramMigrationDestination():
       unawaited(
         const InstagramMigrationRoute().push<void>(navigationContext),

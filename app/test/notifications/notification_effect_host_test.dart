@@ -58,8 +58,14 @@ void main() {
         routes: [
           GoRoute(path: '/', builder: (_, _) => const Text('Feed')),
           GoRoute(
-            path: '/messages/conversations/:conversationId',
-            builder: (_, state) => const Text('Private conversation'),
+            path: '/messages',
+            builder: (_, _) => const Text('Messages'),
+            routes: [
+              GoRoute(
+                path: 'conversations/:conversationId',
+                builder: (_, state) => const Text('Private conversation'),
+              ),
+            ],
           ),
         ],
       );
@@ -135,6 +141,7 @@ void main() {
       );
       router.pop();
       await tester.pumpAndSettle();
+      expect(find.text('Messages'), findsOneWidget);
       current = false;
       effects.add(NotificationNavigationEffect(outcome));
       await tester.pumpAndSettle();

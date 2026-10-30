@@ -8397,6 +8397,12 @@ abstract class AppLocalizations {
   /// **'Accept request'**
   String get chatAcceptRequest;
 
+  /// No description provided for @chatIgnoreRequest.
+  ///
+  /// In en, this message translates to:
+  /// **'Ignore'**
+  String get chatIgnoreRequest;
+
   /// No description provided for @chatRequestExplanation.
   ///
   /// In en, this message translates to:

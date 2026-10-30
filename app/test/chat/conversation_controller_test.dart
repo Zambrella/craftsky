@@ -6,19 +6,145 @@ import 'package:craftsky_app/chat/data/api_chat_repository.dart';
 import 'package:craftsky_app/chat/data/chat_draft_store.dart';
 import 'package:craftsky_app/chat/data/chat_repository.dart';
 import 'package:craftsky_app/chat/models/chat_conversation.dart';
+import 'package:craftsky_app/chat/models/chat_conversation_details.dart';
 import 'package:craftsky_app/chat/models/chat_draft.dart';
 import 'package:craftsky_app/chat/models/chat_identifier.dart';
 import 'package:craftsky_app/chat/models/chat_message.dart';
 import 'package:craftsky_app/chat/models/chat_state.dart';
 import 'package:craftsky_app/chat/services/chat_conversation_controller.dart';
+import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/api/providers/error_mapping_interceptor.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http_mock_adapter/http_mock_adapter.dart';
 
+import '../test_support/recording_error_reporter.dart';
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  for (final denied in [false, true]) {
+    test(
+      'UT-009 concurrent load keeps original failure denied=$denied',
+      () async {
+        final account = AccountKey('did:plc:owner');
+        final id = ChatConversationId.parse('conversation');
+        final backend = _FailingBackend();
+        final store = ChatDraftStore.withBackend(backend);
+        await store.initialize({account});
+        final draftEntered = Completer<void>();
+        final releaseDraft = Completer<void>();
+        backend.readOverride = (key) async {
+          draftEntered.complete();
+          await releaseDraft.future;
+          throw StateError('secondary private draft failure');
+        };
+        final remote = Completer<ChatConversationDetails>();
+        final repository = _Repository()..detailsReader = () => remote.future;
+        final reporter = RecordingErrorReporter();
+        final controller = ChatConversationController(
+          account: account,
+          id: id,
+          repository: repository,
+          store: store,
+          draftLease: store.lease(account),
+          reporter: reporter,
+          operation: ActiveAccountOperation.withGuard(
+            ownership: null,
+            isCurrent: () => true,
+          ),
+        );
+        addTearDown(controller.dispose);
+        final loading = controller.load();
+        await draftEntered.future;
+        final Object original = denied
+            ? const ApiUnauthorized()
+            : const ApiNetworkError('offline');
+        remote.completeError(original, StackTrace.current);
+        await loading;
+        expect(controller.loading, false);
+        expect(controller.failed, true);
+        expect(controller.conversation, isNull);
+        expect(controller.history.messages, isEmpty);
+        if (denied) {
+          expect(reporter.errors, isEmpty);
+        } else {
+          expect(reporter.errors.single, same(original));
+        }
+        releaseDraft.complete();
+        await Future<void>.delayed(Duration.zero);
+        expect(reporter.errors.length, denied ? 0 : 1);
+      },
+    );
+  }
+  test(
+    'UT-009 initial load overlaps combined details and draft restoration',
+    () async {
+      final account = AccountKey('did:plc:owner');
+      final id = ChatConversationId.parse('conversation');
+      final backend = _FailingBackend();
+      final store = ChatDraftStore.withBackend(backend);
+      await store.initialize({account});
+      await store.save(
+        store.lease(account),
+        id,
+        const ChatDraft.empty().edit('retained-unsent-draft'),
+      );
+      final draftEntered = Completer<void>();
+      final releaseDraft = Completer<void>();
+      backend.readOverride = (key) async {
+        draftEntered.complete();
+        await releaseDraft.future;
+        return backend.values[key];
+      };
+      final details = Completer<ChatConversationDetails>();
+      final remote = _Repository()..detailsReader = () => details.future;
+      final controller = ChatConversationController(
+        account: account,
+        id: id,
+        repository: remote,
+        store: store,
+        draftLease: store.lease(account),
+        operation: ActiveAccountOperation.withGuard(
+          ownership: null,
+          isCurrent: () => true,
+        ),
+      );
+      addTearDown(controller.dispose);
+      addTearDown(() {
+        if (!releaseDraft.isCompleted) releaseDraft.complete();
+        if (!details.isCompleted) {
+          details.complete(
+            ChatConversationDetails(
+              conversation: _summary(id),
+              messages: ChatMessagePage(items: const []),
+            ),
+          );
+        }
+      });
+      final loading = controller.load();
+      await draftEntered.future;
+      expect(remote.detailsCalls, 1);
+      expect(remote.historyCalls, 0);
+      expect(controller.loading, true);
+      expect(controller.conversation, isNull);
+      details.complete(
+        ChatConversationDetails(
+          conversation: _summary(id),
+          messages: ChatMessagePage(items: const []),
+        ),
+      );
+      await Future<void>.delayed(Duration.zero);
+      expect(controller.loading, true);
+      expect(controller.conversation, isNull);
+      releaseDraft.complete();
+      await loading;
+      expect(controller.loading, false);
+      expect(controller.conversation?.id, id);
+      expect(controller.draft.text, 'retained-unsent-draft');
+      expect(remote.historyCalls, 0);
+    },
+  );
   test(
     'IT-006 uncertain response reconciles before another send can start',
     () async {
@@ -805,8 +931,8 @@ void main() {
       id,
       const ChatDraft.empty().edit('private-before'),
     );
-    final remote = _Repository()
-      ..delayedSummary = Completer<ChatConversation>();
+    final pending = Completer<ChatConversationDetails>();
+    final remote = _Repository()..detailsReader = () => pending.future;
     var current = true;
     final controller = ChatConversationController(
       account: account,
@@ -823,7 +949,23 @@ void main() {
     controller.addListener(() => publications++);
     final loading = controller.load();
     current = false;
-    remote.delayedSummary!.complete(_summary(id));
+    pending.complete(
+      ChatConversationDetails(
+        conversation: _summary(id),
+        messages: ChatMessagePage.fromMap(const {
+          'items': [
+            {
+              'id': 'private-late',
+              'revision': 'r',
+              'kind': 'text',
+              'text': 'private-late-canary',
+              'senderDid': 'did:plc:peer',
+              'sentAt': '2026-10-21T12:00:00Z',
+            },
+          ],
+        }),
+      ),
+    );
     await loading;
     expect(controller.conversation, isNull);
     expect(publications, 0);
@@ -920,6 +1062,18 @@ class _Repository implements ChatRepository {
   Future<void> Function()? beforeSend;
   int sendCalls = 0;
   int readCalls = 0;
+  int detailsCalls = 0;
+  Future<ChatConversationDetails> Function()? detailsReader;
+  @override
+  Future<ChatConversationDetails> details(ChatConversationId id) async {
+    detailsCalls++;
+    if (detailsReader case final read?) return await read();
+    return ChatConversationDetails(
+      conversation: await conversation(id),
+      messages: await history(id),
+    );
+  }
+
   @override
   Future<ChatConversation> conversation(ChatConversationId id) async {
     if (summaryReader case final read?) return await read();
@@ -1016,8 +1170,10 @@ ChatConversation _summary(
 class _FailingBackend implements ChatDraftStorageBackend {
   final values = <String, String>{};
   bool fail = false;
+  Future<String?> Function(String)? readOverride;
   @override
-  Future<String?> read(String key) async => values[key];
+  Future<String?> read(String key) async =>
+      readOverride == null ? values[key] : await readOverride!(key);
   @override
   Future<void> write(String key, String value) async {
     if (fail) throw StateError('private-storage-prose');

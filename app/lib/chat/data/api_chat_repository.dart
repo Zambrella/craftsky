@@ -1,5 +1,6 @@
 import 'package:craftsky_app/chat/data/chat_repository.dart';
 import 'package:craftsky_app/chat/models/chat_conversation.dart';
+import 'package:craftsky_app/chat/models/chat_conversation_details.dart';
 import 'package:craftsky_app/chat/models/chat_identifier.dart';
 import 'package:craftsky_app/chat/models/chat_message.dart';
 import 'package:craftsky_app/chat/models/chat_state.dart';
@@ -187,6 +188,17 @@ final class ApiChatRepository implements ChatRepository {
   @override
   Future<ChatConversation> conversation(ChatConversationId id) async =>
       ChatConversation.fromMap(await _request('GET', _conversationPath(id)));
+
+  @override
+  Future<ChatConversationDetails> details(ChatConversationId id) async {
+    final result = ChatConversationDetails.fromMap(
+      await _request('GET', '${_conversationPath(id)}/details'),
+    );
+    if (result.conversation.id != id) {
+      throw const FormatException('Invalid conversation details identity');
+    }
+    return result;
+  }
 
   @override
   Future<ChatMessagePage> history(

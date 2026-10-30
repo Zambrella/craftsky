@@ -21,6 +21,7 @@ type ChatConsumer interface {
 	Availability(context.Context, auth.AuthInfo, syntax.DID) (chat.Availability, error)
 	StartConversation(context.Context, auth.AuthInfo, syntax.DID) (chat.Conversation, error)
 	Conversation(context.Context, auth.AuthInfo, chat.ConversationID) (chat.Conversation, error)
+	Details(context.Context, auth.AuthInfo, chat.ConversationID) (chat.ConversationDetails, error)
 	History(context.Context, auth.AuthInfo, chat.ConversationID, chat.Continuation, int) (chat.MessagePage, error)
 	Receipt(context.Context, auth.AuthInfo, uuid.UUID) (chat.OperationReceipt, error)
 	UpdateRead(context.Context, auth.AuthInfo, chat.ConversationID, chat.MessageID) (chat.Conversation, error)
@@ -100,7 +101,7 @@ func ChatConsumerHandler(service ChatConsumer, action string) http.Handler {
 		var err error
 		var id chat.ConversationID
 		switch action {
-		case "conversation", "history", "read", "accept", "mute", "unmute", "leave":
+		case "conversation", "details", "history", "read", "accept", "mute", "unmute", "leave":
 			id, err = chat.ParseConversationID(r.PathValue("id"))
 		}
 		if err != nil {
@@ -155,13 +156,16 @@ func ChatConsumerHandler(service ChatConsumer, action string) http.Handler {
 			} else {
 				execute = func() (any, error) { return service.StartConversation(ctx, info, peer) }
 			}
-		case "conversation", "counts", "receipt":
+		case "conversation", "details", "counts", "receipt":
 			err = chatEmptyInput(r)
 			if err != nil {
 				break
 			}
 			if action == "conversation" {
 				execute = func() (any, error) { return service.Conversation(ctx, info, id) }
+			}
+			if action == "details" {
+				execute = func() (any, error) { return service.Details(ctx, info, id) }
 			}
 			if action == "counts" {
 				execute = func() (any, error) { return service.UnreadCounts(ctx, info) }

@@ -1,5 +1,216 @@
 # TDD Implementation Plan: Direct Messaging
 
+## Combined initial-load execution: 2026-10-21
+
+User approved the proposed optimization, including the existing local/private
+read boundary. No new permissions, auth-lock design, migration or production
+change. FR-003/FR-019, NFR-001/002/003/004, AC-004/016/021/028.
+
+1. IT-002 / IT-019: red-green service combined details and fixed HTTP contract;
+   test one upstream sequence, private pagination and denial/failure boundaries.
+2. UT-009 / IT-015 / IT-017: red-green Flutter combined API load and concurrent
+   draft restore; preserve original errors, ownership and no partial publication.
+3. Run affected backend/Flutter regressions and analysis, rebuild local AppView,
+   hot-reload/restart client as needed, inspect runtime errors and record evidence.
+
+### Combined initial-load outcomes
+
+- IT-002 / IT-019: added authenticated, no-store, no-activity
+  `GET /v1/chat/conversations/{id}/details`, returning `conversation` and the
+  first `messages` page (fixed limit 50). A single capability boundary performs
+  status, membership/profile lookup and history fetch: three upstream reads
+  instead of five. Blocked conversations remain readable with sending disabled.
+  No new OAuth scopes, credentials, database storage or lock policy.
+- Extracted the existing history-page mapping/cursor implementation for both
+  routes. Tests prove that the combined response's opaque continuation resumes
+  through the existing history endpoint. Independent history reads retain their
+  full authorization/membership checks. Invalid input, missing authority,
+  revoked child grants, missing profiles/nonmembers and upstream/malformed
+  failures return no successful partial payload.
+- UT-009 / IT-015 / IT-017: the Flutter initial load uses the combined response
+  and starts local draft restoration concurrently. Publication awaits both;
+  owner/epoch guards, drafts and original typed errors/stacks remain intact.
+  Secondary late errors are consumed without duplicate reporting. Background
+  refresh and pagination retain their existing paths.
+- Meaningful reds: the new HTTP action initially returned 400 instead of 200
+  (`/private/tmp/craftsky-dm-details-contract-red.log`), and the controller did
+  not invoke details (`/private/tmp/craftsky-dm-details-concurrency-red.log`).
+  Focused greens pass. The stale-load fixture now holds the combined response,
+  matching the new boundary while retaining private-canary assertions.
+- Full affected backend packages pass under race:
+  `./scripts/appview-test focused -race ./internal/chat ./internal/api ./internal/routes`.
+  Log: `/private/tmp/craftsky-dm-details-backend-regressions.log`.
+  Final session-count/continuation tests also pass:
+  `/private/tmp/craftsky-dm-details-final-boundaries.log`.
+- Flutter chat/auth/router/profile/notifications/shared-messaging regressions:
+  **1,038 passed, 7 existing configured skips**, exit 0, 63 seconds.
+  `/private/tmp/craftsky-dm-details-flutter-final.log`.
+  Whole-app analysis: **no issues found**, exit 0:
+  `/private/tmp/craftsky-dm-details-analyze-final2.log`.
+  Formatting and diff checks pass; no generated-code changes needed in this pass.
+- Full `GOFLAGS='-p=1' ./scripts/appview-check` is **blocked**, exit 3 at
+  govulncheck: **GO-2026-6809**, pinned `crypto/x509@go1.27.2`, fixed in
+  `go1.27.3`. This existing toolchain vulnerability is outside the approved
+  optimization; no toolchain upgrade was made. Later full-gate phases did not
+  run. Log: `/private/tmp/craftsky-dm-details-appview-check.log`; artifacts:
+  `/var/folders/zl/ymtyvzvn6510ld99pymykhy80000gn/T/tmp.XKmI5ImWQp`.
+- Rebuilt/restarted only the local development AppView. `/healthz` returns 200
+  with database OK and Tap connected; an unauthenticated synthetic details URL
+  returns the standard 401 envelope. No real conversation was requested.
+  Log: `/private/tmp/craftsky-dm-details-local-rebuild.log`.
+- Client hot reload was attempted after the backend rebuild, but DTD discovery
+  found no running debug session and the previously connected URI refused the
+  connection. The Flutter update therefore has no new simulator runtime-error
+  receipt. Actual device timing and live acceptance remain owner-run.
+- [x] Approved contract, red/green loops, private-data/draft guards and affected
+  regression checks complete; evidence recorded and read back.
+- [x] Local backend rebuilt and health/authentication boundary checked.
+- [ ] Full AppView release gate: blocked by the existing pinned Go vulnerability.
+- [ ] Client hot reload/runtime inspection: no active debug session available.
+- No commit, push, production deployment, migration, real message or report.
+  Implementation review remains a separate optional workflow stage.
+
+## Conversation header profile action: 2026-10-21
+
+UT-010 / IT-013, FR-003 / AC-023: test avatar and identity taps from real chat
+routes, asserting peer DID and compact presentation request, then Back restores
+the conversation/draft. Implement using showUserProfileCard and existing account
+navigation guards; verify focused chat and compact-profile regressions.
+
+### Header profile action outcomes
+
+Meaningful red: tapping the avatar left the conversation visible instead of
+opening the profile route. `/private/tmp/craftsky-dm-header-profile-red.log`.
+Green: the avatar and name/handle share a labelled, keyboard-accessible InkWell
+that uses the existing showUserProfileCard helper for the peer DID, fenced to
+the active account and current route. The background loader stays outside the
+target. The routing test verifies the compact presentation request for both
+targets and returns to the same unsent draft after each visit.
+`/private/tmp/craftsky-dm-header-profile-green.log`.
+
+Final chat and existing compact-profile regressions: **176 passed**, exit 0,
+12 seconds; `/private/tmp/craftsky-dm-header-profile-regressions.log`. Scoped
+analysis passes with no issues; `/private/tmp/craftsky-dm-header-profile-analyze.log`.
+Formatting/diff checks pass. Simulator hot reload succeeds. No new profile
+transport, route definition, data/API, permission, dependency, live messaging,
+commit, push or deployment action. Implementation review remains optional.
+
+## Request-action execution: 2026-10-21
+
+User explicitly requested direct Ignore-as-leave and removal of the request
+explainer. FR-008/FR-009, AC-009/AC-012, AT-003/AT-009/UT-010.
+
+1. Red: exercise Ignore from the real request details view; verify no acceptance,
+   send or confirmation and no premature/double close during held leave.
+2. Green: add localized responsive Accept/Ignore actions and guarded close.
+3. Verify failure and stale view/owner/capability guards, accepted composer,
+   narrow large-text layout and nearby messaging regressions; record evidence.
+
+### Request-action outcomes
+
+- Meaningful red: Ignore was absent from the request details view.
+  `/private/tmp/craftsky-dm-ignore-red.log`. Focused green passes:
+  `/private/tmp/craftsky-dm-ignore-green.log`.
+- Removed the explainer from rendering. Added localized Ignore with the existing
+  secondary ChunkyButton style; Accept request remains primary. Controls share a
+  row normally and stack on narrow/large-text layouts. Ignore alone shows its
+  progress while both actions are disabled during leave.
+- Ignore directly invokes the existing controller leave operation, without a
+  confirmation dialog. Close requires success, the initiating controller, current
+  route, mounted view and continuing access. More-menu Leave keeps its dialog.
+- Failure preserves the request and themed error feedback; no acceptance or send
+  occurs. Tests cover duplicate taps, real account switching, covered/disposed
+  routes, capability loss and the existing acceptance-to-composer flow.
+  The first owner-switch fixture retained a deliberately stale busy view and
+  timed out; the corrected fixture switches the actual registry and exercises
+  the production gate that removes that view.
+- Final chat/shared-feedback regressions: **173 passed**, exit 0, 11 seconds.
+  `/private/tmp/craftsky-dm-ignore-regressions-final.log`.
+  Whole-app analysis: **no issues found**, exit 0.
+  `/private/tmp/craftsky-dm-ignore-analyze-final.log`.
+- Localization generation, formatting and diff checks pass. Simulator hot reload
+  succeeded; no live Ignore, message or report was executed. No API, backend,
+  permission, migration, dependency, commit, push or deployment change.
+- [x] Approved revision, red/green, failure/lifetime checks and evidence complete.
+- [x] Implementation review remains a separate optional stage.
+
+## Active-account runtime/cache execution: 2026-10-21
+
+Approved by the maintainer's request to implement the recommended account-level
+provider lifetimes. Existing local privacy/lifecycle authorization applies; no
+remote or production action is included. Follow the current approved revisions
+of requirements, acceptance tests and coding plan.
+
+1. UT-006 / IT-013: red-green authenticated ownership of lightweight providers,
+   with no hidden-view polling and no private data work while disabled/signed out.
+2. UT-010 / IT-017 / NFR-002: red-green retained lists, bounded idle conversation
+   history, resubscription/expiry and account/access/generation cleanup.
+3. Verify resume, lazy form disposal, drafts and existing scheduling boundaries;
+   run affected Flutter suites and analysis, apply to simulator, record evidence.
+
+### Execution outcomes
+
+- **UT-006 / IT-013 complete:** the initial red exposed missing session ownership
+  of lightweight state. `ChatSessionScope` now owns status/repository and eligible
+  counts/coordinator independently of messaging routes. Resume refreshes status
+  and existing counts. Moving between non-chat pages does not refetch; disabled
+  and signed-out states make no private reads, and hidden views do not poll.
+  Artifacts: `/private/tmp/craftsky-dm-runtime-{red,green}.log`.
+- **UT-010 complete:** red showed chats/requests rebuilding on reopen and loaded
+  history disappearing immediately. Successful lists now retain account-owned
+  links after first use. Conversations retain at most three idle controllers for
+  two minutes; oldest idle entries expire first, resubscription cancels expiry,
+  and active listeners stay loaded. Local draft persistence is unchanged.
+  Artifacts: `/private/tmp/craftsky-dm-list-cache-{red,green}.log`,
+  `/private/tmp/craftsky-dm-conversation-cache-{red,green}.log`.
+- **IT-017 / NFR-001 / NFR-002 complete:** private canaries clear on owner switch,
+  same-account reauthentication, logout, disablement, permission loss, generation
+  change and authorization failure, without hidden content refetch. The active
+  cache owner watches the exact lease and generation so paused content providers
+  cannot retain private data beyond their authority. Search/report forms dispose
+  independently while the session runtime remains alive.
+- Fixture corrections: widget lifecycle tests now traverse the real
+  inactive/hidden/paused/resumed sequence; fake time advances to run Riverpod's
+  scheduled disposal after link release. The OAuth handoff navigation test
+  isolates messaging background I/O instead of issuing an unmocked status read.
+  These corrections do not weaken production account or capability checks.
+- Full code generation succeeded. Preserved existing generated changes and
+  discarded incidental generator formatting; only the two changed provider body
+  hashes are new. No generated API or routing signature changed in this pass.
+- Final verification: **1,017 tests pass, 7 existing configured skips**, exit 0,
+  59 seconds across chat, auth, router, profile, notifications and shared
+  messaging. Whole-app `dart analyze --fatal-infos` exits 0: no issues found.
+  Artifacts: `/private/tmp/craftsky-dm-runtime-regressions-final.log`,
+  `/private/tmp/craftsky-dm-runtime-analyze-final.log`.
+- Simulator hot restart succeeded to install the new shell wrapper; subsequent
+  Dart runtime-error inspection returned no errors. This is local runtime
+  evidence, not a live OAuth/message/report or physical-device acceptance result.
+
+- [x] Approved requirements, acceptance cases and design recorded.
+- [x] Runtime, retention and eviction red-green loops complete.
+- [x] Active lease/access cleanup, lazy forms, draft and polling regressions pass.
+- [x] Generation, formatting, affected regressions and whole-app analysis pass.
+- [x] Existing worktree edits preserved; no commit, push, deployment, backend/API,
+  migration, permission policy change or live message/report action.
+- [x] Implementation evidence recorded and read back. Implementation review is
+  the next optional workflow stage; it has not been performed for this pass.
+
+## Onboarding runtime correction: 2026-10-21
+
+Reproduced the reported missing Overlay with a queued CraftSky validation
+snackbar crossing root account initialization. Added a fallback Navigator for
+loading/error screens and routed account-recovery modals through it. Regression
+coverage matches the actual `MaterialApp.builder` placement, including failure,
+recovery and account switching. Shared feedback rendering is retained.
+
+Separately reproduced UT-006's stale published `busy` state on both heartbeat
+success and failure. Notify current listeners after clearing `busy` in `finally`;
+retain scheduling, backoff and account fencing. Focused tests pass (23), broader
+auth/chat/router/feedback regressions pass (535, 7 configured skips), and whole-app
+analysis is clean. Simulator hot reload succeeded and subsequent runtime-error
+inspection was empty; actual OAuth/onboarding remains owner-run. Detailed
+red/green artifacts and scope boundaries are in `06-validation-evidence.md`.
+
 ## AppMessenger correction: 2026-10-21
 
 UIP-028 / NFR-006, FR-015, AC-017, AC-023: the maintainer's screenshot showed the custom sync banner above the page Scaffold, leaving a black region and moving the AppBar. The preceding pass reused snackbar styling in a separate inline renderer; it did not complete the requested migration to the existing message delivery system.

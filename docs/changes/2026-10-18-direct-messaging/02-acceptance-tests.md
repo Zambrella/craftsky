@@ -1,5 +1,116 @@
 # Acceptance Test Specification: Direct Messaging
 
+## Initial-load optimization cases: 2026-10-21
+
+IT-002 / IT-015 / IT-017 / IT-019, UT-009 / FR-003, FR-019 / NFR-001/002/003/004:
+combined details returns metadata plus the first bounded message page using one
+getStatus, one getConvo and one getMessages call, with no upstream mutation.
+Missing scopes, disabled/revoked child, inaccessible membership or missing
+CraftSky profile deny content before history. Preserve blocked readability with
+canSend false, request state, tombstones/unknown mapping and opaque continuation.
+No partial successful response when any stage fails. The new read route requires
+consumer/device auth, does not extend activity, rejects extra input and is
+no-store. Flutter uses one combined request, validates its conversation identity,
+starts local draft restoration while network is held, waits for both and discards
+late owner/access results. Existing pagination, draft, send and cache tests pass.
+
+## Conversation loading header cases: 2026-10-21
+
+UT-010 / NFR-006 / AC-023: conversation status/content acquisition both render
+a profile skeleton inside the AppBar and message skeletons in the body, with no
+spinner. Both identity lines fit narrow/large-text layouts. List headers stay
+unchanged; shared skeleton semantics, reduced-motion and noninteraction apply.
+
+## Silent background refresh cases: 2026-10-21
+
+UT-006 / UT-010 / UT-017 / FR-015 / NFR-006: routine synchronization and held
+inbox/conversation refreshes retain content/empty states without an AppBar
+spinner or routine snackbar. Warnings/errors still use CraftSky messages with
+existing retry actions. Initial skeletons and explicit send/accept/ignore/search
+selection/settings mutation progress remain unchanged. Polling, request counts,
+account fencing and refresh completion behavior remain covered.
+
+## Conversation header profile navigation: 2026-10-21
+
+UT-010 / IT-013 / FR-003 / AC-023: tapping either the conversation header avatar
+or identity pushes the peer DID's profile with the compact presentation request.
+Returning preserves the conversation and unsent draft. Keep current-account
+navigation guards, existing profile presentation behavior and accessible action
+semantics. Loading/error headers without a peer do not offer the action.
+
+## Messaging identity cases: 2026-10-21
+
+UT-010 / NFR-006 / AC-023: accepted/request list rows show name followed by a
+secondary @handle and preserve the message preview. The conversation AppBar
+shows the same identity without clipping at narrow widths and large text.
+Handle-only peers remain legible without a duplicate identity line; navigation,
+refresh state, badges and conversation actions remain unchanged.
+
+## Accept/Ignore request cases: 2026-10-21
+
+AT-003, AT-009, UT-010 / FR-008, FR-009 / AC-009, AC-012: request details show
+Accept request and Ignore without the explainer or reply composer. Ignore calls
+leave exactly once, makes no accept/send call and closes only on success, with
+no confirmation modal. While pending, disable both actions and show progress on
+Ignore. Failure keeps the request open with CraftSky error feedback. Owner change,
+covered/disposed view and capability loss suppress inappropriate late navigation.
+Accept still reveals the composer; ignore is absent for accepted conversations.
+Controls remain usable on narrow screens with large text.
+
+## Skeleton loading cases: 2026-10-21
+
+UT-010 / NFR-006 / AC-023: initial chats/requests and conversation details show
+shared skeletons during both status and content acquisition, without a centered
+or title spinner. Recipient-search initial results use account-row skeletons.
+Preserve loaded content and empty states during background refresh, showing the
+existing 16px title indicator. Cover narrow layout and large text; inherit the
+shared skeleton's reduced-motion, dark-theme and loading semantics behavior.
+
+## Account runtime/cache cases: 2026-10-21
+
+UT-006 / IT-013: authenticated ownership preloads status and eligible counts,
+retains repository/coordinator across page changes, and does not poll or load
+history/lists without a visible messaging view. Signed-out/disabled states do
+not fetch private messaging data. Resume refreshes status/counts without hidden
+history reads. UT-010 / IT-017: reopen successful accepted/request lists without
+another initial fetch; retain up to three idle conversation controllers for two
+minutes, evict oldest idle history, cancel eviction on resubscription, and keep
+active conversations. Account/activation, generation, logout, disablement and
+permission-loss boundaries clear retained private state; pending results remain
+fenced. Recipient/report providers still dispose on page exit; draft persistence
+and explicit uncertain-send recovery are unchanged.
+
+## Direct profile action cases: 2026-10-21
+
+IT-003, IT-013 / FR-004 / AC-005: profile viewing only checks availability.
+An allowed explicit Message tap makes one canonical start request and navigates
+directly to conversation details; AppBar/system Back reaches Messages. Denied
+recipients dispatch the existing info snackbar and make no start request. Held
+starts prevent repeated-tap overlap; failures use themed error feedback and
+preserve original diagnostics without recipient/prose leakage. Owner changes
+and disposal suppress late navigation/feedback. This supersedes the earlier
+profile-to-New-message entry assertions, while cold recipient links stay read-only.
+
+## Messages child-route cases: 2026-10-21
+
+IT-013 / FR-002, FR-004, FR-018: inspect the generated production hierarchy
+for Requests, New message and Conversation beneath Messages. For Requests and
+New message, verify AppBar/system Back reaches Messages from inbox navigation
+and cold URLs; New message profile entry also returns to Messages. An actual
+recipient-route Start action opens Messages → Conversation and Back skips the
+picker. Existing conversation cold-link/notification coverage remains required.
+Canonical URLs and the separate settings destination remain unchanged.
+
+## Search-result start cases: 2026-10-21
+
+IT-003 / FR-004, FR-018 / AC-005, AC-027: one tap on an allowed CraftSky
+search result checks availability and opens the canonical conversation, without
+a separate Start button. A denied result dispatches localized info through
+AppMessenger, with no inline denial or create/send. Repeated denied taps can
+show feedback again. Held availability/start requests prove repeated taps do
+not overlap; owner changes suppress creation/navigation; request failures use
+shared error feedback. Cold recipient routes still require an explicit action.
+
 ## Feedback correction cases: 2026-10-21
 
 UT-017 / NFR-006, FR-015 / AC-017, AC-023: synchronization and operation alerts reach the existing AppMessenger. Verify actual floating snackbar rendering, unchanged Scaffold/AppBar origin, deduplication across rebuilds, retry callbacks, hidden/disposed-page guards and no dismissal of unrelated messages. Routine syncing emits no alert and shows only the 16px title spinner; initial loads retain only the centered loader. Composer focus, drafts, loaded previews, explicit request acceptance and uncertain send/report recovery remain intact. Persistent state text need not become an alert. Remove tests for the abandoned custom banner renderer.

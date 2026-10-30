@@ -20,6 +20,7 @@ import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart'
     show sessionRegistryProvider;
 import 'package:craftsky_app/auth/services/session_validation_coordinator.dart';
+import 'package:craftsky_app/chat/providers/chat_session_runtime_provider.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/post_comment_section.dart';
 import 'package:craftsky_app/feed/models/post_page.dart';
@@ -512,6 +513,9 @@ void main() {
         );
         final container = ProviderContainer.test(
           overrides: [
+            // This handoff test isolates navigation from account background I/O.
+            // Messaging ownership/resume is covered by chat_session_scope_test.
+            chatSessionRuntimeProvider.overrideWith((ref) {}),
             secureSessionRegistryStorageProvider.overrideWithValue(storage),
             subscriptionAccessProvider.overrideWith(
               (ref, lease) async => SubscriptionAccess(

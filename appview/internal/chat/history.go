@@ -82,58 +82,66 @@ func (service *Service) History(ctx context.Context, info auth.AuthInfo, id Conv
 		if err != nil {
 			return err
 		}
-		rawCursor, err := service.resolveCursor(ctx, info.DID, connection.Generation, "history:"+string(id), cursor)
-		if err != nil {
-			return err
-		}
-		params := map[string]any{"convoId": string(id), "limit": int64(limit)}
-		if rawCursor != "" {
-			params["cursor"] = rawCursor
-		}
-		var page struct {
-			Messages []json.RawMessage `json:"messages"`
-			Cursor   *string           `json:"cursor"`
-		}
-		if err := transport.Query(ctx, "chat.bsky.convo.getMessages", params, &page); err != nil {
-			return err
-		}
-		if page.Messages == nil || len(page.Messages) > limit {
-			return ErrProviderResponse
-		}
-		for _, raw := range page.Messages {
-			message, err := decodeMessage(raw, info.DID, peer)
-			if err != nil {
-				return err
-			}
-			result.Items = append(result.Items, message)
-		}
-		if cursor != "" {
-			ids := make([]string, 0, len(result.Items))
-			for _, message := range result.Items {
-				ids = append(ids, string(message.ID))
-			}
-			if err := service.store.owners.WithAuthTransaction(ctx, func(tx pgx.Tx) error {
-				return chatdb.New(tx).RecordChatPageMessages(ctx, chatdb.RecordChatPageMessagesParams{OwnerDid: info.DID.String(), ID: pgtype.UUID{Bytes: uuid.MustParse(string(cursor)), Valid: true}, Scope: "history:" + string(id), Generation: connection.Generation, MessageIds: ids})
-			}); err != nil {
-				return err
-			}
-		}
-		sort.SliceStable(result.Items, func(i, j int) bool {
-			a, _ := time.Parse(time.RFC3339Nano, result.Items[i].SentAt)
-			b, _ := time.Parse(time.RFC3339Nano, result.Items[j].SentAt)
-			if a.Equal(b) {
-				return result.Items[i].ID < result.Items[j].ID
-			}
-			return a.Before(b)
-		})
-		if page.Cursor != nil && *page.Cursor != "" {
-			if *page.Cursor == rawCursor {
-				return ErrProviderResponse
-			}
-			result.Cursor, err = service.retainCursor(ctx, info.DID, connection.Generation, "history:"+string(id), *page.Cursor)
-		}
+		result, err = service.historyPage(ctx, transport, info.DID, connection.Generation, id, peer, cursor, limit)
 		return err
 	})
+	return result, err
+}
+
+// historyPage consumes the caller's already-authorized conversation and session.
+// Public entry points must establish membership/profile and capability checks.
+func (service *Service) historyPage(ctx context.Context, transport *Transport, owner syntax.DID, generation int64, id ConversationID, peer syntax.DID, cursor Continuation, limit int) (MessagePage, error) {
+	result := MessagePage{Items: make([]Message, 0)}
+	rawCursor, err := service.resolveCursor(ctx, owner, generation, "history:"+string(id), cursor)
+	if err != nil {
+		return result, err
+	}
+	params := map[string]any{"convoId": string(id), "limit": int64(limit)}
+	if rawCursor != "" {
+		params["cursor"] = rawCursor
+	}
+	var page struct {
+		Messages []json.RawMessage `json:"messages"`
+		Cursor   *string           `json:"cursor"`
+	}
+	if err := transport.Query(ctx, "chat.bsky.convo.getMessages", params, &page); err != nil {
+		return result, err
+	}
+	if page.Messages == nil || len(page.Messages) > limit {
+		return result, ErrProviderResponse
+	}
+	for _, raw := range page.Messages {
+		message, err := decodeMessage(raw, owner, peer)
+		if err != nil {
+			return result, err
+		}
+		result.Items = append(result.Items, message)
+	}
+	if cursor != "" {
+		ids := make([]string, 0, len(result.Items))
+		for _, message := range result.Items {
+			ids = append(ids, string(message.ID))
+		}
+		if err := service.store.owners.WithAuthTransaction(ctx, func(tx pgx.Tx) error {
+			return chatdb.New(tx).RecordChatPageMessages(ctx, chatdb.RecordChatPageMessagesParams{OwnerDid: owner.String(), ID: pgtype.UUID{Bytes: uuid.MustParse(string(cursor)), Valid: true}, Scope: "history:" + string(id), Generation: generation, MessageIds: ids})
+		}); err != nil {
+			return result, err
+		}
+	}
+	sort.SliceStable(result.Items, func(i, j int) bool {
+		a, _ := time.Parse(time.RFC3339Nano, result.Items[i].SentAt)
+		b, _ := time.Parse(time.RFC3339Nano, result.Items[j].SentAt)
+		if a.Equal(b) {
+			return result.Items[i].ID < result.Items[j].ID
+		}
+		return a.Before(b)
+	})
+	if page.Cursor != nil && *page.Cursor != "" {
+		if *page.Cursor == rawCursor {
+			return result, ErrProviderResponse
+		}
+		result.Cursor, err = service.retainCursor(ctx, owner, generation, "history:"+string(id), *page.Cursor)
+	}
 	return result, err
 }
 

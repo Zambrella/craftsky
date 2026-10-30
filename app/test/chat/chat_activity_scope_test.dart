@@ -97,9 +97,10 @@ void main() {
     (tester) async {
       final messenger = RecordingMessenger();
       final account = AccountKey('did:plc:owner');
+      final repository = _Repository()..syncState = 'syncing';
       final coordinator = ChatSyncCoordinator(
         account: account,
-        repository: _Repository()..syncState = 'syncing',
+        repository: repository,
         operation: ActiveAccountOperation.withGuard(
           ownership: null,
           isCurrent: () => true,
@@ -142,14 +143,14 @@ void main() {
       expect(tester.getTopLeft(find.byType(AppBar)), Offset.zero);
       expect(find.text('Updating your shared inbox...'), findsNothing);
       expect(messenger.calls, isEmpty);
-      expect(
-        tester
-            .widget<StitchProgressIndicator>(
-              find.byType(StitchProgressIndicator),
-            )
-            .size,
-        16,
-      );
+      expect(find.byType(StitchProgressIndicator), findsNothing);
+      repository.syncState = 'ready';
+      coordinator.retry();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(coordinator.snapshot?.state, 'ready');
+      expect(coordinator.busy, false);
+      expect(find.byType(StitchProgressIndicator), findsNothing);
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pump();

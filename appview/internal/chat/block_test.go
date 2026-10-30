@@ -21,6 +21,8 @@ func TestEitherDirectionBlockPreservesReadAndPreventsEffects(t *testing.T) {
 				case "/xrpc/chat.bsky.actor.getStatus":
 				case "/xrpc/chat.bsky.convo.getConvo":
 					body = `{"convo":{"id":"direct-1","status":"accepted","members":[{"did":"did:plc:chat-service-owner"},{"did":"did:plc:external-peer"}]}}`
+				case "/xrpc/chat.bsky.convo.getMessages":
+					body = `{"messages":[]}`
 				case "/xrpc/chat.bsky.convo.listConvos":
 					body = `{"convos":[{"id":"direct-1","status":"accepted","unreadCount":1,"members":[{"did":"did:plc:chat-service-owner"},{"did":"did:plc:external-peer"}]}]}`
 				case "/xrpc/chat.bsky.convo.listConvoRequests":
@@ -46,6 +48,10 @@ func TestEitherDirectionBlockPreservesReadAndPreventsEffects(t *testing.T) {
 			summary, err := service.Conversation(t.Context(), info, "direct-1")
 			if err != nil || summary.CanSend {
 				t.Fatalf("blocked summary=%+v err=%v", summary, err)
+			}
+			details, err := service.Details(t.Context(), info, "direct-1")
+			if err != nil || details.Conversation.CanSend || details.Messages.Items == nil {
+				t.Fatal("blocked details lost readable history boundary")
 			}
 			counts, err := service.UnreadCounts(t.Context(), info)
 			if err != nil || counts.Accepted != 0 {

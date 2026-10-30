@@ -20,9 +20,13 @@ class ChatContentGate extends ConsumerStatefulWidget {
     required this.onAuthorize,
     required this.builder,
     this.onClose,
+    this.loadingBody,
+    this.loadingTitle,
     super.key,
   });
   final AccountKey account;
+  final Widget? loadingBody;
+  final Widget? loadingTitle;
   final VoidCallback? onClose;
   final ValueChanged<bool> onAuthorize;
   final Widget Function(BuildContext, WidgetRef, ChatStatus) builder;
@@ -62,8 +66,12 @@ class _ChatContentGateState extends ConsumerState<ChatContentGate> {
     return ref
         .watch(chatStatusProvider(account))
         .when(
-          loading: () =>
-              ChatLoadingPage(title: l10n.chatInboxTitle, onClose: onClose),
+          loading: () => ChatLoadingPage(
+            title: l10n.chatInboxTitle,
+            onClose: onClose,
+            body: widget.loadingBody,
+            titleWidget: widget.loadingTitle,
+          ),
           error: (_, _) => retry(l10n.chatUnavailable),
           data: (status) {
             if (status.state == ChatConnectionState.disabled ||

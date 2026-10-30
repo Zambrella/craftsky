@@ -298,6 +298,7 @@ func baseV1RoutePolicies() []RoutePolicy {
 		{Method: "GET", PathPattern: "/v1/chat/availability", NoActivity: true, RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},
 		{Method: "POST", PathPattern: "/v1/chat/conversations", NoActivity: false, RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessCurrentMember},
 		{Method: "GET", PathPattern: "/v1/chat/conversations/{id}", NoActivity: true, RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},
+		{Method: "GET", PathPattern: "/v1/chat/conversations/{id}/details", NoActivity: true, RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},
 		{Method: "GET", PathPattern: "/v1/chat/conversations/{id}/messages", NoActivity: true, RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},
 		{Method: "GET", PathPattern: "/v1/chat/operations/{operationId}", NoActivity: true, RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},
 		{Method: "PUT", PathPattern: "/v1/chat/conversations/{id}/read", NoActivity: false, RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessCurrentMember},

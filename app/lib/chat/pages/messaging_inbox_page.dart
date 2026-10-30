@@ -9,14 +9,14 @@ import 'package:craftsky_app/chat/models/chat_message.dart';
 import 'package:craftsky_app/chat/models/chat_state.dart';
 import 'package:craftsky_app/chat/providers/chat_providers.dart';
 import 'package:craftsky_app/chat/services/chat_inbox_controller.dart';
-import 'package:craftsky_app/chat/widgets/chat_app_bar_title.dart';
 import 'package:craftsky_app/chat/widgets/chat_content_gate.dart';
+import 'package:craftsky_app/chat/widgets/chat_peer_identity.dart';
+import 'package:craftsky_app/chat/widgets/chat_skeleton.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
 import 'package:craftsky_app/theme/craftsky_floating_action_button.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
-import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:craftsky_app/theme/yarn_refresh_scroll_view.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
@@ -53,6 +53,7 @@ class MessagingInboxPage extends ConsumerWidget {
     final l10n = AppLocalizations.of(context);
     return ChatContentGate(
       account: account,
+      loadingBody: const ChatListSkeleton(),
       onAuthorize: onAuthorize,
       onClose: onClose,
       builder: (context, ref, status) {
@@ -75,18 +76,12 @@ class MessagingInboxPage extends ConsumerWidget {
                 leading: onClose == null
                     ? null
                     : BackButton(onPressed: onClose),
-                title: ChatAppBarTitle(
-                  showBackgroundLoading: controller != null,
-                  loading:
-                      controller != null &&
-                      (controller.loading || controller.loadingMore),
-                  child: Text(
-                    bucket == ChatBucket.request
-                        ? l10n.chatRequestsTab
-                        : l10n.chatInboxTitle,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
+                title: Text(
+                  bucket == ChatBucket.request
+                      ? l10n.chatRequestsTab
+                      : l10n.chatInboxTitle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
                 actions: [
                   if (bucket == ChatBucket.accepted)
@@ -122,7 +117,7 @@ class MessagingInboxPage extends ConsumerWidget {
               body:
                   error ??
                   (controller == null
-                      ? const Center(child: StitchProgressIndicator())
+                      ? const ChatListSkeleton()
                       : _Bucket(
                           controller: controller,
                           onRefresh: () => refresh(controller),
@@ -198,13 +193,7 @@ class _Bucket extends StatelessWidget {
               avatarUrl: conversation.peer.avatar,
               size: ProfileAvatarSize.small,
             ),
-            title: Text(
-              conversation.peer.displayName ??
-                  conversation.peer.handle ??
-                  l10n.chatSomeone,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
+            title: ChatPeerIdentity(peer: conversation.peer),
             subtitle: conversation.lastMessage == null
                 ? null
                 : Text(

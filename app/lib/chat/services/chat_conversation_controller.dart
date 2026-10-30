@@ -197,13 +197,20 @@ final class ChatConversationController extends ChangeNotifier {
   Future<void> load() async {
     final epoch = _contentEpoch;
     try {
-      final summary = await _operation.step(() => _repository.conversation(id));
-      final page = await _operation.step(() => _repository.history(id));
-      final local = await _operation.step(() => _store.load(_draftLease, id));
+      final detailsFuture = _operation.step(() => _repository.details(id));
+      final draftFuture = _operation.step(() => _store.load(_draftLease, id));
+      // Attach error handlers to both futures immediately and retain the first
+      // original typed failure instead of wrapping it in a parallel-wait error.
+      await Future.wait<Object>([
+        detailsFuture,
+        draftFuture,
+      ], eagerError: true);
+      final details = await detailsFuture;
+      final local = await draftFuture;
       if (epoch != _contentEpoch) return;
       _publish(() {
-        conversation = summary;
-        history = const ChatHistory.empty().merge(page);
+        conversation = details.conversation;
+        history = const ChatHistory.empty().merge(details.messages);
         draft = local;
         _draftLoaded = true;
         loading = false;

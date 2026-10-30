@@ -4748,6 +4748,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get chatAcceptRequest => 'Accept request';
 
   @override
+  String get chatIgnoreRequest => 'Ignore';
+
+  @override
   String get chatRequestExplanation =>
       'Accept this shared message request before sending a reply. Reading it does not accept it.';
 

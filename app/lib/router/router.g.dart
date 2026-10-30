@@ -314,24 +314,26 @@ RouteBase get $authenticatedShellRoute => ShellRouteData.$route(
       name: 'messages',
       hasOverriddenOnExit: false,
       factory: $ChatInboxRoute._fromState,
-    ),
-    GoRouteData.$route(
-      path: '/messages/requests',
-      name: 'message-requests',
-      hasOverriddenOnExit: false,
-      factory: $ChatRequestsRoute._fromState,
-    ),
-    GoRouteData.$route(
-      path: '/messages/new',
-      name: 'new-message',
-      hasOverriddenOnExit: false,
-      factory: $NewMessageRoute._fromState,
-    ),
-    GoRouteData.$route(
-      path: '/messages/conversations/:conversationId',
-      name: 'message-conversation',
-      hasOverriddenOnExit: false,
-      factory: $ChatConversationRoute._fromState,
+      routes: [
+        GoRouteData.$route(
+          path: 'requests',
+          name: 'message-requests',
+          hasOverriddenOnExit: false,
+          factory: $ChatRequestsRoute._fromState,
+        ),
+        GoRouteData.$route(
+          path: 'new',
+          name: 'new-message',
+          hasOverriddenOnExit: false,
+          factory: $NewMessageRoute._fromState,
+        ),
+        GoRouteData.$route(
+          path: 'conversations/:conversationId',
+          name: 'message-conversation',
+          hasOverriddenOnExit: false,
+          factory: $ChatConversationRoute._fromState,
+        ),
+      ],
     ),
     GoRouteData.$route(
       path: '/settings/messaging',

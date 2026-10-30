@@ -38,6 +38,7 @@ class ActiveAccountInitializationGate extends ConsumerStatefulWidget {
 
 class _ActiveAccountInitializationGateState
     extends ConsumerState<ActiveAccountInitializationGate> {
+  final _recoveryNavigatorKey = GlobalKey<NavigatorState>();
   bool _recovering = false;
 
   @override
@@ -69,13 +70,28 @@ class _ActiveAccountInitializationGateState
         if (isCurrent) return widget.child;
       }
       if (initialization case AsyncError()) {
-        return _errorScreen(registry: value);
+        return _fallback(_errorScreen(registry: value));
       }
     } else if (registry case AsyncError()) {
-      return _errorScreen(registry: null);
+      return _fallback(_errorScreen(registry: null));
     }
 
-    return const InitializationLoadingScreen();
+    return _fallback(const InitializationLoadingScreen());
+  }
+
+  Widget _fallback(Widget child) {
+    // This gate lives above the app Router. Its fallback screens need their own
+    // Overlay for shared snackbars, tooltips, and account-recovery modals.
+    return Navigator(
+      key: _recoveryNavigatorKey,
+      pages: [
+        MaterialPage<void>(
+          key: const ValueKey('account-initialization-fallback'),
+          child: child,
+        ),
+      ],
+      onDidRemovePage: (_) {},
+    );
   }
 
   Widget _errorScreen({
@@ -127,7 +143,7 @@ class _ActiveAccountInitializationGateState
     );
 
     await showModalBottomSheet<void>(
-      context: context,
+      context: _recoveryNavigatorKey.currentState!.overlay!.context,
       showDragHandle: true,
       builder: (sheetContext) => StatefulBuilder(
         builder: (context, setSheetState) => AccountSwitcherContent(

@@ -10,11 +10,13 @@ import 'package:craftsky_app/auth/providers/session_registry_provider.dart'
 import 'package:craftsky_app/chat/data/chat_draft_store.dart';
 import 'package:craftsky_app/chat/data/chat_repository.dart';
 import 'package:craftsky_app/chat/models/chat_conversation.dart';
+import 'package:craftsky_app/chat/models/chat_conversation_details.dart';
 import 'package:craftsky_app/chat/models/chat_identifier.dart';
 import 'package:craftsky_app/chat/models/chat_message.dart';
 import 'package:craftsky_app/chat/models/chat_state.dart';
 import 'package:craftsky_app/chat/providers/chat_draft_store_provider.dart';
 import 'package:craftsky_app/chat/providers/chat_providers.dart';
+import 'package:craftsky_app/chat/providers/chat_session_runtime_provider.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/api/providers/dio_provider.dart';
 import 'package:dio/dio.dart';
@@ -26,6 +28,357 @@ import 'package:http_mock_adapter/http_mock_adapter.dart';
 // IT-015 / IT-019 / NFR-001: account dependency and stale acquisition.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  for (final signedIn in [false, true]) {
+    test(
+      'UT-006 disabled or signed-out runtime avoids private reads '
+      'signedIn=$signedIn',
+      () async {
+        final account = AccountKey('did:plc:alice');
+        final repository = _Repository()..enabled = false;
+        final registry = signedIn
+            ? SessionRegistry.empty().upsertAndActivate(
+                token: 'synthetic',
+                did: account.did.value,
+                handle: 'alice.test',
+              )
+            : SessionRegistry.empty();
+        final container = ProviderContainer.test(
+          retry: (_, _) => null,
+          overrides: [
+            secureSessionRegistryStorageProvider.overrideWithValue(
+              _Storage(registry),
+            ),
+            accountChatRepositoryProvider.overrideWith(
+              (ref, account) async => repository,
+            ),
+          ],
+        )..listen(chatSessionRuntimeProvider, (_, _) {});
+        await container.read(sessionRegistryProvider.future);
+        await container.pump();
+        if (signedIn) await container.read(chatStatusProvider(account).future);
+        await container.pump();
+        expect(repository.statusCalls, signedIn ? 1 : 0);
+        expect(repository.countCalls, 0);
+        expect(repository.heartbeatCalls, 0);
+        expect(repository.historyCalls, 0);
+        expect(repository.listCalls, 0);
+        expect(container.exists(chatSyncCoordinatorProvider(account)), false);
+      },
+    );
+  }
+  testWidgets(
+    'UT-010 idle cache evicts oldest history and preserves active history',
+    (tester) async {
+      FlutterSecureStorage.setMockInitialValues({});
+      final account = AccountKey('did:plc:alice');
+      final repository = _Repository()..page = _privatePage();
+      final container = _sessionContainer(repository)
+        ..listen(chatSessionRuntimeProvider, (_, _) {});
+      await container.read(sessionRegistryProvider.future);
+      await container.read(chatStatusProvider(account).future);
+      await tester.pump();
+      final activeFamily = chatConversationControllerProvider(
+        account,
+        ChatConversationId.parse('active'),
+      );
+      container.listen(activeFamily, (_, _) {});
+      final active = await container.read(activeFamily.future);
+      final loaded = [active];
+      for (var index = 0; index < 4; index++) {
+        final family = chatConversationControllerProvider(
+          account,
+          ChatConversationId.parse('idle-$index'),
+        );
+        final sub = container.listen(family, (_, _) {});
+        loaded.add(await container.read(family.future));
+        sub.close();
+        await tester.pump();
+      }
+      await tester.pump(const Duration(milliseconds: 1));
+      expect(loaded.map((item) => item.history.messages.length).toList(), [
+        1,
+        0,
+        1,
+        1,
+        1,
+      ]);
+      for (final controller in [active, ...loaded.skip(2)]) {
+        expect(controller.history.messages.single.text, 'private-cache-canary');
+      }
+      expect(repository.historyCalls, 5);
+      expect(repository.heartbeatCalls, 0);
+      container.dispose();
+      await tester.pump();
+    },
+  );
+  for (final boundary in [
+    'owner switch',
+    'reactivation',
+    'logout',
+    'disable',
+    'permission loss',
+    'generation',
+    'authorization failure',
+  ]) {
+    testWidgets('IT-017 idle private cache clears on $boundary', (
+      tester,
+    ) async {
+      FlutterSecureStorage.setMockInitialValues({});
+      final account = AccountKey('did:plc:alice');
+      final repository = _Repository()..page = _privatePage();
+      final container = _sessionContainer(repository)
+        ..listen(chatSessionRuntimeProvider, (_, _) {});
+      await container.read(sessionRegistryProvider.future);
+      await container.read(chatStatusProvider(account).future);
+      await tester.pump();
+      final inboxFamily = chatInboxControllerProvider(
+        account,
+        ChatBucket.accepted,
+      );
+      final inboxSub = container.listen(inboxFamily, (_, _) {});
+      final inbox = await container.read(inboxFamily.future);
+      final conversationFamily = chatConversationControllerProvider(
+        account,
+        ChatConversationId.parse('cached'),
+      );
+      final conversationSub = container.listen(conversationFamily, (_, _) {});
+      final conversation = await container.read(conversationFamily.future);
+      inboxSub.close();
+      conversationSub.close();
+      await tester.pump();
+      expect(inbox.items, isNotEmpty);
+      expect(conversation.history.messages, isNotEmpty);
+      switch (boundary) {
+        case 'owner switch':
+          await container
+              .read(sessionRegistryProvider.notifier)
+              .upsertAndActivate(
+                token: 'other',
+                did: 'did:plc:other',
+                handle: 'other.test',
+              );
+        case 'reactivation':
+          await container
+              .read(sessionRegistryProvider.notifier)
+              .upsertAndActivate(
+                token: 'replacement',
+                did: account.did.value,
+                handle: 'alice.test',
+              );
+        case 'logout':
+          final lease = container
+              .read(sessionRegistryProvider)
+              .requireValue
+              .activeLease!;
+          await container
+              .read(sessionRegistryProvider.notifier)
+              .removeConfirmed(lease.session);
+        case 'authorization failure':
+          repository.statusFailure = const ApiUnauthorized();
+          container.invalidate(chatStatusProvider(account));
+          await expectLater(
+            container.read(chatStatusProvider(account).future),
+            throwsA(isA<ApiUnauthorized>()),
+          );
+        case _:
+          container
+              .read(chatStatusProvider(account).notifier)
+              .publishConfirmedStatus(
+                ChatStatus.fromMap({
+                  'enabled': boundary != 'disable',
+                  'pushEnabled': true,
+                  'generation': boundary == 'generation' ? 3 : 2,
+                  'state': boundary == 'permission loss'
+                      ? 'authorizationNeeded'
+                      : boundary == 'disable'
+                      ? 'disabled'
+                      : 'ready',
+                  'capabilities': {
+                    'canRead': boundary != 'permission loss',
+                    'canSend': true,
+                    'canReport': true,
+                    'canSetPolicy': true,
+                  },
+                }),
+              );
+      }
+      await tester.pump();
+      await tester.pump();
+      expect(inbox.items, isEmpty);
+      expect(conversation.history.messages, isEmpty);
+      expect(repository.listCalls, 1);
+      expect(repository.historyCalls, 1);
+      expect(repository.heartbeatCalls, 0);
+      container.dispose();
+      await tester.pump();
+    });
+  }
+  testWidgets(
+    'UT-010 idle conversation expires but active reuse stays loaded',
+    (tester) async {
+      FlutterSecureStorage.setMockInitialValues({});
+      final account = AccountKey('did:plc:alice');
+      final repository = _Repository()..page = _privatePage();
+      final container = _sessionContainer(repository)
+        ..listen(chatSessionRuntimeProvider, (_, _) {});
+      await container.read(sessionRegistryProvider.future);
+      await container.read(chatStatusProvider(account).future);
+      await tester.pump();
+      final family = chatConversationControllerProvider(
+        account,
+        ChatConversationId.parse('cached'),
+      );
+      final first = container.listen(family, (_, _) {});
+      final loaded = await container.read(family.future);
+      loaded.edit('still-unsent');
+      await loaded.flush();
+      first.close();
+      await tester.pump(const Duration(minutes: 1));
+      expect(loaded.history.messages.single.text, 'private-cache-canary');
+      final active = container.listen(family, (_, _) {});
+      expect(await container.read(family.future), same(loaded));
+      await tester.pump(const Duration(minutes: 3));
+      expect(loaded.history.messages.single.text, 'private-cache-canary');
+      active.close();
+      await tester.pump(const Duration(minutes: 2, milliseconds: 1));
+      await tester.pump();
+      expect(loaded.history.messages, isEmpty);
+      final store = container.read(chatDraftStoreProvider);
+      expect(
+        (await store.load(
+          store.lease(account),
+          ChatConversationId.parse('cached'),
+        )).text,
+        'still-unsent',
+      );
+      final reopened = container.listen(family, (_, _) {});
+      expect(await container.read(family.future), isNot(same(loaded)));
+      expect(repository.historyCalls, 2);
+      reopened.close();
+      container.dispose();
+      await tester.pump();
+    },
+  );
+  for (final bucket in ChatBucket.values) {
+    test('UT-010 session retains the loaded $bucket list', () async {
+      final account = AccountKey('did:plc:alice');
+      final repository = _Repository();
+      final container = ProviderContainer.test(
+        retry: (_, _) => null,
+        overrides: [
+          secureSessionRegistryStorageProvider.overrideWithValue(
+            _Storage(
+              SessionRegistry.empty().upsertAndActivate(
+                token: 'synthetic',
+                did: account.did.value,
+                handle: 'alice.test',
+              ),
+            ),
+          ),
+          accountChatRepositoryProvider(account)
+              .overrideWith((ref) async => repository),
+        ],
+      )..listen(chatSessionRuntimeProvider, (_, _) {});
+      await container.read(sessionRegistryProvider.future);
+      await container.read(chatStatusProvider(account).future);
+      await container.pump();
+      final family = chatInboxControllerProvider(account, bucket);
+      final first = container.listen(family, (_, _) {});
+      final loaded = await container.read(family.future);
+      expect(repository.listCalls, 1);
+      first.close();
+      await container.pump();
+      final reopened = container.listen(family, (_, _) {});
+      expect(await container.read(family.future), same(loaded));
+      expect(repository.listCalls, 1);
+      reopened.close();
+    });
+  }
+  test('UT-010 search and report forms stay page scoped', () async {
+    final account = AccountKey('did:plc:alice');
+    final repository = _Repository();
+    final dio = Dio();
+    addTearDown(dio.close);
+    final container = ProviderContainer.test(
+      retry: (_, _) => null,
+      overrides: [
+        secureSessionRegistryStorageProvider.overrideWithValue(
+          _Storage(
+            SessionRegistry.empty().upsertAndActivate(
+              token: 'synthetic',
+              did: account.did.value,
+              handle: 'alice.test',
+            ),
+          ),
+        ),
+        accountChatRepositoryProvider.overrideWith(
+          (ref, account) async => repository,
+        ),
+        messagingChatDioProvider(account).overrideWith((ref) async => dio),
+      ],
+    )..listen(chatSessionRuntimeProvider, (_, _) {});
+    await container.read(sessionRegistryProvider.future);
+    await container.read(chatStatusProvider(account).future);
+    await container.read(chatSyncCoordinatorProvider(account).future);
+    final search = chatRecipientControllerProvider(account);
+    final report = chatReportControllerProvider(
+      account,
+      ChatConversationId.parse('conversation'),
+      ChatMessageId.parse('message'),
+    );
+    final searchSub = container.listen(search, (_, _) {});
+    final reportSub = container.listen(report, (_, _) {});
+    await container.read(search.future);
+    await container.read(report.future);
+    searchSub.close();
+    reportSub.close();
+    await container.pump();
+    expect(container.exists(search), false);
+    expect(container.exists(report), false);
+    expect(container.exists(chatSyncCoordinatorProvider(account)), true);
+    expect(repository.heartbeatCalls, 0);
+    expect(repository.historyCalls, 0);
+    expect(repository.listCalls, 0);
+  });
+  test(
+    'UT-006 session runtime warms lightweight state without polling',
+    () async {
+      final account = AccountKey('did:plc:alice');
+      final repository = _Repository();
+      final container = ProviderContainer.test(
+        retry: (_, _) => null,
+        overrides: [
+          secureSessionRegistryStorageProvider.overrideWithValue(
+            _Storage(
+              SessionRegistry.empty().upsertAndActivate(
+                token: 'synthetic',
+                did: account.did.value,
+                handle: 'alice.test',
+              ),
+            ),
+          ),
+          accountChatRepositoryProvider(account)
+              .overrideWith((ref) async => repository),
+        ],
+      );
+      final owner = container.listen(chatSessionRuntimeProvider, (_, _) {});
+      await container.read(sessionRegistryProvider.future);
+      await container.pump();
+      expect(container.exists(chatStatusProvider(account)), true);
+      await container.read(chatStatusProvider(account).future);
+      await container.pump();
+      expect(container.exists(chatUnreadCountsProvider(account)), true);
+      await container.read(chatUnreadCountsProvider(account).future);
+      await container.read(chatSyncCoordinatorProvider(account).future);
+      expect(repository.statusCalls, 1);
+      expect(repository.countCalls, 1);
+      expect(container.exists(chatSyncCoordinatorProvider(account)), true);
+      expect(repository.heartbeatCalls, 0);
+      owner.close();
+      await container.pump();
+      expect(container.exists(chatSyncCoordinatorProvider(account)), false);
+    },
+  );
   test('UT-006 offline status retains only the exact '
       'previously authorized activation', () async {
     FlutterSecureStorage.setMockInitialValues({});
@@ -668,7 +1021,60 @@ void main() {
   );
 }
 
+ProviderContainer _sessionContainer(_Repository repository) {
+  final account = AccountKey('did:plc:alice');
+  return ProviderContainer.test(
+    retry: (_, _) => null,
+    overrides: [
+      secureSessionRegistryStorageProvider.overrideWithValue(
+        _Storage(
+          SessionRegistry.empty().upsertAndActivate(
+            token: 'synthetic',
+            did: account.did.value,
+            handle: 'alice.test',
+          ),
+        ),
+      ),
+      accountChatRepositoryProvider.overrideWith(
+        (ref, account) async => repository,
+      ),
+      chatDraftStoreProvider.overrideWithValue(
+        ChatDraftStore(const FlutterSecureStorage()),
+      ),
+    ],
+  );
+}
+
+ChatMessagePage _privatePage() => ChatMessagePage.fromMap(const {
+  'items': [
+    {
+      'id': 'message',
+      'revision': 'r',
+      'kind': 'text',
+      'text': 'private-cache-canary',
+      'senderDid': 'did:plc:peer',
+      'sentAt': '2026-10-19T12:00:00Z',
+    },
+  ],
+});
+
 class _Repository implements ChatRepository {
+  bool enabled = true;
+  int listCalls = 0;
+  int historyCalls = 0;
+  @override
+  Future<ChatConversationPage> conversations({
+    required ChatBucket bucket,
+    ChatCursor? cursor,
+    int limit = 50,
+  }) async {
+    listCalls++;
+    return ChatConversationPage(
+      items: [await conversation(ChatConversationId.parse('conversation'))],
+    );
+  }
+
+  int heartbeatCalls = 0;
   String heartbeatState = 'ready';
   ApiException? heartbeatFailure;
   @override
@@ -677,6 +1083,7 @@ class _Repository implements ChatRepository {
     ChatConversationId? conversationId,
     int? knownRevision,
   }) async {
+    heartbeatCalls++;
     if (heartbeatFailure case final error?) throw error;
     return ChatSyncSnapshot.fromMap({
       'state': heartbeatState,
@@ -692,16 +1099,16 @@ class _Repository implements ChatRepository {
     if (statusFailure case final error?) {
       Error.throwWithStackTrace(error, StackTrace.current);
     }
-    return ChatStatus.fromMap(const {
-      'enabled': true,
-      'state': 'ready',
+    return ChatStatus.fromMap({
+      'enabled': enabled,
+      'state': enabled ? 'ready' : 'disabled',
       'generation': 2,
       'pushEnabled': true,
       'capabilities': {
-        'canRead': true,
-        'canSend': true,
-        'canReport': true,
-        'canSetPolicy': true,
+        'canRead': enabled,
+        'canSend': enabled,
+        'canReport': enabled,
+        'canSetPolicy': enabled,
       },
     });
   }
@@ -739,6 +1146,13 @@ class _Repository implements ChatRepository {
   }
 
   @override
+  Future<ChatConversationDetails> details(ChatConversationId id) async =>
+      ChatConversationDetails(
+        conversation: await conversation(id),
+        messages: await history(id),
+      );
+
+  @override
   Future<ChatConversation> conversation(ChatConversationId id) async =>
       ChatConversation.fromMap({
         'id': id.value,
@@ -754,7 +1168,11 @@ class _Repository implements ChatRepository {
     ChatConversationId id, {
     ChatCursor? cursor,
     int limit = 50,
-  }) async => page ?? ChatMessagePage(items: const []);
+  }) async {
+    historyCalls++;
+    return page ?? ChatMessagePage(items: const []);
+  }
+
   @override
   Future<ChatConversation> accept(ChatConversationId id) async {
     accepted = true;

@@ -109,3 +109,44 @@ func TestChatSendContractRejectsArbitraryControls(t *testing.T) {
 		t.Fatalf("service calls=%d", calls)
 	}
 }
+
+type chatDetailsReader struct {
+	ChatConsumer
+	calls int
+}
+
+func (reader *chatDetailsReader) Details(_ context.Context, info auth.AuthInfo, id chat.ConversationID) (chat.ConversationDetails, error) {
+	reader.calls++
+	if info.ChildTokenHash == ([32]byte{}) || id != "direct-1" {
+		panic("wrong details authority")
+	}
+	return chat.ConversationDetails{Conversation: chat.Conversation{ID: id, Status: "request"}, Messages: chat.MessagePage{Items: []chat.Message{}}}, nil
+}
+
+func TestChatDetailsFixedPrivateContract(t *testing.T) {
+	reader := &chatDetailsReader{}
+	handler := ChatConsumerHandler(reader, "details")
+	for _, test := range []struct {
+		query, body string
+		want        int
+	}{
+		{"", "", 200}, {"?limit=1", "", 400}, {"?cursor=private-cursor", "", 400}, {"?ownerDid=did:plc:other", "", 400}, {"", "{}", 400},
+	} {
+		w := httptest.NewRecorder()
+		r := chatContractRequest("GET", "/v1/chat/conversations/direct-1/details"+test.query, test.body)
+		r.SetPathValue("id", "direct-1")
+		handler.ServeHTTP(w, r)
+		if w.Code != test.want {
+			t.Fatalf("status=%d want=%d", w.Code, test.want)
+		}
+		if w.Header().Get("Cache-Control") != "no-store" {
+			t.Fatal("details cacheable")
+		}
+		if test.want == 200 && (!strings.Contains(w.Body.String(), `"conversation":`) || !strings.Contains(w.Body.String(), `"messages":{"items":[]}`)) {
+			t.Fatal("details wire shape changed")
+		}
+	}
+	if reader.calls != 1 {
+		t.Fatalf("details calls=%d", reader.calls)
+	}
+}

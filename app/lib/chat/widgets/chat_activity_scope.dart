@@ -3,7 +3,6 @@ import 'package:craftsky_app/chat/models/chat_identifier.dart';
 import 'package:craftsky_app/chat/models/chat_state.dart';
 import 'package:craftsky_app/chat/providers/chat_providers.dart';
 import 'package:craftsky_app/chat/services/chat_sync_coordinator.dart';
-import 'package:craftsky_app/chat/widgets/chat_app_bar_title.dart';
 import 'package:craftsky_app/chat/widgets/chat_message_effect.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/shared/messaging/message_action.dart';
@@ -130,10 +129,7 @@ class _AttachedChatActivityState extends State<_AttachedChatActivity> {
         label: l10n.chatRefresh,
         onPressed: () => coordinator?.retry(),
       ),
-      child: ChatBackgroundLoading(
-        loading: coordinator?.busy == true || snapshot?.state == 'syncing',
-        child: widget.child,
-      ),
+      child: widget.child,
     );
   }
 }

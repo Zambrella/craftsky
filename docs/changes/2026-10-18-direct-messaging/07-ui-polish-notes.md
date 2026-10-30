@@ -1,5 +1,247 @@
 # UI Polish Notes: Direct Messaging
 
+## Conversation profile-header skeleton: 2026-10-21
+
+NFR-006 / FR-003 / AC-023 / UT-010: conversation details now show an avatar,
+name and handle skeleton in the AppBar during initial status and content
+acquisition, plus the existing message skeleton body. The placeholder matches
+the loaded avatar size, identity typography and hit-area height, uses the shared
+CraftskySkeleton effect/semantics and remains noninteractive. Loading title
+height adapts to text scaling. Loaded profile navigation and silent background
+refresh remain unchanged; list and settings headers keep their existing loading
+presentation.
+
+Meaningful red: neither acquisition stage had a skeleton in the AppBar.
+`/private/tmp/craftsky-dm-header-skeleton-red.log`. The corrected loading,
+conversation, route and shared skeleton suites pass **42 tests**, exit 0,
+3 seconds; `/private/tmp/craftsky-dm-header-skeleton-green.log`. Scoped analysis
+has no issues; `/private/tmp/craftsky-dm-header-skeleton-analyze.log`. Formatting
+and diff checks pass. Simulator hot reload succeeds. No data/API, controller,
+permissions, persistence, dependencies, commit/deployment or live remote action
+changed.
+
+## Silent background refresh: 2026-10-21
+
+FR-015 / NFR-006 / AC-017/AC-023 / UT-006/UT-010/UT-017: removed background
+sync/refresh/pagination spinners from messaging AppBars. Deleted the inherited
+background-loading presentation signal; inbox and conversation titles render
+normally while work continues. The title progress helper remains only for
+explicit settings mutations and recipient selection/start actions. Initial
+skeletons, action progress, loaded content/empty states, coordinator scheduling,
+account fencing, and CraftSky warning/error messages with retry remain intact.
+
+Meaningful red: the routine-sync test found the unwanted title spinner.
+`/private/tmp/craftsky-dm-silent-refresh-red.log`. Updated held inbox/conversation
+refresh assertions verify retained content with no AppBar spinner. All **174
+chat/shared-feedback tests pass**, exit 0, 11 seconds:
+`/private/tmp/craftsky-dm-silent-refresh-green.log`. Scoped analysis has no issues:
+`/private/tmp/craftsky-dm-silent-refresh-analyze.log`. Formatting/diff checks pass.
+Simulator hot reload succeeds and runtime-error inspection returns none. No
+business logic, API, permissions, persistence, dependency, commit/deployment or
+live remote action change.
+
+## Conversation header opens compact profile: 2026-10-21
+
+FR-003 / NFR-006 / AC-023 / UT-010 / IT-013: the loaded conversation header's
+avatar and identity now form one accessible profile action, using the existing
+showUserProfileCard helper and peer DID. The header has a minimum 48px hit target,
+keeps its prior typography/layout and leaves the background spinner outside the
+action. Current account/route checks prevent stale navigation; absent peers keep
+an ordinary loading/error title. Back returns to the conversation with its draft.
+
+Red/green and final evidence are recorded in `05-implementation-plan.md`.
+**176 chat/compact-profile tests pass**, scoped analysis is clean, and formatting/
+diff checks pass. Simulator hot reload succeeds. The change reuses the existing
+compact route and expansion behavior; no API, persistence, permission, dependency,
+new transport, deployment or live message action changed.
+
+## Participant handles: 2026-10-21
+
+NFR-006 / FR-002/FR-003 / AC-023 / UT-010: added a shared compact chat identity
+using the existing ProfileHandle formatting/fallback rules and compact profile
+AppBar typography. Chats, pending requests and conversation details show a
+secondary muted @handle below a display name. Peers without a name keep one
+handle fallback, without duplication. List previews, avatar/badges/actions and
+navigation remain intact. Long lines ellipsize; conversation toolbar height
+accommodates larger system text without clipping either identity line.
+
+Verification: **29 widget/flow/routing tests pass**, exit 0, 3 seconds, including
+both list buckets with preserved previews and narrow/large-text AppBar identity.
+Log: `/private/tmp/craftsky-dm-handles-tests.log`. Scoped analysis passes with no
+issues: `/private/tmp/craftsky-dm-handles-analyze-final.log`. Formatting/diff checks
+pass. Simulator hot reload succeeds and runtime-error inspection returns none.
+No business logic, data/API, permissions, dependency, persistence, commit,
+deployment or live message action changed.
+
+## Request Accept/Ignore controls: 2026-10-21
+
+FR-008/FR-009, AC-009/AC-012, AT-003/AT-009/UT-010: removed the request explainer,
+retained primary Accept request and added secondary Ignore. Buttons share a row
+at normal widths and stack for narrow layouts/large text. Ignore uses the
+existing guarded leave operation directly and closes only on success; no extra
+confirmation. The More-menu Leave confirmation remains unchanged. Pending Ignore
+shows progress on that control and disables both choices. Failure uses existing
+CraftSky feedback and keeps the request available; accepted chats hide Ignore.
+
+173 chat/shared-feedback tests pass; whole-app analysis is clean. Red/green and
+boundary evidence are recorded in `05-implementation-plan.md` and
+`/private/tmp/craftsky-dm-ignore-{red,green,regressions-final,analyze-final}.log`.
+Localization generation and formatting/diff checks pass. Simulator hot reload
+succeeds. No backend/API/permission change or live remote action was performed.
+
+## Skeleton viewport coverage correction: 2026-10-21
+
+The fixed six-row placeholders left empty space on taller displays. Chat and
+conversation skeletons now calculate a finite row count from the available
+height and minimum themed row height. Recipient search uses the remaining
+viewport below its field with the same adaptive list skeleton.
+
+Two tall-viewport regressions reproduce the gap before the fix; both now pass.
+The focused loading/inbox/recipient suite passes **19 tests**, exit 0:
+`/private/tmp/craftsky-dm-skeleton-fill-{red,green}.log`. Scoped static analysis
+passes with no issues: `/private/tmp/craftsky-dm-skeleton-fill-analyze.log`.
+Formatting/diff checks pass. Simulator hot reload succeeds. No data, controller,
+provider, permission, background-refresh or API behavior changes.
+
+## Messaging skeleton loading: 2026-10-21
+
+Maintainer request / UT-010 / NFR-006 / AC-023: replace initial list and message
+history spinners with the existing feed skeleton treatment. This supersedes the
+earlier centered-spinner choice for these content views.
+
+- Chats, requests and initial recipient lists reuse `CraftskySkeletonList` with
+  the shared `AccountRowSkeleton`. Conversation details use alternating
+  message-bubble placeholders through the same wrapper/effect. Spacing and
+  radius come from existing theme tokens; placeholders contain no fabricated
+  identities or message text.
+- Both status acquisition and content acquisition use the matching skeleton.
+  Recipient search shows account-row placeholders while initial results load.
+  Background fetches preserve content/empty states and the small AppBar loader.
+  Settings, reports, authorization and action progress remain unchanged.
+- Verification: `flutter test --no-pub test/chat
+  test/shared/widgets/craftsky_skeleton_test.dart` passes **150 tests**, exit 0,
+  18 seconds. Includes six new initial-loading cases across chats, requests and
+  conversation details, status/content acquisition, narrow layout and large
+  text. Existing refresh/empty-state and shared reduced-motion, dark-theme,
+  accessibility, RTL and pointer-blocking checks pass.
+  Log: `/private/tmp/craftsky-dm-skeleton-tests.log`.
+- Final search assertion confirms skeletons while the query is pending, then
+  normal tap-to-conversation behavior. All **9 recipient-view tests pass**,
+  exit 0: `/private/tmp/craftsky-dm-skeleton-search-tests.log`.
+- Whole-app `dart analyze --fatal-infos` passes with no issues:
+  `/private/tmp/craftsky-dm-skeleton-analyze.log`. Formatting and diff checks pass.
+  Simulator hot reload succeeds; subsequent runtime-error query reports none.
+- Scope: visual loading states only. No controller/provider lifetime, business
+  logic, data model, API, permission, migration, dependency, commit, deployment or
+  live message/report change. No new manual/live validation is claimed.
+
+## Profile Message opens conversation directly: 2026-10-21
+
+Profile Message now starts/reuses the canonical conversation on the explicit
+tap and navigates directly to `ChatConversationRoute`. It no longer opens the
+New message recipient picker or exposes its raw-DID/Start UI. Profile viewing
+remains read-only. Known denial retains the info snackbar; failed starts use
+the shared error snackbar. The existing button progress prevents overlapping
+taps. Completion is fenced to the initiating account, recipient, widget and
+current route. The compact transition presentation keeps input absorbed.
+
+Red: the profile action previously made zero start requests;
+`/private/tmp/craftsky-dm-profile-direct-red.log`. The focused suite passes
+21 tests, including real profile-button → conversation → Messages navigation,
+duplicate taps, owner change, disposal, errors and protected diagnostic canaries:
+`/private/tmp/craftsky-dm-profile-direct-focused.log`.
+
+Chat/profile/router/shared-feedback regressions pass: 677 tests, 7 configured
+skips, 45s; `/private/tmp/craftsky-dm-profile-direct-regressions.log`. Whole-app
+analysis is clean: `/private/tmp/craftsky-dm-profile-direct-analyze-final.log`.
+Initial fixture compilation and four lint findings were corrected before final
+verification. Formatting/diff checks pass. Simulator hot reload succeeded with
+no subsequent runtime errors. No backend, OAuth, API URL, live conversation/
+message/report, commit or deployment change; actual provider testing is owner-run.
+
+## Requests and New message child routes: 2026-10-21
+
+Requests and New message now join Conversation as declared children of Messages.
+Canonical URLs remain `/messages/requests`, `/messages/new` (including the
+optional `recipient-did` query), and `/messages/conversations/:conversationId`.
+Direct messages settings stays separate at `/settings/messaging`. Profile
+Message entry uses the declared nested route, so Back reaches Messages as
+approved; inbox navigation still pushes children above the retained list.
+
+Updated the production-hierarchy assertion and added inbox/cold-link Back
+cases for both children, plus profile entry. Conversation start now exercises
+the real recipient route/controller rather than a sibling placeholder;
+Back skips the picker and reaches Messages. Both AppBar and system Back pass.
+Red: `/private/tmp/craftsky-dm-messages-children-red.log`. Final focused routing
+suite: 15 passes, `/private/tmp/craftsky-dm-messages-children-green.log`.
+
+Full chat/router/profile/notification regressions pass: 779 tests, 7 configured
+skips, 90s; `/private/tmp/craftsky-dm-messages-children-regressions.log`.
+Whole-app analysis has no issues:
+`/private/tmp/craftsky-dm-messages-children-analyze.log`. Formatting and diff
+checks pass. Typed routes were regenerated; unrelated generator output was
+restored from exact pre-generation snapshots. Simulator hot restart succeeded
+and runtime-error inspection was empty. Local only; no backend, auth policy,
+live message/report, commit, push or deployment changes.
+
+## Conversation details parent route: 2026-10-21
+
+Conversation details is now a declared child of Messages, with the unchanged
+`/messages/conversations/:conversationId` URL. Inbox selection, completed New
+message flows and cold links build the Messages parent underneath. Notification
+conversation opens use the same declarative destination; an imperative push
+alone skipped the parent and returned to the notification's originating page.
+Account-current checks and social-notification unread behavior are retained.
+
+A production-route hierarchy test reproduced the missing child before the fix:
+`/private/tmp/craftsky-dm-conversation-child-red.log`. Generated-route widget
+tests load real conversation UI and verify AppBar/system Back returns to the
+list for inbox, cold-link, New message and notification entry. The notification
+effect fixture now mirrors the nested hierarchy and checks Back reaches Messages.
+
+All 455 chat/router/notification regressions pass (7 configured skips, 33s):
+`/private/tmp/craftsky-dm-conversation-child-regressions.log`. Whole-app analysis
+has no issues: `/private/tmp/craftsky-dm-conversation-child-analyze-final.log`.
+The initial analysis's three test-style diagnostics were fixed. Full generation
+completed; unrelated whitespace/hash output in 85 previously clean generated
+files was removed, retaining the generated router changes. Formatting/diff
+checks pass. Simulator hot restart loads the updated route graph. No backend,
+API URL, live message/report, commit, push or deployment change.
+
+## Tap search result to open conversation: 2026-10-21
+
+Search-result taps now check availability and explicitly start/open the
+conversation in one interaction. The search flow has no Start conversation
+button or inline denial text. Denied taps use `context.showInfo` with the
+existing localized unavailable-recipient message; operational failures use the
+existing AppMessenger error effect. The keyboard dismisses on selection and
+the title spinner covers checking/starting. Repeated taps cannot overlap checks
+or starts; stale controller, route and account results cannot navigate.
+
+Cold profile-recipient URLs remain read-only until an explicit Start action;
+availability itself still never creates. No controller/backend contract changed.
+The maintainer's search-result tap is now the explicit start action documented
+in requirements/acceptance tests. Red tests demonstrate the former extra button
+and missing snackbar: `/private/tmp/craftsky-dm-tap-recipient-red.log`.
+
+All nine recipient tests pass, including repeated denial feedback, held checks
+and starts, account changes, failure feedback and large text/keyboard layout.
+All 129 chat/shared-feedback regressions pass (15s, no skips); scoped analysis
+has no findings and formatting/diff checks pass. Artifacts:
+`/private/tmp/craftsky-dm-tap-recipient-{green-final,regressions,analyze}.log`.
+Simulator hot reload succeeded; subsequent runtime-error inspection was empty.
+No live conversation/message/report, backend change, commit or deployment.
+
+## New message navigation: 2026-10-21
+
+The inbox FAB now uses the existing typed route's `push<void>()` instead of
+`go()`, preserving Messages underneath New message. The route regression failed
+before the fix because the router could not pop. It now verifies the retained
+inbox plus AppBar and system Back returning to it. All nine route/recipient-page
+tests pass; scoped analysis, formatting and diff checks pass. Artifacts:
+`/private/tmp/craftsky-dm-new-message-stack-{red,green,analyze}.log`.
+Simulator hot reload succeeded. No backend, route URL or live messaging changes.
+
 ## AppMessenger correction: 2026-10-21
 
 UIP-028 / NFR-006, FR-015, AC-017, AC-023: the maintainer's screenshot showed the custom sync banner above the page Scaffold, leaving a black region and moving the AppBar. The preceding pass reused snackbar styling in a separate inline renderer; it did not complete the requested migration to the existing message delivery system.

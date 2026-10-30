@@ -1,5 +1,109 @@
 # Requirements: Direct Messaging
 
+## Approved initial-load optimization: 2026-10-21
+
+FR-003, FR-019 / NFR-001, NFR-002, NFR-003, NFR-004 / AC-004, AC-016, AC-021,
+AC-028: load conversation metadata and its first message page through one
+AppView endpoint. Reuse one current session/capability/enablement/status boundary
+and one membership/profile lookup; preserve blocks, history mapping, opaque
+pagination and fail-closed errors. Restore the local draft concurrently with
+that request; publish the initial view only when both complete under the same
+active lease/content epoch. Retain typed failures, cache policy and no automatic
+read/accept/send/report mutation. Existing summary and history routes remain.
+No session-lock redesign, permission widening, persisted message cache, schema
+change or live performance claim is authorized or required.
+
+## Approved conversation loading header: 2026-10-21
+
+NFR-006 / FR-003 / AC-023: during initial conversation-details loading, the
+AppBar shows a themed profile skeleton (avatar, name and handle) alongside the
+message skeleton body. Apply during both status and content acquisition. Reuse
+the shared shimmer/reduced-motion treatment; the placeholder is noninteractive.
+Loaded identity, compact-profile action and silent background refresh remain.
+
+## Approved silent background refresh: 2026-10-21
+
+FR-015 / NFR-006 / AC-017, AC-023: remove the mini AppBar spinner for messaging
+background synchronization, refresh and pagination. Continue all existing fetch
+and polling behavior silently with loaded content and empty states visible.
+Keep initial skeletons and explicit user-action progress. Existing CraftSky
+warning/error messages and retry actions still report degraded or failed work.
+This supersedes earlier title-spinner requirements for background loading.
+
+## Approved conversation profile action: 2026-10-21
+
+FR-003 / NFR-006 / AC-023: tapping the peer's avatar or name/handle in the
+conversation details AppBar opens the existing compact profile presentation for
+that peer's DID. Back returns to the same conversation with its draft intact.
+Use the established profile route/helper and current-account navigation guard;
+no new modal, profile fetching path or automatic conversation mutation.
+
+## Approved identity presentation: 2026-10-21
+
+NFR-006 / FR-002, FR-003 / AC-023: chats and pending-request rows, plus the
+conversation details AppBar, show the participant's handle under their display
+name using the existing compact profile identity treatment. Preserve list
+message previews, avatars, badges and actions. Truncate long identity lines;
+support large text and retain a single handle fallback when no name is present.
+
+## Approved request-action revision: 2026-10-21
+
+FR-008, FR-009 / AC-009, AC-012 / NFR-006: request conversation details remove
+the explainer text and retain Accept request alongside an Ignore action. Ignore
+calls the existing guarded leave operation directly, without another confirmation,
+and closes details only after confirmed success. It does not accept, send, block
+or change incoming policy. Both actions prevent overlap while pending; failures
+use existing themed feedback. The More-menu Leave confirmation remains unchanged.
+
+## Approved loading-style revision: 2026-10-21
+
+NFR-006 / FR-015 / AC-023: initial chats, requests, recipient lists and
+conversation details use the existing CraftSky feed skeleton treatment instead
+of centered spinners. Reuse theme-aware shimmer, reduced-motion and loading
+semantics. Conversation placeholders reflect message bubbles without fabricated
+private content. Keep loaded content/empty states and the small AppBar loader
+for background fetches; action, authorization and settings progress is unchanged.
+This supersedes the earlier centered-spinner requirement for these content views.
+
+## Approved revision: active-account messaging lifetime, 2026-10-21
+
+FR-002, FR-007, FR-015, FR-016, FR-019 / NFR-002, NFR-004, NFR-005:
+the authenticated shell owns lightweight messaging status/repository state for
+the active account, and eligible unread counts/sync coordination while enabled.
+Successful chats/requests lists remain loaded after first use. Conversation
+history uses a bounded memory-only cache; recipient search/report forms remain
+page-scoped. Retention does not cause hidden-page polling, reads, sends or reports.
+Account switch/logout, disablement, permission loss and generation changes
+evict affected private caches; durable draft rules remain unchanged. Initial
+implementation policy: at most three idle conversations for up to two minutes;
+actively displayed conversations are not evicted by that idle-cache bound.
+
+## Approved correction: direct profile Message action, 2026-10-21
+
+FR-004 / AC-005: an explicit Message tap on an available profile starts/reuses
+the canonical conversation and navigates directly to its details under Messages.
+Do not route the profile action through New message or require another Start
+button. Keep unavailable-recipient snackbar feedback and disabled-account setup.
+Profile viewing and cold recipient URLs remain read-only. Pending actions show
+the existing button progress and prevent duplicate or stale-owner navigation.
+
+## Approved revision: Messages child routes, 2026-10-21
+
+FR-002, FR-004, FR-018 / AC-005, AC-027: Requests, New message and Conversation
+are declared children of Messages. Keep their existing canonical URLs. Cold
+links and profile entry build the Messages parent so Back reaches the inbox;
+opening a conversation from New message uses Messages → Conversation, without
+retaining the recipient picker. Direct messages settings stays separate.
+
+## Approved revision: search-result conversation start, 2026-10-21
+
+FR-004, FR-018 / AC-005, AC-027: tapping a CraftSky profile search result in
+New message is the explicit start action. Check availability and open/create
+the canonical direct conversation without an additional Start conversation
+button. A denied recipient shows the existing CraftSky snackbar and causes no
+create/send. Prevent overlapping selection/start requests. Merely searching,
+checking availability or loading a cold recipient route remains read-only.
+
 ## Approved correction: CraftSky feedback delivery, 2026-10-21
 
 NFR-006, FR-015 / AC-017, AC-023: messaging alerts must use the existing AppMessenger and its standard floating snackbar, including info/warning/error severity and retry/dismiss semantics. A custom banner that only reuses snackbar styling does not satisfy this requirement. No alert layout may sit above the page Scaffold and displace its AppBar. Routine synchronization uses the discreet title loader; initial loads remain centered. Persistent request, permission and uncertain-operation explanations remain ordinary in-page content with existing explicit actions. This supersedes earlier custom inline-banner presentation decisions, without changing messaging business behavior.

@@ -1,4 +1,5 @@
 import 'package:craftsky_app/chat/models/chat_conversation.dart';
+import 'package:craftsky_app/chat/models/chat_conversation_details.dart';
 import 'package:craftsky_app/chat/models/chat_identifier.dart';
 import 'package:craftsky_app/chat/models/chat_message.dart';
 import 'package:craftsky_app/chat/models/chat_state.dart';
@@ -30,6 +31,7 @@ abstract interface class ChatRepository {
     required bool pushEnabled,
   });
   Future<ChatConversation> conversation(ChatConversationId id);
+  Future<ChatConversationDetails> details(ChatConversationId id);
   Future<ChatMessagePage> history(
     ChatConversationId id, {
     ChatCursor? cursor,

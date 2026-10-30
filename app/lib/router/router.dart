@@ -13,6 +13,7 @@ import 'package:craftsky_app/business/pages/event_detail_page.dart';
 import 'package:craftsky_app/business/pages/events_settings_page.dart';
 import 'package:craftsky_app/business/pages/products_settings_page.dart';
 import 'package:craftsky_app/chat/pages/messaging_route_page.dart';
+import 'package:craftsky_app/chat/widgets/chat_session_scope.dart';
 import 'package:craftsky_app/design_playground/pages/design_playground_page.dart';
 import 'package:craftsky_app/drafts/pages/drafts_page.dart';
 import 'package:craftsky_app/feed/models/post.dart';
@@ -367,18 +368,20 @@ class AccountEligibilityRoute extends GoRouteData
     TypedGoRoute<ChatInboxRoute>(
       path: RouteLocations.messages,
       name: 'messages',
-    ),
-    TypedGoRoute<ChatRequestsRoute>(
-      path: RouteLocations.messageRequests,
-      name: 'message-requests',
-    ),
-    TypedGoRoute<NewMessageRoute>(
-      path: RouteLocations.newMessage,
-      name: 'new-message',
-    ),
-    TypedGoRoute<ChatConversationRoute>(
-      path: RouteLocations.messageConversation,
-      name: 'message-conversation',
+      routes: [
+        TypedGoRoute<ChatRequestsRoute>(
+          path: RouteLocations.messageRequestsChild,
+          name: 'message-requests',
+        ),
+        TypedGoRoute<NewMessageRoute>(
+          path: RouteLocations.newMessageChild,
+          name: 'new-message',
+        ),
+        TypedGoRoute<ChatConversationRoute>(
+          path: RouteLocations.messageConversationChild,
+          name: 'message-conversation',
+        ),
+      ],
     ),
     TypedGoRoute<ChatSettingsRoute>(
       path: RouteLocations.messagingSettings,
@@ -448,7 +451,9 @@ class AuthenticatedShellRoute extends ShellRouteData {
 
   @override
   Widget builder(BuildContext context, GoRouterState state, Widget navigator) {
-    return AuthenticatedShell(navigatorKey: $navigatorKey, child: navigator);
+    return ChatSessionScope(
+      child: AuthenticatedShell(navigatorKey: $navigatorKey, child: navigator),
+    );
   }
 }
 

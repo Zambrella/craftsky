@@ -16,11 +16,13 @@ import 'package:craftsky_app/chat/models/chat_message.dart';
 import 'package:craftsky_app/chat/models/chat_preview.dart';
 import 'package:craftsky_app/chat/models/chat_state.dart';
 import 'package:craftsky_app/chat/providers/chat_draft_store_provider.dart';
+import 'package:craftsky_app/chat/providers/chat_session_cache_provider.dart';
 import 'package:craftsky_app/chat/services/chat_conversation_controller.dart';
 import 'package:craftsky_app/chat/services/chat_inbox_controller.dart';
 import 'package:craftsky_app/chat/services/chat_preview_resolver.dart';
 import 'package:craftsky_app/chat/services/chat_recipient_controller.dart';
 import 'package:craftsky_app/chat/services/chat_report_controller.dart';
+import 'package:craftsky_app/chat/services/chat_session_cache.dart';
 import 'package:craftsky_app/chat/services/chat_settings_controller.dart';
 import 'package:craftsky_app/chat/services/chat_sync_coordinator.dart';
 import 'package:craftsky_app/feed/data/api_post_repository.dart';
@@ -175,6 +177,17 @@ Future<ChatConversationController> chatConversationController(
   AccountKey account,
   ChatConversationId id,
 ) async {
+  ChatCacheRetention? retention;
+  var idle = false;
+  ref
+    ..onCancel(() {
+      idle = true;
+      retention?.markIdle();
+    })
+    ..onResume(() {
+      idle = false;
+      retention?.markActive();
+    });
   final operation = chatAccountOperation(ref, account);
   await _requireMessaging(ref, account, operation);
   final repository = await operation.step(
@@ -207,6 +220,10 @@ Future<ChatConversationController> chatConversationController(
   );
   ref.onDispose(controller.dispose);
   await operation.step(controller.load);
+  if (!controller.failed && !controller.left) {
+    retention = retainChatConversation(ref, account);
+    if (idle) retention.markIdle();
+  }
   return controller;
 }
 
@@ -230,6 +247,7 @@ Future<ChatInboxController> chatInboxController(
   );
   ref.onDispose(controller.dispose);
   await operation.step(controller.refresh);
+  if (!controller.failed) retainChatInbox(ref, account);
   return controller;
 }
 

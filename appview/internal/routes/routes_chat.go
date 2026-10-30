@@ -26,6 +26,7 @@ func registerChatRoutes(routes chatRouteBundle) {
 	routes.mux.Handle("GET /v1/chat/availability", routes.middleware.wrap(mustPolicy("GET", "/v1/chat/availability"), api.ChatConsumerHandler(routes.consumer, "availability")))
 	routes.mux.Handle("POST /v1/chat/conversations", routes.middleware.wrap(mustPolicy("POST", "/v1/chat/conversations"), api.ChatConsumerHandler(routes.consumer, "start")))
 	routes.mux.Handle("GET /v1/chat/conversations/{id}", routes.middleware.wrap(mustPolicy("GET", "/v1/chat/conversations/{id}"), api.ChatConsumerHandler(routes.consumer, "conversation")))
+	routes.mux.Handle("GET /v1/chat/conversations/{id}/details", routes.middleware.wrap(mustPolicy("GET", "/v1/chat/conversations/{id}/details"), api.ChatConsumerHandler(routes.consumer, "details")))
 	routes.mux.Handle("GET /v1/chat/conversations/{id}/messages", routes.middleware.wrap(mustPolicy("GET", "/v1/chat/conversations/{id}/messages"), api.ChatConsumerHandler(routes.consumer, "history")))
 	routes.mux.Handle("GET /v1/chat/operations/{operationId}", routes.middleware.wrap(mustPolicy("GET", "/v1/chat/operations/{operationId}"), api.ChatConsumerHandler(routes.consumer, "receipt")))
 	routes.mux.Handle("PUT /v1/chat/conversations/{id}/read", routes.middleware.wrap(mustPolicy("PUT", "/v1/chat/conversations/{id}/read"), api.ChatConsumerHandler(routes.consumer, "read")))

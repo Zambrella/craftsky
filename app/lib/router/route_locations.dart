@@ -20,9 +20,12 @@ class RouteLocations {
   static const searchTagsChild = 'tags';
   static const notifications = '/notifications';
   static const messages = '/messages';
-  static const messageRequests = '/messages/requests';
-  static const newMessage = '/messages/new';
-  static const messageConversation = '/messages/conversations/:conversationId';
+  static const messageRequestsChild = 'requests';
+  static const messageRequests = '$messages/$messageRequestsChild';
+  static const newMessageChild = 'new';
+  static const newMessage = '$messages/$newMessageChild';
+  static const messageConversationChild = 'conversations/:conversationId';
+  static const messageConversation = '$messages/$messageConversationChild';
   static const messagingSettings = '/settings/messaging';
   static const notificationSettingsChild = 'settings';
   static const postThread = '/posts/:did/:rkey';

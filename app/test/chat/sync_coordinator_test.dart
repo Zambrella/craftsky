@@ -14,6 +14,46 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http_mock_adapter/http_mock_adapter.dart';
 
 void main() {
+  for (final fail in [false, true]) {
+    testWidgets(
+      'UT-006 completed heartbeat publishes idle loading state fail=$fail',
+      (tester) async {
+        final remote = _Repository()..held = Completer<ChatSyncSnapshot>();
+        final coordinator = ChatSyncCoordinator(
+          account: AccountKey('did:plc:owner'),
+          repository: remote,
+          operation: ActiveAccountOperation.withGuard(
+            ownership: null,
+            isCurrent: () => true,
+          ),
+          onRevision: (_, _, _) async {},
+        );
+        addTearDown(coordinator.dispose);
+        final observed = <bool>[];
+        coordinator.addListener(() => observed.add(coordinator.busy));
+        coordinator
+          ..setView(ChatView.inbox)
+          ..setForeground(active: true);
+        await tester.pump();
+        expect(coordinator.busy, true);
+        final held = remote.held!;
+        remote.held = null;
+        if (fail) {
+          held.completeError(const ApiNetworkError('offline'));
+        } else {
+          held.complete(
+            ChatSyncSnapshot.fromMap(const {'revision': 1, 'state': 'ready'}),
+          );
+        }
+        await tester.pump();
+        expect(coordinator.busy, false);
+        expect(coordinator.failed, fail);
+        expect(observed.last, false);
+        coordinator.dispose();
+      },
+    );
+  }
+
   for (final transition in [
     'background and resume',
     'view switch',

@@ -3548,6 +3548,7 @@
   "chatLoadMore": "Load more",
   "chatRefresh": "Refresh",
   "chatAcceptRequest": "Accept request",
+  "chatIgnoreRequest": "Ignore",
   "chatRequestExplanation": "Accept this shared message request before sending a reply. Reading it does not accept it.",
   "chatComposeLabel": "Message",
   "chatSend": "Send message",

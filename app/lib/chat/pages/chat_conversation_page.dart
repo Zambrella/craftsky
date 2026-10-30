@@ -17,8 +17,11 @@ import 'package:craftsky_app/chat/widgets/chat_app_bar_title.dart';
 import 'package:craftsky_app/chat/widgets/chat_content_gate.dart';
 import 'package:craftsky_app/chat/widgets/chat_message_effect.dart';
 import 'package:craftsky_app/chat/widgets/chat_message_preview.dart';
+import 'package:craftsky_app/chat/widgets/chat_peer_identity.dart';
+import 'package:craftsky_app/chat/widgets/chat_skeleton.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
+import 'package:craftsky_app/profile/widgets/profile_card_modal.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/shared/link/external_link.dart';
 import 'package:craftsky_app/shared/messaging/message_action.dart';
@@ -30,7 +33,6 @@ import 'package:craftsky_app/theme/chunky_icon_button.dart';
 import 'package:craftsky_app/theme/craftsky_context_menu.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
-import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -67,6 +69,8 @@ class MessagingConversationPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) => ChatContentGate(
     account: account,
+    loadingBody: const ChatConversationSkeleton(),
+    loadingTitle: const ChatProfileHeaderSkeleton(),
     onAuthorize: onAuthorize,
     onClose: onClose,
     builder: (context, ref, status) {
@@ -81,6 +85,8 @@ class MessagingConversationPage extends ConsumerWidget {
             loading: () => ChatLoadingPage(
               title: AppLocalizations.of(context).chatInboxTitle,
               onClose: onClose,
+              body: const ChatConversationSkeleton(),
+              titleWidget: const ChatProfileHeaderSkeleton(),
             ),
             error: (_, _) => Scaffold(
               appBar: AppBar(
@@ -132,6 +138,7 @@ class _ConversationViewState extends ConsumerState<_ConversationView>
   UnsavedWorkRegistration? _workRegistration;
   bool _resumed = true;
   bool _routeCurrent = true;
+  bool _ignoring = false;
 
   @override
   void initState() {
@@ -231,6 +238,41 @@ class _ConversationViewState extends ConsumerState<_ConversationView>
     );
   }
 
+  void _openPeerProfile() {
+    final peer = widget.controller.conversation?.peer;
+    final lease = ref.read(sessionRegistryProvider).value?.activeLease;
+    if (peer == null ||
+        lease?.session.account != widget.controller.account ||
+        !(ModalRoute.of(context)?.isCurrent ?? true)) {
+      return;
+    }
+    ActiveAccountOperation.fromWidget(ref, lease).publish(
+      () => unawaited(showUserProfileCard(context, did: peer.did)),
+    );
+  }
+
+  Future<void> _ignore() async {
+    final controller = widget.controller;
+    if (!widget.canOperate ||
+        controller.busy ||
+        controller.conversation?.bucket != ChatBucket.request) {
+      return;
+    }
+    setState(() => _ignoring = true);
+    try {
+      final left = await controller.leave();
+      if (left &&
+          mounted &&
+          widget.controller == controller &&
+          widget.canOperate &&
+          (ModalRoute.of(context)?.isCurrent ?? true)) {
+        widget.onClose();
+      }
+    } finally {
+      if (mounted) setState(() => _ignoring = false);
+    }
+  }
+
   Future<void> _leave() async {
     final l10n = AppLocalizations.of(context);
     final confirmed = await showCraftskyDestructiveConfirmDialog(
@@ -286,6 +328,9 @@ class _ConversationViewState extends ConsumerState<_ConversationView>
       },
       child: Scaffold(
         appBar: AppBar(
+          toolbarHeight: MediaQuery.textScalerOf(context)
+              .scale(kToolbarHeight)
+              .clamp(kToolbarHeight, double.infinity),
           leading: BackButton(onPressed: widget.onClose),
           actions: [
             if (conversation != null)
@@ -321,42 +366,49 @@ class _ConversationViewState extends ConsumerState<_ConversationView>
                 ],
               ),
           ],
-          title: ChatAppBarTitle(
-            showBackgroundLoading: conversation != null,
-            loading:
-                conversation != null &&
-                (controller.loading ||
-                    controller.refreshing ||
-                    controller.loadingOlder),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (conversation != null) ...[
-                  ProfileAvatar(
-                    seed:
-                        conversation.peer.displayName ??
-                        conversation.peer.handle ??
-                        l10n.chatSomeone,
-                    avatarUrl: conversation.peer.avatar,
-                    size: ProfileAvatarSize.small,
-                  ),
-                  const SizedBox(width: 12),
-                ],
-                Flexible(
-                  child: Text(
-                    conversation?.peer.displayName ??
-                        conversation?.peer.handle ??
+          title: conversation == null
+              ? controller.loading
+                    ? const ChatProfileHeaderSkeleton()
+                    : Text(
                         l10n.chatInboxTitle,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      )
+              : Semantics(
+                  button: true,
+                  hint: l10n.profileVisitAction,
+                  child: InkWell(
+                    onTap: _openPeerProfile,
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(minHeight: 48),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          ProfileAvatar(
+                            seed:
+                                conversation.peer.displayName ??
+                                conversation.peer.handle ??
+                                l10n.chatSomeone,
+                            avatarUrl: conversation.peer.avatar,
+                            size: ProfileAvatarSize.small,
+                          ),
+                          const SizedBox(width: 12),
+                          Flexible(
+                            child: ChatPeerIdentity(
+                              peer: conversation.peer,
+                              nameStyle: Theme.of(context)
+                                  .textTheme
+                                  .titleMedium,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
-              ],
-            ),
-          ),
         ),
         body: controller.loading && conversation == null
-            ? const Center(child: StitchProgressIndicator())
+            ? const ChatConversationSkeleton()
             : conversation == null
             ? ChatFailurePanel(
                 message: l10n.chatUnavailable,
@@ -412,17 +464,52 @@ class _ConversationViewState extends ConsumerState<_ConversationView>
                                 ),
                               if (conversation.bucket ==
                                   ChatBucket.request) ...[
-                                Text(l10n.chatRequestExplanation),
-                                const SizedBox(height: 8),
-                                ChunkyButton(
-                                  onPressed:
-                                      controller.busy || !widget.canOperate
-                                      ? null
-                                      : () => unawaited(controller.accept()),
-                                  child: ActionProgress(
-                                    isLoading: controller.busy,
-                                    child: Text(l10n.chatAcceptRequest),
-                                  ),
+                                LayoutBuilder(
+                                  builder: (context, constraints) {
+                                    final enabled =
+                                        !controller.busy && widget.canOperate;
+                                    final accept = ChunkyButton(
+                                      onPressed: enabled
+                                          ? () => unawaited(controller.accept())
+                                          : null,
+                                      child: ActionProgress(
+                                        isLoading:
+                                            controller.busy && !_ignoring,
+                                        child: Text(l10n.chatAcceptRequest),
+                                      ),
+                                    );
+                                    final ignore = ChunkyButton(
+                                      variant: ChunkyButtonVariant.secondary,
+                                      onPressed: enabled
+                                          ? () => unawaited(_ignore())
+                                          : null,
+                                      child: ActionProgress(
+                                        isLoading: _ignoring,
+                                        child: Text(l10n.chatIgnoreRequest),
+                                      ),
+                                    );
+                                    if (constraints.maxWidth < 300 ||
+                                        MediaQuery.textScalerOf(context)
+                                                .scale(1) >
+                                            1.3) {
+                                      return Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.stretch,
+                                        children: [
+                                          accept,
+                                          const SizedBox(height: 12),
+                                          ignore,
+                                        ],
+                                      );
+                                    }
+                                    return Row(
+                                      children: [
+                                        Expanded(child: ignore),
+                                        const SizedBox(width: 12),
+                                        Expanded(child: accept),
+                                      ],
+                                    );
+                                  },
                                 ),
                               ] else ...[
                                 Row(

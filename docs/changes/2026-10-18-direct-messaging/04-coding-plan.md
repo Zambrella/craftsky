@@ -1,5 +1,73 @@
 # Coding Plan: Direct Messaging
 
+## Combined initial conversation load: 2026-10-21
+
+Add GET /v1/chat/conversations/{id}/details with no query/body, returning
+{conversation: <existing Conversation>, messages: <existing MessagePage>} and
+existing no-store, read/no-activity/current-member policy. Details uses one
+withRPC union for getStatus/getConvo/getMessages, captures the connection
+generation, validates membership/CraftSky profiles once, computes canSend with
+existing block checks, then reuses the extracted history-page implementation.
+Keep standalone History's complete boundary; do not nest public service calls.
+
+Add a redacted ChatConversationDetails value and ChatRepository.details. Initial
+controller load starts details and local draft futures together, attaches both
+to Future.wait(eagerError: true), preserves original typed failures, then
+publishes only after both and the existing epoch/active-operation checks. Refresh
+and pagination retain their current endpoints; no fallback to duplicate calls.
+Update affected repository fakes/contracts. Validate exact upstream call order,
+negative authorization/private-boundary cases, HTTP route policy/wire shape,
+client response identity and concurrent draft restoration. Rebuild only the local
+AppView after passing tests; apply Flutter changes, preserving local/live limits.
+
+## Silent background refresh presentation: 2026-10-21
+
+Remove the inherited background-loading presentation signal and render plain
+inbox/conversation titles. Retain the title progress helper only for explicit
+settings mutations and recipient selection/start actions. Keep the activity
+scope's coordinator ownership, lifecycle/view registration, warnings and retry
+messages unchanged. Do not alter controller loading state or scheduling.
+
+## Conversation header profile action: 2026-10-21
+
+Wrap the loaded peer avatar/identity in an accessible InkWell using the existing
+showUserProfileCard helper and current active-account operation guard. Leave the
+background loading indicator outside the hit target. Preserve the route stack
+and draft; reuse the existing profile route's compact presentation and expansion.
+Verify the typed peer DID/presentation extra and Back using production chat routes.
+
+## Request-action implementation: 2026-10-21
+
+Reuse the existing conversation controller leave path for an explicit Ignore
+button beside Accept request. Add a local in-flight flag solely for the Ignore
+button's progress; keep controller busy/capability/owner guards and check route
+and widget lifetime before closing on success. Use existing themed secondary
+button styling and responsive button spacing. Remove the request explainer from
+rendering; localize Ignore. No API, backend, permissions, persistence or automatic
+remote action change. The More-menu Leave path keeps its confirmation dialog.
+
+## Loading-style polish: 2026-10-21
+
+Reuse `CraftskySkeletonList` and `AccountRowSkeleton` for initial chat/request
+lists and recipient lists. Add a local message-bubble skeleton using the shared
+wrapper/effect and existing spacing/radius tokens. Pass the appropriate body
+through the status gate and content-loading Scaffold, so both acquisition
+stages share the same visual treatment. Keep background refresh, pagination,
+actions, permission/setup state and all controller/provider behavior unchanged.
+
+## Approved runtime/cache design: 2026-10-21
+
+Use an authenticated-shell consumer to own a manual auto-disposed runtime
+provider. Watch the active lease, status/repository and, when eligible, unread
+counts, sync coordinator and an account cache. Keep existing view registration
+and polling/backoff. Refresh lightweight state on app resume. Retain successful
+inbox providers through cache-owned KeepAliveLinks; retain idle conversation
+providers with a three-entry/two-minute policy. Active listeners suspend idle
+eviction. Providers only read the cache owner, avoiding retention cycles. Cache
+disposal closes links; existing lease/status/generation dependencies invalidate
+controllers at security boundaries. Search/settings/report lifetimes stay local.
+No persistence, backend/API/permission change, automatic mutation or deployment.
+
 ## Feedback correction design: 2026-10-21
 
 UT-017 / NFR-006, FR-015: remove the bespoke CraftskyMessageBanner and above-Scaffold banner layout. A pass-through ChatMessageEffect schedules existing context.showInfo/showWarning/showError after layout; it adds no renderer, deduplicates unchanged state, checks route/mount lifetime and guards retry callbacks. Use the existing AppMessenger unchanged. Authorization's guarded async handler calls it directly. Share routine background state with ChatAppBarTitle through a layout-free inherited value, suppressing the title loader on centered initial-load screens. Keep necessary persistent state explanations as Text beside existing controls. No server, API, scope, migration or remote-operation change.

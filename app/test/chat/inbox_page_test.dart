@@ -14,6 +14,7 @@ import 'package:craftsky_app/chat/providers/chat_providers.dart';
 import 'package:craftsky_app/chat/widgets/chat_activity_scope.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
+import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
@@ -78,27 +79,23 @@ void main() {
         );
         await tester.pump();
         await tester.pump(const Duration(milliseconds: 100));
-        final initialSpinner = find.byType(StitchProgressIndicator);
-        expect(initialSpinner, findsOneWidget);
-        expect(
-          find.descendant(
-            of: find.byType(AppBar),
-            matching: initialSpinner,
-          ),
-          findsNothing,
-        );
-        final initialScaffold = tester.widget<Scaffold>(find.byType(Scaffold));
-        expect(
-          tester.getCenter(initialSpinner),
-          tester.getCenter(find.byWidget(initialScaffold.body!)),
-        );
+        expect(find.byType(CraftskySkeletonList), findsOneWidget);
+        expect(find.byType(AccountRowSkeleton), findsWidgets);
+        expect(find.byType(StitchProgressIndicator), findsNothing);
         repository.pendingConversations = null;
         initialLoad.complete(firstPage);
         await tester.pumpAndSettle();
         final peer = bucket == ChatBucket.accepted
             ? 'external.test'
             : 'request.external.test';
-        expect(find.text(peer), findsOneWidget);
+        expect(find.text('@$peer'), findsOneWidget);
+        expect(find.text('CraftSky peer'), findsOneWidget);
+        expect(find.text('Conversation preview'), findsOneWidget);
+        expect(
+          tester.getTopLeft(find.text('@$peer')).dy,
+          greaterThan(tester.getTopLeft(find.text('CraftSky peer')).dy),
+        );
+
         expect(find.byType(TabBar), findsNothing);
         expect(repository.heartbeats, 1);
         await tester.pump(const Duration(seconds: 30));
@@ -131,19 +128,18 @@ void main() {
         await tester.pump(const Duration(milliseconds: 700));
         await tester.pump();
         expect(repository.listCalls, calls + 1);
-        expect(find.text(peer), findsOneWidget);
+        expect(find.text('@$peer'), findsOneWidget);
         final titleSpinner = find.descendant(
           of: find.byType(AppBar),
           matching: find.byType(StitchProgressIndicator),
         );
-        expect(titleSpinner, findsOneWidget);
-        expect(tester.widget<StitchProgressIndicator>(titleSpinner).size, 16);
+        expect(titleSpinner, findsNothing);
         pending.complete(previousPage);
         repository.pendingConversations = null;
         await tester.pumpAndSettle();
         expect(titleSpinner, findsNothing);
 
-        await tester.tap(find.text(peer));
+        await tester.tap(find.text('@$peer'));
         expect(
           opened?.value,
           bucket == ChatBucket.accepted
@@ -191,9 +187,8 @@ void main() {
         final backgroundRefresh = controller.refresh();
         await tester.pump();
         expect(find.text(emptyMessage), findsOneWidget);
-        expect(titleSpinner, findsOneWidget);
-        expect(tester.widget<StitchProgressIndicator>(titleSpinner).size, 16);
-        expect(find.byType(StitchProgressIndicator), findsOneWidget);
+        expect(titleSpinner, findsNothing);
+        expect(find.byType(StitchProgressIndicator), findsNothing);
         repository
           ..empty = false
           ..pendingConversations = null;
@@ -201,7 +196,7 @@ void main() {
         await backgroundRefresh;
         await tester.pumpAndSettle();
         expect(find.text(emptyMessage), findsNothing);
-        expect(find.text(peer), findsOneWidget);
+        expect(find.text('@$peer'), findsOneWidget);
         expect(titleSpinner, findsNothing);
 
         await container
@@ -214,6 +209,7 @@ void main() {
         await tester.pumpAndSettle();
         expect(find.text('request.external.test'), findsNothing);
         expect(find.text('external.test'), findsNothing);
+        expect(find.text('CraftSky peer'), findsNothing);
         expect(tester.takeException(), isNull);
       },
     );
@@ -275,8 +271,17 @@ class _Repository implements ChatRepository {
           'muted': false,
           'unreadCount': 1,
           'canSend': bucket == ChatBucket.accepted,
+          'lastMessage': const {
+            'id': 'preview-message',
+            'revision': 'r',
+            'kind': 'text',
+            'text': 'Conversation preview',
+            'senderDid': 'did:plc:external',
+            'sentAt': '2026-10-21T12:00:00Z',
+          },
           'peer': {
             'did': 'did:plc:external',
+            'displayName': 'CraftSky peer',
             'handle': bucket == ChatBucket.accepted
                 ? 'external.test'
                 : 'request.external.test',

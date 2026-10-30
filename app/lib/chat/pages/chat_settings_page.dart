@@ -86,7 +86,7 @@ class MessagingSettingsView extends StatelessWidget {
                     ? null
                     : BackButton(onPressed: onClose),
                 title: ChatAppBarTitle(
-                  loading: controller.loading || controller.busy,
+                  loading: controller.busy,
                   child: Text(
                     l10n.chatSettingsTitle,
                     maxLines: 1,
