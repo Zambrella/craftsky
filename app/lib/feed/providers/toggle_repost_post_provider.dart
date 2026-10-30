@@ -31,23 +31,31 @@ class ToggleRepostPost extends _$ToggleRepostPost {
     final lifetime = ref.keepAlive();
     try {
       final operation = ActiveAccountOperation.capture(ref);
+      final controller = ref.read(pdsRecordOperationControllerProvider);
+      final scope = repostPostMutationScope(ref, post);
+      final pending = controller.operationFor(scope);
+      final pendingValue = pending?.optimisticValue;
       final current = applyPostInteractionOverlays(ref, post, reconcile: false);
-      final desiredReposted = !current.viewerHasReposted;
+      final desiredReposted =
+          pending?.status == PdsMutationStatus.ambiguous && pendingValue is bool
+          ? pendingValue
+          : !current.viewerHasReposted;
       final next = current.copyWith(
         viewerHasReposted: desiredReposted,
-        repostCount: current.viewerHasReposted
-            ? (current.repostCount > 0 ? current.repostCount - 1 : 0)
-            : current.repostCount + 1,
+        repostCount: current.viewerHasReposted == desiredReposted
+            ? current.repostCount
+            : desiredReposted
+            ? current.repostCount + 1
+            : (current.repostCount > 0 ? current.repostCount - 1 : 0),
       );
       final endpoint = '/v1/posts/${post.author.did}/${post.rkey}/reposts';
       final immutableBody = desiredReposted ? 'POST\n' : 'DELETE\n';
-      final controller = ref.read(pdsRecordOperationControllerProvider);
-      final scope = repostPostMutationScope(ref, post);
       final token = controller.beginOrRetry(
         scope: scope,
         endpoint: endpoint,
         immutableBody: immutableBody,
         newOperationKey: newPdsMutationOperationKey,
+        optimisticValue: desiredReposted,
       );
       final operationKey = token.operationKey;
       late final repo = ref.read(postRepositoryProvider);

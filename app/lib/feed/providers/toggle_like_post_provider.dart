@@ -31,23 +31,31 @@ class ToggleLikePost extends _$ToggleLikePost {
     final lifetime = ref.keepAlive();
     try {
       final operation = ActiveAccountOperation.capture(ref);
+      final controller = ref.read(pdsRecordOperationControllerProvider);
+      final scope = likePostMutationScope(ref, post);
+      final pending = controller.operationFor(scope);
+      final pendingValue = pending?.optimisticValue;
       final current = applyPostInteractionOverlays(ref, post, reconcile: false);
-      final desiredLiked = !current.viewerHasLiked;
+      final desiredLiked =
+          pending?.status == PdsMutationStatus.ambiguous && pendingValue is bool
+          ? pendingValue
+          : !current.viewerHasLiked;
       final next = current.copyWith(
         viewerHasLiked: desiredLiked,
-        likeCount: current.viewerHasLiked
-            ? (current.likeCount > 0 ? current.likeCount - 1 : 0)
-            : current.likeCount + 1,
+        likeCount: current.viewerHasLiked == desiredLiked
+            ? current.likeCount
+            : desiredLiked
+            ? current.likeCount + 1
+            : (current.likeCount > 0 ? current.likeCount - 1 : 0),
       );
       final endpoint = '/v1/posts/${post.author.did}/${post.rkey}/likes';
       final immutableBody = desiredLiked ? 'POST\n' : 'DELETE\n';
-      final controller = ref.read(pdsRecordOperationControllerProvider);
-      final scope = likePostMutationScope(ref, post);
       final token = controller.beginOrRetry(
         scope: scope,
         endpoint: endpoint,
         immutableBody: immutableBody,
         newOperationKey: newPdsMutationOperationKey,
+        optimisticValue: desiredLiked,
       );
       final operationKey = token.operationKey;
       late final repo = ref.read(postRepositoryProvider);

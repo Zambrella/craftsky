@@ -65,36 +65,57 @@ Post applyPostInteractionOverlaysForLease(
   bool reconcile = true,
 }) {
   var result = post;
-  final likeScope = likePostMutationScopeForLease(lease, post);
-  final likeOverlay = controller.overlayFor(likeScope);
-  if (likeOverlay != null &&
-      !(reconcile && controller.reconcile(likeScope, post.viewerHasLiked))) {
-    final desired = likeOverlay.optimisticValue;
-    if (desired is bool && desired != post.viewerHasLiked) {
-      result = result.copyWith(
-        viewerHasLiked: desired,
-        likeCount: desired
-            ? post.likeCount + 1
-            : (post.likeCount > 0 ? post.likeCount - 1 : 0),
-      );
-    }
+  final liked = _interactionValue(
+    controller,
+    likePostMutationScopeForLease(lease, post),
+    post.viewerHasLiked,
+    reconcile: reconcile,
+  );
+  if (liked != null && liked != post.viewerHasLiked) {
+    result = result.copyWith(
+      viewerHasLiked: liked,
+      likeCount: liked
+          ? post.likeCount + 1
+          : (post.likeCount > 0 ? post.likeCount - 1 : 0),
+    );
   }
-  final repostScope = repostPostMutationScopeForLease(lease, post);
-  final repostOverlay = controller.overlayFor(repostScope);
-  if (repostOverlay != null &&
-      !(reconcile &&
-          controller.reconcile(repostScope, post.viewerHasReposted))) {
-    final desired = repostOverlay.optimisticValue;
-    if (desired is bool && desired != post.viewerHasReposted) {
-      result = result.copyWith(
-        viewerHasReposted: desired,
-        repostCount: desired
-            ? post.repostCount + 1
-            : (post.repostCount > 0 ? post.repostCount - 1 : 0),
-      );
-    }
+  final reposted = _interactionValue(
+    controller,
+    repostPostMutationScopeForLease(lease, post),
+    post.viewerHasReposted,
+    reconcile: reconcile,
+  );
+  if (reposted != null && reposted != post.viewerHasReposted) {
+    result = result.copyWith(
+      viewerHasReposted: reposted,
+      repostCount: reposted
+          ? post.repostCount + 1
+          : (post.repostCount > 0 ? post.repostCount - 1 : 0),
+    );
   }
   return result;
+}
+
+bool? _interactionValue(
+  PdsRecordOperationController controller,
+  PdsMutationScope scope,
+  bool authoritative, {
+  required bool reconcile,
+}) {
+  final operation = controller.operationFor(scope);
+  final pending = operation?.optimisticValue;
+  if (operation != null &&
+      operation.status != PdsMutationStatus.failed &&
+      pending is bool) {
+    return pending;
+  }
+  final overlay = controller.overlayFor(scope);
+  if (overlay == null) return null;
+  if (reconcile && controller.reconcile(scope, authoritative)) {
+    return authoritative;
+  }
+  final accepted = overlay.optimisticValue;
+  return accepted is bool ? accepted : null;
 }
 
 PostCommentSection applyPostCommentSectionInteractionOverlays(

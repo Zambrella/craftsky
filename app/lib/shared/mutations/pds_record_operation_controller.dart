@@ -59,11 +59,13 @@ final class PdsMutationOperation {
     required this.token,
     required this.status,
     this.retryAfterSeconds,
+    this.optimisticValue,
   });
 
   final PdsMutationToken token;
   final PdsMutationStatus status;
   final int? retryAfterSeconds;
+  final Object? optimisticValue;
 
   PdsMutationOperation copyWith({
     required PdsMutationStatus status,
@@ -72,6 +74,7 @@ final class PdsMutationOperation {
     token: token,
     status: status,
     retryAfterSeconds: retryAfterSeconds,
+    optimisticValue: optimisticValue,
   );
 }
 
@@ -134,6 +137,7 @@ final class PdsRecordOperationController {
     required String operationKey,
     required String endpoint,
     required String immutableBody,
+    Object? optimisticValue,
   }) {
     if (_operations[scope]?.status == PdsMutationStatus.ambiguous) {
       throw DiagnosticStateError(
@@ -153,6 +157,7 @@ final class PdsRecordOperationController {
     _operations[scope] = PdsMutationOperation(
       token: token,
       status: PdsMutationStatus.inFlight,
+      optimisticValue: optimisticValue,
     );
     return token;
   }
@@ -180,6 +185,7 @@ final class PdsRecordOperationController {
     required String endpoint,
     required String immutableBody,
     required String Function() newOperationKey,
+    Object? optimisticValue,
   }) {
     final retry = retryToken(
       scope: scope,
@@ -192,6 +198,7 @@ final class PdsRecordOperationController {
       operationKey: newOperationKey(),
       endpoint: endpoint,
       immutableBody: immutableBody,
+      optimisticValue: optimisticValue,
     );
   }
 

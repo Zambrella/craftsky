@@ -66,41 +66,17 @@ enum PostCardContentKind { post, comment, reply }
 enum PostCardImageInteractionMode { navigate, fullscreenGallery }
 
 Post _postWithInteractionState(WidgetRef ref, Post post) {
-  final likeState = ref.watch(toggleLikePostProvider);
-  final repostState = ref.watch(toggleRepostPostProvider);
+  // Mutation state notifies rows to rebuild; the value itself is per subject.
+  ref
+    ..watch(toggleLikePostProvider)
+    ..watch(toggleRepostPostProvider);
   final lease = ref.watch(sessionRegistryProvider).value?.activeLease?.session;
-  final controller = ref.read(pdsRecordOperationControllerProvider);
-  var result = applyPostInteractionOverlaysForLease(
-    controller,
+  return applyPostInteractionOverlaysForLease(
+    ref.read(pdsRecordOperationControllerProvider),
     lease,
     post,
     reconcile: false,
   );
-  final like = likeState.hasError ? null : likeState.value;
-  final repost = repostState.hasError ? null : repostState.value;
-  final likeOperation = controller.operationFor(
-    likePostMutationScopeForLease(lease, post),
-  );
-  final repostOperation = controller.operationFor(
-    repostPostMutationScopeForLease(lease, post),
-  );
-  if (likeOperation != null &&
-      likeOperation.status != PdsMutationStatus.failed &&
-      like?.uri == post.uri) {
-    result = result.copyWith(
-      viewerHasLiked: like!.viewerHasLiked,
-      likeCount: like.likeCount,
-    );
-  }
-  if (repostOperation != null &&
-      repostOperation.status != PdsMutationStatus.failed &&
-      repost?.uri == post.uri) {
-    result = result.copyWith(
-      viewerHasReposted: repost!.viewerHasReposted,
-      repostCount: repost.repostCount,
-    );
-  }
-  return result;
 }
 
 /// Card-shaped post row used by the feed and the profile Posts tab.

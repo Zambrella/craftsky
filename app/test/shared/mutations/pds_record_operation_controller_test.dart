@@ -62,9 +62,11 @@ void main() {
       operationKey: '00000000-0000-4000-8000-000000000001',
       endpoint: '/v1/posts/post-1/like',
       immutableBody: '{"active":true}',
+      optimisticValue: true,
     );
 
     expect(controller.markAmbiguous(token, retryAfterSeconds: 3), isTrue);
+    expect(controller.operationFor(scope)?.optimisticValue, isTrue);
     expect(
       controller.canRetry(
         token,
