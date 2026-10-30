@@ -12,6 +12,7 @@ import (
 	"github.com/ipfs/go-cid"
 	"golang.org/x/text/language"
 
+	craftskylex "social.craftsky/appview/internal/lexicon/craftsky"
 	"social.craftsky/appview/internal/relationships"
 	"social.craftsky/appview/internal/video"
 )
@@ -83,6 +84,7 @@ type ExternalThumbResponse struct {
 // PostResponse is the canonical wire shape returned by every
 // post-shaped endpoint (POST, GET single, list items).
 type PostResponse struct {
+	quoteImageCID       string
 	URI                 string                  `json:"uri"`
 	CID                 string                  `json:"cid"`
 	Rkey                string                  `json:"rkey"`
@@ -380,6 +382,10 @@ func BuildPostResponse(row *PostRow, handle syntax.Handle, playbackBuilders ...P
 		}
 	}
 	if row.QuoteURI != nil {
+		var embed craftskylex.FeedPost_QuoteEmbed
+		if json.Unmarshal(row.RawEmbed, &embed) == nil && embed.LexiconTypeID == "social.craftsky.feed.post#quoteEmbed" && embed.ImageCid != nil {
+			resp.quoteImageCID = *embed.ImageCid
+		}
 		resp.Quote = &ResponseStrongRef{
 			URI: *row.QuoteURI,
 			CID: derefOrEmpty(row.QuoteCID),

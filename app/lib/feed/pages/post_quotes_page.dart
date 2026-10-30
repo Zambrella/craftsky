@@ -93,8 +93,12 @@ class PostQuotesPage extends ConsumerWidget {
               replyTooltip: l10n.postCommentAction,
               onLike: () => unawaited(_toggleLike(context, ref, post)),
               onRepost: () => unawaited(_toggleRepost(context, ref, post)),
-              onQuote: () => unawaited(
-                showPostComposerSheet(context, quoteTarget: post),
+              onQuote: (imageIndex) => unawaited(
+                showPostComposerSheet(
+                  context,
+                  quoteTarget: post,
+                  quoteImageIndex: imageIndex,
+                ),
               ),
               onDelete: isOwner
                   ? () =>

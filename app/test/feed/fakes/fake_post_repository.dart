@@ -187,6 +187,7 @@ class FakePostRepository implements PostRepository {
   onListRepostsByAuthor;
 
   PostRef? lastCreateQuote;
+  String? lastCreateQuoteImageCid;
   CreatePostExternal? lastCreateExternal;
   CreatePostVideo? lastCreateVideo;
   List<String>? lastCreateLangs;
@@ -214,6 +215,7 @@ class FakePostRepository implements PostRepository {
     required bool sponsored,
     PostReply? reply,
     PostRef? quote,
+    String? quoteImageCid,
     Project? project,
     List<CreatePostImage>? images,
     CreatePostExternal? external,
@@ -223,6 +225,7 @@ class FakePostRepository implements PostRepository {
     lastCreateOperationKey = operationKey;
     createOperationKeys.add(operationKey);
     lastCreateQuote = quote;
+    lastCreateQuoteImageCid = quoteImageCid;
     lastCreateExternal = external;
     lastCreateVideo = video;
     lastCreateLangs = List.unmodifiable(langs);

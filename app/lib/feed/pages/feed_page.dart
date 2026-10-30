@@ -282,8 +282,12 @@ class _FeedLoadedSlivers extends ConsumerWidget {
                 onRepost: () => ref
                     .read(toggleRepostPostProvider.notifier)
                     .toggle(post: post),
-                onQuote: () => unawaited(
-                  showPostComposerSheet(context, quoteTarget: post),
+                onQuote: (imageIndex) => unawaited(
+                  showPostComposerSheet(
+                    context,
+                    quoteTarget: post,
+                    quoteImageIndex: imageIndex,
+                  ),
                 ),
                 onReply: () => PostThreadRoute(
                   did: post.author.did,

@@ -31,6 +31,7 @@ class CraftskyContextMenuItem {
     this.isSelected = false,
     this.showSelectionCheckmark = false,
     this.switchValue,
+    this.onSwitchChanged,
     this.style = CraftskyContextMenuItemStyle.normal,
     this.locked = false,
   });
@@ -46,6 +47,10 @@ class CraftskyContextMenuItem {
   /// Preserve the leading icon and mark selection with a trailing check.
   final bool showSelectionCheckmark;
   final bool? switchValue;
+
+  /// An independent switch that keeps the menu open. The row still invokes
+  /// [onPressed]; without this callback, switch rows retain their usual action.
+  final ValueChanged<bool>? onSwitchChanged;
   final CraftskyContextMenuItemStyle style;
   final bool locked;
 }
@@ -147,6 +152,7 @@ class _CraftskyContextMenuButtonState extends State<CraftskyContextMenuButton> {
                               showSelectionCheckmark:
                                   item.showSelectionCheckmark,
                               switchValue: item.switchValue,
+                              onSwitchChanged: item.onSwitchChanged,
                               style: item.style,
                               locked: item.locked,
                               onPressed: item.onPressed == null
@@ -421,14 +427,29 @@ class _CraftskyContextMenuSheet extends StatelessWidget {
   }
 }
 
-class _CraftskyContextMenuRow extends StatelessWidget {
+class _CraftskyContextMenuRow extends StatefulWidget {
   const new({required this.item, this.onTap});
 
   final CraftskyContextMenuItem item;
   final VoidCallback? onTap;
 
   @override
+  State<_CraftskyContextMenuRow> createState() =>
+      _CraftskyContextMenuRowState();
+}
+
+class _CraftskyContextMenuRowState extends State<_CraftskyContextMenuRow> {
+  bool? _switchValue;
+
+  @override
+  void initState() {
+    super.initState();
+    _switchValue = widget.item.switchValue;
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final item = widget.item;
     final theme = Theme.of(context);
     final spacing = theme.extension<SpacingTheme>()!;
     final semanticColors = theme.extension<SemanticColorsTheme>()!;
@@ -447,13 +468,13 @@ class _CraftskyContextMenuRow extends StatelessWidget {
     );
 
     return Semantics(
-      label: item.text,
+      label: item.onSwitchChanged == null ? item.text : null,
       hint: item.semanticHint,
-      button: item.switchValue == null,
-      toggled: item.switchValue,
+      button: item.onSwitchChanged == null ? item.switchValue == null : null,
+      toggled: item.onSwitchChanged == null ? item.switchValue : null,
       selected: item.isSelected,
       enabled: !isDisabled,
-      excludeSemantics: true,
+      excludeSemantics: item.onSwitchChanged == null,
       child: Material(
         color: item.isSelected && item.switchValue == null
             ? selectedBackground
@@ -461,7 +482,7 @@ class _CraftskyContextMenuRow extends StatelessWidget {
         child: ListTile(
           key: item.key,
           enabled: !isDisabled,
-          onTap: onTap,
+          onTap: widget.onTap,
           contentPadding: EdgeInsets.symmetric(horizontal: spacing.sp4),
           horizontalTitleGap: spacing.sp3,
           leading: item.locked
@@ -490,6 +511,18 @@ class _CraftskyContextMenuRow extends StatelessWidget {
                   ),
                 ),
           trailing: switch (item.switchValue) {
+            final bool value when item.onSwitchChanged != null => Semantics(
+              label: item.description ?? item.text,
+              child: Switch(
+                value: _switchValue ?? value,
+                onChanged: isDisabled
+                    ? null
+                    : (value) {
+                        setState(() => _switchValue = value);
+                        item.onSwitchChanged!(value);
+                      },
+              ),
+            ),
             final bool value => IgnorePointer(
               child: Switch(
                 value: value,

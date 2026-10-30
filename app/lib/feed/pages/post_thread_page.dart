@@ -42,6 +42,7 @@ class PostThreadPage extends ConsumerStatefulWidget {
     required this.rkey,
     this.focus,
     this.initialCreatedPost,
+    this.initialImageCid,
     this.showComments = false,
     super.key,
   });
@@ -50,6 +51,7 @@ class PostThreadPage extends ConsumerStatefulWidget {
   final RecordKey rkey;
   final AtUri? focus;
   final craftsky_post.Post? initialCreatedPost;
+  final String? initialImageCid;
   final bool showComments;
 
   @override
@@ -167,6 +169,7 @@ class _PostThreadPageState extends ConsumerState<PostThreadPage> {
                   Expanded(
                     child: _CommentSectionBody(
                       section: section,
+                      initialImageCid: widget.initialImageCid,
                       did: widget.did,
                       rkey: widget.rkey,
                       focus: widget.focus,
@@ -378,9 +381,11 @@ class _CommentSectionBody extends ConsumerStatefulWidget {
     required this.onCollapseReplies,
     required this.selectedSort,
     required this.onSortChanged,
+    this.initialImageCid,
   });
 
   final PostCommentSection section;
+  final String? initialImageCid;
   final Did did;
   final RecordKey rkey;
   final AtUri? focus;
@@ -547,6 +552,7 @@ class _CommentSectionBodyState extends ConsumerState<_CommentSectionBody> {
               children: [
                 PostCard(
                   post: widget.section.post,
+                  initialImageCid: widget.initialImageCid,
                   allowProfilePinAction: true,
                   projectVariant: ProjectCardVariant.detail,
                   replyTooltip: l10n.postCommentAction,
@@ -560,10 +566,11 @@ class _CommentSectionBodyState extends ConsumerState<_CommentSectionBody> {
                   onRepost: () => ref
                       .read(toggleRepostPostProvider.notifier)
                       .toggle(post: widget.section.post),
-                  onQuote: () => unawaited(
+                  onQuote: (imageIndex) => unawaited(
                     showPostComposerSheet(
                       context,
                       quoteTarget: widget.section.post,
+                      quoteImageIndex: imageIndex,
                     ),
                   ),
                   onDelete: _deleteIfViewerOwned(widget.section.post),

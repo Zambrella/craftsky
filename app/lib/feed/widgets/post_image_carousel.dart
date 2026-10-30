@@ -64,13 +64,17 @@ BoxFit computePostImageFit({
 class PostImageCarousel extends ConsumerStatefulWidget {
   const new({
     required this.images,
+    this.initialIndex = 0,
     this.onImageTap,
+    this.onPageChanged,
     this.onImageDoubleTap,
     super.key,
   });
 
   final List<PostImage> images;
+  final int initialIndex;
   final PostImageTapCallback? onImageTap;
+  final ValueChanged<int>? onPageChanged;
   final VoidCallback? onImageDoubleTap;
 
   @override
@@ -78,7 +82,7 @@ class PostImageCarousel extends ConsumerStatefulWidget {
 }
 
 class _PostImageCarouselState extends ConsumerState<PostImageCarousel> {
-  final _pageController = PageController(keepPage: false);
+  late final PageController _pageController;
   Timer? _singleTapTimer;
   int? _pointer;
   Offset? _downPosition;
@@ -91,6 +95,10 @@ class _PostImageCarouselState extends ConsumerState<PostImageCarousel> {
   @override
   void initState() {
     super.initState();
+    _page = widget.images.isEmpty
+        ? 0
+        : widget.initialIndex.clamp(0, widget.images.length - 1);
+    _pageController = PageController(keepPage: false, initialPage: _page);
     _heroTags = List<Object>.generate(widget.images.length, (_) => Object());
   }
 
@@ -164,8 +172,10 @@ class _PostImageCarouselState extends ConsumerState<PostImageCarousel> {
                         child: PageView.builder(
                           controller: _pageController,
                           itemCount: widget.images.length,
-                          onPageChanged: (value) =>
-                              setState(() => _page = value),
+                          onPageChanged: (value) {
+                            setState(() => _page = value);
+                            widget.onPageChanged?.call(value);
+                          },
                           itemBuilder: (context, index) {
                             final image = widget.images[index];
                             final url = image.thumb ?? image.fullsize;

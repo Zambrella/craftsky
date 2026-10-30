@@ -513,8 +513,12 @@ class _ProjectPostSlivers extends ConsumerWidget {
               ref.read(toggleLikePostProvider.notifier).toggle(post: post),
           onRepost: () =>
               ref.read(toggleRepostPostProvider.notifier).toggle(post: post),
-          onQuote: () => unawaited(
-            showPostComposerSheet(context, quoteTarget: post),
+          onQuote: (imageIndex) => unawaited(
+            showPostComposerSheet(
+              context,
+              quoteTarget: post,
+              quoteImageIndex: imageIndex,
+            ),
           ),
           onDelete: viewerDid == post.author.did
               ? () => unawaited(_confirmProjectPostDelete(context, ref, post))

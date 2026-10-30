@@ -596,6 +596,9 @@ func lexiconRecordBodyAt(req PostCreateRequest, verifiedVideo *video.Blob, creat
 			},
 		}
 	}
+	if req.Embed != nil && req.Embed.Quote != nil && req.Embed.ImageCID != nil {
+		body["embed"].(map[string]any)["imageCid"] = *req.Embed.ImageCID
+	}
 	if req.Embed != nil && req.Embed.External != nil {
 		embed, err := externalEmbedRecord(*req.Embed.External)
 		if err != nil {
@@ -715,6 +718,15 @@ func syntheticPostRow(
 	if req.Embed != nil && req.Embed.Quote != nil {
 		row.QuoteURI = strPtr(req.Embed.Quote.URI)
 		row.QuoteCID = strPtr(req.Embed.Quote.CID)
+		embed := map[string]any{"$type": craftskyPostNSID + "#quoteEmbed", "record": req.Embed.Quote}
+		if req.Embed.ImageCID != nil {
+			embed["imageCid"] = *req.Embed.ImageCID
+		}
+		rawEmbed, err := json.Marshal(embed)
+		if err != nil {
+			return nil, err
+		}
+		row.RawEmbed = rawEmbed
 	}
 	if req.Embed != nil && req.Embed.External != nil {
 		embed, err := externalEmbedRecord(*req.Embed.External)

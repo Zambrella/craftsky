@@ -333,6 +333,44 @@ void main() {
       expect(post.text, 'quote commentary');
     });
 
+    test('includes chosen quote image CID in create body', () async {
+      final dio = buildDio();
+      final quote = PostRef(
+        uri: 'at://did:plc:bob/social.craftsky.feed.post/target',
+        cid: 'bafy_target',
+      );
+      DioAdapter(dio: dio).onPost(
+        '/v1/posts',
+        (server) => server.reply(201, samplePost(text: 'quote commentary')),
+        data: {
+          'text': 'quote commentary',
+          'langs': createLangs,
+          'sponsored': false,
+          'embed': {
+            'imageCid': 'selected-image',
+            'quote': {
+              'uri': 'at://did:plc:bob/social.craftsky.feed.post/target',
+              'cid': 'bafy_target',
+            },
+          },
+        },
+      );
+
+      final post =
+          await PostApiClient(
+            dio,
+          ).createPost(
+            operationKey: createOperationKey,
+            text: 'quote commentary',
+            langs: createLangs,
+            sponsored: false,
+            quote: quote,
+            quoteImageCid: 'selected-image',
+          );
+
+      expect(post.text, 'quote commentary');
+    });
+
     test('sends nested root and parent refs when reply is provided', () async {
       final dio = buildDio();
       final reply = PostReply(

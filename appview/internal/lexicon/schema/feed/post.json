@@ -171,6 +171,11 @@
           "type": "ref",
           "ref": "com.atproto.repo.strongRef",
           "description": "Strong reference to the quoted record."
+        },
+        "imageCid": {
+          "type": "string",
+          "format": "cid",
+          "description": "Preferred preview image CID from the quoted post. If absent or no longer present in the current quoted post, use its first available image."
         }
       }
     },
