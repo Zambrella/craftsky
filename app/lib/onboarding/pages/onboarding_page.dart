@@ -182,6 +182,8 @@ class _OnboardingFlowScaffold extends ConsumerWidget {
                                     notifier.updateIdentity(pronouns: value),
                                 onBioChanged: (value) =>
                                     notifier.updateIdentity(bio: value),
+                                onLinksChanged: (links) =>
+                                    notifier.updateIdentity(links: links),
                                 onPickAvatar: () =>
                                     unawaited(chooseAvatarSource()),
                               ),
