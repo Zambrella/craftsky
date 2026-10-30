@@ -1216,6 +1216,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get projectComposerGaugeUnitLabel => 'Gauge unit';
 
   @override
+  String get projectComposerKnittingSizeMadeLabel => 'Size made';
+
+  @override
+  String get projectComposerKnittingSizeMadeHint => 'Add size made';
+
+  @override
   String get projectComposerFinishedSizeLabel => 'Finished size';
 
   @override

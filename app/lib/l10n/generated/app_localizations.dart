@@ -2170,6 +2170,18 @@ abstract class AppLocalizations {
   /// **'Gauge unit'**
   String get projectComposerGaugeUnitLabel;
 
+  /// Label for the knitting size-made detail field.
+  ///
+  /// In en, this message translates to:
+  /// **'Size made'**
+  String get projectComposerKnittingSizeMadeLabel;
+
+  /// Placeholder text for the knitting size-made detail field.
+  ///
+  /// In en, this message translates to:
+  /// **'Add size made'**
+  String get projectComposerKnittingSizeMadeHint;
+
   /// Label for finished-size detail fields.
   ///
   /// In en, this message translates to:
