@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:craftsky_app/keys.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/shared/image/basic_image_editor.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
@@ -110,7 +111,7 @@ class _BasicImageEditorPageState extends State<BasicImageEditorPage> {
                 stream: stream,
                 builder: (_) => AppBar(
                   leading: IconButton(
-                    key: const Key('photo-editor-cancel'),
+                    key: keys.imageEditor.cancel,
                     tooltip: l10n.actionCancel,
                     onPressed: _exporting ? null : editor.close,
                     icon: const Icon(Icons.close),
@@ -118,7 +119,7 @@ class _BasicImageEditorPageState extends State<BasicImageEditorPage> {
                   title: Text(l10n.imageEditTitle),
                   actions: [
                     IconButton(
-                      key: const Key('photo-editor-done'),
+                      key: keys.imageEditor.done,
                       tooltip: l10n.postComposeDone,
                       onPressed: _exporting
                           ? null

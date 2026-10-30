@@ -1183,7 +1183,7 @@ class _ImageEditButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => IconButton.filled(
-    key: Key('$keyPrefix-edit-image-$imageId'),
+    key: keys.composerImages.edit(keyPrefix, imageId),
     tooltip: AppLocalizations.of(context).imageEditAction,
     onPressed: () => unawaited(onEdit(imageId)),
     icon: const Icon(CraftskyIcons.edit),
