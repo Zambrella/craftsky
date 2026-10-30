@@ -1038,6 +1038,7 @@ mixin $PostThreadRoute on GoRouteData {
     did: state.pathParameters['did']!,
     rkey: state.pathParameters['rkey']!,
     focus: state.uri.queryParameters['focus'],
+    imageCid: state.uri.queryParameters['image-cid'],
     showComments:
         _$convertMapValue(
           'show-comments',
@@ -1055,6 +1056,7 @@ mixin $PostThreadRoute on GoRouteData {
     '/posts/${Uri.encodeComponent(_self.did)}/${Uri.encodeComponent(_self.rkey)}',
     queryParams: {
       if (_self.focus != null) 'focus': _self.focus,
+      if (_self.imageCid != null) 'image-cid': _self.imageCid,
       if (_self.showComments != false)
         'show-comments': _self.showComments.toString(),
     },

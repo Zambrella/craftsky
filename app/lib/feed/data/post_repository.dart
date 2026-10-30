@@ -27,6 +27,7 @@ abstract interface class PostRepository {
     required bool sponsored,
     PostReply? reply,
     PostRef? quote,
+    String? quoteImageCid,
     Project? project,
     List<CreatePostImage>? images,
     CreatePostExternal? external,

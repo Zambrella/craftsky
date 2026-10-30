@@ -728,6 +728,61 @@ func TestCreatePost_QuoteEmbed_AttachesCompactQuoteView(t *testing.T) {
 	}
 }
 
+func TestCreatePost_QuoteEmbed_AttachesSelectedImage(t *testing.T) {
+	t.Parallel()
+	quoteURI := "at://did:plc:bob/social.craftsky.feed.post/r1"
+	quoteCID := "bafyActual"
+	pds := &fakePostEffectState{}
+	quoted := testPostRow("did:plc:bob", "r1", "quoted text", time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC))
+	quoted.CID = quoteCID
+	const selectedCID = "bafkreie3w2xq7u6rs5szu6vllsq5xh7y7uv3f6blql6uz4ep6txv6m4o6a"
+	quoted.Images = json.RawMessage(`[{"cid":"first","mime":"image/jpeg","alt":"first"},{"cid":"` + selectedCID + `","mime":"image/png","alt":"Chosen image"}]`)
+	store := &fakePostStore{
+		shareTarget: &api.ShareTargetRef{
+			URI: quoteURI,
+			CID: quoteCID,
+		},
+		quoteViews: map[string]*api.QuoteViewRow{
+			quoteURI: {State: "visible", Post: quoted},
+		},
+	}
+	h := api.CreatePostHandler(store, newPDSEffectsFactory(pds), fakeResolver{handlesByDID: map[string]syntax.Handle{
+		"did:plc:alice": "alice.example",
+		"did:plc:bob":   "bob.example",
+	}}, api.DefaultMediaLimits(), nilLogger())
+	body := `{"text":"hi","sponsored":false,"embed":{"imageCid":"` + selectedCID + `","quote":{"uri":"at://did:plc:bob/social.craftsky.feed.post/r1","cid":"bafyStale"}}}`
+	req := authedReq(http.MethodPost, "/v1/posts", body, "did:plc:alice")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusCreated {
+		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+	}
+	if len(store.lastQuoteViewRefs) != 1 || store.lastQuoteViewRefs[0].URI != quoteURI || store.lastQuoteViewRefs[0].CID != quoteCID {
+		t.Fatalf("quote view refs = %+v", store.lastQuoteViewRefs)
+	}
+	var resp api.PostResponse
+	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("response JSON: %v", err)
+	}
+	if resp.Quote == nil || resp.Quote.CID != quoteCID {
+		t.Fatalf("response quote = %+v, want resolved target CID", resp.Quote)
+	}
+	if resp.QuoteView == nil || resp.QuoteView.State != "visible" || resp.QuoteView.Post == nil {
+		t.Fatalf("quoteView = %+v, want visible preview", resp.QuoteView)
+	}
+	if resp.QuoteView.Post.URI != quoteURI || resp.QuoteView.Post.Text != "quoted text" || resp.QuoteView.Post.Author.Handle != "bob.example" {
+		t.Fatalf("quoteView.post = %+v", resp.QuoteView.Post)
+	}
+	if len(resp.QuoteView.Post.Images) != 2 || resp.QuoteView.Post.Images[0].CID != selectedCID || resp.QuoteView.Post.Images[0].Alt != "Chosen image" {
+		t.Fatalf("immediate quote preview lost selected image: %+v", resp.QuoteView.Post.Images)
+	}
+	rec := pds.lastCreateRec.(map[string]any)
+	if rec["embed"].(map[string]any)["imageCid"] != selectedCID {
+		t.Fatalf("PDS record lost selection: %+v", rec)
+	}
+}
+
 func TestCreatePost_AllowsMultipleQuotePostsForSameSubject(t *testing.T) {
 	t.Parallel()
 	pds := &fakePostEffectState{}

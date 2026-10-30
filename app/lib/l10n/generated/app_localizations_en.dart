@@ -10,6 +10,11 @@ class AppLocalizationsEn extends AppLocalizations {
   AppLocalizationsEn([String locale = 'en']) : super(locale);
 
   @override
+  String postQuoteUseCurrentImage(int current, int total) {
+    return 'Use current image ($current of $total)';
+  }
+
+  @override
   String get discoveryYourCrafts => 'Your crafts';
 
   @override
@@ -1259,6 +1264,12 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get projectComposerPatternPublisherHint => 'Add pattern publisher';
+
+  @override
+  String get postComposeQuoteLabel => 'Your thoughts';
+
+  @override
+  String get postComposeQuoteHint => 'Add your thoughts about this post…';
 
   @override
   String get postComposeHint => 'What would you like to share?';

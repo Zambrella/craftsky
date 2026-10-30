@@ -98,6 +98,7 @@ Future<Post?> showPostComposerSheet(
   BuildContext context, {
   Post? replyTarget,
   Post? quoteTarget,
+  int? quoteImageIndex,
   ScheduledPostDetail? scheduledPost,
   ActiveAccountLease? scheduledOwner,
   LocalPostDraftSeed? draftSeed,
@@ -110,6 +111,7 @@ Future<Post?> showPostComposerSheet(
       builder: (_) => PostComposerSheet(
         replyTarget: replyTarget,
         quoteTarget: quoteTarget,
+        quoteImageIndex: quoteImageIndex,
         scheduledPost: scheduledPost,
         scheduledOwner: scheduledOwner,
         draftSeed: draftSeed,
@@ -125,6 +127,7 @@ class PostComposerSheet extends ConsumerStatefulWidget {
     super.key,
     this.replyTarget,
     this.quoteTarget,
+    this.quoteImageIndex,
     this.composerId,
     this.scheduledPost,
     this.scheduledOwner,
@@ -161,6 +164,7 @@ class PostComposerSheet extends ConsumerStatefulWidget {
 
   final Post? replyTarget;
   final Post? quoteTarget;
+  final int? quoteImageIndex;
   final String? composerId;
   final ScheduledPostDetail? scheduledPost;
   final ActiveAccountLease? scheduledOwner;
@@ -186,6 +190,18 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
   String? _replacementExternalMimeType;
   String _initialText = '';
   String _text = '';
+  String? get _quoteImageCid {
+    final images = widget.quoteTarget?.images;
+    final index = widget.quoteImageIndex;
+    if (index == null ||
+        images == null ||
+        index < 0 ||
+        index >= images.length) {
+      return null;
+    }
+    return images[index].cid.toString();
+  }
+
   AccountSessionLease? _unsavedOwner;
   UnsavedWorkRegistration? _unsavedRegistration;
   late final UnsavedWorkGuard _unsavedGuard;
@@ -667,8 +683,12 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
                               ? l10n.postComposeCommentHint
                               : isResponse
                               ? l10n.postComposeReplyHint
+                              : isQuote
+                              ? l10n.postComposeQuoteLabel
                               : l10n.postComposeHint,
-                          hintText: isResponse
+                          hintText: isQuote
+                              ? l10n.postComposeQuoteHint
+                              : isResponse
                               ? null
                               : l10n.postComposeBodyHint,
                           controller: _controller,
@@ -1576,6 +1596,7 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
             sponsored: widget.replyTarget == null && _sponsored,
             reply: _replyFor(widget.replyTarget),
             quote: _quoteFor(widget.quoteTarget),
+            quoteImageCid: _quoteImageCid,
             images: images,
             external: external,
             facets: facets.isEmpty ? null : facets,

@@ -183,6 +183,8 @@ type FeedPost_Image struct {
 // Embed wrapping another record (typically a social.craftsky.feed.post) for a quote post.
 type FeedPost_QuoteEmbed struct {
 	LexiconTypeID string `json:"$type" cborgen:"$type,const=social.craftsky.feed.post#quoteEmbed"`
+	// imageCid: Preferred preview image CID from the quoted post. If absent or no longer present in the current quoted post, use its first available image.
+	ImageCid *string `json:"imageCid,omitempty" cborgen:"imageCid,omitempty"`
 	// record: Strong reference to the quoted record.
 	Record *comatproto.RepoStrongRef `json:"record" cborgen:"record"`
 }

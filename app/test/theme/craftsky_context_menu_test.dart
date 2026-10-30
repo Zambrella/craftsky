@@ -35,6 +35,52 @@ void main() {
   }
 
   group('CraftskyContextMenuButton', () {
+    for (final width in [390.0, 1200.0]) {
+      testWidgets('independent Quote switch keeps menu open at width $width', (
+        tester,
+      ) async {
+        var selected = false;
+        bool? submitted;
+        await pumpHarness(
+          tester,
+          size: Size(width, 844),
+          child: CraftskyContextMenuButton(
+            groups: [
+              CraftskyContextMenuGroup(
+                items: [
+                  CraftskyContextMenuItem(
+                    text: 'Quote',
+                    icon: CraftskyIconsBold.quote,
+                    description: 'Use current image (3 of 4)',
+                    switchValue: false,
+                    onSwitchChanged: (value) => selected = value,
+                    onPressed: () => submitted = selected,
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+        await tester.tap(find.byIcon(CraftskyIconsBold.more));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byType(Switch));
+        await tester.pumpAndSettle();
+        expect(selected, isTrue);
+        expect(submitted, isNull);
+        expect(find.text('Quote'), findsOneWidget);
+        expect(tester.widget<Switch>(find.byType(Switch)).value, isTrue);
+        await tester.tap(find.byType(Switch));
+        await tester.pumpAndSettle();
+        expect(selected, isFalse);
+        await tester.tap(find.byType(Switch));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Quote'));
+        await tester.pumpAndSettle();
+        expect(submitted, isTrue);
+        expect(find.text('Quote'), findsNothing);
+      });
+    }
+
     testWidgets('selected async action spins on its closed menu button', (
       tester,
     ) async {

@@ -119,6 +119,7 @@ class PostApiClient {
     required String operationKey,
     PostReply? reply,
     PostRef? quote,
+    String? quoteImageCid,
     Project? project,
     List<CreatePostImage>? images,
     CreatePostExternal? external,
@@ -160,7 +161,10 @@ class PostApiClient {
         'project': ?project?.toCreateMap(),
         'reply': ?reply?.toMap(),
         'embed': ?switch ((quote, external, video)) {
-          (final quote?, _, _) => {'quote': quote.toMap()},
+          (final quote?, _, _) => {
+            'quote': quote.toMap(),
+            'imageCid': ?quoteImageCid,
+          },
           (_, final external?, _) => {'external': external.toMap()},
           (_, _, final video?) => {'video': video.toMap()},
           _ => null,

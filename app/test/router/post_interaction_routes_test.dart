@@ -17,6 +17,7 @@ import 'package:craftsky_app/feed/pages/post_thread_page.dart';
 import 'package:craftsky_app/feed/providers/post_interaction_lists_provider.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/feed/widgets/post_card.dart';
+import 'package:craftsky_app/feed/widgets/post_image_carousel.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/languages/models/language_preferences.dart';
 import 'package:craftsky_app/profile/models/profile_account_page.dart';
@@ -235,6 +236,83 @@ void _expectDestination(String suffix, WidgetTester tester) {
 
 void main() {
   for (final size in [const Size(390, 844), const Size(1200, 800)]) {
+    for (final imageState in ['original', 'reordered', 'removed']) {
+      testWidgets(
+        'quoted image opens selected in details ($imageState, $size)',
+        (tester) async {
+          final first = PostImage(
+            cid: 'first-image',
+            mime: 'image/jpeg',
+            size: 1,
+            alt: 'First',
+          );
+          final second = PostImage(
+            cid: 'second-image',
+            mime: 'image/jpeg',
+            size: 1,
+            alt: 'Second',
+          );
+          final original = _post().copyWith(
+            text: 'Quoted image target',
+            images: switch (imageState) {
+              'reordered' => [second, first],
+              'removed' => [first],
+              _ => [first, second],
+            },
+          );
+          final quoting = _post().copyWith(
+            uri: AtUri.parse('at://$_did/social.craftsky.feed.post/quote'),
+            rkey: RecordKey.parse('quote'),
+            text: 'My quote',
+            quoteView: QuoteView(
+              state: 'visible',
+              post: QuotePreviewPost(
+                uri: original.uri,
+                cid: original.cid,
+                text: original.text,
+                author: original.author,
+                createdAt: original.createdAt,
+                sponsored: false,
+                images: [second, first],
+              ),
+            ),
+          );
+          final repo = FakePostRepository(
+            onCommentSection: (did, rkey, {cursor, sort, focus, limit}) async =>
+                PostCommentSection(
+                  post: rkey.toString() == 'quote' ? quoting : original,
+                  comments: const CommentPage(items: []),
+                  sort: CommentSort.oldest,
+                ),
+          );
+          final container = _container(signedIn: true, repo: repo);
+          addTearDown(container.dispose);
+          await _pumpRouter(
+            tester,
+            container,
+            initialLocation: '/posts/$_did/quote',
+            size: size,
+          );
+          await tester.tap(find.text('Quoted image target'));
+          await tester.pumpAndSettle();
+          final page = tester.widget<PostThreadPage>(
+            find.byType(PostThreadPage).last,
+          );
+          expect(page.rkey, RecordKey.parse(_rkey));
+          expect(page.initialImageCid, 'second-image');
+          final carousel = tester.widget<PostImageCarousel>(
+            find.byType(PostImageCarousel),
+          );
+          final wantedIndex = imageState == 'original' ? 1 : 0;
+          expect(carousel.initialIndex, wantedIndex);
+          expect(
+            tester.widget<PageView>(find.byType(PageView)).controller!.page,
+            wantedIndex,
+          );
+        },
+      );
+    }
+
     for (final fromDetail in [false, true]) {
       testWidgets(
         '${fromDetail ? 'project detail' : 'feed'} hashtag opens results '
