@@ -8,6 +8,7 @@ import 'package:craftsky_app/feed/providers/composer_images_provider.dart';
 import 'package:craftsky_app/profile/models/profile_image_failure.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/api/providers/dio_provider.dart';
+import 'package:craftsky_app/shared/image/basic_image_editor.dart';
 import 'package:craftsky_app/shared/media/blob_api_client.dart';
 import 'package:craftsky_app/shared/media/blob_api_client_provider.dart';
 import 'package:craftsky_app/shared/media/uploaded_image_blob.dart';
@@ -65,17 +66,22 @@ class ProfileImagePicker {
   Future<ProfileImagePickResult?> pickAndUpload({
     required ImageSource source,
     required void Function(Uint8List bytes) onPreviewReady,
+    BasicImageEditor? editImage,
+    bool Function()? isCurrent,
   }) async {
     final prepared = await pickAndPrepare(
       source: source,
       onPreviewReady: onPreviewReady,
+      editImage: editImage,
+      isCurrent: isCurrent,
     );
-    if (prepared == null) return null;
+    if (prepared == null || isCurrent?.call() == false) return null;
 
     final uploaded = await _blobApi.uploadImage(
       bytes: prepared.bytes,
       mimeType: prepared.mimeType,
     );
+    if (isCurrent?.call() == false) return null;
     return ProfileImagePickResult(
       previewBytes: prepared.bytes,
       uploaded: uploaded,
@@ -85,13 +91,21 @@ class ProfileImagePicker {
   Future<PreparedProfileImage?> pickAndPrepare({
     required ImageSource source,
     required void Function(Uint8List bytes) onPreviewReady,
+    BasicImageEditor? editImage,
+    bool Function()? isCurrent,
   }) async {
+    if (editImage != null && isCurrent == null) {
+      throw ArgumentError('Avatar editing requires a currentness guard');
+    }
+    if (isCurrent?.call() == false) return null;
     final file = await _picker.pickImage(source: source);
-    if (file == null) return null;
+    if (file == null || isCurrent?.call() == false) return null;
 
     final mimeType = file.mimeType ?? _media.mimeTypeForFileName(file.name);
     final length = await file.length();
+    if (isCurrent?.call() == false) return null;
     final header = await _readHeaderBytes(file);
+    if (isCurrent?.call() == false) return null;
     final originalCheck = _media.validateOriginalImage(
       sizeBytes: length,
       fileName: file.name,
@@ -112,7 +126,8 @@ class ProfileImagePicker {
       maxBytes: _media.config.maxSourceImageBytes,
     );
 
-    late final PreparedImagePayload prepared;
+    if (isCurrent?.call() == false) return null;
+    late PreparedImagePayload prepared;
     try {
       prepared = await _media
           .prepareImage(bytes: bytes, fileName: file.name, mimeType: mimeType)
@@ -125,6 +140,7 @@ class ProfileImagePicker {
       }
       rethrow;
     }
+    if (isCurrent?.call() == false) return null;
     final preparedCheck = _media.validatePreparedUploadBytes(
       originalBytes: bytes.length,
       preparedBytes: prepared.bytes.length,
@@ -135,6 +151,36 @@ class ProfileImagePicker {
       throw const ProfileImagePickException();
     }
 
+    if (editImage != null) {
+      final output = await editImage(
+        BasicImageEditRequest(
+          bytes: prepared.bytes,
+          mimeType: prepared.mimeType,
+          mode: BasicImageEditMode.avatar,
+        ),
+      );
+      if (output == null || isCurrent?.call() == false) return null;
+      prepared = await _media
+          .prepareImage(
+            bytes: output.bytes,
+            fileName: output.mimeType == 'image/png'
+                ? 'avatar.png'
+                : 'avatar.jpg',
+            mimeType: output.mimeType,
+          )
+          .future;
+      if (isCurrent?.call() == false) return null;
+      final check = _media.validatePreparedUploadBytes(
+        originalBytes: output.bytes.length,
+        preparedBytes: prepared.bytes.length,
+        width: prepared.width,
+        height: prepared.height,
+      );
+      if (!check.canUpload || prepared.width != prepared.height) {
+        throw const ProfileImagePickException(expectedRejection: true);
+      }
+    }
+    if (isCurrent?.call() == false) return null;
     onPreviewReady(prepared.bytes);
     return PreparedProfileImage(
       bytes: prepared.bytes,

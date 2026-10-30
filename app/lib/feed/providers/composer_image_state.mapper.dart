@@ -30,17 +30,28 @@ class ComposerImagesStateMapper extends ClassMapperBase<ComposerImagesState> {
   static ComposerImageNotice? _$notice(ComposerImagesState v) => v.notice;
   static const Field<ComposerImagesState, ComposerImageNotice> _f$notice =
       Field('notice', _$notice, opt: true);
+  static bool _$hasImageEditsInFlight(ComposerImagesState v) =>
+      v.hasImageEditsInFlight;
+  static const Field<ComposerImagesState, bool> _f$hasImageEditsInFlight =
+      Field(
+        'hasImageEditsInFlight',
+        _$hasImageEditsInFlight,
+        opt: true,
+        def: false,
+      );
 
   @override
   final MappableFields<ComposerImagesState> fields = const {
     #images: _f$images,
     #notice: _f$notice,
+    #hasImageEditsInFlight: _f$hasImageEditsInFlight,
   };
 
   static ComposerImagesState _instantiate(DecodingData data) {
     return ComposerImagesState(
       images: data.dec(_f$images),
       notice: data.dec(_f$notice),
+      hasImageEditsInFlight: data.dec(_f$hasImageEditsInFlight),
     );
   }
 
@@ -122,7 +133,11 @@ abstract class ComposerImagesStateCopyWith<
   get images;
   ComposerImageNoticeCopyWith<$R, ComposerImageNotice, ComposerImageNotice>?
   get notice;
-  $R call({List<ComposerImageDraft>? images, ComposerImageNotice? notice});
+  $R call({
+    List<ComposerImageDraft>? images,
+    ComposerImageNotice? notice,
+    bool? hasImageEditsInFlight,
+  });
   ComposerImagesStateCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(
     Then<$Out2, $R2> t,
   );
@@ -151,16 +166,26 @@ class _ComposerImagesStateCopyWithImpl<$R, $Out>
   ComposerImageNoticeCopyWith<$R, ComposerImageNotice, ComposerImageNotice>?
   get notice => $value.notice?.copyWith.$chain((v) => call(notice: v));
   @override
-  $R call({List<ComposerImageDraft>? images, Object? notice = $none}) => $apply(
+  $R call({
+    List<ComposerImageDraft>? images,
+    Object? notice = $none,
+    bool? hasImageEditsInFlight,
+  }) => $apply(
     FieldCopyWithData({
       if (images != null) #images: images,
       if (notice != $none) #notice: notice,
+      if (hasImageEditsInFlight != null)
+        #hasImageEditsInFlight: hasImageEditsInFlight,
     }),
   );
   @override
   ComposerImagesState $make(CopyWithData data) => ComposerImagesState(
     images: data.get(#images, or: $value.images),
     notice: data.get(#notice, or: $value.notice),
+    hasImageEditsInFlight: data.get(
+      #hasImageEditsInFlight,
+      or: $value.hasImageEditsInFlight,
+    ),
   );
 
   @override

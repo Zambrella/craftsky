@@ -10,6 +10,7 @@ import 'package:craftsky_app/onboarding/models/onboarding_flow_state.dart';
 import 'package:craftsky_app/onboarding/pages/onboarding_page.dart';
 import 'package:craftsky_app/onboarding/providers/onboarding_flow_provider.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
+import 'package:craftsky_app/shared/image/basic_image_editor.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
@@ -34,6 +35,7 @@ final class _Flow extends OnboardingFlow {
   final OnboardingFlowState initial;
   int completionCalls = 0;
   ImageSource? avatarSource;
+  BasicImageEditor? avatarEditor;
 
   @override
   Future<OnboardingFlowState> build(ActiveAccountLease lease) async => initial;
@@ -42,7 +44,13 @@ final class _Flow extends OnboardingFlow {
   Future<void> complete() async => completionCalls++;
 
   @override
-  Future<void> pickAvatar(ImageSource source) async => avatarSource = source;
+  Future<void> pickAvatar(
+    ImageSource source, {
+    BasicImageEditor? editImage,
+  }) async {
+    avatarSource = source;
+    avatarEditor = editImage;
+  }
 }
 
 final class _PendingFlow extends OnboardingFlow {
@@ -155,6 +163,11 @@ void main() {
     await tester.tap(find.byKey(const Key('onboarding-avatar-take-photo')));
     await tester.pumpAndSettle();
     expect(flow.avatarSource, ImageSource.camera);
+    expect(
+      flow.avatarEditor,
+      isNotNull,
+      reason: 'image editing AT-005: onboarding supplies editor',
+    );
 
     await tester.tap(find.text('Next'));
     await tester.pump();

@@ -15,6 +15,7 @@ import 'package:craftsky_app/profile/providers/profile_record_overlay.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/profile/providers/save_profile_provider.dart';
 import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
+import 'package:craftsky_app/shared/image/basic_image_editor.dart';
 import 'package:craftsky_app/shared/media/uploaded_image_blob.dart';
 import 'package:craftsky_app/shared/mutations/pds_record_operation_controller.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -332,6 +333,8 @@ class _Picker extends Fake implements ProfileImagePicker {
   Future<ProfileImagePickResult?> pickAndUpload({
     required ImageSource source,
     required void Function(Uint8List bytes) onPreviewReady,
+    BasicImageEditor? editImage,
+    bool Function()? isCurrent,
   }) async => ProfileImagePickResult(
     previewBytes: Uint8List.fromList([1]),
     uploaded: UploadedImageBlob(

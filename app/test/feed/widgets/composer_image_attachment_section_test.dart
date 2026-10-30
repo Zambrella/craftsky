@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:craftsky_app/feed/providers/composer_image_state.dart';
 import 'package:craftsky_app/feed/widgets/composer_image_attachment_section.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
@@ -15,6 +17,118 @@ ComposerImageDraft _image(String id) => ComposerImageDraft(
 );
 
 void main() {
+  testWidgets(
+    'image editing AT-009: pending edit retains preview and '
+    'hides conflicting edit actions',
+    (tester) async {
+      final state = ValueNotifier(
+        ComposerImagesState(
+          hasImageEditsInFlight: true,
+          images: [
+            _image('1').copyWith(
+              phase: ImageReady(
+                bytes: Uint8List(0),
+                mimeType: 'image/png',
+                width: 10,
+                height: 10,
+                sha256: 'one',
+              ),
+            ),
+          ],
+        ),
+      );
+      addTearDown(state.dispose);
+      await _pump(tester, state, onEditImage: (_) async {});
+      expect(find.byType(CraftskyImageAttachmentPreview), findsOneWidget);
+      expect(find.byKey(const Key('composer-edit-image-1')), findsNothing);
+      expect(
+        tester
+            .widget<TextButton>(find.byKey(const Key('composer-clear-images')))
+            .onPressed,
+        isNull,
+      );
+    },
+  );
+
+  testWidgets(
+    'image editing UT-001: reference and unavailable photos cannot edit',
+    (tester) async {
+      final state = ValueNotifier(
+        ComposerImagesState(
+          images: [
+            _image('missing'),
+            _image('remote').copyWith(
+              phase: const PublishedImageReady(
+                existingIndex: 0,
+                url: 'https://cdn.example/image.jpg',
+              ),
+            ),
+          ],
+        ),
+      );
+      addTearDown(state.dispose);
+      await _pump(tester, state, onEditImage: (_) async {});
+      expect(
+        find.byKey(const Key('composer-edit-image-missing')),
+        findsNothing,
+      );
+      expect(find.byKey(const Key('composer-edit-image-remote')), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'image editing AT-001: overview has no edit overlays; '
+    'details Edit selects the stable image',
+    (tester) async {
+      final state = ValueNotifier(
+        ComposerImagesState(
+          images: [
+            _image('1').copyWith(
+              phase: ImageReady(
+                bytes: Uint8List(0),
+                mimeType: 'image/png',
+                width: 10,
+                height: 10,
+                sha256: 'one',
+              ),
+            ),
+            _image('2').copyWith(
+              phase: ImageReady(
+                bytes: Uint8List(0),
+                mimeType: 'image/png',
+                width: 10,
+                height: 10,
+                sha256: 'two',
+              ),
+            ),
+          ],
+        ),
+      );
+      addTearDown(state.dispose);
+      String? selected;
+      await _pump(
+        tester,
+        state,
+        onEditImage: (id) async {
+          selected = id;
+        },
+      );
+      expect(selected, isNull);
+      expect(find.byKey(const Key('composer-edit-image-1')), findsNothing);
+      expect(find.byKey(const Key('composer-edit-image-2')), findsNothing);
+      await tester.tap(find.byKey(const Key('composer-edit-images')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('composer-photo-details')), findsOneWidget);
+      await tester.ensureVisible(
+        find.byKey(const Key('composer-edit-image-2')),
+      );
+      await tester.tap(find.byKey(const Key('composer-edit-image-2')));
+      await tester.pumpAndSettle();
+      expect(selected, '2');
+      expect(find.byKey(const Key('composer-photo-details')), findsOneWidget);
+    },
+  );
+
   testWidgets(
     'UT-001 retained published images show their current URL in summary and '
     'details',
@@ -227,6 +341,7 @@ Future<void> _pump(
   ValueNotifier<ComposerImagesState> state, {
   int maxImages = 4,
   bool cancelSelection = false,
+  Future<void> Function(String)? onEditImage,
   bool enabled = true,
   bool useDetailsRoute = true,
 }) => tester.pumpWidget(
@@ -241,6 +356,7 @@ Future<void> _pump(
           builder: (context, images, _) => ComposerImageAttachmentSection(
             useDetailsRoute: useDetailsRoute,
             imagesState: images,
+            onEditImage: onEditImage,
             enabled: enabled,
             maxImages: maxImages,
             cameraSupported: false,

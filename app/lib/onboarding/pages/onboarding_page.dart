@@ -12,6 +12,7 @@ import 'package:craftsky_app/onboarding/widgets/onboarding_guidelines_step.dart'
 import 'package:craftsky_app/onboarding/widgets/onboarding_profile_step.dart';
 import 'package:craftsky_app/onboarding/widgets/onboarding_progress.dart';
 import 'package:craftsky_app/settings/settings_links.dart';
+import 'package:craftsky_app/shared/image/basic_image_editor.dart';
 import 'package:craftsky_app/shared/link/external_link.dart';
 import 'package:craftsky_app/shared/media/image_source_menu.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
@@ -118,8 +119,16 @@ class _OnboardingFlowScaffold extends ConsumerWidget {
     Future<void> chooseAvatarSource() => showImageSourceMenu(
       context,
       keyPrefix: 'onboarding-avatar',
-      onChoosePhotos: () => notifier.pickAvatar(ImageSource.gallery),
-      onTakePhoto: () => notifier.pickAvatar(ImageSource.camera),
+      onChoosePhotos: () => notifier.pickAvatar(
+        ImageSource.gallery,
+        editImage: (request) =>
+            showBasicImageEditor(context, request, ownership: lease),
+      ),
+      onTakePhoto: () => notifier.pickAvatar(
+        ImageSource.camera,
+        editImage: (request) =>
+            showBasicImageEditor(context, request, ownership: lease),
+      ),
     );
 
     return PopScope<Object?>(
