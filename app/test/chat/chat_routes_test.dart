@@ -18,7 +18,6 @@ import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/notifications/models/notification_destination.dart';
 import 'package:craftsky_app/notifications/services/notification_navigation.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
-import 'package:craftsky_app/profile/widgets/profile_presentation_page.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/search/data/search_repository.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
@@ -77,7 +76,7 @@ void main() {
               openedProfileDid = state.pathParameters['did'];
               profilePresentation = state.extra;
               return Scaffold(
-                appBar: AppBar(title: const Text('Compact profile route')),
+                appBar: AppBar(title: const Text('Profile route')),
               );
             },
           ),
@@ -174,13 +173,9 @@ void main() {
             ),
           );
           await tester.pumpAndSettle();
-          expect(find.text('Compact profile route'), findsOneWidget);
+          expect(find.text('Profile route'), findsOneWidget);
           expect(openedProfileDid, 'did:plc:peer');
-          expect(profilePresentation, isA<ProfilePresentationRequest>());
-          expect(
-            (profilePresentation! as ProfilePresentationRequest).startsCompact,
-            true,
-          );
+          expect(profilePresentation, isNull);
           await tester.tap(find.byType(BackButton));
           await tester.pumpAndSettle();
           expect(

@@ -5,6 +5,7 @@ import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/post_comment_section.dart' as model;
 import 'package:craftsky_app/feed/models/post_uri.dart';
 import 'package:craftsky_app/feed/providers/like_post_overlay.dart';
+import 'package:craftsky_app/feed/providers/post_record_overlay.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
@@ -23,6 +24,17 @@ class PostCommentSection extends _$PostCommentSection {
     model.CommentSort sort = model.CommentSort.oldest,
     AtUri? focus,
   }) async {
+    listenForPostEdits(ref, () {
+      final current = state.value;
+      if (current == null) return;
+      state = AsyncData(
+        applyPostCommentSectionInteractionOverlays(
+          ref,
+          current,
+          reconcile: false,
+        ),
+      );
+    });
     final accountOperation = ActiveAccountOperation.capture(ref);
     final repo = ref.watch(postRepositoryProvider);
     final section = await repo.commentSection(
@@ -36,11 +48,18 @@ class PostCommentSection extends _$PostCommentSection {
   }
 
   void appendCommentPage(model.CommentPage page) {
+    for (final item in page.items) {
+      applyPostRecordOverlay(ref, item.post);
+      for (final reply in item.replies.items) {
+        applyPostRecordOverlay(ref, reply.post);
+      }
+    }
     final current = state.requireValue;
     state = AsyncData(
       applyPostCommentSectionInteractionOverlays(
         ref,
         current.appendCommentPageDeduplicating(page),
+        reconcile: false,
       ),
     );
   }
@@ -51,6 +70,9 @@ class PostCommentSection extends _$PostCommentSection {
     String? cursor,
     bool incrementRootReplyCount = false,
   }) {
+    for (final reply in replies) {
+      applyPostRecordOverlay(ref, reply.post);
+    }
     final current = state.requireValue;
     state = AsyncData(
       applyPostCommentSectionInteractionOverlays(
@@ -61,6 +83,7 @@ class PostCommentSection extends _$PostCommentSection {
           cursor: cursor,
           incrementRootReplyCount: incrementRootReplyCount,
         ),
+        reconcile: false,
       ),
     );
   }

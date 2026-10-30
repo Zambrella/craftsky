@@ -1,4 +1,3 @@
-import 'package:craftsky_app/profile/widgets/profile_card_modal.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/link/external_link.dart';
@@ -31,7 +30,15 @@ class FacetActionHandler {
     try {
       switch (feature) {
         case MentionFacetFeature(:final did):
-          await showUserProfileCard(context, did: Did.parse(did));
+          if (did.isEmpty && visibleText.startsWith('@')) {
+            // Plain-text bios have handles but no persisted mention DIDs.
+            // The existing alias route resolves the current owner in AppView.
+            await ProfileAliasRoute(
+              handle: Handle.parse(visibleText.substring(1)),
+            ).push<void>(context);
+          } else {
+            await UserProfileRoute(did: Did.parse(did)).push<void>(context);
+          }
         case LinkFacetFeature(uri: final uriText):
           final uri = normalizeExternalLinkUri(uriText);
           if (uri == null) return;

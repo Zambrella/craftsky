@@ -15,8 +15,55 @@ import 'package:material_ui/material_ui.dart';
 
 import 'announcement_dismissal_test.dart' show FakeDismissalStore, announcement;
 import 'service_status_controller_test.dart' show FakeStatusRepository;
+import 'support/status_test_fixtures.dart';
 
 void main() {
+  testWidgets('Back dispatcher tolerates a temporarily unmounted router', (
+    tester,
+  ) async {
+    final router = GoRouter(
+      routes: [
+        GoRoute(path: '/', builder: (_, _) => const Text('Home')),
+      ],
+    );
+    addTearDown(router.dispose);
+    final config = serviceStatusRouterConfig(router, () => false);
+    var initializing = false;
+    late StateSetter rebuild;
+    await tester.pumpWidget(
+      StatefulBuilder(
+        builder: (context, setState) {
+          rebuild = setState;
+          return MaterialApp.router(
+            routerConfig: config,
+            builder: (_, child) =>
+                initializing ? const Text('Initializing') : child!,
+          );
+        },
+      ),
+    );
+    await tester.pumpAndSettle();
+    final matches = router.routerDelegate.currentConfiguration;
+    router.routerDelegate.currentConfiguration = RouteMatchList.empty;
+    expect(
+      await (config.backButtonDispatcher! as RootBackButtonDispatcher)
+          .didPopRoute(),
+      isTrue,
+    );
+    expect(tester.takeException(), isNull);
+    router.routerDelegate.currentConfiguration = matches;
+    rebuild(() => initializing = true);
+    await tester.pumpAndSettle();
+    expect(
+      await (config.backButtonDispatcher! as RootBackButtonDispatcher)
+          .didPopRoute(),
+      isTrue,
+    );
+    expect(tester.takeException(), isNull);
+    rebuild(() => initializing = false);
+    await tester.pumpAndSettle();
+    expect(find.text('Home'), findsOneWidget);
+  });
   // AT-002 / BR-001, FR-002, FR-005, NFR-003, RULE-001, RULE-003 / AC-003, AC-017, AC-019.
   testWidgets(
     'maintenance renders literal text, estimate and only status retry',
@@ -24,6 +71,7 @@ void main() {
       final repository = FakeStatusRepository();
       final container = ProviderContainer(
         overrides: [
+          ...statusRuntimeOverrides,
           serviceStatusRepositoryProvider.overrideWithValue(repository),
         ],
       );
@@ -32,7 +80,7 @@ void main() {
       );
       final refresh = controller.refresh();
       repository.requests.single.complete(
-        ServiceStatusDocument(
+        statusDocument(
           mode: ServiceStatusMode.maintenance,
           revision: 'A',
           title: '<script>Maintenance</script>',
@@ -83,6 +131,7 @@ void main() {
       final repository = FakeStatusRepository();
       final container = ProviderContainer(
         overrides: [
+          ...statusRuntimeOverrides,
           serviceStatusRepositoryProvider.overrideWithValue(repository),
           announcementDismissalStoreProvider.overrideWithValue(
             FakeDismissalStore(),
@@ -129,7 +178,7 @@ void main() {
       await tester.pumpAndSettle();
       final maintenanceFetch = controller.refresh();
       repository.requests.last.complete(
-        const ServiceStatusDocument(
+        statusDocument(
           mode: ServiceStatusMode.maintenance,
           revision: 'A',
           title: 'Maintenance',
@@ -148,7 +197,7 @@ void main() {
       expect(find.text('Maintenance'), findsOneWidget);
       final clear = controller.refresh();
       repository.requests.last.complete(
-        const ServiceStatusDocument(
+        statusDocument(
           mode: ServiceStatusMode.normal,
           revision: 'B',
         ),
@@ -191,6 +240,7 @@ void main() {
       final repository = FakeStatusRepository();
       final container = ProviderContainer(
         overrides: [
+          ...statusRuntimeOverrides,
           serviceStatusRepositoryProvider.overrideWithValue(repository),
           announcementDismissalStoreProvider.overrideWithValue(
             FakeDismissalStore(),
@@ -250,7 +300,7 @@ void main() {
       expect(find.text('Notice'), findsNothing);
       await accept(announcement('D'));
       await accept(
-        const ServiceStatusDocument(
+        statusDocument(
           mode: ServiceStatusMode.maintenance,
           revision: 'C',
           title: 'Maintenance',
@@ -261,7 +311,7 @@ void main() {
       expect(find.text('Maintenance'), findsOneWidget);
       expect(find.text('Dismiss'), findsNothing);
       await accept(
-        const ServiceStatusDocument(
+        statusDocument(
           mode: ServiceStatusMode.normal,
           revision: 'D',
         ),

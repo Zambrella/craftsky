@@ -707,7 +707,7 @@ List<_ProjectChipSectionData> _chipSections(ProjectCommon common) {
       _ProjectChipSectionData(label: 'Colours', values: values),
     if (_listLabels(common.designTags, ProjectOptionCatalogs.designTags)
         case final values when values.isNotEmpty)
-      _ProjectChipSectionData(label: 'Design tags', values: values),
+      _ProjectChipSectionData(label: 'Design', values: values),
     if (_listLabels(common.tags) case final values when values.isNotEmpty)
       _ProjectChipSectionData(label: 'Tags', values: values),
   ];

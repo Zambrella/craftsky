@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:craftsky_app/app_dependencies.dart';
 import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
 import 'package:craftsky_app/feed/models/post_page.dart';
@@ -19,6 +20,7 @@ import 'package:craftsky_app/profile/models/profile_relationship.dart';
 import 'package:craftsky_app/profile/pages/profile_mutual_followers_page.dart';
 import 'package:craftsky_app/profile/pages/profile_page.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
+import 'package:craftsky_app/profile/providers/profile_reselect_provider.dart';
 import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
 import 'package:craftsky_app/profile/widgets/profile_actions.dart';
 import 'package:craftsky_app/profile/widgets/profile_craft_chips.dart';
@@ -46,12 +48,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../fakes/auth_session_fakes.dart';
 import '../fakes/image_cache_fakes.dart';
 import '../fakes/recording_messenger.dart';
 import '../feed/fakes/fake_post_repository.dart';
 import '../test_support/deterministic_pump.dart';
+import '../test_support/post_fixtures.dart';
 import 'fakes/fake_profile_repository.dart';
 
 final _emptyPostRepository = FakePostRepository(
@@ -62,6 +66,113 @@ final _emptyPostRepository = FakePostRepository(
 
 void main() {
   group('ProfilePage', () {
+    for (final ownProfile in [false, true]) {
+      for (final disableAnimations in [false, true]) {
+        testWidgets(
+          'profile back-to-top resets nested scrolling '
+          '(own: $ownProfile, reduced motion: $disableAnimations)',
+          (tester) async {
+            final profile = Profile(
+              did: ownProfile ? 'did:plc:test' : 'did:plc:other',
+              handle: 'alice.bsky.social',
+              displayName: 'Alice',
+              crafts: const [],
+            );
+            final page = PostPage(
+              items: List.generate(
+                30,
+                (index) => postFixture(rkey: 'post$index', text: 'Post $index'),
+              ),
+            );
+            await tester.pumpWidget(
+              ProviderScope(
+                overrides: [
+                  authSessionProvider.overrideWith(SignedInAuthSession.new),
+                  profileRepositoryProvider.overrideWithValue(
+                    FakeProfileRepository(onFetch: (_) async => profile),
+                  ),
+                  postRepositoryProvider.overrideWithValue(
+                    FakePostRepository(
+                      onListByAuthor: (_, {cursor, limit}) async => page,
+                      onListProjectsByAuthor: (_, {cursor, limit}) async =>
+                          page,
+                      onListCommentsByAuthor: (_, {cursor, limit}) async =>
+                          page,
+                      onListRepostsByAuthor: (_, {cursor, limit}) async => page,
+                    ),
+                  ),
+                  activeLanguagePreferencesProvider.overrideWithValue(
+                    const LanguagePreferences(
+                      primaryLanguage: 'en',
+                      contentLanguages: ['en'],
+                    ),
+                  ),
+                ],
+                child: MaterialApp(
+                  theme: AppTheme.lightThemeData,
+                  localizationsDelegates: appLocalizationsDelegates,
+                  supportedLocales: AppLocalizations.supportedLocales,
+                  builder: (context, child) => MediaQuery(
+                    data: MediaQuery.of(context)
+                        .copyWith(disableAnimations: disableAnimations),
+                    child: child!,
+                  ),
+                  home: ownProfile
+                      ? const ProfilePage()
+                      : ProfilePage(did: profile.did),
+                ),
+              ),
+            );
+            await pumpUntilFound(
+              tester,
+              find.byType(ProfileTabBar),
+              description: 'profile tabs',
+            );
+            await tester.pumpAndSettle();
+            expect(find.byTooltip('Back to top'), findsNothing);
+            final nested = tester.state<NestedScrollViewState>(
+              find.byType(NestedScrollView),
+            );
+            for (final tab in [
+              'Projects',
+              'Posts',
+              'Comments & replies',
+              'Reposts',
+            ]) {
+              await tester.tap(find.widgetWithText(Tab, tab));
+              await tester.pumpAndSettle();
+              await tester.drag(
+                find.byType(CustomScrollView).last,
+                const Offset(0, -1400),
+              );
+              await tester.pumpAndSettle();
+              expect(nested.outerController.offset, greaterThan(0));
+              expect(nested.innerController.offset, greaterThan(0));
+              expect(find.byTooltip('Back to top'), findsOneWidget);
+              await tester.tap(find.byTooltip('Back to top'));
+              await tester.pumpAndSettle();
+              expect(nested.outerController.offset, 0);
+              expect(nested.innerController.offset, 0);
+              expect(find.byTooltip('Back to top'), findsNothing);
+            }
+            if (ownProfile) {
+              await tester.drag(
+                find.byType(CustomScrollView).last,
+                const Offset(0, -1400),
+              );
+              await tester.pumpAndSettle();
+              ProviderScope.containerOf(
+                tester.element(find.byType(ProfilePage)),
+              ).read(profileReselectProvider.notifier).reselect();
+              await tester.pumpAndSettle();
+              expect(nested.outerController.offset, 0);
+              expect(nested.innerController.offset, 0);
+            }
+          },
+        );
+      }
+    }
+
     testWidgets('shows a profile shell skeleton during the initial fetch', (
       tester,
     ) async {
@@ -190,9 +301,13 @@ void main() {
       );
       final repo = FakeProfileRepository(onFetch: (_) async => profile);
 
+      SharedPreferences.setMockInitialValues({});
+      final preferences = await SharedPreferences.getInstance();
+
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            sharedPreferencesProvider.overrideWithValue(preferences),
             authSessionProvider.overrideWith(SignedInAuthSession.new),
             profileRepositoryProvider.overrideWithValue(repo),
             postRepositoryProvider.overrideWithValue(_emptyPostRepository),

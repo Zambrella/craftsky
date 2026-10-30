@@ -1,0 +1,252 @@
+{
+  "source": "https://github.com/bluesky-social/social-app/tree/0d30bbead1df8409fac03370e4097bb8f33000fa/src/features/profileLinks",
+  "providers": [
+    {
+      "name": "BackerKit",
+      "logo": "BackerKit",
+      "domain": "backerkit.com"
+    },
+    {
+      "name": "Big Cartel",
+      "logo": "BigCartel",
+      "domain": "bigcartel.com"
+    },
+    {
+      "name": "Boosty",
+      "logo": "Boosty",
+      "domain": "boosty.to"
+    },
+    {
+      "name": "BOOTH",
+      "logo": "Booth",
+      "domain": "booth.pm"
+    },
+    {
+      "name": "Buy Me a Coffee",
+      "logo": "BuyMeACoffee",
+      "domain": "buymeacoffee.com"
+    },
+    {
+      "name": "Cash App",
+      "logo": "CashApp",
+      "domain": "cash.app"
+    },
+    {
+      "name": "Chuffed",
+      "logo": "Chuffed",
+      "domain": "chuffed.org",
+      "pathPrefix": "/campaign/"
+    },
+    {
+      "name": "Chuffed",
+      "logo": "Chuffed",
+      "domain": "chuffed.org",
+      "pathPrefix": "/project/"
+    },
+    {
+      "name": "Crowdfundr",
+      "logo": "Crowdfundr",
+      "domain": "crowdfundr.com"
+    },
+    {
+      "name": "Donorbox",
+      "logo": "Donorbox",
+      "domain": "donorbox.org"
+    },
+    {
+      "name": "Etsy",
+      "logo": "Etsy",
+      "domain": "etsy.com"
+    },
+    {
+      "name": "Fourthwall",
+      "logo": "Fourthwall",
+      "domain": "fourthwall.com"
+    },
+    {
+      "name": "Givebutter",
+      "logo": "Givebutter",
+      "domain": "givebutter.com"
+    },
+    {
+      "name": "GiveSendGo",
+      "logo": "GiveSendGo",
+      "domain": "givesendgo.com"
+    },
+    {
+      "name": "GoFundMe",
+      "logo": "GoFundMe",
+      "domain": "gofundme.com"
+    },
+    {
+      "name": "Gumroad",
+      "logo": "Gumroad",
+      "domain": "gumroad.com"
+    },
+    {
+      "name": "Indiegogo",
+      "logo": "Indiegogo",
+      "domain": "indiegogo.com"
+    },
+    {
+      "name": "INPRNT",
+      "logo": "Inprint",
+      "domain": "inprnt.com",
+      "pathPrefix": "/gallery/"
+    },
+    {
+      "name": "itch.io",
+      "logo": "ItchIo",
+      "domain": "itch.io"
+    },
+    {
+      "name": "JustGiving",
+      "logo": "JustGiving",
+      "domain": "justgiving.com"
+    },
+    {
+      "name": "Kickstarter",
+      "logo": "Kickstarter",
+      "domain": "kickstarter.com"
+    },
+    {
+      "name": "Ko-fi",
+      "logo": "KoFi",
+      "domain": "ko-fi.com"
+    },
+    {
+      "name": "Liberapay",
+      "logo": "Liberapay",
+      "domain": "liberapay.com"
+    },
+    {
+      "name": "Open Collective",
+      "logo": "OpenCollective",
+      "domain": "opencollective.com"
+    },
+    {
+      "name": "Patreon",
+      "logo": "Patreon",
+      "domain": "patreon.com"
+    },
+    {
+      "name": "PayPal",
+      "logo": "PayPal",
+      "domain": "paypal.com",
+      "pathPrefix": "/paypalme/"
+    },
+    {
+      "name": "PayPal",
+      "logo": "PayPal",
+      "domain": "paypal.me"
+    },
+    {
+      "name": "pixivFANBOX",
+      "logo": "PixivFanbox",
+      "domain": "fanbox.cc"
+    },
+    {
+      "name": "Redbubble",
+      "logo": "Redbubble",
+      "domain": "redbubble.com"
+    },
+    {
+      "name": "Skeb",
+      "logo": "Skeb",
+      "domain": "skeb.jp"
+    },
+    {
+      "name": "Stripe",
+      "logo": "Stripe",
+      "domain": "buy.stripe.com"
+    },
+    {
+      "name": "Stripe",
+      "logo": "Stripe",
+      "domain": "donate.stripe.com"
+    },
+    {
+      "name": "Substack",
+      "logo": "Substack",
+      "domain": "substack.com"
+    },
+    {
+      "name": "Throne",
+      "logo": "Throne",
+      "domain": "throne.com"
+    },
+    {
+      "name": "Venmo",
+      "logo": "Venmo",
+      "domain": "venmo.com"
+    },
+    {
+      "name": "VGen",
+      "logo": "Vgen",
+      "domain": "vgen.co"
+    },
+    {
+      "name": "Zeffy",
+      "logo": "Zeffy",
+      "domain": "zeffy.com"
+    }
+  ],
+  "shorteners": [
+    "aceimg.in",
+    "acel.me",
+    "adf.ly",
+    "bit.ly",
+    "bitly.com",
+    "bl.ink",
+    "buff.ly",
+    "clck.ru",
+    "cutt.ly",
+    "fc-lc.xyz",
+    "goo.gl",
+    "goto.now",
+    "is.gd",
+    "link2.fm",
+    "ln.run",
+    "lnk.ua",
+    "lnkd.in",
+    "n9.cl",
+    "onlylinks.cc",
+    "ow.ly",
+    "psee.io",
+    "rb.gy",
+    "rebrand.ly",
+    "rg.by",
+    "s.id",
+    "short.do",
+    "short.gy",
+    "shorten.as",
+    "shorten.ee",
+    "shorten.is",
+    "shorten.so",
+    "shorten.tv",
+    "shorten.world",
+    "shorter.me",
+    "shortn.icu",
+    "shorturl.at",
+    "shorturl.lt",
+    "shorturl.ly",
+    "slicedrve.in",
+    "slnt.to",
+    "smarturl.lt",
+    "smarturl.my",
+    "sprl.me",
+    "sw.run",
+    "t.co",
+    "t.ly",
+    "tiny.cc",
+    "tinyurl.com",
+    "urlr.me",
+    "v.gd",
+    "vdey.in",
+    "videy.at",
+    "videy.lt",
+    "videy.my",
+    "x.gd",
+    "zig.ht"
+  ]
+}

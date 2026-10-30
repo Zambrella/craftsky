@@ -57,7 +57,7 @@ func (s *Store) Queue(ctx context.Context, filter QueueFilter) (QueuePage, error
 	if filter.State != "" && filter.State != "open" && filter.State != "resolved" {
 		return QueuePage{}, ErrInvalidQueueFilter
 	}
-	if filter.SubjectType != "" && filter.SubjectType != string(SubjectPost) && filter.SubjectType != string(SubjectAccount) && filter.SubjectType != string(SubjectEvent) {
+	if filter.SubjectType != "" && filter.SubjectType != string(SubjectPost) && filter.SubjectType != string(SubjectAccount) && filter.SubjectType != string(SubjectEvent) && filter.SubjectType != string(SubjectProfileLink) {
 		return QueuePage{}, ErrInvalidQueueFilter
 	}
 	if filter.AppealStatus != "" && filter.AppealStatus != "none" && filter.AppealStatus != string(AppealStatusPending) && filter.AppealStatus != string(AppealStatusUpheld) && filter.AppealStatus != string(AppealStatusChanged) {

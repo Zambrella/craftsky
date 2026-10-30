@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:craftsky_app/auth/models/account_key.dart';
+import 'package:craftsky_app/auth/models/account_operation_canceled.dart';
 import 'package:craftsky_app/auth/models/session_registry.dart';
 import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart'
@@ -45,6 +46,79 @@ final class _Repository implements OnboardingRepository {
 }
 
 void main() {
+  test(
+    'explicit provider invalidation stops a pending completion retry',
+    () async {
+      final registry = SessionRegistry.empty().upsertAndActivate(
+        token: 'token',
+        did: 'did:plc:alice',
+        handle: 'alice.test',
+      );
+      final repository = _Repository(
+        status: const OnboardingCompletion(completed: false),
+        completions: [() async => throw StateError('offline')],
+      );
+      final enteredDelay = Completer<void>();
+      final delay = Completer<void>();
+      final container = ProviderContainer.test(
+        retry: (_, _) => null,
+        overrides: [
+          secureSessionRegistryStorageProvider.overrideWithValue(
+            _Storage(registry),
+          ),
+          onboardingRepositoryProvider.overrideWith(
+            (ref, lease) async => repository,
+          ),
+          onboardingCompletionDelayProvider.overrideWithValue((_) {
+            enteredDelay.complete();
+            return delay.future;
+          }),
+        ],
+      );
+      final provider = onboardingStatusProvider(registry.activeLease!.session);
+      await container.read(provider.future);
+      final pending = container
+          .read(provider.notifier)
+          .completeOptimistically(meetsMinimumAge: true);
+      await enteredDelay.future;
+      container.invalidate(provider);
+      await container.pump();
+      delay.complete();
+      await expectLater(pending, completes);
+      expect(repository.completeCalls, 1);
+    },
+  );
+
+  test(
+    'a replaced account lease is cancellation rather than an invariant failure',
+    () async {
+      final original = SessionRegistry.empty().upsertAndActivate(
+        token: 'token',
+        did: 'did:plc:alice',
+        handle: 'alice.test',
+      );
+      final replacement = original.upsertAndActivate(
+        token: 'replacement',
+        did: 'did:plc:alice',
+        handle: 'alice.test',
+      );
+      final container = ProviderContainer.test(
+        overrides: [
+          secureSessionRegistryStorageProvider.overrideWithValue(
+            _Storage(replacement),
+          ),
+        ],
+      );
+      await container.read(sessionRegistryProvider.future);
+      await expectLater(
+        container.read(
+          onboardingStatusProvider(original.activeLease!.session).future,
+        ),
+        throwsA(isA<AccountOperationCanceled>()),
+      );
+    },
+  );
+
   test('loads server status for the exact account session lease', () async {
     final registry = SessionRegistry.empty().upsertAndActivate(
       token: 'token',

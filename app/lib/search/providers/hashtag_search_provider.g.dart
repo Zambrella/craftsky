@@ -50,7 +50,7 @@ final class HashtagSearchProvider
   }
 }
 
-String _$hashtagSearchHash() => r'516b0c33c4382f50e3d67bd8120319ad91b31a01';
+String _$hashtagSearchHash() => r'bd41fcc14476ef1bf33603cb544569c87e8da603';
 
 final class HashtagSearchFamily extends $Family
     with

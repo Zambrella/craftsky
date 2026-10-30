@@ -4,6 +4,8 @@ import 'package:craftsky_app/feed/providers/composer_images_provider.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/languages/models/language_preferences.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
+import 'package:craftsky_app/projects/options/project_option_catalogs.dart';
+import 'package:craftsky_app/projects/providers/preferred_project_crafts_provider.dart';
 import 'package:craftsky_app/projects/widgets/project_composer_sheet.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
@@ -14,6 +16,29 @@ import 'package:material_ui/material_ui.dart';
 import '../../fakes/recording_messenger.dart';
 
 void main() {
+  testWidgets('a preselected default does not create unsaved work', (
+    tester,
+  ) async {
+    await _openProjectComposer(
+      tester,
+      overrides: [
+        defaultProjectCraftProvider.overrideWithValue(
+          ProjectOptionCatalogs.quiltingCraftToken,
+        ),
+        activeLanguagePreferencesProvider.overrideWith(
+          (ref) => const LanguagePreferences(
+            primaryLanguage: 'en',
+            contentLanguages: ['en'],
+          ),
+        ),
+      ],
+    );
+    await tester.tap(find.byType(CloseButton));
+    await tester.pumpAndSettle();
+    expect(find.text('Host'), findsOneWidget);
+    expect(find.text('Save your draft?'), findsNothing);
+  });
+
   testWidgets(
     'AT-009 closes immediately when the project composer is unchanged',
     (

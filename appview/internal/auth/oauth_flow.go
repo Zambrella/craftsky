@@ -663,7 +663,7 @@ func (service *OAuthFlowService) processInitialCallback(
 	}
 	if callbackError := params.Get("error"); callbackError != "" {
 		_ = service.store.MarkExchangeFailed(ctx, attempt.State, attempt.AttemptID)
-		return OAuthCallbackResult{}, callbackDiagnostic("provider_callback_error", ErrOAuthFlowInvalid)
+		return OAuthCallbackResult{}, providerCallbackDiagnostic(callbackError)
 	}
 	issuer, authorizationCode := params.Get("iss"), params.Get("code")
 	if issuer == "" || authorizationCode == "" || issuer != info.AuthServerURL {

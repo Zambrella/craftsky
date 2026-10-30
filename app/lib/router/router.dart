@@ -32,8 +32,7 @@ import 'package:craftsky_app/profile/models/profile_handle.dart';
 import 'package:craftsky_app/profile/pages/profile_mutual_followers_page.dart';
 import 'package:craftsky_app/profile/pages/profile_page.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
-import 'package:craftsky_app/profile/widgets/profile_presentation_page.dart';
-import 'package:craftsky_app/profile/widgets/profile_route_presentation.dart';
+import 'package:craftsky_app/profile/widgets/profile_avatar_hero.dart';
 import 'package:craftsky_app/projects/pages/projects_page.dart';
 import 'package:craftsky_app/router/app_shell.dart';
 import 'package:craftsky_app/router/error_screen.dart';
@@ -81,6 +80,10 @@ class _NavigatorKeys {
   static GlobalKey<NavigatorState>? _projectsKey;
   static GlobalKey<NavigatorState>? _searchKey;
   static GlobalKey<NavigatorState>? _notificationsKey;
+  static GlobalKey<NavigatorState>? _savedPostsKey;
+  static GlobalKey<NavigatorState>? _scheduledPostsKey;
+  static GlobalKey<NavigatorState>? _draftsKey;
+  static GlobalKey<NavigatorState>? _settingsKey;
   static GlobalKey<NavigatorState>? _profileKey;
 
   static GlobalKey<NavigatorState> get rootNavigatorKey =>
@@ -101,6 +104,18 @@ class _NavigatorKeys {
       );
   static GlobalKey<NavigatorState> get profileNavigatorKey =>
       _profileKey ??= GlobalKey<NavigatorState>(debugLabel: 'profileNavigator');
+  static GlobalKey<NavigatorState> get savedPostsNavigatorKey =>
+      _savedPostsKey ??= GlobalKey<NavigatorState>(
+        debugLabel: 'savedPostsNavigator',
+      );
+  static GlobalKey<NavigatorState> get scheduledPostsNavigatorKey =>
+      _scheduledPostsKey ??= GlobalKey<NavigatorState>(
+        debugLabel: 'scheduledPostsNavigator',
+      );
+  static GlobalKey<NavigatorState> get draftsNavigatorKey =>
+      _draftsKey ??= GlobalKey<NavigatorState>(debugLabel: 'draftsNavigator');
+  static GlobalKey<NavigatorState> get settingsNavigatorKey => _settingsKey ??=
+      GlobalKey<NavigatorState>(debugLabel: 'settingsNavigator');
 }
 
 /// Plain `ChangeNotifier` subclass so `notifyListeners` is publicly
@@ -285,76 +300,6 @@ class AccountEligibilityRoute extends GoRouteData
               path: RouteLocations.profile,
               name: 'profile',
               routes: [
-                TypedGoRoute<SettingsRoute>(
-                  path: RouteLocations.settingsChild,
-                  name: 'settings',
-                  routes: [
-                    TypedGoRoute<AppearanceRoute>(
-                      path: RouteLocations.appearanceChild,
-                      name: 'appearance',
-                    ),
-                    TypedGoRoute<PrivacyRoute>(
-                      path: RouteLocations.privacyChild,
-                      name: 'settings-privacy',
-                    ),
-                    TypedGoRoute<FollowerGrowthRoute>(
-                      path: RouteLocations.growthChild,
-                      name: 'follower-growth',
-                    ),
-                    TypedGoRoute<ProfileCustomisationRoute>(
-                      path: RouteLocations.customisationChild,
-                      name: 'profile-customisation',
-                    ),
-                    TypedGoRoute<AccountRoute>(
-                      path: RouteLocations.accountChild,
-                      name: 'settings-account',
-                    ),
-                    TypedGoRoute<SubscriptionsRoute>(
-                      path: RouteLocations.subscriptionsChild,
-                      name: 'settings-subscriptions',
-                    ),
-                    TypedGoRoute<AccountStandingRoute>(
-                      path: RouteLocations.moderationChild,
-                      name: 'account-standing',
-                    ),
-                    TypedGoRoute<AboutRoute>(
-                      path: RouteLocations.aboutChild,
-                      name: 'settings-about',
-                    ),
-                    TypedGoRoute<BusinessProductsRoute>(
-                      path: RouteLocations.productsChild,
-                      name: 'settings-business-products',
-                    ),
-                    TypedGoRoute<BusinessEventsRoute>(
-                      path: RouteLocations.eventsChild,
-                      name: 'settings-business-events',
-                    ),
-                    TypedGoRoute<LanguagesRoute>(
-                      path: RouteLocations.languagesChild,
-                      name: 'languages',
-                    ),
-                    TypedGoRoute<InstagramMigrationRoute>(
-                      path: RouteLocations.instagramMigrationChild,
-                      name: 'instagram-migration',
-                    ),
-                    TypedGoRoute<FollowersRoute>(
-                      path: RouteLocations.followersChild,
-                      name: 'settings-followers',
-                    ),
-                    TypedGoRoute<FollowingRoute>(
-                      path: RouteLocations.followingChild,
-                      name: 'settings-following',
-                    ),
-                    TypedGoRoute<MutedAccountsRoute>(
-                      path: RouteLocations.mutedAccountsChild,
-                      name: 'settings-muted-accounts',
-                    ),
-                    TypedGoRoute<BlockedAccountsRoute>(
-                      path: RouteLocations.blockedAccountsChild,
-                      name: 'settings-blocked-accounts',
-                    ),
-                  ],
-                ),
                 TypedGoRoute<PlaygroundRoute>(
                   path: RouteLocations.playgroundChild,
                   name: 'playground',
@@ -363,42 +308,135 @@ class AccountEligibilityRoute extends GoRouteData
             ),
           ],
         ),
-      ],
-    ),
-    TypedGoRoute<ChatInboxRoute>(
-      path: RouteLocations.messages,
-      name: 'messages',
-      routes: [
-        TypedGoRoute<ChatRequestsRoute>(
-          path: RouteLocations.messageRequestsChild,
-          name: 'message-requests',
+        TypedStatefulShellBranch<MessagesBranch>(
+          routes: [
+            TypedGoRoute<ChatInboxRoute>(
+              path: RouteLocations.messages,
+              name: 'messages',
+              routes: [
+                TypedGoRoute<ChatRequestsRoute>(
+                  path: RouteLocations.messageRequestsChild,
+                  name: 'message-requests',
+                ),
+                TypedGoRoute<NewMessageRoute>(
+                  path: RouteLocations.newMessageChild,
+                  name: 'new-message',
+                ),
+                TypedGoRoute<ChatConversationRoute>(
+                  path: RouteLocations.messageConversationChild,
+                  name: 'message-conversation',
+                ),
+              ],
+            ),
+          ],
         ),
-        TypedGoRoute<NewMessageRoute>(
-          path: RouteLocations.newMessageChild,
-          name: 'new-message',
+        TypedStatefulShellBranch<SavedPostsBranch>(
+          routes: [
+            TypedGoRoute<SavedPostsRoute>(
+              path: RouteLocations.savedPosts,
+              name: 'saved-posts',
+              routes: [
+                TypedGoRoute<SavedPostFolderRoute>(
+                  path: RouteLocations.savedPostFolderChild,
+                  name: 'saved-post-folder',
+                ),
+              ],
+            ),
+          ],
         ),
-        TypedGoRoute<ChatConversationRoute>(
-          path: RouteLocations.messageConversationChild,
-          name: 'message-conversation',
+        TypedStatefulShellBranch<ScheduledPostsBranch>(
+          routes: [
+            TypedGoRoute<ScheduledPostsRoute>(
+              path: RouteLocations.scheduledPosts,
+              name: 'scheduled-posts',
+            ),
+          ],
         ),
-      ],
-    ),
-    TypedGoRoute<ChatSettingsRoute>(
-      path: RouteLocations.messagingSettings,
-      name: 'messaging-settings',
-    ),
-    TypedGoRoute<ScheduledPostsRoute>(
-      path: RouteLocations.scheduledPosts,
-      name: 'scheduled-posts',
-    ),
-    TypedGoRoute<DraftsRoute>(path: RouteLocations.drafts, name: 'drafts'),
-    TypedGoRoute<SavedPostsRoute>(
-      path: RouteLocations.savedPosts,
-      name: 'saved-posts',
-      routes: [
-        TypedGoRoute<SavedPostFolderRoute>(
-          path: RouteLocations.savedPostFolderChild,
-          name: 'saved-post-folder',
+        TypedStatefulShellBranch<DraftsBranch>(
+          routes: [
+            TypedGoRoute<DraftsRoute>(
+              path: RouteLocations.drafts,
+              name: 'drafts',
+            ),
+          ],
+        ),
+        TypedStatefulShellBranch<SettingsBranch>(
+          routes: [
+            TypedGoRoute<SettingsRoute>(
+              path: RouteLocations.settings,
+              name: 'settings',
+              routes: [
+                TypedGoRoute<ChatSettingsRoute>(
+                  path: 'messaging',
+                  name: 'messaging-settings',
+                ),
+                TypedGoRoute<AppearanceRoute>(
+                  path: RouteLocations.appearanceChild,
+                  name: 'appearance',
+                ),
+                TypedGoRoute<PrivacyRoute>(
+                  path: RouteLocations.privacyChild,
+                  name: 'settings-privacy',
+                ),
+                TypedGoRoute<FollowerGrowthRoute>(
+                  path: RouteLocations.growthChild,
+                  name: 'follower-growth',
+                ),
+                TypedGoRoute<ProfileCustomisationRoute>(
+                  path: RouteLocations.customisationChild,
+                  name: 'profile-customisation',
+                ),
+                TypedGoRoute<AccountRoute>(
+                  path: RouteLocations.accountChild,
+                  name: 'settings-account',
+                ),
+                TypedGoRoute<SubscriptionsRoute>(
+                  path: RouteLocations.subscriptionsChild,
+                  name: 'settings-subscriptions',
+                ),
+                TypedGoRoute<AccountStandingRoute>(
+                  path: RouteLocations.moderationChild,
+                  name: 'account-standing',
+                ),
+                TypedGoRoute<AboutRoute>(
+                  path: RouteLocations.aboutChild,
+                  name: 'settings-about',
+                ),
+                TypedGoRoute<BusinessProductsRoute>(
+                  path: RouteLocations.productsChild,
+                  name: 'settings-business-products',
+                ),
+                TypedGoRoute<BusinessEventsRoute>(
+                  path: RouteLocations.eventsChild,
+                  name: 'settings-business-events',
+                ),
+                TypedGoRoute<LanguagesRoute>(
+                  path: RouteLocations.languagesChild,
+                  name: 'languages',
+                ),
+                TypedGoRoute<InstagramMigrationRoute>(
+                  path: RouteLocations.instagramMigrationChild,
+                  name: 'instagram-migration',
+                ),
+                TypedGoRoute<FollowersRoute>(
+                  path: RouteLocations.followersChild,
+                  name: 'settings-followers',
+                ),
+                TypedGoRoute<FollowingRoute>(
+                  path: RouteLocations.followingChild,
+                  name: 'settings-following',
+                ),
+                TypedGoRoute<MutedAccountsRoute>(
+                  path: RouteLocations.mutedAccountsChild,
+                  name: 'settings-muted-accounts',
+                ),
+                TypedGoRoute<BlockedAccountsRoute>(
+                  path: RouteLocations.blockedAccountsChild,
+                  name: 'settings-blocked-accounts',
+                ),
+              ],
+            ),
+          ],
         ),
       ],
     ),
@@ -515,6 +553,51 @@ class ProfileBranch extends StatefulShellBranchData {
       _NavigatorKeys.profileNavigatorKey;
 }
 
+class MessagesBranch extends StatefulShellBranchData {
+  const new();
+  static List<NavigatorObserver> get $observers => [
+    diagnosticNavigationObserver(),
+  ];
+  static final GlobalKey<NavigatorState> $navigatorKey =
+      GlobalKey<NavigatorState>(debugLabel: 'messagesNavigator');
+}
+
+class SavedPostsBranch extends StatefulShellBranchData {
+  const new();
+  static List<NavigatorObserver> get $observers => [
+    diagnosticNavigationObserver(),
+  ];
+  static final GlobalKey<NavigatorState> $navigatorKey =
+      _NavigatorKeys.savedPostsNavigatorKey;
+}
+
+class ScheduledPostsBranch extends StatefulShellBranchData {
+  const new();
+  static List<NavigatorObserver> get $observers => [
+    diagnosticNavigationObserver(),
+  ];
+  static final GlobalKey<NavigatorState> $navigatorKey =
+      _NavigatorKeys.scheduledPostsNavigatorKey;
+}
+
+class DraftsBranch extends StatefulShellBranchData {
+  const new();
+  static List<NavigatorObserver> get $observers => [
+    diagnosticNavigationObserver(),
+  ];
+  static final GlobalKey<NavigatorState> $navigatorKey =
+      _NavigatorKeys.draftsNavigatorKey;
+}
+
+class SettingsBranch extends StatefulShellBranchData {
+  const new();
+  static List<NavigatorObserver> get $observers => [
+    diagnosticNavigationObserver(),
+  ];
+  static final GlobalKey<NavigatorState> $navigatorKey =
+      _NavigatorKeys.settingsNavigatorKey;
+}
+
 class FeedRoute extends GoRouteData with $FeedRoute {
   const new();
   @override
@@ -543,6 +626,10 @@ class SearchRoute extends GoRouteData with $SearchRoute {
 
 class TagSearchRoute extends GoRouteData with $TagSearchRoute {
   const new({required this.tag});
+
+  // Hashtags can be opened from detail routes outside the tab navigators.
+  static final GlobalKey<NavigatorState> $parentNavigatorKey =
+      _NavigatorKeys.authenticatedShellNavigatorKey;
 
   final String tag;
 
@@ -577,15 +664,9 @@ class ProfileRoute extends GoRouteData with $ProfileRoute {
       const ProfilePage();
 }
 
-/// Declared as a child of [ProfileRoute] so its path becomes
-/// `/profile/settings` and the back arrow pops to `/profile`. The parent
-/// navigator key lifts it onto the authenticated shell navigator: it covers
-/// compact navigation while remaining beside the large-screen rail.
+/// Peer destination with its own retained settings navigation stack.
 class SettingsRoute extends GoRouteData with $SettingsRoute {
   const new();
-
-  static final GlobalKey<NavigatorState> $parentNavigatorKey =
-      _NavigatorKeys.authenticatedShellNavigatorKey;
 
   @override
   Widget build(BuildContext context, GoRouterState state) =>
@@ -595,9 +676,6 @@ class SettingsRoute extends GoRouteData with $SettingsRoute {
 class LanguagesRoute extends GoRouteData with $LanguagesRoute {
   const new();
 
-  static final GlobalKey<NavigatorState> $parentNavigatorKey =
-      _NavigatorKeys.authenticatedShellNavigatorKey;
-
   @override
   Widget build(BuildContext context, GoRouterState state) =>
       const LanguagesPage();
@@ -605,9 +683,6 @@ class LanguagesRoute extends GoRouteData with $LanguagesRoute {
 
 class AppearanceRoute extends GoRouteData with $AppearanceRoute {
   const new();
-
-  static final GlobalKey<NavigatorState> $parentNavigatorKey =
-      _NavigatorKeys.authenticatedShellNavigatorKey;
 
   @override
   Widget build(BuildContext context, GoRouterState state) =>
@@ -617,9 +692,6 @@ class AppearanceRoute extends GoRouteData with $AppearanceRoute {
 class PrivacyRoute extends GoRouteData with $PrivacyRoute {
   const new();
 
-  static final GlobalKey<NavigatorState> $parentNavigatorKey =
-      _NavigatorKeys.authenticatedShellNavigatorKey;
-
   @override
   Widget build(BuildContext context, GoRouterState state) =>
       const PrivacyPage();
@@ -627,9 +699,6 @@ class PrivacyRoute extends GoRouteData with $PrivacyRoute {
 
 class FollowerGrowthRoute extends GoRouteData with $FollowerGrowthRoute {
   const new();
-
-  static final GlobalKey<NavigatorState> $parentNavigatorKey =
-      _NavigatorKeys.authenticatedShellNavigatorKey;
 
   @override
   Widget build(BuildContext context, GoRouterState state) =>
@@ -640,9 +709,6 @@ class ProfileCustomisationRoute extends GoRouteData
     with $ProfileCustomisationRoute {
   const new();
 
-  static final GlobalKey<NavigatorState> $parentNavigatorKey =
-      _NavigatorKeys.authenticatedShellNavigatorKey;
-
   @override
   Widget build(BuildContext context, GoRouterState state) =>
       const ProfileCustomisationPage();
@@ -650,9 +716,6 @@ class ProfileCustomisationRoute extends GoRouteData
 
 class AccountRoute extends GoRouteData with $AccountRoute {
   const new();
-
-  static final GlobalKey<NavigatorState> $parentNavigatorKey =
-      _NavigatorKeys.authenticatedShellNavigatorKey;
 
   @override
   Widget build(BuildContext context, GoRouterState state) =>
@@ -662,9 +725,6 @@ class AccountRoute extends GoRouteData with $AccountRoute {
 class SubscriptionsRoute extends GoRouteData with $SubscriptionsRoute {
   const new();
 
-  static final GlobalKey<NavigatorState> $parentNavigatorKey =
-      _NavigatorKeys.authenticatedShellNavigatorKey;
-
   @override
   Widget build(BuildContext context, GoRouterState state) =>
       const SubscriptionPage();
@@ -672,9 +732,6 @@ class SubscriptionsRoute extends GoRouteData with $SubscriptionsRoute {
 
 class AccountStandingRoute extends GoRouteData with $AccountStandingRoute {
   const new();
-
-  static final GlobalKey<NavigatorState> $parentNavigatorKey =
-      _NavigatorKeys.authenticatedShellNavigatorKey;
 
   @override
   Widget build(BuildContext context, GoRouterState state) =>
@@ -684,18 +741,12 @@ class AccountStandingRoute extends GoRouteData with $AccountStandingRoute {
 class AboutRoute extends GoRouteData with $AboutRoute {
   const new();
 
-  static final GlobalKey<NavigatorState> $parentNavigatorKey =
-      _NavigatorKeys.authenticatedShellNavigatorKey;
-
   @override
   Widget build(BuildContext context, GoRouterState state) => const AboutPage();
 }
 
 class BusinessProductsRoute extends GoRouteData with $BusinessProductsRoute {
   const new();
-
-  static final GlobalKey<NavigatorState> $parentNavigatorKey =
-      _NavigatorKeys.authenticatedShellNavigatorKey;
 
   @override
   FutureOr<String?> redirect(BuildContext context, GoRouterState state) =>
@@ -708,9 +759,6 @@ class BusinessProductsRoute extends GoRouteData with $BusinessProductsRoute {
 
 class BusinessEventsRoute extends GoRouteData with $BusinessEventsRoute {
   const new();
-
-  static final GlobalKey<NavigatorState> $parentNavigatorKey =
-      _NavigatorKeys.authenticatedShellNavigatorKey;
 
   @override
   FutureOr<String?> redirect(BuildContext context, GoRouterState state) =>
@@ -741,31 +789,21 @@ Future<String?> _businessOwnerRouteRedirect(BuildContext context) async {
 class ScheduledPostsRoute extends GoRouteData with $ScheduledPostsRoute {
   const new();
 
-  static final GlobalKey<NavigatorState> $parentNavigatorKey =
-      _NavigatorKeys.authenticatedShellNavigatorKey;
-
   @override
   Widget build(BuildContext context, GoRouterState state) =>
-      const _ReturnToFeedOnBack(child: ScheduledPostsPage());
+      const ScheduledPostsPage();
 }
 
 class DraftsRoute extends GoRouteData with $DraftsRoute {
   const new();
 
-  static final GlobalKey<NavigatorState> $parentNavigatorKey =
-      _NavigatorKeys.authenticatedShellNavigatorKey;
-
   @override
-  Widget build(BuildContext context, GoRouterState state) =>
-      const _ReturnToFeedOnBack(child: DraftsPage());
+  Widget build(BuildContext context, GoRouterState state) => const DraftsPage();
 }
 
 class InstagramMigrationRoute extends GoRouteData
     with $InstagramMigrationRoute {
   const new();
-
-  static final GlobalKey<NavigatorState> $parentNavigatorKey =
-      _NavigatorKeys.authenticatedShellNavigatorKey;
 
   @override
   Widget build(BuildContext context, GoRouterState state) =>
@@ -775,9 +813,6 @@ class InstagramMigrationRoute extends GoRouteData
 class FollowersRoute extends GoRouteData with $FollowersRoute {
   const new();
 
-  static final GlobalKey<NavigatorState> $parentNavigatorKey =
-      _NavigatorKeys.authenticatedShellNavigatorKey;
-
   @override
   Widget build(BuildContext context, GoRouterState state) =>
       const FollowListPage(kind: FollowListKind.followers);
@@ -785,9 +820,6 @@ class FollowersRoute extends GoRouteData with $FollowersRoute {
 
 class FollowingRoute extends GoRouteData with $FollowingRoute {
   const new();
-
-  static final GlobalKey<NavigatorState> $parentNavigatorKey =
-      _NavigatorKeys.authenticatedShellNavigatorKey;
 
   @override
   Widget build(BuildContext context, GoRouterState state) =>
@@ -797,9 +829,6 @@ class FollowingRoute extends GoRouteData with $FollowingRoute {
 class MutedAccountsRoute extends GoRouteData with $MutedAccountsRoute {
   const new();
 
-  static final GlobalKey<NavigatorState> $parentNavigatorKey =
-      _NavigatorKeys.authenticatedShellNavigatorKey;
-
   @override
   Widget build(BuildContext context, GoRouterState state) =>
       const RelationshipListPage(kind: RelationshipListKind.muted);
@@ -807,9 +836,6 @@ class MutedAccountsRoute extends GoRouteData with $MutedAccountsRoute {
 
 class BlockedAccountsRoute extends GoRouteData with $BlockedAccountsRoute {
   const new();
-
-  static final GlobalKey<NavigatorState> $parentNavigatorKey =
-      _NavigatorKeys.authenticatedShellNavigatorKey;
 
   @override
   Widget build(BuildContext context, GoRouterState state) =>
@@ -819,27 +845,9 @@ class BlockedAccountsRoute extends GoRouteData with $BlockedAccountsRoute {
 class SavedPostsRoute extends GoRouteData with $SavedPostsRoute {
   const new();
 
-  static final GlobalKey<NavigatorState> $parentNavigatorKey =
-      _NavigatorKeys.authenticatedShellNavigatorKey;
-
   @override
   Widget build(BuildContext context, GoRouterState state) =>
-      const _ReturnToFeedOnBack(child: SavedPostsPage());
-}
-
-class _ReturnToFeedOnBack extends StatelessWidget {
-  const new({required this.child});
-
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) => PopScope<void>(
-    canPop: false,
-    onPopInvokedWithResult: (didPop, _) {
-      if (!didPop) const FeedRoute().go(context);
-    },
-    child: child,
-  );
+      const SavedPostsPage();
 }
 
 @immutable
@@ -855,9 +863,6 @@ final class SavedPostFolderRouteData with SavedPostFolderRouteDataMappable {
 
 class SavedPostFolderRoute extends GoRouteData with $SavedPostFolderRoute {
   const new({this.$extra});
-
-  static final GlobalKey<NavigatorState> $parentNavigatorKey =
-      _NavigatorKeys.authenticatedShellNavigatorKey;
 
   final SavedPostFolderRouteData? $extra;
 
@@ -877,7 +882,7 @@ class SavedPostFolderRoute extends GoRouteData with $SavedPostFolderRoute {
   }
 }
 
-/// Dev-only design playground. Same shape as [SettingsRoute] — nested under
+/// Dev-only design playground, nested under
 /// profile for back-button semantics and pushed on the authenticated shell
 /// navigator for responsive navigation presentation.
 class PlaygroundRoute extends GoRouteData with $PlaygroundRoute {
@@ -971,12 +976,16 @@ class PostThreadRoute extends GoRouteData with $PostThreadRoute {
     required this.did,
     required this.rkey,
     this.focus,
+    this.imageCid,
+    this.showComments = false,
     this.$extra,
   });
 
   final String did;
   final String rkey;
   final String? focus;
+  final String? imageCid;
+  final bool showComments;
   final Post? $extra;
 
   @override
@@ -985,6 +994,8 @@ class PostThreadRoute extends GoRouteData with $PostThreadRoute {
     rkey: RecordKey.parse(rkey),
     focus: focus == null ? null : AtUri.parse(focus!),
     initialCreatedPost: $extra,
+    showComments: showComments,
+    initialImageCid: imageCid,
   );
 }
 
@@ -1075,20 +1086,14 @@ class UserProfileRoute extends GoRouteData with $UserProfileRoute {
   });
 
   final Did did;
-  final ProfilePresentationRequest? $extra;
+  final ProfileAvatarTransition? $extra;
 
   @override
-  Page<void> buildPage(BuildContext context, GoRouterState state) {
-    final request = $extra;
-    return ProfilePresentationPage(
-      key: state.pageKey,
-      startsCompact: request?.startsCompact ?? false,
-      child: ProfileRoutePresentation(
-        did: did,
-        startsCompact: request?.startsCompact ?? false,
-      ),
-    );
-  }
+  Widget build(BuildContext context, GoRouterState state) =>
+      ProfileAvatarHeroDestination(
+        transition: $extra,
+        child: ProfilePage(did: did),
+      );
 }
 
 class ProfileMutualFollowersRoute extends GoRouteData

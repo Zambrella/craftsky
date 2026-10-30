@@ -75,7 +75,7 @@ final class SaveProfileProvider
   SaveProfile create() => SaveProfile();
 }
 
-String _$saveProfileHash() => r'd74dbe514b05db49337b05bef157f7dd998609a6';
+String _$saveProfileHash() => r'88d4ef0f9f62da68804490ee824c124f560a5d8d';
 
 /// Mutation notifier for the profile-edit page.
 ///

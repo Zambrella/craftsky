@@ -36,18 +36,19 @@ type AppendCommandService struct {
 }
 
 type AppendCommandRequest struct {
-	Owner           syntax.DID
-	OwnerGeneration int64
-	Targets         []syntax.DID
-	SessionID       string
-	OperationKind   string
-	OperationKey    uuid.UUID
-	Collection      syntax.NSID
-	Intent          json.RawMessage
-	Blobs           []BlobReference
-	BuildRecord     func(time.Time) (json.RawMessage, error)
-	Accepted        func(AuthoritativeRecord) (TerminalResult, error)
-	Rejected        func(error) TerminalResult
+	Owner            syntax.DID
+	OwnerGeneration  int64
+	Targets          []syntax.DID
+	SessionID        string
+	OperationKind    string
+	OperationKey     uuid.UUID
+	Collection       syntax.NSID
+	Intent           json.RawMessage
+	Blobs            []BlobReference
+	BuildRecord      func(time.Time) (json.RawMessage, error)
+	Accepted         func(AuthoritativeRecord) (TerminalResult, error)
+	FinalizeAccepted func(context.Context, pgx.Tx, PreparedCommand, AuthoritativeRecord) error
+	Rejected         func(error) TerminalResult
 }
 
 func NewAppendCommandService(config AppendCommandServiceConfig) (*AppendCommandService, error) {
@@ -255,7 +256,7 @@ func (service *AppendCommandService) executeFenced(
 				}
 				return service.reject(ctx, command.ID, request, ErrIdempotencyConflict)
 			}
-			return service.acceptRecord(ctx, command.ID, request, authoritative)
+			return service.acceptRecord(ctx, command, request, authoritative)
 		case !errors.Is(err, auth.ErrRecordNotFound):
 			return CommandResult{}, errors.Join(ErrDispatchUnavailable, err)
 		}
@@ -340,11 +341,17 @@ func (service *AppendCommandService) executeFenced(
 		if err != nil {
 			return CommandResult{}, err
 		}
-		if err := service.store.CompleteDispatchAndCommand(
+		if err := service.store.completeDispatchAndCommand(
 			ctx,
 			attempt.ID,
 			DispatchCompletion{Outcome: CommandAccepted, ResultRecords: authoritative.Record},
 			terminal,
+			func(tx pgx.Tx) error {
+				if request.FinalizeAccepted != nil {
+					return request.FinalizeAccepted(ctx, tx, command, authoritative)
+				}
+				return nil
+			},
 		); err != nil {
 			return CommandResult{}, err
 		}
@@ -398,7 +405,7 @@ func (service *AppendCommandService) resolveExpectedOwners(
 
 func (service *AppendCommandService) acceptRecord(
 	ctx context.Context,
-	commandID uuid.UUID,
+	command PreparedCommand,
 	request AppendCommandRequest,
 	record AuthoritativeRecord,
 ) (CommandResult, error) {
@@ -406,11 +413,16 @@ func (service *AppendCommandService) acceptRecord(
 	if err != nil {
 		return CommandResult{}, err
 	}
-	return service.accept(ctx, commandID, terminal)
+	return service.accept(ctx, command.ID, terminal, func(tx pgx.Tx) error {
+		if request.FinalizeAccepted != nil {
+			return request.FinalizeAccepted(ctx, tx, command, record)
+		}
+		return nil
+	})
 }
 
-func (service *AppendCommandService) accept(ctx context.Context, commandID uuid.UUID, terminal TerminalResult) (CommandResult, error) {
-	if err := service.store.CompleteCommand(ctx, commandID, terminal); err != nil {
+func (service *AppendCommandService) accept(ctx context.Context, commandID uuid.UUID, terminal TerminalResult, finalize func(pgx.Tx) error) (CommandResult, error) {
+	if err := service.store.completeCommandWithHook(ctx, commandID, terminal, finalize); err != nil {
 		if errors.Is(err, ErrIllegalTransition) {
 			return service.store.Result(ctx, commandID)
 		}

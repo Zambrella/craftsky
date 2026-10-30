@@ -1,6 +1,11 @@
 package push
 
-import "social.craftsky/appview/internal/notifications"
+import (
+	"social.craftsky/appview/internal/notifications"
+	"strings"
+	"unicode"
+	"unicode/utf8"
+)
 
 const maxRoutingFactBytes = 1024
 
@@ -86,7 +91,7 @@ func visibleBody(category notifications.Category, role ContentRole) string {
 		}
 		return "replied to your " + noun
 	case notifications.Mention:
-		return "mentioned you"
+		return "mentioned you in a " + noun
 	case notifications.Quote:
 		return "quoted your " + noun
 	case notifications.Repost:
@@ -106,4 +111,46 @@ func addRoutingFact(data map[string]string, key, value string) {
 		}
 	}
 	data[key] = value
+}
+
+// Keep display text out of routing data and below the sender's 256-byte limit.
+// Title and excerpt have separate budgets so a long title cannot consume both.
+func previewBody(category notifications.Category, action string, preview *notifications.Preview) string {
+	if preview == nil {
+		return action
+	}
+	switch category {
+	case notifications.Reply, notifications.Mention, notifications.Quote:
+	default:
+		return action
+	}
+	parts := []string{action}
+	if title := boundedPreviewText(preview.ProjectTitle, 60); title != "" {
+		parts = append(parts, title)
+	}
+	if text := boundedPreviewText(preview.Text, 140); text != "" {
+		parts = append(parts, text)
+	}
+	return strings.Join(parts, ": ")
+}
+
+func boundedPreviewText(value string, maxBytes int) string {
+	value = strings.Map(func(r rune) rune {
+		if unicode.IsSpace(r) {
+			return ' '
+		}
+		if unicode.IsControl(r) || unicode.Is(unicode.Cf, r) {
+			return -1
+		}
+		return r
+	}, strings.ToValidUTF8(value, ""))
+	value = strings.Join(strings.Fields(value), " ")
+	if len(value) <= maxBytes {
+		return value
+	}
+	end := maxBytes - len("…")
+	for end > 0 && !utf8.RuneStart(value[end]) {
+		end--
+	}
+	return strings.TrimSpace(value[:end]) + "…"
 }

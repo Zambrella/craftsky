@@ -10,6 +10,7 @@ import (
 // RecentMemberRow contains only the presentation needed by discovery.
 // Join metadata remains private and is used exclusively for SQL ordering.
 type RecentMemberRow struct {
+	Crafts      []string
 	DID         syntax.DID
 	Handle      syntax.Handle
 	DisplayName *string
@@ -19,7 +20,7 @@ type RecentMemberRow struct {
 
 func (s *ProfileStore) ListRecentMembers(ctx context.Context, viewer syntax.DID) ([]RecentMemberRow, error) {
 	rows, err := s.pool.Query(ctx, `
- SELECT cp.did, COALESCE(NULLIF(ic.handle,''),'handle.invalid'), NULLIF(btrim(bp.display_name),''), bp.avatar_cid, bp.avatar_mime
+ SELECT cp.did, COALESCE(NULLIF(ic.handle,''),'handle.invalid'), NULLIF(btrim(bp.display_name),''), bp.avatar_cid, bp.avatar_mime, cp.crafts
  FROM craftsky_profiles cp
  JOIN account_onboarding_completions completion ON completion.account_did=cp.did
  LEFT JOIN atproto_identity_cache ic ON ic.did=cp.did
@@ -49,7 +50,7 @@ func (s *ProfileStore) ListRecentMembers(ctx context.Context, viewer syntax.DID)
 	result := make([]RecentMemberRow, 0, 5)
 	for rows.Next() {
 		var row RecentMemberRow
-		if err := rows.Scan(&row.DID, &row.Handle, &row.DisplayName, &row.AvatarCID, &row.AvatarMime); err != nil {
+		if err := rows.Scan(&row.DID, &row.Handle, &row.DisplayName, &row.AvatarCID, &row.AvatarMime, &row.Crafts); err != nil {
 			return nil, fmt.Errorf("scan recent member: %w", err)
 		}
 		result = append(result, row)

@@ -1,5 +1,6 @@
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/profile/models/profile_handle.dart';
+import 'package:craftsky_app/profile/widgets/profile_avatar_hero.dart';
 import 'package:material_ui/material_ui.dart';
 
 /// Display name (DM Serif Display) + optional pronouns + `@handle` block,
@@ -49,12 +50,16 @@ class ProfileIdentity extends StatelessWidget {
             alignment: centered
                 ? Alignment.center
                 : AlignmentDirectional.centerStart,
-            child: Text(
-              name,
-              style: theme.textTheme.headlineMedium,
-              maxLines: 1,
-              softWrap: false,
-              textAlign: centered ? TextAlign.center : TextAlign.start,
+            child: ProfileIdentityTextHero.destination(
+              context,
+              part: ProfileIdentityHeroPart.name,
+              child: Text(
+                name,
+                style: theme.textTheme.headlineMedium,
+                maxLines: 1,
+                softWrap: false,
+                textAlign: centered ? TextAlign.center : TextAlign.start,
+              ),
             ),
           ),
         ),
@@ -79,18 +84,22 @@ class ProfileIdentity extends StatelessWidget {
         ],
         if (displayName?.isNotEmpty ?? false) ...[
           const SizedBox(height: 2),
-          Text(
-            profileHandle.currentLabel(
-              unavailableLabel: l10n.handleUnavailable,
+          ProfileIdentityTextHero.destination(
+            context,
+            part: ProfileIdentityHeroPart.handle,
+            child: Text(
+              profileHandle.currentLabel(
+                unavailableLabel: l10n.handleUnavailable,
+              ),
+              // `onSurfaceVariant` (ink2) rather than `outline` (ink3) —
+              // the @handle reads as a secondary identifier paired with
+              // the display name, not tertiary metadata, so it wants
+              // the darker secondary-text strength.
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+              textAlign: centered ? TextAlign.center : TextAlign.start,
             ),
-            // `onSurfaceVariant` (ink2) rather than `outline` (ink3) —
-            // the @handle reads as a secondary identifier paired with
-            // the display name, not tertiary metadata, so it wants
-            // the darker secondary-text strength.
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-            textAlign: centered ? TextAlign.center : TextAlign.start,
           ),
         ],
       ],

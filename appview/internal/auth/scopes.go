@@ -58,6 +58,7 @@ func DefaultScopes() []string {
 		"blob?accept=image/jpeg&accept=image/png&accept=image/webp&accept=video/mp4&accept=text/vtt",
 		"rpc:com.atproto.repo.uploadBlob?aud=*",
 		"rpc:app.bsky.video.getUploadLimits?aud=*",
+		"repo:app.bsky.actor.link",
 	}
 }
 

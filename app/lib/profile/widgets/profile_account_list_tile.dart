@@ -1,11 +1,9 @@
-import 'dart:async';
-
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/profile/models/profile_account_summary.dart';
 import 'package:craftsky_app/profile/models/profile_handle.dart';
+import 'package:craftsky_app/profile/widgets/compact_profile_identity.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
-import 'package:craftsky_app/profile/widgets/profile_card_modal.dart';
-import 'package:craftsky_app/shared/widgets/craft_icon.dart';
+import 'package:craftsky_app/profile/widgets/profile_avatar_hero.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -13,12 +11,14 @@ class ProfileAccountListTile extends StatelessWidget {
   const new({
     required this.account,
     this.onTap,
+    this.beforeOpen,
     this.trailing,
     super.key,
   });
 
   final ProfileAccountSummary account;
   final VoidCallback? onTap;
+  final Future<void> Function()? beforeOpen;
   final Widget? trailing;
 
   @override
@@ -30,56 +30,44 @@ class ProfileAccountListTile extends StatelessWidget {
       unavailableLabel: l10n.handleUnavailable,
     );
     final name = account.displayName?.trim();
-    final iconCrafts = account.crafts
-        .where((craft) => CraftIcon.assetPathFor(craft) != null)
-        .toList(growable: false);
-    void openProfile() => onTap != null
-        ? onTap!()
-        : unawaited(showUserProfileCard(context, did: account.did));
-    return Semantics(
-      label: [
-        title,
-        if (name != null && name.isNotEmpty) name,
-        for (final craft in iconCrafts) craft.split('#').last,
-      ].join(', '),
-      hint: l10n.profileVisitAction,
-      button: true,
-      onTap: openProfile,
-      excludeSemantics: trailing == null,
-      child: ListTile(
-        contentPadding: EdgeInsets.symmetric(horizontal: spacing.sp4),
-        leading: ProfileAvatar(
-          seed: handle.displayLabel(
-            displayName: account.displayName,
-            unavailableLabel: l10n.handleUnavailable,
-          ),
-          avatarUrl: account.avatar,
-          size: ProfileAvatarSize.small,
-          customisation: account.customisation,
+    return ProfileAvatarHeroSource(
+      did: account.did,
+      handle: account.handle.toString(),
+      displayName: account.displayName,
+      crafts: account.crafts,
+      beforeOpen: beforeOpen,
+      avatar: ProfileAvatar(
+        seed: handle.displayLabel(
+          displayName: account.displayName,
+          unavailableLabel: l10n.handleUnavailable,
         ),
-        title: Text(title),
-        subtitle: (name == null || name.isEmpty) && iconCrafts.isEmpty
-            ? null
-            : Row(
-                children: [
-                  if (name != null && name.isNotEmpty) ...[
-                    Flexible(
-                      child: Text(
-                        name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    if (iconCrafts.isNotEmpty) SizedBox(width: spacing.sp2),
-                  ],
-                  for (final craft in iconCrafts) ...[
-                    CraftIcon(craft: craft, size: 16),
-                    SizedBox(width: spacing.sp1),
-                  ],
-                ],
-              ),
-        trailing: trailing,
-        onTap: openProfile,
+        avatarUrl: account.avatar,
+        size: ProfileAvatarSize.small,
+        customisation: account.customisation,
+      ),
+      builder: (context, avatar, openProfile) => Semantics(
+        label: [
+          title,
+          if (name != null && name.isNotEmpty) name,
+          for (final craft in account.crafts) craft.split('#').last,
+        ].join(', '),
+        hint: l10n.profileVisitAction,
+        button: true,
+        onTap: onTap ?? openProfile,
+        excludeSemantics: trailing == null,
+        child: ListTile(
+          horizontalTitleGap: 12,
+          minLeadingWidth: 0,
+          contentPadding: EdgeInsets.symmetric(horizontal: spacing.sp4),
+          leading: avatar,
+          title: CompactProfileIdentity(
+            handle: account.handle.toString(),
+            displayName: account.displayName,
+            crafts: account.crafts,
+          ),
+          trailing: trailing,
+          onTap: onTap ?? openProfile,
+        ),
       ),
     );
   }

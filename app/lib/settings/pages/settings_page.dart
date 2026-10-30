@@ -13,6 +13,8 @@ import 'package:craftsky_app/auth/widgets/account_switcher_launcher.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:craftsky_app/profile/models/profile_handle.dart';
+import 'package:craftsky_app/profile/widgets/compact_profile_identity.dart';
+import 'package:craftsky_app/router/app_shell_drawer.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/settings/models/settings_identity.dart';
 import 'package:craftsky_app/settings/models/settings_row.dart';
@@ -78,6 +80,7 @@ class SettingsPage extends ConsumerWidget {
             ? null
             : handleLabel,
         handleLabel: handleLabel,
+        crafts: profile?.crafts ?? const [],
         avatarUrl: profile?.avatar,
         avatarSeed: auth.did.value,
         customisation: profile?.customisation ?? ProfileCustomisation.defaults,
@@ -88,7 +91,10 @@ class SettingsPage extends ConsumerWidget {
         ? null
         : AccountSwitcherState.fromRegistry(registry);
     return Scaffold(
-      appBar: AppBar(title: Text(l10n.settingsTitle)),
+      appBar: AppBar(
+        leading: const AppShellDrawerButton(),
+        title: Text(l10n.settingsTitle),
+      ),
       body: ListView(
         children: [
           if (identity != null) _SettingsIdentityHeader(identity: identity),
@@ -458,19 +464,23 @@ class _SettingsIdentityHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => ListTile(
+    horizontalTitleGap: 12,
+    minLeadingWidth: 0,
     contentPadding: const EdgeInsetsDirectional.fromSTEB(16, 12, 16, 8),
     leading: AccountAvatar(
       avatarUrl: identity.avatarUrl,
       seed: identity.avatarSeed,
       customisation: identity.customisation,
     ),
-    title: Text(
-      identity.primaryLabel,
-      style: Theme.of(context).textTheme.titleMedium,
+    title: CompactProfileIdentity(
+      handle: identity.handleLabel.startsWith('@')
+          ? identity.handleLabel.substring(1)
+          : identity.handleLabel,
+      displayName: identity.secondaryLabel == null
+          ? null
+          : identity.primaryLabel,
+      crafts: identity.crafts,
     ),
-    subtitle: identity.secondaryLabel == null
-        ? null
-        : Text(identity.secondaryLabel!),
   );
 }
 

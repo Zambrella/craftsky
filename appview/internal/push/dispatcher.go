@@ -13,6 +13,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"social.craftsky/appview/internal/notifications"
+	"social.craftsky/appview/internal/postfence"
+	"social.craftsky/appview/internal/postpublication"
 )
 
 type DispatcherOptions struct {
@@ -48,6 +50,12 @@ var (
 // ErrDeliveryLifecycleInactive when any required owner is no longer active.
 type DeliveryLifecycleFence interface {
 	WithActiveOwners(context.Context, []syntax.DID, func(context.Context) error) error
+}
+
+// PublicationDeliveryFence reuses the owner-fenced connection for the nested
+// post lock. Production adapters provide it to avoid pool-capacity deadlocks.
+type PublicationDeliveryFence interface {
+	WithPostPublicationFence(context.Context, syntax.ATURI, func(context.Context) error) error
 }
 
 // DispatcherObserver receives aggregate, privacy-safe queue and delivery
@@ -184,7 +192,7 @@ type claimedDelivery struct {
 	recipientDID                                       syntax.DID
 	actorDID                                           *syntax.DID
 	sourceURI                                          syntax.ATURI
-	subjectURI, rootURI                                sql.NullString
+	subjectURI, rootURI, quotedURI                     sql.NullString
 	targetRole                                         ContentRole
 	routingID, token, platform                         string
 	leaseToken                                         string
@@ -239,7 +247,7 @@ func (d *Dispatcher) claimOne(
 	// different row instead of blocking on this one.
 	rows, err := tx.Query(ctx, `
 		SELECT d.id,d.notification_id,d.account_subscription_id,i.id,n.category,
-			n.recipient_did,n.actor_did,COALESCE(n.source_uri,''),n.subject_uri,n.root_uri,
+			n.recipient_did,n.actor_did,COALESCE(n.source_uri,''),n.subject_uri,n.root_uri,n.quoted_uri,
 			CASE
 				WHEN target.uri IS NULL OR target.reply_root_uri IS NULL THEN 'post'
 				WHEN target.reply_parent_uri = target.reply_root_uri THEN 'comment'
@@ -366,7 +374,7 @@ func scanClaimedDeliveries(rows claimedDeliveryRows) ([]claimedDelivery, error) 
 			&claim.item.id, &claim.item.notificationID, &claim.item.subscriptionID,
 			&claim.item.installationID, &claim.item.category, &claim.recipientDID,
 			&claim.actorDID, &claim.item.sourceURI, &claim.item.subjectURI,
-			&claim.item.rootURI, &claim.item.targetRole, &claim.item.routingID,
+			&claim.item.rootURI, &claim.item.quotedURI, &claim.item.targetRole, &claim.item.routingID,
 			&claim.item.token, &claim.item.platform, &claim.item.actorName,
 			&claim.item.caseReference,
 			&claim.item.attempts, &claim.item.deadline,
@@ -507,6 +515,12 @@ func (d *Dispatcher) processClaim(ctx context.Context, item claimedDelivery) err
 		owners = append(owners, *item.actorDID)
 	}
 	err := d.options.LifecycleFence.WithActiveOwners(ctx, owners, func(fenceCtx context.Context) error {
+		if item.category == notifications.Reply || item.category == notifications.Mention || item.category == notifications.Quote {
+			if publicationFence, ok := d.options.LifecycleFence.(PublicationDeliveryFence); ok {
+				return publicationFence.WithPostPublicationFence(fenceCtx, item.sourceURI, func(postCtx context.Context) error { return d.processClaimFenced(postCtx, item) })
+			}
+			return postfence.WithPool(fenceCtx, d.pool, item.sourceURI, func(postCtx context.Context) error { return d.processClaimFenced(postCtx, item) })
+		}
 		return d.processClaimFenced(fenceCtx, item)
 	})
 	if errors.Is(err, ErrDeliveryLifecycleInactive) {
@@ -535,6 +549,25 @@ func (d *Dispatcher) processClaimFenced(ctx context.Context, item claimedDeliver
 	}
 	if !current.eligible {
 		return d.cancelEligibilityInvalid(ctx, item, now)
+	}
+
+	var preview *notifications.Preview
+	switch item.category {
+	case notifications.Reply, notifications.Mention, notifications.Quote:
+		previews, err := notifications.ReadPreviews(ctx, d.pool, item.recipientDID, []syntax.ATURI{item.sourceURI, syntax.ATURI(item.subjectURI.String), syntax.ATURI(item.rootURI.String), syntax.ATURI(item.quotedURI.String)})
+		if err != nil {
+			return err
+		}
+		preview = previews[item.sourceURI]
+		for _, uri := range []string{item.subjectURI.String, item.rootURI.String, item.quotedURI.String} {
+			if preview != nil && preview.ProjectTitle == "" {
+				if subject := previews[syntax.ATURI(uri)]; subject != nil && subject.ProjectTitle != "" {
+					copy := *preview
+					copy.ProjectTitle = subject.ProjectTitle
+					preview = &copy
+				}
+			}
+		}
 	}
 	// TTL is always the time remaining until the original absolute delivery
 	// deadline. A retry does not start a fresh delivery window.
@@ -574,6 +607,7 @@ func (d *Dispatcher) processClaimFenced(ctx context.Context, item claimedDeliver
 			NotificationID: item.notificationID.String(),
 			CaseReference:  item.caseReference.String,
 		},
+		Preview:          preview,
 		ActorDisplayName: item.actorName.String,
 		Platform:         item.platform,
 		Semantics:        item.semantics,
@@ -788,6 +822,15 @@ func (d *Dispatcher) currentDeliveryStatus(
 		&state.routeOwned,
 		&state.eligible,
 	)
+	if err == nil && state.routeOwned && state.eligible && (item.category == notifications.Reply || item.category == notifications.Mention || item.category == notifications.Quote) {
+		applicable, applicabilityErr := postpublication.CurrentApplies(ctx, d.pool, item.sourceURI, item.recipientDID)
+		if applicabilityErr != nil {
+			return state, applicabilityErr
+		}
+		if !applicable {
+			state.eligible = false
+		}
+	}
 	return state, err
 }
 

@@ -217,3 +217,59 @@ func assertImageReplayServing(t *testing.T, pool interface {
 		t.Fatalf("eligible=%t, want %t", eligible, wantEligible)
 	}
 }
+
+func TestDevelopmentImageCatchUpPublishesCurrentSourceWithSeparateApprovalIdentity(t *testing.T) {
+	pool := testdb.WithSchema(t, ingestionProjectionFixtureDDL+imageReplayFixtureDDL)
+	applyTapDurabilityMigration(t, pool)
+	ctx := context.Background()
+	migration, err := os.ReadFile("../../migrations/000081_image_safety.up.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, string(migration)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO craftsky_profiles(did,record_cid) VALUES('did:plc:image-replay','profile')`); err != nil {
+		t.Fatal(err)
+	}
+	store, err := ingestion.NewStore(pool, time.Now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	config := imagesafety.Config{Environment: imagesafety.EnvironmentDevelopment, Mode: imagesafety.ScannerModeDevelopmentAutoApprove,
+		ScannerID: imagesafety.DevelopmentApprovalScannerID, PolicyVersion: imagesafety.DevelopmentApprovalPolicyVersion, CorpusVersion: imagesafety.DevelopmentApprovalCorpusVersion}
+	stubKey := imagesafety.ScanKey{ScannerID: "fixture", PolicyVersion: "policy-1", CorpusVersion: "corpus-1"}
+	stub := index.NewImageSafetyCraftskyPost(imageReplayServingProjector{}, stubKey)
+	fast := index.NewImageSafetyCraftskyPost(imageReplayServingProjector{}, config.ProjectionKey())
+	uri := syntax.ATURI("at://did:plc:image-replay/social.craftsky.feed.post/one")
+	const blob = "bafkreigxxxkul4e5rjz4fomqgn6ieeoxbcqeztmxjbrhnbpe7r44ya4ahe"
+	for i, cid := range []syntax.CID{"record-a", "record-b"} {
+		event := imageReplayEvent(uint64(i+1), uri, []string{"3aaaaaaaaaaa2", "3aaaaaaaaaaa3"}[i], cid, blob, "create")
+		if _, err := store.IngestRecord(ctx, event); err != nil {
+			t.Fatal(err)
+		}
+		projectImageReplayClaim(t, store, stub, "stub-block")
+	}
+	assertImageReplayCounts(t, pool, 1, 1)
+	count, err := imagesafety.CatchUpDevelopment(ctx, pool, config)
+	if err != nil || count != 1 {
+		t.Fatalf("catch-up=%d err=%v", count, err)
+	}
+	projectImageReplayClaim(t, store, fast, "dev-catch-up")
+	assertImageReplayServing(t, pool, uri, "record-b", true)
+	assertImageReplayCounts(t, pool, 2, 0)
+	var originalState string
+	if err := pool.QueryRow(ctx, `SELECT state FROM image_scan_results WHERE scanner_id='fixture'`).Scan(&originalState); err != nil {
+		t.Fatal(err)
+	}
+	if originalState != "pending" {
+		t.Fatalf("original verdict overwritten: %s", originalState)
+	}
+	// Returning to the full pipeline must not reuse the synthetic approval.
+	if _, err := store.IngestRecord(ctx, imageReplayEvent(3, uri, "3aaaaaaaaaaa4", "record-c", blob, "update")); err != nil {
+		t.Fatal(err)
+	}
+	projectImageReplayClaim(t, store, stub, "stub-opt-in")
+	assertImageReplayServing(t, pool, uri, "record-b", false)
+	assertImageReplayCounts(t, pool, 2, 1)
+}

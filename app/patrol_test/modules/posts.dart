@@ -1,9 +1,7 @@
-import 'dart:io';
-
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/widgets/composer_image_attachment_section.dart';
 import 'package:craftsky_app/keys.dart';
-import 'package:craftsky_app/theme/chunky_button.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:image/image.dart' as image;
 import 'package:patrol/patrol.dart';
@@ -25,19 +23,67 @@ final class PostsModule {
     );
   }
 
-  Future<void> publish() async {
-    if (Platform.isIOS) {
-      await $.platform.ios.swipeBack();
-    } else {
-      await $.platform.android.pressBack();
-    }
-    await $(keys.feed.submit)
-        .which<ChunkyButton>((button) => button.onPressed != null)
+  Future<({int width, int height})> rotateFirstSelectedPhoto() async {
+    // Native selection opens photo details. Return to the overview first so
+    // this exercises the same details entry point as an ordinary composer.
+    await $.tester.pageBack();
+    await $(keys.composerImages.section('composer'))
+        .which<ComposerImageAttachmentSection>(
+          (section) => section.enabled && section.imagesState.isSubmitReady,
+        )
         .waitUntilVisible();
     _verifySelectedFixtures();
-    await $(keys.feed.submit)
-        .which<ChunkyButton>((button) => button.onPressed != null)
-        .tap(settlePolicy: SettlePolicy.noSettle);
+    final before =
+        $(keys.composerImages.section('composer')).evaluate().single.widget
+            as ComposerImageAttachmentSection;
+    final original = before.imagesState.images.first;
+    final untouched = before.imagesState.images.last;
+    await $(keys.composerImages.details('composer')).tap();
+    await $(keys.composerImages.edit('composer', original.id)).scrollTo().tap();
+    await $(keys.imageEditor.rotate).tap();
+    await $(keys.imageEditor.done).tap(settlePolicy: SettlePolicy.noSettle);
+    await $(keys.composerImages.page('composer')).waitUntilVisible();
+    // The details page becomes hit-testable before the editor's reverse route
+    // animation ends. Finish that transition before tapping its Back button.
+    await $.pumpAndSettle();
+    await $.tester.pageBack();
+    await $(keys.composerImages.details('composer')).scrollTo();
+    await $(keys.composerImages.section('composer'))
+        .which<ComposerImageAttachmentSection>(
+          (section) => section.enabled && section.imagesState.isSubmitReady,
+        )
+        .waitUntilVisible();
+    final after =
+        $(keys.composerImages.section('composer')).evaluate().single.widget
+            as ComposerImageAttachmentSection;
+    final images = after.imagesState.images;
+    final bytes = images.first.previewBytes;
+    final rotated = bytes == null ? null : image.decodeImage(bytes);
+    if (images.length != 2 ||
+        images.first.id != original.id ||
+        images.last.id != untouched.id ||
+        rotated == null ||
+        rotated.width <= 0 ||
+        rotated.height <= 0 ||
+        listEquals(bytes, original.previewBytes) ||
+        !listEquals(images.last.previewBytes, untouched.previewBytes)) {
+      throw StateError(
+        'Expected a changed, decodable first fixture while preserving '
+        'image order and the second fixture. '
+        'Actual: ${rotated?.width}x${rotated?.height}; '
+        'count: ${images.length}; '
+        'first ID retained: ${images.first.id == original.id}; '
+        'last ID retained: ${images.last.id == untouched.id}; '
+        'first bytes changed: ${!listEquals(bytes, original.previewBytes)}; '
+        'second bytes retained: '
+        '${listEquals(images.last.previewBytes, untouched.previewBytes)}.',
+      );
+    }
+    return (width: rotated.width, height: rotated.height);
+  }
+
+  Future<void> publish() async {
+    await $(keys.feed.submit).tap(settlePolicy: SettlePolicy.noSettle);
     await $(keys.dialog.confirm).tap(settlePolicy: SettlePolicy.noSettle);
   }
 
@@ -83,6 +129,33 @@ final class PostsModule {
     await $(keys.feed.post(post.uri))
         .$(keys.feed.action('Like'))
         .tap(settlePolicy: SettlePolicy.noSettle);
+  }
+
+  Future<void> editTextAndRemoveSecondImage(Post post, String text) async {
+    await $(keys.feed.post(post.uri)).$(keys.feed.menu).tap();
+    await $(keys.feed.edit).tap(settlePolicy: SettlePolicy.noSettle);
+    await $(keys.feed.composerBody).enterText(text);
+    FocusManager.instance.primaryFocus?.unfocus();
+    await $(keys.composerImages.details('composer')).scrollTo();
+    final section =
+        $(keys.composerImages.section('composer')).evaluate().single.widget
+            as ComposerImageAttachmentSection;
+    final images = section.imagesState.images;
+    if (images.length != 2) {
+      throw StateError('Expected two published images in the post editor.');
+    }
+    final remove = keys.composerImages.remove('composer', images[1].id);
+    await $(keys.composerImages.details('composer')).tap();
+    await $(remove).scrollTo();
+    await $(remove).tap();
+    await $.tester.pageBack();
+    await $(keys.composerImages.section('composer'))
+        .which<ComposerImageAttachmentSection>(
+          (section) => section.enabled && section.imagesState.isSubmitReady,
+        )
+        .waitUntilVisible();
+    await $(keys.feed.submit).tap(settlePolicy: SettlePolicy.noSettle);
+    await $(keys.feed.post(post.uri)).waitUntilVisible();
   }
 
   Future<void> delete(Post post) async {

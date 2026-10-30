@@ -1,10 +1,15 @@
 package testdb
 
 import (
+	"context"
+	"errors"
 	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 func TestResolveDatabaseURL(t *testing.T) {
@@ -191,5 +196,59 @@ func TestWithMigratedSchema(t *testing.T) {
 	}
 	if !exists {
 		t.Fatal("fully migrated schema does not contain craftsky_posts")
+	}
+}
+
+type migrationExecutorFunc func(context.Context, string, ...any) (pgconn.CommandTag, error)
+
+func (f migrationExecutorFunc) Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error) {
+	return f(ctx, sql, args...)
+}
+
+func TestMigratedFixtureBoundsEachMigrationIndependently(t *testing.T) {
+	names, err := UpMigrationNames()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var previous context.Context
+	calls := 0
+	executor := migrationExecutorFunc(func(ctx context.Context, sql string, _ ...any) (pgconn.CommandTag, error) {
+		if ctx.Err() != nil {
+			t.Fatalf("migration %d inherited an expired setup context: %v", calls, ctx.Err())
+		}
+		if _, bounded := ctx.Deadline(); !bounded {
+			t.Fatal("migration has no deadline")
+		}
+		if previous != nil && !errors.Is(previous.Err(), context.Canceled) {
+			t.Fatal("previous migration context was retained or reused")
+		}
+		want, err := ReadMigration(names[calls])
+		if err != nil || sql != string(want) {
+			t.Fatalf("migration %d did not use the exact ordered SQL: %v", calls, err)
+		}
+		previous = ctx
+		calls++
+		return pgconn.CommandTag{}, nil
+	})
+	if err := applyUpMigrationsWithTimeout(t.Context(), executor, time.Minute); err != nil {
+		t.Fatal(err)
+	}
+	if calls != len(names) || !errors.Is(previous.Err(), context.Canceled) {
+		t.Fatalf("migration contexts not fully completed and released: calls=%d", calls)
+	}
+}
+
+func TestMigratedFixturePreservesCancellationAndStopsOnFailure(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	calls := 0
+	executor := migrationExecutorFunc(func(ctx context.Context, _ string, _ ...any) (pgconn.CommandTag, error) {
+		calls++
+		cancel()
+		<-ctx.Done()
+		return pgconn.CommandTag{}, ctx.Err()
+	})
+	err := applyUpMigrationsWithTimeout(ctx, executor, time.Minute)
+	if !errors.Is(err, context.Canceled) || calls != 1 {
+		t.Fatalf("fixture ignored cancellation or continued after failure: calls=%d err=%v", calls, err)
 	}
 }

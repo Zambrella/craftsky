@@ -20,6 +20,7 @@ import (
 	"social.craftsky/appview/internal/ownerlifecycle"
 	"social.craftsky/appview/internal/pdscommands"
 	"social.craftsky/appview/internal/pdseffects"
+	"social.craftsky/appview/internal/profilelinks"
 	"social.craftsky/appview/internal/recordjson"
 )
 
@@ -411,6 +412,10 @@ func PutMeProfileHandler(
 				"validation_failed", "validation failed", runID, nil)
 			return
 		}
+		if reqBody.Links != nil && !commandMode {
+			envelope.WriteError(w, http.StatusServiceUnavailable, "pds_unavailable", "profile link commands are unavailable", runID, nil)
+			return
+		}
 		logger.Debug("profile put: validated request",
 			pdsLogAttrs(runID, pdsOperationProfilePutBsky, pdsStageRequestBuild)...)
 		if commandMode {
@@ -433,7 +438,7 @@ func PutMeProfileHandler(
 			uri := func(collection string) syntax.ATURI {
 				return syntax.ATURI("at://" + did.String() + "/" + collection + "/" + profileRecordKey)
 			}
-			result, err := commands.Put(r.Context(), pdscommands.CompoundPutCommandRequest{
+			commandRequest := pdscommands.CompoundPutCommandRequest{
 				Owner: did, OwnerGeneration: ownerGeneration, SessionID: sessionID,
 				OperationKind: "profile.update", OperationKey: operationKey,
 				Intent: intent, Blobs: blobs,
@@ -458,7 +463,7 @@ func PutMeProfileHandler(
 					}},
 				},
 				Accepted: func(records []pdscommands.AuthoritativeRecord) (pdscommands.TerminalResult, error) {
-					if len(records) != 2 {
+					if len(records) < 2 {
 						return pdscommands.TerminalResult{}, errors.New("compound profile result is incomplete")
 					}
 					var bsky map[string]any
@@ -469,7 +474,24 @@ func PutMeProfileHandler(
 					if err != nil {
 						return pdscommands.TerminalResult{}, err
 					}
-					body, err := json.Marshal(BuildProfileResponse(syntheticRow(did.String(), bsky, reqBody.Crafts), handle, false))
+					saved := syntheticRow(did.String(), bsky, reqBody.Crafts)
+					if reqBody.Links != nil {
+						saved.EditableLinks, err = acceptedLinkViews(records[2 : 2+len(*reqBody.Links)])
+						if err != nil {
+							return pdscommands.TerminalResult{}, err
+						}
+						var prior *ProfileRow
+						if store != nil {
+							prior, _ = store.Read(r.Context(), did.String(), did.String())
+						}
+						saved.Links = acceptedPublicProfileLinks(records[2:2+len(*reqBody.Links)], saved.EditableLinks, *reqBody.Links, prior)
+					} else if store != nil {
+						if prior, readErr := store.Read(r.Context(), did.String(), did.String()); readErr == nil && prior != nil {
+							saved.Links = prior.Links
+							saved.EditableLinks = prior.EditableLinks
+						}
+					}
+					body, err := json.Marshal(BuildProfileResponse(saved, handle, false))
 					if err != nil {
 						return pdscommands.TerminalResult{}, err
 					}
@@ -481,7 +503,65 @@ func PutMeProfileHandler(
 				Rejected: func(err error) pdscommands.TerminalResult {
 					return RejectedCommandResult(runID, err, r.Context())
 				},
-			})
+			}
+			if reqBody.Links != nil {
+				for _, link := range *reqBody.Links {
+					commandRequest.Records = append(commandRequest.Records, pdscommands.CompoundPutRecordRequest{URI: syntax.ATURI("at://" + did.String() + "/app.bsky.actor.link/" + link.Rkey.String())})
+				}
+				for _, removed := range reqBody.RemovedLinks {
+					commandRequest.Records = append(commandRequest.Records, pdscommands.CompoundPutRecordRequest{URI: removed.URI, Delete: true})
+				}
+				commandRequest.BuildRecords = func(current []pdscommands.AuthoritativeRecord) ([]json.RawMessage, error) {
+					linkRecords, refs, err := buildProfileLinkRecords(did, *reqBody.Links, current[2:2+len(*reqBody.Links)])
+					if err != nil {
+						return nil, err
+					}
+					desired := make([]json.RawMessage, 2, len(current))
+					for i := 0; i < 2; i++ {
+						desired[i], err = commandRequest.Records[i].BuildRecord(current[i])
+						if err != nil {
+							return nil, err
+						}
+					}
+					var profile map[string]any
+					if err := recordjson.Unmarshal(desired[0], &profile); err != nil {
+						return nil, err
+					}
+					profile["links"] = refs
+					desired[0], err = json.Marshal(profile)
+					if err != nil {
+						return nil, err
+					}
+					desired = append(desired, linkRecords...)
+					var original struct {
+						Links []profilelinks.StrongRef `json:"links"`
+					}
+					if len(current[0].Record) > 0 {
+						if err := json.Unmarshal(current[0].Record, &original); err != nil {
+							return nil, err
+						}
+					}
+					for i, removed := range reqBody.RemovedLinks {
+						before := current[2+len(*reqBody.Links)+i]
+						if !profilelinks.OwnRef(did, removed.URI) {
+							return nil, pdscommands.ErrMalformedCommand
+						}
+						referenced := false
+						for _, ref := range original.Links {
+							if ref.URI == removed.URI {
+								referenced = true
+								break
+							}
+						}
+						if before.CID != "" && (!referenced || before.CID != removed.CID) {
+							return nil, pdscommands.ErrRepositoryConflict
+						}
+						desired = append(desired, nil)
+					}
+					return desired, nil
+				}
+			}
+			result, err := commands.Put(r.Context(), commandRequest)
 			if err != nil {
 				WriteCommandError(w, runID, err, r.Context())
 				return
@@ -641,6 +721,10 @@ func PutMeProfileHandler(
 
 func profileCommandIntent(request ProfilePutRequest) (json.RawMessage, []pdscommands.BlobReference, error) {
 	intent := map[string]any{"crafts": nonNilStrings(request.Crafts)}
+	if request.Links != nil {
+		intent["links"] = *request.Links
+		intent["removedLinks"] = request.RemovedLinks
+	}
 	if request.DisplayName != nil {
 		intent["displayName"] = *request.DisplayName
 	}
@@ -669,6 +753,18 @@ func profileCommandIntent(request ProfilePutRequest) (json.RawMessage, []pdscomm
 		blobs = append(blobs, pdscommands.BlobReference{
 			CID: syntax.CID(cid), MIMEType: mimeType, Size: size,
 		})
+	}
+	if request.Links != nil {
+		for _, link := range *request.Links {
+			if link.Icon == nil {
+				continue
+			}
+			size, _ := positiveIntegerAsInt64(link.Icon["size"])
+			ref, _ := link.Icon["ref"].(map[string]any)
+			cid, _ := ref["$link"].(string)
+			mime, _ := link.Icon["mimeType"].(string)
+			blobs = append(blobs, pdscommands.BlobReference{CID: syntax.CID(cid), MIMEType: mime, Size: size})
+		}
 	}
 	raw, err := json.Marshal(intent)
 	return raw, blobs, err

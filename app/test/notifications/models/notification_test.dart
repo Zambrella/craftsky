@@ -43,6 +43,39 @@ void main() {
     'indexedAt': '2026-05-28T13:00:01Z',
   };
 
+  test('decodes newness for social, unavailable, actor and system rows', () {
+    final maps = [
+      base('follow', 'follow1'),
+      {...base('like', 'like1'), 'subjectPost': post()},
+      {...base('quote', 'quote1'), 'subjectPost': post()},
+      {...base('like', 'unavailable'), 'contentAvailable': false},
+      {...base('instagramMatch', 'match1'), 'id': 'match1'},
+      {
+        'id': 'system',
+        'type': 'moderation',
+        'createdAt': '2026-05-28T13:00:00Z',
+        'indexedAt': '2026-05-28T13:00:01Z',
+      },
+      {
+        'id': 'unknown',
+        'type': 'unknown',
+        'createdAt': '2026-05-28T13:00:00Z',
+        'indexedAt': '2026-05-28T13:00:01Z',
+      },
+    ];
+    for (final map in maps) {
+      expect(
+        CraftskyNotification.fromMap({...map, 'isNew': true}).isNew,
+        isTrue,
+      );
+      expect(
+        CraftskyNotification.fromMap({...map, 'isNew': false}).isNew,
+        isFalse,
+      );
+      expect(CraftskyNotification.fromMap(map).isNew, isFalse);
+    }
+  });
+
   test('decodes mixed notification item types and opaque cursor', () {
     final page = NotificationPage.fromMap({
       'cursor': 'opaque-next',

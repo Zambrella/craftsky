@@ -90,7 +90,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
         with:
-          go-version: 1.27.2
+          go-version: 1.27.3
           cache-dependency-path: appview/go.sum
 
       - name: Run unit-only AppView tests
@@ -111,7 +111,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
         with:
-          go-version: 1.27.2
+          go-version: 1.27.3
           cache-dependency-path: appview/go.sum
 
       - name: Install release-gate tools
@@ -180,6 +180,11 @@ jobs:
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: '24'
+      - name: Set up status validator
+        run: |
+          python3 -m venv service-status/.venv
+          service-status/.venv/bin/python -m pip install -r service-status/requirements.txt
+          echo "$GITHUB_WORKSPACE/service-status/.venv/bin" >> "$GITHUB_PATH"
       - name: Validate operator and website independence
         run: |
           python3 -m unittest discover -s scripts -p test_service_status_publish.py
@@ -212,7 +217,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
         with:
-          go-version: 1.27.2
+          go-version: 1.27.3
 
       - name: Lint workflows
         run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.7
@@ -229,7 +234,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
         with:
-          go-version: 1.27.2
+          go-version: 1.27.3
           cache-dependency-path: appview/go.sum
 
       - name: Exercise fuzz targets

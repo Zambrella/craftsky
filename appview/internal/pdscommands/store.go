@@ -85,11 +85,14 @@ type DispatchAttempt struct {
 }
 
 type DispatchCompletion struct {
-	Outcome           CommandState
-	RetryAfterSeconds int
-	ErrorClass        string
-	ResultCommitCID   syntax.CID
-	ResultRecords     json.RawMessage
+	Outcome              CommandState
+	RetryAfterSeconds    int
+	ErrorClass           string
+	ResultCommitCID      syntax.CID
+	ResultCommitRevision syntax.TID
+	ObservationCID       syntax.CID
+	ObservationRevision  syntax.TID
+	ResultRecords        json.RawMessage
 }
 
 type TerminalResult struct {
@@ -512,6 +515,10 @@ func (store *Store) CompleteDispatchAndCommand(
 	completion DispatchCompletion,
 	result TerminalResult,
 ) error {
+	return store.completeDispatchAndCommand(ctx, attemptID, completion, result, nil)
+}
+
+func (store *Store) completeDispatchAndCommand(ctx context.Context, attemptID uuid.UUID, completion DispatchCompletion, result TerminalResult, finalize func(pgx.Tx) error) error {
 	if completion.Outcome != CommandAccepted && completion.Outcome != CommandRejected {
 		return errors.New("terminal dispatch completion must be accepted or rejected")
 	}
@@ -530,7 +537,13 @@ func (store *Store) CompleteDispatchAndCommand(
 		if err := store.completeDispatchTx(ctx, tx, attemptID, completion, now); err != nil {
 			return err
 		}
-		return completeCommandTx(ctx, tx, commandID, result, now)
+		if err := completeCommandTx(ctx, tx, commandID, result, now); err != nil {
+			return err
+		}
+		if finalize != nil {
+			return finalize(tx)
+		}
+		return nil
 	})
 }
 
@@ -556,15 +569,18 @@ func (store *Store) completeDispatchTx(
 	if completion.Outcome == DispatchInvalidSwap || completion.Outcome == DispatchRateLimited {
 		validTransition = CommandState(rawState) == CommandDispatching
 	}
-	if dispatchOutcome != "dispatching" || !validTransition {
+	recoveredAcceptance := dispatchOutcome == "ambiguous" && rawState == "ambiguous" && completion.Outcome == CommandAccepted
+	if (dispatchOutcome != "dispatching" && !recoveredAcceptance) || !validTransition {
 		return ErrIllegalTransition
 	}
 	if _, err := tx.Exec(ctx, `
 			UPDATE pds_command_dispatches
-			SET outcome=$2,error_class=$3,result_commit_cid=$4,result_records=$5,completed_at=$6,retry_not_before=$7
+			SET outcome=$2,error_class=$3,result_commit_cid=$4,result_records=$5,completed_at=$6,retry_not_before=$7,
+			result_commit_revision=$8,observation_cid=$9,observation_revision=$10
 			WHERE id=$1
 		`, attemptID, completion.Outcome, nullableCommandString(completion.ErrorClass),
-		nullableCommandString(completion.ResultCommitCID.String()), nullableCommandJSON(completion.ResultRecords), now, dispatchRetryAt(completion, now)); err != nil {
+		nullableCommandString(completion.ResultCommitCID.String()), nullableCommandJSON(completion.ResultRecords), now, dispatchRetryAt(completion, now),
+		nullableCommandString(completion.ResultCommitRevision.String()), nullableCommandString(completion.ObservationCID.String()), nullableCommandString(completion.ObservationRevision.String())); err != nil {
 		return fmt.Errorf("complete PDS dispatch: %w", err)
 	}
 	if completion.Outcome == CommandAmbiguous {
@@ -635,6 +651,50 @@ func (store *Store) UnresolvedResult(ctx context.Context, command PreparedComman
 	return store.Result(ctx, command.ID)
 }
 
+// addressedUpdateBody reads immutable dispatch evidence for read-only recovery.
+// It cannot be used to construct a new plan from a later repository snapshot.
+func (store *Store) addressedUpdateBody(ctx context.Context, command PreparedCommand, uri syntax.ATURI) (json.RawMessage, error) {
+	var body json.RawMessage
+	err := store.withTransaction(ctx, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx, `SELECT record FROM pds_command_steps
+			WHERE command_id=$1 AND plan_version=$2 AND ordinal=0
+			AND action='update' AND selected_uri=$3`, command.ID, command.ActivePlanVersion, uri).Scan(&body)
+	})
+	if err != nil {
+		return nil, fmt.Errorf("read addressed update dispatch evidence: %w", err)
+	}
+	return body, nil
+}
+
+// completeAddressedRecovery records a read-only observation separately from an
+// exact write receipt, in the same transaction as terminal command acceptance.
+func (store *Store) completeAddressedRecovery(ctx context.Context, command PreparedCommand, record AuthoritativeRecord, result TerminalResult, finalize func(pgx.Tx) error) error {
+	if err := validateTerminalResult(result); err != nil {
+		return err
+	}
+	now := store.now().UTC().Truncate(time.Microsecond)
+	return store.withTransaction(ctx, func(tx pgx.Tx) error {
+		var attemptID uuid.UUID
+		if err := tx.QueryRow(ctx, `SELECT id FROM pds_command_dispatches
+			WHERE command_id=$1 AND plan_version=$2 ORDER BY attempt_ordinal DESC LIMIT 1`, command.ID, command.ActivePlanVersion).Scan(&attemptID); err != nil {
+			return fmt.Errorf("read addressed recovery dispatch: %w", err)
+		}
+		if err := store.completeDispatchTx(ctx, tx, attemptID, DispatchCompletion{
+			Outcome: CommandAccepted, ResultRecords: record.Record,
+			ObservationCID: record.ObservationCID, ObservationRevision: record.ObservationRevision,
+		}, now); err != nil {
+			return err
+		}
+		if err := completeCommandTx(ctx, tx, command.ID, result, now); err != nil {
+			return err
+		}
+		if finalize != nil {
+			return finalize(tx)
+		}
+		return nil
+	})
+}
+
 // ResumeKnownInvalidSwap permits a fresh head-bound plan only after a definite
 // non-application response (head conflict or rate limit). Uncertain outcomes
 // continue through read-only reconciliation. Rate limits do not use the swap budget.
@@ -687,12 +747,22 @@ func (store *Store) CompleteRateLimitedDispatch(ctx context.Context, attemptID u
 }
 
 func (store *Store) CompleteCommand(ctx context.Context, commandID uuid.UUID, result TerminalResult) error {
+	return store.completeCommandWithHook(ctx, commandID, result, nil)
+}
+
+func (store *Store) completeCommandWithHook(ctx context.Context, commandID uuid.UUID, result TerminalResult, finalize func(pgx.Tx) error) error {
 	if err := validateTerminalResult(result); err != nil {
 		return err
 	}
 	now := store.now().UTC().Truncate(time.Microsecond)
 	return store.withTransaction(ctx, func(tx pgx.Tx) error {
-		return completeCommandTx(ctx, tx, commandID, result, now)
+		if err := completeCommandTx(ctx, tx, commandID, result, now); err != nil {
+			return err
+		}
+		if finalize != nil {
+			return finalize(tx)
+		}
+		return nil
 	})
 }
 

@@ -120,7 +120,7 @@ func withRealFlowAuthSchema(t *testing.T) *pgxpool.Pool {
 		"000038_owner_auth_lifecycle.up.sql",
 		"000064_provider_first_registration.up.sql",
 		"000066_pds_migration_identity.up.sql",
-		"000102_direct_messaging.up.sql",
+		"000111_direct_messaging.up.sql",
 	} {
 		migration, err := testdb.ReadMigration(name)
 		if err != nil {

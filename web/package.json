@@ -4,6 +4,7 @@
   "scripts": {
     "build": "python3 ../scripts/cloudflare_pages_build.py",
     "test": "playwright test",
+    "test:status": "playwright test --config=playwright.status.config.js",
     "test:consent": "playwright test test/analytics-consent.spec.js"
   },
   "devDependencies": {

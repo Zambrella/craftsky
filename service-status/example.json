@@ -1,7 +1,26 @@
 {
-  "schemaVersion": 1,
-  "mode": "maintenance",
-  "revision": "draft",
-  "title": "CraftSky is taking a short break",
-  "message": "We are carrying out maintenance. Please try again shortly."
+  "schemaVersion": 2,
+  "revision": "D1",
+  "maintenance": {
+    "title": "Break",
+    "description": "Back soon",
+    "estimatedRecoveryAt": "2026-10-20T18:00:00.123456+02:00"
+  },
+  "minimumVersions": {
+    "ios": "1.8.0",
+    "android": "1.9.0",
+    "web": "1.10.0"
+  },
+  "message": {
+    "revision": "A",
+    "minVersion": "1.8.0",
+    "title": "News",
+    "description": "<script>Plain text</script>",
+    "maxVersion": "1.9.0",
+    "imageUrl": "https://example.test/image.png",
+    "cta": {
+      "text": "Settings",
+      "destination": "settings"
+    }
+  }
 }

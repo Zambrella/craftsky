@@ -11,27 +11,127 @@ import 'package:craftsky_app/notifications/widgets/notification_category_filter.
 import 'package:craftsky_app/notifications/widgets/notification_category_label.dart';
 import 'package:craftsky_app/notifications/widgets/notification_row.dart';
 import 'package:craftsky_app/router/app_shell_drawer.dart';
+import 'package:craftsky_app/router/route_locations.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:craftsky_app/theme/yarn_refresh_scroll_view.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 
-class NotificationsPage extends ConsumerWidget {
+class NotificationsPage extends ConsumerStatefulWidget {
   const new({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<NotificationsPage> createState() => _NotificationsPageState();
+}
+
+class _NotificationsPageState extends ConsumerState<NotificationsPage> {
+  GoRouter? _router;
+  bool _visible = true;
+  bool _waitingForSeen = false;
+  Future<void> Function()? _acknowledge;
+  VoidCallback? _invalidate;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final router = GoRouter.maybeOf(context);
+    if (_router == router) return;
+    _router?.routerDelegate.removeListener(_routeChanged);
+    _router = router;
+    router?.routerDelegate.addListener(_routeChanged);
+    _visible = _isCurrent;
+  }
+
+  bool get _isCurrent =>
+      _router == null ||
+      _router!
+              .routerDelegate
+              .currentConfiguration
+              .lastOrNull
+              ?.matchedLocation ==
+          RouteLocations.notifications;
+
+  void _routeChanged() {
+    final visible = _isCurrent;
+    if (_visible && !visible) unawaited(_finishVisit());
+    if (!_visible && visible && !_waitingForSeen) {
+      final owner = ref
+          .read(sessionRegistryProvider)
+          .value
+          ?.activeLease
+          ?.session;
+      if (owner == null) {
+        ref.invalidate(notificationsProvider);
+      } else {
+        ref.invalidate(accountNotificationsProvider(owner.account));
+      }
+    }
+    if (_visible != visible) setState(() => _visible = visible);
+  }
+
+  Future<void> _finishVisit() async {
+    final acknowledge = _acknowledge;
+    final invalidate = _invalidate;
+    _acknowledge = null;
+    _invalidate = null;
+    if (acknowledge == null) return;
+    _waitingForSeen = true;
+    await acknowledge();
+    invalidate?.call();
+    if (!mounted) return;
+    setState(() => _waitingForSeen = false);
+  }
+
+  void _rendered(int token, AccountSessionLease? owner) {
+    if (!_visible || !_isCurrent || _waitingForSeen) return;
+    // Capture the account coordinator before leaving or switching accounts.
+    final coordinator = owner == null
+        ? Future.value(ref.read(notificationSeenProvider))
+        : ref.read(accountNotificationSeenProvider(owner.account).future);
+    _acknowledge = () async =>
+        await (await coordinator).afterSuccessfulRender(token);
+    final container = ProviderScope.containerOf(context, listen: false);
+    _invalidate = () {
+      if (owner == null) {
+        container.invalidate(notificationsProvider);
+      } else {
+        container.invalidate(accountNotificationsProvider(owner.account));
+      }
+    };
+  }
+
+  @override
+  void dispose() {
+    _router?.routerDelegate.removeListener(_routeChanged);
+    unawaited(_finishVisit());
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    ref.listen(
+      sessionRegistryProvider.select(
+        (value) => value.value?.activeLease?.session.account,
+      ),
+      (previous, next) {
+        if (previous != next) unawaited(_finishVisit());
+      },
+    );
     final owner = ref
         .watch(sessionRegistryProvider)
         .value
         ?.activeLease
         ?.session;
-    final notifications = owner == null
+    final loaded = owner == null
         ? ref.watch(notificationsProvider)
         : ref.watch(accountNotificationsProvider(owner.account));
+    // Keep the rendered rows (and their hero sources/scroll extent) mounted
+    // while the previous visit is acknowledged and the provider refreshes.
+    final notifications = loaded;
     final l10n = AppLocalizations.of(context);
     final category = ref.watch(notificationFilterProvider);
     return Scaffold(
@@ -68,6 +168,8 @@ class NotificationsPage extends ConsumerWidget {
                 hasLoadMoreError: notifications.hasError,
                 renderToken: value.renderToken,
                 owner: value.owner,
+                onRendered: _rendered,
+                showNewness: !_waitingForSeen,
               ),
             _ when notifications.hasError && !notifications.isLoading =>
               _NotificationsErrorSliver(
@@ -103,36 +205,28 @@ class _NotificationsLoadedSlivers extends ConsumerWidget {
     required this.hasLoadMoreError,
     required this.renderToken,
     required this.owner,
+    required this.onRendered,
+    required this.showNewness,
   });
 
   final List<CraftskyNotification> items;
+  final bool showNewness;
   final bool hasMore;
   final bool isLoadingMore;
   final bool hasLoadMoreError;
   final int renderToken;
   final AccountSessionLease? owner;
+  final void Function(int, AccountSessionLease?) onRendered;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final category = ref.watch(notificationFilterProvider);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!context.mounted ||
-          category != null ||
-          ref.read(notificationFilterProvider) != null) {
+          category != ref.read(notificationFilterProvider)) {
         return;
       }
-      final rowOwner = owner;
-      if (rowOwner == null) {
-        unawaited(
-          ref.read(notificationSeenProvider).afterSuccessfulRender(renderToken),
-        );
-      } else {
-        unawaited(
-          ref
-              .read(accountNotificationSeenProvider(rowOwner.account).future)
-              .then((seen) => seen.afterSuccessfulRender(renderToken)),
-        );
-      }
+      onRendered(renderToken, owner);
     });
     final l10n = AppLocalizations.of(context);
     if (items.isEmpty) {
@@ -156,10 +250,22 @@ class _NotificationsLoadedSlivers extends ConsumerWidget {
     }
     return SliverMainAxisGroup(
       slivers: [
-        SliverList.builder(
+        SliverList.separated(
           itemCount: items.length,
-          itemBuilder: (context, index) =>
-              NotificationRow(notification: items[index], owner: owner),
+          itemBuilder: (context, index) => NotificationRow(
+            notification: items[index],
+            owner: owner,
+            showNewness: showNewness,
+          ),
+          separatorBuilder: (context, index) => Divider(
+            height: 1,
+            thickness: .5,
+            indent: 16,
+            endIndent: 16,
+            color: Theme.of(context).colorScheme.outlineVariant.withValues(
+              alpha: .5,
+            ),
+          ),
         ),
         if (isLoadingMore || hasLoadMoreError || hasMore)
           SliverToBoxAdapter(

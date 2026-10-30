@@ -27,6 +27,7 @@ CREATE TABLE craftsky_profiles (
 );
 -- bluesky_profiles is needed for the delete-cascade test; owned by Chunk 4 indexer.
 CREATE TABLE bluesky_profiles (
+ links JSONB NOT NULL DEFAULT '[]',
     did          TEXT        NOT NULL PRIMARY KEY,
     display_name TEXT,
     description  TEXT,

@@ -5,6 +5,30 @@ import 'package:craftsky_app/projects/options/project_option_catalogs.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('restored colours and design tags have typed multi-select values', () {
+    for (final source in [
+      null,
+      <dynamic>[],
+      <dynamic>['blue'],
+    ]) {
+      final values = hydrateScheduledProjectComposer({
+        'common': {'colors': source, 'designTags': source},
+      });
+      for (final field in [
+        ProjectComposerFields.colours,
+        ProjectComposerFields.designTags,
+      ]) {
+        final value = values[field];
+        if (source == null) {
+          expect(value, isNull);
+        } else {
+          expect(value, isA<List<String>>());
+          expect(value, source);
+        }
+      }
+    }
+  });
+
   test('restored additional crafts retain the multi-select list type', () {
     for (final additionalCrafts in [
       null,
@@ -42,6 +66,7 @@ void main() {
         'craftType': ProjectOptionCatalogs.knittingCraftToken,
         'status': ProjectOptionCatalogs.finishedStatusToken,
         'title': 'Cardigan',
+        'duration': '4 weeks',
         'colors': ['blue'],
         'designTags': ['cables'],
         'materials': [
@@ -72,6 +97,7 @@ void main() {
     });
 
     expect(values[ProjectComposerFields.title], 'Cardigan');
+    expect(values[ProjectComposerFields.duration], '4 weeks');
     expect(values[ProjectComposerFields.materials], [
       const ProjectMaterial(text: 'Wool'),
     ]);

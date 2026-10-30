@@ -10,6 +10,11 @@ class AppLocalizationsEn extends AppLocalizations {
   AppLocalizationsEn([String locale = 'en']) : super(locale);
 
   @override
+  String postQuoteUseCurrentImage(int current, int total) {
+    return 'Use current image ($current of $total)';
+  }
+
+  @override
   String get discoveryYourCrafts => 'Your crafts';
 
   @override
@@ -92,6 +97,25 @@ class AppLocalizationsEn extends AppLocalizations {
   String get externalLinkConfirmAction => 'Open link';
 
   @override
+  String get craftsDefaultLabel => 'Default';
+
+  @override
+  String get craftsMoveUp => 'Move up';
+
+  @override
+  String get craftsMoveDown => 'Move down';
+
+  @override
+  String craftsReorderLabel(String craft) {
+    return 'Reorder $craft';
+  }
+
+  @override
+  String craftsDragLabel(String craft) {
+    return 'Drag to reorder $craft';
+  }
+
+  @override
   String get craftsRequestMoreAction => 'Request more';
 
   @override
@@ -142,6 +166,16 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String notificationPostContext(String context) {
+    return '↳ Your post: $context';
+  }
+
+  @override
+  String notificationReplyContext(String context) {
+    return '↳ You: “$context”';
+  }
+
+  @override
   String notificationReplyRow(String actor) {
     return '$actor commented on your post';
   }
@@ -168,6 +202,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get notificationGenericRow => 'New activity';
+
+  @override
+  String get notificationNew => 'New notification';
 
   @override
   String get notificationModerationRow =>
@@ -594,6 +631,21 @@ class AppLocalizationsEn extends AppLocalizations {
       'You may see and interact with each other\'s content again.';
 
   @override
+  String get imageEditFailed => 'Couldn’t edit that photo. Try again.';
+
+  @override
+  String get imageEditAction => 'Edit photo';
+
+  @override
+  String get imageEditRotate => 'Rotate 90°';
+
+  @override
+  String get imageEditCrop => 'Crop';
+
+  @override
+  String get imageEditTitle => 'Edit photo';
+
+  @override
   String get actionCancel => 'Cancel';
 
   @override
@@ -928,6 +980,17 @@ class AppLocalizationsEn extends AppLocalizations {
   String get postComposeTitle => 'New post';
 
   @override
+  String get postTypeExplainerTitle => 'What would you like to share?';
+
+  @override
+  String get postTypeExplainerRegularDescription =>
+      'Share a quick update, ask a question, or show what’s inspiring you.';
+
+  @override
+  String get postTypeExplainerProjectDescription =>
+      'Document something you’re making, with details like the craft, pattern, materials, and progress.';
+
+  @override
   String get postTypeRegularLabel => 'Regular post';
 
   @override
@@ -965,6 +1028,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get projectComposerProjectTitleHint => 'Add a short project title';
 
   @override
+  String get projectComposerDurationLabel => 'Duration';
+
+  @override
+  String get projectComposerDurationHint => 'e.g. 2 days or 4 weeks';
+
+  @override
   String get projectComposerDescriptionLabel => 'Project description';
 
   @override
@@ -987,6 +1056,21 @@ class AppLocalizationsEn extends AppLocalizations {
   String get projectComposerMaterialsAddAction => 'Add';
 
   @override
+  String get projectComposerMaterialsEditAction => 'Edit material';
+
+  @override
+  String get projectComposerMaterialsEditBlockedHint =>
+      'Add or clear the current material first';
+
+  @override
+  String get projectComposerMaterialsDiscardTitle =>
+      'Discard material changes?';
+
+  @override
+  String get projectComposerMaterialsDiscardMessage =>
+      'Your current material input won\'t be saved. Materials you\'ve already added will be kept.';
+
+  @override
   String projectComposerMaterialsMaxLengthError(int max) {
     return 'Keep each material to $max characters or fewer.';
   }
@@ -1006,10 +1090,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get projectComposerColoursSearchHint => 'Search colours';
 
   @override
-  String get projectComposerDesignTagsLabel => 'Design tags';
+  String get projectComposerDesignTagsLabel => 'Design';
 
   @override
-  String get projectComposerDesignTagsSearchHint => 'Search design tags';
+  String get projectComposerDesignTagsSearchHint => 'Search designs';
 
   @override
   String get projectComposerAddPatternAction => 'Add pattern';
@@ -1197,7 +1281,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String get projectComposerPatternPublisherHint => 'Add pattern publisher';
 
   @override
+  String get postComposeQuoteLabel => 'Your thoughts';
+
+  @override
+  String get postComposeQuoteHint => 'Add your thoughts about this post…';
+
+  @override
   String get postComposeHint => 'What would you like to share?';
+
+  @override
+  String get postComposeDone => 'Done';
 
   @override
   String get postComposeBodyHint =>
@@ -4882,4 +4975,158 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get projectComposerAdditionalCraftsSearchHint =>
       'Find other crafts used in this project';
+
+  @override
+  String get serviceStatusUpdateTitle => 'Update required';
+
+  @override
+  String get serviceStatusUpdateDescription =>
+      'Please update CraftSky to continue.';
+
+  @override
+  String get serviceStatusUpdate => 'Update';
+
+  @override
+  String get serviceStatusReload => 'Reload';
+
+  @override
+  String get serviceStatusActionFailed =>
+      'Could not open this action. Please try again.';
+
+  @override
+  String notificationMentionPostRow(String actor) {
+    return '$actor mentioned you in a post';
+  }
+
+  @override
+  String notificationMentionCommentRow(String actor) {
+    return '$actor mentioned you in a comment';
+  }
+
+  @override
+  String notificationMentionReplyRow(String actor) {
+    return '$actor mentioned you in a reply';
+  }
+
+  @override
+  String notificationQuoteCommentRow(String actor) {
+    return '$actor quoted your comment';
+  }
+
+  @override
+  String notificationQuoteReplyRow(String actor) {
+    return '$actor quoted your reply';
+  }
+
+  @override
+  String get profileLinksTitle => 'Links';
+
+  @override
+  String get profileLinksHelper => 'Add up to 10 links';
+
+  @override
+  String get profileLinkAdd => 'Add link';
+
+  @override
+  String get profileLinkEdit => 'Edit link';
+
+  @override
+  String get profileLinkUrl => 'URL';
+
+  @override
+  String get profileLinkTitle => 'Title (optional)';
+
+  @override
+  String get profileLinkInvalid =>
+      'Enter an HTTPS link. URL shorteners are not supported.';
+
+  @override
+  String get profileLinkDuplicate => 'This link is already on your profile.';
+
+  @override
+  String get profileLinkUnreachable =>
+      'We couldn’t reach this website. You can still save the link.';
+
+  @override
+  String get profileLinkSaveAnyway => 'Save anyway';
+
+  @override
+  String get profileLinkChecking => 'Checking link…';
+
+  @override
+  String get profileLinkMoveEarlier => 'Move up';
+
+  @override
+  String get profileLinkMoveLater => 'Move down';
+
+  @override
+  String get profileLinkRemove => 'Remove link';
+
+  @override
+  String get profileLinkOpen => 'Open link';
+
+  @override
+  String get profileLinkCopy => 'Copy link';
+
+  @override
+  String get profileLinkOpenFailed => 'Couldn’t open this link.';
+
+  @override
+  String get profileLinkReport => 'Report link';
+
+  @override
+  String get postEditSaveChanges => 'Save changes';
+
+  @override
+  String get postEditSuccess => 'Changes saved';
+
+  @override
+  String get postEditError => 'Could not save changes. Please try again.';
+
+  @override
+  String get postEditSaving => 'Saving changes…';
+
+  @override
+  String get postEditAction => 'Edit';
+
+  @override
+  String get postEditTitle => 'Edit post';
+
+  @override
+  String get postEditLoadError =>
+      'Could not load this post for editing. Please try again.';
+
+  @override
+  String get postEditConflict =>
+      'This post changed. Your changes are still here. Review the current version before saving.';
+
+  @override
+  String get postEditReviewCurrent => 'Review current version';
+
+  @override
+  String get postEditUnavailable =>
+      'This post is no longer available. Your changes are still here.';
+
+  @override
+  String get postEditUnresolved =>
+      'Saving is not confirmed. Retry to check the same save.';
+
+  @override
+  String get postEditRetrySave => 'Retry save';
+
+  @override
+  String get postEditCaptionLabel => 'Caption';
+
+  @override
+  String get postEditContentLabel => 'Post content';
+
+  @override
+  String postEditValidationFields(String fields) {
+    return 'Check these fields and try again: $fields.';
+  }
+
+  @override
+  String postEditTime(String timestamp) {
+    return 'Edited $timestamp';
+  }
 }

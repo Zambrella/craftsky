@@ -541,6 +541,12 @@
   },
   {
     "method": "GET",
+    "path": "/v1/posts/{did}/{rkey}/edit",
+    "category": "appview.posts.edit",
+    "public": false
+  },
+  {
+    "method": "GET",
     "path": "/v1/posts/{did}/{rkey}/likes",
     "category": "appview.posts.likes",
     "public": true
@@ -772,6 +778,12 @@
     "path": "/v1/notifications/preferences",
     "category": "appview.notifications.preferences",
     "public": false
+  },
+  {
+    "method": "PATCH",
+    "path": "/v1/posts/{did}/{rkey}",
+    "category": "appview.posts.detail",
+    "public": true
   },
   {
     "method": "PATCH",
@@ -1089,6 +1101,12 @@
     "method": "POST",
     "path": "/v1/languages/preferences/initialize",
     "category": "appview.languages.preferences.initialize",
+    "public": false
+  },
+  {
+    "method": "POST",
+    "path": "/v1/profile-link-previews",
+    "category": "appview.link_previews",
     "public": false
   },
   {
@@ -1419,6 +1437,12 @@
     "method": "GET",
     "path": "/v1/chat/notification-opens/{reference}",
     "category": "appview.chat.notification_open",
+    "public": false
+  },
+  {
+    "method": "POST",
+    "path": "/v1/profile-links/{did}/{rkey}/reports",
+    "category": "appview.profile_links.reports",
     "public": false
   }
 ]

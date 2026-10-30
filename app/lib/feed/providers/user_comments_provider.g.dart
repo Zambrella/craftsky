@@ -53,7 +53,7 @@ final class UserCommentsProvider
   }
 }
 
-String _$userCommentsHash() => r'8db7378eeb9fdf23426f6e49647a97a4f1fa3eb7';
+String _$userCommentsHash() => r'b4c1e49d4e1c1c2932b90c00870df21a11c6db1c';
 
 /// Cursor-accumulating authored comments/replies list, keyed by DID.
 

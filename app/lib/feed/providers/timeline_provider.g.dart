@@ -36,7 +36,7 @@ final class TimelineProvider
   Timeline create() => Timeline();
 }
 
-String _$timelineHash() => r'b566d70a8779fe0fd5ba219d453963ea32a490c1';
+String _$timelineHash() => r'258c971307bae5d74d5a113244ad09ca9c96a6e7';
 
 /// Cursor-accumulating authenticated home timeline provider.
 

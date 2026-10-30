@@ -13,6 +13,8 @@ external = root / 'appview/cmd/lexgen/external/community.lexicon.location.addres
 all_files = {json.loads(p.read_text())['id']: p for p in (indigo / 'lexicons').rglob('*.json')}
 all_files.update({json.loads(p.read_text())['id']: p for p in custom.rglob('*.json')})
 all_files[json.loads(external.read_text())['id']] = external
+profile_links = root / 'appview/cmd/lexgen/external/profile-links'
+all_files.update({json.loads(p.read_text())['id']: p for p in profile_links.rglob('*.json')})
 
 def references(value):
     if isinstance(value, dict):
@@ -28,7 +30,7 @@ def references(value):
             yield from references(child)
 
 pending = [json.loads(p.read_text())['id'] for p in custom.rglob('*.json')]
-pending += ['app.bsky.actor.profile', 'app.bsky.graph.follow', 'app.bsky.graph.block']
+pending += ['app.bsky.actor.profile', 'app.bsky.actor.link', 'app.bsky.graph.follow', 'app.bsky.graph.block']
 seen = set()
 while pending:
     nsid = pending.pop()
@@ -50,6 +52,8 @@ for nsid in sorted(seen):
             target = catalog / 'auth' / source.name
     elif source == external:
         target = catalog / 'business/address.json'
+    elif source.is_relative_to(profile_links):
+        target = catalog / 'standard' / source.relative_to(profile_links)
     else:
         target = catalog / 'standard' / source.relative_to(indigo / 'lexicons')
     target.parent.mkdir(parents=True, exist_ok=True)

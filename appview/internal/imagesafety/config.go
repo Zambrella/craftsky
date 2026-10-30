@@ -13,7 +13,8 @@ const (
 type ScannerMode string
 
 const (
-	ScannerModeStub ScannerMode = "stub"
+	ScannerModeStub                   ScannerMode = "stub"
+	ScannerModeDevelopmentAutoApprove ScannerMode = "dev-auto-approve"
 	// Manual mode validates image format; content review is performed by moderators.
 	ScannerModeManual   ScannerMode = "manual"
 	ScannerModeApproved ScannerMode = "approved"
@@ -36,6 +37,10 @@ func (config Config) Ready() bool {
 		return false
 	}
 	switch config.Mode {
+	case ScannerModeDevelopmentAutoApprove:
+		return (config.Environment == EnvironmentDevelopment || config.Environment == EnvironmentTest) &&
+			!config.AdapterReady && config.ScannerID == DevelopmentApprovalScannerID &&
+			config.PolicyVersion == DevelopmentApprovalPolicyVersion && config.CorpusVersion == DevelopmentApprovalCorpusVersion
 	case ScannerModeManual:
 		return !config.AdapterReady
 	case ScannerModeStub:
@@ -55,4 +60,20 @@ func (config Config) CanMarkClear() bool {
 // Manual moderation does not provide automated content detection.
 func (config Config) AutomatedReady() bool {
 	return config.Mode == ScannerModeApproved && config.Ready()
+}
+
+// Development approvals have a reserved identity and never count as scan evidence.
+const (
+	DevelopmentApprovalScannerID     = "development-auto-approve"
+	DevelopmentApprovalPolicyVersion = "development-auto-approve-v1"
+	DevelopmentApprovalCorpusVersion = "not-scanned"
+)
+
+// ProjectionKey carries the dev-only capability only after configuration checks.
+// A plain ScanKey constructed from database values cannot enable the bypass.
+func (config Config) ProjectionKey() ScanKey {
+	return ScanKey{
+		ScannerID: config.ScannerID, PolicyVersion: config.PolicyVersion, CorpusVersion: config.CorpusVersion,
+		developmentAutoApprove: config.Mode == ScannerModeDevelopmentAutoApprove && config.Ready(),
+	}
 }

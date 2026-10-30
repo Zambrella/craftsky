@@ -30,17 +30,28 @@ class ComposerImagesStateMapper extends ClassMapperBase<ComposerImagesState> {
   static ComposerImageNotice? _$notice(ComposerImagesState v) => v.notice;
   static const Field<ComposerImagesState, ComposerImageNotice> _f$notice =
       Field('notice', _$notice, opt: true);
+  static bool _$hasImageEditsInFlight(ComposerImagesState v) =>
+      v.hasImageEditsInFlight;
+  static const Field<ComposerImagesState, bool> _f$hasImageEditsInFlight =
+      Field(
+        'hasImageEditsInFlight',
+        _$hasImageEditsInFlight,
+        opt: true,
+        def: false,
+      );
 
   @override
   final MappableFields<ComposerImagesState> fields = const {
     #images: _f$images,
     #notice: _f$notice,
+    #hasImageEditsInFlight: _f$hasImageEditsInFlight,
   };
 
   static ComposerImagesState _instantiate(DecodingData data) {
     return ComposerImagesState(
       images: data.dec(_f$images),
       notice: data.dec(_f$notice),
+      hasImageEditsInFlight: data.dec(_f$hasImageEditsInFlight),
     );
   }
 
@@ -122,7 +133,11 @@ abstract class ComposerImagesStateCopyWith<
   get images;
   ComposerImageNoticeCopyWith<$R, ComposerImageNotice, ComposerImageNotice>?
   get notice;
-  $R call({List<ComposerImageDraft>? images, ComposerImageNotice? notice});
+  $R call({
+    List<ComposerImageDraft>? images,
+    ComposerImageNotice? notice,
+    bool? hasImageEditsInFlight,
+  });
   ComposerImagesStateCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(
     Then<$Out2, $R2> t,
   );
@@ -151,16 +166,26 @@ class _ComposerImagesStateCopyWithImpl<$R, $Out>
   ComposerImageNoticeCopyWith<$R, ComposerImageNotice, ComposerImageNotice>?
   get notice => $value.notice?.copyWith.$chain((v) => call(notice: v));
   @override
-  $R call({List<ComposerImageDraft>? images, Object? notice = $none}) => $apply(
+  $R call({
+    List<ComposerImageDraft>? images,
+    Object? notice = $none,
+    bool? hasImageEditsInFlight,
+  }) => $apply(
     FieldCopyWithData({
       if (images != null) #images: images,
       if (notice != $none) #notice: notice,
+      if (hasImageEditsInFlight != null)
+        #hasImageEditsInFlight: hasImageEditsInFlight,
     }),
   );
   @override
   ComposerImagesState $make(CopyWithData data) => ComposerImagesState(
     images: data.get(#images, or: $value.images),
     notice: data.get(#notice, or: $value.notice),
+    hasImageEditsInFlight: data.get(
+      #hasImageEditsInFlight,
+      or: $value.hasImageEditsInFlight,
+    ),
   );
 
   @override
@@ -414,6 +439,7 @@ class ComposerImagePhaseMapper extends ClassMapperBase<ComposerImagePhase> {
       ImageUploadingMapper.ensureInitialized();
       ImageUploadedMapper.ensureInitialized();
       ScheduledImageReadyMapper.ensureInitialized();
+      PublishedImageReadyMapper.ensureInitialized();
       ImageFailedMapper.ensureInitialized();
     }
     return _instance!;
@@ -2046,6 +2072,155 @@ class _ScheduledImageReadyCopyWithImpl<$R, $Out>
   ScheduledImageReadyCopyWith<$R2, ScheduledImageReady, $Out2>
   $chain<$R2, $Out2>(Then<$Out2, $R2> t) =>
       _ScheduledImageReadyCopyWithImpl<$R2, $Out2>($value, $cast, t);
+}
+
+class PublishedImageReadyMapper
+    extends SubClassMapperBase<PublishedImageReady> {
+  PublishedImageReadyMapper._();
+
+  static PublishedImageReadyMapper? _instance;
+  static PublishedImageReadyMapper ensureInitialized() {
+    if (_instance == null) {
+      MapperContainer.globals.use(_instance = PublishedImageReadyMapper._());
+      ComposerImagePhaseMapper.ensureInitialized().addSubMapper(_instance!);
+    }
+    return _instance!;
+  }
+
+  @override
+  final String id = 'PublishedImageReady';
+
+  static int _$existingIndex(PublishedImageReady v) => v.existingIndex;
+  static const Field<PublishedImageReady, int> _f$existingIndex = Field(
+    'existingIndex',
+    _$existingIndex,
+  );
+  static String _$url(PublishedImageReady v) => v.url;
+  static const Field<PublishedImageReady, String> _f$url = Field('url', _$url);
+
+  @override
+  final MappableFields<PublishedImageReady> fields = const {
+    #existingIndex: _f$existingIndex,
+    #url: _f$url,
+  };
+
+  @override
+  final String discriminatorKey = 'type';
+  @override
+  final dynamic discriminatorValue = 'PublishedImageReady';
+  @override
+  late final ClassMapperBase superMapper =
+      ComposerImagePhaseMapper.ensureInitialized();
+
+  static PublishedImageReady _instantiate(DecodingData data) {
+    return PublishedImageReady(
+      existingIndex: data.dec(_f$existingIndex),
+      url: data.dec(_f$url),
+    );
+  }
+
+  @override
+  final Function instantiate = _instantiate;
+
+  static PublishedImageReady fromMap(Map<String, dynamic> map) {
+    return ensureInitialized().decodeMap<PublishedImageReady>(map);
+  }
+
+  static PublishedImageReady fromJson(String json) {
+    return ensureInitialized().decodeJson<PublishedImageReady>(json);
+  }
+}
+
+mixin PublishedImageReadyMappable {
+  String toJson() {
+    return PublishedImageReadyMapper.ensureInitialized()
+        .encodeJson<PublishedImageReady>(this as PublishedImageReady);
+  }
+
+  Map<String, dynamic> toMap() {
+    return PublishedImageReadyMapper.ensureInitialized()
+        .encodeMap<PublishedImageReady>(this as PublishedImageReady);
+  }
+
+  PublishedImageReadyCopyWith<
+    PublishedImageReady,
+    PublishedImageReady,
+    PublishedImageReady
+  >
+  get copyWith =>
+      _PublishedImageReadyCopyWithImpl<
+        PublishedImageReady,
+        PublishedImageReady
+      >(this as PublishedImageReady, $identity, $identity);
+  @override
+  String toString() {
+    return PublishedImageReadyMapper.ensureInitialized().stringifyValue(
+      this as PublishedImageReady,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return PublishedImageReadyMapper.ensureInitialized().equalsValue(
+      this as PublishedImageReady,
+      other,
+    );
+  }
+
+  @override
+  int get hashCode {
+    return PublishedImageReadyMapper.ensureInitialized().hashValue(
+      this as PublishedImageReady,
+    );
+  }
+}
+
+extension PublishedImageReadyValueCopy<$R, $Out>
+    on ObjectCopyWith<$R, PublishedImageReady, $Out> {
+  PublishedImageReadyCopyWith<$R, PublishedImageReady, $Out>
+  get $asPublishedImageReady => $base.as(
+    (v, t, t2) => _PublishedImageReadyCopyWithImpl<$R, $Out>(v, t, t2),
+  );
+}
+
+abstract class PublishedImageReadyCopyWith<
+  $R,
+  $In extends PublishedImageReady,
+  $Out
+>
+    implements ComposerImagePhaseCopyWith<$R, $In, $Out> {
+  @override
+  $R call({int? existingIndex, String? url});
+  PublishedImageReadyCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(
+    Then<$Out2, $R2> t,
+  );
+}
+
+class _PublishedImageReadyCopyWithImpl<$R, $Out>
+    extends ClassCopyWithBase<$R, PublishedImageReady, $Out>
+    implements PublishedImageReadyCopyWith<$R, PublishedImageReady, $Out> {
+  _PublishedImageReadyCopyWithImpl(super.value, super.then, super.then2);
+
+  @override
+  late final ClassMapperBase<PublishedImageReady> $mapper =
+      PublishedImageReadyMapper.ensureInitialized();
+  @override
+  $R call({int? existingIndex, String? url}) => $apply(
+    FieldCopyWithData({
+      if (existingIndex != null) #existingIndex: existingIndex,
+      if (url != null) #url: url,
+    }),
+  );
+  @override
+  PublishedImageReady $make(CopyWithData data) => PublishedImageReady(
+    existingIndex: data.get(#existingIndex, or: $value.existingIndex),
+    url: data.get(#url, or: $value.url),
+  );
+
+  @override
+  PublishedImageReadyCopyWith<$R2, PublishedImageReady, $Out2>
+  $chain<$R2, $Out2>(Then<$Out2, $R2> t) =>
+      _PublishedImageReadyCopyWithImpl<$R2, $Out2>($value, $cast, t);
 }
 
 class ImageFailedMapper extends SubClassMapperBase<ImageFailed> {

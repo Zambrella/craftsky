@@ -753,43 +753,58 @@ func (f *fakePostStoreCapturing) ListByAuthorWithLanguages(
 	return f.listRows, f.listCursor, f.listErr
 }
 
-func TestListPosts_LoadsAuthoritativeContentLanguages(t *testing.T) {
-	captured := struct {
-		limit            int
-		viewerDID        string
-		authorDID        string
-		contentLanguages []string
-	}{}
-	store := &fakePostStoreCapturing{
-		fakePostStore: fakePostStore{listRows: []*api.PostRow{}},
-		captured:      &captured,
-	}
-	preferences := &fakeLanguagePreferenceReader{
-		preferences: languages.Preferences{
-			PrimaryLanguage:  "fr",
-			ContentLanguages: []string{"en", "de"},
-		},
-	}
-	h := api.ListPostsByAuthorHandler(
-		store,
-		fakeResolver{handleFor: "alice.example"},
-		nilLogger(),
-		nil,
-		preferences,
-	)
-	req := authedReq(http.MethodGet, "/v1/profiles/@did:plc:alice/posts", "", "did:plc:viewer")
-	req.SetPathValue("handleOrDid", "did:plc:alice")
-	rr := httptest.NewRecorder()
-	h.ServeHTTP(rr, req)
+func (f *fakePostStoreCapturing) ListProjectsByAuthorWithLanguages(ctx context.Context, viewerDID, authorDID string, contentLanguages []string, limit int, cursor string) ([]*api.PostRow, string, error) {
+	return f.ListByAuthorWithLanguages(ctx, viewerDID, authorDID, contentLanguages, limit, cursor)
+}
 
-	if rr.Code != http.StatusOK {
-		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
-	}
-	if captured.viewerDID != "did:plc:viewer" || captured.authorDID != "did:plc:alice" {
-		t.Fatalf("viewer/author = %q/%q", captured.viewerDID, captured.authorDID)
-	}
-	if got, want := captured.contentLanguages, []string{"en", "de"}; !slices.Equal(got, want) {
-		t.Fatalf("content languages = %v, want %v", got, want)
+func (f *fakePostStoreCapturing) ListCommentsByAuthorWithLanguages(ctx context.Context, viewerDID, authorDID string, contentLanguages []string, limit int, cursor string) ([]*api.PostRow, string, error) {
+	return f.ListByAuthorWithLanguages(ctx, viewerDID, authorDID, contentLanguages, limit, cursor)
+}
+
+func (f *fakePostStoreCapturing) ListRepostsByAuthorWithLanguages(ctx context.Context, viewerDID, authorDID string, contentLanguages []string, limit int, cursor string) ([]*api.PostRow, string, error) {
+	return f.ListByAuthorWithLanguages(ctx, viewerDID, authorDID, contentLanguages, limit, cursor)
+}
+
+func TestProfileFeeds_ShowAllLanguagesWithViewerContext(t *testing.T) {
+	for _, tab := range []string{"posts", "projects", "comments", "reposts"} {
+		t.Run(tab, func(t *testing.T) {
+			captured := struct {
+				limit            int
+				viewerDID        string
+				authorDID        string
+				contentLanguages []string
+			}{}
+			store := &fakePostStoreCapturing{
+				fakePostStore: fakePostStore{listRows: []*api.PostRow{}},
+				captured:      &captured,
+			}
+			var h http.Handler
+			resolver := fakeResolver{handleFor: "alice.example"}
+			switch tab {
+			case "posts":
+				h = api.ListPostsByAuthorHandler(store, resolver, nilLogger(), nil)
+			case "projects":
+				h = api.ListProjectsByAuthorHandler(store, resolver, nilLogger(), nil)
+			case "comments":
+				h = api.ListCommentsByAuthorHandler(store, resolver, nilLogger())
+			case "reposts":
+				h = api.ListRepostsByAuthorHandler(store, resolver, nilLogger())
+			}
+			req := authedReq(http.MethodGet, "/v1/profiles/@did:plc:alice/"+tab, "", "did:plc:viewer")
+			req.SetPathValue("handleOrDid", "did:plc:alice")
+			rr := httptest.NewRecorder()
+			h.ServeHTTP(rr, req)
+
+			if rr.Code != http.StatusOK {
+				t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+			}
+			if captured.viewerDID != "did:plc:viewer" || captured.authorDID != "did:plc:alice" {
+				t.Fatalf("viewer/author = %q/%q", captured.viewerDID, captured.authorDID)
+			}
+			if got, want := captured.contentLanguages, []string{}; !slices.Equal(got, want) {
+				t.Fatalf("content languages = %v, want %v", got, want)
+			}
+		})
 	}
 }
 

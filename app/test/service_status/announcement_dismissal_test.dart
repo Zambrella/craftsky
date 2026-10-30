@@ -8,6 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'service_status_controller_test.dart'
     show FakeStatusRepository, maintenance;
+import 'support/status_test_fixtures.dart';
 
 class FakeDismissalStore implements AnnouncementDismissalStore {
   String? revision;
@@ -21,7 +22,7 @@ class FakeDismissalStore implements AnnouncementDismissalStore {
   }
 }
 
-ServiceStatusDocument announcement(String revision) => ServiceStatusDocument(
+ServiceStatusDocument announcement(String revision) => statusDocument(
   mode: ServiceStatusMode.announcement,
   revision: revision,
   title: 'Notice',
@@ -37,6 +38,7 @@ void main() {
       final store = FakeDismissalStore();
       final container = ProviderContainer(
         overrides: [
+          ...statusRuntimeOverrides,
           serviceStatusRepositoryProvider.overrideWithValue(repository),
           announcementDismissalStoreProvider.overrideWithValue(store),
         ],

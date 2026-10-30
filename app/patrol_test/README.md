@@ -48,6 +48,15 @@ through the wrapper to keep that source filter in place.
 On iOS, a UI-test-only Patrol extension enters the password directly into
 Safari's secure field on `bsky.social`, avoiding Patrol's text-value logging.
 This extension is compiled into `RunnerUITests`, not the application target.
+It recognises Safari's `URL` and `TabBarItemTitle` address controls, dismisses
+the keyboard before inspecting the origin and before submitting, and declines
+password saving with Not Now. A small native OAuth-state query checks Safari's
+lifecycle and returns only known control names and booleans; it avoids Patrol
+4.10's full-tree decoder, which crashes on an unrecognised iOS element type.
+XCTest interactions run on the main queue. The UI-test runner caps native idle
+waits at two seconds using XCTest's `_XCTSetApplicationStateTimeout` SPI, with
+explicit element/keyboard waits; app and device animations remain unchanged.
+An unavailable timeout hook produces a specific test failure.
 The wrapper encodes the password before passing it to Dart, preserving characters
 such as `#` that Patrol's own dotenv reader treats as comments.
 
@@ -61,14 +70,25 @@ selects the newest two photo tiles. Imports accumulate in the test simulator;
 the runner does not delete library photos. Never run it on a personal device.
 
 The UI journey performs real OAuth in the browser, changes the onboarding bio,
-completes onboarding, selects two photos through the native picker, publishes a
-regular post, likes it, and deletes it. Fresh AppView reads verify the bio,
-indexed post/image metadata, persisted like, and eventual 404 after deletion.
-Both published image URLs must serve nonempty bytes. Indexing is polled with a
+completes onboarding, selects two photos through the native picker, opens photo
+details from the overview, rotates the first photo by 90 degrees, accepts the
+edit, and publishes a
+regular post, likes it, edits its text and removes its second image, then deletes
+it. Fresh AppView reads verify the bio, indexed post/image metadata, persisted
+like, and eventual 404 after deletion. After editing, a fresh read of the same
+post must have the new text, a changed record CID, an edit timestamp, exactly
+the original first image CID, and the existing like.
+Both published image URLs must serve nonempty bytes. The first downloaded image
+must retain the accepted editor output dimensions; the second must remain
+640×480. The editor retains its crop frame when rotating, so the smoke test
+does not assume that the output dimensions simply swap. These media checks run
+inside the UI-deletion cleanup block. Indexing is polled with a
 60-second bound. Authentication, repositories and upload plugins are not mocked.
 Push delivery, billing and remote crash reporting are outside this smoke test.
 Before publishing, the test checks the selected image dimensions and fixture
 colors and requires one coral and one teal image.
+After editing, it checks the first image's changed bytes and decodable output,
+stable attachment IDs/order, and unchanged bytes for the second image.
 The Android photo-picker helper requires exactly two fixtures in `CraftSkyE2E` and
 checks the native selection count after each photo tap before confirming Done.
 A stalled selection reports the expected and observed photo counts.
@@ -78,7 +98,7 @@ On iOS, the session registry uses the real Keychain plugin in the
 startup so login runs again even though Keychain survives app uninstall.
 
 Each run uses a unique bio/post marker. After finding the published post, the
-test attempts UI deletion in a `finally` block even if the like check fails.
+test attempts UI deletion in a `finally` block even if a like or edit check fails.
 A failure before that point or during cleanup may leave its own public post
 behind; inspect the failure and remove that marked post through the app.
 The runner never bulk-deletes PDS records. The next run resets onboarding only.
@@ -107,6 +127,31 @@ Patrol MCP can be installed separately for interactive test sessions, native
 tree inspection and screenshots: <https://pub.dev/packages/patrol_mcp>.
 
 ## Validation
+
+On 30 October 2026, the image-editing journey passed on the iPhone 18 Pro
+simulator running iOS 27.0 against this checkout's local AppView: one successful
+test, zero failures/skips, 55 seconds for the journey and 79.3 seconds of native
+execution (plus a 63-second build). It opened the editor from photo details,
+rotated the first fixture and accepted its changed output, preserved attachment
+IDs/order and the second fixture bytes, and verified the published image
+dimensions. The later like, text edit, second-image removal, retained first
+image CID and deletion/404 checks all passed.
+During test development, an early Back tap raced the editor's closing route
+animation; the test now lets that transition settle first. A strict swapped-size
+expectation was also corrected to use the actual accepted crop dimensions.
+The editor keeps its crop frame when rotating (480×360 in the observed run).
+Targeted analysis and 17 affected widget tests passed. This expanded journey
+has not been rerun on Android.
+
+On 28 October 2026, the expanded live journey passed on the iPhone 18 Pro
+simulator running iOS 27.0 against this checkout's local AppView. The journey
+took 53 seconds (78.1 seconds of native execution, plus a 60.6-second build).
+It verified the edited text, changed record CID, edit timestamp, retained first
+image CID, preserved like, and eventual 404 after UI deletion. Flutter analysis
+and whitespace checks passed. The same expanded journey also passed on Android
+emulator `emulator-5554` with Chrome: 86 seconds for the journey, 111.6 seconds
+of native execution, and a 55.6-second APK build. Both runs had one successful
+test, zero failures, and zero skips, including confirmed deletion/404 cleanup.
 
 On 20 October 2026, the full live journey passed twice consecutively after
 adding native selection-state checks for an intermittent missing-Done failure.

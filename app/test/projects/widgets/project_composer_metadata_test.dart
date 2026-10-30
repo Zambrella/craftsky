@@ -8,6 +8,7 @@ import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/languages/models/language_preferences.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
 import 'package:craftsky_app/projects/composer/project_composer_fields.dart';
+import 'package:craftsky_app/projects/composer/project_draft_snapshot_adapter.dart';
 import 'package:craftsky_app/projects/options/project_option.dart';
 import 'package:craftsky_app/projects/options/project_option_catalogs.dart';
 import 'package:craftsky_app/projects/widgets/project_composer_sheet.dart';
@@ -27,6 +28,73 @@ import 'package:material_ui/material_ui.dart';
 import '../../fakes/recording_messenger.dart';
 
 void main() {
+  for (final selfDrafted in [true, false, null]) {
+    testWidgets('draft restores self-drafted pattern $selfDrafted', (
+      tester,
+    ) async {
+      const adapter = ProjectDraftSnapshotAdapter();
+      final savedFields = adapter.encodeKnownFields({
+        ProjectComposerFields.patternDesigner: 'Pattern designer',
+        ProjectComposerFields.patternPublisher: 'Pattern publisher',
+        ProjectComposerFields.patternSelfDrafted: ?selfDrafted,
+      });
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            activeLanguagePreferencesProvider.overrideWith(
+              (ref) => const LanguagePreferences(
+                primaryLanguage: 'en',
+                contentLanguages: ['en'],
+              ),
+            ),
+          ],
+          child: MessengerScope(
+            messenger: RecordingMessenger(),
+            child: MaterialApp(
+              theme: AppTheme.lightThemeData,
+              localizationsDelegates: appLocalizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
+              home: ProjectComposerSheet(
+                draftSeed: _projectDraftSeed(savedFields),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await _openDetail(
+        tester,
+        const Key('project-composer-pattern-details-action'),
+      );
+
+      final toggle = find.byKey(
+        const Key('project-composer-self-drafted-switch'),
+      );
+      expect(
+        tester.widget<SwitchListTile>(toggle).value,
+        selfDrafted ?? false,
+      );
+
+      await tester.ensureVisible(toggle);
+      await tester.tap(toggle);
+      await tester.pumpAndSettle();
+      expect(
+        tester.widget<SwitchListTile>(toggle).value,
+        !(selfDrafted ?? false),
+      );
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+      await _openDetail(
+        tester,
+        const Key('project-composer-pattern-details-action'),
+      );
+      expect(
+        tester.widget<SwitchListTile>(toggle).value,
+        !(selfDrafted ?? false),
+      );
+    });
+  }
+
   testWidgets('opening a draft preserves one pattern hash prefix', (
     tester,
   ) async {
@@ -178,6 +246,7 @@ void main() {
       final themedSwitch = tester.widget<Switch>(
         find.descendant(of: selfDrafted, matching: find.byType(Switch)),
       );
+      expect(themedSwitch.value, isFalse);
       expect(
         themedSwitch.activeTrackColor,
         AppTheme.lightThemeData.colorScheme.primary,

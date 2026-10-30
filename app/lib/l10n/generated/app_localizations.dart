@@ -94,6 +94,12 @@ abstract class AppLocalizations {
   /// A list of this localizations delegate's supported locales.
   static const List<Locale> supportedLocales = <Locale>[Locale('en')];
 
+  /// No description provided for @postQuoteUseCurrentImage.
+  ///
+  /// In en, this message translates to:
+  /// **'Use current image ({current} of {total})'**
+  String postQuoteUseCurrentImage(int current, int total);
+
   /// Desktop discovery sidebar section copy.
   ///
   /// In en, this message translates to:
@@ -250,6 +256,36 @@ abstract class AppLocalizations {
   /// **'Open link'**
   String get externalLinkConfirmAction;
 
+  /// No description provided for @craftsDefaultLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Default'**
+  String get craftsDefaultLabel;
+
+  /// No description provided for @craftsMoveUp.
+  ///
+  /// In en, this message translates to:
+  /// **'Move up'**
+  String get craftsMoveUp;
+
+  /// No description provided for @craftsMoveDown.
+  ///
+  /// In en, this message translates to:
+  /// **'Move down'**
+  String get craftsMoveDown;
+
+  /// No description provided for @craftsReorderLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Reorder {craft}'**
+  String craftsReorderLabel(String craft);
+
+  /// No description provided for @craftsDragLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Drag to reorder {craft}'**
+  String craftsDragLabel(String craft);
+
   /// Action below a crafts picker that opens the craft request form.
   ///
   /// In en, this message translates to:
@@ -322,6 +358,18 @@ abstract class AppLocalizations {
   /// **'{actor} reposted your reply'**
   String notificationRepostReplyRow(String actor);
 
+  /// Single-line parent post context above a new comment preview.
+  ///
+  /// In en, this message translates to:
+  /// **'↳ Your post: {context}'**
+  String notificationPostContext(String context);
+
+  /// Single-line immediate parent comment context above a new reply preview.
+  ///
+  /// In en, this message translates to:
+  /// **'↳ You: “{context}”'**
+  String notificationReplyContext(String context);
+
   /// Notification row title for a direct comment activity on the viewer's root post.
   ///
   /// In en, this message translates to:
@@ -357,6 +405,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'New activity'**
   String get notificationGenericRow;
+
+  /// Accessibility label for a notification that is new since the previous visit.
+  ///
+  /// In en, this message translates to:
+  /// **'New notification'**
+  String get notificationNew;
 
   /// No description provided for @notificationModerationRow.
   ///
@@ -988,7 +1042,7 @@ abstract class AppLocalizations {
   /// **'Edit profile'**
   String get profileEditAction;
 
-  /// Label on the secondary action in a profile card, opens the full profile page.
+  /// Accessibility hint for opening the full profile page.
   ///
   /// In en, this message translates to:
   /// **'Visit profile'**
@@ -1113,6 +1167,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'You may see and interact with each other\'s content again.'**
   String get profileUnblockConfirmBody;
+
+  /// No description provided for @imageEditFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn’t edit that photo. Try again.'**
+  String get imageEditFailed;
+
+  /// No description provided for @imageEditAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit photo'**
+  String get imageEditAction;
+
+  /// No description provided for @imageEditRotate.
+  ///
+  /// In en, this message translates to:
+  /// **'Rotate 90°'**
+  String get imageEditRotate;
+
+  /// No description provided for @imageEditCrop.
+  ///
+  /// In en, this message translates to:
+  /// **'Crop'**
+  String get imageEditCrop;
+
+  /// No description provided for @imageEditTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit photo'**
+  String get imageEditTitle;
 
   /// Generic cancel action.
   ///
@@ -1672,6 +1756,24 @@ abstract class AppLocalizations {
   /// **'New post'**
   String get postComposeTitle;
 
+  /// Title of the first-use post type explainer.
+  ///
+  /// In en, this message translates to:
+  /// **'What would you like to share?'**
+  String get postTypeExplainerTitle;
+
+  /// Why someone would choose a regular post in the first-use explainer.
+  ///
+  /// In en, this message translates to:
+  /// **'Share a quick update, ask a question, or show what’s inspiring you.'**
+  String get postTypeExplainerRegularDescription;
+
+  /// Why someone would choose a project post in the first-use explainer.
+  ///
+  /// In en, this message translates to:
+  /// **'Document something you’re making, with details like the craft, pattern, materials, and progress.'**
+  String get postTypeExplainerProjectDescription;
+
   /// Label for the regular-post option in the top-level post-type chooser.
   ///
   /// In en, this message translates to:
@@ -1738,6 +1840,18 @@ abstract class AppLocalizations {
   /// **'Add a short project title'**
   String get projectComposerProjectTitleHint;
 
+  /// No description provided for @projectComposerDurationLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Duration'**
+  String get projectComposerDurationLabel;
+
+  /// No description provided for @projectComposerDurationHint.
+  ///
+  /// In en, this message translates to:
+  /// **'e.g. 2 days or 4 weeks'**
+  String get projectComposerDurationHint;
+
   /// Label above the main project description text field in the project composer.
   ///
   /// In en, this message translates to:
@@ -1780,6 +1894,30 @@ abstract class AppLocalizations {
   /// **'Add'**
   String get projectComposerMaterialsAddAction;
 
+  /// Tooltip for moving an existing material into the project composer input for editing.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit material'**
+  String get projectComposerMaterialsEditAction;
+
+  /// Tooltip explaining why material edit buttons are disabled while the material input contains text.
+  ///
+  /// In en, this message translates to:
+  /// **'Add or clear the current material first'**
+  String get projectComposerMaterialsEditBlockedHint;
+
+  /// Title when leaving project details with uncommitted material input.
+  ///
+  /// In en, this message translates to:
+  /// **'Discard material changes?'**
+  String get projectComposerMaterialsDiscardTitle;
+
+  /// Explains that discarding pending material input preserves committed material entries.
+  ///
+  /// In en, this message translates to:
+  /// **'Your current material input won\'t be saved. Materials you\'ve already added will be kept.'**
+  String get projectComposerMaterialsDiscardMessage;
+
   /// Validation error for a project composer material entry that is too long.
   ///
   /// In en, this message translates to:
@@ -1813,13 +1951,13 @@ abstract class AppLocalizations {
   /// Label for the project composer design-tags field.
   ///
   /// In en, this message translates to:
-  /// **'Design tags'**
+  /// **'Design'**
   String get projectComposerDesignTagsLabel;
 
   /// Placeholder text for searching known design-tag options in the project composer.
   ///
   /// In en, this message translates to:
-  /// **'Search design tags'**
+  /// **'Search designs'**
   String get projectComposerDesignTagsSearchHint;
 
   /// Action that reveals optional project pattern fields in the project composer.
@@ -2158,11 +2296,29 @@ abstract class AppLocalizations {
   /// **'Add pattern publisher'**
   String get projectComposerPatternPublisherHint;
 
+  /// Text box label when composing a quote post.
+  ///
+  /// In en, this message translates to:
+  /// **'Your thoughts'**
+  String get postComposeQuoteLabel;
+
+  /// Text box placeholder when composing a quote post.
+  ///
+  /// In en, this message translates to:
+  /// **'Add your thoughts about this post…'**
+  String get postComposeQuoteHint;
+
   /// Label above the text field in the text-only post composer.
   ///
   /// In en, this message translates to:
   /// **'What would you like to share?'**
   String get postComposeHint;
+
+  /// Dismisses the keyboard in the post composer without publishing.
+  ///
+  /// In en, this message translates to:
+  /// **'Done'**
+  String get postComposeDone;
 
   /// Hint text inside the main post composer text field.
   ///
@@ -8636,6 +8792,270 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Find other crafts used in this project'**
   String get projectComposerAdditionalCraftsSearchHint;
+
+  /// No description provided for @serviceStatusUpdateTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Update required'**
+  String get serviceStatusUpdateTitle;
+
+  /// No description provided for @serviceStatusUpdateDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Please update CraftSky to continue.'**
+  String get serviceStatusUpdateDescription;
+
+  /// No description provided for @serviceStatusUpdate.
+  ///
+  /// In en, this message translates to:
+  /// **'Update'**
+  String get serviceStatusUpdate;
+
+  /// No description provided for @serviceStatusReload.
+  ///
+  /// In en, this message translates to:
+  /// **'Reload'**
+  String get serviceStatusReload;
+
+  /// No description provided for @serviceStatusActionFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not open this action. Please try again.'**
+  String get serviceStatusActionFailed;
+
+  /// No description provided for @notificationMentionPostRow.
+  ///
+  /// In en, this message translates to:
+  /// **'{actor} mentioned you in a post'**
+  String notificationMentionPostRow(String actor);
+
+  /// No description provided for @notificationMentionCommentRow.
+  ///
+  /// In en, this message translates to:
+  /// **'{actor} mentioned you in a comment'**
+  String notificationMentionCommentRow(String actor);
+
+  /// No description provided for @notificationMentionReplyRow.
+  ///
+  /// In en, this message translates to:
+  /// **'{actor} mentioned you in a reply'**
+  String notificationMentionReplyRow(String actor);
+
+  /// No description provided for @notificationQuoteCommentRow.
+  ///
+  /// In en, this message translates to:
+  /// **'{actor} quoted your comment'**
+  String notificationQuoteCommentRow(String actor);
+
+  /// No description provided for @notificationQuoteReplyRow.
+  ///
+  /// In en, this message translates to:
+  /// **'{actor} quoted your reply'**
+  String notificationQuoteReplyRow(String actor);
+
+  /// No description provided for @profileLinksTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Links'**
+  String get profileLinksTitle;
+
+  /// No description provided for @profileLinksHelper.
+  ///
+  /// In en, this message translates to:
+  /// **'Add up to 10 links'**
+  String get profileLinksHelper;
+
+  /// No description provided for @profileLinkAdd.
+  ///
+  /// In en, this message translates to:
+  /// **'Add link'**
+  String get profileLinkAdd;
+
+  /// No description provided for @profileLinkEdit.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit link'**
+  String get profileLinkEdit;
+
+  /// No description provided for @profileLinkUrl.
+  ///
+  /// In en, this message translates to:
+  /// **'URL'**
+  String get profileLinkUrl;
+
+  /// No description provided for @profileLinkTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Title (optional)'**
+  String get profileLinkTitle;
+
+  /// No description provided for @profileLinkInvalid.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter an HTTPS link. URL shorteners are not supported.'**
+  String get profileLinkInvalid;
+
+  /// No description provided for @profileLinkDuplicate.
+  ///
+  /// In en, this message translates to:
+  /// **'This link is already on your profile.'**
+  String get profileLinkDuplicate;
+
+  /// No description provided for @profileLinkUnreachable.
+  ///
+  /// In en, this message translates to:
+  /// **'We couldn’t reach this website. You can still save the link.'**
+  String get profileLinkUnreachable;
+
+  /// No description provided for @profileLinkSaveAnyway.
+  ///
+  /// In en, this message translates to:
+  /// **'Save anyway'**
+  String get profileLinkSaveAnyway;
+
+  /// No description provided for @profileLinkChecking.
+  ///
+  /// In en, this message translates to:
+  /// **'Checking link…'**
+  String get profileLinkChecking;
+
+  /// No description provided for @profileLinkMoveEarlier.
+  ///
+  /// In en, this message translates to:
+  /// **'Move up'**
+  String get profileLinkMoveEarlier;
+
+  /// No description provided for @profileLinkMoveLater.
+  ///
+  /// In en, this message translates to:
+  /// **'Move down'**
+  String get profileLinkMoveLater;
+
+  /// No description provided for @profileLinkRemove.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove link'**
+  String get profileLinkRemove;
+
+  /// No description provided for @profileLinkOpen.
+  ///
+  /// In en, this message translates to:
+  /// **'Open link'**
+  String get profileLinkOpen;
+
+  /// No description provided for @profileLinkCopy.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy link'**
+  String get profileLinkCopy;
+
+  /// No description provided for @profileLinkOpenFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn’t open this link.'**
+  String get profileLinkOpenFailed;
+
+  /// No description provided for @profileLinkReport.
+  ///
+  /// In en, this message translates to:
+  /// **'Report link'**
+  String get profileLinkReport;
+
+  /// No description provided for @postEditSaveChanges.
+  ///
+  /// In en, this message translates to:
+  /// **'Save changes'**
+  String get postEditSaveChanges;
+
+  /// No description provided for @postEditSuccess.
+  ///
+  /// In en, this message translates to:
+  /// **'Changes saved'**
+  String get postEditSuccess;
+
+  /// No description provided for @postEditError.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not save changes. Please try again.'**
+  String get postEditError;
+
+  /// No description provided for @postEditSaving.
+  ///
+  /// In en, this message translates to:
+  /// **'Saving changes…'**
+  String get postEditSaving;
+
+  /// No description provided for @postEditAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit'**
+  String get postEditAction;
+
+  /// No description provided for @postEditTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit post'**
+  String get postEditTitle;
+
+  /// No description provided for @postEditLoadError.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not load this post for editing. Please try again.'**
+  String get postEditLoadError;
+
+  /// No description provided for @postEditConflict.
+  ///
+  /// In en, this message translates to:
+  /// **'This post changed. Your changes are still here. Review the current version before saving.'**
+  String get postEditConflict;
+
+  /// No description provided for @postEditReviewCurrent.
+  ///
+  /// In en, this message translates to:
+  /// **'Review current version'**
+  String get postEditReviewCurrent;
+
+  /// No description provided for @postEditUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'This post is no longer available. Your changes are still here.'**
+  String get postEditUnavailable;
+
+  /// No description provided for @postEditUnresolved.
+  ///
+  /// In en, this message translates to:
+  /// **'Saving is not confirmed. Retry to check the same save.'**
+  String get postEditUnresolved;
+
+  /// No description provided for @postEditRetrySave.
+  ///
+  /// In en, this message translates to:
+  /// **'Retry save'**
+  String get postEditRetrySave;
+
+  /// No description provided for @postEditCaptionLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Caption'**
+  String get postEditCaptionLabel;
+
+  /// No description provided for @postEditContentLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Post content'**
+  String get postEditContentLabel;
+
+  /// Actionable edit validation feedback using localized control names.
+  ///
+  /// In en, this message translates to:
+  /// **'Check these fields and try again: {fields}.'**
+  String postEditValidationFields(String fields);
+
+  /// Accessible tooltip for the current record edit timestamp.
+  ///
+  /// In en, this message translates to:
+  /// **'Edited {timestamp}'**
+  String postEditTime(String timestamp);
 }
 
 class _AppLocalizationsDelegate

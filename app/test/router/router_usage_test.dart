@@ -15,6 +15,8 @@ void main() {
           'runs above the Router inherited widget',
       'lib/notifications/providers/notification_runtime_provider.dart':
           'runs without a widget context',
+      'lib/service_status/status_destinations.dart':
+          'runs above the Router inherited widget and uses typed locations',
     };
     final violations = <String>[];
 
@@ -51,7 +53,6 @@ void main() {
       final path = file.path;
       final source = file.source;
       if (source.contains('UserProfileRoute(handle:') ||
-          source.contains('showUserProfileCard(context, handleOrDid:') ||
           source.contains("'/profile/:handle'") ||
           source.contains("'${r'$'}{RouteLocations.profile}/:handle'")) {
         violations.add(path);

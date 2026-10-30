@@ -11,6 +11,7 @@ import 'package:craftsky_app/feed/models/timeline_page.dart';
 import 'package:craftsky_app/feed/providers/author_post_cache.dart';
 import 'package:craftsky_app/feed/providers/like_post_overlay.dart';
 import 'package:craftsky_app/feed/providers/post_api_client_provider.dart';
+import 'package:craftsky_app/feed/providers/post_record_overlay.dart';
 import 'package:craftsky_app/feed/providers/profile_pins_provider.dart';
 import 'package:craftsky_app/feed/providers/toggle_like_post_provider.dart';
 import 'package:craftsky_app/feed/providers/toggle_repost_post_provider.dart';
@@ -19,6 +20,7 @@ import 'package:craftsky_app/feed/widgets/native_video_player.dart';
 import 'package:craftsky_app/feed/widgets/post_image_carousel.dart';
 import 'package:craftsky_app/feed/widgets/post_image_gallery.dart';
 import 'package:craftsky_app/feed/widgets/post_like_reaction.dart';
+import 'package:craftsky_app/feed/widgets/published_post_editor.dart';
 import 'package:craftsky_app/keys.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/moderation/widgets/moderation_warning_banner.dart';
@@ -27,8 +29,9 @@ import 'package:craftsky_app/profile/models/profile_relationship.dart';
 import 'package:craftsky_app/profile/providers/block_profile_overlay.dart';
 import 'package:craftsky_app/profile/providers/profile_relationship_provider.dart';
 import 'package:craftsky_app/profile/providers/toggle_block_profile_provider.dart';
+import 'package:craftsky_app/profile/widgets/compact_profile_identity.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
-import 'package:craftsky_app/profile/widgets/profile_card_modal.dart';
+import 'package:craftsky_app/profile/widgets/profile_avatar_hero.dart';
 import 'package:craftsky_app/projects/widgets/project_card.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/saved_posts/widgets/saved_post_bookmark_button.dart';
@@ -63,42 +66,17 @@ enum PostCardContentKind { post, comment, reply }
 enum PostCardImageInteractionMode { navigate, fullscreenGallery }
 
 Post _postWithInteractionState(WidgetRef ref, Post post) {
-  final likeState = ref.watch(toggleLikePostProvider);
-  final repostState = ref.watch(toggleRepostPostProvider);
-  final like = likeState.hasError ? null : likeState.value;
-  final repost = repostState.hasError ? null : repostState.value;
-  final controller = ref.read(pdsRecordOperationControllerProvider);
-  final activeLease = ref
-      .read(sessionRegistryProvider)
-      .value
-      ?.activeLease
-      ?.session;
-  final likeScope = likePostMutationScopeForLease(activeLease, post);
-  final repostScope = repostPostMutationScopeForLease(activeLease, post);
-  final likeOperation = controller.operationFor(likeScope);
-  final repostOperation = controller.operationFor(repostScope);
-  final likeIsActive =
-      (likeOperation != null &&
-          likeOperation.status != PdsMutationStatus.failed) ||
-      controller.overlayFor(likeScope) != null;
-  final repostIsActive =
-      (repostOperation != null &&
-          repostOperation.status != PdsMutationStatus.failed) ||
-      controller.overlayFor(repostScope) != null;
-  var result = post;
-  if (likeIsActive && like?.uri == post.uri) {
-    result = result.copyWith(
-      viewerHasLiked: like!.viewerHasLiked,
-      likeCount: like.likeCount,
-    );
-  }
-  if (repostIsActive && repost?.uri == post.uri) {
-    result = result.copyWith(
-      viewerHasReposted: repost!.viewerHasReposted,
-      repostCount: repost.repostCount,
-    );
-  }
-  return result;
+  // Mutation state notifies rows to rebuild; the value itself is per subject.
+  ref
+    ..watch(toggleLikePostProvider)
+    ..watch(toggleRepostPostProvider);
+  final lease = ref.watch(sessionRegistryProvider).value?.activeLease?.session;
+  return applyPostInteractionOverlaysForLease(
+    ref.read(pdsRecordOperationControllerProvider),
+    lease,
+    post,
+    reconcile: false,
+  );
 }
 
 /// Card-shaped post row used by the feed and the profile Posts tab.
@@ -137,6 +115,7 @@ class PostCard extends ConsumerWidget {
     this.videoPlayerBuilder,
     this.imageInteractionMode = PostCardImageInteractionMode.fullscreenGallery,
     this.collapseBody = false,
+    this.initialImageCid,
   });
 
   final Post post;
@@ -145,7 +124,7 @@ class PostCard extends ConsumerWidget {
   final VoidCallback? onLike;
   final VoidCallback? onViewLikes;
   final VoidCallback? onRepost;
-  final VoidCallback? onQuote;
+  final ValueChanged<int?>? onQuote;
   final VoidCallback? onQuotedPostTap;
   final VoidCallback? onQuotedAuthorTap;
   final VoidCallback? onRevealQuotedPost;
@@ -171,10 +150,20 @@ class PostCard extends ConsumerWidget {
   final Widget Function(PostVideo video)? videoPlayerBuilder;
   final PostCardImageInteractionMode imageInteractionMode;
   final bool collapseBody;
+  final String? initialImageCid;
+
+  int _initialImageIndex(Post post) {
+    final index =
+        post.images?.indexWhere((image) => image.cid == initialImageCid) ?? -1;
+    return index < 0 ? 0 : index;
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final post = _postWithInteractionState(ref, this.post);
+    final post = _postWithInteractionState(
+      ref,
+      ref.watch(postRecordPresentationProvider(this.post)),
+    );
     if (post.isProtected) {
       return _ProtectedPostCard(
         post: post,
@@ -197,11 +186,11 @@ class PostCard extends ConsumerWidget {
       cancelled: failed,
       onLike: onLike,
       builder: (context, reactToLike) => Consumer(
-        builder: (context, ref, child) => _buildContent(
-          context,
-          ref,
-          post,
-          reactToLike,
+        builder: (context, ref, child) => _PostCardImageSelection(
+          key: ValueKey(post.uri),
+          initialIndex: _initialImageIndex(post),
+          builder: (selection) =>
+              _buildContent(context, ref, post, reactToLike, selection),
         ),
       ),
     );
@@ -212,6 +201,7 @@ class PostCard extends ConsumerWidget {
     WidgetRef ref,
     Post post,
     VoidCallback? onLike,
+    ValueNotifier<int> imageSelection,
   ) {
     final auth = ref.watch(authSessionProvider).value;
     final isViewerOwned = auth is SignedIn && auth.did == post.author.did;
@@ -233,15 +223,6 @@ class PostCard extends ConsumerWidget {
           : const ProfileRelationship(initialized: true),
       post.author.did,
     );
-    if (relationshipProvider != null && !(relationship?.initialized ?? false)) {
-      unawaited(
-        Future<void>.microtask(
-          () => ref
-              .read(relationshipProvider.notifier)
-              .seed(authorViewerRelationship),
-        ),
-      );
-    }
     final effectiveRelationship = applyBlockRelationshipOverlay(
       ref.read,
       relationship?.initialized ?? false
@@ -278,17 +259,6 @@ class PostCard extends ConsumerWidget {
                 : const ProfileRelationship(initialized: true),
             reposter.did,
           );
-    if (reposterRelationshipProvider != null &&
-        reposterRelationshipProvider != relationshipProvider &&
-        !(reposterRelationship?.initialized ?? false)) {
-      unawaited(
-        Future<void>.microtask(
-          () => ref
-              .read(reposterRelationshipProvider.notifier)
-              .seed(reposterViewerRelationship!),
-        ),
-      );
-    }
     final effectiveReposterRelationship = reposter == null
         ? null
         : applyBlockRelationshipOverlay(
@@ -357,9 +327,8 @@ class PostCard extends ConsumerWidget {
       isProject: post.project != null,
       hasQuote: post.quote != null,
     );
-    final activeLease = allowProfilePinAction
-        ? ref.watch(sessionRegistryProvider).value?.activeLease
-        : null;
+    final ownerLease = ref.watch(sessionRegistryProvider).value?.activeLease;
+    final activeLease = allowProfilePinAction ? ownerLease : null;
     final pinProvider =
         isViewerOwned &&
             pinSlot != null &&
@@ -388,9 +357,6 @@ class PostCard extends ConsumerWidget {
     final borderRadius = isFlat
         ? BorderRadius.zero
         : BorderRadius.circular(radii.r3);
-    void openAuthorProfile() => unawaited(
-      showUserProfileCard(context, did: post.author.did),
-    );
     final quotedPost = post.quoteView?.post;
     final quotedPostParts = quotedPost == null
         ? null
@@ -402,26 +368,14 @@ class PostCard extends ConsumerWidget {
             : () => PostThreadRoute(
                 did: quotedPostParts.did,
                 rkey: quotedPostParts.rkey,
+                imageCid: quotedPost?.images?.firstOrNull?.cid,
               ).push<void>(context));
-    final openQuotedAuthor =
-        onQuotedAuthorTap ??
-        (quotedPost == null
-            ? null
-            : () => unawaited(
-                showUserProfileCard(
-                  context,
-                  did: quotedPost.author.did,
-                ),
-              ));
     final openReposter =
         onReposterTap ??
         (repostReason == null
             ? null
             : () => unawaited(
-                showUserProfileCard(
-                  context,
-                  did: repostReason!.by.did,
-                ),
+                UserProfileRoute(did: repostReason!.by.did).push<void>(context),
               ));
 
     final content = AnimatedContainer(
@@ -473,46 +427,58 @@ class PostCard extends ConsumerWidget {
                       ),
                       SizedBox(height: spacing.sp2),
                     ],
-                    Row(
-                      children: [
-                        _PostCardAuthorTapTarget(
-                          onTap: openAuthorProfile,
-                          child: ProfileAvatar(
-                            seed: displayName,
-                            avatarUrl: post.author.avatar,
-                            size: ProfileAvatarSize.small,
-                            customisation: post.author.customisation,
+                    ProfileAvatarHeroSource(
+                      did: post.author.did,
+                      handle: post.author.handle.toString(),
+                      displayName: post.author.displayName,
+                      crafts: post.author.crafts,
+                      avatar: ProfileAvatar(
+                        seed: displayName,
+                        avatarUrl: post.author.avatar,
+                        size: ProfileAvatarSize.small,
+                        customisation: post.author.customisation,
+                      ),
+                      builder: (context, avatar, openAuthorProfile) => Row(
+                        children: [
+                          _PostCardAuthorTapTarget(
+                            onTap: openAuthorProfile,
+                            child: avatar,
                           ),
-                        ),
-                        SizedBox(width: spacing.sp3),
-                        Expanded(
-                          child: Align(
-                            alignment: AlignmentDirectional.centerStart,
-                            child: _PostCardHeader(
-                              displayName: displayName,
-                              handle: authorHandle.currentLabel(
-                                unavailableLabel: l10n.handleUnavailable,
-                              ),
-                              onTap: openAuthorProfile,
-                            ),
-                          ),
-                        ),
-                        GestureDetector(
-                          behavior: HitTestBehavior.opaque,
-                          onTap: onTap,
-                          onDoubleTap: likeOnDoubleTap,
-                          child: SizedBox(
-                            width: _postCardMenuWidth,
+                          SizedBox(width: spacing.sp3),
+                          Expanded(
                             child: Align(
-                              alignment: AlignmentDirectional.centerEnd,
-                              child: RelativeTimeText(
-                                timestamp: post.createdAt,
-                                textAlign: TextAlign.end,
+                              alignment: AlignmentDirectional.centerStart,
+                              child: _PostCardHeader(
+                                displayName: displayName,
+                                handle: post.author.handle.toString(),
+                                crafts: post.author.crafts,
+                                onTap: openAuthorProfile,
                               ),
                             ),
                           ),
-                        ),
-                      ],
+                          GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTap: post.editedAt == null ? onTap : null,
+                            onDoubleTap: post.editedAt == null
+                                ? likeOnDoubleTap
+                                : null,
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(
+                                minWidth: _postCardMenuWidth,
+                              ),
+                              child: Align(
+                                widthFactor: 1,
+                                alignment: AlignmentDirectional.centerEnd,
+                                child: RelativeTimeText(
+                                  timestamp: post.createdAt,
+                                  editedAt: post.editedAt,
+                                  textAlign: TextAlign.end,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                     if (post.externalImport?.isInstagram ?? false) ...[
                       SizedBox(height: spacing.sp2),
@@ -549,6 +515,9 @@ class PostCard extends ConsumerWidget {
                         excludeFromSemantics: true,
                         onTap: () {},
                         child: PostImageCarousel(
+                          initialIndex: _initialImageIndex(post),
+                          onPageChanged: (index) =>
+                              imageSelection.value = index,
                           images: images,
                           onImageTap: (index, heroTags) =>
                               switch (imageInteractionMode) {
@@ -590,7 +559,7 @@ class PostCard extends ConsumerWidget {
                       _QuotePreviewCard(
                         quoteView: quoteView,
                         onPostTap: openQuotedPost,
-                        onAuthorTap: openQuotedAuthor,
+                        onAuthorTap: onQuotedAuthorTap,
                         onReveal: onRevealQuotedPost,
                       ),
                     ],
@@ -631,8 +600,25 @@ class PostCard extends ConsumerWidget {
                                     ? l10n.postUnrepostAction
                                     : l10n.postRepostAction,
                                 quoteLabel: l10n.postQuoteAction,
+                                quoteImageLabel: () =>
+                                    (post.images?.length ?? 0) > 1
+                                    ? l10n.postQuoteUseCurrentImage(
+                                        imageSelection.value.clamp(
+                                              0,
+                                              post.images!.length - 1,
+                                            ) +
+                                            1,
+                                        post.images!.length,
+                                      )
+                                    : null,
                                 onRepost: onRepost,
-                                onQuote: onQuote,
+                                onQuote: onQuote == null
+                                    ? null
+                                    : (useCurrentImage) => onQuote!(
+                                        useCurrentImage
+                                            ? imageSelection.value
+                                            : null,
+                                      ),
                               ),
                           ],
                         ),
@@ -685,6 +671,19 @@ class PostCard extends ConsumerWidget {
                                     isCurrentPin,
                                   ),
                                 ),
+                          onEdit:
+                              isViewerOwned &&
+                                  ownerLease != null &&
+                                  ownerLease.session.account.did ==
+                                      post.author.did
+                              ? () => unawaited(
+                                  showPublishedPostEditor(
+                                    context,
+                                    post: post,
+                                    ownership: ownerLease,
+                                  ),
+                                )
+                              : null,
                           onDelete: onDelete,
                           onReport: onReport,
                           tooltip: deleteTooltip,
@@ -701,6 +700,7 @@ class PostCard extends ConsumerWidget {
                                   _mutateAuthorRelationship(
                                     context,
                                     ref,
+                                    effectiveRelationship,
                                     effectiveRelationship.muted
                                         ? ProfileRelationshipAction.unmute
                                         : ProfileRelationshipAction.mute,
@@ -828,6 +828,7 @@ class PostCard extends ConsumerWidget {
   Future<void> _mutateAuthorRelationship(
     BuildContext context,
     WidgetRef ref,
+    ProfileRelationship baseline,
     ProfileRelationshipAction action,
   ) async {
     final auth = ref.read(authSessionProvider).value;
@@ -836,7 +837,7 @@ class PostCard extends ConsumerWidget {
       AccountKey(auth.did.toString()),
       post.author.did,
     );
-    await ref.read(provider.notifier).mutate(action);
+    await ref.read(provider.notifier).mutate(action, baseline: baseline);
     if (!context.mounted) return;
     final failed = ref.read(provider).lastError != null;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -1016,37 +1017,24 @@ class _PostCardHeader extends StatelessWidget {
   const new({
     required this.displayName,
     required this.handle,
+    required this.crafts,
     required this.onTap,
   });
 
   final String displayName;
   final String handle;
+  final List<String> crafts;
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return _PostCardAuthorTapTarget(
-      onTap: onTap,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            displayName,
-            style: theme.textTheme.titleSmall,
-            overflow: TextOverflow.ellipsis,
-          ),
-          Text(
-            handle,
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.outline,
-            ),
-            overflow: TextOverflow.ellipsis,
-          ),
-        ],
-      ),
-    );
-  }
+  Widget build(BuildContext context) => _PostCardAuthorTapTarget(
+    onTap: onTap,
+    child: CompactProfileIdentity(
+      handle: handle,
+      displayName: displayName,
+      crafts: crafts,
+    ),
+  );
 }
 
 class _PostCardAuthorTapTarget extends StatelessWidget {
@@ -1078,6 +1066,7 @@ class _PostCardMenu extends StatelessWidget {
     required this.pinLocked,
     required this.onPinToggle,
     required this.onDelete,
+    required this.onEdit,
     required this.onReport,
     required this.isMuted,
     required this.isBlocking,
@@ -1097,6 +1086,7 @@ class _PostCardMenu extends StatelessWidget {
   final bool pinLocked;
   final VoidCallback? onPinToggle;
   final VoidCallback? onDelete;
+  final VoidCallback? onEdit;
   final VoidCallback? onReport;
   final String? tooltip;
   final String? label;
@@ -1132,6 +1122,13 @@ class _PostCardMenu extends StatelessWidget {
           CraftskyContextMenuGroup(items: [copyLinkMenuItem(context, url)]),
           CraftskyContextMenuGroup(
             items: [
+              if (onEdit != null)
+                CraftskyContextMenuItem(
+                  key: keys.feed.edit,
+                  text: l10n.postEditAction,
+                  icon: CraftskyIcons.edit,
+                  onPressed: onEdit,
+                ),
               if (pinLabel != null)
                 CraftskyContextMenuItem(
                   text: pinLabel!,
@@ -1210,6 +1207,7 @@ class _QuotePreviewCard extends StatelessWidget {
         data: PostSummaryData.fromQuoteView(quoteView),
         onTap: onPostTap,
         onAuthorTap: onAuthorTap,
+        enableAuthorNavigation: true,
         onReveal: onReveal,
       ),
     );
@@ -1307,6 +1305,7 @@ class _PostCardShareAction extends StatelessWidget {
     required this.repostLabel,
     required this.quoteLabel,
     this.isSelected = false,
+    this.quoteImageLabel,
     this.onRepost,
     this.onQuote,
   });
@@ -1316,9 +1315,10 @@ class _PostCardShareAction extends StatelessWidget {
   final String tooltip;
   final String repostLabel;
   final String quoteLabel;
+  final String? Function()? quoteImageLabel;
   final bool isSelected;
   final VoidCallback? onRepost;
-  final VoidCallback? onQuote;
+  final ValueChanged<bool>? onQuote;
 
   bool get _isEnabled => onRepost != null || onQuote != null;
 
@@ -1379,6 +1379,8 @@ class _PostCardShareAction extends StatelessWidget {
   }
 
   Future<void> _showMenu(BuildContext context) {
+    var useCurrentImage = false;
+    final quoteImageLabel = this.quoteImageLabel?.call();
     return showCraftskyContextMenu(
       context,
       position: craftskyContextMenuAnchorPosition(context),
@@ -1396,7 +1398,12 @@ class _PostCardShareAction extends StatelessWidget {
               CraftskyContextMenuItem(
                 text: quoteLabel,
                 icon: CraftskyIconsBold.quote,
-                onPressed: onQuote,
+                description: quoteImageLabel,
+                switchValue: quoteImageLabel == null ? null : false,
+                onSwitchChanged: quoteImageLabel == null
+                    ? null
+                    : (value) => useCurrentImage = value,
+                onPressed: () => onQuote!(useCurrentImage),
               ),
           ],
         ),
@@ -1478,4 +1485,27 @@ String? _compactCountLabel(BuildContext context, int count) {
   final locale = Localizations.localeOf(context).toLanguageTag();
   final formatter = NumberFormat.compact(locale: locale)..significantDigits = 2;
   return formatter.format(count).toLowerCase();
+}
+
+class _PostCardImageSelection extends StatefulWidget {
+  const new({required this.builder, this.initialIndex = 0, super.key});
+  final int initialIndex;
+  final Widget Function(ValueNotifier<int>) builder;
+
+  @override
+  State<_PostCardImageSelection> createState() =>
+      _PostCardImageSelectionState();
+}
+
+class _PostCardImageSelectionState extends State<_PostCardImageSelection> {
+  late final ValueNotifier<int> _selection = ValueNotifier(widget.initialIndex);
+
+  @override
+  void dispose() {
+    _selection.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.builder(_selection);
 }

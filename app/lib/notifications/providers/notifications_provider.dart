@@ -1,6 +1,8 @@
 import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
+import 'package:craftsky_app/notifications/data/notification_repository.dart';
 import 'package:craftsky_app/notifications/models/craftsky_notification.dart';
+import 'package:craftsky_app/notifications/models/notification_category.dart';
 import 'package:craftsky_app/notifications/models/notifications_state.dart';
 import 'package:craftsky_app/notifications/providers/notification_filter_provider.dart';
 import 'package:craftsky_app/notifications/providers/notification_repository_provider.dart';
@@ -15,24 +17,34 @@ int _nextRenderToken = 0;
 @Riverpod(keepAlive: true)
 class AccountNotifications extends _$AccountNotifications {
   int _generation = 0;
+  int _loadedPageCount = 1;
+  NotificationCategory? _loadedCategory;
 
   @override
   Future<NotificationsState> build(AccountKey account) async {
-    ++_generation;
+    final generation = ++_generation;
     final category = ref.watch(notificationFilterProvider);
+    if (category != _loadedCategory) {
+      _loadedPageCount = 1;
+      _loadedCategory = category;
+    }
     final repo = await ref.watch(
       accountNotificationRepositoryProvider(account).future,
     );
     final registry = ref.read(sessionRegistryProvider).requireValue;
     final owner = registry.leaseFor(account);
-    final page = await repo.list(
-      limit: notificationsPageLimit,
-      category: category,
+    final (items, cursor, pageCount) = await _reloadPages(
+      repo,
+      category,
+      _loadedPageCount,
     );
+    if (ref.mounted && generation == _generation) {
+      _loadedPageCount = pageCount;
+    }
     return NotificationsState(
-      items: _filterAndDedupe(ref.read, page.items),
+      items: _filterAndDedupe(ref.read, items),
       category: category,
-      cursor: page.cursor,
+      cursor: cursor,
       renderToken: ++_nextRenderToken,
       owner: owner,
     );
@@ -68,6 +80,7 @@ class AccountNotifications extends _$AccountNotifications {
     if (ref.mounted &&
         generation == _generation &&
         ref.read(notificationFilterProvider) == category) {
+      if (next.hasValue) _loadedPageCount++;
       state = next;
     }
   }
@@ -80,21 +93,31 @@ class AccountNotifications extends _$AccountNotifications {
 @Riverpod(keepAlive: true)
 class Notifications extends _$Notifications {
   int _generation = 0;
+  int _loadedPageCount = 1;
+  NotificationCategory? _loadedCategory;
 
   @override
   Future<NotificationsState> build() async {
-    ++_generation;
+    final generation = ++_generation;
     final owner = ref.read(sessionRegistryProvider).value?.activeLease?.session;
     final repo = ref.watch(notificationRepositoryProvider);
     final category = ref.watch(notificationFilterProvider);
-    final page = await repo.list(
-      limit: notificationsPageLimit,
-      category: category,
+    if (category != _loadedCategory) {
+      _loadedPageCount = 1;
+      _loadedCategory = category;
+    }
+    final (items, cursor, pageCount) = await _reloadPages(
+      repo,
+      category,
+      _loadedPageCount,
     );
+    if (ref.mounted && generation == _generation) {
+      _loadedPageCount = pageCount;
+    }
     return NotificationsState(
-      items: _filterAndDedupe(ref.read, page.items),
+      items: _filterAndDedupe(ref.read, items),
       category: category,
-      cursor: page.cursor,
+      cursor: cursor,
       renderToken: ++_nextRenderToken,
       owner: owner,
     );
@@ -133,12 +156,36 @@ class Notifications extends _$Notifications {
         ref.read(notificationFilterProvider) != category) {
       return;
     }
+    if (next.hasValue) _loadedPageCount++;
     state = next;
   }
 
   int suppressActor(String did) => _suppressActor(state, did, (next) {
     state = next;
   });
+}
+
+// A return visit refreshes the same depth the user already loaded, rather
+// than dropping the tail and clamping a scrolled viewport to the first page.
+Future<(List<CraftskyNotification>, String?, int)> _reloadPages(
+  NotificationRepository repo,
+  NotificationCategory? category,
+  int pageCount,
+) async {
+  final items = <CraftskyNotification>[];
+  String? cursor;
+  var loaded = 0;
+  do {
+    final page = await repo.list(
+      limit: notificationsPageLimit,
+      category: category,
+      cursor: cursor,
+    );
+    items.addAll(page.items);
+    cursor = page.cursor;
+    loaded++;
+  } while (loaded < pageCount && cursor != null);
+  return (items, cursor, loaded);
 }
 
 int _suppressActor(

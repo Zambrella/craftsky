@@ -1,5 +1,6 @@
 import 'package:craftsky_app/auth/providers/account_operation_guard.dart';
 import 'package:craftsky_app/feed/models/post.dart';
+import 'package:craftsky_app/feed/providers/like_post_overlay.dart';
 import 'package:craftsky_app/feed/providers/post_record_overlay.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
 import 'package:craftsky_app/projects/models/project_browse_filters.dart';
@@ -19,17 +20,39 @@ class ProjectFeed extends _$ProjectFeed {
 
   @override
   Future<UserProjectsState> build(ProjectBrowseQuery query) async {
+    final loadedCount = state.value?.items.length ?? 0;
+    listenForPostEdits(ref, () {
+      final current = state.value;
+      if (current == null) return;
+      state = AsyncData(
+        current.copyWith(items: applyLoadedPostEdits(ref, current.items)),
+      );
+    });
     ref.watch(activeContentLanguagePolicyProvider);
     final accountOperation = ActiveAccountOperation.capture(ref);
-    final page = await ref
-        .watch(projectRepositoryProvider)
-        .listProjects(
-          query: query,
-          limit: projectFeedPageLimit,
-        );
+    final repository = ref.watch(projectRepositoryProvider);
+    var page = await repository.listProjects(
+      query: query,
+      limit: projectFeedPageLimit,
+    );
     accountOperation.requireCurrent(discarded: const ApiCanceled());
+    var items = _visibleProjects(ref, page.items);
+    // Interaction reconciliation must not shrink a long, mounted list back to
+    // its first page and clamp the user's scroll position.
+    final visitedCursors = <String>{};
+    while (items.length < loadedCount &&
+        page.cursor != null &&
+        visitedCursors.add(page.cursor!)) {
+      page = await repository.listProjects(
+        query: query,
+        limit: projectFeedPageLimit,
+        cursor: page.cursor,
+      );
+      accountOperation.requireCurrent(discarded: const ApiCanceled());
+      items = appendUniquePosts(items, _visibleProjects(ref, page.items));
+    }
     return UserProjectsState(
-      items: _visibleProjects(ref, page.items),
+      items: items,
       cursor: page.cursor,
     );
   }
@@ -60,10 +83,17 @@ class ProjectFeed extends _$ProjectFeed {
       );
     });
 
-    accountOperation.publish(() => state = next);
+    accountOperation.publish(
+      () => state = next.whenData(
+        (value) =>
+            value.copyWith(items: applyLoadedPostEdits(ref, value.items)),
+      ),
+    );
   }
 }
 
 List<Post> _visibleProjects(Ref ref, List<Post> posts) => [
-  for (final post in posts) ?applyPostRecordOverlay(ref, post),
+  for (final post in posts)
+    if (applyPostRecordOverlay(ref, post) case final visible?)
+      applyPostInteractionOverlays(ref, visible),
 ];

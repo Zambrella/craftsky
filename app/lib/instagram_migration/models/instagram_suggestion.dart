@@ -27,6 +27,7 @@ final class InstagramSuggestionTarget {
     required this.handle,
     this.displayName,
     this.avatar,
+    this.crafts = const [],
   });
 
   factory fromMap(Map<String, dynamic> map) {
@@ -47,6 +48,7 @@ final class InstagramSuggestionTarget {
       handle: handle,
       displayName: displayName,
       avatar: avatar,
+      crafts: (map['crafts'] as List<dynamic>?)?.cast<String>() ?? const [],
     );
   }
 
@@ -54,6 +56,7 @@ final class InstagramSuggestionTarget {
   final String handle;
   final String? displayName;
   final String? avatar;
+  final List<String> crafts;
 
   String get displayLabel =>
       (displayName?.trim().isNotEmpty ?? false) ? displayName!.trim() : handle;

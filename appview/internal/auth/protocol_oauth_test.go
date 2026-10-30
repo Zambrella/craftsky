@@ -193,7 +193,7 @@ func TestOAuthCallbackRejectsMissingRequiredScopesBeforePersistence(t *testing.T
 
 }
 
-const resolvedCraftskyScopeFixture = "atproto repo?collection=social.craftsky.actor.profile&collection=social.craftsky.feed.post&collection=social.craftsky.feed.like&collection=social.craftsky.feed.repost&collection=social.craftsky.business.profile&collection=social.craftsky.business.event repo:app.bsky.actor.profile?action=create&action=update repo:app.bsky.graph.follow repo:app.bsky.graph.block blob?accept=image/jpeg&accept=image/png&accept=image/webp&accept=video/mp4&accept=text/vtt rpc:com.atproto.repo.uploadBlob?aud=* rpc:app.bsky.video.getUploadLimits?aud=*"
+const resolvedCraftskyScopeFixture = "atproto repo?collection=social.craftsky.actor.profile&collection=social.craftsky.feed.post&collection=social.craftsky.feed.like&collection=social.craftsky.feed.repost&collection=social.craftsky.business.profile&collection=social.craftsky.business.event repo:app.bsky.actor.profile?action=create&action=update repo:app.bsky.graph.follow repo:app.bsky.graph.block blob?accept=image/jpeg&accept=image/png&accept=image/webp&accept=video/mp4&accept=text/vtt rpc:com.atproto.repo.uploadBlob?aud=* rpc:app.bsky.video.getUploadLimits?aud=* repo:app.bsky.actor.link"
 
 func TestOAuthCallbackAcceptsProviderResolvedPermissionSet(t *testing.T) {
 	pool := withAuthSchema(t)

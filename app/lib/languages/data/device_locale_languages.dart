@@ -10,9 +10,12 @@ LanguagePreferences deriveInitialLanguages(List<Locale> locales) {
       content.add(tag);
     }
   }
-  if (content.isEmpty) content.add('en');
+  final primary = content.contains('en') || content.isEmpty
+      ? 'en'
+      : content.first;
+  if (!content.contains('en')) content.add('en');
   return LanguagePreferences(
-    primaryLanguage: content.first,
+    primaryLanguage: primary,
     contentLanguages: List.unmodifiable(content),
   );
 }

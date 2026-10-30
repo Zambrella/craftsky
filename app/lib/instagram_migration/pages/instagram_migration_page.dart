@@ -14,6 +14,7 @@ import 'package:craftsky_app/instagram_migration/providers/instagram_verificatio
 import 'package:craftsky_app/instagram_migration/services/instagram_export_file_picker.dart';
 import 'package:craftsky_app/instagram_migration/services/instagram_import_parser.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
+import 'package:craftsky_app/profile/widgets/compact_profile_identity.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
@@ -1138,15 +1139,10 @@ class _SuggestionRow extends ConsumerWidget {
                     ),
                     SizedBox(width: spacing.sp3),
                     Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            target.displayLabel,
-                            style: theme.textTheme.titleMedium,
-                          ),
-                          Text('@${target.handle}'),
-                        ],
+                      child: CompactProfileIdentity(
+                        handle: target.handle,
+                        displayName: target.displayName,
+                        crafts: target.crafts,
                       ),
                     ),
                   ],

@@ -167,7 +167,8 @@ class ComposerMetadataControls extends StatelessWidget {
                   text: languageLabel(language),
                   icon: CraftskyIcons.translate,
                   isSelected: true,
-                  onPressed: languages.values.length == 1
+                  onPressed:
+                      !languages.allowsEmpty && languages.values.length == 1
                       ? null
                       : () => onLanguagesChanged?.call(
                           languages.remove(language),

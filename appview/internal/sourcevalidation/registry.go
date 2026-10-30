@@ -46,6 +46,7 @@ var recordKeyPolicies = map[syntax.NSID]recordKeyPolicy{
 	"social.craftsky.business.profile": recordKeySelf,
 	"social.craftsky.business.event":   recordKeyTID,
 	"app.bsky.actor.profile":           recordKeySelf,
+	"app.bsky.actor.link":              recordKeyTID,
 	"app.bsky.graph.follow":            recordKeyTID,
 	"app.bsky.graph.block":             recordKeyTID,
 }
@@ -174,6 +175,10 @@ func validateRecordBody(event tap.Event) Result {
 		}
 		if result := validateInteraction(record.Subject, record.CreatedAt); result.SemanticStatus != Valid {
 			return result
+		}
+	case "app.bsky.actor.link":
+		if !hasRequiredFields(event.Record, "url", "createdAt") {
+			return invalid("invalid_lexicon")
 		}
 	case "app.bsky.actor.profile":
 		var record bsky.ActorProfile

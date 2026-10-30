@@ -8,7 +8,6 @@ final class NormalServiceStatusRepository extends ServiceStatusRepository {
   StatusRequest start() => StatusRequest(
     Future.value(
       const ServiceStatusDocument(
-        mode: ServiceStatusMode.normal,
         revision: 'test',
       ),
     ),

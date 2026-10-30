@@ -10,9 +10,10 @@ import (
 type SubjectType string
 
 const (
-	SubjectPost    SubjectType = "post"
-	SubjectAccount SubjectType = "account"
-	SubjectEvent   SubjectType = "event"
+	SubjectPost        SubjectType = "post"
+	SubjectAccount     SubjectType = "account"
+	SubjectEvent       SubjectType = "event"
+	SubjectProfileLink SubjectType = "profileLink"
 )
 
 type AcceptedReport struct {

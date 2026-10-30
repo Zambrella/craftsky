@@ -414,7 +414,7 @@ func TestProviderRegistrationServerFirstDiscoveryAndPAR(t *testing.T) {
 		t.Fatal("PAR request was not sent")
 	}
 	if par.form.Get("client_id") != artifacts.Config.ClientID ||
-		par.form.Get("scope") != "atproto include:social.craftsky.authFull" || par.form.Get("state") == "" ||
+		par.form.Get("scope") != strings.Join(append([]string{"atproto", "include:social.craftsky.authFull"}, auth.OptionalChatScopes()...), " ") || par.form.Get("state") == "" ||
 		par.form.Get("code_challenge") == "" || par.form.Get("code_challenge_method") != "S256" ||
 		par.dpop == "" {
 		t.Fatal("PAR omitted required client, scope, state, PKCE, or DPoP protection")
@@ -1551,6 +1551,7 @@ func testSharedOnboardingAndConfirmedHandoff(t *testing.T, purpose string) {
 			ADD COLUMN record_cid TEXT,
 			ADD COLUMN indexed_at TIMESTAMPTZ NOT NULL DEFAULT now();
 		CREATE TABLE bluesky_profiles (
+ links JSONB NOT NULL DEFAULT '[]',
 			did TEXT PRIMARY KEY,
 			display_name TEXT,
 			description TEXT,

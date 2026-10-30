@@ -7,6 +7,7 @@ import 'package:craftsky_app/profile/models/profile_image_failure.dart';
 import 'package:craftsky_app/profile/providers/profile_image_picker_provider.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/api/providers/dio_provider.dart';
+import 'package:craftsky_app/shared/image/basic_image_editor.dart';
 import 'package:craftsky_app/shared/media/blob_api_client.dart';
 import 'package:craftsky_app/shared/media/blob_api_client_provider.dart';
 import 'package:dio/dio.dart';
@@ -17,6 +18,116 @@ import 'package:image_picker/image_picker.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  for (final superseded in [false, true]) {
+    test(
+      'image editing UT-008/AT-006/009: accepted local avatar handoff (superseded: $superseded)',
+      () async {
+        final dio = Dio(BaseOptions(baseUrl: 'https://appview.example'));
+        var requests = 0;
+        dio.interceptors.add(
+          InterceptorsWrapper(
+            onRequest: (options, handler) {
+              requests++;
+              handler.reject(DioException(requestOptions: options));
+            },
+          ),
+        );
+        final container = ProviderContainer.test(
+          overrides: [
+            imagePickerProvider.overrideWithValue(
+              _RecordingImagePicker(
+                XFile.fromData(
+                  _pngBytes(),
+                  name: 'avatar.png',
+                  mimeType: 'image/png',
+                ),
+              ),
+            ),
+            blobApiClientProvider.overrideWithValue(BlobApiClient(dio)),
+          ],
+        );
+        addTearDown(container.dispose);
+        var current = true;
+        Uint8List? preview;
+        final output = Uint8List.fromList(
+          img.encodePng(img.Image(width: 3, height: 3)),
+        );
+        final result = await container
+            .read(profileImagePickerProvider)
+            .pickAndPrepare(
+              source: ImageSource.camera,
+              isCurrent: () => current,
+              editImage: (request) async {
+                expect(request.mode, BasicImageEditMode.avatar);
+                expect(preview, isNull);
+                expect(requests, 0);
+                if (superseded) current = false;
+                return BasicImageEditOutput(
+                  bytes: output,
+                  mimeType: 'image/png',
+                );
+              },
+              onPreviewReady: (bytes) => preview = bytes,
+            );
+        expect(requests, 0);
+        if (superseded) {
+          expect(result, isNull);
+          expect(preview, isNull);
+        } else {
+          expect(result!.width, 3);
+          expect(result.height, 3);
+          expect(preview, result.bytes);
+        }
+      },
+    );
+  }
+
+  test('image editing AT-005/006: avatar cancellation occurs before preview or upload', () async {
+    final dio = Dio(BaseOptions(baseUrl: 'https://appview.example'));
+    var requests = 0;
+    dio.interceptors.add(
+      InterceptorsWrapper(
+        onRequest: (_, handler) {
+          requests++;
+          handler.reject(DioException(requestOptions: RequestOptions()));
+        },
+      ),
+    );
+    final container = ProviderContainer.test(
+      overrides: [
+        imagePickerProvider.overrideWithValue(
+          _RecordingImagePicker(
+            XFile.fromData(
+              _pngBytes(),
+              name: 'avatar.png',
+              mimeType: 'image/png',
+            ),
+          ),
+        ),
+        blobApiClientProvider.overrideWithValue(BlobApiClient(dio)),
+      ],
+    );
+    addTearDown(container.dispose);
+    var previews = 0;
+    var editors = 0;
+    final result = await container
+        .read(profileImagePickerProvider)
+        .pickAndUpload(
+          source: ImageSource.gallery,
+          isCurrent: () => true,
+          editImage: (request) async {
+            editors++;
+            expect(request.mode, BasicImageEditMode.avatar);
+            return null;
+          },
+          onPreviewReady: (_) => previews++,
+        );
+    expect(result, isNull);
+    expect(editors, 1);
+    expect(previews, 0);
+    expect(requests, 0);
+  });
 
   test(
     'profile editor picker retains its managed client during selection',

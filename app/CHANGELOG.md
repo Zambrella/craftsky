@@ -1,5 +1,71 @@
 # App Changelog
 
+## 1.10.0+15 - 2026-10-28
+
+- fix(projects): restore saved status in project drafts
+- feat(feed): show an alt text badge on described images
+- feat(notifications): highlight new activity until leaving the page
+- fix(composer): preserve alt text editing state
+- fix(projects): persist self-drafted pattern toggle
+- test(router): expect notification list refresh after return
+- test(notifications): expect visit refreshes across settings route
+- feat(composer): add keyboard dismissal action
+- feat(composer): morph submit action into keyboard dismiss button
+- test: find scheduled submit button inside animated wrapper
+- fix(projects): clarify design labels
+- fix(profile): keep craft reorder controls from toggling selection
+- fix(router): keep hashtag search in authenticated shell
+- feat(profile): add back-to-top scrolling
+- feat(projects): add editing for selected materials
+- refactor(profile): remove compact profile presentation
+- feat(profile): add avatar hero navigation
+- feat(profile): animate identity details from compact profile
+- feat(profile): fade profile details in reading order
+- fix(projects): retain independent craft tab scroll state
+- fix(router): make top-level pages navigation branches
+- feat(images): preload adjacent carousel images
+- test(router): provide scope for image gallery navigation
+- feat(posts): add published post editing
+- fix(app): preserve pending material edits on navigation
+- feat(notifications): add event badges and reply context
+- fix(notifications): retain list state during profile navigation
+- feat(post-edit): support editing published posts
+- fix(projects): restore typed style selections and pattern names
+- fix(observability): preserve full logs in iOS console
+- test(patrol): cover post editing in live smoke journey
+- fix(observability): preserve safe Sentry diagnostics
+
+## 1.9.0+14 - 2026-10-23
+
+- test(app): add Patrol account post flow
+- test(e2e): support iOS account post flow
+- fix(drafts): support the configured image limit
+- feat(service-status): add versioned notice flows
+- fix(media): accept images with appended data
+- docs(media): clarify JPEG trailing-data validation
+- fix(observability): improve Sentry triage diagnostics
+- fix(instagram-import): replace Android export picker with file_picker
+- fix(app): dismiss composer keyboard on post submission
+- feat(projects): add duration field to project composer
+- feat(service-status): gate messages on account readiness
+- feat(app): let users reorder preferred crafts
+- fix(service-status): navigate from router builder
+- fix(feed): keep like feedback centered in visible post
+- test(app): assert preferred crafts follow profile order
+- feat(notifications): show text previews in notifications
+- fix(onboarding): keep avatar change action available
+- fix(profile): place avatar border outside the photo
+- fix(languages): prefer English as primary when available
+- fix(feed): refresh on Home reselection
+- fix(notifications): sync follow buttons with profile state
+- feat(feed): explain post types on first use
+- feat(feed): limit fullscreen alt text with expansion
+- refactor(profile): unify compact identity layouts
+- fix(profile): constrain identity badge width
+- feat(notifications): show unified actor identity
+- feat(feed): open post comments from comment actions
+- fix(tests): isolate flaky integration and migration setup
+
 ## 1.8.0+13 - 2026-10-20
 
 - feat(projects): add multi-craft discovery and search

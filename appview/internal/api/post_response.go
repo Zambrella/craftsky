@@ -12,6 +12,7 @@ import (
 	"github.com/ipfs/go-cid"
 	"golang.org/x/text/language"
 
+	craftskylex "social.craftsky/appview/internal/lexicon/craftsky"
 	"social.craftsky/appview/internal/relationships"
 	"social.craftsky/appview/internal/video"
 )
@@ -20,6 +21,14 @@ var postImageMimeExt = map[string]string{
 	"image/jpeg": "jpeg",
 	"image/png":  "png",
 	"image/webp": "webp",
+}
+
+func postEditTimeUTC(value *time.Time) *time.Time {
+	if value == nil {
+		return nil
+	}
+	utc := value.UTC()
+	return &utc
 }
 
 // PostAuthor is the embedded author shape on every post-shaped response.
@@ -75,6 +84,7 @@ type ExternalThumbResponse struct {
 // PostResponse is the canonical wire shape returned by every
 // post-shaped endpoint (POST, GET single, list items).
 type PostResponse struct {
+	quoteImageCID       string
 	URI                 string                  `json:"uri"`
 	CID                 string                  `json:"cid"`
 	Rkey                string                  `json:"rkey"`
@@ -99,6 +109,8 @@ type PostResponse struct {
 	QuoteView           *QuoteView              `json:"quoteView,omitempty"`
 	CreatedAt           time.Time               `json:"createdAt"`
 	IndexedAt           time.Time               `json:"indexedAt"`
+	EditedAt            *time.Time              `json:"editedAt,omitempty"`
+	RecordRevision      *syntax.TID             `json:"recordRevision,omitempty"`
 	ExternalImport      *ExternalImportResponse `json:"externalImport,omitempty"`
 	External            *ExternalResponse       `json:"external,omitempty"`
 	Video               *PostVideoView          `json:"video,omitempty"`
@@ -224,6 +236,8 @@ type QuotePreviewPost struct {
 	Images         []PostImageView         `json:"images,omitempty"`
 	Project        *Project                `json:"project,omitempty"`
 	CreatedAt      time.Time               `json:"createdAt"`
+	EditedAt       *time.Time              `json:"editedAt,omitempty"`
+	RecordRevision *syntax.TID             `json:"recordRevision,omitempty"`
 	ExternalImport *ExternalImportResponse `json:"externalImport,omitempty"`
 	External       *ExternalResponse       `json:"external,omitempty"`
 }
@@ -330,6 +344,8 @@ func BuildPostResponse(row *PostRow, handle syntax.Handle, playbackBuilders ...P
 		Crafts:         row.Crafts,
 		CreatedAt:      row.CreatedAt.UTC(),
 		IndexedAt:      row.IndexedAt.UTC(),
+		EditedAt:       postEditTimeUTC(row.EditedAt),
+		RecordRevision: row.RecordRevision,
 		ExternalImport: buildExternalImportResponse(row.ExternalImportSource),
 		Author: PostAuthor{
 			DID:           row.DID,
@@ -366,6 +382,10 @@ func BuildPostResponse(row *PostRow, handle syntax.Handle, playbackBuilders ...P
 		}
 	}
 	if row.QuoteURI != nil {
+		var embed craftskylex.FeedPost_QuoteEmbed
+		if json.Unmarshal(row.RawEmbed, &embed) == nil && embed.LexiconTypeID == "social.craftsky.feed.post#quoteEmbed" && embed.ImageCid != nil {
+			resp.quoteImageCID = *embed.ImageCid
+		}
 		resp.Quote = &ResponseStrongRef{
 			URI: *row.QuoteURI,
 			CID: derefOrEmpty(row.QuoteCID),
@@ -472,6 +492,8 @@ func BuildQuoteView(row *QuoteViewRow, handle syntax.Handle) *QuoteView {
 		Images:         buildPostImageViews(row.Post),
 		Project:        row.Post.Project,
 		CreatedAt:      row.Post.CreatedAt.UTC(),
+		EditedAt:       postEditTimeUTC(row.Post.EditedAt),
+		RecordRevision: row.Post.RecordRevision,
 		ExternalImport: buildExternalImportResponse(row.Post.ExternalImportSource),
 	}
 	if len(view.Post.Images) == 0 {

@@ -5,6 +5,8 @@ import 'package:craftsky_app/moderation/widgets/moderation_warning_banner.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/widgets/profile_actions.dart';
 import 'package:craftsky_app/profile/widgets/profile_bio.dart';
+import 'package:craftsky_app/profile/widgets/profile_entrance.dart';
+import 'package:craftsky_app/profile/widgets/profile_links.dart';
 import 'package:craftsky_app/profile/widgets/profile_mutual_followers_link.dart';
 import 'package:craftsky_app/profile/widgets/profile_stats.dart';
 import 'package:craftsky_app/shared/link/external_link.dart';
@@ -51,42 +53,76 @@ class ProfileMetaSection extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (!profile.isCraftskyProfile) ...[
-            Text(
-              l10n.profileNonCraftskyMarker,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ProfileEntranceFade(
+              stage: ProfileEntranceStage.summary,
+              child: Text(
+                l10n.profileNonCraftskyMarker,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
               ),
             ),
             SizedBox(height: spacing.sp3),
           ],
           if (profile.moderation?.warningKind case final kind?) ...[
-            ModerationWarningBanner(warningKind: kind),
+            ProfileEntranceFade(
+              stage: ProfileEntranceStage.summary,
+              child: ModerationWarningBanner(warningKind: kind),
+            ),
             SizedBox(height: spacing.sp3),
           ],
           if (profile.accountType == AccountType.business &&
               hasBusinessSummary) ...[
-            BusinessProfileSummary(
-              business: profile.business,
-              launchExternal: launchExternal,
-              confirmExternal: confirmExternal,
+            ProfileEntranceFade(
+              stage: ProfileEntranceStage.summary,
+              child: BusinessProfileSummary(
+                business: profile.business,
+                launchExternal: launchExternal,
+                confirmExternal: confirmExternal,
+              ),
             ),
             SizedBox(height: spacing.sp4),
           ],
           if (profile.accountType != AccountType.business) ...[
-            ProfileStats(profile: profile),
+            ProfileEntranceFade(
+              stage: ProfileEntranceStage.summary,
+              child: ProfileStats(profile: profile),
+            ),
             SizedBox(height: spacing.sp4),
           ],
-          ProfileActionSection(actions: actions),
+          ProfileEntranceFade(
+            stage: ProfileEntranceStage.actions,
+            child: ProfileActionSection(actions: actions),
+          ),
           if (!isOwnProfile && (profile.mutualFollowerCount ?? 0) > 0) ...[
             SizedBox(height: spacing.sp3),
-            ProfileMutualFollowersLink(
-              count: profile.mutualFollowerCount!,
-              targetDid: profile.did,
+            ProfileEntranceFade(
+              stage: ProfileEntranceStage.mutualFollowers,
+              child: ProfileMutualFollowersLink(
+                count: profile.mutualFollowerCount!,
+                targetDid: profile.did,
+              ),
             ),
           ],
           if (hasBio) ...[
             SizedBox(height: spacing.sp3),
-            ProfileBio(description: profile.description),
+            ProfileEntranceFade(
+              stage: ProfileEntranceStage.bio,
+              child: ProfileBio(description: profile.description),
+            ),
+          ],
+          if (profile.links.isNotEmpty &&
+              !profile.blocking &&
+              !profile.blockedBy) ...[
+            SizedBox(height: spacing.sp3),
+            ProfileEntranceFade(
+              stage: ProfileEntranceStage.bio,
+              child: ProfileLinks(
+                links: profile.links,
+                confirmExternal: confirmExternal,
+                launchExternal: launchExternal,
+              ),
+            ),
           ],
         ],
       ),

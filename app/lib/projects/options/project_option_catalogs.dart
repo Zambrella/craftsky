@@ -52,12 +52,15 @@ abstract final class ProjectOptionCatalogs {
   );
 
   static List<ProjectOption> craftTypesForPreferences(Iterable<String> crafts) {
-    final preferred = crafts.toSet();
-    bool isPreferred(ProjectOption option) =>
-        preferred.contains(option.value.split('#').last);
+    final byId = {
+      for (final option in craftTypes) option.value.split('#').last: option,
+    };
+    final preferred = [
+      for (final id in crafts.toSet()) ?byId[id],
+    ];
     return [
-      ...craftTypes.where(isPreferred),
-      ...craftTypes.where((option) => !isPreferred(option)),
+      ...preferred,
+      ...craftTypes.where((option) => !preferred.contains(option)),
     ];
   }
 

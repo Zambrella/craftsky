@@ -39,7 +39,7 @@ void main() {
         } else {
           response.headers.contentType = ContentType.json;
           response.write(
-            jsonEncode({'schemaVersion': 1, 'mode': 'normal', 'revision': 'A'}),
+            jsonEncode({'schemaVersion': 2, 'revision': 'A'}),
           );
         }
         unawaited(response.close());
@@ -138,4 +138,36 @@ void main() {
       await server.close(force: true);
     }
   });
+
+  test(
+    'shutdown observes a cancelled connection before headers arrive',
+    () async {
+      final connecting = Completer<void>();
+      final socket = Completer<Socket>();
+      final client = HttpClient()
+        ..connectionFactory = (_, _, _) async {
+          connecting.complete();
+          return ConnectionTask.fromSocket(socket.future, () {
+            if (!socket.isCompleted) {
+              socket.completeError(
+                const SocketException('Connection attempt cancelled'),
+              );
+            }
+          });
+        };
+      await HttpOverrides.runZoned(() async {
+        final repository = createServiceStatusRepository(
+          Uri.parse('http://127.0.0.1:12345/app.json'),
+        );
+        final request = repository.start();
+        final rejected = expectLater(request.result, throwsA(isA<Exception>()));
+        await connecting.future;
+        request.cancel();
+        repository.close();
+        await rejected;
+        // Flush cancellation callbacks while the owning test is still active.
+        await Future<void>.delayed(Duration.zero);
+      }, createHttpClient: (_) => client);
+    },
+  );
 }

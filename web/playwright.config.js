@@ -2,6 +2,8 @@ const { defineConfig } = require('@playwright/test');
 
 module.exports = defineConfig({
   testDir: './test',
+  // The compiled Flutter reload suite has its own server and A/B fixtures.
+  testIgnore: 'service-status-reload.spec.js',
   fullyParallel: false,
   workers: 1,
   retries: process.env.CI ? 2 : 0,

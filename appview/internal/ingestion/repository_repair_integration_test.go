@@ -36,6 +36,7 @@ import (
 	"social.craftsky/appview/internal/ingestion"
 	"social.craftsky/appview/internal/ownerlifecycle"
 	"social.craftsky/appview/internal/tap"
+	"social.craftsky/appview/internal/testdb"
 )
 
 var errRepairInterrupted = errors.New("injected repair interruption")
@@ -175,7 +176,7 @@ func TestRepositoryRepairReconcilesNoopWithStaleProjectionGeneration(t *testing.
 }
 
 func TestRepositoryRepairVerifiedSnapshotConvergesThroughDurableProjection(t *testing.T) {
-	pool := lifecycleIngestionPool(t)
+	pool := testdb.WithMigratedSchema(t)
 	if _, err := pool.Exec(context.Background(), `
 		CREATE TABLE repair_projection_audit(
 			uri TEXT PRIMARY KEY, owner_did TEXT NOT NULL, action TEXT NOT NULL,

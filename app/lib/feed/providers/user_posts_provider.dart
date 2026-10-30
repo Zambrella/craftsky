@@ -20,6 +20,13 @@ class UserPosts extends _$UserPosts {
 
   @override
   Future<UserPostsState> build(Did did) async {
+    listenForPostEdits(ref, () {
+      final current = state.value;
+      if (current == null) return;
+      state = AsyncData(
+        current.copyWith(items: applyLoadedPostEdits(ref, current.items)),
+      );
+    });
     ref.watch(activeContentLanguagePolicyProvider);
     final accountOperation = ActiveAccountOperation.capture(ref);
     final repo = ref.watch(postRepositoryProvider);
@@ -32,6 +39,7 @@ class UserPosts extends _$UserPosts {
       items: applyPostRecordListOverlays(
         ref,
         page.items,
+        listKey: ('author-posts', did),
         includes: (post) =>
             post.author.did == did &&
             post.reply == null &&
@@ -79,6 +87,7 @@ class UserPosts extends _$UserPosts {
           items: applyPostRecordListOverlays(
             ref,
             restarted.items,
+            listKey: ('author-posts', did),
             includes: (post) =>
                 post.author.did == did &&
                 post.reply == null &&
@@ -89,10 +98,16 @@ class UserPosts extends _$UserPosts {
         );
       }
       if (!accountOperation.isCurrent) throw const ApiCanceled();
+      observePostListMembership(ref, page.items, ('author-posts', did));
+      for (final post in page.items) {
+        applyPostRecordOverlay(ref, post);
+      }
       return UserPostsState(
         items: applyPostRecordListOverlays(
           ref,
           [...current.items, ...page.items],
+          listKey: ('author-posts', did),
+          reconcile: false,
           includes: (post) =>
               post.author.did == did &&
               post.reply == null &&
@@ -103,6 +118,11 @@ class UserPosts extends _$UserPosts {
       );
     });
 
-    accountOperation.publish(() => state = next);
+    accountOperation.publish(
+      () => state = next.whenData(
+        (value) =>
+            value.copyWith(items: applyLoadedPostEdits(ref, value.items)),
+      ),
+    );
   }
 }

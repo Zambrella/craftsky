@@ -393,8 +393,9 @@ void main() {
         child: MaterialApp(
           localizationsDelegates: appLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
-          builder: (context, child) =>
-              ActiveAccountInitializationGate(child: child!),
+          builder: (context, child) => ActiveAccountInitializationGate(
+            child: child!,
+          ),
           home: const Text('signed-in-content'),
         ),
       ),

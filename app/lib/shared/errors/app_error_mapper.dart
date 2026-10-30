@@ -116,6 +116,8 @@ final class AppErrorMapper {
     final details = error.details;
     return {
       'source': 'api',
+      if (details.transportFailure != null)
+        'transportFailure': details.transportFailure,
       if (details.method != null) 'httpMethod': details.method,
       if (details.statusCode != null) 'httpStatus': details.statusCode,
       if ((appViewError ?? details.appViewError) != null)

@@ -1,10 +1,13 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/widgets/external_card.dart';
+import 'package:craftsky_app/feed/widgets/post_edit_indicator.dart';
 import 'package:craftsky_app/feed/widgets/post_image_carousel.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/profile/models/profile_handle.dart';
+import 'package:craftsky_app/profile/widgets/compact_profile_identity.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
+import 'package:craftsky_app/profile/widgets/profile_avatar_hero.dart';
 import 'package:craftsky_app/shared/image/image_cache_providers.dart';
 import 'package:craftsky_app/shared/time/relative_time_text.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
@@ -25,6 +28,7 @@ final class PostSummaryData with PostSummaryDataMappable {
     this.author,
     this.text,
     this.createdAt,
+    this.editedAt,
     this.projectTitle,
     this.image,
     this.externalImport,
@@ -47,6 +51,7 @@ final class PostSummaryData with PostSummaryDataMappable {
       author: post.author,
       text: post.text,
       createdAt: post.createdAt,
+      editedAt: post.editedAt,
       projectTitle: post.project?.common.title,
       images: post.images,
       video: post.video,
@@ -60,6 +65,7 @@ final class PostSummaryData with PostSummaryDataMappable {
       author: post.author,
       text: post.text,
       createdAt: post.createdAt,
+      editedAt: post.editedAt,
       projectTitle: post.project?.common.title,
       images: post.images,
       externalImport: post.externalImport,
@@ -75,8 +81,12 @@ final class PostSummaryData with PostSummaryDataMappable {
     _ => const PostSummaryData(state: PostSummaryState.unavailable),
   };
 
-  factory notificationSubject(Post post) =>
-      PostSummaryData(state: PostSummaryState.visible, text: post.text);
+  factory notificationSubject(Post post) => PostSummaryData(
+    state: PostSummaryState.visible,
+    text: post.text,
+    editedAt: post.editedAt,
+    projectTitle: post.project?.common.title,
+  );
 
   factory savedPost(Post post) {
     if (post.availability == 'muted') {
@@ -92,6 +102,7 @@ final class PostSummaryData with PostSummaryDataMappable {
       author: post.author,
       text: post.text,
       createdAt: post.createdAt,
+      editedAt: post.editedAt,
       projectTitle: post.project?.common.title,
       images: post.images,
       video: post.video,
@@ -107,6 +118,7 @@ final class PostSummaryData with PostSummaryDataMappable {
     required List<PostImage>? images,
     PostVideo? video,
     DateTime? createdAt,
+    DateTime? editedAt,
     ExternalImport? externalImport,
     PostExternal? external,
     bool sponsored = false,
@@ -115,6 +127,7 @@ final class PostSummaryData with PostSummaryDataMappable {
     author: author,
     text: text,
     createdAt: createdAt,
+    editedAt: editedAt,
     projectTitle: switch (projectTitle?.trim()) {
       final title? when title.isNotEmpty => title,
       _ => null,
@@ -142,6 +155,7 @@ final class PostSummaryData with PostSummaryDataMappable {
   final PostAuthor? author;
   final String? text;
   final DateTime? createdAt;
+  final DateTime? editedAt;
   final String? projectTitle;
   final PostImage? image;
   final ExternalImport? externalImport;
@@ -158,16 +172,20 @@ class PostSummary extends StatelessWidget {
     required this.data,
     this.onTap,
     this.onAuthorTap,
+    this.enableAuthorNavigation = false,
     this.onReveal,
     this.padding = const EdgeInsets.all(12),
+    this.maxTextLines = 4,
     super.key,
   });
 
   final PostSummaryData data;
   final VoidCallback? onTap;
   final VoidCallback? onAuthorTap;
+  final bool enableAuthorNavigation;
   final VoidCallback? onReveal;
   final EdgeInsetsGeometry padding;
+  final int maxTextLines;
 
   @override
   Widget build(BuildContext context) {
@@ -184,19 +202,21 @@ class PostSummary extends StatelessWidget {
                 Row(
                   children: [
                     Expanded(
-                      child: GestureDetector(
-                        behavior: HitTestBehavior.opaque,
+                      child: _PostSummaryAuthor(
+                        author: author,
                         onTap: onAuthorTap,
-                        child: _PostSummaryAuthor(author: author),
+                        enableNavigation: enableAuthorNavigation,
                       ),
                     ),
                     if (data.createdAt case final createdAt?)
-                      SizedBox(
-                        width: 48,
+                      ConstrainedBox(
+                        constraints: const BoxConstraints(minWidth: 48),
                         child: Align(
                           alignment: Alignment.centerRight,
+                          widthFactor: 1,
                           child: RelativeTimeText(
                             timestamp: createdAt,
+                            editedAt: data.editedAt,
                             textAlign: TextAlign.end,
                           ),
                         ),
@@ -218,7 +238,11 @@ class PostSummary extends StatelessWidget {
                     data.externalImport != null ||
                     data.sponsored)
                   const SizedBox(height: 8),
-                Text(text, maxLines: 4, overflow: TextOverflow.ellipsis),
+                Text(
+                  text,
+                  maxLines: maxTextLines,
+                  overflow: TextOverflow.ellipsis,
+                ),
               ],
               if (data.image case final image?) ...[
                 const SizedBox(height: 8),
@@ -231,10 +255,17 @@ class PostSummary extends StatelessWidget {
                   variant: ExternalCardVariant.compact,
                 ),
               ],
+              if (data.editedAt != null && data.createdAt == null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: PostEditIndicator(
+                    editedAt: data.editedAt,
+                  ),
+                ),
               if (data.createdAt case final createdAt?
                   when data.author == null) ...[
                 const SizedBox(height: 4),
-                RelativeTimeText(timestamp: createdAt),
+                RelativeTimeText(timestamp: createdAt, editedAt: data.editedAt),
               ],
             ],
           ),
@@ -338,52 +369,52 @@ class SponsoredLabel extends StatelessWidget {
 }
 
 class _PostSummaryAuthor extends StatelessWidget {
-  const new({required this.author});
+  const new({required this.author, this.onTap, this.enableNavigation = false});
 
   final PostAuthor author;
+  final VoidCallback? onTap;
+  final bool enableNavigation;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final l10n = AppLocalizations.of(context);
-    final displayName = author.displayName;
-    final handle = ProfileHandle(author.handle);
-    return Row(
-      children: [
-        ProfileAvatar(
-          seed: handle.displayLabel(
-            displayName: displayName,
-            unavailableLabel: l10n.handleUnavailable,
-          ),
-          avatarUrl: author.avatar,
-          size: ProfileAvatarSize.small,
-          customisation: author.customisation,
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (displayName != null && displayName.trim().isNotEmpty)
-                Text(
-                  displayName,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.titleSmall,
-                ),
-              Text(
-                handle.currentLabel(unavailableLabel: l10n.handleUnavailable),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.outline,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
+    final avatar = ProfileAvatar(
+      seed: ProfileHandle(author.handle).displayLabel(
+        displayName: author.displayName,
+        unavailableLabel: l10n.handleUnavailable,
+      ),
+      avatarUrl: author.avatar,
+      size: ProfileAvatarSize.small,
+      customisation: author.customisation,
     );
+    Widget identity(Widget avatar, VoidCallback? onTap) => GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Row(
+        children: [
+          avatar,
+          const SizedBox(width: 12),
+          Expanded(
+            child: CompactProfileIdentity(
+              handle: author.handle.toString(),
+              displayName: author.displayName,
+              crafts: author.crafts,
+            ),
+          ),
+        ],
+      ),
+    );
+    return enableNavigation
+        ? ProfileAvatarHeroSource(
+            did: author.did,
+            handle: author.handle.toString(),
+            displayName: author.displayName,
+            crafts: author.crafts,
+            avatar: avatar,
+            builder: (context, avatar, openProfile) =>
+                identity(avatar, onTap ?? openProfile),
+          )
+        : identity(avatar, onTap);
   }
 }
 

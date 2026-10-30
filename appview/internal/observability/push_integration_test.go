@@ -61,14 +61,25 @@ func (permissivePushLifecycleFence) WithActiveOwners(
 func TestPushPrivacySentinelsAcrossRegistrationEnqueueDispatchAndTelemetry(t *testing.T) {
 	pool := testdb.WithSchema(t, `
 		CREATE TABLE bluesky_profiles(did TEXT PRIMARY KEY,display_name TEXT,avatar_cid TEXT);
-		CREATE TABLE craftsky_posts(uri TEXT PRIMARY KEY,reply_root_uri TEXT,reply_parent_uri TEXT);
+		CREATE TABLE craftsky_posts(
+			uri TEXT PRIMARY KEY,did TEXT,text TEXT,
+			reply_root_uri TEXT,reply_parent_uri TEXT,quote_uri TEXT
+		);
+		CREATE TABLE craftsky_project_posts(uri TEXT PRIMARY KEY,raw_project JSONB);
+		CREATE TABLE craftsky_post_mentions(post_uri TEXT,mentioned_did TEXT);
+		CREATE TABLE moderation_outputs(
+			source_did TEXT,subject_type TEXT,subject_did TEXT,subject_uri TEXT,
+			value TEXT,action TEXT,expires_at TIMESTAMPTZ,indexed_at TIMESTAMPTZ
+		);
 	`)
-	migration, err := testdb.ReadMigration("000021_appview_notifications.up.sql")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := pool.Exec(context.Background(), string(migration)); err != nil {
-		t.Fatal(err)
+	for _, name := range []string{"000021_appview_notifications.up.sql", "000106_post_publication_facts.up.sql"} {
+		migration, err := testdb.ReadMigration(name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := pool.Exec(context.Background(), string(migration)); err != nil {
+			t.Fatal(err)
+		}
 	}
 	if _, err := pool.Exec(context.Background(), `
 		CREATE TABLE actor_mutes (

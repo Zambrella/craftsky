@@ -34,7 +34,6 @@ class ProfileRepostsTab extends ConsumerWidget {
         ),
         onLoadMore: () =>
             ref.read(userRepostsProvider(did).notifier).loadMore(),
-        onReplyCreated: () => ref.invalidate(userRepostsProvider(did)),
       ),
       AsyncError() => ProfileTabErrorSliver(
         message: l10n.profileRepostsLoadError,

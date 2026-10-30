@@ -35,8 +35,7 @@ class RouteLocations {
   static const businessEvent = '/events/:did/:rkey';
   static const profile = '/profile';
   static const profiles = '/profiles';
-  static const settingsChild = 'settings';
-  static const settings = '$profile/$settingsChild';
+  static const settings = '/settings';
   static const growthChild = 'growth';
   static const appearanceChild = 'appearance';
   static const privacyChild = 'privacy';

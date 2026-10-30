@@ -9,6 +9,7 @@ import 'package:craftsky_app/auth/models/stored_session.dart';
 import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
+import 'package:flutter/foundation.dart' show listEquals;
 
 class AccountLimitReached implements Exception {
   const new();
@@ -90,6 +91,7 @@ class SessionRegistry {
         'lastUsedOrdinal',
         'cachedDisplayName',
         'cachedAvatarUrl',
+        'cachedCrafts',
         'cachedCustomisation',
       });
       sessions[did] = StoredSession(
@@ -100,6 +102,7 @@ class SessionRegistry {
         lastUsedOrdinal: _requiredPositiveInt(value, 'lastUsedOrdinal'),
         cachedDisplayName: _optionalString(value, 'cachedDisplayName'),
         cachedAvatarUrl: _optionalString(value, 'cachedAvatarUrl'),
+        cachedCrafts: _cachedCrafts(value['cachedCrafts']),
         cachedCustomisation: _cachedCustomisation(
           value['cachedCustomisation'],
         ),
@@ -301,7 +304,11 @@ class SessionRegistry {
     final current = pendingAccountDeletion;
     if (current != null) {
       if (current.sameAs(pending)) return this;
-      throw DiagnosticStateError('Another account deletion is pending');
+      // A fresh server-issued intent may replace expired local authority.
+      // Keep live intents protected, including those for another account.
+      if (DateTime.now().toUtc().isBefore(current.expiresAt)) {
+        throw DiagnosticStateError('Another account deletion is pending');
+      }
     }
     if (!pending.isCurrent(activeLease)) {
       throw DiagnosticStateError(
@@ -457,6 +464,7 @@ class SessionRegistry {
           lastUsedOrdinal: nextUseOrdinal,
           cachedDisplayName: current.cachedDisplayName,
           cachedAvatarUrl: current.cachedAvatarUrl,
+          cachedCrafts: current.cachedCrafts,
           cachedCustomisation: current.cachedCustomisation,
         ),
       },
@@ -510,6 +518,7 @@ class SessionRegistry {
     required String? displayName,
     required String? avatarUrl,
     required ProfileCustomisation customisation,
+    List<String> crafts = const [],
   }) {
     final stored = sessions[lease.account.did];
     if (stored == null || stored.sessionGeneration != lease.sessionGeneration) {
@@ -517,7 +526,8 @@ class SessionRegistry {
     }
     if (stored.cachedDisplayName == displayName &&
         stored.cachedAvatarUrl == avatarUrl &&
-        stored.cachedCustomisation == customisation) {
+        stored.cachedCustomisation == customisation &&
+        listEquals(stored.cachedCrafts, crafts)) {
       return this;
     }
     return _copyWith(
@@ -531,6 +541,7 @@ class SessionRegistry {
           lastUsedOrdinal: stored.lastUsedOrdinal,
           cachedDisplayName: displayName,
           cachedAvatarUrl: avatarUrl,
+          cachedCrafts: crafts,
           cachedCustomisation: customisation,
         ),
       },
@@ -555,6 +566,7 @@ class SessionRegistry {
           lastUsedOrdinal: stored.lastUsedOrdinal,
           cachedDisplayName: stored.cachedDisplayName,
           cachedAvatarUrl: stored.cachedAvatarUrl,
+          cachedCrafts: stored.cachedCrafts,
           cachedCustomisation: stored.cachedCustomisation,
         ),
       },
@@ -582,6 +594,7 @@ class SessionRegistry {
           lastUsedOrdinal: stored.lastUsedOrdinal,
           cachedDisplayName: stored.cachedDisplayName,
           cachedAvatarUrl: stored.cachedAvatarUrl,
+          cachedCrafts: stored.cachedCrafts,
           cachedCustomisation: customisation,
         ),
       },
@@ -611,6 +624,7 @@ class SessionRegistry {
           'lastUsedOrdinal': session.lastUsedOrdinal,
           'cachedDisplayName': session.cachedDisplayName,
           'cachedAvatarUrl': session.cachedAvatarUrl,
+          'cachedCrafts': session.cachedCrafts,
           'cachedCustomisation': session.cachedCustomisation.toMap(),
         },
     },
@@ -686,6 +700,14 @@ class SessionRegistry {
     if (map.keys.any((key) => !allowed.contains(key))) {
       throw const FormatException('Unsupported session registry field');
     }
+  }
+
+  static List<String> _cachedCrafts(Object? value) {
+    if (value == null) return const [];
+    if (value is! List || value.any((item) => item is! String)) {
+      throw const FormatException('Invalid cachedCrafts');
+    }
+    return List<String>.unmodifiable(value.cast<String>());
   }
 
   static ProfileCustomisation _cachedCustomisation(Object? value) {

@@ -21,6 +21,7 @@ import 'package:craftsky_app/notifications/providers/notification_service_provid
 import 'package:craftsky_app/notifications/services/notification_service.dart';
 import 'package:craftsky_app/service_status/providers/service_status_controller.dart';
 import 'package:craftsky_app/shared/api/providers/dio_provider.dart';
+import 'package:craftsky_app/shared/api/providers/error_mapping_interceptor.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -218,12 +219,16 @@ final class RecordedRequest {
     required this.path,
     required this.authorization,
     this.body,
+    this.expectedCid,
+    this.operationKey,
   });
 
   final String method;
   final String path;
   final String? authorization;
   final Map<String, dynamic>? body;
+  final String? expectedCid;
+  final String? operationKey;
 }
 
 final class LoopbackAppView {
@@ -233,6 +238,10 @@ final class LoopbackAppView {
   final requests = <RecordedRequest>[];
   final createBodies = <Map<String, dynamic>>[];
   Future<void>? createGate;
+  final editBodies = <Map<String, dynamic>>[];
+  bool conflictNextEdit = false;
+  Map<String, dynamic>? _editedAlicePost;
+  int _editVersion = 0;
 
   static Future<LoopbackAppView> start() async {
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
@@ -251,7 +260,7 @@ final class LoopbackAppView {
         if (token != null) 'Authorization': 'Bearer $token',
       },
     ),
-  );
+  )..interceptors.add(const ErrorMappingInterceptor());
 
   Future<void> close() => _server.close(force: true);
 
@@ -272,11 +281,30 @@ final class LoopbackAppView {
         path: request.uri.path,
         authorization: authorization,
         body: body,
+        expectedCid: request.headers.value('If-Match'),
+        operationKey: request.headers.value('Idempotency-Key'),
       ),
     );
 
     if (request.method == 'POST' && request.uri.path == '/v1/posts') {
       await createGate;
+    }
+    if (request.method == 'PATCH' &&
+        request.uri.path == '/v1/posts/did:plc:alice/alice-read' &&
+        conflictNextEdit) {
+      conflictNextEdit = false;
+      request.response
+        ..statusCode = HttpStatus.conflict
+        ..headers.contentType = ContentType.json
+        ..write(
+          jsonEncode({
+            'error': 'pds_record_conflict',
+            'message': 'Post changed',
+            'requestId': 'loopback-conflict',
+          }),
+        );
+      await request.response.close();
+      return;
     }
     final response = switch ((
       request.method,
@@ -284,6 +312,9 @@ final class LoopbackAppView {
     )) {
       ('GET', '/v1/feed/timeline') => _timeline(authorization),
       ('POST', '/v1/posts') => _createPost(body!, authorization),
+      ('GET', '/v1/posts/did:plc:alice/alice-read/edit') => _editSeed(),
+      ('GET', '/v1/posts/did:plc:alice/alice-read') => _alicePost(),
+      ('PATCH', '/v1/posts/did:plc:alice/alice-read') => _editPost(body!),
       ('GET', '/v1/profiles/me') => _profileForToken(authorization),
       ('GET', final path) when path.startsWith('/v1/profiles/@') =>
         _profileResponse(path),
@@ -304,16 +335,65 @@ final class LoopbackAppView {
 
   Map<String, dynamic> _timeline(String? authorization) {
     final account = authorization == 'Bearer bob-token' ? 'bob' : 'alice';
-    final post = _post(
-      did: 'did:plc:$account',
-      handle: '$account.test',
-      rkey: '$account-read',
-      text: '${_title(account)} timeline',
-    );
+    final post = account == 'alice'
+        ? _alicePost()
+        : _post(
+            did: 'did:plc:$account',
+            handle: '$account.test',
+            rkey: '$account-read',
+            text: '${_title(account)} timeline',
+          );
     return {
       'items': [
         {'itemKey': 'post:${post['uri']}', 'post': post},
       ],
+    };
+  }
+
+  Map<String, dynamic> _alicePost() =>
+      _editedAlicePost ??
+      _post(
+        did: 'did:plc:alice',
+        handle: 'alice.test',
+        rkey: 'alice-read',
+        text: 'Alice timeline',
+      );
+
+  Map<String, dynamic> _editSeed() {
+    final post = _alicePost();
+    return {
+      'post': post,
+      'baseCid': post['cid'],
+      'recordRevision': '3aaaaaaaaaaa2',
+      'editable': {
+        'text': post['text'],
+        'sponsored': post['sponsored'],
+        'langs': post['langs'],
+      },
+    };
+  }
+
+  Map<String, dynamic> _editPost(Map<String, dynamic> body) {
+    editBodies.add(body);
+    _editVersion++;
+    final changes = body['changes']! as Map<String, dynamic>;
+    final post = {
+      ..._alicePost(),
+      ...changes,
+      'cid': 'bafyedit$_editVersion',
+      'editedAt': '2026-10-26T12:00:00.000Z',
+      'editTimeSource': 'confirmed',
+      'recordRevision': '3aaaaaaaaaaa3',
+    };
+    _editedAlicePost = post;
+    return {
+      'post': post,
+      'acceptedCid': post['cid'],
+      'changed': true,
+      'projectionPending': false,
+      'editedAt': post['editedAt'],
+      'editTimeSource': 'confirmed',
+      'recordRevision': '3aaaaaaaaaaa3',
     };
   }
 

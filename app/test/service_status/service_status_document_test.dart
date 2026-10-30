@@ -5,106 +5,57 @@ import 'package:craftsky_app/service_status/models/service_status_document.dart'
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('serializes the status document using the project mapper', () {
-    final document = ServiceStatusDocument.decode(
-      utf8.encode(
-        jsonEncode({
-          'schemaVersion': 1,
-          'mode': 'maintenance',
-          'revision': 'A',
-          'title': 'Back soon',
-          'message': 'Maintenance',
-          'estimatedRecoveryAt': '2026-10-09T14:30:00+02:00',
-          'unknownControl': true,
-        }),
-      ),
-    );
-    expect(document.toMap(), {
-      'schemaVersion': 1,
-      'mode': 'maintenance',
-      'revision': 'A',
-      'title': 'Back soon',
-      'message': 'Maintenance',
-      'estimatedRecoveryAt': '2026-10-09T12:30:00.000Z',
-    });
+  // UT-007 / FR-010, FR-012 / AC-014, AC-016
+  test('schema two accepts independent controls atomically', () {
+    const raw = '''
+{"schemaVersion":2,"revision":"D1",
+      "maintenance":{"title":"Break","description":"Back soon"},
+      "minimumVersions":{"ios":"1.8.0"},
+      "message":{"revision":"A","minVersion":"1.8.0",
+        "title":"News","description":"Hello",
+        "cta":{"text":"Settings","destination":"settings"}}}''';
     expect(
-      ServiceStatusDocument.decode(utf8.encode(document.toJson())).revision,
-      'A',
+      () => ServiceStatusDocument.decode(utf8.encode(raw)),
+      returnsNormally,
     );
-  });
-  // UT-007 / FR-002, RULE-003 / AC-005, AC-019.
-  test('remote controls cannot alter required mode or plain prose', () {
-    final document = ServiceStatusDocument.decode(
-      utf8.encode(
-        jsonEncode({
-          'schemaVersion': 1,
-          'mode': 'maintenance',
-          'revision': 'plain',
-          'title': '<script>alert(1)</script>',
-          'message': '[Open](https://example.invalid) <a href="https://example.invalid">link</a>',
-          'apiUrl': 'https://example.invalid',
-          'action': {'url': 'https://example.invalid'},
-          'featureFlags': {'skipAuth': true},
-          'startsAt': '2999-01-01T00:00:00Z',
-          'endsAt': '2000-01-01T00:00:00Z',
-        }),
-      ),
-    );
-    expect(document.mode, ServiceStatusMode.maintenance);
-    expect(document.title, '<script>alert(1)</script>');
-    expect(document.message, contains('<a href='));
-    expect(document.estimatedRecoveryAt, isNull);
-    expect(document.toString(), isNot(contains('example.invalid')));
-  });
-
-  // UT-001 / FR-002, FR-003 / AC-003, AC-004, AC-005.
-  test('accepts maintenance without a publication time', () {
-    final document = ServiceStatusDocument.decode(
-      utf8.encode('''
-{"schemaVersion":1,"mode":"maintenance","revision":"A",
- "title":"Back soon","message":"We are maintaining CraftSky."}
-'''),
-    );
-    expect(document.mode, ServiceStatusMode.maintenance);
-    expect(document.revision, 'A');
-    expect(document.title, 'Back soon');
-    expect(document.message, 'We are maintaining CraftSky.');
-    expect(document.estimatedRecoveryAt, isNull);
-  });
-
-  test('accepts all modes and ignores optional remote controls', () {
-    for (final mode in ServiceStatusMode.values) {
-      final document = ServiceStatusDocument.decode(
-        utf8.encode(
-          jsonEncode({
-            'schemaVersion': 1,
-            'mode': mode.name,
-            'revision': 'notice_B-2',
-            'title': 'An update',
-            'message': 'Public information',
-            'estimatedRecoveryAt': '2026-10-09T14:30:00+02:00',
-            'externalLink': 'https://example.invalid',
-            'startsAt': '2099-01-01T00:00:00Z',
-            'features': ['posts'],
-          }),
-        ),
-      );
-      expect(document.mode, mode);
-      expect(document.estimatedRecoveryAt, DateTime.utc(2026, 10, 9, 12, 30));
-    }
-  });
-
-  // UT-002 / FR-002, FR-003, NFR-001, RULE-003 / AC-005, AC-019.
-  test('rejects unsupported schema before accepting a document', () {
     expect(
       () => ServiceStatusDocument.decode(
         utf8.encode(
-          '{"schemaVersion":2,"mode":"normal","revision":"A"}',
+          raw.replaceFirst('"minVersion":"1.8.0"', '"minVersion":null'),
         ),
       ),
       throwsFormatException,
     );
   });
+
+  test(
+    'mapper round trip strips unknown controls and preserves plain text',
+    () {
+      final document = ServiceStatusDocument.decode(
+        utf8.encode(
+          jsonEncode({
+            'schemaVersion': 2,
+            'revision': 'A',
+            'maintenance': {
+              'title': '<script>plain</script>',
+              'description': 'Body',
+              'estimatedRecoveryAt': '2026-10-09T14:30:00+02:00',
+            },
+            'apiUrl': 'https://example.invalid',
+          }),
+        ),
+      );
+      expect(document.maintenance!.title, '<script>plain</script>');
+      expect(document.toMap().containsKey('apiUrl'), isFalse);
+      expect(
+        ServiceStatusDocument.decode(utf8.encode(document.toJson()))
+            .maintenance!
+            .estimatedRecoveryAt,
+        DateTime.utc(2026, 10, 9, 12, 30),
+      );
+      expect(document.toString(), isNot(contains('script')));
+    },
+  );
   test('shared literal contract corpus', () {
     final corpus = jsonDecode(
       File(
@@ -131,11 +82,9 @@ void main() {
 
   test('enforces literal byte and Unicode scalar limits', () {
     Map<String, Object> notice(String title, String message) => {
-      'schemaVersion': 1,
-      'mode': 'maintenance',
+      'schemaVersion': 2,
       'revision': 'A',
-      'title': title,
-      'message': message,
+      'maintenance': {'title': title, 'description': message},
     };
     List<int> encode(Map<String, Object> value) =>
         utf8.encode(jsonEncode(value));
@@ -150,7 +99,7 @@ void main() {
         throwsFormatException,
       );
     }
-    const minimal = '{"schemaVersion":1,"mode":"normal","revision":"A"}';
+    const minimal = '{"schemaVersion":2,"revision":"A"}';
     expect(
       () => ServiceStatusDocument.decode(utf8.encode(minimal.padRight(16384))),
       returnsNormally,

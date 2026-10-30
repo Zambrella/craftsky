@@ -51,7 +51,7 @@ final class DeletePostProvider
   DeletePost create() => DeletePost();
 }
 
-String _$deletePostHash() => r'a035e0cbb2ee2c46f640d3e21b96cce30c78ca52';
+String _$deletePostHash() => r'44ca3ba3a36d32ef50f023ab8cd756cc1b28b734';
 
 /// Standalone delete-a-post mutation notifier. The caller supplies the [Post]
 /// so the command can retain its exact URI and expected CID.

@@ -12,8 +12,10 @@ final class SettingsIdentity {
     required this.customisation,
     this.secondaryLabel,
     this.avatarUrl,
+    this.crafts = const [],
   });
 
+  final List<String> crafts;
   final String primaryLabel;
   final String? secondaryLabel;
   final String handleLabel;
@@ -41,6 +43,7 @@ SettingsIdentity projectSettingsIdentity({
   final hasDisplayName = displayName != null && displayName.isNotEmpty;
 
   return SettingsIdentity(
+    crafts: profile?.crafts ?? session.cachedCrafts,
     primaryLabel: hasDisplayName ? displayName : handleLabel,
     secondaryLabel: hasDisplayName ? handleLabel : null,
     handleLabel: handleLabel,

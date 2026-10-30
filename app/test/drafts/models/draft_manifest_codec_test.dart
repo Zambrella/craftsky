@@ -7,6 +7,32 @@ import 'package:craftsky_app/drafts/models/local_post_draft.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('rejects manifests with nine images', () {
+    final manifest = jsonDecode(
+      DraftManifestCodec.encode(_emptyDraft()),
+    ) as Map<String, Object?>;
+    manifest['media'] = [
+      for (var index = 0; index < 9; index++)
+        {
+          ..._validMediaMap(order: index),
+          'mediaId':
+              '00000000-0000-4000-8000-'
+              '${(index + 1).toString().padLeft(12, '0')}',
+          'storageFileName': 'image-$index.jpg',
+        },
+    ];
+    expect(
+      () => DraftManifestCodec.decode(jsonEncode(manifest)),
+      throwsA(
+        isA<DraftManifestException>().having(
+          (error) => error.reason,
+          'reason',
+          DraftManifestFailureReason.invalidMedia,
+        ),
+      ),
+    );
+  });
+
   test('UT-019 draft manifest excludes preview and video session state', () {
     final draft = LocalPostDraft(
       id: '00000000-0000-4000-8000-000000000001',

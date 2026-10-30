@@ -2,30 +2,40 @@ import 'dart:async';
 
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
 import 'package:craftsky_app/bootstrap.dart';
+import 'package:craftsky_app/feed/models/interaction_write_response.dart';
 import 'package:craftsky_app/feed/models/post.dart';
+import 'package:craftsky_app/feed/models/post_comment_section.dart';
 import 'package:craftsky_app/feed/models/post_page.dart';
+import 'package:craftsky_app/feed/pages/post_thread_page.dart';
+import 'package:craftsky_app/feed/providers/like_post_overlay.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
+import 'package:craftsky_app/feed/providers/toggle_like_post_provider.dart';
 import 'package:craftsky_app/feed/widgets/post_card.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/languages/models/language_preferences.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
+import 'package:craftsky_app/projects/models/project_browse_filters.dart';
 import 'package:craftsky_app/projects/options/project_option.dart';
 import 'package:craftsky_app/projects/options/project_option_catalogs.dart';
 import 'package:craftsky_app/projects/pages/projects_page.dart';
 import 'package:craftsky_app/projects/providers/preferred_project_crafts_provider.dart';
+import 'package:craftsky_app/projects/providers/project_feed_provider.dart';
 import 'package:craftsky_app/projects/providers/project_repository_provider.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
+import 'package:craftsky_app/shared/mutations/pds_record_operation_controller.dart';
 import 'package:craftsky_app/shared/widgets/craft_icon.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/craftsky_floating_action_button.dart';
 import 'package:craftsky_app/theme/craftsky_form_builder_select_fields.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
+import 'package:craftsky_app/theme/form_factor.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:phosphor_icons/phosphor_icons.dart';
 
@@ -92,6 +102,178 @@ Future<void> _pumpProjects(
 void main() {
   setUpAll(initializeMappers);
 
+  for (final (freshDetail, numberOfLikes) in [
+    (false, 1),
+    (true, 1),
+    (false, 2),
+    (true, 2),
+  ]) {
+    final detailDescription = freshDetail
+        ? 'likes survive a fresh detail read'
+        : 'likes survive a stale detail read';
+    testWidgets(
+      'issue 279: $numberOfLikes likes, $detailDescription',
+      (tester) async {
+        final posts = List.generate(numberOfLikes, _post);
+        final post = posts.last;
+        var projectReads = 0;
+        var refreshed = false;
+        final router = GoRouter(
+          initialLocation: '/projects',
+          routes: [
+            GoRoute(
+              path: '/projects',
+              builder: (_, _) => const ProjectsPage(),
+            ),
+            GoRoute(
+              path: '/posts/:did/:rkey',
+              builder: (_, state) => FormFactorWidget(
+                child: PostThreadPage(
+                  did: Did.parse(state.pathParameters['did']!),
+                  rkey: RecordKey.parse(state.pathParameters['rkey']!),
+                ),
+              ),
+            ),
+          ],
+        );
+        addTearDown(router.dispose);
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              authSessionProvider.overrideWith(
+                () => SignedInAuthSession(did: 'did:plc:alice'),
+              ),
+              preferredProjectCraftsProvider.overrideWithValue([
+                ProjectOptionCatalogs.craftTypes.first,
+              ]),
+              activeLanguagePreferencesProvider.overrideWith(
+                (ref) => const LanguagePreferences(
+                  primaryLanguage: 'en',
+                  contentLanguages: ['en'],
+                ),
+              ),
+              projectRepositoryProvider.overrideWithValue(
+                FakeProjectRepository(
+                  onListProjects: ({required query, limit, cursor}) async {
+                    projectReads++;
+                    return PostPage(
+                      items: [
+                        for (final item in posts)
+                          if (refreshed)
+                            item.copyWith(viewerHasLiked: true, likeCount: 1)
+                          else
+                            item,
+                      ],
+                    );
+                  },
+                ),
+              ),
+              postRepositoryProvider.overrideWithValue(
+                FakePostRepository(
+                  onLike: (did, rkey) async => InteractionWriteResponse(
+                    uri: 'at://did:plc:alice/social.craftsky.feed.like/like1',
+                    cid: 'bafylike',
+                    rkey: 'like1',
+                    subject: PostRef(uri: post.uri, cid: post.cid),
+                    createdAt: DateTime.utc(2026, 10, 29),
+                  ),
+                  onCommentSection:
+                      (did, rkey, {cursor, sort, focus, limit}) async =>
+                          PostCommentSection(
+                            post: post.copyWith(
+                              viewerHasLiked: freshDetail,
+                              likeCount: freshDetail ? 1 : 0,
+                            ),
+                            comments: const CommentPage(items: []),
+                            sort: sort ?? CommentSort.oldest,
+                          ),
+                ),
+              ),
+            ],
+            child: MessengerScope(
+              messenger: RecordingMessenger(),
+              child: MaterialApp.router(
+                theme: AppTheme.lightThemeData,
+                localizationsDelegates: appLocalizationsDelegates,
+                supportedLocales: AppLocalizations.supportedLocales,
+                routerConfig: router,
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        final projectsElement = tester.element(find.byType(ProjectsPage));
+        final container = ProviderScope.containerOf(projectsElement);
+        final controller = container.read(pdsRecordOperationControllerProvider);
+        final scope = likePostMutationScopeForLease(null, post);
+        for (var i = 0; i < numberOfLikes; i++) {
+          await tester.tap(
+            find.descendant(
+              of: find.byType(PostCard).at(i),
+              matching: find.byWidgetPredicate(
+                (widget) => widget is Tooltip && widget.message == 'Like',
+              ),
+            ),
+          );
+          await tester.pumpAndSettle();
+        }
+        await tester.pumpAndSettle();
+        expect(find.byIcon(CraftskyIcons.liked), findsNWidgets(numberOfLikes));
+        for (final likedPost in posts) {
+          expect(
+            controller.overlayFor(
+              likePostMutationScopeForLease(null, likedPost),
+            ),
+            isNotNull,
+          );
+        }
+        expect(controller.overlayFor(scope), isNotNull);
+        final readsBeforePush = projectReads;
+
+        tester.widget<PostCard>(find.byType(PostCard).last).onTap!();
+        await tester.pumpAndSettle();
+        expect(find.byType(PostThreadPage), findsOneWidget);
+        expect(find.byIcon(CraftskyIcons.liked), findsOneWidget);
+        expect(controller.overlayFor(scope), isNotNull);
+        router.pop();
+        await tester.pumpAndSettle();
+
+        expect(
+          identical(tester.element(find.byType(ProjectsPage)), projectsElement),
+          isTrue,
+        );
+        expect(
+          identical(
+            container.read(pdsRecordOperationControllerProvider),
+            controller,
+          ),
+          isTrue,
+        );
+        expect(projectReads, readsBeforePush);
+        // The mounted row can keep its old render until a later rebuild.
+        expect(find.byIcon(CraftskyIcons.liked), findsNWidgets(numberOfLikes));
+        for (final element in find.byType(PostCard).evaluate()) {
+          element.markNeedsBuild();
+        }
+        await tester.pump();
+        expect(
+          find.byIcon(CraftskyIcons.liked),
+          findsNWidgets(numberOfLikes),
+        );
+        expect(
+          container.read(toggleLikePostProvider).value?.viewerHasLiked,
+          isTrue,
+        );
+        refreshed = true;
+        container.invalidate(projectFeedProvider);
+        await tester.pumpAndSettle();
+        expect(find.byIcon(CraftskyIcons.liked), findsNWidgets(numberOfLikes));
+        // Cancel the accepted overlay's timers before the test ends.
+        await tester.pumpWidget(const SizedBox.shrink());
+      },
+    );
+  }
+
   testWidgets('preferred tabs drive the project query and filter craft', (
     tester,
   ) async {
@@ -116,11 +298,11 @@ void main() {
     final tabs = tester.widget<TabBar>(find.byType(TabBar));
     expect(
       tabs.tabs.map((tab) => ((tab as Tab).child! as CraftIconLabel).label),
-      ['Sewing', 'Quilting', 'Knitting', 'Crochet', 'Embroidery'],
+      ['Quilting', 'Sewing', 'Knitting', 'Crochet', 'Embroidery'],
     );
     expect(tabs.controller!.index, 0);
-    expect(requestedCrafts, contains(ProjectOptionCatalogs.sewingCraftToken));
-    await tester.tap(find.text('Quilting'));
+    expect(requestedCrafts, contains(ProjectOptionCatalogs.quiltingCraftToken));
+    await tester.tap(find.text('Sewing'));
     await tester.pumpAndSettle();
     expect(tabs.controller!.index, 1);
     final container = ProviderScope.containerOf(
@@ -136,8 +318,15 @@ void main() {
           ),
         );
     await tester.pumpAndSettle();
-    expect(tabs.controller!.index, 0);
-    expect(requestedCrafts, contains(ProjectOptionCatalogs.quiltingCraftToken));
+    expect(
+      tabs.controller!.index,
+      ProjectOptionCatalogs.craftTypesForPreferences(['quilting']).indexWhere(
+        (craft) => craft.value == ProjectOptionCatalogs.sewingCraftToken,
+      ),
+    );
+    expect(requestedCrafts, contains(ProjectOptionCatalogs.sewingCraftToken));
+    await tester.tap(find.text('Quilting'));
+    await tester.pumpAndSettle();
     await tester.tap(
       find.widgetWithText(CraftskyFloatingActionButton, 'Filters'),
     );
@@ -269,6 +458,37 @@ void main() {
     expect(deleted, ['did:plc:alice/project-0']);
     expect(find.text('Project 0'), findsNothing);
     expect(find.text('Project 1'), findsOneWidget);
+  });
+
+  testWidgets('Embroidery filters omit project type and subtype fields', (
+    tester,
+  ) async {
+    await _pumpProjects(
+      tester,
+      FakeProjectRepository(
+        onListProjects: ({required query, limit, cursor}) async =>
+            const PostPage(items: []),
+      ),
+      craftTypes: [
+        ProjectOptionCatalogs.craftTypes.singleWhere(
+          (craft) => craft.value == ProjectOptionCatalogs.embroideryCraftToken,
+        ),
+      ],
+    );
+    await pumpUntilFound(
+      tester,
+      find.text('Filters'),
+      description: 'the project filters action',
+    );
+
+    await tester.tap(find.text('Filters'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Filter Embroidery projects'), findsOneWidget);
+    expect(find.text('Project type'), findsNothing);
+    expect(find.text('Project subtype'), findsNothing);
+    expect(find.text('Pattern difficulty'), findsOneWidget);
+    expect(find.text('Color'), findsOneWidget);
   });
 
   testWidgets('filter sheet orders and enables dependent controls', (
@@ -415,45 +635,193 @@ void main() {
     expect(find.byTooltip('Back to top'), findsOneWidget);
   });
 
-  testWidgets(
-    'project back-to-top counts nested scrolling and resets header and list',
-    (tester) async {
-      tester.view.physicalSize = const Size(800, 600);
-      tester.view.devicePixelRatio = 1;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
-      await _pumpProjects(
-        tester,
-        FakeProjectRepository(
-          onListProjects: ({required query, limit, cursor}) async =>
-              PostPage(items: List.generate(20, _post)),
-        ),
-      );
-      await tester.pumpAndSettle();
-      final nested = tester.state<NestedScrollViewState>(
-        find.byType(NestedScrollView),
-      );
+  testWidgets('craft tabs retain independent offsets and fixed headers', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(800, 600);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await _pumpProjects(
+      tester,
+      FakeProjectRepository(
+        onListProjects: ({required query, limit, cursor}) async =>
+            PostPage(items: List.generate(20, _post)),
+      ),
+    );
+    await tester.pumpAndSettle();
 
-      await tester.drag(
-        find.byType(CustomScrollView).first,
-        const Offset(0, -250),
-      );
-      await tester.pumpAndSettle();
+    ScrollPosition position(String craft) => tester
+        .state<ScrollableState>(
+          find.descendant(
+            of: find.byKey(PageStorageKey<String>('projects_tab_$craft')),
+            matching: find.byWidgetPredicate(
+              (widget) =>
+                  widget is Scrollable &&
+                  widget.axisDirection == AxisDirection.down,
+            ),
+          ),
+        )
+        .position;
+    const knitting = ProjectOptionCatalogs.knittingCraftToken;
+    const crochet = ProjectOptionCatalogs.crochetCraftToken;
+    final headerPosition = tester.getTopLeft(find.byType(TabBar));
+    expect(position(knitting).pixels, 0);
+    await tester.drag(
+      find.byType(CustomScrollView).first,
+      const Offset(0, -600),
+    );
+    await tester.pumpAndSettle();
+    final knittingOffset = position(knitting).pixels;
+    expect(knittingOffset, greaterThan(200));
+    expect(tester.getTopLeft(find.byType(TabBar)), headerPosition);
 
-      expect(
-        nested.outerController.offset + nested.innerController.offset,
-        greaterThanOrEqualTo(200),
-      );
-      expect(find.byTooltip('Back to top'), findsOneWidget);
+    await tester.drag(find.byType(TabBarView), const Offset(-800, 0));
+    await tester.pumpAndSettle();
+    expect(position(crochet).pixels, 0);
+    expect(
+      tester.getTopLeft(find.byType(PostCard).first).dy,
+      greaterThanOrEqualTo(tester.getBottomLeft(find.byType(TabBar)).dy),
+    );
+    await tester.drag(
+      find.byType(CustomScrollView).first,
+      const Offset(0, -350),
+    );
+    await tester.pumpAndSettle();
+    final crochetOffset = position(crochet).pixels;
+    expect(crochetOffset, greaterThan(200));
 
-      await tester.tap(find.byTooltip('Back to top'));
-      await tester.pumpAndSettle();
+    // Tab taps and swipes must both restore the previous craft position.
+    await tester.tap(find.text('Knitting'));
+    await tester.pumpAndSettle();
+    expect(position(knitting).pixels, closeTo(knittingOffset, 0.01));
+    await tester.tap(find.byTooltip('Back to top'));
+    await tester.pumpAndSettle();
+    expect(position(knitting).pixels, 0);
+    expect(find.byTooltip('Back to top'), findsNothing);
+    expect(tester.getTopLeft(find.byType(TabBar)), headerPosition);
 
-      expect(nested.outerController.offset, 0);
-      expect(nested.innerController.offset, 0);
-      expect(find.byTooltip('Back to top'), findsNothing);
-    },
-  );
+    await tester.tap(find.text('Crochet'));
+    await tester.pumpAndSettle();
+    expect(position(crochet).pixels, closeTo(crochetOffset, 0.01));
+    expect(find.byTooltip('Back to top'), findsOneWidget);
+
+    // Visit a distant tab and verify earlier crafts still retain their offsets.
+    final tabs = tester.widget<TabBar>(find.byType(TabBar));
+    tabs.controller!.animateTo(tabs.tabs.length - 1);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Knitting'));
+    await tester.pumpAndSettle();
+    expect(position(knitting).pixels, 0);
+    await tester.tap(find.text('Crochet'));
+    await tester.pumpAndSettle();
+    expect(position(crochet).pixels, closeTo(crochetOffset, 0.01));
+  });
+
+  testWidgets('returning to a craft keeps its loaded feed and deep offset', (
+    tester,
+  ) async {
+    final requests = <String, int>{};
+    final reload = Completer<PostPage>();
+    addTearDown(() {
+      if (!reload.isCompleted) reload.complete(const PostPage(items: []));
+    });
+    await _pumpProjects(
+      tester,
+      FakeProjectRepository(
+        onListProjects: ({required query, limit, cursor}) {
+          final craft = query.craftTypes.single;
+          final count = requests.update(craft, (n) => n + 1, ifAbsent: () => 1);
+          // A repeat request stays pending to expose loading-state scroll loss.
+          return count == 1
+              ? Future.value(PostPage(items: List.generate(30, _post)))
+              : reload.future;
+        },
+      ),
+    );
+    await tester.pumpAndSettle();
+    const knitting = ProjectOptionCatalogs.knittingCraftToken;
+    const listKey = PageStorageKey<String>('projects_tab_$knitting');
+    ScrollPosition position() => tester
+        .state<ScrollableState>(
+          find.descendant(
+            of: find.byKey(listKey),
+            matching: find.byWidgetPredicate(
+              (widget) =>
+                  widget is Scrollable &&
+                  widget.axisDirection == AxisDirection.down,
+            ),
+          ),
+        )
+        .position;
+    await tester.drag(find.byKey(listKey), const Offset(0, -1800));
+    await tester.pumpAndSettle();
+    final offset = position().pixels;
+    expect(offset, greaterThan(1000));
+
+    await tester.drag(find.byType(TabBarView), const Offset(-800, 0));
+    await tester.pumpAndSettle();
+    await tester.drag(find.byType(TabBarView), const Offset(800, 0));
+    await tester.pump(const Duration(milliseconds: 350));
+    await tester.pump();
+    expect(requests[knitting], 1);
+    expect(position().pixels, closeTo(offset, 0.01));
+    expect(find.byType(CraftskySkeletonSliverList), findsNothing);
+
+    final tabs = tester.widget<TabBar>(find.byType(TabBar));
+    tabs.controller!.animateTo(tabs.tabs.length - 1);
+    await tester.pumpAndSettle();
+    tabs.controller!.animateTo(0);
+    await tester.pumpAndSettle();
+    expect(requests[knitting], 1);
+    expect(position().pixels, closeTo(offset, 0.01));
+
+    // Retention ends when the Projects page is removed.
+    final context = tester.element(find.byType(ProjectsPage));
+    final container = ProviderScope.containerOf(context);
+    final feed = projectFeedProvider(
+      const ProjectBrowseQuery(craftTypes: [knitting]),
+    );
+    expect(container.exists(feed), isTrue);
+    Navigator.of(context).pushReplacement<void, void>(
+      MaterialPageRoute<void>(builder: (_) => const SizedBox()),
+    );
+    await tester.pumpAndSettle();
+    await tester.pump();
+    expect(container.exists(feed), isFalse);
+  });
+
+  testWidgets('back-to-top jumps immediately with reduced motion', (
+    tester,
+  ) async {
+    tester.platformDispatcher.accessibilityFeaturesTestValue =
+        const FakeAccessibilityFeatures(disableAnimations: true);
+    addTearDown(tester.platformDispatcher.clearAccessibilityFeaturesTestValue);
+    await _pumpProjects(
+      tester,
+      FakeProjectRepository(
+        onListProjects: ({required query, limit, cursor}) async =>
+            PostPage(items: List.generate(20, _post)),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.drag(
+      find.byType(CustomScrollView).first,
+      const Offset(0, -500),
+    );
+    await tester.pumpAndSettle();
+    final scrollable = tester.state<ScrollableState>(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is Scrollable && widget.axisDirection == AxisDirection.down,
+      ),
+    );
+    expect(scrollable.position.pixels, greaterThan(200));
+    await tester.tap(find.byTooltip('Back to top'));
+    expect(scrollable.position.pixels, 0);
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('Back to top'), findsNothing);
+  });
 
   testWidgets('applying a filter returns the project list to the top', (
     tester,
@@ -534,6 +902,102 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Project 0'), findsOneWidget);
+  });
+
+  testWidgets('each craft retains its own filters and clears independently', (
+    tester,
+  ) async {
+    final queries = <ProjectBrowseQuery>[];
+    await _pumpProjects(
+      tester,
+      FakeProjectRepository(
+        onListProjects: ({required query, limit, cursor}) async {
+          queries.add(query);
+          return PostPage(items: List.generate(20, _post));
+        },
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    Future<void> openFilters({required bool selected}) async {
+      await tester.tap(find.text('Filters'));
+      await tester.pumpAndSettle();
+      await tester.drag(find.byType(ListView).last, const Offset(0, -1000));
+      await tester.pumpAndSettle();
+      final checkbox = find.widgetWithText(CheckboxListTile, 'Self drafted');
+      await tester.ensureVisible(checkbox);
+      await tester.pumpAndSettle();
+      expect(tester.widget<CheckboxListTile>(checkbox).value, selected);
+    }
+
+    Future<void> applyFilters() async {
+      await tester.tap(find.widgetWithText(FilledButton, 'Apply filters'));
+      await tester.pumpAndSettle();
+    }
+
+    Future<void> toggleSelfDrafted() async {
+      await tester.tap(find.widgetWithText(CheckboxListTile, 'Self drafted'));
+      await tester.pump();
+      await applyFilters();
+    }
+
+    Future<void> switchTo(String label) async {
+      await tester.tap(find.text(label));
+      await tester.pumpAndSettle();
+    }
+
+    await openFilters(selected: false);
+    await toggleSelfDrafted();
+    expect(find.widgetWithText(InputChip, 'Self drafted'), findsOneWidget);
+    await switchTo('Crochet');
+    await openFilters(selected: false);
+    await toggleSelfDrafted();
+    final knittingRequests = queries
+        .where(
+          (query) =>
+              query.craftTypes.single ==
+              ProjectOptionCatalogs.knittingCraftToken,
+        )
+        .length;
+
+    await switchTo('Knitting');
+    await openFilters(selected: true);
+    await applyFilters();
+    expect(
+      queries
+          .where(
+            (query) =>
+                query.craftTypes.single ==
+                ProjectOptionCatalogs.knittingCraftToken,
+          )
+          .length,
+      knittingRequests,
+    );
+
+    // Removing a chip only changes the current craft.
+    tester
+        .widget<InputChip>(find.widgetWithText(InputChip, 'Self drafted'))
+        .onDeleted!();
+    await tester.pumpAndSettle();
+    expect(find.byType(InputChip), findsNothing);
+    await switchTo('Crochet');
+    await openFilters(selected: true);
+    await applyFilters();
+    await switchTo('Knitting');
+    await openFilters(selected: false);
+    await toggleSelfDrafted();
+
+    // Clear-all is scoped to the current craft too.
+    await switchTo('Crochet');
+    await tester.tap(find.widgetWithText(TextButton, 'Clear all'));
+    await tester.pumpAndSettle();
+    expect(find.byType(InputChip), findsNothing);
+    await switchTo('Knitting');
+    await openFilters(selected: true);
+    await applyFilters();
+    await switchTo('Crochet');
+    await openFilters(selected: false);
+    await applyFilters();
   });
 
   testWidgets('swiping craft tabs updates the filter sheet craft', (

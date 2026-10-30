@@ -1,5 +1,27 @@
 # AppView Changelog
 
+## 1.0.20 - 2026-10-28
+
+- feat(notifications): highlight new activity until leaving the page
+- fix(appview): show all languages in profile feeds
+- feat(posts): add published post editing
+- fix(render): enable link previews in production
+- feat(post-edit): support editing published posts
+- fix(observability): preserve safe Sentry diagnostics
+
+## 1.0.19 - 2026-10-23
+
+- test(app): add Patrol account post flow
+- fix(auth): activate onboarding before issuing handoff
+- test(e2e): support iOS account post flow
+- feat(service-status): add versioned notice flows
+- fix(observability): improve Sentry triage diagnostics
+- fix(app): dismiss composer keyboard on post submission
+- feat(notifications): show text previews in notifications
+- test(observability): expand push privacy fixture schema
+- refactor(profile): unify compact identity layouts
+- fix(tests): isolate flaky integration and migration setup
+
 ## 1.0.18 - 2026-10-20
 
 - feat(projects): add multi-craft discovery and search

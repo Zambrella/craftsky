@@ -27,17 +27,20 @@ void main() {
     final adapter = DioAdapter(dio: dio);
     adapter.onPost(
       '/v1/link-previews',
-      (server) => server.reply(200, {
-        'url': 'https://final.example/pattern#section',
-        'title': 'Pattern',
-        'description': 'A knitting pattern',
-        'thumbnail': {
-          'bytes': base64Encode(exactBytes),
-          'mimeType': 'image/png',
-          'width': 1200,
-          'height': 630,
-        },
-      }),
+      (server) => server.reply(
+        200,
+        _jsonBytes({
+          'url': 'https://final.example/pattern#section',
+          'title': 'Pattern',
+          'description': 'A knitting pattern',
+          'thumbnail': {
+            'bytes': base64Encode(exactBytes),
+            'mimeType': 'image/png',
+            'width': 1200,
+            'height': 630,
+          },
+        }),
+      ),
       data: {'url': 'https://source.example/pattern'},
     );
 
@@ -58,17 +61,20 @@ void main() {
       final sourceUrl = 'https://source.example/invalid-thumbnail-$index';
       adapter.onPost(
         '/v1/link-previews',
-        (server) => server.reply(200, {
-          'url': 'https://final.example',
-          'title': 'Pattern',
-          'description': '',
-          'thumbnail': {
-            'bytes': encoded,
-            'mimeType': 'image/png',
-            'width': 1,
-            'height': 1,
-          },
-        }),
+        (server) => server.reply(
+          200,
+          _jsonBytes({
+            'url': 'https://final.example',
+            'title': 'Pattern',
+            'description': '',
+            'thumbnail': {
+              'bytes': encoded,
+              'mimeType': 'image/png',
+              'width': 1,
+              'height': 1,
+            },
+          }),
+        ),
         data: {'url': sourceUrl},
       );
       await expectLater(
@@ -136,6 +142,12 @@ void main() {
     );
   });
 }
+
+// Map replies in http_mock_adapter become one stream event per UTF-8 byte.
+// Keep the real JSON decoder and boundary-sized payloads without millions of
+// synthetic events competing with the test deadline.
+Uint8List _jsonBytes(Map<String, dynamic> value) =>
+    Uint8List.fromList(utf8.encode(jsonEncode(value)));
 
 const _externalMap = <String, dynamic>{
   'uri': 'https://final.example/pattern#section',

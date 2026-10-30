@@ -34,7 +34,7 @@ final class AccountDeletionControllerProvider
 }
 
 String _$accountDeletionControllerHash() =>
-    r'86567a23e39815776e82835d89a61c4144f458b6';
+    r'64478bb20c8e1f3b0bc5dd814bcdf9fef0f30b6f';
 
 abstract class _$AccountDeletionController extends $AsyncNotifier<void> {
   FutureOr<void> build();

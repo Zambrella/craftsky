@@ -11,8 +11,7 @@ final class LoopbackServiceStatus {
   final ServiceStatusRepository repository;
   final requests = <Map<String, List<String>>>[];
   Map<String, Object> document = {
-    'schemaVersion': 1,
-    'mode': 'normal',
+    'schemaVersion': 2,
     'revision': 'initial',
   };
   static Future<LoopbackServiceStatus> start() async {

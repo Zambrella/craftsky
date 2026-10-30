@@ -62,6 +62,7 @@ func scopeGrantDiagnostic(raw string, required []string) error {
 		"atproto":                          "atproto",
 		"include:social.craftsky.authFull": "craftsky",
 		"repo:app.bsky.actor.profile?action=create&action=update": "bluesky_profile",
+		"repo:app.bsky.actor.link":                                "profile_links",
 		"repo:app.bsky.graph.follow":                              "follow",
 		"repo:app.bsky.graph.block":                               "block",
 		"blob?accept=image/jpeg&accept=image/png&accept=image/webp&accept=video/mp4&accept=text/vtt": "media",
@@ -118,4 +119,15 @@ func canonicalDiagnosticScope(scope string) (string, bool) {
 		slices.Sort(values)
 	}
 	return name + "?" + parameters.Encode(), true
+}
+
+// Select a closed OAuth error code; descriptions, URLs and unknown prose stay private.
+func providerCallbackDiagnostic(code string) error {
+	reason := "provider_callback_error_unknown"
+	switch code {
+	case "access_denied", "invalid_request", "invalid_client", "invalid_scope",
+		"unauthorized_client", "unsupported_response_type", "server_error", "temporarily_unavailable":
+		reason = "provider_callback_error_" + code
+	}
+	return callbackDiagnostic(reason, ErrOAuthFlowInvalid)
 }

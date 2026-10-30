@@ -52,16 +52,14 @@ class _ProjectsPageState extends ConsumerState<ProjectsPage>
     with SingleTickerProviderStateMixin {
   static const _scrollToTopThreshold = 200.0;
   late final TabController _tabController;
-  final _scrollController = ScrollController();
-  final _nestedScrollKey = GlobalKey<NestedScrollViewState>();
+  final _scrollControllers = <String, ScrollController>{};
   var _selectedCraftIndex = 0;
   late List<ProjectOption> _craftTypes;
   var _hasSelectedCraft = false;
   var _reorderingCrafts = false;
   SearchSort _sort = SearchSort.chronological;
-  ProjectBrowseFilters _filters = const ProjectBrowseFilters();
+  final _craftFilters = <String, ProjectBrowseFilters>{};
   var _isPastScrollThreshold = false;
-  final _innerScrollOffsets = <String, double>{};
 
   @override
   void initState() {
@@ -87,7 +85,6 @@ class _ProjectsPageState extends ConsumerState<ProjectsPage>
         _reorderingCrafts = false;
       });
     });
-    _scrollController.addListener(_handleOuterScroll);
   }
 
   int? _requestedIndex(String? craft) {
@@ -114,9 +111,9 @@ class _ProjectsPageState extends ConsumerState<ProjectsPage>
     _tabController
       ..removeListener(_handleTabChanged)
       ..dispose();
-    _scrollController
-      ..removeListener(_handleOuterScroll)
-      ..dispose();
+    for (final controller in _scrollControllers.values) {
+      controller.dispose();
+    }
     super.dispose();
   }
 
@@ -153,7 +150,7 @@ class _ProjectsPageState extends ConsumerState<ProjectsPage>
     final activeCraft = _craftTypes[_selectedCraftIndex].value;
     final activeQuery = ProjectBrowseQuery(
       craftTypes: [activeCraft],
-      filters: _filters,
+      filters: _filtersFor(activeCraft),
       sort: _sort,
     );
     final hasActiveProjects =
@@ -166,65 +163,54 @@ class _ProjectsPageState extends ConsumerState<ProjectsPage>
         icon: const Icon(CraftskyIconsBold.adjustments),
         label: Text(l10n.projectsFilterAction),
       ),
+      appBar: AppBar(
+        leading: AppShellDrawerScope.maybeOf(context) == null
+            ? null
+            : const AppShellDrawerButton(),
+        title: Text(l10n.projectsTitle),
+        actions: [
+          Padding(
+            padding: EdgeInsetsDirectional.only(end: spacing.sp4),
+            child: SortMenuButton<SearchSort>(
+              selectedValue: _sort,
+              options: _sortOptions(l10n),
+              onChanged: (sort) => setState(() => _sort = sort),
+            ),
+          ),
+        ],
+      ),
       body: Stack(
         children: [
-          NotificationListener<ScrollNotification>(
-            onNotification: _handleScrollNotification,
-            child: NestedScrollView(
-              key: _nestedScrollKey,
-              controller: _scrollController,
-              headerSliverBuilder: (context, innerBoxIsScrolled) => [
-                SliverAppBar(
-                  leading: AppShellDrawerScope.maybeOf(context) == null
-                      ? null
-                      : const AppShellDrawerButton(),
-                  title: Text(l10n.projectsTitle),
-                  pinned: true,
-                  actions: [
-                    Padding(
-                      padding: EdgeInsetsDirectional.only(end: spacing.sp4),
-                      child: SortMenuButton<SearchSort>(
-                        selectedValue: _sort,
-                        options: _sortOptions(l10n),
-                        onChanged: (sort) => setState(() => _sort = sort),
+          Column(
+            children: [
+              _ProjectCraftTabBar(
+                controller: _tabController,
+                craftTypes: _craftTypes,
+              ),
+              Expanded(
+                child: TabBarView(
+                  controller: _tabController,
+                  children: [
+                    for (final option in _craftTypes)
+                      _ProjectTabScrollView(
+                        key: ValueKey(option.value),
+                        craftType: option.value,
+                        controller: _controllerFor(option.value),
+                        filters: _filtersFor(option.value),
+                        sort: _sort,
+                        onRemoveFilter: (family, value) => _setFilters(
+                          option.value,
+                          _filtersFor(option.value).withoutValue(family, value),
+                        ),
+                        onClearFilters: () => _setFilters(
+                          option.value,
+                          const ProjectBrowseFilters(),
+                        ),
                       ),
-                    ),
                   ],
                 ),
-                SliverPersistentHeader(
-                  pinned: true,
-                  delegate: _ProjectCraftTabBarDelegate(
-                    controller: _tabController,
-                    craftTypes: _craftTypes,
-                  ),
-                ),
-                SliverToBoxAdapter(
-                  child: _ActiveFilterChips(
-                    craftType: activeCraft,
-                    filters: _filters,
-                    onRemove: (family, value) =>
-                        _setFilters(_filters.withoutValue(family, value)),
-                    onClear: () => _setFilters(const ProjectBrowseFilters()),
-                  ),
-                ),
-              ],
-              body: TabBarView(
-                controller: _tabController,
-                children: [
-                  for (final option in _craftTypes)
-                    _ProjectTabScrollView(
-                      key: ValueKey(option.value),
-                      craftType: option.value,
-                      filters: _filters,
-                      sort: _sort,
-                      onScrollOffsetChanged: (offset) =>
-                          _handleInnerScroll(option.value, offset),
-                      onClearFilters: () =>
-                          _setFilters(const ProjectBrowseFilters()),
-                    ),
-                ],
               ),
-            ),
+            ],
           ),
           Positioned(
             left: spacing.sp4,
@@ -247,7 +233,6 @@ class _ProjectsPageState extends ConsumerState<ProjectsPage>
     setState(() {
       _hasSelectedCraft = true;
       _selectedCraftIndex = _tabController.index;
-      _filters = const ProjectBrowseFilters();
       _isPastScrollThreshold = false;
     });
     if (GoRouter.maybeOf(context) != null) {
@@ -260,35 +245,25 @@ class _ProjectsPageState extends ConsumerState<ProjectsPage>
     });
   }
 
-  void _handleOuterScroll() => _updateScrollThreshold();
+  ScrollController _controllerFor(String craftType) =>
+      _scrollControllers.putIfAbsent(
+        craftType,
+        () => ScrollController(
+          onAttach: (_) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) _updateScrollThreshold();
+            });
+          },
+        )..addListener(_updateScrollThreshold),
+      );
 
-  void _handleInnerScroll(String craftType, double offset) {
-    final activeCraft = _craftTypes[_selectedCraftIndex].value;
-    final tabPosition = _tabController.animation?.value;
-    if (craftType != activeCraft ||
-        (tabPosition != null &&
-            (tabPosition - _selectedCraftIndex).abs() > 0.001)) {
-      return;
-    }
-    _innerScrollOffsets[craftType] = offset;
-    _updateScrollThreshold();
-  }
-
-  bool _handleScrollNotification(ScrollNotification notification) {
-    if (notification.metrics.axis == Axis.vertical) {
-      _updateScrollThreshold();
-    }
-    return false;
-  }
+  ScrollController get _activeScrollController =>
+      _controllerFor(_craftTypes[_selectedCraftIndex].value);
 
   void _updateScrollThreshold() {
-    final outerOffset = _scrollController.hasClients
-        ? _scrollController.offset
-        : 0.0;
-    final activeCraft = _craftTypes[_selectedCraftIndex].value;
-    final innerOffset = _innerScrollOffsets[activeCraft] ?? 0.0;
+    final controller = _activeScrollController;
     _setScrollThreshold(
-      outerOffset + innerOffset >= _scrollToTopThreshold,
+      controller.hasClients && controller.offset >= _scrollToTopThreshold,
     );
   }
 
@@ -298,41 +273,30 @@ class _ProjectsPageState extends ConsumerState<ProjectsPage>
   }
 
   void _scrollToTop() {
-    final activeCraft = _craftTypes[_selectedCraftIndex].value;
-    _innerScrollOffsets[activeCraft] = 0;
-    _setScrollThreshold(false);
-    final innerController = _nestedScrollKey.currentState?.innerController;
-    final controllers = [
-      if (innerController?.hasClients ?? false) innerController!,
-      if (_scrollController.hasClients) _scrollController,
-    ];
-    if (controllers.isEmpty) return;
+    final controller = _activeScrollController;
+    if (!controller.hasClients) return;
     if (MediaQuery.disableAnimationsOf(context)) {
-      for (final controller in controllers) {
-        controller.jumpTo(0);
-      }
+      controller.jumpTo(0);
       return;
     }
     final durations = Theme.of(context).extension<DurationTheme>()!;
-    for (final controller in controllers) {
-      controller.animateTo(
-        0,
-        duration: durations.medium,
-        curve: durations.ease,
-      );
-    }
+    controller.animateTo(
+      0,
+      duration: durations.medium,
+      curve: durations.ease,
+    );
   }
 
-  void _setFilters(ProjectBrowseFilters filters) {
-    if (filters == _filters) return;
-    final activeCraft = _craftTypes[_selectedCraftIndex].value;
-    _innerScrollOffsets[activeCraft] = 0;
-    setState(() => _filters = filters);
+  ProjectBrowseFilters _filtersFor(String craftType) =>
+      _craftFilters[craftType] ?? const ProjectBrowseFilters();
+
+  void _setFilters(String craftType, ProjectBrowseFilters filters) {
+    if (filters == _filtersFor(craftType)) return;
+    final controller = _controllerFor(craftType);
+    setState(() => _craftFilters[craftType] = filters);
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || !_scrollController.hasClients) return;
-      final innerController = _nestedScrollKey.currentState?.innerController;
-      if (innerController?.hasClients ?? false) innerController!.jumpTo(0);
-      _scrollController.jumpTo(0);
+      if (!mounted || !controller.hasClients) return;
+      controller.jumpTo(0);
     });
   }
 
@@ -343,12 +307,12 @@ class _ProjectsPageState extends ConsumerState<ProjectsPage>
           FullscreenModalRoute<ProjectBrowseFilters>(
             builder: (_) => _ProjectFilterSheet(
               craftType: craftType,
-              initialFilters: _filters,
+              initialFilters: _filtersFor(craftType),
             ),
           ),
         );
     if (filters == null || !mounted) return;
-    _setFilters(filters);
+    _setFilters(craftType, filters);
   }
 
   List<SortMenuOption<SearchSort>> _sortOptions(AppLocalizations l10n) => [
@@ -367,7 +331,7 @@ class _ProjectsPageState extends ConsumerState<ProjectsPage>
   ];
 }
 
-class _ProjectCraftTabBarDelegate extends SliverPersistentHeaderDelegate {
+class _ProjectCraftTabBar extends StatelessWidget {
   const new({
     required this.controller,
     required this.craftTypes,
@@ -376,63 +340,49 @@ class _ProjectCraftTabBarDelegate extends SliverPersistentHeaderDelegate {
   final TabController controller;
   final List<ProjectOption> craftTypes;
 
-  static const double height = 48;
-
   @override
-  double get minExtent => height;
-
-  @override
-  double get maxExtent => height;
-
-  @override
-  Widget build(
-    BuildContext context,
-    double shrinkOffset,
-    bool overlapsContent,
-  ) {
+  Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final swatches = theme.extension<BrandSwatchTheme>()!;
     final spacing = theme.extension<SpacingTheme>() ?? const SpacingTheme();
-    return ColoredBox(
-      color: swatches.paper,
-      child: Column(
-        children: [
-          Expanded(
-            child: TabBar(
-              controller: controller,
-              isScrollable: true,
-              tabAlignment: TabAlignment.start,
-              padding: EdgeInsets.symmetric(horizontal: spacing.sp2),
-              tabs: [
-                for (final option in craftTypes)
-                  Tab(
-                    child: CraftIconLabel(
-                      craft: option.value,
-                      label: option.label,
+    return SizedBox(
+      height: 48,
+      child: ColoredBox(
+        color: swatches.paper,
+        child: Column(
+          children: [
+            Expanded(
+              child: TabBar(
+                controller: controller,
+                isScrollable: true,
+                tabAlignment: TabAlignment.start,
+                padding: EdgeInsets.symmetric(horizontal: spacing.sp2),
+                tabs: [
+                  for (final option in craftTypes)
+                    Tab(
+                      child: CraftIconLabel(
+                        craft: option.value,
+                        label: option.label,
+                      ),
                     ),
-                  ),
-              ],
+                ],
+              ),
             ),
-          ),
-          const CraftskyDivider(),
-        ],
+            const CraftskyDivider(),
+          ],
+        ),
       ),
     );
   }
-
-  @override
-  bool shouldRebuild(covariant _ProjectCraftTabBarDelegate oldDelegate) {
-    return controller != oldDelegate.controller ||
-        craftTypes != oldDelegate.craftTypes;
-  }
 }
 
-class _ProjectTabScrollView extends ConsumerWidget {
+class _ProjectTabScrollView extends ConsumerStatefulWidget {
   const new({
     required this.craftType,
     required this.filters,
     required this.sort,
-    required this.onScrollOffsetChanged,
+    required this.controller,
+    required this.onRemoveFilter,
     required this.onClearFilters,
     super.key,
   });
@@ -440,52 +390,68 @@ class _ProjectTabScrollView extends ConsumerWidget {
   final String craftType;
   final ProjectBrowseFilters filters;
   final SearchSort sort;
-  final ValueChanged<double> onScrollOffsetChanged;
+  final ScrollController controller;
+  final void Function(ProjectBrowseFilterFamily family, String value)
+  onRemoveFilter;
   final VoidCallback onClearFilters;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_ProjectTabScrollView> createState() =>
+      _ProjectTabScrollViewState();
+}
+
+class _ProjectTabScrollViewState extends ConsumerState<_ProjectTabScrollView>
+    with AutomaticKeepAliveClientMixin<_ProjectTabScrollView> {
+  // Retain both the scroll position and the feed subscription while offscreen.
+  // A reload could otherwise clamp a deep offset to the loading skeleton.
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
     final query = ProjectBrowseQuery(
-      craftTypes: [craftType],
-      filters: filters,
-      sort: sort,
+      craftTypes: [widget.craftType],
+      filters: widget.filters,
+      sort: widget.sort,
     );
     final projectFeedAsync = ref.watch(projectFeedProvider(query));
-    return NotificationListener<ScrollNotification>(
-      onNotification: (notification) {
-        if (notification.metrics.axis == Axis.vertical) {
-          onScrollOffsetChanged(notification.metrics.pixels);
-        }
-        return false;
+    return YarnRefreshScrollView(
+      controller: widget.controller,
+      onRefresh: () async {
+        final _ = await ref.refresh(projectFeedProvider(query).future);
       },
-      child: YarnRefreshScrollView(
-        onRefresh: () async {
-          final _ = await ref.refresh(projectFeedProvider(query).future);
+      slivers: [
+        SliverToBoxAdapter(
+          child: _ActiveFilterChips(
+            craftType: widget.craftType,
+            filters: widget.filters,
+            onRemove: widget.onRemoveFilter,
+            onClear: widget.onClearFilters,
+          ),
+        ),
+        switch (projectFeedAsync) {
+          AsyncValue(:final value?) => _ProjectPostSlivers(
+            posts: value.items,
+            isLoadingMore: projectFeedAsync.isLoading,
+            hasLoadMoreError: projectFeedAsync.hasError,
+            hasActiveFilters: widget.filters.toQueryParameters().isNotEmpty,
+            onClearFilters: widget.onClearFilters,
+            onNearEnd: () =>
+                ref.read(projectFeedProvider(query).notifier).loadMore(),
+          ),
+          _ when projectFeedAsync.hasError => _ProjectErrorSliver(
+            onRetry: () => ref.invalidate(projectFeedProvider(query)),
+          ),
+          _ => CraftskySkeletonSliverList(
+            itemCount: 3,
+            itemBuilder: (context, index) => PostCardSkeleton(
+              showMedia: index == 0,
+            ),
+          ),
         },
-        slivers: [
-          switch (projectFeedAsync) {
-            AsyncValue(:final value?) => _ProjectPostSlivers(
-              posts: value.items,
-              isLoadingMore: projectFeedAsync.isLoading,
-              hasLoadMoreError: projectFeedAsync.hasError,
-              hasActiveFilters: filters.toQueryParameters().isNotEmpty,
-              onClearFilters: onClearFilters,
-              onNearEnd: () =>
-                  ref.read(projectFeedProvider(query).notifier).loadMore(),
-            ),
-            _ when projectFeedAsync.hasError => _ProjectErrorSliver(
-              onRetry: () => ref.invalidate(projectFeedProvider(query)),
-            ),
-            _ => CraftskySkeletonSliverList(
-              itemCount: 3,
-              itemBuilder: (context, index) => PostCardSkeleton(
-                showMedia: index == 0,
-              ),
-            ),
-          },
-        ],
-        scrollViewKey: PageStorageKey<String>('projects_tab_$craftType'),
-      ),
+      ],
+      scrollViewKey: PageStorageKey<String>('projects_tab_${widget.craftType}'),
     );
   }
 }
@@ -538,15 +504,21 @@ class _ProjectPostSlivers extends ConsumerWidget {
             did: post.author.did,
             rkey: post.rkey,
           ).push<void>(context),
-          onReply: () => unawaited(
-            showPostComposerSheet(context, replyTarget: post),
-          ),
+          onReply: () => PostThreadRoute(
+            did: post.author.did,
+            rkey: post.rkey,
+            showComments: true,
+          ).push<void>(context),
           onLike: () =>
               ref.read(toggleLikePostProvider.notifier).toggle(post: post),
           onRepost: () =>
               ref.read(toggleRepostPostProvider.notifier).toggle(post: post),
-          onQuote: () => unawaited(
-            showPostComposerSheet(context, quoteTarget: post),
+          onQuote: (imageIndex) => unawaited(
+            showPostComposerSheet(
+              context,
+              quoteTarget: post,
+              quoteImageIndex: imageIndex,
+            ),
           ),
           onDelete: viewerDid == post.author.did
               ? () => unawaited(_confirmProjectPostDelete(context, ref, post))

@@ -1,5 +1,6 @@
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/api/pds_mutation_contract.dart';
+import 'package:craftsky_app/shared/observability/diagnostic_details.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -61,11 +62,14 @@ void main() {
     expect(
       () => parsePdsMutationResponse<void>(response, accepted: (_) {}),
       throwsA(
-        isA<PdsMutationAmbiguousException>().having(
-          (error) => error.retryAfterSeconds,
-          'retryAfterSeconds',
-          3,
-        ),
+        isA<PdsMutationAmbiguousException>()
+            .having((error) => error.retryAfterSeconds, 'retryAfterSeconds', 3)
+            .having((error) => error.responsePending, 'responsePending', isTrue)
+            .having(
+              (error) => selectedCause(error)['message'],
+              'safe cause',
+              'AppView accepted mutation; PDS outcome pending',
+            ),
       ),
     );
   });

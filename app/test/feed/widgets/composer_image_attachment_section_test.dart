@@ -1,6 +1,9 @@
+import 'dart:typed_data';
+
 import 'package:craftsky_app/feed/providers/composer_image_state.dart';
 import 'package:craftsky_app/feed/widgets/composer_image_attachment_section.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
+import 'package:craftsky_app/shared/image/craftsky_image_attachment_preview.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
@@ -14,6 +17,211 @@ ComposerImageDraft _image(String id) => ComposerImageDraft(
 );
 
 void main() {
+  testWidgets(
+    'image editing AT-009: pending edit retains preview and '
+    'hides conflicting edit actions',
+    (tester) async {
+      final state = ValueNotifier(
+        ComposerImagesState(
+          hasImageEditsInFlight: true,
+          images: [
+            _image('1').copyWith(
+              phase: ImageReady(
+                bytes: Uint8List(0),
+                mimeType: 'image/png',
+                width: 10,
+                height: 10,
+                sha256: 'one',
+              ),
+            ),
+          ],
+        ),
+      );
+      addTearDown(state.dispose);
+      await _pump(tester, state, onEditImage: (_) async {});
+      expect(find.byType(CraftskyImageAttachmentPreview), findsOneWidget);
+      expect(find.byKey(const Key('composer-edit-image-1')), findsNothing);
+      expect(
+        tester
+            .widget<TextButton>(find.byKey(const Key('composer-clear-images')))
+            .onPressed,
+        isNull,
+      );
+    },
+  );
+
+  testWidgets(
+    'image editing UT-001: reference and unavailable photos cannot edit',
+    (tester) async {
+      final state = ValueNotifier(
+        ComposerImagesState(
+          images: [
+            _image('missing'),
+            _image('remote').copyWith(
+              phase: const PublishedImageReady(
+                existingIndex: 0,
+                url: 'https://cdn.example/image.jpg',
+              ),
+            ),
+          ],
+        ),
+      );
+      addTearDown(state.dispose);
+      await _pump(tester, state, onEditImage: (_) async {});
+      expect(
+        find.byKey(const Key('composer-edit-image-missing')),
+        findsNothing,
+      );
+      expect(find.byKey(const Key('composer-edit-image-remote')), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'image editing AT-001: overview has no edit overlays; '
+    'details Edit selects the stable image',
+    (tester) async {
+      final state = ValueNotifier(
+        ComposerImagesState(
+          images: [
+            _image('1').copyWith(
+              phase: ImageReady(
+                bytes: Uint8List(0),
+                mimeType: 'image/png',
+                width: 10,
+                height: 10,
+                sha256: 'one',
+              ),
+            ),
+            _image('2').copyWith(
+              phase: ImageReady(
+                bytes: Uint8List(0),
+                mimeType: 'image/png',
+                width: 10,
+                height: 10,
+                sha256: 'two',
+              ),
+            ),
+          ],
+        ),
+      );
+      addTearDown(state.dispose);
+      String? selected;
+      await _pump(
+        tester,
+        state,
+        onEditImage: (id) async {
+          selected = id;
+        },
+      );
+      expect(selected, isNull);
+      expect(find.byKey(const Key('composer-edit-image-1')), findsNothing);
+      expect(find.byKey(const Key('composer-edit-image-2')), findsNothing);
+      await tester.tap(find.byKey(const Key('composer-edit-images')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('composer-photo-details')), findsOneWidget);
+      await tester.ensureVisible(
+        find.byKey(const Key('composer-edit-image-2')),
+      );
+      await tester.tap(find.byKey(const Key('composer-edit-image-2')));
+      await tester.pumpAndSettle();
+      expect(selected, '2');
+      expect(find.byKey(const Key('composer-photo-details')), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'UT-001 retained published images show their current URL in summary and '
+    'details',
+    (tester) async {
+      final state = ValueNotifier(
+        ComposerImagesState(
+          images: [
+            _image('retained').copyWith(
+              phase: const PublishedImageReady(
+                existingIndex: 0,
+                url: 'https://cdn.example/published.jpg',
+              ),
+            ),
+          ],
+        ),
+      );
+      addTearDown(state.dispose);
+      await _pump(tester, state);
+      expect(
+        tester
+            .widget<CraftskyImageAttachmentPreview>(
+              find.byType(CraftskyImageAttachmentPreview).first,
+            )
+            .imageUrl,
+        'https://cdn.example/published.jpg',
+      );
+      await tester.tap(find.byKey(const Key('composer-edit-images')));
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .widget<CraftskyImageAttachmentPreview>(
+              find.byType(CraftskyImageAttachmentPreview).last,
+            )
+            .imageUrl,
+        'https://cdn.example/published.jpg',
+      );
+    },
+  );
+  for (final useDetailsRoute in [true, false]) {
+    for (final composing in [true, false]) {
+      testWidgets('rapid mid-sentence edits preserve editing value '
+          '(details: $useDetailsRoute, composing: $composing)', (tester) async {
+        const original = 'The corner increase. The perspective is askew.';
+        final state = ValueNotifier(
+          ComposerImagesState(
+            images: [
+              _image('1').copyWith(altText: original),
+              _image('2'),
+              _image('3'),
+            ],
+          ),
+        );
+        addTearDown(state.dispose);
+        await _pump(tester, state, useDetailsRoute: useDetailsRoute);
+        if (useDetailsRoute) {
+          await tester.tap(find.byKey(const Key('composer-edit-images')));
+        }
+        await tester.pumpAndSettle();
+        final alt = find.byKey(const Key('composer-alt-1'));
+        await tester.ensureVisible(alt);
+        await tester.showKeyboard(alt);
+        final editable = find.descendant(
+          of: alt,
+          matching: find.byType(EditableText),
+        );
+        TextEditingValue currentValue() =>
+            tester.widget<EditableText>(editable).controller.value;
+        const insertionOffset = 19;
+        var text = original;
+        const insertion = ', not folded in half';
+        for (var i = 0; i < insertion.length; i++) {
+          final offset = insertionOffset + i;
+          text = text.replaceRange(offset, offset, insertion[i]);
+          final edit = TextEditingValue(
+            text: text,
+            selection: TextSelection.collapsed(offset: offset + 1),
+            composing: composing
+                ? TextRange(start: insertionOffset, end: offset + 1)
+                : TextRange.empty,
+          );
+          tester.testTextInput.updateEditingValue(edit);
+          // Render a frame without waiting for the list's async diff.
+          await tester.pump();
+          expect(currentValue(), edit, reason: 'After keystroke $i');
+        }
+        final expected = currentValue();
+        await tester.pumpAndSettle();
+        expect(currentValue(), expected);
+        expect(state.value.images.first.altText, text);
+      });
+    }
+  }
+
   testWidgets(
     'selection opens details; edits persist in the thumbnail summary',
     (
@@ -133,7 +341,9 @@ Future<void> _pump(
   ValueNotifier<ComposerImagesState> state, {
   int maxImages = 4,
   bool cancelSelection = false,
+  Future<void> Function(String)? onEditImage,
   bool enabled = true,
+  bool useDetailsRoute = true,
 }) => tester.pumpWidget(
   MaterialApp(
     theme: AppTheme.lightThemeData,
@@ -144,8 +354,9 @@ Future<void> _pump(
         child: ValueListenableBuilder(
           valueListenable: state,
           builder: (context, images, _) => ComposerImageAttachmentSection(
-            useDetailsRoute: true,
+            useDetailsRoute: useDetailsRoute,
             imagesState: images,
+            onEditImage: onEditImage,
             enabled: enabled,
             maxImages: maxImages,
             cameraSupported: false,

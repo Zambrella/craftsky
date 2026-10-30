@@ -28,6 +28,7 @@ CREATE TABLE craftsky_profiles (
     created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE TABLE bluesky_profiles (
+ links JSONB NOT NULL DEFAULT '[]',
     did          TEXT        NOT NULL PRIMARY KEY,
     display_name TEXT,
     description  TEXT,
@@ -39,6 +40,8 @@ CREATE TABLE bluesky_profiles (
     record_cid   TEXT        NOT NULL,
     indexed_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+CREATE TABLE bluesky_profile_links (uri TEXT PRIMARY KEY,did TEXT NOT NULL,cid TEXT NOT NULL,record JSONB NOT NULL,indexed_at TIMESTAMPTZ DEFAULT now());
+CREATE TABLE image_subject_states (subject_uri TEXT PRIMARY KEY,visibility_state TEXT NOT NULL);
 CREATE TABLE tap_source_records (
     uri        TEXT PRIMARY KEY,
     rkey       TEXT        NOT NULL,
@@ -180,8 +183,8 @@ func TestProfileStore_ReadByDID_ProfileSummaryCountsRootPosts(t *testing.T) {
 	if got.PostCount == nil || *got.PostCount != 2 {
 		t.Fatalf("postCount = %v, want 2 non-project root posts", got.PostCount)
 	}
-	if got.PostsLast7Days == nil || *got.PostsLast7Days != 1 {
-		t.Fatalf("postsLast7Days = %v, want 1 recent non-project root post", got.PostsLast7Days)
+	if got.PostsLast7Days == nil || *got.PostsLast7Days != 2 {
+		t.Fatalf("postsLast7Days = %v, want 2 recent root posts including projects", got.PostsLast7Days)
 	}
 	if got.ProjectCount == nil || *got.ProjectCount != 1 {
 		t.Fatalf("projectCount = %v, want one visible top-level project", got.ProjectCount)

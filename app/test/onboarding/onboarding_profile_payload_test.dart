@@ -6,6 +6,7 @@ import 'package:craftsky_app/onboarding/data/onboarding_profile_payload.dart';
 import 'package:craftsky_app/onboarding/models/onboarding_flow_state.dart';
 import 'package:craftsky_app/onboarding/providers/onboarding_flow_provider.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
+import 'package:craftsky_app/profile/models/profile_link.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/shared/api/pds_mutation_contract.dart';
 import 'package:craftsky_app/shared/media/uploaded_image_blob.dart';
@@ -49,6 +50,141 @@ final class _Update {
 }
 
 void main() {
+  test(
+    'onboarding links retain failed drafts and survive later steps',
+    () async {
+      const original = ProfileLink(
+        url: 'https://old.example/',
+        title: 'Old',
+        uri: 'at://did:plc:alice/app.bsky.actor.link/3m5abc2345672',
+        cid: 'old-cid',
+        createdAt: '2026-10-27T12:00:00Z',
+      );
+      const retained = ProfileLink(
+        url: 'https://kept.example/',
+        title: 'Kept',
+        uri: 'at://did:plc:alice/app.bsky.actor.link/3m5abc2345673',
+        cid: 'kept-cid',
+        createdAt: '2026-10-27T12:00:00Z',
+      );
+      const added = ProfileLink(
+        url: 'https://new.example/',
+        title: 'New',
+        rkey: '3m5abc2345674',
+        createdAt: '2026-10-30T12:00:00Z',
+      );
+      final profile = _fullProfile().copyWith(
+        links: const [original, retained],
+        editableLinks: const [original, retained],
+      );
+      late FakeProfileRepository repository;
+      var calls = 0;
+      var stored = profile;
+      final harness = _flowHarness(
+        profile,
+        onRepository: (value) => repository = value,
+        onUpdate:
+            ({
+              displayName,
+              pronouns,
+              description,
+              crafts,
+              avatar,
+              clearAvatar = false,
+              banner,
+              clearBanner = false,
+            }) async {
+              calls++;
+              if (calls == 1) throw StateError('offline');
+              return stored = stored.copyWith(
+                links: repository.lastUpdatedLinks ?? stored.links,
+                editableLinks:
+                    repository.lastUpdatedLinks ?? stored.editingLinks,
+              );
+            },
+      );
+      addTearDown(harness.container.dispose);
+      final subscription = harness.container.listen(
+        harness.provider,
+        (_, _) {},
+      );
+      addTearDown(subscription.close);
+      await _waitForPrefill(harness);
+      expect(
+        harness.container.read(harness.provider).requireValue.identity.links,
+        [original, retained],
+      );
+      expect(
+        OnboardingProfilePayload.fromState(
+          harness.container.read(harness.provider).requireValue,
+        ).links,
+        isNull,
+      );
+      final edited = [added, retained.copyWith(title: 'Updated')];
+      final notifier = harness.container.read(harness.provider.notifier)
+        ..updateIdentity(links: edited);
+      expect(
+        harness.container.read(harness.provider).requireValue.identityDirty,
+        isTrue,
+      );
+      await notifier.saveAndNext();
+      expect(
+        harness.container.read(harness.provider).requireValue.step,
+        OnboardingStep.profile,
+      );
+      expect(
+        harness.container.read(harness.provider).requireValue.identity.links,
+        edited,
+      );
+      expect(repository.lastUpdatedLinks, edited);
+      expect(repository.lastRemovedLinks, [original]);
+      await notifier.saveAndNext();
+      expect(
+        harness.container.read(harness.provider).requireValue.step,
+        OnboardingStep.crafts,
+      );
+      expect(
+        harness.container.read(harness.provider).requireValue.identity.links,
+        edited,
+      );
+      notifier.previous();
+      expect(
+        harness.container.read(harness.provider).requireValue.linksDirty,
+        isFalse,
+      );
+      notifier
+        ..next()
+        ..toggleCraft('quilting');
+      await notifier.saveAndNext();
+      expect(repository.lastUpdatedLinks, isNull);
+      expect(repository.lastRemovedLinks, isNull);
+      expect(
+        harness.container.read(harness.provider).requireValue.identity.links,
+        edited,
+      );
+    },
+  );
+
+  test(
+    'clearing the onboarding links sends an empty list and explicit removals',
+    () {
+      const link = ProfileLink(
+        url: 'https://example.com/',
+        uri: 'at://did:plc:alice/app.bsky.actor.link/3m5abc2345672',
+        cid: 'cid',
+      );
+      final initial = OnboardingFlowState.fromProfile(
+        _fullProfile().copyWith(editableLinks: const [link]),
+      );
+      final edited = initial.copyWith(
+        identity: initial.identity.copyWith(links: []),
+      );
+      final payload = OnboardingProfilePayload.fromState(edited);
+      expect(payload.links, isEmpty);
+      expect(payload.removedLinks, [link]);
+    },
+  );
+
   test('AT-017 identity-only save sends the preserved full snapshot', () async {
     final profile = _fullProfile();
     _Update? sent;
@@ -204,6 +340,8 @@ void main() {
                 pronouns: pronouns,
                 description: description,
                 crafts: crafts,
+                links: repository.lastUpdatedLinks,
+                editableLinks: repository.lastUpdatedLinks,
               );
             },
       );
@@ -215,8 +353,21 @@ void main() {
       addTearDown(subscription.close);
       await _waitForPrefill(harness);
 
+      const link = ProfileLink(
+        url: 'https://retry.example/',
+        rkey: '3m5abc2345675',
+        createdAt: '2026-10-30T12:00:00Z',
+      );
+      harness.container
+          .read(harness.provider.notifier)
+          .updateIdentity(links: const [link]);
       await harness.container.read(harness.provider.notifier).saveAndNext();
 
+      expect(repository.lastUpdatedLinks, [link]);
+      expect(
+        harness.container.read(harness.provider).requireValue.identity.links,
+        [link],
+      );
       expect(repository.updateOperationKeys, hasLength(2));
       expect(repository.updateOperationKeys.toSet(), hasLength(1));
       expect(
@@ -233,6 +384,30 @@ void main() {
       );
     },
   );
+
+  test('craft order alone is dirty and payloads retain the intended order', () {
+    final profile = _fullProfile().copyWith(
+      crafts: ['knitting', 'future-craft', 'sewing'],
+    );
+    final initial = OnboardingFlowState.fromProfile(profile);
+    expect(initial.craftsDirty, isFalse);
+    // Saving identity must preserve the full existing array verbatim.
+    expect(OnboardingProfilePayload.fromState(initial).crafts, [
+      'knitting',
+      'future-craft',
+      'sewing',
+    ]);
+    final reordered = initial.copyWith(
+      step: OnboardingStep.crafts,
+      selectedCraftIds: {'sewing', 'knitting'},
+    );
+    expect(reordered.craftsDirty, isTrue);
+    expect(OnboardingProfilePayload.fromState(reordered).crafts, [
+      'sewing',
+      'knitting',
+      'future-craft',
+    ]);
+  });
 
   test('step payloads preserve fields owned by the other step', () {
     final profile = Profile(

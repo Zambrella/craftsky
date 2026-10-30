@@ -241,7 +241,6 @@ Project _preserveProjectExtensions(Project project, Project? existing) {
                   },
                 ),
             ],
-      duration: common.duration ?? original.duration,
       pattern: preservedPattern,
       tags: common.tags ?? original.tags,
     ),

@@ -89,8 +89,8 @@ class _EditableAvatar extends StatelessWidget {
       children: [
         avatar,
         Container(
-          width: 96,
-          height: 96,
+          width: ProfileAvatarSize.large.outerDimension,
+          height: ProfileAvatarSize.large.outerDimension,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             color: Colors.black.withValues(alpha: 0.36),

@@ -72,7 +72,11 @@ func WithMigratedSchema(t *testing.T) *pgxpool.Pool {
 	if err := requirePostgreSQL16(ctx, pool); err != nil {
 		t.Fatal(err)
 	}
-	if err := ApplyAllUpMigrations(ctx, pool); err != nil {
+	cancel()
+	// The complete migration history is fixture setup, not one database
+	// operation. Bound each migration so checkpoint I/O cannot consume a
+	// shared deadline and randomly cancel a later, otherwise healthy file.
+	if err := applyUpMigrationsWithTimeout(t.Context(), pool, setupTimeout); err != nil {
 		t.Fatalf("apply exact production migrations: %v", err)
 	}
 	return pool

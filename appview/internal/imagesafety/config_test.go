@@ -63,3 +63,27 @@ func TestConfigReadinessRejectsUnsafeScannerModes(t *testing.T) {
 		})
 	}
 }
+
+func TestDevelopmentApprovalCapabilityRequiresValidatedConfiguration(t *testing.T) {
+	config := Config{Environment: EnvironmentDevelopment, Mode: ScannerModeDevelopmentAutoApprove,
+		ScannerID: DevelopmentApprovalScannerID, PolicyVersion: DevelopmentApprovalPolicyVersion, CorpusVersion: DevelopmentApprovalCorpusVersion}
+	key := config.ProjectionKey()
+	if !config.Ready() || !key.AutoApprovesDevelopmentImages() || config.AutomatedReady() {
+		t.Fatal("development approval must be ready without claiming automated detection")
+	}
+	reconstructed := ScanKey{ScannerID: key.ScannerID, PolicyVersion: key.PolicyVersion, CorpusVersion: key.CorpusVersion}
+	if reconstructed.AutoApprovesDevelopmentImages() {
+		t.Fatal("stored scan identity must not grant an approval capability")
+	}
+	for _, environment := range []Environment{EnvironmentProduction, "unknown"} {
+		invalid := config
+		invalid.Environment = environment
+		if invalid.Ready() || invalid.ProjectionKey().AutoApprovesDevelopmentImages() {
+			t.Fatalf("accepted %s", environment)
+		}
+	}
+	key.ScannerID = "manual-moderation"
+	if key.AutoApprovesDevelopmentImages() {
+		t.Fatal("approval capability must not apply to another scan identity")
+	}
+}

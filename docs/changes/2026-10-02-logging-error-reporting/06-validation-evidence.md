@@ -318,3 +318,24 @@ IR-003 / UT-013 / FR-010, NFR-002 / AC-013:
 
 
 Follow-up validation completed: shared Flutter API/error/observability suites passed 168 tests with one existing skip; `flutter analyze --no-pub` reported no issues. The complete `GOFLAGS='-p=1' ./scripts/appview-check` gate passed with 6,223 integration cases and 6,223 race cases, zero test skips, plus module/codegen/vet/Staticcheck, source/binary vulnerability checks, Docker builds, migration-failure checks, media-memory checks and service smoke checks. The real login regression also captures Indigo's process logger through the production diagnostic filter, verifying provider descriptions remain excluded. The fixture resides in the existing approved auth diagnostic test file; the Sentry import policy is unchanged. Transcript: `/tmp/craftsky-recurrence-gate-final.log`; artifacts: `/tmp/craftsky-recurrence-gate-final/`. Pinned Tap handshake passed; deterministic event injection remains unavailable in Tap v0.1.10. `git diff --check` passed. No device run, deployment or live recurrence delivery is implied by these local checks.
+
+
+## iOS console readability (2026-10-28)
+
+- The default platform sink pretty-prints protected JSON and wraps physical lines at 800 UTF-8 bytes without a total stack limit. Tests capture the actual print boundary, retain all 242 stack entries and async gaps, preserve long Unicode values, and exclude credential, local-path and private-exception canaries.
+- Structural framework summaries identify missing Overlay, off-screen floating SnackBar and inactive render-object failures without exporting widget dumps or arbitrary exception prose. Rendering fallback no longer duplicates the framework callback log.
+- Observability suite: 107 passed, one existing skip (`/tmp/craftsky-log-tests.log`). Final focused adapter, product AOT and handler suite: 11 passed (`/tmp/craftsky-log-final-tests.log`). Product AOT output retains all 240 fixture frames on short lines. Static analysis of all changed Dart files: no issues found. Profile Hero suite: 13 passed; no animation code changed.
+- Connected iOS app hot restart succeeded; runtime-error buffer was empty immediately afterward. The original click sequence has not been reproduced, and attached-device error-console retrieval after reproduction, Android/web checks, release-device retrieval and production deployment remain unverified. This change improves diagnostics; it does not claim to repair the underlying UI failure.
+
+### 28 October 2026: current-release Sentry triage
+
+See [the triage record](../../development/sentry-triage-2026-10-28.md) for the live release inventory, per-issue evidence and recurrence-diagnostic changes. Serialized diagnostic tests retain safe transport/callback/provider facts and exclude protected-value canaries. Device reproduction, native hang breadcrumb delivery, native symbolication, live recurrence after a release, and Firebase delivery were not verified. No deployment was performed.
+
+### 29 October 2026: expired account-deletion retry
+
+- Reproduced FLUTTER-APP-2W locally: a persisted expired intent blocked staging a fresh server-issued intent. The regression failed at the same registry guard and controller start boundary before the fix. Expired local intents can now be replaced after server intent creation; live-intent and active-session fencing remain enforced.
+- Reauthentication failures identify session/client lookup, intent creation, local staging, state invalidation and browser launch. Best-effort rollback failures retain their original causes in supporting logs. Riverpod remains the only issue owner, with the initiating account and existing job UUID selected through private operational failure context; existing API status/code/request correlation is retained.
+- Serialized local and Sentry tests retain cause/stack, stage, account/job and request references, emit exactly one issue for a staging failure with a failed rollback, and exclude credential, OAuth URL/state, response and rollback-payload canaries.
+- Focused registry, settings, account-boundary and diagnostic suites: 130 passed, four existing skips (`/tmp/craftsky-deletion-focused.log`). Flutter analysis: no issues (`/tmp/craftsky-deletion-analysis.log`). The required `just test` attempt could not start because this worktree's local Postgres service is not running (`/tmp/craftsky-deletion-go.log`); no Go code changed.
+- Full Flutter suite: 3,509 passed, 38 existing skips (`/tmp/craftsky-deletion-full.log`), after preparing the checkout-local Rive host runtime. `git diff --check` passed.
+- Physical iOS/Android/web reproduction, updated client release, production log/Sentry delivery and post-release recurrence remain unverified. No production faults were injected and no deployment or Sentry issue-state change was performed.

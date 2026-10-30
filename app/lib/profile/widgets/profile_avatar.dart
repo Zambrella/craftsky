@@ -5,7 +5,7 @@ import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
-/// Circular paper-cutout avatar with the selected custom inside border and
+/// Circular paper-cutout avatar with the selected custom outside border and
 /// hard-offset drop shadow that are signature to the design system.
 /// Reused on profile headers, post cards, comments, search results —
 /// anywhere we render someone's face.
@@ -55,8 +55,8 @@ class ProfileAvatar extends ConsumerWidget {
     );
 
     return SizedBox(
-      width: dimension,
-      height: dimension,
+      width: size.outerDimension,
+      height: size.outerDimension,
       child: Stack(
         fit: StackFit.expand,
         children: [
@@ -68,31 +68,34 @@ class ProfileAvatar extends ConsumerWidget {
               boxShadow: showShadow ? size.shadowsFrom(shadows) : const [],
             ),
           ),
-          ClipOval(
-            child: imageProvider != null
-                ? Image(
-                    image: imageProvider!,
-                    fit: BoxFit.cover,
-                    width: dimension,
-                    height: dimension,
-                  )
-                : avatarUrl == null
-                ? fallback
-                : CachedNetworkImage(
-                    imageUrl: avatarUrl!,
-                    cacheManager: ref.watch(profileImageCacheManagerProvider),
-                    fit: BoxFit.cover,
-                    width: dimension,
-                    height: dimension,
-                    placeholder: (_, _) => fallback,
-                    errorWidget: (_, _, _) => fallback,
-                    // Quick cross-fade instead of the 500ms default —
-                    // CachedNetworkImage always remounts in the placeholder
-                    // state (even on a disk-cache hit), so a slow fade makes
-                    // every revisit feel laggy.
-                    fadeInDuration: const Duration(milliseconds: 150),
-                    fadeOutDuration: const Duration(milliseconds: 150),
-                  ),
+          Padding(
+            padding: EdgeInsets.all(borderWidth),
+            child: ClipOval(
+              child: imageProvider != null
+                  ? Image(
+                      image: imageProvider!,
+                      fit: BoxFit.cover,
+                      width: dimension,
+                      height: dimension,
+                    )
+                  : avatarUrl == null
+                  ? fallback
+                  : CachedNetworkImage(
+                      imageUrl: avatarUrl!,
+                      cacheManager: ref.watch(profileImageCacheManagerProvider),
+                      fit: BoxFit.cover,
+                      width: dimension,
+                      height: dimension,
+                      placeholder: (_, _) => fallback,
+                      errorWidget: (_, _, _) => fallback,
+                      // Quick cross-fade instead of the 500ms default —
+                      // CachedNetworkImage always remounts in the placeholder
+                      // state (even on a disk-cache hit), so a slow fade makes
+                      // every revisit feel laggy.
+                      fadeInDuration: const Duration(milliseconds: 150),
+                      fadeOutDuration: const Duration(milliseconds: 150),
+                    ),
+            ),
           ),
           IgnorePointer(
             child: Container(
@@ -112,9 +115,8 @@ class ProfileAvatar extends ConsumerWidget {
   }
 }
 
-Color _colourFromHex(String hex) => Color(
-  int.parse(hex.substring(1), radix: 16) | 0xFF000000,
-);
+Color _colourFromHex(String hex) =>
+    Color(int.parse(hex.substring(1), radix: 16) | 0xFF000000);
 
 Color _fallbackBackgroundFor(String seed, BrandSwatchTheme swatches) {
   final trimmed = seed.trim();
@@ -154,10 +156,8 @@ class _AvatarInitialFallback extends StatelessWidget {
       alignment: Alignment.center,
       child: Text(
         initial,
-        style: Theme.of(context).textTheme.displaySmall?.copyWith(
-          fontSize: dimension * 0.5,
-          color: foregroundColor,
-        ),
+        style: Theme.of(context).textTheme.displaySmall
+            ?.copyWith(fontSize: dimension * 0.5, color: foregroundColor),
       ),
     );
   }
@@ -173,6 +173,10 @@ enum ProfileAvatarSize {
   new({required this.dimension});
 
   final double dimension;
+
+  /// Layout includes the ring so it cannot overlap neighbouring content.
+  /// [dimension] remains the diameter of the unobscured photo.
+  double get outerDimension => dimension + 2 * borderWidth;
 
   double get borderWidth => switch (this) {
     ProfileAvatarSize.small => 2.5,

@@ -12,7 +12,6 @@ import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/pages/profile_page.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/profile/widgets/follow_reaction.dart';
-import 'package:craftsky_app/profile/widgets/profile_route_presentation.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -265,7 +264,7 @@ void main() {
     container.dispose();
     await tester.pump();
   });
-  for (final surface in ['profile', 'compact', 'notification']) {
+  for (final surface in ['profile', 'notification']) {
     testWidgets(
       '$surface follows through the repository and celebrates on avatar',
       (tester) async {
@@ -287,10 +286,6 @@ void main() {
         );
         final child = switch (surface) {
           'profile' => ProfilePage(did: profile.did),
-          'compact' => ProfileRoutePresentation(
-            did: profile.did,
-            startsCompact: true,
-          ),
           _ => NotificationRow(
             notification: CraftskyNotification.fromMap({
               'uri': 'at://did:plc:alice/app.bsky.graph.follow/example',

@@ -23,10 +23,13 @@ import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/models/profile_relationship.dart';
 import 'package:craftsky_app/profile/providers/profile_relationship_provider.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
+import 'package:craftsky_app/profile/providers/toggle_follow_profile_provider.dart';
+import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
+import 'package:craftsky_app/shared/widgets/craft_icon.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/shared/widgets/post_summary.dart';
 import 'package:craftsky_app/shared/widgets/sort_menu_button.dart';
@@ -44,6 +47,8 @@ import '../fakes/recording_messenger.dart';
 import '../feed/fakes/fake_post_repository.dart';
 import '../profile/fakes/fake_profile_repository.dart';
 import '../test_support/deterministic_pump.dart';
+
+import '../test_support/notification_text.dart';
 
 void main() {
   setUpAll(initializeMappers);
@@ -161,7 +166,7 @@ void main() {
         );
         await tester.pumpAndSettle();
         await tester.tap(
-          find.text(
+          notificationText(
             systemNotification
                 ? 'Open system notification'
                 : 'Alice replied to your comment',
@@ -229,7 +234,7 @@ void main() {
         find.text('No notifications in this category yet.'),
         findsOneWidget,
       );
-      expect(find.text('Alice followed you'), findsNothing);
+      expect(notificationText('Alice followed you'), findsNothing);
       await tester.drag(find.byType(CustomScrollView), const Offset(0, 400));
       await tester.pumpAndSettle();
       expect(repo.calls.last.category, NotificationCategory.mention);
@@ -241,7 +246,7 @@ void main() {
         NotificationCategory.mention,
         null,
       ]);
-      expect(find.text('Alice followed you'), findsOneWidget);
+      expect(notificationText('Alice followed you'), findsOneWidget);
     },
   );
 
@@ -283,7 +288,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Mentions'));
     await tester.pump(const Duration(milliseconds: 400));
-    expect(find.text('Alice followed you'), findsNothing);
+    expect(notificationText('Alice followed you'), findsNothing);
     expect(find.byType(CraftskySkeletonSliverList), findsOneWidget);
     pending.complete(const NotificationPage(items: []));
     await tester.pumpAndSettle();
@@ -400,7 +405,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(repo.calls.map((call) => call.cursor), [null, null]);
-    expect(find.text('Alice followed you'), findsOneWidget);
+    expect(notificationText('Alice followed you'), findsOneWidget);
   });
 
   testWidgets('renders empty state and mixed rows', (tester) async {
@@ -425,12 +430,16 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    expect(find.text('Alice followed you'), findsOneWidget);
-    expect(find.text('Alice liked your post'), findsOneWidget);
-    expect(find.text('Alice reposted your post'), findsOneWidget);
-    expect(find.text('Alice commented on your post'), findsOneWidget);
-    expect(find.text('viewer post'), findsNWidgets(3));
-    expect(find.text('alice.craftsky.social followed you'), findsOneWidget);
+    expect(notificationText('Alice followed you'), findsOneWidget);
+    expect(notificationText('Alice liked your post'), findsOneWidget);
+    expect(notificationText('Alice reposted your post'), findsOneWidget);
+    expect(notificationText('Alice commented on your post'), findsOneWidget);
+    expect(find.text('viewer post'), findsNWidgets(2));
+    expect(find.text('new reply text'), findsOneWidget);
+    expect(
+      notificationText('alice.craftsky.social followed you'),
+      findsOneWidget,
+    );
     final customisedAvatars = tester
         .widgetList<ProfileAvatar>(find.byType(ProfileAvatar))
         .where((avatar) => avatar.customisation.colour == 'rose')
@@ -504,12 +513,12 @@ void main() {
       'Alice replied to your comment',
       'Alice replied to your reply',
     ]) {
-      expect(find.text(text), findsOneWidget, reason: text);
+      expect(notificationText(text), findsOneWidget, reason: text);
     }
   });
 
   testWidgets(
-    'UT-018 rows show actor avatars, action icons, and relative time',
+    'UT-018 rows show actor avatars, action icons, and compact dates',
     (tester) async {
       tester.view.physicalSize = const Size(800, 1400);
       tester.view.devicePixelRatio = 1;
@@ -543,7 +552,7 @@ void main() {
       expect(find.byType(ProfileAvatar), findsNWidgets(8));
       expect(find.text('Follow'), findsNWidgets(2));
       expect(
-        find.text('You found Alice through your Instagram following'),
+        notificationText('You found Alice through your Instagram following'),
         findsOneWidget,
       );
       expect(
@@ -553,44 +562,132 @@ void main() {
         'https://cdn.example/avatar/alice.jpg',
       );
       for (final icon in [
-        CraftskyIcons.follow,
-        CraftskyIcons.like,
-        CraftskyIcons.repost,
-        CraftskyIcons.comment,
-        CraftskyIcons.mention,
-        CraftskyIcons.quote,
-        CraftskyIcons.findPeople,
-        CraftskyIcons.notification,
+        CraftskyIconsFill.follow,
+        CraftskyIconsFill.like,
+        CraftskyIconsFill.repost,
+        CraftskyIconsFill.comment,
+        CraftskyIconsFill.mention,
+        CraftskyIconsFill.quote,
+        CraftskyIconsFill.findPeople,
+        CraftskyIconsFill.notification,
       ]) {
         expect(find.byIcon(icon), findsOneWidget, reason: '$icon');
       }
 
-      final actorText = find.byWidgetPredicate(
-        (widget) =>
-            widget is Text &&
-            widget.textSpan?.toPlainText().startsWith('Alice ') == true,
+      final actorText = find.text('Alice');
+      expect(actorText, findsNWidgets(8));
+      expect(
+        tester.widget<Text>(actorText.first).style?.fontWeight,
+        FontWeight.w600,
       );
-      expect(actorText, findsWidgets);
-      final actorSpan =
-          tester.widget<Text>(actorText.first).textSpan! as TextSpan;
-      final boldActor = actorSpan.children!.whereType<TextSpan>().firstWhere(
-        (span) => span.text == 'Alice',
-      );
-      expect(boldActor.style?.fontWeight, FontWeight.w600);
       expect(
         tester.getTopLeft(find.byType(ProfileAvatar).first).dy,
-        lessThan(tester.getTopLeft(actorText.first).dy),
+        equals(tester.getTopLeft(actorText.first).dy),
       );
 
-      final createdAt = DateTime.parse('2026-05-28T13:00:00Z');
-      final elapsedDays = DateTime.now().difference(createdAt).inDays;
-      expect(find.text('${elapsedDays}d'), findsNWidgets(8));
+      expect(find.text('28 May 26'), findsNWidgets(8));
       expect(
         tester
             .widgetList<Tooltip>(find.byType(Tooltip))
             .every((tooltip) => tooltip.message?.contains('2026') ?? false),
         isTrue,
       );
+    },
+  );
+
+  for (final scale in [1.0, 2.0]) {
+    testWidgets('notification shows one actor sentence at text scale $scale', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _TestApp(
+          home: Scaffold(
+            body: Center(
+              child: MediaQuery(
+                data: MediaQueryData(textScaler: TextScaler.linear(scale)),
+                child: SizedBox(
+                  width: 360,
+                  child: NotificationRow(
+                    notification: _follow(
+                      'unified-identity',
+                      crafts: const ['knitting', 'crochet', 'sewing'],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(notificationText('Alice followed you'), findsOneWidget);
+      expect(find.text('Alice'), findsOneWidget);
+      expect(find.text('@alice.craftsky.social'), findsNothing);
+      expect(find.byType(CraftIcon), findsNothing);
+      final title = tester.getRect(notificationText('Alice followed you'));
+      final avatar = tester.getRect(find.byType(ProfileAvatar));
+      final badge = tester.getRect(find.byIcon(CraftskyIconsFill.follow));
+      expect(avatar.right, lessThan(title.left));
+      expect(title.top, avatar.top);
+      expect(avatar.overlaps(badge), isTrue);
+      expect(badge.center.dx, greaterThan(avatar.center.dx));
+      expect(badge.center.dy, greaterThan(avatar.center.dy));
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  testWidgets('notification avatar opens the actor profile', (tester) async {
+    GoRouterState? openedProfile;
+    final router = GoRouter(
+      routes: [
+        GoRoute(
+          path: '/',
+          builder: (_, _) => Scaffold(
+            body: NotificationRow(notification: _like('identity-tap')),
+          ),
+        ),
+        GoRoute(
+          path: '/profiles/:did',
+          builder: (_, state) {
+            openedProfile = state;
+            return const Scaffold(body: Text('Actor profile'));
+          },
+        ),
+      ],
+    );
+    addTearDown(router.dispose);
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp.router(
+          theme: AppTheme.lightThemeData,
+          localizationsDelegates: appLocalizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          routerConfig: router,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(ProfileAvatar));
+    await tester.pumpAndSettle();
+    expect(openedProfile?.pathParameters['did'], 'did:plc:alice');
+  });
+
+  testWidgets(
+    'unavailable notifications do not show a profile handle or crafts',
+    (tester) async {
+      await tester.pumpWidget(
+        _TestApp(
+          home: Scaffold(
+            body: NotificationRow(
+              notification: _unavailable('unavailable-identity'),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byType(CraftIcon), findsNothing);
+      expect(find.text('@alice.craftsky.social'), findsNothing);
+      expect(tester.takeException(), isNull);
     },
   );
 
@@ -619,9 +716,137 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(PostSummary), findsNWidgets(5));
-    expect(find.text('viewer post'), findsNWidgets(5));
+    expect(find.text('viewer post'), findsNWidgets(4));
+    expect(find.text('new reply text'), findsOneWidget);
     expect(find.byIcon(CraftskyIcons.saved), findsNothing);
     expect(find.byIcon(CraftskyIconsBold.unsaved), findsNothing);
+  });
+
+  testWidgets(
+    'text previews show project titles and quote context without media',
+    (tester) async {
+      tester.view.physicalSize = const Size(1000, 1600);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      final quote = CraftskyNotification.fromMap({
+        ..._baseNotification('quote', 'quote-preview'),
+        'subjectPost': _post(),
+        'preview': {
+          'text': 'Look at this stitch',
+          'projectTitle': 'My sweater',
+          'role': 'post',
+        },
+        'quotedPreview': {
+          'text': 'Original comment',
+          'projectTitle': 'Winter scarf',
+          'role': 'comment',
+        },
+      });
+      final mention = CraftskyNotification.fromMap({
+        ..._baseNotification('mention', 'mention-preview'),
+        'subjectPost': {
+          ..._post(),
+          'reply': {
+            'root': {
+              'uri': 'at://did:plc:viewer/social.craftsky.feed.post/root',
+              'cid': 'rootcid',
+            },
+            'parent': {
+              'uri': 'at://did:plc:viewer/social.craftsky.feed.post/parent',
+              'cid': 'parentcid',
+            },
+          },
+        },
+        'preview': {'text': 'What do you think?', 'role': 'reply'},
+      });
+      await tester.pumpWidget(
+        _TestApp(
+          home: Scaffold(
+            body: Column(
+              children: [
+                NotificationRow(notification: quote),
+                NotificationRow(notification: mention),
+                NotificationRow(notification: _reply('reply-preview')),
+              ],
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(notificationText('Alice quoted your comment'), findsOneWidget);
+      expect(
+        notificationText('Alice mentioned you in a reply'),
+        findsOneWidget,
+      );
+      for (final text in [
+        'Look at this stitch',
+        'My sweater',
+        'Original comment',
+        'Winter scarf',
+        'What do you think?',
+        'new reply text',
+      ]) {
+        expect(notificationText(text), findsOneWidget);
+      }
+      expect(find.text('viewer post'), findsNothing);
+      for (final summary in tester.widgetList<PostSummary>(
+        find.byType(PostSummary),
+      )) {
+        expect(summary.data.image, isNull);
+        expect(summary.data.external, isNull);
+      }
+    },
+  );
+
+  testWidgets('reply context is compact and uses the immediate parent', (
+    tester,
+  ) async {
+    for (final (parent, expected) in <(Map<String, dynamic>, String?)>[
+      (
+        {
+          ..._post(),
+          'project': {
+            'common': {'craftType': 'knitting', 'title': 'Summer cardigan'},
+          },
+        },
+        '↳ Your post: Summer cardigan',
+      ),
+      (_post(), '↳ Your post: viewer post'),
+      (_commentPost(), '↳ You: “viewer comment”'),
+      ({..._replyPost(), 'text': 'Parent\nreply'}, '↳ You: “Parent reply”'),
+      ({..._post(), 'text': '  '}, null),
+      ({..._post(), 'availability': 'muted'}, null),
+    ]) {
+      await tester.pumpWidget(
+        _TestApp(
+          home: Scaffold(
+            body: NotificationRow(
+              notification: _reply('context', subjectPost: parent),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final contexts = find.byWidgetPredicate(
+        (widget) => widget is Text && (widget.data?.startsWith('↳') ?? false),
+      );
+      if (expected == null) {
+        expect(contexts, findsNothing);
+      } else {
+        expect(find.text(expected), findsOneWidget);
+        final context = tester.widget<Text>(contexts);
+        expect(context.maxLines, 1);
+        expect(context.overflow, TextOverflow.ellipsis);
+        expect(
+          tester.getTopLeft(contexts).dy,
+          lessThan(tester.getTopLeft(find.text('new reply text')).dy),
+        );
+      }
+      expect(tester.widget<Text>(find.text('new reply text')).maxLines, 3);
+      expect(find.text('Summer cardigan'), findsNothing);
+      expect(tester.takeException(), isNull);
+    }
   });
 
   testWidgets('UT-021 derives an actor avatar URL from an older CID response', (
@@ -701,6 +926,54 @@ void main() {
     await tester.pumpAndSettle();
     expect(calls, ['unfollow:did:plc:alice', 'follow:did:plc:alice']);
     expect(find.text('Unfollow'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 31));
+  });
+
+  testWidgets('notification follows profile mutations in both directions', (
+    tester,
+  ) async {
+    var profile = Profile(
+      did: 'did:plc:alice',
+      handle: 'alice.craftsky.social',
+      crafts: const [],
+    );
+    final repository = FakeProfileRepository(
+      onFetch: (_) async => profile,
+      onFollow: (_) async =>
+          profile = profile.copyWith(viewerIsFollowing: true),
+      onUnfollow: (_) async =>
+          profile = profile.copyWith(viewerIsFollowing: false),
+    );
+    final container = ProviderContainer.test(
+      overrides: [profileRepositoryProvider.overrideWithValue(repository)],
+    );
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: _TestApp(
+          home: Scaffold(
+            body: NotificationRow(notification: _follow('profile-follow')),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Follow'), findsOneWidget);
+
+    // Use the profile page mutation without tapping the notification row.
+    for (final following in [true, false]) {
+      final current = await container.read(
+        userProfileProvider(profile.did).future,
+      );
+      await container
+          .read(toggleFollowProfileProvider.notifier)
+          .toggle(
+            cacheKey: profile.did,
+            profile: current,
+          );
+      await tester.pumpAndSettle();
+      expect(find.text(following ? 'Unfollow' : 'Follow'), findsOneWidget);
+    }
     await tester.pump(const Duration(seconds: 31));
   });
 
@@ -869,7 +1142,7 @@ void main() {
     );
     await tester.pump();
 
-    expect(find.text('Alice followed you'), findsNothing);
+    expect(notificationText('Alice followed you'), findsNothing);
     completer.complete(const ProfileRelationship(muted: true));
     await tester.pumpAndSettle();
   });
@@ -891,22 +1164,22 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    expect(find.text('Alice followed you'), findsOneWidget);
+    expect(notificationText('Alice followed you'), findsOneWidget);
 
     await tester.tap(find.text('Load more'));
     await tester.pump();
-    expect(find.text('Alice followed you'), findsOneWidget);
+    expect(notificationText('Alice followed you'), findsOneWidget);
     expect(find.byType(StitchProgressIndicator), findsOneWidget);
 
     nextPage.completeError(Exception('boom'));
     await tester.pumpAndSettle();
-    expect(find.text('Alice followed you'), findsOneWidget);
+    expect(notificationText('Alice followed you'), findsOneWidget);
     expect(find.text('Retry'), findsOneWidget);
 
     await tester.tap(find.text('Retry'));
     await tester.pumpAndSettle();
     expect(repo.calls.map((call) => call.cursor), [null, 'c1', 'c1']);
-    expect(find.text('Alice followed you'), findsNWidgets(2));
+    expect(notificationText('Alice followed you'), findsNWidgets(2));
   });
 
   testWidgets('row taps navigate to profile, subject thread, and focus', (
@@ -969,13 +1242,13 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Alice followed you'));
+    await tester.tap(notificationText('Alice followed you'));
     await tester.pumpAndSettle();
     expect(profileState?.pathParameters['did'], 'did:plc:alice');
     router.go('/');
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Alice liked your post'));
+    await tester.tap(notificationText('Alice liked your post'));
     await tester.pumpAndSettle();
     expect(threadStates.last.pathParameters['did'], 'did:plc:viewer');
     expect(threadStates.last.pathParameters['rkey'], 'root');
@@ -983,14 +1256,14 @@ void main() {
     router.go('/');
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Alice reposted your post'));
+    await tester.tap(notificationText('Alice reposted your post'));
     await tester.pumpAndSettle();
     expect(threadStates.last.pathParameters['did'], 'did:plc:viewer');
     expect(threadStates.last.pathParameters['rkey'], 'root');
     router.go('/');
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Alice commented on your post').first);
+    await tester.tap(notificationText('Alice commented on your post').first);
     await tester.pumpAndSettle();
     expect(
       threadStates.last.uri.queryParameters['focus'],
@@ -999,7 +1272,7 @@ void main() {
     router.go('/');
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Alice commented on your post').last);
+    await tester.tap(notificationText('Alice commented on your post').last);
     await tester.pumpAndSettle();
     expect(threadStates.last.pathParameters['did'], 'did:plc:viewer');
     expect(threadStates.last.pathParameters['rkey'], 'root');
@@ -1043,7 +1316,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Alice liked your comment'));
+    await tester.tap(notificationText('Alice liked your comment'));
     await tester.pumpAndSettle();
 
     expect(threadState?.pathParameters['did'], 'did:plc:root-author');
@@ -1144,7 +1417,7 @@ void main() {
               Scaffold(body: NotificationRow(notification: notification)),
         ),
         GoRoute(
-          path: '/profile/settings/moderation',
+          path: '/settings/moderation',
           builder: (_, _) {
             openedModeration = true;
             return const Scaffold(body: Text('Moderation case'));
@@ -1199,7 +1472,7 @@ void main() {
               Scaffold(body: NotificationRow(notification: notification)),
         ),
         GoRoute(
-          path: '/profile/settings/moderation',
+          path: '/settings/moderation',
           builder: (_, _) => const Scaffold(body: Text('Moderation case')),
         ),
       ],
@@ -1263,6 +1536,7 @@ FollowNotification _follow(
   bool includeAvatarUrl = true,
   String avatarCid = 'bafyavatar',
   bool viewerIsFollowing = false,
+  List<String> crafts = const [],
 }) => CraftskyNotification.fromMap({
   'uri': 'at://did:plc:alice/app.bsky.graph.follow/$rkey',
   'cid': 'bafy$rkey',
@@ -1275,6 +1549,7 @@ FollowNotification _follow(
     if (includeAvatarUrl) 'avatar': 'https://cdn.example/avatar/alice.jpg',
     'avatarCid': avatarCid,
     'viewerIsFollowing': viewerIsFollowing,
+    'crafts': crafts,
   },
   'createdAt': '2026-05-28T13:00:00Z',
   'indexedAt': '2026-05-28T13:00:01Z',
@@ -1314,6 +1589,7 @@ ReplyNotification _reply(
   ..._baseNotification('reply', rkey),
   'uri': 'at://did:plc:alice/social.craftsky.feed.post/$rkey',
   'subjectPost': subjectPost ?? _post(),
+  'preview': {'text': 'new reply text', 'role': 'comment'},
   if (includeFocus)
     'reply': {
       'uri': 'at://did:plc:alice/social.craftsky.feed.post/$rkey',

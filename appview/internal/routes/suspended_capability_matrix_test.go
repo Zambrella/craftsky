@@ -364,6 +364,7 @@ func TestEveryAuthenticatedV1MutationHasExactSuspensionClassification(t *testing
 		"POST /v1/posts/{did}/{rkey}/saves",
 		"POST /v1/profiles/{handleOrDid}/blocks",
 		"POST /v1/profiles/{handleOrDid}/mutes",
+		"POST /v1/profile-links/{did}/{rkey}/reports",
 		"POST /v1/profiles/{handleOrDid}/reports",
 		"POST /v1/saved-post-folders",
 		"POST /v1/search/recent",
@@ -385,6 +386,7 @@ func TestEveryAuthenticatedV1MutationHasExactSuspensionClassification(t *testing
 		"PUT /v1/chat/incoming-policy",
 		"POST /v1/chat/conversations/{id}/messages",
 		"POST /v1/chat/authorization",
+		"PATCH /v1/posts/{did}/{rkey}",
 		"DELETE /v1/posts/{did}/{rkey}/likes",
 		"DELETE /v1/posts/{did}/{rkey}/reposts",
 		"DELETE /v1/profiles/{handleOrDid}/follows",
@@ -394,6 +396,7 @@ func TestEveryAuthenticatedV1MutationHasExactSuspensionClassification(t *testing
 		"POST /v1/blobs/images/authorization",
 		"POST /v1/blobs/videos/authorization",
 		"POST /v1/events",
+		"POST /v1/profile-link-previews",
 		"POST /v1/link-previews",
 		"POST /v1/migrations/instagram/imports",
 		"POST /v1/migrations/instagram/suggestions/{suggestionId}/accept",
@@ -438,7 +441,7 @@ func TestEveryAuthenticatedV1MutationHasExactSuspensionClassification(t *testing
 		if !policy.SuspensionClass.Valid() {
 			t.Errorf("%s %s has invalid suspension class %q", policy.Method, policy.PathPattern, policy.SuspensionClass)
 		}
-		if policy.Method == http.MethodGet && policy.SuspensionClass != SuspensionAllowed {
+		if policy.Method == http.MethodGet && policy.PathPattern != "/v1/posts/{did}/{rkey}/edit" && policy.SuspensionClass != SuspensionAllowed {
 			t.Errorf("read route %s must remain available", policy.PathPattern)
 		}
 		if policy.Method == http.MethodGet || policy.AccessClass == AccessAnonymous || policy.AccessClass == AccessModerator {

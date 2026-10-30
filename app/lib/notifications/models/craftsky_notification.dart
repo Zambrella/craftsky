@@ -19,11 +19,13 @@ sealed class CraftskyNotification {
     required this.id,
     required this.createdAt,
     required this.indexedAt,
+    this.isNew = false,
   });
 
   final String id;
   final DateTime createdAt;
   final DateTime indexedAt;
+  final bool isNew;
 
   NotificationCategory get type;
 
@@ -53,18 +55,21 @@ sealed class CraftskyNotification {
       'follow' => FollowNotification(common),
       'like' => LikeNotification(
         common,
+        preview: NotificationPreview.fromOptionalMap(map['preview']),
         subjectPost: PostMapper.fromMap(
           map['subjectPost'] as Map<String, dynamic>,
         ),
       ),
       'repost' => RepostNotification(
         common,
+        preview: NotificationPreview.fromOptionalMap(map['preview']),
         subjectPost: PostMapper.fromMap(
           map['subjectPost'] as Map<String, dynamic>,
         ),
       ),
       'reply' => ReplyNotification(
         common,
+        preview: NotificationPreview.fromOptionalMap(map['preview']),
         subjectPost: PostMapper.fromMap(
           map['subjectPost'] as Map<String, dynamic>,
         ),
@@ -76,12 +81,17 @@ sealed class CraftskyNotification {
       ),
       'mention' => MentionNotification(
         common,
+        preview: NotificationPreview.fromOptionalMap(map['preview']),
         subjectPost: PostMapper.fromMap(
           map['subjectPost'] as Map<String, dynamic>,
         ),
       ),
       'quote' => QuoteNotification(
         common,
+        preview: NotificationPreview.fromOptionalMap(map['preview']),
+        quotedPreview: NotificationPreview.fromOptionalMap(
+          map['quotedPreview'],
+        ),
         subjectPost: PostMapper.fromMap(
           map['subjectPost'] as Map<String, dynamic>,
         ),
@@ -110,9 +120,7 @@ sealed class CraftskyNotification {
     'everythingElse',
   };
 
-  static CraftskyNotification _instagramMatchFromMap(
-    Map<String, dynamic> map,
-  ) {
+  static CraftskyNotification _instagramMatchFromMap(Map<String, dynamic> map) {
     if (map['actor'] case final Map<String, dynamic> actorMap) {
       final common = ActorNotificationCommon.fromMap({
         ...map,
@@ -151,6 +159,7 @@ sealed class ActorNotification extends CraftskyNotification {
     required this.actor,
     required super.createdAt,
     required super.indexedAt,
+    super.isNew,
   });
 
   final NotificationActor actor;
@@ -166,6 +175,7 @@ sealed class SocialNotification extends ActorNotification {
         actor: common.actor,
         createdAt: common.createdAt,
         indexedAt: common.indexedAt,
+        isNew: common.isNew,
       );
 
   final AtUri uri;
@@ -181,30 +191,28 @@ final class FollowNotification extends SocialNotification {
 }
 
 sealed class SubjectPostNotification extends SocialNotification {
-  new(
-    super.common, {
-    required this.subjectPost,
-  });
+  new(super.common, {required this.subjectPost, this.preview});
 
   final Post subjectPost;
+  final NotificationPreview? preview;
 }
 
 final class LikeNotification extends SubjectPostNotification {
-  new(super.common, {required super.subjectPost});
+  new(super.common, {required super.subjectPost, super.preview});
 
   @override
   NotificationCategory get type => NotificationCategory.like;
 }
 
 final class RepostNotification extends SubjectPostNotification {
-  new(super.common, {required super.subjectPost});
+  new(super.common, {required super.subjectPost, super.preview});
 
   @override
   NotificationCategory get type => NotificationCategory.repost;
 }
 
 final class ReplyNotification extends SubjectPostNotification {
-  new(super.common, {required super.subjectPost, this.reply});
+  new(super.common, {required super.subjectPost, super.preview, this.reply});
 
   final NotificationReplyRef? reply;
 
@@ -213,24 +221,28 @@ final class ReplyNotification extends SubjectPostNotification {
 }
 
 final class MentionNotification extends SubjectPostNotification {
-  new(super.common, {required super.subjectPost});
+  new(super.common, {required super.subjectPost, super.preview});
 
   @override
   NotificationCategory get type => NotificationCategory.mention;
 }
 
 final class QuoteNotification extends SubjectPostNotification {
-  new(super.common, {required super.subjectPost});
+  new(
+    super.common, {
+    required super.subjectPost,
+    super.preview,
+    this.quotedPreview,
+  });
+
+  final NotificationPreview? quotedPreview;
 
   @override
   NotificationCategory get type => NotificationCategory.quote;
 }
 
 final class GenericNotification extends SocialNotification {
-  new(
-    super.common, {
-    required this.originalType,
-  });
+  new(super.common, {required this.originalType});
 
   final NotificationCategory originalType;
 
@@ -239,10 +251,7 @@ final class GenericNotification extends SocialNotification {
 }
 
 final class UnavailableNotification extends SocialNotification {
-  new(
-    super.common, {
-    required this.originalType,
-  });
+  new(super.common, {required this.originalType});
 
   final NotificationCategory originalType;
 
@@ -256,6 +265,7 @@ sealed class SystemNotification extends CraftskyNotification {
         id: common.id,
         createdAt: common.createdAt,
         indexedAt: common.indexedAt,
+        isNew: common.isNew,
       );
 }
 
@@ -266,6 +276,7 @@ final class InstagramMatchNotification extends ActorNotification {
         actor: common.actor,
         createdAt: common.createdAt,
         indexedAt: common.indexedAt,
+        isNew: common.isNew,
       );
 
   @override
@@ -282,6 +293,7 @@ final class ActorNotificationCommon with ActorNotificationCommonMappable {
     required this.actor,
     required this.createdAt,
     required this.indexedAt,
+    this.isNew = false,
   });
 
   factory fromMap(Map<String, dynamic> map) =>
@@ -291,13 +303,11 @@ final class ActorNotificationCommon with ActorNotificationCommonMappable {
   final NotificationActor actor;
   final DateTime createdAt;
   final DateTime indexedAt;
+  final bool isNew;
 }
 
 final class GenericSystemNotification extends SystemNotification {
-  new(
-    super.common, {
-    required this.originalType,
-  });
+  new(super.common, {required this.originalType});
 
   final NotificationCategory originalType;
 
@@ -323,6 +333,7 @@ final class SystemNotificationCommon with SystemNotificationCommonMappable {
     required this.id,
     required this.createdAt,
     required this.indexedAt,
+    this.isNew = false,
   });
 
   factory fromMap(Map<String, dynamic> map) =>
@@ -331,6 +342,7 @@ final class SystemNotificationCommon with SystemNotificationCommonMappable {
   final String id;
   final DateTime createdAt;
   final DateTime indexedAt;
+  final bool isNew;
 }
 
 @MappableClass(
@@ -348,6 +360,7 @@ final class NotificationActor with NotificationActorMappable {
     required this.handle,
     this.displayName,
     this.avatar,
+    this.crafts = const [],
     this.avatarCid,
     this.viewerIsFollowing = false,
     this.available = true,
@@ -372,6 +385,7 @@ final class NotificationActor with NotificationActorMappable {
   final Handle handle;
   final String? displayName;
   final String? avatar;
+  final List<String> crafts;
   final Cid? avatarCid;
   final bool viewerIsFollowing;
   final bool available;
@@ -406,11 +420,7 @@ final class NotificationActor with NotificationActorMappable {
   includeCustomMappers: [AtUriMapper(), CidMapper(), RecordKeyMapper()],
 )
 final class NotificationReplyRef with NotificationReplyRefMappable {
-  const new({
-    required this.uri,
-    required this.cid,
-    required this.rkey,
-  });
+  const new({required this.uri, required this.cid, required this.rkey});
 
   factory fromMap(Map<String, dynamic> map) =>
       NotificationReplyRefMapper.fromMap(map);
@@ -433,6 +443,7 @@ final class NotificationCommon with NotificationCommonMappable {
     required this.actor,
     required this.createdAt,
     required this.indexedAt,
+    this.isNew = false,
   });
 
   factory fromMap(Map<String, dynamic> map) {
@@ -459,4 +470,25 @@ final class NotificationCommon with NotificationCommonMappable {
   final NotificationActor actor;
   final DateTime createdAt;
   final DateTime indexedAt;
+  final bool isNew;
+}
+
+// Text-only preview: intentionally excludes media and routing capabilities.
+final class NotificationPreview {
+  const new({
+    required this.text,
+    this.projectTitle,
+    this.role = 'post',
+  });
+  final String text;
+  final String? projectTitle;
+  final String role;
+  static NotificationPreview? fromOptionalMap(Object? value) {
+    if (value is! Map<String, dynamic>) return null;
+    return NotificationPreview(
+      text: value['text'] as String? ?? '',
+      projectTitle: value['projectTitle'] as String?,
+      role: value['role'] as String? ?? 'post',
+    );
+  }
 }

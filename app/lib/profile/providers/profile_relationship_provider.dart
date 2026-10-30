@@ -86,24 +86,30 @@ class ProfileRelationshipController extends _$ProfileRelationshipController {
     _scheduleReconciliation(_captureLease());
   }
 
-  Future<void> mutate(ProfileRelationshipAction action) async {
+  Future<void> mutate(
+    ProfileRelationshipAction action, {
+    ProfileRelationship? baseline,
+  }) async {
     if (action == ProfileRelationshipAction.block ||
         action == ProfileRelationshipAction.unblock) {
       throw ArgumentError.value(action, 'action', 'use ToggleBlockProfile');
     }
     if (state.pendingAction != null) return;
+    if (baseline != null) seed(baseline);
     final previous = state;
     final lease = _captureLease();
     state = _optimistic(previous, action).copyWith(
       pendingAction: action,
       lastError: null,
+      initialized: true,
     );
     _suppressLoadedSurfaces(action);
 
+    final repositoryProvider = accountRelationshipRepositoryProvider(account);
+    final repositorySubscription = ref.listen(repositoryProvider, (_, _) {});
     try {
-      final repository = await ref.read(
-        accountRelationshipRepositoryProvider(account).future,
-      );
+      final repository = await ref.read(repositoryProvider.future);
+      if (!_isCurrent(lease)) return;
       final result = await _apply(repository, action);
       if (!_isCurrent(lease)) return;
       state = result.copyWith(
@@ -118,6 +124,8 @@ class ProfileRelationshipController extends _$ProfileRelationshipController {
       if (!_isCurrent(lease)) return;
       state = previous.copyWith(pendingAction: null, lastError: error);
       _invalidateAffectedSurfaces();
+    } finally {
+      repositorySubscription.close();
     }
   }
 

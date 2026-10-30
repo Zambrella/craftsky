@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:craftsky_app/account_eligibility/models/account_eligibility_status.dart';
 import 'package:craftsky_app/auth/data/handoff_api_client.dart';
 import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/auth/models/account_session_lease.dart';
@@ -20,6 +21,7 @@ import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart'
     show sessionRegistryProvider;
 import 'package:craftsky_app/auth/services/session_validation_coordinator.dart';
+import 'package:craftsky_app/auth/widgets/active_account_initialization_gate.dart';
 import 'package:craftsky_app/chat/providers/chat_session_runtime_provider.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/post_comment_section.dart';
@@ -28,6 +30,7 @@ import 'package:craftsky_app/feed/models/timeline_page.dart';
 import 'package:craftsky_app/feed/pages/feed_page.dart';
 import 'package:craftsky_app/feed/pages/post_thread_page.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
+import 'package:craftsky_app/initialization_loading_screen.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/languages/models/language_preferences.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
@@ -40,6 +43,7 @@ import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/router/route_locations.dart';
 import 'package:craftsky_app/router/router.dart';
+import 'package:craftsky_app/service_status/status_destinations.dart';
 import 'package:craftsky_app/shared/device/device_id_provider.dart';
 import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
 import 'package:craftsky_app/subscriptions/providers/subscription_access_provider.dart';
@@ -208,6 +212,152 @@ Future<void> _pumpRouter(
 }
 
 void main() {
+  // IT-004 / FR-010 / AC-014, AC-022: actual route parser and account gate.
+  for (final state in [
+    'uninitialized',
+    'onboarding',
+    'restricted',
+    'initialized',
+  ]) {
+    testWidgets(
+      'status destinations preserve $state account and policy gates',
+      (tester) async {
+        final pending = Completer<ActiveAccountInitialization?>();
+        final initialized = _initialization(state != 'onboarding');
+        final container = ProviderContainer.test(
+          overrides: [
+            authSessionProvider.overrideWith(SignedInAuthSession.new),
+            secureSessionRegistryStorageProvider.overrideWithValue(
+              _RegistryStorage(_activeTestRegistry()),
+            ),
+            activeAccountInitializationProvider.overrideWith(
+              (ref) => state == 'uninitialized'
+                  ? pending.future
+                  : ActiveAccountInitialization(
+                      lease: initialized.lease,
+                      languagePreferences: initialized.languagePreferences,
+                      onboardingComplete: initialized.onboardingComplete,
+                      accountEligibility: AccountEligibilityStatus(
+                        state: state == 'restricted'
+                            ? AccountEligibilityState.restricted
+                            : AccountEligibilityState.eligible,
+                        appealable: false,
+                      ),
+                    ),
+            ),
+          ],
+        );
+        await container.read(sessionRegistryProvider.future);
+        await container.read(authSessionProvider.future);
+        late BuildContext parserContext;
+        await tester.pumpWidget(
+          UncontrolledProviderScope(
+            container: container,
+            child: MaterialApp(
+              theme: AppTheme.lightThemeData,
+              localizationsDelegates: appLocalizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
+              home: Builder(
+                builder: (context) {
+                  parserContext = context;
+                  return const ActiveAccountInitializationGate(
+                    child: Text('Initialized route fixture'),
+                  );
+                },
+              ),
+            ),
+          ),
+        );
+        await tester.pump();
+        await tester.pump();
+        final subscription = container.listen(goRouterProvider, (_, _) {});
+        addTearDown(subscription.close);
+        final router = subscription.read();
+        for (final name in [
+          'feed',
+          'projects',
+          'search',
+          'notifications',
+          'profile',
+          'settings',
+        ]) {
+          expect(activateStatusDestination(router, name), isTrue);
+          final match = await router.routeInformationParser
+              .parseRouteInformationWithDependencies(
+                router.routeInformationProvider.value,
+                parserContext,
+              );
+          expect(
+            match.uri.path,
+            state == 'restricted'
+                ? const AccountEligibilityRoute().location
+                : state == 'onboarding'
+                ? const OnboardingRoute().location
+                : statusDestinationLocation(name),
+          );
+        }
+        expect(
+          find.byType(InitializationLoadingScreen),
+          state == 'uninitialized' ? findsOneWidget : findsNothing,
+        );
+        expect(
+          find.text('Initialized route fixture'),
+          state == 'uninitialized' ? findsNothing : findsOneWidget,
+        );
+        await tester.pumpWidget(const SizedBox.shrink());
+      },
+    );
+  }
+
+  // IT-004 / FR-010 / AC-014, AC-022: typed status actions enter the real router.
+  for (final name in [
+    'feed',
+    'projects',
+    'search',
+    'notifications',
+    'profile',
+    'settings',
+  ]) {
+    testWidgets('status destination $name retains signed-out redirect', (
+      tester,
+    ) async {
+      final container = ProviderContainer.test(
+        overrides: [authSessionProvider.overrideWith(SignedOutAuthSession.new)],
+      );
+      await _pumpRouter(tester, container);
+      expect(
+        activateStatusDestination(container.read(goRouterProvider), name),
+        isTrue,
+      );
+      await tester.pumpAndSettle();
+      expect(find.byType(WelcomePage), findsOneWidget);
+    });
+  }
+  test('status destinations map only to canonical typed top-level routes', () {
+    expect(
+      [
+        'feed',
+        'projects',
+        'search',
+        'notifications',
+        'profile',
+        'settings',
+      ].map(statusDestinationLocation),
+      [
+        '/feed',
+        '/projects',
+        '/search',
+        '/notifications',
+        '/profile',
+        '/settings',
+      ],
+    );
+    expect(
+      () => statusDestinationLocation('/settings/account'),
+      throwsFormatException,
+    );
+  });
+
   group('router redirect', () {
     testWidgets('SignedOut + /feed → WelcomePage', (tester) async {
       final container = ProviderContainer.test(

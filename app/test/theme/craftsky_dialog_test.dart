@@ -34,6 +34,30 @@ void main() {
       expect(find.text('Action two'), findsOneWidget);
     });
 
+    testWidgets('sizes responsive body content without intrinsic measurement', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        pumpHarness(
+          CraftskyDialog(
+            title: 'Responsive dialog',
+            body: LayoutBuilder(
+              builder: (context, constraints) {
+                expect(constraints.hasBoundedWidth, isTrue);
+                return const SizedBox(
+                  height: 48,
+                  child: Text('Responsive body'),
+                );
+              },
+            ),
+            actions: const [Text('Done')],
+          ),
+        ),
+      );
+      expect(find.text('Responsive body'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('keeps its 360 width cap on wide screens', (tester) async {
       tester.view.devicePixelRatio = 1;
       tester.view.physicalSize = const Size(1400, 900);

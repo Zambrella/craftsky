@@ -16,7 +16,7 @@ import 'package:craftsky_app/profile/providers/toggle_follow_profile_provider.da
 import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
 import 'package:craftsky_app/profile/widgets/follow_reaction.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
-import 'package:craftsky_app/profile/widgets/profile_card_modal.dart';
+import 'package:craftsky_app/profile/widgets/profile_avatar_hero.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
@@ -25,7 +25,6 @@ import 'package:craftsky_app/shared/widgets/action_progress.dart';
 import 'package:craftsky_app/shared/widgets/post_summary.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
-import 'package:flutter/gestures.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -35,9 +34,15 @@ bool canOpenNotificationRow(
 ) => registry.activeLease?.session == owner;
 
 class NotificationRow extends ConsumerWidget {
-  const new({required this.notification, this.owner, super.key});
+  const new({
+    required this.notification,
+    this.owner,
+    this.showNewness = true,
+    super.key,
+  });
 
   final CraftskyNotification notification;
+  final bool showNewness;
   final AccountSessionLease? owner;
 
   @override
@@ -48,9 +53,8 @@ class NotificationRow extends ConsumerWidget {
     }
     return FollowReactionScope(
       identity: notification.id,
-      builder: (context) => Consumer(
-        builder: (context, ref, _) => _build(context, ref),
-      ),
+      builder: (context) =>
+          Consumer(builder: (context, ref, _) => _build(context, ref)),
     );
   }
 
@@ -67,10 +71,7 @@ class NotificationRow extends ConsumerWidget {
             !actorNotification.actor.available ||
             account.did == actorNotification.actor.did
         ? null
-        : profileRelationshipProvider(
-            account,
-            actorNotification.actor.did,
-          );
+        : profileRelationshipProvider(account, actorNotification.actor.did);
     final cachedRelationship = actorRelationshipProvider == null
         ? null
         : ref.watch(actorRelationshipProvider);
@@ -85,16 +86,6 @@ class NotificationRow extends ConsumerWidget {
           : const ProfileRelationship(initialized: true),
       actorNotification.actor.did,
     );
-    if (actorRelationshipProvider != null &&
-        !(cachedRelationship?.initialized ?? false)) {
-      unawaited(
-        Future<void>.microtask(
-          () => ref
-              .read(actorRelationshipProvider.notifier)
-              .seed(serverRelationship),
-        ),
-      );
-    }
     final relationship = applyBlockRelationshipOverlay(
       ref.read,
       cachedRelationship?.initialized ?? false
@@ -153,108 +144,238 @@ class NotificationRow extends ConsumerWidget {
         subjectPost,
       ),
       MentionNotification(:final subjectPost) => (
-        l10n.notificationMentionRow(actor),
+        switch (_roleOf(subjectPost)) {
+          _NotificationContentRole.post => l10n.notificationMentionPostRow(
+            actor,
+          ),
+          _NotificationContentRole.comment =>
+            l10n.notificationMentionCommentRow(actor),
+          _NotificationContentRole.reply => l10n.notificationMentionReplyRow(
+            actor,
+          ),
+        },
         subjectPost,
       ),
       QuoteNotification(:final subjectPost) => (
-        l10n.notificationQuoteRow(actor),
+        switch (actorNotification.quotedPreview?.role) {
+          'comment' => l10n.notificationQuoteCommentRow(actor),
+          'reply' => l10n.notificationQuoteReplyRow(actor),
+          _ => l10n.notificationQuoteRow(actor),
+        },
         subjectPost,
       ),
       GenericNotification() => (l10n.notificationGenericRow, null),
       UnavailableNotification() => (l10n.notificationUnavailableRow, null),
     };
-    final onTap = actorNotification is GenericNotification
-        ? null
-        : () => _open(context, ref);
-    final onActorTap = actorNotification.actor.available
-        ? () => unawaited(
-            showUserProfileCard(
-              context,
-              did: actorNotification.actor.did,
-            ),
-          )
+    final replyContext = actorNotification is ReplyNotification
+        ? _replyContext(actorNotification.subjectPost, l10n)
         : null;
-    return Material(
-      type: MaterialType.transparency,
-      child: InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Padding(
-                padding: const EdgeInsets.only(top: 6),
-                child: ExcludeSemantics(
-                  child: Icon(
-                    notificationCategoryIcon(notification.type),
-                    color: actionColor,
-                    size: 24,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    GestureDetector(
+    return ProfileAvatarHeroSource(
+      did: actorNotification.actor.did,
+      handle: actorNotification.actor.handle.toString(),
+      displayName: actorNotification.actor.displayName,
+      crafts: actorNotification.actor.crafts,
+      avatar: ProfileAvatar(
+        seed: actor,
+        avatarUrl: actorNotification.actor.displayAvatarUrl,
+        showShadow: false,
+        customisation: actorNotification.actor.customisation,
+      ),
+      builder: (context, avatar, openProfile) {
+        void openActorProfile() {
+          final rowOwner = owner;
+          if (rowOwner != null &&
+              !canOpenNotificationRow(
+                rowOwner,
+                ref.read(sessionRegistryProvider).requireValue,
+              )) {
+            return;
+          }
+          openProfile();
+        }
+
+        return _NotificationSurface(
+          isNew: notification.isNew && showNewness,
+          child: InkWell(
+            onTap: actorNotification is GenericNotification
+                ? null
+                : (actorNotification is FollowNotification ||
+                      actorNotification is InstagramMatchNotification)
+                ? openActorProfile
+                : () => _open(context, ref),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Semantics(
+                    button: actorNotification.actor.available,
+                    label: actor,
+                    child: GestureDetector(
                       behavior: HitTestBehavior.opaque,
-                      onTap: onActorTap,
-                      child: FollowReactionAvatar(
-                        compact: true,
-                        child: ProfileAvatar(
-                          seed: actor,
-                          avatarUrl: actorNotification.actor.displayAvatarUrl,
-                          size: ProfileAvatarSize.small,
-                          customisation: actorNotification.actor.customisation,
-                        ),
+                      onTap: actorNotification.actor.available
+                          ? openActorProfile
+                          : null,
+                      child: Stack(
+                        children: [
+                          Padding(
+                            padding: const EdgeInsetsDirectional.only(
+                              end: 4,
+                              bottom: 4,
+                            ),
+                            child: FollowReactionAvatar(
+                              compact: true,
+                              child: avatar,
+                            ),
+                          ),
+                          PositionedDirectional(
+                            end: 0,
+                            bottom: 0,
+                            child: ExcludeSemantics(
+                              child: Container(
+                                width: 26,
+                                height: 26,
+                                decoration: BoxDecoration(
+                                  color: actionColor,
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: theme.scaffoldBackgroundColor,
+                                    width: 2,
+                                  ),
+                                ),
+                                child: Icon(
+                                  notificationCategoryIcon(
+                                    notification.type,
+                                    filled: true,
+                                  ),
+                                  color:
+                                      ThemeData.estimateBrightnessForColor(
+                                            actionColor,
+                                          ) ==
+                                          Brightness.dark
+                                      ? Colors.white
+                                      : Colors.black,
+                                  size: 14,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: 2,
-                      crossAxisAlignment: WrapCrossAlignment.center,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         _NotificationTitleText(
                           title: title,
                           actor: actor,
-                          onActorTap: onActorTap,
+                          onActorTap: actorNotification.actor.available
+                              ? openActorProfile
+                              : null,
                           style: theme.textTheme.bodyLarge,
                         ),
-                        Text(
-                          '·',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.outline,
+                        if (replyContext != null) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            replyContext,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.outline,
+                            ),
                           ),
-                        ),
+                        ],
+                        if (subjectPost != null) ...[
+                          const SizedBox(height: 4),
+                          PostSummary(
+                            maxTextLines: 3,
+                            data: _previewData(
+                              actorNotification as SubjectPostNotification,
+                            ),
+                            padding: EdgeInsets.zero,
+                          ),
+                        ],
+                        if (actorNotification case QuoteNotification(
+                          :final quotedPreview?,
+                        )) ...[
+                          const SizedBox(height: 8),
+                          Container(
+                            padding: const EdgeInsets.only(left: 12),
+                            decoration: BoxDecoration(
+                              border: Border(
+                                left: BorderSide(
+                                  color: theme.colorScheme.outlineVariant,
+                                  width: 2,
+                                ),
+                              ),
+                            ),
+                            child: PostSummary(
+                              maxTextLines: 3,
+                              data: PostSummaryData(
+                                state: PostSummaryState.visible,
+                                text: quotedPreview.text,
+                                projectTitle: quotedPreview.projectTitle,
+                              ),
+                              padding: EdgeInsets.zero,
+                            ),
+                          ),
+                        ],
+                        const SizedBox(height: 4),
                         RelativeTimeText(timestamp: notification.createdAt),
+                        if ((actorNotification is FollowNotification ||
+                                actorNotification
+                                    is InstagramMatchNotification) &&
+                            actorNotification.actor.available) ...[
+                          const SizedBox(height: 8),
+                          _NotificationFollowButton(
+                            actor: actorNotification.actor,
+                            owner: owner,
+                          ),
+                        ],
                       ],
                     ),
-                    if (subjectPost != null) ...[
-                      const SizedBox(height: 4),
-                      PostSummary(
-                        data: PostSummaryData.notificationSubject(subjectPost),
-                        padding: EdgeInsets.zero,
-                      ),
-                    ],
-                    if ((actorNotification is FollowNotification ||
-                            actorNotification is InstagramMatchNotification) &&
-                        actorNotification.actor.available) ...[
-                      const SizedBox(height: 8),
-                      _NotificationFollowButton(
-                        actor: actorNotification.actor,
-                        owner: owner,
-                      ),
-                    ],
-                  ],
-                ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
+    );
+  }
+
+  String? _replyContext(Post parent, AppLocalizations l10n) {
+    if (parent.availability != null && parent.availability != 'visible') {
+      return null;
+    }
+    final isPost = parent.reply == null;
+    final projectTitle = isPost ? parent.project?.common.title?.trim() : null;
+    final text =
+        (projectTitle?.isNotEmpty == true ? projectTitle! : parent.text)
+            .replaceAll(RegExp(r'\s+'), ' ')
+            .trim();
+    if (text.isEmpty) return null;
+    return isPost
+        ? l10n.notificationPostContext(text)
+        : l10n.notificationReplyContext(text);
+  }
+
+  PostSummaryData _previewData(SubjectPostNotification notification) {
+    final preview = notification.preview;
+    if (preview == null) {
+      // A reply's parent is context, never a substitute for the new reply.
+      if (notification is ReplyNotification) {
+        return const PostSummaryData(state: PostSummaryState.visible);
+      }
+      return PostSummaryData.notificationSubject(notification.subjectPost);
+    }
+    return PostSummaryData(
+      state: PostSummaryState.visible,
+      text: preview.text,
+      projectTitle: preview.projectTitle,
     );
   }
 
@@ -269,8 +390,8 @@ class NotificationRow extends ConsumerWidget {
       ModerationNotification() => l10n.notificationModerationRow,
       GenericSystemNotification() => l10n.notificationGenericRow,
     };
-    return Material(
-      type: MaterialType.transparency,
+    return _NotificationSurface(
+      isNew: notification.isNew && showNewness,
       child: InkWell(
         onTap: system is ModerationNotification
             ? () => _open(context, ref)
@@ -323,9 +444,7 @@ class NotificationRow extends ConsumerWidget {
     switch (notification) {
       case FollowNotification(:final actor):
       case InstagramMatchNotification(:final actor):
-        unawaited(
-          UserProfileRoute(did: actor.did).push<void>(context),
-        );
+        unawaited(UserProfileRoute(did: actor.did).push<void>(context));
       case LikeNotification(:final subjectPost):
       case RepostNotification(:final subjectPost):
       case MentionNotification(:final subjectPost):
@@ -336,9 +455,7 @@ class NotificationRow extends ConsumerWidget {
       case GenericSystemNotification():
         break;
       case ModerationNotification():
-        unawaited(
-          const AccountStandingRoute().push<void>(context),
-        );
+        unawaited(const AccountStandingRoute().push<void>(context));
       case UnavailableNotification():
         context.showWarning(
           AppLocalizations.of(context).notificationUnavailableRow,
@@ -361,6 +478,46 @@ class NotificationRow extends ConsumerWidget {
   }
 }
 
+class _NotificationSurface extends StatelessWidget {
+  const new({required this.isNew, required this.child});
+
+  final bool isNew;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final row = Material(type: MaterialType.transparency, child: child);
+    if (!isNew) return row;
+    final color = Theme.of(context).colorScheme.primary;
+    return Semantics(
+      label: AppLocalizations.of(context).notificationNew,
+      child: ColoredBox(
+        key: const ValueKey('new-notification-highlight'),
+        color: color.withValues(alpha: .07),
+        child: Stack(
+          children: [
+            row,
+            PositionedDirectional(
+              top: 8,
+              end: 8,
+              child: ExcludeSemantics(
+                child: Container(
+                  width: 6,
+                  height: 6,
+                  decoration: BoxDecoration(
+                    color: color,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _NotificationFollowButton extends ConsumerStatefulWidget {
   const new({required this.actor, required this.owner});
 
@@ -374,33 +531,26 @@ class _NotificationFollowButton extends ConsumerStatefulWidget {
 
 class _NotificationFollowButtonState
     extends ConsumerState<_NotificationFollowButton> {
-  late bool _isFollowing;
   bool _isBusy = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _isFollowing = widget.actor.viewerIsFollowing;
-  }
-
-  @override
-  void didUpdateWidget(covariant _NotificationFollowButton oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.actor.did != widget.actor.did ||
-        oldWidget.actor.viewerIsFollowing != widget.actor.viewerIsFollowing) {
-      _isFollowing = widget.actor.viewerIsFollowing;
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final swatches = theme.extension<BrandSwatchTheme>()!;
     final l10n = AppLocalizations.of(context);
+    // Share the profile page's reconciled follow state. The notification's
+    // snapshot is only a fallback while the profile is unavailable.
+    final isFollowing =
+        ref.watch(
+          userProfileProvider(widget.actor.did).select(
+            (profile) => profile.value?.viewerIsFollowing,
+          ),
+        ) ??
+        widget.actor.viewerIsFollowing;
     return ChunkyButton(
       onPressed: _isBusy ? null : _toggle,
-      backgroundColor: _isFollowing ? swatches.paper3 : null,
-      foregroundColor: _isFollowing ? theme.colorScheme.onSurface : null,
+      backgroundColor: isFollowing ? swatches.paper3 : null,
+      foregroundColor: isFollowing ? theme.colorScheme.onSurface : null,
       style: const ButtonStyle(
         minimumSize: WidgetStatePropertyAll(Size(64, 36)),
         padding: WidgetStatePropertyAll(
@@ -410,7 +560,7 @@ class _NotificationFollowButtonState
       child: ActionProgress(
         isLoading: _isBusy,
         child: Text(
-          _isFollowing ? l10n.profileFollowingAction : l10n.profileFollowAction,
+          isFollowing ? l10n.profileFollowingAction : l10n.profileFollowAction,
         ),
       ),
     );
@@ -443,15 +593,12 @@ class _NotificationFollowButtonState
       if (result.hasError) throw Exception('Follow mutation failed');
       final updated = result.value;
       if (updated != null) {
-        setState(() => _isFollowing = updated.viewerIsFollowing);
         return !profile.viewerIsFollowing && updated.viewerIsFollowing;
       }
       return false;
     } on Object {
       if (!mounted || !_isOwnerCurrent()) return false;
-      context.showError(
-        AppLocalizations.of(context).profileFollowToggleError,
-      );
+      context.showError(AppLocalizations.of(context).profileFollowToggleError);
       return false;
     } finally {
       profileSubscription.close();
@@ -470,23 +617,21 @@ class _NotificationFollowButtonState
   }
 }
 
-Color _actionColor(
-  CraftskyNotification notification,
-  ColorScheme colors,
-) => switch (notification) {
-  FollowNotification() => colors.primary,
-  InstagramMatchNotification() => colors.primary,
-  LikeNotification() => colors.error,
-  RepostNotification() => colors.tertiary,
-  ReplyNotification() => colors.primary,
-  MentionNotification() || QuoteNotification() => colors.secondary,
-  GenericNotification() => colors.outline,
-  GenericSystemNotification() => colors.outline,
-  ModerationNotification() => colors.primary,
-  UnavailableNotification() => colors.error,
-};
+Color _actionColor(CraftskyNotification notification, ColorScheme colors) =>
+    switch (notification) {
+      FollowNotification() => colors.primary,
+      InstagramMatchNotification() => colors.primary,
+      LikeNotification() => colors.error,
+      RepostNotification() => colors.tertiary,
+      ReplyNotification() => colors.primary,
+      MentionNotification() || QuoteNotification() => colors.secondary,
+      GenericNotification() => colors.outline,
+      GenericSystemNotification() => colors.outline,
+      ModerationNotification() => colors.primary,
+      UnavailableNotification() => colors.error,
+    };
 
-class _NotificationTitleText extends StatefulWidget {
+class _NotificationTitleText extends StatelessWidget {
   const new({
     required this.title,
     required this.actor,
@@ -500,73 +645,51 @@ class _NotificationTitleText extends StatefulWidget {
   final TextStyle? style;
 
   @override
-  State<_NotificationTitleText> createState() => _NotificationTitleTextState();
-}
-
-class _NotificationTitleTextState extends State<_NotificationTitleText> {
-  late final TapGestureRecognizer _actorTapRecognizer;
-
-  @override
-  void initState() {
-    super.initState();
-    _actorTapRecognizer = TapGestureRecognizer()..onTap = widget.onActorTap;
-  }
-
-  @override
-  void didUpdateWidget(covariant _NotificationTitleText oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    _actorTapRecognizer.onTap = widget.onActorTap;
-  }
-
-  @override
-  void dispose() {
-    _actorTapRecognizer.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    return Text.rich(
-      _titleSpan(
-        title: widget.title,
-        actor: widget.actor,
-        actorRecognizer: _actorTapRecognizer,
-      ),
-      style: widget.style,
-    );
-  }
-}
-
-TextSpan _titleSpan({
-  required String title,
-  required String actor,
-  GestureRecognizer? actorRecognizer,
-}) {
-  final actorIndex = title.indexOf(actor);
-  if (actorIndex < 0) {
-    return TextSpan(
-      children: [
+    final actorIndex = title.indexOf(actor);
+    return LayoutBuilder(
+      builder: (context, constraints) => Text.rich(
         TextSpan(
-          text: actor,
-          style: const TextStyle(fontWeight: FontWeight.w600),
-          recognizer: actorRecognizer,
+          children: [
+            if (actorIndex > 0) TextSpan(text: title.substring(0, actorIndex)),
+            WidgetSpan(
+              alignment: PlaceholderAlignment.baseline,
+              baseline: TextBaseline.alphabetic,
+              child: Semantics(
+                label: actor,
+                button: onActorTap != null,
+                onTap: onActorTap,
+                excludeSemantics: true,
+                child: GestureDetector(
+                  onTap: onActorTap,
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(maxWidth: constraints.maxWidth),
+                    child: ProfileIdentityTextHero.source(
+                      context,
+                      part: ProfileIdentityHeroPart.name,
+                      preservePlaceholderBaseline: true,
+                      child: Text(
+                        actor,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: style?.copyWith(fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            TextSpan(
+              text: actorIndex < 0
+                  ? ' · $title'
+                  : title.substring(actorIndex + actor.length),
+            ),
+          ],
         ),
-        TextSpan(text: ' · $title'),
-      ],
+        style: style,
+      ),
     );
   }
-  return TextSpan(
-    children: [
-      if (actorIndex > 0) TextSpan(text: title.substring(0, actorIndex)),
-      TextSpan(
-        text: actor,
-        style: const TextStyle(fontWeight: FontWeight.w600),
-        recognizer: actorRecognizer,
-      ),
-      if (actorIndex + actor.length < title.length)
-        TextSpan(text: title.substring(actorIndex + actor.length)),
-    ],
-  );
 }
 
 enum _NotificationContentRole { post, comment, reply }

@@ -1,12 +1,18 @@
 import 'dart:ui' show Tristate;
 
+import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
 import 'package:craftsky_app/auth/widgets/account_avatar.dart';
+import 'package:craftsky_app/feed/models/post.dart';
+import 'package:craftsky_app/feed/models/timeline_page.dart';
+import 'package:craftsky_app/feed/pages/feed_page.dart';
+import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/feed/widgets/post_composer_sheet.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/languages/models/language_preferences.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
 import 'package:craftsky_app/notifications/data/notification_repository.dart';
 import 'package:craftsky_app/notifications/providers/notification_repository_provider.dart';
+import 'package:craftsky_app/profile/providers/profile_reselect_provider.dart';
 import 'package:craftsky_app/projects/widgets/project_composer_sheet.dart';
 import 'package:craftsky_app/router/app_shell.dart';
 import 'package:craftsky_app/settings/settings_links.dart';
@@ -25,10 +31,105 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../fakes/auth_session_fakes.dart';
 import '../fakes/recording_messenger.dart';
+import '../feed/fakes/fake_post_repository.dart';
 import '../test_support/deterministic_pump.dart';
 
 void main() {
+  for (final surface in [
+    'bottom bar',
+    'drawer',
+    'rail',
+    'authenticated rail',
+  ]) {
+    testWidgets('reselecting Profile from $surface requests the top', (
+      tester,
+    ) async {
+      final large = surface.contains('rail');
+      final router = await _pumpShell(
+        tester,
+        Size(large ? 1200 : 500, 800),
+        wrapInAuthenticatedShell: surface == 'authenticated rail',
+      );
+      router.go('/profile');
+      await tester.pumpAndSettle();
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(AppShell)),
+      );
+      final before = container.read(profileReselectProvider);
+      if (surface == 'drawer') {
+        await tester.tap(find.byTooltip('Open navigation menu'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.widgetWithText(ListTile, 'Profile'));
+      } else {
+        await tester.tap(
+          find.descendant(
+            of: find.byType(large ? NavigationRail : NavigationBar),
+            matching: find.text('Profile'),
+          ),
+        );
+      }
+      await tester.pumpAndSettle();
+      expect(router.state.matchedLocation, '/profile');
+      expect(container.read(profileReselectProvider), before + 1);
+    });
+
+    testWidgets(
+      'reselecting Home from $surface scrolls and refreshes the feed',
+      (tester) async {
+        var loads = 0;
+        final large = surface.contains('rail');
+        final router = await _pumpShell(
+          tester,
+          Size(large ? 1200 : 500, 800),
+          wrapInAuthenticatedShell: surface == 'authenticated rail',
+          onFeedLoad: () => loads++,
+        );
+        final scrollView = find.byType(CustomScrollView);
+        await tester.drag(scrollView, const Offset(0, -1100));
+        await tester.pumpAndSettle();
+        final controller = tester
+            .widget<CustomScrollView>(scrollView)
+            .controller!;
+        expect(controller.offset, greaterThan(500));
+        expect(loads, 1);
+
+        Future<void> tapHome() async {
+          if (surface == 'drawer') {
+            await tester.tap(find.byTooltip('Open navigation menu'));
+            await tester.pumpAndSettle();
+            await tester.tap(find.widgetWithText(ListTile, 'Feed'));
+          } else {
+            await tester.tap(
+              find.descendant(
+                of: find.byType(large ? NavigationRail : NavigationBar),
+                matching: find.text('Feed'),
+              ),
+            );
+          }
+          await tester.pumpAndSettle();
+        }
+
+        await tapHome();
+        expect(router.state.matchedLocation, '/feed');
+        expect(controller.offset, controller.position.minScrollExtent);
+        expect(loads, 2);
+        expect(find.byType(Drawer), findsNothing);
+
+        // Home also refreshes when the feed is already at the top.
+        await tapHome();
+        expect(loads, 3);
+
+        router.go('/projects');
+        await tester.pumpAndSettle();
+        await tapHome();
+        expect(router.state.matchedLocation, '/feed');
+        expect(loads, 3);
+      },
+    );
+  }
+
   testWidgets('compact shell drawer opens the shared Feedback destination', (
     tester,
   ) async {
@@ -397,7 +498,7 @@ void main() {
     ('Saved', '/saved'),
     ('Scheduled', '/scheduled'),
     ('Drafts', '/drafts'),
-    ('Settings', '/profile/settings'),
+    ('Settings', '/settings'),
     ('Messages', '/messages'),
   ]) {
     testWidgets('CORR-005 compact drawer selects $label once', (tester) async {
@@ -417,7 +518,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(router.state.matchedLocation, location);
-      expect(navigations, 1);
+      expect(navigations, location == '/feed' ? 0 : 1);
       expect(find.byType(Drawer), findsNothing);
     });
   }
@@ -431,7 +532,7 @@ void main() {
     ('Saved', '/saved'),
     ('Scheduled', '/scheduled'),
     ('Drafts', '/drafts'),
-    ('Settings', '/profile/settings'),
+    ('Settings', '/settings'),
     ('Messages', '/messages'),
   ]) {
     testWidgets('CORR-005 large rail selects $label once', (tester) async {
@@ -450,7 +551,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(router.state.matchedLocation, location);
-      expect(navigations, 1);
+      expect(navigations, location == '/feed' ? 0 : 1);
     });
   }
 
@@ -860,7 +961,7 @@ void main() {
     await tester.tap(find.text('Settings'));
     await tester.pumpAndSettle();
 
-    expect(router.state.matchedLocation, '/profile/settings');
+    expect(router.state.matchedLocation, '/settings');
     expect(tester.getRect(content).width, 800);
   });
 
@@ -986,7 +1087,7 @@ void main() {
     await tester.tap(find.text('Settings'));
     await tester.pumpAndSettle();
 
-    expect(router.state.matchedLocation, '/profile/settings');
+    expect(router.state.matchedLocation, '/settings');
     expect(find.text('Settings'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
@@ -1030,6 +1131,7 @@ Future<GoRouter> _pumpShell(
   RecordingMessenger? messenger,
   ThemeMode themeMode = ThemeMode.light,
   bool wrapInAuthenticatedShell = false,
+  VoidCallback? onFeedLoad,
 }) async {
   addTearDown(tester.view.resetPhysicalSize);
   addTearDown(tester.view.resetDevicePixelRatio);
@@ -1055,55 +1157,32 @@ Future<GoRouter> _pumpShell(
               : shell;
         },
         branches: [
-          StatefulShellBranch(
-            routes: [
-              for (final path in [
-                '/feed',
-                '/saved',
-                '/scheduled',
-                '/drafts',
-                '/messages',
-              ])
-                GoRoute(
-                  path: path,
-                  builder: (context, state) => Scaffold(
-                    appBar: AppBar(leading: const AppShellDrawerButton()),
-                    body: Text(path),
-                  ),
-                ),
-            ],
-          ),
-          for (final path in ['/projects', '/search', '/notifications'])
+          for (final path in [
+            '/feed',
+            '/projects',
+            '/search',
+            '/notifications',
+            '/profile',
+            '/messages',
+            '/saved',
+            '/scheduled',
+            '/drafts',
+            '/settings',
+          ])
             StatefulShellBranch(
               routes: [
                 GoRoute(
                   path: path,
-                  builder: (context, state) => Scaffold(
-                    appBar: AppBar(leading: const AppShellDrawerButton()),
-                    body: Text(path),
-                  ),
+                  builder: (context, state) =>
+                      path == '/feed' && onFeedLoad != null
+                      ? const FeedPage()
+                      : Scaffold(
+                          appBar: AppBar(leading: const AppShellDrawerButton()),
+                          body: Text(path),
+                        ),
                 ),
               ],
             ),
-          StatefulShellBranch(
-            routes: [
-              GoRoute(
-                path: '/profile',
-                builder: (context, state) => Scaffold(
-                  appBar: AppBar(leading: const AppShellDrawerButton()),
-                  body: const Text('/profile'),
-                ),
-                routes: [
-                  for (final path in ['settings'])
-                    GoRoute(
-                      path: path,
-                      builder: (context, state) =>
-                          Scaffold(body: Text('/profile/$path')),
-                    ),
-                ],
-              ),
-            ],
-          ),
         ],
       ),
     ],
@@ -1113,6 +1192,45 @@ Future<GoRouter> _pumpShell(
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
+        if (onFeedLoad != null) ...[
+          authSessionProvider.overrideWith(SignedInAuthSession.new),
+          postRepositoryProvider.overrideWithValue(
+            FakePostRepository(
+              onListTimeline: ({cursor, limit}) async {
+                onFeedLoad();
+                return TimelinePage(
+                  items: [
+                    for (var i = 0; i < 20; i++)
+                      TimelineItem(
+                        itemKey: 'post:$i',
+                        post: Post(
+                          uri:
+                              'at://did:plc:alice/social.craftsky.feed.post/post$i',
+                          cid: 'bafypost',
+                          rkey: 'post$i',
+                          text: 'Post $i',
+                          tags: const [],
+                          createdAt: DateTime.utc(2026),
+                          indexedAt: DateTime.utc(2026),
+                          author: PostAuthor(
+                            did: 'did:plc:alice',
+                            handle: 'alice.test',
+                          ),
+                          likeCount: 0,
+                          repostCount: 0,
+                          replyCount: 0,
+                          viewerHasLiked: false,
+                          viewerHasReposted: false,
+                          viewerHasSaved: false,
+                          sponsored: false,
+                        ),
+                      ),
+                  ],
+                );
+              },
+            ),
+          ),
+        ],
         activeLanguagePreferencesProvider.overrideWith(
           (ref) => const LanguagePreferences(
             primaryLanguage: 'en',

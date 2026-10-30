@@ -15,7 +15,8 @@ import (
 const profileCustomisationStoreTestDDL = `
 CREATE TABLE craftsky_profiles (
     did        TEXT NOT NULL PRIMARY KEY,
-    record_cid TEXT NOT NULL
+    record_cid TEXT NOT NULL,
+    crafts TEXT[] NOT NULL DEFAULT '{}'
 );
 CREATE TABLE owner_lifecycles (
 	owner_did TEXT PRIMARY KEY,

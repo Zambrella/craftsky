@@ -22,6 +22,7 @@ import 'package:material_ui/material_ui.dart';
 import 'announcement_dismissal_test.dart' show FakeDismissalStore, announcement;
 import 'service_status_controller_test.dart'
     show FakeStatusClock, FakeStatusRepository, maintenance;
+import 'support/status_test_fixtures.dart';
 
 class StatusRegistryStorage implements SessionRegistryStorage {
   new(this.value);
@@ -49,6 +50,7 @@ void main() {
       final initialization = Completer<ActiveAccountInitialization?>();
       final container = ProviderContainer(
         overrides: [
+          ...statusRuntimeOverrides,
           serviceStatusRepositoryProvider.overrideWithValue(repository),
           serviceStatusClockProvider.overrideWithValue(clock),
           announcementDismissalStoreProvider.overrideWithValue(
@@ -90,7 +92,7 @@ void main() {
         final clear = controller.refresh();
         repository.requests.last.complete(
           transition == 'normal'
-              ? const ServiceStatusDocument(
+              ? statusDocument(
                   mode: ServiceStatusMode.normal,
                   revision: 'B',
                 )
@@ -144,6 +146,7 @@ void main() {
       final bob = Completer<ActiveAccountInitialization?>();
       final container = ProviderContainer(
         overrides: [
+          ...statusRuntimeOverrides,
           serviceStatusRepositoryProvider.overrideWithValue(repository),
           announcementDismissalStoreProvider.overrideWithValue(
             FakeDismissalStore(),
@@ -198,7 +201,7 @@ void main() {
       await tester.pump();
       final clear = controller.refresh();
       repository.requests.last.complete(
-        const ServiceStatusDocument(
+        statusDocument(
           mode: ServiceStatusMode.normal,
           revision: 'B',
         ),

@@ -33,6 +33,7 @@ class ComposerImageAttachmentSection extends StatefulWidget {
     this.maxImages = defaultMaxPostImages,
     this.imageUrlFor,
     this.onReplace,
+    this.onEditImage,
     this.keyPrefix = 'composer',
     this.useDetailsRoute = false,
     this.imagesProvider,
@@ -58,6 +59,7 @@ class ComposerImageAttachmentSection extends StatefulWidget {
   final int maxImages;
   final String? Function(ComposerImageDraft image)? imageUrlFor;
   final Future<void> Function(String imageId, ImageSource source)? onReplace;
+  final Future<void> Function(String imageId)? onEditImage;
   final String keyPrefix;
 
   /// Project/post composers use a thumbnail summary with a separate editor.
@@ -72,18 +74,28 @@ class ComposerImageAttachmentSection extends StatefulWidget {
   final Future<void> Function()? onTakePhoto;
   final bool? cameraSupported;
 
+  String? _previewUrl(ComposerImageDraft image) =>
+      imageUrlFor?.call(image) ??
+      switch (image.phase) {
+        PublishedImageReady(:final url) => url,
+        _ => null,
+      };
+
   @override
   State<ComposerImageAttachmentSection> createState() =>
       _ComposerImageAttachmentSectionState();
 
   Widget _buildDetails(
     BuildContext context, {
+    required TextEditingController Function(ComposerImageDraft)
+    altTextControllerFor,
     Future<void> Function()? addImages,
     Future<void> Function()? takePhoto,
     bool allowVideo = true,
     ComposerImagesState? currentImagesState,
   }) {
     final imagesState = currentImagesState ?? this.imagesState;
+    final enabled = this.enabled && !imagesState.hasImageEditsInFlight;
     final theme = Theme.of(context);
     final spacing = theme.extension<SpacingTheme>()!;
     final describedImageCount = imagesState.images
@@ -124,15 +136,20 @@ class ComposerImageAttachmentSection extends StatefulWidget {
                   curve: Curves.easeOutCubic,
                   sizeFraction: 0.85,
                   child: _DraftImageTile(
+                    onEdit: enabled && image.phase is ImageReady
+                        ? onEditImage
+                        : null,
+                    keyPrefix: keyPrefix,
                     image: image,
+                    altTextController: altTextControllerFor(image),
                     index: index,
                     enabled: enabled,
                     altTextKey: Key('$keyPrefix-alt-${image.id}'),
-                    removeKey: Key('$keyPrefix-remove-${image.id}'),
+                    removeKey: keys.composerImages.remove(keyPrefix, image.id),
                     moveUpKey: Key('$keyPrefix-move-up-${image.id}'),
                     moveDownKey: Key('$keyPrefix-move-down-${image.id}'),
                     previewKey: Key('$keyPrefix-preview-${image.id}'),
-                    previewUrl: imageUrlFor?.call(image),
+                    previewUrl: _previewUrl(image),
                     canMoveUp: index > 0,
                     canMoveDown: index < imagesState.images.length - 1,
                     onAltChanged: (value) => onAltTextChanged(image.id, value),
@@ -161,14 +178,15 @@ class ComposerImageAttachmentSection extends StatefulWidget {
                   sizeFraction: 0.85,
                   child: _DraftImageTile(
                     image: image,
+                    altTextController: altTextControllerFor(image),
                     index: 0,
                     enabled: false,
                     altTextKey: Key('$keyPrefix-alt-${image.id}'),
-                    removeKey: Key('$keyPrefix-remove-${image.id}'),
+                    removeKey: keys.composerImages.remove(keyPrefix, image.id),
                     moveUpKey: Key('$keyPrefix-move-up-${image.id}'),
                     moveDownKey: Key('$keyPrefix-move-down-${image.id}'),
                     previewKey: Key('$keyPrefix-preview-${image.id}'),
-                    previewUrl: imageUrlFor?.call(image),
+                    previewUrl: _previewUrl(image),
                     canMoveUp: false,
                     canMoveDown: false,
                     onAltChanged: (_) {},
@@ -258,7 +276,17 @@ class _ComposerImageAttachmentSectionState
   late final ValueNotifier<ComposerImageAttachmentSection> _details =
       ValueNotifier(widget);
   final _summaryFocusNode = FocusNode();
+  // These editors own the in-progress text, selection, and IME composition.
+  // Route forwarding and animated-list diffs can echo older image snapshots;
+  // only seed from those snapshots when an editor is first created.
+  final _altTextControllers = <String, TextEditingController>{};
   bool _detailsOpen = false;
+
+  TextEditingController _altTextControllerFor(ComposerImageDraft image) =>
+      _altTextControllers.putIfAbsent(
+        image.id,
+        () => TextEditingController(text: image.altText),
+      );
 
   @override
   void didUpdateWidget(covariant ComposerImageAttachmentSection oldWidget) {
@@ -271,6 +299,9 @@ class _ComposerImageAttachmentSectionState
 
   @override
   void dispose() {
+    for (final controller in _altTextControllers.values) {
+      controller.dispose();
+    }
     _details.dispose();
     _summaryFocusNode.dispose();
     super.dispose();
@@ -286,7 +317,11 @@ class _ComposerImageAttachmentSectionState
   }
 
   Future<void> _openDetails() async {
-    if (_detailsOpen || !widget.enabled) return;
+    if (_detailsOpen ||
+        !widget.enabled ||
+        widget.imagesState.hasImageEditsInFlight) {
+      return;
+    }
     _detailsOpen = true;
     _details.value = widget;
     final container = widget.imagesProvider == null
@@ -359,6 +394,7 @@ class _ComposerImageAttachmentSectionState
             ),
             child: section._buildDetails(
               context,
+              altTextControllerFor: _altTextControllerFor,
               allowVideo: false,
               currentImagesState: imagesState,
             ),
@@ -371,10 +407,18 @@ class _ComposerImageAttachmentSectionState
   @override
   Widget build(BuildContext context) {
     final section = widget;
-    if (!section.useDetailsRoute) return section._buildDetails(context);
+    final enabled =
+        section.enabled && !section.imagesState.hasImageEditsInFlight;
+    if (!section.useDetailsRoute) {
+      return section._buildDetails(
+        context,
+        altTextControllerFor: _altTextControllerFor,
+      );
+    }
     if (section.imagesState.images.isEmpty) {
       return section._buildDetails(
         context,
+        altTextControllerFor: _altTextControllerFor,
         addImages: section.onAddImages == null
             ? null
             : () => _selectPhotos(section.onAddImages!),
@@ -400,7 +444,7 @@ class _ComposerImageAttachmentSectionState
           child: InkWell(
             key: keys.composerImages.details(section.keyPrefix),
             focusNode: _summaryFocusNode,
-            onTap: section.enabled ? _openDetails : null,
+            onTap: enabled ? _openDetails : null,
             child: Padding(
               padding: EdgeInsets.all(spacing.sp4),
               child: Column(
@@ -427,7 +471,7 @@ class _ComposerImageAttachmentSectionState
                           dimension: 64,
                           child: CraftskyImageAttachmentPreview(
                             bytes: image.previewBytes,
-                            imageUrl: section.imageUrlFor?.call(image),
+                            imageUrl: section._previewUrl(image),
                             aspectRatio: 1,
                             unavailable: image.phase is ImageUnavailable,
                             placeholderIcon: CraftskyIcons.image,
@@ -458,7 +502,7 @@ class _ComposerImageAttachmentSectionState
           alignment: AlignmentDirectional.centerEnd,
           child: TextButton.icon(
             key: Key('${section.keyPrefix}-clear-images'),
-            onPressed: section.enabled
+            onPressed: enabled
                 ? () {
                     for (final image in section.imagesState.images) {
                       section.onRemove(image.id);
@@ -561,6 +605,7 @@ class _PhotosHeader extends StatelessWidget {
 class _DraftImageTile extends StatelessWidget {
   const new({
     required this.image,
+    required this.altTextController,
     required this.index,
     required this.enabled,
     required this.altTextKey,
@@ -577,9 +622,14 @@ class _DraftImageTile extends StatelessWidget {
     required this.onMoveDown,
     required this.previewKey,
     required this.previewUrl,
+    this.onEdit,
+    this.keyPrefix = 'composer',
   });
 
+  final Future<void> Function(String)? onEdit;
+  final String keyPrefix;
   final ComposerImageDraft image;
+  final TextEditingController altTextController;
   final int index;
   final bool enabled;
   final Key altTextKey;
@@ -666,11 +716,25 @@ class _DraftImageTile extends StatelessWidget {
                 ],
               ),
               SizedBox(height: spacing.sp3),
-              _composerImagePreview(
-                context,
-                image,
-                imageKey: previewKey,
-                imageUrl: previewUrl,
+              Stack(
+                children: [
+                  _composerImagePreview(
+                    context,
+                    image,
+                    imageKey: previewKey,
+                    imageUrl: previewUrl,
+                  ),
+                  if (onEdit != null)
+                    PositionedDirectional(
+                      bottom: 4,
+                      end: 4,
+                      child: _ImageEditButton(
+                        imageId: image.id,
+                        keyPrefix: keyPrefix,
+                        onEdit: onEdit!,
+                      ),
+                    ),
+                ],
               ),
               if (onReplace != null && image.phase is! ImageUnavailable) ...[
                 SizedBox(height: spacing.sp3),
@@ -708,7 +772,7 @@ class _DraftImageTile extends StatelessWidget {
               BrandTextField(
                 key: altTextKey,
                 label: l10n.postComposeAltTextLabel,
-                initialValue: image.altText,
+                controller: altTextController,
                 maxLength: RecordTextLimits.imageAlt.graphemes,
                 maxBytes: RecordTextLimits.imageAlt.bytes,
                 hintText: l10n.postComposeAltTextHint,
@@ -1043,6 +1107,7 @@ String _statusLabel(BuildContext context, ComposerImageDraft image) {
     ImageReady() => l10n.postComposeUploadedImage,
     ImageUploaded() => l10n.postComposeUploadedImage,
     ScheduledImageReady() => l10n.postComposeUploadedImage,
+    PublishedImageReady() => l10n.postComposeUploadedImage,
     ImageUnavailable() => l10n.draftsImageUnavailable,
     ImageFailed() => l10n.postComposeImageFailed,
   };
@@ -1064,6 +1129,7 @@ _PreviewLoadingOverlay? _previewLoadingOverlay(
     ImageReady() ||
     ImageUploaded() ||
     ScheduledImageReady() ||
+    PublishedImageReady() ||
     ImageUnavailable() ||
     ImageFailed() => null,
   };
@@ -1103,4 +1169,24 @@ class _PreviewLoadingOverlay {
 
   final String label;
   final double? value;
+}
+
+class _ImageEditButton extends StatelessWidget {
+  const new({
+    required this.imageId,
+    required this.keyPrefix,
+    required this.onEdit,
+  });
+  final String imageId;
+  final String keyPrefix;
+  final Future<void> Function(String) onEdit;
+
+  @override
+  Widget build(BuildContext context) => IconButton.filled(
+    key: keys.composerImages.edit(keyPrefix, imageId),
+    tooltip: AppLocalizations.of(context).imageEditAction,
+    onPressed: () => unawaited(onEdit(imageId)),
+    icon: const Icon(CraftskyIcons.edit),
+    constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+  );
 }

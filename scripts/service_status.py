@@ -14,12 +14,37 @@ import uuid
 
 
 MAX_BYTES = 16384
+SEMVER = re.compile(r'(0|[1-9][0-9]{0,14})\.(0|[1-9][0-9]{0,14})\.(0|[1-9][0-9]{0,14})(?:-((?:0|[1-9][0-9]{0,14}|[0-9]*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9][0-9]{0,14}|[0-9]*[A-Za-z-][0-9A-Za-z-]*))*))?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?', re.ASCII)
 REVISION = re.compile(r'[A-Za-z0-9_-]{1,64}', re.ASCII)
 TIMESTAMP = re.compile(r'\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:\d{2})', re.ASCII)
 
 
 def _invalid_json_constant(value):
     raise ValueError('Status JSON')
+
+
+def compare_versions(a, b):
+    def parts(value):
+        match = SEMVER.fullmatch(value)
+        if match is None:
+            raise ValueError('Status version')
+        return match.groups()[:3], match[4].split('.') if match[4] else None
+    def decimal(a, b):
+        return (len(a) > len(b)) - (len(a) < len(b)) or (a > b) - (a < b)
+    ac, ap = parts(a)
+    bc, bp = parts(b)
+    for a, b in zip(ac, bc):
+        result = decimal(a, b)
+        if result:
+            return result
+    if ap is None or bp is None:
+        return (ap is None) - (bp is None)
+    for a, b in zip(ap, bp):
+        an, bn = a.isascii() and a.isdigit(), b.isascii() and b.isdigit()
+        result = decimal(a, b) if an and bn else ((bn - an) if an != bn else (a > b) - (a < b))
+        if result:
+            return result
+    return (len(ap) > len(bp)) - (len(ap) < len(bp))
 
 
 def validate_document(raw):
@@ -30,37 +55,110 @@ def validate_document(raw):
         value = json.loads(raw.decode('utf-8'), parse_constant=_invalid_json_constant)
     except (ValueError, UnicodeError, RecursionError):
         raise ValueError('Status JSON') from None
-    if not isinstance(value, dict) or type(value.get('schemaVersion')) is not int or value['schemaVersion'] != 1:
+    if not isinstance(value, dict) or type(value.get('schemaVersion')) is not int or value['schemaVersion'] != 2:
         raise ValueError('Status schema')
-    if value.get('mode') not in ('normal', 'announcement', 'maintenance'):
-        raise ValueError('Status mode')
-    revision = value.get('revision')
-    if not isinstance(revision, str) or not REVISION.fullmatch(revision):
-        raise ValueError('Status revision')
-    result = {key: value[key] for key in ('schemaVersion', 'mode', 'revision')}
-    for key, limit in [('title', 160), ('message', 2400)]:
-        if key not in value and value['mode'] == 'normal':
-            continue
-        text = value.get(key)
-        if not isinstance(text, str) or not text.strip() or len(text) > limit or any(0xD800 <= ord(c) <= 0xDFFF for c in text):
+    _validate_schema(value)
+    def revision(text):
+        if not isinstance(text, str) or not REVISION.fullmatch(text):
+            raise ValueError('Status revision')
+        return text
+    def text(value, limit):
+        if not isinstance(value, str) or not value.strip() or len(value) > limit or any(0xD800 <= ord(c) <= 0xDFFF for c in value):
             raise ValueError('Status text')
-        result[key] = text
-    if 'estimatedRecoveryAt' in value:
-        estimate = value['estimatedRecoveryAt']
-        if not isinstance(estimate, str) or not TIMESTAMP.fullmatch(estimate):
-            raise ValueError('Status estimate')
+        return value
+    def version(value):
+        if not isinstance(value, str) or not SEMVER.fullmatch(value):
+            raise ValueError('Status version')
+        return value
+    def url(value):
+        if not isinstance(value, str) or any(ord(c) <= 32 or ord(c) == 127 for c in value):
+            raise ValueError('Status URL')
         try:
-            # datetime rejects normalized dates, leap seconds and >23:59 offsets.
-            datetime.datetime.fromisoformat(estimate.replace('Z', '+00:00'))
-            if estimate[-6:-5] in ('+', '-') and (int(estimate[-5:-3]) > 23 or int(estimate[-2:]) > 59):
-                raise ValueError('Status estimate')
+            parsed = urlsplit(value)
+            if parsed.scheme != 'https' or not parsed.hostname or parsed.username is not None or parsed.password is not None or (parsed.port is not None and parsed.port > 65535) or re.search(r'%(?![0-9a-fA-F]{2})', value):
+                raise ValueError()
         except ValueError:
-            raise ValueError('Status estimate') from None
-        result['estimatedRecoveryAt'] = estimate
+            raise ValueError('Status URL') from None
+        return value
+    result = {'schemaVersion': 2, 'revision': revision(value.get('revision'))}
+    for section in ('maintenance', 'minimumVersions', 'message'):
+        if section not in value:
+            continue
+        item = value[section]
+        if not isinstance(item, dict):
+            raise ValueError('Status section')
+        if section == 'minimumVersions':
+            result[section] = {key: version(item[key]) for key in ('ios', 'android', 'web') if key in item}
+            continue
+        output = {'title': text(item.get('title'), 160), 'description': text(item.get('description'), 2400)}
+        if section == 'maintenance' and 'estimatedRecoveryAt' in item:
+            estimate = item['estimatedRecoveryAt']
+            if not isinstance(estimate, str) or not TIMESTAMP.fullmatch(estimate):
+                raise ValueError('Status estimate')
+            try:
+                datetime.datetime.fromisoformat(estimate.replace('Z', '+00:00'))
+                if estimate[-6:-5] in ('+', '-') and (int(estimate[-5:-3]) > 23 or int(estimate[-2:]) > 59):
+                    raise ValueError()
+            except ValueError:
+                raise ValueError('Status estimate') from None
+            output['estimatedRecoveryAt'] = estimate
+        if section == 'message':
+            output.update(revision=revision(item.get('revision')), minVersion=version(item.get('minVersion')))
+            if 'maxVersion' in item:
+                output['maxVersion'] = version(item['maxVersion'])
+                if compare_versions(output['minVersion'], output['maxVersion']) > 0:
+                    raise ValueError('Status range')
+            if 'imageUrl' in item:
+                output['imageUrl'] = url(item['imageUrl'])
+            if 'cta' in item:
+                cta = item['cta']
+                if not isinstance(cta, dict) or ('url' in cta) == ('destination' in cta):
+                    raise ValueError('Status CTA')
+                output['cta'] = {'text': text(cta.get('text'), 160)}
+                if 'url' in cta:
+                    output['cta']['url'] = url(cta['url'])
+                else:
+                    if cta['destination'] not in ('feed', 'projects', 'search', 'notifications', 'profile', 'settings'):
+                        raise ValueError('Status destination')
+                    output['cta']['destination'] = cta['destination']
+        result[section] = output
     return result
 
 
 ROOT = Path(__file__).resolve().parents[1]
+SCHEMA_PATH = ROOT / 'service-status/app.schema.json'
+
+
+def _validate_schema(value):
+    # No remote retrieval: reject every non-local reference before constructing
+    # the validator, and give referencing an empty, non-retrieving registry.
+    try:
+        from jsonschema import Draft202012Validator, FormatChecker
+        from referencing import Registry
+        schema = json.loads(SCHEMA_PATH.read_text())
+        if not isinstance(schema, dict) or schema.get('$schema') != 'https://json-schema.org/draft/2020-12/schema' or schema.get('$id') != 'urn:craftsky:service-status:2':
+            raise ValueError('Status schema identity')
+        def local_refs(node):
+            if isinstance(node, dict):
+                for key, item in node.items():
+                    if key in ('$ref', '$dynamicRef') and (not isinstance(item, str) or not item.startswith('#')):
+                        raise ValueError('Status schema reference')
+                    if key in ('$ref', '$dynamicRef'):
+                        target = schema
+                        if item != '#' and not item.startswith('#/'):
+                            raise ValueError('Status schema reference')
+                        for part in item[2:].split('/') if item != '#' else []:
+                            target = target[part.replace('~1', '/').replace('~0', '~')]
+                    local_refs(item)
+            elif isinstance(node, list):
+                for item in node:
+                    local_refs(item)
+        local_refs(schema)
+        Draft202012Validator.check_schema(schema)
+        Draft202012Validator(schema, format_checker=FormatChecker(formats=['uri', 'date-time']), registry=Registry()).validate(value)
+    except Exception:
+        raise ValueError('Status schema validation') from None
+
 TARGETS = {
     'production': {'environment': 'production', 'bucket': 'craftsky-service-status',
                    'url': 'https://status.craftsky.social/app.json'},
@@ -151,7 +249,7 @@ def run_command(argv=None, *, store=None, verifier=None, confirm=input, output=N
             with args.file.open('rb') as source:
                 document = validate_document(source.read(MAX_BYTES + 1))
         else:
-            document = {'schemaVersion': 1, 'mode': 'normal', 'revision': 'draft'}
+            document = {'schemaVersion': 2, 'revision': 'draft'}
         if args.operation == 'validate':
             print('Valid status document', file=output)
             return 0

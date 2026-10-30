@@ -296,7 +296,7 @@ void main() {
         routes: [
           GoRoute(path: '/settings', builder: (_, _) => const SettingsPage()),
           GoRoute(
-            path: '/profile/settings/subscriptions',
+            path: '/settings/subscriptions',
             builder: (_, _) => const Scaffold(body: Text('Subscription route')),
           ),
         ],
@@ -338,7 +338,7 @@ void main() {
 
       await tester.tap(find.text('Make more with CraftSky'));
       await tester.pumpAndSettle();
-      expect(router.state.uri.path, '/profile/settings/subscriptions');
+      expect(router.state.uri.path, '/settings/subscriptions');
       expect(find.text('Subscription route'), findsOneWidget);
     },
     skip: !subscriptionsEnabled,
@@ -389,7 +389,7 @@ void main() {
           builder: (_, _) => const SettingsPage(),
         ),
         GoRoute(
-          path: '/profile/settings/instagram',
+          path: '/settings/instagram',
           builder: (_, _) => const Scaffold(body: Text('Instagram route')),
         ),
       ],
@@ -423,7 +423,7 @@ void main() {
     await tester.tap(find.text('Find people from Instagram'));
     await tester.pumpAndSettle();
 
-    expect(router.state.uri.path, '/profile/settings/instagram');
+    expect(router.state.uri.path, '/settings/instagram');
     expect(find.text('Instagram route'), findsOneWidget);
   });
 
@@ -435,7 +435,7 @@ void main() {
       routes: [
         GoRoute(path: '/settings', builder: (_, _) => const SettingsPage()),
         GoRoute(
-          path: '/profile/settings/moderation',
+          path: '/settings/moderation',
           builder: (_, _) => const Scaffold(body: Text('Standing route')),
         ),
       ],
@@ -461,7 +461,7 @@ void main() {
     await tester.tap(find.text('Account standing'));
     await tester.pumpAndSettle();
 
-    expect(router.state.uri.path, '/profile/settings/moderation');
+    expect(router.state.uri.path, '/settings/moderation');
     expect(find.text('Standing route'), findsOneWidget);
   });
 
@@ -475,7 +475,7 @@ void main() {
         routes: [
           GoRoute(path: '/settings', builder: (_, _) => const SettingsPage()),
           GoRoute(
-            path: '/profile/settings/products',
+            path: '/settings/products',
             builder: (_, _) => const Scaffold(body: Text('Products route')),
           ),
         ],
@@ -526,7 +526,7 @@ void main() {
       await tester.tap(find.text('Products'));
       await tester.pumpAndSettle();
 
-      expect(router.state.uri.path, '/profile/settings/products');
+      expect(router.state.uri.path, '/settings/products');
       expect(find.text('Products route'), findsOneWidget);
     },
     skip: !subscriptionsEnabled,

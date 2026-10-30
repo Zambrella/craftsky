@@ -1,3 +1,9 @@
-#!/usr/bin/env python3
-from service_status import run_command
-raise SystemExit(run_command())
+#!/usr/bin/env bash
+set -euo pipefail
+repo_root="$(cd "$(dirname "$0")/.." && pwd)"
+status_python="${CRAFTSKY_STATUS_PYTHON:-$repo_root/service-status/.venv/bin/python}"
+if [[ ! -x "$status_python" ]]; then
+  echo 'Status validator environment unavailable; follow service-status/README.md setup.' >&2
+  exit 1
+fi
+exec "$status_python" "$repo_root/scripts/service_status.py" "$@"

@@ -36,7 +36,7 @@ final class SessionRegistryProvider
   SessionRegistry create() => SessionRegistry();
 }
 
-String _$sessionRegistryHash() => r'50a542fb2f6628d443516c4460fbddb398352af5';
+String _$sessionRegistryHash() => r'08643f1ab653875945879f9d8d0e232e6cd18137';
 
 /// The sole mutable source for retained CraftSky account sessions.
 

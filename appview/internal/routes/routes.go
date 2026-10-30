@@ -530,6 +530,7 @@ func AddRoutes(_ context.Context, mux Registrar, deps *Dependencies) {
 			trustedSourceDIDs: deps.Config.TrustedModerationSourceDIDs,
 		},
 		postStore: postStore, savedPostStore: savedPostStore,
+		editRecords:      deps.PostEditRecords,
 		savedPostService: savedPostService, profilePinStore: profilePinStore,
 		handleResolver: deps.HandleResolver,
 		pdsCommands:    deps.PDSCommands, appendCommands: deps.PDSAppendCommands, addressedCommands: deps.PDSAddressedCommands,

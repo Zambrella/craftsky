@@ -1,9 +1,9 @@
-import 'dart:typed_data';
-
 import 'package:craftsky_app/profile/data/crafts_catalog.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/models/profile_image_failure.dart';
+import 'package:craftsky_app/profile/models/profile_link.dart';
 import 'package:craftsky_app/shared/media/uploaded_image_blob.dart';
+import 'package:flutter/foundation.dart';
 
 enum OnboardingStep { profile, crafts, guidelines }
 
@@ -17,20 +17,24 @@ final class OnboardingIdentityDraft {
     required this.displayName,
     required this.pronouns,
     required this.bio,
+    this.links = const [],
   });
 
   final String displayName;
   final String pronouns;
   final String bio;
+  final List<ProfileLink> links;
 
   OnboardingIdentityDraft copyWith({
     String? displayName,
     String? pronouns,
     String? bio,
+    List<ProfileLink>? links,
   }) => OnboardingIdentityDraft(
     displayName: displayName ?? this.displayName,
     pronouns: pronouns ?? this.pronouns,
     bio: bio ?? this.bio,
+    links: links == null ? this.links : List.unmodifiable(links),
   );
 }
 
@@ -69,6 +73,7 @@ final class OnboardingFlowState {
         displayName: profile.displayName ?? '',
         pronouns: profile.pronouns ?? '',
         bio: profile.description ?? '',
+        links: List.unmodifiable(profile.editingLinks),
       ),
       selectedCraftIds: known,
       unknownCraftIds: unknown,
@@ -89,16 +94,21 @@ final class OnboardingFlowState {
   final UploadedBlob? avatarBlob;
   final bool meetsMinimumAge;
 
+  bool get linksDirty => !listEquals(identity.links, baseline.editingLinks);
+
   bool get identityDirty =>
       identity.displayName != (baseline.displayName ?? '') ||
       identity.pronouns != (baseline.pronouns ?? '') ||
       identity.bio != (baseline.description ?? '') ||
+      linksDirty ||
       avatarBlob != null;
 
   bool get craftsDirty {
     final baselineKnown = baseline.crafts.where(isCanonicalSelectableCraft);
-    return baselineKnown.toSet().length != selectedCraftIds.length ||
-        !selectedCraftIds.containsAll(baselineKnown);
+    return !listEquals(
+      baselineKnown.toSet().toList(),
+      selectedCraftIds.toList(),
+    );
   }
 
   OnboardingFlowState copyWith({

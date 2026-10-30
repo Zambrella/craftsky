@@ -2799,9 +2799,13 @@ func (t *FeedPost) MarshalCBOR(w io.Writer) error {
 	}
 
 	cw := cbg.NewCborWriter(w)
-	fieldCount := 12
+	fieldCount := 13
 
 	if t.Crafts == nil {
+		fieldCount--
+	}
+
+	if t.EditedAt == nil {
 		fieldCount--
 	}
 
@@ -3056,6 +3060,38 @@ func (t *FeedPost) MarshalCBOR(w io.Writer) error {
 
 		if err := t.Project.MarshalCBOR(cw); err != nil {
 			return err
+		}
+	}
+
+	// t.EditedAt (string) (string)
+	if t.EditedAt != nil {
+
+		if len("editedAt") > 1000000 {
+			return xerrors.Errorf("Value in field \"editedAt\" was too long")
+		}
+
+		if err := cw.WriteMajorTypeHeader(cbg.MajTextString, uint64(len("editedAt"))); err != nil {
+			return err
+		}
+		if _, err := cw.WriteString(string("editedAt")); err != nil {
+			return err
+		}
+
+		if t.EditedAt == nil {
+			if _, err := cw.Write(cbg.CborNull); err != nil {
+				return err
+			}
+		} else {
+			if len(*t.EditedAt) > 1000000 {
+				return xerrors.Errorf("Value in field t.EditedAt was too long")
+			}
+
+			if err := cw.WriteMajorTypeHeader(cbg.MajTextString, uint64(len(*t.EditedAt))); err != nil {
+				return err
+			}
+			if _, err := cw.WriteString(string(*t.EditedAt)); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -3428,6 +3464,27 @@ func (t *FeedPost) UnmarshalCBOR(r io.Reader) (err error) {
 					}
 				}
 
+			}
+			// t.EditedAt (string) (string)
+		case "editedAt":
+
+			{
+				b, err := cr.ReadByte()
+				if err != nil {
+					return err
+				}
+				if b != cbg.CborNull[0] {
+					if err := cr.UnreadByte(); err != nil {
+						return err
+					}
+
+					sval, err := cbg.ReadStringWithMax(cr, 1000000)
+					if err != nil {
+						return err
+					}
+
+					t.EditedAt = (*string)(&sval)
+				}
 			}
 			// t.CreatedAt (string) (string)
 		case "createdAt":
@@ -4062,8 +4119,13 @@ func (t *FeedPost_QuoteEmbed) MarshalCBOR(w io.Writer) error {
 	}
 
 	cw := cbg.NewCborWriter(w)
+	fieldCount := 3
 
-	if _, err := cw.Write([]byte{162}); err != nil {
+	if t.ImageCid == nil {
+		fieldCount--
+	}
+
+	if _, err := cw.Write(cbg.CborEncodeMajorType(cbg.MajMap, uint64(fieldCount))); err != nil {
 		return err
 	}
 
@@ -4101,6 +4163,38 @@ func (t *FeedPost_QuoteEmbed) MarshalCBOR(w io.Writer) error {
 	if err := t.Record.MarshalCBOR(cw); err != nil {
 		return err
 	}
+
+	// t.ImageCid (string) (string)
+	if t.ImageCid != nil {
+
+		if len("imageCid") > 1000000 {
+			return xerrors.Errorf("Value in field \"imageCid\" was too long")
+		}
+
+		if err := cw.WriteMajorTypeHeader(cbg.MajTextString, uint64(len("imageCid"))); err != nil {
+			return err
+		}
+		if _, err := cw.WriteString(string("imageCid")); err != nil {
+			return err
+		}
+
+		if t.ImageCid == nil {
+			if _, err := cw.Write(cbg.CborNull); err != nil {
+				return err
+			}
+		} else {
+			if len(*t.ImageCid) > 1000000 {
+				return xerrors.Errorf("Value in field t.ImageCid was too long")
+			}
+
+			if err := cw.WriteMajorTypeHeader(cbg.MajTextString, uint64(len(*t.ImageCid))); err != nil {
+				return err
+			}
+			if _, err := cw.WriteString(string(*t.ImageCid)); err != nil {
+				return err
+			}
+		}
+	}
 	return nil
 }
 
@@ -4129,7 +4223,7 @@ func (t *FeedPost_QuoteEmbed) UnmarshalCBOR(r io.Reader) (err error) {
 
 	n := extra
 
-	nameBuf := make([]byte, 6)
+	nameBuf := make([]byte, 8)
 	for i := uint64(0); i < n; i++ {
 		nameLen, ok, err := cbg.ReadFullStringIntoBuf(cr, nameBuf, 1000000)
 		if err != nil {
@@ -4175,6 +4269,27 @@ func (t *FeedPost_QuoteEmbed) UnmarshalCBOR(r io.Reader) (err error) {
 					}
 				}
 
+			}
+			// t.ImageCid (string) (string)
+		case "imageCid":
+
+			{
+				b, err := cr.ReadByte()
+				if err != nil {
+					return err
+				}
+				if b != cbg.CborNull[0] {
+					if err := cr.UnreadByte(); err != nil {
+						return err
+					}
+
+					sval, err := cbg.ReadStringWithMax(cr, 1000000)
+					if err != nil {
+						return err
+					}
+
+					t.ImageCid = (*string)(&sval)
+				}
 			}
 
 		default:

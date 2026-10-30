@@ -5,6 +5,7 @@ import 'package:craftsky_app/auth/models/auth_state.dart';
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
+import 'package:craftsky_app/router/app_shell_drawer.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/saved_posts/models/saved_post.dart';
 import 'package:craftsky_app/saved_posts/models/saved_post_error.dart';
@@ -54,9 +55,7 @@ class _SavedPostsPageState extends ConsumerState<SavedPostsPage> {
     if (account == null) {
       return Scaffold(
         appBar: AppBar(
-          leading: BackButton(
-            onPressed: () => const FeedRoute().go(context),
-          ),
+          leading: const AppShellDrawerButton(),
           title: Text(l10n.savedPostsTitle),
         ),
         body: const CraftskySkeletonList(
@@ -74,7 +73,10 @@ class _SavedPostsPageState extends ConsumerState<SavedPostsPage> {
         : null;
     if (access == null || access.isLoading) {
       return Scaffold(
-        appBar: AppBar(title: Text(l10n.savedPostsTitle)),
+        appBar: AppBar(
+          leading: const AppShellDrawerButton(),
+          title: Text(l10n.savedPostsTitle),
+        ),
         body: const CraftskySkeletonList(itemBuilder: _buildSavedPostSkeleton),
       );
     }
@@ -96,9 +98,7 @@ class _SavedPostsPageState extends ConsumerState<SavedPostsPage> {
 
     return Scaffold(
       appBar: AppBar(
-        leading: BackButton(
-          onPressed: () => const FeedRoute().go(context),
-        ),
+        leading: const AppShellDrawerButton(),
         title: Text(l10n.savedPostsTitle),
         actions: [
           PlusFeatureLock(

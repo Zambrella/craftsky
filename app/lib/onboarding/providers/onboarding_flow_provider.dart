@@ -11,12 +11,14 @@ import 'package:craftsky_app/onboarding/providers/onboarding_status_provider.dar
 import 'package:craftsky_app/profile/data/profile_repository.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/models/profile_image_failure.dart';
+import 'package:craftsky_app/profile/models/profile_link.dart';
 import 'package:craftsky_app/profile/providers/profile_image_picker_provider.dart';
 import 'package:craftsky_app/profile/providers/profile_mutation_publication.dart';
 import 'package:craftsky_app/profile/providers/profile_record_overlay.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/profile/services/profile_image_error_reporting.dart';
 import 'package:craftsky_app/shared/api/pds_mutation_contract.dart';
+import 'package:craftsky_app/shared/image/basic_image_editor.dart';
 import 'package:craftsky_app/shared/mutations/pds_record_operation_controller.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
 import 'package:craftsky_app/shared/observability/error_reporter_provider.dart';
@@ -122,7 +124,12 @@ class OnboardingFlow extends _$OnboardingFlow {
     state = AsyncData(OnboardingFlowState.fromProfile(profile));
   }
 
-  void updateIdentity({String? displayName, String? pronouns, String? bio}) {
+  void updateIdentity({
+    String? displayName,
+    String? pronouns,
+    String? bio,
+    List<ProfileLink>? links,
+  }) {
     final current = state.value;
     if (current == null || current.saving) return;
     state = AsyncData(
@@ -131,6 +138,7 @@ class OnboardingFlow extends _$OnboardingFlow {
           displayName: displayName,
           pronouns: pronouns,
           bio: bio,
+          links: links,
         ),
       ),
     );
@@ -144,6 +152,16 @@ class OnboardingFlow extends _$OnboardingFlow {
     state = AsyncData(current.copyWith(selectedCraftIds: selected));
   }
 
+  void reorderCrafts(List<String> ids) {
+    final current = state.value;
+    if (current == null || current.saving) return;
+    if (ids.length != current.selectedCraftIds.length ||
+        !ids.toSet().containsAll(current.selectedCraftIds)) {
+      return;
+    }
+    state = AsyncData(current.copyWith(selectedCraftIds: ids.toSet()));
+  }
+
   // This method is passed directly as a ValueChanged<bool> callback.
   // ignore: avoid_positional_boolean_parameters
   void setMeetsMinimumAge(bool value) {
@@ -152,7 +170,10 @@ class OnboardingFlow extends _$OnboardingFlow {
     state = AsyncData(current.copyWith(meetsMinimumAge: value));
   }
 
-  Future<void> pickAvatar(ImageSource source) async {
+  Future<void> pickAvatar(
+    ImageSource source, {
+    BasicImageEditor? editImage,
+  }) async {
     final current = state.value;
     if (current == null || current.saving || current.uploadingAvatar) return;
     final reporter = ref.read(errorReporterProvider);
@@ -169,8 +190,10 @@ class OnboardingFlow extends _$OnboardingFlow {
       if (!_isCurrent()) return;
       final result = await picker.pickAndUpload(
         source: source,
+        editImage: editImage,
+        isCurrent: _isCurrent,
         onPreviewReady: (bytes) {
-          if (!_isCurrent()) return;
+          if (!_isCurrent() || editImage != null) return;
           state = AsyncData(
             (state.value ?? current).copyWith(
               avatarPreview: bytes,
@@ -222,7 +245,7 @@ class OnboardingFlow extends _$OnboardingFlow {
 
   void next() {
     final current = state.value;
-    if (current == null || current.saving) return;
+    if (current == null || current.saving || current.uploadingAvatar) return;
     final next = (current.step.index + 1).clamp(
       0,
       OnboardingStep.values.length - 1,
@@ -232,7 +255,7 @@ class OnboardingFlow extends _$OnboardingFlow {
 
   void previous() {
     final current = state.value;
-    if (current == null || current.saving) return;
+    if (current == null || current.saving || current.uploadingAvatar) return;
     final previous = (current.step.index - 1).clamp(
       0,
       OnboardingStep.values.length - 1,
@@ -242,12 +265,13 @@ class OnboardingFlow extends _$OnboardingFlow {
 
   Future<void> saveAndNext() async {
     final current = state.value;
-    if (current == null || current.saving) return;
+    if (current == null || current.saving || current.uploadingAvatar) return;
     state = AsyncData(current.copyWith(saving: true));
     try {
       final repository = await ref.read(
         accountProfileRepositoryProvider(lease).future,
       );
+      if (!_isCurrent()) return;
       final payload = OnboardingProfilePayload.fromState(
         current,
         avatar: current.avatarBlob,
@@ -310,7 +334,12 @@ class OnboardingFlow extends _$OnboardingFlow {
 
   Future<void> complete() {
     final current = state.value;
-    if (current == null || !current.meetsMinimumAge) return Future.value();
+    if (current == null ||
+        current.uploadingAvatar ||
+        current.saving ||
+        !current.meetsMinimumAge) {
+      return Future.value();
+    }
     return ref
         .read(onboardingStatusProvider(lease.session).notifier)
         .completeOptimistically(meetsMinimumAge: true);
@@ -340,6 +369,8 @@ class OnboardingFlow extends _$OnboardingFlow {
           pronouns: payload.pronouns,
           description: payload.description,
           crafts: payload.crafts,
+          links: payload.links,
+          removedLinks: payload.removedLinks,
           avatar: payload.avatar,
         );
       } on PdsMutationAmbiguousException catch (error) {
@@ -366,7 +397,8 @@ class OnboardingFlow extends _$OnboardingFlow {
       (profile.displayName?.isNotEmpty ?? false) ||
       (profile.pronouns?.isNotEmpty ?? false) ||
       (profile.description?.isNotEmpty ?? false) ||
-      (profile.avatar?.isNotEmpty ?? false);
+      (profile.avatar?.isNotEmpty ?? false) ||
+      profile.editingLinks.isNotEmpty;
 }
 
 Map<String, dynamic> _profileMutationBody(OnboardingProfilePayload payload) => {
@@ -374,6 +406,12 @@ Map<String, dynamic> _profileMutationBody(OnboardingProfilePayload payload) => {
   'pronouns': payload.pronouns,
   'description': payload.description,
   'crafts': payload.crafts,
+  if (payload.links != null)
+    'links': payload.links!.map((link) => link.toInput()).toList(),
+  if (payload.removedLinks != null)
+    'removedLinks': payload.removedLinks!
+        .map((link) => {'uri': link.uri, 'cid': link.cid})
+        .toList(),
   if (payload.avatar case final avatar?)
     'avatar': {
       r'$type': avatar.type,

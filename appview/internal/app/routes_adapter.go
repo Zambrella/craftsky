@@ -140,6 +140,7 @@ func RouteDependencies(deps *Deps) *routes.Dependencies {
 		PDSCommands:                 deps.PDSCommands,
 		PDSAppendCommands:           deps.PDSAppendCommands,
 		PDSAddressedCommands:        deps.PDSAddressedCommands,
+		PostEditRecords:             deps.PostEditRecords,
 		PDSCompoundCommands:         deps.PDSCompoundCommands,
 		BusinessStore:               deps.BusinessStore,
 		Subscriptions:               deps.Subscriptions,

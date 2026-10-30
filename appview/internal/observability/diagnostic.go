@@ -5,7 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"github.com/bluesky-social/indigo/atproto/atclient"
+	"github.com/bluesky-social/indigo/atproto/identity"
 	"log/slog"
+	"net"
 	"path/filepath"
 	"reflect"
 	"regexp"
@@ -60,7 +62,13 @@ func DescribeError(err error, eventCtx EventContext) []DiagnosticCause {
 		case *runtime.TypeAssertionError, *runtime.PanicNilError:
 			cause.Message = sanitizeKnownDiagnosticText(current.Error())
 		}
-		for _, sentinel := range []error{context.DeadlineExceeded, context.Canceled, auth.ErrRecordNotFound, auth.ErrAuthTokenInvalid, auth.ErrCraftskySessionNotFound, auth.ErrOAuthSessionNotFound, auth.ErrPDSSessionExpired, auth.ErrPDSLatestCommitMissingCID} {
+		if network, ok := current.(net.Error); ok && network.Timeout() {
+			cause.Message = "network request timed out"
+		}
+		if dns, ok := current.(*net.DNSError); ok {
+			cause.Message = fmt.Sprintf("DNS lookup failed (not_found=%t timeout=%t temporary=%t)", dns.IsNotFound, dns.IsTimeout, dns.IsTemporary)
+		}
+		for _, sentinel := range []error{context.DeadlineExceeded, context.Canceled, identity.ErrHandleResolutionFailed, identity.ErrHandleNotFound, identity.ErrHandleMismatch, identity.ErrHandleNotDeclared, identity.ErrHandleReservedTLD, identity.ErrDIDNotFound, identity.ErrDIDResolutionFailed, identity.ErrKeyNotDeclared, identity.ErrInvalidHandle, auth.ErrRecordNotFound, auth.ErrAuthTokenInvalid, auth.ErrCraftskySessionNotFound, auth.ErrOAuthSessionNotFound, auth.ErrPDSSessionExpired, auth.ErrPDSLatestCommitMissingCID, auth.ErrCallbackAttemptInvalid, auth.ErrAuthRequestState, auth.ErrSessionVersionChanged, auth.ErrAuthRequestMetadataInvalid} {
 			if sameDiagnosticError(current, sentinel) {
 				cause.Message = sentinel.Error()
 				break
@@ -87,6 +95,9 @@ func DescribeError(err error, eventCtx EventContext) []DiagnosticCause {
 			}
 			if code != "" {
 				cause.Message += " " + code
+				if status == 0 {
+					cause.Message += " (HTTP response unavailable)"
+				}
 			}
 		}
 		if storage, ok := current.(*smithyhttp.ResponseError); ok && storage.Response != nil && storage.Response.Response != nil {

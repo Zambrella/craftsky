@@ -115,7 +115,7 @@ void main() {
           accountLanguagePreferencesProvider(lease).future,
         )).preferences,
         const LanguagePreferences(
-          primaryLanguage: 'fr',
+          primaryLanguage: 'en',
           contentLanguages: ['fr', 'en'],
         ),
       );

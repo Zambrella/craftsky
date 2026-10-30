@@ -89,6 +89,9 @@ CREATE TABLE craftsky_posts (
     external_import_source TEXT
         CHECK (external_import_source IS NULL OR external_import_source = 'instagram'),
     profile_sort_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+    edited_at TIMESTAMPTZ,
+    edit_time_source TEXT,
+    record_revision TEXT,
     UNIQUE (did, rkey)
 );
 CREATE TABLE image_subject_states (

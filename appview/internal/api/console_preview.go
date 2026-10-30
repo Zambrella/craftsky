@@ -14,6 +14,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"social.craftsky/appview/internal/business"
 	"social.craftsky/appview/internal/moderation"
+	"social.craftsky/appview/internal/profilelinks"
 	"social.craftsky/appview/internal/video"
 )
 
@@ -174,6 +175,29 @@ func readConsoleSubject(ctx context.Context, db consolePreviewReader, kind strin
 		return readConsoleAccount(ctx, db, did, cid)
 	case "event":
 		return readConsoleEvent(ctx, db, did, uri, cid)
+	case "profileLink":
+		result := ConsolePreview{State: "unavailable", SubjectType: kind, SubjectDID: did, Version: compareConsoleVersion(cid, "")}
+		var raw json.RawMessage
+		var currentCID string
+		err := db.QueryRow(ctx, `SELECT cid,record FROM bluesky_profile_links WHERE uri=$1 AND did=$2`, uri, did).Scan(&currentCID, &raw)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return result, nil
+		}
+		if err != nil {
+			return result, err
+		}
+		result.Version = compareConsoleVersion(cid, currentCID)
+		if result.Version.Status == "changed" {
+			return result, nil
+		}
+		var record profilelinks.Record
+		if err := json.Unmarshal(raw, &record); err != nil {
+			return result, err
+		}
+		result.State = "available"
+		result.Title = record.Title
+		result.Text = record.URL
+		return result, nil
 	}
 	return ConsolePreview{State: "unavailable", SubjectType: kind, SubjectDID: did}, nil
 }

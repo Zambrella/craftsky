@@ -99,14 +99,18 @@ class _ActiveAccountInitializationGateState
   }) {
     final hasAlternative =
         registry != null && registry.orderedSessions.length > 1;
-    return ActiveAccountInitializationErrorScreen(
-      busy: _recovering || ref.watch(authControllerProvider).isLoading,
-      isSigningOut: _recovering,
-      onRetry: _retry,
-      onSwitchAccount: hasAlternative
-          ? () => unawaited(_showAccountSwitcher(registry))
-          : null,
-      onSignOut: () => unawaited(_signOut()),
+    // The fallback Navigator supplies the Overlay and recovery route context.
+    final busy = _recovering || ref.watch(authControllerProvider).isLoading;
+    return Builder(
+      builder: (recoveryContext) => ActiveAccountInitializationErrorScreen(
+        busy: busy,
+        isSigningOut: _recovering,
+        onRetry: _retry,
+        onSwitchAccount: hasAlternative
+            ? () => unawaited(_showAccountSwitcher(recoveryContext, registry))
+            : null,
+        onSignOut: () => unawaited(_signOut()),
+      ),
     );
   }
 
@@ -130,6 +134,7 @@ class _ActiveAccountInitializationGateState
   }
 
   Future<void> _showAccountSwitcher(
+    BuildContext recoveryContext,
     registry_model.SessionRegistry registry,
   ) async {
     final state = AccountSwitcherState.fromRegistry(registry);
@@ -143,7 +148,7 @@ class _ActiveAccountInitializationGateState
     );
 
     await showModalBottomSheet<void>(
-      context: _recoveryNavigatorKey.currentState!.overlay!.context,
+      context: recoveryContext,
       showDragHandle: true,
       builder: (sheetContext) => StatefulBuilder(
         builder: (context, setSheetState) => AccountSwitcherContent(

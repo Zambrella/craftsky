@@ -63,7 +63,8 @@ type postRouteBundle struct {
 	handleResolver     api.HandleResolver
 	pdsCommands        api.SetCommandExecutor
 	appendCommands     api.AppendCommandExecutor
-	addressedCommands  api.AddressedDeleteCommandExecutor
+	addressedCommands  api.AddressedCommandExecutor
+	editRecords        api.PostEditRecordReader
 	reportStore        *api.ReportStore
 	reportForwarder    api.ReportForwarder
 	moderationStore    *api.ModerationStore
@@ -79,6 +80,8 @@ type postRouteBundle struct {
 func registerPostRoutes(routes postRouteBundle) {
 	routes.mux.Handle("POST /v1/posts", routes.middleware.wrap(mustPolicy("POST", "/v1/posts"), api.CreatePostHandler(routes.postStore, nil, routes.handleResolver, routes.mediaLimits, routes.logger, api.CreatePostHandlerOptions{VideoCompletionVerifier: routes.videoVerifier, DisableVideo: !routes.videoEnabled, Commands: routes.appendCommands})))
 	routes.mux.Handle("GET /v1/posts/{did}/{rkey}", routes.middleware.wrap(mustPolicy("GET", "/v1/posts/{did}/{rkey}"), api.GetPostHandler(routes.postStore, routes.handleResolver, routes.logger, routes.languages)))
+	routes.mux.Handle("GET /v1/posts/{did}/{rkey}/edit", routes.middleware.wrap(mustPolicy("GET", "/v1/posts/{did}/{rkey}/edit"), api.GetPostEditHandler(routes.postStore, routes.handleResolver, api.NewPostEditSeedLoader(routes.postStore, routes.editRecords))))
+	routes.mux.Handle("PATCH /v1/posts/{did}/{rkey}", routes.middleware.wrap(mustPolicy("PATCH", "/v1/posts/{did}/{rkey}"), api.CommandEditPostHandler(routes.postStore, routes.addressedCommands, routes.handleResolver, routes.mediaLimits, api.EditPostHandlerOptions{VideoCompletionVerifier: routes.videoVerifier, DisableVideo: !routes.videoEnabled})))
 	routes.mux.Handle("GET /v1/posts/{did}/{rkey}/video-captions/{captionCid}", routes.middleware.wrap(mustPolicy("GET", "/v1/posts/{did}/{rkey}/video-captions/{captionCid}"), api.VideoCaptionHandler(routes.postStore, routes.videoCaptions, routes.logger, routes.videoObserver)))
 	saveHandler := api.SavePostHandler(routes.postStore, routes.savedPostStore)
 	if routes.subscriptionAccess != nil {
@@ -128,8 +131,8 @@ func registerPostRoutes(routes postRouteBundle) {
 				routes.logger,
 			)))
 	}
-	routes.mux.Handle("GET /v1/profiles/{handleOrDid}/posts", routes.middleware.wrap(mustPolicy("GET", "/v1/profiles/{handleOrDid}/posts"), api.ListPostsByAuthorHandler(routes.postStore, routes.handleResolver, routes.logger, routes.profilePinStore, routes.languages)))
-	routes.mux.Handle("GET /v1/profiles/{handleOrDid}/projects", routes.middleware.wrap(mustPolicy("GET", "/v1/profiles/{handleOrDid}/projects"), api.ListProjectsByAuthorHandler(routes.postStore, routes.handleResolver, routes.logger, routes.profilePinStore, routes.languages)))
-	routes.mux.Handle("GET /v1/profiles/{handleOrDid}/comments", routes.middleware.wrap(mustPolicy("GET", "/v1/profiles/{handleOrDid}/comments"), api.ListCommentsByAuthorHandler(routes.postStore, routes.handleResolver, routes.logger, routes.languages)))
-	routes.mux.Handle("GET /v1/profiles/{handleOrDid}/reposts", routes.middleware.wrap(mustPolicy("GET", "/v1/profiles/{handleOrDid}/reposts"), api.ListRepostsByAuthorHandler(routes.postStore, routes.handleResolver, routes.logger, routes.languages)))
+	routes.mux.Handle("GET /v1/profiles/{handleOrDid}/posts", routes.middleware.wrap(mustPolicy("GET", "/v1/profiles/{handleOrDid}/posts"), api.ListPostsByAuthorHandler(routes.postStore, routes.handleResolver, routes.logger, routes.profilePinStore)))
+	routes.mux.Handle("GET /v1/profiles/{handleOrDid}/projects", routes.middleware.wrap(mustPolicy("GET", "/v1/profiles/{handleOrDid}/projects"), api.ListProjectsByAuthorHandler(routes.postStore, routes.handleResolver, routes.logger, routes.profilePinStore)))
+	routes.mux.Handle("GET /v1/profiles/{handleOrDid}/comments", routes.middleware.wrap(mustPolicy("GET", "/v1/profiles/{handleOrDid}/comments"), api.ListCommentsByAuthorHandler(routes.postStore, routes.handleResolver, routes.logger)))
+	routes.mux.Handle("GET /v1/profiles/{handleOrDid}/reposts", routes.middleware.wrap(mustPolicy("GET", "/v1/profiles/{handleOrDid}/reposts"), api.ListRepostsByAuthorHandler(routes.postStore, routes.handleResolver, routes.logger)))
 }

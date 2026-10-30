@@ -22,7 +22,7 @@ import 'package:craftsky_app/profile/providers/toggle_block_profile_provider.dar
 import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
 import 'package:craftsky_app/profile/widgets/profile_account_list_tile.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
-import 'package:craftsky_app/profile/widgets/profile_presentation_page.dart';
+import 'package:craftsky_app/profile/widgets/profile_avatar_hero.dart';
 import 'package:craftsky_app/projects/pages/projects_page.dart';
 import 'package:craftsky_app/projects/providers/preferred_craft_links_provider.dart';
 import 'package:craftsky_app/projects/providers/project_repository_provider.dart';
@@ -122,10 +122,13 @@ Future<GoRouter> _pumpSidebar(
           GoRoute(
             path: '/profiles/:did',
             pageBuilder: (context, state) => realProfile
-                ? UserProfileRoute(
-                    did: Did.parse(state.pathParameters['did']!),
-                    $extra: state.extra as ProfilePresentationRequest?,
-                  ).buildPage(context, state)
+                ? MaterialPage(
+                    key: state.pageKey,
+                    child: UserProfileRoute(
+                      did: Did.parse(state.pathParameters['did']!),
+                      $extra: state.extra as ProfileAvatarTransition?,
+                    ).build(context, state),
+                  )
                 : MaterialPage(
                     child: Scaffold(
                       body: Text('Profile ${state.pathParameters['did']}'),
@@ -1072,7 +1075,7 @@ void main() {
         find.text(
           AppLocalizations.of(
             tester.element(find.byType(ProfileAccountListTile)),
-          ).profileLoadErrorTitle,
+          ).notificationDestinationRetryTitle,
         ),
         findsOneWidget,
       );
@@ -1157,9 +1160,9 @@ void main() {
         );
         await tester.tap(find.text('Choose your crafts'));
         await tester.pumpAndSettle();
-        final chip = find.widgetWithText(FilterChip, 'Knitting');
-        await tester.ensureVisible(chip);
-        await tester.tap(chip);
+        final craft = find.byKey(const ValueKey('craft-choice-knitting'));
+        await tester.ensureVisible(craft);
+        await tester.tap(craft);
         await tester.pumpAndSettle();
         await tester.tap(find.widgetWithText(TextButton, 'Save'));
         await tester.pumpAndSettle();
@@ -1229,7 +1232,7 @@ void main() {
     });
   }
   testWidgets(
-    'AT-002 distinct supported preferred craft links in catalog order',
+    'AT-002 distinct supported preferred craft links in profile order',
     (tester) async {
       await _pumpSidebar(
         tester,
@@ -1247,8 +1250,8 @@ void main() {
         matching: find.byType(TextButton),
       );
       expect(tester.widgetList<TextButton>(links).map((button) => button.key), [
-        const ValueKey('discovery-craft-knitting'),
         const ValueKey('discovery-craft-quilting'),
+        const ValueKey('discovery-craft-knitting'),
       ]);
       expect(find.byKey(const Key('discovery-craft-sewing')), findsNothing);
     },

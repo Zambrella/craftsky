@@ -5,6 +5,7 @@ import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/timeline_page.dart';
 import 'package:craftsky_app/feed/providers/delete_post_provider.dart';
+import 'package:craftsky_app/feed/providers/feed_reselect_provider.dart';
 import 'package:craftsky_app/feed/providers/timeline_provider.dart';
 import 'package:craftsky_app/feed/providers/toggle_like_post_provider.dart';
 import 'package:craftsky_app/feed/providers/toggle_repost_post_provider.dart';
@@ -70,6 +71,10 @@ class _FeedPageState extends ConsumerState<FeedPage> {
       MediaQuery.sizeOf(context).width,
     ).isSmall;
     ref
+      ..listen(feedReselectProvider, (_, _) {
+        _scrollToTop();
+        ref.invalidate(timelineProvider);
+      })
       ..listen(deletePostProvider, (previous, next) {
         switch ((previous, next)) {
           case (AsyncLoading(), AsyncData(value: != null)):
@@ -277,10 +282,18 @@ class _FeedLoadedSlivers extends ConsumerWidget {
                 onRepost: () => ref
                     .read(toggleRepostPostProvider.notifier)
                     .toggle(post: post),
-                onQuote: () => unawaited(
-                  showPostComposerSheet(context, quoteTarget: post),
+                onQuote: (imageIndex) => unawaited(
+                  showPostComposerSheet(
+                    context,
+                    quoteTarget: post,
+                    quoteImageIndex: imageIndex,
+                  ),
                 ),
-                onReply: () => _replyAndOpenThread(context, ref, post),
+                onReply: () => PostThreadRoute(
+                  did: post.author.did,
+                  rkey: post.rkey,
+                  showComments: true,
+                ).push<void>(context),
                 onDelete: auth is SignedIn && post.author.did == auth.did
                     ? () => _confirmDelete(context, ref, post)
                     : null,
@@ -311,22 +324,6 @@ class _FeedLoadedSlivers extends ConsumerWidget {
           ),
       ],
     );
-  }
-
-  Future<void> _replyAndOpenThread(
-    BuildContext context,
-    WidgetRef ref,
-    Post post,
-  ) async {
-    final created = await showPostComposerSheet(context, replyTarget: post);
-    if (created == null || !context.mounted) return;
-    ref.invalidate(timelineProvider);
-    await PostThreadRoute(
-      did: post.author.did,
-      rkey: post.rkey,
-      focus: created.uri,
-      $extra: created,
-    ).push<void>(context);
   }
 
   Future<void> _confirmDelete(

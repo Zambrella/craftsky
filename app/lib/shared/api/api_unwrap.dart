@@ -1,4 +1,5 @@
 import 'package:craftsky_app/shared/api/api_exception.dart';
+import 'package:craftsky_app/shared/api/providers/error_mapping_interceptor.dart';
 import 'package:dio/dio.dart';
 
 /// Runs [body], translating any `DioException` whose `.error` is an
@@ -15,14 +16,11 @@ Future<T> unwrapApi<T>(Future<T> Function() body) async {
     final original = e.stackTrace == StackTrace.empty ? stack : e.stackTrace;
     final err = e.error;
     if (err is ApiException) Error.throwWithStackTrace(err, original);
-    final details = ApiFailureDetails(
-      cause: err ?? e,
-      stackTrace: original,
-      statusCode: e.response?.statusCode,
-      method: e.requestOptions.method,
-    );
     Error.throwWithStackTrace(
-      ApiServerError('server_error', details: details),
+      ApiServerError(
+        'server_error',
+        details: ErrorMappingInterceptor.detailsFor(e),
+      ),
       original,
     );
   }

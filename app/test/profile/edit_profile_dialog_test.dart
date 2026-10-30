@@ -1,6 +1,10 @@
+import 'dart:async';
+
 import 'package:craftsky_app/auth/models/session_registry.dart';
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
 import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
+import 'package:craftsky_app/auth/providers/session_registry_provider.dart'
+    show sessionRegistryProvider;
 import 'package:craftsky_app/business/data/business_repository.dart';
 import 'package:craftsky_app/business/models/business_event.dart';
 import 'package:craftsky_app/business/models/business_profile.dart';
@@ -14,10 +18,13 @@ import 'package:craftsky_app/profile/pages/edit_profile_dialog.dart';
 import 'package:craftsky_app/profile/providers/profile_image_picker_provider.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
+import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
+import 'package:craftsky_app/shared/image/basic_image_editor.dart';
 import 'package:craftsky_app/shared/link/external_link.dart';
 import 'package:craftsky_app/shared/media/blob_api_client.dart';
+import 'package:craftsky_app/shared/media/uploaded_image_blob.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/shared/messaging/scaffold_messenger_impl.dart';
 import 'package:craftsky_app/shared/mutations/pds_record_operation_controller.dart';
@@ -31,6 +38,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:image/image.dart' as img;
 import 'package:image_picker/image_picker.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -61,6 +69,7 @@ Future<void> _pumpEditDialog(
   ProfileImageFailure? imageFailure,
   Object? imageException,
   ErrorReporter? reporter,
+  ProfileImagePicker? imagePicker,
   ExternalLinkLauncher linkLauncher = launchExternalLink,
   ExternalLinkConfirmer confirmOpenLink = showOpenLinkDialog,
 }) async {
@@ -72,6 +81,8 @@ Future<void> _pumpEditDialog(
     ProviderScope(
       overrides: [
         if (reporter != null) errorReporterProvider.overrideWithValue(reporter),
+        if (imagePicker != null)
+          profileImagePickerProvider.overrideWithValue(imagePicker),
         if (imageFailure != null || imageException != null)
           profileImagePickerProvider.overrideWithValue(
             _FailingProfileImagePicker(
@@ -150,6 +161,163 @@ final class _EditRegistryStorage implements SessionRegistryStorage {
 
 void main() {
   group('EditProfileDialog', () {
+    testWidgets(
+      'image editing IR-001 REG-003: disposal ignores late avatar completion',
+      (tester) async {
+        final picker = _PendingProfileImagePicker();
+        final reporter = RecordingErrorReporter();
+        await _pumpEditDialog(
+          tester,
+          repo: FakeProfileRepository(onFetchMe: () async => _seedProfile),
+          imagePicker: picker,
+          reporter: reporter,
+        );
+        await _chooseAvatar(tester);
+        expect(picker.calls, 1);
+        await tester.pumpWidget(const SizedBox.shrink());
+        expect(picker.isCurrent!(), isFalse);
+        picker.pending.complete(_avatarPickResult('discarded-avatar', 2));
+        await tester.pumpAndSettle();
+        expect(tester.takeException(), isNull);
+        expect(reporter.errors, isEmpty);
+        expect(find.byType(EditProfileDialog), findsNothing);
+      },
+    );
+
+    testWidgets(
+      'image editing IR-001 REG-003: stale result preserves accepted avatar '
+      'and save payload',
+      (tester) async {
+        final accepted = _avatarPickResult('accepted-avatar', 2);
+        final late = _avatarPickResult('stale-avatar', 3);
+        final picker = _PendingProfileImagePicker(
+          acceptedBeforePending: accepted,
+        );
+        UploadedBlob? savedAvatar;
+        var saves = 0;
+        final repo = FakeProfileRepository(
+          onFetchMe: () async => _seedProfile,
+          onUpdateMe:
+              ({
+                displayName,
+                pronouns,
+                description,
+                crafts,
+                avatar,
+                clearAvatar = false,
+                banner,
+                clearBanner = false,
+              }) async {
+                saves++;
+                savedAvatar = avatar;
+                return _seedProfile.copyWith(
+                  displayName: displayName ?? _seedProfile.displayName,
+                );
+              },
+        );
+        await _pumpEditDialog(tester, repo: repo, imagePicker: picker);
+        await _chooseAvatar(tester);
+        await tester.pumpAndSettle();
+        expect(picker.calls, 1);
+        expect(
+          (tester
+                      .widget<ProfileAvatar>(find.byType(ProfileAvatar))
+                      .imageProvider!
+                  as MemoryImage)
+              .bytes,
+          accepted.previewBytes,
+        );
+        await tester.enterText(
+          find.widgetWithText(TextField, 'Test User'),
+          'Preserved name',
+        );
+        await _chooseAvatar(tester);
+        expect(picker.calls, 2);
+        final container = ProviderScope.containerOf(
+          tester.element(find.byType(EditProfileDialog)),
+        );
+        final ownership = container
+            .read(sessionRegistryProvider)
+            .requireValue
+            .activeLease!;
+        final registry = container.read(sessionRegistryProvider.notifier);
+        await registry.upsertAndActivate(
+          token: 'bob-test-token',
+          did: 'did:plc:bob',
+          handle: 'bob.test',
+        );
+        await registry.activate(ownership.session);
+        await tester.pump();
+        expect(picker.isCurrent!(), isFalse);
+        picker.pending.complete(late);
+        await tester.pumpAndSettle();
+        expect(find.text('Preserved name'), findsOneWidget);
+        expect(
+          (tester
+                      .widget<ProfileAvatar>(find.byType(ProfileAvatar))
+                      .imageProvider!
+                  as MemoryImage)
+              .bytes,
+          accepted.previewBytes,
+        );
+        expect(saves, 0);
+        await _chooseAvatar(tester);
+        await tester.pumpAndSettle();
+        expect(picker.calls, 3);
+        await tester.tap(find.widgetWithText(TextButton, 'Save'));
+        await tester.pumpAndSettle();
+        expect(saves, 1);
+        expect(savedAvatar!.ref.link, 'accepted-avatar');
+      },
+    );
+
+    testWidgets(
+      'image editing IR-001 AT-009: stale avatar releases surviving form',
+      (tester) async {
+        final picker = _PendingProfileImagePicker();
+        await _pumpEditDialog(
+          tester,
+          repo: FakeProfileRepository(onFetchMe: () async => _seedProfile),
+          imagePicker: picker,
+        );
+        await tester.enterText(
+          find.widgetWithText(TextField, 'Test User'),
+          'Unsaved name',
+        );
+        await tester.pump();
+        final save = find.widgetWithText(TextButton, 'Save');
+        expect(tester.widget<TextButton>(save).onPressed, isNotNull);
+        await _chooseAvatar(tester);
+        expect(picker.calls, 1);
+        expect(tester.widget<TextButton>(save).onPressed, isNull);
+        final container = ProviderScope.containerOf(
+          tester.element(find.byType(EditProfileDialog)),
+        );
+        final ownership = container
+            .read(sessionRegistryProvider)
+            .requireValue
+            .activeLease!;
+        final registry = container.read(sessionRegistryProvider.notifier);
+        // No frame between switches: preserve the form while invalidating it.
+        await registry.upsertAndActivate(
+          token: 'bob-test-token',
+          did: 'did:plc:bob',
+          handle: 'bob.test',
+        );
+        await registry.activate(ownership.session);
+        await tester.pump();
+        expect(find.text('Unsaved name'), findsOneWidget);
+        expect(picker.isCurrent!(), isFalse);
+        picker.pending.complete(null);
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 300));
+        expect(tester.widget<TextButton>(save).onPressed, isNotNull);
+        await _chooseAvatar(tester);
+        expect(picker.calls, 2);
+        expect(find.text('Unsaved name'), findsOneWidget);
+      },
+    );
+
     testWidgets(
       'reports an unknown photo failure once and retains recovery UI',
       (tester) async {
@@ -670,7 +838,7 @@ void main() {
           (_, _) {},
         );
         addTearDown(subscription.close);
-        final knitting = find.widgetWithText(FilterChip, 'Knitting');
+        final knitting = find.byKey(const ValueKey('craft-choice-knitting'));
         await tester.ensureVisible(knitting);
         await tester.pumpAndSettle();
         await tester.tap(knitting);
@@ -690,8 +858,13 @@ void main() {
         await tester.pumpAndSettle();
         expect(
           tester
-              .widget<FilterChip>(find.widgetWithText(FilterChip, 'Knitting'))
-              .selected,
+              .widget<Checkbox>(
+                find.descendant(
+                  of: find.byKey(const ValueKey('craft-choice-knitting')),
+                  matching: find.byType(Checkbox),
+                ),
+              )
+              .value,
           isTrue,
         );
       },
@@ -1202,14 +1375,58 @@ void main() {
       },
     );
 
-    testWidgets('tapping a craft chip toggles its selection state', (
+    testWidgets('reordering alone saves and survives reopening', (
+      tester,
+    ) async {
+      List<String>? savedCrafts;
+      final repo = FakeProfileRepository(
+        onFetch: (_) async => _seedProfile,
+        onUpdateMe:
+            ({
+              displayName,
+              pronouns,
+              description,
+              crafts,
+              avatar,
+              clearAvatar = false,
+              banner,
+              clearBanner = false,
+            }) async {
+              savedCrafts = crafts;
+              return _seedProfile.copyWith(crafts: crafts);
+            },
+      );
+      await _pumpEditDialog(tester, repo: repo);
+      final reorder = find.byTooltip('Reorder Quilting');
+      await tester.ensureVisible(reorder);
+      await tester.tap(reorder);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Move up'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(TextButton, 'Save'));
+      await tester.pumpAndSettle();
+      expect(savedCrafts, ['quilting', 'sewing']);
+      await tester.tap(find.text('Open'));
+      await tester.pumpAndSettle();
+      expect(
+        find.descendant(
+          of: find.byKey(const ValueKey('craft-choice-quilting')),
+          matching: find.text('Default'),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('tapping a craft row toggles its selection state', (
       tester,
     ) async {
       final repo = FakeProfileRepository(onFetch: (_) async => _seedProfile);
       await _pumpEditDialog(tester, repo: repo);
 
       // 'Knitting' starts unselected (seed has only sewing + quilting).
-      final knittingFinder = find.widgetWithText(FilterChip, 'Knitting');
+      final knittingFinder = find.byKey(
+        const ValueKey('craft-choice-knitting'),
+      );
       expect(knittingFinder, findsOneWidget);
 
       // The crafts grid is below the fold in the default 800x600 test
@@ -1217,16 +1434,18 @@ void main() {
       await tester.ensureVisible(knittingFinder);
       await tester.pumpAndSettle();
 
-      FilterChip knitting() => tester.widget<FilterChip>(knittingFinder);
-      expect(knitting().selected, isFalse);
+      Checkbox knitting() => tester.widget<Checkbox>(
+        find.descendant(of: knittingFinder, matching: find.byType(Checkbox)),
+      );
+      expect(knitting().value, isFalse);
 
       await tester.tap(knittingFinder);
       await tester.pump();
-      expect(knitting().selected, isTrue);
+      expect(knitting().value, isTrue);
 
       await tester.tap(knittingFinder);
       await tester.pump();
-      expect(knitting().selected, isFalse);
+      expect(knitting().value, isFalse);
     });
   });
 }
@@ -1290,5 +1509,76 @@ class _FailingProfileImagePicker extends ProfileImagePicker {
   Future<ProfileImagePickResult?> pickAndUpload({
     required ImageSource source,
     required void Function(Uint8List bytes) onPreviewReady,
-  }) async => Error.throwWithStackTrace(failure, StackTrace.current);
+    BasicImageEditor? editImage,
+    bool Function()? isCurrent,
+  }) async {
+    expect(
+      editImage,
+      isNotNull,
+      reason: 'image editing AT-005: Edit Profile supplies avatar editor',
+    );
+    expect(isCurrent?.call(), isTrue);
+    Error.throwWithStackTrace(failure, StackTrace.current);
+  }
+}
+
+Future<void> _chooseAvatar(WidgetTester tester) async {
+  FocusManager.instance.primaryFocus?.unfocus();
+  final avatar = find.byTooltip('Change avatar');
+  await tester.ensureVisible(avatar);
+  await tester.pump();
+  await tester.tap(avatar);
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 300));
+  final photos = find.byKey(const Key('profile-avatar-choose-photos'));
+  if (photos.evaluate().isNotEmpty) {
+    await tester.tap(photos);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+  }
+}
+
+class _PendingProfileImagePicker extends Fake implements ProfileImagePicker {
+  new({this.acceptedBeforePending});
+  final ProfileImagePickResult? acceptedBeforePending;
+  final pending = Completer<ProfileImagePickResult?>();
+  int calls = 0;
+  bool Function()? isCurrent;
+
+  @override
+  Future<ProfileImagePickResult?> pickAndUpload({
+    required ImageSource source,
+    required void Function(Uint8List) onPreviewReady,
+    BasicImageEditor? editImage,
+    bool Function()? isCurrent,
+  }) {
+    calls++;
+    this.isCurrent = isCurrent;
+    if (calls == 1 && acceptedBeforePending != null) {
+      return Future.value(acceptedBeforePending);
+    }
+    return calls == (acceptedBeforePending == null ? 1 : 2)
+        ? pending.future
+        : Future.value();
+  }
+}
+
+ProfileImagePickResult _avatarPickResult(String cid, int side) {
+  final bytes = Uint8List.fromList(
+    img.encodePng(img.Image(width: side, height: side)),
+  );
+  return ProfileImagePickResult(
+    previewBytes: bytes,
+    uploaded: UploadedImageBlob(
+      blob: UploadedBlob(
+        type: 'blob',
+        ref: UploadedBlobRef(link: cid),
+        mimeType: 'image/png',
+        size: bytes.length,
+      ),
+      cid: cid,
+      mime: 'image/png',
+      size: bytes.length,
+    ),
+  );
 }

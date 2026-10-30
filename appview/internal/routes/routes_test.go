@@ -1003,6 +1003,7 @@ CREATE TABLE craftsky_profiles (
 	crafts TEXT[] NOT NULL DEFAULT '{}'
 );
 CREATE TABLE bluesky_profiles (
+ links JSONB NOT NULL DEFAULT '[]',
 	did TEXT PRIMARY KEY,
 	display_name TEXT,
 	description TEXT,
@@ -1029,6 +1030,9 @@ CREATE TABLE craftsky_posts (
 	langs TEXT[] NOT NULL DEFAULT '{}',
 	created_at TIMESTAMPTZ NOT NULL,
 	indexed_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+	edited_at TIMESTAMPTZ,
+	edit_time_source TEXT,
+	record_revision TEXT,
 	external_import_source TEXT,
 	profile_sort_at TIMESTAMPTZ NOT NULL DEFAULT now(),
 	is_project BOOLEAN NOT NULL DEFAULT false,

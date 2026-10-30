@@ -103,6 +103,9 @@ void main() {
     );
 
     await _selectCraft(tester, 'Embroidery');
+    final duration = find.byKey(const Key('project-duration-input'));
+    await tester.ensureVisible(duration);
+    await tester.enterText(duration, '  4 weeks  ');
     await _goNext(tester);
     await _goNext(tester);
     await tester.enterText(
@@ -133,6 +136,7 @@ void main() {
       capturedProject!.common.craftType,
       ProjectOptionCatalogs.embroideryCraftToken,
     );
+    expect(capturedProject!.common.duration, '4 weeks');
     expect(capturedProject!.details, isNull);
     expect(capturedProject!.common.title, isNull);
     expect(capturedProject!.common.materials, isNull);
@@ -392,7 +396,7 @@ void main() {
   );
 
   testWidgets(
-    'origin draft revision advances before retrying a project submission',
+    'eight-photo draft snapshots and retries a project submission',
     (tester) async {
       final registry = SessionRegistry.empty().upsertAndActivate(
         token: 'alice-token',
@@ -412,6 +416,7 @@ void main() {
       drafts.deleteGate = finishDeletion.future;
       final upload = _ImmediatePostApiClient();
       var createCalls = 0;
+      final submittedImageCounts = <int>[];
 
       await tester.pumpWidget(
         ProviderScope(
@@ -433,6 +438,7 @@ void main() {
               FakePostRepository(
                 onCreateWithFacets:
                     ({required text, reply, project, images, facets}) async {
+                      submittedImageCounts.add(images?.length ?? 0);
                       createCalls += 1;
                       if (createCalls == 1) {
                         throw StateError('network unavailable');
@@ -458,10 +464,11 @@ void main() {
                           draftSeed: LocalPostDraftSeed(
                             draft: origin,
                             media: [
-                              HydratedDraftMedia(
-                                descriptor: origin.media.single,
-                                bytes: projectBytes,
-                              ),
+                              for (final descriptor in origin.media)
+                                HydratedDraftMedia(
+                                  descriptor: descriptor,
+                                  bytes: projectBytes,
+                                ),
                             ],
                           ),
                           draftOwner: lease,
@@ -490,6 +497,7 @@ void main() {
       tester
           .widget<ChunkyButton>(find.widgetWithText(ChunkyButton, 'Post'))
           .onPressed!();
+      await _pumpUntil(tester, () => createCalls == 1);
       await tester.pumpAndSettle();
 
       expect(createCalls, 1);
@@ -507,7 +515,8 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(createCalls, 2);
-      expect(upload.uploadCalls, 1);
+      expect(submittedImageCounts, [8, 8]);
+      expect(upload.uploadCalls, 8);
       expect(drafts.expectedRevisions, [1, 2]);
       expect(drafts.deletedIds, [origin.id]);
       expect(find.byType(ProjectComposerSheet), findsNothing);
@@ -657,19 +666,22 @@ LocalPostDraft _projectOriginDraft(AccountKey owner, Uint8List bytes) {
     ),
     schedule: const DraftScheduleIntent.now(),
     media: [
-      DraftMediaDescriptor(
-        mediaId: '00000000-0000-4000-8000-000000000021',
-        storageRevision: '00000000-0000-4000-8000-000000000022',
-        storageFileName: 'project.png',
-        displayFileName: 'project.png',
-        mimeType: 'image/png',
-        byteLength: bytes.length,
-        sha256: sha256.convert(bytes).toString(),
-        width: 1,
-        height: 1,
-        altText: 'Project image',
-        order: 0,
-      ),
+      for (var index = 0; index < 8; index++)
+        DraftMediaDescriptor(
+          mediaId:
+              '00000000-0000-4000-8000-'
+              '${(index + 21).toString().padLeft(12, '0')}',
+          storageRevision: '00000000-0000-4000-8000-000000000022',
+          storageFileName: 'project-$index.png',
+          displayFileName: 'project.png',
+          mimeType: 'image/png',
+          byteLength: bytes.length,
+          sha256: sha256.convert(bytes).toString(),
+          width: 1,
+          height: 1,
+          altText: 'Project image $index',
+          order: index,
+        ),
     ],
   );
 }

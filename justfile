@@ -572,7 +572,7 @@ app-build-appbundle ENV="production":
 
 # Deterministic status contract/operator/Worker checks; no remote publication.
 service-status-test:
-    python3 -m unittest discover -s scripts -p test_service_status_publish.py
+    "${CRAFTSKY_STATUS_PYTHON:-service-status/.venv/bin/python}" -m unittest discover -s scripts -p test_service_status_publish.py
     node --test service-status/test/worker.test.js
 
 # Seed local simulated R2 from an editable draft; install pinned tools if needed.
@@ -583,11 +583,11 @@ service-status-dev-setup:
 service-status-dev:
     ./scripts/service-status-dev serve
 
-# Validate and publish a local draft with a fresh announcement revision.
+# Validate a local draft; refresh document revision and preserve message identity.
 service-status-dev-publish FILE="service-status/.wrangler/dev/app.json":
     ./scripts/service-status-dev publish {{ quote(FILE) }}
 
-# Clear local maintenance/announcements without editing JSON.
+# Clear every local status control without editing the draft.
 service-status-dev-clear:
     ./scripts/service-status-dev clear
 

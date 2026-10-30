@@ -1,7 +1,13 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:craftsky_app/auth/models/account_key.dart';
+import 'package:craftsky_app/auth/models/session_registry.dart' as sessions;
+import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
+import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/drafts/composer/draft_composer_hydrator.dart';
+import 'package:craftsky_app/drafts/composer/draft_media_write_adapter.dart';
+import 'package:craftsky_app/drafts/data/local_post_draft_repository.dart';
 import 'package:craftsky_app/drafts/models/draft_media_descriptor.dart';
 import 'package:craftsky_app/drafts/models/local_post_draft.dart';
 import 'package:craftsky_app/feed/data/post_api_client.dart';
@@ -11,9 +17,12 @@ import 'package:craftsky_app/feed/models/post_image_blob.dart';
 import 'package:craftsky_app/feed/providers/composer_image_state.dart';
 import 'package:craftsky_app/feed/providers/composer_images_provider.dart';
 import 'package:craftsky_app/feed/providers/post_api_client_provider.dart';
+import 'package:craftsky_app/main.dart';
+import 'package:craftsky_app/shared/image/basic_image_editor.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_emitter.dart';
 import 'package:craftsky_app/shared/observability/error_reporter.dart';
 import 'package:craftsky_app/shared/observability/error_reporter_provider.dart';
+import 'package:craftsky_app/shared/observability/sentry_error_reporter.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -21,10 +30,365 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
 import 'package:image_picker/image_picker.dart';
 import 'package:logging/logging.dart';
+import 'package:sentry_flutter/sentry_flutter.dart';
 
 import '../../test_support/recording_error_reporter.dart';
+import '../../test_support/serialized_sentry_transport.dart';
 
 void main() {
+  test(
+    'image editing UT-005: activation away and back invalidates pending pixels',
+    () async {
+      final registry = sessions.SessionRegistry.empty()
+          .upsertAndActivate(
+            token: 'test-a',
+            did: 'did:plc:alice',
+            handle: 'alice.test',
+          )
+          .upsertAndActivate(
+            token: 'test-b',
+            did: 'did:plc:bob',
+            handle: 'bob.test',
+          );
+      final container = _containerWithPicker(
+        _FakeImagePicker(
+          () async => [
+            XFile.fromData(
+              _pngBytes(width: 8, height: 6),
+              name: 'one.png',
+              mimeType: 'image/png',
+            ),
+          ],
+        ),
+        registry: registry,
+      );
+      addTearDown(container.dispose);
+      await container.read(sessionRegistryProvider.future);
+      final sub = _listenComposer(container);
+      addTearDown(sub.close);
+      final provider = composerImagesProvider('composer');
+      final notifier = container.read(provider.notifier);
+      await notifier.addImages();
+      final before = await _waitForState(
+        container,
+        (s) => s.images.isNotEmpty && s.isSubmitReady,
+      );
+      final pending = Completer<BasicImageEditOutput?>();
+      final operation = notifier.editImage(
+        before.images.single.id,
+        initiatingLease: registry.activeLease,
+        editor: (_) => pending.future,
+      );
+      final accounts = container.read(sessionRegistryProvider.notifier);
+      await accounts.activate(registry.leaseFor(AccountKey('did:plc:alice'))!);
+      await accounts.activate(registry.activeLease!.session);
+      pending.complete(
+        BasicImageEditOutput(
+          bytes: _pngBytes(width: 3, height: 4),
+          mimeType: 'image/png',
+        ),
+      );
+      await operation;
+      expect(container.read(provider).images.single, before.images.single);
+      expect(container.read(provider).isSubmitReady, isTrue);
+    },
+  );
+
+  test('image editing UT-006: consumed failure reports '
+      'once with protected serialized diagnostics', () async {
+    final transport = SerializedTransport();
+    await Sentry.init((options) {
+      options
+        ..dsn = 'https://public@example.invalid/1'
+        ..transport = transport;
+      configureDiagnosticOptions(options, enableLogs: false);
+    });
+    addTearDown(Sentry.close);
+    final local = <String>[];
+    final oldLevel = Logger.root.level;
+    Logger.root.level = Level.ALL;
+    addTearDown(() => Logger.root.level = oldLevel);
+    final logs = configureRootLogForwarding(platformSink: local.add);
+    addTearDown(logs.cancel);
+    final container = _containerWithPicker(
+      _FakeImagePicker(
+        () async => [
+          XFile.fromData(
+            _pngBytes(width: 8, height: 6),
+            name: 'one.png',
+            mimeType: 'image/png',
+          ),
+        ],
+      ),
+      reporter: const SentryErrorReporter(),
+    );
+    addTearDown(container.dispose);
+    final sub = _listenComposer(container);
+    addTearDown(sub.close);
+    final provider = composerImagesProvider('composer');
+    final notifier = container.read(provider.notifier);
+    await notifier.addImages();
+    final before = await _waitForState(
+      container,
+      (s) => s.images.isNotEmpty && s.isSubmitReady,
+    );
+    final cause = PlatformException(
+      code: 'codec_failed',
+      message: 'PRIVATE_IMAGE_PROSE',
+      details: {
+        'imageBytes': 'PRIVATE_IMAGE_BYTES',
+        'path': '/private/photo/PRIVATE_IMAGE_FILE.png',
+      },
+    );
+    final stack = StackTrace.fromString(
+      '#0 editPhoto (package:craftsky_app/photo.dart:12:3)',
+    );
+    await expectLater(
+      notifier.editImage(
+        before.images.single.id,
+        editor: (_) async => Error.throwWithStackTrace(cause, stack),
+      ),
+      throwsA(same(cause)),
+    );
+    await Sentry.close();
+    final events = transport.payloads
+        .map(jsonDecode)
+        .where((e) => (e as Map).containsKey('exception'))
+        .toList();
+    expect(events, hasLength(1));
+    for (final serialized in [local.join(), jsonEncode(events)]) {
+      expect(serialized, contains('media.image.edit'));
+      expect(serialized, contains('PlatformException'));
+      expect(serialized, contains('editPhoto'));
+      expect(serialized, isNot(contains('PRIVATE_IMAGE')));
+    }
+    expect(container.read(provider).images.single, before.images.single);
+  });
+
+  test('image editing UT-004: output must pass final '
+      'upload validation before replacement', () async {
+    final media = _EditValidationMediaService();
+    final container = _containerWithPicker(
+      _FakeImagePicker(
+        () async => [
+          XFile.fromData(
+            _pngBytes(width: 8, height: 6),
+            name: 'one.png',
+            mimeType: 'image/png',
+          ),
+        ],
+      ),
+      media: media,
+    );
+    addTearDown(container.dispose);
+    final sub = _listenComposer(container);
+    addTearDown(sub.close);
+    final provider = composerImagesProvider('composer');
+    final notifier = container.read(provider.notifier);
+    await notifier.addImages();
+    final before = await _waitForState(
+      container,
+      (s) => s.images.isNotEmpty && s.isSubmitReady,
+    );
+    media.reject = true;
+    await expectLater(
+      notifier.editImage(
+        before.images.single.id,
+        editor: (_) async => BasicImageEditOutput(
+          bytes: _pngBytes(width: 3, height: 4),
+          mimeType: 'image/png',
+        ),
+      ),
+      throwsA(isA<FormatException>()),
+    );
+    expect(container.read(provider).images.single, before.images.single);
+    expect(container.read(provider).canSubmitImages(), isTrue);
+  });
+
+  test('image editing UT-007/AT-007: repeated edits reopen '
+      'accepted pixels and map fresh draft media', () async {
+    final container = _containerWithPicker(
+      _FakeImagePicker(
+        () async => [
+          XFile.fromData(
+            _pngBytes(width: 8, height: 6),
+            name: 'one.png',
+            mimeType: 'image/png',
+          ),
+        ],
+      ),
+    );
+    addTearDown(container.dispose);
+    final sub = _listenComposer(container);
+    addTearDown(sub.close);
+    final provider = composerImagesProvider('composer');
+    final notifier = container.read(provider.notifier);
+    await notifier.addImages();
+    var before = await _waitForState(
+      container,
+      (s) => s.images.isNotEmpty && s.isSubmitReady,
+    );
+    final id = before.images.single.id;
+    notifier.setAltText(id, 'Kept description');
+    for (var i = 2; i <= 3; i++) {
+      final accepted = (before.images.single.phase as ImageReady).bytes;
+      await notifier.editImage(
+        id,
+        editor: (request) async {
+          expect(request.bytes, accepted);
+          return BasicImageEditOutput(
+            bytes: _pngBytes(width: i, height: 4),
+            mimeType: 'image/png',
+          );
+        },
+      );
+      before = container.read(provider);
+      final ready = before.images.single.phase as ImageReady;
+      final write =
+          draftMediaWritesFromComposer(before.images).single
+              as PreparedDraftMedia;
+      expect(write.bytes, ready.bytes);
+      expect(write.width, i);
+      expect(write.height, 4);
+      expect(write.altText, 'Kept description');
+      expect(write.mediaId, id);
+      expect(ready.storedOrigin, isNull);
+    }
+  });
+
+  test('image editing UT-003: cancel and failure retain '
+      'accepted image and permit retry', () async {
+    final container = _containerWithPicker(
+      _FakeImagePicker(
+        () async => [
+          XFile.fromData(
+            _pngBytes(width: 8, height: 6),
+            name: 'one.png',
+            mimeType: 'image/png',
+          ),
+        ],
+      ),
+    );
+    addTearDown(container.dispose);
+    final sub = _listenComposer(container);
+    addTearDown(sub.close);
+    final provider = composerImagesProvider('composer');
+    final notifier = container.read(provider.notifier);
+    await notifier.addImages();
+    final before = await _waitForState(
+      container,
+      (s) => s.images.isNotEmpty && s.isSubmitReady,
+    );
+    await notifier.editImage(
+      before.images.single.id,
+      editor: (_) async => null,
+    );
+    expect(container.read(provider).images.single, before.images.single);
+    await expectLater(
+      notifier.editImage(
+        before.images.single.id,
+        editor: (_) async => throw StateError('editor failed'),
+      ),
+      throwsStateError,
+    );
+    expect(container.read(provider).images.single, before.images.single);
+    expect(container.read(provider).canSubmitImages(), isTrue);
+  });
+
+  test('image editing UT-005: pending edit blocks submit '
+      'and removal fences late output', () async {
+    final container = _containerWithPicker(
+      _FakeImagePicker(
+        () async => [
+          XFile.fromData(
+            _pngBytes(width: 8, height: 6),
+            name: 'one.png',
+            mimeType: 'image/png',
+          ),
+        ],
+      ),
+    );
+    addTearDown(container.dispose);
+    final sub = _listenComposer(container);
+    addTearDown(sub.close);
+    final provider = composerImagesProvider('composer');
+    final notifier = container.read(provider.notifier);
+    await notifier.addImages();
+    final before = await _waitForState(
+      container,
+      (s) => s.images.isNotEmpty && s.isSubmitReady,
+    );
+    final pending = Completer<BasicImageEditOutput?>();
+    final editing = notifier.editImage(
+      before.images.single.id,
+      editor: (_) => pending.future,
+    );
+    expect(container.read(provider).canSubmitImages(), isFalse);
+    expect(container.read(provider).canSaveDraftMedia(), isFalse);
+    expect(container.read(provider).images.single, before.images.single);
+    notifier.remove(before.images.single.id);
+    pending.complete(
+      BasicImageEditOutput(
+        bytes: _pngBytes(width: 3, height: 4),
+        mimeType: 'image/png',
+      ),
+    );
+    await editing;
+    expect(container.read(provider).images, isEmpty);
+    expect(container.read(provider).isSubmitReady, isTrue);
+  });
+
+  test('image editing UT-002: atomic accepted pixels '
+      'preserve identity and latest alt', () async {
+    final picker = _FakeImagePicker(
+      () async => [
+        XFile.fromData(
+          _pngBytes(width: 8, height: 6),
+          name: 'one.png',
+          mimeType: 'image/png',
+        ),
+        XFile.fromData(
+          _pngBytes(width: 7, height: 5),
+          name: 'two.png',
+          mimeType: 'image/png',
+        ),
+      ],
+    );
+    final container = _containerWithPicker(picker);
+    addTearDown(container.dispose);
+    final sub = _listenComposer(container);
+    addTearDown(sub.close);
+    final provider = composerImagesProvider('composer');
+    final notifier = container.read(provider.notifier);
+    await notifier.addImages();
+    final before = await _waitForState(
+      container,
+      (s) => s.images.length == 2 && s.isSubmitReady,
+    );
+    final target = before.images.first;
+    final output = _pngBytes(width: 3, height: 4);
+    await notifier.editImage(
+      target.id,
+      editor: (request) async {
+        expect(request.bytes, (target.phase as ImageReady).bytes);
+        notifier
+          ..setAltText(target.id, 'Latest description')
+          ..reorder(fromIndex: 0, toIndex: 1);
+        return BasicImageEditOutput(bytes: output, mimeType: 'image/png');
+      },
+    );
+    final after = container.read(provider);
+    expect(after.images.first, before.images.last);
+    expect(after.images.last.id, target.id);
+    expect(after.images.last.altText, 'Latest description');
+    final ready = after.images.last.phase as ImageReady;
+    expect(ready.width, 3);
+    expect(ready.height, 4);
+    expect(ready.sha256, isNot((target.phase as ImageReady).sha256));
+    expect(ready.storedOrigin, isNull);
+    expect(after.images.last.previewBytes, ready.bytes);
+  });
+
   test('seeds locally saved ready and unavailable draft images', () async {
     const available = DraftMediaDescriptor(
       mediaId: '00000000-0000-4000-8000-000000000002',
@@ -80,6 +444,12 @@ void main() {
     final container = ProviderContainer.test();
     addTearDown(container.dispose);
 
+    // Keep the composer mounted across asynchronous edited-output preparation.
+    final subscription = container.listen(
+      composerImagesProvider('draft-composer'),
+      (_, _) {},
+    );
+    addTearDown(subscription.close);
     container
         .read(composerImagesProvider('draft-composer').notifier)
         .seedLocalDraft(seed);
@@ -90,6 +460,26 @@ void main() {
     expect(state.images.last.phase, isA<ImageUnavailable>());
     expect(state.canSubmitImages(), isFalse);
     expect(state.canSaveDraftMedia(), isFalse);
+    // Image editing UT-007: an edited restored image must become fresh media.
+    await container
+        .read(composerImagesProvider('draft-composer').notifier)
+        .editImage(
+          available.mediaId,
+          editor: (_) async => BasicImageEditOutput(
+            bytes: _pngBytes(width: 3, height: 4),
+            mimeType: 'image/png',
+          ),
+        );
+    final edited = container
+        .read(composerImagesProvider('draft-composer'))
+        .images
+        .first;
+    expect((edited.phase as ImageReady).storedOrigin, isNull);
+    expect(
+      draftMediaWritesFromComposer([edited]).single,
+      isA<PreparedDraftMedia>(),
+    );
+    expect(edited.altText, available.altText);
   });
 
   test(
@@ -705,9 +1095,14 @@ ProviderContainer _containerWithPicker(
   PostApiClient? api,
   ComposerImageMediaService? media,
   ErrorReporter reporter = const NoopErrorReporter(),
+  sessions.SessionRegistry? registry,
 }) {
   return ProviderContainer.test(
     overrides: [
+      if (registry != null)
+        secureSessionRegistryStorageProvider.overrideWithValue(
+          _EditRegistryStorage(registry),
+        ),
       imagePickerProvider.overrideWithValue(picker),
       errorReporterProvider.overrideWithValue(reporter),
       composerImageMediaServiceProvider.overrideWithValue(
@@ -932,4 +1327,34 @@ Uint8List _pngBytes({required int width, required int height}) {
   return Uint8List.fromList(
     img.encodePng(img.Image(width: width, height: height)),
   );
+}
+
+class _EditValidationMediaService extends ComposerImageMediaService {
+  bool reject = false;
+  @override
+  PreparedUploadValidationResult validatePreparedUploadBytes({
+    required int originalBytes,
+    required int preparedBytes,
+    required int width,
+    required int height,
+  }) => reject
+      ? const PreparedUploadValidationResult(
+          canUpload: false,
+          rejectedReason: PreparedUploadRejection.tooLarge,
+        )
+      : super.validatePreparedUploadBytes(
+          originalBytes: originalBytes,
+          preparedBytes: preparedBytes,
+          width: width,
+          height: height,
+        );
+}
+
+class _EditRegistryStorage implements SessionRegistryStorage {
+  new(this.registry);
+  final sessions.SessionRegistry registry;
+  @override
+  Future<sessions.SessionRegistry> read() async => registry;
+  @override
+  Future<void> write(sessions.SessionRegistry value) async {}
 }

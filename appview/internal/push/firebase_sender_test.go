@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -258,6 +259,29 @@ func TestFirebaseSenderRejectsUnknownPlatformOrSemanticsBeforeProvider(t *testin
 		}
 		if len(client.messages) != 0 {
 			t.Fatalf("provider called for invalid request: %+v", request)
+		}
+	}
+}
+
+func TestFirebaseSenderIncludesExcerptOnlyInVisibleNotification(t *testing.T) {
+	client := &captureFirebaseClient{}
+	sender := &FirebaseSender{client: client, now: time.Now}
+	_, err := sender.Send(context.Background(), SendRequest{
+		Token: "token", Category: notifications.Reply, AccountSubscriptionID: "routing",
+		RoutingFacts: RoutingFacts{NotificationID: "00000000-0000-4000-8000-000000000001"},
+		Preview:      &notifications.Preview{Text: "Lovely stitches", ProjectTitle: "Winter scarf"},
+		Platform:     "ios", Semantics: DeliveryUniqueEvent, TTL: time.Hour,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	message := client.messages[0]
+	if message.Notification.Body != "commented on your post: Winter scarf: Lovely stitches" {
+		t.Fatalf("notification=%+v", message.Notification)
+	}
+	for _, value := range message.Data {
+		if strings.Contains(value, "Lovely stitches") || strings.Contains(value, "Winter scarf") {
+			t.Fatal("preview entered routing data")
 		}
 	}
 }

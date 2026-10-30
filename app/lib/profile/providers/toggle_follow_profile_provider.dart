@@ -24,58 +24,67 @@ class ToggleFollowProfile extends _$ToggleFollowProfile {
     required Did cacheKey,
     required Profile profile,
   }) async {
-    final operation = ActiveAccountOperation.capture(ref);
-    final desiredFollowing = !profile.viewerIsFollowing;
-    final endpoint = '/v1/profiles/@$cacheKey/follows';
-    final immutableBody = desiredFollowing ? 'POST\n' : 'DELETE\n';
-    final controller = ref.read(pdsRecordOperationControllerProvider);
-    final scope = followProfileMutationScope(ref, cacheKey);
-    final token = controller.beginOrRetry(
-      scope: scope,
-      endpoint: endpoint,
-      immutableBody: immutableBody,
-      newOperationKey: newPdsMutationOperationKey,
-    );
-    final operationKey = token.operationKey;
-    late final repo = ref.read(profileRepositoryProvider);
-
-    state = const AsyncLoading<Profile?>();
-    late final Profile updated;
+    // A submitted mutation owns its completion even if its UI listener leaves.
+    // Explicit invalidation/account changes still end its authority.
+    final lifetime = ref.keepAlive();
     try {
-      updated = await runPdsMutation<Profile>(
-        ref: ref,
-        controller: controller,
-        token: token,
-        isCurrent: () => operation.isCurrent,
-        send: () async {
-          return desiredFollowing
-              ? await repo.follow(cacheKey, operationKey: operationKey)
-              : await repo.unfollow(cacheKey, operationKey: operationKey);
-        },
+      final operation = ActiveAccountOperation.capture(ref);
+      final desiredFollowing = !profile.viewerIsFollowing;
+      final endpoint = '/v1/profiles/@$cacheKey/follows';
+      final immutableBody = desiredFollowing ? 'POST\n' : 'DELETE\n';
+      final controller = ref.read(pdsRecordOperationControllerProvider);
+      final scope = followProfileMutationScope(ref, cacheKey);
+      final token = controller.beginOrRetry(
+        scope: scope,
+        endpoint: endpoint,
+        immutableBody: immutableBody,
+        newOperationKey: newPdsMutationOperationKey,
       );
-    } on PdsMutationObsoleteException {
-      return;
-    } on PdsMutationUnresolvedException catch (error, stackTrace) {
-      operation.publish(() => state = AsyncError<Profile?>(error, stackTrace));
-      return;
-    } on Object catch (error, stackTrace) {
-      if (!operation.isCurrent) return;
-      controller.markFailed(token);
-      state = AsyncError<Profile?>(error, stackTrace);
-      return;
-    }
+      final operationKey = token.operationKey;
+      late final repo = ref.read(profileRepositoryProvider);
 
-    if (!operation.isCurrent) return;
-    final reconciliation = PdsSetReconciliation(active: desiredFollowing);
-    if (!controller.markAccepted(
-      token,
-      optimisticValue: desiredFollowing,
-      agrees: (value) => value is bool && reconciliation.agrees(value),
-      refresh: () => invalidateFollowProfileReads(ref, cacheKey),
-    )) {
-      return;
+      state = const AsyncLoading<Profile?>();
+      late final Profile updated;
+      try {
+        updated = await runPdsMutation<Profile>(
+          ref: ref,
+          controller: controller,
+          token: token,
+          isCurrent: () => operation.isCurrent,
+          send: () async {
+            return desiredFollowing
+                ? await repo.follow(cacheKey, operationKey: operationKey)
+                : await repo.unfollow(cacheKey, operationKey: operationKey);
+          },
+        );
+      } on PdsMutationObsoleteException {
+        return;
+      } on PdsMutationUnresolvedException catch (error, stackTrace) {
+        operation.publish(
+          () => state = AsyncError<Profile?>(error, stackTrace),
+        );
+        return;
+      } on Object catch (error, stackTrace) {
+        if (!operation.isCurrent) return;
+        controller.markFailed(token);
+        state = AsyncError<Profile?>(error, stackTrace);
+        return;
+      }
+
+      if (!operation.isCurrent) return;
+      final reconciliation = PdsSetReconciliation(active: desiredFollowing);
+      if (!controller.markAccepted(
+        token,
+        optimisticValue: desiredFollowing,
+        agrees: (value) => value is bool && reconciliation.agrees(value),
+        refresh: () => invalidateFollowProfileReads(ref, cacheKey),
+      )) {
+        return;
+      }
+      state = AsyncData<Profile?>(updated);
+    } finally {
+      lifetime.close();
     }
-    state = AsyncData<Profile?>(updated);
   }
 
   void reset() => state = const AsyncData(null);

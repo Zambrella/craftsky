@@ -6,6 +6,7 @@ class FeedKeys {
   final compose = const ValueKey<String>('feed-compose');
   final composerBody = const ValueKey<String>('post-composer-body');
   final delete = const ValueKey<String>('feed-delete');
+  final edit = const ValueKey<String>('feed-edit');
   final menu = const ValueKey<String>('feed-menu');
   ValueKey<String> post(AtUri uri) => ValueKey('feed-post-$uri');
   final regularPost = const ValueKey<String>('feed-regular-post');

@@ -4,7 +4,7 @@ import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/profile/models/profile_account_page.dart';
 import 'package:craftsky_app/profile/models/profile_account_summary.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
-import 'package:craftsky_app/profile/widgets/profile_presentation_page.dart';
+import 'package:craftsky_app/profile/widgets/profile_avatar_hero.dart';
 import 'package:craftsky_app/settings/pages/follow_list_page.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
@@ -442,7 +442,7 @@ void main() {
     expect(find.text('Stale'), findsNothing);
   });
 
-  testWidgets('TDD-005C tapping an account opens the compact profile route', (
+  testWidgets('TDD-005C tapping an account opens the full profile route', (
     tester,
   ) async {
     final repo = FakeProfileRepository(
@@ -494,9 +494,6 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(destination?.uri.path, '/profiles/did%3Aplc%3Adana');
-    expect(
-      (destination?.extra as ProfilePresentationRequest?)?.startsCompact,
-      isTrue,
-    );
+    expect(destination?.extra, isA<ProfileAvatarTransition>());
   });
 }

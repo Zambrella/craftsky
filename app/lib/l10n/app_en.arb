@@ -1,4 +1,11 @@
 {
+  "postQuoteUseCurrentImage": "Use current image ({current} of {total})",
+  "@postQuoteUseCurrentImage": {
+    "placeholders": {
+      "current": {"type": "int"},
+      "total": {"type": "int"}
+    }
+  },
   "@@locale": "en",
   "discoveryYourCrafts": "Your crafts",
   "@discoveryYourCrafts": {"description": "Desktop discovery sidebar section copy."},
@@ -79,6 +86,13 @@
   "externalLinkConfirmAction": "Open link",
   "@externalLinkConfirmAction": { "description": "Confirmation action for opening an external link." },
 
+  "craftsDefaultLabel": "Default",
+  "craftsMoveUp": "Move up",
+  "craftsMoveDown": "Move down",
+  "craftsReorderLabel": "Reorder {craft}",
+  "@craftsReorderLabel": { "placeholders": { "craft": { "type": "String" } } },
+  "craftsDragLabel": "Drag to reorder {craft}",
+  "@craftsDragLabel": { "placeholders": { "craft": { "type": "String" } } },
   "craftsRequestMoreAction": "Request more",
   "@craftsRequestMoreAction": { "description": "Action below a crafts picker that opens the craft request form." },
 
@@ -136,6 +150,16 @@
     "placeholders": { "actor": { "type": "String", "example": "Alice" } }
   },
 
+  "notificationPostContext": "↳ Your post: {context}",
+  "@notificationPostContext": {
+    "description": "Single-line parent post context above a new comment preview.",
+    "placeholders": { "context": { "type": "String" } }
+  },
+  "notificationReplyContext": "↳ You: “{context}”",
+  "@notificationReplyContext": {
+    "description": "Single-line immediate parent comment context above a new reply preview.",
+    "placeholders": { "context": { "type": "String" } }
+  },
   "notificationReplyRow": "{actor} commented on your post",
   "@notificationReplyRow": {
     "description": "Notification row title for a direct comment activity on the viewer's root post.",
@@ -166,6 +190,8 @@
     "placeholders": { "actor": { "type": "String", "example": "Alice" } }
   },
   "notificationGenericRow": "New activity",
+  "notificationNew": "New notification",
+  "@notificationNew": {"description": "Accessibility label for a notification that is new since the previous visit."},
   "notificationModerationRow": "Review an update to your account standing",
   "notificationUnavailableRow": "Activity unavailable",
   "notificationInstagramMatchActorRow": "You found {actor} through your Instagram following",
@@ -434,7 +460,7 @@
   "@profileEditAction": { "description": "Label on the primary action button shown on a self-profile, opens the edit-profile flow." },
 
   "profileVisitAction": "Visit profile",
-  "@profileVisitAction": { "description": "Label on the secondary action in a profile card, opens the full profile page." },
+  "@profileVisitAction": { "description": "Accessibility hint for opening the full profile page." },
 
   "profileSettingsAction": "Settings",
   "@profileSettingsAction": { "description": "Tooltip on the settings icon button shown next to Edit profile on a self-profile, and on the collapsed-bar trailing action." },
@@ -496,6 +522,11 @@
   "profileUnblockConfirmBody": "You may see and interact with each other's content again.",
   "@profileUnblockConfirmBody": { "description": "Consequences shown in the unblock confirmation." },
 
+  "imageEditFailed": "Couldn’t edit that photo. Try again.",
+  "imageEditAction": "Edit photo",
+  "imageEditRotate": "Rotate 90°",
+  "imageEditCrop": "Crop",
+  "imageEditTitle": "Edit photo",
   "actionCancel": "Cancel",
   "@actionCancel": { "description": "Generic cancel action." },
 
@@ -801,6 +832,15 @@
   "postComposeTitle": "New post",
   "@postComposeTitle": { "description": "Title of the text-only post composer sheet." },
 
+  "postTypeExplainerTitle": "What would you like to share?",
+  "@postTypeExplainerTitle": { "description": "Title of the first-use post type explainer." },
+
+  "postTypeExplainerRegularDescription": "Share a quick update, ask a question, or show what’s inspiring you.",
+  "@postTypeExplainerRegularDescription": { "description": "Why someone would choose a regular post in the first-use explainer." },
+
+  "postTypeExplainerProjectDescription": "Document something you’re making, with details like the craft, pattern, materials, and progress.",
+  "@postTypeExplainerProjectDescription": { "description": "Why someone would choose a project post in the first-use explainer." },
+
   "postTypeRegularLabel": "Regular post",
   "@postTypeRegularLabel": { "description": "Label for the regular-post option in the top-level post-type chooser." },
 
@@ -834,6 +874,8 @@
   "projectComposerProjectTitleHint": "Add a short project title",
   "@projectComposerProjectTitleHint": { "description": "Placeholder text for the optional project-title field in the project composer." },
 
+  "projectComposerDurationLabel": "Duration",
+  "projectComposerDurationHint": "e.g. 2 days or 4 weeks",
   "projectComposerDescriptionLabel": "Project description",
   "@projectComposerDescriptionLabel": { "description": "Label above the main project description text field in the project composer." },
 
@@ -854,6 +896,18 @@
 
   "projectComposerMaterialsAddAction": "Add",
   "@projectComposerMaterialsAddAction": { "description": "Button label for adding a typed material in the project composer." },
+
+  "projectComposerMaterialsEditAction": "Edit material",
+  "@projectComposerMaterialsEditAction": { "description": "Tooltip for moving an existing material into the project composer input for editing." },
+
+  "projectComposerMaterialsEditBlockedHint": "Add or clear the current material first",
+  "@projectComposerMaterialsEditBlockedHint": { "description": "Tooltip explaining why material edit buttons are disabled while the material input contains text." },
+
+  "projectComposerMaterialsDiscardTitle": "Discard material changes?",
+  "@projectComposerMaterialsDiscardTitle": { "description": "Title when leaving project details with uncommitted material input." },
+
+  "projectComposerMaterialsDiscardMessage": "Your current material input won't be saved. Materials you've already added will be kept.",
+  "@projectComposerMaterialsDiscardMessage": { "description": "Explains that discarding pending material input preserves committed material entries." },
 
   "projectComposerMaterialsMaxLengthError": "Keep each material to {max} characters or fewer.",
   "@projectComposerMaterialsMaxLengthError": {
@@ -876,10 +930,10 @@
   "projectComposerColoursSearchHint": "Search colours",
   "@projectComposerColoursSearchHint": { "description": "Placeholder text for searching known colour options in the project composer." },
 
-  "projectComposerDesignTagsLabel": "Design tags",
+  "projectComposerDesignTagsLabel": "Design",
   "@projectComposerDesignTagsLabel": { "description": "Label for the project composer design-tags field." },
 
-  "projectComposerDesignTagsSearchHint": "Search design tags",
+  "projectComposerDesignTagsSearchHint": "Search designs",
   "@projectComposerDesignTagsSearchHint": { "description": "Placeholder text for searching known design-tag options in the project composer." },
 
   "projectComposerAddPatternAction": "Add pattern",
@@ -1056,7 +1110,13 @@
   "projectComposerPatternPublisherHint": "Add pattern publisher",
   "@projectComposerPatternPublisherHint": { "description": "Placeholder text for the optional pattern publisher field in the project composer." },
 
+  "postComposeQuoteLabel": "Your thoughts",
+  "@postComposeQuoteLabel": { "description": "Text box label when composing a quote post." },
+  "postComposeQuoteHint": "Add your thoughts about this post…",
+  "@postComposeQuoteHint": { "description": "Text box placeholder when composing a quote post." },
   "postComposeHint": "What would you like to share?",
+  "postComposeDone": "Done",
+  "@postComposeDone": { "description": "Dismisses the keyboard in the post composer without publishing." },
   "@postComposeHint": { "description": "Label above the text field in the text-only post composer." },
 
   "postComposeBodyHint": "Share what you're making, learning, or thinking...",
@@ -3595,5 +3655,100 @@
   "chatLastUpdated": "Last updated {time}",
   "@chatLastUpdated": {"placeholders": {"time": {"type": "String"}}},
   "projectComposerAdditionalCraftsLabel": "Additional crafts",
-  "projectComposerAdditionalCraftsSearchHint": "Find other crafts used in this project"
+  "projectComposerAdditionalCraftsSearchHint": "Find other crafts used in this project",
+  "serviceStatusUpdateTitle": "Update required",
+  "serviceStatusUpdateDescription": "Please update CraftSky to continue.",
+  "serviceStatusUpdate": "Update",
+  "serviceStatusReload": "Reload",
+  "serviceStatusActionFailed": "Could not open this action. Please try again.",
+  "notificationMentionPostRow": "{actor} mentioned you in a post",
+  "@notificationMentionPostRow": {
+    "placeholders": {
+      "actor": {
+        "type": "String"
+      }
+    }
+  },
+  "notificationMentionCommentRow": "{actor} mentioned you in a comment",
+  "@notificationMentionCommentRow": {
+    "placeholders": {
+      "actor": {
+        "type": "String"
+      }
+    }
+  },
+  "notificationMentionReplyRow": "{actor} mentioned you in a reply",
+  "@notificationMentionReplyRow": {
+    "placeholders": {
+      "actor": {
+        "type": "String"
+      }
+    }
+  },
+  "notificationQuoteCommentRow": "{actor} quoted your comment",
+  "@notificationQuoteCommentRow": {
+    "placeholders": {
+      "actor": {
+        "type": "String"
+      }
+    }
+  },
+  "notificationQuoteReplyRow": "{actor} quoted your reply",
+  "@notificationQuoteReplyRow": {
+    "placeholders": {
+      "actor": {
+        "type": "String"
+      }
+    }
+  },
+  "profileLinksTitle": "Links",
+  "profileLinksHelper": "Add up to 10 links",
+  "profileLinkAdd": "Add link",
+  "profileLinkEdit": "Edit link",
+  "profileLinkUrl": "URL",
+  "profileLinkTitle": "Title (optional)",
+  "profileLinkInvalid": "Enter an HTTPS link. URL shorteners are not supported.",
+  "profileLinkDuplicate": "This link is already on your profile.",
+  "profileLinkUnreachable": "We couldn’t reach this website. You can still save the link.",
+  "profileLinkSaveAnyway": "Save anyway",
+  "profileLinkChecking": "Checking link…",
+  "profileLinkMoveEarlier": "Move up",
+  "profileLinkMoveLater": "Move down",
+  "profileLinkRemove": "Remove link",
+  "profileLinkOpen": "Open link",
+  "profileLinkCopy": "Copy link",
+  "profileLinkOpenFailed": "Couldn’t open this link.",
+  "profileLinkReport": "Report link",
+  "postEditSaveChanges": "Save changes",
+  "postEditSuccess": "Changes saved",
+  "postEditError": "Could not save changes. Please try again.",
+  "postEditSaving": "Saving changes…",
+  "postEditAction": "Edit",
+  "postEditTitle": "Edit post",
+  "postEditLoadError": "Could not load this post for editing. Please try again.",
+  "postEditConflict": "This post changed. Your changes are still here. Review the current version before saving.",
+  "postEditReviewCurrent": "Review current version",
+  "postEditUnavailable": "This post is no longer available. Your changes are still here.",
+  "postEditUnresolved": "Saving is not confirmed. Retry to check the same save.",
+  "postEditRetrySave": "Retry save",
+  "postEditCaptionLabel": "Caption",
+  "postEditContentLabel": "Post content",
+  "postEditValidationFields": "Check these fields and try again: {fields}.",
+  "@postEditValidationFields": {
+    "description": "Actionable edit validation feedback using localized control names.",
+    "placeholders": {
+      "fields": {
+        "type": "String"
+      }
+    }
+  },
+  "postEditTime": "Edited {timestamp}",
+  "@postEditTime": {
+    "description": "Accessible tooltip for the current record edit timestamp.",
+    "placeholders": {
+      "timestamp": {
+        "type": "String"
+      }
+    }
+  }
 }

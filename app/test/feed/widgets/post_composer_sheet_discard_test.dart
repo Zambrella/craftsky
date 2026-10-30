@@ -106,7 +106,6 @@ void main() {
         final clear = controller.refresh();
         status.requests.last.complete(
           const ServiceStatusDocument(
-            mode: ServiceStatusMode.normal,
             revision: 'B',
           ),
         );

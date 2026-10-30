@@ -9,7 +9,7 @@ at://did:plc:lmmx63zcns6gewgxqfdt4kof/community.lexicon.app.profile/self
 ```
 
 The reviewed source is [`metadata/app-profile/profile.json`](../../metadata/app-profile/profile.json).
-It declares the nine collections the client/AppView produce and consume, and
+It declares the ten collections the client/AppView produce and consume, and
 `social.craftsky.actor.profile/self` as the record indicating CraftSky use.
 Reusable definitions, embed objects and RPC methods are not record collections
 and are not listed as interoperability capabilities. This operator-owned record

@@ -51,11 +51,12 @@ type NotificationReferences struct {
 }
 
 type NotificationRow struct {
-	ID   string
-	Type NotificationType
-	URI  string
-	CID  string
-	Rkey string
+	IsNew bool
+	ID    string
+	Type  NotificationType
+	URI   string
+	CID   string
+	Rkey  string
 
 	ActorDID               string
 	ActorDisplayName       *string
@@ -67,9 +68,11 @@ type NotificationRow struct {
 	CreatedAt time.Time
 	IndexedAt time.Time
 
-	SubjectPost *PostRow
-	Reply       *NotificationReplyRef
-	References  NotificationReferences
+	Preview       *notifications.Preview
+	QuotedPreview *notifications.Preview
+	SubjectPost   *PostRow
+	Reply         *NotificationReplyRef
+	References    NotificationReferences
 }
 
 func (s *PostStore) NotificationHandles(ctx context.Context, dids []string) (map[string]syntax.Handle, error) {
@@ -221,6 +224,7 @@ func (s *PostStore) ListNotifications(ctx context.Context, viewerDID string, lim
 		)
 		SELECT
 			e.id::text, e.category,
+			e.newness_revision > COALESCE((SELECT last_seen_revision FROM notification_seen_state WHERE account_did = $1), 0),
 			e.source_uri, e.source_cid, e.source_rkey,
 			CASE WHEN e.category IN ('reply','mention','quote') THEN source_post.uri IS NOT NULL ELSE true END,
 			e.subject_uri,e.subject_cid,(e.subject_uri IS NOT NULL AND sp.uri IS NOT NULL AND blocked_reference.id IS NULL),
@@ -280,6 +284,7 @@ func (s *PostStore) ListNotifications(ctx context.Context, viewerDID string, lim
 		if err := rows.Scan(
 			&row.ID,
 			&eventType,
+			&row.IsNew,
 			&sourceURI, &sourceCID, &sourceRkey, &sourceAvailable,
 			&subjectURI, &subjectCID, &subjectAvailable,
 			&parentURI, &parentCID, &parentAvailable,
@@ -328,6 +333,49 @@ func (s *PostStore) ListNotifications(ctx context.Context, viewerDID string, lim
 	}
 	if err := rows.Err(); err != nil {
 		return nil, "", fmt.Errorf("notification list iter: %w", err)
+	}
+	// Release the page connection before the bounded preview batch.
+	rows.Close()
+	previewURIs := make([]syntax.ATURI, 0, len(out)*4)
+	for _, row := range out {
+		previewURIs = append(previewURIs, syntax.ATURI(row.URI))
+		if row.References.Subject != nil {
+			previewURIs = append(previewURIs, syntax.ATURI(row.References.Subject.URI))
+		}
+		if row.References.Root != nil {
+			previewURIs = append(previewURIs, syntax.ATURI(row.References.Root.URI))
+		}
+		if row.References.Quoted != nil {
+			previewURIs = append(previewURIs, syntax.ATURI(row.References.Quoted.URI))
+		}
+	}
+	previews, err := notifications.ReadPreviews(ctx, s.pool, syntax.DID(viewerDID), previewURIs)
+	if err != nil {
+		return nil, "", err
+	}
+	for _, row := range out {
+		uri := row.URI
+		if row.Type == NotificationTypeLike || row.Type == NotificationTypeRepost {
+			if row.References.Subject != nil {
+				uri = row.References.Subject.URI
+			}
+		}
+		row.Preview = previews[syntax.ATURI(uri)]
+		if row.Type == NotificationTypeReply && row.Preview != nil && row.Preview.ProjectTitle == "" {
+			for _, ref := range []*NotificationReference{row.References.Subject, row.References.Root} {
+				if ref != nil {
+					if context := previews[syntax.ATURI(ref.URI)]; context != nil && context.ProjectTitle != "" {
+						copy := *row.Preview
+						copy.ProjectTitle = context.ProjectTitle
+						row.Preview = &copy
+						break
+					}
+				}
+			}
+		}
+		if row.References.Quoted != nil {
+			row.QuotedPreview = previews[syntax.ATURI(row.References.Quoted.URI)]
+		}
 	}
 	if len(out) <= limit {
 		return out, "", nil

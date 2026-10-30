@@ -6,6 +6,7 @@ import 'package:craftsky_app/feed/models/create_post_video.dart';
 import 'package:craftsky_app/feed/models/interaction_write_response.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/post_comment_section.dart';
+import 'package:craftsky_app/feed/models/post_edit.dart';
 import 'package:craftsky_app/feed/models/post_page.dart';
 import 'package:craftsky_app/feed/models/profile_pin_state.dart';
 import 'package:craftsky_app/feed/models/timeline_page.dart';
@@ -22,6 +23,25 @@ class ApiPostRepository implements PostRepository {
   final PostApiClient _api;
 
   @override
+  Future<PostEditSeed> fetchEdit(Did did, RecordKey rkey) =>
+      _api.getPostEdit(did, rkey);
+
+  @override
+  Future<PostEditResult> edit(
+    Did did,
+    RecordKey rkey, {
+    required PostEditChanges changes,
+    required String expectedCid,
+    required String operationKey,
+  }) => _api.editPost(
+    did,
+    rkey,
+    changes: changes,
+    expectedCid: expectedCid,
+    operationKey: operationKey,
+  );
+
+  @override
   Future<Post> create({
     required String operationKey,
     required String text,
@@ -29,6 +49,7 @@ class ApiPostRepository implements PostRepository {
     required bool sponsored,
     PostReply? reply,
     PostRef? quote,
+    String? quoteImageCid,
     Project? project,
     List<CreatePostImage>? images,
     CreatePostExternal? external,
@@ -54,6 +75,7 @@ class ApiPostRepository implements PostRepository {
       sponsored: sponsored,
       reply: reply,
       quote: quote,
+      quoteImageCid: quoteImageCid,
       project: project,
       images: images,
       external: external,

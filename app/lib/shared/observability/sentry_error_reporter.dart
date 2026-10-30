@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert' show utf8;
 
 import 'package:craftsky_app/shared/api/api_exception.dart';
+import 'package:craftsky_app/shared/api/pds_mutation_contract.dart';
 import 'package:craftsky_app/shared/errors/app_error.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_details.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_emitter.dart';
@@ -163,6 +164,9 @@ void configureDiagnosticOptions(
   // Install after the client chooses its HTTP/native transport, before other
   // integrations run. Scope attachments are assembled after beforeSend.
   <ExceptionCauseExtractor<dynamic>>[
+    _DiagnosticCauseExtractor<DiagnosticFormatException>(),
+    _DiagnosticCauseExtractor<PdsMutationAmbiguousException>(),
+    _DiagnosticCauseExtractor<PdsMutationUnresolvedException>(),
     _DiagnosticCauseExtractor<AppError>(),
     _DiagnosticCauseExtractor<ApiUnauthorized>(),
     _DiagnosticCauseExtractor<ApiCanceled>(),
@@ -285,8 +289,15 @@ final class _DiagnosticCauseExtractor<T> extends ExceptionCauseExtractor<T> {
   @override
   ExceptionCause? cause(T error) {
     final (cause, stack) = switch (error) {
-      DiagnosticFailureCause(:final diagnosticCause, :final diagnosticStack) =>
-        (diagnosticCause, diagnosticStack),
+      DiagnosticFailureCause(:final diagnosticCause, :final diagnosticStack) ||
+      PdsMutationAmbiguousException(
+        :final diagnosticCause,
+        :final diagnosticStack,
+      ) ||
+      PdsMutationUnresolvedException(
+        :final diagnosticCause,
+        :final diagnosticStack,
+      ) => (diagnosticCause, diagnosticStack),
       ApiException(:final details) => (details.cause, details.stackTrace),
       DioException(:final error, :final stackTrace) => (error, stackTrace),
       _ => (null, null),
@@ -372,6 +383,23 @@ SentryEvent _protectEvent(SentryEvent event) {
   }
   for (final exception in event.exceptions ?? <SentryException>[]) {
     final throwable = exception.throwable;
+    if (throwable is ApiException) {
+      final details = throwable.details;
+      final operation = event.contexts['operation'];
+      // Cause enrichment is diagnostic-only: retry wrappers retain their UI
+      // mapping and terminal/expected classification behavior.
+      event.contexts['operation'] = {
+        ...SentrySanitizer.sanitizeContext({
+          'httpStatus': details.statusCode,
+          'httpMethod': details.method,
+          'appViewError': details.appViewError,
+          'appViewRequestId': details.requestId,
+          'responseKind': details.responseKind,
+          'transportFailure': details.transportFailure,
+        }),
+        if (operation is Map<String, dynamic>) ...operation,
+      };
+    }
     exception.value = throwable is Object
         ? selectedCause(throwable)['message']! as String
         : 'Operation failed';

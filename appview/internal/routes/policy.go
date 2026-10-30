@@ -142,6 +142,7 @@ var retainedAgeRestrictedRoutes = map[string]bool{
 	"DELETE /v1/profiles/{handleOrDid}/mutes":            true,
 	"POST /v1/profiles/{handleOrDid}/blocks":             true,
 	"DELETE /v1/profiles/{handleOrDid}/blocks":           true,
+	"POST /v1/profile-links/{did}/{rkey}/reports":        true,
 	"POST /v1/profiles/{handleOrDid}/reports":            true,
 	"POST /v1/events/{did}/{rkey}/reports":               true,
 	"POST /v1/posts/{did}/{rkey}/reports":                true,
@@ -167,6 +168,9 @@ func (class SuspensionClass) Valid() bool {
 func (class SuspensionClass) AllowedWhenSuspended() bool { return class == SuspensionAllowed }
 
 func suspensionClassFor(policy RoutePolicy) SuspensionClass {
+	if policy.Method == http.MethodGet && policy.PathPattern == "/v1/posts/{did}/{rkey}/edit" {
+		return SuspensionDenied
+	}
 	if policy.Method == http.MethodGet || policy.AccessClass == AccessAnonymous || policy.AccessClass == AccessModerator || policy.AccessClass == AccessOperatorLogin {
 		return SuspensionAllowed
 	}
@@ -192,6 +196,7 @@ var retainedSuspendedMutations = map[string]bool{
 	"DELETE /v1/profiles/{handleOrDid}/mutes":                        true,
 	"POST /v1/profiles/{handleOrDid}/blocks":                         true,
 	"DELETE /v1/profiles/{handleOrDid}/blocks":                       true,
+	"POST /v1/profile-links/{did}/{rkey}/reports":                    true,
 	"POST /v1/profiles/{handleOrDid}/reports":                        true,
 	"POST /v1/events/{did}/{rkey}/reports":                           true,
 	"POST /v1/posts/{did}/{rkey}/reports":                            true,
@@ -236,6 +241,7 @@ var deniedSuspendedMutations = map[string]bool{
 	"PUT /v1/chat/incoming-policy":                                         true,
 	"POST /v1/chat/conversations/{id}/messages":                            true,
 	"POST /v1/chat/authorization":                                          true,
+	"PATCH /v1/posts/{did}/{rkey}":                                         true,
 	"POST /v1/blobs/videos/authorization":                                  true,
 	"POST /v1/migrations/instagram/verifications":                          true,
 	"POST /v1/migrations/instagram/verifications/{verificationId}/confirm": true,
@@ -258,6 +264,7 @@ var deniedSuspendedMutations = map[string]bool{
 	"PUT /v1/scheduled-posts/{id}":                                         true,
 	"POST /v1/scheduled-posts/{id}/publication":                            true,
 	"POST /v1/posts":                                                       true,
+	"POST /v1/profile-link-previews":                                       true,
 	"POST /v1/link-previews":                                               true,
 	"PUT /v1/posts/{did}/{rkey}/pin":                                       true,
 	"POST /v1/posts/{did}/{rkey}/likes":                                    true,
@@ -386,6 +393,7 @@ func baseV1RoutePolicies() []RoutePolicy {
 		{Method: "DELETE", PathPattern: "/v1/profiles/{handleOrDid}/blocks", RateClass: RateClassWrite, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},
 		{Method: "GET", PathPattern: "/v1/profiles/me/mutes", RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},
 		{Method: "GET", PathPattern: "/v1/profiles/me/blocks", RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},
+		{Method: "POST", PathPattern: "/v1/profile-links/{did}/{rkey}/reports", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessCurrentMember},
 		{Method: "POST", PathPattern: "/v1/profiles/{handleOrDid}/reports", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessCurrentMember},
 		{Method: "POST", PathPattern: "/v1/events", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessCurrentMember},
 		{Method: "GET", PathPattern: "/v1/events", RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},
@@ -416,8 +424,11 @@ func baseV1RoutePolicies() []RoutePolicy {
 		{Method: "DELETE", PathPattern: "/v1/scheduled-posts/{id}", RateClass: RateClassWrite, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},
 		{Method: "POST", PathPattern: "/v1/scheduled-posts/{id}/publication", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessCurrentMember},
 		{Method: "POST", PathPattern: "/v1/posts", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessCurrentMember},
+		{Method: "POST", PathPattern: "/v1/profile-link-previews", RateClass: RateClassLinkPreview, BodyKind: BodyDefaultJSON, AccessClass: AccessCurrentMember},
 		{Method: "POST", PathPattern: "/v1/link-previews", RateClass: RateClassLinkPreview, BodyKind: BodyDefaultJSON, AccessClass: AccessCurrentMember},
 		{Method: "GET", PathPattern: "/v1/posts/{did}/{rkey}", RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},
+		{Method: "GET", PathPattern: "/v1/posts/{did}/{rkey}/edit", RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},
+		{Method: "PATCH", PathPattern: "/v1/posts/{did}/{rkey}", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessCurrentMember},
 		{Method: "GET", PathPattern: "/v1/posts/{did}/{rkey}/video-captions/{captionCid}", RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},
 		{Method: "POST", PathPattern: "/v1/posts/{did}/{rkey}/saves", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessCurrentMember},
 		{Method: "DELETE", PathPattern: "/v1/posts/{did}/{rkey}/saves", RateClass: RateClassWrite, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},

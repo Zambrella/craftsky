@@ -19,7 +19,7 @@ const descriptions:Record<string,string>={
  scans:'Review image scan results and processing failures, and retry failed scans after checking their current state.',
  operators:'Manage approved Atmosphere accounts, set their permissions, revoke sessions and disable access.',
  operations:'Review recorded operator commands, their outcomes and linked records.',
- 'new-case':'Open a case for a post, account or event that needs review. Creating a case does not apply consequences.',
+ 'new-case':'Open a case for a post, account, event or profile link that needs review. Creating a case does not apply consequences.',
 }
 function currentArea(operator:Operator){return window.location.hash.split('/')[1]||(operator.permissions['moderation.read']?'cases':'incidents')}
 export function OperatorWorkspace({operator,onSessionExpired,onLocked}:{operator:Operator;onSessionExpired:()=>void;onLocked:(v:boolean)=>void}){

@@ -43,7 +43,7 @@ func TestChatAccountsMigrationEnforcesOwnerAndGeneration(t *testing.T) {
 // IT-005 / FR-016: local rollback restores the prior auth contract.
 func TestChatMigrationRollbackRestoresAuthPurposeContract(t *testing.T) {
 	pool := testdb.WithMigratedSchema(t)
-	down, err := testdb.ReadMigration("000102_direct_messaging.down.sql")
+	down, err := testdb.ReadMigration("000111_direct_messaging.down.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -64,7 +64,7 @@ func TestChatMigrationRollbackRestoresAuthPurposeContract(t *testing.T) {
 	if columns != 0 {
 		t.Fatal("rollback retains chat consent metadata")
 	}
-	up, err := testdb.ReadMigration("000102_direct_messaging.up.sql")
+	up, err := testdb.ReadMigration("000111_direct_messaging.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}

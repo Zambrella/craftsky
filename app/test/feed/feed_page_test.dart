@@ -585,7 +585,7 @@ void main() {
   });
 
   for (final (label, path) in [
-    ('Connect Instagram', '/profile/settings/instagram'),
+    ('Connect Instagram', '/settings/instagram'),
     ('Search CraftSky', '/search'),
     ('View projects', '/projects'),
   ]) {
@@ -910,13 +910,12 @@ void main() {
     expect(find.byIcon(CraftskyIconsBold.like), findsOneWidget);
   });
 
-  testWidgets('FeedPage reply opens focused thread and refreshes root row', (
+  testWidgets('FeedPage comment opens comments without composing or writing', (
     tester,
   ) async {
     GoRouterState? threadState;
     var timelineCalls = 0;
     final root = _post('root');
-    final created = _post('created');
     final container = ProviderContainer.test(
       overrides: [
         activeLanguagePreferencesProvider.overrideWith(
@@ -936,7 +935,6 @@ void main() {
                   root.copyWith(replyCount: 4, viewerHasReplied: true),
               ]);
             },
-            onCreate: ({required text, reply, images}) async => created,
           ),
         ),
       ],
@@ -958,6 +956,8 @@ void main() {
       ],
     );
 
+    addTearDown(router.dispose);
+
     await tester.pumpWidget(
       UncontrolledProviderScope(
         container: container,
@@ -978,25 +978,14 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Regular post'), findsNothing);
     expect(find.text('Project post'), findsNothing);
-    await tester.enterText(find.byType(TextField), 'new comment');
-    await tester.pump();
-    await tester.tap(find.widgetWithText(ChunkyButton, 'Comment'));
-    await tester.pumpAndSettle();
-
+    expect(find.byType(TextField), findsNothing);
     expect(find.text('Thread route'), findsOneWidget);
     expect(threadState?.pathParameters['did'], root.author.did);
     expect(threadState?.pathParameters['rkey'], root.rkey);
-    expect(threadState?.uri.queryParameters['focus'], created.uri);
-    expect(threadState?.extra, isA<Post>());
-    expect((threadState!.extra! as Post).uri, created.uri);
-
-    final timeline = container.read(timelineProvider).value!;
-    expect(timeline.items, hasLength(1));
-    expect(timeline.items.single.post.uri, root.uri);
-    expect(timeline.items.single.post.replyCount, 4);
-    expect(timeline.items.single.post.viewerHasReplied, isTrue);
-    expect(timeline.items.any((item) => item.post.uri == created.uri), isFalse);
-    expect(timelineCalls, 2);
+    expect(threadState?.uri.queryParameters['show-comments'], 'true');
+    expect(threadState?.uri.queryParameters['focus'], isNull);
+    expect(threadState?.extra, isNull);
+    expect(timelineCalls, 1);
   });
 
   testWidgets('FeedPage only exposes delete for own rows and removes row', (

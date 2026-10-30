@@ -19,67 +19,88 @@ import 'package:flutter_test/flutter_test.dart';
 import '../fakes/auth_session_fakes.dart';
 import 'service_status_controller_test.dart'
     show FakeStatusRepository, maintenance;
+import 'support/status_test_fixtures.dart';
 
 void main() {
   // AT-001 / BR-001, FR-001, FR-005 / AC-001; UT-003 startup wiring.
   for (final signedIn in [false, true]) {
     for (final failed in [false, true]) {
-      testWidgets(
-        'maintenance before ${signedIn ? 'signed-in' : 'signed-out'} '
-        '${failed ? 'failed' : 'pending'} initialization',
-        (tester) async {
-          final repository = FakeStatusRepository();
-          final dependency = Completer<AppDependencies>();
-          final account = Completer<ActiveAccountInitialization?>();
-          var splashRemovals = 0;
-          await tester.pumpWidget(
-            ProviderScope(
-              overrides: [
-                appDependenciesProvider.overrideWith(
-                  (ref) => failed
-                      ? Future.error(StateError('Initialization failed'))
-                      : dependency.future,
-                ),
-                activeAccountInitializationProvider.overrideWith(
-                  (ref) => account.future,
-                ),
-                authSessionProvider.overrideWith(
-                  signedIn ? SignedInAuthSession.new : SignedOutAuthSession.new,
-                ),
-                serviceStatusRepositoryProvider.overrideWithValue(repository),
-              ],
-              child: App(onInitializationResolved: () => splashRemovals++),
-            ),
-          );
-          await tester.pump();
-          expect(repository.requests, hasLength(1));
-          repository.requests.single.complete(maintenance);
-          await tester.pump();
-          await tester.pump();
-          expect(find.text('Maintenance'), findsOneWidget);
-          expect(find.text('Public message'), findsOneWidget);
-          expect(splashRemovals, 1);
-          final context = tester.element(find.byType(App));
-          final container = ProviderScope.containerOf(context);
-          final retry = container
-              .read(serviceStatusControllerProvider.notifier)
-              .refresh();
-          repository.requests.last.complete(
-            const ServiceStatusDocument(
-              mode: ServiceStatusMode.normal,
-              revision: 'B',
-            ),
-          );
-          await tester.pump();
-          await retry;
-          expect(find.text('Maintenance'), findsNothing);
-          if (!failed) {
-            expect(find.byType(InitializationLoadingScreen), findsOneWidget);
-          }
-          expect(splashRemovals, 1);
-          await tester.pumpWidget(const SizedBox.shrink());
-        },
-      );
+      for (final update in [false, true]) {
+        testWidgets(
+          '${update ? 'update' : 'maintenance'} before '
+          '${signedIn ? 'signed-in' : 'signed-out'} '
+          '${failed ? 'failed' : 'pending'} initialization',
+          (tester) async {
+            final repository = FakeStatusRepository();
+            final dependency = Completer<AppDependencies>();
+            final account = Completer<ActiveAccountInitialization?>();
+            var splashRemovals = 0;
+            await tester.pumpWidget(
+              ProviderScope(
+                overrides: [
+                  ...statusRuntimeOverrides,
+                  appDependenciesProvider.overrideWith(
+                    (ref) => failed
+                        ? Future.error(StateError('Initialization failed'))
+                        : dependency.future,
+                  ),
+                  activeAccountInitializationProvider.overrideWith(
+                    (ref) => account.future,
+                  ),
+                  authSessionProvider.overrideWith(
+                    signedIn
+                        ? SignedInAuthSession.new
+                        : SignedOutAuthSession.new,
+                  ),
+                  serviceStatusRepositoryProvider.overrideWithValue(repository),
+                ],
+                child: App(onInitializationResolved: () => splashRemovals++),
+              ),
+            );
+            await tester.pump();
+            expect(repository.requests, hasLength(1));
+            repository.requests.single.complete(
+              update
+                  ? const ServiceStatusDocument(
+                      revision: 'U',
+                      minimumVersions: StatusMinimumVersions(ios: '1.9.0'),
+                    )
+                  : maintenance,
+            );
+            await tester.pump();
+            await tester.pump();
+            expect(
+              find.text(update ? 'Update required' : 'Maintenance'),
+              findsOneWidget,
+            );
+            expect(await tester.binding.handlePopRoute(), isTrue);
+            expect(
+              find.text(update ? 'Update required' : 'Maintenance'),
+              findsOneWidget,
+            );
+            expect(splashRemovals, 1);
+            final context = tester.element(find.byType(App));
+            final container = ProviderScope.containerOf(context);
+            final retry = container
+                .read(serviceStatusControllerProvider.notifier)
+                .refresh();
+            repository.requests.last.complete(
+              statusDocument(
+                mode: ServiceStatusMode.normal,
+                revision: 'B',
+              ),
+            );
+            await tester.pump();
+            await retry;
+            expect(find.text('Maintenance'), findsNothing);
+            if (!failed) {
+              expect(find.byType(InitializationLoadingScreen), findsOneWidget);
+            }
+            expect(splashRemovals, 1);
+            await tester.pumpWidget(const SizedBox.shrink());
+          },
+        );
+      }
     }
   }
   // AT-005 / FR-007, NFR-001, RULE-001 / AC-010.
@@ -98,6 +119,7 @@ void main() {
           ProviderScope(
             retry: (_, _) => null,
             overrides: [
+              ...statusRuntimeOverrides,
               appDependenciesProvider.overrideWith((ref) {
                 initializations++;
                 return Future.error(const ApiServerError('503'));

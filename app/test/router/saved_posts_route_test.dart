@@ -1,3 +1,4 @@
+import 'package:craftsky_app/app_dependencies.dart';
 import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/auth/models/session_registry.dart';
 import 'package:craftsky_app/auth/providers/active_account_initialization_provider.dart';
@@ -21,6 +22,7 @@ import 'package:craftsky_app/saved_posts/pages/saved_post_folder_page.dart';
 import 'package:craftsky_app/saved_posts/pages/saved_posts_page.dart';
 import 'package:craftsky_app/saved_posts/providers/saved_post_repository_provider.dart';
 import 'package:craftsky_app/scheduled_posts/pages/scheduled_posts_page.dart';
+import 'package:craftsky_app/settings/pages/settings_page.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
 import 'package:craftsky_app/subscriptions/providers/subscription_access_provider.dart';
@@ -30,6 +32,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../fakes/auth_session_fakes.dart';
 import '../fakes/recording_messenger.dart';
@@ -48,7 +51,13 @@ final class _RegistryStorage implements SessionRegistryStorage {
   Future<void> write(SessionRegistry registry) async => value = registry;
 }
 
+late SharedPreferences _preferences;
+
 void main() {
+  setUpAll(() async {
+    SharedPreferences.setMockInitialValues({});
+    _preferences = await SharedPreferences.getInstance();
+  });
   test('UT-011 uses canonical static and redacted saved routes', () {
     expect(RouteLocations.savedPosts, '/saved');
     expect(const SavedPostsRoute().location, '/saved');
@@ -158,13 +167,11 @@ void main() {
     await tester.pageBack();
     await tester.pumpAndSettle();
     expect(find.byType(SavedPostsPage), findsOneWidget);
-    await tester.tap(find.byType(BackButton));
-    await tester.pumpAndSettle();
-    expect(find.text('Feed route'), findsOneWidget);
+    expect(find.byType(BackButton), findsNothing);
   });
 
   testWidgets(
-    'Saved posts opens above Feed with the production router',
+    'Saved posts is a peer destination with a folder back stack',
     (tester) async {
       final folder = SavedPostFolder(
         id: 'private-folder-id',
@@ -219,10 +226,8 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byType(SavedPostsPage), findsOneWidget);
 
-      await tester.pageBack();
-      await tester.pumpAndSettle();
-      expect(router.state.matchedLocation, RouteLocations.feed);
-      expect(find.byType(FeedPage), findsOneWidget);
+      expect(find.byType(BackButton), findsNothing);
+      expect(router.canPop(), isFalse);
     },
   );
 
@@ -305,6 +310,11 @@ void main() {
 
   for (final routeCase in [
     (
+      label: 'Settings',
+      location: const SettingsRoute().location,
+      pageType: SettingsPage,
+    ),
+    (
       label: 'Saved posts',
       location: const SavedPostsRoute().location,
       pageType: SavedPostsPage,
@@ -320,10 +330,9 @@ void main() {
       pageType: DraftsPage,
     ),
   ]) {
-    for (final useSystemBack in [false, true]) {
-      final backAction = useSystemBack ? 'System Back' : 'Back button';
+    for (final large in [false, true]) {
       testWidgets(
-        '$backAction from ${routeCase.label} returns to Feed',
+        '${routeCase.label} switches through the ${large ? 'rail' : 'drawer'}',
         (tester) async {
           final container = _productionContainer(
             savedRepository: const _RouteRepository(null),
@@ -337,7 +346,12 @@ void main() {
           addTearDown(routerSubscription.close);
           final router = routerSubscription.read();
 
-          await _pumpProductionRouter(tester, container, router);
+          await _pumpProductionRouter(
+            tester,
+            container,
+            router,
+            size: Size(large ? 1200 : 500, 800),
+          );
           expect(router.state.matchedLocation, RouteLocations.home);
 
           router.go(routeCase.location);
@@ -352,10 +366,36 @@ void main() {
             findsOneWidget,
           );
 
-          if (useSystemBack) {
-            await tester.binding.handlePopRoute();
+          expect(find.byType(BackButton), findsNothing);
+          expect(router.canPop(), isFalse);
+          if (large) {
+            await tester.tap(
+              find.descendant(
+                of: find.byType(NavigationRail),
+                matching: find.text('Feed'),
+              ),
+            );
           } else {
-            await tester.tap(find.byType(BackButton));
+            await tester.tap(find.byTooltip('Open navigation menu'));
+            // Drafts and Scheduled can still be showing animated skeletons.
+            await tester.pump();
+            await tester.pump(const Duration(seconds: 1));
+            final drawer = find.byType(Drawer);
+            final tile = find.widgetWithText(
+              ListTile,
+              routeCase.label == 'Saved posts'
+                  ? 'Saved'
+                  : routeCase.label == 'Scheduled posts'
+                  ? 'Scheduled'
+                  : routeCase.label,
+            );
+            expect(
+              tester
+                  .widget<ListTile>(find.descendant(of: drawer, matching: tile))
+                  .selected,
+              isTrue,
+            );
+            await tester.tap(find.widgetWithText(ListTile, 'Feed'));
           }
           await tester.pumpAndSettle();
 
@@ -364,6 +404,93 @@ void main() {
         },
       );
     }
+  }
+
+  for (final large in [false, true]) {
+    testWidgets(
+      'section state survives ${large ? 'rail' : 'drawer'} switching',
+      (tester) async {
+        final folder = SavedPostFolder(
+          id: 'folder',
+          name: 'Ideas',
+          createdAt: DateTime.utc(2026),
+          updatedAt: DateTime.utc(2026),
+        );
+        final container = _productionContainer(
+          savedRepository: _RouteRepository(folder),
+        );
+        addTearDown(container.dispose);
+        final subscription = container.listen(
+          goRouterProvider,
+          (_, _) {},
+          fireImmediately: true,
+        );
+        addTearDown(subscription.close);
+        final router = subscription.read()..go(const SettingsRoute().location);
+        await _pumpProductionRouter(
+          tester,
+          container,
+          router,
+          size: Size(large ? 1200 : 500, 800),
+        );
+
+        Future<void> select(String label) async {
+          if (large) {
+            await tester.tap(
+              find.descendant(
+                of: find.byType(NavigationRail),
+                matching: find.text(label),
+              ),
+            );
+          } else {
+            await tester.dragFrom(const Offset(0, 300), const Offset(350, 0));
+            await tester.pumpAndSettle();
+            await tester.tap(find.widgetWithText(ListTile, label));
+          }
+          await tester.pumpAndSettle();
+        }
+
+        final settingsList = find.descendant(
+          of: find.byType(SettingsPage),
+          matching: find.byType(Scrollable),
+        );
+        await tester.drag(settingsList, const Offset(0, -400));
+        await tester.pumpAndSettle();
+        final position = tester.state<ScrollableState>(settingsList).position;
+        final offset = position.pixels;
+        expect(offset, greaterThan(0));
+        await select('Saved');
+        await select('Settings');
+        expect(
+          tester.state<ScrollableState>(settingsList).position,
+          same(position),
+        );
+        expect(position.pixels, offset);
+
+        // On compact child pages the edge gesture belongs to Back. The rail
+        // remains available for switching sections while a child is open.
+        if (!large) return;
+
+        // Nested Settings and Saved pages retain their own branch stacks.
+        router.go(const AppearanceRoute().location);
+        await tester.pumpAndSettle();
+        await select('Saved');
+        await tester.tap(find.text('Ideas'));
+        await tester.pumpAndSettle();
+        expect(router.state.matchedLocation, '/saved/folder');
+        await select('Settings');
+        expect(router.state.matchedLocation, const AppearanceRoute().location);
+        await tester.pageBack();
+        await tester.pumpAndSettle();
+        expect(router.state.matchedLocation, const SettingsRoute().location);
+        await select('Saved');
+        expect(router.state.matchedLocation, '/saved/folder');
+        await tester.pageBack();
+        await tester.pumpAndSettle();
+        expect(router.state.matchedLocation, const SavedPostsRoute().location);
+        expect(find.byType(BackButton), findsNothing);
+      },
+    );
   }
 
   testWidgets('CORR-007 former Settings-owned paths remain unknown', (
@@ -382,10 +509,10 @@ void main() {
     await _pumpProductionRouter(tester, container, router);
 
     for (final oldLocation in [
-      '/profile/settings/saved',
-      '/profile/settings/saved/folder',
-      '/profile/settings/scheduled',
-      '/profile/settings/drafts',
+      '/settings/saved',
+      '/settings/saved/folder',
+      '/settings/scheduled',
+      '/settings/drafts',
       '/profile/saved',
       '/profile/saved/folder',
       '/profile/scheduled',
@@ -412,6 +539,7 @@ ProviderContainer _productionContainer({SavedPostRepository? savedRepository}) {
   );
   return ProviderContainer(
     overrides: [
+      sharedPreferencesProvider.overrideWithValue(_preferences),
       subscriptionAccessProvider.overrideWith(
         (ref, lease) async => SubscriptionAccess(
           did: lease.account.did,

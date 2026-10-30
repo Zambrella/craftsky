@@ -5,6 +5,39 @@ import 'package:craftsky_app/projects/options/project_option_catalogs.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('duration is trimmed, optional, and bounded for project records', () {
+    for (final (input, expected, valid) in [
+      ('  4 weeks  ', '4 weeks', true),
+      ('   ', null, true),
+      ('a' * 100, 'a' * 100, true),
+      ('a' * 101, null, false),
+      ('👨‍👩‍👧‍👦' * 20, '👨‍👩‍👧‍👦' * 20, true),
+      ('👨‍👩‍👧‍👦' * 21, null, false),
+    ]) {
+      final result = buildProjectComposerPayload(
+        formValues: {
+          ProjectComposerFields.craftType:
+              ProjectOptionCatalogs.sewingCraftToken,
+          ProjectComposerFields.duration: input,
+        },
+      );
+      expect(result.project != null, valid);
+      if (valid) {
+        expect(result.project!.common.duration, expected);
+        expect(
+          (result.project!.toCreateMap()['common'] as Map)['duration'],
+          expected,
+        );
+      } else {
+        expect(result.errors.single.fieldName, ProjectComposerFields.duration);
+        expect(
+          result.errors.single.code,
+          ProjectComposerValidationCode.tooLong,
+        );
+      }
+    }
+  });
+
   test(
     'additional crafts exclude the primary and duplicates in create payload',
     () {

@@ -20,6 +20,45 @@ import '../../fakes/image_cache_fakes.dart';
 void main() {
   setUpAll(initializeMappers);
 
+  testWidgets(
+    'AT-003 compact post and quote summaries retain edit disclosure',
+    (tester) async {
+      final when = DateTime.utc(2026, 10, 26, 12);
+      final post = _post().copyWith(
+        images: null,
+        editedAt: when,
+      );
+      final quote = QuoteView(
+        state: 'visible',
+        post: QuotePreviewPost(
+          uri: post.uri,
+          cid: post.cid,
+          text: post.text,
+          author: post.author,
+          createdAt: post.createdAt,
+          sponsored: false,
+          editedAt: when,
+        ),
+      );
+      for (final data in [
+        PostSummaryData.fromPost(post),
+        PostSummaryData.savedPost(post),
+        PostSummaryData.fromQuoteView(quote),
+        PostSummaryData.notificationSubject(post),
+      ]) {
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: AppTheme.lightThemeData,
+            localizationsDelegates: appLocalizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: Scaffold(body: PostSummary(data: data)),
+          ),
+        );
+        expect(find.byIcon(CraftskyIcons.edit), findsOneWidget);
+      }
+    },
+  );
+
   testWidgets('UT-008 adapts bounded visible and policy summaries', (
     tester,
   ) async {
@@ -28,6 +67,11 @@ void main() {
     expect(data.state, PostSummaryState.visible);
     expect(data.text, post.text);
     expect(data.projectTitle, 'Hitchhiker shawl');
+    final notificationData = PostSummaryData.notificationSubject(post);
+    expect(notificationData.projectTitle, 'Hitchhiker shawl');
+    expect(notificationData.text, post.text);
+    expect(notificationData.image, isNull);
+    expect(notificationData.external, isNull);
     expect(data.image, same(post.images!.first));
     expect(data.externalImport, same(post.externalImport));
     expect(data.sponsored, isFalse);

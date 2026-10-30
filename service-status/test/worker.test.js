@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import worker from '../src/index.js';
-const raw = JSON.stringify({schemaVersion: 1, mode: 'maintenance', revision: 'A', title: 'Public', message: 'Notice'});
+const raw = JSON.stringify({schemaVersion: 2, revision: 'A', maintenance: {title: 'Public', description: 'Notice'}});
 function store(value = raw) {
   const keys = [];
   return {keys, binding: {async get(key) {
@@ -33,7 +33,7 @@ test('every request observes the current object and code reload leaves it alone'
     put: () => {writes++;}};
   const read = async (handler) => (await handler.fetch(new Request('https://status.test/app.json'), {STATUS_DOCUMENTS: binding})).json();
   assert.equal((await read(worker)).revision, 'A');
-  current = JSON.stringify({schemaVersion: 1, mode: 'normal', revision: 'B'});
+  current = JSON.stringify({schemaVersion: 2, revision: 'B'});
   assert.equal((await read(worker)).revision, 'B');
   const reloaded = (await import('../src/index.js?code-reload')).default;
   assert.equal((await read(reloaded)).revision, 'B'); assert.equal(writes, 0);

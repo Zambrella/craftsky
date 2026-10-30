@@ -54,6 +54,7 @@ type SendRequest struct {
 	Category              notifications.Category
 	AccountSubscriptionID string
 	RoutingFacts          RoutingFacts
+	Preview               *notifications.Preview
 	ActorDisplayName      string
 	Platform              string
 	Semantics             DeliverySemantics

@@ -11,8 +11,10 @@ class StoredSession {
     this.lastUsedOrdinal = 0,
     this.cachedDisplayName,
     this.cachedAvatarUrl,
+    List<String> cachedCrafts = const [],
     this.cachedCustomisation = ProfileCustomisation.defaults,
-  }) : did = Did.parse(did),
+  }) : cachedCrafts = List.unmodifiable(cachedCrafts),
+       did = Did.parse(did),
        handle = Handle.parse(handle);
 
   final String token;
@@ -22,6 +24,7 @@ class StoredSession {
   final int lastUsedOrdinal;
   final String? cachedDisplayName;
   final String? cachedAvatarUrl;
+  final List<String> cachedCrafts;
   final ProfileCustomisation cachedCustomisation;
 
   /// Never include the token in string form — the default mappable

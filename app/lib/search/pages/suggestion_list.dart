@@ -8,7 +8,7 @@ class _SuggestionList {
     required WidgetRef ref,
     required String query,
     required bool isWaitingForDebounce,
-    required ValueChanged<ProfileSearchResult> onOpenProfile,
+    required Future<void> Function(ProfileSearchResult) beforeOpenProfile,
     required ValueChanged<String> onOpenHashtag,
     required VoidCallback onViewAllProfiles,
     required VoidCallback onViewAllHashtags,
@@ -39,7 +39,7 @@ class _SuggestionList {
             children: [
               _SuggestionProfileSection(
                 suggestions: value,
-                onOpenProfile: onOpenProfile,
+                beforeOpenProfile: beforeOpenProfile,
                 onViewAll: onViewAllProfiles,
               ),
               SizedBox(height: spacing.sp3),
@@ -72,12 +72,12 @@ class _SuggestionList {
 class _SuggestionProfileSection extends StatelessWidget {
   const new({
     required this.suggestions,
-    required this.onOpenProfile,
+    required this.beforeOpenProfile,
     required this.onViewAll,
   });
 
   final SearchSuggestions suggestions;
-  final ValueChanged<ProfileSearchResult> onOpenProfile;
+  final Future<void> Function(ProfileSearchResult) beforeOpenProfile;
   final VoidCallback onViewAll;
 
   @override
@@ -91,7 +91,7 @@ class _SuggestionProfileSection extends StatelessWidget {
         for (final profile in suggestions.profiles.items)
           _ProfileResultTile(
             profile: profile,
-            onTap: () => onOpenProfile(profile),
+            beforeOpen: () => beforeOpenProfile(profile),
           ),
       ],
     );

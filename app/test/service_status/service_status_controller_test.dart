@@ -6,6 +6,8 @@ import 'package:craftsky_app/service_status/providers/service_status_controller.
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'support/status_test_fixtures.dart';
+
 class FakeStatusRepository extends ServiceStatusRepository {
   final requests = <Completer<ServiceStatusDocument>>[];
   int cancellations = 0;
@@ -26,6 +28,7 @@ void main() {
     final repository = FakeStatusRepository();
     final container = ProviderContainer(
       overrides: [
+        ...statusRuntimeOverrides,
         serviceStatusRepositoryProvider.overrideWithValue(repository),
       ],
     );
@@ -45,7 +48,7 @@ void main() {
     await tester.pump(const Duration(seconds: 57));
     expect(repository.requests, hasLength(2));
     repository.requests.last.complete(
-      const ServiceStatusDocument(
+      statusDocument(
         mode: ServiceStatusMode.normal,
         revision: 'A',
       ),
@@ -66,6 +69,7 @@ void main() {
       final repository = FakeStatusRepository();
       final container = ProviderContainer(
         overrides: [
+          ...statusRuntimeOverrides,
           serviceStatusRepositoryProvider.overrideWithValue(repository),
         ],
       );
@@ -78,7 +82,7 @@ void main() {
         ..start()
         ..start();
       repository.requests.single.complete(
-        ServiceStatusDocument(
+        statusDocument(
           mode: mode,
           revision: 'A',
           title: 'Title',
@@ -105,6 +109,7 @@ void main() {
       final clock = FakeStatusClock();
       final container = ProviderContainer(
         overrides: [
+          ...statusRuntimeOverrides,
           serviceStatusRepositoryProvider.overrideWithValue(repository),
           serviceStatusClockProvider.overrideWithValue(clock),
         ],
@@ -144,6 +149,7 @@ void main() {
       final clock = FakeStatusClock();
       final container = ProviderContainer(
         overrides: [
+          ...statusRuntimeOverrides,
           serviceStatusRepositoryProvider.overrideWithValue(repository),
           serviceStatusClockProvider.overrideWithValue(clock),
         ],
@@ -169,7 +175,7 @@ void main() {
       ]) {
         final cleared = controller.refresh();
         repository.requests.last.complete(
-          ServiceStatusDocument(mode: mode, revision: 'B'),
+          statusDocument(mode: mode, revision: 'B'),
         );
         await tester.pump();
         await cleared;
@@ -185,6 +191,7 @@ void main() {
       final repository = FakeStatusRepository();
       final container = ProviderContainer(
         overrides: [
+          ...statusRuntimeOverrides,
           serviceStatusRepositoryProvider.overrideWithValue(repository),
         ],
       );
@@ -195,7 +202,7 @@ void main() {
       await tester.pump(const Duration(seconds: 3));
       final next = controller.refresh();
       repository.requests.last.complete(
-        const ServiceStatusDocument(
+        statusDocument(
           mode: ServiceStatusMode.normal,
           revision: 'B',
         ),
@@ -220,6 +227,7 @@ void main() {
       final clock = FakeStatusClock();
       final container = ProviderContainer(
         overrides: [
+          ...statusRuntimeOverrides,
           serviceStatusRepositoryProvider.overrideWithValue(repository),
           serviceStatusClockProvider.overrideWithValue(clock),
         ],
@@ -253,7 +261,7 @@ void main() {
   );
 }
 
-const maintenance = ServiceStatusDocument(
+final ServiceStatusDocument maintenance = statusDocument(
   mode: ServiceStatusMode.maintenance,
   revision: 'A',
   title: 'Maintenance',

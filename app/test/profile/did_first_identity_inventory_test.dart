@@ -36,14 +36,14 @@ void main() {
       didContracts: ['case ProfileDestination(:final did):', 'did: did'],
     ),
     'search': (
-      source: 'lib/search/pages/search_results_tabs.dart',
+      source: 'lib/search/pages/search_page.dart',
       behaviorTest: 'test/search/search_page_test.dart',
-      didContracts: ['did: profile.did'],
+      didContracts: ['account: profile.summary'],
     ),
     'follow list': (
       source: 'lib/profile/widgets/profile_account_list_tile.dart',
       behaviorTest: 'test/settings/follow_list_page_test.dart',
-      didContracts: ['showUserProfileCard(context, did: account.did)'],
+      didContracts: ['did: account.did'],
     ),
     'relationship list': (
       source: 'lib/settings/pages/relationship_list_page.dart',

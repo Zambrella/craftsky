@@ -12,6 +12,7 @@ import 'package:material_ui/material_ui.dart';
 import 'announcement_dismissal_test.dart' show FakeDismissalStore, announcement;
 import 'service_status_controller_test.dart'
     show FakeStatusRepository, maintenance;
+import 'support/status_test_fixtures.dart';
 
 void main() {
   // AT-007 / FR-006, FR-007, FR-008, NFR-001 / AC-009, AC-010, AC-011.
@@ -23,6 +24,7 @@ void main() {
       ProviderContainer fresh(FakeStatusRepository repository) =>
           ProviderContainer(
             overrides: [
+              ...statusRuntimeOverrides,
               serviceStatusRepositoryProvider.overrideWithValue(repository),
               announcementDismissalStoreProvider.overrideWithValue(storage),
             ],

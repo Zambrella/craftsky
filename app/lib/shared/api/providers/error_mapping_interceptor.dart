@@ -21,7 +21,7 @@ class ErrorMappingInterceptor extends Interceptor {
   }
 
   ApiException _mapDioError(DioException err) {
-    final details = _detailsFor(err);
+    final details = detailsFor(err);
     return switch (err.type) {
       DioExceptionType.connectionTimeout ||
       DioExceptionType.sendTimeout ||
@@ -42,7 +42,7 @@ class ErrorMappingInterceptor extends Interceptor {
 
   ApiException _mapBadResponse(DioException err) {
     final status = err.response?.statusCode ?? 0;
-    final details = _detailsFor(err);
+    final details = detailsFor(err);
     if (status == 401) return ApiUnauthorized(details: details);
     if (status >= 400 && status < 500) {
       return ApiBadRequest(details.appViewError, details: details);
@@ -50,7 +50,7 @@ class ErrorMappingInterceptor extends Interceptor {
     return ApiServerError('http_$status', details: details);
   }
 
-  ApiFailureDetails _detailsFor(DioException err) {
+  static ApiFailureDetails detailsFor(DioException err) {
     final data = err.response?.data;
     final statusCode = err.response?.statusCode;
     String? field(String key, RegExp pattern) {
@@ -92,6 +92,7 @@ class ErrorMappingInterceptor extends Interceptor {
       err.response?.headers.value('retry-after') ?? '',
     );
     return ApiFailureDetails(
+      transportFailure: err.type.name,
       retryAfterSeconds:
           statusCode == 429 &&
               retryAfter != null &&

@@ -50,6 +50,7 @@ class CreatePost extends _$CreatePost {
     required bool sponsored,
     PostReply? reply,
     PostRef? quote,
+    String? quoteImageCid,
     Project? project,
     List<CreatePostImage>? images,
     CreatePostExternal? external,
@@ -81,6 +82,7 @@ class CreatePost extends _$CreatePost {
       'sponsored': sponsored,
       'reply': reply?.toMap(),
       'quote': quote?.toMap(),
+      'quoteImageCid': quoteImageCid,
       'project': project?.toCreateMap(),
       'images': frozenImages?.map((image) => image.toMap()).toList(),
       'external': external?.toMap(),
@@ -128,13 +130,14 @@ class CreatePost extends _$CreatePost {
           sponsored: sponsored,
           reply: reply,
           quote: quote,
+          quoteImageCid: quoteImageCid,
           project: project,
           images: frozenImages,
           external: external,
           video: video,
           facets: frozenFacets,
         );
-      } on PdsMutationAmbiguousException catch (error) {
+      } on PdsMutationAmbiguousException catch (error, stackTrace) {
         final decision = await retry.wait(error);
         if (!accountOperation.isCurrent) return null;
         switch (decision) {
@@ -142,8 +145,11 @@ class CreatePost extends _$CreatePost {
             return null;
           case PdsMutationRetryDecision.exhausted:
             state = AsyncError<Post?>(
-              const PdsMutationUnresolvedException(),
-              StackTrace.current,
+              PdsMutationUnresolvedException(
+                diagnosticCause: error,
+                diagnosticStack: stackTrace,
+              ),
+              stackTrace,
             );
             return null;
           case PdsMutationRetryDecision.retry:

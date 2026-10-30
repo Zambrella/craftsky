@@ -33,7 +33,7 @@ final class ToggleLikePostProvider
   ToggleLikePost create() => ToggleLikePost();
 }
 
-String _$toggleLikePostHash() => r'8da7ece607dd328099c4239bedf90917fef7cacd';
+String _$toggleLikePostHash() => r'e9f1831c9a4b0285787a2fb120d9c8374a41e363';
 
 abstract class _$ToggleLikePost extends $AsyncNotifier<Post?> {
   FutureOr<Post?> build();

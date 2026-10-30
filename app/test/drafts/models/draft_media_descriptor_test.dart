@@ -14,6 +14,7 @@ void main() {
       _descriptor(width: 0),
       _descriptor(height: 0),
       _descriptor(order: -1),
+      _descriptor(order: 8),
       _descriptor(mediaId: 'not-a-uuid'),
       _descriptor(storageRevision: 'not-a-uuid'),
     ];

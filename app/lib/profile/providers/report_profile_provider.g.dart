@@ -52,3 +52,47 @@ abstract class _$ReportProfile extends $AsyncNotifier<ReportResult?> {
     return element.handleCreate(ref, build);
   }
 }
+
+@ProviderFor(ReportProfileLink)
+final reportProfileLinkProvider = ReportProfileLinkProvider._();
+
+final class ReportProfileLinkProvider
+    extends $AsyncNotifierProvider<ReportProfileLink, ReportResult?> {
+  ReportProfileLinkProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'reportProfileLinkProvider',
+        isAutoDispose: true,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
+
+  @override
+  String debugGetCreateSourceHash() => _$reportProfileLinkHash();
+
+  @$internal
+  @override
+  ReportProfileLink create() => ReportProfileLink();
+}
+
+String _$reportProfileLinkHash() => r'fb506df1d935974feba62e5d1dc6341dcf441de6';
+
+abstract class _$ReportProfileLink extends $AsyncNotifier<ReportResult?> {
+  FutureOr<ReportResult?> build();
+  @$mustCallSuper
+  @override
+  WhenComplete runBuild() {
+    final ref = this.ref as $Ref<AsyncValue<ReportResult?>, ReportResult?>;
+    final element =
+        ref.element
+            as $ClassProviderElement<
+              AnyNotifier<AsyncValue<ReportResult?>, ReportResult?>,
+              AsyncValue<ReportResult?>,
+              Object?,
+              Object?
+            >;
+    return element.handleCreate(ref, build);
+  }
+}

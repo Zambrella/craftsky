@@ -15,6 +15,7 @@ import 'package:craftsky_app/profile/data/profile_field_constraints.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/models/profile_feature_access.dart';
 import 'package:craftsky_app/profile/models/profile_image_failure.dart';
+import 'package:craftsky_app/profile/models/profile_link.dart';
 import 'package:craftsky_app/profile/models/profile_save_result.dart';
 import 'package:craftsky_app/profile/providers/profile_image_picker_provider.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
@@ -23,10 +24,12 @@ import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
 import 'package:craftsky_app/profile/services/profile_image_error_reporting.dart';
 import 'package:craftsky_app/profile/widgets/edit_profile_banner_avatar.dart';
 import 'package:craftsky_app/profile/widgets/edit_profile_crafts_picker.dart';
+import 'package:craftsky_app/profile/widgets/profile_links_editor.dart';
 import 'package:craftsky_app/profile/widgets/profile_page_error.dart';
 import 'package:craftsky_app/router/responsive_modal_navigation.dart';
 import 'package:craftsky_app/settings/settings_links.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
+import 'package:craftsky_app/shared/image/basic_image_editor.dart';
 import 'package:craftsky_app/shared/link/external_link.dart';
 import 'package:craftsky_app/shared/media/image_source_menu.dart';
 import 'package:craftsky_app/shared/media/uploaded_image_blob.dart';
@@ -213,6 +216,7 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
   /// legacy enum values and unknown values from newer clients.
   late final List<String> _preservedCrafts;
   late Profile _ordinaryBaseline;
+  late List<ProfileLink> _links;
   late BusinessDeclarationDraft _businessBaseline;
 
   _ProfileImageDraft _avatarDraft = const _ProfileImageDraft();
@@ -226,6 +230,7 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
     super.initState();
     _unsavedGuard = ref.read(unsavedWorkGuardProvider);
     _ordinaryBaseline = widget.profile;
+    _links = List.of(widget.profile.editingLinks);
     _businessBaseline = BusinessDeclarationDraft.fromProfile(
       widget.profile.business,
     );
@@ -287,12 +292,13 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
 
     final initialIds = _ordinaryBaseline.crafts
         .where(isCanonicalSelectableCraft)
-        .toSet();
+        .toSet()
+        .toList();
     final currentIds = (values[_fieldCrafts] as Set<Craft>? ?? const <Craft>{})
         .map((c) => c.id)
-        .toSet();
-    if (currentIds.length != initialIds.length) return true;
-    if (!currentIds.containsAll(initialIds)) return true;
+        .toList();
+    if (!listEquals(currentIds, initialIds)) return true;
+    if (!listEquals(_links, _ordinaryBaseline.editingLinks)) return true;
     if (_avatarDraft.changed) return true;
     return false;
   }
@@ -312,13 +318,12 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
 
   bool get _imageUploadInFlight => _avatarDraft.isUploading;
 
-  bool get _imageUploadHasError => _avatarDraft.hasError;
-
   /// Validates the form and dispatches the save. Sends the **full**
   /// current form state, not a diff — atproto profile records are
   /// atomic, so any field absent from the PUT gets cleared on the PDS.
   /// See `ProfileApiClient.updateMyProfile` for the rationale.
   Future<void> _save() async {
+    if (_imageUploadInFlight) return;
     final form = _formKey.currentState;
     if (form == null) return;
     if (!form.saveAndValidate()) return;
@@ -351,6 +356,7 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
             pronouns: pronounsValue.isEmpty ? null : pronounsValue,
             description: description,
             crafts: craftsPayload,
+            links: _links,
             avatar: _avatarDraft.uploaded?.blob,
           ),
     );
@@ -361,26 +367,26 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
     final l10n = AppLocalizations.of(context);
     final reporter = ref.read(errorReporterProvider);
     final initiatingAccountDid = _ordinaryBaseline.did.value;
+    final ownership = ref.read(sessionRegistryProvider).value?.activeLease;
+    final operation = ActiveAccountOperation.fromWidget(ref, ownership);
     final previousDraft = _avatarDraft;
-    setState(
-      () => _avatarDraft = _ProfileImageDraft(
-        previewBytes: previousDraft.previewBytes,
-        isUploading: true,
-      ),
+    final pendingDraft = _ProfileImageDraft(
+      previewBytes: previousDraft.previewBytes,
+      isUploading: true,
     );
+    setState(() => _avatarDraft = pendingDraft);
     try {
       final result = await ref
           .read(profileImagePickerProvider)
           .pickAndUpload(
             source: source,
-            onPreviewReady: (bytes) {
-              if (!mounted) return;
-              setState(
-                () => _avatarDraft = _ProfileImageDraft.uploading(bytes),
-              );
-            },
+            isCurrent: () => mounted && operation.isCurrent,
+            editImage: (request) =>
+                showBasicImageEditor(context, request, ownership: ownership),
+            // Keep the accepted avatar until this upload succeeds.
+            onPreviewReady: (_) {},
           );
-      if (!mounted) return;
+      if (!mounted || !operation.isCurrent) return;
       if (result == null) {
         setState(() => _avatarDraft = previousDraft);
         return;
@@ -401,8 +407,8 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
           accountDid: initiatingAccountDid,
         ),
       );
-      if (!mounted) return;
-      setState(() => _avatarDraft = _ProfileImageDraft.failed());
+      if (!mounted || !operation.isCurrent) return;
+      setState(() => _avatarDraft = previousDraft);
       context.showError(switch (error) {
         ProfileImagePickException(reason: ProfileImageFailure.tooManyPixels) =>
           l10n.profilePhotoTooManyPixels,
@@ -410,6 +416,13 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
           l10n.profilePhotoFileTooLarge,
         _ => l10n.editProfilePhotoUploadError,
       });
+    } finally {
+      // A superseded operation must release its own busy UI even when the
+      // form survives an account activation change. Never replace a newer
+      // accepted selection or touch a disposed form.
+      if (mounted && identical(_avatarDraft, pendingDraft)) {
+        setState(() => _avatarDraft = previousDraft);
+      }
     }
   }
 
@@ -470,11 +483,7 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
       }
     });
 
-    final canSave =
-        _hasChanges &&
-        !isSaving &&
-        !_imageUploadInFlight &&
-        !_imageUploadHasError;
+    final canSave = _hasChanges && !isSaving && !_imageUploadInFlight;
 
     return PopScope<Object?>(
       canPop: !_hasChanges || isSaving,
@@ -522,7 +531,6 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
                   profile: widget.profile,
                   avatarPreviewBytes: _avatarDraft.previewBytes,
                   avatarUploading: _avatarDraft.isUploading,
-                  avatarError: _avatarDraft.hasError,
                   onPickAvatar: isSaving
                       ? null
                       : () => unawaited(_chooseProfileImageSource()),
@@ -610,6 +618,12 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
                         ),
                       ),
                       SizedBox(height: spacing.sp5),
+                      ProfileLinksEditor(
+                        links: _links,
+                        enabled: !isSaving,
+                        onChanged: (links) => setState(() => _links = links),
+                      ),
+                      SizedBox(height: spacing.sp5),
                       Text(
                         l10n.editProfileCraftsLabel,
                         style: theme.textTheme.titleMedium?.copyWith(
@@ -631,6 +645,9 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
                           final selected = field.value ?? const <Craft>{};
                           return EditProfileCraftsPicker(
                             selected: selected,
+                            enabled: !isSaving,
+                            onReorder: (crafts) =>
+                                field.didChange(crafts.toSet()),
                             onToggle: isSaving
                                 ? (_) {}
                                 : (craft) {
@@ -695,6 +712,7 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
   void _applySaveResult(CombinedProfileSaveResult result) {
     if (result.ordinary.value case final Profile saved?) {
       _ordinaryBaseline = saved;
+      _links = List.of(saved.editingLinks);
       _avatarDraft = const _ProfileImageDraft();
     }
     if (result.business.value case final BusinessProfile saved?) {
@@ -839,25 +857,15 @@ class _ProfileImageDraft {
     this.previewBytes,
     this.uploaded,
     this.isUploading = false,
-    this.hasError = false,
   });
-
-  factory uploading(Uint8List previewBytes) {
-    return _ProfileImageDraft(previewBytes: previewBytes, isUploading: true);
-  }
 
   factory uploaded(Uint8List previewBytes, UploadedImageBlob uploaded) {
     return _ProfileImageDraft(previewBytes: previewBytes, uploaded: uploaded);
   }
 
-  factory failed() {
-    return const _ProfileImageDraft(hasError: true);
-  }
-
   final Uint8List? previewBytes;
   final UploadedImageBlob? uploaded;
   final bool isUploading;
-  final bool hasError;
 
-  bool get changed => previewBytes != null || uploaded != null || hasError;
+  bool get changed => previewBytes != null || uploaded != null;
 }

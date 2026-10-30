@@ -6,7 +6,6 @@ import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/profile/models/profile_account_summary.dart';
 import 'package:craftsky_app/profile/models/profile_handle.dart';
 import 'package:craftsky_app/profile/widgets/profile_account_list_tile.dart';
-import 'package:craftsky_app/profile/widgets/profile_card_modal.dart';
 import 'package:craftsky_app/projects/options/project_option.dart';
 import 'package:craftsky_app/projects/options/project_option_catalogs.dart';
 import 'package:craftsky_app/router/app_shell_drawer.dart';
@@ -165,7 +164,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     SearchRoute(q: query, tab: tab).go(context);
   }
 
-  Future<void> _openProfile(ProfileSearchResult profile) async {
+  Future<void> _saveProfileRecent(ProfileSearchResult profile) async {
     final handle = ProfileHandle(profile.handle);
     await ref
         .read(saveRecentSearchProvider.notifier)
@@ -184,8 +183,6 @@ class _SearchPageState extends ConsumerState<SearchPage> {
             ),
           ),
         );
-    if (!mounted) return;
-    await showUserProfileCard(context, did: profile.did);
   }
 
   Future<void> _openHashtag(String tag) async {
@@ -265,7 +262,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
         ref: ref,
         query: _debouncedQuery.trim(),
         isWaitingForDebounce: _debouncedQuery.trim() != draft,
-        onOpenProfile: _openProfile,
+        beforeOpenProfile: _saveProfileRecent,
         onOpenHashtag: _openHashtag,
         onViewAllProfiles: () => _openResultTab(SearchResultsTab.profiles),
         onViewAllHashtags: () => _openResultTab(SearchResultsTab.tags),
@@ -276,7 +273,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
         onOpenQuery: (query) => SearchRoute(q: query).go(context),
         onOpenHashtag: (tag) => TagSearchRoute(tag: tag).push<void>(context),
         onOpenProfile: (did) => unawaited(
-          showUserProfileCard(context, did: did),
+          UserProfileRoute(did: did).push<void>(context),
         ),
       ),
     };
@@ -394,6 +391,8 @@ class _SearchInputHeader extends StatelessWidget {
                         onPressed: onClear,
                       ),
                 textInputAction: TextInputAction.search,
+                autocorrect: false,
+                enableSuggestions: false,
                 onChanged: onChanged,
                 onSubmitted: onSubmitted,
               ),
@@ -453,16 +452,16 @@ class _PostList extends StatelessWidget {
 }
 
 class _ProfileResultTile extends StatelessWidget {
-  const new({required this.profile, required this.onTap});
+  const new({required this.profile, this.beforeOpen});
 
   final ProfileSearchResult profile;
-  final VoidCallback onTap;
+  final Future<void> Function()? beforeOpen;
 
   @override
   Widget build(BuildContext context) {
     return ProfileAccountListTile(
       account: profile.summary,
-      onTap: onTap,
+      beforeOpen: beforeOpen,
     );
   }
 }

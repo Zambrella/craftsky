@@ -69,6 +69,11 @@ func (indexer *CraftskyPost) Project(ctx context.Context, tx pgx.Tx, source inge
 	if err := clone.Handle(ctx, event); err != nil {
 		return tap.Retryable(tap.ReasonProjectionFailure), err
 	}
+	if event.Action != "delete" && source.Revision != "" {
+		if _, err := tx.Exec(ctx, `UPDATE craftsky_posts SET record_revision=$3 WHERE uri=$1 AND cid=$2`, source.URI, source.CID, source.Revision); err != nil {
+			return tap.Retryable(tap.ReasonProjectionFailure), fmt.Errorf("project current post revision: %w", err)
+		}
+	}
 	if !clone.deferNotifications {
 		return tap.Applied(), nil
 	}

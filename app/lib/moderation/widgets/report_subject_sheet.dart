@@ -10,7 +10,7 @@ import 'package:flutter_form_builder/flutter_form_builder.dart';
 import 'package:form_builder_validators/form_builder_validators.dart';
 import 'package:material_ui/material_ui.dart';
 
-enum ReportSubjectType { post, comment, reply, profile, event }
+enum ReportSubjectType { post, comment, reply, profile, event, profileLink }
 
 class ReportSubjectSheet extends StatefulWidget {
   const new({
@@ -68,6 +68,7 @@ class _ReportSubjectSheetState extends State<ReportSubjectSheet> {
       ReportSubjectType.reply => l10n.replyReportAction,
       ReportSubjectType.profile => l10n.profileReportAction,
       ReportSubjectType.event => l10n.businessEventReportAction,
+      ReportSubjectType.profileLink => l10n.profileLinkReport,
     };
     return Scaffold(
       backgroundColor: swatches.paper,

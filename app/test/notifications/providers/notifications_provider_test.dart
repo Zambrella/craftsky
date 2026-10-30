@@ -68,6 +68,73 @@ void main() {
   });
 
   test(
+    'account refresh retains loaded depth and category changes reset it',
+    () async {
+      final alice = AccountKey('did:plc:alice');
+      final registry = auth_model.SessionRegistry.empty().upsertAndActivate(
+        token: 'alice-token',
+        did: alice.did.value,
+        handle: 'alice.test',
+      );
+      final repo = _FakeNotificationRepository()
+        ..responses.addAll([
+          Future.value(
+            NotificationPage(items: [_follow('one')], cursor: 'next'),
+          ),
+          Future.value(NotificationPage(items: [_follow('two')])),
+          Future.value(
+            NotificationPage(
+              items: [_follow('one-refreshed')],
+              cursor: 'new-next',
+            ),
+          ),
+          Future.value(NotificationPage(items: [_follow('two-refreshed')])),
+          Future.value(
+            NotificationPage(
+              items: [_follow('filtered')],
+              cursor: 'filtered-next',
+            ),
+          ),
+        ]);
+      final container = ProviderContainer.test(
+        overrides: [
+          secureSessionRegistryStorageProvider.overrideWithValue(
+            _RegistryStorage(registry),
+          ),
+          accountNotificationRepositoryProvider.overrideWith(
+            (ref, account) async => repo,
+          ),
+        ],
+      );
+      await container.read(sessionRegistryProvider.future);
+      final provider = accountNotificationsProvider(alice);
+      container.listen(provider, (_, _) {});
+      await container.read(provider.future);
+      await container.read(provider.notifier).loadMore();
+      container.invalidate(provider);
+      final refreshed = await container.read(provider.future);
+      expect(refreshed.items.map(_socialRkey), [
+        'one-refreshed',
+        'two-refreshed',
+      ]);
+      expect(refreshed.owner?.account, alice);
+      container
+          .read(notificationFilterProvider.notifier)
+          .select(NotificationCategory.follow);
+      final filtered = await container.read(provider.future);
+      expect(filtered.items.map(_socialRkey), ['filtered']);
+      expect(repo.calls.map((call) => call.cursor), [
+        null,
+        'next',
+        null,
+        'new-next',
+        null,
+      ]);
+      expect(filtered.cursor, 'filtered-next');
+    },
+  );
+
+  test(
     'category changes reset pagination and discard pending old pages',
     () async {
       final pending = Completer<NotificationPage>();

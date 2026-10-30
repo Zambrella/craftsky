@@ -1,8 +1,10 @@
 import 'package:craftsky_app/feed/widgets/post_image_gallery.dart';
+import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/router/responsive_modal_navigation.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/form_factor.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
@@ -14,10 +16,14 @@ void main() {
     final router = _overlayRouter();
     addTearDown(router.dispose);
     await tester.pumpWidget(
-      MaterialApp.router(
-        routerConfig: router,
-        theme: AppTheme.lightThemeData.copyWith(
-          platform: TargetPlatform.android,
+      ProviderScope(
+        child: MaterialApp.router(
+          localizationsDelegates: appLocalizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          routerConfig: router,
+          theme: AppTheme.lightThemeData.copyWith(
+            platform: TargetPlatform.android,
+          ),
         ),
       ),
     );

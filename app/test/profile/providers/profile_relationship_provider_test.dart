@@ -24,6 +24,67 @@ void main() {
   final alice = AccountKey('did:plc:alice');
   final subject = Did.parse('did:plc:bob');
 
+  test('mutation takes its server baseline at the action boundary', () async {
+    final response = Completer<ProfileRelationship>();
+    final started = Completer<void>();
+    final container = ProviderContainer.test(
+      overrides: [
+        accountRelationshipRepositoryProvider(alice).overrideWith(
+          (ref) async => FakeProfileRepository(
+            onUnmute: (_) {
+              started.complete();
+              return response.future;
+            },
+          ),
+        ),
+      ],
+    );
+    final provider = profileRelationshipProvider(alice, subject);
+    final pending = container
+        .read(provider.notifier)
+        .mutate(
+          ProfileRelationshipAction.unmute,
+          baseline: const ProfileRelationship(muted: true, initialized: true),
+        );
+    expect(container.read(provider).muted, isFalse);
+    await started.future;
+    response.completeError(StateError('failed'));
+    await pending;
+    expect(container.read(provider).muted, isTrue);
+    expect(container.read(provider).lastError, isA<StateError>());
+  });
+
+  test('mute retains its auto-disposed repository until completion', () async {
+    final response = Completer<ProfileRelationship>();
+    final started = Completer<void>();
+    var disposed = false;
+    final repositoryProvider = accountRelationshipRepositoryProvider(alice);
+    final container = ProviderContainer.test(
+      overrides: [
+        repositoryProvider.overrideWith((ref) async {
+          ref.onDispose(() => disposed = true);
+          return FakeProfileRepository(
+            onMute: (_) {
+              started.complete();
+              return response.future;
+            },
+          );
+        }),
+      ],
+    );
+    final pending = container
+        .read(profileRelationshipProvider(alice, subject).notifier)
+        .mutate(ProfileRelationshipAction.mute);
+    await started.future;
+    await container.pump();
+    final disposedDuringWrite = disposed;
+    response.complete(const ProfileRelationship(muted: true));
+    await pending;
+    expect(disposedDuringWrite, isFalse);
+    await container.pump();
+    expect(disposed, isTrue);
+  });
+
   test('UT-011 applies optimistic state and rolls back on failure', () async {
     final completer = Completer<ProfileRelationship>();
     final repo = FakeProfileRepository(onMute: (_) => completer.future);

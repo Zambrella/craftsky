@@ -7,10 +7,11 @@ import (
 )
 
 type ScanKey struct {
-	BlobCID       syntax.CID
-	ScannerID     string
-	PolicyVersion string
-	CorpusVersion string
+	BlobCID                syntax.CID
+	ScannerID              string
+	PolicyVersion          string
+	CorpusVersion          string
+	developmentAutoApprove bool
 }
 
 func (key ScanKey) Valid() bool {
@@ -27,5 +28,12 @@ type Result struct {
 }
 
 func (result Result) ReusableFor(key ScanKey) bool {
-	return result.Key.Valid() && key.Valid() && result.Key == key && result.State.Terminal()
+	return result.Key.Valid() && key.Valid() && result.Key.BlobCID == key.BlobCID && result.Key.ScannerID == key.ScannerID &&
+		result.Key.PolicyVersion == key.PolicyVersion && result.Key.CorpusVersion == key.CorpusVersion && result.State.Terminal()
+}
+
+// AutoApprovesDevelopmentImages is set only by a validated development config.
+func (key ScanKey) AutoApprovesDevelopmentImages() bool {
+	return key.developmentAutoApprove && key.ScannerID == DevelopmentApprovalScannerID &&
+		key.PolicyVersion == DevelopmentApprovalPolicyVersion && key.CorpusVersion == DevelopmentApprovalCorpusVersion
 }

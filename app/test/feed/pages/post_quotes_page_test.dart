@@ -13,7 +13,7 @@ import 'package:craftsky_app/feed/widgets/post_card.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/languages/models/language_preferences.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
-import 'package:craftsky_app/profile/widgets/profile_presentation_page.dart';
+import 'package:craftsky_app/profile/widgets/profile_avatar_hero.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
@@ -39,6 +39,10 @@ void main() {
     'AT-004 renders repeated authors as normal post cards in server order '
     'with a plain title',
     (tester) async {
+      tester.view.physicalSize = const Size(800, 1400);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
       final repository = FakePostRepository(
         onListQuotes: (did, rkey, {cursor, limit}) async => PostPage(
           items: [
@@ -129,10 +133,7 @@ void main() {
       _tapGestureForText(tester, 'Dana');
       await tester.pumpAndSettle();
       expect(destinations.last.path, '/profiles/did%3Aplc%3Adana');
-      expect(
-        (extras.last! as ProfilePresentationRequest).startsCompact,
-        isTrue,
-      );
+      expect(extras.last, isA<ProfileAvatarTransition>());
       router.pop();
       await tester.pumpAndSettle();
 
@@ -151,6 +152,14 @@ void main() {
       tester.widget<PostCard>(find.byType(PostCard)).onTap!();
       await tester.pumpAndSettle();
       expect(destinations.last.path, '/posts/did%3Aplc%3Adana/dana-one');
+      expect(destinations.last.queryParameters, isEmpty);
+      router.pop();
+      await tester.pumpAndSettle();
+      tester.widget<PostCard>(find.byType(PostCard)).onReply!();
+      await tester.pumpAndSettle();
+      expect(destinations.last.path, '/posts/did%3Aplc%3Adana/dana-one');
+      expect(destinations.last.queryParameters['show-comments'], 'true');
+      expect(find.byType(TextField), findsNothing);
     },
   );
 

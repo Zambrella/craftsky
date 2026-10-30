@@ -169,7 +169,7 @@ final class PostQuotesProvider
   }
 }
 
-String _$postQuotesHash() => r'b2dcaa4e3c281a6daf230e5846279c95ec396746';
+String _$postQuotesHash() => r'0d6fc5f3129c0e1154d7cb3fe58d082218e2f9b7';
 
 final class PostQuotesFamily extends $Family
     with

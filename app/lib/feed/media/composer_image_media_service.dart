@@ -5,6 +5,7 @@ import 'package:craftsky_app/feed/media/heif_image_info.dart';
 import 'package:craftsky_app/feed/media/media_config.dart';
 import 'package:craftsky_app/feed/media/platform_image_compression.dart';
 import 'package:craftsky_app/feed/models/create_post_image.dart';
+import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
 import 'package:image_size_getter/image_size_getter.dart' as image_size;
 import 'package:mime/mime.dart';
 
@@ -285,7 +286,7 @@ class ComposerImageMediaService {
     int height,
   ) {
     if (width <= 0 || height <= 0) {
-      throw const FormatException('Invalid image dimensions');
+      throw const DiagnosticFormatException('Invalid image dimensions');
     }
     if (width > request.config.maxSourceImageSide ||
         height > request.config.maxSourceImageSide ||
@@ -305,7 +306,7 @@ class ComposerImageMediaService {
   ) async {
     if (request.bytes.isEmpty ||
         request.bytes.length > request.config.maxSourceImageBytes) {
-      throw const FormatException('Invalid source image size');
+      throw const DiagnosticFormatException('Invalid source image size');
     }
     final format = _resolveSupportedImageFormat(
       fileName: request.fileName,
@@ -321,7 +322,9 @@ class ComposerImageMediaService {
       sourceHeight,
       request.config.maxImageAspectRatio,
     )) {
-      throw const FormatException('Image aspect ratio is too extreme');
+      throw const DiagnosticFormatException(
+        'Image aspect ratio is too extreme',
+      );
     }
     final scale = math.min(
       1,
@@ -380,7 +383,7 @@ class ComposerImageMediaService {
             outHeight > request.config.maxImageHeight ||
             (scheduledLimits != null &&
                 !scheduledLimits.allows(width: outWidth, height: outHeight))) {
-          throw const FormatException(
+          throw const DiagnosticFormatException(
             'Compressed image exceeds dimension limits',
           );
         }
@@ -422,7 +425,7 @@ class ComposerImageMediaService {
       height = math.max(1, (height * shrink).floor());
     }
     if (hardLimitCandidate != null) return hardLimitCandidate;
-    throw const FormatException(
+    throw const DiagnosticFormatException(
       'Image could not be compressed below the upload limit',
     );
   }
@@ -486,16 +489,26 @@ class ComposerImageMediaService {
       final image_size.BaseDecoder decoder = switch (format) {
         SupportedImageFormat.jpeg => const image_size.JpegDecoder(),
         SupportedImageFormat.png => const image_size.PngDecoder(),
-        SupportedImageFormat.heic => throw const FormatException(
+        SupportedImageFormat.heic => throw const DiagnosticFormatException(
           'HEIC requires Apple decoding',
         ),
       };
-      if (!decoder.isValid(input)) {
-        throw const FormatException('Unsupported or corrupt image bytes');
+      // Inspect the header and dimensions, then let the codec attempt decoding.
+      // isValid also requires an exact file footer, rejecting readable photos
+      // with appended data, including JPEG motion photos, before decoding.
+      // Preparation always re-encodes the image; original trailing data is
+      // never uploaded. Keep dimension checks before any full pixel decode.
+      if (lookupMimeType('', headerBytes: request.bytes) !=
+          _mimeTypeFor(format)) {
+        throw const DiagnosticFormatException(
+          'Unsupported or corrupt image bytes',
+        );
       }
       final dimensions = decoder.getSize(input);
       if (dimensions.width <= 0 || dimensions.height <= 0) {
-        throw const FormatException('Unsupported or corrupt image bytes');
+        throw const DiagnosticFormatException(
+          'Unsupported or corrupt image bytes',
+        );
       }
       if (dimensions.width > request.config.maxSourceImageSide ||
           dimensions.height > request.config.maxSourceImageSide ||
@@ -523,7 +536,9 @@ class ComposerImageMediaService {
     } on FormatException {
       rethrow;
     } on Object {
-      throw const FormatException('Unsupported or corrupt image bytes');
+      throw const DiagnosticFormatException(
+        'Unsupported or corrupt image bytes',
+      );
     }
   }
 
@@ -573,7 +588,7 @@ class ComposerImageMediaService {
       return SupportedImageFormat.heic;
     }
 
-    throw const FormatException('Unsupported image format');
+    throw const DiagnosticFormatException('Unsupported image format');
   }
 
   static String _mimeTypeFor(SupportedImageFormat format) => switch (format) {
@@ -616,7 +631,9 @@ class ScheduledImageLimits {
 
   ImageDimensions fit({required int width, required int height}) {
     if (width <= 0 || height <= 0) {
-      throw const FormatException('Scheduled image dimensions are invalid');
+      throw const DiagnosticFormatException(
+        'Scheduled image dimensions are invalid',
+      );
     }
     final longSide = math.max(width, height);
     final shortSide = math.min(width, height);
@@ -641,7 +658,7 @@ class ScheduledImageLimits {
       height: math.max(1, (height * scale).floor()),
     );
     if (!allows(width: target.width, height: target.height)) {
-      throw const FormatException(
+      throw const DiagnosticFormatException(
         'Scheduled image could not be resized to the supported dimensions',
       );
     }

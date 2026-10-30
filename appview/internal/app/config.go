@@ -847,7 +847,7 @@ func LoadConfig(env Env, envFilePath string) (Config, error) {
 		return Config{}, err
 	}
 	imageEnvironment := imagesafety.EnvironmentDevelopment
-	imageModeDefault := string(imagesafety.ScannerModeStub)
+	imageModeDefault := string(imagesafety.ScannerModeDevelopmentAutoApprove)
 	imageScannerDefault := "fixture-scanner"
 	imagePolicyDefault := "development-policy-v1"
 	imageCorpusDefault := "development-corpus-v1"
@@ -858,9 +858,15 @@ func LoadConfig(env Env, envFilePath string) (Config, error) {
 		imagePolicyDefault = "manual-policy-v1"
 		imageCorpusDefault = "no-automated-corpus"
 	}
+	imageMode := imagesafety.ScannerMode(getEnvWithDefault("IMAGE_SAFETY_SCANNER_MODE", imageModeDefault))
+	if imageMode == imagesafety.ScannerModeDevelopmentAutoApprove {
+		imageScannerDefault = imagesafety.DevelopmentApprovalScannerID
+		imagePolicyDefault = imagesafety.DevelopmentApprovalPolicyVersion
+		imageCorpusDefault = imagesafety.DevelopmentApprovalCorpusVersion
+	}
 	cfg.ImageSafety = imagesafety.Config{
 		Environment: imageEnvironment,
-		Mode:        imagesafety.ScannerMode(getEnvWithDefault("IMAGE_SAFETY_SCANNER_MODE", imageModeDefault)),
+		Mode:        imageMode,
 		ScannerID:   strings.TrimSpace(getEnvWithDefault("IMAGE_SAFETY_SCANNER_ID", imageScannerDefault)),
 		PolicyVersion: strings.TrimSpace(getEnvWithDefault(
 			"IMAGE_SAFETY_POLICY_VERSION", imagePolicyDefault,
@@ -1163,6 +1169,12 @@ func sentryRelease(explicit, embedded, renderCommit string) string {
 // have been parsed. New audit-remediation durations should join this single
 // pass rather than validating only their individual syntax.
 func (cfg Config) Validate() error {
+	if cfg.ImageSafety.Mode == imagesafety.ScannerModeDevelopmentAutoApprove && (cfg.Env != EnvDev || !cfg.ImageSafety.Ready()) {
+		return fmt.Errorf("IMAGE_SAFETY_SCANNER_MODE=dev-auto-approve requires dev and the reserved development approval identity")
+	}
+	if cfg.ImageSafety.ScannerID == imagesafety.DevelopmentApprovalScannerID && cfg.ImageSafety.Mode != imagesafety.ScannerModeDevelopmentAutoApprove {
+		return fmt.Errorf("IMAGE_SAFETY_SCANNER_ID is reserved for dev-auto-approve")
+	}
 	switch {
 	case cfg.InstagramDeployment.ReplicaCount() > 1:
 		return fmt.Errorf("APPVIEW_REPLICA_COUNT must be 1 until a shared HTTP admission boundary is configured and verified")

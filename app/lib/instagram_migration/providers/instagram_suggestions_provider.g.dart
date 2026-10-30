@@ -55,7 +55,7 @@ final class InstagramSuggestionsProvider
 }
 
 String _$instagramSuggestionsHash() =>
-    r'c43b5b506ed66c5c2e2226b25c69015dc1532dda';
+    r'eb7fb1e01a787fc9dddb29a4b58b8b966c58aac2';
 
 final class InstagramSuggestionsFamily extends $Family
     with

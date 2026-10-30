@@ -21,7 +21,6 @@ import 'package:craftsky_app/chat/widgets/chat_peer_identity.dart';
 import 'package:craftsky_app/chat/widgets/chat_skeleton.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
-import 'package:craftsky_app/profile/widgets/profile_card_modal.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/shared/link/external_link.dart';
 import 'package:craftsky_app/shared/messaging/message_action.dart';
@@ -247,7 +246,7 @@ class _ConversationViewState extends ConsumerState<_ConversationView>
       return;
     }
     ActiveAccountOperation.fromWidget(ref, lease).publish(
-      () => unawaited(showUserProfileCard(context, did: peer.did)),
+      () => unawaited(UserProfileRoute(did: peer.did).push<void>(context)),
     );
   }
 

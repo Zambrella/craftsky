@@ -7,6 +7,7 @@ import 'package:craftsky_app/feed/models/interaction_write_response.dart';
 import 'package:craftsky_app/feed/models/link_preview.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/post_comment_section.dart';
+import 'package:craftsky_app/feed/models/post_edit.dart';
 import 'package:craftsky_app/feed/models/post_page.dart';
 import 'package:craftsky_app/feed/models/profile_pin_state.dart';
 import 'package:craftsky_app/feed/models/timeline_page.dart';
@@ -118,6 +119,7 @@ class PostApiClient {
     required String operationKey,
     PostReply? reply,
     PostRef? quote,
+    String? quoteImageCid,
     Project? project,
     List<CreatePostImage>? images,
     CreatePostExternal? external,
@@ -159,7 +161,10 @@ class PostApiClient {
         'project': ?project?.toCreateMap(),
         'reply': ?reply?.toMap(),
         'embed': ?switch ((quote, external, video)) {
-          (final quote?, _, _) => {'quote': quote.toMap()},
+          (final quote?, _, _) => {
+            'quote': quote.toMap(),
+            'imageCid': ?quoteImageCid,
+          },
           (_, final external?, _) => {'external': external.toMap()},
           (_, _, final video?) => {'video': video.toMap()},
           _ => null,
@@ -185,6 +190,37 @@ class PostApiClient {
   Future<Post> getPost(Did did, RecordKey rkey) => unwrapApi(() async {
     final res = await _dio.get<Map<String, dynamic>>('/v1/posts/$did/$rkey');
     return PostMapper.fromMap(res.data!);
+  });
+
+  Future<PostEditSeed> getPostEdit(Did did, RecordKey rkey) =>
+      unwrapApi(() async {
+        final response = await _dio.get<Map<String, dynamic>>(
+          '/v1/posts/$did/$rkey/edit',
+        );
+        return PostEditSeed.fromMap(response.data!);
+      });
+
+  Future<PostEditResult> editPost(
+    Did did,
+    RecordKey rkey, {
+    required PostEditChanges changes,
+    required String expectedCid,
+    required String operationKey,
+  }) => unwrapPdsMutationApi(() async {
+    final response = await _dio.patch<Object?>(
+      '/v1/posts/$did/$rkey',
+      data: {'changes': changes.toMap()},
+      options: Options(
+        headers: {
+          'If-Match': expectedCid,
+          'Idempotency-Key': operationKey,
+        },
+      ),
+    );
+    return parsePdsMutationResponse<PostEditResult>(
+      response,
+      accepted: (data) => PostEditResult.fromMap(data! as Map<String, dynamic>),
+    );
   });
 
   /// DELETE /v1/posts/{did}/{rkey} — idempotent per AppView spec.
