@@ -16,7 +16,7 @@ func TestImageSafetyConfigurationSupportsManualModeration(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !dev.ImageSafety.Ready() || !dev.ImageSafety.CanMarkClear() {
-		t.Fatal("development fixture scanner should be ready")
+		t.Fatal("development auto-approval should be ready")
 	}
 
 	prod, err := LoadConfig(EnvProd, testConfigFile(t, withProductionOAuth(prodBase)))
@@ -71,5 +71,46 @@ func TestImageSafetyProjectionKeyFailsClosedWhenAdapterIsUnconfigured(t *testing
 	key = imageSafetyProjectionKey(configured)
 	if key.ScannerID != configured.ScannerID || key.PolicyVersion != configured.PolicyVersion || key.CorpusVersion != configured.CorpusVersion {
 		t.Fatalf("configured projection key = %+v", key)
+	}
+}
+
+func TestDevelopmentImageAutoApprovalDefaultAndOptInScanner(t *testing.T) {
+	const base = "DATABASE_URL=postgres://dev\nALLOWED_ORIGINS=*\nCRAFTSKY_DEV_DID=did:plc:test\nTAP_WS_URL=ws://tap\n"
+	cfg, err := LoadConfig(EnvDev, testConfigFile(t, base))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.ImageSafety.Mode != imagesafety.ScannerModeDevelopmentAutoApprove || !imageSafetyProjectionKey(cfg.ImageSafety).AutoApprovesDevelopmentImages() || cfg.ImageSafety.AutomatedReady() {
+		t.Fatalf("unexpected default: %+v", cfg.ImageSafety)
+	}
+	// Nil dependencies prove the bypass neither builds a fetcher nor a worker.
+	deps, err := newImageSafetyDependencies(nil, nil, cfg)
+	if err != nil || deps == nil || deps.worker != nil {
+		t.Fatalf("dependencies=%+v err=%v", deps, err)
+	}
+	cfg, err = LoadConfig(EnvDev, testConfigFile(t, base+"IMAGE_SAFETY_SCANNER_MODE=stub\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.ImageSafety.Mode != imagesafety.ScannerModeStub || !cfg.ImageSafety.Ready() || imageSafetyProjectionKey(cfg.ImageSafety).AutoApprovesDevelopmentImages() {
+		t.Fatalf("stub opt-in: %+v", cfg.ImageSafety)
+	}
+}
+
+func TestDevelopmentImageAutoApprovalRejectsProductionAndIdentityOverrides(t *testing.T) {
+	const base = "DATABASE_URL=postgres://dev\nALLOWED_ORIGINS=*\nCRAFTSKY_DEV_DID=did:plc:test\nTAP_WS_URL=ws://tap\n"
+	for _, override := range []string{
+		"IMAGE_SAFETY_SCANNER_ID=manual-moderation\n",
+		"IMAGE_SAFETY_POLICY_VERSION=manual-policy-v1\n",
+		"IMAGE_SAFETY_CORPUS_VERSION=real-corpus\n",
+		"IMAGE_SAFETY_SCANNER_MODE=stub\nIMAGE_SAFETY_SCANNER_ID=development-auto-approve\n",
+	} {
+		if _, err := LoadConfig(EnvDev, testConfigFile(t, base+override)); err == nil {
+			t.Fatalf("accepted identity override %q", override)
+		}
+	}
+	prodBase := "DATABASE_URL=postgres://prod\nALLOWED_ORIGINS=https://craftsky.social\nTAP_WS_URL=ws://tap\n"
+	if _, err := LoadConfig(EnvProd, testConfigFile(t, withProductionOAuth(prodBase)+"IMAGE_SAFETY_SCANNER_MODE=dev-auto-approve\n")); err == nil || !strings.Contains(err.Error(), "dev-auto-approve") {
+		t.Fatalf("production bypass error=%v", err)
 	}
 }
