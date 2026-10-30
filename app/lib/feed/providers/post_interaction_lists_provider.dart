@@ -134,6 +134,16 @@ class PostQuotes extends _$PostQuotes {
 
   @override
   Future<PostQuotesState> build(Did did, RecordKey rkey) async {
+    listenForPostEdits(ref, () {
+      final current = state.value;
+      if (current == null) return;
+      state = AsyncData(
+        PostQuotesState(
+          items: applyLoadedPostEdits(ref, current.items),
+          cursor: current.cursor,
+        ),
+      );
+    });
     ref.watch(activeContentLanguagePolicyProvider);
     final generation = ++_generation;
     final ownership = ActiveAccountOperation.fromLease(
@@ -162,9 +172,12 @@ class PostQuotes extends _$PostQuotes {
       final latest = state.value ?? current;
       state = AsyncData(
         PostQuotesState(
-          items: _appendQuotes(
-            latest.items,
-            _quoteItems(ref, did, rkey, page.items),
+          items: applyLoadedPostEdits(
+            ref,
+            _appendQuotes(
+              latest.items,
+              _quoteItems(ref, did, rkey, page.items),
+            ),
           ),
           cursor: page.cursor,
         ),
@@ -257,6 +270,7 @@ List<Post> _quoteItems(
 ) => applyPostRecordListOverlays(
   ref,
   authoritative,
+  listKey: ('quotes', did, rkey),
   includes: (post) =>
       post.quote?.uri.toString() == 'at://$did/social.craftsky.feed.post/$rkey',
 ).map((post) => applyPostInteractionOverlays(ref, post)).toList();

@@ -4,6 +4,7 @@ import 'package:craftsky_app/feed/models/create_post_video.dart';
 import 'package:craftsky_app/feed/models/interaction_write_response.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/post_comment_section.dart';
+import 'package:craftsky_app/feed/models/post_edit.dart';
 import 'package:craftsky_app/feed/models/post_page.dart';
 import 'package:craftsky_app/feed/models/profile_pin_state.dart';
 import 'package:craftsky_app/feed/models/timeline_page.dart';
@@ -35,6 +36,16 @@ abstract interface class PostRepository {
 
   /// GET /v1/posts/{did}/{rkey}
   Future<Post> fetch(Did did, RecordKey rkey);
+
+  Future<PostEditSeed> fetchEdit(Did did, RecordKey rkey);
+
+  Future<PostEditResult> edit(
+    Did did,
+    RecordKey rkey, {
+    required PostEditChanges changes,
+    required String expectedCid,
+    required String operationKey,
+  });
 
   /// DELETE /v1/posts/{did}/{rkey}. Idempotent.
   Future<void> delete(

@@ -16,6 +16,7 @@ final class ApiFailureDetails {
     this.appViewError,
     this.requestId,
     this.responseKind,
+    this.transportFailure,
     this.method,
     this.cause,
     this.stackTrace,
@@ -28,6 +29,7 @@ final class ApiFailureDetails {
 
   final String? requestId;
   final String? responseKind;
+  final String? transportFailure;
   final String? method;
   final Object? cause;
   final StackTrace? stackTrace;

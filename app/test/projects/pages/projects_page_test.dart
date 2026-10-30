@@ -2,9 +2,14 @@ import 'dart:async';
 
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
 import 'package:craftsky_app/bootstrap.dart';
+import 'package:craftsky_app/feed/models/interaction_write_response.dart';
 import 'package:craftsky_app/feed/models/post.dart';
+import 'package:craftsky_app/feed/models/post_comment_section.dart';
 import 'package:craftsky_app/feed/models/post_page.dart';
+import 'package:craftsky_app/feed/pages/post_thread_page.dart';
+import 'package:craftsky_app/feed/providers/like_post_overlay.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
+import 'package:craftsky_app/feed/providers/toggle_like_post_provider.dart';
 import 'package:craftsky_app/feed/widgets/post_card.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/languages/models/language_preferences.dart';
@@ -20,14 +25,17 @@ import 'package:craftsky_app/projects/providers/project_feed_provider.dart';
 import 'package:craftsky_app/projects/providers/project_repository_provider.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
+import 'package:craftsky_app/shared/mutations/pds_record_operation_controller.dart';
 import 'package:craftsky_app/shared/widgets/craft_icon.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/craftsky_floating_action_button.dart';
 import 'package:craftsky_app/theme/craftsky_form_builder_select_fields.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
+import 'package:craftsky_app/theme/form_factor.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:phosphor_icons/phosphor_icons.dart';
 
@@ -93,6 +101,178 @@ Future<void> _pumpProjects(
 
 void main() {
   setUpAll(initializeMappers);
+
+  for (final (freshDetail, numberOfLikes) in [
+    (false, 1),
+    (true, 1),
+    (false, 2),
+    (true, 2),
+  ]) {
+    final detailDescription = freshDetail
+        ? 'likes survive a fresh detail read'
+        : 'likes survive a stale detail read';
+    testWidgets(
+      'issue 279: $numberOfLikes likes, $detailDescription',
+      (tester) async {
+        final posts = List.generate(numberOfLikes, _post);
+        final post = posts.last;
+        var projectReads = 0;
+        var refreshed = false;
+        final router = GoRouter(
+          initialLocation: '/projects',
+          routes: [
+            GoRoute(
+              path: '/projects',
+              builder: (_, _) => const ProjectsPage(),
+            ),
+            GoRoute(
+              path: '/posts/:did/:rkey',
+              builder: (_, state) => FormFactorWidget(
+                child: PostThreadPage(
+                  did: Did.parse(state.pathParameters['did']!),
+                  rkey: RecordKey.parse(state.pathParameters['rkey']!),
+                ),
+              ),
+            ),
+          ],
+        );
+        addTearDown(router.dispose);
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              authSessionProvider.overrideWith(
+                () => SignedInAuthSession(did: 'did:plc:alice'),
+              ),
+              preferredProjectCraftsProvider.overrideWithValue([
+                ProjectOptionCatalogs.craftTypes.first,
+              ]),
+              activeLanguagePreferencesProvider.overrideWith(
+                (ref) => const LanguagePreferences(
+                  primaryLanguage: 'en',
+                  contentLanguages: ['en'],
+                ),
+              ),
+              projectRepositoryProvider.overrideWithValue(
+                FakeProjectRepository(
+                  onListProjects: ({required query, limit, cursor}) async {
+                    projectReads++;
+                    return PostPage(
+                      items: [
+                        for (final item in posts)
+                          if (refreshed)
+                            item.copyWith(viewerHasLiked: true, likeCount: 1)
+                          else
+                            item,
+                      ],
+                    );
+                  },
+                ),
+              ),
+              postRepositoryProvider.overrideWithValue(
+                FakePostRepository(
+                  onLike: (did, rkey) async => InteractionWriteResponse(
+                    uri: 'at://did:plc:alice/social.craftsky.feed.like/like1',
+                    cid: 'bafylike',
+                    rkey: 'like1',
+                    subject: PostRef(uri: post.uri, cid: post.cid),
+                    createdAt: DateTime.utc(2026, 10, 29),
+                  ),
+                  onCommentSection:
+                      (did, rkey, {cursor, sort, focus, limit}) async =>
+                          PostCommentSection(
+                            post: post.copyWith(
+                              viewerHasLiked: freshDetail,
+                              likeCount: freshDetail ? 1 : 0,
+                            ),
+                            comments: const CommentPage(items: []),
+                            sort: sort ?? CommentSort.oldest,
+                          ),
+                ),
+              ),
+            ],
+            child: MessengerScope(
+              messenger: RecordingMessenger(),
+              child: MaterialApp.router(
+                theme: AppTheme.lightThemeData,
+                localizationsDelegates: appLocalizationsDelegates,
+                supportedLocales: AppLocalizations.supportedLocales,
+                routerConfig: router,
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+        final projectsElement = tester.element(find.byType(ProjectsPage));
+        final container = ProviderScope.containerOf(projectsElement);
+        final controller = container.read(pdsRecordOperationControllerProvider);
+        final scope = likePostMutationScopeForLease(null, post);
+        for (var i = 0; i < numberOfLikes; i++) {
+          await tester.tap(
+            find.descendant(
+              of: find.byType(PostCard).at(i),
+              matching: find.byWidgetPredicate(
+                (widget) => widget is Tooltip && widget.message == 'Like',
+              ),
+            ),
+          );
+          await tester.pumpAndSettle();
+        }
+        await tester.pumpAndSettle();
+        expect(find.byIcon(CraftskyIcons.liked), findsNWidgets(numberOfLikes));
+        for (final likedPost in posts) {
+          expect(
+            controller.overlayFor(
+              likePostMutationScopeForLease(null, likedPost),
+            ),
+            isNotNull,
+          );
+        }
+        expect(controller.overlayFor(scope), isNotNull);
+        final readsBeforePush = projectReads;
+
+        tester.widget<PostCard>(find.byType(PostCard).last).onTap!();
+        await tester.pumpAndSettle();
+        expect(find.byType(PostThreadPage), findsOneWidget);
+        expect(find.byIcon(CraftskyIcons.liked), findsOneWidget);
+        expect(controller.overlayFor(scope), isNotNull);
+        router.pop();
+        await tester.pumpAndSettle();
+
+        expect(
+          identical(tester.element(find.byType(ProjectsPage)), projectsElement),
+          isTrue,
+        );
+        expect(
+          identical(
+            container.read(pdsRecordOperationControllerProvider),
+            controller,
+          ),
+          isTrue,
+        );
+        expect(projectReads, readsBeforePush);
+        // The mounted row can keep its old render until a later rebuild.
+        expect(find.byIcon(CraftskyIcons.liked), findsNWidgets(numberOfLikes));
+        for (final element in find.byType(PostCard).evaluate()) {
+          element.markNeedsBuild();
+        }
+        await tester.pump();
+        expect(
+          find.byIcon(CraftskyIcons.liked),
+          findsNWidgets(numberOfLikes),
+        );
+        expect(
+          container.read(toggleLikePostProvider).value?.viewerHasLiked,
+          isTrue,
+        );
+        refreshed = true;
+        container.invalidate(projectFeedProvider);
+        await tester.pumpAndSettle();
+        expect(find.byIcon(CraftskyIcons.liked), findsNWidgets(numberOfLikes));
+        // Cancel the accepted overlay's timers before the test ends.
+        await tester.pumpWidget(const SizedBox.shrink());
+      },
+    );
+  }
 
   testWidgets('preferred tabs drive the project query and filter craft', (
     tester,
@@ -278,6 +458,37 @@ void main() {
     expect(deleted, ['did:plc:alice/project-0']);
     expect(find.text('Project 0'), findsNothing);
     expect(find.text('Project 1'), findsOneWidget);
+  });
+
+  testWidgets('Embroidery filters omit project type and subtype fields', (
+    tester,
+  ) async {
+    await _pumpProjects(
+      tester,
+      FakeProjectRepository(
+        onListProjects: ({required query, limit, cursor}) async =>
+            const PostPage(items: []),
+      ),
+      craftTypes: [
+        ProjectOptionCatalogs.craftTypes.singleWhere(
+          (craft) => craft.value == ProjectOptionCatalogs.embroideryCraftToken,
+        ),
+      ],
+    );
+    await pumpUntilFound(
+      tester,
+      find.text('Filters'),
+      description: 'the project filters action',
+    );
+
+    await tester.tap(find.text('Filters'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Filter Embroidery projects'), findsOneWidget);
+    expect(find.text('Project type'), findsNothing);
+    expect(find.text('Project subtype'), findsNothing);
+    expect(find.text('Pattern difficulty'), findsOneWidget);
+    expect(find.text('Color'), findsOneWidget);
   });
 
   testWidgets('filter sheet orders and enables dependent controls', (

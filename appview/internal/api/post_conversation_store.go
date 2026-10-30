@@ -36,8 +36,8 @@ func (s *PostStore) ListRootComments(ctx context.Context, rootURI, viewerDID, so
 		  AND NOT ` + postMentionAuthorBlockedPredicate("p") + `
 		` + postVisibleModerationPredicate + `
 		  AND ($2::timestamptz IS NULL
-		       OR (LEAST(p.created_at, p.indexed_at), p.uri) ` + seekComparator + ` ($2::timestamptz, $3::text))
-		ORDER BY CASE WHEN p.did = $5 THEN 0 ELSE 1 END ASC, LEAST(p.created_at, p.indexed_at) ` + orderDirection + `, p.uri ` + orderDirection + `
+		       OR (LEAST(p.created_at, p.indexed_at, p.profile_sort_at), p.uri) ` + seekComparator + ` ($2::timestamptz, $3::text))
+		ORDER BY CASE WHEN p.did = $5 THEN 0 ELSE 1 END ASC, LEAST(p.created_at, p.indexed_at, p.profile_sort_at) ` + orderDirection + `, p.uri ` + orderDirection + `
 		LIMIT $4
 	`
 	rows, err := s.pool.Query(ctx, q, rootURI, curCreatedAt, curURI, limit, viewerDID)
@@ -75,14 +75,14 @@ func (s *PostStore) commentBranchHasRepliesAfter(ctx context.Context, commentURI
 	viewerDID, _ := middleware.GetDID(ctx)
 	q := `
 		WITH RECURSIVE branch(uri, created_at, depth, protected, muted_ancestor_uri) AS (
-			SELECT p.uri, LEAST(p.created_at, p.indexed_at), 1,
+			SELECT p.uri, LEAST(p.created_at, p.indexed_at, p.profile_sort_at), 1,
 				` + postAuthorBlockedPredicate("p", "$5") + ` OR ` + postReplyAuthorBlockedPredicate("p") + ` OR ` + postMentionAuthorBlockedPredicate("p") + `,
 				CASE WHEN ` + postAuthorMutedPredicate("p", "$5") + ` THEN p.uri END
 			FROM craftsky_posts p
 			WHERE p.reply_parent_uri = $1
 			  AND p.reply_root_uri = $2
 			UNION ALL
-			SELECT child.uri, LEAST(child.created_at, child.indexed_at), parent.depth + 1,
+			SELECT child.uri, LEAST(child.created_at, child.indexed_at, child.profile_sort_at), parent.depth + 1,
 				parent.protected OR ` + postAuthorBlockedPredicate("child", "$5") + ` OR ` + postReplyAuthorBlockedPredicate("child") + ` OR ` + postMentionAuthorBlockedPredicate("child") + `,
 				COALESCE(
 					parent.muted_ancestor_uri,
@@ -121,14 +121,14 @@ func (s *PostStore) ListCommentBranchReplies(ctx context.Context, commentURI, ro
 	viewerDID, _ := middleware.GetDID(ctx)
 	q := `
 		WITH RECURSIVE branch(uri, created_at, depth, protected, muted_ancestor_uri) AS (
-			SELECT p.uri, LEAST(p.created_at, p.indexed_at), 1,
+			SELECT p.uri, LEAST(p.created_at, p.indexed_at, p.profile_sort_at), 1,
 				` + postAuthorBlockedPredicate("p", "$6") + ` OR ` + postReplyAuthorBlockedPredicate("p") + ` OR ` + postMentionAuthorBlockedPredicate("p") + `,
 				CASE WHEN ` + postAuthorMutedPredicate("p", "$6") + ` THEN p.uri END
 			FROM craftsky_posts p
 			WHERE p.reply_parent_uri = $1
 			  AND p.reply_root_uri = $2
 			UNION ALL
-			SELECT child.uri, LEAST(child.created_at, child.indexed_at), parent.depth + 1,
+			SELECT child.uri, LEAST(child.created_at, child.indexed_at, child.profile_sort_at), parent.depth + 1,
 				parent.protected OR ` + postAuthorBlockedPredicate("child", "$6") + ` OR ` + postReplyAuthorBlockedPredicate("child") + ` OR ` + postMentionAuthorBlockedPredicate("child") + `,
 				COALESCE(
 					parent.muted_ancestor_uri,
@@ -197,14 +197,14 @@ func (s *PostStore) ListCommentBranchRepliesAround(ctx context.Context, commentU
 	viewerDID, _ := middleware.GetDID(ctx)
 	q := `
 		WITH RECURSIVE branch(uri, created_at, depth, protected, muted_ancestor_uri) AS (
-			SELECT p.uri, LEAST(p.created_at, p.indexed_at), 1,
+			SELECT p.uri, LEAST(p.created_at, p.indexed_at, p.profile_sort_at), 1,
 				` + postAuthorBlockedPredicate("p", "$5") + ` OR ` + postReplyAuthorBlockedPredicate("p") + ` OR ` + postMentionAuthorBlockedPredicate("p") + `,
 				CASE WHEN ` + postAuthorMutedPredicate("p", "$5") + ` THEN p.uri END
 			FROM craftsky_posts p
 			WHERE p.reply_parent_uri = $1
 			  AND p.reply_root_uri = $2
 			UNION ALL
-			SELECT child.uri, LEAST(child.created_at, child.indexed_at), parent.depth + 1,
+			SELECT child.uri, LEAST(child.created_at, child.indexed_at, child.profile_sort_at), parent.depth + 1,
 				parent.protected OR ` + postAuthorBlockedPredicate("child", "$5") + ` OR ` + postReplyAuthorBlockedPredicate("child") + ` OR ` + postMentionAuthorBlockedPredicate("child") + `,
 				COALESCE(
 					parent.muted_ancestor_uri,

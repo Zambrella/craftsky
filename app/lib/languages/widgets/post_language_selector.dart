@@ -35,7 +35,9 @@ class PostLanguageSelector extends StatelessWidget {
             InputChip(
               label: Text(languageLabel(language)),
               selected: true,
-              onDeleted: enabled && selection.values.length > 1
+              onDeleted:
+                  enabled &&
+                      (selection.allowsEmpty || selection.values.length > 1)
                   ? () => onChanged(selection.remove(language))
                   : null,
             ),

@@ -79,7 +79,7 @@ func (f *notificationPipeline) drain() {
 }
 
 func notificationEvent(id uint64, actor, key, extra string) tap.Event {
-	return tap.Event{ID: id, URI: syntax.ATURI("at://" + actor + "/social.craftsky.feed.post/" + key), DID: syntax.DID(actor), Rkey: syntax.RecordKey(key), Collection: "social.craftsky.feed.post", Rev: "3aaaaaaaaaaa2", CID: syntax.CID(fmt.Sprintf("cid-%d", id)), Action: "create", Record: json.RawMessage(`{"$type":"social.craftsky.feed.post","text":"hello recipient","sponsored":false,"createdAt":"2026-05-04T12:00:00Z"` + extra + `}`)}
+	return tap.Event{Live: true, ID: id, URI: syntax.ATURI("at://" + actor + "/social.craftsky.feed.post/" + key), DID: syntax.DID(actor), Rkey: syntax.RecordKey(key), Collection: "social.craftsky.feed.post", Rev: "3aaaaaaaaaaa2", CID: syntax.CID(fmt.Sprintf("cid-%d", id)), Action: "create", Record: json.RawMessage(`{"$type":"social.craftsky.feed.post","text":"hello recipient","sponsored":false,"createdAt":"2026-05-04T12:00:00Z"` + extra + `}`)}
 }
 
 func replyExtra(target string) string {
@@ -103,7 +103,7 @@ func (f *notificationPipeline) assertCount(sql string, want int) {
 	}
 }
 
-func TestPostNotificationsConvergeAcrossBackfillOrder(t *testing.T) {
+func TestPostNotificationsConvergeAcrossDependencyOrder(t *testing.T) {
 	for _, category := range []string{"reply", "quote", "replyOverQuoteAndMention"} {
 		for _, targetFirst := range []bool{false, true} {
 			t.Run(fmt.Sprintf("%s/targetFirst=%t", category, targetFirst), func(t *testing.T) {
@@ -183,7 +183,7 @@ func TestPostNotificationDeleteWhileWaitingCannotNotify(t *testing.T) {
 	f.assertCount(`SELECT count(*) FROM tap_projection_jobs WHERE projection_kind='post_notifications' AND state='blocked'`, 0)
 }
 
-func TestPostNotificationUpdateReplacesWaitingDependency(t *testing.T) {
+func TestPostNotificationUpdateCannotIntroduceWaitingQuoteRecipient(t *testing.T) {
 	f := newNotificationPipeline(t)
 	ev := notificationEvent(1, "did:plc:actor", "3aaaaaaaaaaa3", replyExtra(notificationTarget))
 	f.ingest(ev)
@@ -195,10 +195,12 @@ func TestPostNotificationUpdateReplacesWaitingDependency(t *testing.T) {
 	f.drain()
 	f.ingest(notificationEvent(3, "did:plc:recipient", "3aaaaaaaaaaa2", ""))
 	f.drain()
-	f.assertCount(`SELECT count(*) FROM notification_events`, 0)
+	f.assertCount(`SELECT count(*) FROM notification_events WHERE category='reply'`, 1)
+	f.assertCount(`SELECT count(*) FROM notification_events WHERE category='quote'`, 0)
 	f.ingest(notificationEvent(4, "did:plc:recipient", "3aaaaaaaaaaa4", ""))
 	f.drain()
-	f.assertCount(`SELECT count(*) FROM notification_events WHERE category='quote' AND source_cid='cid-2'`, 1)
+	f.assertCount(`SELECT count(*) FROM notification_events WHERE category='reply'`, 1)
+	f.assertCount(`SELECT count(*) FROM notification_events WHERE category='quote'`, 0)
 }
 
 func TestPostNotificationRetryRespectsPreferences(t *testing.T) {

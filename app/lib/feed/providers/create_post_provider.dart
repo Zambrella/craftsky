@@ -134,7 +134,7 @@ class CreatePost extends _$CreatePost {
           video: video,
           facets: frozenFacets,
         );
-      } on PdsMutationAmbiguousException catch (error) {
+      } on PdsMutationAmbiguousException catch (error, stackTrace) {
         final decision = await retry.wait(error);
         if (!accountOperation.isCurrent) return null;
         switch (decision) {
@@ -142,8 +142,11 @@ class CreatePost extends _$CreatePost {
             return null;
           case PdsMutationRetryDecision.exhausted:
             state = AsyncError<Post?>(
-              const PdsMutationUnresolvedException(),
-              StackTrace.current,
+              PdsMutationUnresolvedException(
+                diagnosticCause: error,
+                diagnosticStack: stackTrace,
+              ),
+              stackTrace,
             );
             return null;
           case PdsMutationRetryDecision.retry:

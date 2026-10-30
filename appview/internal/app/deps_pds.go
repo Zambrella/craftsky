@@ -23,6 +23,7 @@ import (
 // raw PDS client factory.
 type pdsEffectDependencies struct {
 	pending    auth.PendingOnboardingPDSClientFactory
+	postEdits  api.PostEditRecordReader
 	onboarding *pdscommands.OnboardingProfileService
 	blobs      api.BlobEffectFactory
 	guarded    pdseffects.GuardedCapabilityCoordinatorFactory
@@ -146,6 +147,6 @@ func newPDSEffectDependencies(
 		return federated.newPendingPDSClient(ctx, authCapability.app.Config, stored.Data)
 	}
 	return &pdsEffectDependencies{
-		pending: pending, onboarding: onboardingCommands, blobs: blobs, guarded: guarded, commands: commands, append: appendCommands, addressed: addressedCommands, compound: compoundCommands, compaction: commandCompaction,
+		pending: pending, postEdits: api.NewPostEditRecordReader(ordinary), onboarding: onboardingCommands, blobs: blobs, guarded: guarded, commands: commands, append: appendCommands, addressed: addressedCommands, compound: compoundCommands, compaction: commandCompaction,
 	}, nil
 }

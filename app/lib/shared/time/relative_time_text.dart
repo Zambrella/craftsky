@@ -1,13 +1,19 @@
+import 'package:craftsky_app/l10n/app_localizations.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
+import 'package:intl/intl.dart';
 import 'package:material_ui/material_ui.dart';
 
-/// Compact relative timestamp used by posts and other chronological surfaces.
+/// Compact timestamp used by posts and other chronological surfaces.
 ///
-/// The visible value stays deliberately terse (`now`, `3m`, `4h`, `2d`) while
-/// the tooltip preserves the complete localized timestamp.
-class RelativeTimeText extends StatelessWidget {
+/// Recent values stay terse (`now`, `3m`, `4h`, `2d`); timestamps older than
+/// seven days show a compact date (`12 Jul 26`). The tooltip preserves the
+/// complete localized timestamp. Edited posts include
+/// their disclosure and include both timestamps in the same tooltip.
+class RelativeTimeText extends StatefulWidget {
   const new({
     required this.timestamp,
     this.now,
+    this.editedAt,
     this.style,
     this.textAlign,
     super.key,
@@ -15,22 +21,93 @@ class RelativeTimeText extends StatelessWidget {
 
   final DateTime timestamp;
   final DateTime? now;
+  final DateTime? editedAt;
   final TextStyle? style;
   final TextAlign? textAlign;
 
   @override
+  State<RelativeTimeText> createState() => _RelativeTimeTextState();
+}
+
+class _RelativeTimeTextState extends State<RelativeTimeText> {
+  final _tooltipKey = GlobalKey<TooltipState>();
+
+  void _showTimestamp() => _tooltipKey.currentState?.ensureTooltipVisible();
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return Tooltip(
-      message: _fullTimestamp(context, timestamp),
-      child: Text(
-        _relativeTime(timestamp, now ?? DateTime.now()),
-        style:
-            style ??
-            theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.outline,
+    final style =
+        widget.style ??
+        theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.outline);
+    final label = _compactTimestamp(
+      context,
+      widget.timestamp,
+      widget.now ?? DateTime.now(),
+    );
+    final published = _fullTimestamp(context, widget.timestamp);
+    final editedAt = widget.editedAt;
+    if (editedAt == null) {
+      return Tooltip(
+        message: published,
+        child: Text(
+          label,
+          style: style,
+          textAlign: widget.textAlign,
+          maxLines: 1,
+          softWrap: false,
+        ),
+      );
+    }
+    final l10n = AppLocalizations.of(context);
+    final message =
+        '$published\n${l10n.postEditTime(_fullTimestamp(context, editedAt))}';
+    return Semantics(
+      label: message,
+      excludeSemantics: true,
+      button: true,
+      onTap: _showTimestamp,
+      child: FocusableActionDetector(
+        onFocusChange: (focused) {
+          if (focused) _showTimestamp();
+        },
+        actions: {
+          ActivateIntent: CallbackAction<ActivateIntent>(
+            onInvoke: (_) {
+              _showTimestamp();
+              return null;
+            },
+          ),
+        },
+        child: Tooltip(
+          key: _tooltipKey,
+          message: message,
+          triggerMode: TooltipTriggerMode.longPress,
+          excludeFromSemantics: true,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: _showTimestamp,
+            child: Text.rich(
+              TextSpan(
+                children: [
+                  WidgetSpan(
+                    alignment: PlaceholderAlignment.middle,
+                    child: Icon(
+                      CraftskyIcons.edit,
+                      size: 12,
+                      color: style?.color,
+                    ),
+                  ),
+                  TextSpan(text: ' $label'),
+                ],
+              ),
+              style: style,
+              textAlign: widget.textAlign,
+              maxLines: 1,
+              softWrap: false,
             ),
-        textAlign: textAlign,
+          ),
+        ),
       ),
     );
   }
@@ -47,8 +124,14 @@ String _fullTimestamp(BuildContext context, DateTime when) {
   return '$date at $time ${local.timeZoneName}';
 }
 
-String _relativeTime(DateTime when, DateTime now) {
+String _compactTimestamp(BuildContext context, DateTime when, DateTime now) {
   final delta = now.difference(when);
+  if (delta > const Duration(days: 7)) {
+    return DateFormat(
+      'd MMM yy',
+      Localizations.localeOf(context).toString(),
+    ).format(when.toLocal());
+  }
   if (delta.inMinutes < 1) return 'now';
   if (delta.inMinutes < 60) return '${delta.inMinutes}m';
   if (delta.inHours < 24) return '${delta.inHours}h';

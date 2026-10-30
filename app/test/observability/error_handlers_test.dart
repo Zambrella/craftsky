@@ -5,6 +5,7 @@ import 'dart:ui';
 import 'package:craftsky_app/main.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/errors/app_error.dart';
+import 'package:craftsky_app/shared/observability/diagnostic_details.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_emitter.dart';
 import 'package:craftsky_app/shared/observability/error_reporter.dart';
 import 'package:craftsky_app/shared/observability/sentry_error_reporter.dart';
@@ -17,6 +18,28 @@ import 'package:sentry_flutter/sentry_flutter.dart' hide ErrorCallback;
 import '../test_support/serialized_sentry_transport.dart';
 
 void main() {
+  test('framework causes retain explanations without private details', () {
+    for (final summary in [
+      'No Overlay widget found.',
+      'No Overlay widget found within the closest LookupBoundary.',
+      'Floating SnackBar presented off screen.',
+      'Cannot get renderObject of inactive element.',
+    ]) {
+      final selected = selectedCause(
+        FlutterError.fromParts([
+          ErrorSummary(summary),
+          ErrorDescription('PRIVATE_WIDGET_PAYLOAD token=PRIVATE_TOKEN'),
+        ]),
+      );
+      expect(selected['message'], summary);
+      expect(jsonEncode(selected), isNot(contains('PRIVATE')));
+    }
+    expect(
+      selectedCause(FlutterError('PRIVATE_UNKNOWN_SUMMARY'))['message'],
+      'Framework failure',
+    );
+  });
+
   group('registerErrorHandlers', () {
     late FlutterExceptionHandler? oldFlutterHandler;
     late ErrorCallback? oldPlatformHandler;

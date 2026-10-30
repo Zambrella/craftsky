@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:craftsky_app/feed/data/post_api_client.dart';
 import 'package:craftsky_app/feed/models/post.dart';
@@ -6,6 +7,7 @@ import 'package:craftsky_app/profile/data/profile_api_client.dart';
 import 'package:craftsky_app/shared/api/providers/dio_provider.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image/image.dart' as image;
 
 final class ApiClients {
   new(this.container);
@@ -36,6 +38,13 @@ final class ApiClients {
         'Expected a regular post with exactly two persisted images.',
       );
     }
+    return post;
+  }
+
+  Future<void> verifyPublishedImages(
+    Post post,
+    ({int width, int height}) editedImageSize,
+  ) async {
     // A separate client deliberately excludes the AppView bearer header.
     final media = Dio(
       BaseOptions(
@@ -44,8 +53,8 @@ final class ApiClients {
       ),
     );
     try {
-      for (final image in post.images!) {
-        final url = image.fullsize;
+      for (var index = 0; index < post.images!.length; index++) {
+        final url = post.images![index].fullsize;
         if (url == null) throw StateError('Published image URL is missing.');
         final response = await media.get<List<int>>(
           url,
@@ -54,11 +63,20 @@ final class ApiClients {
         if (response.statusCode != 200 || response.data?.isNotEmpty != true) {
           throw StateError('Published image is unavailable.');
         }
+        final decoded = image.decodeImage(Uint8List.fromList(response.data!));
+        final expectedWidth = index == 0 ? editedImageSize.width : 640;
+        final expectedHeight = index == 0 ? editedImageSize.height : 480;
+        if (decoded?.width != expectedWidth ||
+            decoded?.height != expectedHeight) {
+          throw StateError(
+            'Published image $index did not retain its expected dimensions '
+            '$expectedWidth x $expectedHeight after editing.',
+          );
+        }
       }
     } finally {
       media.close(force: true);
     }
-    return post;
   }
 
   Future<void> verifyLiked(Post post) => _until(() async {
@@ -66,6 +84,23 @@ final class ApiClients {
         .getPost(post.author.did, post.rkey);
     return current.viewerHasLiked && current.likeCount >= 1;
   }, 'The like was not persisted.');
+
+  Future<void> verifyEdited(Post original, String text) => _until(
+    () async {
+      final current = await PostApiClient(_dio)
+          .getPost(original.author.did, original.rkey);
+      return current.uri == original.uri &&
+          current.cid != original.cid &&
+          current.editedAt != null &&
+          current.text == text &&
+          current.images?.length == 1 &&
+          current.images!.single.cid == original.images!.first.cid &&
+          current.viewerHasLiked &&
+          current.likeCount >= 1;
+    },
+    'The edited text and retained first image were not persisted, '
+    'or the existing like was lost.',
+  );
 
   Future<void> verifyDeleted(Post post) => _until(() async {
     final response = await _dio.get<Object?>(

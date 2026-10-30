@@ -38,7 +38,7 @@ with its existing CraftSky-only deletion scope.
 
 ## Release and live checks
 
-- Apply migrations 102 and 103 through the existing release path.
+- Apply migrations 109 and 110 through the existing release path.
 - The Tap collection-filter and OAuth scope changes in `render.yaml` require the normal manual
   Blueprint review/sync; auto-sync remains disabled.
 - Existing sessions must sign in again to approve `app.bsky.actor.link` create,

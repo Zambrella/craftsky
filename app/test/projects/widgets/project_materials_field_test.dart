@@ -10,6 +10,73 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 
 void main() {
+  testWidgets('unchanged Add preserves material order and extension fields', (
+    tester,
+  ) async {
+    const original = [
+      ProjectMaterial(
+        text: 'Wool',
+        extraFields: {'existingIndex': 0, 'futureField': 'retained'},
+      ),
+      ProjectMaterial(text: 'Cotton', extraFields: {'existingIndex': 1}),
+    ];
+    final form = await _pumpField(tester, materials: original);
+    await tester.tap(find.byKey(const Key('materials-edit-Wool')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('materials-add-custom')));
+    await tester.pumpAndSettle();
+    expect(_materials(form), original);
+  });
+
+  testWidgets('replacing all material text retains its source entry identity', (
+    tester,
+  ) async {
+    final form = await _pumpField(
+      tester,
+      materials: const [
+        ProjectMaterial(text: 'Wool', extraFields: {'existingIndex': 0}),
+      ],
+    );
+    await tester.tap(find.byTooltip('Edit material'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(EditableText), '');
+    await tester.pump();
+    await tester.enterText(find.byType(EditableText), 'Linen');
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('materials-add-custom')));
+    await tester.pumpAndSettle();
+    expect(_materials(form).single.text, 'Linen');
+    expect(_materials(form).single.extraFields, {'existingIndex': 0});
+  });
+
+  testWidgets(
+    'editing a published material retains its source entry identity',
+    (
+      tester,
+    ) async {
+      final form = await _pumpField(
+        tester,
+        materials: const [
+          ProjectMaterial(text: 'Wool', extraFields: {'existingIndex': 0}),
+        ],
+      );
+      await tester.tap(find.byTooltip('Edit material'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(EditableText), 'Merino wool');
+      await tester.tap(find.byKey(const Key('materials-add-custom')));
+      await tester.pumpAndSettle();
+      expect(_materials(form).single.text, 'Merino wool');
+      expect(_materials(form).single.extraFields, {'existingIndex': 0});
+
+      await tester.enterText(find.byType(EditableText), 'Cotton');
+      await tester.pump();
+      await tester.tap(find.byKey(const Key('materials-add-custom')));
+      await tester.pumpAndSettle();
+      expect(_materials(form).last.text, 'Cotton');
+      expect(_materials(form).last.extraFields, isEmpty);
+    },
+  );
+
   testWidgets('editing another material cannot overwrite the current edit', (
     tester,
   ) async {
@@ -30,14 +97,17 @@ void main() {
       tester.widget<EditableText>(find.byType(EditableText)).controller.text,
       'Merino wool',
     );
-    expect(_materials(form).map((value) => value.text), ['Cotton']);
+    expect(_materials(form).map((value) => value.text), ['Wool', 'Cotton']);
 
     await tester.tap(find.byKey(const Key('materials-add-custom')));
     await tester.pumpAndSettle();
     expect(tester.widget<IconButton>(editCotton).onPressed, isNotNull);
     await tester.tap(editCotton);
     await tester.pumpAndSettle();
-    expect(_materials(form).map((value) => value.text), ['Merino wool']);
+    expect(_materials(form).map((value) => value.text), [
+      'Merino wool',
+      'Cotton',
+    ]);
     expect(
       tester.widget<EditableText>(find.byType(EditableText)).controller.text,
       'Cotton',
@@ -67,7 +137,7 @@ void main() {
     expect(tester.widget<IconButton>(editWool).onPressed, isNotNull);
     await tester.tap(editWool);
     await tester.pumpAndSettle();
-    expect(_materials(form).map((value) => value.text), ['Cotton']);
+    expect(_materials(form).map((value) => value.text), ['Wool', 'Cotton']);
     expect(
       tester.widget<EditableText>(find.byType(EditableText)).controller.text,
       'Wool',
@@ -81,7 +151,7 @@ void main() {
     await tester.tap(find.byTooltip('Edit material').first);
     await tester.pumpAndSettle();
 
-    expect(_materials(form).map((value) => value.text), ['Cotton']);
+    expect(_materials(form).map((value) => value.text), ['Wool', 'Cotton']);
     expect(find.byKey(const Key('materials-remove-Wool')), findsNothing);
     final input = tester.widget<EditableText>(find.byType(EditableText));
     expect(input.controller.text, 'Wool');
@@ -96,10 +166,10 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(_materials(form).map((value) => value.text), [
-      'Cotton',
       'Merino wool #knitting',
+      'Cotton',
     ]);
-    expect(_materials(form).last.facets, isNotEmpty);
+    expect(_materials(form).first.facets, isNotEmpty);
     expect(input.controller.text, isEmpty);
     expect(
       find.byKey(const Key('materials-remove-Merino wool #knitting')),
@@ -129,14 +199,14 @@ void main() {
     );
     await tester.tap(find.byTooltip('Edit material').first);
     await tester.pumpAndSettle();
-    expect(_materials(form), hasLength(9));
+    expect(_materials(form), hasLength(10));
     await tester.enterText(find.byType(EditableText), 'Updated yarn');
     final add = find.byKey(const Key('materials-add-custom'));
     await tester.ensureVisible(add);
     await tester.tap(add);
     await tester.pumpAndSettle();
     expect(_materials(form), hasLength(10));
-    expect(_materials(form).last.text, 'Updated yarn');
+    expect(_materials(form).first.text, 'Updated yarn');
   });
 }
 

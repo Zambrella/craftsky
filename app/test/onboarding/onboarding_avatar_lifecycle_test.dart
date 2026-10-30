@@ -9,6 +9,7 @@ import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/providers/profile_image_picker_provider.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/shared/api/providers/dio_provider.dart';
+import 'package:craftsky_app/shared/image/basic_image_editor.dart';
 import 'package:craftsky_app/shared/media/uploaded_image_blob.dart';
 import 'package:craftsky_app/shared/observability/error_reporter_provider.dart';
 import 'package:dio/dio.dart';
@@ -81,6 +82,18 @@ void main() {
       expect(state.uploadingAvatar, isFalse);
       expect(state.avatarUploadFailed, isFalse);
     }
+    // Image editing AT-009: imperative save must also respect pending editing.
+    picker.pending = Completer<ProfileImagePickResult?>();
+    final selecting = notifier.pickAvatar(
+      ImageSource.gallery,
+      editImage: (_) async => null,
+    );
+    await container.pump();
+    await notifier.saveAndNext();
+    expect(savedAvatar, isNull);
+    picker.pending!.complete(null);
+    await selecting;
+    expect(container.read(flow).requireValue.avatarBlob?.ref.link, 'photo-3');
     await notifier.saveAndNext();
     expect(savedAvatar?.ref.link, 'photo-3');
   });
@@ -224,12 +237,16 @@ void main() {
 
 class _RepeatingPicker extends Fake implements ProfileImagePicker {
   int picks = 0;
+  Completer<ProfileImagePickResult?>? pending;
 
   @override
   Future<ProfileImagePickResult?> pickAndUpload({
     required ImageSource source,
     required void Function(Uint8List bytes) onPreviewReady,
+    BasicImageEditor? editImage,
+    bool Function()? isCurrent,
   }) async {
+    if (pending != null) return await pending!.future;
     final bytes = Uint8List.fromList([++picks]);
     onPreviewReady(bytes);
     return ProfileImagePickResult(

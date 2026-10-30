@@ -523,6 +523,10 @@ func terminalPurgeDependencyBlockedTx(
 ) (bool, error) {
 	var query string
 	switch entry.Table {
+	case "tap_source_records":
+		// Publication facts own a bounded mention fanout. Their component must
+		// drain it first; deleting the source cannot bypass that row budget.
+		query = `SELECT EXISTS(SELECT 1 FROM post_publication_state WHERE owner_did=$1)`
 	case "account_deletion_operations":
 		query = `SELECT EXISTS(SELECT 1 FROM account_deletion_safety_tombstones WHERE owner_did=$1)`
 	case "craftsky_profiles":

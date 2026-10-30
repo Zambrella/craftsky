@@ -17,11 +17,13 @@ import (
 	"github.com/bluesky-social/indigo/atproto/atclient"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 
 	"social.craftsky/appview/internal/api/envelope"
 	"social.craftsky/appview/internal/middleware"
 	"social.craftsky/appview/internal/pdscommands"
 	"social.craftsky/appview/internal/pdseffects"
+	"social.craftsky/appview/internal/postpublication"
 	"social.craftsky/appview/internal/postrecord"
 	"social.craftsky/appview/internal/postutil"
 	"social.craftsky/appview/internal/relationships"
@@ -240,6 +242,9 @@ func CreatePostHandler(
 				},
 				Accepted: func(record pdscommands.AuthoritativeRecord) (pdscommands.TerminalResult, error) {
 					return acceptedPostCreateResult(r, store, resolver, did, req, verifiedVideo, record)
+				},
+				FinalizeAccepted: func(ctx context.Context, tx pgx.Tx, _ pdscommands.PreparedCommand, record pdscommands.AuthoritativeRecord) error {
+					return postpublication.SeedAcceptedCreate(ctx, tx, record.URI, record.Record)
 				},
 				Rejected: func(err error) pdscommands.TerminalResult {
 					if verifiedVideo != nil && pdsAPIErrorName(err) == "BlobNotFound" {

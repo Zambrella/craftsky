@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:craftsky_app/feed/providers/post_record_overlay.dart';
+
 import 'package:craftsky_app/saved_posts/models/saved_post.dart';
 import 'package:craftsky_app/saved_posts/models/saved_post_keys.dart';
 import 'package:craftsky_app/saved_posts/providers/account_saved_post_state_provider.dart';
@@ -56,6 +58,20 @@ bool isInvalidSavedPostCursorError(Object error) =>
 class SavedPosts extends _$SavedPosts {
   @override
   Future<SavedPostListState> build(SavedPostListKey key) async {
+    listenForPostEdits(ref, () {
+      final current = state.value;
+      if (current == null) return;
+      state = AsyncData(
+        current.copyWith(
+          items: [
+            for (final item in current.items)
+              if (applyPostRecordOverlay(ref, item.post, reconcile: false)
+                  case final post?)
+                item.copyWith(post: post),
+          ],
+        ),
+      );
+    });
     final generation = captureSavedPostAccountBoundary(ref);
     ref.watch(savedPostAccountBoundaryProvider);
     final repository = await ref.watch(
@@ -65,7 +81,7 @@ class SavedPosts extends _$SavedPosts {
     if (isSavedPostAccountBoundaryCurrent(ref, generation)) {
       _reconcilePage(page);
     }
-    return SavedPostListState.fromPage(page);
+    return SavedPostListState.fromPage(_withPostEdits(page));
   }
 
   Future<void> loadMore() async {
@@ -88,7 +104,17 @@ class SavedPosts extends _$SavedPosts {
       );
       if (!isSavedPostAccountBoundaryCurrent(ref, generation)) return;
       _reconcilePage(page);
-      state = AsyncData(current.appendPage(page));
+      final appended = current.appendPage(_withPostEdits(page));
+      state = AsyncData(
+        appended.copyWith(
+          items: [
+            for (final item in appended.items)
+              if (applyPostRecordOverlay(ref, item.post, reconcile: false)
+                  case final post?)
+                item.copyWith(post: post),
+          ],
+        ),
+      );
     } on Object catch (error) {
       if (!isSavedPostAccountBoundaryCurrent(ref, generation)) return;
       if (isInvalidSavedPostCursorError(error)) {
@@ -115,7 +141,7 @@ class SavedPosts extends _$SavedPosts {
       final page = await repository.list(scope: key.scope, sort: key.sort);
       if (!isSavedPostAccountBoundaryCurrent(ref, generation)) return;
       _reconcilePage(page);
-      state = AsyncData(SavedPostListState.fromPage(page));
+      state = AsyncData(SavedPostListState.fromPage(_withPostEdits(page)));
     } on Object catch (error, stackTrace) {
       if (!isSavedPostAccountBoundaryCurrent(ref, generation)) return;
       state = previous == null
@@ -155,6 +181,14 @@ class SavedPosts extends _$SavedPosts {
     );
     page.items.forEach(notifier.reconcileSavedItem);
   }
+
+  SavedPostPage _withPostEdits(SavedPostPage page) => page.copyWith(
+    items: [
+      for (final item in page.items)
+        if (applyPostRecordOverlay(ref, item.post) case final post?)
+          item.copyWith(post: post),
+    ],
+  );
 }
 
 void refreshLiveSavedPostListsAfterFolderDeletion(

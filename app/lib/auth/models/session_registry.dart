@@ -304,7 +304,11 @@ class SessionRegistry {
     final current = pendingAccountDeletion;
     if (current != null) {
       if (current.sameAs(pending)) return this;
-      throw DiagnosticStateError('Another account deletion is pending');
+      // A fresh server-issued intent may replace expired local authority.
+      // Keep live intents protected, including those for another account.
+      if (DateTime.now().toUtc().isBefore(current.expiresAt)) {
+        throw DiagnosticStateError('Another account deletion is pending');
+      }
     }
     if (!pending.isCurrent(activeLease)) {
       throw DiagnosticStateError(

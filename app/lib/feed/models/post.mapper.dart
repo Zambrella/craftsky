@@ -98,6 +98,18 @@ class PostMapper extends ClassMapperBase<Post> {
   );
   static bool _$sponsored(Post v) => v.sponsored;
   static const Field<Post, bool> _f$sponsored = Field('sponsored', _$sponsored);
+  static DateTime? _$editedAt(Post v) => v.editedAt;
+  static const Field<Post, DateTime> _f$editedAt = Field(
+    'editedAt',
+    _$editedAt,
+    opt: true,
+  );
+  static String? _$recordRevision(Post v) => v.recordRevision;
+  static const Field<Post, String> _f$recordRevision = Field(
+    'recordRevision',
+    _$recordRevision,
+    opt: true,
+  );
   static List<String> _$langs(Post v) => v.langs;
   static const Field<Post, List<String>> _f$langs = Field(
     'langs',
@@ -215,6 +227,8 @@ class PostMapper extends ClassMapperBase<Post> {
     #viewerHasReposted: _f$viewerHasReposted,
     #viewerHasSaved: _f$viewerHasSaved,
     #sponsored: _f$sponsored,
+    #editedAt: _f$editedAt,
+    #recordRevision: _f$recordRevision,
     #langs: _f$langs,
     #quoteCount: _f$quoteCount,
     #viewerHasReplied: _f$viewerHasReplied,
@@ -254,6 +268,8 @@ class PostMapper extends ClassMapperBase<Post> {
       viewerHasReposted: data.dec(_f$viewerHasReposted),
       viewerHasSaved: data.dec(_f$viewerHasSaved),
       sponsored: data.dec(_f$sponsored),
+      editedAt: data.dec(_f$editedAt),
+      recordRevision: data.dec(_f$recordRevision),
       langs: data.dec(_f$langs),
       quoteCount: data.dec(_f$quoteCount),
       viewerHasReplied: data.dec(_f$viewerHasReplied),
@@ -358,6 +374,8 @@ abstract class PostCopyWith<$R, $In extends Post, $Out>
     bool? viewerHasReposted,
     bool? viewerHasSaved,
     bool? sponsored,
+    DateTime? editedAt,
+    String? recordRevision,
     List<String>? langs,
     int? quoteCount,
     bool? viewerHasReplied,
@@ -470,6 +488,8 @@ class _PostCopyWithImpl<$R, $Out> extends ClassCopyWithBase<$R, Post, $Out>
     bool? viewerHasReposted,
     bool? viewerHasSaved,
     bool? sponsored,
+    Object? editedAt = $none,
+    Object? recordRevision = $none,
     List<String>? langs,
     int? quoteCount,
     bool? viewerHasReplied,
@@ -503,6 +523,8 @@ class _PostCopyWithImpl<$R, $Out> extends ClassCopyWithBase<$R, Post, $Out>
       if (viewerHasReposted != null) #viewerHasReposted: viewerHasReposted,
       if (viewerHasSaved != null) #viewerHasSaved: viewerHasSaved,
       if (sponsored != null) #sponsored: sponsored,
+      if (editedAt != $none) #editedAt: editedAt,
+      if (recordRevision != $none) #recordRevision: recordRevision,
       if (langs != null) #langs: langs,
       if (quoteCount != null) #quoteCount: quoteCount,
       if (viewerHasReplied != null) #viewerHasReplied: viewerHasReplied,
@@ -542,6 +564,8 @@ class _PostCopyWithImpl<$R, $Out> extends ClassCopyWithBase<$R, Post, $Out>
     ),
     viewerHasSaved: data.get(#viewerHasSaved, or: $value.viewerHasSaved),
     sponsored: data.get(#sponsored, or: $value.sponsored),
+    editedAt: data.get(#editedAt, or: $value.editedAt),
+    recordRevision: data.get(#recordRevision, or: $value.recordRevision),
     langs: data.get(#langs, or: $value.langs),
     quoteCount: data.get(#quoteCount, or: $value.quoteCount),
     viewerHasReplied: data.get(#viewerHasReplied, or: $value.viewerHasReplied),
@@ -1962,6 +1986,18 @@ class QuotePreviewPostMapper extends ClassMapperBase<QuotePreviewPost> {
     'sponsored',
     _$sponsored,
   );
+  static DateTime? _$editedAt(QuotePreviewPost v) => v.editedAt;
+  static const Field<QuotePreviewPost, DateTime> _f$editedAt = Field(
+    'editedAt',
+    _$editedAt,
+    opt: true,
+  );
+  static String? _$recordRevision(QuotePreviewPost v) => v.recordRevision;
+  static const Field<QuotePreviewPost, String> _f$recordRevision = Field(
+    'recordRevision',
+    _$recordRevision,
+    opt: true,
+  );
   static List<PostImage>? _$images(QuotePreviewPost v) => v.images;
   static const Field<QuotePreviewPost, List<PostImage>> _f$images = Field(
     'images',
@@ -1993,6 +2029,8 @@ class QuotePreviewPostMapper extends ClassMapperBase<QuotePreviewPost> {
     #author: _f$author,
     #createdAt: _f$createdAt,
     #sponsored: _f$sponsored,
+    #editedAt: _f$editedAt,
+    #recordRevision: _f$recordRevision,
     #images: _f$images,
     #project: _f$project,
     #externalImport: _f$externalImport,
@@ -2009,6 +2047,8 @@ class QuotePreviewPostMapper extends ClassMapperBase<QuotePreviewPost> {
       author: data.dec(_f$author),
       createdAt: data.dec(_f$createdAt),
       sponsored: data.dec(_f$sponsored),
+      editedAt: data.dec(_f$editedAt),
+      recordRevision: data.dec(_f$recordRevision),
       images: data.dec(_f$images),
       project: data.dec(_f$project),
       externalImport: data.dec(_f$externalImport),
@@ -2092,6 +2132,8 @@ abstract class QuotePreviewPostCopyWith<$R, $In extends QuotePreviewPost, $Out>
     PostAuthor? author,
     DateTime? createdAt,
     bool? sponsored,
+    DateTime? editedAt,
+    String? recordRevision,
     List<PostImage>? images,
     Project? project,
     ExternalImport? externalImport,
@@ -2140,6 +2182,8 @@ class _QuotePreviewPostCopyWithImpl<$R, $Out>
     PostAuthor? author,
     DateTime? createdAt,
     bool? sponsored,
+    Object? editedAt = $none,
+    Object? recordRevision = $none,
     Object? images = $none,
     Object? project = $none,
     Object? externalImport = $none,
@@ -2152,6 +2196,8 @@ class _QuotePreviewPostCopyWithImpl<$R, $Out>
       if (author != null) #author: author,
       if (createdAt != null) #createdAt: createdAt,
       if (sponsored != null) #sponsored: sponsored,
+      if (editedAt != $none) #editedAt: editedAt,
+      if (recordRevision != $none) #recordRevision: recordRevision,
       if (images != $none) #images: images,
       if (project != $none) #project: project,
       if (externalImport != $none) #externalImport: externalImport,
@@ -2166,6 +2212,8 @@ class _QuotePreviewPostCopyWithImpl<$R, $Out>
     author: data.get(#author, or: $value.author),
     createdAt: data.get(#createdAt, or: $value.createdAt),
     sponsored: data.get(#sponsored, or: $value.sponsored),
+    editedAt: data.get(#editedAt, or: $value.editedAt),
+    recordRevision: data.get(#recordRevision, or: $value.recordRevision),
     images: data.get(#images, or: $value.images),
     project: data.get(#project, or: $value.project),
     externalImport: data.get(#externalImport, or: $value.externalImport),

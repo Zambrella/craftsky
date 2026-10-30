@@ -179,6 +179,14 @@ func (c *CraftskyPost) handleUpsert(ctx context.Context, ev tap.Event) error {
 		profileSortAt = createdAt
 	}
 
+	var editedAt *time.Time
+	if rec.EditedAt != nil {
+		value, err := time.Parse(time.RFC3339Nano, *rec.EditedAt)
+		if err != nil {
+			return fmt.Errorf("parse post editedAt: %w", err)
+		}
+		editedAt = &value
+	}
 	var isProject bool
 	var projectCraftType any
 	if project != nil {
@@ -197,9 +205,9 @@ func (c *CraftskyPost) handleUpsert(ctx context.Context, ev tap.Event) error {
 			(uri, did, rkey, cid, text, sponsored, facets, images,
 			 reply_root_uri, reply_root_cid, reply_parent_uri, reply_parent_cid,
 			 quote_uri, quote_cid, tags, langs, is_project, project_craft_type, record, created_at,
-			 external_import_source, profile_sort_at)
+			 external_import_source, profile_sort_at, edited_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20,
-		        $21, LEAST(COALESCE($22::timestamptz, now()), now()))
+		        $21, LEAST(COALESCE($22::timestamptz, now()), now()), $23)
 		ON CONFLICT (uri) DO UPDATE SET
 			cid              = EXCLUDED.cid,
 			text             = EXCLUDED.text,
@@ -219,7 +227,9 @@ func (c *CraftskyPost) handleUpsert(ctx context.Context, ev tap.Event) error {
 			record           = EXCLUDED.record,
 			created_at       = EXCLUDED.created_at,
 			external_import_source = EXCLUDED.external_import_source,
-			profile_sort_at  = EXCLUDED.profile_sort_at,
+			profile_sort_at  = craftsky_posts.profile_sort_at,
+			edited_at        = EXCLUDED.edited_at,
+			record_revision  = NULL,
 			indexed_at       = now()
 		WHERE craftsky_posts.cid IS DISTINCT FROM EXCLUDED.cid
 	`
@@ -238,7 +248,7 @@ func (c *CraftskyPost) handleUpsert(ctx context.Context, ev tap.Event) error {
 		ev.Record,
 		createdAt,
 		storedExternalImportSource,
-		profileSortAt,
+		profileSortAt, editedAt,
 	)
 	if err != nil {
 		return fmt.Errorf("upsert %s: %w", ev.URI, err)
@@ -373,7 +383,7 @@ func (c *CraftskyPost) activatePostNotifications(ctx context.Context, tx pgx.Tx,
 		if !recipientIsMember {
 			continue
 		}
-		if err := c.lifecycle.Activate(ctx, tx, notifications.Activation{
+		if err := notifications.ActivatePublication(ctx, c.lifecycle, tx, notifications.Activation{
 			RecipientDID: recipient,
 			ActorDID:     ev.DID,
 			Category:     category,

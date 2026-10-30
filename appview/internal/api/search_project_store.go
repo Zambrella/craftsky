@@ -67,7 +67,7 @@ func (s *SearchStore) searchProjectsObserved(
 		if !cur.RankedAt.IsZero() {
 			rankedAt = cur.RankedAt
 		}
-		cursorWhere = `AND ($15::double precision IS NULL OR (popularity_score, LEAST(p.created_at, p.indexed_at), p.uri) < ($15::double precision, $16::timestamptz, $17::text))`
+		cursorWhere = `AND ($15::double precision IS NULL OR (popularity_score, LEAST(p.created_at, p.indexed_at, p.profile_sort_at), p.uri) < ($15::double precision, $16::timestamptz, $17::text))`
 		cursorArgs = []any{cur.ScorePtr(), cur.CreatedAtPtr(), cur.URIPtr()}
 		relationshipParam = "$18"
 		languagesParam = "$19"
@@ -76,12 +76,12 @@ func (s *SearchStore) searchProjectsObserved(
 		if err != nil {
 			return nil, "", err
 		}
-		cursorWhere = `AND ($15::timestamptz IS NULL OR (LEAST(p.created_at, p.indexed_at), p.uri) < ($15::timestamptz, $16::text))`
+		cursorWhere = `AND ($15::timestamptz IS NULL OR (LEAST(p.created_at, p.indexed_at, p.profile_sort_at), p.uri) < ($15::timestamptz, $16::text))`
 		cursorArgs = []any{curCreatedAt, curURI}
 	}
-	orderBy := `ORDER BY LEAST(p.created_at, p.indexed_at) DESC, p.uri DESC`
+	orderBy := `ORDER BY LEAST(p.created_at, p.indexed_at, p.profile_sort_at) DESC, p.uri DESC`
 	if req.Sort == SearchSortPopular {
-		orderBy = `ORDER BY popularity_score DESC, LEAST(p.created_at, p.indexed_at) DESC, p.uri DESC`
+		orderBy = `ORDER BY popularity_score DESC, LEAST(p.created_at, p.indexed_at, p.profile_sort_at) DESC, p.uri DESC`
 	}
 	q := `
 		WITH candidate AS (
@@ -90,7 +90,7 @@ func (s *SearchStore) searchProjectsObserved(
 			COALESCE(r.repost_count, 0)::int AS repost_count,
 			COALESCE(re.reply_count, 0)::int AS reply_count,
 			(COALESCE(l.like_count, 0) + (2 * COALESCE(re.reply_count, 0)) + (3 * COALESCE(r.repost_count, 0))) /
-				pow(1 + greatest(extract(epoch from ($14::timestamptz - LEAST(p.created_at, p.indexed_at))) / 3600, 0) / 72, 1.5) AS popularity_score
+				pow(1 + greatest(extract(epoch from ($14::timestamptz - LEAST(p.created_at, p.indexed_at, p.profile_sort_at))) / 3600, 0) / 72, 1.5) AS popularity_score
 		FROM craftsky_posts p
 		JOIN craftsky_project_posts pp ON pp.uri = p.uri
 		LEFT JOIN bluesky_profiles bp ON bp.did = p.did

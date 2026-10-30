@@ -391,6 +391,8 @@ class _SearchInputHeader extends StatelessWidget {
                         onPressed: onClear,
                       ),
                 textInputAction: TextInputAction.search,
+                autocorrect: false,
+                enableSuggestions: false,
                 onChanged: onChanged,
                 onSubmitted: onSubmitted,
               ),

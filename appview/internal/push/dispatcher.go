@@ -13,6 +13,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"social.craftsky/appview/internal/notifications"
+	"social.craftsky/appview/internal/postfence"
+	"social.craftsky/appview/internal/postpublication"
 )
 
 type DispatcherOptions struct {
@@ -48,6 +50,12 @@ var (
 // ErrDeliveryLifecycleInactive when any required owner is no longer active.
 type DeliveryLifecycleFence interface {
 	WithActiveOwners(context.Context, []syntax.DID, func(context.Context) error) error
+}
+
+// PublicationDeliveryFence reuses the owner-fenced connection for the nested
+// post lock. Production adapters provide it to avoid pool-capacity deadlocks.
+type PublicationDeliveryFence interface {
+	WithPostPublicationFence(context.Context, syntax.ATURI, func(context.Context) error) error
 }
 
 // DispatcherObserver receives aggregate, privacy-safe queue and delivery
@@ -507,6 +515,12 @@ func (d *Dispatcher) processClaim(ctx context.Context, item claimedDelivery) err
 		owners = append(owners, *item.actorDID)
 	}
 	err := d.options.LifecycleFence.WithActiveOwners(ctx, owners, func(fenceCtx context.Context) error {
+		if item.category == notifications.Reply || item.category == notifications.Mention || item.category == notifications.Quote {
+			if publicationFence, ok := d.options.LifecycleFence.(PublicationDeliveryFence); ok {
+				return publicationFence.WithPostPublicationFence(fenceCtx, item.sourceURI, func(postCtx context.Context) error { return d.processClaimFenced(postCtx, item) })
+			}
+			return postfence.WithPool(fenceCtx, d.pool, item.sourceURI, func(postCtx context.Context) error { return d.processClaimFenced(postCtx, item) })
+		}
 		return d.processClaimFenced(fenceCtx, item)
 	})
 	if errors.Is(err, ErrDeliveryLifecycleInactive) {
@@ -536,6 +550,7 @@ func (d *Dispatcher) processClaimFenced(ctx context.Context, item claimedDeliver
 	if !current.eligible {
 		return d.cancelEligibilityInvalid(ctx, item, now)
 	}
+
 	var preview *notifications.Preview
 	switch item.category {
 	case notifications.Reply, notifications.Mention, notifications.Quote:
@@ -807,6 +822,15 @@ func (d *Dispatcher) currentDeliveryStatus(
 		&state.routeOwned,
 		&state.eligible,
 	)
+	if err == nil && state.routeOwned && state.eligible && (item.category == notifications.Reply || item.category == notifications.Mention || item.category == notifications.Quote) {
+		applicable, applicabilityErr := postpublication.CurrentApplies(ctx, d.pool, item.sourceURI, item.recipientDID)
+		if applicabilityErr != nil {
+			return state, applicabilityErr
+		}
+		if !applicable {
+			state.eligible = false
+		}
+	}
 	return state, err
 }
 

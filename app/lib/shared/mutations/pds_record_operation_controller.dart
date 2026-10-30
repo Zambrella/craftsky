@@ -59,11 +59,13 @@ final class PdsMutationOperation {
     required this.token,
     required this.status,
     this.retryAfterSeconds,
+    this.optimisticValue,
   });
 
   final PdsMutationToken token;
   final PdsMutationStatus status;
   final int? retryAfterSeconds;
+  final Object? optimisticValue;
 
   PdsMutationOperation copyWith({
     required PdsMutationStatus status,
@@ -72,6 +74,7 @@ final class PdsMutationOperation {
     token: token,
     status: status,
     retryAfterSeconds: retryAfterSeconds,
+    optimisticValue: optimisticValue,
   );
 }
 
@@ -84,16 +87,25 @@ final class PdsMutationOverlay {
     required this.expiresAt,
     required this._agrees,
     this.refresh,
+    this.retainVersion = false,
+    this.retainUntilExpiry = false,
   });
 
   final PdsMutationToken token;
-  final Object? optimisticValue;
+  Object? optimisticValue;
+
+  /// Lists that actually displayed this pending publication.
+  final publicationLists = <Object>{};
   final DateTime acceptedAt;
   final DateTime graceAt;
   final DateTime expiresAt;
-  final bool Function(Object? authoritativeValue) _agrees;
+  bool Function(Object? authoritativeValue) _agrees;
   final void Function()? refresh;
+  final bool retainVersion;
+  // One fresh surface must not expose older cached values on another surface.
+  final bool retainUntilExpiry;
   bool graceRefreshRequested = false;
+  bool reconciled = false;
 
   bool agreesWith(Object? authoritativeValue) => _agrees(authoritativeValue);
 }
@@ -125,6 +137,7 @@ final class PdsRecordOperationController {
     required String operationKey,
     required String endpoint,
     required String immutableBody,
+    Object? optimisticValue,
   }) {
     if (_operations[scope]?.status == PdsMutationStatus.ambiguous) {
       throw DiagnosticStateError(
@@ -144,6 +157,7 @@ final class PdsRecordOperationController {
     _operations[scope] = PdsMutationOperation(
       token: token,
       status: PdsMutationStatus.inFlight,
+      optimisticValue: optimisticValue,
     );
     return token;
   }
@@ -171,6 +185,7 @@ final class PdsRecordOperationController {
     required String endpoint,
     required String immutableBody,
     required String Function() newOperationKey,
+    Object? optimisticValue,
   }) {
     final retry = retryToken(
       scope: scope,
@@ -183,6 +198,7 @@ final class PdsRecordOperationController {
       operationKey: newOperationKey(),
       endpoint: endpoint,
       immutableBody: immutableBody,
+      optimisticValue: optimisticValue,
     );
   }
 
@@ -239,6 +255,8 @@ final class PdsRecordOperationController {
     required bool Function(Object? authoritativeValue) agrees,
     PdsMutationScope? overlayScope,
     void Function()? refresh,
+    bool retainVersion = false,
+    bool retainUntilExpiry = false,
   }) {
     if (!_isCurrent(token)) return false;
     final acceptedAt = _now();
@@ -252,6 +270,8 @@ final class PdsRecordOperationController {
       expiresAt: acceptedAt.add(const Duration(seconds: 30)),
       agrees: agrees,
       refresh: refresh,
+      retainVersion: retainVersion,
+      retainUntilExpiry: retainUntilExpiry,
     );
     _refresh(_overlays[acceptedScope]!);
     _scheduleRefresh(const Duration(seconds: 2));
@@ -285,17 +305,38 @@ final class PdsRecordOperationController {
     final overlay = _overlays[scope];
     if (overlay == null || overlay.token._epoch != _epoch) return false;
     if (!overlay.agreesWith(authoritativeValue)) return false;
+    if (overlay.retainUntilExpiry) return true;
+    // A confirmed version is also the floor for other in-flight reads. One
+    // matching surface cannot release that protection for every other surface.
+    if (overlay.retainVersion) {
+      overlay.reconciled = true;
+      if (_overlays.values.every((value) => value.reconciled)) _cancelTimers();
+      return true;
+    }
     _overlays.remove(scope);
     if (_overlays.isEmpty) _cancelTimers();
     return true;
+  }
+
+  void updateRetainedValue(
+    PdsMutationScope scope, {
+    required Object? value,
+    required bool Function(Object?) agrees,
+  }) {
+    final overlay = _overlays[scope];
+    if (overlay == null || !overlay.retainVersion) return;
+    overlay
+      ..optimisticValue = value
+      .._agrees = agrees;
   }
 
   void advanceTime() {
     final now = _now();
     for (final entry in _overlays.entries.toList(growable: false)) {
       final overlay = entry.value;
+      if (overlay.reconciled) continue;
       if (!now.isBefore(overlay.expiresAt)) {
-        _overlays.remove(entry.key);
+        if (!overlay.retainVersion) _overlays.remove(entry.key);
         _refresh(overlay);
       } else if (!overlay.graceRefreshRequested &&
           !now.isBefore(overlay.graceAt)) {

@@ -524,6 +524,8 @@ func applyTapDurabilityMigration(t *testing.T, pool interface {
 		"000045_tap_ingestion_durability.up.sql",
 		"000051_tap_quarantine_replay_payload.up.sql",
 		"000058_tap_projection_generation_column.up.sql",
+		"000102_post_edit_state.up.sql",
+		"000106_post_publication_facts.up.sql",
 	} {
 		sql, err := testdb.ReadMigration(path)
 		if err != nil {

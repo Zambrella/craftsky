@@ -20,6 +20,13 @@ class UserReposts extends _$UserReposts {
 
   @override
   Future<UserPostsState> build(Did did) async {
+    listenForPostEdits(ref, () {
+      final current = state.value;
+      if (current == null) return;
+      state = AsyncData(
+        current.copyWith(items: applyLoadedPostEdits(ref, current.items)),
+      );
+    });
     ref.watch(activeContentLanguagePolicyProvider);
     final accountOperation = ActiveAccountOperation.capture(ref);
     final page = await ref
@@ -59,18 +66,28 @@ class UserReposts extends _$UserReposts {
         return _stateFor(restarted);
       }
       accountOperation.requireCurrent(discarded: const ApiCanceled());
+      for (final post in page.items) {
+        applyPostRecordOverlay(ref, post);
+      }
       return _stateFor(
         PostPage(items: [...current.items, ...page.items], cursor: page.cursor),
+        reconcile: false,
       );
     });
 
-    accountOperation.publish(() => state = next);
+    accountOperation.publish(
+      () => state = next.whenData(
+        (value) =>
+            value.copyWith(items: applyLoadedPostEdits(ref, value.items)),
+      ),
+    );
   }
 
-  UserPostsState _stateFor(PostPage page) {
+  UserPostsState _stateFor(PostPage page, {bool reconcile = true}) {
     final posts = applyPostRecordListOverlays(
       ref,
       page.items,
+      reconcile: reconcile,
       includes: (_) => false,
     ).map((post) => applyPostInteractionOverlays(ref, post));
     final isOwnProfile =

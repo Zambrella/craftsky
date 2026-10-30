@@ -13,9 +13,20 @@ final class ComposerVideoAttachmentCard extends StatelessWidget {
     required this.onReplace,
     required this.onRemove,
     super.key,
-  });
+  }) : _publishedAltText = null;
 
-  final LocalVideoSelection selection;
+  const new published({
+    required String altText,
+    required this.enabled,
+    required this.onAltTextChanged,
+    required this.onReplace,
+    required this.onRemove,
+    super.key,
+  }) : selection = null,
+       _publishedAltText = altText;
+
+  final String? _publishedAltText;
+  final LocalVideoSelection? selection;
   final bool enabled;
   final ValueChanged<String> onAltTextChanged;
   final VoidCallback onReplace;
@@ -76,15 +87,16 @@ final class ComposerVideoAttachmentCard extends StatelessWidget {
                           fontWeight: FontWeight.w800,
                         ),
                       ),
-                      Text(
-                        selection.displayName,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: theme.colorScheme.outline,
-                          fontWeight: FontWeight.w600,
+                      if (selection != null)
+                        Text(
+                          selection!.displayName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: theme.colorScheme.outline,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
-                      ),
                     ],
                   ),
                 ),
@@ -94,7 +106,7 @@ final class ComposerVideoAttachmentCard extends StatelessWidget {
             BrandTextField(
               textFieldKey: const Key('composer-video-alt-text'),
               label: l10n.postComposeAltTextLabel,
-              initialValue: selection.altText,
+              initialValue: selection?.altText ?? _publishedAltText,
               enabled: enabled,
               maxLength: RecordTextLimits.videoAlt.graphemes,
               maxBytes: RecordTextLimits.videoAlt.bytes,

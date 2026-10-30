@@ -16,12 +16,14 @@ final class PdsMutationAmbiguousException implements Exception {
   const new({
     required this.retryAfterSeconds,
     this.rateLimited = false,
+    this.responsePending = false,
     this.diagnosticCause,
     this.diagnosticStack,
   });
 
   final int retryAfterSeconds;
   final bool rateLimited;
+  final bool responsePending;
 
   final Object? diagnosticCause;
   final StackTrace? diagnosticStack;
@@ -104,7 +106,10 @@ T parsePdsMutationResponse<T>(
       throw const FormatException('Invalid ambiguous mutation response');
     }
     final seconds = int.parse(retryAfter).clamp(1, 5);
-    throw PdsMutationAmbiguousException(retryAfterSeconds: seconds);
+    throw PdsMutationAmbiguousException(
+      retryAfterSeconds: seconds,
+      responsePending: true,
+    );
   }
   if (requireEmptyNoContent &&
       (response.statusCode != 204 || response.data != null)) {

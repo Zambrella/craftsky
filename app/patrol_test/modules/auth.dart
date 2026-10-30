@@ -98,33 +98,45 @@ final class AuthModule {
     var submittedPassword = false;
     do {
       if ($(keys.onboarding.bio).exists) return;
-      final tree = await $.platform.ios.getNativeViews(
-        null,
-        appId: safari,
-        iosInstalledApps: [safari],
-      );
-      final views = tree.roots.expand(_flattenIOS).toList();
-      if (views.any((view) => view.label == 'Wrong identifier or password')) {
+      final state = await _iosOAuthRequest('oauthState');
+      final buttons = (state['buttons'] as List).cast<String>();
+      if (buttons.contains('Not Now')) {
+        await $.platform.ios.tap(
+          const IOSSelector(
+            elementType: IOSElementType.button,
+            label: 'Not Now',
+          ),
+          appId: safari,
+        );
+        continue;
+      }
+      if (state['wrongCredentials'] == true) {
         throw StateError('Bluesky rejected the test account credentials.');
       }
-      final passwordField = views
-          .where((view) => view.elementType == IOSElementType.secureTextField)
-          .firstOrNull;
-      if (!submittedPassword && passwordField != null) {
-        final client = HttpClient();
-        try {
-          final request = await client.postUrl(
-            patrolNativeServerUri.resolve('/craftsky/enterOAuthPassword'),
-          );
-          request.headers.contentType = ContentType.json;
-          request.write(jsonEncode({'password': password}));
-          final response = await request.close();
-          await response.drain<void>();
-          if (response.statusCode != HttpStatus.ok) {
-            throw StateError('Secure OAuth password entry failed.');
-          }
-        } finally {
-          client.close(force: true);
+      if (!submittedPassword && state['passwordVisible'] == true) {
+        final result = await _iosOAuthRequest(
+          'enterOAuthPassword',
+          {'password': password},
+        );
+        if (result['error'] != null) {
+          throw StateError(switch (result['error']) {
+            'safariURLUnavailable' =>
+              'Safari URL field did not appear after keyboard dismissal.',
+            'unexpectedOrigin' => 'Expected the Bluesky OAuth origin.',
+            'passwordFieldUnavailable' =>
+              'Expected the Bluesky OAuth password field.',
+            'keyboardUnavailable' =>
+              'The Safari password keyboard did not appear.',
+            'passwordKeyboardStillVisible' =>
+              'The Safari password keyboard did not dismiss.',
+            'addressKeyboardStillVisible' =>
+              'The Safari address keyboard did not dismiss.',
+            'safariIntroductionBlocked' =>
+              'A Safari or keyboard introduction could not be dismissed.',
+            'nativeIdleConfigurationUnavailable' =>
+              'This XCTest version lacks the native idle timeout hook.',
+            _ => 'Secure OAuth password entry failed.',
+          });
         }
         await $.platform.ios.tap(
           const IOSSelector(
@@ -135,23 +147,21 @@ final class AuthModule {
         );
         submittedPassword = true;
       } else {
-        final approval = views
+        final approval = buttons
             .where(
-              (view) =>
-                  view.elementType == IOSElementType.button &&
-                  const [
-                    'Authorize',
-                    'Continue',
-                    'Open',
-                    'Open CraftSky',
-                  ].contains(view.label),
+              (label) => const [
+                'Authorize',
+                'Continue',
+                'Open',
+                'Open CraftSky',
+              ].contains(label),
             )
             .firstOrNull;
         if (approval != null) {
           await $.platform.ios.tap(
             IOSSelector(
               elementType: IOSElementType.button,
-              label: approval.label,
+              label: approval,
             ),
             appId: safari,
           );
@@ -162,10 +172,25 @@ final class AuthModule {
     throw StateError('OAuth did not return to onboarding. Inspect Safari.');
   }
 
-  Iterable<IOSNativeView> _flattenIOS(IOSNativeView view) sync* {
-    yield view;
-    for (final child in view.children) {
-      yield* _flattenIOS(child);
+  Future<Map<String, dynamic>> _iosOAuthRequest(
+    String action, [
+    Map<String, Object?> payload = const {},
+  ]) async {
+    final client = HttpClient();
+    try {
+      final request = await client.postUrl(
+        patrolNativeServerUri.resolve('/craftsky/$action'),
+      );
+      request.headers.contentType = ContentType.json;
+      request.write(jsonEncode(payload));
+      final response = await request.close();
+      final body = await utf8.decoder.bind(response).join();
+      if (response.statusCode != HttpStatus.ok) {
+        throw StateError('The native OAuth helper failed.');
+      }
+      return jsonDecode(body) as Map<String, dynamic>;
+    } finally {
+      client.close(force: true);
     }
   }
 

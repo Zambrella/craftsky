@@ -167,6 +167,9 @@ func (class SuspensionClass) Valid() bool {
 func (class SuspensionClass) AllowedWhenSuspended() bool { return class == SuspensionAllowed }
 
 func suspensionClassFor(policy RoutePolicy) SuspensionClass {
+	if policy.Method == http.MethodGet && policy.PathPattern == "/v1/posts/{did}/{rkey}/edit" {
+		return SuspensionDenied
+	}
 	if policy.Method == http.MethodGet || policy.AccessClass == AccessAnonymous || policy.AccessClass == AccessModerator || policy.AccessClass == AccessOperatorLogin {
 		return SuspensionAllowed
 	}
@@ -224,6 +227,7 @@ var retainedSuspendedMutations = map[string]bool{
 // Denied mutations are explicit so a new authenticated mutation cannot silently
 // inherit policy; an absent classification prevents catalogue construction.
 var deniedSuspendedMutations = map[string]bool{
+	"PATCH /v1/posts/{did}/{rkey}":                                         true,
 	"POST /v1/blobs/videos/authorization":                                  true,
 	"POST /v1/migrations/instagram/verifications":                          true,
 	"POST /v1/migrations/instagram/verifications/{verificationId}/confirm": true,
@@ -385,6 +389,8 @@ func baseV1RoutePolicies() []RoutePolicy {
 		{Method: "POST", PathPattern: "/v1/profile-link-previews", RateClass: RateClassLinkPreview, BodyKind: BodyDefaultJSON, AccessClass: AccessCurrentMember},
 		{Method: "POST", PathPattern: "/v1/link-previews", RateClass: RateClassLinkPreview, BodyKind: BodyDefaultJSON, AccessClass: AccessCurrentMember},
 		{Method: "GET", PathPattern: "/v1/posts/{did}/{rkey}", RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},
+		{Method: "GET", PathPattern: "/v1/posts/{did}/{rkey}/edit", RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},
+		{Method: "PATCH", PathPattern: "/v1/posts/{did}/{rkey}", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessCurrentMember},
 		{Method: "GET", PathPattern: "/v1/posts/{did}/{rkey}/video-captions/{captionCid}", RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},
 		{Method: "POST", PathPattern: "/v1/posts/{did}/{rkey}/saves", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessCurrentMember},
 		{Method: "DELETE", PathPattern: "/v1/posts/{did}/{rkey}/saves", RateClass: RateClassWrite, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},

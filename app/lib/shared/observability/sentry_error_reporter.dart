@@ -395,6 +395,7 @@ SentryEvent _protectEvent(SentryEvent event) {
           'appViewError': details.appViewError,
           'appViewRequestId': details.requestId,
           'responseKind': details.responseKind,
+          'transportFailure': details.transportFailure,
         }),
         if (operation is Map<String, dynamic>) ...operation,
       };

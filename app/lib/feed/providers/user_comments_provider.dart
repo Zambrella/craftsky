@@ -19,6 +19,13 @@ class UserComments extends _$UserComments {
 
   @override
   Future<UserPostsState> build(Did did) async {
+    listenForPostEdits(ref, () {
+      final current = state.value;
+      if (current == null) return;
+      state = AsyncData(
+        current.copyWith(items: applyLoadedPostEdits(ref, current.items)),
+      );
+    });
     ref.watch(activeContentLanguagePolicyProvider);
     final accountOperation = ActiveAccountOperation.capture(ref);
     final repo = ref.watch(postRepositoryProvider);
@@ -31,6 +38,7 @@ class UserComments extends _$UserComments {
       items: applyPostRecordListOverlays(
         ref,
         page.items,
+        listKey: ('author-comments', did),
         includes: (post) => post.author.did == did && post.reply != null,
       ).map((post) => applyPostInteractionOverlays(ref, post)).toList(),
       cursor: page.cursor,
@@ -53,16 +61,27 @@ class UserComments extends _$UserComments {
         limit: userCommentsPageLimit,
       );
       accountOperation.requireCurrent(discarded: const ApiCanceled());
+      observePostListMembership(ref, page.items, ('author-comments', did));
+      for (final post in page.items) {
+        applyPostRecordOverlay(ref, post);
+      }
       return UserPostsState(
         items: applyPostRecordListOverlays(
           ref,
           [...current.items, ...page.items],
+          listKey: ('author-comments', did),
+          reconcile: false,
           includes: (post) => post.author.did == did && post.reply != null,
         ).map((post) => applyPostInteractionOverlays(ref, post)).toList(),
         cursor: page.cursor,
       );
     });
 
-    accountOperation.publish(() => state = next);
+    accountOperation.publish(
+      () => state = next.whenData(
+        (value) =>
+            value.copyWith(items: applyLoadedPostEdits(ref, value.items)),
+      ),
+    );
   }
 }

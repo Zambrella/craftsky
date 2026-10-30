@@ -121,6 +121,13 @@ func TestVideoPostCreateTapReadConvergence(t *testing.T) {
 		videoSize            = int64(123)
 	)
 	pool := testdb.WithSchema(t, videoPostFlowDDL)
+	if err := testdb.ApplyMigrations(context.Background(), pool,
+		"000045_tap_ingestion_durability.up.sql",
+		"000102_post_edit_state.up.sql",
+		"000103_serving_post_edit_metadata.up.sql",
+	); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := pool.Exec(context.Background(), `INSERT INTO craftsky_profiles (did, record_cid) VALUES ($1, 'profile-cid')`, owner); err != nil {
 		t.Fatalf("seed Craftsky profile: %v", err)
 	}

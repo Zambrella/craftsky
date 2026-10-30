@@ -1162,6 +1162,36 @@ abstract class AppLocalizations {
   /// **'You may see and interact with each other\'s content again.'**
   String get profileUnblockConfirmBody;
 
+  /// No description provided for @imageEditFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn’t edit that photo. Try again.'**
+  String get imageEditFailed;
+
+  /// No description provided for @imageEditAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit photo'**
+  String get imageEditAction;
+
+  /// No description provided for @imageEditRotate.
+  ///
+  /// In en, this message translates to:
+  /// **'Rotate 90°'**
+  String get imageEditRotate;
+
+  /// No description provided for @imageEditCrop.
+  ///
+  /// In en, this message translates to:
+  /// **'Crop'**
+  String get imageEditCrop;
+
+  /// No description provided for @imageEditTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit photo'**
+  String get imageEditTitle;
+
   /// Generic cancel action.
   ///
   /// In en, this message translates to:
@@ -1869,6 +1899,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Add or clear the current material first'**
   String get projectComposerMaterialsEditBlockedHint;
+
+  /// Title when leaving project details with uncommitted material input.
+  ///
+  /// In en, this message translates to:
+  /// **'Discard material changes?'**
+  String get projectComposerMaterialsDiscardTitle;
+
+  /// Explains that discarding pending material input preserves committed material entries.
+  ///
+  /// In en, this message translates to:
+  /// **'Your current material input won\'t be saved. Materials you\'ve already added will be kept.'**
+  String get projectComposerMaterialsDiscardMessage;
 
   /// Validation error for a project composer material entry that is too long.
   ///
@@ -8426,6 +8468,102 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Report link'**
   String get profileLinkReport;
+
+  /// No description provided for @postEditSaveChanges.
+  ///
+  /// In en, this message translates to:
+  /// **'Save changes'**
+  String get postEditSaveChanges;
+
+  /// No description provided for @postEditSuccess.
+  ///
+  /// In en, this message translates to:
+  /// **'Changes saved'**
+  String get postEditSuccess;
+
+  /// No description provided for @postEditError.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not save changes. Please try again.'**
+  String get postEditError;
+
+  /// No description provided for @postEditSaving.
+  ///
+  /// In en, this message translates to:
+  /// **'Saving changes…'**
+  String get postEditSaving;
+
+  /// No description provided for @postEditAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit'**
+  String get postEditAction;
+
+  /// No description provided for @postEditTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit post'**
+  String get postEditTitle;
+
+  /// No description provided for @postEditLoadError.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not load this post for editing. Please try again.'**
+  String get postEditLoadError;
+
+  /// No description provided for @postEditConflict.
+  ///
+  /// In en, this message translates to:
+  /// **'This post changed. Your changes are still here. Review the current version before saving.'**
+  String get postEditConflict;
+
+  /// No description provided for @postEditReviewCurrent.
+  ///
+  /// In en, this message translates to:
+  /// **'Review current version'**
+  String get postEditReviewCurrent;
+
+  /// No description provided for @postEditUnavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'This post is no longer available. Your changes are still here.'**
+  String get postEditUnavailable;
+
+  /// No description provided for @postEditUnresolved.
+  ///
+  /// In en, this message translates to:
+  /// **'Saving is not confirmed. Retry to check the same save.'**
+  String get postEditUnresolved;
+
+  /// No description provided for @postEditRetrySave.
+  ///
+  /// In en, this message translates to:
+  /// **'Retry save'**
+  String get postEditRetrySave;
+
+  /// No description provided for @postEditCaptionLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Caption'**
+  String get postEditCaptionLabel;
+
+  /// No description provided for @postEditContentLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Post content'**
+  String get postEditContentLabel;
+
+  /// Actionable edit validation feedback using localized control names.
+  ///
+  /// In en, this message translates to:
+  /// **'Check these fields and try again: {fields}.'**
+  String postEditValidationFields(String fields);
+
+  /// Accessible tooltip for the current record edit timestamp.
+  ///
+  /// In en, this message translates to:
+  /// **'Edited {timestamp}'**
+  String postEditTime(String timestamp);
 }
 
 class _AppLocalizationsDelegate

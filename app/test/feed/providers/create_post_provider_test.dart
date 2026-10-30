@@ -141,6 +141,54 @@ void main() {
       );
     });
 
+    test(
+      'exhausted publication retains the original cause and caught stack',
+      () async {
+        const original = PdsMutationAmbiguousException(
+          retryAfterSeconds: 120,
+          rateLimited: true,
+          diagnosticCause: ApiServerError('private-provider-canary'),
+        );
+        final stack = StackTrace.fromString('original-publication-stack');
+        final repository = FakePostRepository(
+          onCreate: ({required text, reply, images}) async {
+            Error.throwWithStackTrace(original, stack);
+          },
+        );
+        final container = ProviderContainer.test(
+          overrides: [
+            activeLanguagePreferencesProvider.overrideWith(
+              (ref) => const LanguagePreferences(
+                primaryLanguage: 'en',
+                contentLanguages: ['en'],
+              ),
+            ),
+            postRepositoryProvider.overrideWithValue(repository),
+            pdsMutationJitterProvider.overrideWithValue((_) => 0),
+          ],
+        );
+        await container
+            .read(createPostProvider.notifier)
+            .create(
+              text: 'private-draft-canary',
+              langs: _langs,
+              sponsored: false,
+            );
+        final result = container.read(createPostProvider);
+        final failure = result.error! as PdsMutationUnresolvedException;
+        expect(failure.diagnosticCause, same(original));
+        expect(
+          failure.diagnosticStack.toString(),
+          contains('original-publication-stack'),
+        );
+        expect(
+          result.stackTrace.toString(),
+          contains('original-publication-stack'),
+        );
+        expect(repository.createOperationKeys, hasLength(1));
+      },
+    );
+
     test('idle build returns null', () async {
       final container = ProviderContainer.test(
         overrides: [

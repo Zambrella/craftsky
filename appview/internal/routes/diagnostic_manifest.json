@@ -541,6 +541,12 @@
   },
   {
     "method": "GET",
+    "path": "/v1/posts/{did}/{rkey}/edit",
+    "category": "appview.posts.edit",
+    "public": false
+  },
+  {
+    "method": "GET",
     "path": "/v1/posts/{did}/{rkey}/likes",
     "category": "appview.posts.likes",
     "public": true
@@ -772,6 +778,12 @@
     "path": "/v1/notifications/preferences",
     "category": "appview.notifications.preferences",
     "public": false
+  },
+  {
+    "method": "PATCH",
+    "path": "/v1/posts/{did}/{rkey}",
+    "category": "appview.posts.detail",
+    "public": true
   },
   {
     "method": "PATCH",

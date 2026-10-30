@@ -515,6 +515,11 @@
   "profileUnblockConfirmBody": "You may see and interact with each other's content again.",
   "@profileUnblockConfirmBody": { "description": "Consequences shown in the unblock confirmation." },
 
+  "imageEditFailed": "Couldn’t edit that photo. Try again.",
+  "imageEditAction": "Edit photo",
+  "imageEditRotate": "Rotate 90°",
+  "imageEditCrop": "Crop",
+  "imageEditTitle": "Edit photo",
   "actionCancel": "Cancel",
   "@actionCancel": { "description": "Generic cancel action." },
 
@@ -890,6 +895,12 @@
 
   "projectComposerMaterialsEditBlockedHint": "Add or clear the current material first",
   "@projectComposerMaterialsEditBlockedHint": { "description": "Tooltip explaining why material edit buttons are disabled while the material input contains text." },
+
+  "projectComposerMaterialsDiscardTitle": "Discard material changes?",
+  "@projectComposerMaterialsDiscardTitle": { "description": "Title when leaving project details with uncommitted material input." },
+
+  "projectComposerMaterialsDiscardMessage": "Your current material input won't be saved. Materials you've already added will be kept.",
+  "@projectComposerMaterialsDiscardMessage": { "description": "Explains that discarding pending material input preserves committed material entries." },
 
   "projectComposerMaterialsMaxLengthError": "Keep each material to {max} characters or fewer.",
   "@projectComposerMaterialsMaxLengthError": {
@@ -3609,5 +3620,37 @@
   "profileLinkOpen": "Open link",
   "profileLinkCopy": "Copy link",
   "profileLinkOpenFailed": "Couldn’t open this link.",
-  "profileLinkReport": "Report link"
+  "profileLinkReport": "Report link",
+  "postEditSaveChanges": "Save changes",
+  "postEditSuccess": "Changes saved",
+  "postEditError": "Could not save changes. Please try again.",
+  "postEditSaving": "Saving changes…",
+  "postEditAction": "Edit",
+  "postEditTitle": "Edit post",
+  "postEditLoadError": "Could not load this post for editing. Please try again.",
+  "postEditConflict": "This post changed. Your changes are still here. Review the current version before saving.",
+  "postEditReviewCurrent": "Review current version",
+  "postEditUnavailable": "This post is no longer available. Your changes are still here.",
+  "postEditUnresolved": "Saving is not confirmed. Retry to check the same save.",
+  "postEditRetrySave": "Retry save",
+  "postEditCaptionLabel": "Caption",
+  "postEditContentLabel": "Post content",
+  "postEditValidationFields": "Check these fields and try again: {fields}.",
+  "@postEditValidationFields": {
+    "description": "Actionable edit validation feedback using localized control names.",
+    "placeholders": {
+      "fields": {
+        "type": "String"
+      }
+    }
+  },
+  "postEditTime": "Edited {timestamp}",
+  "@postEditTime": {
+    "description": "Accessible tooltip for the current record edit timestamp.",
+    "placeholders": {
+      "timestamp": {
+        "type": "String"
+      }
+    }
+  }
 }

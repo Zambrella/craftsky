@@ -1,4 +1,5 @@
 import 'package:craftsky_app/shared/api/api_exception.dart';
+import 'package:craftsky_app/shared/api/providers/error_mapping_interceptor.dart';
 import 'package:dio/dio.dart';
 
 /// Runs [body], translating any `DioException` whose `.error` is an
@@ -14,6 +15,9 @@ Future<T> unwrapApi<T>(Future<T> Function() body) async {
   } on DioException catch (e) {
     final err = e.error;
     if (err is ApiException) throw err;
-    throw ApiServerError(e.message ?? 'server_error');
+    throw ApiServerError(
+      e.message ?? 'server_error',
+      details: ErrorMappingInterceptor.detailsFor(e),
+    );
   }
 }

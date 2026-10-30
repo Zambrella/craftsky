@@ -10,6 +10,46 @@ import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('replaces a restored expired deletion intent with a fresh intent', () {
+    final now = DateTime.now().toUtc();
+    var registry = SessionRegistry.empty().upsertAndActivate(
+      token: 'alice-token',
+      did: 'did:plc:alice',
+      handle: 'alice.test',
+    );
+    final old = PendingAccountDeletion.capture(
+      jobId: '10000000-0000-4000-8000-000000000001',
+      lease: registry.activeLease!,
+      confirmationDid: 'did:plc:alice',
+      expiresAt: now.add(const Duration(minutes: 10)),
+    );
+    final encoded = jsonDecode(
+      registry.stageAccountDeletion(old).toJson(),
+    ) as Map<String, dynamic>;
+    (encoded['pendingAccountDeletion'] as Map<String, dynamic>)['expiresAt'] =
+        now.subtract(const Duration(minutes: 1)).toIso8601String();
+    registry = SessionRegistry.fromJson(jsonEncode(encoded));
+    final fresh = PendingAccountDeletion.capture(
+      jobId: '10000000-0000-4000-8000-000000000002',
+      lease: registry.activeLease!,
+      confirmationDid: 'did:plc:alice',
+      expiresAt: now.add(const Duration(minutes: 10)),
+    );
+
+    final replaced = registry.stageAccountDeletion(fresh);
+
+    expect(replaced.pendingAccountDeletion, fresh);
+    expect(replaced.activeLease, registry.activeLease);
+    expect(replaced.sessions, registry.sessions);
+    expect(() => replaced.stageAccountDeletion(old), throwsStateError);
+    final staleLease = registry.upsertAndActivate(
+      token: 'new-alice-token',
+      did: 'did:plc:alice',
+      handle: 'alice.test',
+    );
+    expect(() => staleLease.stageAccountDeletion(fresh), throwsStateError);
+  });
+
   test('UT-013 rejects the superseded handle-bound storage schema', () {
     expect(
       () => SessionRegistry.fromJson(

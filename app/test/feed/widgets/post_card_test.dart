@@ -7,8 +7,10 @@ import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
 import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
 import 'package:craftsky_app/feed/models/interaction_write_response.dart';
 import 'package:craftsky_app/feed/models/post.dart';
+import 'package:craftsky_app/feed/models/post_edit.dart';
 import 'package:craftsky_app/feed/models/profile_pin_state.dart';
 import 'package:craftsky_app/feed/models/timeline_page.dart';
+import 'package:craftsky_app/feed/providers/edit_post_provider.dart';
 import 'package:craftsky_app/feed/providers/like_post_overlay.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/feed/providers/toggle_like_post_provider.dart';
@@ -18,6 +20,8 @@ import 'package:craftsky_app/feed/widgets/post_card.dart';
 import 'package:craftsky_app/feed/widgets/post_image_gallery.dart';
 import 'package:craftsky_app/feed/widgets/post_interaction_summary.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
+import 'package:craftsky_app/languages/models/language_preferences.dart';
+import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
 import 'package:craftsky_app/moderation/models/moderation_metadata.dart';
 import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:craftsky_app/profile/models/profile_relationship.dart';
@@ -37,6 +41,7 @@ import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/shared/mutations/pds_record_operation_controller.dart';
 import 'package:craftsky_app/shared/rich_text/providers/facet_action_providers.dart';
+import 'package:craftsky_app/shared/time/relative_time_text.dart';
 import 'package:craftsky_app/shared/widgets/post_summary.dart';
 import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
 import 'package:craftsky_app/subscriptions/providers/subscription_access_provider.dart';
@@ -48,6 +53,7 @@ import 'package:craftsky_app/theme/craftsky_card.dart';
 import 'package:craftsky_app/theme/craftsky_context_menu.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -192,6 +198,245 @@ Future<void> _doubleTap(WidgetTester tester, Finder finder) async {
 }
 
 void main() {
+  testWidgets('compact card date keeps the year on the same line', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(393, 852);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await _pump(
+      tester,
+      PostCard(post: _post(createdAt: DateTime(2025, 10, 8))),
+    );
+    await tester.pumpAndSettle();
+    final date = find.descendant(
+      of: find.byType(RelativeTimeText).first,
+      matching: find.byType(RichText),
+    );
+    final paragraph = tester.renderObject<RenderParagraph>(date);
+    expect(
+      paragraph.getBoxesForSelection(
+        const TextSelection(baseOffset: 0, extentOffset: 9),
+      ),
+      hasLength(1),
+    );
+    expect(tester.getSize(date).width, greaterThan(48));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+    'UT-007 visible card shows a confirmed edit without a public read',
+    (tester) async {
+      final post = _post(text: 'Original caption', likeCount: 7);
+      final pending = Completer<Post>();
+      await _pump(
+        tester,
+        PostCard(post: post),
+        overrides: [
+          authSessionProvider.overrideWith(SignedInAuthSession.new),
+          secureSessionRegistryStorageProvider.overrideWithValue(
+            _PinRegistryStorage(),
+          ),
+          postRepositoryProvider.overrideWithValue(
+            FakePostRepository(
+              onFetch: (_, _) => pending.future,
+              onEdit:
+                  (
+                    did,
+                    key, {
+                    required changes,
+                    required expectedCid,
+                    required operationKey,
+                  }) async => PostEditResult(
+                    acceptedCid: Cid.parse('bafyaccepted'),
+                    changed: true,
+                    editedAt: DateTime.utc(2026),
+                  ),
+            ),
+          ),
+        ],
+      );
+      await tester.pumpAndSettle();
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(PostCard)),
+      );
+      final listener = container.listen(editPostProvider, (_, _) {});
+      addTearDown(listener.close);
+      await container.read(editPostProvider.future);
+      await container
+          .read(editPostProvider.notifier)
+          .save(
+            seed: PostEditSeed(
+              post: post,
+              baseCid: post.cid,
+              recordRevision: null,
+              editable: {'text': post.text, 'sponsored': false},
+            ),
+            changes: PostEditChanges({'text': 'Edited caption'}),
+          );
+      await tester.pumpAndSettle();
+      expect(pending.isCompleted, isFalse);
+      expect(find.text('Edited caption', findRichText: true), findsOneWidget);
+      expect(find.text('Original caption', findRichText: true), findsNothing);
+      expect(
+        container.read(pdsRecordOperationControllerProvider).activeOverlays,
+        hasLength(1),
+      );
+    },
+  );
+
+  for (final kind in ['general', 'project', 'reply', 'quote']) {
+    for (final owner in [false, true]) {
+      testWidgets('REG-005 $kind menu exposes Edit only to the active owner '
+          '(owner=$owner)', (tester) async {
+        final reference = PostRef(
+          uri: 'at://did:plc:target/social.craftsky.feed.post/target',
+          cid: 'bafytarget',
+        );
+        final post = _post(
+          createdAt: DateTime.utc(2020),
+          project: kind == 'project'
+              ? const Project(
+                  common: ProjectCommon(
+                    craftType: 'social.craftsky.feed.defs#sewing',
+                    title: 'Shirt',
+                  ),
+                )
+              : null,
+          reply: kind == 'reply'
+              ? PostReply(root: reference, parent: reference)
+              : null,
+        ).copyWith(quote: kind == 'quote' ? reference : null);
+        await _pump(
+          tester,
+          PostCard(post: post),
+          overrides: [
+            authSessionProvider.overrideWith(
+              () => SignedInAuthSession(
+                did: owner ? 'did:plc:alice' : 'did:plc:bob',
+              ),
+            ),
+            secureSessionRegistryStorageProvider.overrideWithValue(
+              _PinRegistryStorage(),
+            ),
+          ],
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(find.byIcon(CraftskyIconsBold.more));
+        await tester.pumpAndSettle();
+        expect(find.text('Edit'), owner ? findsOneWidget : findsNothing);
+      });
+    }
+  }
+
+  testWidgets('AT-001 owner menu opens a fresh editor for an old publication', (
+    tester,
+  ) async {
+    final post = _post(createdAt: DateTime.utc(2020));
+    var reads = 0;
+    await _pump(
+      tester,
+      PostCard(post: post),
+      overrides: [
+        activeLanguagePreferencesProvider.overrideWith(
+          (ref) => const LanguagePreferences(
+            primaryLanguage: 'en',
+            contentLanguages: ['en'],
+          ),
+        ),
+        authSessionProvider.overrideWith(
+          () => SignedInAuthSession(did: 'did:plc:alice'),
+        ),
+        secureSessionRegistryStorageProvider.overrideWithValue(
+          _PinRegistryStorage(),
+        ),
+        postRepositoryProvider.overrideWithValue(
+          FakePostRepository(
+            onFetchEdit: (did, key) async {
+              reads++;
+              expect(did, post.author.did);
+              expect(key, post.rkey);
+              return PostEditSeed(
+                post: post,
+                baseCid: post.cid,
+                recordRevision: '3aaaaaaaaaaa2',
+                editable: {
+                  'text': post.text,
+                  'sponsored': false,
+                  'langs': ['en'],
+                },
+              );
+            },
+          ),
+        ),
+      ],
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byIcon(CraftskyIconsBold.more));
+    await tester.pumpAndSettle();
+    expect(find.text('Edit'), findsOneWidget);
+    await tester.tap(find.text('Edit'));
+    await tester.pumpAndSettle();
+    expect(reads, 1);
+    expect(find.text('Save changes'), findsOneWidget);
+    expect(
+      tester.widget<TextField>(find.byType(TextField).first).controller?.text,
+      post.text,
+    );
+  });
+
+  testWidgets(
+    'AT-003 post time includes edit icon with one combined timestamp tooltip',
+    (tester) async {
+      final post = _post().copyWith(
+        editedAt: DateTime.utc(2026, 10, 26, 12),
+      );
+      await _pump(tester, PostCard(post: post));
+      await tester.pumpAndSettle();
+      expect(find.byIcon(CraftskyIcons.edit), findsOneWidget);
+      final time = find.byType(RelativeTimeText).first;
+      expect(tester.widget<RelativeTimeText>(time).editedAt, post.editedAt);
+      final text = tester.widget<Text>(
+        find.descendant(of: time, matching: find.byType(Text)).first,
+      );
+      expect(
+        tester.getCenter(find.byIcon(CraftskyIcons.edit)).dx,
+        lessThan(tester.getCenter(time).dx),
+      );
+      expect(text.textSpan!.toPlainText(), isNot(contains('·')));
+
+      expect(find.textContaining('Edited', findRichText: true), findsNothing);
+      final tooltips = find.descendant(
+        of: time,
+        matching: find.byType(Tooltip),
+      );
+      expect(tooltips, findsOneWidget);
+      final message = tester.widget<Tooltip>(tooltips).message!;
+      expect(message.split('\n'), hasLength(2));
+      expect(message.split('\n').last, startsWith('Edited '));
+      expect(message, contains('2026'));
+      final hold = await tester.startGesture(tester.getCenter(time));
+      await tester.pump(const Duration(milliseconds: 800));
+      await tester.pump(const Duration(milliseconds: 250));
+      expect(find.text(message), findsOneWidget);
+      await hold.up();
+      Tooltip.dismissAllToolTips();
+      await tester.pump(const Duration(milliseconds: 250));
+      await tester.tap(find.byIcon(CraftskyIcons.edit));
+      await tester.pump(const Duration(milliseconds: 250));
+      expect(find.text(message), findsOneWidget);
+      Tooltip.dismissAllToolTips();
+      await tester.pump(const Duration(milliseconds: 250));
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: Offset.zero);
+      await mouse.moveTo(tester.getCenter(time));
+      await tester.pump(const Duration(seconds: 1));
+      await tester.pump(const Duration(milliseconds: 250));
+      expect(find.text(message), findsOneWidget);
+      await mouse.removePointer();
+    },
+  );
   group('PostCard', () {
     for (final kind in ['post', 'comment', 'reply']) {
       testWidgets('rendering does not initialize relationship providers', (
@@ -1099,6 +1344,101 @@ void main() {
       expect(find.byKey(const Key('post-like-reaction')), findsNothing);
     });
 
+    for (final (kind, reverseCompletion, failFirst) in [
+      (PostCardContentKind.comment, false, false),
+      (PostCardContentKind.comment, true, false),
+      (PostCardContentKind.reply, true, false),
+      (PostCardContentKind.comment, false, true),
+    ]) {
+      testWidgets(
+        'rapid ${kind.name} likes remain independent '
+        '(reverse=$reverseCompletion, failure=$failFirst)',
+        (tester) async {
+          final posts = [
+            for (final key in ['first', 'second'])
+              _post(
+                uri: 'at://did:plc:alice/social.craftsky.feed.post/$key',
+                text: key,
+              ).copyWith(rkey: RecordKey.parse(key)),
+          ];
+          final responses = [
+            Completer<InteractionWriteResponse>(),
+            Completer<InteractionWriteResponse>(),
+          ];
+          final mutations = <Future<void>>[];
+          await _pump(
+            tester,
+            Consumer(
+              builder: (context, ref, child) => Column(
+                children: [
+                  for (final post in posts)
+                    PostCard(
+                      post: post,
+                      contentKind: kind,
+                      onLike: () => mutations.add(
+                        ref
+                            .read(toggleLikePostProvider.notifier)
+                            .toggle(post: post),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            overrides: [
+              postRepositoryProvider.overrideWithValue(
+                FakePostRepository(
+                  onLike: (_, key) =>
+                      responses[key == posts.first.rkey ? 0 : 1].future,
+                ),
+              ),
+            ],
+          );
+          for (var index = 0; index < 2; index++) {
+            await tester.tap(
+              find.descendant(
+                of: find.byType(PostCard).at(index),
+                matching: find.byWidgetPredicate(
+                  (widget) => widget is Tooltip && widget.message == 'Like',
+                ),
+              ),
+            );
+            await tester.pump();
+            expect(find.byIcon(CraftskyIcons.liked), findsNWidgets(index + 1));
+          }
+          expect(responses.every((response) => !response.isCompleted), isTrue);
+          final completionOrder = reverseCompletion ? [1, 0] : [0, 1];
+          for (final index in completionOrder) {
+            if (index == 0 && failFirst) {
+              responses[index].completeError(Exception('first like rejected'));
+            } else {
+              responses[index].complete(_interaction(posts[index]));
+            }
+            await mutations[index];
+            await tester.pump();
+            for (var row = 0; row < 2; row++) {
+              final rolledBack =
+                  row == 0 && failFirst && responses[0].isCompleted;
+              expect(
+                find.descendant(
+                  of: find.byType(PostCard).at(row),
+                  matching: find.byIcon(CraftskyIcons.liked),
+                ),
+                rolledBack ? findsNothing : findsOneWidget,
+              );
+              expect(
+                find.descendant(
+                  of: find.byType(PostCard).at(row),
+                  matching: find.text('1'),
+                ),
+                rolledBack ? findsNothing : findsOneWidget,
+              );
+            }
+          }
+          await tester.pumpWidget(const SizedBox.shrink());
+        },
+      );
+    }
+
     testWidgets('like keeps its icon while its request is pending', (
       tester,
     ) async {
@@ -1163,10 +1503,16 @@ void main() {
       expect(find.text('2'), findsOneWidget);
     });
 
-    testWidgets('ignores completed mutation state after reconciliation', (
+    testWidgets('ignores completed mutation state after overlay expiry', (
       tester,
     ) async {
       var authoritative = _post(likeCount: 2);
+      var now = DateTime.utc(2026, 10, 29);
+      final controller = PdsRecordOperationController(
+        now: () => now,
+        schedule: (_, _) {},
+      );
+      addTearDown(controller.reset);
       late WidgetRef widgetRef;
       late StateSetter update;
       final fake = FakePostRepository(
@@ -1185,7 +1531,10 @@ void main() {
             );
           },
         ),
-        overrides: [postRepositoryProvider.overrideWithValue(fake)],
+        overrides: [
+          postRepositoryProvider.overrideWithValue(fake),
+          pdsRecordOperationControllerProvider.overrideWithValue(controller),
+        ],
       );
 
       await widgetRef
@@ -1200,6 +1549,9 @@ void main() {
             likePostMutationScopeForLease(null, authoritative),
             true,
           );
+      expect(controller.activeOverlays, hasLength(1));
+      now = now.add(const Duration(seconds: 30));
+      controller.advanceTime();
       update(() {
         authoritative = authoritative.copyWith(
           viewerHasLiked: false,
