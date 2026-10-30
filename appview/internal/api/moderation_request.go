@@ -81,13 +81,16 @@ func DecodeSyntheticModerationRequest(body io.Reader, cfg ModerationRequestConfi
 			rkey = &rkeyValue
 			subjectURI = &uriValue
 		}
-	case string(ModerationSubjectEvent):
-		subjectType = ModerationSubjectEvent
+	case string(ModerationSubjectEvent), string(ModerationSubjectProfileLink):
+		subjectType = ModerationSubjectType(req.Subject.Type)
 		parsedRkey, err := syntax.ParseTID(req.Subject.Rkey)
 		if err != nil {
 			fields["subject.rkey"] = fmt.Sprintf("not a valid record key: %s", err)
 		} else if didErr == nil {
 			collectionValue := businessEventNSID.String()
+			if subjectType == ModerationSubjectProfileLink {
+				collectionValue = "app.bsky.actor.link"
+			}
 			rkeyValue := parsedRkey.String()
 			uriValue := "at://" + subjectDID.String() + "/" + collectionValue + "/" + rkeyValue
 			collection = &collectionValue
@@ -100,7 +103,7 @@ func DecodeSyntheticModerationRequest(body io.Reader, cfg ModerationRequestConfi
 			fields["subject.rkey"] = "must be omitted for account subjects"
 		}
 	default:
-		fields["subject.type"] = "must be post, event, or account"
+		fields["subject.type"] = "must be post, event, profileLink, or account"
 	}
 
 	value := ModerationValue(req.Value)

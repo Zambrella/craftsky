@@ -6,6 +6,7 @@ import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/widgets/profile_actions.dart';
 import 'package:craftsky_app/profile/widgets/profile_bio.dart';
 import 'package:craftsky_app/profile/widgets/profile_entrance.dart';
+import 'package:craftsky_app/profile/widgets/profile_links.dart';
 import 'package:craftsky_app/profile/widgets/profile_mutual_followers_link.dart';
 import 'package:craftsky_app/profile/widgets/profile_stats.dart';
 import 'package:craftsky_app/shared/link/external_link.dart';
@@ -108,6 +109,19 @@ class ProfileMetaSection extends StatelessWidget {
             ProfileEntranceFade(
               stage: ProfileEntranceStage.bio,
               child: ProfileBio(description: profile.description),
+            ),
+          ],
+          if (profile.links.isNotEmpty &&
+              !profile.blocking &&
+              !profile.blockedBy) ...[
+            SizedBox(height: spacing.sp3),
+            ProfileEntranceFade(
+              stage: ProfileEntranceStage.bio,
+              child: ProfileLinks(
+                links: profile.links,
+                confirmExternal: confirmExternal,
+                launchExternal: launchExternal,
+              ),
             ),
           ],
         ],

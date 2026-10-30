@@ -11,6 +11,7 @@ import 'package:craftsky_app/business/providers/business_record_overlay.dart';
 import 'package:craftsky_app/business/providers/business_repository_provider.dart';
 import 'package:craftsky_app/profile/data/profile_repository.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
+import 'package:craftsky_app/profile/models/profile_link.dart';
 import 'package:craftsky_app/profile/models/profile_save_result.dart';
 import 'package:craftsky_app/profile/providers/profile_mutation_publication.dart';
 import 'package:craftsky_app/profile/providers/profile_record_overlay.dart';
@@ -52,11 +53,22 @@ class SaveProfile extends _$SaveProfile {
     String? pronouns,
     String? description,
     List<String>? crafts,
+    List<ProfileLink>? links,
+    List<ProfileLink>? removedLinks,
     UploadedBlob? avatar,
     bool clearAvatar = false,
     UploadedBlob? banner,
     bool clearBanner = false,
   }) async {
+    removedLinks ??= links == null
+        ? null
+        : currentProfile?.editingLinks
+              .where(
+                (old) =>
+                    old.uri != null &&
+                    !links.any((link) => link.uri == old.uri),
+              )
+              .toList();
     final accountOperation = ActiveAccountOperation.capture(ref);
     final ownership = accountOperation.ownership;
     state = const AsyncLoading();
@@ -77,6 +89,8 @@ class SaveProfile extends _$SaveProfile {
             pronouns: pronouns,
             description: description,
             crafts: crafts,
+            links: links,
+            removedLinks: removedLinks,
             avatar: avatar,
             clearAvatar: clearAvatar,
             banner: banner,
@@ -140,6 +154,8 @@ class SaveProfile extends _$SaveProfile {
       pronouns: pronouns,
       description: description,
       crafts: crafts,
+      links: links,
+      removedLinks: removedLinks,
       avatar: avatar,
       clearAvatar: clearAvatar,
       banner: banner,
@@ -303,6 +319,8 @@ class SaveProfile extends _$SaveProfile {
     String? pronouns,
     String? description,
     List<String>? crafts,
+    List<ProfileLink>? links,
+    List<ProfileLink>? removedLinks,
     UploadedBlob? avatar,
     bool clearAvatar = false,
     UploadedBlob? banner,
@@ -313,6 +331,8 @@ class SaveProfile extends _$SaveProfile {
     pronouns: pronouns,
     description: description,
     crafts: crafts,
+    links: links,
+    removedLinks: removedLinks,
     avatar: avatar,
     clearAvatar: clearAvatar,
     banner: banner,
@@ -330,6 +350,8 @@ Map<String, dynamic> _profileMutationBody({
   String? pronouns,
   String? description,
   List<String>? crafts,
+  List<ProfileLink>? links,
+  List<ProfileLink>? removedLinks,
   UploadedBlob? avatar,
   bool clearAvatar = false,
   UploadedBlob? banner,
@@ -340,6 +362,11 @@ Map<String, dynamic> _profileMutationBody({
     'pronouns': ?pronouns,
     'description': ?description,
     'crafts': ?crafts,
+    if (links != null) 'links': links.map((link) => link.toInput()).toList(),
+    if (removedLinks != null)
+      'removedLinks': removedLinks
+          .map((link) => {'uri': link.uri, 'cid': link.cid})
+          .toList(),
   };
   if (clearAvatar) {
     body['avatar'] = null;

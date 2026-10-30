@@ -86,6 +86,7 @@
       "social.craftsky.business.profile",
       "social.craftsky.business.event",
       "app.bsky.actor.profile",
+      "app.bsky.actor.link",
       "app.bsky.graph.follow",
       "app.bsky.graph.block"
     ],
@@ -97,6 +98,7 @@
       "social.craftsky.business.profile",
       "social.craftsky.business.event",
       "app.bsky.actor.profile",
+      "app.bsky.actor.link",
       "app.bsky.graph.follow",
       "app.bsky.graph.block"
     ]

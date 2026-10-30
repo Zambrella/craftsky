@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"social.craftsky/appview/internal/profilelinks"
 
 	"social.craftsky/appview/internal/business"
 )
@@ -17,6 +18,8 @@ import (
 // syntax.DID and syntax.Handle JSON-marshal via TextMarshaler — the
 // wire shape is the same plain-string JSON it always was.
 type ProfileResponse struct {
+	EditableLinks       []profilelinks.View      `json:"editableLinks,omitempty"`
+	Links               []profilelinks.View      `json:"links"`
 	DID                 syntax.DID               `json:"did"`
 	Handle              syntax.Handle            `json:"handle"`
 	ViewerIsFollowing   bool                     `json:"viewerIsFollowing"`
@@ -203,6 +206,8 @@ func BuildProfileResponse(row *ProfileRow, handle syntax.Handle, includeCreatedA
 		crafts = []string{}
 	}
 	out := ProfileResponse{
+		Links:               append([]profilelinks.View{}, row.Links...),
+		EditableLinks:       row.EditableLinks,
 		DID:                 syntax.DID(row.DID),
 		Handle:              handle,
 		ViewerIsFollowing:   row.ViewerIsFollowing,

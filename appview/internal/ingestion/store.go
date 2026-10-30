@@ -465,7 +465,7 @@ func (store *Store) initialProjectionOutcome(ctx context.Context, tx pgx.Tx, eve
 		// private account type affect serving, never durable ingestion.
 		return tap.Applied(), nil
 	case "social.craftsky.feed.post", "social.craftsky.feed.like", "social.craftsky.feed.repost",
-		"app.bsky.actor.profile", "app.bsky.graph.follow", "app.bsky.graph.block":
+		"app.bsky.actor.profile", "app.bsky.actor.link", "app.bsky.graph.follow", "app.bsky.graph.block":
 	default:
 		return tap.Outcome{}, fmt.Errorf("unsupported Tap collection %s", event.Collection)
 	}

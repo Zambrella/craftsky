@@ -1003,6 +1003,7 @@ CREATE TABLE craftsky_profiles (
 	crafts TEXT[] NOT NULL DEFAULT '{}'
 );
 CREATE TABLE bluesky_profiles (
+ links JSONB NOT NULL DEFAULT '[]',
 	did TEXT PRIMARY KEY,
 	display_name TEXT,
 	description TEXT,

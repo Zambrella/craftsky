@@ -11,6 +11,7 @@ import 'package:craftsky_app/onboarding/providers/onboarding_status_provider.dar
 import 'package:craftsky_app/profile/data/profile_repository.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/models/profile_image_failure.dart';
+import 'package:craftsky_app/profile/models/profile_link.dart';
 import 'package:craftsky_app/profile/providers/profile_image_picker_provider.dart';
 import 'package:craftsky_app/profile/providers/profile_mutation_publication.dart';
 import 'package:craftsky_app/profile/providers/profile_record_overlay.dart';
@@ -123,7 +124,12 @@ class OnboardingFlow extends _$OnboardingFlow {
     state = AsyncData(OnboardingFlowState.fromProfile(profile));
   }
 
-  void updateIdentity({String? displayName, String? pronouns, String? bio}) {
+  void updateIdentity({
+    String? displayName,
+    String? pronouns,
+    String? bio,
+    List<ProfileLink>? links,
+  }) {
     final current = state.value;
     if (current == null || current.saving) return;
     state = AsyncData(
@@ -132,6 +138,7 @@ class OnboardingFlow extends _$OnboardingFlow {
           displayName: displayName,
           pronouns: pronouns,
           bio: bio,
+          links: links,
         ),
       ),
     );
@@ -362,6 +369,8 @@ class OnboardingFlow extends _$OnboardingFlow {
           pronouns: payload.pronouns,
           description: payload.description,
           crafts: payload.crafts,
+          links: payload.links,
+          removedLinks: payload.removedLinks,
           avatar: payload.avatar,
         );
       } on PdsMutationAmbiguousException catch (error) {
@@ -388,7 +397,8 @@ class OnboardingFlow extends _$OnboardingFlow {
       (profile.displayName?.isNotEmpty ?? false) ||
       (profile.pronouns?.isNotEmpty ?? false) ||
       (profile.description?.isNotEmpty ?? false) ||
-      (profile.avatar?.isNotEmpty ?? false);
+      (profile.avatar?.isNotEmpty ?? false) ||
+      profile.editingLinks.isNotEmpty;
 }
 
 Map<String, dynamic> _profileMutationBody(OnboardingProfilePayload payload) => {
@@ -396,6 +406,12 @@ Map<String, dynamic> _profileMutationBody(OnboardingProfilePayload payload) => {
   'pronouns': payload.pronouns,
   'description': payload.description,
   'crafts': payload.crafts,
+  if (payload.links != null)
+    'links': payload.links!.map((link) => link.toInput()).toList(),
+  if (payload.removedLinks != null)
+    'removedLinks': payload.removedLinks!
+        .map((link) => {'uri': link.uri, 'cid': link.cid})
+        .toList(),
   if (payload.avatar case final avatar?)
     'avatar': {
       r'$type': avatar.type,

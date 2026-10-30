@@ -49,6 +49,10 @@ type ReportCreator interface {
 
 // ReportPostHandler serves POST /v1/posts/{did}/{rkey}/reports.
 func ReportPostHandler(targets PostReportTargetResolver, reports ReportCreator, forwarder ReportForwarder, logger *slog.Logger) http.Handler {
+	return reportRecordHandler(targets, reports, forwarder, logger, ReportSubjectPost, craftskyPostNSID)
+}
+
+func reportRecordHandler(targets PostReportTargetResolver, reports ReportCreator, forwarder ReportForwarder, logger *slog.Logger, subjectType ReportSubjectType, collection string) http.Handler {
 	logger = normalizeLogger(logger)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		runID := middleware.GetRunID(r.Context())
@@ -90,8 +94,7 @@ func ReportPostHandler(targets PostReportTargetResolver, reports ReportCreator, 
 			return
 		}
 
-		collection := craftskyPostNSID
-		subject := ReportSubjectSnapshot{Type: ReportSubjectPost, DID: target.DID, Collection: &collection, Rkey: &target.Rkey, URI: &target.URI, CIDSnapshot: &target.CIDSnapshot}
+		subject := ReportSubjectSnapshot{Type: subjectType, DID: target.DID, Collection: &collection, Rkey: &target.Rkey, URI: &target.URI, CIDSnapshot: &target.CIDSnapshot}
 		metadata, err := forwarder.Prepare(r.Context(), ReportForwardingInput{ReporterDID: reporterDID.String(), Subject: subject, ReasonType: req.ReasonType, Details: normalizedDetails})
 		if err != nil {
 			logger.Error("report post: prepare forwarding failed",
@@ -102,7 +105,7 @@ func ReportPostHandler(targets PostReportTargetResolver, reports ReportCreator, 
 
 		row, err := reports.CreateReport(r.Context(), CreateReportInput{
 			ReporterDID:             reporterDID.String(),
-			SubjectType:             ReportSubjectPost,
+			SubjectType:             subjectType,
 			SubjectDID:              target.DID,
 			SubjectCollection:       &collection,
 			SubjectRkey:             &target.Rkey,

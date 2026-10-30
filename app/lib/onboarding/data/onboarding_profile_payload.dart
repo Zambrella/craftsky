@@ -1,4 +1,5 @@
 import 'package:craftsky_app/onboarding/models/onboarding_flow_state.dart';
+import 'package:craftsky_app/profile/models/profile_link.dart';
 import 'package:craftsky_app/shared/media/uploaded_image_blob.dart';
 
 final class OnboardingProfilePayload {
@@ -7,6 +8,8 @@ final class OnboardingProfilePayload {
     required this.pronouns,
     required this.description,
     required this.crafts,
+    this.links,
+    this.removedLinks,
     this.avatar,
     this.clearAvatar = false,
     this.clearBanner = false,
@@ -17,6 +20,7 @@ final class OnboardingProfilePayload {
     UploadedBlob? avatar,
   }) {
     final savesIdentity = state.step == OnboardingStep.profile;
+    final savesLinks = savesIdentity && state.linksDirty;
     return OnboardingProfilePayload(
       displayName: savesIdentity
           ? state.identity.displayName.trim()
@@ -30,6 +34,16 @@ final class OnboardingProfilePayload {
       crafts: savesIdentity
           ? List.of(state.baseline.crafts)
           : [...state.selectedCraftIds, ...state.unknownCraftIds],
+      links: savesLinks ? List.unmodifiable(state.identity.links) : null,
+      removedLinks: savesLinks
+          ? List.unmodifiable(
+              state.baseline.editingLinks.where(
+                (old) =>
+                    old.uri != null &&
+                    !state.identity.links.any((link) => link.uri == old.uri),
+              ),
+            )
+          : null,
       avatar: savesIdentity ? avatar : null,
     );
   }
@@ -38,6 +52,8 @@ final class OnboardingProfilePayload {
   final String? pronouns;
   final String description;
   final List<String> crafts;
+  final List<ProfileLink>? links;
+  final List<ProfileLink>? removedLinks;
   final UploadedBlob? avatar;
   final bool clearAvatar;
   final bool clearBanner;

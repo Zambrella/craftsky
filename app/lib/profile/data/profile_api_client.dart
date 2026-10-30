@@ -5,6 +5,7 @@ import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/models/profile_account_page.dart';
 import 'package:craftsky_app/profile/models/profile_account_summary.dart';
 import 'package:craftsky_app/profile/models/profile_customisation.dart';
+import 'package:craftsky_app/profile/models/profile_link.dart';
 import 'package:craftsky_app/profile/models/profile_relationship.dart';
 import 'package:craftsky_app/shared/api/api_unwrap.dart';
 import 'package:craftsky_app/shared/api/pds_mutation_contract.dart';
@@ -78,6 +79,8 @@ class ProfileApiClient {
     String? pronouns,
     String? description,
     List<String>? crafts,
+    List<ProfileLink>? links,
+    List<ProfileLink>? removedLinks,
     UploadedBlob? avatar,
     bool clearAvatar = false,
     UploadedBlob? banner,
@@ -89,6 +92,11 @@ class ProfileApiClient {
       'pronouns': ?pronouns,
       'description': ?description,
       'crafts': ?crafts,
+      if (links != null) 'links': links.map((link) => link.toInput()).toList(),
+      if (removedLinks != null)
+        'removedLinks': removedLinks
+            .map((link) => {'uri': link.uri, 'cid': link.cid})
+            .toList(),
     };
     if (clearAvatar) {
       body['avatar'] = null;
@@ -239,6 +247,16 @@ class ProfileApiClient {
     );
     return _reportResultFromMap(res.data!);
   });
+
+  Future<ReportResult> reportLink(String uri, ReportSubmission submission) =>
+      unwrapApi(() async {
+        final record = uri.split('/');
+        final res = await _dio.post<Map<String, dynamic>>(
+          '/v1/profile-links/${record[2]}/${record.last}/reports',
+          data: submission.toMap(),
+        );
+        return _reportResultFromMap(res.data!);
+      });
 
   Future<ProfileAccountPage> listMutualFollowers(
     String handleOrDid, {

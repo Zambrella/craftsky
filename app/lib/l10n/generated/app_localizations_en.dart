@@ -4755,6 +4755,62 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get profileLinksTitle => 'Links';
+
+  @override
+  String get profileLinksHelper => 'Add up to 10 links';
+
+  @override
+  String get profileLinkAdd => 'Add link';
+
+  @override
+  String get profileLinkEdit => 'Edit link';
+
+  @override
+  String get profileLinkUrl => 'URL';
+
+  @override
+  String get profileLinkTitle => 'Title (optional)';
+
+  @override
+  String get profileLinkInvalid =>
+      'Enter an HTTPS link. URL shorteners are not supported.';
+
+  @override
+  String get profileLinkDuplicate => 'This link is already on your profile.';
+
+  @override
+  String get profileLinkUnreachable =>
+      'We couldn’t reach this website. You can still save the link.';
+
+  @override
+  String get profileLinkSaveAnyway => 'Save anyway';
+
+  @override
+  String get profileLinkChecking => 'Checking link…';
+
+  @override
+  String get profileLinkMoveEarlier => 'Move up';
+
+  @override
+  String get profileLinkMoveLater => 'Move down';
+
+  @override
+  String get profileLinkRemove => 'Remove link';
+
+  @override
+  String get profileLinkOpen => 'Open link';
+
+  @override
+  String get profileLinkCopy => 'Copy link';
+
+  @override
+  String get profileLinkOpenFailed => 'Couldn’t open this link.';
+
+  @override
+  String get profileLinkReport => 'Report link';
+
+  @override
   String get postEditSaveChanges => 'Save changes';
 
   @override

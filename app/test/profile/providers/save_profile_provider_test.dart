@@ -11,6 +11,7 @@ import 'package:craftsky_app/business/models/business_profile.dart';
 import 'package:craftsky_app/business/providers/business_repository_provider.dart';
 import 'package:craftsky_app/profile/data/profile_repository.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
+import 'package:craftsky_app/profile/models/profile_link.dart';
 import 'package:craftsky_app/profile/providers/profile_record_overlay.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/profile/providers/save_profile_provider.dart';
@@ -374,6 +375,8 @@ final class _ProfileRepository extends Fake implements ProfileRepository {
     String? pronouns,
     String? description,
     List<String>? crafts,
+    List<ProfileLink>? links,
+    List<ProfileLink>? removedLinks,
     UploadedBlob? avatar,
     bool clearAvatar = false,
     UploadedBlob? banner,

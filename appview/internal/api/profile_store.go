@@ -11,6 +11,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"social.craftsky/appview/internal/profilelinks"
 
 	"social.craftsky/appview/internal/api/envelope"
 )
@@ -28,6 +29,8 @@ var ErrProfileCountsUnavailable = errors.New("profile: counts unavailable")
 // bluesky_profiles for a single DID. Nullable bluesky fields are pointers
 // so "present but empty string" and "absent entirely" are distinguishable.
 type ProfileRow struct {
+	Links                 []profilelinks.View
+	EditableLinks         []profilelinks.View
 	DID                   string
 	Crafts                []string
 	CreatedAt             time.Time
@@ -377,6 +380,12 @@ func (s *ProfileStore) Read(ctx context.Context, profileDID string, viewerDID st
 	out.PostsLast7Days = &postsLast7Days
 	out.ProjectCount = &projectCount
 	out.IsCraftskyProfile = true
+	if !out.Blocking && !out.BlockedBy {
+		out.Links, out.EditableLinks, err = s.readProfileLinks(ctx, syntax.DID(profileDID), viewerDID)
+		if err != nil {
+			return nil, err
+		}
+	}
 	return out, nil
 }
 

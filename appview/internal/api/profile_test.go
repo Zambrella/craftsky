@@ -475,6 +475,71 @@ type fakeCompoundProfileCommands struct {
 	put     func(pdscommands.CompoundPutCommandRequest) (pdscommands.CommandResult, error)
 }
 
+func TestPutProfileLinksDeletesOnlyExplicitCurrentOwnerReferences(t *testing.T) {
+	const ownURI = "at://did:plc:me/app.bsky.actor.link/3m5abc2345672"
+	for _, tc := range []struct {
+		name, removedURI, recordCID, refCID string
+		referenced, missing                 bool
+		status                              int
+	}{
+		{name: "explicit owner removal", removedURI: ownURI, recordCID: "bafkreie3w2xq7u6rs5szu6vllsq5xh7y7uv3f6blql6uz4ep6txv6m4o6a", refCID: "bafkreie3w2xq7u6rs5szu6vllsq5xh7y7uv3f6blql6uz4ep6txv6m4o6a", referenced: true, status: 200},
+		{name: "lost response already removed", removedURI: ownURI, missing: true, status: 200},
+		{name: "foreign repository", removedURI: "at://did:plc:other/app.bsky.actor.link/3m5abc2345672", recordCID: "bafkreie3w2xq7u6rs5szu6vllsq5xh7y7uv3f6blql6uz4ep6txv6m4o6a", refCID: "bafkreie3w2xq7u6rs5szu6vllsq5xh7y7uv3f6blql6uz4ep6txv6m4o6a", referenced: true, status: 400},
+		{name: "unreferenced record", removedURI: ownURI, recordCID: "bafkreie3w2xq7u6rs5szu6vllsq5xh7y7uv3f6blql6uz4ep6txv6m4o6a", refCID: "bafkreie3w2xq7u6rs5szu6vllsq5xh7y7uv3f6blql6uz4ep6txv6m4o6a", status: 409},
+		{name: "newer external edit", removedURI: ownURI, recordCID: "bafyreicdvexolyvp6j6yksqiib7hihwktt6ogalbvyzvtkj6ecrtqqw5fq", refCID: "bafkreie3w2xq7u6rs5szu6vllsq5xh7y7uv3f6blql6uz4ep6txv6m4o6a", referenced: true, status: 409},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			commands := &fakeCompoundProfileCommands{}
+			commands.put = func(request pdscommands.CompoundPutCommandRequest) (pdscommands.CommandResult, error) {
+				if len(request.Records) != 3 || !request.Records[2].Delete {
+					t.Fatal("removal wasn't an explicit bounded delete")
+				}
+				refs := `[]`
+				if tc.referenced {
+					refs = `[{"uri":"` + tc.removedURI + `","cid":"` + tc.refCID + `"}]`
+				}
+				current := []pdscommands.AuthoritativeRecord{
+					{URI: request.Records[0].URI, CID: "profile-old", Record: json.RawMessage(`{"$type":"app.bsky.actor.profile","links":` + refs + `}`)},
+					{URI: request.Records[1].URI, CID: "craft-old", Record: json.RawMessage(`{"$type":"social.craftsky.actor.profile","crafts":[]}`)},
+					{URI: request.Records[2].URI, CID: syntax.CID(tc.recordCID), Record: json.RawMessage(`{"$type":"app.bsky.actor.link","url":"https://example.com/","createdAt":"2026-10-27T12:00:00Z"}`)},
+				}
+				if tc.missing {
+					current[2].CID = ""
+					current[2].Record = nil
+				}
+				desired, err := request.BuildRecords(current)
+				if err != nil {
+					return pdscommands.CommandResult{TerminalResult: request.Rejected(err)}, nil
+				}
+				if len(desired[2]) != 0 || !strings.Contains(string(desired[0]), `"links":[]`) {
+					t.Fatal("deleted record or reference survived")
+				}
+				for i := range current {
+					current[i].Record = desired[i]
+					if desired[i] == nil {
+						current[i].CID = ""
+					}
+				}
+				terminal, err := request.Accepted(current)
+				return pdscommands.CommandResult{TerminalResult: terminal}, err
+			}
+			handler := newPutHandler(t, &fakeStore{}, &fakePDSForPut{}, fakeResolver{handleFor: "me.example"}, commands)
+			body := `{"links":[],"removedLinks":[{"uri":"` + tc.removedURI + `","cid":"` + tc.refCID + `"}]}`
+			if tc.missing {
+				body = `{"links":[],"removedLinks":[{"uri":"` + tc.removedURI + `","cid":"bafkreie3w2xq7u6rs5szu6vllsq5xh7y7uv3f6blql6uz4ep6txv6m4o6a"}]}`
+			}
+			request := httptest.NewRequest(http.MethodPut, "/v1/profiles/me", strings.NewReader(body))
+			request.Header.Set("Idempotency-Key", "018f4d5c-7a61-7d40-a1a2-aaaaaaaaaaaf")
+			request = request.WithContext(middleware.WithDID(request.Context(), "did:plc:me"))
+			response := httptest.NewRecorder()
+			handler.ServeHTTP(response, request)
+			if response.Code != tc.status {
+				t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
+			}
+		})
+	}
+}
+
 func (fake *fakeCompoundProfileCommands) Put(_ context.Context, request pdscommands.CompoundPutCommandRequest) (pdscommands.CommandResult, error) {
 	fake.request = request
 	if fake.put != nil {

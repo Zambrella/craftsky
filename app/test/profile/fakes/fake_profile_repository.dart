@@ -6,6 +6,7 @@ import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/models/profile_account_page.dart';
 import 'package:craftsky_app/profile/models/profile_account_summary.dart';
 import 'package:craftsky_app/profile/models/profile_customisation.dart';
+import 'package:craftsky_app/profile/models/profile_link.dart';
 import 'package:craftsky_app/profile/models/profile_relationship.dart';
 import 'package:craftsky_app/shared/media/uploaded_image_blob.dart';
 
@@ -99,6 +100,8 @@ class FakeProfileRepository implements ProfileRepository {
   final followOperationKeys = <String>[];
   final unfollowOperationKeys = <String>[];
   final updateOperationKeys = <String>[];
+  List<ProfileLink>? lastUpdatedLinks;
+  List<ProfileLink>? lastRemovedLinks;
   final blockOperationKeys = <String>[];
   final unblockOperationKeys = <String>[];
 
@@ -134,12 +137,16 @@ class FakeProfileRepository implements ProfileRepository {
     String? pronouns,
     String? description,
     List<String>? crafts,
+    List<ProfileLink>? links,
+    List<ProfileLink>? removedLinks,
     UploadedBlob? avatar,
     bool clearAvatar = false,
     UploadedBlob? banner,
     bool clearBanner = false,
   }) {
     updateOperationKeys.add(operationKey);
+    lastUpdatedLinks = links;
+    lastRemovedLinks = removedLinks;
     return onUpdateMe?.call(
           displayName: displayName,
           pronouns: pronouns,

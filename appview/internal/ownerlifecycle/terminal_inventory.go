@@ -70,6 +70,7 @@ var terminalDIDInventory = []TerminalDIDEntry{
 	deleteDID("atproto_identity_cache", "did", "owner", "did"),
 	deleteDID("atproto_identity_refresh_state", "did", "owner", "did"),
 	cleanupDID("auth_auxiliary_cleanup_jobs", "owner_did", "owner", "remote revocation cleanup remains durable after local denial", "id"),
+	deleteDID("bluesky_profile_links", "did", "owner", "uri"),
 	deleteDID("bluesky_profiles", "did", "owner", "did"),
 	cleanupDID("billing_accounts", "owner_did", "owner", "subscription deletion participant closes owner billing authority", "id"),
 	cleanupDID("billing_licenses", "assigned_did", "beneficiary", "subscription deletion participant clears beneficiary assignment", "id"),

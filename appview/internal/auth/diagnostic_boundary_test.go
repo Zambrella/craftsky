@@ -129,7 +129,7 @@ func verifyCallbackDiagnosticSink(t *testing.T, cause error) {
 	if recorder.Code != 400 {
 		t.Fatalf("diagnostics changed callback status: %d", recorder.Code)
 	}
-	for _, expected := range []string{`"failure_reason":"scope_required_missing"`, "missing=craftsky", "required=8 granted=1", "alternate_forms=0", `"run_id"`, "OAuthCallbackDiagnostic"} {
+	for _, expected := range []string{`"failure_reason":"scope_required_missing"`, "missing=craftsky", "required=9 granted=1", "alternate_forms=0", `"run_id"`, "OAuthCallbackDiagnostic"} {
 		if !strings.Contains(local.String(), expected) {
 			t.Fatalf("missing %q in serialized diagnostics: %s", expected, local.String())
 		}

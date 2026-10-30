@@ -21,6 +21,7 @@ var knownNSIDLabels = map[string]struct{}{
 	"social.craftsky.feed.repost":      {},
 	"app.bsky.graph.follow":            {},
 	"app.bsky.actor.profile":           {},
+	"app.bsky.actor.link":              {},
 }
 
 func SafeNSIDLabel(nsid string) string {

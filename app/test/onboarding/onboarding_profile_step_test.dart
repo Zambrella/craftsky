@@ -5,15 +5,111 @@ import 'package:craftsky_app/onboarding/models/onboarding_flow_state.dart';
 import 'package:craftsky_app/onboarding/widgets/onboarding_profile_step.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/models/profile_image_failure.dart';
+import 'package:craftsky_app/profile/models/profile_link.dart';
+import 'package:craftsky_app/shared/api/providers/dio_provider.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/brand_text_field.dart';
+import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:craftsky_app/theme/craftsky_field_scaffold.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
+import 'package:dio/dio.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http_mock_adapter/http_mock_adapter.dart';
 import 'package:image/image.dart' as img;
 import 'package:material_ui/material_ui.dart';
 
 void main() {
+  testWidgets('step one prefills, edits and adds links to its local draft', (
+    tester,
+  ) async {
+    const link = ProfileLink(
+      url: 'https://existing.example/',
+      title: 'Website',
+      uri: 'at://did:plc:alice/app.bsky.actor.link/3m5abc2345672',
+      cid: 'cid',
+      createdAt: '2026-10-27T12:00:00Z',
+    );
+    var state = OnboardingFlowState.fromProfile(
+      Profile(
+        did: 'did:plc:alice',
+        handle: 'alice.test',
+        crafts: const [],
+        editableLinks: const [link],
+      ),
+    );
+    final dio = Dio(BaseOptions(baseUrl: 'https://appview.example'));
+    DioAdapter(dio: dio).onPost(
+      '/v1/profile-link-previews',
+      (server) => server.reply(200, {'reachability': 'reachable'}),
+      data: {'url': 'https://new.example/'},
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [dioProvider.overrideWithValue(dio)],
+        child: MaterialApp(
+          theme: AppTheme.lightThemeData,
+          localizationsDelegates: appLocalizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: StatefulBuilder(
+                builder: (context, setState) => OnboardingProfileStep(
+                  state: state,
+                  onDisplayNameChanged: (_) {},
+                  onPronounsChanged: (_) {},
+                  onBioChanged: (_) {},
+                  onPickAvatar: () {},
+                  onLinksChanged: (links) => setState(
+                    () => state = state.copyWith(
+                      identity: state.identity.copyWith(links: links),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.ensureVisible(find.text('Website'));
+    await tester.tap(find.text('Website'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find
+          .descendant(
+            of: find.byType(CraftskyDialog),
+            matching: find.byType(TextField),
+          )
+          .last,
+      'Updated website',
+    );
+    await tester.tap(find.byKey(const Key('profile-link-save')));
+    await tester.pumpAndSettle();
+    expect(state.identity.links.single.title, 'Updated website');
+    await tester.ensureVisible(find.byKey(const Key('profile-link-add')));
+    await tester.tap(find.byKey(const Key('profile-link-add')));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find
+          .descendant(
+            of: find.byType(CraftskyDialog),
+            matching: find.byType(TextField),
+          )
+          .first,
+      'new.example',
+    );
+    await tester.tap(find.byKey(const Key('profile-link-save')));
+    await tester.pumpAndSettle();
+    expect(state.identity.links.map((link) => link.url), [
+      'https://existing.example/',
+      'https://new.example/',
+    ]);
+    expect(state.identityDirty, isTrue);
+    expect(state.baseline.editingLinks, [link]);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('AT-003 pre-fills editable identity and read-only handle', (
     tester,
   ) async {
@@ -43,6 +139,7 @@ void main() {
               state: state,
               onDisplayNameChanged: (value) => changedName = value,
               onPronounsChanged: (value) => changedPronouns = value,
+              onLinksChanged: (_) {},
               onBioChanged: (value) => changedBio = value,
               onPickAvatar: () => avatarPicks++,
             ),
@@ -123,6 +220,7 @@ void main() {
                 state: state,
                 onDisplayNameChanged: (_) {},
                 onPronounsChanged: (_) {},
+                onLinksChanged: (_) {},
                 onBioChanged: (_) {},
                 onPickAvatar: () => setState(() {
                   state = state.copyWith(avatarPreview: previews[picks++]);
@@ -258,6 +356,7 @@ Future<void> _pumpStep(WidgetTester tester, OnboardingFlowState state) =>
               state: state,
               onDisplayNameChanged: (_) {},
               onPronounsChanged: (_) {},
+              onLinksChanged: (_) {},
               onBioChanged: (_) {},
               onPickAvatar: () {},
             ),

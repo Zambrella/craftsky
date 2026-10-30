@@ -37,7 +37,7 @@ projects:
               - key: OAUTH_CLIENT_SECRET_KEY_ID
                 value: primary
               - key: OAUTH_SCOPES
-                value: "atproto include:social.craftsky.authFull repo:app.bsky.actor.profile?action=create&action=update repo:app.bsky.graph.follow repo:app.bsky.graph.block blob?accept=image/jpeg&accept=image/png&accept=image/webp&accept=video/mp4&accept=text/vtt rpc:com.atproto.repo.uploadBlob?aud=* rpc:app.bsky.video.getUploadLimits?aud=*"
+                value: "atproto include:social.craftsky.authFull repo:app.bsky.actor.profile?action=create&action=update repo:app.bsky.graph.follow repo:app.bsky.graph.block blob?accept=image/jpeg&accept=image/png&accept=image/webp&accept=video/mp4&accept=text/vtt rpc:com.atproto.repo.uploadBlob?aud=* rpc:app.bsky.video.getUploadLimits?aud=* repo:app.bsky.actor.link"
               - key: OAUTH_SESSION_ABSOLUTE_LIFETIME
                 value: 4320h
               - key: CRAFTSKY_SESSION_INACTIVITY
@@ -316,7 +316,7 @@ projects:
               - key: TAP_DATABASE_URL
                 value: sqlite:///data/tap.db
               - key: TAP_COLLECTION_FILTERS
-                value: social.craftsky.actor.profile,social.craftsky.feed.post,social.craftsky.feed.like,social.craftsky.feed.repost,social.craftsky.business.profile,social.craftsky.business.event,app.bsky.actor.profile,app.bsky.graph.follow,app.bsky.graph.block
+                value: social.craftsky.actor.profile,social.craftsky.feed.post,social.craftsky.feed.like,social.craftsky.feed.repost,social.craftsky.business.profile,social.craftsky.business.event,app.bsky.actor.profile,app.bsky.actor.link,app.bsky.graph.follow,app.bsky.graph.block
               - key: TAP_SIGNAL_COLLECTION
                 value: social.craftsky.actor.profile
               - key: TAP_LOG_LEVEL

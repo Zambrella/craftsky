@@ -52,7 +52,7 @@ func (s *Store) OpenOperatorCase(ctx context.Context, c OperatorCaseCommand) (Ca
 			if c.URI != "" {
 				return ErrInvalidCommand
 			}
-		case SubjectPost, SubjectEvent:
+		case SubjectPost, SubjectEvent, SubjectProfileLink:
 			if c.URI == "" || c.URI.Authority().String() != c.DID.String() {
 				return ErrInvalidCommand
 			}
@@ -64,6 +64,11 @@ func (s *Store) OpenOperatorCase(ctx context.Context, c OperatorCaseCommand) (Ca
 					return ErrInvalidCommand
 				}
 				table = "craftsky_business_events"
+			} else if c.SubjectType == SubjectProfileLink {
+				if collection != "app.bsky.actor.link" {
+					return ErrInvalidCommand
+				}
+				table = "bluesky_profile_links"
 			} else if collection != "social.craftsky.feed.post" {
 				return ErrInvalidCommand
 			}

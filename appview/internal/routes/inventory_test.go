@@ -190,6 +190,7 @@ func TestRouteInventoryAndV1PoliciesStayExact(t *testing.T) {
 		"DELETE /v1/profiles/{handleOrDid}/blocks",
 		"GET /v1/profiles/me/mutes",
 		"GET /v1/profiles/me/blocks",
+		"POST /v1/profile-links/{did}/{rkey}/reports",
 		"POST /v1/profiles/{handleOrDid}/reports",
 		"PUT /v1/profiles/me/business",
 		"DELETE /v1/profiles/me/business",
@@ -252,6 +253,7 @@ func TestRouteInventoryAndV1PoliciesStayExact(t *testing.T) {
 		"GET /v1/profiles/{handleOrDid}/projects",
 		"GET /v1/profiles/{handleOrDid}/comments",
 		"GET /v1/profiles/{handleOrDid}/reposts",
+		"POST /v1/profile-link-previews",
 		"POST /v1/link-previews",
 		"/",
 	}

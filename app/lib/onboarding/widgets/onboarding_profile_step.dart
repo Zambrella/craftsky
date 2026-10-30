@@ -6,6 +6,8 @@ import 'package:craftsky_app/onboarding/models/onboarding_flow_state.dart';
 import 'package:craftsky_app/profile/data/profile_field_constraints.dart';
 import 'package:craftsky_app/profile/models/profile_handle.dart';
 import 'package:craftsky_app/profile/models/profile_image_failure.dart';
+import 'package:craftsky_app/profile/models/profile_link.dart';
+import 'package:craftsky_app/profile/widgets/profile_links_editor.dart';
 import 'package:craftsky_app/shared/text/record_text_limits.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/craftsky_text_inputs.dart';
@@ -17,6 +19,7 @@ class OnboardingProfileStep extends StatefulWidget {
     required this.onDisplayNameChanged,
     required this.onPronounsChanged,
     required this.onBioChanged,
+    required this.onLinksChanged,
     required this.onPickAvatar,
     super.key,
   });
@@ -25,6 +28,7 @@ class OnboardingProfileStep extends StatefulWidget {
   final ValueChanged<String> onDisplayNameChanged;
   final ValueChanged<String> onPronounsChanged;
   final ValueChanged<String> onBioChanged;
+  final ValueChanged<List<ProfileLink>> onLinksChanged;
   final VoidCallback onPickAvatar;
 
   @override
@@ -196,6 +200,12 @@ class _OnboardingProfileStepState extends State<OnboardingProfileStep> {
           maxLength: profileBioMaxLength,
           maxBytes: RecordTextLimits.bio.bytes,
           onChanged: widget.onBioChanged,
+        ),
+        const SizedBox(height: 24),
+        ProfileLinksEditor(
+          links: widget.state.identity.links,
+          enabled: !widget.state.saving,
+          onChanged: widget.onLinksChanged,
         ),
       ],
     );

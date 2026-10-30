@@ -62,6 +62,7 @@ func scopeGrantDiagnostic(raw string, required []string) error {
 		"atproto":                          "atproto",
 		"include:social.craftsky.authFull": "craftsky",
 		"repo:app.bsky.actor.profile?action=create&action=update": "bluesky_profile",
+		"repo:app.bsky.actor.link":                                "profile_links",
 		"repo:app.bsky.graph.follow":                              "follow",
 		"repo:app.bsky.graph.block":                               "block",
 		"blob?accept=image/jpeg&accept=image/png&accept=image/webp&accept=video/mp4&accept=text/vtt": "media",

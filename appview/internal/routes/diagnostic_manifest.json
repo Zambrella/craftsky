@@ -1105,6 +1105,12 @@
   },
   {
     "method": "POST",
+    "path": "/v1/profile-link-previews",
+    "category": "appview.link_previews",
+    "public": false
+  },
+  {
+    "method": "POST",
     "path": "/v1/link-previews",
     "category": "appview.link_previews",
     "public": false
@@ -1287,6 +1293,12 @@
     "method": "PUT",
     "path": "/v1/scheduled-posts/{id}",
     "category": "appview.scheduled_posts.detail",
+    "public": false
+  },
+  {
+    "method": "POST",
+    "path": "/v1/profile-links/{did}/{rkey}/reports",
+    "category": "appview.profile_links.reports",
     "public": false
   }
 ]

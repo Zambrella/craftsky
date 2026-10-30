@@ -156,6 +156,33 @@ Grouped by resource. Each line is an endpoint; response/request body details bel
 
 ### 4.2 Profiles
 
+Profile links (27 October 2026, ADR 022): profile responses include ordered
+`links` views (`uri`, `cid`, `url`, optional `title` and cleared icon URL).
+The owner additionally receives `editableLinks`, retaining public record blobs
+and `createdAt` even when moderation or icon scanning hides a public pill.
+Blocked profile shells omit both fields. Flutter still reads exclusively from
+AppView; OAuth credentials and record writes remain server-side.
+
+`PUT /v1/profiles/me` accepts optional `links` (maximum ten) and
+`removedLinks`. Omitting `links` preserves the existing reference list; `[]`
+clears it. Each link input contains `rkey`, `url`, `createdAt`, optional `cid`,
+`title`, and original `icon` blob. `removedLinks` contains explicit strong refs
+from the edit baseline. AppView atomically updates link records, both profile
+records, and only the requested removed owner link records. It checks deletion
+against the authoritative profile references and link CIDs, preserves unknown
+record fields and self-labels, and uses the existing keyed-command retry and
+owner-fencing contract. No general PDS deletion endpoint is introduced.
+
+- `POST /v1/profile-link-previews` — advisory destination reachability and a
+  bounded favicon fetched with the existing SSRF-safe URL transport. Returns
+  `reachability` (`reachable`, `unreachable`, or `unknown`) and optional `icon`
+  (`bytes` as base64, `mimeType`, `width`, `height`). The client may save anyway
+  when unreachable. No external destination is fetched while rendering a profile.
+- `POST /v1/profile-links/{did}/{rkey}/reports` — private report intake for a
+  currently visible link, using the existing reason/details contract. Reports
+  become independent `profileLink` moderation cases. Warning/hidden/taken-down
+  links are omitted from the public pill row; moderation never deletes records.
+
 - `GET /v1/profiles/@{handleOrDid}` — profile summary (display name, avatar, bio, preferred pronouns, Craftsky-specific fields, counts). Preferred pronouns come from standard `app.bsky.actor.profile.pronouns`, not the Craftsky profile record, and are omitted from blocked profile shells.
 - `GET /v1/profiles/@{handleOrDid}/posts` — a user's own posts, newest first.
 - `PATCH /v1/profiles/me` — partial profile update. Body contains only the fields to change.

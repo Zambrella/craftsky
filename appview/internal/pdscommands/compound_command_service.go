@@ -34,6 +34,8 @@ type CompoundCommandService struct {
 type CompoundPutRecordRequest struct {
 	URI         syntax.ATURI
 	BuildRecord func(AuthoritativeRecord) (json.RawMessage, error)
+	// Delete is reserved for explicit removal of an owner's profile-link record.
+	Delete bool
 }
 
 type CompoundPutCommandRequest struct {
@@ -45,8 +47,11 @@ type CompoundPutCommandRequest struct {
 	Intent          json.RawMessage
 	Blobs           []BlobReference
 	Records         []CompoundPutRecordRequest
-	Accepted        func([]AuthoritativeRecord) (TerminalResult, error)
-	Rejected        func(error) TerminalResult
+	// BuildRecords optionally builds a bounded set of interdependent records
+	// from one stable repository snapshot (e.g. links and profile strong refs).
+	BuildRecords func([]AuthoritativeRecord) ([]json.RawMessage, error)
+	Accepted     func([]AuthoritativeRecord) (TerminalResult, error)
+	Rejected     func(error) TerminalResult
 }
 
 func NewCompoundCommandService(config CompoundCommandServiceConfig) (*CompoundCommandService, error) {
@@ -70,10 +75,14 @@ func (service *CompoundCommandService) Put(ctx context.Context, request Compound
 	if err != nil {
 		return CommandResult{}, err
 	}
+	uris := make([]syntax.ATURI, len(request.Records))
+	for i, record := range request.Records {
+		uris[i] = record.URI
+	}
 	conditions, err := json.Marshal(struct {
 		OwnerGeneration int64          `json:"ownerGeneration"`
 		URIs            []syntax.ATURI `json:"uris"`
-	}{OwnerGeneration: request.OwnerGeneration, URIs: []syntax.ATURI{request.Records[0].URI, request.Records[1].URI}})
+	}{OwnerGeneration: request.OwnerGeneration, URIs: uris})
 	if err != nil {
 		return CommandResult{}, err
 	}
@@ -135,18 +144,21 @@ func (service *CompoundCommandService) Put(ctx context.Context, request Compound
 
 func validateCompoundPutRequest(request CompoundPutCommandRequest) ([]syntax.RecordKey, error) {
 	if request.Owner == "" || request.OwnerGeneration < 1 || request.SessionID == "" || request.OperationKind == "" ||
-		request.OperationKey == uuid.Nil || !json.Valid(request.Intent) || len(request.Records) != 2 ||
+		request.OperationKey == uuid.Nil || !json.Valid(request.Intent) || len(request.Records) < 2 || len(request.Records) > 22 ||
 		request.Accepted == nil || request.Rejected == nil {
 		return nil, ErrMalformedCommand
 	}
 	rkeys := make([]syntax.RecordKey, len(request.Records))
 	seen := make(map[syntax.ATURI]struct{}, len(request.Records))
 	for index, record := range request.Records {
-		if record.URI == "" || record.BuildRecord == nil {
+		if record.URI == "" || (record.BuildRecord == nil && request.BuildRecords == nil) {
 			return nil, ErrMalformedCommand
 		}
 		parsed, err := syntax.ParseATURI(record.URI.String())
 		if err != nil || parsed.Authority().DID() != request.Owner || parsed.Collection() == "" || parsed.RecordKey() == "" {
+			return nil, ErrMalformedCommand
+		}
+		if record.Delete && parsed.Collection() != "app.bsky.actor.link" {
 			return nil, ErrMalformedCommand
 		}
 		if _, duplicate := seen[record.URI]; duplicate {
@@ -191,10 +203,26 @@ func (service *CompoundCommandService) putFenced(
 			return CommandResult{}, errors.Join(ErrDispatchUnavailable, err)
 		}
 		desired := make([]json.RawMessage, len(request.Records))
+		if request.BuildRecords != nil {
+			desired, err = request.BuildRecords(current)
+			if err != nil || len(desired) != len(current) {
+				return service.reject(ctx, command.ID, request, errors.Join(ErrMalformedCommand, err))
+			}
+		}
 		unchanged := make([]bool, len(request.Records))
 		allMatch := true
 		for index, record := range request.Records {
-			desired[index], err = record.BuildRecord(current[index])
+			if record.Delete {
+				if len(desired[index]) != 0 {
+					return service.reject(ctx, command.ID, request, ErrMalformedCommand)
+				}
+				unchanged[index] = current[index].CID == ""
+				allMatch = allMatch && unchanged[index]
+				continue
+			}
+			if request.BuildRecords == nil {
+				desired[index], err = record.BuildRecord(current[index])
+			}
 			if err != nil || !json.Valid(desired[index]) {
 				return service.reject(ctx, command.ID, request, errors.Join(ErrMalformedCommand, err))
 			}
@@ -225,6 +253,9 @@ func (service *CompoundCommandService) putFenced(
 			action := "update"
 			if current[index].CID == "" {
 				action = "create"
+			}
+			if record.Delete {
+				action = "delete"
 			}
 			steps = append(steps, DispatchStep{
 				Action: action, URI: record.URI, Body: desired[index], ExpectedCID: current[index].CID,
@@ -345,6 +376,12 @@ func compoundRecordsMatch(records []AuthoritativeRecord, desired []json.RawMessa
 		return false
 	}
 	for index := range records {
+		if len(desired[index]) == 0 {
+			if records[index].CID != "" {
+				return false
+			}
+			continue
+		}
 		if records[index].CID == "" {
 			return false
 		}

@@ -7988,7 +7988,8 @@
             "enum": [
               "account",
               "post",
-              "event"
+              "event",
+              "profileLink"
             ]
           },
           "subjectDid": {
