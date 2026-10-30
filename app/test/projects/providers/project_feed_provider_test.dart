@@ -92,6 +92,45 @@ PaginationContractSubject<Post> _paginationSubject(
 void main() {
   setUpAll(initializeMappers);
 
+  test('interaction refresh retains the loaded pagination depth', () async {
+    final cursors = <String?>[];
+    final container = ProviderContainer.test(
+      overrides: [
+        activeLanguagePreferencesProvider.overrideWith(
+          (ref) => const LanguagePreferences(
+            primaryLanguage: 'en',
+            contentLanguages: ['en'],
+          ),
+        ),
+        projectRepositoryProvider.overrideWithValue(
+          FakeProjectRepository(
+            onListProjects: ({required query, limit, cursor}) async {
+              cursors.add(cursor);
+              return cursor == null
+                  ? PostPage(
+                      items: List.generate(
+                        projectFeedPageLimit,
+                        (i) => _post('p$i'),
+                      ),
+                      cursor: 'next',
+                    )
+                  : PostPage(items: [_post('last')]);
+            },
+          ),
+        ),
+      ],
+    );
+    final provider = projectFeedProvider(_query);
+    container.listen(provider, (_, _) {});
+    await container.read(provider.future);
+    await container.read(provider.notifier).loadMore();
+    expect(container.read(provider).requireValue.items, hasLength(26));
+    container.invalidate(provider);
+    final refreshed = await container.read(provider.future);
+    expect(refreshed.items, hasLength(26));
+    expect(cursors, [null, 'next', null, 'next']);
+  });
+
   paginationContract(
     name: 'project feed',
     firstItem: _post('project-a'),

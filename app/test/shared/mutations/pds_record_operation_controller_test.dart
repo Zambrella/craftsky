@@ -186,6 +186,34 @@ void main() {
     expect(controller.overlayFor(scope), isNull);
   });
 
+  test(
+    'bounded overlay survives agreement on another surface until expiry',
+    () {
+      var now = start;
+      final controller = PdsRecordOperationController(
+        now: () => now,
+        schedule: (_, _) {},
+      );
+      final token = controller.begin(
+        scope: scope,
+        operationKey: 'bounded',
+        endpoint: '/mutation',
+        immutableBody: '{}',
+      );
+      controller.markAccepted(
+        token,
+        optimisticValue: true,
+        agrees: (value) => value == true,
+        retainUntilExpiry: true,
+      );
+      expect(controller.reconcile(scope, true), isTrue);
+      expect(controller.overlayFor(scope)?.optimisticValue, isTrue);
+      now = start.add(const Duration(seconds: 30));
+      controller.advanceTime();
+      expect(controller.overlayFor(scope), isNull);
+    },
+  );
+
   test('acceptance schedules grace and expiry checks', () {
     var now = start;
     final scheduled = <({Duration delay, void Function() callback})>[];

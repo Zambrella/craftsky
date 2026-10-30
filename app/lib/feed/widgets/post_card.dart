@@ -68,34 +68,33 @@ enum PostCardImageInteractionMode { navigate, fullscreenGallery }
 Post _postWithInteractionState(WidgetRef ref, Post post) {
   final likeState = ref.watch(toggleLikePostProvider);
   final repostState = ref.watch(toggleRepostPostProvider);
+  final lease = ref.watch(sessionRegistryProvider).value?.activeLease?.session;
+  final controller = ref.read(pdsRecordOperationControllerProvider);
+  var result = applyPostInteractionOverlaysForLease(
+    controller,
+    lease,
+    post,
+    reconcile: false,
+  );
   final like = likeState.hasError ? null : likeState.value;
   final repost = repostState.hasError ? null : repostState.value;
-  final controller = ref.read(pdsRecordOperationControllerProvider);
-  final activeLease = ref
-      .read(sessionRegistryProvider)
-      .value
-      ?.activeLease
-      ?.session;
-  final likeScope = likePostMutationScopeForLease(activeLease, post);
-  final repostScope = repostPostMutationScopeForLease(activeLease, post);
-  final likeOperation = controller.operationFor(likeScope);
-  final repostOperation = controller.operationFor(repostScope);
-  final likeIsActive =
-      (likeOperation != null &&
-          likeOperation.status != PdsMutationStatus.failed) ||
-      controller.overlayFor(likeScope) != null;
-  final repostIsActive =
-      (repostOperation != null &&
-          repostOperation.status != PdsMutationStatus.failed) ||
-      controller.overlayFor(repostScope) != null;
-  var result = post;
-  if (likeIsActive && like?.uri == post.uri) {
+  final likeOperation = controller.operationFor(
+    likePostMutationScopeForLease(lease, post),
+  );
+  final repostOperation = controller.operationFor(
+    repostPostMutationScopeForLease(lease, post),
+  );
+  if (likeOperation != null &&
+      likeOperation.status != PdsMutationStatus.failed &&
+      like?.uri == post.uri) {
     result = result.copyWith(
       viewerHasLiked: like!.viewerHasLiked,
       likeCount: like.likeCount,
     );
   }
-  if (repostIsActive && repost?.uri == post.uri) {
+  if (repostOperation != null &&
+      repostOperation.status != PdsMutationStatus.failed &&
+      repost?.uri == post.uri) {
     result = result.copyWith(
       viewerHasReposted: repost!.viewerHasReposted,
       repostCount: repost.repostCount,

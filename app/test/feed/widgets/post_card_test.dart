@@ -1408,10 +1408,16 @@ void main() {
       expect(find.text('2'), findsOneWidget);
     });
 
-    testWidgets('ignores completed mutation state after reconciliation', (
+    testWidgets('ignores completed mutation state after overlay expiry', (
       tester,
     ) async {
       var authoritative = _post(likeCount: 2);
+      var now = DateTime.utc(2026, 10, 29);
+      final controller = PdsRecordOperationController(
+        now: () => now,
+        schedule: (_, _) {},
+      );
+      addTearDown(controller.reset);
       late WidgetRef widgetRef;
       late StateSetter update;
       final fake = FakePostRepository(
@@ -1430,7 +1436,10 @@ void main() {
             );
           },
         ),
-        overrides: [postRepositoryProvider.overrideWithValue(fake)],
+        overrides: [
+          postRepositoryProvider.overrideWithValue(fake),
+          pdsRecordOperationControllerProvider.overrideWithValue(controller),
+        ],
       );
 
       await widgetRef
@@ -1445,6 +1454,9 @@ void main() {
             likePostMutationScopeForLease(null, authoritative),
             true,
           );
+      expect(controller.activeOverlays, hasLength(1));
+      now = now.add(const Duration(seconds: 30));
+      controller.advanceTime();
       update(() {
         authoritative = authoritative.copyWith(
           viewerHasLiked: false,

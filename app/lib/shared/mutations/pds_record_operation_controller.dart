@@ -85,6 +85,7 @@ final class PdsMutationOverlay {
     required this._agrees,
     this.refresh,
     this.retainVersion = false,
+    this.retainUntilExpiry = false,
   });
 
   final PdsMutationToken token;
@@ -98,6 +99,8 @@ final class PdsMutationOverlay {
   bool Function(Object? authoritativeValue) _agrees;
   final void Function()? refresh;
   final bool retainVersion;
+  // One fresh surface must not expose older cached values on another surface.
+  final bool retainUntilExpiry;
   bool graceRefreshRequested = false;
   bool reconciled = false;
 
@@ -246,6 +249,7 @@ final class PdsRecordOperationController {
     PdsMutationScope? overlayScope,
     void Function()? refresh,
     bool retainVersion = false,
+    bool retainUntilExpiry = false,
   }) {
     if (!_isCurrent(token)) return false;
     final acceptedAt = _now();
@@ -260,6 +264,7 @@ final class PdsRecordOperationController {
       agrees: agrees,
       refresh: refresh,
       retainVersion: retainVersion,
+      retainUntilExpiry: retainUntilExpiry,
     );
     _refresh(_overlays[acceptedScope]!);
     _scheduleRefresh(const Duration(seconds: 2));
@@ -293,6 +298,7 @@ final class PdsRecordOperationController {
     final overlay = _overlays[scope];
     if (overlay == null || overlay.token._epoch != _epoch) return false;
     if (!overlay.agreesWith(authoritativeValue)) return false;
+    if (overlay.retainUntilExpiry) return true;
     // A confirmed version is also the floor for other in-flight reads. One
     // matching surface cannot release that protection for every other surface.
     if (overlay.retainVersion) {

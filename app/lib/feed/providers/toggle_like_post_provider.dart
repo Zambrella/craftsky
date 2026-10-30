@@ -11,6 +11,7 @@ import 'package:craftsky_app/feed/providers/timeline_provider.dart';
 import 'package:craftsky_app/feed/providers/user_comments_provider.dart';
 import 'package:craftsky_app/feed/providers/user_posts_provider.dart';
 import 'package:craftsky_app/feed/providers/user_reposts_provider.dart';
+import 'package:craftsky_app/projects/providers/project_feed_provider.dart';
 import 'package:craftsky_app/projects/providers/user_projects_provider.dart';
 import 'package:craftsky_app/shared/api/pds_mutation_contract.dart';
 import 'package:craftsky_app/shared/mutations/pds_record_operation_controller.dart';
@@ -30,12 +31,13 @@ class ToggleLikePost extends _$ToggleLikePost {
     final lifetime = ref.keepAlive();
     try {
       final operation = ActiveAccountOperation.capture(ref);
-      final desiredLiked = !post.viewerHasLiked;
-      final next = post.copyWith(
+      final current = applyPostInteractionOverlays(ref, post, reconcile: false);
+      final desiredLiked = !current.viewerHasLiked;
+      final next = current.copyWith(
         viewerHasLiked: desiredLiked,
-        likeCount: post.viewerHasLiked
-            ? (post.likeCount > 0 ? post.likeCount - 1 : 0)
-            : post.likeCount + 1,
+        likeCount: current.viewerHasLiked
+            ? (current.likeCount > 0 ? current.likeCount - 1 : 0)
+            : current.likeCount + 1,
       );
       final endpoint = '/v1/posts/${post.author.did}/${post.rkey}/likes';
       final immutableBody = desiredLiked ? 'POST\n' : 'DELETE\n';
@@ -91,6 +93,7 @@ class ToggleLikePost extends _$ToggleLikePost {
       if (!controller.markAccepted(
         token,
         optimisticValue: desiredLiked,
+        retainUntilExpiry: true,
         agrees: (value) => value is bool && reconciliation.agrees(value),
         refresh: () => _invalidateLikeReads(ref, post),
       )) {
@@ -115,5 +118,6 @@ void _invalidateLikeReads(Ref ref, Post post) {
     ..invalidate(userPostsProvider)
     ..invalidate(userCommentsProvider)
     ..invalidate(userRepostsProvider)
-    ..invalidate(userProjectsProvider);
+    ..invalidate(userProjectsProvider)
+    ..invalidate(projectFeedProvider);
 }

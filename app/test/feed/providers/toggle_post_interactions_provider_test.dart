@@ -5,6 +5,7 @@ import 'package:craftsky_app/feed/models/interaction_write_response.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/post_page.dart';
 import 'package:craftsky_app/feed/models/timeline_page.dart';
+import 'package:craftsky_app/feed/providers/like_post_overlay.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/feed/providers/timeline_provider.dart';
 import 'package:craftsky_app/feed/providers/toggle_like_post_provider.dart';
@@ -90,6 +91,74 @@ InteractionWriteResponse _interaction(Post post) => InteractionWriteResponse(
 
 void main() {
   setUpAll(initializeMappers);
+
+  for (final repost in [false, true]) {
+    test(
+      '${repost ? 'reposts' : 'likes'} stay keyed across reads and toggles',
+      () async {
+        final first = _post(rkey: 'first');
+        final second = _post(rkey: 'second');
+        var removals = 0;
+        final container = ProviderContainer.test(
+          overrides: [
+            postRepositoryProvider.overrideWithValue(
+              FakePostRepository(
+                onLike: (_, _) async => _interaction(first),
+                onRepost: (_, _) async => _interaction(first),
+                onUnlike: (_, _) async {
+                  removals++;
+                },
+                onUnrepost: (_, _) async {
+                  removals++;
+                },
+              ),
+            ),
+          ],
+        );
+        final provider = repost
+            ? toggleRepostPostProvider
+            : toggleLikePostProvider;
+        container.listen(provider, (_, _) {});
+        Future<void> toggle(Post post) => repost
+            ? container
+                  .read(toggleRepostPostProvider.notifier)
+                  .toggle(post: post)
+            : container
+                  .read(toggleLikePostProvider.notifier)
+                  .toggle(post: post);
+        final controller = container.read(pdsRecordOperationControllerProvider);
+        Post present(Post post) => applyPostInteractionOverlaysForLease(
+          controller,
+          null,
+          post,
+          reconcile: false,
+        );
+        bool active(Post post) =>
+            repost ? post.viewerHasReposted : post.viewerHasLiked;
+        int count(Post post) => repost ? post.repostCount : post.likeCount;
+
+        await toggle(first);
+        await toggle(second);
+        expect(active(present(first)), isTrue);
+        expect(active(present(second)), isTrue);
+        expect(count(present(first)), 1);
+        final fresh = present(first);
+        final scope = repost
+            ? repostPostMutationScopeForLease(null, first)
+            : likePostMutationScopeForLease(null, first);
+        expect(controller.reconcile(scope, active(fresh)), isTrue);
+        expect(active(present(first)), isTrue);
+        expect(count(present(fresh)), 1);
+
+        // List callbacks can still carry their original, unliked seed.
+        await toggle(first);
+        expect(removals, 1);
+        expect(active(present(first)), isFalse);
+        expect(count(present(fresh)), 0);
+        expect(active(present(second)), isTrue);
+      },
+    );
+  }
 
   test('operation retention does not survive explicit invalidation', () async {
     final post = _post(rkey: 'invalidated');
@@ -361,8 +430,14 @@ void main() {
       );
     });
 
-    test('IT-016 masks stale reads and retires on logical agreement', () async {
+    test('IT-016 protects stale surfaces until bounded expiry', () async {
       var authoritativeLiked = false;
+      var now = DateTime.utc(2026, 10, 29);
+      final controller = PdsRecordOperationController(
+        now: () => now,
+        schedule: (_, _) {},
+      );
+      addTearDown(controller.reset);
       final original = _post(rkey: 'overlay', likeCount: 2);
       final fake = FakePostRepository(
         onListByAuthor: (id, {cursor, limit}) async => PostPage(
@@ -385,6 +460,7 @@ void main() {
             ),
           ),
           postRepositoryProvider.overrideWithValue(fake),
+          pdsRecordOperationControllerProvider.overrideWithValue(controller),
         ],
       );
 
@@ -406,8 +482,17 @@ void main() {
       final afterAgreement = await container.read(
         userPostsProvider(_aliceDid).future,
       );
-      expect(afterAgreement.items.single.viewerHasLiked, isFalse);
-      expect(afterAgreement.items.single.likeCount, 2);
+      expect(afterAgreement.items.single.viewerHasLiked, isTrue);
+      expect(afterAgreement.items.single.likeCount, 3);
+
+      now = now.add(const Duration(seconds: 30));
+      controller.advanceTime();
+      container.invalidate(userPostsProvider(_aliceDid));
+      final afterExpiry = await container.read(
+        userPostsProvider(_aliceDid).future,
+      );
+      expect(afterExpiry.items.single.viewerHasLiked, isFalse);
+      expect(afterExpiry.items.single.likeCount, 2);
     });
 
     test('accepted overlay updates user post lists', () async {
@@ -691,8 +776,14 @@ void main() {
       );
     });
 
-    test('IT-016 masks stale reads and retires on logical agreement', () async {
+    test('IT-016 protects stale surfaces until bounded expiry', () async {
       var authoritativeReposted = false;
+      var now = DateTime.utc(2026, 10, 29);
+      final controller = PdsRecordOperationController(
+        now: () => now,
+        schedule: (_, _) {},
+      );
+      addTearDown(controller.reset);
       final original = _post(rkey: 'repost-overlay', repostCount: 2);
       final fake = FakePostRepository(
         onListByAuthor: (id, {cursor, limit}) async => PostPage(
@@ -715,6 +806,7 @@ void main() {
             ),
           ),
           postRepositoryProvider.overrideWithValue(fake),
+          pdsRecordOperationControllerProvider.overrideWithValue(controller),
         ],
       );
 
@@ -736,8 +828,17 @@ void main() {
       final afterAgreement = await container.read(
         userPostsProvider(_aliceDid).future,
       );
-      expect(afterAgreement.items.single.viewerHasReposted, isFalse);
-      expect(afterAgreement.items.single.repostCount, 2);
+      expect(afterAgreement.items.single.viewerHasReposted, isTrue);
+      expect(afterAgreement.items.single.repostCount, 3);
+
+      now = now.add(const Duration(seconds: 30));
+      controller.advanceTime();
+      container.invalidate(userPostsProvider(_aliceDid));
+      final afterExpiry = await container.read(
+        userPostsProvider(_aliceDid).future,
+      );
+      expect(afterExpiry.items.single.viewerHasReposted, isFalse);
+      expect(afterExpiry.items.single.repostCount, 2);
     });
 
     test('accepted overlay updates user post lists', () async {

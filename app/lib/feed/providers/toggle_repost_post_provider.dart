@@ -11,6 +11,7 @@ import 'package:craftsky_app/feed/providers/timeline_provider.dart';
 import 'package:craftsky_app/feed/providers/user_comments_provider.dart';
 import 'package:craftsky_app/feed/providers/user_posts_provider.dart';
 import 'package:craftsky_app/feed/providers/user_reposts_provider.dart';
+import 'package:craftsky_app/projects/providers/project_feed_provider.dart';
 import 'package:craftsky_app/projects/providers/user_projects_provider.dart';
 import 'package:craftsky_app/shared/api/pds_mutation_contract.dart';
 import 'package:craftsky_app/shared/mutations/pds_record_operation_controller.dart';
@@ -30,12 +31,13 @@ class ToggleRepostPost extends _$ToggleRepostPost {
     final lifetime = ref.keepAlive();
     try {
       final operation = ActiveAccountOperation.capture(ref);
-      final desiredReposted = !post.viewerHasReposted;
-      final next = post.copyWith(
+      final current = applyPostInteractionOverlays(ref, post, reconcile: false);
+      final desiredReposted = !current.viewerHasReposted;
+      final next = current.copyWith(
         viewerHasReposted: desiredReposted,
-        repostCount: post.viewerHasReposted
-            ? (post.repostCount > 0 ? post.repostCount - 1 : 0)
-            : post.repostCount + 1,
+        repostCount: current.viewerHasReposted
+            ? (current.repostCount > 0 ? current.repostCount - 1 : 0)
+            : current.repostCount + 1,
       );
       final endpoint = '/v1/posts/${post.author.did}/${post.rkey}/reposts';
       final immutableBody = desiredReposted ? 'POST\n' : 'DELETE\n';
@@ -91,6 +93,7 @@ class ToggleRepostPost extends _$ToggleRepostPost {
       if (!controller.markAccepted(
         token,
         optimisticValue: desiredReposted,
+        retainUntilExpiry: true,
         agrees: (value) => value is bool && reconciliation.agrees(value),
         refresh: () => _invalidateRepostReads(ref, post),
       )) {
@@ -115,5 +118,6 @@ void _invalidateRepostReads(Ref ref, Post post) {
     ..invalidate(userPostsProvider)
     ..invalidate(userCommentsProvider)
     ..invalidate(userRepostsProvider)
-    ..invalidate(userProjectsProvider);
+    ..invalidate(userProjectsProvider)
+    ..invalidate(projectFeedProvider);
 }
