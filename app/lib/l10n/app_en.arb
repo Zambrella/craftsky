@@ -1047,6 +1047,12 @@
   "projectComposerGaugeUnitLabel": "Gauge unit",
   "@projectComposerGaugeUnitLabel": { "description": "Label for gauge unit selection in project details." },
 
+  "projectComposerKnittingSizeMadeLabel": "Size made",
+  "@projectComposerKnittingSizeMadeLabel": { "description": "Label for the knitting size-made detail field." },
+
+  "projectComposerKnittingSizeMadeHint": "Add size made",
+  "@projectComposerKnittingSizeMadeHint": { "description": "Placeholder text for the knitting size-made detail field." },
+
   "projectComposerFinishedSizeLabel": "Finished size",
   "@projectComposerFinishedSizeLabel": { "description": "Label for finished-size detail fields." },
 

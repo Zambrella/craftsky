@@ -1977,6 +1977,15 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
         enabled: controlsEnabled,
       ),
       SizedBox(height: spacing.sp4),
+      CraftskyFormBuilderTextField(
+        name: ProjectComposerFields.knittingFinishedSize,
+        maxLength: RecordTextLimits.projectSize.graphemes,
+        maxBytes: RecordTextLimits.projectSize.bytes,
+        label: l10n.projectComposerKnittingSizeMadeLabel,
+        hintText: l10n.projectComposerKnittingSizeMadeHint,
+        enabled: controlsEnabled,
+      ),
+      SizedBox(height: spacing.sp4),
       CraftskyFormNumberField(
         name: ProjectComposerFields.knittingGaugeStitches,
         label: l10n.projectComposerGaugeStitchesLabel,
@@ -2009,15 +2018,6 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
           ProjectOptionCatalogs.gaugeUnits,
           alphabetize: false,
         ),
-        enabled: controlsEnabled,
-      ),
-      SizedBox(height: spacing.sp4),
-      CraftskyFormBuilderTextField(
-        name: ProjectComposerFields.knittingFinishedSize,
-        maxLength: RecordTextLimits.projectSize.graphemes,
-        maxBytes: RecordTextLimits.projectSize.bytes,
-        label: l10n.projectComposerFinishedSizeLabel,
-        hintText: l10n.projectComposerFinishedSizeHint,
         enabled: controlsEnabled,
       ),
     ];
