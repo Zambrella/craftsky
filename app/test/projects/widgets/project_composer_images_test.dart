@@ -1,6 +1,7 @@
 import 'package:animated_list_plus/animated_list_plus.dart';
 import 'package:craftsky_app/feed/providers/composer_image_state.dart';
 import 'package:craftsky_app/feed/providers/composer_images_provider.dart';
+import 'package:craftsky_app/feed/widgets/composer_image_attachment_section.dart';
 import 'package:craftsky_app/feed/widgets/post_composer_sheet.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/languages/models/language_preferences.dart';
@@ -54,6 +55,15 @@ void main() {
               ),
             ),
           ),
+        );
+        // Image editing AT-001: both owning composer surfaces opt in.
+        expect(
+          tester
+              .widget<ComposerImageAttachmentSection>(
+                find.byType(ComposerImageAttachmentSection),
+              )
+              .onEditImage,
+          isNotNull,
         );
         await tester.tap(find.byKey(const Key('composer-edit-images')));
         // Let the opaque route deactivate the underlying Riverpod consumer.

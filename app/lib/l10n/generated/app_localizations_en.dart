@@ -626,6 +626,21 @@ class AppLocalizationsEn extends AppLocalizations {
       'You may see and interact with each other\'s content again.';
 
   @override
+  String get imageEditFailed => 'Couldn’t edit that photo. Try again.';
+
+  @override
+  String get imageEditAction => 'Edit photo';
+
+  @override
+  String get imageEditRotate => 'Rotate 90°';
+
+  @override
+  String get imageEditCrop => 'Crop';
+
+  @override
+  String get imageEditTitle => 'Edit photo';
+
+  @override
   String get actionCancel => 'Cancel';
 
   @override

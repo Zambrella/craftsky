@@ -57,6 +57,7 @@ dependencies:
   path: ^1.9.1
   path_provider: ^2.1.6
   phosphor_icons: ^3.0.1
+  pro_image_editor: 14.21.1
   pub_semver: ^2.2.1
   purchases_flutter: ^10.15.2
   purchases_ui_flutter: ^10.15.2
