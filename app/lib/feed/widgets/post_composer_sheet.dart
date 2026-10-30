@@ -652,7 +652,10 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
                           SizedBox(height: spacing.sp4),
                         ],
                         if (widget.replyTarget case final replyTarget?) ...[
-                          _ComposerTargetPreview(post: replyTarget),
+                          _ComposerTargetPreview(
+                            post: replyTarget,
+                            showFullText: true,
+                          ),
                           SizedBox(height: spacing.sp4),
                         ],
                         if (widget.quoteTarget case final quoteTarget?) ...[
@@ -2159,9 +2162,10 @@ PostRef? _quoteFor(Post? target) {
 }
 
 class _ComposerTargetPreview extends StatelessWidget {
-  const new({required this.post});
+  const new({required this.post, this.showFullText = false});
 
   final Post post;
+  final bool showFullText;
 
   @override
   Widget build(BuildContext context) {
@@ -2205,8 +2209,10 @@ class _ComposerTargetPreview extends StatelessWidget {
             SizedBox(height: spacing.sp2),
             Text(
               post.text,
-              maxLines: 3,
-              overflow: TextOverflow.ellipsis,
+              maxLines: showFullText ? null : 3,
+              overflow: showFullText
+                  ? TextOverflow.visible
+                  : TextOverflow.ellipsis,
               style: theme.textTheme.bodyMedium,
             ),
           ],
