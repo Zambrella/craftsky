@@ -74,6 +74,7 @@ import 'package:craftsky_app/scheduled_posts/widgets/scheduled_post_capacity_war
 import 'package:craftsky_app/scheduled_posts/widgets/scheduled_staging_progress.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/api/pds_mutation_contract.dart';
+import 'package:craftsky_app/shared/image/basic_image_editor.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/shared/messaging/message_action.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
@@ -1090,7 +1091,29 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
     return selection.altText != baseline.altText;
   }
 
+  Future<void> _editImage(String imageId) async {
+    final lease = ref.read(sessionRegistryProvider).value?.activeLease;
+    final operation = ActiveAccountOperation.fromWidget(ref, lease);
+    try {
+      await ref
+          .read(composerImagesProvider(_composerId).notifier)
+          .editImage(
+            imageId,
+            initiatingLease: lease,
+            editor: (request) =>
+                showBasicImageEditor(context, request, ownership: lease),
+          );
+    } on Object {
+      if (mounted && operation.isCurrent) {
+        context.showError(AppLocalizations.of(context).imageEditFailed);
+      }
+    }
+  }
+
   Future<void> _saveProjectDraft(ComposerImagesState imagesState) async {
+    if (ref.read(composerImagesProvider(_composerId)).hasImageEditsInFlight) {
+      return;
+    }
     final active = ref.read(sessionRegistryProvider).value?.activeLease;
     if (active == null ||
         (widget.draftOwner != null && active != widget.draftOwner)) {
@@ -1550,6 +1573,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
           )
         else
           ComposerImageAttachmentSection(
+            onEditImage: _editImage,
             useDetailsRoute: true,
             imagesProvider: composerImagesProvider(_composerId),
             imagesState: imagesState,
@@ -2290,6 +2314,9 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
   }
 
   Future<void> _submitProject({required String trimmedBody}) async {
+    if (!ref.read(composerImagesProvider(_composerId)).canSubmitImages()) {
+      return;
+    }
     setState(() {
       _attemptedSubmit = true;
       _formValidationError = null;
@@ -2810,6 +2837,9 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
     required ProjectComposerSubmitArguments args,
     required ComposerImagesState imagesState,
   }) async {
+    if (ref.read(composerImagesProvider(_composerId)).hasImageEditsInFlight) {
+      return;
+    }
     final owner = _captureScheduledOperationOwner();
     final scheduledAt = _scheduledAtLocal;
     if (owner == null || scheduledAt == null) return;
@@ -2833,6 +2863,9 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
     ProjectComposerSubmitArguments args,
   ) async {
     final existing = widget.scheduledPost;
+    if (ref.read(composerImagesProvider(_composerId)).hasImageEditsInFlight) {
+      return;
+    }
     final owner = _captureScheduledOperationOwner();
     if (existing == null || owner == null) return;
     final imagesState = ref.read(composerImagesProvider(_composerId));
@@ -2890,6 +2923,9 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
 
   Future<void> _deleteExistingSchedule() async {
     final existing = widget.scheduledPost;
+    if (ref.read(composerImagesProvider(_composerId)).hasImageEditsInFlight) {
+      return;
+    }
     final owner = _captureScheduledOperationOwner();
     if (existing == null || owner == null) return;
     final l10n = AppLocalizations.of(context);

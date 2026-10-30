@@ -66,42 +66,17 @@ enum PostCardContentKind { post, comment, reply }
 enum PostCardImageInteractionMode { navigate, fullscreenGallery }
 
 Post _postWithInteractionState(WidgetRef ref, Post post) {
-  final likeState = ref.watch(toggleLikePostProvider);
-  final repostState = ref.watch(toggleRepostPostProvider);
-  final like = likeState.hasError ? null : likeState.value;
-  final repost = repostState.hasError ? null : repostState.value;
-  final controller = ref.read(pdsRecordOperationControllerProvider);
-  final activeLease = ref
-      .read(sessionRegistryProvider)
-      .value
-      ?.activeLease
-      ?.session;
-  final likeScope = likePostMutationScopeForLease(activeLease, post);
-  final repostScope = repostPostMutationScopeForLease(activeLease, post);
-  final likeOperation = controller.operationFor(likeScope);
-  final repostOperation = controller.operationFor(repostScope);
-  final likeIsActive =
-      (likeOperation != null &&
-          likeOperation.status != PdsMutationStatus.failed) ||
-      controller.overlayFor(likeScope) != null;
-  final repostIsActive =
-      (repostOperation != null &&
-          repostOperation.status != PdsMutationStatus.failed) ||
-      controller.overlayFor(repostScope) != null;
-  var result = post;
-  if (likeIsActive && like?.uri == post.uri) {
-    result = result.copyWith(
-      viewerHasLiked: like!.viewerHasLiked,
-      likeCount: like.likeCount,
-    );
-  }
-  if (repostIsActive && repost?.uri == post.uri) {
-    result = result.copyWith(
-      viewerHasReposted: repost!.viewerHasReposted,
-      repostCount: repost.repostCount,
-    );
-  }
-  return result;
+  // Mutation state notifies rows to rebuild; the value itself is per subject.
+  ref
+    ..watch(toggleLikePostProvider)
+    ..watch(toggleRepostPostProvider);
+  final lease = ref.watch(sessionRegistryProvider).value?.activeLease?.session;
+  return applyPostInteractionOverlaysForLease(
+    ref.read(pdsRecordOperationControllerProvider),
+    lease,
+    post,
+    reconcile: false,
+  );
 }
 
 /// Card-shaped post row used by the feed and the profile Posts tab.

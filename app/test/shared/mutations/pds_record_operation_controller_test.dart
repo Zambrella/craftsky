@@ -62,9 +62,11 @@ void main() {
       operationKey: '00000000-0000-4000-8000-000000000001',
       endpoint: '/v1/posts/post-1/like',
       immutableBody: '{"active":true}',
+      optimisticValue: true,
     );
 
     expect(controller.markAmbiguous(token, retryAfterSeconds: 3), isTrue);
+    expect(controller.operationFor(scope)?.optimisticValue, isTrue);
     expect(
       controller.canRetry(
         token,
@@ -185,6 +187,34 @@ void main() {
     expect(refreshed, [scope, scope, scope]);
     expect(controller.overlayFor(scope), isNull);
   });
+
+  test(
+    'bounded overlay survives agreement on another surface until expiry',
+    () {
+      var now = start;
+      final controller = PdsRecordOperationController(
+        now: () => now,
+        schedule: (_, _) {},
+      );
+      final token = controller.begin(
+        scope: scope,
+        operationKey: 'bounded',
+        endpoint: '/mutation',
+        immutableBody: '{}',
+      );
+      controller.markAccepted(
+        token,
+        optimisticValue: true,
+        agrees: (value) => value == true,
+        retainUntilExpiry: true,
+      );
+      expect(controller.reconcile(scope, true), isTrue);
+      expect(controller.overlayFor(scope)?.optimisticValue, isTrue);
+      now = start.add(const Duration(seconds: 30));
+      controller.advanceTime();
+      expect(controller.overlayFor(scope), isNull);
+    },
+  );
 
   test('acceptance schedules grace and expiry checks', () {
     var now = start;

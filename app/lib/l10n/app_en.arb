@@ -522,6 +522,11 @@
   "profileUnblockConfirmBody": "You may see and interact with each other's content again.",
   "@profileUnblockConfirmBody": { "description": "Consequences shown in the unblock confirmation." },
 
+  "imageEditFailed": "Couldn’t edit that photo. Try again.",
+  "imageEditAction": "Edit photo",
+  "imageEditRotate": "Rotate 90°",
+  "imageEditCrop": "Crop",
+  "imageEditTitle": "Edit photo",
   "actionCancel": "Cancel",
   "@actionCancel": { "description": "Generic cancel action." },
 

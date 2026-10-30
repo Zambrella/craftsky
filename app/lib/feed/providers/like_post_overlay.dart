@@ -47,41 +47,75 @@ PdsMutationScope repostPostMutationScopeForLease(
   return PdsMutationScope(lease: lease, identity: 'repost:${post.uri}');
 }
 
-Post applyLikePostOverlay(Ref ref, Post post) {
-  final controller = ref.read(pdsRecordOperationControllerProvider);
-  final scope = likePostMutationScope(ref, post);
-  final overlay = controller.overlayFor(scope);
-  if (overlay == null) return post;
-  if (controller.reconcile(scope, post.viewerHasLiked)) return post;
-  final desired = overlay.optimisticValue;
-  if (desired is! bool || desired == post.viewerHasLiked) return post;
-  return post.copyWith(
-    viewerHasLiked: desired,
-    likeCount: desired
-        ? post.likeCount + 1
-        : (post.likeCount > 0 ? post.likeCount - 1 : 0),
+Post applyPostInteractionOverlays(
+  Ref ref,
+  Post post, {
+  bool reconcile = true,
+}) => applyPostInteractionOverlaysForLease(
+  ref.read(pdsRecordOperationControllerProvider),
+  captureActiveAccountOperation(ref)?.session,
+  post,
+  reconcile: reconcile,
+);
+
+Post applyPostInteractionOverlaysForLease(
+  PdsRecordOperationController controller,
+  AccountSessionLease? lease,
+  Post post, {
+  bool reconcile = true,
+}) {
+  var result = post;
+  final liked = _interactionValue(
+    controller,
+    likePostMutationScopeForLease(lease, post),
+    post.viewerHasLiked,
+    reconcile: reconcile,
   );
+  if (liked != null && liked != post.viewerHasLiked) {
+    result = result.copyWith(
+      viewerHasLiked: liked,
+      likeCount: liked
+          ? post.likeCount + 1
+          : (post.likeCount > 0 ? post.likeCount - 1 : 0),
+    );
+  }
+  final reposted = _interactionValue(
+    controller,
+    repostPostMutationScopeForLease(lease, post),
+    post.viewerHasReposted,
+    reconcile: reconcile,
+  );
+  if (reposted != null && reposted != post.viewerHasReposted) {
+    result = result.copyWith(
+      viewerHasReposted: reposted,
+      repostCount: reposted
+          ? post.repostCount + 1
+          : (post.repostCount > 0 ? post.repostCount - 1 : 0),
+    );
+  }
+  return result;
 }
 
-Post applyPostInteractionOverlays(Ref ref, Post post) {
-  final likedPost = applyLikePostOverlay(ref, post);
-  final controller = ref.read(pdsRecordOperationControllerProvider);
-  final scope = repostPostMutationScope(ref, likedPost);
+bool? _interactionValue(
+  PdsRecordOperationController controller,
+  PdsMutationScope scope,
+  bool authoritative, {
+  required bool reconcile,
+}) {
+  final operation = controller.operationFor(scope);
+  final pending = operation?.optimisticValue;
+  if (operation != null &&
+      operation.status != PdsMutationStatus.failed &&
+      pending is bool) {
+    return pending;
+  }
   final overlay = controller.overlayFor(scope);
-  if (overlay == null) return likedPost;
-  if (controller.reconcile(scope, likedPost.viewerHasReposted)) {
-    return likedPost;
+  if (overlay == null) return null;
+  if (reconcile && controller.reconcile(scope, authoritative)) {
+    return authoritative;
   }
-  final desired = overlay.optimisticValue;
-  if (desired is! bool || desired == likedPost.viewerHasReposted) {
-    return likedPost;
-  }
-  return likedPost.copyWith(
-    viewerHasReposted: desired,
-    repostCount: desired
-        ? likedPost.repostCount + 1
-        : (likedPost.repostCount > 0 ? likedPost.repostCount - 1 : 0),
-  );
+  final accepted = overlay.optimisticValue;
+  return accepted is bool ? accepted : null;
 }
 
 PostCommentSection applyPostCommentSectionInteractionOverlays(

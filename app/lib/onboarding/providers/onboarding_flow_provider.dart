@@ -17,6 +17,7 @@ import 'package:craftsky_app/profile/providers/profile_record_overlay.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/profile/services/profile_image_error_reporting.dart';
 import 'package:craftsky_app/shared/api/pds_mutation_contract.dart';
+import 'package:craftsky_app/shared/image/basic_image_editor.dart';
 import 'package:craftsky_app/shared/mutations/pds_record_operation_controller.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
 import 'package:craftsky_app/shared/observability/error_reporter_provider.dart';
@@ -162,7 +163,10 @@ class OnboardingFlow extends _$OnboardingFlow {
     state = AsyncData(current.copyWith(meetsMinimumAge: value));
   }
 
-  Future<void> pickAvatar(ImageSource source) async {
+  Future<void> pickAvatar(
+    ImageSource source, {
+    BasicImageEditor? editImage,
+  }) async {
     final current = state.value;
     if (current == null || current.saving || current.uploadingAvatar) return;
     final reporter = ref.read(errorReporterProvider);
@@ -179,8 +183,10 @@ class OnboardingFlow extends _$OnboardingFlow {
       if (!_isCurrent()) return;
       final result = await picker.pickAndUpload(
         source: source,
+        editImage: editImage,
+        isCurrent: _isCurrent,
         onPreviewReady: (bytes) {
-          if (!_isCurrent()) return;
+          if (!_isCurrent() || editImage != null) return;
           state = AsyncData(
             (state.value ?? current).copyWith(
               avatarPreview: bytes,
@@ -232,7 +238,7 @@ class OnboardingFlow extends _$OnboardingFlow {
 
   void next() {
     final current = state.value;
-    if (current == null || current.saving) return;
+    if (current == null || current.saving || current.uploadingAvatar) return;
     final next = (current.step.index + 1).clamp(
       0,
       OnboardingStep.values.length - 1,
@@ -242,7 +248,7 @@ class OnboardingFlow extends _$OnboardingFlow {
 
   void previous() {
     final current = state.value;
-    if (current == null || current.saving) return;
+    if (current == null || current.saving || current.uploadingAvatar) return;
     final previous = (current.step.index - 1).clamp(
       0,
       OnboardingStep.values.length - 1,
@@ -252,7 +258,7 @@ class OnboardingFlow extends _$OnboardingFlow {
 
   Future<void> saveAndNext() async {
     final current = state.value;
-    if (current == null || current.saving) return;
+    if (current == null || current.saving || current.uploadingAvatar) return;
     state = AsyncData(current.copyWith(saving: true));
     try {
       final repository = await ref.read(
@@ -321,7 +327,12 @@ class OnboardingFlow extends _$OnboardingFlow {
 
   Future<void> complete() {
     final current = state.value;
-    if (current == null || !current.meetsMinimumAge) return Future.value();
+    if (current == null ||
+        current.uploadingAvatar ||
+        current.saving ||
+        !current.meetsMinimumAge) {
+      return Future.value();
+    }
     return ref
         .read(onboardingStatusProvider(lease.session).notifier)
         .completeOptimistically(meetsMinimumAge: true);

@@ -180,8 +180,8 @@ func TestProfileStore_ReadByDID_ProfileSummaryCountsRootPosts(t *testing.T) {
 	if got.PostCount == nil || *got.PostCount != 2 {
 		t.Fatalf("postCount = %v, want 2 non-project root posts", got.PostCount)
 	}
-	if got.PostsLast7Days == nil || *got.PostsLast7Days != 1 {
-		t.Fatalf("postsLast7Days = %v, want 1 recent non-project root post", got.PostsLast7Days)
+	if got.PostsLast7Days == nil || *got.PostsLast7Days != 2 {
+		t.Fatalf("postsLast7Days = %v, want 2 recent root posts including projects", got.PostsLast7Days)
 	}
 	if got.ProjectCount == nil || *got.ProjectCount != 1 {
 		t.Fatalf("projectCount = %v, want one visible top-level project", got.ProjectCount)

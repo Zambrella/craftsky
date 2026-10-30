@@ -70,17 +70,25 @@ selects the newest two photo tiles. Imports accumulate in the test simulator;
 the runner does not delete library photos. Never run it on a personal device.
 
 The UI journey performs real OAuth in the browser, changes the onboarding bio,
-completes onboarding, selects two photos through the native picker, publishes a
+completes onboarding, selects two photos through the native picker, opens photo
+details from the overview, rotates the first photo by 90 degrees, accepts the
+edit, and publishes a
 regular post, likes it, edits its text and removes its second image, then deletes
 it. Fresh AppView reads verify the bio, indexed post/image metadata, persisted
 like, and eventual 404 after deletion. After editing, a fresh read of the same
 post must have the new text, a changed record CID, an edit timestamp, exactly
 the original first image CID, and the existing like.
-Both published image URLs must serve nonempty bytes. Indexing is polled with a
+Both published image URLs must serve nonempty bytes. The first downloaded image
+must retain the accepted editor output dimensions; the second must remain
+640×480. The editor retains its crop frame when rotating, so the smoke test
+does not assume that the output dimensions simply swap. These media checks run
+inside the UI-deletion cleanup block. Indexing is polled with a
 60-second bound. Authentication, repositories and upload plugins are not mocked.
 Push delivery, billing and remote crash reporting are outside this smoke test.
 Before publishing, the test checks the selected image dimensions and fixture
 colors and requires one coral and one teal image.
+After editing, it checks the first image's changed bytes and decodable output,
+stable attachment IDs/order, and unchanged bytes for the second image.
 The Android photo-picker helper requires exactly two fixtures in `CraftSkyE2E` and
 checks the native selection count after each photo tap before confirming Done.
 A stalled selection reports the expected and observed photo counts.
@@ -119,6 +127,21 @@ Patrol MCP can be installed separately for interactive test sessions, native
 tree inspection and screenshots: <https://pub.dev/packages/patrol_mcp>.
 
 ## Validation
+
+On 30 October 2026, the image-editing journey passed on the iPhone 18 Pro
+simulator running iOS 27.0 against this checkout's local AppView: one successful
+test, zero failures/skips, 55 seconds for the journey and 79.3 seconds of native
+execution (plus a 63-second build). It opened the editor from photo details,
+rotated the first fixture and accepted its changed output, preserved attachment
+IDs/order and the second fixture bytes, and verified the published image
+dimensions. The later like, text edit, second-image removal, retained first
+image CID and deletion/404 checks all passed.
+During test development, an early Back tap raced the editor's closing route
+animation; the test now lets that transition settle first. A strict swapped-size
+expectation was also corrected to use the actual accepted crop dimensions.
+The editor keeps its crop frame when rotating (480×360 in the observed run).
+Targeted analysis and 17 affected widget tests passed. This expanded journey
+has not been rerun on Android.
 
 On 28 October 2026, the expanded live journey passed on the iPhone 18 Pro
 simulator running iOS 27.0 against this checkout's local AppView. The journey

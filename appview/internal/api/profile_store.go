@@ -227,7 +227,6 @@ func (s *ProfileStore) Read(ctx context.Context, profileDID string, viewerDID st
 				SELECT COUNT(*)
 				FROM craftsky_posts p
 				WHERE p.did = cp.did
-				  AND p.is_project = false
 				  AND p.reply_root_uri IS NULL
 				  AND p.reply_parent_uri IS NULL
 				  AND p.created_at >= now() - interval '7 days'

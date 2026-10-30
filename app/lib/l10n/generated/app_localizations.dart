@@ -1168,6 +1168,36 @@ abstract class AppLocalizations {
   /// **'You may see and interact with each other\'s content again.'**
   String get profileUnblockConfirmBody;
 
+  /// No description provided for @imageEditFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn’t edit that photo. Try again.'**
+  String get imageEditFailed;
+
+  /// No description provided for @imageEditAction.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit photo'**
+  String get imageEditAction;
+
+  /// No description provided for @imageEditRotate.
+  ///
+  /// In en, this message translates to:
+  /// **'Rotate 90°'**
+  String get imageEditRotate;
+
+  /// No description provided for @imageEditCrop.
+  ///
+  /// In en, this message translates to:
+  /// **'Crop'**
+  String get imageEditCrop;
+
+  /// No description provided for @imageEditTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit photo'**
+  String get imageEditTitle;
+
   /// Generic cancel action.
   ///
   /// In en, this message translates to:

@@ -10,7 +10,14 @@ part 'composer_image_state.mapper.dart';
 /// Complete image attachment state for a single post composer instance.
 @MappableClass()
 class ComposerImagesState with ComposerImagesStateMappable {
-  const new({required this.images, this.notice});
+  const new({
+    required this.images,
+    this.notice,
+    this.hasImageEditsInFlight = false,
+  });
+
+  /// Transient UI state; never included in draft snapshots.
+  final bool hasImageEditsInFlight;
 
   /// Images currently attached to the composer, in display/submission order.
   final List<ComposerImageDraft> images;
@@ -19,13 +26,15 @@ class ComposerImagesState with ComposerImagesStateMappable {
   final ComposerImageNotice? notice;
 
   /// Whether every attached image has finished local preparation or upload.
-  bool get isSubmitReady => images.every(
-    (image) =>
-        image.phase is ImageReady ||
-        image.phase is ImageUploaded ||
-        image.phase is PublishedImageReady ||
-        image.phase is ScheduledImageReady,
-  );
+  bool get isSubmitReady =>
+      !hasImageEditsInFlight &&
+      images.every(
+        (image) =>
+            image.phase is ImageReady ||
+            image.phase is ImageUploaded ||
+            image.phase is PublishedImageReady ||
+            image.phase is ScheduledImageReady,
+      );
 
   /// Whether all attached images are ready and any provided alt text is valid.
   bool canSubmitImages({MediaConfig config = mediaConfig}) {
@@ -46,6 +55,7 @@ class ComposerImagesState with ComposerImagesStateMappable {
 
   /// Whether every retained image has complete app-owned publishable bytes.
   bool canSaveDraftMedia({MediaConfig config = mediaConfig}) {
+    if (hasImageEditsInFlight) return false;
     for (final image in images) {
       if (image.phase is! ImageReady) return false;
       if (!RecordTextLimit(

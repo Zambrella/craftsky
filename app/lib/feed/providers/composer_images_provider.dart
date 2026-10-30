@@ -1,11 +1,14 @@
 import 'dart:async';
 
+import 'package:craftsky_app/auth/models/account_session_lease.dart';
+import 'package:craftsky_app/auth/providers/account_operation_guard.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/drafts/composer/draft_composer_hydrator.dart';
 import 'package:craftsky_app/feed/media/bounded_image_file_reader.dart';
 import 'package:craftsky_app/feed/media/composer_image_media_service.dart';
 import 'package:craftsky_app/feed/models/create_post_image.dart';
 import 'package:craftsky_app/feed/providers/composer_image_state.dart';
+import 'package:craftsky_app/shared/image/basic_image_editor.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_emitter.dart';
 import 'package:craftsky_app/shared/observability/error_reporter.dart';
 import 'package:craftsky_app/shared/observability/error_reporter_provider.dart';
@@ -347,6 +350,121 @@ class ComposerImages extends _$ComposerImages {
           ),
       ],
     );
+  }
+
+  Object? _activeEdit;
+
+  Future<void> editImage(
+    String imageId, {
+    required BasicImageEditor editor,
+    ActiveAccountLease? initiatingLease,
+  }) async {
+    if (_activeEdit != null) return;
+    final index = state.images.indexWhere((image) => image.id == imageId);
+    if (index < 0) return;
+    final phase = state.images[index].phase;
+    if (phase is! ImageReady) return;
+    final operation = ActiveAccountOperation.fromLease(ref, initiatingLease);
+    if (!operation.isCurrent) return;
+    final token = Object();
+    _activeEdit = token;
+    bool current() =>
+        ref.mounted &&
+        identical(_activeEdit, token) &&
+        operation.isCurrent &&
+        state.images.any(
+          (image) => image.id == imageId && identical(image.phase, phase),
+        );
+    state = state.copyWith(hasImageEditsInFlight: true);
+    try {
+      final output = await editor(
+        BasicImageEditRequest(
+          bytes: phase.bytes,
+          mimeType: phase.mimeType,
+          mode: BasicImageEditMode.composer,
+        ),
+      );
+      if (output == null || !current()) return;
+      final prepared = await _media
+          .prepareImage(
+            bytes: output.bytes,
+            fileName: output.mimeType == 'image/png'
+                ? 'edited.png'
+                : 'edited.jpg',
+            mimeType: output.mimeType,
+          )
+          .future;
+      if (!current()) return;
+      final validation = _media.validatePreparedUploadBytes(
+        originalBytes: output.bytes.length,
+        preparedBytes: prepared.bytes.length,
+        width: prepared.width,
+        height: prepared.height,
+      );
+      if (!validation.canUpload) {
+        throw const FormatException('Edited image rejected');
+      }
+      _updateImage(
+        imageId,
+        (latest) => latest.copyWith(
+          fileName: prepared.mimeType == 'image/png'
+              ? 'edited.png'
+              : 'edited.jpg',
+          mimeType: prepared.mimeType,
+          previewBytes: prepared.bytes,
+          previewAspectRatio: CreatePostImageAspectRatio(
+            width: prepared.width,
+            height: prepared.height,
+          ),
+          phase: ImageReady(
+            bytes: prepared.bytes,
+            mimeType: prepared.mimeType,
+            width: prepared.width,
+            height: prepared.height,
+            sha256: sha256.convert(prepared.bytes).toString(),
+          ),
+        ),
+      );
+    } on Object catch (error, stack) {
+      if (!current()) return;
+      final expected =
+          error is FormatException ||
+          error is ImageSourceDimensionsTooLargeException ||
+          error is ImageSourceTooLargeException;
+      final message = DiagnosticMessage(
+        'composer image edit failed',
+        context: ReportContext(
+          feature: 'ComposerImages',
+          operation: 'media.image.edit',
+          classification: 'media.image.failed',
+          outcome: expected
+              ? DiagnosticOutcome.expected
+              : DiagnosticOutcome.automatic,
+          safeDiagnostics: {'failureStage': 'edit'},
+          workflow: initiatingLease == null
+              ? null
+              : PrivateOperationalFailureContext(
+                  accountDid: initiatingLease.session.account.did.value,
+                ),
+        ),
+      );
+      if (expected) {
+        _log.warning(message, error, stack);
+      } else {
+        _log.severe(message, error, stack);
+        await _reporter.captureException(
+          error,
+          stackTrace: stack,
+          context: message.context,
+        );
+      }
+      Error.throwWithStackTrace(error, stack);
+    } finally {
+      if (ref.mounted && identical(_activeEdit, token)) {
+        _activeEdit = null;
+        state = state.copyWith(hasImageEditsInFlight: false);
+      }
+    }
   }
 
   void remove(String imageId) {
