@@ -1583,7 +1583,7 @@ void main() {
                     .read(toggleRepostPostProvider.notifier)
                     .toggle(post: post);
               },
-              onQuote: () {},
+              onQuote: (_) {},
             ),
           ),
           overrides: [postRepositoryProvider.overrideWithValue(fake)],
@@ -2252,6 +2252,123 @@ void main() {
       );
     });
 
+    testWidgets(
+      'passes the visible carousel image when quoting after rebuild',
+      (tester) async {
+        int? chosen;
+        final post = _post(
+          images: [
+            for (var i = 0; i < 4; i++)
+              PostImage(
+                cid: 'image-$i',
+                mime: 'image/jpeg',
+                size: 1,
+                alt: 'Photo $i',
+              ),
+          ],
+        );
+        late StateSetter rebuild;
+        await _pump(
+          tester,
+          StatefulBuilder(
+            builder: (context, setState) {
+              rebuild = setState;
+              return PostCard(post: post, onQuote: (index) => chosen = index);
+            },
+          ),
+        );
+        final page = tester.widget<PageView>(find.byType(PageView));
+        page.controller!.jumpToPage(2);
+        await tester.pumpAndSettle();
+        rebuild(() {});
+        await tester.pump();
+        await tester.ensureVisible(find.byIcon(CraftskyIconsBold.repost));
+        await tester.tap(find.byIcon(CraftskyIconsBold.repost));
+        await tester.pumpAndSettle();
+        expect(find.text('Use current image (3 of 4)'), findsOneWidget);
+        expect(tester.widget<Switch>(find.byType(Switch)).value, isFalse);
+        await tester.tap(find.byType(Switch));
+        await tester.pumpAndSettle();
+        expect(chosen, isNull);
+        expect(find.text('Quote'), findsOneWidget);
+        expect(tester.widget<Switch>(find.byType(Switch)).value, isTrue);
+        await tester.tap(find.text('Quote'));
+        await tester.pumpAndSettle();
+        expect(chosen, 2);
+      },
+    );
+
+    testWidgets(
+      'quote image choice defaults off and resets when menu reopens',
+      (tester) async {
+        var calls = 0;
+        int? chosen = -1;
+        await _pump(
+          tester,
+          PostCard(
+            post: _post(
+              images: [
+                for (var i = 0; i < 2; i++)
+                  PostImage(
+                    cid: 'image-$i',
+                    mime: 'image/jpeg',
+                    size: 1,
+                    alt: 'Photo $i',
+                  ),
+              ],
+            ),
+            onQuote: (index) {
+              chosen = index;
+              calls++;
+            },
+          ),
+        );
+        tester
+            .widget<PageView>(find.byType(PageView))
+            .controller!
+            .jumpToPage(1);
+        await tester.pumpAndSettle();
+        await tester.ensureVisible(find.byIcon(CraftskyIconsBold.repost));
+        await tester.tap(find.byIcon(CraftskyIconsBold.repost));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byType(Switch));
+        await tester.pumpAndSettle();
+        await tester.tapAt(const Offset(5, 5));
+        await tester.pumpAndSettle();
+        expect(calls, 0);
+        await tester.tap(find.byIcon(CraftskyIconsBold.repost));
+        await tester.pumpAndSettle();
+        expect(tester.widget<Switch>(find.byType(Switch)).value, isFalse);
+        await tester.tap(find.text('Quote'));
+        await tester.pumpAndSettle();
+        expect(calls, 1);
+        expect(chosen, isNull);
+      },
+    );
+
+    testWidgets('single-image quote menu has no image toggle', (tester) async {
+      await _pump(
+        tester,
+        PostCard(
+          post: _post(
+            images: [
+              PostImage(
+                cid: 'one',
+                mime: 'image/jpeg',
+                size: 1,
+                alt: 'Only photo',
+              ),
+            ],
+          ),
+          onQuote: (_) {},
+        ),
+      );
+      await tester.ensureVisible(find.byIcon(CraftskyIconsBold.repost));
+      await tester.tap(find.byIcon(CraftskyIconsBold.repost));
+      await tester.pumpAndSettle();
+      expect(find.byType(Switch), findsNothing);
+    });
+
     testWidgets('opens share menu with repost and quote choices', (
       tester,
     ) async {
@@ -2262,7 +2379,7 @@ void main() {
         PostCard(
           post: _post(),
           onRepost: () => reposts++,
-          onQuote: () => quotes++,
+          onQuote: (_) => quotes++,
         ),
       );
 
@@ -2282,7 +2399,7 @@ void main() {
     testWidgets('share count opens the same menu', (tester) async {
       await _pump(
         tester,
-        PostCard(post: _post(repostCount: 2), onRepost: () {}, onQuote: () {}),
+        PostCard(post: _post(repostCount: 2), onRepost: () {}, onQuote: (_) {}),
       );
 
       await tester.tap(find.text('2'));
@@ -2309,7 +2426,7 @@ void main() {
             reply: PostReply(root: root, parent: parent),
           ),
           onRepost: () {},
-          onQuote: () {},
+          onQuote: (_) {},
         ),
       );
 
@@ -2417,7 +2534,7 @@ void main() {
             onLike: () => likes++,
             onViewLikes: () => listViews++,
             onRepost: () => reposts++,
-            onQuote: () => quotes++,
+            onQuote: (_) => quotes++,
           ),
         );
 

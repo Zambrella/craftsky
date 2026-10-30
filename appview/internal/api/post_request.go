@@ -43,6 +43,7 @@ type ReplyRef struct {
 
 // EmbedRequest mirrors the supported create-post embed variants.
 type EmbedRequest struct {
+	ImageCID *string               `json:"imageCid,omitempty"`
 	Quote    *StrongRef            `json:"quote,omitempty"`
 	External *ExternalEmbedRequest `json:"external,omitempty"`
 	Video    *VideoEmbedRequest    `json:"video,omitempty"`
@@ -205,6 +206,15 @@ func validatePostCreateWithLimits(req PostCreateRequest, limits MediaLimits, req
 	}
 	if req.Embed != nil && req.Embed.Quote != nil {
 		validateStrongRef(fields, "embed.quote", *req.Embed.Quote)
+	}
+	if req.Embed != nil && req.Embed.ImageCID != nil {
+		parsed, err := cid.Parse(*req.Embed.ImageCID)
+		if err != nil || parsed.String() != *req.Embed.ImageCID {
+			fields["embed.imageCid"] = "must be a canonical CID"
+		}
+		if req.Embed.Quote == nil {
+			fields["embed.imageCid"] = "requires a quote embed"
+		}
 	}
 	if req.Embed != nil && req.Embed.External != nil {
 		validateExternalEmbed(fields, *req.Embed.External)

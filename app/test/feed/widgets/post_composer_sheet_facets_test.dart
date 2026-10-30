@@ -10,6 +10,7 @@ import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/shared/rich_text/data/facet_suggestion_repository.dart';
 import 'package:craftsky_app/shared/rich_text/data/mock_facet_suggestion_repository.dart';
 import 'package:craftsky_app/shared/rich_text/providers/facet_suggestion_providers.dart';
+import 'package:craftsky_app/shared/rich_text/widgets/facet_autocomplete_editor.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -244,6 +245,74 @@ void main() {
       );
     });
 
+    for (final useCurrent in [false, true]) {
+      testWidgets(
+        'original quote composer carries menu image choice: $useCurrent',
+        (tester) async {
+          final target = _post('multiple photos').copyWith(
+            images: [
+              for (var i = 0; i < 4; i++)
+                PostImage(
+                  cid: 'image-$i',
+                  mime: 'image/jpeg',
+                  size: 1,
+                  alt: 'Photo $i',
+                ),
+            ],
+          );
+          final repo = FakePostRepository(
+            onCreate: ({required text, reply, images}) async => _post(text),
+          );
+          await _openComposer(
+            tester,
+            quoteTarget: target,
+            quoteImageIndex: useCurrent ? 2 : null,
+            overrides: [
+              activeLanguagePreferencesProvider.overrideWith(
+                (ref) => const LanguagePreferences(
+                  primaryLanguage: 'en',
+                  contentLanguages: ['en'],
+                ),
+              ),
+              postRepositoryProvider.overrideWithValue(repo),
+            ],
+          );
+          expect(find.text('multiple photos'), findsOneWidget);
+          final editor = tester.widget<FacetAutocompleteEditor>(
+            find.byType(FacetAutocompleteEditor),
+          );
+          expect(editor.label, 'Your thoughts');
+          expect(editor.hintText, 'Add your thoughts about this post…');
+
+          expect(find.byType(SwitchListTile), findsNothing);
+          expect(find.byType(Switch), findsNothing);
+          expect(find.text('Use current image (3 of 4)'), findsNothing);
+          await tester.enterText(find.byType(TextField).first, 'my quote');
+          await _pumpUntilPostEnabled(tester);
+          await tester.tap(find.widgetWithText(ChunkyButton, 'Post'));
+          await tester.pumpAndSettle();
+          expect(repo.lastCreateQuoteImageCid, useCurrent ? 'image-2' : null);
+        },
+      );
+    }
+
+    testWidgets('single-image quotes hide the image toggle', (tester) async {
+      await _openComposer(
+        tester,
+        quoteTarget: _post('one photo').copyWith(
+          images: [
+            PostImage(
+              cid: 'one',
+              mime: 'image/jpeg',
+              size: 1,
+              alt: 'Only photo',
+            ),
+          ],
+        ),
+      );
+      expect(find.byKey(const Key('quote-use-current-image')), findsNothing);
+    });
+
     testWidgets('submits quote target through create provider', (
       tester,
     ) async {
@@ -267,6 +336,7 @@ void main() {
       );
 
       expect(find.text('timeline post target'), findsOneWidget);
+      expect(find.byKey(const Key('quote-use-current-image')), findsNothing);
 
       await tester.enterText(find.byType(TextField).first, 'quote commentary');
       await _pumpUntilPostEnabled(tester);
@@ -282,6 +352,7 @@ void main() {
 Future<void> _openComposer(
   WidgetTester tester, {
   Post? quoteTarget,
+  int? quoteImageIndex,
   List<dynamic> overrides = const [],
 }) async {
   final effectiveOverrides = overrides.isEmpty
@@ -313,6 +384,7 @@ Future<void> _openComposer(
                       builder: (_) => PostComposerSheet(
                         composerId: 'facet-composer',
                         quoteTarget: quoteTarget,
+                        quoteImageIndex: quoteImageIndex,
                       ),
                     ),
                   );

@@ -78,6 +78,7 @@ func postEditCandidate(raw json.RawMessage) (PostCreateRequest, error) {
 		Alt         string                `json:"alt"`
 		AspectRatio *PostImageAspectRatio `json:"aspectRatio"`
 		External    *ExternalEmbedRequest `json:"external"`
+		ImageCID    *string               `json:"imageCid"`
 		Record      *StrongRef            `json:"record"`
 	}
 	if err := json.Unmarshal(embed, &value); err != nil {
@@ -89,7 +90,7 @@ func postEditCandidate(raw json.RawMessage) (PostCreateRequest, error) {
 	case "app.bsky.embed.external":
 		candidate.Embed = &EmbedRequest{External: value.External}
 	case "social.craftsky.feed.post#quoteEmbed":
-		candidate.Embed = &EmbedRequest{Quote: value.Record}
+		candidate.Embed = &EmbedRequest{Quote: value.Record, ImageCID: value.ImageCID}
 	}
 	return candidate, nil
 }

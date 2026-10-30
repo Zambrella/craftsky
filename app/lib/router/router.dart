@@ -937,6 +937,7 @@ class PostThreadRoute extends GoRouteData with $PostThreadRoute {
     required this.did,
     required this.rkey,
     this.focus,
+    this.imageCid,
     this.showComments = false,
     this.$extra,
   });
@@ -944,6 +945,7 @@ class PostThreadRoute extends GoRouteData with $PostThreadRoute {
   final String did;
   final String rkey;
   final String? focus;
+  final String? imageCid;
   final bool showComments;
   final Post? $extra;
 
@@ -954,6 +956,7 @@ class PostThreadRoute extends GoRouteData with $PostThreadRoute {
     focus: focus == null ? null : AtUri.parse(focus!),
     initialCreatedPost: $extra,
     showComments: showComments,
+    initialImageCid: imageCid,
   );
 }
 

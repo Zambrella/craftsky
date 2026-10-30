@@ -134,6 +134,7 @@ func attachQuoteViews(ctx context.Context, store quoteViewReader, resolver Handl
 			handle = cached
 		}
 		resp.QuoteView = BuildQuoteView(viewRow, handle)
+		preferQuoteImage(resp.QuoteView, resp.quoteImageCID)
 	}
 	return nil
 }
@@ -155,4 +156,19 @@ func resolveHandlesForRows(ctx context.Context, rows []*PostRow, resolver Handle
 		handles[row.DID] = handle
 	}
 	return handles, nil
+}
+
+// The compact preview uses its first image. Resolve per quoting response, never
+// mutate the shared target row or cache a selection by target URI.
+func preferQuoteImage(view *QuoteView, imageCID string) {
+	if view == nil || view.State != "visible" || view.Post == nil || imageCID == "" {
+		return
+	}
+	for i, image := range view.Post.Images {
+		if image.CID == imageCID {
+			copy(view.Post.Images[1:i+1], view.Post.Images[:i])
+			view.Post.Images[0] = image
+			return
+		}
+	}
 }

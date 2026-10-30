@@ -1,4 +1,11 @@
 {
+  "postQuoteUseCurrentImage": "Use current image ({current} of {total})",
+  "@postQuoteUseCurrentImage": {
+    "placeholders": {
+      "current": {"type": "int"},
+      "total": {"type": "int"}
+    }
+  },
   "@@locale": "en",
   "discoveryYourCrafts": "Your crafts",
   "@discoveryYourCrafts": {"description": "Desktop discovery sidebar section copy."},
@@ -1103,6 +1110,10 @@
   "projectComposerPatternPublisherHint": "Add pattern publisher",
   "@projectComposerPatternPublisherHint": { "description": "Placeholder text for the optional pattern publisher field in the project composer." },
 
+  "postComposeQuoteLabel": "Your thoughts",
+  "@postComposeQuoteLabel": { "description": "Text box label when composing a quote post." },
+  "postComposeQuoteHint": "Add your thoughts about this post…",
+  "@postComposeQuoteHint": { "description": "Text box placeholder when composing a quote post." },
   "postComposeHint": "What would you like to share?",
   "postComposeDone": "Done",
   "@postComposeDone": { "description": "Dismisses the keyboard in the post composer without publishing." },

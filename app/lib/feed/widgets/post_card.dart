@@ -115,6 +115,7 @@ class PostCard extends ConsumerWidget {
     this.videoPlayerBuilder,
     this.imageInteractionMode = PostCardImageInteractionMode.fullscreenGallery,
     this.collapseBody = false,
+    this.initialImageCid,
   });
 
   final Post post;
@@ -123,7 +124,7 @@ class PostCard extends ConsumerWidget {
   final VoidCallback? onLike;
   final VoidCallback? onViewLikes;
   final VoidCallback? onRepost;
-  final VoidCallback? onQuote;
+  final ValueChanged<int?>? onQuote;
   final VoidCallback? onQuotedPostTap;
   final VoidCallback? onQuotedAuthorTap;
   final VoidCallback? onRevealQuotedPost;
@@ -149,6 +150,13 @@ class PostCard extends ConsumerWidget {
   final Widget Function(PostVideo video)? videoPlayerBuilder;
   final PostCardImageInteractionMode imageInteractionMode;
   final bool collapseBody;
+  final String? initialImageCid;
+
+  int _initialImageIndex(Post post) {
+    final index =
+        post.images?.indexWhere((image) => image.cid == initialImageCid) ?? -1;
+    return index < 0 ? 0 : index;
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -178,11 +186,11 @@ class PostCard extends ConsumerWidget {
       cancelled: failed,
       onLike: onLike,
       builder: (context, reactToLike) => Consumer(
-        builder: (context, ref, child) => _buildContent(
-          context,
-          ref,
-          post,
-          reactToLike,
+        builder: (context, ref, child) => _PostCardImageSelection(
+          key: ValueKey(post.uri),
+          initialIndex: _initialImageIndex(post),
+          builder: (selection) =>
+              _buildContent(context, ref, post, reactToLike, selection),
         ),
       ),
     );
@@ -193,6 +201,7 @@ class PostCard extends ConsumerWidget {
     WidgetRef ref,
     Post post,
     VoidCallback? onLike,
+    ValueNotifier<int> imageSelection,
   ) {
     final auth = ref.watch(authSessionProvider).value;
     final isViewerOwned = auth is SignedIn && auth.did == post.author.did;
@@ -359,6 +368,7 @@ class PostCard extends ConsumerWidget {
             : () => PostThreadRoute(
                 did: quotedPostParts.did,
                 rkey: quotedPostParts.rkey,
+                imageCid: quotedPost?.images?.firstOrNull?.cid,
               ).push<void>(context));
     final openReposter =
         onReposterTap ??
@@ -505,6 +515,9 @@ class PostCard extends ConsumerWidget {
                         excludeFromSemantics: true,
                         onTap: () {},
                         child: PostImageCarousel(
+                          initialIndex: _initialImageIndex(post),
+                          onPageChanged: (index) =>
+                              imageSelection.value = index,
                           images: images,
                           onImageTap: (index, heroTags) =>
                               switch (imageInteractionMode) {
@@ -587,8 +600,25 @@ class PostCard extends ConsumerWidget {
                                     ? l10n.postUnrepostAction
                                     : l10n.postRepostAction,
                                 quoteLabel: l10n.postQuoteAction,
+                                quoteImageLabel: () =>
+                                    (post.images?.length ?? 0) > 1
+                                    ? l10n.postQuoteUseCurrentImage(
+                                        imageSelection.value.clamp(
+                                              0,
+                                              post.images!.length - 1,
+                                            ) +
+                                            1,
+                                        post.images!.length,
+                                      )
+                                    : null,
                                 onRepost: onRepost,
-                                onQuote: onQuote,
+                                onQuote: onQuote == null
+                                    ? null
+                                    : (useCurrentImage) => onQuote!(
+                                        useCurrentImage
+                                            ? imageSelection.value
+                                            : null,
+                                      ),
                               ),
                           ],
                         ),
@@ -1275,6 +1305,7 @@ class _PostCardShareAction extends StatelessWidget {
     required this.repostLabel,
     required this.quoteLabel,
     this.isSelected = false,
+    this.quoteImageLabel,
     this.onRepost,
     this.onQuote,
   });
@@ -1284,9 +1315,10 @@ class _PostCardShareAction extends StatelessWidget {
   final String tooltip;
   final String repostLabel;
   final String quoteLabel;
+  final String? Function()? quoteImageLabel;
   final bool isSelected;
   final VoidCallback? onRepost;
-  final VoidCallback? onQuote;
+  final ValueChanged<bool>? onQuote;
 
   bool get _isEnabled => onRepost != null || onQuote != null;
 
@@ -1347,6 +1379,8 @@ class _PostCardShareAction extends StatelessWidget {
   }
 
   Future<void> _showMenu(BuildContext context) {
+    var useCurrentImage = false;
+    final quoteImageLabel = this.quoteImageLabel?.call();
     return showCraftskyContextMenu(
       context,
       position: craftskyContextMenuAnchorPosition(context),
@@ -1364,7 +1398,12 @@ class _PostCardShareAction extends StatelessWidget {
               CraftskyContextMenuItem(
                 text: quoteLabel,
                 icon: CraftskyIconsBold.quote,
-                onPressed: onQuote,
+                description: quoteImageLabel,
+                switchValue: quoteImageLabel == null ? null : false,
+                onSwitchChanged: quoteImageLabel == null
+                    ? null
+                    : (value) => useCurrentImage = value,
+                onPressed: () => onQuote!(useCurrentImage),
               ),
           ],
         ),
@@ -1446,4 +1485,27 @@ String? _compactCountLabel(BuildContext context, int count) {
   final locale = Localizations.localeOf(context).toLanguageTag();
   final formatter = NumberFormat.compact(locale: locale)..significantDigits = 2;
   return formatter.format(count).toLowerCase();
+}
+
+class _PostCardImageSelection extends StatefulWidget {
+  const new({required this.builder, this.initialIndex = 0, super.key});
+  final int initialIndex;
+  final Widget Function(ValueNotifier<int>) builder;
+
+  @override
+  State<_PostCardImageSelection> createState() =>
+      _PostCardImageSelectionState();
+}
+
+class _PostCardImageSelectionState extends State<_PostCardImageSelection> {
+  late final ValueNotifier<int> _selection = ValueNotifier(widget.initialIndex);
+
+  @override
+  void dispose() {
+    _selection.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.builder(_selection);
 }

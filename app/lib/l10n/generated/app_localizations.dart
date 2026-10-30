@@ -94,6 +94,12 @@ abstract class AppLocalizations {
   /// A list of this localizations delegate's supported locales.
   static const List<Locale> supportedLocales = <Locale>[Locale('en')];
 
+  /// No description provided for @postQuoteUseCurrentImage.
+  ///
+  /// In en, this message translates to:
+  /// **'Use current image ({current} of {total})'**
+  String postQuoteUseCurrentImage(int current, int total);
+
   /// Desktop discovery sidebar section copy.
   ///
   /// In en, this message translates to:
@@ -2289,6 +2295,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Add pattern publisher'**
   String get projectComposerPatternPublisherHint;
+
+  /// Text box label when composing a quote post.
+  ///
+  /// In en, this message translates to:
+  /// **'Your thoughts'**
+  String get postComposeQuoteLabel;
+
+  /// Text box placeholder when composing a quote post.
+  ///
+  /// In en, this message translates to:
+  /// **'Add your thoughts about this post…'**
+  String get postComposeQuoteHint;
 
   /// Label above the text field in the text-only post composer.
   ///
