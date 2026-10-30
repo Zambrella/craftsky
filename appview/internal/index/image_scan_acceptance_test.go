@@ -80,8 +80,7 @@ func TestCraftskyImagePostVisibilityWaitsForEveryCurrentScan(t *testing.T) {
 			"$type":"social.craftsky.feed.post",
 			"text":"two images",
 			"createdAt":"` + fixedCreatedAt + `",
-			"images":[
-				{"image":{"$type":"blob","ref":{"$link":"` + firstBlob + `"},"mimeType":"image/jpeg","size":12345},"alt":"first"},
+					"images":[{"image":{"$type":"blob","ref":{"$link":"` + firstBlob + `"},"mimeType":"image/jpeg","size":12345},"alt":"first"},
 				{"image":{"$type":"blob","ref":{"$link":"` + secondBlob + `"},"mimeType":"image/png","size":54321},"alt":"second"}
 			]
 		}`),
@@ -192,6 +191,14 @@ func imageSourceFromEvent(event tap.Event) ingestion.SourceRecord {
 }
 
 func TestImageSafetyExtractsEveryRenderedBlobIntoOneScanWorkflow(t *testing.T) {
+	testImageSafetyWorkflow(t, false)
+}
+
+func TestDevelopmentAutoApprovalMakesEveryRenderedImageVisibleWithoutScanJobs(t *testing.T) {
+	testImageSafetyWorkflow(t, true)
+}
+
+func testImageSafetyWorkflow(t *testing.T, autoApprove bool) {
 	pool := testdb.WithSchema(t, craftskyProfilesDDL+imageScanTapPreStateDDL)
 	migration, err := os.ReadFile("../../migrations/000081_image_safety.up.sql")
 	if err != nil {
@@ -210,6 +217,13 @@ func TestImageSafetyExtractsEveryRenderedBlobIntoOneScanWorkflow(t *testing.T) {
 		bannerBlob  = "bafkreiax2trv4v7nq6oy3vk7ucjz5d4du4s2yx6iy6uuq2q3i4wl5hznje"
 	)
 	key := imagesafety.ScanKey{ScannerID: "fixture", PolicyVersion: "policy-1", CorpusVersion: "corpus-1"}
+	wantOutcome, wantJobs := tap.OutcomeBlocked, 6
+	if autoApprove {
+		key = (imagesafety.Config{Environment: imagesafety.EnvironmentDevelopment,
+			Mode: imagesafety.ScannerModeDevelopmentAutoApprove, ScannerID: imagesafety.DevelopmentApprovalScannerID,
+			PolicyVersion: imagesafety.DevelopmentApprovalPolicyVersion, CorpusVersion: imagesafety.DevelopmentApprovalCorpusVersion}).ProjectionKey()
+		wantOutcome, wantJobs = tap.OutcomeApplied, 0
+	}
 	actor := syntax.DID("did:plc:third-party-writer")
 	seedMember(t, pool, actor.String())
 	events := []struct {
@@ -260,9 +274,9 @@ func TestImageSafetyExtractsEveryRenderedBlobIntoOneScanWorkflow(t *testing.T) {
 			_ = tx.Rollback(ctx)
 			t.Fatalf("project %s: %v", fixture.event.Collection, err)
 		}
-		if outcome.Kind != tap.OutcomeBlocked || outcome.Reason != tap.ReasonImageScanPending {
+		if outcome.Kind != wantOutcome || (!autoApprove && outcome.Reason != tap.ReasonImageScanPending) {
 			_ = tx.Rollback(ctx)
-			t.Fatalf("%s outcome=%+v, want image-scan blocked", fixture.event.Collection, outcome)
+			t.Fatalf("%s outcome=%+v, want %s", fixture.event.Collection, outcome, wantOutcome)
 		}
 		if err := tx.Commit(ctx); err != nil {
 			t.Fatal(err)
@@ -287,9 +301,9 @@ func TestImageSafetyExtractsEveryRenderedBlobIntoOneScanWorkflow(t *testing.T) {
 		_ = tx.Rollback(ctx)
 		t.Fatalf("project Bluesky profile: %v", err)
 	}
-	if profileOutcome.Kind != tap.OutcomeBlocked || profileOutcome.Dependency.Key != profileEvent.URI.String() {
+	if profileOutcome.Kind != wantOutcome || (!autoApprove && profileOutcome.Dependency.Key != profileEvent.URI.String()) {
 		_ = tx.Rollback(ctx)
-		t.Fatalf("profile outcome=%+v, want image-scan blocked", profileOutcome)
+		t.Fatalf("profile outcome=%+v, want %s", profileOutcome, wantOutcome)
 	}
 	if err := tx.Commit(ctx); err != nil {
 		t.Fatal(err)
@@ -306,10 +320,22 @@ func TestImageSafetyExtractsEveryRenderedBlobIntoOneScanWorkflow(t *testing.T) {
 	`).Scan(&results, &jobs, &requirements, &candidates, &sources); err != nil {
 		t.Fatal(err)
 	}
-	if results != 6 || jobs != 6 {
-		t.Fatalf("scan results/jobs=%d/%d, want 6/6 unique blobs", results, jobs)
+	if results != 6 || jobs != wantJobs {
+		t.Fatalf("scan results/jobs=%d/%d, want 6/%d unique blobs", results, jobs, wantJobs)
 	}
 	if requirements != 5 || candidates != 2 || sources != 7 {
 		t.Fatalf("requirements/candidates/sources=%d/%d/%d, want 5/2/7", requirements, candidates, sources)
+	}
+	if autoApprove {
+		var clear, visibleProfiles, visibleSubjects int
+		if err := pool.QueryRow(ctx, `SELECT
+   (SELECT count(*) FROM image_scan_results WHERE state='clear' AND completed_at IS NOT NULL),
+   (SELECT count(*) FROM bluesky_profiles WHERE avatar_cid=$1 AND banner_cid=$2),
+   (SELECT count(*) FROM image_subject_states WHERE visibility_state='clear')`, avatarBlob, bannerBlob).Scan(&clear, &visibleProfiles, &visibleSubjects); err != nil {
+			t.Fatal(err)
+		}
+		if clear != 6 || visibleProfiles != 1 || visibleSubjects != 3 {
+			t.Fatalf("clear=%d profiles=%d subjects=%d", clear, visibleProfiles, visibleSubjects)
+		}
 	}
 }

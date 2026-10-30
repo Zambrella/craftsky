@@ -141,12 +141,18 @@ func reconcileImageRequirement(
 	size int64,
 ) (uuid.UUID, imagesafety.State, error) {
 	resultID := uuid.New()
+	initialState := imagesafety.StatePending
+	if baseKey.AutoApprovesDevelopmentImages() {
+		initialState = imagesafety.StateClear
+	}
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO image_scan_results(
-			id,blob_cid,scanner_id,policy_version,corpus_version,state
-		) VALUES($1,$2,$3,$4,$5,'pending')
-		ON CONFLICT(blob_cid,scanner_id,policy_version,corpus_version) DO NOTHING
-	`, resultID, blobCID, baseKey.ScannerID, baseKey.PolicyVersion, baseKey.CorpusVersion); err != nil {
+			id,blob_cid,scanner_id,policy_version,corpus_version,state,completed_at
+		) VALUES($1,$2,$3,$4,$5,$6,CASE WHEN $6='clear' THEN now() ELSE NULL END)
+		ON CONFLICT(blob_cid,scanner_id,policy_version,corpus_version) DO UPDATE
+		SET state='clear',completed_at=now(),updated_at=now()
+		WHERE $6='clear'
+	`, resultID, blobCID, baseKey.ScannerID, baseKey.PolicyVersion, baseKey.CorpusVersion, initialState); err != nil {
 		return uuid.Nil, "", fmt.Errorf("ensure scan result for %s: %w", blobCID, err)
 	}
 
@@ -160,6 +166,11 @@ func reconcileImageRequirement(
 	}
 	if !state.Valid() {
 		return uuid.Nil, "", fmt.Errorf("invalid scan state for %s", blobCID)
+	}
+	if baseKey.AutoApprovesDevelopmentImages() {
+		if _, err := tx.Exec(ctx, `DELETE FROM image_scan_jobs WHERE scan_result_id=$1`, resultID); err != nil {
+			return uuid.Nil, "", fmt.Errorf("remove development scan job for %s: %w", blobCID, err)
+		}
 	}
 	if !state.Terminal() {
 		if _, err := tx.Exec(ctx, `

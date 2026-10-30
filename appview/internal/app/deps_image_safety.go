@@ -19,11 +19,7 @@ type imageSafetyDependencies struct {
 }
 
 func imageSafetyProjectionKey(config imagesafety.Config) imagesafety.ScanKey {
-	key := imagesafety.ScanKey{
-		ScannerID:     config.ScannerID,
-		PolicyVersion: config.PolicyVersion,
-		CorpusVersion: config.CorpusVersion,
-	}
+	key := config.ProjectionKey()
 	if key.ScannerID != "" && key.PolicyVersion != "" && key.CorpusVersion != "" {
 		return key
 	}
@@ -43,6 +39,12 @@ func newImageSafetyDependencies(
 	incidents := safetyincident.NewStore(pool, time.Now)
 	result := &imageSafetyDependencies{
 		store: store, incidents: incidents, intake: safetyintake.NewStore(pool, time.Now),
+	}
+	if cfg.ImageSafety.Mode == imagesafety.ScannerModeDevelopmentAutoApprove {
+		if cfg.Env != EnvDev || !cfg.ImageSafety.Ready() {
+			return nil, fmt.Errorf("dev-auto-approve image mode requires a development environment and reserved approval identity")
+		}
+		return result, nil
 	}
 	if !cfg.ImageSafety.Ready() {
 		return result, nil
