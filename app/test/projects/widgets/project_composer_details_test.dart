@@ -77,7 +77,16 @@ void main() {
     expect(find.text('Gauge rows'), findsOneWidget);
     expect(find.text('Gauge measurement'), findsOneWidget);
     expect(find.text('Gauge unit'), findsOneWidget);
-    expect(find.text('Finished size'), findsOneWidget);
+    expect(find.text('Size made'), findsOneWidget);
+    expect(find.text('Finished size'), findsNothing);
+    expect(
+      tester.getTopLeft(find.text('Needle size')).dy,
+      lessThan(tester.getTopLeft(find.text('Size made')).dy),
+    );
+    expect(
+      tester.getTopLeft(find.text('Size made')).dy,
+      lessThan(tester.getTopLeft(find.text('Gauge stitches')).dy),
+    );
     expect(find.text('Fit notes'), findsNothing);
     expect(find.text('Hook size'), findsNothing);
   });
