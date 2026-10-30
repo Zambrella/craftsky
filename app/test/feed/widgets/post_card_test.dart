@@ -1344,6 +1344,101 @@ void main() {
       expect(find.byKey(const Key('post-like-reaction')), findsNothing);
     });
 
+    for (final (kind, reverseCompletion, failFirst) in [
+      (PostCardContentKind.comment, false, false),
+      (PostCardContentKind.comment, true, false),
+      (PostCardContentKind.reply, true, false),
+      (PostCardContentKind.comment, false, true),
+    ]) {
+      testWidgets(
+        'rapid ${kind.name} likes remain independent '
+        '(reverse=$reverseCompletion, failure=$failFirst)',
+        (tester) async {
+          final posts = [
+            for (final key in ['first', 'second'])
+              _post(
+                uri: 'at://did:plc:alice/social.craftsky.feed.post/$key',
+                text: key,
+              ).copyWith(rkey: RecordKey.parse(key)),
+          ];
+          final responses = [
+            Completer<InteractionWriteResponse>(),
+            Completer<InteractionWriteResponse>(),
+          ];
+          final mutations = <Future<void>>[];
+          await _pump(
+            tester,
+            Consumer(
+              builder: (context, ref, child) => Column(
+                children: [
+                  for (final post in posts)
+                    PostCard(
+                      post: post,
+                      contentKind: kind,
+                      onLike: () => mutations.add(
+                        ref
+                            .read(toggleLikePostProvider.notifier)
+                            .toggle(post: post),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            overrides: [
+              postRepositoryProvider.overrideWithValue(
+                FakePostRepository(
+                  onLike: (_, key) =>
+                      responses[key == posts.first.rkey ? 0 : 1].future,
+                ),
+              ),
+            ],
+          );
+          for (var index = 0; index < 2; index++) {
+            await tester.tap(
+              find.descendant(
+                of: find.byType(PostCard).at(index),
+                matching: find.byWidgetPredicate(
+                  (widget) => widget is Tooltip && widget.message == 'Like',
+                ),
+              ),
+            );
+            await tester.pump();
+            expect(find.byIcon(CraftskyIcons.liked), findsNWidgets(index + 1));
+          }
+          expect(responses.every((response) => !response.isCompleted), isTrue);
+          final completionOrder = reverseCompletion ? [1, 0] : [0, 1];
+          for (final index in completionOrder) {
+            if (index == 0 && failFirst) {
+              responses[index].completeError(Exception('first like rejected'));
+            } else {
+              responses[index].complete(_interaction(posts[index]));
+            }
+            await mutations[index];
+            await tester.pump();
+            for (var row = 0; row < 2; row++) {
+              final rolledBack =
+                  row == 0 && failFirst && responses[0].isCompleted;
+              expect(
+                find.descendant(
+                  of: find.byType(PostCard).at(row),
+                  matching: find.byIcon(CraftskyIcons.liked),
+                ),
+                rolledBack ? findsNothing : findsOneWidget,
+              );
+              expect(
+                find.descendant(
+                  of: find.byType(PostCard).at(row),
+                  matching: find.text('1'),
+                ),
+                rolledBack ? findsNothing : findsOneWidget,
+              );
+            }
+          }
+          await tester.pumpWidget(const SizedBox.shrink());
+        },
+      );
+    }
+
     testWidgets('like keeps its icon while its request is pending', (
       tester,
     ) async {
@@ -1408,10 +1503,16 @@ void main() {
       expect(find.text('2'), findsOneWidget);
     });
 
-    testWidgets('ignores completed mutation state after reconciliation', (
+    testWidgets('ignores completed mutation state after overlay expiry', (
       tester,
     ) async {
       var authoritative = _post(likeCount: 2);
+      var now = DateTime.utc(2026, 10, 29);
+      final controller = PdsRecordOperationController(
+        now: () => now,
+        schedule: (_, _) {},
+      );
+      addTearDown(controller.reset);
       late WidgetRef widgetRef;
       late StateSetter update;
       final fake = FakePostRepository(
@@ -1430,7 +1531,10 @@ void main() {
             );
           },
         ),
-        overrides: [postRepositoryProvider.overrideWithValue(fake)],
+        overrides: [
+          postRepositoryProvider.overrideWithValue(fake),
+          pdsRecordOperationControllerProvider.overrideWithValue(controller),
+        ],
       );
 
       await widgetRef
@@ -1445,6 +1549,9 @@ void main() {
             likePostMutationScopeForLease(null, authoritative),
             true,
           );
+      expect(controller.activeOverlays, hasLength(1));
+      now = now.add(const Duration(seconds: 30));
+      controller.advanceTime();
       update(() {
         authoritative = authoritative.copyWith(
           viewerHasLiked: false,

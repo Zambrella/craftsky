@@ -11,6 +11,7 @@ import 'package:craftsky_app/feed/providers/timeline_provider.dart';
 import 'package:craftsky_app/feed/providers/user_comments_provider.dart';
 import 'package:craftsky_app/feed/providers/user_posts_provider.dart';
 import 'package:craftsky_app/feed/providers/user_reposts_provider.dart';
+import 'package:craftsky_app/projects/providers/project_feed_provider.dart';
 import 'package:craftsky_app/projects/providers/user_projects_provider.dart';
 import 'package:craftsky_app/shared/api/pds_mutation_contract.dart';
 import 'package:craftsky_app/shared/mutations/pds_record_operation_controller.dart';
@@ -30,22 +31,31 @@ class ToggleRepostPost extends _$ToggleRepostPost {
     final lifetime = ref.keepAlive();
     try {
       final operation = ActiveAccountOperation.capture(ref);
-      final desiredReposted = !post.viewerHasReposted;
-      final next = post.copyWith(
+      final controller = ref.read(pdsRecordOperationControllerProvider);
+      final scope = repostPostMutationScope(ref, post);
+      final pending = controller.operationFor(scope);
+      final pendingValue = pending?.optimisticValue;
+      final current = applyPostInteractionOverlays(ref, post, reconcile: false);
+      final desiredReposted =
+          pending?.status == PdsMutationStatus.ambiguous && pendingValue is bool
+          ? pendingValue
+          : !current.viewerHasReposted;
+      final next = current.copyWith(
         viewerHasReposted: desiredReposted,
-        repostCount: post.viewerHasReposted
-            ? (post.repostCount > 0 ? post.repostCount - 1 : 0)
-            : post.repostCount + 1,
+        repostCount: current.viewerHasReposted == desiredReposted
+            ? current.repostCount
+            : desiredReposted
+            ? current.repostCount + 1
+            : (current.repostCount > 0 ? current.repostCount - 1 : 0),
       );
       final endpoint = '/v1/posts/${post.author.did}/${post.rkey}/reposts';
       final immutableBody = desiredReposted ? 'POST\n' : 'DELETE\n';
-      final controller = ref.read(pdsRecordOperationControllerProvider);
-      final scope = repostPostMutationScope(ref, post);
       final token = controller.beginOrRetry(
         scope: scope,
         endpoint: endpoint,
         immutableBody: immutableBody,
         newOperationKey: newPdsMutationOperationKey,
+        optimisticValue: desiredReposted,
       );
       final operationKey = token.operationKey;
       late final repo = ref.read(postRepositoryProvider);
@@ -91,6 +101,7 @@ class ToggleRepostPost extends _$ToggleRepostPost {
       if (!controller.markAccepted(
         token,
         optimisticValue: desiredReposted,
+        retainUntilExpiry: true,
         agrees: (value) => value is bool && reconciliation.agrees(value),
         refresh: () => _invalidateRepostReads(ref, post),
       )) {
@@ -115,5 +126,6 @@ void _invalidateRepostReads(Ref ref, Post post) {
     ..invalidate(userPostsProvider)
     ..invalidate(userCommentsProvider)
     ..invalidate(userRepostsProvider)
-    ..invalidate(userProjectsProvider);
+    ..invalidate(userProjectsProvider)
+    ..invalidate(projectFeedProvider);
 }

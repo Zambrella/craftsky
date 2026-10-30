@@ -59,11 +59,13 @@ final class PdsMutationOperation {
     required this.token,
     required this.status,
     this.retryAfterSeconds,
+    this.optimisticValue,
   });
 
   final PdsMutationToken token;
   final PdsMutationStatus status;
   final int? retryAfterSeconds;
+  final Object? optimisticValue;
 
   PdsMutationOperation copyWith({
     required PdsMutationStatus status,
@@ -72,6 +74,7 @@ final class PdsMutationOperation {
     token: token,
     status: status,
     retryAfterSeconds: retryAfterSeconds,
+    optimisticValue: optimisticValue,
   );
 }
 
@@ -85,6 +88,7 @@ final class PdsMutationOverlay {
     required this._agrees,
     this.refresh,
     this.retainVersion = false,
+    this.retainUntilExpiry = false,
   });
 
   final PdsMutationToken token;
@@ -98,6 +102,8 @@ final class PdsMutationOverlay {
   bool Function(Object? authoritativeValue) _agrees;
   final void Function()? refresh;
   final bool retainVersion;
+  // One fresh surface must not expose older cached values on another surface.
+  final bool retainUntilExpiry;
   bool graceRefreshRequested = false;
   bool reconciled = false;
 
@@ -131,6 +137,7 @@ final class PdsRecordOperationController {
     required String operationKey,
     required String endpoint,
     required String immutableBody,
+    Object? optimisticValue,
   }) {
     if (_operations[scope]?.status == PdsMutationStatus.ambiguous) {
       throw DiagnosticStateError(
@@ -150,6 +157,7 @@ final class PdsRecordOperationController {
     _operations[scope] = PdsMutationOperation(
       token: token,
       status: PdsMutationStatus.inFlight,
+      optimisticValue: optimisticValue,
     );
     return token;
   }
@@ -177,6 +185,7 @@ final class PdsRecordOperationController {
     required String endpoint,
     required String immutableBody,
     required String Function() newOperationKey,
+    Object? optimisticValue,
   }) {
     final retry = retryToken(
       scope: scope,
@@ -189,6 +198,7 @@ final class PdsRecordOperationController {
       operationKey: newOperationKey(),
       endpoint: endpoint,
       immutableBody: immutableBody,
+      optimisticValue: optimisticValue,
     );
   }
 
@@ -246,6 +256,7 @@ final class PdsRecordOperationController {
     PdsMutationScope? overlayScope,
     void Function()? refresh,
     bool retainVersion = false,
+    bool retainUntilExpiry = false,
   }) {
     if (!_isCurrent(token)) return false;
     final acceptedAt = _now();
@@ -260,6 +271,7 @@ final class PdsRecordOperationController {
       agrees: agrees,
       refresh: refresh,
       retainVersion: retainVersion,
+      retainUntilExpiry: retainUntilExpiry,
     );
     _refresh(_overlays[acceptedScope]!);
     _scheduleRefresh(const Duration(seconds: 2));
@@ -293,6 +305,7 @@ final class PdsRecordOperationController {
     final overlay = _overlays[scope];
     if (overlay == null || overlay.token._epoch != _epoch) return false;
     if (!overlay.agreesWith(authoritativeValue)) return false;
+    if (overlay.retainUntilExpiry) return true;
     // A confirmed version is also the floor for other in-flight reads. One
     // matching surface cannot release that protection for every other surface.
     if (overlay.retainVersion) {

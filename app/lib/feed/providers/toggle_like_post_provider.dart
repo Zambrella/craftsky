@@ -11,6 +11,7 @@ import 'package:craftsky_app/feed/providers/timeline_provider.dart';
 import 'package:craftsky_app/feed/providers/user_comments_provider.dart';
 import 'package:craftsky_app/feed/providers/user_posts_provider.dart';
 import 'package:craftsky_app/feed/providers/user_reposts_provider.dart';
+import 'package:craftsky_app/projects/providers/project_feed_provider.dart';
 import 'package:craftsky_app/projects/providers/user_projects_provider.dart';
 import 'package:craftsky_app/shared/api/pds_mutation_contract.dart';
 import 'package:craftsky_app/shared/mutations/pds_record_operation_controller.dart';
@@ -30,22 +31,31 @@ class ToggleLikePost extends _$ToggleLikePost {
     final lifetime = ref.keepAlive();
     try {
       final operation = ActiveAccountOperation.capture(ref);
-      final desiredLiked = !post.viewerHasLiked;
-      final next = post.copyWith(
+      final controller = ref.read(pdsRecordOperationControllerProvider);
+      final scope = likePostMutationScope(ref, post);
+      final pending = controller.operationFor(scope);
+      final pendingValue = pending?.optimisticValue;
+      final current = applyPostInteractionOverlays(ref, post, reconcile: false);
+      final desiredLiked =
+          pending?.status == PdsMutationStatus.ambiguous && pendingValue is bool
+          ? pendingValue
+          : !current.viewerHasLiked;
+      final next = current.copyWith(
         viewerHasLiked: desiredLiked,
-        likeCount: post.viewerHasLiked
-            ? (post.likeCount > 0 ? post.likeCount - 1 : 0)
-            : post.likeCount + 1,
+        likeCount: current.viewerHasLiked == desiredLiked
+            ? current.likeCount
+            : desiredLiked
+            ? current.likeCount + 1
+            : (current.likeCount > 0 ? current.likeCount - 1 : 0),
       );
       final endpoint = '/v1/posts/${post.author.did}/${post.rkey}/likes';
       final immutableBody = desiredLiked ? 'POST\n' : 'DELETE\n';
-      final controller = ref.read(pdsRecordOperationControllerProvider);
-      final scope = likePostMutationScope(ref, post);
       final token = controller.beginOrRetry(
         scope: scope,
         endpoint: endpoint,
         immutableBody: immutableBody,
         newOperationKey: newPdsMutationOperationKey,
+        optimisticValue: desiredLiked,
       );
       final operationKey = token.operationKey;
       late final repo = ref.read(postRepositoryProvider);
@@ -91,6 +101,7 @@ class ToggleLikePost extends _$ToggleLikePost {
       if (!controller.markAccepted(
         token,
         optimisticValue: desiredLiked,
+        retainUntilExpiry: true,
         agrees: (value) => value is bool && reconciliation.agrees(value),
         refresh: () => _invalidateLikeReads(ref, post),
       )) {
@@ -115,5 +126,6 @@ void _invalidateLikeReads(Ref ref, Post post) {
     ..invalidate(userPostsProvider)
     ..invalidate(userCommentsProvider)
     ..invalidate(userRepostsProvider)
-    ..invalidate(userProjectsProvider);
+    ..invalidate(userProjectsProvider)
+    ..invalidate(projectFeedProvider);
 }
