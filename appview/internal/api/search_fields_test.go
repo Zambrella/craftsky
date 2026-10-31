@@ -39,9 +39,32 @@ func TestProjectSearchExpandedPublicFields(t *testing.T) {
 	if len(rows) != 0 {
 		t.Fatal("unknown extension became searchable")
 	}
-	filtered, _, err := store.SearchProjectsWithLanguages(context.Background(), "did:plc:viewer", nil, api.ProjectSearchRequest{Limit: 10, Filters: map[string][]string{"craftType": {"social.craftsky.feed.defs#embroidery"}}}, now)
-	if err != nil || !slices.Contains(searchURIs(filtered), uri) {
-		t.Fatalf("secondary craft filter rows=%v err=%v", searchURIs(filtered), err)
+	for _, query := range []string{"", "Luna Studio"} {
+		for _, sort := range []api.SearchSort{api.SearchSortChronological, api.SearchSortPopular} {
+			for _, tc := range []struct {
+				name   string
+				crafts []string
+				want   bool
+			}{
+				{"all crafts", nil, true},
+				{"primary craft", []string{"social.craftsky.feed.defs#sewing"}, true},
+				{"additional craft", []string{"social.craftsky.feed.defs#embroidery"}, false},
+				{"unrelated craft", []string{"social.craftsky.feed.defs#knitting"}, false},
+				{"multiple crafts including primary", []string{"social.craftsky.feed.defs#embroidery", "social.craftsky.feed.defs#sewing"}, true},
+			} {
+				t.Run(query+"/"+string(sort)+"/"+tc.name, func(t *testing.T) {
+					filtered, _, err := store.SearchProjectsWithLanguages(context.Background(), "did:plc:viewer", nil, api.ProjectSearchRequest{
+						Query: query, Sort: sort, Limit: 10, Filters: map[string][]string{"craftType": tc.crafts},
+					}, now)
+					if err != nil {
+						t.Fatal(err)
+					}
+					if got := slices.Contains(searchURIs(filtered), uri); got != tc.want {
+						t.Fatalf("project included=%v, want %v; rows=%v", got, tc.want, searchURIs(filtered))
+					}
+				})
+			}
+		}
 	}
 }
 
