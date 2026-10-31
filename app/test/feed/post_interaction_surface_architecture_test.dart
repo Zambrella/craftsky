@@ -14,7 +14,7 @@ void main() {
       threadPath,
       'lib/profile/widgets/profile_tabs/profile_comments_tab.dart',
       'lib/profile/widgets/profile_tabs/profile_post_feed_slivers.dart',
-      'lib/projects/pages/projects_page.dart',
+      'lib/home/pages/home_page.dart',
       'lib/search/pages/search_page.dart',
       'lib/search/pages/tag_search_page.dart',
     };

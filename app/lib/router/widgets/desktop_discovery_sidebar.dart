@@ -78,7 +78,7 @@ class DesktopDiscoverySidebar extends ConsumerWidget {
                                 vertical: spacing.sp3,
                               ),
                             ),
-                            onPressed: () => ProjectsRoute(
+                            onPressed: () => FeedRoute(
                               craft: option.value.split('#').last,
                             ).go(context),
                             child: Align(

@@ -16,6 +16,7 @@ import 'package:craftsky_app/feed/widgets/post_type_chooser.dart';
 import 'package:craftsky_app/keys.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/moderation/widgets/report_flow.dart';
+import 'package:craftsky_app/projects/providers/preferred_project_crafts_provider.dart';
 import 'package:craftsky_app/router/app_shell_drawer.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
@@ -36,13 +37,19 @@ import 'package:material_ui/material_ui.dart';
 const _autoLoadMoreThreshold = 3;
 
 class FeedPage extends ConsumerStatefulWidget {
-  const new({super.key});
+  const new({this.embedded = false, this.active = true, super.key});
+
+  final bool embedded;
+  final bool active;
 
   @override
   ConsumerState<FeedPage> createState() => _FeedPageState();
 }
 
-class _FeedPageState extends ConsumerState<FeedPage> {
+class _FeedPageState extends ConsumerState<FeedPage>
+    with AutomaticKeepAliveClientMixin<FeedPage> {
+  @override
+  bool get wantKeepAlive => true;
   static const _scrollToTopThreshold = 200.0;
   final _scrollController = ScrollController();
   var _isPastScrollThreshold = false;
@@ -64,6 +71,7 @@ class _FeedPageState extends ConsumerState<FeedPage> {
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     final l10n = AppLocalizations.of(context);
     final timelineAsync = ref.watch(timelineProvider);
     final hasItems = timelineAsync.value?.items.isNotEmpty ?? false;
@@ -72,10 +80,12 @@ class _FeedPageState extends ConsumerState<FeedPage> {
     ).isSmall;
     ref
       ..listen(feedReselectProvider, (_, _) {
+        if (!widget.active) return;
         _scrollToTop();
         ref.invalidate(timelineProvider);
       })
       ..listen(deletePostProvider, (previous, next) {
+        if (!widget.active) return;
         switch ((previous, next)) {
           case (AsyncLoading(), AsyncData(value: != null)):
             context.showInfo(l10n.postDeleteSuccess);
@@ -88,17 +98,73 @@ class _FeedPageState extends ConsumerState<FeedPage> {
         }
       })
       ..listen(toggleLikePostProvider, (previous, next) {
-        if (next.hasError) {
+        if (widget.active && next.hasError) {
           context.showError(l10n.postLikeError);
           ref.read(toggleLikePostProvider.notifier).reset();
         }
       })
       ..listen(toggleRepostPostProvider, (previous, next) {
-        if (next.hasError) {
+        if (widget.active && next.hasError) {
           context.showError(l10n.postRepostError);
           ref.read(toggleRepostPostProvider.notifier).reset();
         }
       });
+    final body = Stack(
+      children: [
+        InlinePinchZoomScope(
+          onPinchChanged: _handleImagePinchChanged,
+          child: YarnRefreshScrollView(
+            notificationPredicate: (notification) =>
+                !_isPinchingImage &&
+                defaultScrollNotificationPredicate(notification),
+            onRefresh: () async {
+              final _ = await ref.refresh(timelineProvider.future);
+            },
+            headerSliverCount: widget.embedded ? 0 : 1,
+            controller: _scrollController,
+            slivers: [
+              if (!widget.embedded)
+                SliverAppBar(
+                  leading: AppShellDrawerScope.maybeOf(context) == null
+                      ? null
+                      : const AppShellDrawerButton(),
+                  title: Text(l10n.feedTitle),
+                  pinned: true,
+                ),
+              switch (timelineAsync) {
+                AsyncValue(:final value?) => _FeedLoadedSlivers(
+                  items: value.items,
+                  hasMore: value.hasMore,
+                  isLoadingMore: timelineAsync.isLoading,
+                  hasLoadMoreError: timelineAsync.hasError,
+                ),
+                _ when timelineAsync.hasError => _FeedErrorSliver(
+                  onRetry: () => ref.invalidate(timelineProvider),
+                ),
+                _ => CraftskySkeletonSliverList(
+                  itemCount: 3,
+                  itemBuilder: (context, index) => PostCardSkeleton(
+                    showMedia: index == 0,
+                  ),
+                ),
+              },
+            ],
+          ),
+        ),
+        Positioned(
+          left: 16,
+          bottom: isCompact && Directionality.of(context) == TextDirection.rtl
+              ? 88
+              : 16,
+          child: ScrollToTopButton(
+            visible: hasItems && _isPastScrollThreshold,
+            tooltip: l10n.scrollToTopAction,
+            onPressed: _scrollToTop,
+          ),
+        ),
+      ],
+    );
+    if (widget.embedded) return body;
     return Scaffold(
       floatingActionButton: isCompact
           ? Builder(
@@ -111,60 +177,7 @@ class _FeedPageState extends ConsumerState<FeedPage> {
               ),
             )
           : null,
-      body: Stack(
-        children: [
-          InlinePinchZoomScope(
-            onPinchChanged: _handleImagePinchChanged,
-            child: YarnRefreshScrollView(
-              notificationPredicate: (notification) =>
-                  !_isPinchingImage &&
-                  defaultScrollNotificationPredicate(notification),
-              onRefresh: () async {
-                final _ = await ref.refresh(timelineProvider.future);
-              },
-              headerSliverCount: 1,
-              controller: _scrollController,
-              slivers: [
-                SliverAppBar(
-                  leading: AppShellDrawerScope.maybeOf(context) == null
-                      ? null
-                      : const AppShellDrawerButton(),
-                  title: Text(l10n.feedTitle),
-                  pinned: true,
-                ),
-                switch (timelineAsync) {
-                  AsyncValue(:final value?) => _FeedLoadedSlivers(
-                    items: value.items,
-                    hasMore: value.hasMore,
-                    isLoadingMore: timelineAsync.isLoading,
-                    hasLoadMoreError: timelineAsync.hasError,
-                  ),
-                  _ when timelineAsync.hasError => _FeedErrorSliver(
-                    onRetry: () => ref.invalidate(timelineProvider),
-                  ),
-                  _ => CraftskySkeletonSliverList(
-                    itemCount: 3,
-                    itemBuilder: (context, index) => PostCardSkeleton(
-                      showMedia: index == 0,
-                    ),
-                  ),
-                },
-              ],
-            ),
-          ),
-          Positioned(
-            left: 16,
-            bottom: isCompact && Directionality.of(context) == TextDirection.rtl
-                ? 88
-                : 16,
-            child: ScrollToTopButton(
-              visible: hasItems && _isPastScrollThreshold,
-              tooltip: l10n.scrollToTopAction,
-              onPressed: _scrollToTop,
-            ),
-          ),
-        ],
-      ),
+      body: body,
     );
   }
 
@@ -242,7 +255,14 @@ class _FeedLoadedSlivers extends ConsumerWidget {
                   child: Text(l10n.feedSearchAction),
                 ),
                 TextButton(
-                  onPressed: () => const ProjectsRoute().go(context),
+                  onPressed: () => FeedRoute(
+                    craft: ref
+                        .read(preferredProjectCraftsProvider)
+                        .first
+                        .value
+                        .split('#')
+                        .last,
+                  ).go(context),
                   child: Text(l10n.feedViewProjectsAction),
                 ),
               ],

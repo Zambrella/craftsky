@@ -1,4 +1,5 @@
 import 'package:craftsky_app/feed/pages/feed_page.dart';
+import 'package:craftsky_app/home/pages/home_page.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/notifications/data/notification_repository.dart';
 import 'package:craftsky_app/notifications/models/notification_category.dart';
@@ -7,7 +8,6 @@ import 'package:craftsky_app/notifications/pages/notifications_page.dart';
 import 'package:craftsky_app/notifications/providers/notification_repository_provider.dart';
 import 'package:craftsky_app/profile/widgets/profile_actions.dart';
 import 'package:craftsky_app/profile/widgets/profile_sliver_app_bar.dart';
-import 'package:craftsky_app/projects/pages/projects_page.dart';
 import 'package:craftsky_app/router/app_shell_drawer.dart';
 import 'package:craftsky_app/search/pages/search_page.dart';
 import 'package:craftsky_app/search/providers/search_repository_provider.dart';
@@ -22,7 +22,7 @@ import '../search/fakes/fake_search_repository.dart';
 void main() {
   final pages = <String, Widget>{
     'Feed': const FeedPage(),
-    'Projects': const ProjectsPage(),
+    'Projects': const HomePage(),
     'Search': const SearchPage(),
     'Notifications': const NotificationsPage(),
     'Profile': const Scaffold(

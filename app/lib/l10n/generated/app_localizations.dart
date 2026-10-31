@@ -154,6 +154,18 @@ abstract class AppLocalizations {
   /// **'v{version}'**
   String homeVersionLabel(String version);
 
+  /// Title for Home, containing the following feed and project discovery tabs.
+  ///
+  /// In en, this message translates to:
+  /// **'Home'**
+  String get homeTitle;
+
+  /// Home tab showing the chronological timeline from followed accounts.
+  ///
+  /// In en, this message translates to:
+  /// **'Following'**
+  String get homeFollowingTab;
+
   /// Title for the main chronological feed page.
   ///
   /// In en, this message translates to:

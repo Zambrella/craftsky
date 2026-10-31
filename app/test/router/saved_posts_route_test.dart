@@ -271,7 +271,7 @@ void main() {
             tester
                 .widget<NavigationRail>(find.byType(NavigationRail))
                 .selectedIndex,
-            6,
+            5,
           );
         }
         expect(find.byType(NavigationBar), findsNothing);
@@ -372,7 +372,7 @@ void main() {
             await tester.tap(
               find.descendant(
                 of: find.byType(NavigationRail),
-                matching: find.text('Feed'),
+                matching: find.text('Home'),
               ),
             );
           } else {
@@ -395,7 +395,7 @@ void main() {
                   .selected,
               isTrue,
             );
-            await tester.tap(find.widgetWithText(ListTile, 'Feed'));
+            await tester.tap(find.widgetWithText(ListTile, 'Home'));
           }
           await tester.pumpAndSettle();
 

@@ -3,11 +3,16 @@ import 'dart:async';
 import 'package:craftsky_app/auth/models/auth_state.dart';
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
 import 'package:craftsky_app/feed/models/post.dart';
+import 'package:craftsky_app/feed/pages/feed_page.dart';
 import 'package:craftsky_app/feed/providers/delete_post_provider.dart';
+import 'package:craftsky_app/feed/providers/feed_reselect_provider.dart';
 import 'package:craftsky_app/feed/providers/toggle_like_post_provider.dart';
 import 'package:craftsky_app/feed/providers/toggle_repost_post_provider.dart';
 import 'package:craftsky_app/feed/widgets/post_card.dart';
 import 'package:craftsky_app/feed/widgets/post_composer_sheet.dart';
+import 'package:craftsky_app/feed/widgets/post_type_chooser.dart';
+import 'package:craftsky_app/home/models/home_feed_definition.dart';
+import 'package:craftsky_app/keys.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/moderation/widgets/report_flow.dart';
 import 'package:craftsky_app/projects/models/project_browse_filters.dart';
@@ -26,11 +31,13 @@ import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/shared/widgets/scroll_to_top_button.dart';
 import 'package:craftsky_app/shared/widgets/sort_menu_button.dart';
+import 'package:craftsky_app/theme/craftsky_context_menu.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:craftsky_app/theme/craftsky_divider.dart';
 import 'package:craftsky_app/theme/craftsky_floating_action_button.dart';
 import 'package:craftsky_app/theme/craftsky_form_builder_select_fields.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
+import 'package:craftsky_app/theme/form_factor.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:craftsky_app/theme/yarn_refresh_scroll_view.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -39,71 +46,94 @@ import 'package:material_ui/material_ui.dart';
 
 part 'project_filter_sheet.dart';
 
-class ProjectsPage extends ConsumerStatefulWidget {
+class HomePage extends ConsumerStatefulWidget {
   const new({this.craft, super.key});
 
   final String? craft;
 
   @override
-  ConsumerState<ProjectsPage> createState() => _ProjectsPageState();
+  ConsumerState<HomePage> createState() => _HomePageState();
 }
 
-class _ProjectsPageState extends ConsumerState<ProjectsPage>
-    with SingleTickerProviderStateMixin {
+class _HomePageState extends ConsumerState<HomePage>
+    with TickerProviderStateMixin {
   static const _scrollToTopThreshold = 200.0;
-  late final TabController _tabController;
+  late TabController _tabController;
   final _scrollControllers = <String, ScrollController>{};
-  var _selectedCraftIndex = 0;
-  late List<ProjectOption> _craftTypes;
+  var _selectedFeedIndex = 0;
+  late List<HomeFeedDefinition> _feeds;
   var _hasSelectedCraft = false;
   var _reorderingCrafts = false;
-  SearchSort _sort = SearchSort.chronological;
+  final _sorts = <String, SearchSort>{};
+  SearchSort _sortFor(String id) => _sorts[id] ?? SearchSort.chronological;
   final _craftFilters = <String, ProjectBrowseFilters>{};
   var _isPastScrollThreshold = false;
 
   @override
   void initState() {
     super.initState();
-    _craftTypes = ref.read(preferredProjectCraftsProvider);
+    _feeds = _definitions(ref.read(preferredProjectCraftsProvider));
     final requested = _requestedIndex(widget.craft);
-    _selectedCraftIndex = requested ?? 0;
+    _selectedFeedIndex = requested ?? 0;
     _hasSelectedCraft = requested != null;
     _tabController = TabController(
-      initialIndex: _selectedCraftIndex,
-      length: _craftTypes.length,
+      initialIndex: _selectedFeedIndex,
+      length: _feeds.length,
       vsync: this,
     )..addListener(_handleTabChanged);
     ref.listenManual(preferredProjectCraftsProvider, (_, crafts) {
-      final activeCraft = _craftTypes[_selectedCraftIndex].value;
+      final activeId = _feeds[_selectedFeedIndex].id;
       setState(() {
-        _craftTypes = crafts;
-        _selectedCraftIndex = _hasSelectedCraft
-            ? crafts.indexWhere((option) => option.value == activeCraft)
+        _feeds = _definitions(crafts);
+        _selectedFeedIndex = _hasSelectedCraft
+            ? _feeds.indexWhere((feed) => feed.id == activeId)
             : 0;
+        if (_selectedFeedIndex < 0) _selectedFeedIndex = 0;
         _reorderingCrafts = true;
-        _tabController.index = _selectedCraftIndex;
+        if (_tabController.length != _feeds.length) {
+          _tabController
+            ..removeListener(_handleTabChanged)
+            ..dispose();
+          _tabController = TabController(
+            length: _feeds.length,
+            initialIndex: _selectedFeedIndex,
+            vsync: this,
+          )..addListener(_handleTabChanged);
+        } else {
+          _tabController.index = _selectedFeedIndex;
+        }
         _reorderingCrafts = false;
       });
     });
   }
 
+  List<HomeFeedDefinition> _definitions(List<ProjectOption> crafts) => [
+    const HomeFeedDefinition.following(),
+    for (final craft in crafts) HomeFeedDefinition.project(craft),
+  ];
+
   int? _requestedIndex(String? craft) {
-    final index = _craftTypes.indexWhere(
-      (option) => option.value.split('#').last == craft,
+    if (craft == null) return null;
+    final index = _feeds.indexWhere(
+      (option) => option.craftType?.split('#').last == craft,
     );
     return index < 0 ? null : index;
   }
 
   @override
-  void didUpdateWidget(ProjectsPage oldWidget) {
+  void didUpdateWidget(HomePage oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.craft == widget.craft) return;
     final requested = _requestedIndex(widget.craft);
     _hasSelectedCraft = requested != null;
-    _selectedCraftIndex = requested ?? 0;
+    _selectedFeedIndex = requested ?? 0;
     _reorderingCrafts = true;
-    _tabController.index = _selectedCraftIndex;
+    _tabController.index = _selectedFeedIndex;
     _reorderingCrafts = false;
+    _isPastScrollThreshold = false;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _updateScrollThreshold();
+    });
   }
 
   @override
@@ -120,93 +150,130 @@ class _ProjectsPageState extends ConsumerState<ProjectsPage>
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    ref
-      ..listen(deletePostProvider, (previous, next) {
-        switch ((previous, next)) {
-          case (AsyncLoading(), AsyncData(value: != null)):
-            context.showInfo(l10n.postDeleteSuccess);
-            ref.read(deletePostProvider.notifier).reset();
-          case (AsyncLoading(), AsyncError()):
-            context.showError(l10n.postDeleteError);
-            ref.read(deletePostProvider.notifier).reset();
-          case _:
-            break;
-        }
-      })
-      ..listen(toggleLikePostProvider, (previous, next) {
-        if (next.hasError) {
-          context.showError(l10n.postLikeError);
-          ref.read(toggleLikePostProvider.notifier).reset();
-        }
-      })
-      ..listen(toggleRepostPostProvider, (previous, next) {
-        if (next.hasError) {
-          context.showError(l10n.postRepostError);
-          ref.read(toggleRepostPostProvider.notifier).reset();
-        }
-      });
+    if (_feeds[_selectedFeedIndex].source == HomeFeedSource.projects) {
+      ref
+        ..listen(deletePostProvider, (previous, next) {
+          switch ((previous, next)) {
+            case (AsyncLoading(), AsyncData(value: != null)):
+              context.showInfo(l10n.postDeleteSuccess);
+              ref.read(deletePostProvider.notifier).reset();
+            case (AsyncLoading(), AsyncError()):
+              context.showError(l10n.postDeleteError);
+              ref.read(deletePostProvider.notifier).reset();
+            case _:
+              break;
+          }
+        })
+        ..listen(toggleLikePostProvider, (previous, next) {
+          if (next.hasError) {
+            context.showError(l10n.postLikeError);
+            ref.read(toggleLikePostProvider.notifier).reset();
+          }
+        })
+        ..listen(toggleRepostPostProvider, (previous, next) {
+          if (next.hasError) {
+            context.showError(l10n.postRepostError);
+            ref.read(toggleRepostPostProvider.notifier).reset();
+          }
+        });
+    }
     final spacing =
         Theme.of(context).extension<SpacingTheme>() ?? const SpacingTheme();
-    final activeCraft = _craftTypes[_selectedCraftIndex].value;
-    final activeQuery = ProjectBrowseQuery(
-      craftTypes: [activeCraft],
-      filters: _filtersFor(activeCraft),
-      sort: _sort,
-    );
+    final activeFeed = _feeds[_selectedFeedIndex];
+    final activeCraft = activeFeed.craftType;
+    final activeQuery = activeCraft == null
+        ? null
+        : ProjectBrowseQuery(
+            craftTypes: [activeCraft],
+            filters: _filtersFor(activeCraft),
+            sort: _sortFor(activeFeed.id),
+          );
     final hasActiveProjects =
-        ref.watch(projectFeedProvider(activeQuery)).value?.items.isNotEmpty ??
-        false;
+        activeQuery != null &&
+        (ref.watch(projectFeedProvider(activeQuery)).value?.items.isNotEmpty ??
+            false);
+    ref.listen(feedReselectProvider, (_, _) {
+      if (activeQuery == null) return;
+      _scrollToTop();
+      ref.invalidate(projectFeedProvider(activeQuery));
+    });
     return Scaffold(
-      floatingActionButton: CraftskyFloatingActionButton.extended(
-        tooltip: l10n.projectsFilterAction,
-        onPressed: _openFilters,
-        icon: const Icon(CraftskyIconsBold.adjustments),
-        label: Text(l10n.projectsFilterAction),
-      ),
+      floatingActionButton: activeFeed.supportsFilters
+          ? CraftskyFloatingActionButton.extended(
+              tooltip: l10n.projectsFilterAction,
+              onPressed: _openFilters,
+              icon: const Icon(CraftskyIconsBold.adjustments),
+              label: Text(l10n.projectsFilterAction),
+            )
+          : FormFactor.fromWidth(MediaQuery.sizeOf(context).width).isSmall
+          ? Builder(
+              builder: (buttonContext) => CraftskyFloatingActionButton.extended(
+                key: keys.feed.compose,
+                tooltip: l10n.postComposeAction,
+                icon: const Icon(CraftskyIconsBold.add),
+                label: Text(l10n.postComposeAction),
+                onPressed: () => unawaited(
+                  showTopLevelPostComposerChooser(
+                    buttonContext,
+                    position: craftskyContextMenuAnchorPosition(buttonContext),
+                  ),
+                ),
+              ),
+            )
+          : null,
       appBar: AppBar(
         leading: AppShellDrawerScope.maybeOf(context) == null
             ? null
             : const AppShellDrawerButton(),
-        title: Text(l10n.projectsTitle),
+        title: Text(l10n.homeTitle),
         actions: [
-          Padding(
-            padding: EdgeInsetsDirectional.only(end: spacing.sp4),
-            child: SortMenuButton<SearchSort>(
-              selectedValue: _sort,
-              options: _sortOptions(l10n),
-              onChanged: (sort) => setState(() => _sort = sort),
+          if (activeFeed.supportsSort)
+            Padding(
+              padding: EdgeInsetsDirectional.only(end: spacing.sp4),
+              child: SortMenuButton<SearchSort>(
+                selectedValue: _sortFor(activeFeed.id),
+                options: _sortOptions(l10n),
+                onChanged: (sort) => _setSort(activeFeed.id, sort),
+              ),
             ),
-          ),
         ],
       ),
       body: Stack(
         children: [
           Column(
             children: [
-              _ProjectCraftTabBar(
+              _HomeFeedTabBar(
                 controller: _tabController,
-                craftTypes: _craftTypes,
+                feeds: _feeds,
               ),
               Expanded(
                 child: TabBarView(
                   controller: _tabController,
                   children: [
-                    for (final option in _craftTypes)
-                      _ProjectTabScrollView(
-                        key: ValueKey(option.value),
-                        craftType: option.value,
-                        controller: _controllerFor(option.value),
-                        filters: _filtersFor(option.value),
-                        sort: _sort,
-                        onRemoveFilter: (family, value) => _setFilters(
-                          option.value,
-                          _filtersFor(option.value).withoutValue(family, value),
+                    for (final option in _feeds)
+                      if (option.source == HomeFeedSource.following)
+                        FeedPage(
+                          key: ValueKey(option.id),
+                          embedded: true,
+                          active: activeFeed.id == option.id,
+                        )
+                      else
+                        _ProjectTabScrollView(
+                          key: ValueKey(option.id),
+                          craftType: option.craftType!,
+                          controller: _controllerFor(option.id),
+                          filters: _filtersFor(option.craftType!),
+                          sort: _sortFor(option.id),
+                          onRemoveFilter: (family, value) => _setFilters(
+                            option.craftType!,
+                            _filtersFor(option.craftType!)
+                                .withoutValue(family, value),
+                          ),
+                          onClearFilters: () => _setFilters(
+                            option.craftType!,
+                            const ProjectBrowseFilters(),
+                          ),
                         ),
-                        onClearFilters: () => _setFilters(
-                          option.value,
-                          const ProjectBrowseFilters(),
-                        ),
-                      ),
                   ],
                 ),
               ),
@@ -227,17 +294,17 @@ class _ProjectsPageState extends ConsumerState<ProjectsPage>
   }
 
   void _handleTabChanged() {
-    if (_reorderingCrafts || _selectedCraftIndex == _tabController.index) {
+    if (_reorderingCrafts || _selectedFeedIndex == _tabController.index) {
       return;
     }
     setState(() {
       _hasSelectedCraft = true;
-      _selectedCraftIndex = _tabController.index;
+      _selectedFeedIndex = _tabController.index;
       _isPastScrollThreshold = false;
     });
     if (GoRouter.maybeOf(context) != null) {
-      ProjectsRoute(
-        craft: _craftTypes[_selectedCraftIndex].value.split('#').last,
+      FeedRoute(
+        craft: _feeds[_selectedFeedIndex].craftType?.split('#').last,
       ).replace(context);
     }
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -258,7 +325,7 @@ class _ProjectsPageState extends ConsumerState<ProjectsPage>
       );
 
   ScrollController get _activeScrollController =>
-      _controllerFor(_craftTypes[_selectedCraftIndex].value);
+      _controllerFor(_feeds[_selectedFeedIndex].id);
 
   void _updateScrollThreshold() {
     final controller = _activeScrollController;
@@ -292,7 +359,7 @@ class _ProjectsPageState extends ConsumerState<ProjectsPage>
 
   void _setFilters(String craftType, ProjectBrowseFilters filters) {
     if (filters == _filtersFor(craftType)) return;
-    final controller = _controllerFor(craftType);
+    final controller = _controllerFor(HomeFeedDefinition.projectId(craftType));
     setState(() => _craftFilters[craftType] = filters);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || !controller.hasClients) return;
@@ -300,8 +367,18 @@ class _ProjectsPageState extends ConsumerState<ProjectsPage>
     });
   }
 
+  void _setSort(String id, SearchSort sort) {
+    if (sort == _sortFor(id)) return;
+    final controller = _controllerFor(id);
+    setState(() => _sorts[id] = sort);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && controller.hasClients) controller.jumpTo(0);
+    });
+  }
+
   Future<void> _openFilters() async {
-    final craftType = _craftTypes[_selectedCraftIndex].value;
+    final craftType = _feeds[_selectedFeedIndex].craftType;
+    if (craftType == null) return;
     final filters = await responsiveModalNavigator(context)
         .push<ProjectBrowseFilters>(
           FullscreenModalRoute<ProjectBrowseFilters>(
@@ -331,14 +408,14 @@ class _ProjectsPageState extends ConsumerState<ProjectsPage>
   ];
 }
 
-class _ProjectCraftTabBar extends StatelessWidget {
+class _HomeFeedTabBar extends StatelessWidget {
   const new({
     required this.controller,
-    required this.craftTypes,
+    required this.feeds,
   });
 
   final TabController controller;
-  final List<ProjectOption> craftTypes;
+  final List<HomeFeedDefinition> feeds;
 
   @override
   Widget build(BuildContext context) {
@@ -358,12 +435,22 @@ class _ProjectCraftTabBar extends StatelessWidget {
                 tabAlignment: TabAlignment.start,
                 padding: EdgeInsets.symmetric(horizontal: spacing.sp2),
                 tabs: [
-                  for (final option in craftTypes)
+                  for (final option in feeds)
                     Tab(
-                      child: CraftIconLabel(
-                        craft: option.value,
-                        label: option.label,
-                      ),
+                      child: switch (option.craftType) {
+                        final craft? => CraftIconLabel(
+                          craft: craft,
+                          label: option.label!,
+                        ),
+                        null => Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(CraftskyIcons.people, size: 18),
+                            const SizedBox(width: 6),
+                            Text(AppLocalizations.of(context).homeFollowingTab),
+                          ],
+                        ),
+                      },
                     ),
                 ],
               ),
