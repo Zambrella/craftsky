@@ -92,9 +92,9 @@ ProjectComposerPayloadResult buildProjectComposerPayload({
               .toSet())
         if (craft != craftType) ProjectCraft(craftType: craft),
     ],
-    status:
-        _stringValue(formValues[ProjectComposerFields.status]) ??
-        ProjectOptionCatalogs.finishedStatusToken,
+    status: formValues.containsKey(ProjectComposerFields.status)
+        ? _stringValue(formValues[ProjectComposerFields.status])
+        : ProjectOptionCatalogs.finishedStatusToken,
     title: _stringValue(formValues[ProjectComposerFields.title]),
     duration: _stringValue(formValues[ProjectComposerFields.duration]),
     pattern: _patternFrom(formValues),

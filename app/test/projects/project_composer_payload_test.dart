@@ -91,7 +91,7 @@ void main() {
   });
 
   group('Project composer payload', () {
-    test('UT-007 maps common fields, default status and metadata strings', () {
+    test('UT-007 maps common fields, cleared status and metadata strings', () {
       final result = buildProjectComposerPayload(
         formValues: {
           ProjectComposerFields.craftType:
@@ -116,7 +116,7 @@ void main() {
         project.common.craftType,
         ProjectOptionCatalogs.embroideryCraftToken,
       );
-      expect(project.common.status, ProjectOptionCatalogs.finishedStatusToken);
+      expect(project.common.status, isNull);
       expect(project.common.title, 'Hoop sampler');
       expect(project.common.materials, const [
         ProjectMaterial(text: 'linen'),

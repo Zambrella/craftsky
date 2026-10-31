@@ -118,6 +118,7 @@ class _AccountLanguageSections extends ConsumerWidget {
                   isLoading: actions.isRunning(_LanguageAction.primary),
                   keyPrefix: 'primary-language',
                   label: l10n.primaryLanguageTitle,
+                  clearable: false,
                   helperText: l10n.primaryLanguageDescription,
                   value: value.primaryLanguage,
                   options: _languageOptions,
@@ -215,6 +216,7 @@ class _AppLanguageField extends StatelessWidget {
             key: const Key('app-language-input'),
             keyPrefix: 'app-language',
             label: l10n.appLanguageTitle,
+            clearable: false,
             helperText: l10n.appLanguageDescription,
             value: 'en',
             options: [

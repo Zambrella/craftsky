@@ -215,6 +215,7 @@ class EventFormState extends ConsumerState<EventForm> {
                     CraftskySingleSelectInput<String>(
                       key: const ValueKey('event-time-zone'),
                       label: l10n.businessEventTimeZoneLabel,
+                      clearable: false,
                       value: _timeZone,
                       enabled: widget.enabled,
                       options: ref
@@ -494,6 +495,7 @@ class EventFormState extends ConsumerState<EventForm> {
     return CraftskySingleSelectInput<String>(
       key: key,
       label: label,
+      clearable: false,
       value: value,
       enabled: widget.enabled,
       options: alphabetizedSelectOptions(
