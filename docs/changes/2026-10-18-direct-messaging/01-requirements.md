@@ -1,5 +1,103 @@
 # Requirements: Direct Messaging
 
+## Conversation account block action: 2026-10-31
+
+FR-009 / NFR-006 / AC-009/023: user requested Block account in conversation
+options. Use the existing public-profile block mutation, public-block confirmation
+copy and CraftSky destructive styling/feedback. Explicit confirmation is required;
+opening/cancelling does not mutate. Preserve the draft and conversation, without
+automatically leaving/reporting. Disable send/accept while blocking and after an
+accepted block. Existing owner/route/lifetime fences and duplicate protection
+apply. No new backend, permission, migration or live block test is authorized.
+
+## Approved conversation reporting: 2026-10-31
+
+FR-010 / BR-003 / NFR-002/003/006 / AC-010/023: add red Report conversation in
+the details More menu when the current account has reporting capability. Reuse
+the full-screen report flow with an empty initial reason, optional explanation,
+app-bar Submit and Bluesky-only notice. Submit a chat.bsky.convo.defs#convoRef
+with conversation and peer DID derived from the current authorized direct convo.
+No transcript upload, automatic leaving/blocking or CraftSky moderation report.
+Existing bounds, explicit single submission, uncertain outcomes/status checking,
+owner/connection fences and message reporting remain. User explicitly approved
+this local backend/client extension; live report submission remains excluded.
+
+## Approved Messages navigation corrections: 2026-10-31
+
+FR-003/016, NFR-006, AC-004/014/023: Messages behaves as a top-level shell
+section like Feed/Saved/Scheduled, with drawer access instead of Back, including
+loading, first-use setup and error states. Requests/new conversation/details stay
+child routes. Conversation details supports the standard iOS edge-swipe Back;
+flush its local draft on a successful pop, retain later edits and known save-error
+guards, and preserve explicit Back/leave behavior and account isolation.
+
+## Approved time sections: 2026-10-31
+
+FR-003/005, NFR-006/008, AC-004/006/023: show a centred, muted date/time label
+before the first loaded authoritative message, a new local calendar day, or an
+elapsed gap of at least five minutes, independent of sender. Use Today/Yesterday
+or weekday/date with the local time; include year for another year. Nearby
+messages from the same sender use tighter package grouping. Hide normal bubble
+timestamps, retain pending/error indicators and profile/post previews. Local
+outgoing placeholders have no fabricated date. Preserve anchoring, read tracking,
+identity/ownership, recovery and composer behavior.
+
+## Approved immediate composer clearing: 2026-10-31
+
+FR-005/006, AC-006/007: clear the visible input immediately on explicit Send,
+while the pending bubble and existing durable attempt retain the submitted text.
+Subsequent edits, including an identical message or deliberately empty input,
+must survive confirmation. Preserve existing failure/uncertainty recovery and
+local-save rollback; no network, persistence format or replay change.
+
+## Approved immediate send presentation: 2026-10-31
+
+FR-005 / FR-006 / NFR-006 / NFR-008 / AC-006 / AC-007: show the outgoing
+text bubble immediately after explicit Send, using the existing package renderer.
+While pending, replace its timestamp with the package sending spinner. On
+confirmation, reconcile by operation receipt/message ID into one bubble with
+the authoritative timestamp. Keep profile/post previews on confirmed messages.
+Failed/uncertain attempts stop spinning and retain existing themed warning and
+explicit recovery actions; no inferred delivery/read state, text-based success
+matching, automatic replay or new persistence. Preserve later composer edits,
+account/access/route isolation, request restrictions and visible-only read logic.
+
+## Report presentation revision: 2026-10-30
+
+FR-010 / NFR-006 / AC-010 / AC-023: style Report message with the shared red
+menu action. Present the message-report form using the existing full-screen,
+bottom-up report modal route, with a close control and Submit action in the
+app bar. Preserve keyboard-safe scrolling. The enabled composer send button
+uses the primary button variant, retaining the shared disabled styling. Keep
+only the Bluesky-only destination notice; remove the second evidence paragraph
+at the owner's explicit request. Report payload, reasons, validation, explicit
+submission, uncertain outcomes and no-replay behavior remain unchanged. The
+reason starts unselected, and Submit stays disabled until a reason is chosen.
+
+## Approved package-owned conversation UI: 2026-10-30
+
+NFR-008 / NFR-006 / FR-003 / FR-010 / FR-012 / AC-004 / AC-010 / AC-023:
+use flutter_chat_ui's standard message bubbles, timestamps, grouping and animated
+wrappers, themed from CraftSky. Bubble outlines may be dropped. Preserve
+profile/post previews and their guarded navigation, custom draft-aware composer,
+request controls, history anchoring, visibility/read checks and disabled private
+media caching. Use the package's preview extension point. Reports move to the
+shared long-press/secondary-click menu for received supported messages only;
+opening/dismissing a menu never submits a report. Standard text replaces custom
+inline-link rendering; explicit Copy and Open link menu actions retain access to
+message text and original URLs. Native delivery/read icons remain hidden because
+we do not have authoritative recipient delivery/seen state. No dependencies,
+backend, permissions, migration, live message/report or production change.
+
+## Shared profile integration correction: 2026-10-30
+
+FR-003 / NFR-006 / AC-023: messaging profile displays must use the existing
+shared profile read and identity/avatar widgets to show actual crafts and
+customisation. Keep chat content usable during metadata loading/failure.
+Profile-opening taps use the shared avatar/name/handle/craft hero transition in
+both directions, preserving reduced motion, account/route fences and drafts.
+Conversation and recipient rows retain their current conversation actions.
+
 ## Approved initial-load optimization: 2026-10-21
 
 FR-003, FR-019 / NFR-001, NFR-002, NFR-003, NFR-004 / AC-004, AC-016, AC-021,
@@ -113,7 +211,7 @@ NFR-006, FR-015 / AC-017, AC-023: messaging alerts must use the existing AppMess
 The maintainer agreed to the proposed combined flow and explicitly requested implementation, including the local auth/permission changes. This revision supersedes earlier requirements that chat permissions are requested only at enablement; the separate OAuth step is retained solely as recovery for missing/revoked authority, not as the normal flow.
 
 - BR-002, RULE-004 / AC-002, AC-019: login and registration request the existing narrow chat permission bundle alongside base permissions. Base permission validation remains separate: a base-only grant/session/refresh keeps ordinary CraftSky usable. OAuth completion never enables messaging or overwrites account push/audience choices.
-- BR-003, FR-001, FR-016 / AC-002, AC-014: a disabled account's first Messages visit shows Direct messages settings, a concise shared-inbox/storage/privacy/reporting explainer and an initially off Enable messaging Material switch. Enabling is an explicit account-wide CraftSky action; it reveals settings and Open messages without immediately replacing the setup screen. Later Messages visits open the inbox when enabled. Existing enabled accounts retain their choice.
+- BR-003, FR-001, FR-016 / AC-002, AC-014: a disabled account's first Messages visit shows Direct messages settings, a concise shared-inbox/storage/privacy/reporting explainer and an initially off Enable messaging Material switch. Enabling is an explicit account-wide CraftSky action; it opens the regular conversation list as soon as confirmed readable access is published. Explicit settings visits remain on settings after toggling enablement. Later Messages visits open the inbox when enabled. Existing enabled accounts retain their choice.
 - FR-011, FR-014 / AC-011, AC-015: only enabled messaging shows Push notifications and Who can message you. Push defaults on for new enablement; prior choices survive disable/re-enable. Read the existing shared incoming policy, never overwrite it on enable/disable. Explain that its effect includes Bluesky/other apps.
 - FR-016, FR-019 / AC-014, AC-028: switching off stops CraftSky messaging access and delivery across devices, keeps hidden local drafts and does not disable Bluesky messaging, delete conversations or revoke ordinary CraftSky access. Re-enabling stays possible on the same settings screen.
 - FR-001, NFR-001, NFR-006 / AC-002, AC-016, AC-023: missing permission has explicit OAuth recovery; recovery grants capability without silently enabling messaging or changing preferences. Already-enabled accounts resume from retained sync progress after permission recovery; disabled accounts remain paused. Maintain account/generation fences, restricted/unavailable states, themed feedback, central initial loaders and discreet background loaders.
@@ -313,7 +411,7 @@ The inspected CraftSky paths implement social notifications and server-side OAut
 
 ## 11. Desired Behavior
 
-Login and registration request the narrow messaging authority alongside base permissions, without enabling messaging. On the first Messages visit, an owner sees Direct messages settings with shared-inbox, storage/privacy and reporting disclosures, then explicitly chooses account-wide Enable messaging. Push and audience settings appear only while enabled, followed by Open messages; subsequent enabled visits open the inbox directly. Their existing one-to-one conversations and requests appear, including correspondents outside CraftSky. The owner can start a conversation from a profile or New message with CraftSky profile search when permitted, send text, read history, accept requests, mute/unmute, leave, report to Bluesky, and change who may message them.
+Login and registration request the narrow messaging authority alongside base permissions, without enabling messaging. On the first Messages visit, an owner sees Direct messages settings with shared-inbox, storage/privacy and reporting disclosures, then explicitly chooses account-wide Enable messaging. First enablement from Messages opens the conversation list immediately after confirmation; enabled users can adjust push and audience preferences in Direct messages settings. Subsequent enabled visits open the inbox directly. Their existing one-to-one conversations and requests appear, including correspondents outside CraftSky. The owner can start a conversation from a profile or New message with CraftSky profile search when permitted, send text, read history, accept requests, mute/unmute, leave, report to Bluesky, and change who may message them.
 
 Foreground views refresh from authoritative state. Authorized background synchronization detects new incoming messages and schedules eligible sender-name-only pushes. Disabling messaging stops CraftSky access and queued delivery without deleting the upstream conversations, changing incoming-message policy, or affecting unrelated CraftSky features.
 

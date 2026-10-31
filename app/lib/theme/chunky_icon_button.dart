@@ -9,6 +9,7 @@ class ChunkyIconButton extends StatelessWidget {
     required this.icon,
     this.tooltip,
     this.isLoading = false,
+    this.variant = ChunkyButtonVariant.secondary,
     super.key,
   });
 
@@ -16,6 +17,7 @@ class ChunkyIconButton extends StatelessWidget {
   final IconData icon;
   final String? tooltip;
   final bool isLoading;
+  final ChunkyButtonVariant variant;
 
   static const double _size = 44;
 
@@ -26,7 +28,7 @@ class ChunkyIconButton extends StatelessWidget {
       height: _size,
       child: ChunkyButton(
         onPressed: isLoading ? null : onPressed,
-        variant: ChunkyButtonVariant.secondary,
+        variant: variant,
         style: const ButtonStyle(
           padding: WidgetStatePropertyAll(EdgeInsets.zero),
           minimumSize: WidgetStatePropertyAll(Size(_size, _size)),

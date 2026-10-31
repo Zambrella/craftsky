@@ -322,7 +322,7 @@ Future<ChatReportController> chatReportController(
   Ref ref,
   AccountKey account,
   ChatConversationId id,
-  ChatMessageId message,
+  ChatMessageId? message,
 ) async {
   final operation = chatAccountOperation(ref, account);
   await _requireMessaging(ref, account, operation);

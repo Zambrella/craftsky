@@ -26,6 +26,12 @@ abstract interface class ChatRepository {
     String reasonType,
     String? reason,
   );
+  Future<ChatReceipt> reportConversation(
+    ChatOperationId operation,
+    ChatConversationId id,
+    String reasonType,
+    String? reason,
+  );
   Future<Uri> authorize({
     required String handoffMode,
     required bool pushEnabled,

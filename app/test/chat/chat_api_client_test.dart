@@ -9,6 +9,55 @@ import 'package:http_mock_adapter/http_mock_adapter.dart';
 
 // IT-019 / FR-002 / NFR-003: fixed consumer route, bounded opaque paging.
 void main() {
+  test(
+    'IT-004 conversation report sends a fixed target without caller evidence',
+    () async {
+      final dio = Dio(BaseOptions(baseUrl: 'https://appview.test'));
+      final adapter = DioAdapter(dio: dio);
+      final repository = ApiChatRepository(dio);
+      final operation = ChatOperationId.parse(
+        '00000000-0000-4000-8000-000000000123',
+      );
+      final conversation = ChatConversationId.parse('conversation');
+      var calls = 0;
+      adapter.onPost(
+        '/v1/chat/reports',
+        (server) {
+          calls++;
+          server.reply(202, {
+            'operationId': operation.value,
+            'kind': 'report',
+            'state': 'uncertain',
+          });
+        },
+        data: {
+          'operationId': operation.value,
+          'conversationId': conversation.value,
+          'subjectType': 'conversation',
+          'reasonType': 'com.atproto.moderation.defs#reasonSpam',
+          'reason': 'My explanation',
+        },
+      );
+      final receipt = await repository.reportConversation(
+        operation,
+        conversation,
+        'com.atproto.moderation.defs#reasonSpam',
+        'My explanation',
+      );
+      expect(receipt.state, ChatOperationState.uncertain);
+      expect(calls, 1);
+      await expectLater(
+        repository.reportConversation(
+          operation,
+          conversation,
+          'unsupported',
+          null,
+        ),
+        throwsArgumentError,
+      );
+      expect(calls, 1);
+    },
+  );
   for (final invalid in ['wrong conversation', 'missing messages']) {
     test('IT-019 combined details rejects $invalid', () async {
       final dio = Dio(BaseOptions(baseUrl: 'https://appview.test'));

@@ -90,6 +90,9 @@ void main() {
       expect(posts, 1);
       expect(profiles, 0);
       expect(preview?.excerpt, 'Reply excerpt');
+      expect(preview?.postSummary?.text, 'Reply excerpt');
+      expect(preview?.postSummary?.author?.did, reply.author.did);
+      expect(preview?.postSummary?.image?.alt, 'Permitted image');
       expect(preview?.target.did.value, 'did:plc:root');
       expect(preview?.target.rkey?.value, 'root');
       expect(preview?.target.focus, reply.uri);

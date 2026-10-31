@@ -13,6 +13,7 @@ import 'package:craftsky_app/chat/pages/messaging_inbox_page.dart';
 import 'package:craftsky_app/chat/providers/chat_providers.dart';
 import 'package:craftsky_app/chat/widgets/chat_activity_scope.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
+import 'package:craftsky_app/shared/time/relative_time_text.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
@@ -91,9 +92,27 @@ void main() {
         expect(find.text('@$peer'), findsOneWidget);
         expect(find.text('CraftSky peer'), findsOneWidget);
         expect(find.text('Conversation preview'), findsOneWidget);
+        final timestamp = tester.widget<RelativeTimeText>(
+          find.byType(RelativeTimeText),
+        );
+        expect(timestamp.timestamp, DateTime.utc(2026, 10, 21, 12));
+        final tile = find.ancestor(
+          of: find.byType(RelativeTimeText),
+          matching: find.byType(ListTile),
+        );
         expect(
-          tester.getTopLeft(find.text('@$peer')).dy,
-          greaterThan(tester.getTopLeft(find.text('CraftSky peer')).dy),
+          tester.getRect(find.byType(RelativeTimeText)).right,
+          closeTo(
+            tester
+                .getRect(
+                  find.descendant(
+                    of: tile,
+                    matching: find.byType(Badge),
+                  ),
+                )
+                .right,
+            1,
+          ),
         );
 
         expect(find.byType(TabBar), findsNothing);

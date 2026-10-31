@@ -17,17 +17,28 @@ import 'package:craftsky_app/chat/widgets/profile_message_button.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/notifications/models/notification_destination.dart';
 import 'package:craftsky_app/notifications/services/notification_navigation.dart';
+import 'package:craftsky_app/profile/models/profile.dart';
+import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
+import 'package:craftsky_app/profile/widgets/profile_avatar_hero.dart';
+import 'package:craftsky_app/router/app_shell_drawer.dart';
+import 'package:craftsky_app/router/responsive_modal_navigation.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/search/data/search_repository.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
+import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
+import 'package:craftsky_app/shared/widgets/craft_icon.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/craftsky_floating_action_button.dart';
+import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
+
+import '../fakes/recording_messenger.dart';
+import '../profile/fakes/fake_profile_repository.dart';
 
 void main() {
   test('IT-013 messaging destinations belong to the Messages route', () {
@@ -45,13 +56,20 @@ void main() {
     'new message',
     'notification',
     'profile',
+    'reporting disabled',
   ]) {
     testWidgets('IT-013 conversation Back returns to Messages from $entry', (
       tester,
     ) async {
       FlutterSecureStorage.setMockInitialValues({});
       final account = AccountKey('did:plc:owner');
-      final repository = _Repository(enabled: true, hasConversation: true);
+      final repository = _Repository(
+        enabled: true,
+        hasConversation: true,
+        hasMessage: entry == 'inbox',
+        canReport: entry != 'reporting disabled',
+      );
+      final draftStore = ChatDraftStore(const FlutterSecureStorage());
       final inbox = _allRoutes($appRoutes)
           .whereType<GoRoute>()
           .singleWhere((route) => route.name == 'messages');
@@ -60,7 +78,7 @@ void main() {
       Object? profilePresentation;
       final router = GoRouter(
         initialLocation: switch (entry) {
-          'cold' => details.location,
+          'cold' || 'reporting disabled' => details.location,
           'new message' => const NewMessageRoute(
             recipientDid: 'did:plc:peer',
           ).location,
@@ -110,6 +128,15 @@ void main() {
                 ),
               ),
             ),
+            profileRepositoryProvider.overrideWithValue(
+              FakeProfileRepository(
+                onFetch: (did) async => Profile(
+                  did: did,
+                  handle: 'peer.test',
+                  crafts: const ['knitting'],
+                ),
+              ),
+            ),
             accountChatRepositoryProvider(account).overrideWith(
               (ref) async => repository,
             ),
@@ -126,13 +153,17 @@ void main() {
               ref.onDispose(controller.dispose);
               return controller;
             }),
-            chatDraftStoreProvider.overrideWithValue(
-              ChatDraftStore(const FlutterSecureStorage()),
-            ),
+            chatDraftStoreProvider.overrideWithValue(draftStore),
           ],
           child: MaterialApp.router(
+            builder: (context, child) =>
+                MessengerScope(messenger: RecordingMessenger(), child: child!),
             routerConfig: router,
-            theme: AppTheme.lightThemeData,
+            theme: AppTheme.lightThemeData.copyWith(
+              platform: entry == 'inbox'
+                  ? TargetPlatform.iOS
+                  : TargetPlatform.android,
+            ),
             localizationsDelegates: appLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
           ),
@@ -160,9 +191,113 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byType(TextField), findsOneWidget);
       expect(router.canPop(), true);
+      if (entry == 'reporting disabled') {
+        await tester.tap(find.byTooltip('Conversation actions'));
+        await tester.pumpAndSettle();
+        expect(find.text('Report conversation'), findsNothing);
+        await tester.tapAt(const Offset(10, 10));
+        await tester.pumpAndSettle();
+        expect(repository.effects, isNot(contains('report-conversation')));
+      }
 
       if (entry == 'inbox') {
         await tester.enterText(find.byType(TextField), 'Unsent draft');
+        await tester.tap(find.byTooltip('Conversation actions'));
+        await tester.pumpAndSettle();
+        expect(
+          tester.widget<Text>(find.text('Report conversation')).style?.color,
+          AppTheme.lightThemeData.extension<SemanticColorsTheme>()!.error,
+        );
+        await tester.tap(find.text('Report conversation'));
+        await tester.pumpAndSettle();
+        expect(find.text('Report conversation'), findsOneWidget);
+        expect(
+          find.textContaining('Conversation reports go to Bluesky only'),
+          findsOneWidget,
+        );
+        expect(
+          tester
+              .widget<TextButton>(find.widgetWithText(TextButton, 'Submit'))
+              .onPressed,
+          isNull,
+        );
+        expect(repository.effects, isNot(contains('report-conversation')));
+        final reasonSearch = find.byKey(
+          const Key('chat-report-reason-search-input'),
+        );
+        await tester.tap(reasonSearch);
+        await tester.enterText(reasonSearch, 'Spam');
+        await tester.pumpAndSettle();
+        await tester.tap(
+          find.descendant(
+            of: find.byKey(const Key('chat-report-reason-options-panel')),
+            matching: find.text('Spam'),
+          ),
+        );
+        await tester.pumpAndSettle();
+        await tester.enterText(
+          find.byKey(const Key('chat-report-explanation')),
+          'My conversation concern',
+        );
+        await tester.tap(find.text('Submit'));
+        await tester.pumpAndSettle();
+        expect(find.text('Report sent to Bluesky.'), findsOneWidget);
+        expect(
+          repository.effects.where((effect) => effect == 'report-conversation'),
+          hasLength(1),
+        );
+        expect(repository.effects, isNot(contains('leave')));
+        await tester.tap(find.byType(CloseButton));
+        await tester.pumpAndSettle();
+        expect(
+          tester.widget<TextField>(find.byType(TextField)).controller!.text,
+          'Unsent draft',
+        );
+        await tester.longPress(find.text('Reportable message'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Report message'));
+        await tester.pumpAndSettle();
+        expect(find.byType(BottomSheet), findsNothing);
+        expect(find.byType(Dialog), findsNothing);
+        final reportContext = tester.element(find.text('Report message'));
+        expect(ModalRoute.of(reportContext), isA<FullscreenModalRoute<void>>());
+        expect(
+          tester
+              .getSize(
+                find.ancestor(
+                  of: find.text('Report message'),
+                  matching: find.byType(Scaffold),
+                ),
+              )
+              .height,
+          tester.view.physicalSize.height / tester.view.devicePixelRatio,
+        );
+        expect(find.textContaining('Bluesky only'), findsOneWidget);
+        expect(find.textContaining('reference to this message'), findsNothing);
+        addTearDown(tester.view.resetViewInsets);
+        tester.view.viewInsets = FakeViewPadding(
+          bottom: 250 * tester.view.devicePixelRatio,
+        );
+        await tester.pumpAndSettle();
+        await tester.enterText(
+          find.byKey(const Key('chat-report-explanation')),
+          'Unsubmitted report details',
+        );
+        await tester.ensureVisible(find.text('Submit'));
+        await tester.pumpAndSettle();
+        expect(find.text('Submit').hitTestable(), findsOneWidget);
+        expect(tester.takeException(), isNull);
+        tester.view.resetViewInsets();
+        await tester.pumpAndSettle();
+
+        await tester.tap(find.byType(CloseButton));
+        await tester.pumpAndSettle();
+        expect(
+          tester.widget<TextField>(find.byType(TextField)).controller!.text,
+          'Unsent draft',
+        );
+
+        expect(find.byType(CraftIcon), findsOneWidget);
         for (final avatar in [true, false]) {
           await tester.tap(
             find.descendant(
@@ -175,7 +310,10 @@ void main() {
           await tester.pumpAndSettle();
           expect(find.text('Profile route'), findsOneWidget);
           expect(openedProfileDid, 'did:plc:peer');
-          expect(profilePresentation, isNull);
+          expect(profilePresentation, isA<ProfileAvatarTransition>());
+          expect((profilePresentation! as ProfileAvatarTransition).crafts, [
+            'knitting',
+          ]);
           await tester.tap(find.byType(BackButton));
           await tester.pumpAndSettle();
           expect(
@@ -186,9 +324,31 @@ void main() {
         }
       }
 
-      await tester.tap(find.byTooltip('Back'));
+      if (entry == 'inbox') {
+        await tester.enterText(find.byType(TextField), 'Fresh swipe draft');
+        await tester.dragFrom(const Offset(1, 300), const Offset(650, 0));
+      } else {
+        await tester.tap(find.byTooltip('Back'));
+      }
       await tester.pumpAndSettle();
       expect(find.widgetWithText(AppBar, 'Messages'), findsOneWidget);
+      if (entry == 'inbox') {
+        expect(
+          (await draftStore.load(
+            draftStore.lease(account),
+            ChatConversationId.parse('conversation'),
+          )).text,
+          'Fresh swipe draft',
+        );
+        await tester.tap(find.text('peer.test'));
+        await tester.pumpAndSettle();
+        expect(
+          tester.widget<TextField>(find.byType(TextField)).controller!.text,
+          'Fresh swipe draft',
+        );
+        await tester.tap(find.byTooltip('Back'));
+        await tester.pumpAndSettle();
+      }
       expect(find.text('peer.test'), findsOneWidget);
       await tester.tap(find.text('peer.test'));
       await tester.pumpAndSettle();
@@ -385,70 +545,81 @@ void main() {
     },
   );
   for (final enabled in [false, true]) {
-    testWidgets('UT-010 cold Messages route can return home enabled=$enabled', (
-      tester,
-    ) async {
-      final account = AccountKey('did:plc:owner');
-      final repository = _Repository(enabled: enabled);
-      final router = GoRouter(
-        initialLocation: '/messages',
-        routes: [
-          GoRoute(
-            path: '/messages',
-            builder: (context, state) => const MessagingRoutePage(
-              destination: MessagingDestination.inbox,
-            ),
-          ),
-          GoRoute(
-            path: '/feed',
-            builder: (context, state) => const Scaffold(body: Text('Feed')),
-          ),
-        ],
-      );
-      addTearDown(router.dispose);
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: [
-            secureSessionRegistryStorageProvider.overrideWithValue(
-              _Storage(
-                SessionRegistry.empty().upsertAndActivate(
-                  token: 'synthetic',
-                  did: account.did.value,
-                  handle: 'owner.test',
-                ),
+    testWidgets(
+      'UT-010 Messages root exposes drawer instead of Back enabled=$enabled',
+      (
+        tester,
+      ) async {
+        var drawerOpens = 0;
+        final account = AccountKey('did:plc:owner');
+        final repository = _Repository(enabled: enabled);
+        final router = GoRouter(
+          initialLocation: '/messages',
+          routes: [
+            GoRoute(
+              path: '/messages',
+              builder: (context, state) => const MessagingRoutePage(
+                destination: MessagingDestination.inbox,
               ),
             ),
-            accountChatRepositoryProvider(account)
-                .overrideWith((ref) async => repository),
+            GoRoute(
+              path: '/feed',
+              builder: (context, state) => const Scaffold(body: Text('Feed')),
+            ),
           ],
-          child: MaterialApp.router(
-            routerConfig: router,
-            theme: AppTheme.lightThemeData,
-            localizationsDelegates: appLocalizationsDelegates,
-            supportedLocales: AppLocalizations.supportedLocales,
+        );
+        addTearDown(router.dispose);
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              secureSessionRegistryStorageProvider.overrideWithValue(
+                _Storage(
+                  SessionRegistry.empty().upsertAndActivate(
+                    token: 'synthetic',
+                    did: account.did.value,
+                    handle: 'owner.test',
+                  ),
+                ),
+              ),
+              accountChatRepositoryProvider(account)
+                  .overrideWith((ref) async => repository),
+            ],
+            child: MaterialApp.router(
+              routerConfig: router,
+              builder: (_, child) => AppShellDrawerScope(
+                openDrawer: () => drawerOpens++,
+                isDrawerOpen: false,
+                child: child!,
+              ),
+              theme: AppTheme.lightThemeData,
+              localizationsDelegates: appLocalizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
+            ),
           ),
-        ),
-      );
-      await tester.pumpAndSettle();
-      expect(
-        find.text(enabled ? 'Messages' : 'Direct messages'),
-        findsOneWidget,
-      );
-      expect(
-        find.text('Enable messaging'),
-        enabled ? findsNothing : findsOneWidget,
-      );
-      await tester.tap(find.byTooltip('Back'));
-      await tester.pumpAndSettle();
-      expect(router.routeInformationProvider.value.uri.path, '/feed');
-      expect(tester.takeException(), isNull);
-      await tester.pumpWidget(const SizedBox.shrink());
-      await tester.pump();
-    });
+        );
+        await tester.pumpAndSettle();
+        expect(
+          find.text(enabled ? 'Messages' : 'Direct messages'),
+          findsOneWidget,
+        );
+        expect(
+          find.text('Enable messaging'),
+          enabled ? findsNothing : findsOneWidget,
+        );
+        expect(find.byType(BackButton), findsNothing);
+        await tester.tap(find.byType(AppShellDrawerButton));
+        await tester.pumpAndSettle();
+        expect(drawerOpens, 1);
+        expect(router.routeInformationProvider.value.uri.path, '/messages');
+        expect(tester.takeException(), isNull);
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pump();
+      },
+    );
   }
 
   testWidgets(
-    'SETUP-001 / ROUTE-001 disabled Messages shows enablement before preferences',
+    'SETUP-001 / ROUTE-001 first enablement opens the conversation list',
     (tester) async {
       final account = AccountKey('did:plc:owner');
       final repository = _Repository(enabled: false);
@@ -497,27 +668,6 @@ void main() {
         ['connection:true'],
       );
       expect(repository.effects, containsAll(['read:push', 'read:policy']));
-      expect(find.text('Direct messages'), findsOneWidget);
-      expect(find.text('Push notifications'), findsOneWidget);
-      expect(find.text('Who can message me'), findsOneWidget);
-      expect(find.text('Open messages'), findsOneWidget);
-      expect(find.byType(Switch), findsNWidgets(2));
-      expect(tester.widget<Switch>(find.byType(Switch).first).value, true);
-      expect(tester.widget<Switch>(find.byType(Switch).last).value, true);
-      await tester.ensureVisible(find.byType(Switch).first);
-      await tester.tap(find.byType(Switch).first);
-      await tester.pumpAndSettle();
-      expect(repository.effects.last, 'connection:false');
-      expect(find.text('Push notifications'), findsNothing);
-      expect(find.text('Who can message me'), findsNothing);
-      expect(find.text('Open messages'), findsNothing);
-      expect(tester.widget<Switch>(find.byType(Switch)).value, false);
-      await tester.ensureVisible(find.byType(Switch));
-      await tester.tap(find.byType(Switch));
-      await tester.pumpAndSettle();
-      await tester.ensureVisible(find.text('Open messages'));
-      await tester.tap(find.text('Open messages'));
-      await tester.pumpAndSettle();
       expect(find.text('Messages'), findsOneWidget);
       expect(find.text('Direct messages'), findsNothing);
       expect(find.text('New message'), findsOneWidget);
@@ -549,11 +699,36 @@ Iterable<RouteBase> _allRoutes(Iterable<RouteBase> routes) sync* {
 }
 
 class _Repository implements ChatRepository {
-  new({required this.enabled, this.requests = 0, this.hasConversation = false});
+  new({
+    required this.enabled,
+    this.requests = 0,
+    this.hasConversation = false,
+    this.hasMessage = false,
+    this.canReport = true,
+  });
   bool enabled;
   final bool hasConversation;
+  final bool hasMessage;
+  final bool canReport;
   final effects = <String>[];
   final int requests;
+  @override
+  Future<ChatReceipt> reportConversation(
+    ChatOperationId operation,
+    ChatConversationId id,
+    String reasonType,
+    String? reason,
+  ) async {
+    effects.add('report-conversation');
+    expect(reasonType, 'com.atproto.moderation.defs#reasonSpam');
+    expect(reason, 'My conversation concern');
+    return ChatReceipt.fromMap({
+      'operationId': operation.value,
+      'kind': 'report',
+      'state': 'confirmed',
+    });
+  }
+
   @override
   Future<ChatAvailability> availability(Did recipient) async =>
       ChatAvailability.fromMap(const {'canChat': true});
@@ -569,7 +744,7 @@ class _Repository implements ChatRepository {
     'capabilities': {
       'canRead': enabled,
       'canSend': enabled,
-      'canReport': enabled,
+      'canReport': enabled && canReport,
       'canSetPolicy': enabled,
     },
   });
@@ -632,7 +807,24 @@ class _Repository implements ChatRepository {
     ChatConversationId id, {
     ChatCursor? cursor,
     int limit = 50,
-  }) async => ChatMessagePage.fromMap(const {'items': <Object>[]});
+  }) async => ChatMessagePage.fromMap({
+    'items': [
+      if (hasMessage)
+        {
+          'id': 'peer-message',
+          'revision': 'r',
+          'kind': 'text',
+          'text': 'Reportable message',
+          'senderDid': 'did:plc:peer',
+          'sentAt': '2026-10-30T12:00:00Z',
+        },
+    ],
+  });
+  @override
+  Future<ChatConversation> updateRead(
+    ChatConversationId id,
+    ChatMessageId message,
+  ) => conversation(id);
   @override
   Future<ChatSyncSnapshot> heartbeat(
     ChatView view, {

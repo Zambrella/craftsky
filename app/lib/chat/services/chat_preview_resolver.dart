@@ -11,6 +11,7 @@ import 'package:craftsky_app/feed/models/post_uri.dart';
 import 'package:craftsky_app/profile/data/profile_repository.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/observability/error_reporter.dart';
+import 'package:craftsky_app/shared/widgets/post_summary.dart';
 
 final class ChatPreviewResolver {
   new({
@@ -73,6 +74,7 @@ final class ChatPreviewResolver {
             target: target,
             title: post.author.displayName ?? post.author.handle.value,
             excerpt: _excerpt(post.text),
+            postSummary: PostSummaryData.fromPost(post),
             thumbnail: _thumbnail(
               post.images?.firstOrNull?.thumb ?? post.video?.thumbnail,
             ),

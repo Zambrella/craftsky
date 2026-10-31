@@ -3,6 +3,7 @@ import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/chat/models/chat_state.dart';
 import 'package:craftsky_app/chat/pages/chat_settings_page.dart';
 import 'package:craftsky_app/chat/providers/chat_providers.dart';
+import 'package:craftsky_app/chat/widgets/chat_app_bar_leading.dart';
 import 'package:craftsky_app/chat/widgets/chat_app_bar_title.dart';
 import 'package:craftsky_app/chat/widgets/chat_message_effect.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
@@ -36,14 +37,6 @@ class ChatContentGate extends ConsumerStatefulWidget {
 }
 
 class _ChatContentGateState extends ConsumerState<ChatContentGate> {
-  bool _showSetup = false;
-
-  @override
-  void didUpdateWidget(covariant ChatContentGate oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.account != widget.account) _showSetup = false;
-  }
-
   @override
   Widget build(BuildContext context) {
     final account = widget.account;
@@ -55,7 +48,7 @@ class _ChatContentGateState extends ConsumerState<ChatContentGate> {
     final l10n = AppLocalizations.of(context);
     Widget retry(String message) => Scaffold(
       appBar: AppBar(
-        leading: onClose == null ? null : BackButton(onPressed: onClose),
+        leading: chatAppBarLeading(context, onClose),
         title: Text(l10n.chatInboxTitle),
       ),
       body: ChatFailurePanel(
@@ -76,15 +69,11 @@ class _ChatContentGateState extends ConsumerState<ChatContentGate> {
           data: (status) {
             if (status.state == ChatConnectionState.disabled ||
                 status.state == ChatConnectionState.authorizationNeeded) {
-              _showSetup = true;
-            }
-            if (_showSetup) {
               return MessagingSettingsPage(
                 key: ValueKey(lease),
                 account: account,
                 onClose: onClose,
                 onAuthorize: widget.onAuthorize,
-                onOpenMessages: () => setState(() => _showSetup = false),
               );
             }
             final degraded =

@@ -33,12 +33,13 @@ void main() {
           ),
         ),
       );
+      await _selectReason(tester, 'Other');
       await tester.enterText(
         find.byKey(const Key('chat-report-explanation')),
         'private-explanation',
       );
-      await tester.ensureVisible(find.text('Report to Bluesky'));
-      await tester.tap(find.text('Report to Bluesky'));
+      await tester.ensureVisible(find.text('Submit'));
+      await tester.tap(find.text('Submit'));
       await tester.pumpAndSettle();
       expect(find.text('Report sent to Bluesky.'), findsNothing);
       expect(
@@ -57,7 +58,7 @@ void main() {
     },
   );
   testWidgets(
-    'UT-011 / AT-010 names Bluesky and evidence before confirmation',
+    'UT-011 / AT-010 names Bluesky before confirmation without extra paragraph',
     (tester) async {
       var calls = 0;
       await tester.pumpWidget(
@@ -78,20 +79,53 @@ void main() {
         ),
       );
       expect(calls, 0);
+      final submit = find.widgetWithText(TextButton, 'Submit');
+      expect(tester.widget<TextButton>(submit).onPressed, isNull);
+      expect(find.text('Other'), findsNothing);
+      expect(
+        tester
+            .widget<TextField>(
+              find.byKey(const Key('chat-report-reason-search-input')),
+            )
+            .decoration
+            ?.hintText,
+        'Select Reason',
+      );
+      expect(
+        find.descendant(of: find.byType(AppBar), matching: find.text('Submit')),
+        findsOneWidget,
+      );
       expect(find.textContaining('Bluesky only'), findsOneWidget);
-      expect(find.textContaining('reference to this message'), findsOneWidget);
-      expect(find.textContaining('copied transcript'), findsOneWidget);
+      expect(find.textContaining('reference to this message'), findsNothing);
+      expect(find.textContaining('copied transcript'), findsNothing);
       expect(find.text('Report sent to Bluesky.'), findsNothing);
       await tester.enterText(
         find.byKey(const Key('chat-report-explanation')),
         'My explanation',
       );
-      await tester.ensureVisible(find.text('Report to Bluesky'));
-      await tester.tap(find.text('Report to Bluesky'));
+      expect(tester.widget<TextButton>(submit).onPressed, isNull);
+      await _selectReason(tester, 'Other');
+      expect(calls, 0);
+      expect(tester.widget<TextButton>(submit).onPressed, isNotNull);
+      await tester.tap(submit);
       await tester.pumpAndSettle();
       expect(calls, 1);
       expect(find.text('Report sent to Bluesky.'), findsOneWidget);
       expect(tester.takeException(), isNull);
     },
   );
+}
+
+Future<void> _selectReason(WidgetTester tester, String label) async {
+  final search = find.byKey(const Key('chat-report-reason-search-input'));
+  await tester.tap(search);
+  await tester.enterText(search, label);
+  await tester.pumpAndSettle();
+  await tester.tap(
+    find.descendant(
+      of: find.byKey(const Key('chat-report-reason-options-panel')),
+      matching: find.text(label),
+    ),
+  );
+  await tester.pumpAndSettle();
 }

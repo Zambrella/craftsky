@@ -28,6 +28,7 @@ import 'package:craftsky_app/profile/models/profile_account_page.dart';
 import 'package:craftsky_app/profile/pages/profile_page.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/projects/widgets/project_composer_sheet.dart';
+import 'package:craftsky_app/router/app_shell_drawer.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/settings/pages/about_page.dart';
 import 'package:craftsky_app/settings/pages/account_page.dart';
@@ -298,6 +299,50 @@ void main() {
     expect(router.state.matchedLocation, const ProfileRoute().location);
   });
 
+  testWidgets('Messages root uses the real shell drawer', (tester) async {
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(500, 800);
+    final container = _container();
+    addTearDown(container.dispose);
+    final subscription = container.listen(
+      goRouterProvider,
+      (_, _) {},
+      fireImmediately: true,
+    );
+    addTearDown(subscription.close);
+    final router = subscription.read()..go(const ChatInboxRoute().location);
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp.router(
+          routerConfig: router,
+          theme: AppTheme.lightThemeData.copyWith(platform: TargetPlatform.iOS),
+          localizationsDelegates: appLocalizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          builder: (_, child) => MessengerScope(
+            messenger: RecordingMessenger(),
+            child: FormFactorWidget(child: child!),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byType(BackButton), findsNothing);
+    await tester.tap(find.byType(AppShellDrawerButton));
+    await tester.pumpAndSettle();
+    expect(find.byType(Drawer), findsOneWidget);
+    final messagesTile = find.ancestor(
+      of: find.descendant(
+        of: find.byType(Drawer),
+        matching: find.text('Messages'),
+      ),
+      matching: find.byType(ListTile),
+    );
+    expect(tester.widget<ListTile>(messagesTile).selected, true);
+    expect(router.state.matchedLocation, const ChatInboxRoute().location);
+  });
   testWidgets(
     'iOS Settings child edge swipe goes back instead of opening the drawer',
     (tester) async {

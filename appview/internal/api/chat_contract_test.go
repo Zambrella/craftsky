@@ -150,3 +150,60 @@ func TestChatDetailsFixedPrivateContract(t *testing.T) {
 		t.Fatalf("details calls=%d", reader.calls)
 	}
 }
+
+type chatReportReader struct {
+	ChatConsumer
+	conversationReports int
+	messageReports      int
+}
+
+func (reader *chatReportReader) ReportConversation(_ context.Context, info auth.AuthInfo, operation uuid.UUID, conversation chat.ConversationID, reasonType string, reason *string) (chat.OperationReceipt, error) {
+	if info.ChildTokenHash == ([32]byte{}) || conversation != "direct-1" || reasonType != "com.atproto.moderation.defs#reasonSpam" {
+		panic("wrong conversation report contract")
+	}
+	reader.conversationReports++
+	return chat.OperationReceipt{OperationID: operation, Kind: "report", State: "confirmed"}, nil
+}
+
+func (reader *chatReportReader) Report(_ context.Context, _ auth.AuthInfo, operation uuid.UUID, _ chat.ConversationID, _ chat.MessageID, _ string, _ *string) (chat.OperationReceipt, error) {
+	reader.messageReports++
+	return chat.OperationReceipt{OperationID: operation, Kind: "report", State: "confirmed"}, nil
+}
+
+// IT-004: the consumer selects a fixed target kind, never upstream evidence.
+func TestChatConversationReportContract(t *testing.T) {
+	reader := &chatReportReader{}
+	handler := ChatConsumerHandler(reader, "report")
+	base := `"operationId":"` + uuid.NewString() + `","conversationId":"direct-1","reasonType":"com.atproto.moderation.defs#reasonSpam"`
+	for _, tc := range []struct {
+		extra  string
+		status int
+	}{
+		{`,"subjectType":"conversation"`, 200},
+		{`,"messageId":"message-1"`, 200},
+		{`,"subjectType":"message","messageId":"message-1"`, 200},
+		{`,"subjectType":"conversation","messageId":"message-1"`, 400},
+		{`,"subjectType":"unknown"`, 400},
+		{``, 400},
+		{`,"subjectType":"conversation","did":"did:plc:forged"`, 400},
+		{`,"subjectType":"conversation","transcript":"private-canary"`, 400},
+		{`,"subjectType":"conversation","subject":{"did":"did:plc:forged"}`, 400},
+	} {
+		w := httptest.NewRecorder()
+		handler.ServeHTTP(w, chatContractRequest("POST", "/v1/chat/reports", "{"+base+tc.extra+"}"))
+		if w.Code != tc.status {
+			t.Fatalf("case %s: status=%d body=%s", tc.extra, w.Code, w.Body.String())
+		}
+		if w.Header().Get("Cache-Control") != "no-store" {
+			t.Fatal("report response cacheable")
+		}
+	}
+	if reader.conversationReports != 1 || reader.messageReports != 2 {
+		t.Fatalf("unexpected report dispatch counts: %d/%d", reader.conversationReports, reader.messageReports)
+	}
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, httptest.NewRequest("POST", "/v1/chat/reports", strings.NewReader("{"+base+`,"subjectType":"conversation"}`)))
+	if w.Code != 401 || reader.conversationReports != 1 {
+		t.Fatal("unauthenticated conversation report dispatched")
+	}
+}

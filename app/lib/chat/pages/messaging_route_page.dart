@@ -19,12 +19,12 @@ import 'package:craftsky_app/chat/widgets/chat_app_bar_title.dart';
 import 'package:craftsky_app/chat/widgets/chat_content_gate.dart';
 import 'package:craftsky_app/chat/widgets/chat_skeleton.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
+import 'package:craftsky_app/router/responsive_modal_navigation.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/shared/observability/error_reporter.dart';
 import 'package:craftsky_app/shared/observability/error_reporter_provider.dart';
-import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -124,17 +124,19 @@ class _MessagingRoutePageState extends ConsumerState<MessagingRoutePage> {
   Future<void> _report(
     AccountKey account,
     ChatConversationId id,
-    ChatMessageId message,
+    ChatMessageId? message,
   ) async {
-    await showCraftskyModal<void>(
-      context,
-      builder: (context) => SafeArea(
-        child: Dialog.fullscreen(
-          child: _MessagingReportPage(
-            account: account,
-            id: id,
-            message: message,
-          ),
+    if (!mounted ||
+        ref.read(sessionRegistryProvider).value?.activeLease?.session.account !=
+            account) {
+      return;
+    }
+    await responsiveModalNavigator(context).push<void>(
+      FullscreenModalRoute<void>(
+        builder: (_) => _MessagingReportPage(
+          account: account,
+          id: id,
+          message: message,
         ),
       ),
     );
@@ -162,7 +164,9 @@ class _MessagingRoutePageState extends ConsumerState<MessagingRoutePage> {
         page = MessagingInboxPage(
           key: ValueKey(lease),
           account: account,
-          onClose: _close,
+          onClose: widget.destination == MessagingDestination.inbox
+              ? null
+              : _close,
           bucket: widget.destination == MessagingDestination.requests
               ? ChatBucket.request
               : ChatBucket.accepted,
@@ -185,6 +189,7 @@ class _MessagingRoutePageState extends ConsumerState<MessagingRoutePage> {
           conversationId: id,
           onClose: _close,
           onReport: (message) => unawaited(_report(account, id, message)),
+          onReportConversation: () => unawaited(_report(account, id, null)),
           onAuthorize: (push) => authorize(push: push),
         );
       case MessagingDestination.newMessage:
@@ -229,7 +234,6 @@ class _MessagingRoutePageState extends ConsumerState<MessagingRoutePage> {
           account: account,
           onAuthorize: (push) => authorize(push: push),
           onClose: _close,
-          onOpenMessages: () => const ChatInboxRoute().go(context),
         );
     }
     final view = switch (widget.destination) {
@@ -264,7 +268,7 @@ class _MessagingReportPage extends ConsumerWidget {
   const new({required this.account, required this.id, required this.message});
   final AccountKey account;
   final ChatConversationId id;
-  final ChatMessageId message;
+  final ChatMessageId? message;
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     if (ref.watch(
@@ -276,18 +280,32 @@ class _MessagingReportPage extends ConsumerWidget {
       return const SizedBox.shrink();
     }
     final family = chatReportControllerProvider(account, id, message);
+    final title = message == null
+        ? AppLocalizations.of(context).chatReportConversationTitle
+        : AppLocalizations.of(context).chatReportTitle;
     return ref
         .watch(family)
         .when(
           skipLoadingOnRefresh: false,
           loading: () => ChatLoadingPage(
-            title: AppLocalizations.of(context).chatReportTitle,
+            title: title,
+            onClose: () => Navigator.of(context).pop(),
           ),
-          error: (_, _) => ChatFailurePanel(
-            message: AppLocalizations.of(context).chatUnavailable,
-            onRetry: () => ref.invalidate(family),
+          error: (_, _) => Scaffold(
+            appBar: AppBar(
+              leading: CloseButton(
+                onPressed: () => Navigator.of(context).pop(),
+              ),
+              title: Text(title),
+            ),
+            body: ChatFailurePanel(
+              message: AppLocalizations.of(context).chatUnavailable,
+              onRetry: () => ref.invalidate(family),
+            ),
           ),
           data: (controller) => ReportPage(
+            isConversation: message == null,
+            onClose: () => Navigator.of(context).pop(),
             onCheckStatus: () async {
               await controller.checkReceipt();
               return switch (controller.state) {

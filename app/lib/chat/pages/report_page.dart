@@ -6,9 +6,9 @@ import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/shared/messaging/widgets/craftsky_snack_bar.dart';
 import 'package:craftsky_app/shared/observability/error_reporter.dart';
 import 'package:craftsky_app/shared/widgets/action_progress.dart';
-import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/craftsky_field_scaffold.dart';
 import 'package:craftsky_app/theme/craftsky_select_inputs.dart';
+import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:material_ui/material_ui.dart';
 
 enum ReportSubmissionState { confirmed, failed, uncertain }
@@ -17,6 +17,8 @@ class ReportPage extends StatefulWidget {
   const new({
     required this.onSubmit,
     this.onCheckStatus,
+    this.onClose,
+    this.isConversation = false,
     this.errorReporter = const NoopErrorReporter(),
     super.key,
   });
@@ -26,6 +28,8 @@ class ReportPage extends StatefulWidget {
     String? reason,
   )
   onSubmit;
+  final VoidCallback? onClose;
+  final bool isConversation;
   final ErrorReporter errorReporter;
   final Future<ReportSubmissionState> Function()? onCheckStatus;
 
@@ -36,7 +40,7 @@ class ReportPage extends StatefulWidget {
 class _ReportPageState extends State<ReportPage> {
   final _explanation = TextEditingController();
   final _explanationFocus = FocusNode();
-  String _reasonType = 'com.atproto.moderation.defs#reasonOther';
+  String? _reasonType;
   bool _submitting = false;
   bool _submitted = false;
   bool _invalid = false;
@@ -50,8 +54,9 @@ class _ReportPageState extends State<ReportPage> {
   }
 
   Future<void> _submit() async {
-    if (_submitted || _submitting) return;
-    if (validateReportInput(_reasonType, _explanation.text) != null) {
+    final reasonType = _reasonType;
+    if (_submitted || _submitting || reasonType == null) return;
+    if (validateReportInput(reasonType, _explanation.text) != null) {
       setState(() => _invalid = true);
       return;
     }
@@ -63,7 +68,7 @@ class _ReportPageState extends State<ReportPage> {
     ReportSubmissionState result;
     try {
       result = await widget.onSubmit(
-        _reasonType,
+        reasonType,
         _explanation.text.isEmpty ? null : _explanation.text,
       );
     } on Object catch (error, stack) {
@@ -107,11 +112,33 @@ class _ReportPageState extends State<ReportPage> {
     final l10n = AppLocalizations.of(context);
     return Scaffold(
       appBar: AppBar(
+        leading: widget.onClose == null
+            ? null
+            : CloseButton(onPressed: widget.onClose),
         title: Text(
-          l10n.chatReportTitle,
+          widget.isConversation
+              ? l10n.chatReportConversationTitle
+              : l10n.chatReportTitle,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),
+        actions: [
+          Padding(
+            padding: EdgeInsets.only(
+              right: Theme.of(context).extension<SpacingTheme>()!.sp3,
+            ),
+            child: TextButton(
+              onPressed: _submitted || _reasonType == null ? null : _submit,
+              style: TextButton.styleFrom(
+                textStyle: const TextStyle(fontWeight: FontWeight.w700),
+              ),
+              child: ActionProgress(
+                isLoading: _submitting && _result == null,
+                child: Text(l10n.reportSubmit),
+              ),
+            ),
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
@@ -121,9 +148,11 @@ class _ReportPageState extends State<ReportPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text(l10n.chatReportDisclosure),
-                const SizedBox(height: 16),
-                Text(l10n.chatReportEvidenceDisclosure),
+                Text(
+                  widget.isConversation
+                      ? l10n.chatConversationReportDisclosure
+                      : l10n.chatReportDisclosure,
+                ),
                 const SizedBox(height: 24),
                 CraftskySingleSelectInput<String>(
                   label: l10n.chatReportReasonLabel,
@@ -182,13 +211,6 @@ class _ReportPageState extends State<ReportPage> {
                   ),
                 ),
                 const SizedBox(height: 24),
-                ChunkyButton(
-                  onPressed: _submitted ? null : _submit,
-                  child: ActionProgress(
-                    isLoading: _submitting && _result == null,
-                    child: Text(l10n.chatReportAction),
-                  ),
-                ),
                 if (_result == ReportSubmissionState.uncertain &&
                     widget.onCheckStatus != null)
                   TextButton(

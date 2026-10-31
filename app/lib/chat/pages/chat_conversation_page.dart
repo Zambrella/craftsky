@@ -17,14 +17,18 @@ import 'package:craftsky_app/chat/widgets/chat_app_bar_title.dart';
 import 'package:craftsky_app/chat/widgets/chat_content_gate.dart';
 import 'package:craftsky_app/chat/widgets/chat_message_effect.dart';
 import 'package:craftsky_app/chat/widgets/chat_message_preview.dart';
-import 'package:craftsky_app/chat/widgets/chat_peer_identity.dart';
+import 'package:craftsky_app/chat/widgets/chat_peer_profile.dart';
 import 'package:craftsky_app/chat/widgets/chat_skeleton.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
-import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
+import 'package:craftsky_app/profile/providers/block_profile_overlay.dart';
+import 'package:craftsky_app/profile/providers/toggle_block_profile_provider.dart';
+import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/shared/link/external_link.dart';
+import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/shared/messaging/message_action.dart';
 import 'package:craftsky_app/shared/messaging/widgets/craftsky_snack_bar.dart';
+import 'package:craftsky_app/shared/mutations/pds_record_operation_controller.dart';
 import 'package:craftsky_app/shared/widgets/action_progress.dart';
 import 'package:craftsky_app/theme/brand_text_field.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
@@ -42,12 +46,14 @@ class MessagingConversationPage extends ConsumerWidget {
     required this.onClose,
     required this.onReport,
     required this.onAuthorize,
+    this.onReportConversation,
     super.key,
   });
   final AccountKey account;
   final ChatConversationId conversationId;
   final VoidCallback onClose;
   final ValueChanged<ChatMessageId> onReport;
+  final VoidCallback? onReportConversation;
   final ValueChanged<bool> onAuthorize;
 
   Future<void> _close(
@@ -106,6 +112,10 @@ class MessagingConversationPage extends ConsumerWidget {
                   status.canReport && status.state == ChatConnectionState.ready
                   ? onReport
                   : null,
+              onReportConversation:
+                  status.canReport && status.state == ChatConnectionState.ready
+                  ? onReportConversation
+                  : null,
             ),
           );
     },
@@ -119,12 +129,14 @@ class _ConversationView extends ConsumerStatefulWidget {
     required this.onReload,
     required this.onReport,
     required this.canOperate,
+    this.onReportConversation,
     super.key,
   });
   final ChatConversationController controller;
   final VoidCallback onClose;
   final VoidCallback onReload;
   final ValueChanged<ChatMessageId>? onReport;
+  final VoidCallback? onReportConversation;
   final bool canOperate;
   @override
   ConsumerState<_ConversationView> createState() => _ConversationViewState();
@@ -138,11 +150,12 @@ class _ConversationViewState extends ConsumerState<_ConversationView>
   bool _resumed = true;
   bool _routeCurrent = true;
   bool _ignoring = false;
+  bool _blocking = false;
 
   @override
   void initState() {
     super.initState();
-    _text = TextEditingController(text: widget.controller.draft.text);
+    _text = TextEditingController(text: widget.controller.draft.composerText);
     _workGuard = ref.read(unsavedWorkGuardProvider);
     final lease = ref.read(sessionRegistryProvider).value?.activeLease;
     if (lease?.session.account == widget.controller.account) {
@@ -167,7 +180,7 @@ class _ConversationViewState extends ConsumerState<_ConversationView>
 
   void _updated() {
     if (!mounted) return;
-    final text = widget.controller.draft.text;
+    final text = widget.controller.draft.composerText;
     if (_text.text != text) {
       _text.value = TextEditingValue(
         text: text,
@@ -237,7 +250,7 @@ class _ConversationViewState extends ConsumerState<_ConversationView>
     );
   }
 
-  void _openPeerProfile() {
+  void _openPeerProfile(VoidCallback openProfile) {
     final peer = widget.controller.conversation?.peer;
     final lease = ref.read(sessionRegistryProvider).value?.activeLease;
     if (peer == null ||
@@ -246,7 +259,7 @@ class _ConversationViewState extends ConsumerState<_ConversationView>
       return;
     }
     ActiveAccountOperation.fromWidget(ref, lease).publish(
-      () => unawaited(UserProfileRoute(did: peer.did).push<void>(context)),
+      openProfile,
     );
   }
 
@@ -285,6 +298,71 @@ class _ConversationViewState extends ConsumerState<_ConversationView>
     if (await widget.controller.leave() && mounted) widget.onClose();
   }
 
+  void _reportConversation() {
+    if (!mounted) return;
+    final callback = widget.onReportConversation;
+    final lease = ref.read(sessionRegistryProvider).value?.activeLease;
+    if (callback == null ||
+        lease?.session.account != widget.controller.account ||
+        widget.controller.busy ||
+        !widget.canOperate ||
+        !(ModalRoute.of(context)?.isCurrent ?? true)) {
+      return;
+    }
+    ActiveAccountOperation.fromWidget(ref, lease).publish(callback);
+  }
+
+  Future<void> _blockAccount() async {
+    final controller = widget.controller;
+    final peer = controller.conversation?.peer;
+    final lease = ref.read(sessionRegistryProvider).value?.activeLease;
+    if (peer == null || lease?.session.account != controller.account) return;
+    final operation = ActiveAccountOperation.fromWidget(ref, lease);
+    bool canStart() =>
+        mounted &&
+        operation.isCurrent &&
+        widget.controller == controller &&
+        widget.canOperate &&
+        !controller.busy &&
+        !_blocking &&
+        !ref.read(toggleBlockProfileProvider).isLoading &&
+        (ModalRoute.of(context)?.isCurrent ?? true);
+    if (!canStart()) return;
+    final l10n = AppLocalizations.of(context);
+    final confirmed = await showCraftskyDestructiveConfirmDialog(
+      context,
+      title: l10n.profileBlockConfirmTitle,
+      message: l10n.profileBlockConfirmBody,
+      cancelLabel: l10n.actionCancel,
+      confirmLabel: l10n.profileBlockAction,
+    );
+    if (!confirmed || !canStart()) return;
+    setState(() => _blocking = true);
+    try {
+      await operation.step(
+        () => ref
+            .read(toggleBlockProfileProvider.notifier)
+            .toggle(targetDid: peer.did, isBlocking: false),
+      );
+      if (!mounted ||
+          widget.controller != controller ||
+          !widget.canOperate ||
+          !(ModalRoute.of(context)?.isCurrent ?? true)) {
+        return;
+      }
+      if (ref.read(toggleBlockProfileProvider).asData?.value != true) {
+        context.showError(l10n.profileRelationshipError);
+        return;
+      }
+      context.showInfo(l10n.profileBlockSuccess);
+      await operation.step(controller.refresh);
+    } on AccountOperationDiscarded {
+      return;
+    } finally {
+      if (mounted) setState(() => _blocking = false);
+    }
+  }
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     _resumed = state == AppLifecycleState.resumed;
@@ -313,6 +391,22 @@ class _ConversationViewState extends ConsumerState<_ConversationView>
       value: _resumed && _routeCurrent && widget.canOperate,
     );
     final conversation = controller.conversation;
+    final peer = conversation?.peer;
+    final profile = peer == null
+        ? null
+        : ref.watch(userProfileProvider(peer.did)).value;
+    final blockOverlay = peer == null
+        ? null
+        : ref
+              .read(pdsRecordOperationControllerProvider)
+              .overlayFor(blockProfileMutationScope(ref.read, peer.did))
+              ?.optimisticValue;
+    final blocking = blockOverlay is bool
+        ? blockOverlay
+        : profile?.blocking ?? false;
+    final blocked = blocking || profile?.blockedBy == true;
+    final blockMutation = ref.watch(toggleBlockProfileProvider);
+    final blockBusy = _blocking || blockMutation.isLoading;
     final sendState = controller.draft.pending?.state;
     final sendStatus = switch (sendState) {
       ChatDraftSendState.pending => l10n.chatSending,
@@ -321,9 +415,13 @@ class _ConversationViewState extends ConsumerState<_ConversationView>
       null => null,
     };
     return PopScope(
-      canPop: false,
+      canPop: !controller.saveFailed,
       onPopInvokedWithResult: (didPop, _) {
-        if (!didPop) widget.onClose();
+        if (didPop) {
+          unawaited(controller.flush());
+        } else {
+          widget.onClose();
+        }
       },
       child: Scaffold(
         appBar: AppBar(
@@ -335,7 +433,7 @@ class _ConversationViewState extends ConsumerState<_ConversationView>
             if (conversation != null)
               CraftskyContextMenuButton(
                 tooltip: l10n.chatConversationActions,
-                enabled: !controller.busy && widget.canOperate,
+                enabled: !controller.busy && !blockBusy && widget.canOperate,
                 groups: [
                   CraftskyContextMenuGroup(
                     items: [
@@ -354,6 +452,20 @@ class _ConversationViewState extends ConsumerState<_ConversationView>
                   ),
                   CraftskyContextMenuGroup(
                     items: [
+                      if (!blocking)
+                        CraftskyContextMenuItem(
+                          text: l10n.profileBlockAction,
+                          icon: CraftskyIconsBold.block,
+                          style: CraftskyContextMenuItemStyle.destructive,
+                          onPressed: _blockAccount,
+                        ),
+                      if (widget.onReportConversation != null)
+                        CraftskyContextMenuItem(
+                          text: l10n.chatReportConversationTitle,
+                          icon: CraftskyIcons.report,
+                          style: CraftskyContextMenuItemStyle.destructive,
+                          onPressed: _reportConversation,
+                        ),
                       CraftskyContextMenuItem(
                         text: l10n.chatLeaveTitle,
                         icon: CraftskyIcons.logout,
@@ -373,37 +485,27 @@ class _ConversationViewState extends ConsumerState<_ConversationView>
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       )
-              : Semantics(
-                  button: true,
-                  hint: l10n.profileVisitAction,
-                  child: InkWell(
-                    onTap: _openPeerProfile,
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(minHeight: 48),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          ProfileAvatar(
-                            seed:
-                                conversation.peer.displayName ??
-                                conversation.peer.handle ??
-                                l10n.chatSomeone,
-                            avatarUrl: conversation.peer.avatar,
-                            size: ProfileAvatarSize.small,
-                          ),
-                          const SizedBox(width: 12),
-                          Flexible(
-                            child: ChatPeerIdentity(
-                              peer: conversation.peer,
-                              nameStyle: Theme.of(context)
-                                  .textTheme
-                                  .titleMedium,
+              : ChatPeerProfile(
+                  peer: conversation.peer,
+                  builder: (context, avatar, identity, openProfile) =>
+                      Semantics(
+                        button: true,
+                        hint: l10n.profileVisitAction,
+                        child: InkWell(
+                          onTap: () => _openPeerProfile(openProfile),
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(minHeight: 48),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                avatar,
+                                const SizedBox(width: 12),
+                                Flexible(child: identity),
+                              ],
                             ),
                           ),
-                        ],
+                        ),
                       ),
-                    ),
-                  ),
                 ),
         ),
         body: controller.loading && conversation == null
@@ -415,7 +517,9 @@ class _ConversationViewState extends ConsumerState<_ConversationView>
               )
             : LayoutBuilder(
                 builder: (context, constraints) => FlutterChatAdapter(
+                  key: ValueKey(controller),
                   history: controller.history,
+                  outgoing: controller.outgoingMessages,
                   owner: controller.account.did,
                   onLoadOlder: controller.loadOlder,
                   onReport: widget.onReport,
@@ -466,9 +570,11 @@ class _ConversationViewState extends ConsumerState<_ConversationView>
                                 LayoutBuilder(
                                   builder: (context, constraints) {
                                     final enabled =
-                                        !controller.busy && widget.canOperate;
+                                        !controller.busy &&
+                                        !blockBusy &&
+                                        widget.canOperate;
                                     final accept = ChunkyButton(
-                                      onPressed: enabled
+                                      onPressed: enabled && !blocked
                                           ? () => unawaited(controller.accept())
                                           : null,
                                       child: ActionProgress(
@@ -536,19 +642,23 @@ class _ConversationViewState extends ConsumerState<_ConversationView>
                                     const SizedBox(width: 8),
                                     ChunkyIconButton(
                                       tooltip: l10n.chatSend,
+                                      variant: ChunkyButtonVariant.primary,
                                       onPressed:
                                           controller.canSend &&
+                                              !blockBusy &&
+                                              !blocked &&
                                               widget.canOperate
                                           ? () => unawaited(controller.send())
                                           : null,
-                                      icon: CraftskyIcons.send,
+                                      icon: CraftskyIcons.sendFilled,
                                     ),
                                   ],
                                 ),
-                                if (!conversation.canSend)
+                                if (!conversation.canSend || blocked)
                                   Text(l10n.chatCannotSend),
-                                if (controller.draft.pending
-                                    case final attempt?) ...[
+                                if (controller.draft.pending case final attempt?
+                                    when attempt.state !=
+                                        ChatDraftSendState.pending) ...[
                                   const SizedBox(height: 8),
                                   ChatMessageEffect(
                                     severity:
@@ -570,6 +680,8 @@ class _ConversationViewState extends ConsumerState<_ConversationView>
                                         TextButton(
                                           onPressed:
                                               controller.canSendAgain &&
+                                                  !blockBusy &&
+                                                  !blocked &&
                                                   widget.canOperate
                                               ? () => unawaited(_sendAgain())
                                               : null,

@@ -3750,5 +3750,24 @@
         "type": "String"
       }
     }
-  }
+  },
+  "chatTimeToday": "Today at {time}",
+  "@chatTimeToday": {
+    "description": "Chat time section for today's messages.",
+    "placeholders": {"time": {"type": "String"}}
+  },
+  "chatTimeYesterday": "Yesterday at {time}",
+  "@chatTimeYesterday": {
+    "description": "Chat time section for yesterday's messages.",
+    "placeholders": {"time": {"type": "String"}}
+  },
+  "chatTimeDate": "{date} at {time}",
+  "@chatTimeDate": {
+    "description": "Chat time section with a localized date and time.",
+    "placeholders": {"date": {"type": "String"}, "time": {"type": "String"}}
+  },
+  "chatReportConversationTitle": "Report conversation",
+  "@chatReportConversationTitle": {"description": "Action and form title for reporting a direct conversation to Bluesky."},
+  "chatConversationReportDisclosure": "Conversation reports go to Bluesky only. CraftSky moderators do not receive these reports.",
+  "@chatConversationReportDisclosure": {"description": "Names the destination of conversation reports."}
 }

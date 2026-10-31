@@ -9056,6 +9056,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Edited {timestamp}'**
   String postEditTime(String timestamp);
+
+  /// Chat time section for today's messages.
+  ///
+  /// In en, this message translates to:
+  /// **'Today at {time}'**
+  String chatTimeToday(String time);
+
+  /// Chat time section for yesterday's messages.
+  ///
+  /// In en, this message translates to:
+  /// **'Yesterday at {time}'**
+  String chatTimeYesterday(String time);
+
+  /// Chat time section with a localized date and time.
+  ///
+  /// In en, this message translates to:
+  /// **'{date} at {time}'**
+  String chatTimeDate(String date, String time);
+
+  /// Action and form title for reporting a direct conversation to Bluesky.
+  ///
+  /// In en, this message translates to:
+  /// **'Report conversation'**
+  String get chatReportConversationTitle;
+
+  /// Names the destination of conversation reports.
+  ///
+  /// In en, this message translates to:
+  /// **'Conversation reports go to Bluesky only. CraftSky moderators do not receive these reports.'**
+  String get chatConversationReportDisclosure;
 }
 
 class _AppLocalizationsDelegate

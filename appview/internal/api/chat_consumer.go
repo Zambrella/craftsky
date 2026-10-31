@@ -29,6 +29,7 @@ type ChatConsumer interface {
 	SetMuted(context.Context, auth.AuthInfo, chat.ConversationID, bool) (chat.Conversation, error)
 	Leave(context.Context, auth.AuthInfo, chat.ConversationID) error
 	Report(context.Context, auth.AuthInfo, uuid.UUID, chat.ConversationID, chat.MessageID, string, *string) (chat.OperationReceipt, error)
+	ReportConversation(context.Context, auth.AuthInfo, uuid.UUID, chat.ConversationID, string, *string) (chat.OperationReceipt, error)
 	UnreadCounts(context.Context, auth.AuthInfo) (chat.UnreadCounts, error)
 	SetIncomingPolicy(context.Context, auth.AuthInfo, string) (chat.IncomingPolicy, error)
 	IncomingPolicy(context.Context, auth.AuthInfo) (chat.IncomingPolicy, error)
@@ -261,7 +262,8 @@ func ChatConsumerHandler(service ChatConsumer, action string) http.Handler {
 			var request struct {
 				OperationID    uuid.UUID           `json:"operationId"`
 				ConversationID chat.ConversationID `json:"conversationId"`
-				MessageID      chat.MessageID      `json:"messageId"`
+				MessageID      *chat.MessageID     `json:"messageId"`
+				SubjectType    string              `json:"subjectType"`
 				ReasonType     string              `json:"reasonType"`
 				Reason         *string             `json:"reason"`
 			}
@@ -269,11 +271,26 @@ func ChatConsumerHandler(service ChatConsumer, action string) http.Handler {
 			if err == nil {
 				err = chat.ValidateReportInput(request.ReasonType, request.Reason)
 			}
-			if request.OperationID == uuid.Nil || request.ConversationID == "" || request.MessageID == "" {
+			if request.OperationID == uuid.Nil || request.ConversationID == "" {
 				err = errChatInvalidRequest
 			}
-			execute = func() (any, error) {
-				return service.Report(ctx, info, request.OperationID, request.ConversationID, request.MessageID, request.ReasonType, request.Reason)
+			switch request.SubjectType {
+			case "conversation":
+				if request.MessageID != nil {
+					err = errChatInvalidRequest
+				}
+				execute = func() (any, error) {
+					return service.ReportConversation(ctx, info, request.OperationID, request.ConversationID, request.ReasonType, request.Reason)
+				}
+			case "", "message":
+				if request.MessageID == nil || *request.MessageID == "" {
+					err = errChatInvalidRequest
+				}
+				execute = func() (any, error) {
+					return service.Report(ctx, info, request.OperationID, request.ConversationID, *request.MessageID, request.ReasonType, request.Reason)
+				}
+			default:
+				err = errChatInvalidRequest
 			}
 		default:
 			err = errChatInvalidRequest

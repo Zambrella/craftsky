@@ -3,14 +3,16 @@ import 'dart:async';
 import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/auth/providers/account_operation_guard.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
+import 'package:craftsky_app/chat/models/chat_conversation.dart';
 import 'package:craftsky_app/chat/models/chat_identifier.dart';
 import 'package:craftsky_app/chat/models/chat_link_target.dart';
 import 'package:craftsky_app/chat/models/chat_message.dart';
 import 'package:craftsky_app/chat/models/chat_preview.dart';
 import 'package:craftsky_app/chat/providers/chat_providers.dart';
-import 'package:craftsky_app/l10n/app_localizations.dart';
+import 'package:craftsky_app/chat/widgets/chat_peer_profile.dart';
 import 'package:craftsky_app/router/router.dart';
-import 'package:craftsky_app/theme/craftsky_card.dart';
+import 'package:craftsky_app/shared/widgets/post_summary.dart';
+import 'package:craftsky_app/shared/widgets/quote_embed_surface.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -44,7 +46,7 @@ class _ChatMessagePreviewState extends ConsumerState<ChatMessagePreview> {
     }
   }
 
-  void _open(ChatPreview preview) {
+  void _open(ChatPreview preview, {VoidCallback? openProfile}) {
     final lease = ref.read(sessionRegistryProvider).value?.activeLease;
     if (lease?.session.account != widget.account) return;
     ActiveAccountOperation.fromWidget(ref, lease).publish(() {
@@ -59,7 +61,11 @@ class _ChatMessagePreviewState extends ConsumerState<ChatMessagePreview> {
             ).push<void>(context),
           );
         case ChatLinkKind.profile:
-          unawaited(UserProfileRoute(did: target.did).push<void>(context));
+          if (openProfile != null) {
+            openProfile();
+          } else {
+            unawaited(UserProfileRoute(did: target.did).push<void>(context));
+          }
         case ChatLinkKind.event:
           unawaited(
             BusinessEventRoute(
@@ -83,28 +89,42 @@ class _ChatMessagePreviewState extends ConsumerState<ChatMessagePreview> {
     if (state.isLoading || state.hasError) return const SizedBox.shrink();
     final preview = state.value;
     if (preview == null) return const SizedBox.shrink();
-    final l10n = AppLocalizations.of(context);
-    final kind = switch (preview.target.kind) {
-      ChatLinkKind.post => l10n.chatPreviewPost,
-      ChatLinkKind.profile => l10n.chatPreviewProfile,
-      ChatLinkKind.event => l10n.chatPreviewEvent,
-    };
+    if (preview.target.kind == ChatLinkKind.post &&
+        preview.postSummary != null) {
+      return Padding(
+        padding: const EdgeInsets.only(top: 8),
+        child: QuoteEmbedSurface(
+          child: PostSummary(
+            data: preview.postSummary!,
+            onTap: () => _open(preview),
+            enableAuthorNavigation: true,
+          ),
+        ),
+      );
+    }
     final localizations = MaterialLocalizations.of(context);
     final start = preview.startsAt?.toLocal();
     final formattedTime = start == null
         ? null
         : localizations.formatTimeOfDay(TimeOfDay.fromDateTime(start));
-    return Padding(
+    Widget card({
+      Widget? profileAvatar,
+      Widget? profileIdentity,
+      VoidCallback? openProfile,
+    }) => Padding(
       padding: const EdgeInsets.only(top: 8),
-      child: CraftskyCard(
+      child: QuoteEmbedSurface(
         child: InkWell(
-          onTap: () => _open(preview),
+          onTap: () => _open(preview, openProfile: openProfile),
           child: Padding(
             padding: const EdgeInsets.all(12),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                if (preview.thumbnail case final thumbnail?) ...[
+                if (profileAvatar != null) ...[
+                  profileAvatar,
+                  const SizedBox(width: 12),
+                ] else if (preview.thumbnail case final thumbnail?) ...[
                   Image.network(
                     thumbnail.toString(),
                     width: 64,
@@ -119,13 +139,15 @@ class _ChatMessagePreviewState extends ConsumerState<ChatMessagePreview> {
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(kind, style: Theme.of(context).textTheme.labelSmall),
-                      Text(
-                        preview.title,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.titleSmall,
-                      ),
+                      if (profileIdentity != null)
+                        profileIdentity
+                      else
+                        Text(
+                          preview.title,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.titleSmall,
+                        ),
                       if (preview.excerpt.isNotEmpty)
                         Text(
                           preview.excerpt,
@@ -146,5 +168,20 @@ class _ChatMessagePreviewState extends ConsumerState<ChatMessagePreview> {
         ),
       ),
     );
+    if (preview.target.kind == ChatLinkKind.profile) {
+      return ChatPeerProfile(
+        peer: ChatActor.fromMap({
+          'did': preview.target.did.value,
+          'displayName': preview.title,
+          'avatar': preview.thumbnail?.toString(),
+        }),
+        builder: (context, avatar, identity, openProfile) => card(
+          profileAvatar: avatar,
+          profileIdentity: identity,
+          openProfile: openProfile,
+        ),
+      );
+    }
+    return card();
   }
 }

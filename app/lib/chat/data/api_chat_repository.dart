@@ -114,7 +114,23 @@ final class ApiChatRepository implements ChatRepository {
     ChatMessageId message,
     String reasonType,
     String? reason,
-  ) async {
+  ) => _report(operation, id, reasonType, reason, message: message);
+
+  @override
+  Future<ChatReceipt> reportConversation(
+    ChatOperationId operation,
+    ChatConversationId id,
+    String reasonType,
+    String? reason,
+  ) => _report(operation, id, reasonType, reason);
+
+  Future<ChatReceipt> _report(
+    ChatOperationId operation,
+    ChatConversationId id,
+    String reasonType,
+    String? reason, {
+    ChatMessageId? message,
+  }) async {
     if (validateReportInput(reasonType, reason) != null) {
       throw ArgumentError('Invalid messaging report');
     }
@@ -125,7 +141,10 @@ final class ApiChatRepository implements ChatRepository {
         data: {
           'operationId': operation.value,
           'conversationId': id.value,
-          'messageId': message.value,
+          if (message != null)
+            'messageId': message.value
+          else
+            'subjectType': 'conversation',
           'reasonType': reasonType,
           'reason': ?reason,
         },

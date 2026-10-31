@@ -9,11 +9,12 @@ import 'package:craftsky_app/chat/models/chat_message.dart';
 import 'package:craftsky_app/chat/models/chat_state.dart';
 import 'package:craftsky_app/chat/providers/chat_providers.dart';
 import 'package:craftsky_app/chat/services/chat_inbox_controller.dart';
+import 'package:craftsky_app/chat/widgets/chat_app_bar_leading.dart';
 import 'package:craftsky_app/chat/widgets/chat_content_gate.dart';
-import 'package:craftsky_app/chat/widgets/chat_peer_identity.dart';
+import 'package:craftsky_app/chat/widgets/chat_peer_profile.dart';
 import 'package:craftsky_app/chat/widgets/chat_skeleton.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
-import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
+import 'package:craftsky_app/shared/time/relative_time_text.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
 import 'package:craftsky_app/theme/craftsky_floating_action_button.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
@@ -73,9 +74,7 @@ class MessagingInboxPage extends ConsumerWidget {
             Scaffold(
               key: ValueKey((account, bucket, status.generation)),
               appBar: AppBar(
-                leading: onClose == null
-                    ? null
-                    : BackButton(onPressed: onClose),
+                leading: chatAppBarLeading(context, onClose),
                 title: Text(
                   bucket == ChatBucket.request
                       ? l10n.chatRequestsTab
@@ -183,51 +182,90 @@ class _Bucket extends StatelessWidget {
                 : l10n.chatEmptyRequests,
           ),
         for (final conversation in controller.items)
-          ListTile(
+          ChatPeerProfile(
             key: ValueKey(conversation.id),
-            leading: ProfileAvatar(
-              seed:
-                  conversation.peer.displayName ??
-                  conversation.peer.handle ??
-                  l10n.chatSomeone,
-              avatarUrl: conversation.peer.avatar,
-              size: ProfileAvatarSize.small,
-            ),
-            title: ChatPeerIdentity(peer: conversation.peer),
-            subtitle: conversation.lastMessage == null
-                ? null
-                : Text(
-                    switch (conversation.lastMessage!.kind) {
-                      ChatMessageKind.text => conversation.lastMessage!.text!,
-                      ChatMessageKind.deleted => l10n.chatMessageDeleted,
-                      ChatMessageKind.unsupported =>
-                        l10n.chatMessageUnsupported,
-                    },
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+            peer: conversation.peer,
+            builder: (context, avatar, identity, _) => ListTile(
+              horizontalTitleGap: 12,
+              minLeadingWidth: 0,
+              leading: avatar,
+              title: LayoutBuilder(
+                builder: (context, constraints) {
+                  final message = conversation.lastMessage;
+                  if (message == null) return identity;
+                  final timestamp = RelativeTimeText(
+                    timestamp: message.sentAt,
+                    textAlign: TextAlign.end,
+                  );
+                  // Keep identity and full date readable at large text sizes.
+                  if (constraints.maxWidth < 320 &&
+                      MediaQuery.textScalerOf(context).scale(12) > 18) {
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        identity,
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            child: timestamp,
+                          ),
+                        ),
+                      ],
+                    );
+                  }
+                  return Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(child: identity),
+                      const SizedBox(width: 8),
+                      ConstrainedBox(
+                        constraints: const BoxConstraints(minWidth: 48),
+                        child: Align(
+                          widthFactor: 1,
+                          alignment: Alignment.centerRight,
+                          child: timestamp,
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+              subtitle: Row(
+                children: [
+                  Expanded(
+                    child: conversation.lastMessage == null
+                        ? const SizedBox.shrink()
+                        : Text(
+                            switch (conversation.lastMessage!.kind) {
+                              ChatMessageKind.text =>
+                                conversation.lastMessage!.text!,
+                              ChatMessageKind.deleted =>
+                                l10n.chatMessageDeleted,
+                              ChatMessageKind.unsupported =>
+                                l10n.chatMessageUnsupported,
+                            },
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
                   ),
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (conversation.muted)
-                  Icon(
-                    CraftskyIcons.muted,
-                    semanticLabel: l10n.chatMuted,
-                  ),
-                if (conversation.unreadCount > 0)
-                  Padding(
-                    padding: const EdgeInsets.only(left: 8),
-                    child: Badge(
-                      label: Text(
-                        conversation.unreadCount >= 100
-                            ? '99+'
-                            : '${conversation.unreadCount}',
+                  if (conversation.muted)
+                    Icon(CraftskyIcons.muted, semanticLabel: l10n.chatMuted),
+                  if (conversation.unreadCount > 0)
+                    Padding(
+                      padding: const EdgeInsets.only(left: 8),
+                      child: Badge(
+                        label: Text(
+                          conversation.unreadCount >= 100
+                              ? '99+'
+                              : '${conversation.unreadCount}',
+                        ),
                       ),
                     ),
-                  ),
-              ],
+                ],
+              ),
+              onTap: () => onOpen(conversation.id),
             ),
-            onTap: () => onOpen(conversation.id),
           ),
         if (controller.hasMore && !controller.loadingMore)
           TextButton(

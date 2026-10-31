@@ -1,5 +1,246 @@
 # UI Polish Notes: Direct Messaging
 
+## Remove Open messages settings shortcut: 2026-10-31
+
+Owner requested removal of the Open messages button. Removed it and its unused
+callback wiring from MessagingSettingsPage/View and the settings route. Existing
+controls and the automatic first-enable inbox handoff remain unchanged.
+Settings-controller and chat-route regressions: **23 passed**
+(/private/tmp/craftsky-dm-remove-open-messages-tests.log). Targeted analysis clean;
+format/diff checks pass. Hot reload succeeds; runtime errors empty. No backend,
+permission, persistence, dependency, live action, commit or push change.
+
+## Filled selected Messages navigation icon: 2026-10-31
+
+Owner requested a filled selected icon. The shared Messages destination now uses
+CraftskyIconsFill.comment, updating both drawer and rail selection. Unselected
+and feedback icons remain as before. Targeted Flutter analysis is clean; hot
+reload succeeds. No new tests for the glyph-only change. No business behavior,
+dependencies, API, persistence, live action, commit or push change.
+
+## Empty initial report reason: 2026-10-30
+
+Owner requested no default report reason. The reason starts null, and Submit
+remains disabled until an explicit reason is selected. Entering an explanation
+alone does not enable it. The submit handler also guards the absent reason.
+Existing supported reasons, explanation validation, report payloads, uncertain
+outcomes and status checks without replay remain unchanged.
+
+The regression first reproduced the pre-enabled Submit action. Picker tests use
+an explicit search/selection rather than relying on the old preselection scroll
+position. Report and routing checks: **17 passed**; targeted analysis: no issues.
+Logs: `/private/tmp/craftsky-dm-empty-report-reason-{red,green,analyze}.log`.
+Formatting/diff checks pass. DTD discovery found no running debug app, so hot
+reload was unavailable. No live report submitted; no backend or permission
+change, commit, push or production action.
+
+## Filled send icon: 2026-10-30
+
+Owner requested a filled send icon. Added the semantic sendFilled icon using
+Phosphor's filled paperPlaneTilt and selected it in the conversation composer.
+Primary button styling, disabled state and send behavior stay unchanged.
+Targeted Flutter analysis: no issues. Hot reload succeeds; diff check passes.
+No new tests for this glyph-only styling change; no live message sent.
+
+## Full-screen report flow and primary send button: 2026-10-30
+
+### Summary
+
+The owner's reference clarifies that the report presentation should match the
+existing full-screen report flow. This supersedes the partial-height sheet below.
+
+### Polish items
+
+| ID | Request | Change | Status |
+|---|---|---|---|
+| UIP-REPORT-FULL | Full-screen report with app-bar Submit | Messaging uses responsiveModalNavigator and FullscreenModalRoute, the same bottom-up route as report-post. Close remains in the app bar; Submit uses its shared label, text-button styling and action progress. | Done |
+| UIP-SEND-PRIMARY | Active send button uses primary colour | ChunkyIconButton accepts the existing button variant, defaulting to secondary for other callers. The composer selects primary, preserving shared disabled styling and current send guards. | Done |
+
+### Verification
+
+- Updated report/route tests first failed against the partial-height sheet and
+  old body action: `/private/tmp/craftsky-dm-fullscreen-report-red.log`.
+- Focused report/route/composer tests: **29 passed**. Full-screen height, modal
+  route, app-bar Submit, keyboard reachability, close/draft retention and report
+  status checking without replay are covered. Composer assertions cover empty
+  draft disabling and the enabled primary variant.
+- Messaging, existing reports, responsive modal, animated buttons and profile
+  action/customisation regressions: **204 passed**, exit 0, 14 seconds.
+  Command from app/: `fvm flutter test --no-pub test/chat test/moderation/widgets/report_flow_test.dart test/moderation/widgets/report_subject_sheet_test.dart test/router/responsive_modal_navigation_test.dart test/theme/animated_chunky_button_test.dart test/profile/widgets/profile_actions_test.dart test/profile/widgets/profile_customisation_controls_test.dart`.
+  Log: `/private/tmp/craftsky-dm-fullscreen-report-regressions.log`.
+- `fvm flutter analyze`: no issues
+  (`/private/tmp/craftsky-dm-fullscreen-report-analyze.log`). Formatting and
+  `git diff --check` pass. Simulator hot reload succeeds; runtime errors empty.
+
+### Scope guardrails
+
+Requirement presentation changed at the owner's request. Business logic, API,
+models, migrations, permissions and dependencies: unchanged. No live send/report,
+commit, push or production action. Physical-device visual acceptance remains
+owner-run. Reopen an already-open report to use the new route presentation.
+
+## Superseded partial-height report sheet: 2026-10-30
+
+User requested a red Report option, bottom-sheet report details and removal of
+the second paragraph. The message-menu item uses the shared destructive/red
+style. The form now uses a rounded, scroll-controlled modal bottom sheet with
+drag handle, a close button, safe areas and a bounded width. Compact screens
+use the root navigator; wider screens use their content navigator. Keyboard
+insets are applied once outside the inner Scaffold so the form scrolls without
+being compressed twice. The first Bluesky-only notice stays; the evidence
+paragraph is removed. Submission/controller/payload/uncertain-result logic stays.
+
+Red reproduced the black menu label, full-screen Dialog and unwanted copy
+(`/private/tmp/craftsky-dm-report-sheet-red.log`). Focused report/menu/route tests:
+24 pass. The report route also verifies keyboard-safe scrolling, close and draft
+retention without submitting (`/private/tmp/craftsky-dm-report-sheet-keyboard.log`).
+Final chat/existing-report/modal/menu/feedback regressions: **225 passed**, exit 0,
+14 seconds (`/private/tmp/craftsky-dm-report-sheet-regressions.log`). Whole-app
+analysis: no issues (`/private/tmp/craftsky-dm-report-sheet-analyze-final.log`).
+Formatting/diff checks pass. Simulator hot reload succeeds; runtime-error query
+is empty. No live report, backend, permissions, API, dependency, commit, push or
+production action. An already-open old dialog must be reopened to use the new
+route presentation; no hot restart was needed.
+
+## Quote-style CraftSky embeds: 2026-10-30
+
+User requested messaging embeds match quote reposts, reuse the same post embed,
+and remove CraftSky post/profile type labels. Extracted QuoteEmbedSurface from
+the existing quote-repost wrapper (paper2, borderHair, r2, clipped Material; no
+chunky shadow). Both quote reposts and messaging previews now use that surface.
+
+The existing guarded post lookup now retains a compact PostSummaryData.fromPost
+in its redacted, memory-only ChatPreview. Message post embeds render the same
+PostSummary widget as quote reposts: author/avatar/crafts/handle, timestamp,
+project title/text, media and external-card presentation. No additional post
+fetch, nested social action controls or backend change. Current-viewer protection
+checks, first-target-only resolution, reply focus navigation and request-preview
+suppression remain. Profile embeds retain the shared profile identity, crafts
+and hero transition, inside the matching surface. Type labels are removed.
+
+Red: post-summary data was absent; preview widget tests found the old chunky card
+(`/private/tmp/craftsky-dm-quote-{summary,widget}-red.log`). Focused green: 3 pass
+(`/private/tmp/craftsky-dm-quote-widget-green.log`). Final messaging, PostCard,
+PostSummary and profile-navigation regressions: **285 passed**, exit 0, 19 seconds
+(`/private/tmp/craftsky-dm-quote-regressions.log`). Whole-app analysis: no issues
+(`/private/tmp/craftsky-dm-quote-analyze-final.log`). Formatting/diff checks pass.
+Simulator hot reload succeeds; runtime errors are empty. No dependency, API,
+backend, migration, live message/report, commit, push or production change.
+
+## Muted message timestamps: 2026-10-30
+
+User requested lighter datetime styling inside message bubbles. Configure the
+package's timeStyle using CraftSky labelSmall at regular weight (w400), zero
+letter spacing and the themed onSurfaceVariant colour for sent and received
+bubbles. Timestamp formatting, message content and package rendering remain.
+Existing conversation layout tests: 4 pass; whole-app analysis is clean.
+Artifacts: `/private/tmp/craftsky-dm-muted-time-{tests,analyze}.log`.
+Hot reload succeeds; runtime-error inspection returns none. No live actions,
+commit, push or deployment.
+
+## Package-owned message styling: 2026-10-30
+
+User approved package-native rendering and dropping outlined bubbles. The current
+conversation uses themed SimpleTextMessage bubbles and ChatMessage wrappers,
+including timestamps, grouping/animation and prior opposite-side insets. Existing
+previews render through linkPreviewBuilder. The shared long-press/context menu
+contains Copy/Open link and eligible received-text reporting; inline report flags
+and the custom selectable-link renderer are removed. This supersedes earlier
+notes describing outlined custom message bubbles. Draft/request controls and
+inbox PostCard-style timestamps remain independent. See 05/06 for final test and
+runtime receipts (320 regression tests; clean analysis and simulator reload).
+
+## Conversation timestamps and bubble insets: 2026-10-30
+
+User requested PostCard-style last-message datetime at the far right of each
+conversation row, and opposite-side message insets. Accepted/request rows now
+reuse RelativeTimeText with the last message's sentAt: compact relative/date
+label and localized full datetime tooltip. The date sits at the upper right;
+muted/unread indicators remain at the right of the preview below. At narrow
+widths with large text the date takes its own right-aligned line; full date
+content is preserved instead of overflowing the ListTile. No timestamp is
+fabricated for conversations without a last message.
+
+Message bubbles retain their sender alignment. Sent bubbles reserve 32px left
+and 12px right; received bubbles reserve 12px left and 32px right, using the
+existing spacing tokens. Text, links, previews, reports, visible-message tracking
+and history anchoring retain their existing paths.
+
+Red: timestamp was absent and sent/received long bubbles had identical left
+edges (`/private/tmp/craftsky-dm-time-insets-red.log`). The first timestamp
+layout exposed a real large-text trailing-width overflow; the responsive final
+layout passes the existing 320px / 2x text-scale account-isolation tests.
+Focused geometry/timestamp suite: **6 passed**
+(`/private/tmp/craftsky-dm-time-insets-green3.log`). Messaging/shared timestamp
+regressions: **172 passed**, exit 0, 11 seconds
+(`/private/tmp/craftsky-dm-time-insets-regressions.log`). Whole-app analysis:
+**no issues found** (`/private/tmp/craftsky-dm-time-insets-analyze.log`).
+Formatting/diff checks pass. Simulator hot reload succeeds. No API, backend,
+persistence, permission, live message/report, commit, push or deployment change.
+
+## Complete profile-data and hero integration: 2026-10-30
+
+Correction to the preceding polish pass: sharing CompactProfileIdentity alone
+could not display crafts absent from chat actor payloads, and the header still
+used direct navigation without ProfileAvatarHeroSource. The owner identified
+both missing behaviors. This section supersedes the preceding claim of complete
+shared-profile integration.
+
+Added ChatPeerProfile, backed by the existing account-fenced userProfileProvider
+for the peer DID. Conversation/request rows and the conversation header reuse
+that shared read for authoritative handles, crafts and avatar customisation.
+The chat identity remains visible while the profile read is pending or fails;
+profile metadata never delays message history. Reads share the existing provider
+cache and may add public AppView profile requests for uncached peers. No backend,
+API, migration, auth scope or private-data persistence change.
+
+The adapter wraps avatar and identity in ProfileAvatarHeroSource. Header and
+profile-link-preview taps invoke its openProfile callback under the existing
+active-account/route guards, carrying avatar, identity and craft transition
+metadata to the destination. Recipient rows keep start-conversation behavior;
+conversation/request rows keep open-conversation behavior. Profile previews also
+use the enriched shared identity and hero. Shared reduced-motion handling applies.
+
+Red: the route regression with a real knitting profile found no CraftIcon
+(`/private/tmp/craftsky-dm-profile-hero-red.log`). Green: 15 route tests verify
+craft rendering and transition extras through header avatar/name taps, and Back
+retains the draft (`/private/tmp/craftsky-dm-profile-hero-green.log`).
+Messaging/shared-profile regressions: **277 passed**, exit 0
+(`/private/tmp/craftsky-dm-profile-hero-regressions.log`). A separate animation
+regression verifies actual avatar/name/handle/craft flights on both push and pop,
+plus usable fallback identity while the profile read is pending: **1 passed**
+(`/private/tmp/craftsky-dm-profile-hero-flight-final.log`). Whole-app analysis:
+**no issues found** (`/private/tmp/craftsky-dm-profile-hero-analyze-final2.log`).
+Simulator hot reload succeeds; runtime-error query returns none. No live sends,
+reports, production action, commit or push. Manual visual acceptance remains
+owner-run; these are local widget-flight and simulator reload receipts.
+
+## Shared profile presentation: 2026-10-30
+
+User requested reuse of the app's shared profile widgets throughout messaging.
+Conversation/request rows and the conversation AppBar now delegate identity
+rendering to CompactProfileIdentity through the existing chat-data adapter:
+shared typography, secondary @handle colour, truncation and missing-handle
+presentation. Recipient search also uses CompactProfileIdentity with the crafts
+already present in its result data. Search and inbox row spacing matches the
+shared account tile (12px avatar gap, no additional minimum leading width).
+All avatar displays reuse ProfileAvatar; profile-link previews now use it too,
+including the shared initial fallback instead of a square generic thumbnail.
+Post/event preview thumbnails retain their existing presentation.
+
+No extra profile fetch, API/model change, persisted field or invented craft /
+customisation data. Recipient selection still starts the conversation; row and
+header tap actions, busy guards, badges, previews and account fences remain.
+The prior uncommitted first-enable change is preserved independently.
+
+Validation: messaging plus CompactProfileIdentity regressions **174 passed**,
+exit 0, 9 seconds (`/private/tmp/craftsky-dm-shared-profile-tests-final.log`).
+The first command included a nonexistent account-tile test path; all actual
+cases passed, and the corrected final command is green. Whole-app analysis:
+**no issues found** (`/private/tmp/craftsky-dm-shared-profile-analyze.log`).
+Formatting/diff checks pass. Simulator hot reload succeeds; runtime-error query
+returns none. No live messages/reports, commit, push or deployment action.
+
 ## Conversation profile-header skeleton: 2026-10-21
 
 NFR-006 / FR-003 / AC-023 / UT-010: conversation details now show an avatar,

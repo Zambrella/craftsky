@@ -81,7 +81,7 @@ const _primaryDestinations = <_DestinationSpec>[
 const _secondaryDestinations = <_DestinationSpec>[
   _DestinationSpec(
     icon: CraftskyIcons.comment,
-    selectedIcon: CraftskyIconsBold.comment,
+    selectedIcon: CraftskyIconsFill.comment,
   ),
   _DestinationSpec(
     icon: CraftskyIcons.savedSection,

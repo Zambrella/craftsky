@@ -1,5 +1,172 @@
 # Direct Messaging Validation Evidence
 
+## Conversation Block account: 2026-10-31
+
+FR-009 / NFR-006 / AC-009/023, UT-013: destructive Block account opens the
+shared CraftSky public-block confirmation and dispatches the existing profile
+mutation only after explicit confirmation. Peer DID and operation key verified
+through the repository boundary. Success uses the themed messenger, retains the
+draft/conversation and prevents replies through the accepted block overlay even
+when the fetched conversation summary is stale. No automatic leave or report.
+
+Held mutations disable duplicate action/send/accept. Request Ignore stays usable
+after block acceptance (red exposed an overbroad disabled-state guard). Failures
+restore controls and show shared error feedback. Cancellation, changed account,
+same-account reactivation and connection loss before confirmation dispatch nothing;
+late completion after account change/navigation/disposal publishes no stale success.
+
+Logs: /private/tmp/craftsky-dm-block-{red,green,guards-red,guards-green,flow}.log.
+Focused conversation suite: **26 passed** after the last subscription adjustment.
+Messaging, profile block provider/actions/page, settings/modal navigation suites:
+**286 passed**, 5 existing conditional skips, exit 0, 24s. Log:
+/private/tmp/craftsky-dm-block-regressions.log.
+Whole-app analysis clean: /private/tmp/craftsky-dm-block-analyze.log.
+Formatting/git diff checks pass. Simulator hot reload succeeds; runtime errors
+empty. No real block/message/report or backend/permission/migration/production
+change. These tests use a fake profile repository; no live block is claimed.
+
+## Conversation reporting: 2026-10-31
+
+FR-010 / BR-003 / NFR-002/003/006 / AC-010/023, IT-004 / UT-005 / UT-013 /
+IT-013: red Report conversation action uses the existing full-screen report
+route, empty reason, optional explanation and app-bar Submit. Current capability
+gates the action. Opening does not submit; explicit mocked submission returns
+without leaving the conversation or losing the draft. Existing message-report,
+profile-return and iOS-swipe tests pass.
+
+Backend derives convoRef and peer DID from current authorized direct membership,
+requires the existing report scope/exact child/CraftSky profiles, and submits to
+the fixed Bluesky audience. Tests capture the wire body: no transcript/history
+read, caller DID or CraftSky moderation row. Same operation submits once;
+message/conversation target reuse conflicts and uncertain requests never replay.
+Client request serialization and controller receipt-only recovery also pass.
+
+Red/green artifacts: /private/tmp/craftsky-convo-report-{api,service,client,ui}-{red,green}.log.
+Final real-Postgres race run: ./scripts/appview-test focused -race -p=1
+ ./internal/chat ./internal/api — both pass, 72s and 149s.
+Log: /private/tmp/craftsky-convo-report-backend-race.log.
+Final Flutter messaging/settings/saved/modal suites: **231 passed**, 5 existing
+conditional skips, exit 0, 19s. Log:
+/private/tmp/craftsky-convo-report-regressions.log.
+Whole-app analysis and formatting clean; git diff --check passes.
+Simulator hot reload succeeds; no runtime errors observed.
+
+Local development AppView rebuilt/recreated (appview and cli compile in Docker).
+Local /healthz responds with DB ok/Tap connected; status remains degraded while
+Tap telemetry is unknown and optional image safety is not ready. No production
+mutation, OAuth widening, migration, live report/message, commit or push.
+Mocked upstream/real local database checks do not prove Bluesky acceptance or
+moderation outcomes. Live report testing remains excluded at the owner's request.
+
+## Messages drawer and native conversation Back: 2026-10-31
+
+UT-010 / IT-013, FR-003/016, NFR-006, AC-004/014/023: Messages root replaces
+Back with the shell drawer in ready/setup states, sharing leading selection with
+loading/error scaffolds. The real production shell test opens the drawer with
+Messages selected. Children keep their existing routes/Back. iOS details edge
+swipe now returns to Messages; a fresh edit is flushed and retained on reopening.
+Explicit/system Back, peer-profile/report return paths and known save-error guard
+remain. No navigation schema/key/branch changes were required.
+
+Red/green logs: /private/tmp/craftsky-dm-navigation-{drawer,swipe}-{red,green}.log.
+Final messaging/settings/saved/modal navigation suites: **228 passed**, 5 existing
+conditional skips, exit 0, 17 seconds. Log:
+/private/tmp/craftsky-dm-navigation-regressions.log.
+Whole-app analysis clean: /private/tmp/craftsky-dm-navigation-analyze.log.
+Formatting/diff checks pass. Hot reload succeeds; runtime errors empty.
+Physical-device swipe acceptance remains owner-run; no live message/report,
+production mutation, backend, dependency or persistence format change.
+
+## Time sections and compact grouping: 2026-10-31
+
+FR-003/005, NFR-006/008, AC-004/006/023, UT-010: real package headers cover the
+first loaded authoritative message, local day changes and gaps >=5 minutes;
+sender changes alone do not add dates. Headers stay centred across both bubble
+alignments. Same-sender messages within five minutes use compact spacing. Normal
+bubble timestamps are hidden while pending/error indicators and previews remain.
+Date formatting covers Today/Yesterday, weekday/date, other years, local calendar
+boundaries, 12/24h preference and large text. Prepending/removing history moves
+headers correctly; existing anchor and visible-only read checks pass.
+
+Red: /private/tmp/craftsky-dm-time-sections-red.log. Final command from app/:
+fvm flutter test --no-pub test/chat — **184 passed**, exit 0, 20 seconds.
+Log: /private/tmp/craftsky-dm-time-sections-regressions.log.
+Whole-app analysis clean: /private/tmp/craftsky-dm-time-sections-analyze.log.
+Formatting/diff checks pass. Hot reload succeeds; runtime errors empty. No real
+send/report, production, dependency, API/backend or persistence change.
+
+## Immediate composer clearing: 2026-10-31
+
+FR-005/006, AC-006/007, UT-010/009: held-send UI test first fails because the input
+still contains submitted text. Composer projection now renders that unchanged
+pending revision empty while retaining durable recovery text. A newly typed
+identical message first failed as an unchanged revision; controller edits now
+start from the visible input. Different, identical and empty subsequent drafts
+survive confirmation and local persistence. Existing failure/uncertainty recovery,
+local-save rollback and pending-bubble tests all continue to pass.
+
+Final command from app/: fvm flutter test --no-pub test/chat.
+**176 passed**, exit 0, 21 seconds. Log:
+/private/tmp/craftsky-dm-clear-composer-regressions.log.
+Whole-app analysis clean: /private/tmp/craftsky-dm-clear-composer-analyze.log.
+Formatting/diff checks pass. Hot reload succeeds; runtime errors empty.
+No live sends/reports, new persistence format, API/backend or production change.
+
+## Immediate outgoing bubbles: 2026-10-31
+
+FR-005/006, NFR-006/008, AC-006/007, UT-010/009: pending bubbles use the standard
+package renderer and spinner, suppressing time until the confirmed server message
+arrives. In-memory operation/receipt associations preserve a stable local ID;
+confirmed history replaces the placeholder once, without text-based inference.
+Failures/uncertainty retain existing themed recovery, later edits and no replay.
+
+Meaningful red: no bubble on held Send
+(/private/tmp/craftsky-dm-pending-bubble-red.log); content/receipt ordering tests
+also reproduced the need for package updateMessage operations. Access-loss red:
+/private/tmp/craftsky-dm-pending-access-red.log. Recovery/ordering focused green:
+36 passed (/private/tmp/craftsky-dm-pending-recovery-green.log), followed by
+access fencing and the final whole messaging run: **174 passed**, exit 0,
+14 seconds (/private/tmp/craftsky-dm-pending-regressions.log).
+Whole-app analysis: clean (/private/tmp/craftsky-dm-pending-analyze-final.log).
+Format/diff checks pass. Simulator hot reload succeeds; no runtime errors.
+No real send/report, production, dependency or persistence change was performed.
+
+## Package-owned conversation rendering: 2026-10-30
+
+- UT-010 / NFR-008: standard SimpleTextMessage/ChatMessage wrappers, timestamps,
+  grouped spacing and CraftSky ChatTheme replace custom bubbles/text rendering.
+  No outlines or fabricated delivery/seen status. Existing composer, opposite
+  insets, previews, visible-only reads and older-page scroll anchor remain.
+- UT-013 / UT-008: long press, large-screen secondary click and keyboard actions
+  open shared menus. Received text offers Report; owned/deleted messages do not.
+  Copy/Open link require explicit selection and retain exact original content.
+  Stale owner/history/revision/disposal actions are discarded. Compact menu root
+  Navigator capture fixes the reproduced deactivated-source exception.
+- Red artifacts: `/private/tmp/craftsky-dm-package-render-red.log`,
+  `/private/tmp/craftsky-dm-package-menu-red.log`. Focused greens:
+  `/private/tmp/craftsky-dm-package-render-green.log`,
+  `/private/tmp/craftsky-dm-package-menu-final.log`.
+- Final regressions: **320 passed**, exit 0, 29 seconds. Command from app/:
+  `flutter test --no-pub test/chat test/profile/widgets test/router/full_profile_navigation_test.dart test/theme/craftsky_context_menu_test.dart test/shared/messaging`.
+  `/private/tmp/craftsky-dm-package-regressions-final.log`.
+  Whole-app analysis: no issues; `/private/tmp/craftsky-dm-package-analyze-final2.log`.
+- Hot reload succeeds; runtime errors are empty. No real sends/reports, production,
+  dependency change, commit or push. Device/provider acceptance remains owner-run.
+
+## First-enable inbox handoff: 2026-10-30
+
+- SETUP-001 / ROUTE-001: regression test first fails because the confirmed
+  enablement leaves setup visible. Red: `/private/tmp/craftsky-first-enable-red.log`.
+- The existing content gate now follows current status without retaining setup.
+  The Messages route shows the inbox directly after confirmation. Explicit
+  settings-toggle behavior and permission/account failure handling remain.
+- Messaging suite: **158 passed**; final route/settings suites: **23 passed**.
+  Logs: `/private/tmp/craftsky-first-enable-green.log`,
+  `/private/tmp/craftsky-first-enable-final.log`.
+- Whole-app analysis: no issues; `/private/tmp/craftsky-first-enable-analyze-final.log`.
+  Hot reload succeeds on the connected simulator; runtime-error query is empty.
+  Actual live onboarding is not replayed; no message, report or production action.
+
 ## Combined initial conversation load: 2026-10-21
 
 - FR-003/FR-019, NFR-001/002/003/004, IT-002/IT-019: the new fixed private

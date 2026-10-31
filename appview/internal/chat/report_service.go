@@ -138,3 +138,48 @@ func (service *Service) Report(ctx context.Context, info auth.AuthInfo, id uuid.
 	})
 	return receipt, err
 }
+
+func (service *Service) ReportConversation(ctx context.Context, info auth.AuthInfo, id uuid.UUID, conversationID ConversationID, reasonType string, reason *string) (OperationReceipt, error) {
+	if err := ValidateReportInput(reasonType, reason); err != nil {
+		return OperationReceipt{}, err
+	}
+	if id == uuid.Nil || !validOpaqueID(string(conversationID)) {
+		return OperationReceipt{}, ErrInaccessibleConversation
+	}
+	if service.operations == nil {
+		return OperationReceipt{}, ErrOperationUnavailable
+	}
+	var receipt OperationReceipt
+	err := service.withRPC(ctx, info, []syntax.NSID{"chat.bsky.convo.getConvo", "com.atproto.moderation.createReport"}, func(ctx context.Context, transport *Transport) error {
+		if _, err := service.accountInSession(ctx, info); err != nil {
+			return err
+		}
+		conversation, err := service.supportedConversation(ctx, transport, info.DID, conversationID)
+		if err != nil {
+			return err
+		}
+		peer, _ := directPeer(info.DID, conversation)
+		body := struct {
+			ReasonType string                       `json:"reasonType"`
+			Reason     *string                      `json:"reason,omitempty"`
+			Subject    *upstream.ConvoDefs_ConvoRef `json:"subject"`
+		}{reasonType, reason, &upstream.ConvoDefs_ConvoRef{
+			LexiconTypeID: "chat.bsky.convo.defs#convoRef",
+			ConvoId:       conversation.Id, Did: peer.String(),
+		}}
+		receipt, err = service.operations.Execute(ctx, info.DID, id, "report", body, func(ctx context.Context) (OperationResult, error) {
+			var response struct {
+				ID int64 `json:"id"`
+			}
+			if err := transport.Procedure(ctx, "com.atproto.moderation.createReport", body, &response); err != nil {
+				return OperationResult{}, err
+			}
+			if response.ID <= 0 {
+				return OperationResult{}, ErrProviderResponse
+			}
+			return OperationResult{ID: strconv.FormatInt(response.ID, 10)}, nil
+		})
+		return err
+	})
+	return receipt, err
+}

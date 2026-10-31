@@ -4,6 +4,7 @@ import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/chat/models/chat_state.dart';
 import 'package:craftsky_app/chat/providers/chat_providers.dart';
 import 'package:craftsky_app/chat/services/chat_settings_controller.dart';
+import 'package:craftsky_app/chat/widgets/chat_app_bar_leading.dart';
 import 'package:craftsky_app/chat/widgets/chat_app_bar_title.dart';
 import 'package:craftsky_app/chat/widgets/chat_content_gate.dart';
 import 'package:craftsky_app/chat/widgets/chat_message_effect.dart';
@@ -11,7 +12,6 @@ import 'package:craftsky_app/chat/widgets/messaging_explanation.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/shared/messaging/message_action.dart';
 import 'package:craftsky_app/shared/messaging/widgets/craftsky_snack_bar.dart';
-import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/craftsky_select_inputs.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
@@ -22,13 +22,11 @@ class MessagingSettingsPage extends ConsumerWidget {
     required this.account,
     this.onClose,
     this.onAuthorize,
-    this.onOpenMessages,
     super.key,
   });
   final AccountKey account;
   final VoidCallback? onClose;
   final ValueChanged<bool>? onAuthorize;
-  final VoidCallback? onOpenMessages;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -42,7 +40,7 @@ class MessagingSettingsPage extends ConsumerWidget {
           ),
           error: (_, _) => Scaffold(
             appBar: AppBar(
-              leading: onClose == null ? null : BackButton(onPressed: onClose),
+              leading: chatAppBarLeading(context, onClose),
               title: Text(AppLocalizations.of(context).chatSettingsTitle),
             ),
             body: ChatFailurePanel(
@@ -54,7 +52,6 @@ class MessagingSettingsPage extends ConsumerWidget {
             controller: controller,
             onClose: onClose,
             onAuthorize: onAuthorize,
-            onOpenMessages: onOpenMessages,
           ),
         );
   }
@@ -65,13 +62,11 @@ class MessagingSettingsView extends StatelessWidget {
     required this.controller,
     this.onClose,
     this.onAuthorize,
-    this.onOpenMessages,
     super.key,
   });
   final ChatSettingsController controller;
   final VoidCallback? onClose;
   final ValueChanged<bool>? onAuthorize;
-  final VoidCallback? onOpenMessages;
 
   @override
   Widget build(BuildContext context) {
@@ -82,9 +77,7 @@ class MessagingSettingsView extends StatelessWidget {
           ? ChatLoadingPage(title: l10n.chatSettingsTitle, onClose: onClose)
           : Scaffold(
               appBar: AppBar(
-                leading: onClose == null
-                    ? null
-                    : BackButton(onPressed: onClose),
+                leading: chatAppBarLeading(context, onClose),
                 title: ChatAppBarTitle(
                   loading: controller.busy,
                   child: Text(
@@ -190,17 +183,6 @@ class MessagingSettingsView extends StatelessWidget {
                             )
                           else
                             Text(l10n.chatPolicyUnavailable),
-
-                          if (onOpenMessages != null && controller.canRead)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 24),
-                              child: ChunkyButton(
-                                onPressed: controller.busy || controller.loading
-                                    ? null
-                                    : onOpenMessages,
-                                child: Text(l10n.chatOpenMessages),
-                              ),
-                            ),
                         ],
                       ],
                     ),

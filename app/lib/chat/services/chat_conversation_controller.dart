@@ -9,6 +9,7 @@ import 'package:craftsky_app/chat/models/chat_draft.dart';
 import 'package:craftsky_app/chat/models/chat_history.dart';
 import 'package:craftsky_app/chat/models/chat_identifier.dart';
 import 'package:craftsky_app/chat/models/chat_message.dart';
+import 'package:craftsky_app/chat/models/chat_outgoing_message.dart';
 import 'package:craftsky_app/chat/models/chat_state.dart';
 import 'package:craftsky_app/chat/models/text_validation.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
@@ -44,6 +45,16 @@ final class ChatConversationController extends ChangeNotifier {
   ChatConversation? conversation;
   ChatHistory history = const ChatHistory.empty();
   ChatDraft draft = const ChatDraft.empty();
+  final _confirmedOutgoing = <ChatOperationId, ChatOutgoingMessage>{};
+
+  List<ChatOutgoingMessage> get outgoingMessages =>
+      !_current || conversation == null
+      ? const []
+      : [
+          ..._confirmedOutgoing.values,
+          if (draft.pending case final attempt?)
+            ChatOutgoingMessage(attempt: attempt),
+        ];
   bool loading = true;
   bool busy = false;
   bool saveFailed = false;
@@ -147,6 +158,7 @@ final class ChatConversationController extends ChangeNotifier {
       _contentEpoch++;
       conversation = null;
       history = const ChatHistory.empty();
+      _confirmedOutgoing.clear();
       _historyGaps.clear();
       _lastRead = null;
       _pendingPresented = null;
@@ -386,7 +398,9 @@ final class ChatConversationController extends ChangeNotifier {
 
   void edit(String text) {
     if (!_current || !_draftLoaded) return;
-    _publish(() => draft = draft.edit(text));
+    // Treat input as an edit of the visible composer, including typing the
+    // same text as the pending message into the newly cleared input.
+    _publish(() => draft = draft.edit(draft.composerText).edit(text));
     _saveTimer?.cancel();
     _saveTimer = Timer(
       const Duration(milliseconds: 250),
@@ -420,6 +434,21 @@ final class ChatConversationController extends ChangeNotifier {
     await flush();
   }
 
+  void _resolveReceipt(ChatReceipt receipt) {
+    final attempt = draft.pending;
+    if (conversation != null &&
+        attempt != null &&
+        receipt.operationId == attempt.operationId &&
+        receipt.kind == 'send' &&
+        receipt.state == ChatOperationState.confirmed) {
+      _confirmedOutgoing[attempt.operationId] = ChatOutgoingMessage(
+        attempt: attempt,
+        messageId: receipt.messageId,
+      );
+    }
+    draft = draft.resolve(receipt);
+  }
+
   Future<void> checkReceipt() async {
     final attempt = draft.pending;
     if (!_current || busy || attempt == null) return;
@@ -440,7 +469,7 @@ final class ChatConversationController extends ChangeNotifier {
       final receipt = await _operation.step(
         () => _repository.receipt(attempt.operationId),
       );
-      _publish(() => draft = draft.resolve(receipt));
+      _publish(() => _resolveReceipt(receipt));
       await _persist(draft);
       if (receipt.state == ChatOperationState.confirmed) {
         await _sharedChanged();
@@ -531,7 +560,7 @@ final class ChatConversationController extends ChangeNotifier {
         () => _repository.send(id, operationId, attempt.text),
       );
       _publish(() {
-        draft = draft.resolve(result.receipt);
+        _resolveReceipt(result.receipt);
         final message = result.message;
         if (epoch == _contentEpoch && message != null) {
           history = history.merge(

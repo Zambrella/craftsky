@@ -335,6 +335,11 @@ void main() {
       expect(remote.historyCalls, 2);
       expect(controller.draft.pending, isNull);
       expect(controller.draft.text, isEmpty);
+      expect(
+        controller.outgoingMessages.single.messageId?.value,
+        'original-message',
+      );
+      expect(controller.outgoingMessages.single.attempt.operationId, original);
       expect((await store.load(store.lease(account), id)).pending, isNull);
     },
   );
@@ -448,6 +453,7 @@ void main() {
       expect(controller.conversation, isNull);
       expect(controller.history.messages, isEmpty);
       expect(controller.draft.text, 'newer-local-draft');
+      expect(controller.outgoingMessages, isEmpty);
       expect(controller.canSend, false);
       remote.summaryReader = null;
       remote.olderPage!.complete(
@@ -469,6 +475,7 @@ void main() {
       expect(controller.conversation, isNull);
       expect(controller.history.messages, isEmpty);
       expect(controller.draft.text, 'newer-local-draft');
+      expect(controller.outgoingMessages, isEmpty);
       expect(
         (await store.load(store.lease(account), id)).text,
         'newer-local-draft',
@@ -476,6 +483,37 @@ void main() {
     },
   );
 
+  test('UT-009 local send save failure stops pending presentation', () async {
+    final account = AccountKey('did:plc:owner');
+    final id = ChatConversationId.parse('conversation');
+    final backend = _FailingBackend();
+    final store = ChatDraftStore.withBackend(backend);
+    await store.initialize({account});
+    final remote = _Repository();
+    final controller = ChatConversationController(
+      account: account,
+      id: id,
+      repository: remote,
+      store: store,
+      draftLease: store.lease(account),
+      operation: ActiveAccountOperation.withGuard(
+        ownership: null,
+        isCurrent: () => true,
+      ),
+    );
+    addTearDown(controller.dispose);
+    await controller.load();
+    controller.edit('Not submitted');
+    backend.fail = true;
+    await controller.send();
+    expect(remote.sendCalls, 0);
+    expect(controller.busy, false);
+    expect(controller.saveFailed, true);
+    expect(controller.outgoingMessages, isEmpty);
+    expect(controller.draft.text, 'Not submitted');
+    expect(controller.canSend, true);
+    backend.fail = false;
+  });
   test(
     'UT-009 failed local resend save preserves the original unresolved receipt',
     () async {
@@ -973,71 +1011,74 @@ void main() {
     controller.dispose();
     expect((await store.load(store.lease(account), id)).text, 'private-before');
   });
-  test('UT-009 pending is durable before dispatch'
-      ' and confirmation preserves later edit', () async {
-    FlutterSecureStorage.setMockInitialValues({});
-    final account = AccountKey('did:plc:owner');
-    final store = ChatDraftStore(const FlutterSecureStorage());
-    await store.initialize({account});
-    final id = ChatConversationId.parse('conversation-1');
-    final operation = ChatOperationId.parse(
-      '00000000-0000-4000-8000-000000000123',
-    );
-    var countRefreshes = 0;
-    final remote = _Repository();
-    final controller = ChatConversationController(
-      account: account,
-      id: id,
-      repository: remote,
-      store: store,
-      draftLease: store.lease(account),
-      operation: ActiveAccountOperation.withGuard(
-        ownership: null,
-        isCurrent: () => true,
-      ),
-      onSharedStateChanged: () async {
-        countRefreshes++;
-      },
-      newOperationId: () => operation,
-    );
-    addTearDown(controller.dispose);
-    await controller.load();
-    expect(remote.readCalls, 0);
-    controller.edit('private-original');
-    remote.beforeSend = () async {
-      final restored = await store.load(store.lease(account), id);
-      expect(restored.pending!.operationId, operation);
-      expect(restored.pending!.state, ChatDraftSendState.uncertain);
-    };
-    final sending = controller.send();
-    await remote.entered.future;
-    expect(controller.draft.pending!.state, ChatDraftSendState.pending);
-    controller.edit('private-newer');
-    remote.result.complete(
-      ChatSendResult.fromMap({
-        'operationId': operation.value,
-        'kind': 'send',
-        'state': 'confirmed',
-        'messageId': 'message-1',
-        'message': {
-          'id': 'message-1',
-          'revision': 'rev-2',
-          'kind': 'text',
-          'text': 'private-original',
-          'senderDid': account.did.value,
-          'sentAt': '2026-10-19T12:00:00Z',
+  for (final newText in ['private-newer', 'private-original', '']) {
+    test('UT-009 pending is durable before dispatch'
+        ' and confirmation preserves later edit ($newText)', () async {
+      FlutterSecureStorage.setMockInitialValues({});
+      final account = AccountKey('did:plc:owner');
+      final store = ChatDraftStore(const FlutterSecureStorage());
+      await store.initialize({account});
+      final id = ChatConversationId.parse('conversation-1');
+      final operation = ChatOperationId.parse(
+        '00000000-0000-4000-8000-000000000123',
+      );
+      var countRefreshes = 0;
+      final remote = _Repository();
+      final controller = ChatConversationController(
+        account: account,
+        id: id,
+        repository: remote,
+        store: store,
+        draftLease: store.lease(account),
+        operation: ActiveAccountOperation.withGuard(
+          ownership: null,
+          isCurrent: () => true,
+        ),
+        onSharedStateChanged: () async {
+          countRefreshes++;
         },
-      }),
-    );
-    await sending;
-    expect(controller.draft.text, 'private-newer');
-    expect(controller.history.messages.single.id.value, 'message-1');
-    expect(controller.draft.pending, isNull);
-    expect(remote.sendCalls, 1);
-    expect(countRefreshes, 1);
-    await controller.flush();
-    expect((await store.load(store.lease(account), id)).text, 'private-newer');
-  });
+        newOperationId: () => operation,
+      );
+      addTearDown(controller.dispose);
+      await controller.load();
+      expect(remote.readCalls, 0);
+      controller.edit('private-original');
+      remote.beforeSend = () async {
+        final restored = await store.load(store.lease(account), id);
+        expect(restored.pending!.operationId, operation);
+        expect(restored.pending!.state, ChatDraftSendState.uncertain);
+      };
+      final sending = controller.send();
+      await remote.entered.future;
+      expect(controller.draft.pending!.state, ChatDraftSendState.pending);
+      controller.edit(newText);
+      expect(controller.draft.composerText, newText);
+      remote.result.complete(
+        ChatSendResult.fromMap({
+          'operationId': operation.value,
+          'kind': 'send',
+          'state': 'confirmed',
+          'messageId': 'message-1',
+          'message': {
+            'id': 'message-1',
+            'revision': 'rev-2',
+            'kind': 'text',
+            'text': 'private-original',
+            'senderDid': account.did.value,
+            'sentAt': '2026-10-19T12:00:00Z',
+          },
+        }),
+      );
+      await sending;
+      expect(controller.draft.text, newText);
+      expect(controller.history.messages.single.id.value, 'message-1');
+      expect(controller.draft.pending, isNull);
+      expect(remote.sendCalls, 1);
+      expect(countRefreshes, 1);
+      await controller.flush();
+      expect((await store.load(store.lease(account), id)).text, newText);
+    });
+  }
 }
 
 class _Repository implements ChatRepository {

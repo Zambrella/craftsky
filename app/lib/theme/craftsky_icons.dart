@@ -111,6 +111,7 @@ abstract final class CraftskyIcons {
   static const IconData searchSelected = PhosphorIconsFill.magnifyingGlass;
   static const IconData selectedOption = PhosphorIconsRegular.checkSquare;
   static const IconData send = PhosphorIconsRegular.paperPlaneTilt;
+  static const IconData sendFilled = PhosphorIconsFill.paperPlaneTilt;
   static const IconData settings = PhosphorIconsRegular.gear;
   static const IconData settingsSelected = PhosphorIconsFill.gear;
   static const IconData share = PhosphorIconsRegular.shareNetwork;

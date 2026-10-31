@@ -5129,4 +5129,26 @@ class AppLocalizationsEn extends AppLocalizations {
   String postEditTime(String timestamp) {
     return 'Edited $timestamp';
   }
+
+  @override
+  String chatTimeToday(String time) {
+    return 'Today at $time';
+  }
+
+  @override
+  String chatTimeYesterday(String time) {
+    return 'Yesterday at $time';
+  }
+
+  @override
+  String chatTimeDate(String date, String time) {
+    return '$date at $time';
+  }
+
+  @override
+  String get chatReportConversationTitle => 'Report conversation';
+
+  @override
+  String get chatConversationReportDisclosure =>
+      'Conversation reports go to Bluesky only. CraftSky moderators do not receive these reports.';
 }

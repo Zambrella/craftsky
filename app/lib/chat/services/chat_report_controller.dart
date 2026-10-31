@@ -25,7 +25,7 @@ final class ChatReportController extends ChangeNotifier {
            (newOperationId ?? () => ChatOperationId.parse(const Uuid().v4()))();
   final AccountKey account;
   final ChatConversationId conversationId;
-  final ChatMessageId messageId;
+  final ChatMessageId? messageId;
   final ChatOperationId operationId;
   final ChatRepository _repository;
   final ActiveAccountOperation _operation;
@@ -71,14 +71,22 @@ final class ChatReportController extends ChangeNotifier {
     _submitted = true;
     _publish(() => busy = true);
     try {
+      final message = messageId;
       final receipt = await _operation.step(
-        () => _repository.report(
-          operationId,
-          conversationId,
-          messageId,
-          type,
-          reason,
-        ),
+        () => message == null
+            ? _repository.reportConversation(
+                operationId,
+                conversationId,
+                type,
+                reason,
+              )
+            : _repository.report(
+                operationId,
+                conversationId,
+                message,
+                type,
+                reason,
+              ),
       );
       _publish(() => state = receipt.state);
     } on AccountOperationDiscarded {

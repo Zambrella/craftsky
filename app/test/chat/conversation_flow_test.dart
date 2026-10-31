@@ -20,13 +20,20 @@ import 'package:craftsky_app/chat/pages/chat_conversation_page.dart';
 import 'package:craftsky_app/chat/providers/chat_providers.dart';
 import 'package:craftsky_app/chat/services/chat_conversation_controller.dart';
 import 'package:craftsky_app/chat/services/chat_preview_resolver.dart';
+import 'package:craftsky_app/chat/widgets/chat_time_header.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
+import 'package:craftsky_app/profile/models/profile.dart';
+import 'package:craftsky_app/profile/models/profile_relationship.dart';
+import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
+import 'package:craftsky_app/shared/mutations/pds_record_operation_controller.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/chunky_icon_button.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
+import 'package:craftsky_app/theme/theme_extensions.dart';
+import 'package:flutter_chat_ui/flutter_chat_ui.dart' as ui;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -38,6 +45,215 @@ import '../profile/fakes/fake_profile_repository.dart';
 import '../test_support/post_fixtures.dart';
 
 void main() {
+  testWidgets('UT-013 conversation blocks peer after explicit confirmation', (
+    tester,
+  ) async {
+    final repository = _Repository()..accepted = true;
+    var blocks = 0;
+    final profiles = FakeProfileRepository(
+      onFetch: (did) async =>
+          Profile(did: did, handle: 'peer.test', crafts: const []),
+      onBlock: (did, operationKey) async {
+        expect(did, 'did:plc:peer');
+        expect(operationKey, isNotEmpty);
+        blocks++;
+        return const ProfileRelationship(blocking: true);
+      },
+    );
+    var closes = 0;
+    final view = await _pumpRequest(
+      tester,
+      repository,
+      profiles: profiles,
+      onClose: () => closes++,
+    );
+    view.controller.edit('Unsent draft');
+    await tester.pump();
+    await tester.tap(find.byTooltip('Conversation actions'));
+    await tester.pumpAndSettle();
+    expect(
+      tester.widget<Text>(find.text('Block account')).style?.color,
+      AppTheme.lightThemeData.extension<SemanticColorsTheme>()!.error,
+    );
+    await tester.tap(find.text('Block account'));
+    await tester.pumpAndSettle();
+    expect(find.text('Block this account?'), findsOneWidget);
+    expect(find.textContaining('public on the AT Protocol'), findsOneWidget);
+    expect(blocks, 0);
+    final confirm = find.widgetWithText(ChunkyButton, 'Block account');
+    await tester.ensureVisible(confirm);
+    await tester.tap(confirm);
+    await tester.pumpAndSettle();
+    expect(blocks, 1);
+    expect(view.messenger.calls.single.$2, 'Account blocked.');
+    expect(repository.leaves, 0);
+    expect(repository.sentText, isNull);
+    expect(closes, 0);
+    expect(
+      tester.widget<TextField>(find.byType(TextField)).controller!.text,
+      'Unsent draft',
+    );
+    expect(
+      tester
+          .widget<ChunkyIconButton>(
+            find.byWidgetPredicate(
+              (widget) =>
+                  widget is ChunkyIconButton &&
+                  widget.tooltip == 'Send message',
+            ),
+          )
+          .onPressed,
+      isNull,
+    );
+    expect(tester.takeException(), isNull);
+  });
+  for (final accepted in [false, true]) {
+    for (final fails in [false, true]) {
+      testWidgets(
+        'UT-013 pending block guards actions accepted=$accepted fails=$fails',
+        (tester) async {
+          final pending = Completer<ProfileRelationship>();
+          final repository = _Repository()..accepted = accepted;
+          final profiles = FakeProfileRepository(
+            onFetch: (did) async =>
+                Profile(did: did, handle: 'peer.test', crafts: const []),
+            onBlock: (_, _) => pending.future,
+          );
+          final view = await _pumpRequest(
+            tester,
+            repository,
+            profiles: profiles,
+            onClose: () {},
+          );
+          await tester.tap(find.byTooltip('Conversation actions'));
+          await tester.pumpAndSettle();
+          await tester.tap(find.text('Block account'));
+          await tester.pumpAndSettle();
+          final confirm = find.widgetWithText(ChunkyButton, 'Block account');
+          await tester.ensureVisible(confirm);
+          await tester.tap(confirm);
+          await tester.pump();
+          await tester.pump(const Duration(milliseconds: 600));
+          expect(profiles.blockOperationKeys, hasLength(1));
+          if (accepted) {
+            expect(_sendButton(tester).onPressed, isNull);
+          } else {
+            expect(
+              tester
+                  .widget<ChunkyButton>(
+                    find.widgetWithText(ChunkyButton, 'Accept request'),
+                  )
+                  .onPressed,
+              isNull,
+            );
+          }
+          await tester.tap(
+            find.byTooltip('Conversation actions'),
+            warnIfMissed: false,
+          );
+          await tester.pump();
+          expect(find.text('Block account'), findsNothing);
+          expect(profiles.blockOperationKeys, hasLength(1));
+          if (fails) {
+            pending.completeError(StateError('synthetic-block-failure'));
+          } else {
+            pending.complete(const ProfileRelationship(blocking: true));
+          }
+          await tester.pumpAndSettle();
+          expect(repository.leaves, 0);
+          expect(repository.acceptCalls, 0);
+          expect(profiles.blockOperationKeys, hasLength(1));
+          if (fails) {
+            expect(view.messenger.calls.single.$1, 'error');
+            await tester.tap(find.byTooltip('Conversation actions'));
+            await tester.pumpAndSettle();
+            expect(find.text('Block account'), findsOneWidget);
+          } else if (!accepted) {
+            expect(
+              tester
+                  .widget<ChunkyButton>(
+                    find.widgetWithText(ChunkyButton, 'Accept request'),
+                  )
+                  .onPressed,
+              isNull,
+            );
+            expect(
+              tester
+                  .widget<ChunkyButton>(
+                    find.widgetWithText(ChunkyButton, 'Ignore'),
+                  )
+                  .onPressed,
+              isNotNull,
+            );
+          }
+          expect(tester.takeException(), isNull);
+        },
+      );
+    }
+  }
+  for (final outcome in [
+    'cancel',
+    'owner changed',
+    'reactivated',
+    'capability loss',
+  ]) {
+    testWidgets('UT-013 block confirmation is guarded: $outcome', (
+      tester,
+    ) async {
+      final repository = _Repository();
+      final profiles = FakeProfileRepository(
+        onFetch: (did) async =>
+            Profile(did: did, handle: 'peer.test', crafts: const []),
+        onBlock: (_, _) async => const ProfileRelationship(blocking: true),
+      );
+      final view = await _pumpRequest(
+        tester,
+        repository,
+        profiles: profiles,
+        onClose: () {},
+      );
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(MessagingConversationPage)),
+      );
+      await tester.tap(find.byTooltip('Conversation actions'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Block account'));
+      await tester.pumpAndSettle();
+      if (outcome == 'owner changed' || outcome == 'reactivated') {
+        await container
+            .read(sessionRegistryProvider.notifier)
+            .upsertAndActivate(
+              token: 'other',
+              did: 'did:plc:other',
+              handle: 'other.test',
+            );
+        if (outcome == 'reactivated') {
+          await container
+              .read(sessionRegistryProvider.notifier)
+              .upsertAndActivate(
+                token: 'synthetic',
+                did: 'did:plc:owner',
+                handle: 'owner.test',
+              );
+        }
+        await tester.pumpAndSettle();
+      } else if (outcome == 'capability loss') {
+        repository.connectionState = 'unavailable';
+        container.invalidate(chatStatusProvider(AccountKey('did:plc:owner')));
+        await tester.pumpAndSettle();
+      }
+      final action = outcome == 'cancel'
+          ? find.text('Cancel')
+          : find.widgetWithText(ChunkyButton, 'Block account');
+      await tester.ensureVisible(action);
+      await tester.tap(action);
+      await tester.pumpAndSettle();
+      expect(profiles.blockOperationKeys, isEmpty);
+      expect(repository.leaves, 0);
+      expect(view.messenger.calls.where((call) => call.$1 == 'info'), isEmpty);
+      expect(tester.takeException(), isNull);
+    });
+  }
   testWidgets('UT-010 details title shows name and handle at large text', (
     tester,
   ) async {
@@ -175,6 +391,61 @@ void main() {
           'Messaging is temporarily unavailable. Try again.',
         );
       }
+      expect(tester.takeException(), isNull);
+    });
+  }
+  for (final outcome in ['owner changed', 'covered', 'disposed']) {
+    testWidgets('UT-013 block completion is guarded: $outcome', (
+      tester,
+    ) async {
+      final pending = Completer<ProfileRelationship>();
+      final repository = _Repository();
+      final profiles = FakeProfileRepository(
+        onFetch: (did) async =>
+            Profile(did: did, handle: 'peer.test', crafts: const []),
+        onBlock: (_, _) => pending.future,
+      );
+      final view = await _pumpRequest(
+        tester,
+        repository,
+        profiles: profiles,
+        onClose: () {},
+      );
+      final context = tester.element(find.byType(MessagingConversationPage));
+      final container = ProviderScope.containerOf(context);
+      await tester.tap(find.byTooltip('Conversation actions'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Block account'));
+      await tester.pumpAndSettle();
+      final confirm = find.widgetWithText(ChunkyButton, 'Block account');
+      await tester.ensureVisible(confirm);
+      await tester.tap(confirm);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 600));
+      expect(profiles.blockOperationKeys, hasLength(1));
+      if (outcome == 'owner changed') {
+        await container
+            .read(sessionRegistryProvider.notifier)
+            .upsertAndActivate(
+              token: 'other',
+              did: 'did:plc:other',
+              handle: 'other.test',
+            );
+      } else if (outcome == 'covered') {
+        Navigator.of(context).push<void>(
+          MaterialPageRoute(
+            builder: (_) => const Scaffold(body: Text('Covered')),
+          ),
+        );
+      } else {
+        await tester.pumpWidget(const SizedBox.shrink());
+      }
+      await tester.pump();
+      pending.complete(const ProfileRelationship(blocking: true));
+      await tester.pumpAndSettle();
+      expect(view.messenger.calls.where((call) => call.$1 == 'info'), isEmpty);
+      expect(repository.leaves, 0);
+      expect(repository.acceptCalls, 0);
       expect(tester.takeException(), isNull);
     });
   }
@@ -463,6 +734,18 @@ void main() {
         tester.getCenter(find.byType(TextField)).dy,
         closeTo(tester.getCenter(find.byType(ChunkyIconButton)).dy, 4),
       );
+      final sendButton = find.descendant(
+        of: find.byType(ChunkyIconButton),
+        matching: find.byType(ChunkyButton),
+      );
+      expect(tester.widget<ChunkyButton>(sendButton).onPressed, isNull);
+      await tester.enterText(find.byType(TextField), 'Unsent draft');
+      await tester.pump();
+      expect(tester.widget<ChunkyButton>(sendButton).onPressed, isNotNull);
+      expect(
+        tester.widget<ChunkyButton>(sendButton).variant,
+        ChunkyButtonVariant.primary,
+      );
       final previousPage = await repository.history(id);
       final pendingHistory = Completer<ChatMessagePage>();
       repository.pendingHistory = pendingHistory;
@@ -502,7 +785,12 @@ void main() {
         'private-retained',
       );
       await tester.pump();
-      await tester.tap(find.byTooltip('Report message'));
+      expect(find.byTooltip('Report message'), findsNothing);
+      await tester.longPress(find.text('private-peer'));
+      await tester.pumpAndSettle();
+      expect(reported, isNull);
+      await tester.tap(find.text('Report message'));
+      await tester.pumpAndSettle();
       expect(reported?.value, 'peer-message');
       await tester.tap(find.byTooltip('Conversation actions'));
       await tester.pumpAndSettle();
@@ -606,7 +894,8 @@ void main() {
     await tester.tap(find.text('Send again'));
     await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(ChunkyButton, 'Send again'));
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
     expect(repository.sentText, 'private-original');
     expect(repository.operation, isNot(original));
     expect(
@@ -625,6 +914,46 @@ void main() {
     expect(controller.draft.text, 'private-newer');
     expect(tester.takeException(), isNull);
   });
+  for (final state in ['failed', 'uncertain']) {
+    testWidgets('UT-009 $state send stops spinning and keeps recovery', (
+      tester,
+    ) async {
+      final repository = _Repository()..accepted = true;
+      final view = await _pumpRequest(tester, repository, onClose: () {});
+      await tester.enterText(find.byType(TextField), 'Outgoing attempt');
+      await tester.pump();
+      await tester.tap(find.byTooltip('Send message'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.byType(ui.SimpleTextMessage), findsOneWidget);
+      repository.result.complete(
+        ChatSendResult.fromMap({
+          'operationId': repository.operation!.value,
+          'kind': 'send',
+          'state': state,
+        }),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+      final bubble = tester.widget<ui.SimpleTextMessage>(
+        find.byType(ui.SimpleTextMessage),
+      );
+      expect(bubble.message.text, 'Outgoing attempt');
+      expect(bubble.showTime, false);
+      expect(find.text('Send again'), findsOneWidget);
+      expect(find.text('Check status'), findsOneWidget);
+      expect(view.controller.draft.text, 'Outgoing attempt');
+      expect(view.controller.draft.pending!.state.name, state);
+      expect(
+        view.messenger.calls.any(
+          (call) => call.$1 == (state == 'failed' ? 'error' : 'warning'),
+        ),
+        true,
+      );
+      expect(repository.sendCalls, 1);
+      expect(tester.takeException(), isNull);
+    });
+  }
   testWidgets(
     'AT-003/AT-006 request requires accept and confirmed send keeps later text',
     (tester) async {
@@ -695,7 +1024,25 @@ void main() {
       await tester.tap(find.byTooltip('Send message'));
       await tester.pump();
       expect(repository.sentText, 'private-original');
-      expect(find.text('Sending…'), findsOneWidget);
+      expect(
+        tester.widget<TextField>(find.byType(TextField)).controller!.text,
+        isEmpty,
+      );
+      await tester.pump(const Duration(milliseconds: 300));
+      final pendingBubble = tester.widget<ui.SimpleTextMessage>(
+        find.byType(ui.SimpleTextMessage),
+      );
+      expect(pendingBubble.message.text, 'private-original');
+      expect(pendingBubble.showTime, isFalse);
+      expect(pendingBubble.showStatus, isTrue);
+      final localId = pendingBubble.message.id;
+      expect(
+        find.descendant(
+          of: find.byType(ui.SimpleTextMessage),
+          matching: find.byType(CircularProgressIndicator),
+        ),
+        findsWidgets,
+      );
       await tester.enterText(find.byType(TextField), 'private-newer');
       repository.result.complete(
         ChatSendResult.fromMap({
@@ -715,6 +1062,14 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.text('private-original'), findsOneWidget);
+      final confirmedBubble = tester.widget<ui.SimpleTextMessage>(
+        find.byType(ui.SimpleTextMessage),
+      );
+      expect(confirmedBubble.message.id, localId);
+      expect(confirmedBubble.showTime, isFalse);
+      expect(find.byType(ChatTimeHeader), findsOneWidget);
+      expect(confirmedBubble.showStatus, isFalse);
+      expect(find.byType(CircularProgressIndicator), findsNothing);
       expect(
         tester.widget<TextField>(find.byType(TextField)).controller!.text,
         'private-newer',
@@ -724,12 +1079,21 @@ void main() {
   );
 }
 
+ChunkyIconButton _sendButton(WidgetTester tester) =>
+    tester.widget<ChunkyIconButton>(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is ChunkyIconButton && widget.tooltip == 'Send message',
+      ),
+    );
+
 Future<({ChatConversationController controller, RecordingMessenger messenger})>
 _pumpRequest(
   WidgetTester tester,
   _Repository repository, {
   required VoidCallback onClose,
   bool Function()? isCurrent,
+  FakeProfileRepository? profiles,
 }) async {
   await tester.binding.setSurfaceSize(const Size(320, 568));
   addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -755,6 +1119,11 @@ _pumpRequest(
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
+        if (profiles != null)
+          profileRepositoryProvider.overrideWithValue(profiles),
+        pdsRecordOperationControllerProvider.overrideWithValue(
+          PdsRecordOperationController(schedule: (_, _) {}),
+        ),
         secureSessionRegistryStorageProvider.overrideWithValue(
           _Storage(
             SessionRegistry.empty().upsertAndActivate(
@@ -822,6 +1191,7 @@ class _Repository implements ChatRepository {
   bool accepted = false;
   int acceptCalls = 0;
   String? sentText;
+  int sendCalls = 0;
   ChatOperationId? operation;
   final result = Completer<ChatSendResult>();
   @override
@@ -900,6 +1270,7 @@ class _Repository implements ChatRepository {
     ChatOperationId operation,
     String text,
   ) async {
+    sendCalls++;
     this.operation = operation;
     sentText = text;
     return await result.future;

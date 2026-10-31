@@ -1,5 +1,103 @@
 # Coding Plan: Direct Messaging
 
+## Conversation account block action: 2026-10-31
+
+Add destructive Block account in details More menu, reusing existing localized
+profile block copy, shared destructive confirmation and toggleBlockProfileProvider
+with isBlocking=false. Capture active lease/peer/controller before the dialog;
+recheck owner, route, readiness and busy state before dispatch/completion. Retain
+local busy state through refresh and use the shared accepted block overlay/profile
+read to prevent sends or accepting blocked requests while reads catch up. Keep
+existing profile unblocking entry point. No new endpoint or provider codegen.
+
+## Conversation reporting design: 2026-10-31
+
+Extend existing report JSON with subjectType=conversation; absent/message keeps
+existing message semantics. Reject a messageId on conversation requests. Add
+ReportConversation to service/consumer and repository APIs, reusing the same
+report-kind ledger and receipt endpoint. Resolve supportedConversation inside
+existing withRPC/accountInSession boundaries, derive peer via directPeer, build
+upstream.ConvoDefs_ConvoRef and submit through the fixed moderation transport.
+No message history scan, transcript, OAuth/permission widening or new schema.
+Payload hashing distinguishes conversation/message targets for operation reuse.
+
+Make the report controller/provider's message ID nullable to select the explicit
+repository method; regenerate only affected Riverpod output. Pass a separate
+optional details onReportConversation callback through the current capability
+check. Existing full-screen route takes null message for conversation; ReportPage
+selects localized conversation title/notice, preserving selection/validation,
+progress and uncertainty controls. Reasons remain unselected until chosen.
+
+## Messages navigation correction design: 2026-10-31
+
+Messages already has its own retained top-level shell branch with nested routes.
+Keep paths and navigator keys. Pass no onClose for the inbox destination; shared
+chat app-bar leading logic chooses AppShellDrawerButton when a shell drawer is
+available and no explicit child close callback exists. Apply to inbox, status
+loading/error and settings/setup. Keep the existing shell's root-only drawer drag
+policy. Replace details' always-false PopScope with the known-save-failure guard;
+on a completed native pop flush the controller draft locally, while explicit or
+blocked Back still uses the existing awaited flush/close callback. Retained
+controller ownership and draft-store leases continue to fence persistence.
+
+## Time section design: 2026-10-31
+
+Derive section boundaries from ordered authoritative history using local calendar
+dates and a five-minute elapsed gap. Retain a derived header flag in package
+message metadata so neighbour/page changes trigger the existing updateMessage
+path. Render a small themed/localized ChatTimeHeader through ChatMessage's
+full-width headerWidget slot. Move asymmetric bubble insets into the package
+padding override so headers remain centred. Configure timeDifference grouping
+with 300 seconds, normal spacing at section boundaries, tight same-sender spacing
+elsewhere. SimpleTextMessage showTime=false; outgoing status handling unchanged.
+No new dependencies, backend/API, persistence or clock provider. Use the existing
+Material localizations for time preference, intl for dates and ARB for labels.
+
+## Immediate composer clearing design: 2026-10-31
+
+Expose a composer-text projection of ChatDraft: the unchanged, actively pending
+submitted revision renders as empty, while its durable text/attempt remain.
+UI initialization and controller-listener updates use this projection. Apply
+subsequent controller edits against that projected value before the new input,
+so an identical new message is still a distinct edit. Existing receipt reducer,
+persistence and failed/uncertain recovery stay intact.
+
+## Immediate send presentation design: 2026-10-31
+
+Use the existing draft attempt as the pending source. Retain confirmed outgoing
+attempt/receipt associations only in the current conversation controller's memory
+so receipt-before-history can keep a bubble and stable package ID. Resolve by
+operation and message IDs, never message text. Clear presentation associations
+on access loss. Pass outgoing snapshots to FlutterChatAdapter, map operation IDs
+to opaque local IDs, map confirmed server IDs to those same IDs, and append only
+outgoing items not already represented by confirmed history. Use SimpleTextMessage
+showTime/showStatus with MessageStatus.sending (or error for definite failure).
+Uncertain/confirmed-without-history placeholders show neither spinner nor a
+fabricated timestamp; existing recovery feedback remains. Pending placeholders
+are excluded from original-message menu, preview and visible-read paths. Keep
+composer/draft persistence and network send/retry behavior unchanged.
+
+## Package-owned conversation presentation: 2026-10-30
+
+Derive core.ChatTheme from ThemeData with CraftSky bubble colours and radius.
+Configure ui.SimpleTextMessage (timestamps on, status icons off, bounded width)
+and ui.ChatMessage (package grouping, alignment and animation). Preserve opposite
+insets with an outer padding and visible-item keys around the rendered content.
+Use linkPreviewBuilder for the existing guarded preview resolver/widget; never
+let the package fetch arbitrary private-text URLs. Retain the current composer,
+controller and account ownership. Add shared long-press/secondary-click menus
+for Copy, original links and eligible received-message reports. Menu callbacks
+check the current owner, message identity/revision/content and widget lifetime.
+Remove the obsolete custom rich-text renderer when its replacement tests pass.
+
+## First-enable inbox handoff: 2026-10-30
+
+SETUP-001 / ROUTE-001, BR-003 / FR-001 / FR-016 / AC-002 / AC-014:
+remove the content gate's sticky setup flag. Render setup only while the current
+owner status is disabled or needs authorization; confirmed ready access renders
+the conversation list on the existing Messages route. Keep explicit settings
+routes, ownership checks, failure feedback and preference preservation unchanged.
+
 ## Combined initial conversation load: 2026-10-21
 
 Add GET /v1/chat/conversations/{id}/details with no query/body, returning

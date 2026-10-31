@@ -6,6 +6,7 @@ import 'package:craftsky_app/chat/widgets/chat_app_bar_title.dart';
 import 'package:craftsky_app/chat/widgets/chat_message_effect.dart';
 import 'package:craftsky_app/chat/widgets/chat_skeleton.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
+import 'package:craftsky_app/profile/widgets/compact_profile_identity.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
 import 'package:craftsky_app/search/models/profile_search_page.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
@@ -157,16 +158,19 @@ class _NewMessageViewState extends State<NewMessageView> {
                   children: [
                     for (final item in controller.items)
                       ListTile(
+                        horizontalTitleGap: 12,
+                        minLeadingWidth: 0,
                         leading: ProfileAvatar(
                           seed: item.displayName ?? item.handle.value,
                           avatarUrl: item.avatar,
                           size: ProfileAvatarSize.small,
                           customisation: item.customisation,
                         ),
-                        title: Text(item.displayName ?? item.handle.value),
-                        subtitle: item.displayName == null
-                            ? null
-                            : Text(item.handle.value),
+                        title: CompactProfileIdentity(
+                          handle: item.handle.value,
+                          displayName: item.displayName,
+                          crafts: item.crafts,
+                        ),
                         selected: controller.recipient == item.did,
                         onTap: controller.checking || controller.starting
                             ? null

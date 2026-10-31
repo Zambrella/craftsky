@@ -1,5 +1,94 @@
 # Acceptance Test Specification: Direct Messaging
 
+## Conversation account block cases: 2026-10-31
+
+UT-013 / FR-009, AC-009/023: accepted/request conversation options expose red
+Block account. Confirm with existing public-block disclosure, then call shared
+profile block mutation for the peer only. CraftSky success/error feedback, no
+automatic report/leave and unsent draft retained. No mutation before confirmation
+or after cancel, owner/activation change, disposal or connection loss. Held
+mutation prevents duplicate dispatch/send/accept; accepted block prevents send
+even while the conversation summary is stale. Failures restore controls.
+
+## Conversation report cases: 2026-10-31
+
+IT-004 / FR-010, AC-010: existing POST /v1/chat/reports accepts explicit
+subjectType=conversation with operationId, conversationId, reasonType, optional
+reason. Message form remains compatible. Reject unknown subject types and mixed
+message/conversation targets or caller-supplied peer/transcript/authority fields.
+Backend revalidates active exact child/enablement/scopes, direct membership and
+CraftSky profiles; derives the peer DID and sends only convoRef to Bluesky's
+report audience. Duplicate operation submits once, target changes conflict,
+uncertainty never replays; invalid/inaccessible/group/foreign conversations deny.
+UT-005: client serializes the conversation target without messageId or DID;
+controller shares report validation, operation identity and receipt-only recovery.
+UT-013 / IT-013: red More action opens full-screen Report conversation, reason
+empty/Submit disabled initially. Explicit Submit only; opening/closing preserves
+draft and triggers no report, leave or block. Hide action without capability.
+
+## Messages navigation correction cases: 2026-10-31
+
+UT-010 / IT-013: ready and first-use Messages roots expose the shared drawer
+button with no Back. The actual compact shell opens its drawer with Messages
+selected; root loading/error and setup use the same leading policy. Children
+retain Back. On iOS, swipe conversation details to Messages without opening the
+drawer, flushing the latest draft even before the debounce interval; reopening
+retains it. Existing explicit Back, canonical route and navigation tests pass.
+
+## Time section cases: 2026-10-31
+
+UT-010 / FR-003/005, NFR-006/008: real adapter shows full-width centred headers
+for first/day-change/exact-five-minute boundaries; shorter gaps and sender changes
+alone do not add headers. Hide per-bubble time, retain send/error indicators.
+UT-010: verify relative/date/year formatting, 12/24h preference and local calendar
+boundaries. Older-page insertion recomputes headers without duplicate boundaries
+or losing the scroll anchor. Existing pending/preview/read/composer tests pass.
+
+## Immediate composer clearing cases: 2026-10-31
+
+UT-010 / AT-006: hold a send response and assert the input is already empty,
+the pending bubble retains the submitted text, and subsequent input survives
+confirmation. UT-009: typing the identical text as a new draft must count as a
+new edit, and existing failure/restoration/retry tests continue to pass.
+
+## Immediate send bubble cases: 2026-10-31
+
+UT-010 / FR-005, FR-006 / AC-006, AC-007: hold the send response; verify an
+immediate standard bubble with spinner and no timestamp. Confirmation replaces
+it once, restores the server timestamp and keeps later composer edits. A receipt
+without a message retains the bubble without a spinner until history arrives.
+UT-009 / FR-006 / AC-007: failure and uncertainty stop the spinner and retain
+warning/recovery controls. Restored pending attempts are uncertain, never replayed.
+Exercise history-before-receipt, same-text messages, recovery confirmation and
+owner/conversation changes. Local placeholders never report read watermarks,
+resolve previews, or offer report actions. Confirmed previews still work.
+
+## Full-screen report presentation: 2026-10-30
+
+UT-011 / UT-013 / AT-010 / IT-013: Report message is red in compact and wide
+menus. Opening it uses the existing FullscreenModalRoute, covering the full
+compact screen, with close and Submit in the app bar. No partial-height sheet.
+The Bluesky-only notice remains and the second evidence paragraph is absent.
+The enabled composer send control uses the primary variant; an empty draft
+still disables it. The form stays
+scrollable above the keyboard; closing it restores the unsent conversation
+draft. Opening/closing does not submit. Keep existing validation, reason/body
+mapping, failure/uncertainty handling and status checking without replay. The
+reason starts empty and Submit is disabled, including after entering only an
+explanation. Choosing a reason enables Submit without submitting the report.
+
+## Package-owned conversation presentation cases: 2026-10-30
+
+UT-010 / UT-013 / UT-008 / IT-017: plain and tombstone messages use package
+bubbles and timestamps, themed to CraftSky without outlines. Preserve the
+opposite-side insets, loaded history anchor and visible-only read reporting.
+Profile/post previews render once through the package preview slot and keep
+navigation; unknown/deleted messages never request previews or offer reports.
+Received text reports are available by long press and secondary click; owned
+text has Copy/links only. No report before explicit selection. Open link uses
+the exact original URI and performs no automatic fetch; Copy is explicit.
+Stale menu actions after owner/history/disposal changes are discarded.
+
 ## Initial-load optimization cases: 2026-10-21
 
 IT-002 / IT-015 / IT-017 / IT-019, UT-009 / FR-003, FR-019 / NFR-001/002/003/004:
@@ -123,7 +212,7 @@ The latest requirements revision supersedes prior additional-consent-at-enable a
 |---|---|---|
 | AUTH-001 | BR-002, RULE-004, NFR-001 / AC-002, AC-019 | Real login and registration PAR requests include base plus narrow chat scopes. Base-only callback/session/refresh stays valid; granting authority does not enable messaging. Operator/deletion purposes retain their existing scope boundaries. |
 | AUTH-002 | FR-001, FR-016, RULE-004 / AC-002, AC-014 | Permission-recovery handoff preserves the disabled/enabled choice, push preference, generation and sync cursor. Already-enabled accounts resume promptly; disabled accounts stay paused. A stale/disconnected initiating generation still fails closed. |
-| SETUP-001 | BR-003, FR-001, FR-011, FR-014, FR-016 / AC-002, AC-011, AC-015 | Off settings disclose shared history/privacy/reporting, show only the enable switch and make no preference fetch/write. Explicit enable confirms the connection then reveals existing push/audience and Open messages. Disable/re-enable preserves choices, hides/shows controls and retains drafts; failure does not claim success. |
+| SETUP-001 | BR-003, FR-001, FR-011, FR-014, FR-016 / AC-002, AC-011, AC-015 | Off settings disclose shared history/privacy/reporting, show only the enable switch and make no preference fetch/write. Explicit enable from Messages confirms readable access then opens the regular conversation list without another tap. Explicit settings visits stay on settings and reveal existing push/audience and Open messages. Disable/re-enable preserves choices, hides/shows controls and retains drafts; failure does not claim success. |
 | ROUTE-001 | FR-001, FR-016, NFR-001, NFR-006 / AC-002, AC-014, AC-016, AC-023 | First Messages visit stays in setup after enable until Open messages. Enabled later visits open the inbox; settings are reachable from app settings and inbox. Missing authority has explicit recovery, no private fetch, and no auto-enable. Account switches/disposal discard pending setup results. Material switches and existing loading/feedback conventions remain. |
 
 ## Approved revision: profile actions, 2026-10-20

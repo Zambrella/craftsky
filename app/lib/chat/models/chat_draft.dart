@@ -89,6 +89,13 @@ final class ChatDraft {
   final int revision;
   final ChatDraftAttempt? pending;
 
+  /// Keep the submitted text recoverable while showing a fresh composer.
+  String get composerText =>
+      pending?.state == ChatDraftSendState.pending &&
+          pending?.revision == revision
+      ? ''
+      : text;
+
   bool get canSend => pending == null && validateMessageText(text) == null;
 
   ChatDraft edit(String value) => value == text

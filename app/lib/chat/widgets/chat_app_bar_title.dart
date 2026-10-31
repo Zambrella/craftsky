@@ -1,3 +1,4 @@
+import 'package:craftsky_app/chat/widgets/chat_app_bar_leading.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -41,7 +42,7 @@ class ChatLoadingPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
-      leading: onClose == null ? null : BackButton(onPressed: onClose),
+      leading: chatAppBarLeading(context, onClose),
       toolbarHeight: titleWidget == null
           ? null
           : MediaQuery.textScalerOf(context)

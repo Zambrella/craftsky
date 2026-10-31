@@ -598,7 +598,7 @@ final class ChatReportControllerProvider
         $FutureProvider<ChatReportController> {
   ChatReportControllerProvider._({
     required ChatReportControllerFamily super.from,
-    required (AccountKey, ChatConversationId, ChatMessageId) super.argument,
+    required (AccountKey, ChatConversationId, ChatMessageId?) super.argument,
   }) : super(
          retry: null,
          name: r'chatReportControllerProvider',
@@ -626,7 +626,7 @@ final class ChatReportControllerProvider
   @override
   FutureOr<ChatReportController> create(Ref ref) {
     final argument =
-        this.argument as (AccountKey, ChatConversationId, ChatMessageId);
+        this.argument as (AccountKey, ChatConversationId, ChatMessageId?);
     return chatReportController(ref, argument.$1, argument.$2, argument.$3);
   }
 
@@ -642,13 +642,13 @@ final class ChatReportControllerProvider
 }
 
 String _$chatReportControllerHash() =>
-    r'3c5ba2b7d0b582ad32ca00197ca89f64341851a9';
+    r'e2ea0bd3e71ce4875fd7e966d19c3c13255e905b';
 
 final class ChatReportControllerFamily extends $Family
     with
         $FunctionalFamilyOverride<
           FutureOr<ChatReportController>,
-          (AccountKey, ChatConversationId, ChatMessageId)
+          (AccountKey, ChatConversationId, ChatMessageId?)
         > {
   ChatReportControllerFamily._()
     : super(
@@ -662,7 +662,7 @@ final class ChatReportControllerFamily extends $Family
   ChatReportControllerProvider call(
     AccountKey account,
     ChatConversationId id,
-    ChatMessageId message,
+    ChatMessageId? message,
   ) => ChatReportControllerProvider._(
     argument: (account, id, message),
     from: this,
