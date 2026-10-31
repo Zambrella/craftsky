@@ -48,6 +48,7 @@ func TestRouteInventoryAndV1PoliciesStayExact(t *testing.T) {
 		"GET /v1/chat/conversations/{id}",
 		"GET /v1/chat/conversations/{id}/details",
 		"GET /v1/chat/conversations/{id}/messages",
+		"DELETE /v1/chat/conversations/{id}/messages/{messageId}",
 		"GET /v1/chat/operations/{operationId}",
 		"PUT /v1/chat/conversations/{id}/read",
 		"POST /v1/chat/conversations/{id}/accept",

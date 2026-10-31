@@ -59,6 +59,7 @@ abstract interface class ChatRepository {
     required bool muted,
   });
   Future<void> leave(ChatConversationId id);
+  Future<void> deleteMessage(ChatConversationId id, ChatMessageId message);
   Future<ChatAvailability> availability(Did recipient);
   Future<ChatConversation> start(Did recipient);
   Future<ChatConversationPage> conversations({

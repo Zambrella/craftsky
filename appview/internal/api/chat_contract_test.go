@@ -157,6 +157,51 @@ type chatReportReader struct {
 	messageReports      int
 }
 
+type chatDeleteReader struct {
+	ChatConsumer
+	calls int
+}
+
+func (reader *chatDeleteReader) DeleteMessage(_ context.Context, info auth.AuthInfo, conversation chat.ConversationID, message chat.MessageID) error {
+	if info.ChildTokenHash == ([32]byte{}) || conversation != "direct-1" || message != "own-1" {
+		panic("wrong delete authority or target")
+	}
+	reader.calls++
+	return nil
+}
+
+func TestChatDeleteMessageContract(t *testing.T) {
+	reader := &chatDeleteReader{}
+	handler := ChatConsumerHandler(reader, "deleteMessage")
+	for _, tc := range []struct {
+		query, body, message string
+		status               int
+	}{
+		{"", "", "own-1", 200},
+		{"?senderDid=did:plc:other", "", "own-1", 400},
+		{"", `{"forEveryone":true}`, "own-1", 400},
+		{"", "", "", 400},
+		{"", "", "bad/id", 400},
+	} {
+		r := chatContractRequest("DELETE", "/v1/chat/conversations/direct-1/messages/own-1"+tc.query, tc.body)
+		r.SetPathValue("id", "direct-1")
+		r.SetPathValue("messageId", tc.message)
+		w := httptest.NewRecorder()
+		handler.ServeHTTP(w, r)
+		if w.Code != tc.status || w.Header().Get("Cache-Control") != "no-store" {
+			t.Fatalf("status=%d expected=%d body=%s", w.Code, tc.status, w.Body.String())
+		}
+	}
+	if reader.calls != 1 {
+		t.Fatalf("delete calls=%d", reader.calls)
+	}
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, httptest.NewRequest("DELETE", "/v1/chat/conversations/direct-1/messages/own-1", nil))
+	if w.Code != 401 || reader.calls != 1 {
+		t.Fatal("unauthenticated delete dispatched")
+	}
+}
+
 func (reader *chatReportReader) ReportConversation(_ context.Context, info auth.AuthInfo, operation uuid.UUID, conversation chat.ConversationID, reasonType string, reason *string) (chat.OperationReceipt, error) {
 	if info.ChildTokenHash == ([32]byte{}) || conversation != "direct-1" || reasonType != "com.atproto.moderation.defs#reasonSpam" {
 		panic("wrong conversation report contract")

@@ -31,6 +31,7 @@ class FlutterChatAdapter extends StatefulWidget {
     this.onPresented,
     this.onLoadOlder,
     this.onReport,
+    this.onDelete,
     this.messageFooterBuilder,
     this.onLink,
     super.key,
@@ -42,6 +43,7 @@ class FlutterChatAdapter extends StatefulWidget {
   final ValueChanged<List<ChatMessageId>>? onPresented;
   final Future<void> Function()? onLoadOlder;
   final ValueChanged<ChatMessageId>? onReport;
+  final ValueChanged<ChatMessageId>? onDelete;
   final Widget Function(ChatMessage)? messageFooterBuilder;
   final ValueChanged<Uri>? onLink;
 
@@ -248,6 +250,19 @@ class _FlutterChatAdapterState extends State<FlutterChatAdapter> {
                   ),
             ],
           ),
+          if (original.senderDid == owner && widget.onDelete != null)
+            CraftskyContextMenuGroup(
+              items: [
+                CraftskyContextMenuItem(
+                  text: l10n.chatDeleteForMe,
+                  icon: CraftskyIcons.delete,
+                  style: CraftskyContextMenuItemStyle.destructive,
+                  onPressed: () {
+                    if (current()) widget.onDelete?.call(original.id);
+                  },
+                ),
+              ],
+            ),
           if (original.senderDid != null &&
               original.senderDid != owner &&
               widget.onReport != null)

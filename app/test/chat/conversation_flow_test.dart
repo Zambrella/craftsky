@@ -45,6 +45,90 @@ import '../profile/fakes/fake_profile_repository.dart';
 import '../test_support/post_fixtures.dart';
 
 void main() {
+  for (final outcome in [
+    'confirmed',
+    'cancel',
+    'failed',
+    'message changed',
+    'owner changed',
+  ]) {
+    testWidgets('DEL-003 delete confirmation and feedback: $outcome', (
+      tester,
+    ) async {
+      final pending = Completer<void>();
+      final repository = _Repository()
+        ..accepted = true
+        ..seedMessage = true
+        ..seedSender = 'did:plc:owner'
+        ..pendingDelete = pending.future;
+      final view = await _pumpRequest(tester, repository, onClose: () {});
+      view.controller.edit('Unsent draft');
+      await tester.pump();
+      await tester.longPress(find.text('private-peer'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Delete for me'));
+      await tester.pumpAndSettle();
+      expect(find.text('Delete message for me?'), findsOneWidget);
+      expect(find.textContaining('other person will still'), findsOneWidget);
+      expect(repository.deletes, 0);
+      if (outcome == 'message changed') {
+        repository.seedText = 'Changed message';
+        await view.controller.refresh();
+        await tester.pumpAndSettle();
+      } else if (outcome == 'owner changed') {
+        final container = ProviderScope.containerOf(
+          tester.element(find.byType(MessagingConversationPage)),
+        );
+        await container
+            .read(sessionRegistryProvider.notifier)
+            .upsertAndActivate(
+              token: 'other',
+              did: 'did:plc:other',
+              handle: 'other.test',
+            );
+        await tester.pumpAndSettle();
+      }
+      final action = outcome == 'cancel'
+          ? find.text('Cancel')
+          : find.widgetWithText(ChunkyButton, 'Delete for me');
+      await tester.ensureVisible(action);
+      await tester.tap(action);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 600));
+      if (['cancel', 'message changed', 'owner changed'].contains(outcome)) {
+        expect(repository.deletes, 0);
+        expect(
+          view.messenger.calls.where((call) => call.$1 == 'info'),
+          isEmpty,
+        );
+      } else {
+        expect(repository.deletes, 1);
+        expect(find.text('private-peer'), findsOneWidget);
+        expect(_sendButton(tester).onPressed, isNull);
+        if (outcome == 'failed') {
+          pending.completeError(const ApiNetworkError('offline'));
+        } else {
+          pending.complete();
+        }
+        await tester.pumpAndSettle();
+        expect(
+          find.text('private-peer'),
+          outcome == 'confirmed' ? findsNothing : findsOneWidget,
+        );
+        expect(
+          view.messenger.calls.single.$1,
+          outcome == 'confirmed' ? 'info' : 'error',
+        );
+        expect(
+          tester.widget<TextField>(find.byType(TextField)).controller!.text,
+          'Unsent draft',
+        );
+      }
+      expect(repository.leaves, 0);
+      expect(repository.sentText, isNull);
+      expect(tester.takeException(), isNull);
+    });
+  }
   testWidgets('UT-013 conversation blocks peer after explicit confirmation', (
     tester,
   ) async {
@@ -1165,6 +1249,19 @@ _pumpRequest(
 }
 
 class _Repository implements ChatRepository {
+  Future<void>? pendingDelete;
+  int deletes = 0;
+  String seedSender = 'did:plc:peer';
+  @override
+  Future<void> deleteMessage(
+    ChatConversationId id,
+    ChatMessageId message,
+  ) async {
+    expect(message.value, 'peer-message');
+    deletes++;
+    await pendingDelete;
+  }
+
   Completer<ChatMessagePage>? pendingHistory;
   Future<void>? pendingLeave;
   String connectionState = 'ready';
@@ -1246,7 +1343,7 @@ class _Repository implements ChatRepository {
                     'revision': 'r',
                     'kind': 'text',
                     'text': seedText,
-                    'senderDid': 'did:plc:peer',
+                    'senderDid': seedSender,
                     'sentAt': '2026-10-19T12:00:00Z',
                   },
               ],

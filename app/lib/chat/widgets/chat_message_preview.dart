@@ -31,18 +31,32 @@ class ChatMessagePreview extends ConsumerStatefulWidget {
 }
 
 class _ChatMessagePreviewState extends ConsumerState<ChatMessagePreview> {
+  bool _refreshPending = false;
+
   @override
   void didUpdateWidget(covariant ChatMessagePreview oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.message.revision != widget.message.revision ||
+    if (oldWidget.account != widget.account ||
+        oldWidget.conversationId != widget.conversationId ||
+        oldWidget.message.id != widget.message.id ||
+        oldWidget.message.revision != widget.message.revision ||
         oldWidget.message.text != widget.message.text) {
-      ref.invalidate(
-        chatPreviewProvider(
-          widget.account,
-          widget.conversationId,
-          widget.message.id,
-        ),
-      );
+      final account = widget.account;
+      final conversation = widget.conversationId;
+      final message = widget.message;
+      _refreshPending = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted ||
+            widget.account != account ||
+            widget.conversationId != conversation ||
+            widget.message.id != message.id ||
+            widget.message.revision != message.revision ||
+            widget.message.text != message.text) {
+          return;
+        }
+        ref.invalidate(chatPreviewProvider(account, conversation, message.id));
+        setState(() => _refreshPending = false);
+      });
     }
   }
 
@@ -79,6 +93,7 @@ class _ChatMessagePreviewState extends ConsumerState<ChatMessagePreview> {
 
   @override
   Widget build(BuildContext context) {
+    if (_refreshPending) return const SizedBox.shrink();
     final state = ref.watch(
       chatPreviewProvider(
         widget.account,

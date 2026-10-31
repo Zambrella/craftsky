@@ -46,6 +46,7 @@ final class ChatConversationController extends ChangeNotifier {
   ChatHistory history = const ChatHistory.empty();
   ChatDraft draft = const ChatDraft.empty();
   final _confirmedOutgoing = <ChatOperationId, ChatOutgoingMessage>{};
+  final _deletedMessages = <ChatMessageId>{};
 
   List<ChatOutgoingMessage> get outgoingMessages =>
       !_current || conversation == null
@@ -159,6 +160,7 @@ final class ChatConversationController extends ChangeNotifier {
       conversation = null;
       history = const ChatHistory.empty();
       _confirmedOutgoing.clear();
+      _deletedMessages.clear();
       _historyGaps.clear();
       _lastRead = null;
       _pendingPresented = null;
@@ -185,6 +187,7 @@ final class ChatConversationController extends ChangeNotifier {
     if (!_current) return;
     _operation.publish(() {
       action();
+      history = history.without(_deletedMessages);
       notifyListeners();
     });
   }
@@ -370,6 +373,41 @@ final class ChatConversationController extends ChangeNotifier {
       _conversationAction('mute', () async {
         await _repository.setMuted(id, muted: muted);
       });
+
+  Future<bool> deleteMessage(ChatMessageId messageId) async {
+    if (!_current || busy || loading || left || conversation == null) {
+      return false;
+    }
+    final message = history.messages
+        .where((message) => message.id == messageId)
+        .firstOrNull;
+    if (message?.kind != ChatMessageKind.text ||
+        message?.senderDid != account.did) {
+      return false;
+    }
+    final epoch = _contentEpoch;
+    _publish(() => busy = true);
+    try {
+      await _operation.step(() => _repository.deleteMessage(id, messageId));
+      if (epoch != _contentEpoch) return false;
+      _publish(() {
+        _deletedMessages.add(messageId);
+        _confirmedOutgoing.removeWhere(
+          (_, outgoing) => outgoing.messageId == messageId,
+        );
+        failed = false;
+      });
+      await _sharedChanged();
+      return _current && epoch == _contentEpoch;
+    } on AccountOperationDiscarded {
+      return false;
+    } on Object catch (error, stack) {
+      if (_current) _contentFailure(error, stack, 'delete', epoch);
+      return false;
+    } finally {
+      _publish(() => busy = false);
+    }
+  }
 
   Future<bool> leave() async {
     if (!_current || busy || loading || left) return false;

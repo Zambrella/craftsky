@@ -14,6 +14,14 @@ final class ChatHistory {
 
   bool get hasMore => cursor != null;
 
+  ChatHistory without(Set<ChatMessageId> ids) =>
+      messages.any((message) => ids.contains(message.id))
+      ? ChatHistory._(
+          messages.where((message) => !ids.contains(message.id)).toList(),
+          cursor,
+        )
+      : this;
+
   ChatHistory merge(ChatMessagePage page) {
     final byId = {for (final message in messages) message.id: message};
     for (final message in page.items) {

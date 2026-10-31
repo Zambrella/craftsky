@@ -28,6 +28,7 @@ type ChatConsumer interface {
 	Accept(context.Context, auth.AuthInfo, chat.ConversationID) (chat.Conversation, error)
 	SetMuted(context.Context, auth.AuthInfo, chat.ConversationID, bool) (chat.Conversation, error)
 	Leave(context.Context, auth.AuthInfo, chat.ConversationID) error
+	DeleteMessage(context.Context, auth.AuthInfo, chat.ConversationID, chat.MessageID) error
 	Report(context.Context, auth.AuthInfo, uuid.UUID, chat.ConversationID, chat.MessageID, string, *string) (chat.OperationReceipt, error)
 	ReportConversation(context.Context, auth.AuthInfo, uuid.UUID, chat.ConversationID, string, *string) (chat.OperationReceipt, error)
 	UnreadCounts(context.Context, auth.AuthInfo) (chat.UnreadCounts, error)
@@ -102,7 +103,7 @@ func ChatConsumerHandler(service ChatConsumer, action string) http.Handler {
 		var err error
 		var id chat.ConversationID
 		switch action {
-		case "conversation", "details", "history", "read", "accept", "mute", "unmute", "leave":
+		case "conversation", "details", "history", "read", "accept", "mute", "unmute", "leave", "deleteMessage":
 			id, err = chat.ParseConversationID(r.PathValue("id"))
 		}
 		if err != nil {
@@ -202,6 +203,18 @@ func ChatConsumerHandler(service ChatConsumer, action string) http.Handler {
 						Left bool `json:"left"`
 					}{err == nil}, err
 				}
+			}
+		case "deleteMessage":
+			err = chatEmptyInput(r)
+			message, parseErr := chat.ParseMessageID(r.PathValue("messageId"))
+			if parseErr != nil {
+				err = errChatInvalidRequest
+			}
+			execute = func() (any, error) {
+				err := service.DeleteMessage(ctx, info, id, message)
+				return struct {
+					Deleted bool `json:"deleted"`
+				}{err == nil}, err
 			}
 		case "connection":
 			var request struct {

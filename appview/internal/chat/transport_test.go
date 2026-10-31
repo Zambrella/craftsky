@@ -66,7 +66,7 @@ func TestTransportPinsChatAndReportProxy(t *testing.T) {
 	if len(routes) != 2 || routes[0] != auth.ChatServiceAudience || routes[1] != auth.ChatReportAudience {
 		t.Fatalf("wrong fixed audiences: %v", routes)
 	}
-	if err := transport.Procedure(context.Background(), "chat.bsky.convo.deleteMessageForSelf", map[string]any{}, nil); err == nil || len(routes) != 2 {
+	if err := transport.Procedure(context.Background(), "chat.bsky.convo.removeReaction", map[string]any{}, nil); err == nil || len(routes) != 2 {
 		t.Fatal("unapproved method dispatched")
 	}
 }

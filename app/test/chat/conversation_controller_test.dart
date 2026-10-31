@@ -23,6 +23,155 @@ import '../test_support/recording_error_reporter.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  test(
+    'DEL-002 deleting a just-sent message removes its outgoing mirror',
+    () async {
+      FlutterSecureStorage.setMockInitialValues({});
+      final account = AccountKey('did:plc:owner');
+      final id = ChatConversationId.parse('conversation');
+      final message = {
+        'id': 'just-sent',
+        'revision': 'r1',
+        'kind': 'text',
+        'text': 'Sent text',
+        'senderDid': account.did.value,
+        'sentAt': '2026-10-31T12:00:00Z',
+      };
+      final repository = _Repository()
+        ..sendOverride = (operation, text) async => ChatSendResult.fromMap({
+          'operationId': operation.value,
+          'kind': 'send',
+          'state': 'confirmed',
+          'messageId': 'just-sent',
+          'message': message,
+        });
+      final store = ChatDraftStore(const FlutterSecureStorage());
+      await store.initialize({account});
+      final controller = ChatConversationController(
+        account: account,
+        id: id,
+        repository: repository,
+        store: store,
+        draftLease: store.lease(account),
+        operation: ActiveAccountOperation.withGuard(
+          ownership: null,
+          isCurrent: () => true,
+        ),
+      );
+      addTearDown(controller.dispose);
+      await controller.load();
+      controller.edit('Sent text');
+      await controller.send();
+      expect(controller.outgoingMessages, hasLength(1));
+      controller.edit('Newer draft');
+      expect(
+        await controller.deleteMessage(ChatMessageId.parse('just-sent')),
+        true,
+      );
+      expect(controller.outgoingMessages, isEmpty);
+      expect(controller.history.messages, isEmpty);
+      repository.page = ChatMessagePage.fromMap({
+        'items': [message],
+      });
+      await controller.refresh();
+      expect(controller.history.messages, isEmpty);
+      expect(controller.outgoingMessages, isEmpty);
+      expect(controller.draft.text, 'Newer draft');
+    },
+  );
+  for (final outcome in [
+    'confirmed',
+    'failed',
+    'owner changed',
+    'access lost',
+    'disposed',
+  ]) {
+    test('DEL-002 delete own message preserves state: $outcome', () async {
+      FlutterSecureStorage.setMockInitialValues({});
+      final account = AccountKey('did:plc:owner');
+      final id = ChatConversationId.parse('conversation');
+      final own = ChatMessageId.parse('own');
+      final page = ChatMessagePage.fromMap({
+        'cursor': '00000000-0000-4000-8000-000000000111',
+        'items': [
+          for (final sender in ['owner', 'peer'])
+            {
+              'id': sender == 'owner' ? 'own' : 'received',
+              'revision': 'r1',
+              'kind': 'text',
+              'text': 'Message from $sender',
+              'senderDid': 'did:plc:$sender',
+              'sentAt': '2026-10-31T12:00:00Z',
+            },
+        ],
+      });
+      final pending = Completer<void>();
+      final repository = _Repository()
+        ..page = page
+        ..deleteResult = pending;
+      final store = ChatDraftStore(const FlutterSecureStorage());
+      await store.initialize({account});
+      var current = true;
+      final controller = ChatConversationController(
+        account: account,
+        id: id,
+        repository: repository,
+        store: store,
+        draftLease: store.lease(account),
+        operation: ActiveAccountOperation.withGuard(
+          ownership: null,
+          isCurrent: () => current,
+        ),
+      );
+      if (outcome != 'disposed') addTearDown(controller.dispose);
+      await controller.load();
+      controller.edit('Unsent draft');
+      expect(
+        await controller.deleteMessage(ChatMessageId.parse('received')),
+        false,
+      );
+      expect(
+        await controller.deleteMessage(ChatMessageId.parse('local')),
+        false,
+      );
+      final deleting = controller.deleteMessage(own);
+      expect(controller.busy, true);
+      expect(controller.history.messages.map((m) => m.id), contains(own));
+      expect(await controller.deleteMessage(own), false);
+      expect(repository.deleteCalls, 1);
+      if (outcome == 'owner changed') current = false;
+      if (outcome == 'access lost') controller.invalidateAccess();
+      if (outcome == 'disposed') controller.dispose();
+      if (outcome == 'failed') {
+        pending.completeError(const ApiNetworkError('offline'));
+      } else {
+        pending.complete();
+      }
+      expect(await deleting, outcome == 'confirmed');
+      if (outcome != 'disposed') {
+        expect(controller.draft.text, 'Unsent draft');
+      }
+      if (outcome == 'confirmed') {
+        expect(controller.history.messages.map((m) => m.id.value), [
+          'received',
+        ]);
+        expect(controller.history.cursor, page.cursor);
+        await controller.refresh();
+        expect(controller.history.messages.map((m) => m.id.value), [
+          'received',
+        ]);
+        await controller.loadOlder();
+        expect(controller.history.messages.map((m) => m.id.value), [
+          'received',
+        ]);
+      } else if (outcome == 'failed') {
+        expect(controller.history.messages.map((m) => m.id), contains(own));
+        expect(controller.busy, false);
+        expect(controller.failed, true);
+      }
+      expect(repository.leaveCalls, 0);
+    });
+  }
   for (final denied in [false, true]) {
     test(
       'UT-009 concurrent load keeps original failure denied=$denied',
@@ -1082,6 +1231,17 @@ void main() {
 }
 
 class _Repository implements ChatRepository {
+  Completer<void>? deleteResult;
+  int deleteCalls = 0;
+  @override
+  Future<void> deleteMessage(
+    ChatConversationId id,
+    ChatMessageId message,
+  ) async {
+    deleteCalls++;
+    await deleteResult?.future;
+  }
+
   Future<ChatConversation> Function()? summaryReader;
   Completer<ChatConversation>? readResult;
   Future<ChatSendResult> Function(ChatOperationId, String)? sendOverride;

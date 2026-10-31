@@ -1,5 +1,43 @@
 # Direct Messaging Validation Evidence
 
+## Delete for me: 2026-10-31
+
+FR-020 / AC-030, DEL-001/002/003: red own-text context action opens the shared
+destructive confirmation explicitly retaining the recipient's copy. Mutation is
+confirmed before removal; pending/received/deleted/unsupported messages cannot
+delete. Controller preserves draft/other messages/cursor, suppresses stale-page
+restoration and removes accepted outgoing mirrors. Held, failed, stale-account,
+access-loss/disposal and changed-message/menu journeys pass. Shared notifications
+own success/error feedback; no automatic replay or live deletion occurred.
+
+Backend validates exact child, permission, enablement/status, direct membership,
+CraftSky profiles and current upstream sender; old loaded pages use retained
+server hints. Typed fixed-audience deleteMessageForSelf body contains only convoId
+and messageId. The new DELETE route has strict input, normal device/owner access,
+same suspension denial as other messaging writes and private diagnostics. Capture
+tests verify protected target/credential/cause canaries absent in serialized local
+and Sentry output with operation retained. No record deletion/PDS mutation added.
+
+Final race results: chat **75.279s**, auth **38.633s**; API **160.210s** after
+catalogue-classification correction; routes **24.878s** after exact inventory and
+diagnostic-manifest updates. Focused route contract and diagnostic capture checks
+also pass. Logs: /private/tmp/craftsky-dm-delete-{backend-race,routes-api-race,
+routes-final,route-contract-final,diagnostics}.log.
+Flutter full messaging/settings/modal-navigation suite: **242 passed**, 5 existing
+conditional skips, exit 0, 19s. Final controller suite: **27 passed**, including an
+additional just-sent-message mirror case. Logs:
+/private/tmp/craftsky-dm-delete-{regressions,controller-final}.log.
+Whole-app analysis, Dart/gofmt formatting and diff checks clean. Preview-update
+framework failure exposed by changed confirmation data was fixed via guarded
+post-frame invalidation; profile/post preview tests remain green.
+
+Local AppView rebuilt/recreated; appview and cli compile in Docker. /healthz
+reports ok (DB ok/Tap connected and progressing); local public OAuth metadata
+advertises the narrow delete permission. No running Flutter debug/DTD process
+was available to reload. No real deletion/send/report, migration, production
+action, commit or push; no special legacy-session handling, as requested.
+Upstream was mocked in tests; these results do not prove live Bluesky deletion.
+
 ## Conversation Block account: 2026-10-31
 
 FR-009 / NFR-006 / AC-009/023, UT-013: destructive Block account opens the

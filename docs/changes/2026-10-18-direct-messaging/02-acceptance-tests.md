@@ -1,5 +1,24 @@
 # Acceptance Test Specification: Direct Messaging
 
+## Delete for me cases: 2026-10-31
+
+DEL-001 / FR-020 / AC-030: fixed DELETE conversation/message route accepts no
+body/query/caller authority. Server requires the narrow delete scope and exact
+active child, supported direct membership and CraftSky profiles; revalidates
+current message (including a loaded older page) and requires sender=owner before
+fixed-audience deleteMessageForSelf. Reject malformed IDs, foreign/received/
+unsupported/deleted messages and invalid provider response; no automatic retry.
+DEL-002: repository uses fixed URL/encoded IDs and validates deletion response.
+Controller removes only after confirmation, retains draft/other messages/cursor,
+blocks duplicates, rejects non-owned/local messages, and suppresses stale pages/
+outgoing placeholders after success. Failure/stale owner/access/disposal never
+publishes success; no stored message archive or schema change.
+DEL-003: shared red Delete for me only on confirmed owned text. Explicit shared
+confirmation names recipient retention; opening/cancelling sends nothing. Held
+request blocks duplicates, successful delete removes bubble with themed success,
+failure retains it with themed error. Guard menu/confirmation callbacks across
+owner, message/revision, route and lifetime changes; preserve previews/draft.
+
 ## Conversation account block cases: 2026-10-31
 
 UT-013 / FR-009, AC-009/023: accepted/request conversation options expose red

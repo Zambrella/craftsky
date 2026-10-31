@@ -28,6 +28,7 @@ func registerChatRoutes(routes chatRouteBundle) {
 	routes.mux.Handle("GET /v1/chat/conversations/{id}", routes.middleware.wrap(mustPolicy("GET", "/v1/chat/conversations/{id}"), api.ChatConsumerHandler(routes.consumer, "conversation")))
 	routes.mux.Handle("GET /v1/chat/conversations/{id}/details", routes.middleware.wrap(mustPolicy("GET", "/v1/chat/conversations/{id}/details"), api.ChatConsumerHandler(routes.consumer, "details")))
 	routes.mux.Handle("GET /v1/chat/conversations/{id}/messages", routes.middleware.wrap(mustPolicy("GET", "/v1/chat/conversations/{id}/messages"), api.ChatConsumerHandler(routes.consumer, "history")))
+	routes.mux.Handle("DELETE /v1/chat/conversations/{id}/messages/{messageId}", routes.middleware.wrap(mustPolicy("DELETE", "/v1/chat/conversations/{id}/messages/{messageId}"), api.ChatConsumerHandler(routes.consumer, "deleteMessage")))
 	routes.mux.Handle("GET /v1/chat/operations/{operationId}", routes.middleware.wrap(mustPolicy("GET", "/v1/chat/operations/{operationId}"), api.ChatConsumerHandler(routes.consumer, "receipt")))
 	routes.mux.Handle("PUT /v1/chat/conversations/{id}/read", routes.middleware.wrap(mustPolicy("PUT", "/v1/chat/conversations/{id}/read"), api.ChatConsumerHandler(routes.consumer, "read")))
 	routes.mux.Handle("POST /v1/chat/conversations/{id}/accept", routes.middleware.wrap(mustPolicy("POST", "/v1/chat/conversations/{id}/accept"), api.ChatConsumerHandler(routes.consumer, "accept")))

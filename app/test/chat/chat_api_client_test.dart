@@ -9,6 +9,32 @@ import 'package:http_mock_adapter/http_mock_adapter.dart';
 
 // IT-019 / FR-002 / NFR-003: fixed consumer route, bounded opaque paging.
 void main() {
+  for (final confirmed in [true, false]) {
+    test(
+      'DEL-002 fixed delete route requires confirmation=$confirmed',
+      () async {
+        final dio = Dio(BaseOptions(baseUrl: 'https://appview.test'));
+        var calls = 0;
+        DioAdapter(dio: dio).onDelete(
+          '/v1/chat/conversations/conversation/messages/own-1',
+          (server) {
+            calls++;
+            server.reply(200, {'deleted': confirmed});
+          },
+        );
+        final result = ApiChatRepository(dio).deleteMessage(
+          ChatConversationId.parse('conversation'),
+          ChatMessageId.parse('own-1'),
+        );
+        if (confirmed) {
+          await result;
+        } else {
+          await expectLater(result, throwsFormatException);
+        }
+        expect(calls, 1);
+      },
+    );
+  }
   test(
     'IT-004 conversation report sends a fixed target without caller evidence',
     () async {

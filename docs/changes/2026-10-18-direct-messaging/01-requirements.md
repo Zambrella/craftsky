@@ -1,5 +1,23 @@
 # Requirements: Direct Messaging
 
+## Approved Delete for me: 2026-10-31
+
+FR-020 / AC-030: user explicitly approved Delete for me for their own confirmed
+sent text messages, after clarification that the recipient retains their copy.
+Add a red long-press/context-menu action with shared destructive confirmation
+explaining that consequence. Only a confirmed upstream deletion removes the
+message from the owner's view; failure retains content without false success.
+Preserve draft, other messages, previews/grouping, pagination and account fences.
+No action for received, pending/uncertain local, deleted or unsupported messages.
+Server validates active exact child, messaging enablement/restrictions, scopes,
+supported direct membership/CraftSky profiles and upstream sender ownership.
+Add only chat.bsky.convo.deleteMessageForSelf to messaging OAuth/transport allowlists.
+User explicitly said existing sessions need no compatibility handling; standard
+reauthorization is sufficient. No delete-for-everyone, PDS record deletion,
+migration, automatic replay, live deletion or production action is authorized.
+This approved scope supersedes NG-002's exclusion of per-message deletion only
+for the described own-message Delete for me action.
+
 ## Conversation account block action: 2026-10-31
 
 FR-009 / NFR-006 / AC-009/023: user requested Block account in conversation

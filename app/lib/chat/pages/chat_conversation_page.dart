@@ -9,6 +9,7 @@ import 'package:craftsky_app/chat/models/chat_conversation.dart';
 import 'package:craftsky_app/chat/models/chat_draft.dart';
 import 'package:craftsky_app/chat/models/chat_identifier.dart';
 import 'package:craftsky_app/chat/models/chat_link_target.dart';
+import 'package:craftsky_app/chat/models/chat_message.dart';
 import 'package:craftsky_app/chat/models/chat_state.dart';
 import 'package:craftsky_app/chat/models/text_validation.dart';
 import 'package:craftsky_app/chat/providers/chat_providers.dart';
@@ -363,6 +364,55 @@ class _ConversationViewState extends ConsumerState<_ConversationView>
     }
   }
 
+  Future<void> _deleteMessage(ChatMessageId id) async {
+    final controller = widget.controller;
+    final message = controller.history.messages
+        .where((message) => message.id == id)
+        .firstOrNull;
+    final lease = ref.read(sessionRegistryProvider).value?.activeLease;
+    if (lease?.session.account != controller.account ||
+        message?.kind != ChatMessageKind.text ||
+        message?.senderDid != controller.account.did) {
+      return;
+    }
+    final operation = ActiveAccountOperation.fromWidget(ref, lease);
+    bool current() =>
+        mounted &&
+        operation.isCurrent &&
+        widget.controller == controller &&
+        widget.canOperate &&
+        !_blocking &&
+        !controller.busy &&
+        (ModalRoute.of(context)?.isCurrent ?? true);
+    if (!current()) return;
+    final l10n = AppLocalizations.of(context);
+    final confirmed = await showCraftskyDestructiveConfirmDialog(
+      context,
+      title: l10n.chatDeleteMessageTitle,
+      message: l10n.chatDeleteMessageBody,
+      cancelLabel: l10n.actionCancel,
+      confirmLabel: l10n.chatDeleteForMe,
+    );
+    if (!confirmed || !current()) return;
+    final latest = controller.history.messages
+        .where((message) => message.id == id)
+        .firstOrNull;
+    if (latest?.kind != message!.kind ||
+        latest?.revision != message.revision ||
+        latest?.senderDid != message.senderDid ||
+        latest?.text != message.text) {
+      return;
+    }
+    try {
+      final deleted = await operation.step(() => controller.deleteMessage(id));
+      if (mounted && deleted && current()) {
+        context.showInfo(l10n.chatDeleteMessageSuccess);
+      }
+    } on AccountOperationDiscarded {
+      return;
+    }
+  }
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     _resumed = state == AppLifecycleState.resumed;
@@ -523,6 +573,9 @@ class _ConversationViewState extends ConsumerState<_ConversationView>
                   owner: controller.account.did,
                   onLoadOlder: controller.loadOlder,
                   onReport: widget.onReport,
+                  onDelete: widget.canOperate && !controller.busy && !blockBusy
+                      ? (id) => unawaited(_deleteMessage(id))
+                      : null,
                   onLink: _openLink,
                   messageFooterBuilder:
                       conversation.bucket == ChatBucket.accepted

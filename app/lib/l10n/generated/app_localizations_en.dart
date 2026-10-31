@@ -4937,6 +4937,19 @@ class AppLocalizationsEn extends AppLocalizations {
   String get chatLeave => 'Leave';
 
   @override
+  String get chatDeleteForMe => 'Delete for me';
+
+  @override
+  String get chatDeleteMessageTitle => 'Delete message for me?';
+
+  @override
+  String get chatDeleteMessageBody =>
+      'This removes the message from your view of the conversation. The other person will still be able to see it.';
+
+  @override
+  String get chatDeleteMessageSuccess => 'Message deleted for you.';
+
+  @override
   String get chatLeaveExplanation =>
       'Leaving also affects your shared inbox in other apps. CraftSky will stop showing this conversation; this does not delete the other person’s messages.';
 

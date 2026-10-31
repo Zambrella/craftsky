@@ -308,6 +308,20 @@ final class ApiChatRepository implements ChatRepository {
   }
 
   @override
+  Future<void> deleteMessage(
+    ChatConversationId id,
+    ChatMessageId message,
+  ) async {
+    final result = await _request(
+      'DELETE',
+      '${_conversationPath(id)}/messages/${Uri.encodeComponent(message.value)}',
+    );
+    if (result['deleted'] != true) {
+      throw const FormatException('Invalid messaging deletion result');
+    }
+  }
+
+  @override
   Future<ChatAvailability> availability(Did recipient) async =>
       ChatAvailability.fromMap(
         await _request(

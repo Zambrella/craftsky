@@ -8727,6 +8727,30 @@ abstract class AppLocalizations {
   /// **'Leave'**
   String get chatLeave;
 
+  /// Deletes an owned sent message from the viewer's inbox only.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete for me'**
+  String get chatDeleteForMe;
+
+  /// Confirmation title for own-message deletion.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete message for me?'**
+  String get chatDeleteMessageTitle;
+
+  /// Clarifies that message deletion does not unsend or delete the recipient's copy.
+  ///
+  /// In en, this message translates to:
+  /// **'This removes the message from your view of the conversation. The other person will still be able to see it.'**
+  String get chatDeleteMessageBody;
+
+  /// Feedback only after confirmed message deletion.
+  ///
+  /// In en, this message translates to:
+  /// **'Message deleted for you.'**
+  String get chatDeleteMessageSuccess;
+
   /// No description provided for @chatLeaveExplanation.
   ///
   /// In en, this message translates to:

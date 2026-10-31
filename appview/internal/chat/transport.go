@@ -49,7 +49,7 @@ func methodAudience(verb string, method syntax.NSID) (string, bool) {
 	} else if verb == http.MethodPost {
 		switch method {
 		case "chat.bsky.convo.sendMessage", "chat.bsky.convo.updateRead", "chat.bsky.convo.acceptConvo",
-			"chat.bsky.convo.muteConvo", "chat.bsky.convo.unmuteConvo", "chat.bsky.convo.leaveConvo":
+			"chat.bsky.convo.muteConvo", "chat.bsky.convo.unmuteConvo", "chat.bsky.convo.leaveConvo", "chat.bsky.convo.deleteMessageForSelf":
 			return auth.ChatServiceAudience, true
 		case "com.atproto.moderation.createReport":
 			return auth.ChatReportAudience, true

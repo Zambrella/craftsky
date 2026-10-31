@@ -1,5 +1,66 @@
 # TDD Implementation Plan: Direct Messaging
 
+## Delete for me TDD: 2026-10-31
+
+FR-020 / AC-030; explicit user approval includes Delete for me semantics and
+normal messaging permission expansion, with no existing-session compatibility.
+1. DEL-001 red/green backend permission/own-message delete and strict HTTP contract.
+2. DEL-002 red/green client URL, confirmed removal, stale-page suppression and
+   failure/owner/access/duplicate guards without losing drafts/outgoing state.
+3. DEL-003 red/green owned-text menu, confirmation, themed feedback and stale
+   actions; pending/received/deleted messages have no delete action.
+4. Affected backend race/auth/routes gates, messaging tests, analysis/formatting,
+   local AppView rebuild/health check, simulator reload and evidence.
+No live messages deleted; no migration, commit, push or production action.
+All selected loops complete:
+- DEL-001 HTTP red rejected the new action; green validates identifiers, no
+  body/query and authenticated no-store dispatch. Service red returned unsupported;
+  green requires delete scope, enabled/current exact child, supported direct
+  membership/profiles and upstream sender=owner. Tests cover requests, foreign
+  members/conversations, received/missing/deleted/unsupported messages, revoked
+  child, disabled access, malformed identifiers/provider output and transport
+  failure. Fixed audience/body verified; no automatic replay. An older-page test
+  verifies the server-retained page hint beyond the normal bounded scan.
+- DEL-002 client red lacked delete APIs; green validates {deleted:true}, removes
+  only after success and retains draft/cursor/other messages. Successful IDs
+  suppress stale refresh/older-page content and remove just-sent outgoing mirrors.
+  Held requests reject duplicate actions. Network failure retains the message;
+  access loss, owner change and disposal discard stale completion. Disposal's
+  existing privacy cleanup intentionally clears in-memory draft state.
+- DEL-003 red lacked adapter onDelete. Green covers red long-press/secondary-click
+  own-message action, recipient-retention confirmation, cancel, held request,
+  success/error feedback and preserved draft. Received/deleted/unsupported/local
+  pending messages cannot delete. Menu changes in owner/history/revision/disposal
+  and changed message/account during confirmation discard stale actions.
+
+The changed-message confirmation test exposed preview invalidation during widget
+build. Preview refresh now hides stale content and invalidates after the frame,
+guarded by current owner/conversation/message identity and lifetime. Existing
+profile/post preview tests pass (FR-017 preservation).
+
+Full gates exposed required new-route catalogue bookkeeping: exact suspension
+classification (same denial as other messaging writes), route inventory and
+private diagnostic metadata. All corrected; serialized local/Sentry diagnostics
+verify redaction of conversation/message IDs, query credentials and opaque cause
+prose while retaining the operation. No diagnostic target becomes public.
+
+Final Flutter messaging/settings/modal-navigation suite: **242 passed**, 5 existing
+conditional skips, exit 0, 19s. Final controller suite including one additional
+just-sent-mirror regression: **27 passed**. Whole-app analysis, formatting and
+git diff --check pass. Backend race suites pass: chat 75.279s, auth 38.633s;
+API rerun 160.210s; routes final rerun 24.878s. Focused private-diagnostic race
+checks pass (1.779s). Artifacts use /private/tmp/craftsky-dm-delete- prefix:
+api-{red,green}, service-{red,green}, client-{red,green}, ui-{red,green},
+backend-race, routes-api-race, routes-final, route-contract-final, diagnostics,
+regressions, controller-final, analyze, local-build logs.
+
+Local AppView rebuilt/recreated (appview/cli compile); /healthz reports ok with
+DB ok/Tap connected and progressing. Public local OAuth metadata advertises the
+new narrow method. No debug app/DTD process exists for hot reload; device UI/live
+deletion remain unverified. No real messages deleted, migration, commit, push or
+production action. Existing sessions receive no compatibility branch, per user.
+Implementation review is the optional next stage.
+
 ## Conversation account block TDD: 2026-10-31
 
 FR-009 / NFR-006 / AC-009/023, UT-013. User request authorizes this local

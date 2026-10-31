@@ -385,6 +385,7 @@ func TestEveryAuthenticatedV1MutationHasExactSuspensionClassification(t *testing
 		"POST /v1/chat/reports",
 		"PUT /v1/chat/incoming-policy",
 		"POST /v1/chat/conversations/{id}/messages",
+		"DELETE /v1/chat/conversations/{id}/messages/{messageId}",
 		"POST /v1/chat/authorization",
 		"PATCH /v1/posts/{did}/{rkey}",
 		"DELETE /v1/posts/{did}/{rkey}/likes",

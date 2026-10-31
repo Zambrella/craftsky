@@ -1,5 +1,27 @@
 # Coding Plan: Direct Messaging
 
+## Delete for me design: 2026-10-31
+
+Add DELETE /v1/chat/conversations/{id}/messages/{messageId}, no input body/query,
+current-member write policy/no-store, JSON {deleted:true} on confirmed success.
+Extend ChatConsumer with DeleteMessage. Within withRPC and accountInSession,
+resolve supported conversation and existing server-retained older-page hint;
+currentMessage must be text sent by info.DID. Call typed upstream
+ConvoDeleteMessageForSelf_Input through fixed ChatServiceAudience and validate
+returned deleted view identity/revision/time. No automatic retry or new ledger
+kind/migration; on failure client keeps content and existing themed error/reload.
+Add exact upstream method to OptionalChatScopes and transport allowlist; ordinary
+login/reauthorization owns consent. No legacy-session compatibility branch.
+
+Repository deleteMessage uses fixed encoded route/boolean response. Controller
+retains only in-memory successfully deleted IDs to filter late history pages,
+removes accepted outgoing associations and preserves draft/cursor/other messages.
+No optimistic hiding before confirmation. Adapter onDelete is only offered for
+authoritative owned text, sharing its existing stale-message menu checks. Details
+captures lease/controller/message before shared destructive confirmation and
+rechecks on dispatch/completion; success uses shared messenger. Pending operations
+disable action. Tests follow backend -> controller/API -> UI vertical loops.
+
 ## Conversation account block action: 2026-10-31
 
 Add destructive Block account in details More menu, reusing existing localized

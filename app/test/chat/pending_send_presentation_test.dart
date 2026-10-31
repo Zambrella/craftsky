@@ -39,6 +39,7 @@ void main() {
                   return const Text('Preview');
                 },
                 onReport: (_) => fail('Pending bubbles cannot report'),
+                onDelete: (_) => fail('Pending bubbles cannot be deleted'),
               );
             },
           ),

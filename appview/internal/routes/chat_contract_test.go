@@ -77,6 +77,7 @@ func TestChatNotificationOpenRouteRequiresAuthenticationAndDevice(t *testing.T) 
 // credential/device boundary, including reads and protected receipts.
 func TestChatConversationRoutesRequireAuthenticationAndDevice(t *testing.T) {
 	for _, route := range []struct{ method, path string }{
+		{"DELETE", "/v1/chat/conversations/direct-1/messages/own-1"},
 		{"PUT", "/v1/chat/connection"}, {"GET", "/v1/chat/conversations"}, {"GET", "/v1/chat/availability"}, {"POST", "/v1/chat/conversations"}, {"GET", "/v1/chat/conversations/direct-1"}, {"GET", "/v1/chat/conversations/direct-1/details"}, {"GET", "/v1/chat/conversations/direct-1/messages"}, {"GET", "/v1/chat/operations/operation-1"}, {"PUT", "/v1/chat/conversations/direct-1/read"}, {"POST", "/v1/chat/conversations/direct-1/accept"}, {"PUT", "/v1/chat/conversations/direct-1/mute"}, {"DELETE", "/v1/chat/conversations/direct-1/mute"}, {"POST", "/v1/chat/conversations/direct-1/leave"}, {"POST", "/v1/chat/reports"}, {"GET", "/v1/chat/unread-counts"}, {"PUT", "/v1/chat/incoming-policy"},
 	} {
 		t.Run(route.method+" "+route.path, func(t *testing.T) { assertPrivateChatRouteCredentials(t, route.method, route.path) })

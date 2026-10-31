@@ -49,6 +49,7 @@ void main() {
         }
         Uri? opened;
         ChatMessageId? reported;
+        ChatMessageId? deleted;
         String? copied;
         tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
           SystemChannels.platform,
@@ -73,6 +74,7 @@ void main() {
               composer: const SizedBox.shrink(),
               onLink: (uri) => opened = uri,
               onReport: (id) => reported = id,
+              onDelete: (id) => deleted = id,
             ),
           ),
         );
@@ -89,6 +91,7 @@ void main() {
         }
 
         await menu(_peerText);
+        expect(find.text('Delete for me'), findsNothing);
         expect(reported, isNull);
         expect(find.text('Report message'), findsOneWidget);
         expect(
@@ -108,12 +111,23 @@ void main() {
         await tester.pumpAndSettle();
         expect(reported?.value, 'peer');
         await menu('Owned');
+        expect(deleted, isNull);
+        expect(find.text('Delete for me'), findsOneWidget);
+        expect(
+          tester.widget<Text>(find.text('Delete for me')).style?.color,
+          AppTheme.lightThemeData.extension<SemanticColorsTheme>()!.error,
+        );
+        await tester.tap(find.text('Delete for me'));
+        await tester.pumpAndSettle();
+        expect(deleted?.value, 'owned');
+        await menu('Owned');
         expect(find.text('Report message'), findsNothing);
         expect(find.text('Open link'), findsNothing);
         await tester.tap(find.text('Copy'));
         await tester.pumpAndSettle();
         expect(copied, 'Owned');
         await menu('Message deleted');
+        expect(find.text('Delete for me'), findsNothing);
         expect(find.text('Copy'), findsNothing);
         expect(find.text('Report message'), findsNothing);
         expect(tester.takeException(), isNull);
@@ -150,67 +164,72 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  for (final change in ['owner', 'history', 'revision', 'disposal']) {
-    testWidgets(
-      'UT-013 discards $change changes while a message menu is open',
-      (tester) async {
-        var owner = _owner;
-        var history = _history();
-        var visible = true;
-        ChatMessageId? reported;
-        late StateSetter update;
-        await tester.pumpWidget(
-          _app(
-            StatefulBuilder(
-              builder: (context, setState) {
-                update = setState;
-                return visible
-                    ? FlutterChatAdapter(
-                        owner: owner,
-                        history: history,
-                        composer: const SizedBox.shrink(),
-                        onReport: (id) => reported = id,
-                      )
-                    : const SizedBox.shrink();
-              },
+  for (final deleting in [false, true]) {
+    for (final change in ['owner', 'history', 'revision', 'disposal']) {
+      testWidgets(
+        'UT-013 discards $change changes while a message menu is open '
+        'deleting=$deleting',
+        (tester) async {
+          var owner = _owner;
+          var history = _history();
+          var visible = true;
+          ChatMessageId? reported;
+          late StateSetter update;
+          await tester.pumpWidget(
+            _app(
+              StatefulBuilder(
+                builder: (context, setState) {
+                  update = setState;
+                  return visible
+                      ? FlutterChatAdapter(
+                          owner: owner,
+                          history: history,
+                          composer: const SizedBox.shrink(),
+                          onReport: (id) => reported = id,
+                          onDelete: (id) => reported = id,
+                        )
+                      : const SizedBox.shrink();
+                },
+              ),
             ),
-          ),
-        );
-        await tester.pumpAndSettle();
-        await tester.longPress(find.text(_peerText));
-        await tester.pumpAndSettle();
-        expect(find.text('Report message'), findsOneWidget);
-        update(() {
-          switch (change) {
-            case 'owner':
-              owner = Did.parse('did:plc:other');
-            case 'history':
-              history = const ChatHistory.empty();
-            case 'revision':
-              history = const ChatHistory.empty().merge(
-                ChatMessagePage.fromMap(const {
-                  'items': [
-                    {
-                      'id': 'peer',
-                      'revision': 'r2',
-                      'kind': 'text',
-                      'text': _peerText,
-                      'senderDid': 'did:plc:peer',
-                      'sentAt': '2026-10-30T12:00:00Z',
-                    },
-                  ],
-                }),
-              );
-            case 'disposal':
-              visible = false;
-          }
-        });
-        await tester.pumpAndSettle();
-        await tester.tap(find.text('Report message'));
-        await tester.pumpAndSettle();
-        expect(reported, isNull);
-        expect(tester.takeException(), isNull);
-      },
-    );
+          );
+          await tester.pumpAndSettle();
+          final label = deleting ? 'Delete for me' : 'Report message';
+          await tester.longPress(find.text(deleting ? 'Owned' : _peerText));
+          await tester.pumpAndSettle();
+          expect(find.text(label), findsOneWidget);
+          update(() {
+            switch (change) {
+              case 'owner':
+                owner = Did.parse('did:plc:other');
+              case 'history':
+                history = const ChatHistory.empty();
+              case 'revision':
+                history = const ChatHistory.empty().merge(
+                  ChatMessagePage.fromMap({
+                    'items': [
+                      {
+                        'id': deleting ? 'owned' : 'peer',
+                        'revision': 'r2',
+                        'kind': 'text',
+                        'text': deleting ? 'Owned' : _peerText,
+                        'senderDid': deleting ? _owner.value : 'did:plc:peer',
+                        'sentAt': '2026-10-30T12:00:00Z',
+                      },
+                    ],
+                  }),
+                );
+              case 'disposal':
+                visible = false;
+            }
+          });
+          await tester.pumpAndSettle();
+          await tester.tap(find.text(label));
+          await tester.pumpAndSettle();
+          expect(reported, isNull);
+          expect(tester.takeException(), isNull);
+        },
+      );
+    }
   }
 }

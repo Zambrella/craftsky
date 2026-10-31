@@ -1356,6 +1356,12 @@
     "public": false
   },
   {
+    "method": "DELETE",
+    "path": "/v1/chat/conversations/{id}/messages/{messageId}",
+    "category": "appview.chat.messages.delete",
+    "public": false
+  },
+  {
     "method": "GET",
     "path": "/v1/chat/operations/{operationId}",
     "category": "appview.chat.receipt",

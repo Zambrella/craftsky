@@ -21,6 +21,7 @@ func OptionalChatScopes() []string {
 		"chat.bsky.convo.getConvo", "chat.bsky.convo.getMessages",
 		"chat.bsky.convo.getConvoAvailability", "chat.bsky.convo.getConvoForMembers",
 		"chat.bsky.convo.sendMessage",
+		"chat.bsky.convo.deleteMessageForSelf",
 		"chat.bsky.convo.updateRead", "chat.bsky.convo.acceptConvo",
 		"chat.bsky.convo.muteConvo", "chat.bsky.convo.unmuteConvo",
 		"chat.bsky.convo.leaveConvo", "chat.bsky.convo.getLog",
