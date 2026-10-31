@@ -113,7 +113,7 @@ func (s *SearchStore) searchProjectsObserved(
 		) re ON re.subject_uri = p.uri
 		WHERE p.is_project = true
 		  AND p.reply_root_uri IS NULL AND p.reply_parent_uri IS NULL AND p.quote_uri IS NULL
-		  AND (cardinality($2::text[]) = 0 OR ` + projectCraftValuesSQL + ` && $2::text[])
+		  AND (cardinality($2::text[]) = 0 OR lower(pp.common_craft_type) = ANY($2::text[]))
 		  AND (cardinality($3::text[]) = 0 OR lower(coalesce(pp.common_status, '')) = ANY($3::text[]))
 		  AND (cardinality($4::text[]) = 0 OR lower(coalesce(pp.pattern_difficulty, '')) = ANY($4::text[]))
 		  AND (cardinality($5::text[]) = 0 OR lower(coalesce(pp.knitting_project_type, '')) = ANY($5::text[]) OR lower(coalesce(pp.crochet_project_type, '')) = ANY($5::text[]) OR lower(coalesce(pp.quilting_project_type, '')) = ANY($5::text[]) OR lower(coalesce(pp.sewing_project_type, '')) = ANY($5::text[]))

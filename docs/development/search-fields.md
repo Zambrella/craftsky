@@ -27,8 +27,9 @@ Every applicable craft's detail fields participate. General post searches only
 use general post fields; project metadata does not spill into general posts.
 Unknown extension properties are preserved but never automatically searched.
 Top-level post `crafts` is reserved metadata: it is preserved but does not
-participate in keyword search, craft filtering, or tag discovery. Only the
-primary/additional crafts inside `project.common` have those behaviors.
+participate in keyword search, craft filtering, or tag discovery. Crafts inside
+`project.common` supply keyword search and tag discovery; only the primary craft
+supplies craft filtering.
 Facet metadata, mention DIDs, raw pattern URLs, embed contents, timestamps,
 duration-derived numeric estimates, import provenance, sponsored flags, and
 technical identifiers do not participate in keyword matching. Visible facet text
@@ -44,8 +45,9 @@ tie breaks, and query-bound cursors retain the established search semantics.
 ## Filtering and visibility
 
 Project browse filters continue to use their existing endpoint and canonical
-values. Craft filters match the primary craft or any additional craft; the
-primary craft alone owns the detail object. Keyword requests remain text-only.
+values. Craft filters match only the primary craft, so a project appears only in
+its primary craft's feed. The primary craft also owns the detail object.
+Keyword requests remain text-only.
 The primary/additional crafts are also used for grouped tag discovery. Public
 records contain no private project-management state.
 
