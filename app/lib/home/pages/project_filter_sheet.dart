@@ -1,4 +1,4 @@
-part of 'projects_page.dart';
+part of 'home_page.dart';
 
 class _ProjectFilterSheet extends StatefulWidget {
   const new({

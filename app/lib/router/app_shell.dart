@@ -61,12 +61,12 @@ const _primaryDestinations = <_DestinationSpec>[
     selectedIcon: CraftskyIcons.homeSelected,
   ),
   _DestinationSpec(
-    icon: CraftskyIcons.projects,
-    selectedIcon: CraftskyIcons.projectsSelected,
-  ),
-  _DestinationSpec(
     icon: CraftskyIcons.search,
     selectedIcon: CraftskyIcons.searchSelected,
+  ),
+  _DestinationSpec(
+    icon: CraftskyIcons.comment,
+    selectedIcon: CraftskyIconsFill.comment,
   ),
   _DestinationSpec(
     icon: CraftskyIcons.notifications,
@@ -79,10 +79,6 @@ const _primaryDestinations = <_DestinationSpec>[
 ];
 
 const _secondaryDestinations = <_DestinationSpec>[
-  _DestinationSpec(
-    icon: CraftskyIcons.comment,
-    selectedIcon: CraftskyIconsFill.comment,
-  ),
   _DestinationSpec(
     icon: CraftskyIcons.savedSection,
     selectedIcon: CraftskyIcons.savedSectionSelected,
@@ -219,15 +215,14 @@ class _AuthenticatedShellState extends ConsumerState<AuthenticatedShell> {
     }
     final location = switch (index) {
       0 => RouteLocations.feed,
-      1 => RouteLocations.projects,
-      2 => RouteLocations.search,
+      1 => RouteLocations.search,
+      2 => RouteLocations.messages,
       3 => RouteLocations.notifications,
       4 => RouteLocations.profile,
-      5 => RouteLocations.messages,
-      6 => RouteLocations.savedPosts,
-      7 => RouteLocations.scheduledPosts,
-      8 => RouteLocations.drafts,
-      9 => RouteLocations.settings,
+      5 => RouteLocations.savedPosts,
+      6 => RouteLocations.scheduledPosts,
+      7 => RouteLocations.drafts,
+      8 => RouteLocations.settings,
       _ => throw RangeError.index(index, _menuDestinations),
     };
     context.go(location);
@@ -849,7 +844,9 @@ class _ShellDrawerState extends State<_ShellDrawer> {
                                       : () => _openAccountSwitcher(context),
                                 )
                               : ExcludeSemantics(
+                                  excluding: index != 2,
                                   child: _DestinationIcon(
+                                    messaging: index == 2,
                                     icon: selectedIndex == index
                                         ? destination.selectedIcon
                                         : destination.icon,
@@ -883,8 +880,6 @@ class _ShellDrawerState extends State<_ShellDrawer> {
                               selectedIndex ==
                               _primaryDestinations.length + offset,
                           leading: _DestinationIcon(
-                            messaging:
-                                _primaryDestinations.length + offset == 5,
                             icon:
                                 selectedIndex ==
                                     _primaryDestinations.length + offset
@@ -1019,6 +1014,7 @@ class _ShellNavigationBar extends StatelessWidget {
             for (final (index, d) in _primaryDestinations.indexed)
               NavigationDestination(
                 icon: _DestinationIcon(
+                  messaging: index == 2,
                   icon: d.icon,
                   badge: index == 3 ? notificationBadge : null,
                   profileAvatarUrl: index == 4 ? profileAvatarUrl : null,
@@ -1035,6 +1031,7 @@ class _ShellNavigationBar extends StatelessWidget {
                       : null,
                 ),
                 selectedIcon: _DestinationIcon(
+                  messaging: index == 2,
                   icon: d.selectedIcon,
                   badge: index == 3 ? notificationBadge : null,
                   profileAvatarUrl: index == 4 ? profileAvatarUrl : null,
@@ -1144,7 +1141,7 @@ class _ShellNavigationRail extends StatelessWidget {
                       NavigationRailDestination(
                         icon: _DestinationIcon(
                           icon: d.icon,
-                          messaging: index == 5,
+                          messaging: index == 2,
                           badge: index == 3 ? notificationBadge : null,
                           profileIconOnly: index == 4,
                           onTapDestination: index == 4
@@ -1156,7 +1153,7 @@ class _ShellNavigationRail extends StatelessWidget {
                         ),
                         selectedIcon: _DestinationIcon(
                           icon: d.selectedIcon,
-                          messaging: index == 5,
+                          messaging: index == 2,
                           badge: index == 3 ? notificationBadge : null,
                           profileIconOnly: index == 4,
                           onTapDestination: index == 4
@@ -1316,34 +1313,33 @@ ButtonStyle _utilityLinkButtonStyle() => TextButton.styleFrom(
 );
 
 String _destinationLabel(AppLocalizations l10n, int index) => switch (index) {
-  0 => l10n.feedTitle,
-  1 => l10n.projectsTitle,
-  2 => l10n.searchTitle,
+  0 => l10n.homeTitle,
+  1 => l10n.searchTitle,
+  2 => l10n.chatInboxTitle,
   3 => l10n.notificationsTitle,
   4 => l10n.navigationProfile,
-  5 => l10n.chatInboxTitle,
-  6 => l10n.navigationSaved,
-  7 => l10n.navigationScheduled,
-  8 => l10n.draftsTitle,
-  9 => l10n.profileSettingsAction,
+  5 => l10n.navigationSaved,
+  6 => l10n.navigationScheduled,
+  7 => l10n.draftsTitle,
+  8 => l10n.profileSettingsAction,
   _ => throw RangeError.index(index, _menuDestinations),
 };
 
 int _selectedDestinationIndex(String matchedLocation, int branchIndex) {
-  if (matchedLocation.startsWith(RouteLocations.messages)) return 5;
-  if (matchedLocation == RouteLocations.messagingSettings) return 9;
-  if (matchedLocation.startsWith(RouteLocations.savedPosts)) return 6;
-  if (matchedLocation.startsWith(RouteLocations.scheduledPosts)) return 7;
-  if (matchedLocation.startsWith(RouteLocations.drafts)) return 8;
-  if (matchedLocation.startsWith(RouteLocations.settings)) return 9;
+  if (matchedLocation.startsWith(RouteLocations.messages)) return 2;
+  if (matchedLocation == RouteLocations.messagingSettings) return 8;
+  if (matchedLocation.startsWith(RouteLocations.savedPosts)) return 5;
+  if (matchedLocation.startsWith(RouteLocations.scheduledPosts)) return 6;
+  if (matchedLocation.startsWith(RouteLocations.drafts)) return 7;
+  if (matchedLocation.startsWith(RouteLocations.settings)) return 8;
   return branchIndex;
 }
 
 int _destinationIndexForLocation(String matchedLocation) {
   final personalDestination = _selectedDestinationIndex(matchedLocation, 4);
   if (personalDestination != 4) return personalDestination;
-  if (matchedLocation.startsWith(RouteLocations.projects)) return 1;
-  if (matchedLocation.startsWith(RouteLocations.search)) return 2;
+  if (matchedLocation.startsWith(RouteLocations.projects)) return 0;
+  if (matchedLocation.startsWith(RouteLocations.search)) return 1;
   if (matchedLocation.startsWith(RouteLocations.notifications)) return 3;
   if (matchedLocation.startsWith(RouteLocations.profile)) return 4;
   return 0;

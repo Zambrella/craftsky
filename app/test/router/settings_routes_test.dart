@@ -150,7 +150,7 @@ void main() {
     expect(find.byType(NavigationRail), findsOneWidget);
     expect(
       tester.widget<NavigationRail>(find.byType(NavigationRail)).selectedIndex,
-      9,
+      8,
     );
     expect(find.byType(NavigationBar), findsNothing);
 
@@ -461,7 +461,7 @@ void main() {
             tester
                 .widget<NavigationRail>(find.byType(NavigationRail))
                 .selectedIndex,
-            9,
+            8,
           );
         }
       },

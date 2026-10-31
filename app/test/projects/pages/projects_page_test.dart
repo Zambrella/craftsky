@@ -6,11 +6,15 @@ import 'package:craftsky_app/feed/models/interaction_write_response.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/post_comment_section.dart';
 import 'package:craftsky_app/feed/models/post_page.dart';
+import 'package:craftsky_app/feed/models/timeline_page.dart';
+import 'package:craftsky_app/feed/pages/feed_page.dart';
 import 'package:craftsky_app/feed/pages/post_thread_page.dart';
+import 'package:craftsky_app/feed/providers/feed_reselect_provider.dart';
 import 'package:craftsky_app/feed/providers/like_post_overlay.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/feed/providers/toggle_like_post_provider.dart';
 import 'package:craftsky_app/feed/widgets/post_card.dart';
+import 'package:craftsky_app/home/pages/home_page.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/languages/models/language_preferences.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
@@ -19,15 +23,16 @@ import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
 import 'package:craftsky_app/projects/models/project_browse_filters.dart';
 import 'package:craftsky_app/projects/options/project_option.dart';
 import 'package:craftsky_app/projects/options/project_option_catalogs.dart';
-import 'package:craftsky_app/projects/pages/projects_page.dart';
 import 'package:craftsky_app/projects/providers/preferred_project_crafts_provider.dart';
 import 'package:craftsky_app/projects/providers/project_feed_provider.dart';
 import 'package:craftsky_app/projects/providers/project_repository_provider.dart';
+import 'package:craftsky_app/search/models/search_sort.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/shared/mutations/pds_record_operation_controller.dart';
 import 'package:craftsky_app/shared/widgets/craft_icon.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
+import 'package:craftsky_app/shared/widgets/sort_menu_button.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/craftsky_floating_action_button.dart';
 import 'package:craftsky_app/theme/craftsky_form_builder_select_fields.dart';
@@ -68,6 +73,8 @@ Future<void> _pumpProjects(
   FakeProjectRepository repository, {
   List<ProjectOption>? craftTypes,
   Future<Profile>? profile,
+  bool following = false,
+  FakePostRepository? timelineRepository,
 }) async {
   await tester.pumpWidget(
     ProviderScope(
@@ -85,6 +92,13 @@ Future<void> _pumpProjects(
             contentLanguages: ['en'],
           ),
         ),
+        postRepositoryProvider.overrideWithValue(
+          timelineRepository ??
+              FakePostRepository(
+                onListTimeline: ({cursor, limit}) async =>
+                    const TimelinePage(items: []),
+              ),
+        ),
         projectRepositoryProvider.overrideWithValue(repository),
         if (craftTypes != null)
           preferredProjectCraftsProvider.overrideWithValue(craftTypes),
@@ -93,7 +107,13 @@ Future<void> _pumpProjects(
         theme: AppTheme.lightThemeData,
         localizationsDelegates: appLocalizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
-        home: const ProjectsPage(),
+        home: HomePage(
+          craft: following
+              ? null
+              : (craftTypes ?? ProjectOptionCatalogs.craftTypes).first.value
+                    .split('#')
+                    .last,
+        ),
       ),
     ),
   );
@@ -101,6 +121,135 @@ Future<void> _pumpProjects(
 
 void main() {
   setUpAll(initializeMappers);
+
+  testWidgets('Home defaults to Feed and switches contextual controls', (
+    tester,
+  ) async {
+    var timelineReads = 0;
+    final queries = <ProjectBrowseQuery>[];
+    await _pumpProjects(
+      tester,
+      FakeProjectRepository(
+        onListProjects: ({required query, limit, cursor}) async {
+          queries.add(query);
+          return const PostPage(items: []);
+        },
+      ),
+      following: true,
+      timelineRepository: FakePostRepository(
+        onListTimeline: ({cursor, limit}) async {
+          timelineReads++;
+          return const TimelinePage(items: []);
+        },
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Home'), findsOneWidget);
+    expect(tester.widget<TabBar>(find.byType(TabBar)).controller!.index, 0);
+    final followingTab = find.ancestor(
+      of: find.text('Following'),
+      matching: find.byType(Tab),
+    );
+    expect(followingTab, findsOneWidget);
+    expect(
+      find.descendant(
+        of: followingTab,
+        matching: find.byIcon(CraftskyIcons.people),
+      ),
+      findsOneWidget,
+    );
+    expect(find.byTooltip('New post'), findsOneWidget);
+    expect(find.byTooltip('Filters'), findsNothing);
+    expect(find.byType(SortMenuButton<SearchSort>), findsNothing);
+    expect(timelineReads, 1);
+    expect(queries, isEmpty);
+    await tester.tap(find.text('Knitting'));
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('New post'), findsNothing);
+    expect(find.byTooltip('Filters'), findsOneWidget);
+    final sort = find.byType(SortMenuButton<SearchSort>);
+    expect(sort, findsOneWidget);
+    tester
+        .widget<SortMenuButton<SearchSort>>(sort)
+        .onChanged(SearchSort.popular);
+    await tester.pumpAndSettle();
+    expect(queries.last.sort, SearchSort.popular);
+    await tester.tap(find.text('Crochet'));
+    await tester.pumpAndSettle();
+    expect(
+      tester.widget<SortMenuButton<SearchSort>>(sort).selectedValue,
+      SearchSort.chronological,
+    );
+    await tester.tap(find.text('Knitting'));
+    await tester.pumpAndSettle();
+    expect(
+      tester.widget<SortMenuButton<SearchSort>>(sort).selectedValue,
+      SearchSort.popular,
+    );
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(HomePage)),
+    );
+    container.read(feedReselectProvider.notifier).reselect();
+    await tester.pumpAndSettle();
+    expect(
+      timelineReads,
+      1,
+      reason: 'Reselecting Home refreshes only the active craft',
+    );
+    await tester.tap(find.text('Following'));
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('New post'), findsOneWidget);
+    expect(
+      timelineReads,
+      1,
+      reason: 'Changing tabs retains the timeline subscription',
+    );
+    container.read(feedReselectProvider.notifier).reselect();
+    await tester.pumpAndSettle();
+    expect(timelineReads, 2);
+  });
+
+  testWidgets('Feed retains its loaded rows and offset between craft tabs', (
+    tester,
+  ) async {
+    var reads = 0;
+    await _pumpProjects(
+      tester,
+      FakeProjectRepository(
+        onListProjects: ({required query, limit, cursor}) async =>
+            const PostPage(items: []),
+      ),
+      following: true,
+      timelineRepository: FakePostRepository(
+        onListTimeline: ({cursor, limit}) async {
+          reads++;
+          return TimelinePage(
+            items: [
+              for (var i = 0; i < 30; i++)
+                TimelineItem(itemKey: 'post:$i', post: _post(i)),
+            ],
+          );
+        },
+      ),
+    );
+    await tester.pumpAndSettle();
+    final scroll = find.descendant(
+      of: find.byType(FeedPage),
+      matching: find.byType(CustomScrollView),
+    );
+    ScrollPosition position() =>
+        tester.widget<CustomScrollView>(scroll).controller!.position;
+    await tester.drag(scroll, const Offset(0, -1000));
+    await tester.pumpAndSettle();
+    final offset = position().pixels;
+    expect(offset, greaterThan(200));
+    await tester.tap(find.text('Knitting'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Following'));
+    await tester.pumpAndSettle();
+    expect(reads, 1);
+    expect(position().pixels, closeTo(offset, 0.01));
+  });
 
   for (final (freshDetail, numberOfLikes) in [
     (false, 1),
@@ -123,7 +272,7 @@ void main() {
           routes: [
             GoRoute(
               path: '/projects',
-              builder: (_, _) => const ProjectsPage(),
+              builder: (_, _) => const HomePage(craft: 'knitting'),
             ),
             GoRoute(
               path: '/posts/:did/:rkey',
@@ -152,6 +301,15 @@ void main() {
                   contentLanguages: ['en'],
                 ),
               ),
+              // Keep overlay expiry separate from the navigation assertions.
+              pdsRecordOperationControllerProvider.overrideWith((ref) {
+                final controller = PdsRecordOperationController(
+                  now: () => DateTime.utc(2026, 10, 29),
+                  schedule: (_, _) {},
+                );
+                ref.onDispose(controller.reset);
+                return controller;
+              }),
               projectRepositoryProvider.overrideWithValue(
                 FakeProjectRepository(
                   onListProjects: ({required query, limit, cursor}) async {
@@ -202,7 +360,7 @@ void main() {
           ),
         );
         await tester.pumpAndSettle();
-        final projectsElement = tester.element(find.byType(ProjectsPage));
+        final projectsElement = tester.element(find.byType(HomePage));
         final container = ProviderScope.containerOf(projectsElement);
         final controller = container.read(pdsRecordOperationControllerProvider);
         final scope = likePostMutationScopeForLease(null, post);
@@ -239,7 +397,7 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(
-          identical(tester.element(find.byType(ProjectsPage)), projectsElement),
+          identical(tester.element(find.byType(HomePage)), projectsElement),
           isTrue,
         );
         expect(
@@ -285,7 +443,12 @@ void main() {
         return const PostPage(items: []);
       },
     );
-    await _pumpProjects(tester, repository, profile: gate.future);
+    await _pumpProjects(
+      tester,
+      repository,
+      profile: gate.future,
+      following: true,
+    );
     await tester.pumpAndSettle();
     gate.complete(
       Profile(
@@ -297,16 +460,18 @@ void main() {
     await tester.pumpAndSettle();
     final tabs = tester.widget<TabBar>(find.byType(TabBar));
     expect(
-      tabs.tabs.map((tab) => ((tab as Tab).child! as CraftIconLabel).label),
+      tabs.tabs
+          .skip(1)
+          .map((tab) => ((tab as Tab).child! as CraftIconLabel).label),
       ['Quilting', 'Sewing', 'Knitting', 'Crochet', 'Embroidery'],
     );
     expect(tabs.controller!.index, 0);
-    expect(requestedCrafts, contains(ProjectOptionCatalogs.quiltingCraftToken));
+    expect(requestedCrafts, isEmpty);
     await tester.tap(find.text('Sewing'));
     await tester.pumpAndSettle();
-    expect(tabs.controller!.index, 1);
+    expect(tabs.controller!.index, 2);
     final container = ProviderScope.containerOf(
-      tester.element(find.byType(ProjectsPage)),
+      tester.element(find.byType(HomePage)),
     );
     container
         .read(userProfileProvider(Did.parse('did:plc:test')).notifier)
@@ -320,9 +485,12 @@ void main() {
     await tester.pumpAndSettle();
     expect(
       tabs.controller!.index,
-      ProjectOptionCatalogs.craftTypesForPreferences(['quilting']).indexWhere(
-        (craft) => craft.value == ProjectOptionCatalogs.sewingCraftToken,
-      ),
+      1 +
+          ProjectOptionCatalogs.craftTypesForPreferences(['quilting'])
+              .indexWhere(
+                (craft) =>
+                    craft.value == ProjectOptionCatalogs.sewingCraftToken,
+              ),
     );
     expect(requestedCrafts, contains(ProjectOptionCatalogs.sewingCraftToken));
     await tester.tap(find.text('Quilting'));
@@ -432,7 +600,7 @@ void main() {
             theme: AppTheme.lightThemeData,
             localizationsDelegates: appLocalizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
-            home: const ProjectsPage(),
+            home: const HomePage(craft: 'knitting'),
           ),
         ),
       ),
@@ -771,13 +939,13 @@ void main() {
     final tabs = tester.widget<TabBar>(find.byType(TabBar));
     tabs.controller!.animateTo(tabs.tabs.length - 1);
     await tester.pumpAndSettle();
-    tabs.controller!.animateTo(0);
+    tabs.controller!.animateTo(1);
     await tester.pumpAndSettle();
     expect(requests[knitting], 1);
     expect(position().pixels, closeTo(offset, 0.01));
 
     // Retention ends when the Projects page is removed.
-    final context = tester.element(find.byType(ProjectsPage));
+    final context = tester.element(find.byType(HomePage));
     final container = ProviderScope.containerOf(context);
     final feed = projectFeedProvider(
       const ProjectBrowseQuery(craftTypes: [knitting]),
@@ -853,7 +1021,7 @@ void main() {
           theme: AppTheme.lightThemeData,
           localizationsDelegates: appLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
-          home: const ProjectsPage(),
+          home: const HomePage(craft: 'knitting'),
         ),
       ),
     );
@@ -1024,7 +1192,7 @@ void main() {
           theme: AppTheme.lightThemeData,
           localizationsDelegates: appLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
-          home: const ProjectsPage(),
+          home: const HomePage(craft: 'knitting'),
         ),
       ),
     );

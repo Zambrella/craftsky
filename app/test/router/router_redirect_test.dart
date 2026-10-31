@@ -30,6 +30,7 @@ import 'package:craftsky_app/feed/models/timeline_page.dart';
 import 'package:craftsky_app/feed/pages/feed_page.dart';
 import 'package:craftsky_app/feed/pages/post_thread_page.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
+import 'package:craftsky_app/home/pages/home_page.dart';
 import 'package:craftsky_app/initialization_loading_screen.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/languages/models/language_preferences.dart';
@@ -41,6 +42,9 @@ import 'package:craftsky_app/onboarding/pages/onboarding_page.dart';
 import 'package:craftsky_app/onboarding/providers/onboarding_flow_provider.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
+import 'package:craftsky_app/projects/options/project_option_catalogs.dart';
+import 'package:craftsky_app/projects/providers/preferred_project_crafts_provider.dart';
+import 'package:craftsky_app/projects/providers/project_repository_provider.dart';
 import 'package:craftsky_app/router/route_locations.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/service_status/status_destinations.dart';
@@ -56,6 +60,7 @@ import 'package:material_ui/material_ui.dart';
 import '../fakes/auth_session_fakes.dart';
 import '../feed/fakes/fake_post_repository.dart';
 import '../profile/fakes/fake_profile_repository.dart';
+import '../projects/fakes/fake_project_repository.dart';
 
 ActiveAccountInitialization _initialization(bool completed) =>
     ActiveAccountInitialization(
@@ -345,7 +350,7 @@ void main() {
       ].map(statusDestinationLocation),
       [
         '/feed',
-        '/projects',
+        '/feed',
         '/search',
         '/notifications',
         '/profile',
@@ -572,6 +577,12 @@ void main() {
     testWidgets('SignedIn + onboarded + /welcome → FeedPage', (tester) async {
       final container = ProviderContainer.test(
         overrides: [
+          projectRepositoryProvider.overrideWithValue(
+            FakeProjectRepository(
+              onListProjects: ({required query, limit, cursor}) async =>
+                  const PostPage(items: []),
+            ),
+          ),
           authSessionProvider.overrideWith(SignedInAuthSession.new),
           secureSessionRegistryStorageProvider.overrideWithValue(
             _RegistryStorage(_activeTestRegistry()),
@@ -595,6 +606,24 @@ void main() {
       );
       await _pumpRouter(tester, container);
       expect(find.byType(FeedPage), findsOneWidget);
+      expect(find.byType(HomePage), findsOneWidget);
+      expect(tester.widget<TabBar>(find.byType(TabBar)).controller!.index, 0);
+      final router = container.read(goRouterProvider)
+        ..go('/projects?craft=knitting');
+      await tester.pumpAndSettle();
+      expect(
+        router.routeInformationProvider.value.uri.toString(),
+        '/feed?craft=knitting',
+      );
+      expect(find.byType(HomePage), findsOneWidget);
+      expect(
+        tester.widget<TabBar>(find.byType(TabBar)).controller!.index,
+        greaterThan(0),
+      );
+      expect(
+        tester.widget<NavigationBar>(find.byType(NavigationBar)).selectedIndex,
+        0,
+      );
     });
 
     testWidgets('SignedIn + onboarded can open Add account', (tester) async {
@@ -665,6 +694,9 @@ void main() {
           overrides: [
             // This handoff test isolates navigation from account background I/O.
             // Messaging ownership/resume is covered by chat_session_scope_test.
+            preferredProjectCraftsProvider.overrideWithValue(
+              ProjectOptionCatalogs.craftTypes,
+            ),
             chatSessionRuntimeProvider.overrideWith((ref) => null),
             secureSessionRegistryStorageProvider.overrideWithValue(storage),
             subscriptionAccessProvider.overrideWith(
@@ -729,6 +761,8 @@ void main() {
         expect(registry.sessions.keys, {'did:plc:alice', 'did:plc:bob'});
         expect(registry.activeDid?.value, 'did:plc:bob');
         expect(find.byType(FeedPage), findsOneWidget);
+        await tester.pumpWidget(const SizedBox.shrink());
+        container.dispose();
       },
     );
 

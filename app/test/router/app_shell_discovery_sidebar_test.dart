@@ -6,6 +6,9 @@ import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/bootstrap.dart';
 import 'package:craftsky_app/feed/models/post_page.dart';
+import 'package:craftsky_app/feed/models/timeline_page.dart';
+import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
+import 'package:craftsky_app/home/pages/home_page.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/languages/models/language_preferences.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
@@ -23,7 +26,6 @@ import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
 import 'package:craftsky_app/profile/widgets/profile_account_list_tile.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar_hero.dart';
-import 'package:craftsky_app/projects/pages/projects_page.dart';
 import 'package:craftsky_app/projects/providers/preferred_craft_links_provider.dart';
 import 'package:craftsky_app/projects/providers/project_repository_provider.dart';
 import 'package:craftsky_app/router/app_shell.dart';
@@ -48,6 +50,7 @@ import 'package:material_ui/material_ui.dart';
 
 import '../fakes/auth_session_fakes.dart';
 import '../fakes/recording_messenger.dart';
+import '../feed/fakes/fake_post_repository.dart';
 import '../profile/fakes/fake_profile_repository.dart';
 import '../projects/fakes/fake_project_repository.dart';
 
@@ -151,17 +154,13 @@ Future<GoRouter> _pumpSidebar(
             ),
           GoRoute(
             path: '/feed',
-            builder: (context, state) => Scaffold(
-              body: TextButton(
-                onPressed: () {},
-                child: const Text('Feed content'),
-              ),
-            ),
+            builder: (context, state) =>
+                HomePage(craft: state.uri.queryParameters['craft']),
           ),
           GoRoute(
             path: '/projects',
-            builder: (context, state) =>
-                ProjectsPage(craft: state.uri.queryParameters['craft']),
+            redirect: (context, state) =>
+                FeedRoute(craft: state.uri.queryParameters['craft']).location,
           ),
         ],
       ),
@@ -214,6 +213,12 @@ Future<GoRouter> _pumpSidebar(
             contentLanguages: ['en'],
           ),
         ),
+        postRepositoryProvider.overrideWithValue(
+          FakePostRepository(
+            onListTimeline: ({cursor, limit}) async =>
+                const TimelinePage(items: []),
+          ),
+        ),
         projectRepositoryProvider.overrideWithValue(
           FakeProjectRepository(
             onListProjects: ({required query, limit, cursor}) async {
@@ -255,10 +260,10 @@ Future<void> _pumpFrames(WidgetTester tester) async {
   }
 }
 
-String _selectedCraft(WidgetTester tester) {
+String? _selectedCraft(WidgetTester tester) {
   final tabs = tester.widget<TabBar>(find.byType(TabBar));
-  return ((tabs.tabs[tabs.controller!.index] as Tab).child! as CraftIconLabel)
-      .craft;
+  final child = (tabs.tabs[tabs.controller!.index] as Tab).child;
+  return child is CraftIconLabel ? child.craft : null;
 }
 
 void main() {
@@ -309,7 +314,10 @@ void main() {
           );
           expect(find.byType(NavigationRail), findsOneWidget);
         }
-        expect(router.state.matchedLocation, destination);
+        expect(
+          router.state.matchedLocation,
+          destination == '/projects' ? '/feed' : destination,
+        );
         expect(tester.takeException(), isNull);
       }
       expect(reads, width > 1200 ? greaterThan(0) : 0);
@@ -934,7 +942,7 @@ void main() {
         ),
         membersPending ? findsOneWidget : findsNothing,
       );
-      expect(find.text('Feed content'), findsOneWidget);
+      expect(find.text('Home'), findsWidgets);
       expect(find.text('Choose your crafts'), findsNothing);
       if (profilePending) {
         profileGate.completeError(const ApiServerError('profile test failure'));
@@ -1206,7 +1214,7 @@ void main() {
     expect(queries, contains('social.craftsky.feed.defs#quilting'));
     router.go('/projects');
     await tester.pumpAndSettle();
-    expect(_selectedCraft(tester), 'social.craftsky.feed.defs#sewing');
+    expect(_selectedCraft(tester), isNull);
   });
   for (final input in [null, 'unknown', 'bad#token', 'sewing']) {
     testWidgets('UT-002 craft boundary $input', (tester) async {
@@ -1218,17 +1226,15 @@ void main() {
       );
       expect(
         _selectedCraft(tester),
-        input == 'sewing'
-            ? 'social.craftsky.feed.defs#sewing'
-            : 'social.craftsky.feed.defs#knitting',
+        input == 'sewing' ? 'social.craftsky.feed.defs#sewing' : null,
       );
-      final router = GoRouter.of(tester.element(find.byType(ProjectsPage)))
+      final router = GoRouter.of(tester.element(find.byType(HomePage)))
         ..go('/projects?craft=quilting');
       await tester.pumpAndSettle();
       expect(_selectedCraft(tester), 'social.craftsky.feed.defs#quilting');
       router.go('/projects?craft=unknown');
       await tester.pumpAndSettle();
-      expect(_selectedCraft(tester), 'social.craftsky.feed.defs#knitting');
+      expect(_selectedCraft(tester), isNull);
     });
   }
   testWidgets(
@@ -1294,7 +1300,7 @@ void main() {
         await tester.pumpAndSettle();
         expect(_selectedCraft(tester), 'social.craftsky.feed.defs#knitting');
         final container = ProviderScope.containerOf(
-          tester.element(find.byType(ProjectsPage)),
+          tester.element(find.byType(HomePage)),
         );
         expect(
           container

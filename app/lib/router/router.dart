@@ -17,11 +17,11 @@ import 'package:craftsky_app/chat/widgets/chat_session_scope.dart';
 import 'package:craftsky_app/design_playground/pages/design_playground_page.dart';
 import 'package:craftsky_app/drafts/pages/drafts_page.dart';
 import 'package:craftsky_app/feed/models/post.dart';
-import 'package:craftsky_app/feed/pages/feed_page.dart';
 import 'package:craftsky_app/feed/pages/post_interaction_accounts_page.dart';
 import 'package:craftsky_app/feed/pages/post_quotes_page.dart';
 import 'package:craftsky_app/feed/pages/post_thread_page.dart';
 import 'package:craftsky_app/feed/providers/post_interaction_lists_provider.dart';
+import 'package:craftsky_app/home/pages/home_page.dart';
 import 'package:craftsky_app/instagram_migration/pages/instagram_migration_page.dart';
 import 'package:craftsky_app/languages/pages/languages_page.dart';
 import 'package:craftsky_app/moderation/pages/account_standing_page.dart';
@@ -33,7 +33,6 @@ import 'package:craftsky_app/profile/pages/profile_mutual_followers_page.dart';
 import 'package:craftsky_app/profile/pages/profile_page.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar_hero.dart';
-import 'package:craftsky_app/projects/pages/projects_page.dart';
 import 'package:craftsky_app/router/app_shell.dart';
 import 'package:craftsky_app/router/error_screen.dart';
 import 'package:craftsky_app/router/responsive_modal_navigation.dart';
@@ -78,7 +77,6 @@ class _NavigatorKeys {
   static GlobalKey<NavigatorState>? _rootKey;
   static GlobalKey<NavigatorState>? _authenticatedShellKey;
   static GlobalKey<NavigatorState>? _feedKey;
-  static GlobalKey<NavigatorState>? _projectsKey;
   static GlobalKey<NavigatorState>? _searchKey;
   static GlobalKey<NavigatorState>? _notificationsKey;
   static GlobalKey<NavigatorState>? _savedPostsKey;
@@ -95,8 +93,6 @@ class _NavigatorKeys {
       );
   static GlobalKey<NavigatorState> get feedNavigatorKey =>
       _feedKey ??= GlobalKey<NavigatorState>(debugLabel: 'feedNavigator');
-  static GlobalKey<NavigatorState> get projectsNavigatorKey => _projectsKey ??=
-      GlobalKey<NavigatorState>(debugLabel: 'projectsNavigator');
   static GlobalKey<NavigatorState> get searchNavigatorKey =>
       _searchKey ??= GlobalKey<NavigatorState>(debugLabel: 'searchNavigator');
   static GlobalKey<NavigatorState> get notificationsNavigatorKey =>
@@ -257,10 +253,6 @@ class AccountEligibilityRoute extends GoRouteData
         TypedStatefulShellBranch<FeedBranch>(
           routes: [
             TypedGoRoute<FeedRoute>(path: RouteLocations.feed, name: 'feed'),
-          ],
-        ),
-        TypedStatefulShellBranch<ProjectsBranch>(
-          routes: [
             TypedGoRoute<ProjectsRoute>(
               path: RouteLocations.projects,
               name: 'projects',
@@ -276,6 +268,28 @@ class AccountEligibilityRoute extends GoRouteData
                 TypedGoRoute<TagSearchRoute>(
                   path: RouteLocations.searchTagsChild,
                   name: 'search-tag',
+                ),
+              ],
+            ),
+          ],
+        ),
+        TypedStatefulShellBranch<MessagesBranch>(
+          routes: [
+            TypedGoRoute<ChatInboxRoute>(
+              path: RouteLocations.messages,
+              name: 'messages',
+              routes: [
+                TypedGoRoute<ChatRequestsRoute>(
+                  path: RouteLocations.messageRequestsChild,
+                  name: 'message-requests',
+                ),
+                TypedGoRoute<NewMessageRoute>(
+                  path: RouteLocations.newMessageChild,
+                  name: 'new-message',
+                ),
+                TypedGoRoute<ChatConversationRoute>(
+                  path: RouteLocations.messageConversationChild,
+                  name: 'message-conversation',
                 ),
               ],
             ),
@@ -304,28 +318,6 @@ class AccountEligibilityRoute extends GoRouteData
                 TypedGoRoute<PlaygroundRoute>(
                   path: RouteLocations.playgroundChild,
                   name: 'playground',
-                ),
-              ],
-            ),
-          ],
-        ),
-        TypedStatefulShellBranch<MessagesBranch>(
-          routes: [
-            TypedGoRoute<ChatInboxRoute>(
-              path: RouteLocations.messages,
-              name: 'messages',
-              routes: [
-                TypedGoRoute<ChatRequestsRoute>(
-                  path: RouteLocations.messageRequestsChild,
-                  name: 'message-requests',
-                ),
-                TypedGoRoute<NewMessageRoute>(
-                  path: RouteLocations.newMessageChild,
-                  name: 'new-message',
-                ),
-                TypedGoRoute<ChatConversationRoute>(
-                  path: RouteLocations.messageConversationChild,
-                  name: 'message-conversation',
                 ),
               ],
             ),
@@ -527,15 +519,6 @@ class SearchBranch extends StatefulShellBranchData {
       _NavigatorKeys.searchNavigatorKey;
 }
 
-class ProjectsBranch extends StatefulShellBranchData {
-  const new();
-  static List<NavigatorObserver> get $observers => [
-    diagnosticNavigationObserver(),
-  ];
-  static final GlobalKey<NavigatorState> $navigatorKey =
-      _NavigatorKeys.projectsNavigatorKey;
-}
-
 class NotificationsBranch extends StatefulShellBranchData {
   const new();
   static List<NavigatorObserver> get $observers => [
@@ -600,9 +583,18 @@ class SettingsBranch extends StatefulShellBranchData {
 }
 
 class FeedRoute extends GoRouteData with $FeedRoute {
-  const new();
+  const new({this.craft});
+  final String? craft;
   @override
-  Widget build(BuildContext context, GoRouterState state) => const FeedPage();
+  Widget build(BuildContext context, GoRouterState state) => Consumer(
+    builder: (context, ref, _) => HomePage(
+      key: ValueKey(switch (ref.watch(authSessionProvider).value) {
+        SignedIn(:final did) => did.toString(),
+        _ => null,
+      }),
+      craft: craft,
+    ),
+  );
 }
 
 class ProjectsRoute extends GoRouteData with $ProjectsRoute {
@@ -610,8 +602,8 @@ class ProjectsRoute extends GoRouteData with $ProjectsRoute {
 
   final String? craft;
   @override
-  Widget build(BuildContext context, GoRouterState state) =>
-      ProjectsPage(craft: craft);
+  String redirect(BuildContext context, GoRouterState state) =>
+      FeedRoute(craft: craft).location;
 }
 
 class SearchRoute extends GoRouteData with $SearchRoute {

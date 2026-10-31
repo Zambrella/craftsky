@@ -587,7 +587,7 @@ void main() {
   for (final (label, path) in [
     ('Connect Instagram', '/settings/instagram'),
     ('Search CraftSky', '/search'),
-    ('View projects', '/projects'),
+    ('View projects', '/feed'),
   ]) {
     testWidgets('empty Feed $label opens $path on a narrow screen', (
       tester,
@@ -600,14 +600,24 @@ void main() {
       final router = GoRouter(
         initialLocation: '/feed',
         routes: [
-          GoRoute(path: '/feed', builder: (context, state) => const FeedPage()),
           GoRoute(
-            path: path,
+            path: '/feed',
             builder: (context, state) {
-              destinationPath = state.uri.path;
-              return const Scaffold(body: Text('Destination page'));
+              if (state.uri.queryParameters['craft'] != null) {
+                destinationPath = state.uri.path;
+                return const Scaffold(body: Text('Destination page'));
+              }
+              return const FeedPage();
             },
           ),
+          if (path != '/feed')
+            GoRoute(
+              path: path,
+              builder: (context, state) {
+                destinationPath = state.uri.path;
+                return const Scaffold(body: Text('Destination page'));
+              },
+            ),
         ],
       );
       addTearDown(router.dispose);

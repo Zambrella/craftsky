@@ -102,8 +102,8 @@ GoRouter _buildRouter() => GoRouter(
       branches: [
         for (final path in [
           '/feed',
-          '/projects',
           '/search',
+          '/messages',
           '/notifications',
           '/profile',
         ])

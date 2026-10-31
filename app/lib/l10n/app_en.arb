@@ -32,6 +32,10 @@
     "placeholders": { "version": { "type": "String", "example": "1.0.0" } }
   },
 
+  "homeTitle": "Home",
+  "@homeTitle": { "description": "Title for Home, containing the following feed and project discovery tabs." },
+  "homeFollowingTab": "Following",
+  "@homeFollowingTab": { "description": "Home tab showing the chronological timeline from followed accounts." },
   "feedTitle": "Feed",
   "@feedTitle": { "description": "Title for the main chronological feed page." },
 

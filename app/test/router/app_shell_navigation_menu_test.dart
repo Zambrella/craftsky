@@ -46,60 +46,148 @@ import '../feed/fakes/fake_post_repository.dart';
 import '../test_support/deterministic_pump.dart';
 
 void main() {
+  testWidgets('Home, Search, Messages lead bottom navigation and drawer', (
+    tester,
+  ) async {
+    final router = await _pumpShell(tester, const Size(500, 900));
+    final bar = tester.widget<NavigationBar>(find.byType(NavigationBar));
+    expect(bar.destinations.cast<NavigationDestination>().map((d) => d.label), [
+      'Home',
+      'Search',
+      'Messages',
+      'Notifications',
+      'Profile',
+    ]);
+    await tester.tap(find.byTooltip('Open navigation menu'));
+    await tester.pumpAndSettle();
+    final drawer = find.byType(Drawer);
+    final tiles = tester
+        .widgetList<ListTile>(
+          find.descendant(of: drawer, matching: find.byType(ListTile)),
+        )
+        .toList();
+    expect(tiles.where((tile) => tile.dense != true), hasLength(9));
+    final messages = find.descendant(
+      of: drawer,
+      matching: find.widgetWithText(ListTile, 'Messages'),
+    );
+    expect(
+      tester.getTopLeft(messages).dy,
+      greaterThan(
+        tester.getTopLeft(find.widgetWithText(ListTile, 'Search')).dy,
+      ),
+    );
+    expect(
+      tester.getTopLeft(messages).dy,
+      lessThan(
+        tester.getTopLeft(find.widgetWithText(ListTile, 'Notifications')).dy,
+      ),
+    );
+    await tester.tap(messages);
+    await tester.pumpAndSettle();
+    expect(router.state.matchedLocation, '/messages');
+    expect(
+      tester.widget<NavigationBar>(find.byType(NavigationBar)).selectedIndex,
+      2,
+    );
+  });
+
+  testWidgets('Messages is third in the rail', (tester) async {
+    final router = await _pumpShell(tester, const Size(1200, 900));
+    final rail = tester.widget<NavigationRail>(find.byType(NavigationRail));
+    expect(rail.destinations, hasLength(9));
+    expect(
+      tester.getTopLeft(find.text('Messages')).dy,
+      greaterThan(tester.getTopLeft(find.text('Search')).dy),
+    );
+    expect(
+      tester.getTopLeft(find.text('Messages')).dy,
+      lessThan(tester.getTopLeft(find.text('Notifications')).dy),
+    );
+    await tester.tap(find.text('Messages'));
+    await tester.pumpAndSettle();
+    expect(router.state.matchedLocation, '/messages');
+    expect(
+      tester.widget<NavigationRail>(find.byType(NavigationRail)).selectedIndex,
+      2,
+    );
+  });
+
   for (final wide in [false, true]) {
     testWidgets(
       'FG-002 Messages badge refreshes from Feed in '
       '${wide ? 'rail' : 'drawer'}',
       (tester) async {
-        final chat = _ChatRepository();
-        final router = await _pumpShell(
-          tester,
-          Size(wide ? 1200 : 500, 900),
-          chatRepository: chat,
-        );
-        if (!wide) {
-          await tester.tap(find.byTooltip('Open navigation menu'));
-          await tester.pumpAndSettle();
-        }
-        await tester.ensureVisible(find.text('Messages'));
-        await tester.pumpAndSettle();
-        final icons = find.byType(ChatUnreadIcon);
-        expect(icons, findsWidgets);
-        expect(
-          find.descendant(of: icons, matching: find.byType(Badge)),
-          findsNothing,
-        );
-        final initialLists = chat.listCalls;
-        for (final count in [7, 100, 0]) {
-          chat.accepted = count;
-          chat.revision++;
-          await tester.pump(const Duration(seconds: 30));
-          await tester.pumpAndSettle();
-          expect(router.state.matchedLocation, '/feed');
-          expect(chat.listCalls, greaterThan(initialLists));
-          final badges = find.descendant(
-            of: icons,
-            matching: find.byType(Badge),
+        final semantics = tester.ensureSemantics();
+        try {
+          final chat = _ChatRepository();
+          final router = await _pumpShell(
+            tester,
+            Size(wide ? 1200 : 500, 900),
+            chatRepository: chat,
           );
-          if (count == 0) {
-            expect(badges, findsNothing);
-          } else {
-            expect(
-              find.descendant(
-                of: badges,
-                matching: find.text(count == 100 ? '99+' : '$count'),
-              ),
-              findsWidgets,
-            );
+          if (!wide) {
+            await tester.tap(find.byTooltip('Open navigation menu'));
+            await tester.pumpAndSettle();
           }
+          await tester.ensureVisible(
+            find.descendant(
+              of: find.byType(wide ? NavigationRail : Drawer),
+              matching: find.text('Messages'),
+            ),
+          );
+          await tester.pumpAndSettle();
+          final icons = find.byType(ChatUnreadIcon);
+          expect(icons, findsWidgets);
           expect(
-            find.descendant(of: icons, matching: find.text('17')),
+            find.descendant(of: icons, matching: find.byType(Badge)),
             findsNothing,
           );
+          final initialLists = chat.listCalls;
+          for (final count in [7, 100, 0]) {
+            chat.accepted = count;
+            chat.revision++;
+            await tester.pump(const Duration(seconds: 30));
+            await tester.pumpAndSettle();
+            expect(router.state.matchedLocation, '/feed');
+            expect(chat.listCalls, greaterThan(initialLists));
+            final badges = find.descendant(
+              of: icons,
+              matching: find.byType(Badge),
+            );
+            if (count == 0) {
+              expect(badges, findsNothing);
+            } else {
+              expect(
+                find.descendant(
+                  of: badges,
+                  matching: find.text(count == 100 ? '99+' : '$count'),
+                ),
+                findsWidgets,
+              );
+            }
+            if (count != 0) {
+              final label = count == 100 ? '99+' : '$count';
+              expect(
+                find.bySemanticsLabel(
+                  RegExp(
+                    '${RegExp.escape(label)} unread conversations',
+                  ),
+                ),
+                findsWidgets,
+              );
+            }
+            expect(
+              find.descendant(of: icons, matching: find.text('17')),
+              findsNothing,
+            );
+          }
+          expect(tester.takeException(), isNull);
+          await tester.pumpWidget(const SizedBox.shrink());
+          await tester.pumpAndSettle();
+        } finally {
+          semantics.dispose();
         }
-        expect(tester.takeException(), isNull);
-        await tester.pumpWidget(const SizedBox.shrink());
-        await tester.pumpAndSettle();
       },
     );
   }
@@ -166,12 +254,12 @@ void main() {
           if (surface == 'drawer') {
             await tester.tap(find.byTooltip('Open navigation menu'));
             await tester.pumpAndSettle();
-            await tester.tap(find.widgetWithText(ListTile, 'Feed'));
+            await tester.tap(find.widgetWithText(ListTile, 'Home'));
           } else {
             await tester.tap(
               find.descendant(
                 of: find.byType(large ? NavigationRail : NavigationBar),
-                matching: find.text('Feed'),
+                matching: find.text('Home'),
               ),
             );
           }
@@ -188,7 +276,7 @@ void main() {
         await tapHome();
         expect(loads, 3);
 
-        router.go('/projects');
+        router.go('/search');
         await tester.pumpAndSettle();
         await tapHome();
         expect(router.state.matchedLocation, '/feed');
@@ -221,8 +309,7 @@ void main() {
     final drawer = find.byType(Drawer);
     expect(drawer, findsOneWidget);
     for (final label in [
-      'Feed',
-      'Projects',
+      'Home',
       'Search',
       'Notifications',
       'Profile',
@@ -275,7 +362,7 @@ void main() {
 
     expect(find.byType(Drawer), findsOneWidget);
     expect(
-      find.descendant(of: find.byType(Drawer), matching: find.text('Feed')),
+      find.descendant(of: find.byType(Drawer), matching: find.text('Home')),
       findsOneWidget,
     );
   });
@@ -353,58 +440,61 @@ void main() {
     expect(find.byIcon(CraftskyIcons.profile), findsOneWidget);
   });
 
-  testWidgets('wide rail has one compose action outside its 10 destinations', (
-    tester,
-  ) async {
-    await _pumpShell(tester, const Size(1200, 900));
+  testWidgets(
+    'wide rail has one compose action outside its nine destinations',
+    (
+      tester,
+    ) async {
+      await _pumpShell(tester, const Size(1200, 900));
 
-    final rail = tester.widget<NavigationRail>(find.byType(NavigationRail));
-    expect(rail.destinations, hasLength(10));
-    expect(rail.leading, isNull);
-    expect(rail.trailing, isNotNull);
-    expect(
-      find.widgetWithText(CraftskyFloatingActionButton, 'New post'),
-      findsOneWidget,
-    );
-    expect(
-      tester
-          .getSize(
-            find.widgetWithText(CraftskyFloatingActionButton, 'New post'),
-          )
-          .height,
-      44,
-    );
-    expect(
-      tester
-          .getTopLeft(
-            find.widgetWithText(CraftskyFloatingActionButton, 'New post'),
-          )
-          .dy,
-      greaterThan(tester.getTopLeft(find.text('Settings')).dy),
-    );
-    expect(
-      tester.getTopLeft(find.widgetWithText(OutlinedButton, 'Feedback')).dy,
-      greaterThan(
+      final rail = tester.widget<NavigationRail>(find.byType(NavigationRail));
+      expect(rail.destinations, hasLength(9));
+      expect(rail.leading, isNull);
+      expect(rail.trailing, isNotNull);
+      expect(
+        find.widgetWithText(CraftskyFloatingActionButton, 'New post'),
+        findsOneWidget,
+      );
+      expect(
+        tester
+            .getSize(
+              find.widgetWithText(CraftskyFloatingActionButton, 'New post'),
+            )
+            .height,
+        44,
+      );
+      expect(
         tester
             .getTopLeft(
               find.widgetWithText(CraftskyFloatingActionButton, 'New post'),
             )
             .dy,
-      ),
-    );
-    expect(
-      tester
-          .state<ScrollableState>(
-            find.descendant(
-              of: find.byType(NavigationRail),
-              matching: find.byType(Scrollable),
-            ),
-          )
-          .position
-          .maxScrollExtent,
-      0,
-    );
-  });
+        greaterThan(tester.getTopLeft(find.text('Settings')).dy),
+      );
+      expect(
+        tester.getTopLeft(find.widgetWithText(OutlinedButton, 'Feedback')).dy,
+        greaterThan(
+          tester
+              .getTopLeft(
+                find.widgetWithText(CraftskyFloatingActionButton, 'New post'),
+              )
+              .dy,
+        ),
+      );
+      expect(
+        tester
+            .state<ScrollableState>(
+              find.descendant(
+                of: find.byType(NavigationRail),
+                matching: find.byType(Scrollable),
+              ),
+            )
+            .position
+            .maxScrollExtent,
+        0,
+      );
+    },
+  );
 
   testWidgets('wide compose chooser opens without changing route', (
     tester,
@@ -424,7 +514,7 @@ void main() {
 
   for (final (option, composerType, destination, location) in [
     ('Regular post', PostComposerSheet, null, '/feed'),
-    ('Project post', ProjectComposerSheet, 'Projects', '/projects'),
+    ('Project post', ProjectComposerSheet, 'Search', '/search'),
   ]) {
     testWidgets(
       'wide $option composer uses active branch and keeps rail visible',
@@ -557,8 +647,7 @@ void main() {
   });
 
   for (final (label, location) in const [
-    ('Feed', '/feed'),
-    ('Projects', '/projects'),
+    ('Home', '/feed'),
     ('Search', '/search'),
     ('Notifications', '/notifications'),
     ('Profile', '/profile'),
@@ -591,8 +680,7 @@ void main() {
   }
 
   for (final (label, location) in const [
-    ('Feed', '/feed'),
-    ('Projects', '/projects'),
+    ('Home', '/feed'),
     ('Search', '/search'),
     ('Notifications', '/notifications'),
     ('Profile', '/profile'),
@@ -635,7 +723,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(
-      tester.widget<ListTile>(find.widgetWithText(ListTile, 'Feed')).selected,
+      tester.widget<ListTile>(find.widgetWithText(ListTile, 'Home')).selected,
       isTrue,
     );
     expect(
@@ -731,26 +819,26 @@ void main() {
   });
 
   testWidgets('CORR-003 rapid core selection dispatches once', (tester) async {
-    var projectNavigations = 0;
+    var searchNavigations = 0;
     final router = await _pumpShell(
       tester,
       const Size(500, 800),
       onRedirect: (location) {
-        if (location == '/projects') projectNavigations += 1;
+        if (location == '/search') searchNavigations += 1;
       },
     );
     await tester.tap(find.byTooltip('Open navigation menu'));
     await tester.pumpAndSettle();
 
-    final projectsTile = tester.widget<ListTile>(
-      find.widgetWithText(ListTile, 'Projects'),
+    final searchTile = tester.widget<ListTile>(
+      find.widgetWithText(ListTile, 'Search'),
     );
-    projectsTile.onTap!.call();
-    projectsTile.onTap!.call();
+    searchTile.onTap!.call();
+    searchTile.onTap!.call();
     await tester.pumpAndSettle();
 
-    expect(router.state.matchedLocation, '/projects');
-    expect(projectNavigations, 1);
+    expect(router.state.matchedLocation, '/search');
+    expect(searchNavigations, 1);
     expect(find.byType(Drawer), findsNothing);
   });
 
@@ -888,8 +976,7 @@ void main() {
 
     expect(find.byType(NavigationRail), findsOneWidget);
     for (final label in [
-      'Feed',
-      'Projects',
+      'Home',
       'Search',
       'Notifications',
       'Profile',
@@ -921,11 +1008,11 @@ void main() {
 
     tester.view.physicalSize = const Size(1200, 800);
     await tester.pumpAndSettle();
-    expect(find.text('Feedback'), findsNothing);
+    expect(find.text('Feedback'), findsOneWidget);
     await tester.ensureVisible(find.text('Messages'));
     await tester.pumpAndSettle();
     expect(find.text('Messages'), findsOneWidget);
-    // Ten destinations need more height before the optional footer fits.
+    // The shorter route list leaves room for the footer at 800px.
     tester.view.physicalSize = const Size(1200, 900);
     await tester.pumpAndSettle();
     expect(find.text('Feedback'), findsOneWidget);
@@ -975,7 +1062,7 @@ void main() {
     );
     final rail = tester.widget<NavigationRail>(find.byType(NavigationRail));
 
-    expect(rail.destinations, hasLength(10));
+    expect(rail.destinations, hasLength(9));
     expect(rail.selectedIndex, 0);
     expect(find.byType(NavigationBar), findsNothing);
     expect(find.byTooltip('Open navigation menu'), findsNothing);
@@ -1089,9 +1176,9 @@ void main() {
     expect(find.byType(NavigationRail), findsOneWidget);
     expect(find.byType(NavigationBar), findsNothing);
 
-    await tester.tap(find.text('Projects'));
+    await tester.tap(find.text('Search'));
     await tester.pumpAndSettle();
-    expect(router.state.matchedLocation, '/projects');
+    expect(router.state.matchedLocation, '/search');
   });
 
   testWidgets('CORR-006 RTL drawer opens from the logical start edge', (
@@ -1230,11 +1317,10 @@ Future<GoRouter> _pumpShell(
         branches: [
           for (final path in [
             '/feed',
-            '/projects',
             '/search',
+            '/messages',
             '/notifications',
             '/profile',
-            '/messages',
             '/saved',
             '/scheduled',
             '/drafts',

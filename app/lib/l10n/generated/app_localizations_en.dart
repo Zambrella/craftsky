@@ -44,6 +44,12 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get homeTitle => 'Home';
+
+  @override
+  String get homeFollowingTab => 'Following';
+
+  @override
   String get feedTitle => 'Feed';
 
   @override

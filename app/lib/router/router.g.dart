@@ -100,12 +100,6 @@ RouteBase get $authenticatedShellRoute => ShellRouteData.$route(
               hasOverriddenOnExit: false,
               factory: $FeedRoute._fromState,
             ),
-          ],
-        ),
-        StatefulShellBranchData.$branch(
-          navigatorKey: ProjectsBranch.$navigatorKey,
-          observers: ProjectsBranch.$observers,
-          routes: [
             GoRouteData.$route(
               path: '/projects',
               name: 'projects',
@@ -130,6 +124,38 @@ RouteBase get $authenticatedShellRoute => ShellRouteData.$route(
                   hasOverriddenOnExit: false,
                   parentNavigatorKey: TagSearchRoute.$parentNavigatorKey,
                   factory: $TagSearchRoute._fromState,
+                ),
+              ],
+            ),
+          ],
+        ),
+        StatefulShellBranchData.$branch(
+          navigatorKey: MessagesBranch.$navigatorKey,
+          observers: MessagesBranch.$observers,
+          routes: [
+            GoRouteData.$route(
+              path: '/messages',
+              name: 'messages',
+              hasOverriddenOnExit: false,
+              factory: $ChatInboxRoute._fromState,
+              routes: [
+                GoRouteData.$route(
+                  path: 'requests',
+                  name: 'message-requests',
+                  hasOverriddenOnExit: false,
+                  factory: $ChatRequestsRoute._fromState,
+                ),
+                GoRouteData.$route(
+                  path: 'new',
+                  name: 'new-message',
+                  hasOverriddenOnExit: false,
+                  factory: $NewMessageRoute._fromState,
+                ),
+                GoRouteData.$route(
+                  path: 'conversations/:conversationId',
+                  name: 'message-conversation',
+                  hasOverriddenOnExit: false,
+                  factory: $ChatConversationRoute._fromState,
                 ),
               ],
             ),
@@ -173,38 +199,6 @@ RouteBase get $authenticatedShellRoute => ShellRouteData.$route(
                   hasOverriddenOnExit: false,
                   parentNavigatorKey: PlaygroundRoute.$parentNavigatorKey,
                   factory: $PlaygroundRoute._fromState,
-                ),
-              ],
-            ),
-          ],
-        ),
-        StatefulShellBranchData.$branch(
-          navigatorKey: MessagesBranch.$navigatorKey,
-          observers: MessagesBranch.$observers,
-          routes: [
-            GoRouteData.$route(
-              path: '/messages',
-              name: 'messages',
-              hasOverriddenOnExit: false,
-              factory: $ChatInboxRoute._fromState,
-              routes: [
-                GoRouteData.$route(
-                  path: 'requests',
-                  name: 'message-requests',
-                  hasOverriddenOnExit: false,
-                  factory: $ChatRequestsRoute._fromState,
-                ),
-                GoRouteData.$route(
-                  path: 'new',
-                  name: 'new-message',
-                  hasOverriddenOnExit: false,
-                  factory: $NewMessageRoute._fromState,
-                ),
-                GoRouteData.$route(
-                  path: 'conversations/:conversationId',
-                  name: 'message-conversation',
-                  hasOverriddenOnExit: false,
-                  factory: $ChatConversationRoute._fromState,
                 ),
               ],
             ),
@@ -437,10 +431,16 @@ extension $AppShellRouteExtension on AppShellRoute {
 }
 
 mixin $FeedRoute on GoRouteData {
-  static FeedRoute _fromState(GoRouterState state) => const FeedRoute();
+  static FeedRoute _fromState(GoRouterState state) =>
+      FeedRoute(craft: state.uri.queryParameters['craft']);
+
+  FeedRoute get _self => this as FeedRoute;
 
   @override
-  String get location => GoRouteData.$location('/feed');
+  String get location => GoRouteData.$location(
+    '/feed',
+    queryParams: {if (_self.craft != null) 'craft': _self.craft},
+  );
 
   @override
   void go(BuildContext context) => context.go(location);
@@ -548,89 +548,6 @@ mixin $TagSearchRoute on GoRouteData {
   void replace(BuildContext context) => context.replace(location);
 }
 
-mixin $NotificationsRoute on GoRouteData {
-  static NotificationsRoute _fromState(GoRouterState state) =>
-      const NotificationsRoute();
-
-  @override
-  String get location => GoRouteData.$location('/notifications');
-
-  @override
-  void go(BuildContext context) => context.go(location);
-
-  @override
-  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
-
-  @override
-  void pushReplacement(BuildContext context) =>
-      context.pushReplacement(location);
-
-  @override
-  void replace(BuildContext context) => context.replace(location);
-}
-
-mixin $NotificationSettingsRoute on GoRouteData {
-  static NotificationSettingsRoute _fromState(GoRouterState state) =>
-      const NotificationSettingsRoute();
-
-  @override
-  String get location => GoRouteData.$location('/notifications/settings');
-
-  @override
-  void go(BuildContext context) => context.go(location);
-
-  @override
-  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
-
-  @override
-  void pushReplacement(BuildContext context) =>
-      context.pushReplacement(location);
-
-  @override
-  void replace(BuildContext context) => context.replace(location);
-}
-
-mixin $ProfileRoute on GoRouteData {
-  static ProfileRoute _fromState(GoRouterState state) => const ProfileRoute();
-
-  @override
-  String get location => GoRouteData.$location('/profile');
-
-  @override
-  void go(BuildContext context) => context.go(location);
-
-  @override
-  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
-
-  @override
-  void pushReplacement(BuildContext context) =>
-      context.pushReplacement(location);
-
-  @override
-  void replace(BuildContext context) => context.replace(location);
-}
-
-mixin $PlaygroundRoute on GoRouteData {
-  static PlaygroundRoute _fromState(GoRouterState state) =>
-      const PlaygroundRoute();
-
-  @override
-  String get location => GoRouteData.$location('/profile/playground');
-
-  @override
-  void go(BuildContext context) => context.go(location);
-
-  @override
-  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
-
-  @override
-  void pushReplacement(BuildContext context) =>
-      context.pushReplacement(location);
-
-  @override
-  void replace(BuildContext context) => context.replace(location);
-}
-
 mixin $ChatInboxRoute on GoRouteData {
   static ChatInboxRoute _fromState(GoRouterState state) =>
       const ChatInboxRoute();
@@ -713,6 +630,89 @@ mixin $ChatConversationRoute on GoRouteData {
   String get location => GoRouteData.$location(
     '/messages/conversations/${Uri.encodeComponent(_self.conversationId)}',
   );
+
+  @override
+  void go(BuildContext context) => context.go(location);
+
+  @override
+  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
+
+  @override
+  void pushReplacement(BuildContext context) =>
+      context.pushReplacement(location);
+
+  @override
+  void replace(BuildContext context) => context.replace(location);
+}
+
+mixin $NotificationsRoute on GoRouteData {
+  static NotificationsRoute _fromState(GoRouterState state) =>
+      const NotificationsRoute();
+
+  @override
+  String get location => GoRouteData.$location('/notifications');
+
+  @override
+  void go(BuildContext context) => context.go(location);
+
+  @override
+  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
+
+  @override
+  void pushReplacement(BuildContext context) =>
+      context.pushReplacement(location);
+
+  @override
+  void replace(BuildContext context) => context.replace(location);
+}
+
+mixin $NotificationSettingsRoute on GoRouteData {
+  static NotificationSettingsRoute _fromState(GoRouterState state) =>
+      const NotificationSettingsRoute();
+
+  @override
+  String get location => GoRouteData.$location('/notifications/settings');
+
+  @override
+  void go(BuildContext context) => context.go(location);
+
+  @override
+  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
+
+  @override
+  void pushReplacement(BuildContext context) =>
+      context.pushReplacement(location);
+
+  @override
+  void replace(BuildContext context) => context.replace(location);
+}
+
+mixin $ProfileRoute on GoRouteData {
+  static ProfileRoute _fromState(GoRouterState state) => const ProfileRoute();
+
+  @override
+  String get location => GoRouteData.$location('/profile');
+
+  @override
+  void go(BuildContext context) => context.go(location);
+
+  @override
+  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
+
+  @override
+  void pushReplacement(BuildContext context) =>
+      context.pushReplacement(location);
+
+  @override
+  void replace(BuildContext context) => context.replace(location);
+}
+
+mixin $PlaygroundRoute on GoRouteData {
+  static PlaygroundRoute _fromState(GoRouterState state) =>
+      const PlaygroundRoute();
+
+  @override
+  String get location => GoRouteData.$location('/profile/playground');
 
   @override
   void go(BuildContext context) => context.go(location);
