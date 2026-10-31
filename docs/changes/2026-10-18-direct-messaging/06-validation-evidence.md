@@ -1,5 +1,24 @@
 # Direct Messaging Validation Evidence
 
+## Cached inbox on conversation return: 2026-10-31
+
+RETURN-001/002 / FR-015 / AC-012/017: marking a presented message read used to
+invalidate inbox providers, disposing cached lists and showing initial skeletons
+on Back. The provider now refreshes existing controllers in place while native
+unread counts refresh separately. Cached rows remain visible through held fetches;
+initial uncached loads retain skeletons. Mutations during an earlier background
+fetch coalesce a post-action fetch without overlap, guarded by owner/lifetime.
+
+Real open/read/Back red reproduces the skeleton with a held list response; green
+retains the row until and after completion. Queue tests verify one follow-up for
+two callers, and no queued dispatch after owner change/disposal. Existing
+initial loading, empty/error, pagination and access-loss behavior remains covered.
+Final messaging/router suite: **513 passed**, 7 existing conditional skips, exit 0,
+34s. Analysis clean; format/diff checks pass. Logs:
+/private/tmp/craftsky-inbox-return-{regressions-final,analyze-final}.log.
+Simulator hot reload succeeded; runtime errors empty. No live message/report,
+backend/API/scope/schema/production change, commit or push.
+
 ## App-wide foreground refresh: 2026-10-31
 
 FG-001/002/003 / FR-015/007/016 / AC-012/008/014/017/022: authenticated session

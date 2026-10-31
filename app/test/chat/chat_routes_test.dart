@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/auth/models/session_registry.dart';
 import 'package:craftsky_app/auth/providers/account_operation_guard.dart';
@@ -14,6 +16,7 @@ import 'package:craftsky_app/chat/providers/chat_draft_store_provider.dart';
 import 'package:craftsky_app/chat/providers/chat_providers.dart';
 import 'package:craftsky_app/chat/services/chat_recipient_controller.dart';
 import 'package:craftsky_app/chat/widgets/chat_recipient_picker.dart';
+import 'package:craftsky_app/chat/widgets/chat_skeleton.dart';
 import 'package:craftsky_app/chat/widgets/profile_message_button.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/notifications/models/notification_destination.dart';
@@ -53,6 +56,7 @@ void main() {
   });
   for (final entry in [
     'inbox',
+    'cached return',
     'cold',
     'new message',
     'notification',
@@ -67,7 +71,7 @@ void main() {
       final repository = _Repository(
         enabled: true,
         hasConversation: true,
-        hasMessage: entry == 'inbox',
+        hasMessage: entry == 'inbox' || entry == 'cached return',
         canReport: entry != 'reporting disabled',
       );
       final draftStore = ChatDraftStore(const FlutterSecureStorage());
@@ -171,7 +175,10 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      if (entry == 'inbox') {
+      if (entry == 'inbox' || entry == 'cached return') {
+        if (entry == 'cached return') {
+          repository.pendingConversations = Completer<ChatConversationPage>();
+        }
         await tester.tap(find.text('peer.test'));
       } else if (entry == 'profile') {
         await tester.tap(find.byTooltip('Message'));
@@ -190,6 +197,29 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byType(TextField), findsOneWidget);
       expect(router.canPop(), true);
+      if (entry == 'cached return') {
+        expect(repository.effects, contains('read:message'));
+        await tester.tap(find.byTooltip('Back'));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 400));
+        expect(find.byType(ChatListSkeleton), findsNothing);
+        expect(find.widgetWithText(ListTile, 'peer.test'), findsOneWidget);
+        repository.pendingConversations!.complete(
+          ChatConversationPage(
+            items: [
+              await repository.conversation(
+                ChatConversationId.parse('conversation'),
+              ),
+            ],
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(find.widgetWithText(ListTile, 'peer.test'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pumpAndSettle();
+        return;
+      }
       if (entry == 'reporting disabled') {
         await tester.tap(find.byTooltip('Conversation actions'));
         await tester.pumpAndSettle();
@@ -717,6 +747,7 @@ class _Repository implements ChatRepository {
     this.canReport = true,
   });
   bool enabled;
+  Completer<ChatConversationPage>? pendingConversations;
   final bool hasConversation;
   final bool hasMessage;
   final bool canReport;
@@ -788,12 +819,14 @@ class _Repository implements ChatRepository {
     required ChatBucket bucket,
     ChatCursor? cursor,
     int limit = 50,
-  }) async => ChatConversationPage(
-    items: [
-      if (hasConversation)
-        await conversation(ChatConversationId.parse('conversation')),
-    ],
-  );
+  }) async => pendingConversations != null
+      ? await pendingConversations!.future
+      : ChatConversationPage(
+          items: [
+            if (hasConversation)
+              await conversation(ChatConversationId.parse('conversation')),
+          ],
+        );
   @override
   Future<ChatConversationDetails> details(ChatConversationId id) async =>
       ChatConversationDetails(
@@ -834,7 +867,11 @@ class _Repository implements ChatRepository {
   Future<ChatConversation> updateRead(
     ChatConversationId id,
     ChatMessageId message,
-  ) => conversation(id);
+  ) {
+    effects.add('read:message');
+    return conversation(id);
+  }
+
   @override
   Future<ChatSyncSnapshot> heartbeat(
     ChatView view, {

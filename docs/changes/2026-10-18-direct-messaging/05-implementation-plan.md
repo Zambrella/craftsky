@@ -1,5 +1,30 @@
 # TDD Implementation Plan: Direct Messaging
 
+## Cached inbox return TDD: 2026-10-31
+
+RETURN-001 red/green: real conversation open/read/Back with held inbox refresh;
+retain loaded rows/controller. RETURN-002 red/green: post-action refresh queued
+behind pre-action fetch without overlap or stale-owner dispatch. Then affected
+messaging/router tests, analysis, format/diff and simulator reload. No live send,
+commit, push or backend/API/permission/schema change. Both loops complete.
+RETURN-001 real open/read/Back red found ChatListSkeleton while the held list
+fetch was pending. Green refreshes existing loaded bucket controllers instead
+of invalidating them, retaining rows through return and applying completion.
+Native unread aggregate is still invalidated independently. An initially uncached
+bucket can still restart its pre-action fetch because no loaded rows are lost.
+RETURN-002 red lacked afterCurrent; green coalesces post-action fetches behind
+an in-flight refresh, retains non-overlap and checks current owner/lifetime before
+queued dispatch. Tests cover two coalesced callers, owner change and disposal.
+Initial uncached skeletons and existing empty/error/pagination behavior stay intact.
+
+Final command from app/: fvm flutter test --no-pub test/chat test/router —
+**513 passed**, 7 existing conditional skips, exit 0, 34s. Whole-app analysis clean;
+format and git diff checks pass. Logs: /private/tmp/craftsky-inbox-{return-red,
+return-focused,queue-red,return-regressions-final,return-analyze-final}.log.
+Simulator hot reload succeeds; no runtime errors observed. No live send/report,
+backend/API/scope/schema change, commit, push or production action. Separate
+implementation review remains optional.
+
 ## App-wide foreground refresh TDD: 2026-10-31
 
 Order: FG-001 / FR-015 session-level Feed heartbeat plus retained accepted inbox

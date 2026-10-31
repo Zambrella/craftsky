@@ -212,10 +212,21 @@ Future<ChatConversationController> chatConversationController(
     reporter: ref.read(errorReporterProvider),
     onSharedStateChanged: () async {
       operation.requireCurrent();
-      ref
-        ..invalidate(chatUnreadCountsProvider(account))
-        ..invalidate(chatInboxControllerProvider(account, ChatBucket.accepted))
-        ..invalidate(chatInboxControllerProvider(account, ChatBucket.request));
+      ref.invalidate(chatUnreadCountsProvider(account));
+      final updates = <Future<void>>[];
+      for (final bucket in ChatBucket.values) {
+        final family = chatInboxControllerProvider(account, bucket);
+        if (ref.exists(family)) {
+          final controller = ref.read(family).value;
+          if (controller != null) {
+            updates.add(controller.refresh(afterCurrent: true));
+          } else {
+            // An uncached fetch may predate the action; no loaded list is lost.
+            ref.invalidate(family);
+          }
+        }
+      }
+      await Future.wait(updates);
     },
   );
   ref.onDispose(controller.dispose);

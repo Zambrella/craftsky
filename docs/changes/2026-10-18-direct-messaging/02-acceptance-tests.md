@@ -1,5 +1,14 @@
 # Acceptance Test Specification: Direct Messaging
 
+## Cached inbox return cases: 2026-10-31
+
+RETURN-001 / FR-015 / AC-012/017: open an existing conversation, mark its visible
+message read, hold the resulting list fetch, and return. Cached row remains and
+no initial list skeleton appears; completing refresh updates the same controller.
+RETURN-002: if a list fetch predates the mutation, reconcile again after it
+finishes; no overlapping fetches or stale data loss. Access/owner changes discard
+queued work and existing initial-load/error/empty/pagination tests remain valid.
+
 ## Foreground refresh cases: 2026-10-31
 
 FG-001 / FR-015 / AC-012/017/022: while logged in on Feed, enabled authorized

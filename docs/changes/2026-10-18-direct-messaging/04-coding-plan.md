@@ -1,5 +1,14 @@
 # Coding Plan: Direct Messaging
 
+## Cached inbox reconciliation design: 2026-10-31
+
+Replace onSharedStateChanged inbox-provider invalidation with refresh of existing
+accepted/request controllers. Retain native unread-count invalidation. Add a
+coalesced after-current refresh option to ChatInboxController so an action during
+a background fetch cannot be lost. Keep account/lifetime checks and existing
+refresh snapshot/pagination rules. Verify actual open/read/Back with a held fetch,
+controller identity and non-overlapping post-action refresh. No API/schema change.
+
 ## App-wide foreground refresh design: 2026-10-31
 
 Keep accepted inbox state observed in chatSessionRuntimeProvider, returning its

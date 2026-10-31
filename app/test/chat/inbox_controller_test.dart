@@ -10,6 +10,48 @@ import 'package:flutter_test/flutter_test.dart';
 
 // IT-001 / FR-002, FR-008: independent shared inbox/request pagination.
 void main() {
+  for (final boundary in ['current', 'changed owner', 'disposed']) {
+    test(
+      'RETURN-002 post-action refresh coalesces after pending fetch: $boundary',
+      () async {
+        final repository = _Repository();
+        var current = true;
+        final inbox = ChatInboxController(
+          account: AccountKey('did:plc:owner'),
+          bucket: ChatBucket.accepted,
+          repository: repository,
+          operation: ActiveAccountOperation.withGuard(
+            ownership: null,
+            isCurrent: () => current,
+          ),
+        );
+        if (boundary != 'disposed') addTearDown(inbox.dispose);
+        await inbox.refresh();
+        final background = inbox.refresh();
+        expect(repository.acceptedCalls, 2);
+        final reconciliations = [
+          inbox.refresh(afterCurrent: true),
+          inbox.refresh(afterCurrent: true),
+        ];
+        expect(repository.acceptedCalls, 2);
+        if (boundary == 'changed owner') current = false;
+        if (boundary == 'disposed') inbox.dispose();
+        repository.emptyPage.complete(
+          ChatConversationPage.fromMap({
+            'items': [_item('external-conversation', ChatBucket.accepted)],
+          }),
+        );
+        await background;
+        await Future.wait(reconciliations);
+        expect(repository.acceptedCalls, boundary == 'current' ? 3 : 2);
+        if (boundary == 'current') {
+          expect(inbox.items.first.muted, true);
+          expect(inbox.items, hasLength(2));
+        }
+      },
+    );
+  }
+
   test(
     'independent buckets preserve empty continuations and merge stable IDs',
     () async {

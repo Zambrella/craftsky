@@ -1,5 +1,14 @@
 # Requirements: Direct Messaging
 
+## Preserve inbox on conversation return: 2026-10-31
+
+FR-015 / AC-012/017: returning from a conversation must keep the loaded inbox
+visible while read/mute/accept/send/leave reconciliation fetches updated lists.
+Refresh the same authorized controller instead of invalidating its cached state.
+Initial uncached loads still use skeletons; owner/access/generation changes still
+evict private state. Reconciliation after an in-flight fetch must obtain fresh
+post-action state, retaining existing error feedback and pagination fencing.
+
 ## App-wide foreground messaging refresh: 2026-10-31
 
 FR-015 / FR-007 / FR-016 / AC-012/008/014/017/022: owner requested that the

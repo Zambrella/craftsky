@@ -31,6 +31,7 @@ final class ChatInboxController extends ChangeNotifier {
   bool _disposed = false;
   int _snapshot = 0;
   bool _refreshing = false;
+  late Completer<void> _refreshCompletion;
 
   bool get hasMore => cursor != null;
   bool get _current => !_disposed && _operation.isCurrent;
@@ -60,9 +61,20 @@ final class ChatInboxController extends ChangeNotifier {
     );
   }
 
-  Future<void> refresh() async {
-    if (!_current || _refreshing) return;
+  /// Mutations need a fetch started after the action, even if an older refresh
+  /// is still running. Multiple waiting reconciliations share the next fetch.
+  Future<void> refresh({bool afterCurrent = false}) async {
+    if (!_current) return;
+    if (_refreshing) {
+      if (afterCurrent) {
+        await _refreshCompletion.future;
+        if (_current) await refresh();
+      }
+      return;
+    }
     _refreshing = true;
+    final completion = Completer<void>();
+    _refreshCompletion = completion;
     final snapshot = ++_snapshot;
     _publish(() => loading = true);
     try {
@@ -85,6 +97,7 @@ final class ChatInboxController extends ChangeNotifier {
       _publish(() => failed = true);
     } finally {
       _refreshing = false;
+      completion.complete();
       _publish(() => loading = false);
     }
   }
