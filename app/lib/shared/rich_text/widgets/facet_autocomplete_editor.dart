@@ -235,7 +235,8 @@ class FacetAutocompleteEditor extends ConsumerStatefulWidget {
 }
 
 class _FacetAutocompleteEditorState
-    extends ConsumerState<FacetAutocompleteEditor> {
+    extends ConsumerState<FacetAutocompleteEditor>
+    with WidgetsBindingObserver {
   static const _suggestionOverlayBaseWidth = 300.0;
   static const _maxDisplayedSuggestions = 5;
 
@@ -252,6 +253,7 @@ class _FacetAutocompleteEditorState
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _focusNode = widget.focusNode ?? (_internalFocusNode = FocusNode());
     _focusNode.addListener(_onFocusChanged);
   }
@@ -268,11 +270,17 @@ class _FacetAutocompleteEditorState
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _debounceTimer?.cancel();
     _focusNode.removeListener(_onFocusChanged);
     _internalFocusNode?.dispose();
     _removeSuggestionOverlay();
     super.dispose();
+  }
+
+  @override
+  void didChangeMetrics() {
+    if (_hasSuggestionSurface) _updateSuggestionOverlay();
   }
 
   void _onFocusChanged() {
@@ -471,21 +479,50 @@ class _FacetAutocompleteEditorState
         .clamp(math.min(viewportPadding, maxLeft), maxLeft)
         .toDouble();
 
-    final spaceBelow =
-        overlayBox.size.height - tokenStart.dy - (viewportPadding * 2);
-    final spaceAbove = tokenStart.dy - (viewportPadding * 2);
-    final (top, maxHeight) = spaceBelow > 0
-        ? (tokenStart.dy + viewportPadding, spaceBelow)
-        : (viewportPadding, spaceAbove);
-    if (maxHeight <= 0) {
-      return null;
-    }
+    // Read the view itself: sheets and scaffolds may remove viewInsets from
+    // their descendant MediaQuery even though this overlay spans the keyboard.
+    final view = View.of(context);
+    final viewData = MediaQueryData.fromView(view);
+    final visibleTop = overlayBox
+        .globalToLocal(
+          Offset(0, viewData.padding.top),
+        )
+        .dy;
+    final visibleBottom = overlayBox
+        .globalToLocal(
+          Offset(
+            0,
+            viewData.size.height -
+                math.max(
+                  viewData.viewInsets.bottom,
+                  viewData.padding.bottom,
+                ),
+          ),
+        )
+        .dy;
+    final top = math.max(0, visibleTop) + viewportPadding;
+    final bottom =
+        math.min(overlayBox.size.height, visibleBottom) - viewportPadding;
+    final caretTop = overlayBox
+        .globalToLocal(
+          renderEditable.localToGlobal(caretRect.topLeft),
+        )
+        .dy;
+    final above = (caretTop - viewportPadding)
+        .clamp(top, math.max(top, bottom))
+        .toDouble();
+    final below = (tokenStart.dy + viewportPadding)
+        .clamp(top, math.max(top, bottom))
+        .toDouble();
+    if (bottom <= top) return null;
 
     return _SuggestionOverlayGeometry(
       left: left,
-      top: top,
       width: width,
-      maxHeight: maxHeight,
+      top: top,
+      bottom: bottom,
+      above: above,
+      below: below,
     );
   }
 
@@ -509,6 +546,7 @@ class _FacetAutocompleteEditorState
 
   @override
   Widget build(BuildContext context) {
+    if (_hasSuggestionSurface) _updateSuggestionOverlay();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -555,15 +593,22 @@ RenderEditable? _findRenderEditable(RenderObject root) {
 class _SuggestionOverlayGeometry {
   const new({
     required this.left,
-    required this.top,
     required this.width,
-    required this.maxHeight,
+    required this.top,
+    required this.bottom,
+    required this.above,
+    required this.below,
   });
 
   final double left;
-  final double top;
   final double width;
-  final double maxHeight;
+  final double top;
+  final double bottom;
+  final double above;
+  final double below;
+
+  double get spaceAbove => above - top;
+  double get spaceBelow => bottom - below;
 }
 
 class _SuggestionOverlay extends StatelessWidget {
@@ -574,16 +619,44 @@ class _SuggestionOverlay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Positioned(
-      left: geometry.left,
-      top: geometry.top,
-      width: geometry.width,
-      child: ConstrainedBox(
-        constraints: BoxConstraints(maxHeight: geometry.maxHeight),
+    return Positioned.fill(
+      child: CustomSingleChildLayout(
+        delegate: _SuggestionOverlayLayout(geometry),
         child: SingleChildScrollView(child: child),
       ),
     );
   }
+}
+
+class _SuggestionOverlayLayout extends SingleChildLayoutDelegate {
+  const new(this.geometry);
+
+  final _SuggestionOverlayGeometry geometry;
+
+  @override
+  BoxConstraints getConstraintsForChild(BoxConstraints constraints) {
+    return BoxConstraints(
+      minWidth: geometry.width,
+      maxWidth: geometry.width,
+      maxHeight: math.max(geometry.spaceAbove, geometry.spaceBelow),
+    );
+  }
+
+  @override
+  Offset getPositionForChild(Size size, Size childSize) {
+    // Prefer below when the actual list fits; otherwise use the larger side.
+    final below =
+        childSize.height <= geometry.spaceBelow ||
+        geometry.spaceBelow >= geometry.spaceAbove;
+    return Offset(
+      geometry.left,
+      below ? geometry.below : geometry.above - childSize.height,
+    );
+  }
+
+  @override
+  bool shouldRelayout(_SuggestionOverlayLayout oldDelegate) =>
+      geometry != oldDelegate.geometry;
 }
 
 class _MentionSuggestionList extends StatelessWidget {
