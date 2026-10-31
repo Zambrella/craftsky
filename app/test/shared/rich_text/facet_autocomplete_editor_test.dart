@@ -389,6 +389,110 @@ void main() {
       expect(tester.getRect(find.byType(Card)).width, closeTo(300, 1));
     });
 
+    for (final mention in [false, true]) {
+      testWidgets(
+        '${mention ? 'profile' : 'hashtag'} suggestions avoid the keyboard '
+        'and reposition',
+        (tester) async {
+          await _withSurfaceSize(tester, const Size(400, 800), () async {
+            addTearDown(tester.view.resetViewInsets);
+            final controller = FacetTextEditingController();
+            addTearDown(controller.dispose);
+            await tester.pumpWidget(
+              _wrap(
+                overrides: [
+                  facetAutocompleteDebounceProvider.overrideWithValue(
+                    Duration.zero,
+                  ),
+                  accountSuggestionRepositoryProvider.overrideWithValue(
+                    const MockAccountSuggestionRepository(
+                      accounts: [
+                        AccountSuggestion(
+                          did: 'did:plc:alice',
+                          handle: 'alice.craftsky.social',
+                          displayName: 'Alice',
+                          avatar: null,
+                          isCraftskyProfile: true,
+                        ),
+                      ],
+                    ),
+                  ),
+                  hashtagSuggestionRepositoryProvider.overrideWithValue(
+                    MockHashtagSuggestionRepository(
+                      hashtags: [
+                        for (var i = 0; i < 5; i++)
+                          HashtagSuggestion(tag: 'example$i', postCount: i),
+                      ],
+                    ),
+                  ),
+                ],
+                child: Padding(
+                  padding: const EdgeInsets.only(top: 240),
+                  child: FacetAutocompleteEditor(
+                    label: 'Body',
+                    controller: controller,
+                  ),
+                ),
+              ),
+            );
+            await tester.enterText(
+              find.byType(TextField),
+              mention ? '@ali' : '#example',
+            );
+            await tester.pumpAndSettle();
+            final token = _tokenStartGlobalOffset(tester, 0);
+            expect(
+              tester.getTopLeft(find.byType(Card)).dy,
+              greaterThan(token.dy),
+            );
+
+            tester.view.viewInsets = const FakeViewPadding(bottom: 200);
+            await tester.pumpAndSettle();
+            expect(
+              tester.getTopLeft(find.byType(Card)).dy,
+              greaterThan(token.dy),
+            );
+            expect(
+              tester.getBottomRight(find.byType(Card)).dy,
+              lessThanOrEqualTo(600),
+            );
+
+            // The full-height overlay extends behind the keyboard.
+            tester.view.viewInsets = const FakeViewPadding(bottom: 420);
+            await tester.pumpAndSettle();
+            final card = tester.getRect(find.byType(Card));
+            expect(card.bottom, lessThan(token.dy - 8));
+            expect(card.top, greaterThanOrEqualTo(8));
+            expect(card.bottom, lessThanOrEqualTo(380));
+            await tester.tap(find.text(mention ? 'Alice' : '#example0'));
+            await tester.pumpAndSettle();
+            expect(
+              controller.text,
+              mention ? '@alice.craftsky.social ' : '#example0 ',
+            );
+            expect(find.byType(Card), findsNothing);
+
+            // A fresh query also uses the already-open keyboard's bounds.
+            await tester.enterText(
+              find.byType(TextField),
+              mention ? '@ali' : '#example',
+            );
+            await tester.pumpAndSettle();
+            expect(
+              tester.getBottomRight(find.byType(Card)).dy,
+              lessThan(token.dy - 8),
+            );
+            tester.view.resetViewInsets();
+            await tester.pumpAndSettle();
+            expect(
+              tester.getTopLeft(find.byType(Card)).dy,
+              greaterThan(token.dy),
+            );
+          });
+        },
+      );
+    }
+
     testWidgets('scales suggestion width with the current text scaler', (
       tester,
     ) async {
