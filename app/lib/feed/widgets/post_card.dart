@@ -44,6 +44,7 @@ import 'package:craftsky_app/shared/sharing/copy_link_menu_item.dart';
 import 'package:craftsky_app/shared/sharing/record_links.dart';
 import 'package:craftsky_app/shared/time/relative_time_text.dart';
 import 'package:craftsky_app/shared/widgets/post_summary.dart';
+import 'package:craftsky_app/shared/widgets/quote_embed_surface.dart';
 import 'package:craftsky_app/subscriptions/providers/subscription_access_provider.dart';
 import 'package:craftsky_app/subscriptions/widgets/plus_feature_lock.dart';
 import 'package:craftsky_app/theme/brand_colors.dart';
@@ -1119,7 +1120,9 @@ class _PostCardMenu extends StatelessWidget {
                 ),
               ],
             ),
-          CraftskyContextMenuGroup(items: [copyLinkMenuItem(context, url)]),
+          CraftskyContextMenuGroup(
+            items: [...linkSharingMenuItems(context, url)],
+          ),
           CraftskyContextMenuGroup(
             items: [
               if (onEdit != null)
@@ -1192,17 +1195,7 @@ class _QuotePreviewCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final radii = theme.extension<RadiusTheme>()!;
-    final swatches = theme.extension<BrandSwatchTheme>()!;
-
-    return Material(
-      color: swatches.paper2,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(radii.r2),
-        side: BorderSide(color: swatches.borderHair),
-      ),
-      clipBehavior: Clip.antiAlias,
+    return QuoteEmbedSurface(
       child: PostSummary(
         data: PostSummaryData.fromQuoteView(quoteView),
         onTap: onPostTap,

@@ -40,6 +40,8 @@ final class NotificationRoutingStorage {
 
   final SessionRegistry Function() _readRegistry;
 
+  ActiveAccountLease? get activeLease => _readRegistry().activeLease;
+
   bool isCurrentLease(AccountSessionLease lease) =>
       _readRegistry().leaseFor(lease.account) == lease;
 

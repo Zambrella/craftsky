@@ -25,11 +25,13 @@ type handoffExchangeRequest struct {
 }
 
 type handoffExchangeResponse struct {
-	Token     string    `json:"token"`
-	DID       string    `json:"did"`
-	Handle    string    `json:"handle"`
-	ReceiptID uuid.UUID `json:"receiptId"`
-	ConfirmBy string    `json:"confirmBy"`
+	Token           string       `json:"token"`
+	DID             string       `json:"did"`
+	Handle          string       `json:"handle"`
+	ReceiptID       uuid.UUID    `json:"receiptId"`
+	ConfirmBy       string       `json:"confirmBy"`
+	Purpose         OAuthPurpose `json:"purpose,omitempty"`
+	SourceTokenHash string       `json:"sourceTokenHash,omitempty"`
 }
 
 type handoffConfirmRequest struct {
@@ -70,6 +72,7 @@ func (h *HTTPHandlers) HandoffExchangeHandler() http.Handler {
 		_ = json.NewEncoder(w).Encode(handoffExchangeResponse{
 			Token: result.Token, DID: result.DID.String(), Handle: result.Handle.String(),
 			ReceiptID: result.ReceiptID, ConfirmBy: result.ConfirmBy.UTC().Format("2006-01-02T15:04:05.999999999Z07:00"),
+			Purpose: result.Purpose, SourceTokenHash: result.SourceTokenHash,
 		})
 	})
 }

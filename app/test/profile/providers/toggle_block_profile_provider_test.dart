@@ -6,6 +6,8 @@ import 'package:craftsky_app/auth/models/session_registry.dart';
 import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart'
     show sessionRegistryProvider;
+import 'package:craftsky_app/chat/models/chat_identifier.dart';
+import 'package:craftsky_app/chat/providers/chat_providers.dart';
 import 'package:craftsky_app/notifications/data/notification_repository.dart';
 import 'package:craftsky_app/notifications/models/craftsky_notification.dart';
 import 'package:craftsky_app/notifications/models/notification_category.dart';
@@ -32,6 +34,51 @@ void main() {
       sessionGeneration: 0,
     ),
     bobDid,
+  );
+
+  test(
+    'IT-016 confirmed block refreshes current-viewer message previews',
+    () async {
+      final account = AccountKey('did:plc:alice');
+      var reads = 0;
+      final preview = chatPreviewProvider(
+        account,
+        ChatConversationId.parse('conversation'),
+        ChatMessageId.parse('message'),
+      );
+      final registry = SessionRegistry.empty().upsertAndActivate(
+        token: 'token',
+        did: account.did.value,
+        handle: 'alice.test',
+      );
+      final container = ProviderContainer.test(
+        overrides: [
+          secureSessionRegistryStorageProvider.overrideWithValue(
+            _RegistryStorage(registry),
+          ),
+          profileRepositoryProvider.overrideWithValue(
+            FakeProfileRepository(
+              onBlock: (_, _) async =>
+                  const ProfileRelationship(blocking: true),
+            ),
+          ),
+          preview.overrideWith((ref) async {
+            reads++;
+            return null;
+          }),
+        ],
+      );
+      await container.read(sessionRegistryProvider.future);
+      final subscription = container.listen(preview, (_, _) {});
+      addTearDown(subscription.close);
+      await container.read(preview.future);
+      expect(reads, 1);
+      await container
+          .read(toggleBlockProfileProvider.notifier)
+          .toggle(targetDid: bobDid, isBlocking: false);
+      await container.read(preview.future);
+      expect(reads, 2);
+    },
   );
 
   test('block becomes visible only after definite acceptance', () async {

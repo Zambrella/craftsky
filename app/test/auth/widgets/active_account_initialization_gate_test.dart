@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:craftsky_app/account_eligibility/data/account_eligibility_repository.dart';
 import 'package:craftsky_app/account_eligibility/models/account_eligibility_status.dart';
 import 'package:craftsky_app/account_eligibility/providers/account_eligibility_provider.dart';
+import 'package:craftsky_app/auth/models/active_account_initialization.dart';
 import 'package:craftsky_app/auth/models/session_registry.dart';
 import 'package:craftsky_app/auth/providers/active_account_initialization_provider.dart';
 import 'package:craftsky_app/auth/providers/auth_controller.dart';
@@ -19,7 +20,9 @@ import 'package:craftsky_app/onboarding/data/onboarding_repository.dart';
 import 'package:craftsky_app/onboarding/models/onboarding_completion.dart';
 import 'package:craftsky_app/onboarding/providers/onboarding_repository_provider.dart';
 import 'package:craftsky_app/profile/models/profile_customisation.dart';
+import 'package:craftsky_app/shared/messaging/scaffold_messenger_impl.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_emitter.dart';
+import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -137,6 +140,83 @@ final _eligibilityOverride = accountEligibilityProvider.overrideWith(
 );
 
 void main() {
+  testWidgets(
+    'root initialization gate keeps a pending snackbar inside an Overlay',
+    (tester) async {
+      final key = GlobalKey<ScaffoldMessengerState>();
+      final messenger = ScaffoldMessengerImpl(key);
+      var initialized = Future<ActiveAccountInitialization?>.value();
+      final container = ProviderContainer.test(
+        retry: (_, _) => null,
+        overrides: [
+          secureSessionRegistryStorageProvider.overrideWithValue(
+            _RegistryStorage(SessionRegistry.empty()),
+          ),
+          activeAccountInitializationProvider.overrideWith(
+            (ref) async => await initialized,
+          ),
+        ],
+      );
+      await container.read(sessionRegistryProvider.future);
+      await container.read(activeAccountInitializationProvider.future);
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp(
+            scaffoldMessengerKey: key,
+            theme: AppTheme.lightThemeData,
+            localizationsDelegates: appLocalizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            builder: (context, child) =>
+                ActiveAccountInitializationGate(child: child!),
+            home: const Scaffold(body: Text('Sign in')),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      messenger.error('Check your handle.');
+      await tester.pumpAndSettle();
+      expect(find.byType(SnackBar), findsOneWidget);
+      final pending = Completer<ActiveAccountInitialization?>();
+      initialized = pending.future;
+      container.invalidate(activeAccountInitializationProvider);
+      await container
+          .read(sessionRegistryProvider.notifier)
+          .upsertAndActivate(
+            token: 'synthetic',
+            did: 'did:plc:alice',
+            handle: 'alice.test',
+          );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(tester.takeException(), isNull);
+      expect(find.byType(StitchProgressIndicator), findsOneWidget);
+      pending.completeError(StateError('initialization unavailable'));
+      await tester.pumpAndSettle();
+      expect(find.text('We couldn’t load this account'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      initialized = Future.value(
+        ActiveAccountInitialization(
+          lease: container
+              .read(sessionRegistryProvider)
+              .requireValue
+              .activeLease!,
+          languagePreferences: const LanguagePreferences(
+            primaryLanguage: 'en',
+            contentLanguages: ['en'],
+          ),
+          onboardingComplete: true,
+        ),
+      );
+      container.invalidate(activeAccountInitializationProvider);
+      await tester.pumpAndSettle();
+      expect(find.text('Sign in'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pumpAndSettle();
+    },
+  );
+
   testWidgets('cached profile updates preserve mounted signed-in content', (
     tester,
   ) async {
@@ -247,12 +327,12 @@ void main() {
             (ref, account) async => _PreferencesRepository(preferences.future),
           ),
         ],
-        child: const MaterialApp(
+        child: MaterialApp(
           localizationsDelegates: appLocalizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
-          home: ActiveAccountInitializationGate(
-            child: Text('signed-in-content'),
-          ),
+          builder: (context, child) =>
+              ActiveAccountInitializationGate(child: child!),
+          home: const Text('signed-in-content'),
         ),
       ),
     );

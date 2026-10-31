@@ -170,7 +170,7 @@ func (service *OAuthFlowService) StartRegistration(
 	if err != nil {
 		return "", err
 	}
-	requestInfo, err := service.registrationOAuth.SendAuthorizationRequest(ctx, metadata, service.app.Config.Scopes)
+	requestInfo, err := service.registrationOAuth.SendAuthorizationRequest(ctx, metadata, advertisedConsumerScopes(service.app.Config.Scopes))
 	if err != nil {
 		return "", err
 	}
@@ -229,7 +229,7 @@ func (service *OAuthFlowService) StartLogin(
 			return loginDiagnostic("provider_metadata", err)
 		}
 		requestInfo, err := service.app.SendAuthRequest(
-			authCtx, serverMetadata, service.app.Config.Scopes, identity.DID.String(),
+			authCtx, serverMetadata, advertisedConsumerScopes(service.app.Config.Scopes), identity.DID.String(),
 		)
 		if err != nil {
 			return loginDiagnostic("authorization_request", err)
@@ -343,6 +343,17 @@ func (service *OAuthFlowService) CompleteCallback(
 	return service.owners.WithExistingAuth(ctx, metadata.Owner, func(authCtx context.Context, authority ownerlifecycle.Lifecycle) error {
 		if authority.Generation != metadata.OwnerGeneration || authority.AuthEpoch != metadata.AuthEpoch {
 			return callbackDiagnostic("callback_owner_generation_changed", ErrOAuthFlowInvalid)
+		}
+		if metadata.Purpose == ChatOAuthPurpose {
+			if !time.Now().Before(metadata.ExpiresAt) {
+				return ErrOAuthFlowInvalid
+			}
+			if authority.State != ownerlifecycle.StateActive {
+				return ErrOAuthFlowInvalid
+			}
+			if err := service.owners.WithAuthTransaction(authCtx, func(tx pgx.Tx) error { return validateChatConsentTx(authCtx, tx, metadata) }); err != nil {
+				return err
+			}
 		}
 		attemptID, err := service.store.BeginExchange(authCtx, state)
 		if err != nil {
@@ -683,9 +694,13 @@ func (service *OAuthFlowService) processInitialCallback(
 	); err != nil {
 		return OAuthCallbackResult{}, callbackDiagnostic("credential_quarantine_failed", fmt.Errorf("quarantine initial OAuth credential: %w", err))
 	}
-	if !validRegistrationTokenScopes(tokenResponse.Scope, service.app.Config.Scopes) {
+	requiredScopes := service.app.Config.Scopes
+	if metadata.Purpose == ChatOAuthPurpose {
+		requiredScopes = advertisedConsumerScopes(requiredScopes)
+	}
+	if !validRegistrationTokenScopes(tokenResponse.Scope, requiredScopes) {
 		service.markCallbackCredentialForCleanup(ctx, attempt.State, attempt.AttemptID)
-		return OAuthCallbackResult{}, scopeGrantDiagnostic(tokenResponse.Scope, service.app.Config.Scopes)
+		return OAuthCallbackResult{}, scopeGrantDiagnostic(tokenResponse.Scope, requiredScopes)
 	}
 	authorityStarted := time.Now()
 	currentAuthority, err := service.authorityVerifier.ResolveCurrent(ctx, metadata.Owner)

@@ -84,23 +84,24 @@ func (w recoveryWriter) PutOnboardingProfile(ctx context.Context, client auth.PD
 }
 
 type recoveryFixture struct {
-	pool       *pgxpool.Pool
-	owners     *ownerlifecycle.Store
-	store      *auth.PostgresAuthStore
-	children   *auth.CraftskySessionStore
-	handoffs   *auth.HandoffService
-	flow       *auth.OAuthFlowService
-	pds        *recoveryPDS
-	writer     recoveryWriter
-	owner      syntax.DID
-	state      string
-	exchanges  int
-	departures int
-	removeErr  error
-	reconciler *auth.OnboardingReconciler
+	pool           *pgxpool.Pool
+	owners         *ownerlifecycle.Store
+	store          *auth.PostgresAuthStore
+	children       *auth.CraftskySessionStore
+	handoffs       *auth.HandoffService
+	flow           *auth.OAuthFlowService
+	pds            *recoveryPDS
+	writer         recoveryWriter
+	owner          syntax.DID
+	state          string
+	exchanges      int
+	repositoryJobs int
+	departures     int
+	removeErr      error
+	reconciler     *auth.OnboardingReconciler
 }
 
-func newRecoveryFixture(t *testing.T) *recoveryFixture {
+func newRecoveryFixture(t *testing.T, extraScopes ...string) *recoveryFixture {
 	t.Helper()
 	ctx := context.Background()
 	f := &recoveryFixture{pool: testdb.WithMigratedSchema(t), owner: "did:plc:missing-profile-recovery", state: "recovery-callback"}
@@ -210,7 +211,7 @@ func newRecoveryFixture(t *testing.T) *recoveryFixture {
 		Dir: &callbackDirectory{identity: &identity.Identity{DID: f.owner, Handle: "recover.example"}},
 		Client: &http.Client{Transport: callbackRoundTripFunc(func(request *http.Request) (*http.Response, error) {
 			f.exchanges++
-			body, _ := json.Marshal(oauth.TokenResponse{Subject: f.owner.String(), Scope: "atproto", AccessToken: "fresh-access", RefreshToken: "fresh-refresh"})
+			body, _ := json.Marshal(oauth.TokenResponse{Subject: f.owner.String(), Scope: strings.Join(append([]string{"atproto"}, extraScopes...), " "), AccessToken: "fresh-access", RefreshToken: "fresh-refresh"})
 			return &http.Response{StatusCode: http.StatusOK, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(string(body))), Request: request}, nil
 		})},
 	}
@@ -221,8 +222,11 @@ func newRecoveryFixture(t *testing.T) *recoveryFixture {
 		t.Fatal(err)
 	}
 	f.handoffs, err = auth.NewHandoffService(auth.HandoffServiceOptions{Pool: f.pool, Owners: f.owners, Sessions: f.children,
-		RepositoryJobs: auth.RepositoryJobTxEnqueuerFunc(func(context.Context, pgx.Tx, syntax.DID, auth.RepositoryJobKind) error { return nil }),
-		ExchangeTTL:    2 * time.Minute, ConfirmationTTL: time.Minute, ReceiptKey: []byte("0123456789abcdef0123456789abcdef"), ReceiptKeyVersion: 1,
+		RepositoryJobs: auth.RepositoryJobTxEnqueuerFunc(func(context.Context, pgx.Tx, syntax.DID, auth.RepositoryJobKind) error {
+			f.repositoryJobs++
+			return nil
+		}),
+		ExchangeTTL: 2 * time.Minute, ConfirmationTTL: time.Minute, ReceiptKey: []byte("0123456789abcdef0123456789abcdef"), ReceiptKeyVersion: 1,
 	})
 	if err != nil {
 		t.Fatal(err)

@@ -1,7 +1,16 @@
 import 'dart:ui' show Tristate;
 
+import 'package:craftsky_app/auth/models/session_registry.dart';
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
+import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
 import 'package:craftsky_app/auth/widgets/account_avatar.dart';
+import 'package:craftsky_app/chat/data/chat_repository.dart';
+import 'package:craftsky_app/chat/models/chat_conversation.dart';
+import 'package:craftsky_app/chat/models/chat_identifier.dart';
+import 'package:craftsky_app/chat/models/chat_state.dart';
+import 'package:craftsky_app/chat/providers/chat_providers.dart';
+import 'package:craftsky_app/chat/widgets/chat_session_scope.dart';
+import 'package:craftsky_app/chat/widgets/chat_unread_icon.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/timeline_page.dart';
 import 'package:craftsky_app/feed/pages/feed_page.dart';
@@ -37,6 +46,64 @@ import '../feed/fakes/fake_post_repository.dart';
 import '../test_support/deterministic_pump.dart';
 
 void main() {
+  for (final wide in [false, true]) {
+    testWidgets(
+      'FG-002 Messages badge refreshes from Feed in '
+      '${wide ? 'rail' : 'drawer'}',
+      (tester) async {
+        final chat = _ChatRepository();
+        final router = await _pumpShell(
+          tester,
+          Size(wide ? 1200 : 500, 900),
+          chatRepository: chat,
+        );
+        if (!wide) {
+          await tester.tap(find.byTooltip('Open navigation menu'));
+          await tester.pumpAndSettle();
+        }
+        await tester.ensureVisible(find.text('Messages'));
+        await tester.pumpAndSettle();
+        final icons = find.byType(ChatUnreadIcon);
+        expect(icons, findsWidgets);
+        expect(
+          find.descendant(of: icons, matching: find.byType(Badge)),
+          findsNothing,
+        );
+        final initialLists = chat.listCalls;
+        for (final count in [7, 100, 0]) {
+          chat.accepted = count;
+          chat.revision++;
+          await tester.pump(const Duration(seconds: 30));
+          await tester.pumpAndSettle();
+          expect(router.state.matchedLocation, '/feed');
+          expect(chat.listCalls, greaterThan(initialLists));
+          final badges = find.descendant(
+            of: icons,
+            matching: find.byType(Badge),
+          );
+          if (count == 0) {
+            expect(badges, findsNothing);
+          } else {
+            expect(
+              find.descendant(
+                of: badges,
+                matching: find.text(count == 100 ? '99+' : '$count'),
+              ),
+              findsWidgets,
+            );
+          }
+          expect(
+            find.descendant(of: icons, matching: find.text('17')),
+            findsNothing,
+          );
+        }
+        expect(tester.takeException(), isNull);
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pumpAndSettle();
+      },
+    );
+  }
+
   for (final surface in [
     'bottom bar',
     'drawer',
@@ -286,13 +353,13 @@ void main() {
     expect(find.byIcon(CraftskyIcons.profile), findsOneWidget);
   });
 
-  testWidgets('wide rail has one compose action outside its 9 destinations', (
+  testWidgets('wide rail has one compose action outside its 10 destinations', (
     tester,
   ) async {
-    await _pumpShell(tester, const Size(1200, 800));
+    await _pumpShell(tester, const Size(1200, 900));
 
     final rail = tester.widget<NavigationRail>(find.byType(NavigationRail));
-    expect(rail.destinations, hasLength(9));
+    expect(rail.destinations, hasLength(10));
     expect(rail.leading, isNull);
     expect(rail.trailing, isNotNull);
     expect(
@@ -499,6 +566,7 @@ void main() {
     ('Scheduled', '/scheduled'),
     ('Drafts', '/drafts'),
     ('Settings', '/settings'),
+    ('Messages', '/messages'),
   ]) {
     testWidgets('CORR-005 compact drawer selects $label once', (tester) async {
       var navigations = 0;
@@ -532,6 +600,7 @@ void main() {
     ('Scheduled', '/scheduled'),
     ('Drafts', '/drafts'),
     ('Settings', '/settings'),
+    ('Messages', '/messages'),
   ]) {
     testWidgets('CORR-005 large rail selects $label once', (tester) async {
       var navigations = 0;
@@ -719,7 +788,7 @@ void main() {
       expect(tester.getSize(find.widgetWithText(ListTile, label)).height, 40);
     }
 
-    await _pumpShell(tester, const Size(1200, 800));
+    await _pumpShell(tester, const Size(1200, 900));
 
     for (final label in ['Terms', 'Privacy']) {
       expect(tester.getSize(find.widgetWithText(TextButton, label)).height, 40);
@@ -783,7 +852,7 @@ void main() {
       ),
     );
 
-    await _pumpShell(tester, const Size(1200, 800));
+    await _pumpShell(tester, const Size(1200, 900));
 
     final rail = find.byType(NavigationRail);
     final railSurface = find.ancestor(
@@ -815,7 +884,7 @@ void main() {
   testWidgets('large shell rail exposes primary and utility destinations', (
     tester,
   ) async {
-    await _pumpShell(tester, const Size(1200, 800));
+    await _pumpShell(tester, const Size(1200, 900));
 
     expect(find.byType(NavigationRail), findsOneWidget);
     for (final label in [
@@ -828,6 +897,7 @@ void main() {
       'Scheduled',
       'Drafts',
       'Settings',
+      'Messages',
       'Terms',
       'Privacy',
       'Feedback',
@@ -850,6 +920,13 @@ void main() {
     expect(find.text('Settings'), findsOneWidget);
 
     tester.view.physicalSize = const Size(1200, 800);
+    await tester.pumpAndSettle();
+    expect(find.text('Feedback'), findsNothing);
+    await tester.ensureVisible(find.text('Messages'));
+    await tester.pumpAndSettle();
+    expect(find.text('Messages'), findsOneWidget);
+    // Ten destinations need more height before the optional footer fits.
+    tester.view.physicalSize = const Size(1200, 900);
     await tester.pumpAndSettle();
     expect(find.text('Feedback'), findsOneWidget);
   });
@@ -886,7 +963,7 @@ void main() {
     var confirmationCalls = 0;
     final router = await _pumpShell(
       tester,
-      const Size(1200, 800),
+      const Size(1200, 900),
       linkLauncher: (uri) async {
         openedUri = uri;
         return true;
@@ -898,7 +975,7 @@ void main() {
     );
     final rail = tester.widget<NavigationRail>(find.byType(NavigationRail));
 
-    expect(rail.destinations, hasLength(9));
+    expect(rail.destinations, hasLength(10));
     expect(rail.selectedIndex, 0);
     expect(find.byType(NavigationBar), findsNothing);
     expect(find.byTooltip('Open navigation menu'), findsNothing);
@@ -918,7 +995,7 @@ void main() {
     var confirmationCalls = 0;
     final router = await _pumpShell(
       tester,
-      const Size(1200, 800),
+      const Size(1200, 900),
       linkLauncher: (_) async {
         launcherCalled = true;
         return true;
@@ -1122,6 +1199,7 @@ Future<GoRouter> _pumpShell(
   ThemeMode themeMode = ThemeMode.light,
   bool wrapInAuthenticatedShell = false,
   VoidCallback? onFeedLoad,
+  ChatRepository? chatRepository,
 }) async {
   addTearDown(tester.view.resetPhysicalSize);
   addTearDown(tester.view.resetDevicePixelRatio);
@@ -1142,9 +1220,12 @@ Future<GoRouter> _pumpShell(
             confirmOpenLink: confirmOpenLink ?? ((_, _) async => true),
             buildVersionLabel: '1.0.0 (1)',
           );
-          return wrapInAuthenticatedShell
+          final surface = wrapInAuthenticatedShell
               ? AuthenticatedShell(child: shell)
               : shell;
+          return chatRepository == null
+              ? surface
+              : ChatSessionScope(child: surface);
         },
         branches: [
           for (final path in [
@@ -1153,6 +1234,7 @@ Future<GoRouter> _pumpShell(
             '/search',
             '/notifications',
             '/profile',
+            '/messages',
             '/saved',
             '/scheduled',
             '/drafts',
@@ -1181,6 +1263,14 @@ Future<GoRouter> _pumpShell(
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
+        if (chatRepository != null) ...[
+          secureSessionRegistryStorageProvider.overrideWithValue(
+            _ChatStorage(),
+          ),
+          accountChatRepositoryProvider.overrideWith(
+            (ref, account) async => chatRepository,
+          ),
+        ],
         if (onFeedLoad != null) ...[
           authSessionProvider.overrideWith(SignedInAuthSession.new),
           postRepositoryProvider.overrideWithValue(
@@ -1271,4 +1361,57 @@ final class _ZeroNewnessRepository implements NotificationNewnessRepository {
 
   @override
   Future<void> markSeen() async {}
+}
+
+class _ChatStorage implements SessionRegistryStorage {
+  SessionRegistry value = SessionRegistry.empty().upsertAndActivate(
+    token: 'synthetic',
+    did: 'did:plc:owner',
+    handle: 'owner.test',
+  );
+  @override
+  Future<SessionRegistry> read() async => value;
+  @override
+  Future<void> write(SessionRegistry registry) async => value = registry;
+}
+
+class _ChatRepository implements ChatRepository {
+  int accepted = 0;
+  int revision = 1;
+  int listCalls = 0;
+  @override
+  Future<ChatStatus> status() async => ChatStatus.fromMap(const {
+    'enabled': true,
+    'pushEnabled': true,
+    'generation': 1,
+    'state': 'ready',
+    'capabilities': {
+      'canRead': true,
+      'canSend': true,
+      'canReport': true,
+      'canSetPolicy': true,
+    },
+  });
+  @override
+  Future<ChatUnreadCounts> unreadCounts() async =>
+      ChatUnreadCounts.fromMap({'accepted': accepted, 'requests': 17});
+  @override
+  Future<ChatSyncSnapshot> heartbeat(
+    ChatView view, {
+    ChatConversationId? conversationId,
+    int? knownRevision,
+  }) async =>
+      ChatSyncSnapshot.fromMap({'revision': revision, 'state': 'ready'});
+  @override
+  Future<ChatConversationPage> conversations({
+    required ChatBucket bucket,
+    ChatCursor? cursor,
+    int limit = 50,
+  }) async {
+    listCalls++;
+    return ChatConversationPage(items: const []);
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => throw UnimplementedError();
 }

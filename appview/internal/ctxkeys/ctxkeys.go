@@ -18,6 +18,7 @@ const (
 	DIDKey            contextKey = "did"
 	OAuthSessionIDKey contextKey = "oauth_session_id"
 	DeviceIDKey       contextKey = "device_id"
+	childTokenHashKey contextKey = "child_token_hash"
 	RunIDKey          contextKey = "run_id"
 	ModeratorKey      contextKey = "moderator"
 )
@@ -92,4 +93,14 @@ func GetRunID(ctx context.Context) string {
 // WithRunID stores runID in ctx under RunIDKey.
 func WithRunID(ctx context.Context, runID string) context.Context {
 	return context.WithValue(ctx, RunIDKey, runID)
+}
+
+// WithChildTokenHash stores only the server-derived identity of an already
+// authenticated bearer, never a value selected by a request body/header.
+func WithChildTokenHash(ctx context.Context, hash [32]byte) context.Context {
+	return context.WithValue(ctx, childTokenHashKey, hash)
+}
+func GetChildTokenHash(ctx context.Context) ([32]byte, bool) {
+	hash, ok := ctx.Value(childTokenHashKey).([32]byte)
+	return hash, ok
 }

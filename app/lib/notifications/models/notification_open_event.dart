@@ -1,4 +1,5 @@
 import 'package:at_primitives/at_uri.dart' as at_uri;
+import 'package:craftsky_app/chat/models/chat_identifier.dart';
 import 'package:craftsky_app/moderation/models/account_moderation.dart';
 import 'package:craftsky_app/notifications/models/account_subscription_id.dart';
 import 'package:craftsky_app/notifications/models/notification_category.dart';
@@ -37,6 +38,17 @@ final class ValidNotificationFacts extends NotificationFactOutcome {
   String toString() => 'ValidNotificationFacts(category: $category)';
 }
 
+final class ChatNotificationFacts extends NotificationFactOutcome {
+  const new(this.openReference);
+  final ChatOpenReference openReference;
+  @override
+  String toString() => 'ChatNotificationFacts(<redacted>)';
+}
+
+final class InvalidChatNotificationFacts extends NotificationFactOutcome {
+  const new();
+}
+
 final class UnknownNotificationFacts extends NotificationFactOutcome {
   const new();
 
@@ -70,7 +82,7 @@ final class NotificationOpenAttempt {
     final payloadVersion = data['payloadVersion'];
     final type = data['type'];
 
-    final NotificationFactOutcome facts;
+    NotificationFactOutcome facts;
     if (payloadVersion != '1') {
       facts = const InvalidNotificationFacts(
         NotificationFactFailureClass.unsupportedPayloadVersion,
@@ -79,6 +91,16 @@ final class NotificationOpenAttempt {
       facts = const InvalidNotificationFacts(
         NotificationFactFailureClass.malformedType,
       );
+    } else if (type == 'chat') {
+      final raw = data['openReference'];
+      try {
+        if (raw is! String) {
+          throw const FormatException('Invalid messaging open');
+        }
+        facts = ChatNotificationFacts(ChatOpenReference.parse(raw));
+      } on FormatException {
+        facts = const InvalidChatNotificationFacts();
+      }
     } else {
       final category = NotificationCategory.fromWireValue(type);
       facts = switch (category) {

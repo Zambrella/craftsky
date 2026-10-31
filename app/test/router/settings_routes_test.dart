@@ -8,6 +8,10 @@ import 'package:craftsky_app/auth/models/session_registry.dart';
 import 'package:craftsky_app/auth/providers/active_account_initialization_provider.dart';
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
 import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
+import 'package:craftsky_app/chat/data/chat_repository.dart';
+import 'package:craftsky_app/chat/models/chat_state.dart';
+import 'package:craftsky_app/chat/pages/chat_settings_page.dart';
+import 'package:craftsky_app/chat/providers/chat_providers.dart';
 import 'package:craftsky_app/feed/models/post_page.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/feed/widgets/post_composer_sheet.dart';
@@ -24,6 +28,7 @@ import 'package:craftsky_app/profile/models/profile_account_page.dart';
 import 'package:craftsky_app/profile/pages/profile_page.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/projects/widgets/project_composer_sheet.dart';
+import 'package:craftsky_app/router/app_shell_drawer.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/settings/pages/about_page.dart';
 import 'package:craftsky_app/settings/pages/account_page.dart';
@@ -145,7 +150,7 @@ void main() {
     expect(find.byType(NavigationRail), findsOneWidget);
     expect(
       tester.widget<NavigationRail>(find.byType(NavigationRail)).selectedIndex,
-      8,
+      9,
     );
     expect(find.byType(NavigationBar), findsNothing);
 
@@ -294,6 +299,50 @@ void main() {
     expect(router.state.matchedLocation, const ProfileRoute().location);
   });
 
+  testWidgets('Messages root uses the real shell drawer', (tester) async {
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(500, 800);
+    final container = _container();
+    addTearDown(container.dispose);
+    final subscription = container.listen(
+      goRouterProvider,
+      (_, _) {},
+      fireImmediately: true,
+    );
+    addTearDown(subscription.close);
+    final router = subscription.read()..go(const ChatInboxRoute().location);
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp.router(
+          routerConfig: router,
+          theme: AppTheme.lightThemeData.copyWith(platform: TargetPlatform.iOS),
+          localizationsDelegates: appLocalizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          builder: (_, child) => MessengerScope(
+            messenger: RecordingMessenger(),
+            child: FormFactorWidget(child: child!),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byType(BackButton), findsNothing);
+    await tester.tap(find.byType(AppShellDrawerButton));
+    await tester.pumpAndSettle();
+    expect(find.byType(Drawer), findsOneWidget);
+    final messagesTile = find.ancestor(
+      of: find.descendant(
+        of: find.byType(Drawer),
+        matching: find.text('Messages'),
+      ),
+      matching: find.byType(ListTile),
+    );
+    expect(tester.widget<ListTile>(messagesTile).selected, true);
+    expect(router.state.matchedLocation, const ChatInboxRoute().location);
+  });
   testWidgets(
     'iOS Settings child edge swipe goes back instead of opening the drawer',
     (tester) async {
@@ -412,7 +461,7 @@ void main() {
             tester
                 .widget<NavigationRail>(find.byType(NavigationRail))
                 .selectedIndex,
-            8,
+            9,
           );
         }
       },
@@ -461,6 +510,7 @@ void main() {
       'Customisation',
       'Languages',
       'Notifications',
+      'Direct messages',
       'Privacy',
       'Connections',
       'Growth',
@@ -482,7 +532,7 @@ void main() {
     expect(find.text('Clear image cache'), findsNothing);
     expect(
       find.byIcon(CraftskyIconsBold.next),
-      findsNWidgets(15),
+      findsNWidgets(16),
     );
     final signOut = tester.widget<Text>(find.text('Sign out'));
     expect(
@@ -587,6 +637,8 @@ void main() {
 
 ProviderContainer _container() => ProviderContainer.test(
   overrides: [
+    accountChatRepositoryProvider(AccountKey('did:plc:test'))
+        .overrideWith((ref) async => _ChatRepository()),
     secureSessionRegistryStorageProvider.overrideWithValue(
       _SettingsRouteRegistryStorage(
         SessionRegistry.empty().upsertAndActivate(
@@ -687,6 +739,11 @@ const _emptyAccountPage = ProfileAccountPage(
 
 final _routeCases = <_SettingsRouteCase>[
   _SettingsRouteCase(
+    label: 'Direct messages',
+    location: '/settings/messaging',
+    matchesPage: (widget) => widget is MessagingSettingsView,
+  ),
+  _SettingsRouteCase(
     label: 'Privacy',
     location: '/settings/privacy',
     matchesPage: (widget) => widget is PrivacyPage,
@@ -779,4 +836,31 @@ final class _SettingsRouteCase {
   final String label;
   final String location;
   final bool Function(Widget widget) matchesPage;
+}
+
+class _ChatRepository implements ChatRepository {
+  @override
+  Future<ChatStatus> status() async => ChatStatus.fromMap(const {
+    'generation': 1,
+    'enabled': true,
+    'pushEnabled': true,
+    'state': 'ready',
+    'capabilities': {
+      'canRead': true,
+      'canSend': true,
+      'canReport': true,
+      'canSetPolicy': true,
+    },
+  });
+  @override
+  Future<bool> pushPreference() async => true;
+  @override
+  Future<ChatPolicySetting> incomingPolicy() async => ChatPolicySetting.fromMap(
+    const {'allowIncoming': 'following', 'persisted': true},
+  );
+  @override
+  Future<ChatUnreadCounts> unreadCounts() async =>
+      ChatUnreadCounts.fromMap(const {'accepted': 0, 'requests': 0});
+  @override
+  dynamic noSuchMethod(Invocation invocation) => throw UnimplementedError();
 }

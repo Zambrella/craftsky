@@ -91,6 +91,10 @@ type Config struct {
 // Dependencies is the route-composition boundary. AddRoutes is the only
 // consumer of the complete set; capability registrars receive smaller bundles.
 type Dependencies struct {
+	ChatStatus               api.ChatStatusReader
+	ChatSender               api.ChatSender
+	ChatConsumer             api.ChatConsumer
+	ChatAuthorization        auth.ChatAuthorizationStarter
 	OperatorConsole          *operatorconsole.Handlers
 	OperatorAuthentication   func(http.Handler) http.Handler
 	Config                   Config

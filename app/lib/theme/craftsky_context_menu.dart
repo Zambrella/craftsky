@@ -89,6 +89,7 @@ class CraftskyContextMenuButton extends StatefulWidget {
     required this.groups,
     this.icon = CraftskyIconsBold.more,
     this.tooltip,
+    this.style,
     this.enabled = true,
     this.isLoading = false,
     super.key,
@@ -97,6 +98,7 @@ class CraftskyContextMenuButton extends StatefulWidget {
   final List<CraftskyContextMenuGroup> groups;
   final IconData icon;
   final String? tooltip;
+  final ButtonStyle? style;
   final bool enabled;
   final bool isLoading;
 
@@ -130,6 +132,7 @@ class _CraftskyContextMenuButtonState extends State<CraftskyContextMenuButton> {
         child: Icon(widget.icon, size: 22),
       ),
       tooltip: widget.tooltip,
+      style: widget.style,
       padding: EdgeInsets.zero,
       onPressed: widget.enabled && !loading
           ? () {
@@ -181,6 +184,8 @@ Future<void> showCraftskyContextMenu(
   final isCompact = width <= 900;
 
   if (isCompact) {
+    // A source row can disappear while the root menu remains open.
+    final navigator = Navigator.of(context, rootNavigator: true);
     final theme = Theme.of(context);
     final radii = theme.extension<RadiusTheme>()!;
     final swatches = theme.extension<BrandSwatchTheme>()!;
@@ -203,7 +208,8 @@ Future<void> showCraftskyContextMenu(
       builder: (_) => _CraftskyContextMenuSheet(
         groups: groups,
         onSelected: (item) {
-          Navigator.of(context, rootNavigator: true).pop();
+          if (!navigator.mounted) return;
+          navigator.pop();
           selectedAction = Future<void>.microtask(() async {
             await item.onPressed?.call();
           });

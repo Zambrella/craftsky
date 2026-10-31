@@ -65,7 +65,7 @@ final class PostProvider
   }
 }
 
-String _$postHash() => r'612a9e16062f125d96431ba1ffaeb0a05de18508';
+String _$postHash() => r'd27e9f9cc8b4b2c383b738c1657197f63ae6c1a4';
 
 /// Single-post read by `(did, rkey)`. No UI consumer in v1; exists for
 /// future routes (deep-link share, thread page).

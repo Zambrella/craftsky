@@ -9,6 +9,7 @@ import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/auth/providers/unsaved_work_guard_provider.dart';
 import 'package:craftsky_app/auth/widgets/account_avatar.dart';
 import 'package:craftsky_app/auth/widgets/account_switcher_launcher.dart';
+import 'package:craftsky_app/chat/widgets/chat_unread_icon.dart';
 import 'package:craftsky_app/feed/providers/feed_reselect_provider.dart';
 import 'package:craftsky_app/feed/providers/profile_pins_provider.dart';
 import 'package:craftsky_app/feed/widgets/post_composer_sheet.dart';
@@ -78,6 +79,10 @@ const _primaryDestinations = <_DestinationSpec>[
 ];
 
 const _secondaryDestinations = <_DestinationSpec>[
+  _DestinationSpec(
+    icon: CraftskyIcons.comment,
+    selectedIcon: CraftskyIconsFill.comment,
+  ),
   _DestinationSpec(
     icon: CraftskyIcons.savedSection,
     selectedIcon: CraftskyIcons.savedSectionSelected,
@@ -218,10 +223,11 @@ class _AuthenticatedShellState extends ConsumerState<AuthenticatedShell> {
       2 => RouteLocations.search,
       3 => RouteLocations.notifications,
       4 => RouteLocations.profile,
-      5 => RouteLocations.savedPosts,
-      6 => RouteLocations.scheduledPosts,
-      7 => RouteLocations.drafts,
-      8 => RouteLocations.settings,
+      5 => RouteLocations.messages,
+      6 => RouteLocations.savedPosts,
+      7 => RouteLocations.scheduledPosts,
+      8 => RouteLocations.drafts,
+      9 => RouteLocations.settings,
       _ => throw RangeError.index(index, _menuDestinations),
     };
     context.go(location);
@@ -876,8 +882,11 @@ class _ShellDrawerState extends State<_ShellDrawer> {
                           selected:
                               selectedIndex ==
                               _primaryDestinations.length + offset,
-                          leading: Icon(
-                            selectedIndex ==
+                          leading: _DestinationIcon(
+                            messaging:
+                                _primaryDestinations.length + offset == 5,
+                            icon:
+                                selectedIndex ==
                                     _primaryDestinations.length + offset
                                 ? destination.selectedIcon
                                 : destination.icon,
@@ -1135,6 +1144,7 @@ class _ShellNavigationRail extends StatelessWidget {
                       NavigationRailDestination(
                         icon: _DestinationIcon(
                           icon: d.icon,
+                          messaging: index == 5,
                           badge: index == 3 ? notificationBadge : null,
                           profileIconOnly: index == 4,
                           onTapDestination: index == 4
@@ -1146,6 +1156,7 @@ class _ShellNavigationRail extends StatelessWidget {
                         ),
                         selectedIcon: _DestinationIcon(
                           icon: d.selectedIcon,
+                          messaging: index == 5,
                           badge: index == 3 ? notificationBadge : null,
                           profileIconOnly: index == 4,
                           onTapDestination: index == 4
@@ -1310,18 +1321,21 @@ String _destinationLabel(AppLocalizations l10n, int index) => switch (index) {
   2 => l10n.searchTitle,
   3 => l10n.notificationsTitle,
   4 => l10n.navigationProfile,
-  5 => l10n.navigationSaved,
-  6 => l10n.navigationScheduled,
-  7 => l10n.draftsTitle,
-  8 => l10n.profileSettingsAction,
+  5 => l10n.chatInboxTitle,
+  6 => l10n.navigationSaved,
+  7 => l10n.navigationScheduled,
+  8 => l10n.draftsTitle,
+  9 => l10n.profileSettingsAction,
   _ => throw RangeError.index(index, _menuDestinations),
 };
 
 int _selectedDestinationIndex(String matchedLocation, int branchIndex) {
-  if (matchedLocation.startsWith(RouteLocations.savedPosts)) return 5;
-  if (matchedLocation.startsWith(RouteLocations.scheduledPosts)) return 6;
-  if (matchedLocation.startsWith(RouteLocations.drafts)) return 7;
-  if (matchedLocation.startsWith(RouteLocations.settings)) return 8;
+  if (matchedLocation.startsWith(RouteLocations.messages)) return 5;
+  if (matchedLocation == RouteLocations.messagingSettings) return 9;
+  if (matchedLocation.startsWith(RouteLocations.savedPosts)) return 6;
+  if (matchedLocation.startsWith(RouteLocations.scheduledPosts)) return 7;
+  if (matchedLocation.startsWith(RouteLocations.drafts)) return 8;
+  if (matchedLocation.startsWith(RouteLocations.settings)) return 9;
   return branchIndex;
 }
 
@@ -1351,6 +1365,7 @@ class _DestinationIcon extends StatelessWidget {
   const new({
     required this.icon,
     this.badge,
+    this.messaging = false,
     this.profileAvatarUrl,
     this.profileSeed = '',
     this.profileCustomisation = ProfileCustomisation.defaults,
@@ -1363,6 +1378,7 @@ class _DestinationIcon extends StatelessWidget {
 
   final IconData icon;
   final NotificationBadge? badge;
+  final bool messaging;
   final String? profileAvatarUrl;
   final String profileSeed;
   final ProfileCustomisation profileCustomisation;
@@ -1374,6 +1390,7 @@ class _DestinationIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (messaging) return ChatUnreadIcon(icon: icon);
     final value = badge;
     Widget child = onOpenAccountSwitcher == null || profileIconOnly
         ? Icon(icon)

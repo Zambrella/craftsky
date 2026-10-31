@@ -424,65 +424,68 @@ void main() {
       expect(find.text('New post'), findsOneWidget);
     });
 
-    testWidgets('visitor profile renders Follow + Mute actions', (
-      tester,
-    ) async {
-      final profile = Profile(
-        did: 'did:plc:other',
-        handle: 'alice.bsky.social',
-        displayName: 'Alice',
-        crafts: [],
-        followingCount: 7,
-        followerCount: 9,
-        mutualFollowerCount: 12,
-        postsLast7Days: 2,
-        postCount: 5,
-        projectCount: 0,
-        createdAt: DateTime.now().subtract(const Duration(days: 30)),
-      );
-      final repo = FakeProfileRepository(onFetch: (_) async => profile);
+    testWidgets(
+      'visitor profile renders Follow and keeps Mute in More actions',
+      (
+        tester,
+      ) async {
+        final profile = Profile(
+          did: 'did:plc:other',
+          handle: 'alice.bsky.social',
+          displayName: 'Alice',
+          crafts: [],
+          followingCount: 7,
+          followerCount: 9,
+          mutualFollowerCount: 12,
+          postsLast7Days: 2,
+          postCount: 5,
+          projectCount: 0,
+          createdAt: DateTime.now().subtract(const Duration(days: 30)),
+        );
+        final repo = FakeProfileRepository(onFetch: (_) async => profile);
 
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: [
-            authSessionProvider.overrideWith(SignedInAuthSession.new),
-            profileRepositoryProvider.overrideWithValue(repo),
-            postRepositoryProvider.overrideWithValue(_emptyPostRepository),
-          ],
-          child: MessengerScope(
-            messenger: RecordingMessenger(),
-            child: MaterialApp(
-              theme: AppTheme.lightThemeData,
-              localizationsDelegates: appLocalizationsDelegates,
-              supportedLocales: AppLocalizations.supportedLocales,
-              home: ProfilePage(did: Did.parse('did:plc:alice')),
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              authSessionProvider.overrideWith(SignedInAuthSession.new),
+              profileRepositoryProvider.overrideWithValue(repo),
+              postRepositoryProvider.overrideWithValue(_emptyPostRepository),
+            ],
+            child: MessengerScope(
+              messenger: RecordingMessenger(),
+              child: MaterialApp(
+                theme: AppTheme.lightThemeData,
+                localizationsDelegates: appLocalizationsDelegates,
+                supportedLocales: AppLocalizations.supportedLocales,
+                home: ProfilePage(did: Did.parse('did:plc:alice')),
+              ),
             ),
           ),
-        ),
-      );
-      await tester.pumpAndSettle();
+        );
+        await tester.pumpAndSettle();
 
-      expect(find.text('Follow'), findsOneWidget);
-      expect(find.text('Unfollow'), findsNothing);
-      expect(find.byTooltip('Mute account'), findsWidgets);
-      expect(find.byTooltip('Share'), findsNothing);
-      expect(find.text('Edit profile'), findsNothing);
-      expect(find.text('following'), findsNothing);
-      expect(find.text('followers'), findsNothing);
-      await tester.ensureVisible(find.text('2 posts'));
-      expect(find.text('2 posts'), findsOneWidget);
-      expect(find.text('Last 7 days'), findsOneWidget);
-      expect(find.text('0'), findsOneWidget);
-      expect(
-        find.descendant(
-          of: find.byType(ProfileStats),
-          matching: find.text('Projects'),
-        ),
-        findsOneWidget,
-      );
-      expect(find.text('12 mutual followers'), findsOneWidget);
-      expect(find.text('Non CraftSky profile'), findsNothing);
-    });
+        expect(find.text('Follow'), findsOneWidget);
+        expect(find.text('Unfollow'), findsNothing);
+        expect(find.byTooltip('Mute account'), findsNothing);
+        expect(find.byTooltip('Share'), findsNothing);
+        expect(find.text('Edit profile'), findsNothing);
+        expect(find.text('following'), findsNothing);
+        expect(find.text('followers'), findsNothing);
+        await tester.ensureVisible(find.text('2 posts'));
+        expect(find.text('2 posts'), findsOneWidget);
+        expect(find.text('Last 7 days'), findsOneWidget);
+        expect(find.text('0'), findsOneWidget);
+        expect(
+          find.descendant(
+            of: find.byType(ProfileStats),
+            matching: find.text('Projects'),
+          ),
+          findsOneWidget,
+        );
+        expect(find.text('12 mutual followers'), findsOneWidget);
+        expect(find.text('Non CraftSky profile'), findsNothing);
+      },
+    );
 
     testWidgets('applies the profile colour only above the tab bar', (
       tester,
@@ -779,83 +782,112 @@ void main() {
       expect(tester.widget<Opacity>(divider).opacity, 1);
     });
 
-    testWidgets('profile menu icon follows header contrast without a surface', (
-      tester,
-    ) async {
-      final controller = ScrollController();
-      addTearDown(controller.dispose);
-      await tester.pumpWidget(
-        MaterialApp(
-          theme: AppTheme.lightThemeData,
-          darkTheme: AppTheme.darkThemeData,
-          themeMode: ThemeMode.dark,
-          localizationsDelegates: appLocalizationsDelegates,
-          supportedLocales: AppLocalizations.supportedLocales,
-          home: AppShellDrawerScope(
-            openDrawer: () {},
-            isDrawerOpen: false,
-            child: Scaffold(
-              body: CustomScrollView(
-                controller: controller,
-                slivers: [
-                  ProfileCustomisationTheme(
-                    customisation: const ProfileCustomisation(colour: 'orchid'),
-                    child: ProfileSliverAppBar(
-                      handle: 'alice.bsky.social',
-                      actions: SelfProfileActionSet(
-                        onEdit: () {},
-                        onSettings: () {},
-                      ),
+    for (final visitor in [false, true]) {
+      for (final themeMode in [ThemeMode.light, ThemeMode.dark]) {
+        testWidgets(
+          'profile menu has no surface: visitor=$visitor, $themeMode',
+          (tester) async {
+            final controller = ScrollController();
+            addTearDown(controller.dispose);
+            await tester.pumpWidget(
+              MaterialApp(
+                theme: AppTheme.lightThemeData,
+                darkTheme: AppTheme.darkThemeData,
+                themeMode: themeMode,
+                localizationsDelegates: appLocalizationsDelegates,
+                supportedLocales: AppLocalizations.supportedLocales,
+                home: AppShellDrawerScope(
+                  openDrawer: () {},
+                  isDrawerOpen: false,
+                  child: Scaffold(
+                    body: CustomScrollView(
+                      controller: controller,
+                      slivers: [
+                        ProfileCustomisationTheme(
+                          customisation: const ProfileCustomisation(
+                            colour: 'orchid',
+                          ),
+                          child: ProfileSliverAppBar(
+                            handle: 'alice.bsky.social',
+                            actions: visitor
+                                ? VisitorProfileActionSet(
+                                    isFollowing: false,
+                                    isBusy: false,
+                                    onFollowToggle: () {},
+                                    onShare: () {},
+                                    onReport: () {},
+                                    onMuteToggle: () {},
+                                    onBlockToggle: () {},
+                                  )
+                                : SelfProfileActionSet(
+                                    onEdit: () {},
+                                    onSettings: () {},
+                                  ),
+                          ),
+                        ),
+                        const SliverToBoxAdapter(child: SizedBox(height: 1200)),
+                      ],
                     ),
                   ),
-                  const SliverToBoxAdapter(child: SizedBox(height: 1200)),
-                ],
+                ),
               ),
-            ),
-          ),
-        ),
-      );
-      await tester.pump();
+            );
+            await tester.pump();
 
-      final appBar = tester.widget<SliverAppBar>(find.byType(SliverAppBar));
-      final title = tester.widget<Positioned>(
-        find.byKey(const Key('profile-sliver-collapsed-title')),
-      );
-      final darkScheme = AppTheme.darkThemeData.colorScheme;
-      IconButton menuButton() => tester.widget<IconButton>(
-        find.widgetWithIcon(IconButton, CraftskyIconsBold.menu),
-      );
+            final appBar = tester.widget<SliverAppBar>(
+              find.byType(SliverAppBar),
+            );
+            final title = tester.widget<Positioned>(
+              find.byKey(const Key('profile-sliver-collapsed-title')),
+            );
+            final scheme =
+                (themeMode == ThemeMode.dark
+                        ? AppTheme.darkThemeData
+                        : AppTheme.lightThemeData)
+                    .colorScheme;
+            IconButton menuButton() => tester.widget<IconButton>(
+              find.widgetWithIcon(IconButton, CraftskyIconsBold.menu),
+            );
 
-      expect(
-        menuButton().style?.backgroundColor?.resolve({}),
-        Colors.transparent,
-      );
-      expect(menuButton().style?.foregroundColor?.resolve({}), Colors.white);
-      expect(title.left, 56);
+            expect(
+              menuButton().style?.backgroundColor?.resolve({}),
+              Colors.transparent,
+            );
+            expect(
+              menuButton().style?.foregroundColor?.resolve({}),
+              Colors.white,
+            );
+            expect(title.left, 56);
 
-      controller.jumpTo(appBar.expandedHeight! - kToolbarHeight);
-      await tester.pump();
+            controller.jumpTo(appBar.expandedHeight! - kToolbarHeight);
+            await tester.pump();
 
-      expect(
-        menuButton().style?.backgroundColor?.resolve({}),
-        Colors.transparent,
-      );
-      expect(
-        menuButton().style?.foregroundColor?.resolve({}),
-        darkScheme.onSurface,
-      );
-      final settingsButton = tester.widget<IconButton>(
-        find.widgetWithIcon(IconButton, CraftskyIconsBold.settings),
-      );
-      expect(
-        settingsButton.style?.backgroundColor?.resolve({}),
-        Colors.transparent,
-      );
-      expect(
-        settingsButton.style?.foregroundColor?.resolve({}),
-        darkScheme.onSurface,
-      );
-    });
+            expect(
+              menuButton().style?.backgroundColor?.resolve({}),
+              Colors.transparent,
+            );
+            expect(
+              menuButton().style?.foregroundColor?.resolve({}),
+              scheme.onSurface,
+            );
+            final trailingButton = tester.widget<IconButton>(
+              find.widgetWithIcon(
+                IconButton,
+                visitor ? CraftskyIconsBold.more : CraftskyIconsBold.settings,
+              ),
+            );
+            expect(
+              trailingButton.style?.backgroundColor?.resolve({}),
+              Colors.transparent,
+            );
+            expect(
+              trailingButton.style?.foregroundColor?.resolve({}),
+              scheme.onSurface,
+            );
+          },
+        );
+      }
+    }
 
     testWidgets('profile back button follows expanded header contrast', (
       tester,
@@ -1170,57 +1202,82 @@ void main() {
       expect(find.text('Blocked by you'), findsOneWidget);
     });
 
-    testWidgets('mute icon applies mute without opening More menu', (
-      tester,
-    ) async {
-      var muteCalls = 0;
-      final account = AccountKey('did:plc:test');
-      final profile = Profile(
-        did: 'did:plc:other',
-        handle: 'alice.bsky.social',
-        displayName: 'Alice',
-        crafts: const [],
-      );
-      final repo = FakeProfileRepository(
-        onFetch: (_) async => profile,
-        onMute: (target) async {
-          expect(target, 'did:plc:other');
-          muteCalls++;
-          return const ProfileRelationship(muted: true);
-        },
-      );
+    testWidgets(
+      'More menu mutes in expanded and collapsed profiles',
+      (
+        tester,
+      ) async {
+        var muteCalls = 0;
+        final account = AccountKey('did:plc:test');
+        final profile = Profile(
+          did: 'did:plc:other',
+          handle: 'alice.bsky.social',
+          displayName: 'Alice',
+          crafts: const [],
+        );
+        final repo = FakeProfileRepository(
+          onFetch: (_) async => profile,
+          onMute: (target) async {
+            expect(target, 'did:plc:other');
+            muteCalls++;
+            return const ProfileRelationship(muted: true);
+          },
+        );
 
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: [
-            authSessionProvider.overrideWith(SignedInAuthSession.new),
-            profileRepositoryProvider.overrideWithValue(repo),
-            accountRelationshipRepositoryProvider(
-              account,
-            ).overrideWith((ref) async => repo),
-            postRepositoryProvider.overrideWithValue(_emptyPostRepository),
-          ],
-          child: MessengerScope(
-            messenger: RecordingMessenger(),
-            child: MaterialApp(
-              theme: AppTheme.lightThemeData,
-              localizationsDelegates: appLocalizationsDelegates,
-              supportedLocales: AppLocalizations.supportedLocales,
-              home: ProfilePage(did: Did.parse('did:plc:alice')),
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              authSessionProvider.overrideWith(SignedInAuthSession.new),
+              profileRepositoryProvider.overrideWithValue(repo),
+              accountRelationshipRepositoryProvider(
+                account,
+              ).overrideWith((ref) async => repo),
+              postRepositoryProvider.overrideWithValue(_emptyPostRepository),
+            ],
+            child: MessengerScope(
+              messenger: RecordingMessenger(),
+              child: MaterialApp(
+                theme: AppTheme.lightThemeData,
+                localizationsDelegates: appLocalizationsDelegates,
+                supportedLocales: AppLocalizations.supportedLocales,
+                home: ProfilePage(did: Did.parse('did:plc:alice')),
+              ),
             ),
           ),
-        ),
-      );
-      await tester.pumpAndSettle();
+        );
+        await tester.pumpAndSettle();
 
-      await tester.tap(find.byTooltip('Mute account').last);
-      await tester.pumpAndSettle();
+        expect(find.byTooltip('Mute account'), findsNothing);
+        await tester.tap(
+          find.byTooltip('More profile actions').hitTestable().first,
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Mute account'));
+        await tester.pumpAndSettle();
 
-      expect(muteCalls, 1);
-      expect(find.byType(BottomSheet), findsNothing);
-      expect(find.text('Muted account'), findsOneWidget);
-      expect(find.byTooltip('Unmute account'), findsWidgets);
-    });
+        expect(muteCalls, 1);
+        expect(find.byType(BottomSheet), findsNothing);
+        expect(find.text('Muted account'), findsOneWidget);
+        expect(find.byTooltip('Unmute account'), findsNothing);
+        await tester.tap(
+          find.byTooltip('More profile actions').hitTestable().first,
+        );
+        await tester.pumpAndSettle();
+        expect(find.text('Unmute account'), findsOneWidget);
+        Navigator.of(tester.element(find.text('Unmute account'))).pop();
+        await tester.pumpAndSettle();
+        await tester.drag(
+          find.byType(CustomScrollView).first,
+          const Offset(0, -600),
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(
+          find.byTooltip('More profile actions').hitTestable().first,
+        );
+        await tester.pumpAndSettle();
+        expect(find.text('Unmute account'), findsOneWidget);
+      },
+    );
 
     testWidgets('warned profile shows generic warning copy', (tester) async {
       final profile = Profile(

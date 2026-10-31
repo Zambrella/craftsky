@@ -167,6 +167,16 @@ class SettingsPage extends ConsumerWidget {
           ),
           SettingsRowTile(
             descriptor: const SettingsRowDescriptor(
+              id: SettingsRowId.messaging,
+              kind: SettingsRowKind.disclosure,
+            ),
+            label: l10n.chatSettingsTitle,
+            leading: CraftskyIcons.comment,
+            onTap: () =>
+                unawaited(const ChatSettingsRoute().push<void>(context)),
+          ),
+          SettingsRowTile(
+            descriptor: const SettingsRowDescriptor(
               id: SettingsRowId.privacy,
               kind: SettingsRowKind.disclosure,
             ),

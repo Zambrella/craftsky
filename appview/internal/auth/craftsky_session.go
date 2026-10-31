@@ -174,7 +174,14 @@ func (s *CraftskySessionStore) createTx(
 }
 
 func (s *CraftskySessionStore) Lookup(ctx context.Context, token string) (AuthInfo, error) {
-	return s.lookup(ctx, token, false)
+	return s.lookup(ctx, token, false, true)
+}
+
+// LookupWithoutActivity applies the same owner, epoch, parent and child checks
+// as normal authentication but does not extend inactivity for automatic reads.
+// Expired credentials still follow the normal revocation path.
+func (s *CraftskySessionStore) LookupWithoutActivity(ctx context.Context, token string) (AuthInfo, error) {
+	return s.lookup(ctx, token, false, false)
 }
 
 // LookupRecovery accepts the same active credentials as Lookup, plus an
@@ -182,10 +189,10 @@ func (s *CraftskySessionStore) Lookup(ctx context.Context, token string) (AuthIn
 // deletion_pending owner with a current, unexpired deletion intent. It is
 // deliberately exposed only through the recovery route access class.
 func (s *CraftskySessionStore) LookupRecovery(ctx context.Context, token string) (AuthInfo, error) {
-	return s.lookup(ctx, token, true)
+	return s.lookup(ctx, token, true, true)
 }
 
-func (s *CraftskySessionStore) lookup(ctx context.Context, token string, recovery bool) (AuthInfo, error) {
+func (s *CraftskySessionStore) lookup(ctx context.Context, token string, recovery, recordActivity bool) (AuthInfo, error) {
 	if token == "" {
 		return AuthInfo{}, ErrCraftskySessionNotFound
 	}
@@ -310,7 +317,8 @@ func (s *CraftskySessionStore) lookup(ctx context.Context, token string, recover
 			return nil
 		}
 
-		if _, err := tx.Exec(ctx, `
+		if recordActivity {
+			if _, err := tx.Exec(ctx, `
 			UPDATE craftsky_sessions
 			SET last_seen_at=$2,
 			    idle_expires_at=LEAST($3,(SELECT absolute_expires_at FROM oauth_sessions
@@ -318,7 +326,8 @@ func (s *CraftskySessionStore) lookup(ctx context.Context, token string, recover
 			WHERE token_hash=$1 AND lifecycle_state='active'
 			  AND last_seen_at <= ($2::timestamptz)-make_interval(secs => $6::double precision)
 		`, hash[:], now, now.Add(s.cfg.Inactivity), didString, sessionID, int64(s.cfg.ActivityWriteInterval/time.Second)); err != nil {
-			return fmt.Errorf("touch craftsky session activity: %w", err)
+				return fmt.Errorf("touch craftsky session activity: %w", err)
+			}
 		}
 		info = AuthInfo{DID: syntax.DID(didString), SessionID: sessionID}
 		return nil

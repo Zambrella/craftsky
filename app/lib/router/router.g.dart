@@ -179,6 +179,38 @@ RouteBase get $authenticatedShellRoute => ShellRouteData.$route(
           ],
         ),
         StatefulShellBranchData.$branch(
+          navigatorKey: MessagesBranch.$navigatorKey,
+          observers: MessagesBranch.$observers,
+          routes: [
+            GoRouteData.$route(
+              path: '/messages',
+              name: 'messages',
+              hasOverriddenOnExit: false,
+              factory: $ChatInboxRoute._fromState,
+              routes: [
+                GoRouteData.$route(
+                  path: 'requests',
+                  name: 'message-requests',
+                  hasOverriddenOnExit: false,
+                  factory: $ChatRequestsRoute._fromState,
+                ),
+                GoRouteData.$route(
+                  path: 'new',
+                  name: 'new-message',
+                  hasOverriddenOnExit: false,
+                  factory: $NewMessageRoute._fromState,
+                ),
+                GoRouteData.$route(
+                  path: 'conversations/:conversationId',
+                  name: 'message-conversation',
+                  hasOverriddenOnExit: false,
+                  factory: $ChatConversationRoute._fromState,
+                ),
+              ],
+            ),
+          ],
+        ),
+        StatefulShellBranchData.$branch(
           navigatorKey: SavedPostsBranch.$navigatorKey,
           observers: SavedPostsBranch.$observers,
           routes: [
@@ -232,6 +264,12 @@ RouteBase get $authenticatedShellRoute => ShellRouteData.$route(
               hasOverriddenOnExit: false,
               factory: $SettingsRoute._fromState,
               routes: [
+                GoRouteData.$route(
+                  path: 'messaging',
+                  name: 'messaging-settings',
+                  hasOverriddenOnExit: false,
+                  factory: $ChatSettingsRoute._fromState,
+                ),
                 GoRouteData.$route(
                   path: 'appearance',
                   name: 'appearance',
@@ -593,6 +631,103 @@ mixin $PlaygroundRoute on GoRouteData {
   void replace(BuildContext context) => context.replace(location);
 }
 
+mixin $ChatInboxRoute on GoRouteData {
+  static ChatInboxRoute _fromState(GoRouterState state) =>
+      const ChatInboxRoute();
+
+  @override
+  String get location => GoRouteData.$location('/messages');
+
+  @override
+  void go(BuildContext context) => context.go(location);
+
+  @override
+  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
+
+  @override
+  void pushReplacement(BuildContext context) =>
+      context.pushReplacement(location);
+
+  @override
+  void replace(BuildContext context) => context.replace(location);
+}
+
+mixin $ChatRequestsRoute on GoRouteData {
+  static ChatRequestsRoute _fromState(GoRouterState state) =>
+      const ChatRequestsRoute();
+
+  @override
+  String get location => GoRouteData.$location('/messages/requests');
+
+  @override
+  void go(BuildContext context) => context.go(location);
+
+  @override
+  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
+
+  @override
+  void pushReplacement(BuildContext context) =>
+      context.pushReplacement(location);
+
+  @override
+  void replace(BuildContext context) => context.replace(location);
+}
+
+mixin $NewMessageRoute on GoRouteData {
+  static NewMessageRoute _fromState(GoRouterState state) =>
+      NewMessageRoute(recipientDid: state.uri.queryParameters['recipient-did']);
+
+  NewMessageRoute get _self => this as NewMessageRoute;
+
+  @override
+  String get location => GoRouteData.$location(
+    '/messages/new',
+    queryParams: {
+      if (_self.recipientDid != null) 'recipient-did': _self.recipientDid,
+    },
+  );
+
+  @override
+  void go(BuildContext context) => context.go(location);
+
+  @override
+  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
+
+  @override
+  void pushReplacement(BuildContext context) =>
+      context.pushReplacement(location);
+
+  @override
+  void replace(BuildContext context) => context.replace(location);
+}
+
+mixin $ChatConversationRoute on GoRouteData {
+  static ChatConversationRoute _fromState(GoRouterState state) =>
+      ChatConversationRoute(
+        conversationId: state.pathParameters['conversationId']!,
+      );
+
+  ChatConversationRoute get _self => this as ChatConversationRoute;
+
+  @override
+  String get location => GoRouteData.$location(
+    '/messages/conversations/${Uri.encodeComponent(_self.conversationId)}',
+  );
+
+  @override
+  void go(BuildContext context) => context.go(location);
+
+  @override
+  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
+
+  @override
+  void pushReplacement(BuildContext context) =>
+      context.pushReplacement(location);
+
+  @override
+  void replace(BuildContext context) => context.replace(location);
+}
+
 mixin $SavedPostsRoute on GoRouteData {
   static SavedPostsRoute _fromState(GoRouterState state) =>
       const SavedPostsRoute();
@@ -685,6 +820,27 @@ mixin $SettingsRoute on GoRouteData {
 
   @override
   String get location => GoRouteData.$location('/settings');
+
+  @override
+  void go(BuildContext context) => context.go(location);
+
+  @override
+  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
+
+  @override
+  void pushReplacement(BuildContext context) =>
+      context.pushReplacement(location);
+
+  @override
+  void replace(BuildContext context) => context.replace(location);
+}
+
+mixin $ChatSettingsRoute on GoRouteData {
+  static ChatSettingsRoute _fromState(GoRouterState state) =>
+      const ChatSettingsRoute();
+
+  @override
+  String get location => GoRouteData.$location('/settings/messaging');
 
   @override
   void go(BuildContext context) => context.go(location);

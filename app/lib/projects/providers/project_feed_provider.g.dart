@@ -50,7 +50,7 @@ final class ProjectFeedProvider
   }
 }
 
-String _$projectFeedHash() => r'3af80c9439bda8eb5245c8ad8a7897bdcfd435f2';
+String _$projectFeedHash() => r'853fc4da3d6f0a0dc080f068246c011f31da4959';
 
 final class ProjectFeedFamily extends $Family
     with

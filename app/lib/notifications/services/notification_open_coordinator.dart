@@ -5,12 +5,18 @@ import 'dart:async';
 
 import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/auth/providers/account_activation_coordinator.dart';
+import 'package:craftsky_app/chat/models/chat_identifier.dart';
 import 'package:craftsky_app/notifications/models/account_subscription_id.dart';
 import 'package:craftsky_app/notifications/models/notification_destination.dart';
 import 'package:craftsky_app/notifications/models/notification_open_event.dart';
 import 'package:craftsky_app/notifications/services/notification_destination_inference.dart';
 import 'package:craftsky_app/notifications/services/notification_routing_storage.dart';
 import 'package:craftsky_app/notifications/services/pending_notification_open.dart';
+
+typedef ChatNotificationResolver = Future<ChatConversationId?> Function(
+  AccountSessionLease lease,
+  ChatOpenReference reference,
+);
 
 typedef NotificationRecipientResolver =
     NotificationRecipientResolution Function(AccountSubscriptionId? binding);
@@ -31,12 +37,16 @@ final class NotificationOpenCoordinator {
     required NotificationOutcomeCallback onOutcome,
     required NotificationUnavailableCallback onUnavailable,
     required NotificationUnavailableCallback onRemovedAccount,
+    NotificationLeaseGuard? isActiveLease,
+    ChatNotificationResolver? resolveChat,
   }) : _resolveRecipient = resolveRecipient,
        _isCurrentLease = isCurrentLease,
        _activate = activate,
        _onOutcome = onOutcome,
        _onUnavailable = onUnavailable,
-       _onRemovedAccount = onRemovedAccount;
+       _onRemovedAccount = onRemovedAccount,
+       _isActiveLease = isActiveLease,
+       _resolveChat = resolveChat;
 
   final NotificationRecipientResolver _resolveRecipient;
   final NotificationLeaseGuard _isCurrentLease;
@@ -44,6 +54,8 @@ final class NotificationOpenCoordinator {
   final NotificationOutcomeCallback _onOutcome;
   final NotificationUnavailableCallback _onUnavailable;
   final NotificationUnavailableCallback _onRemovedAccount;
+  final NotificationLeaseGuard? _isActiveLease;
+  final ChatNotificationResolver? _resolveChat;
 
   Future<void> open(NotificationOpenAttempt attempt) async {
     await openResolved(
@@ -74,6 +86,29 @@ final class NotificationOpenCoordinator {
         if (activation == AccountActivationResult.stale ||
             !_isCurrentLease(lease)) {
           await _onRemovedAccount();
+          return;
+        }
+        if (attempt.facts case ChatNotificationFacts(:final openReference)) {
+          final resolve = _resolveChat;
+          if (resolve == null || _isActiveLease?.call(lease) != true) {
+            await _onUnavailable();
+            return;
+          }
+          final id = await resolve(lease, openReference);
+          if (!_isCurrentLease(lease) || _isActiveLease?.call(lease) != true) {
+            return;
+          }
+          if (id == null) {
+            await _onUnavailable();
+            return;
+          }
+          await _onOutcome(
+            NotificationOpenOutcome(
+              destination: ChatConversationDestination(id),
+              isCurrent: () =>
+                  _isCurrentLease(lease) && _isActiveLease?.call(lease) == true,
+            ),
+          );
           return;
         }
         await _onOutcome(

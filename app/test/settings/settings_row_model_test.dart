@@ -19,6 +19,7 @@ void main() {
       SettingsRowId.customisation,
       SettingsRowId.languages,
       SettingsRowId.notifications,
+      SettingsRowId.messaging,
       SettingsRowId.privacy,
     ]);
     expect(settingsSections[1].rows.map((row) => row.id), [

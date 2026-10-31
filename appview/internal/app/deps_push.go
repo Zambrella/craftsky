@@ -13,13 +13,18 @@ import (
 // newPushDependencies builds the optional provider client and the bounded
 // delivery dispatcher as one capability. A disabled deployment has no Firebase
 // dependency and returns a nil dispatcher.
+type pushDependencies struct {
+	dispatcher *push.Dispatcher
+	sender     push.Sender
+}
+
 func newPushDependencies(
 	ctx context.Context,
 	pool *pgxpool.Pool,
 	owners *ownerDependencies,
 	observer *observability.Observer,
 	cfg Config,
-) (*push.Dispatcher, error) {
+) (*pushDependencies, error) {
 	if !cfg.PushEnabled {
 		return nil, nil
 	}
@@ -39,5 +44,5 @@ func newPushDependencies(
 	if err != nil {
 		return nil, fmt.Errorf("push dispatcher init: %w", err)
 	}
-	return dispatcher, nil
+	return &pushDependencies{dispatcher: dispatcher, sender: sender}, nil
 }

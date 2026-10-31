@@ -3,12 +3,97 @@ import 'dart:async';
 import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/auth/models/session_registry.dart';
 import 'package:craftsky_app/auth/providers/account_activation_coordinator.dart';
+import 'package:craftsky_app/chat/models/chat_identifier.dart';
+import 'package:craftsky_app/notifications/models/notification_destination.dart';
 import 'package:craftsky_app/notifications/models/notification_open_event.dart';
 import 'package:craftsky_app/notifications/services/notification_open_coordinator.dart';
 import 'package:craftsky_app/notifications/services/notification_routing_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  for (final switchDuringResolution in [false, true]) {
+    test(
+      'IT-013 private open resolves after exact owner activation '
+      'stale=$switchDuringResolution',
+      () async {
+        var registry = _registry();
+        final routing = NotificationRoutingStorage(() => registry);
+        final calls = <String>[];
+        NotificationOpenOutcome? outcome;
+        final coordinator = NotificationOpenCoordinator(
+          resolveRecipient: routing.resolve,
+          isCurrentLease: routing.isCurrentLease,
+          isActiveLease: routing.isActiveLease,
+          activate: (lease) async {
+            calls.add('activate');
+            registry = registry.activate(lease);
+            return AccountActivationResult.activated;
+          },
+          resolveChat: (lease, reference) async {
+            expect(registry.activeLease?.session, lease);
+            expect(reference.value, '00000000-0000-4000-8000-000000000123');
+            calls.add('resolve');
+            if (switchDuringResolution) {
+              registry = registry.activate(
+                registry.leaseFor(AccountKey('did:plc:alice'))!,
+              );
+            }
+            return ChatConversationId.parse('private-conversation');
+          },
+          onOutcome: (value) {
+            calls.add('navigate');
+            outcome = value;
+          },
+          onUnavailable: () {},
+          onRemovedAccount: () {},
+        );
+        final attempt = NotificationOpenAttempt.fromProviderData({
+          'payloadVersion': '1',
+          'type': 'chat',
+          'accountSubscriptionId': 'bob_binding',
+          'openReference': '00000000-0000-4000-8000-000000000123',
+        });
+        await coordinator.open(attempt);
+        expect(
+          calls,
+          switchDuringResolution
+              ? ['activate', 'resolve']
+              : ['activate', 'resolve', 'navigate'],
+        );
+        if (!switchDuringResolution) {
+          expect(
+            (outcome!.destination as ChatConversationDestination)
+                .conversationId
+                .value,
+            'private-conversation',
+          );
+          expect(outcome!.isCurrent?.call(), true);
+          registry = registry.activate(
+            registry.leaseFor(AccountKey('did:plc:alice'))!,
+          );
+          expect(
+            outcome!.isCurrent?.call(),
+            false,
+            reason: 'queued navigation must be fenced again at delivery',
+          );
+        }
+        expect(
+          attempt.toString(),
+          isNot(contains('00000000-0000-4000-8000-000000000123')),
+        );
+        calls.clear();
+        await coordinator.open(
+          NotificationOpenAttempt.fromProviderData({
+            'payloadVersion': '1',
+            'type': 'chat',
+            'openReference': '00000000-0000-4000-8000-000000000123',
+          }),
+        );
+        expect(calls, isEmpty);
+      },
+    );
+  }
+
   test(
     'UT-006 exact recipient activates before destination inference',
     () async {

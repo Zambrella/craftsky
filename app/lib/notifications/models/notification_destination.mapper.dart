@@ -28,6 +28,8 @@ class NotificationDestinationMapper
       ProfileDestinationMapper.ensureInitialized();
       PostDestinationMapper.ensureInitialized();
       ModerationHistoryDestinationMapper.ensureInitialized();
+      ChatInboxDestinationMapper.ensureInitialized();
+      ChatConversationDestinationMapper.ensureInitialized();
     }
     return _instance!;
   }
@@ -766,4 +768,278 @@ class _ModerationHistoryDestinationCopyWithImpl<$R, $Out>
   ModerationHistoryDestinationCopyWith<$R2, ModerationHistoryDestination, $Out2>
   $chain<$R2, $Out2>(Then<$Out2, $R2> t) =>
       _ModerationHistoryDestinationCopyWithImpl<$R2, $Out2>($value, $cast, t);
+}
+
+class ChatInboxDestinationMapper
+    extends SubClassMapperBase<ChatInboxDestination> {
+  ChatInboxDestinationMapper._();
+
+  static ChatInboxDestinationMapper? _instance;
+  static ChatInboxDestinationMapper ensureInitialized() {
+    if (_instance == null) {
+      MapperContainer.globals.use(_instance = ChatInboxDestinationMapper._());
+      NotificationDestinationMapper.ensureInitialized().addSubMapper(
+        _instance!,
+      );
+    }
+    return _instance!;
+  }
+
+  @override
+  final String id = 'ChatInboxDestination';
+
+  @override
+  final MappableFields<ChatInboxDestination> fields = const {};
+
+  @override
+  final String discriminatorKey = 'type';
+  @override
+  final dynamic discriminatorValue = 'ChatInboxDestination';
+  @override
+  late final ClassMapperBase superMapper =
+      NotificationDestinationMapper.ensureInitialized();
+
+  static ChatInboxDestination _instantiate(DecodingData data) {
+    return ChatInboxDestination();
+  }
+
+  @override
+  final Function instantiate = _instantiate;
+
+  static ChatInboxDestination fromMap(Map<String, dynamic> map) {
+    return ensureInitialized().decodeMap<ChatInboxDestination>(map);
+  }
+
+  static ChatInboxDestination fromJson(String json) {
+    return ensureInitialized().decodeJson<ChatInboxDestination>(json);
+  }
+}
+
+mixin ChatInboxDestinationMappable {
+  String toJson() {
+    return ChatInboxDestinationMapper.ensureInitialized()
+        .encodeJson<ChatInboxDestination>(this as ChatInboxDestination);
+  }
+
+  Map<String, dynamic> toMap() {
+    return ChatInboxDestinationMapper.ensureInitialized()
+        .encodeMap<ChatInboxDestination>(this as ChatInboxDestination);
+  }
+
+  ChatInboxDestinationCopyWith<
+    ChatInboxDestination,
+    ChatInboxDestination,
+    ChatInboxDestination
+  >
+  get copyWith =>
+      _ChatInboxDestinationCopyWithImpl<
+        ChatInboxDestination,
+        ChatInboxDestination
+      >(this as ChatInboxDestination, $identity, $identity);
+  @override
+  bool operator ==(Object other) {
+    return ChatInboxDestinationMapper.ensureInitialized().equalsValue(
+      this as ChatInboxDestination,
+      other,
+    );
+  }
+
+  @override
+  int get hashCode {
+    return ChatInboxDestinationMapper.ensureInitialized().hashValue(
+      this as ChatInboxDestination,
+    );
+  }
+}
+
+extension ChatInboxDestinationValueCopy<$R, $Out>
+    on ObjectCopyWith<$R, ChatInboxDestination, $Out> {
+  ChatInboxDestinationCopyWith<$R, ChatInboxDestination, $Out>
+  get $asChatInboxDestination => $base.as(
+    (v, t, t2) => _ChatInboxDestinationCopyWithImpl<$R, $Out>(v, t, t2),
+  );
+}
+
+abstract class ChatInboxDestinationCopyWith<
+  $R,
+  $In extends ChatInboxDestination,
+  $Out
+>
+    implements NotificationDestinationCopyWith<$R, $In, $Out> {
+  @override
+  $R call();
+  ChatInboxDestinationCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(
+    Then<$Out2, $R2> t,
+  );
+}
+
+class _ChatInboxDestinationCopyWithImpl<$R, $Out>
+    extends ClassCopyWithBase<$R, ChatInboxDestination, $Out>
+    implements ChatInboxDestinationCopyWith<$R, ChatInboxDestination, $Out> {
+  _ChatInboxDestinationCopyWithImpl(super.value, super.then, super.then2);
+
+  @override
+  late final ClassMapperBase<ChatInboxDestination> $mapper =
+      ChatInboxDestinationMapper.ensureInitialized();
+  @override
+  $R call() => $apply(FieldCopyWithData({}));
+  @override
+  ChatInboxDestination $make(CopyWithData data) => ChatInboxDestination();
+
+  @override
+  ChatInboxDestinationCopyWith<$R2, ChatInboxDestination, $Out2>
+  $chain<$R2, $Out2>(Then<$Out2, $R2> t) =>
+      _ChatInboxDestinationCopyWithImpl<$R2, $Out2>($value, $cast, t);
+}
+
+class ChatConversationDestinationMapper
+    extends SubClassMapperBase<ChatConversationDestination> {
+  ChatConversationDestinationMapper._();
+
+  static ChatConversationDestinationMapper? _instance;
+  static ChatConversationDestinationMapper ensureInitialized() {
+    if (_instance == null) {
+      MapperContainer.globals.use(
+        _instance = ChatConversationDestinationMapper._(),
+      );
+      NotificationDestinationMapper.ensureInitialized().addSubMapper(
+        _instance!,
+      );
+      MapperContainer.globals.useAll([ChatConversationIdMapper()]);
+    }
+    return _instance!;
+  }
+
+  @override
+  final String id = 'ChatConversationDestination';
+
+  static ChatConversationId _$conversationId(ChatConversationDestination v) =>
+      v.conversationId;
+  static const Field<ChatConversationDestination, ChatConversationId>
+  _f$conversationId = Field('conversationId', _$conversationId);
+
+  @override
+  final MappableFields<ChatConversationDestination> fields = const {
+    #conversationId: _f$conversationId,
+  };
+
+  @override
+  final String discriminatorKey = 'type';
+  @override
+  final dynamic discriminatorValue = 'ChatConversationDestination';
+  @override
+  late final ClassMapperBase superMapper =
+      NotificationDestinationMapper.ensureInitialized();
+
+  static ChatConversationDestination _instantiate(DecodingData data) {
+    return ChatConversationDestination(data.dec(_f$conversationId));
+  }
+
+  @override
+  final Function instantiate = _instantiate;
+
+  static ChatConversationDestination fromMap(Map<String, dynamic> map) {
+    return ensureInitialized().decodeMap<ChatConversationDestination>(map);
+  }
+
+  static ChatConversationDestination fromJson(String json) {
+    return ensureInitialized().decodeJson<ChatConversationDestination>(json);
+  }
+}
+
+mixin ChatConversationDestinationMappable {
+  String toJson() {
+    return ChatConversationDestinationMapper.ensureInitialized()
+        .encodeJson<ChatConversationDestination>(
+          this as ChatConversationDestination,
+        );
+  }
+
+  Map<String, dynamic> toMap() {
+    return ChatConversationDestinationMapper.ensureInitialized()
+        .encodeMap<ChatConversationDestination>(
+          this as ChatConversationDestination,
+        );
+  }
+
+  ChatConversationDestinationCopyWith<
+    ChatConversationDestination,
+    ChatConversationDestination,
+    ChatConversationDestination
+  >
+  get copyWith =>
+      _ChatConversationDestinationCopyWithImpl<
+        ChatConversationDestination,
+        ChatConversationDestination
+      >(this as ChatConversationDestination, $identity, $identity);
+  @override
+  bool operator ==(Object other) {
+    return ChatConversationDestinationMapper.ensureInitialized().equalsValue(
+      this as ChatConversationDestination,
+      other,
+    );
+  }
+
+  @override
+  int get hashCode {
+    return ChatConversationDestinationMapper.ensureInitialized().hashValue(
+      this as ChatConversationDestination,
+    );
+  }
+}
+
+extension ChatConversationDestinationValueCopy<$R, $Out>
+    on ObjectCopyWith<$R, ChatConversationDestination, $Out> {
+  ChatConversationDestinationCopyWith<$R, ChatConversationDestination, $Out>
+  get $asChatConversationDestination => $base.as(
+    (v, t, t2) => _ChatConversationDestinationCopyWithImpl<$R, $Out>(v, t, t2),
+  );
+}
+
+abstract class ChatConversationDestinationCopyWith<
+  $R,
+  $In extends ChatConversationDestination,
+  $Out
+>
+    implements NotificationDestinationCopyWith<$R, $In, $Out> {
+  @override
+  $R call({ChatConversationId? conversationId});
+  ChatConversationDestinationCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(
+    Then<$Out2, $R2> t,
+  );
+}
+
+class _ChatConversationDestinationCopyWithImpl<$R, $Out>
+    extends ClassCopyWithBase<$R, ChatConversationDestination, $Out>
+    implements
+        ChatConversationDestinationCopyWith<
+          $R,
+          ChatConversationDestination,
+          $Out
+        > {
+  _ChatConversationDestinationCopyWithImpl(
+    super.value,
+    super.then,
+    super.then2,
+  );
+
+  @override
+  late final ClassMapperBase<ChatConversationDestination> $mapper =
+      ChatConversationDestinationMapper.ensureInitialized();
+  @override
+  $R call({ChatConversationId? conversationId}) => $apply(
+    FieldCopyWithData({
+      if (conversationId != null) #conversationId: conversationId,
+    }),
+  );
+  @override
+  ChatConversationDestination $make(CopyWithData data) =>
+      ChatConversationDestination(
+        data.get(#conversationId, or: $value.conversationId),
+      );
+
+  @override
+  ChatConversationDestinationCopyWith<$R2, ChatConversationDestination, $Out2>
+  $chain<$R2, $Out2>(Then<$Out2, $R2> t) =>
+      _ChatConversationDestinationCopyWithImpl<$R2, $Out2>($value, $cast, t);
 }

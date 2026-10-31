@@ -271,7 +271,7 @@ void main() {
             tester
                 .widget<NavigationRail>(find.byType(NavigationRail))
                 .selectedIndex,
-            5,
+            6,
           );
         }
         expect(find.byType(NavigationBar), findsNothing);

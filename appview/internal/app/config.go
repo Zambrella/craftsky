@@ -168,10 +168,12 @@ func ParseEnv(s string) (Env, error) {
 // (with os.Getenv winning on conflicts). Required fields cause LoadConfig
 // to fail loudly; the Config that reaches Deps is always complete.
 type Config struct {
-	Env            Env
-	DatabaseURL    string
-	AllowedOrigins []string
-	ExpectedHosts  []string
+	ChatOperationHMACKey        Secret
+	ChatOperationHMACKeyVersion int
+	Env                         Env
+	DatabaseURL                 string
+	AllowedOrigins              []string
+	ExpectedHosts               []string
 	// ExpectedHostAllowAnyPort is true only for loopback development, where
 	// Compose assigns a checkout-specific host port.
 	ExpectedHostAllowAnyPort bool
@@ -623,6 +625,15 @@ func LoadConfig(env Env, envFilePath string) (Config, error) {
 	}
 	if cfg.OAuthHandoffConfirmationTTL, err = boundedPositiveDurationEnv("OAUTH_HANDOFF_CONFIRMATION_TTL", 2*time.Minute, 10*time.Minute); err != nil {
 		return Config{}, err
+	}
+	cfg.ChatOperationHMACKey = Secret(strings.TrimSpace(os.Getenv("CHAT_OPERATION_HMAC_KEY")))
+	if cfg.ChatOperationHMACKeyVersion, err = boundedIntEnv("CHAT_OPERATION_HMAC_KEY_VERSION", 1, 1, 1_000_000); err != nil {
+		return Config{}, err
+	}
+	if cfg.ChatOperationHMACKey != "" {
+		if _, err := decodeChatOperationKey(cfg.ChatOperationHMACKey); err != nil {
+			return Config{}, err
+		}
 	}
 	cfg.OAuthHandoffReceiptKey = Secret(strings.TrimSpace(os.Getenv("OAUTH_HANDOFF_RECEIPT_KEY")))
 	if cfg.OAuthHandoffReceiptKeyVersion, err = boundedIntEnv("OAUTH_HANDOFF_RECEIPT_KEY_VERSION", 1, 1, 1_000_000); err != nil {
@@ -1715,4 +1726,12 @@ func appendUniqueNonEmpty(values []string, value string) []string {
 		}
 	}
 	return append(values, value)
+}
+
+func decodeChatOperationKey(secret Secret) ([]byte, error) {
+	key, err := base64.RawURLEncoding.DecodeString(secret.Reveal())
+	if err != nil || len(key) != 32 {
+		return nil, fmt.Errorf("CHAT_OPERATION_HMAC_KEY must be an unpadded base64url 256-bit key")
+	}
+	return key, nil
 }

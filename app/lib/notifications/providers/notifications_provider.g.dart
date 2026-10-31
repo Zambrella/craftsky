@@ -51,7 +51,7 @@ final class AccountNotificationsProvider
 }
 
 String _$accountNotificationsHash() =>
-    r'c9215ecdd70be28d3809ecce214d75fa1b8bbdc1';
+    r'c5d2277cf0d242ade8941b94a2d042fcef4e50fd';
 
 final class AccountNotificationsFamily extends $Family
     with
@@ -125,7 +125,7 @@ final class NotificationsProvider
   Notifications create() => Notifications();
 }
 
-String _$notificationsHash() => r'7038ac7a5af58da48f63a7203bcbdb2cb82b51ed';
+String _$notificationsHash() => r'158c8f3ed8e28de42f6c7bfdd69f03bb8938ab77';
 
 abstract class _$Notifications extends $AsyncNotifier<NotificationsState> {
   FutureOr<NotificationsState> build();

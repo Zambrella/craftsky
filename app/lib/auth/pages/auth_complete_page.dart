@@ -5,6 +5,7 @@ import 'package:craftsky_app/auth/models/auth_state.dart';
 import 'package:craftsky_app/auth/providers/auth_controller.dart';
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
 import 'package:craftsky_app/auth/providers/pending_auth_provider.dart';
+import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
@@ -71,7 +72,15 @@ class _AuthCompletePageState extends ConsumerState<AuthCompletePage> {
           widget.code?.isNotEmpty == true &&
           previous is AsyncLoading<void> &&
           next is AsyncData<void>) {
-        const FeedRoute().go(context);
+        final chatLease = ref
+            .read(authControllerProvider.notifier)
+            .completedChatLease;
+        if (chatLease != null &&
+            ref.read(sessionRegistryProvider).value?.activeLease == chatLease) {
+          const ChatInboxRoute().go(context);
+        } else {
+          const FeedRoute().go(context);
+        }
       }
     });
     final state = ref.watch(authControllerProvider);

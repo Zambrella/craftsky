@@ -6,6 +6,8 @@ import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/business/models/business_profile.dart';
 import 'package:craftsky_app/business/providers/profile_business_events_provider.dart';
+import 'package:craftsky_app/chat/widgets/chat_recipient_picker.dart';
+import 'package:craftsky_app/chat/widgets/profile_message_button.dart';
 import 'package:craftsky_app/feed/providers/user_comments_provider.dart';
 import 'package:craftsky_app/feed/providers/user_posts_provider.dart';
 import 'package:craftsky_app/feed/providers/user_reposts_provider.dart';
@@ -427,6 +429,8 @@ class _ProfileBody extends ConsumerWidget {
       return SelfProfileActionSet(
         onCopyLink: () =>
             copyRecordLink(context, RecordLinks.profile(profile.did)),
+        onSendViaChat: () =>
+            showSendViaChat(context, RecordLinks.profile(profile.did)),
         onEdit: () => showEditProfileDialog(context),
         onSettings: () => const SettingsRoute().go(context),
       );
@@ -435,8 +439,23 @@ class _ProfileBody extends ConsumerWidget {
     final toggleState = ref.watch(toggleFollowProfileProvider);
     final blockState = ref.watch(toggleBlockProfileProvider);
     return VisitorProfileActionSet(
+      messagingAction: relationship.hasBlock
+          ? null
+          : ProfileMessageButton(
+              recipient: profile.did,
+              disabled:
+                  toggleState.isLoading ||
+                  blockState.isLoading ||
+                  relationship.pendingAction != null,
+              onOpen: (id) =>
+                  ChatConversationRoute(conversationId: id.value).go(context),
+              onEnable: () =>
+                  unawaited(const ChatInboxRoute().push<void>(context)),
+            ),
       onCopyLink: () =>
           copyRecordLink(context, RecordLinks.profile(profile.did)),
+      onSendViaChat: () =>
+          showSendViaChat(context, RecordLinks.profile(profile.did)),
       isFollowing: profile.viewerIsFollowing,
       isFollowingBusy: toggleState.isLoading,
       isBlockingBusy: blockState.isLoading,

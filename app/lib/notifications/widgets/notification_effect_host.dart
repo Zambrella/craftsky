@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:craftsky_app/auth/providers/active_account_initialization_provider.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
+import 'package:craftsky_app/notifications/models/notification_destination.dart';
 import 'package:craftsky_app/notifications/models/notification_effect.dart';
 import 'package:craftsky_app/notifications/providers/notification_new_count_provider.dart';
 import 'package:craftsky_app/notifications/providers/notification_permission_provider.dart';
@@ -125,8 +126,12 @@ class _NotificationEffectHostState extends ConsumerState<NotificationEffectHost>
           'This notification belongs to an account that is no longer signed in',
         );
       case NotificationNavigationEffect(:final outcome):
-        unawaited(_refreshOpenedNotificationCount());
-        _invalidateOpenedNotificationList();
+        if (outcome.isCurrent?.call() == false) return;
+        if (outcome.destination is! ChatInboxDestination &&
+            outcome.destination is! ChatConversationDestination) {
+          unawaited(_refreshOpenedNotificationCount());
+          _invalidateOpenedNotificationList();
+        }
         navigateToNotificationOutcome(
           context,
           ref.read(goRouterProvider),

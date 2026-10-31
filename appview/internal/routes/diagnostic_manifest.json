@@ -1296,6 +1296,156 @@
     "public": false
   },
   {
+    "method": "GET",
+    "path": "/v1/chat/status",
+    "category": "appview.chat.status",
+    "public": false
+  },
+  {
+    "method": "POST",
+    "path": "/v1/chat/authorization",
+    "category": "appview.chat.authorization",
+    "public": false
+  },
+  {
+    "method": "POST",
+    "path": "/v1/chat/conversations/{id}/messages",
+    "category": "appview.chat.conversations.detail.messages",
+    "public": false
+  },
+  {
+    "method": "PUT",
+    "path": "/v1/chat/connection",
+    "category": "appview.chat.connection",
+    "public": false
+  },
+  {
+    "method": "GET",
+    "path": "/v1/chat/conversations",
+    "category": "appview.chat.list",
+    "public": false
+  },
+  {
+    "method": "GET",
+    "path": "/v1/chat/availability",
+    "category": "appview.chat.availability",
+    "public": false
+  },
+  {
+    "method": "POST",
+    "path": "/v1/chat/conversations",
+    "category": "appview.chat.start",
+    "public": false
+  },
+  {
+    "method": "GET",
+    "path": "/v1/chat/conversations/{id}",
+    "category": "appview.chat.conversation",
+    "public": false
+  },
+  {
+    "method": "GET",
+    "path": "/v1/chat/conversations/{id}/details",
+    "category": "appview.chat.conversation",
+    "public": false
+  },
+  {
+    "method": "GET",
+    "path": "/v1/chat/conversations/{id}/messages",
+    "category": "appview.chat.history",
+    "public": false
+  },
+  {
+    "method": "DELETE",
+    "path": "/v1/chat/conversations/{id}/messages/{messageId}",
+    "category": "appview.chat.messages.delete",
+    "public": false
+  },
+  {
+    "method": "GET",
+    "path": "/v1/chat/operations/{operationId}",
+    "category": "appview.chat.receipt",
+    "public": false
+  },
+  {
+    "method": "PUT",
+    "path": "/v1/chat/conversations/{id}/read",
+    "category": "appview.chat.read",
+    "public": false
+  },
+  {
+    "method": "POST",
+    "path": "/v1/chat/conversations/{id}/accept",
+    "category": "appview.chat.accept",
+    "public": false
+  },
+  {
+    "method": "PUT",
+    "path": "/v1/chat/conversations/{id}/mute",
+    "category": "appview.chat.mute",
+    "public": false
+  },
+  {
+    "method": "DELETE",
+    "path": "/v1/chat/conversations/{id}/mute",
+    "category": "appview.chat.unmute",
+    "public": false
+  },
+  {
+    "method": "POST",
+    "path": "/v1/chat/conversations/{id}/leave",
+    "category": "appview.chat.leave",
+    "public": false
+  },
+  {
+    "method": "POST",
+    "path": "/v1/chat/reports",
+    "category": "appview.chat.report",
+    "public": false
+  },
+  {
+    "method": "GET",
+    "path": "/v1/chat/unread-counts",
+    "category": "appview.chat.counts",
+    "public": false
+  },
+  {
+    "method": "PUT",
+    "path": "/v1/chat/incoming-policy",
+    "category": "appview.chat.setPolicy",
+    "public": false
+  },
+  {
+    "method": "GET",
+    "path": "/v1/chat/incoming-policy",
+    "category": "appview.chat.policy",
+    "public": false
+  },
+  {
+    "method": "GET",
+    "path": "/v1/chat/push-preferences",
+    "category": "appview.chat.pushPreference",
+    "public": false
+  },
+  {
+    "method": "PUT",
+    "path": "/v1/chat/push-preferences",
+    "category": "appview.chat.setPushPreference",
+    "public": false
+  },
+  {
+    "method": "POST",
+    "path": "/v1/chat/sync",
+    "category": "appview.chat.sync",
+    "public": false
+  },
+  {
+    "method": "GET",
+    "path": "/v1/chat/notification-opens/{reference}",
+    "category": "appview.chat.notification_open",
+    "public": false
+  },
+  {
     "method": "POST",
     "path": "/v1/profile-links/{did}/{rkey}/reports",
     "category": "appview.profile_links.reports",

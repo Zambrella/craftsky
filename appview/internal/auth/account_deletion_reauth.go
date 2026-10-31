@@ -24,6 +24,7 @@ const (
 	LoginOAuthPurpose           OAuthPurpose = "login"
 	AccountDeletionOAuthPurpose OAuthPurpose = "accountDeletion"
 	RegistrationOAuthPurpose    OAuthPurpose = "registration"
+	ChatOAuthPurpose            OAuthPurpose = "chat"
 )
 
 type HandoffMode string
@@ -62,6 +63,10 @@ type AuthRequestMetadata struct {
 	RegistrationProviderOrigin string
 	RegistrationIssuer         string
 	ExpiresAt                  time.Time
+	ChatParentSessionID        string
+	ChatChildTokenHash         []byte
+	ChatGeneration             int64
+	ChatPushEnabled            *bool
 }
 
 type authRequestMetadataContextKey struct{}
@@ -159,7 +164,10 @@ func (metadata AuthRequestMetadata) valid() bool {
 		return false
 	}
 	switch metadata.Purpose {
-	case LoginOAuthPurpose:
+	case LoginOAuthPurpose, ChatOAuthPurpose:
+		if metadata.Purpose == ChatOAuthPurpose && (metadata.ChatParentSessionID == "" || len(metadata.ChatChildTokenHash) != 32 || metadata.ChatGeneration <= 0) {
+			return false
+		}
 		return metadata.JobID == uuid.Nil && metadata.hasOwnerAuthority() &&
 			strings.TrimSpace(metadata.ResourceServerOrigin) != "" &&
 			strings.TrimSpace(metadata.AuthorizationServerIssuer) != "" &&

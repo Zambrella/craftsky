@@ -523,6 +523,19 @@ func terminalPurgeDependencyBlockedTx(
 ) (bool, error) {
 	var query string
 	switch entry.Table {
+	case "chat_accounts":
+		// Lifetime operation receipts have their own bounded owner component.
+		// Drain it before deleting the account instead of cascading unbounded work.
+		query = `SELECT EXISTS(SELECT 1 FROM chat_operations WHERE owner_did=$1
+		UNION ALL SELECT 1 FROM chat_continuations WHERE owner_did=$1
+		UNION ALL SELECT 1 FROM chat_sync_state WHERE owner_did=$1
+		UNION ALL SELECT 1 FROM chat_view_activity WHERE owner_did=$1
+		UNION ALL SELECT 1 FROM chat_conversation_state WHERE owner_did=$1
+		UNION ALL SELECT 1 FROM chat_message_dedupe WHERE owner_did=$1
+		UNION ALL SELECT 1 FROM chat_notifications WHERE owner_did=$1
+ UNION ALL SELECT 1 FROM chat_push_deliveries WHERE owner_did=$1)`
+	case "chat_notifications":
+		query = `SELECT EXISTS(SELECT 1 FROM chat_push_deliveries WHERE owner_did=$1)`
 	case "tap_source_records":
 		// Publication facts own a bounded mention fanout. Their component must
 		// drain it first; deleting the source cannot bypass that row budget.

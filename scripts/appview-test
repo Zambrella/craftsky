@@ -49,6 +49,18 @@ case "$mode" in
     cd "$appview_dir"
     go test -count=1 -timeout=10m ./...
     ;;
+  focused)
+    # Reuse the fail-closed development service configuration for TDD filters.
+    # Arguments are go-test arguments, never a separate shell command.
+    shift
+    if [[ $# -eq 0 ]]; then
+      echo "focused requires a package and optional go test filters" >&2
+      exit 2
+    fi
+    with_integration_services
+    cd "$appview_dir"
+    go test -count=1 -timeout=10m "$@"
+    ;;
   shuffle)
     with_integration_services
     cd "$appview_dir"
@@ -83,7 +95,7 @@ case "$mode" in
     echo "AppView unit coverage evidence: $coverage_dir"
     ;;
   *)
-    echo "usage: $0 {full|unit|shuffle|fuzz|coverage}" >&2
+    echo "usage: $0 {full|unit|focused <go-test-args...>|shuffle|fuzz|coverage}" >&2
     exit 2
     ;;
 esac

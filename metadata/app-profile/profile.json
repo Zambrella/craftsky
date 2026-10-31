@@ -88,7 +88,8 @@
       "app.bsky.actor.profile",
       "app.bsky.actor.link",
       "app.bsky.graph.follow",
-      "app.bsky.graph.block"
+      "app.bsky.graph.block",
+      "chat.bsky.actor.declaration"
     ],
     "consumes": [
       "social.craftsky.actor.profile",

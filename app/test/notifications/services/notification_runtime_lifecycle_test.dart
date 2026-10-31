@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:craftsky_app/auth/models/session_registry.dart';
+import 'package:craftsky_app/chat/models/chat_identifier.dart';
 import 'package:craftsky_app/notifications/models/account_subscription_id.dart';
 import 'package:craftsky_app/notifications/models/foreground_notification_event.dart';
 import 'package:craftsky_app/notifications/models/notification_destination.dart';
@@ -15,6 +16,95 @@ import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test(
+    'IT-013 chat callbacks resolve privately and refresh no social state',
+    () async {
+      final did = Did.parse('did:plc:viewer');
+      final binding = AccountSubscriptionId.parse('binding');
+      final base = SessionRegistry.empty().upsertAndActivate(
+        token: 'synthetic',
+        did: did.value,
+        handle: 'viewer.test',
+      );
+      final registry = SessionRegistry(
+        nextSessionGeneration: base.nextSessionGeneration,
+        nextUseOrdinal: base.nextUseOrdinal,
+        activationGeneration: base.activationGeneration,
+        activeDid: base.activeDid?.value,
+        sessions: {
+          for (final entry in base.sessions.entries)
+            entry.key.value: entry.value,
+        },
+        routingBindings: {did.value: binding.wireValue},
+      );
+      final attempt = NotificationOpenAttempt.fromProviderData({
+        'payloadVersion': '1',
+        'type': 'chat',
+        'accountSubscriptionId': 'binding',
+        'openReference': '00000000-0000-4000-8000-000000000123',
+      });
+      final service = _RecordingService(initialOpen: attempt);
+      final effects = StreamController<NotificationEffect>.broadcast();
+      final received = <NotificationEffect>[];
+      final subscription = effects.stream.listen(received.add);
+      var social = 0;
+      var chat = 0;
+      var resolves = 0;
+      final runtime = NotificationRuntime(
+        service: service,
+        registration: NotificationRegistrationCoordinator(
+          service: service,
+          platform: NotificationPlatform.ios,
+          registerAccount: ({
+            required lease,
+            required platform,
+            required token,
+          }) async => binding,
+          saveBindingForLease: ({required lease, required binding}) async {},
+        ),
+        routingStorage: NotificationRoutingStorage(() => registry),
+        invalidateList: () => social++,
+        refreshCount: () => social++,
+        effects: effects,
+        refreshChatCount: (account) {
+          expect(account.did, did);
+          chat++;
+        },
+        resolveChat: (lease, reference) async {
+          resolves++;
+          return ChatConversationId.parse('conversation');
+        },
+      );
+      addTearDown(subscription.cancel);
+      addTearDown(effects.close);
+      addTearDown(service.close);
+      addTearDown(runtime.dispose);
+      await runtime.start();
+      expect(resolves, 0);
+      await runtime.updateReadiness(did: did, onboarded: true);
+      await Future<void>.delayed(Duration.zero);
+      expect(resolves, 1);
+      expect(
+        received
+            .whereType<NotificationNavigationEffect>()
+            .single
+            .outcome
+            .destination,
+        isA<ChatConversationDestination>(),
+      );
+      await runtime.receiveForegroundEvent(
+        ForegroundNotificationEvent(
+          title: 'Peer',
+          body: '',
+          openAttempt: attempt,
+        ),
+      );
+      expect(social, 0);
+      expect(chat, 1);
+      expect(resolves, 1);
+    },
+  );
+
   test('cold-start open waits for account initialization', () async {
     final did = Did.parse('did:plc:viewer');
     final binding = AccountSubscriptionId.parse('binding');

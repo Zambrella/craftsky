@@ -101,7 +101,10 @@ void main() {
       expect(menu.groups, hasLength(3));
       expect(menu.groups.first.items, hasLength(1));
       expect(menu.groups.first.items.single.text, 'View likes');
-      expect(menu.groups[1].items.single.text, 'Copy link');
+      expect(
+        menu.groups[1].items.map((item) => item.text),
+        ['Copy link', 'Send via chat'],
+      );
       expect(menu.groups.last.items.single.text, 'Delete post');
       expect(
         menu.groups.first.items.single.style,

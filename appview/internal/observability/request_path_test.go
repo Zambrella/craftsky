@@ -29,6 +29,7 @@ func TestRequestDiagnosticPathPolicy(t *testing.T) {
 		{"POST", "/v1/posts/did:plc:private/secret/saves", "/v1/posts/[REDACTED]/[REDACTED]/saves"},
 		{"POST", "/v1/posts/did:plc:private/secret/reports", "/v1/posts/[REDACTED]/[REDACTED]/reports"},
 		{"POST", "/v1/profiles/@private.example.invalid/mutes", "/v1/profiles/[REDACTED]/mutes"},
+		{"DELETE", "/v1/chat/conversations/private-conversation/messages/private-message", "/v1/chat/conversations/[REDACTED]/messages/[REDACTED]"},
 		{"GET", "/v1/search/hashtags/private-term/posts", "/v1/search/hashtags/[REDACTED]/posts"},
 		{"GET", "/v1/scheduled-post-media/private-media", "/v1/scheduled-post-media/[REDACTED]"},
 		{"GET", "/v1/saved-post-folders/private-folder", "/v1/saved-post-folders/[REDACTED]"},
@@ -52,6 +53,33 @@ func TestRequestDiagnosticPathPolicy(t *testing.T) {
 				t.Fatal("diagnostic resolver mutated request URL")
 			}
 		})
+	}
+}
+
+func TestDeleteMessageDiagnosticsHidePrivateTargets(t *testing.T) {
+	catalogue, err := routes.NewV1Catalogue(routes.V1RoutePolicies(routes.EnvDev, routes.Config{}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	value, _ := url.Parse("/v1/chat/conversations/private-conversation-canary/messages/private-message-canary?token=secret-canary")
+	ctx := observability.WithRequestDiagnosticContext(context.Background(), catalogue.Resolve("DELETE", value))
+	var logs bytes.Buffer
+	logger := slog.New(slog.NewJSONHandler(&logs, nil))
+	transport := &sentry.MockTransport{}
+	observer := observability.New(observability.Config{Env: "test", SentryDSN: "https://public@example.invalid/1", SentryTransport: transport})
+	input := observability.DiagnosticInput{Error: errors.New("private-error-canary"), Context: observability.EventContext{"operation": "chat.delete"}}
+	observability.LogDiagnostic(ctx, logger, input)
+	observer.CaptureDiagnostic(ctx, input)
+	observer.Flush(time.Second)
+	data, _ := json.Marshal(transport.Events())
+	serialized := logs.String() + string(data)
+	for _, canary := range []string{"private-conversation-canary", "private-message-canary", "secret-canary", "private-error-canary"} {
+		if strings.Contains(serialized, canary) {
+			t.Fatal("private delete context leaked")
+		}
+	}
+	if !strings.Contains(logs.String(), "chat.delete") || len(transport.Events()) != 1 {
+		t.Fatal("operational diagnostics lost")
 	}
 }
 

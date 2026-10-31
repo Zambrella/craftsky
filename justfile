@@ -168,6 +168,10 @@ test:
 appview-test-unit:
     ./scripts/appview-test unit
 
+# Generate feature-scoped chat queries from the exact migration schema.
+chat-db-generate *ARGS:
+    bash ./scripts/chat-db-generate {{ ARGS }}
+
 # Run the full PostgreSQL/MinIO suite once in randomized test order without the
 # race detector. Requires `just dev-d`; Go prints the shuffle seed for replay.
 appview-test-shuffle:

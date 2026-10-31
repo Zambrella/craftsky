@@ -33,7 +33,7 @@ final class EditPostProvider
   EditPost create() => EditPost();
 }
 
-String _$editPostHash() => r'04c09bc281e376ec703615ae62d670375422f024';
+String _$editPostHash() => r'0bd67fbb32a6c3985b2fa0b840a5ea7d6dc26b0f';
 
 abstract class _$EditPost extends $AsyncNotifier<PostEditResult?> {
   FutureOr<PostEditResult?> build();

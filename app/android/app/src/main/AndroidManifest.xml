@@ -4,6 +4,8 @@
     <application
         android:label="CraftSky"
         android:name="${applicationName}"
+        android:fullBackupContent="@xml/chat_backup_rules"
+        android:dataExtractionRules="@xml/chat_data_extraction_rules"
         android:icon="@mipmap/ic_launcher">
         <activity
             android:name=".MainActivity"

@@ -26,3 +26,7 @@ func (m *MockAuthService) Authenticate(ctx context.Context, token string) (AuthI
 func (m *MockAuthService) AuthenticateRecovery(ctx context.Context, token string) (AuthInfo, error) {
 	return m.Authenticate(ctx, token)
 }
+
+func (m *MockAuthService) AuthenticateWithoutActivity(ctx context.Context, token string) (AuthInfo, error) {
+	return m.Authenticate(ctx, token)
+}

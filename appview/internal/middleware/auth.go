@@ -77,6 +77,13 @@ func Authenticated(authService auth.AuthService, logger *slog.Logger, policy Dev
 	return authenticatedWith(authService.Authenticate, logger, policy)
 }
 
+// AuthenticatedWithoutActivity is reserved for server-selected automatic
+// snapshot/sync routes. Bearer parsing, development authorization and failure
+// taxonomy stay identical; no request header selects the activity policy.
+func AuthenticatedWithoutActivity(authService auth.NoActivityAuthService, logger *slog.Logger, policy DevAuthPolicy) func(http.Handler) http.Handler {
+	return authenticatedWith(authService.AuthenticateWithoutActivity, logger, policy)
+}
+
 // AuthenticatedRecovery is reserved for the explicit recovery route class.
 // It shares the same bearer parsing, development policy, and 401/503 taxonomy
 // as Authenticated, but delegates lifecycle eligibility to the narrower
@@ -155,6 +162,7 @@ func authenticatedWith(
 			}
 
 			ctx = ctxkeys.WithDID(ctx, info.DID)
+			ctx = ctxkeys.WithChildTokenHash(ctx, sha256.Sum256([]byte(token)))
 			if info.SessionID != "" {
 				ctx = ctxkeys.WithOAuthSessionID(ctx, info.SessionID)
 			}
@@ -168,3 +176,5 @@ func devAuthorizationMatches(expected, presented string) bool {
 	presentedHash := sha256.Sum256([]byte(presented))
 	return expected != "" && subtle.ConstantTimeCompare(expectedHash[:], presentedHash[:]) == 1
 }
+
+func GetChildTokenHash(ctx context.Context) ([32]byte, bool) { return ctxkeys.GetChildTokenHash(ctx) }

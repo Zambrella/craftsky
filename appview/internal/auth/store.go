@@ -141,7 +141,11 @@ func (s *PostgresAuthStore) QuarantineCallbackCredential(
 	session oauth.ClientSessionData,
 	eligibleAt time.Time,
 ) error {
-	return s.quarantineCallbackCredential(ctx, state, attemptID, session, eligibleAt, LoginOAuthPurpose)
+	purpose := LoginOAuthPurpose
+	if attempt, ok := callbackAttemptFromContext(ctx); ok && attempt.State == state && attempt.AttemptID == attemptID && attempt.Purpose == ChatOAuthPurpose {
+		purpose = ChatOAuthPurpose
+	}
+	return s.quarantineCallbackCredential(ctx, state, attemptID, session, eligibleAt, purpose)
 }
 
 func (s *PostgresAuthStore) quarantineCallbackCredential(
@@ -211,7 +215,11 @@ func (s *PostgresAuthStore) MarkCallbackCredentialForCleanup(
 	state string,
 	attemptID uuid.UUID,
 ) error {
-	return s.markCallbackCredentialForCleanup(ctx, state, attemptID, LoginOAuthPurpose)
+	purpose := LoginOAuthPurpose
+	if attempt, ok := callbackAttemptFromContext(ctx); ok && attempt.State == state && attempt.AttemptID == attemptID && attempt.Purpose == ChatOAuthPurpose {
+		purpose = ChatOAuthPurpose
+	}
+	return s.markCallbackCredentialForCleanup(ctx, state, attemptID, purpose)
 }
 
 func (s *PostgresAuthStore) markCallbackCredentialForCleanup(
@@ -975,6 +983,14 @@ func (s *PostgresAuthStore) SaveAuthRequestInfo(ctx context.Context, info oauth.
 		if state == "terminal" || generation != metadata.OwnerGeneration || epoch != metadata.AuthEpoch {
 			return ErrAuthRequestMetadataInvalid
 		}
+		if metadata.Purpose == ChatOAuthPurpose {
+			if info.AccountDID == nil || *info.AccountDID != metadata.Owner {
+				return ErrAuthRequestMetadataInvalid
+			}
+			if err := validateChatConsentTx(ctx, tx, metadata); err != nil {
+				return err
+			}
+		}
 		if err := lockAuthRequestAdmission(ctx, tx); err != nil {
 			return err
 		}
@@ -1095,7 +1111,7 @@ func insertAuthRequest(
 		owner = metadata.Owner
 		generation = metadata.OwnerGeneration
 		epoch = metadata.AuthEpoch
-		if metadata.Purpose == LoginOAuthPurpose {
+		if metadata.Purpose == LoginOAuthPurpose || metadata.Purpose == ChatOAuthPurpose {
 			resource = metadata.ResourceServerOrigin
 			authIssuer = metadata.AuthorizationServerIssuer
 		}
@@ -1110,12 +1126,13 @@ func insertAuthRequest(
 			owner_did,owner_generation,auth_epoch,request_uri,request_state,
 			handoff_mode,loopback_redirect_uri,device_id,
 			resource_server_origin,authorization_server_issuer,
-			registration_provider_origin,registration_issuer
-		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'ready',$10,$11,$12,$13,$14,$15,$16)
+			registration_provider_origin,registration_issuer,
+			chat_parent_session_id,chat_child_token_hash,chat_generation,chat_push_enabled
+		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'ready',$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
 	`, info.State, data, metadata.Purpose, deletionOwner, deletionJob,
 		owner, generation, epoch, info.RequestURI,
 		metadata.HandoffMode, nullableString(metadata.LoopbackURI), metadata.DeviceID,
-		resource, authIssuer, provider, issuer)
+		resource, authIssuer, provider, issuer, nullableString(metadata.ChatParentSessionID), metadata.ChatChildTokenHash, nullableChatGeneration(metadata.ChatGeneration), metadata.ChatPushEnabled)
 	return err
 }
 
@@ -1191,17 +1208,21 @@ func (s *PostgresAuthStore) LoadAuthRequestMetadata(ctx context.Context, state s
 	var registrationIssuer *string
 	var resourceOrigin *string
 	var authorizationIssuer *string
+	var chatParent *string
+	var chatGeneration *int64
 	err := s.pool.QueryRow(ctx, `
 		SELECT purpose,owner_did,owner_generation,auth_epoch,account_deletion_job_id,
 		       handoff_mode,loopback_redirect_uri,device_id,request_state,exchange_attempt_id,
 		       resource_server_origin,authorization_server_issuer,
-		       registration_provider_origin,registration_issuer,created_at
+		       registration_provider_origin,registration_issuer,created_at,
+		       chat_parent_session_id,chat_child_token_hash,chat_generation,chat_push_enabled
 		FROM oauth_auth_requests WHERE state=$1
 	`, state).Scan(
 		&metadata.Purpose, &owner, &ownerGeneration, &authEpoch,
 		&jobID, &metadata.HandoffMode, &loopback, &metadata.DeviceID,
 		&metadata.RequestState, &attemptID, &resourceOrigin, &authorizationIssuer,
 		&registrationProvider, &registrationIssuer, &createdAt,
+		&chatParent, &metadata.ChatChildTokenHash, &chatGeneration, &metadata.ChatPushEnabled,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return AuthRequestMetadata{}, ErrOAuthSessionNotFound
@@ -1238,6 +1259,12 @@ func (s *PostgresAuthStore) LoadAuthRequestMetadata(ctx context.Context, state s
 	}
 	if registrationIssuer != nil {
 		metadata.RegistrationIssuer = *registrationIssuer
+	}
+	if chatParent != nil {
+		metadata.ChatParentSessionID = *chatParent
+	}
+	if chatGeneration != nil {
+		metadata.ChatGeneration = *chatGeneration
 	}
 	metadata.ExpiresAt = createdAt.Add(s.cfg.AuthRequestExpiry)
 	return metadata, nil
@@ -1498,4 +1525,11 @@ func (s *PostgresAuthStore) withAuthTransaction(ctx context.Context, callback fu
 		return s.owners.WithAuthTransaction(ctx, callback)
 	}
 	return pgx.BeginFunc(ctx, s.pool, callback)
+}
+
+func nullableChatGeneration(value int64) any {
+	if value == 0 {
+		return nil
+	}
+	return value
 }

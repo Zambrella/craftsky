@@ -6,6 +6,7 @@ import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
 import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart'
     show sessionRegistryProvider;
+import 'package:craftsky_app/chat/models/chat_identifier.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/notifications/data/notification_repository.dart';
 import 'package:craftsky_app/notifications/models/account_subscription_id.dart';
@@ -38,6 +39,116 @@ import '../fakes/auth_session_fakes.dart';
 import '../fakes/recording_messenger.dart';
 
 void main() {
+  testWidgets(
+    'IT-013 chat opens preserve social unread state and fence queued '
+    'navigation',
+    (tester) async {
+      final service = _FakeNotificationService();
+      final newness = _RecordingNewnessRepository(initialCount: 3);
+      final list = _RecordingNotificationRepository();
+      final registry = SessionRegistry.empty().upsertAndActivate(
+        token: 'token',
+        did: 'did:plc:viewer',
+        handle: 'viewer.test',
+      );
+      final account = registry.activeLease!.session.account;
+      final effects = StreamController<NotificationEffect>.broadcast();
+      final runtime = _runtime(service, effects);
+      final router = GoRouter(
+        routes: [
+          GoRoute(path: '/', builder: (_, _) => const Text('Feed')),
+          GoRoute(
+            path: '/messages',
+            builder: (_, _) => const Text('Messages'),
+            routes: [
+              GoRoute(
+                path: 'conversations/:conversationId',
+                builder: (_, state) => const Text('Private conversation'),
+              ),
+            ],
+          ),
+        ],
+      );
+      final container = ProviderContainer.test(
+        overrides: [
+          authSessionProvider.overrideWith(SignedOutAuthSession.new),
+          secureSessionRegistryStorageProvider.overrideWithValue(
+            _RegistryStorage(registry),
+          ),
+          notificationServiceProvider.overrideWithValue(service),
+          notificationRuntimeProvider.overrideWithValue(runtime),
+          notificationEffectStreamProvider.overrideWithValue(effects.stream),
+          accountNotificationNewnessRepositoryProvider.overrideWith(
+            (ref, account) async => newness,
+          ),
+          accountNotificationRepositoryProvider.overrideWith(
+            (ref, account) async => list,
+          ),
+          goRouterProvider.overrideWithValue(router),
+        ],
+      );
+      addTearDown(router.dispose);
+      addTearDown(effects.close);
+      addTearDown(runtime.dispose);
+      await container.read(sessionRegistryProvider.future);
+      await container.read(accountNotificationNewCountProvider(account).future);
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp.router(
+            localizationsDelegates: appLocalizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            routerConfig: router,
+            builder: (_, child) => NotificationEffectHost(
+              child: child ?? const SizedBox.shrink(),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final countBeforeOpen = newness.countCalls;
+      final listBeforeOpen = list.listCalls;
+
+      var current = true;
+      final outcome = NotificationOpenOutcome(
+        destination: ChatConversationDestination(
+          ChatConversationId.parse('conversation'),
+        ),
+        isCurrent: () => current,
+      );
+      effects.add(
+        NotificationNavigationEffect(
+          NotificationOpenOutcome(
+            destination: ChatConversationDestination(
+              ChatConversationId.parse('conversation'),
+            ),
+            isCurrent: () => current,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Private conversation'), findsOneWidget);
+      expect(router.canPop(), isTrue);
+      expect(newness.countCalls, countBeforeOpen);
+      expect(list.listCalls, listBeforeOpen);
+      expect(
+        container
+            .read(accountNotificationNewCountProvider(account))
+            .requireValue,
+        3,
+      );
+      router.pop();
+      await tester.pumpAndSettle();
+      expect(find.text('Messages'), findsOneWidget);
+      current = false;
+      effects.add(NotificationNavigationEffect(outcome));
+      await tester.pumpAndSettle();
+      expect(find.text('Private conversation'), findsNothing);
+    },
+  );
+
   testWidgets(
     'BUG-001 notification open preserves back navigation and suppresses one '
     'new item',

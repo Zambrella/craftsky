@@ -1,3 +1,4 @@
+import 'package:craftsky_app/chat/models/chat_identifier.dart';
 import 'package:craftsky_app/moderation/models/account_moderation.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:dart_mappable/dart_mappable.dart';
@@ -62,6 +63,33 @@ final class ModerationHistoryDestination extends NotificationDestination
   final ModerationCaseReference caseReference;
 }
 
+@MappableClass(generateMethods: _notificationDestinationMethods)
+final class ChatInboxDestination extends NotificationDestination
+    with ChatInboxDestinationMappable {
+  const new();
+}
+
+@MappableClass(
+  generateMethods: _notificationDestinationMethods,
+  includeCustomMappers: [ChatConversationIdMapper()],
+)
+final class ChatConversationDestination extends NotificationDestination
+    with ChatConversationDestinationMappable {
+  const new(this.conversationId);
+  final ChatConversationId conversationId;
+  @override
+  String toString() => 'ChatConversationDestination(<redacted>)';
+}
+
+class ChatConversationIdMapper extends SimpleMapper<ChatConversationId> {
+  const new();
+  @override
+  ChatConversationId decode(Object value) =>
+      ChatConversationId.parse(value as String);
+  @override
+  Object encode(ChatConversationId self) => self.value;
+}
+
 class ModerationCaseReferenceMapper
     extends SimpleMapper<ModerationCaseReference> {
   const new();
@@ -75,8 +103,11 @@ class ModerationCaseReferenceMapper
 }
 
 final class NotificationOpenOutcome {
-  const new({required this.destination, this.feedback});
+  const new({required this.destination, this.feedback, this.isCurrent});
 
   final NotificationDestination destination;
   final NotificationOpenFeedback? feedback;
+
+  /// Rechecked when queued private navigation is finally delivered.
+  final bool Function()? isCurrent;
 }

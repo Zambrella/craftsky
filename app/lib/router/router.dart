@@ -12,6 +12,8 @@ import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/business/pages/event_detail_page.dart';
 import 'package:craftsky_app/business/pages/events_settings_page.dart';
 import 'package:craftsky_app/business/pages/products_settings_page.dart';
+import 'package:craftsky_app/chat/pages/messaging_route_page.dart';
+import 'package:craftsky_app/chat/widgets/chat_session_scope.dart';
 import 'package:craftsky_app/design_playground/pages/design_playground_page.dart';
 import 'package:craftsky_app/drafts/pages/drafts_page.dart';
 import 'package:craftsky_app/feed/models/post.dart';
@@ -34,6 +36,7 @@ import 'package:craftsky_app/profile/widgets/profile_avatar_hero.dart';
 import 'package:craftsky_app/projects/pages/projects_page.dart';
 import 'package:craftsky_app/router/app_shell.dart';
 import 'package:craftsky_app/router/error_screen.dart';
+import 'package:craftsky_app/router/responsive_modal_navigation.dart';
 import 'package:craftsky_app/router/route_locations.dart';
 import 'package:craftsky_app/saved_posts/models/saved_post_folder.dart';
 import 'package:craftsky_app/saved_posts/pages/saved_post_folder_page.dart';
@@ -306,6 +309,28 @@ class AccountEligibilityRoute extends GoRouteData
             ),
           ],
         ),
+        TypedStatefulShellBranch<MessagesBranch>(
+          routes: [
+            TypedGoRoute<ChatInboxRoute>(
+              path: RouteLocations.messages,
+              name: 'messages',
+              routes: [
+                TypedGoRoute<ChatRequestsRoute>(
+                  path: RouteLocations.messageRequestsChild,
+                  name: 'message-requests',
+                ),
+                TypedGoRoute<NewMessageRoute>(
+                  path: RouteLocations.newMessageChild,
+                  name: 'new-message',
+                ),
+                TypedGoRoute<ChatConversationRoute>(
+                  path: RouteLocations.messageConversationChild,
+                  name: 'message-conversation',
+                ),
+              ],
+            ),
+          ],
+        ),
         TypedStatefulShellBranch<SavedPostsBranch>(
           routes: [
             TypedGoRoute<SavedPostsRoute>(
@@ -342,6 +367,10 @@ class AccountEligibilityRoute extends GoRouteData
               path: RouteLocations.settings,
               name: 'settings',
               routes: [
+                TypedGoRoute<ChatSettingsRoute>(
+                  path: 'messaging',
+                  name: 'messaging-settings',
+                ),
                 TypedGoRoute<AppearanceRoute>(
                   path: RouteLocations.appearanceChild,
                   name: 'appearance',
@@ -461,7 +490,9 @@ class AuthenticatedShellRoute extends ShellRouteData {
 
   @override
   Widget builder(BuildContext context, GoRouterState state, Widget navigator) {
-    return AuthenticatedShell(navigatorKey: $navigatorKey, child: navigator);
+    return ChatSessionScope(
+      child: AuthenticatedShell(navigatorKey: $navigatorKey, child: navigator),
+    );
   }
 }
 
@@ -521,6 +552,15 @@ class ProfileBranch extends StatefulShellBranchData {
   ];
   static final GlobalKey<NavigatorState> $navigatorKey =
       _NavigatorKeys.profileNavigatorKey;
+}
+
+class MessagesBranch extends StatefulShellBranchData {
+  const new();
+  static List<NavigatorObserver> get $observers => [
+    diagnosticNavigationObserver(),
+  ];
+  static final GlobalKey<NavigatorState> $navigatorKey =
+      GlobalKey<NavigatorState>(debugLabel: 'messagesNavigator');
 }
 
 class SavedPostsBranch extends StatefulShellBranchData {
@@ -1105,3 +1145,50 @@ String _encodeDidRouteParameter(Did value) => value.toString();
 Handle _decodeHandleRouteParameter(String value) => Handle.parse(value);
 
 String _encodeHandleRouteParameter(Handle value) => value.toString();
+
+class ChatInboxRoute extends GoRouteData with $ChatInboxRoute {
+  const new();
+  @override
+  Widget build(BuildContext context, GoRouterState state) =>
+      const MessagingRoutePage(destination: MessagingDestination.inbox);
+}
+
+class ChatRequestsRoute extends GoRouteData with $ChatRequestsRoute {
+  const new();
+  @override
+  Widget build(BuildContext context, GoRouterState state) =>
+      const MessagingRoutePage(destination: MessagingDestination.requests);
+}
+
+class NewMessageRoute extends GoRouteData with $NewMessageRoute {
+  const new({this.recipientDid});
+  final String? recipientDid;
+  @override
+  Page<void> buildPage(BuildContext context, GoRouterState state) =>
+      FullscreenModalPage<void>(
+        key: state.pageKey,
+        child: build(context, state),
+      );
+  @override
+  Widget build(BuildContext context, GoRouterState state) => MessagingRoutePage(
+    destination: MessagingDestination.newMessage,
+    recipientDid: recipientDid,
+  );
+}
+
+class ChatSettingsRoute extends GoRouteData with $ChatSettingsRoute {
+  const new();
+  @override
+  Widget build(BuildContext context, GoRouterState state) =>
+      const MessagingRoutePage(destination: MessagingDestination.settings);
+}
+
+class ChatConversationRoute extends GoRouteData with $ChatConversationRoute {
+  const new({required this.conversationId});
+  final String conversationId;
+  @override
+  Widget build(BuildContext context, GoRouterState state) => MessagingRoutePage(
+    destination: MessagingDestination.conversation,
+    conversationId: conversationId,
+  );
+}

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<full-backup-content>
+    <exclude domain="sharedpref" path="craftsky_chat_drafts.xml" />
+    <exclude domain="sharedpref" path="FlutterSecureKeyStorage:craftsky_chat_drafts.xml" />
+    <exclude domain="sharedpref" path="FlutterSecureStorageConfiguration:craftsky_chat_drafts.xml" />
+</full-backup-content>
