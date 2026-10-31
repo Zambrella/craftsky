@@ -310,7 +310,8 @@ void main() {
     );
 
     expect(find.byKey(const Key('needleSize-search-input')), findsOneWidget);
-    expect(find.byIcon(CraftskyIcons.search), findsOneWidget);
+    expect(find.byIcon(CraftskyIcons.search), findsNothing);
+    expect(find.byKey(const Key('needleSize-clear')), findsOneWidget);
     expect(find.byKey(const Key('needleSize-options-panel')), findsNothing);
 
     await tester.tap(find.byKey(const Key('needleSize-search-input')));
@@ -535,10 +536,20 @@ void main() {
 
     expect(find.byKey(const Key('needleSize-options-panel')), findsNothing);
     expect(find.byKey(const Key('needleSize-search-input')), findsOneWidget);
+    expect(
+      Focus.of(tester.element(find.byIcon(CraftskyIconsBold.clear)))
+          .hasPrimaryFocus,
+      isTrue,
+    );
+    expect(nextFocusNode.hasFocus, isFalse);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+    await tester.pumpAndSettle();
     expect(nextFocusNode.hasFocus, isTrue);
+    expect(find.byKey(const Key('needleSize-options-panel')), findsNothing);
   });
 
-  testWidgets('UT-003 closed dropdown tabs to the next field once', (
+  testWidgets('UT-003 closed dropdown tabs through clear to the next field', (
     tester,
   ) async {
     final firstFocusNode = FocusNode(debugLabel: 'first-field');
@@ -585,7 +596,17 @@ void main() {
     await tester.sendKeyEvent(LogicalKeyboardKey.tab);
     await tester.pump();
 
+    expect(
+      Focus.of(tester.element(find.byIcon(CraftskyIconsBold.clear)))
+          .hasPrimaryFocus,
+      isTrue,
+    );
+    expect(nextFocusNode.hasFocus, isFalse);
+
+    await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+    await tester.pump();
     expect(nextFocusNode.hasFocus, isTrue);
+    expect(find.byKey(const Key('craftType-options-panel')), findsNothing);
   });
 
   testWidgets('UT-003 searchable dropdown selects first match with enter', (
