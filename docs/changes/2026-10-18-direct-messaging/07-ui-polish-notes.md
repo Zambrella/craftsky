@@ -1,5 +1,21 @@
 # UI Polish Notes: Direct Messaging
 
+## Full-screen Send via chat picker: 2026-10-31
+
+Owner requested the existing full-screen bottom-up presentation. Send via chat
+now uses responsiveModalNavigator and FullscreenModalRoute, matching reports and
+other task modals. Replaced the 75%-height sheet with a Scaffold, standard AppBar
+title/CloseButton and keyboard-safe body. Recipient/search/draft/send behavior
+is unchanged (FR-021 / AC-031). No backend/permission/persistence change.
+
+Actual launch/close test verifies full-screen route type, viewport height, app-bar
+title and absence of BottomSheet; all existing picker journeys still pass.
+Picker plus responsive-modal tests: **13 passed**, exit 0. Whole-app analysis,
+formatting and diff checks clean. Logs:
+/private/tmp/craftsky-share-fullscreen-{tests,analyze}.log.
+Simulator hot reload succeeds; runtime errors checked separately. No live sends,
+commit, push or production action. Physical-device appearance remains owner-run.
+
 ## Remove Open messages settings shortcut: 2026-10-31
 
 Owner requested removal of the Open messages button. Removed it and its unused

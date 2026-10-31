@@ -1,5 +1,39 @@
 # Coding Plan: Direct Messaging
 
+## App-wide foreground refresh design: 2026-10-31
+
+Keep accepted inbox state observed in chatSessionRuntimeProvider, returning its
+eligible coordinator to ChatSessionScope. The scope owns a foreground session
+fallback tied to app lifecycle; no route-current check applies to this fallback.
+Coordinator uses inbox when the session is active and no visible messaging view
+is registered. Visible conversation/inbox registration takes priority independent
+of registration order, retaining the existing single timer and cadence/backoff.
+On every relevant revision refresh retained inbox controllers as well as unread
+counts and active conversation. Reuse existing ChatUnreadIcon nav wiring; add
+real drawer/rail badge integration coverage. No new provider codegen/API/schema.
+
+## Shared recipient picker design: 2026-10-31
+
+Rename ChatShareSheet to ChatRecipientPicker with optional prefillLink and initial
+recipient plus selection/close callbacks. One shared selection path reuses known
+conversation ID or starts canonically, preparing a persisted draft only with a
+link. New-message route mounts it through existing account/enablement gate and
+keeps child routing. Add a Page wrapper around FullscreenModalRoute for declarative
+/messages/new; imperative sharing retains the same route helper. Remove duplicated
+NewMessageView; migrate its UI coverage to both shared-picker modes while retaining
+recipient controller boundary tests. No route URL, generated API or backend change.
+
+## Send via chat design: 2026-10-31
+
+Shared linkSharingMenuItems returns Copy link plus Send via chat; replace existing
+helper call sites and add profile action callbacks for both action sets. Shared
+Consumer bottom sheet reuses recipient/inbox/conversation providers, availability
+and canonical start, profile widgets and guarded draft controller. Empty query
+uses accepted inbox suggestions, debounced nonempty query uses CraftSky search.
+Capture original activation across sheet, recipient selection, draft prefill and
+navigation. Append to existing composer text, persist, then navigate to nested
+conversation route. Do not auto-send or overwrite drafts; no API/schema changes.
+
 ## Delete for me design: 2026-10-31
 
 Add DELETE /v1/chat/conversations/{id}/messages/{messageId}, no input body/query,

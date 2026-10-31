@@ -24,6 +24,46 @@ import '../test_support/recording_error_reporter.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   test(
+    'SHARE-001 link prefill preserves and persists an existing draft',
+    () async {
+      FlutterSecureStorage.setMockInitialValues({});
+      final account = AccountKey('did:plc:owner');
+      final id = ChatConversationId.parse('conversation');
+      final repository = _Repository();
+      final store = ChatDraftStore(const FlutterSecureStorage());
+      await store.initialize({account});
+      final controller = ChatConversationController(
+        account: account,
+        id: id,
+        repository: repository,
+        store: store,
+        draftLease: store.lease(account),
+        operation: ActiveAccountOperation.withGuard(
+          ownership: null,
+          isCurrent: () => true,
+        ),
+      );
+      addTearDown(controller.dispose);
+      await controller.load();
+      controller.edit('My draft');
+      expect(
+        await controller.prefillLink(
+          'https://app.craftsky.social/profiles/example',
+        ),
+        true,
+      );
+      expect(
+        controller.draft.composerText,
+        'My draft\n\nhttps://app.craftsky.social/profiles/example',
+      );
+      expect(
+        (await store.load(store.lease(account), id)).text,
+        controller.draft.text,
+      );
+      expect(repository.sendCalls, 0);
+    },
+  );
+  test(
     'DEL-002 deleting a just-sent message removes its outgoing mirror',
     () async {
       FlutterSecureStorage.setMockInitialValues({});

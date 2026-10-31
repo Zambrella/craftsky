@@ -8271,6 +8271,36 @@ abstract class AppLocalizations {
   /// **'Estimated recovery: {time}'**
   String serviceStatusEstimatedRecovery(String time);
 
+  /// No description provided for @chatSendViaChat.
+  ///
+  /// In en, this message translates to:
+  /// **'Send via chat'**
+  String get chatSendViaChat;
+
+  /// No description provided for @chatShareRecent.
+  ///
+  /// In en, this message translates to:
+  /// **'Recent conversations'**
+  String get chatShareRecent;
+
+  /// No description provided for @chatShareSearchHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Search for someone to send this link to.'**
+  String get chatShareSearchHint;
+
+  /// No description provided for @chatShareNoResults.
+  ///
+  /// In en, this message translates to:
+  /// **'No profiles found.'**
+  String get chatShareNoResults;
+
+  /// No description provided for @chatShareEnable.
+  ///
+  /// In en, this message translates to:
+  /// **'Open Messages to enable direct messages'**
+  String get chatShareEnable;
+
   /// No description provided for @recordCopyLinkAction.
   ///
   /// In en, this message translates to:

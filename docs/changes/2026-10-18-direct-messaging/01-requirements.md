@@ -1,5 +1,41 @@
 # Requirements: Direct Messaging
 
+## App-wide foreground messaging refresh: 2026-10-31
+
+FR-015 / FR-007 / FR-016 / AC-012/008/014/017/022: owner requested that the
+conversation list and native accepted unread badge remain current while browsing
+any authenticated route, including Feed. Keep one foreground sync loop for the
+active, enabled, authorized account: use the existing 30-second inbox cadence
+outside conversation details and existing 4-second conversation cadence inside
+details. Refresh accepted list and unread counts on revisions and resume. Reuse
+the shared Messages badge in drawer/rail, hide zero and retain native 99+ cap;
+requests remain separate. Pause client polling on background/logout/access loss,
+fence stale work and preserve retry/backoff, content and drafts. No auto-read or
+new message notification UI, backend/API/permission/migration/live-send change.
+
+## Shared recipient picker: 2026-10-31
+
+FR-021 / FR-003/016 / AC-031/004/014: owner approved consolidating New message
+and Send via chat into one full-screen recipient picker, including recent
+conversations, search/rows/loading and availability/selection guards. New message
+opens the selected canonical conversation without editing its draft; sharing
+appends/persists the link before opening. Neither sends automatically. Keep
+/messages/new canonical under Messages, existing child Back/system-close behavior
+and shared full-screen modal presentation. Explicit initial recipient entry may
+resolve/open directly, using the same guarded selection path. No backend/schema/
+permission change or live sends authorized.
+
+## Send via chat: 2026-10-31
+
+FR-021 / AC-031: every Copy link context menu also offers Send via chat. A shared
+themed bottom sheet searches CraftSky contacts; empty search suggests accepted
+current conversations in inbox order. Choosing a contact opens its canonical
+conversation with the exact link in the composer, never automatically sends.
+Preserve existing draft by appending the link; respect messaging availability,
+account activation, route/lifetime and duplicate selection fences. Use shared
+profile widgets, themed feedback and skeleton loading; disable search autocorrect.
+No backend, scope, migration, live send or production change required.
+
 ## Approved Delete for me: 2026-10-31
 
 FR-020 / AC-030: user explicitly approved Delete for me for their own confirmed

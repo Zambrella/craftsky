@@ -13,6 +13,7 @@ import 'package:craftsky_app/chat/pages/messaging_route_page.dart';
 import 'package:craftsky_app/chat/providers/chat_draft_store_provider.dart';
 import 'package:craftsky_app/chat/providers/chat_providers.dart';
 import 'package:craftsky_app/chat/services/chat_recipient_controller.dart';
+import 'package:craftsky_app/chat/widgets/chat_recipient_picker.dart';
 import 'package:craftsky_app/chat/widgets/profile_message_button.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/notifications/models/notification_destination.dart';
@@ -172,8 +173,6 @@ void main() {
       await tester.pumpAndSettle();
       if (entry == 'inbox') {
         await tester.tap(find.text('peer.test'));
-      } else if (entry == 'new message') {
-        await tester.tap(find.text('Start conversation'));
       } else if (entry == 'profile') {
         await tester.tap(find.byTooltip('Message'));
       } else if (entry == 'notification') {
@@ -425,8 +424,19 @@ void main() {
           await tester.pumpAndSettle();
         }
         expect(find.widgetWithText(AppBar, destination), findsOneWidget);
+        if (destination == 'New message') {
+          expect(find.byType(ChatRecipientPicker), findsOneWidget);
+          expect(
+            ModalRoute.of(tester.element(find.byType(ChatRecipientPicker))),
+            isA<FullscreenModalRoute<void>>(),
+          );
+        }
         expect(router.canPop(), true);
-        await tester.tap(find.byTooltip('Back'));
+        await tester.tap(
+          destination == 'New message'
+              ? find.byType(CloseButton)
+              : find.byTooltip('Back'),
+        );
         await tester.pumpAndSettle();
         expect(find.widgetWithText(AppBar, 'Messages'), findsOneWidget);
         await tester.tap(find.byTooltip(destination));

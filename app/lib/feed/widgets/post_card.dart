@@ -1120,7 +1120,9 @@ class _PostCardMenu extends StatelessWidget {
                 ),
               ],
             ),
-          CraftskyContextMenuGroup(items: [copyLinkMenuItem(context, url)]),
+          CraftskyContextMenuGroup(
+            items: [...linkSharingMenuItems(context, url)],
+          ),
           CraftskyContextMenuGroup(
             items: [
               if (onEdit != null)

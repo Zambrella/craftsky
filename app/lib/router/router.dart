@@ -36,6 +36,7 @@ import 'package:craftsky_app/profile/widgets/profile_avatar_hero.dart';
 import 'package:craftsky_app/projects/pages/projects_page.dart';
 import 'package:craftsky_app/router/app_shell.dart';
 import 'package:craftsky_app/router/error_screen.dart';
+import 'package:craftsky_app/router/responsive_modal_navigation.dart';
 import 'package:craftsky_app/router/route_locations.dart';
 import 'package:craftsky_app/saved_posts/models/saved_post_folder.dart';
 import 'package:craftsky_app/saved_posts/pages/saved_post_folder_page.dart';
@@ -1162,6 +1163,12 @@ class ChatRequestsRoute extends GoRouteData with $ChatRequestsRoute {
 class NewMessageRoute extends GoRouteData with $NewMessageRoute {
   const new({this.recipientDid});
   final String? recipientDid;
+  @override
+  Page<void> buildPage(BuildContext context, GoRouterState state) =>
+      FullscreenModalPage<void>(
+        key: state.pageKey,
+        child: build(context, state),
+      );
   @override
   Widget build(BuildContext context, GoRouterState state) => MessagingRoutePage(
     destination: MessagingDestination.newMessage,

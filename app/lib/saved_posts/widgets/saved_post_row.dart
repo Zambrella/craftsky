@@ -70,7 +70,10 @@ class SavedPostRow extends ConsumerWidget {
                   groups: [
                     CraftskyContextMenuGroup(
                       items: [
-                        copyLinkMenuItem(context, RecordLinks.post(item.post)),
+                        ...linkSharingMenuItems(
+                          context,
+                          RecordLinks.post(item.post),
+                        ),
                       ],
                     ),
                     CraftskyContextMenuGroup(

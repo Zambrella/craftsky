@@ -44,6 +44,7 @@ final class ChatSyncCoordinator extends ChangeNotifier {
   bool busy = false;
   bool _disposed = false;
   bool _active = false;
+  bool _sessionForeground = false;
   bool _restart = false;
   bool _forceRefresh = true;
   int _version = 0;
@@ -72,11 +73,24 @@ final class ChatSyncCoordinator extends ChangeNotifier {
     _selectView();
   }
 
+  /// Keeps inbox updates running outside messaging routes, at inbox cadence.
+  /// Visible messaging views retain priority over this session fallback.
+  void setSessionForeground({required bool active}) {
+    if (!_current || _sessionForeground == active) return;
+    _sessionForeground = active;
+    _selectView();
+  }
+
   void _selectView() {
     final selected = _views.values.where((view) => view.active).lastOrNull;
     if (selected == null) {
-      setForeground(active: false);
-      setView(ChatView.none);
+      if (_sessionForeground) {
+        setView(ChatView.inbox);
+        setForeground(active: true);
+      } else {
+        setForeground(active: false);
+        setView(ChatView.none);
+      }
       return;
     }
     setView(selected.view, conversationId: selected.id);

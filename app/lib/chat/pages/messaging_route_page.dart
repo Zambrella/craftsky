@@ -11,12 +11,12 @@ import 'package:craftsky_app/chat/models/chat_state.dart';
 import 'package:craftsky_app/chat/pages/chat_conversation_page.dart';
 import 'package:craftsky_app/chat/pages/chat_settings_page.dart';
 import 'package:craftsky_app/chat/pages/messaging_inbox_page.dart';
-import 'package:craftsky_app/chat/pages/new_message_page.dart';
 import 'package:craftsky_app/chat/pages/report_page.dart';
 import 'package:craftsky_app/chat/providers/chat_providers.dart';
 import 'package:craftsky_app/chat/widgets/chat_activity_scope.dart';
 import 'package:craftsky_app/chat/widgets/chat_app_bar_title.dart';
 import 'package:craftsky_app/chat/widgets/chat_content_gate.dart';
+import 'package:craftsky_app/chat/widgets/chat_recipient_picker.dart';
 import 'package:craftsky_app/chat/widgets/chat_skeleton.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/router/responsive_modal_navigation.dart';
@@ -206,27 +206,13 @@ class _MessagingRoutePageState extends ConsumerState<MessagingRoutePage> {
           loadingBody: const ChatListSkeleton(),
           onAuthorize: (push) => authorize(push: push),
           onClose: _close,
-          builder: (context, ref, status) {
-            final family = chatRecipientControllerProvider(account);
-            return ref
-                .watch(family)
-                .when(
-                  skipLoadingOnRefresh: false,
-                  loading: () => ChatLoadingPage(
-                    title: AppLocalizations.of(context).chatNewMessage,
-                    onClose: _close,
-                    body: const ChatListSkeleton(),
-                  ),
-                  error: (_, _) => failure(() => ref.invalidate(family)),
-                  data: (controller) => NewMessageView(
-                    key: ValueKey(lease),
-                    controller: controller,
-                    initialRecipient: initialRecipient,
-                    onClose: _close,
-                    onOpen: _open,
-                  ),
-                );
-          },
+          builder: (context, ref, status) => ChatRecipientPicker(
+            key: ValueKey(lease),
+            account: account,
+            initialRecipient: initialRecipient,
+            onClose: _close,
+            onSelected: _open,
+          ),
         );
       case MessagingDestination.settings:
         page = MessagingSettingsPage(

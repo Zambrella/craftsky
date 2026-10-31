@@ -1,5 +1,117 @@
 # TDD Implementation Plan: Direct Messaging
 
+## App-wide foreground refresh TDD: 2026-10-31
+
+Order: FG-001 / FR-015 session-level Feed heartbeat plus retained accepted inbox
+and unread refresh; FG-002 / FR-007 real drawer/rail badge integration; FG-003 /
+FR-016 lifecycle, account and view priority guards. Each uses red/green before
+refactor, then messaging/navigation regressions, analysis, format/diff, simulator
+reload/runtime check and evidence. Reuse existing badge/native count semantics;
+no live sends, backend/permission/schema changes, commit or push. All selected
+loops complete:
+- FG-001 red observed zero heartbeats on Feed; green retains accepted inbox and
+  native unread state and starts one session fallback at the existing 30-second
+  inbox cadence. Page changes do not recreate it; resume forces fresh state.
+- FG-002 existing shared ChatUnreadIcon already wired to drawer and rail; reuse
+  verified through real shell integration while Feed stays selected. Counts
+  update to 7, 99+ at native sentinel 100 and hidden at zero, excluding requests.
+  No duplicate badge component or locally derived count added.
+- FG-003 red exposed retained inbox revision 2 while conversation reached 3;
+  green refreshes retained lists for conversation revisions too. The visible
+  conversation outranks the session fallback independent of registration order,
+  retains 4-second cadence, and returns to 30 seconds on close. Held responses
+  after logout/account switch/disabled/revoked/background/dispose do not refresh
+  old lists/counts. Existing non-overlap/Retry-After tests remain green.
+
+Session scope observes the eligible coordinator, sets its lifecycle fallback and
+closes its subscription at disposal. Runtime retains accepted inbox without
+warming individual conversations or marking messages read. A provider retention
+regression assumed a single total list fetch when requests loaded; updated to
+assert one fetch per bucket because accepted is now eagerly owned by the session.
+Search/report forms remain page-scoped. The router fixture now explicitly returns
+null for its no-runtime override after the runtime gained a coordinator result.
+
+Final command from app/: fvm flutter test --no-pub test/chat test/router
+ test/notifications test/auth test/shared/sharing — **860 passed**, 7 existing
+conditional skips, exit 0, 49s. Whole-app analysis clean; formatting and diff check
+pass. Logs: /private/tmp/craftsky-foreground-{session-red,session-green,details-red,
+focused,guards,badges,provider-final,regressions-final,analyze-final}.log.
+Simulator hot reload and subsequent hot restart succeed, runtime errors empty.
+No live message sent, automatic read or push proof; physical-device arrival and
+background delivery remain unverified. No backend/API/permission/schema change,
+commit, push or production action. Implementation review remains optional.
+
+## Shared picker TDD: 2026-10-31
+
+PICKER-001 / FR-021 / AC-031: red/green both shared picker modes, draft unchanged
+for new-message mode and link-only prefill. PICKER-002 / FR-016 / AC-014: red/green
+canonical child route/shared full-screen page and Close/Back/selection stack.
+PICKER-003: migrate duplicate UI tests, retain controller test and verify failure,
+pending operations, initial recipient and large-text/keyboard behavior. Then run
+affected messaging/modal regressions, analysis, formatting, reload and evidence.
+No live sends, backend/scope/schema changes, commit or push. All selected loops
+complete:
+- PICKER-001: red lacked ChatRecipientPicker; green shares suggestions, search,
+  availability and canonical selection. Plain New message preserves the existing
+  draft, while Send via chat appends/persists the exact link before opening.
+- PICKER-002: route red found no shared picker. Green uses FullscreenModalPage
+  around the existing FullscreenModalRoute, keeps /messages/new under Messages,
+  and verifies Close/system Back and selection without a lingering picker page.
+- PICKER-003: duplicate NewMessageView removed; its relevant interaction coverage
+  migrated to both shared-picker modes and controller boundary tests retained.
+  Tests cover initial recipient, availability/start failures, held duplicate taps,
+  changed owner, dismissal and small-screen large-text/keyboard selection. A cold
+  initial selection exposed recipient provider disposal before readiness; retain
+  a temporary subscription throughout selection, just as for draft preparation.
+  Large-text tests wait for layout after scrolling before tapping the contact.
+
+Final affected Flutter suite: **508 passed**, 17 existing conditional skips,
+exit 0, 30s. Command from app/: fvm flutter test --no-pub test/chat
+ test/shared/sharing test/router/responsive_modal_navigation_test.dart
+ test/router/settings_routes_test.dart test/profile/widgets/profile_actions_test.dart
+ test/profile/profile_page_test.dart test/business/pages/event_detail_page_test.dart
+ test/business/pages/events_settings_page_test.dart test/feed/widgets/post_card_test.dart
+ test/saved_posts. Whole-app analysis clean; formatting and git diff --check pass.
+Logs: /private/tmp/craftsky-picker-{regressions-final,analyze-final,large-text}.log.
+Simulator hot reload succeeded; no runtime errors found. No live messages sent;
+physical-device modal gestures/end-to-end sharing remain owner-run. Implementation
+review is a separate optional next stage. No commit, push or production action.
+
+## Send via chat TDD: 2026-10-31
+
+FR-021 / AC-031: SHARE-001 draft prefill red/green, SHARE-002 picker selection/
+search/suggestions/owner guards, SHARE-003 menu coverage; then messaging/sharing/
+profile/event regressions, analysis, formatting and runtime discovery. No live
+send, backend/scope/migration, commit or production action.
+
+All selected loops complete. SHARE-001 red lacked prefillLink; green appends to
+the visible composer projection, flushes through the existing draft store and
+does not send. Existing/newer draft and pending-attempt rules stay in the shared
+controller. SHARE-002/003 red lacked shared picker/menu APIs; green verifies
+recent suggestions, CraftSky search without autocorrect, canonical existing/new
+conversation selection, exact persisted URL, recipient denial, changed owner,
+dismissal during selection and suggestion failure feedback with zero sends.
+Selection testing exposed an auto-disposed conversation provider before prefill;
+a temporary widget subscription now retains it through load/flush/navigation.
+
+Every current Copy link call site uses shared linkSharingMenuItems: PostCard
+(including project posts), saved posts, event details/management. Own/visitor
+profile action sets carry matching callbacks for expanded/compact menus. Existing
+profile/avatar/identity, skeleton and themed messaging components are reused.
+Source scan confirms no other active Copy link context actions were missed.
+
+Broad command from app/: fvm flutter test --no-pub test/chat test/shared/sharing
+ test/profile/widgets/profile_actions_test.dart test/profile/profile_page_test.dart
+ test/business/pages/event_detail_page_test.dart
+ test/business/pages/events_settings_page_test.dart
+ test/feed/widgets/post_card_test.dart test/saved_posts — **470 passed**, 12 existing
+conditional skips, exit 0, 24s. After adding suggestion-load feedback, final picker
+suite **7 passed**; whole-app analysis clean. Dart formatting/diff checks pass.
+Logs: /private/tmp/craftsky-share-{draft-red,draft-green,ui-red,focused,regressions,
+picker-final,analyze}.log. Hot reload succeeds; no runtime errors observed.
+No live messages sent, backend/API/permission/schema change, commit, push or
+production action. Physical-device sharing acceptance remains owner-run.
+
 ## Delete for me TDD: 2026-10-31
 
 FR-020 / AC-030; explicit user approval includes Delete for me semantics and

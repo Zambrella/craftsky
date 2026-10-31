@@ -466,6 +466,14 @@ final class ChatConversationController extends ChangeNotifier {
     await _persist(draft);
   }
 
+  Future<bool> prefillLink(String url) async {
+    if (!_current || loading || left || conversation == null) return false;
+    final text = draft.composerText;
+    edit(text.isEmpty ? url : '$text\n\n$url');
+    await flush();
+    return _current && !saveFailed;
+  }
+
   Future<void> discardDraft() async {
     if (!_current || busy || !_draftLoaded) return;
     _publish(() => draft = draft.discard());

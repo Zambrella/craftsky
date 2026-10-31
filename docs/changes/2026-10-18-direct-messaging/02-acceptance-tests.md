@@ -1,5 +1,38 @@
 # Acceptance Test Specification: Direct Messaging
 
+## Foreground refresh cases: 2026-10-31
+
+FG-001 / FR-015 / AC-012/017/022: while logged in on Feed, enabled authorized
+messaging fetches accepted conversations/unread counts initially, then refreshes
+both when heartbeat revision changes, using one 30-second fallback loop. Resume
+refreshes without requiring a messaging page or marking messages read.
+FG-002 / FR-007 / AC-008: drawer/rail Messages badge updates while Feed remains
+selected; accepted unread native count only, hidden at zero, sentinel 100=99+.
+FG-003 / FR-016 / AC-014/022: conversation-view 4-second registration outranks
+session fallback regardless of registration order; returning restores 30-second
+fallback. Background stops timers; logout/disabled/revoked/changed account fences
+late responses. Preserve non-overlap, Retry-After and warning/error behavior.
+
+## Shared picker cases: 2026-10-31
+
+PICKER-001 / FR-021, AC-031: both modes use identical suggestions/search/denial/
+busy/error/account/lifetime behavior; new-message mode retains draft unchanged,
+link mode appends/persists exact URL. No automatic sends. PICKER-002 / FR-016,
+AC-014: /messages/new is still a child of Messages and uses shared full-screen
+modal page; Close/system Back returns to Messages and selecting opens details
+without leaving the picker in the stack. PICKER-003: preselected recipient and
+large-text/keyboard states fit, with no duplicate start or stale navigation.
+
+## Send via chat cases: 2026-10-31
+
+SHARE-001 / FR-021 / AC-031: prefill appends exact URL to existing composer text,
+persists it and never sends. SHARE-002: picker shows recent conversations for empty
+query, searches CraftSky profiles otherwise, checks availability, selects once,
+and opens only after draft preparation. Failure, cancellation and changed owner
+must not navigate/send. SHARE-003: posts/projects, saved posts, own/other profiles
+and event menus offer Send via chat alongside Copy link; shared picker uses themed
+profile/loading/feedback, accessible search without autocorrect.
+
 ## Delete for me cases: 2026-10-31
 
 DEL-001 / FR-020 / AC-030: fixed DELETE conversation/message route accepts no

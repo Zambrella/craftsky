@@ -11,6 +11,18 @@ NavigatorState responsiveModalNavigator(BuildContext context) => Navigator.of(
   rootNavigator: FormFactor.fromWidth(MediaQuery.sizeOf(context).width).isSmall,
 );
 
+/// Declarative entry points use the same task-modal route as imperative ones.
+class FullscreenModalPage<T> extends Page<T> {
+  const new({required this.child, super.key});
+  final Widget child;
+
+  @override
+  Route<T> createRoute(BuildContext context) => FullscreenModalRoute<T>(
+    builder: (_) => child,
+    settings: this,
+  );
+}
+
 /// Full-screen task route: Android's default Material transition is
 /// horizontal, so use the same bottom-up modal presentation on both platforms.
 class FullscreenModalRoute<T> extends MaterialPageRoute<T> {

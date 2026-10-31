@@ -665,7 +665,7 @@ void main() {
           overrides: [
             // This handoff test isolates navigation from account background I/O.
             // Messaging ownership/resume is covered by chat_session_scope_test.
-            chatSessionRuntimeProvider.overrideWith((ref) {}),
+            chatSessionRuntimeProvider.overrideWith((ref) => null),
             secureSessionRegistryStorageProvider.overrideWithValue(storage),
             subscriptionAccessProvider.overrideWith(
               (ref, lease) async => SubscriptionAccess(

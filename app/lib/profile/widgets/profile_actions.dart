@@ -26,9 +26,11 @@ final class SelfProfileActionSet extends ProfileActionSet {
     required this.onEdit,
     required this.onSettings,
     this.onCopyLink,
+    this.onSendViaChat,
   });
 
   final FutureOr<void> Function()? onCopyLink;
+  final FutureOr<void> Function()? onSendViaChat;
 
   final VoidCallback onEdit;
   final VoidCallback onSettings;
@@ -44,6 +46,7 @@ final class VisitorProfileActionSet extends ProfileActionSet {
     required this.onMuteToggle,
     required this.onBlockToggle,
     this.onCopyLink,
+    this.onSendViaChat,
     this.isFollowingBusy = false,
     this.isBlockingBusy = false,
     this.isMuted = false,
@@ -60,6 +63,7 @@ final class VisitorProfileActionSet extends ProfileActionSet {
   final VoidCallback onFollowToggle;
   final VoidCallback onShare;
   final FutureOr<void> Function()? onCopyLink;
+  final FutureOr<void> Function()? onSendViaChat;
   final VoidCallback onReport;
   final VoidCallback onMuteToggle;
   final VoidCallback onBlockToggle;
@@ -151,6 +155,12 @@ class _SelfActions extends StatelessWidget {
                     icon: CraftskyIcons.link,
                     onPressed: actions.onCopyLink,
                   ),
+                  if (actions.onSendViaChat != null)
+                    CraftskyContextMenuItem(
+                      text: l10n.chatSendViaChat,
+                      icon: CraftskyIcons.send,
+                      onPressed: actions.onSendViaChat,
+                    ),
                 ],
               ),
             ],
@@ -230,6 +240,12 @@ class ProfileMoreActionsButton extends StatelessWidget {
                 text: l10n.recordCopyLinkAction,
                 icon: CraftskyIcons.link,
                 onPressed: actions.onCopyLink,
+              ),
+            if (actions.onSendViaChat != null)
+              CraftskyContextMenuItem(
+                text: l10n.chatSendViaChat,
+                icon: CraftskyIcons.send,
+                onPressed: actions.onSendViaChat,
               ),
             CraftskyContextMenuItem(
               text: l10n.profileShareAction,

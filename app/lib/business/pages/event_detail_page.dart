@@ -83,7 +83,7 @@ class EventDetailPage extends ConsumerWidget {
             groups: [
               CraftskyContextMenuGroup(
                 items: [
-                  copyLinkMenuItem(
+                  ...linkSharingMenuItems(
                     context,
                     RecordLinks.event(event.did, event.rkey),
                   ),

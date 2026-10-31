@@ -439,13 +439,11 @@ Future<ChatSyncCoordinator> chatSyncCoordinator(
           if (controller != null) updates.add(controller.refresh());
         }
       }
-      if (view == ChatView.inbox) {
-        for (final bucket in ChatBucket.values) {
-          final family = chatInboxControllerProvider(account, bucket);
-          if (ref.exists(family)) {
-            final controller = ref.read(family).value;
-            if (controller != null) updates.add(controller.refresh());
-          }
+      for (final bucket in ChatBucket.values) {
+        final family = chatInboxControllerProvider(account, bucket);
+        if (ref.exists(family)) {
+          final controller = ref.read(family).value;
+          if (controller != null) updates.add(controller.refresh());
         }
       }
       await Future.wait(updates);

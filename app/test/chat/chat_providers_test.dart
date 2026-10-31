@@ -285,12 +285,18 @@ void main() {
       final family = chatInboxControllerProvider(account, bucket);
       final first = container.listen(family, (_, _) {});
       final loaded = await container.read(family.future);
-      expect(repository.listCalls, 1);
+      expect(
+        repository.listBuckets.where((value) => value == bucket),
+        hasLength(1),
+      );
       first.close();
       await container.pump();
       final reopened = container.listen(family, (_, _) {});
       expect(await container.read(family.future), same(loaded));
-      expect(repository.listCalls, 1);
+      expect(
+        repository.listBuckets.where((value) => value == bucket),
+        hasLength(1),
+      );
       reopened.close();
     });
   }
@@ -320,6 +326,9 @@ void main() {
     await container.read(sessionRegistryProvider.future);
     await container.read(chatStatusProvider(account).future);
     await container.read(chatSyncCoordinatorProvider(account).future);
+    await container.read(
+      chatInboxControllerProvider(account, ChatBucket.accepted).future,
+    );
     final search = chatRecipientControllerProvider(account);
     final report = chatReportControllerProvider(
       account,
@@ -338,10 +347,10 @@ void main() {
     expect(container.exists(chatSyncCoordinatorProvider(account)), true);
     expect(repository.heartbeatCalls, 0);
     expect(repository.historyCalls, 0);
-    expect(repository.listCalls, 0);
+    expect(repository.listCalls, 1);
   });
   test(
-    'UT-006 session runtime warms lightweight state without polling',
+    'UT-006 runtime warms inbox state; foreground scope starts polling',
     () async {
       final account = AccountKey('did:plc:alice');
       final repository = _Repository();
@@ -1061,6 +1070,7 @@ ChatMessagePage _privatePage() => ChatMessagePage.fromMap(const {
 class _Repository implements ChatRepository {
   bool enabled = true;
   int listCalls = 0;
+  final listBuckets = <ChatBucket>[];
   int historyCalls = 0;
   @override
   Future<ChatConversationPage> conversations({
@@ -1069,6 +1079,7 @@ class _Repository implements ChatRepository {
     int limit = 50,
   }) async {
     listCalls++;
+    listBuckets.add(bucket);
     return ChatConversationPage(
       items: [await conversation(ChatConversationId.parse('conversation'))],
     );

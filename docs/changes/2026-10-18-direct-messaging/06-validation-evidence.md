@@ -1,5 +1,79 @@
 # Direct Messaging Validation Evidence
 
+## App-wide foreground refresh: 2026-10-31
+
+FG-001/002/003 / FR-015/007/016 / AC-012/008/014/017/022: authenticated session
+owns accepted conversations, native unread counts and a foreground inbox fallback.
+One existing sync coordinator refreshes every 30 seconds outside messaging details;
+visible conversation registration takes priority at 4 seconds, independent of
+registration order. Revision changes refresh retained lists even inside details.
+Backgrounding pauses the client; resume refreshes and stale operations remain
+fenced by owner activation/access/lifetime. No automatic read or send added.
+
+Session test red confirmed no Feed heartbeat; conversation test red confirmed
+stale list revision. Green covers Feed/Profile/details transitions, fallback
+cadence, background/resume and held completions after logout, account switch,
+disabled/revoked access, backgrounding and disposal. Existing Retry-After and
+non-overlap tests pass. Real drawer/rail integration keeps Feed selected while
+shared Messages badge changes from zero to 7 to 99+ to zero, excluding requests.
+The existing shared badge is reused, with no derived count or duplicate widget.
+
+Final messaging/router/notification/auth/sharing suites: **860 passed**, 7 existing
+conditional skips, exit 0, 49s. Whole-app analysis clean, format/diff checks pass.
+Logs: /private/tmp/craftsky-foreground-{regressions-final,analyze-final}.log.
+Simulator hot reload and hot restart succeeded; no runtime errors observed.
+Physical-device arrival/push delivery not exercised. No live send, auto-read,
+backend/API/scope/schema change, commit, push or production action.
+
+## Shared recipient picker: 2026-10-31
+
+PICKER-001/002/003 / FR-021, FR-003/016 / AC-031/004/014: New message and
+Send via chat share ChatRecipientPicker, recent conversation suggestions,
+CraftSky profile search, shared profile rows/skeletons/themed feedback and guarded
+selection. /messages/new stays a canonical child under Messages, now presented
+through the same full-screen task-modal route as sharing. Close/system Back and
+conversation selection stack tests pass. The duplicate NewMessageView is removed.
+
+Both modes verify recent/search selection, denial, availability/start failures,
+pending duplicate taps, initial recipient, changed owner, dismissal and large
+text with keyboard constraints. Plain New message retains existing draft text;
+share mode appends/persists the exact link. All paths assert zero automatic sends.
+Cold initial-recipient tests exposed recipient-provider lifetime loss; an explicit
+subscription retains it through the selection operation. Existing controller
+boundary tests are retained separately from migrated shared-picker UI coverage.
+
+Final affected Flutter suite: **508 passed**, 17 existing conditional skips,
+exit 0, 30s; /private/tmp/craftsky-picker-regressions-final.log. Whole-app analysis
+clean: /private/tmp/craftsky-picker-analyze-final.log. Formatting/diff checks pass;
+source scan finds no obsolete picker/view references. Simulator hot reload
+succeeded and runtime errors were empty. Physical-device gestures/live messaging
+remain unverified; no live send, backend/API/scope/schema change, commit, push or
+production action occurred.
+
+## Send via chat: 2026-10-31
+
+FR-021 / AC-031, SHARE-001/002/003: shared bottom-sheet contact search opens from
+every Copy link context menu (posts/projects, saved posts, own/other profiles and
+events). Empty search shows accepted current conversations in inbox order; typed
+search uses CraftSky profiles. Selected contact resolves availability/canonical
+conversation, appends exact URL to any current draft and persists before opening.
+No automatic send. Existing profile widgets, skeletons and themed feedback reused.
+
+Tests verify suggestions/search/autocorrect, existing/new conversation targets,
+recipient denial, changed account, dismissal, failed suggestions, draft append/
+persistence and zero sends. A real picker journey caught conversation provider
+disposal before prefill; the widget now explicitly retains it during preparation.
+All existing affected menu tests pass; source scan covers every active Copy link
+context action and both profile action variants.
+
+Broader messaging/sharing/profile/event/post/saved suites: **470 passed**, 12
+existing conditional skips, exit 0, 24s. Final picker suite after error-feedback
+addition: **7 passed**. Logs: /private/tmp/craftsky-share-{regressions,picker-final}.log.
+Whole-app analysis clean: /private/tmp/craftsky-share-analyze.log.
+Formatting and git diff --check pass. Simulator hot reload succeeds; runtime
+errors empty. No live sends, backend/scope/migration, commit, push or production
+change. Physical-device end-to-end sharing remains unverified.
+
 ## Delete for me: 2026-10-31
 
 FR-020 / AC-030, DEL-001/002/003: red own-text context action opens the shared

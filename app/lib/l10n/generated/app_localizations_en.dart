@@ -4687,6 +4687,21 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get chatSendViaChat => 'Send via chat';
+
+  @override
+  String get chatShareRecent => 'Recent conversations';
+
+  @override
+  String get chatShareSearchHint => 'Search for someone to send this link to.';
+
+  @override
+  String get chatShareNoResults => 'No profiles found.';
+
+  @override
+  String get chatShareEnable => 'Open Messages to enable direct messages';
+
+  @override
   String get recordCopyLinkAction => 'Copy link';
 
   @override

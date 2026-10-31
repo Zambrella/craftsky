@@ -14,6 +14,61 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http_mock_adapter/http_mock_adapter.dart';
 
 void main() {
+  for (final sessionFirst in [false, true]) {
+    testWidgets(
+      'FG-003 visible conversation outranks session fallback '
+      'sessionFirst=$sessionFirst',
+      (tester) async {
+        final remote = _Repository();
+        final coordinator = ChatSyncCoordinator(
+          account: AccountKey('did:plc:owner'),
+          repository: remote,
+          operation: ActiveAccountOperation.withGuard(
+            ownership: null,
+            isCurrent: () => true,
+          ),
+          onRevision: (_, _, _) async {},
+        );
+        addTearDown(coordinator.dispose);
+        final route = Object();
+        if (sessionFirst) {
+          coordinator.setSessionForeground(active: true);
+          await tester.pump();
+        }
+        coordinator.registerView(
+          route,
+          ChatView.conversation,
+          conversationId: ChatConversationId.parse('conversation'),
+          active: true,
+        );
+        await tester.pump();
+        coordinator.setSessionForeground(active: true);
+        await tester.pump();
+        final entered = remote.calls;
+        await tester.pump(const Duration(seconds: 4));
+        expect(remote.calls, entered + 1);
+        expect(remote.views.last, ChatView.conversation);
+        // Reattaching/resuming the session cannot replace the visible route.
+        coordinator
+          ..setSessionForeground(active: false)
+          ..setSessionForeground(active: true);
+        await tester.pump();
+        expect(remote.calls, entered + 1);
+        coordinator.unregisterView(route);
+        await tester.pump();
+        expect(remote.views.last, ChatView.inbox);
+        final left = remote.calls;
+        await tester.pump(const Duration(seconds: 29));
+        expect(remote.calls, left);
+        await tester.pump(const Duration(seconds: 1));
+        expect(remote.calls, left + 1);
+        coordinator.setSessionForeground(active: false);
+        await tester.pump(const Duration(seconds: 90));
+        expect(remote.calls, left + 1);
+      },
+    );
+  }
+
   for (final fail in [false, true]) {
     testWidgets(
       'UT-006 completed heartbeat publishes idle loading state fail=$fail',
@@ -463,6 +518,7 @@ ChatSyncSnapshot _snapshot(int revision) => ChatSyncSnapshot.fromMap({
 class _Repository implements ChatRepository {
   Object? failure;
   int calls = 0;
+  final views = <ChatView>[];
   int revision = 1;
   Completer<ChatSyncSnapshot>? held;
   @override
@@ -472,6 +528,7 @@ class _Repository implements ChatRepository {
     int? knownRevision,
   }) async {
     calls++;
+    views.add(view);
     if (failure case final error?) {
       Error.throwWithStackTrace(error, StackTrace.current);
     }
