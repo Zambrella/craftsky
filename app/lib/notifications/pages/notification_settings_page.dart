@@ -238,6 +238,7 @@ class _PreferenceSection extends ConsumerWidget {
           if (!category.hasFixedScope)
             CraftskySingleSelectInput<NotificationPreferenceScope>(
               label: l10n.notificationPreferenceFrom,
+              clearable: false,
               keyPrefix: 'notification-${category.wireValue}-scope',
               value: preference.scope,
               options: [

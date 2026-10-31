@@ -15,6 +15,7 @@ class CraftskySingleSelectInput<T> extends StatefulWidget {
     this.noResultsText = 'No results',
     this.keyPrefix,
     this.required = false,
+    this.clearable = true,
     this.requiredLabel = 'required',
     this.onChanged,
   });
@@ -31,6 +32,7 @@ class CraftskySingleSelectInput<T> extends StatefulWidget {
   final String noResultsText;
   final String? keyPrefix;
   final bool required;
+  final bool clearable;
   final String requiredLabel;
   final ValueChanged<T?>? onChanged;
 
@@ -147,6 +149,7 @@ class _CraftskySingleSelectInputState<T>
       _overlayEntry = OverlayEntry(
         builder: (context) => CraftskyAnchoredSelectOverlay(
           anchorKey: _anchorKey,
+          allowAnchorInteraction: true,
           onDismiss: () => _setOpen(false),
           onEscape: _closeOverlayAndRefocus,
           child: _buildMenuContent(),
@@ -299,8 +302,41 @@ class _CraftskySingleSelectInputState<T>
     }
   }
 
+  void _clear() {
+    _searchController.clear();
+    _query = '';
+    _searchFocusNode.unfocus();
+    _setOpen(false);
+    widget.onChanged?.call(null);
+  }
+
+  bool get _canClear =>
+      widget.clearable && !widget.required && widget.value != null;
+
+  Widget _trailingIcon(IconData icon) {
+    return ActionProgress(
+      isLoading: widget.isLoading,
+      child: _canClear
+          ? IconButton(
+              key: Key('${widget.keyPrefix ?? widget.label}-clear'),
+              tooltip: 'Clear ${widget.label}',
+              alignment: AlignmentDirectional.centerEnd,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints.tightFor(width: 48, height: 48),
+              icon: const Icon(CraftskyIconsBold.clear),
+              onPressed:
+                  widget.enabled &&
+                      !widget.isLoading &&
+                      widget.onChanged != null
+                  ? _clear
+                  : null,
+            )
+          : Icon(icon),
+    );
+  }
+
   KeyEventResult _handleKey(FocusNode node, KeyEvent event) {
-    if (event is! KeyDownEvent || !widget.enabled) {
+    if (event is! KeyDownEvent || !widget.enabled || !node.hasPrimaryFocus) {
       return KeyEventResult.ignored;
     }
     final options = _filteredOptions;
@@ -380,9 +416,9 @@ class _CraftskySingleSelectInputState<T>
                     isFocused: _searchFocusNode.hasFocus,
                     decoration: InputDecoration(
                       enabled: widget.enabled,
-                      contentPadding: const EdgeInsets.symmetric(
+                      contentPadding: EdgeInsets.symmetric(
                         horizontal: 16,
-                        vertical: 14,
+                        vertical: _canClear ? 2 : 14,
                       ),
                     ),
                     child: Row(
@@ -427,10 +463,7 @@ class _CraftskySingleSelectInputState<T>
                             ),
                           ),
                         ),
-                        ActionProgress(
-                          isLoading: widget.isLoading,
-                          child: const Icon(CraftskyIcons.search),
-                        ),
+                        _trailingIcon(CraftskyIcons.search),
                       ],
                     ),
                   ),
@@ -438,8 +471,8 @@ class _CraftskySingleSelectInputState<T>
               : Focus(
                   focusNode: _focusNode,
                   canRequestFocus: widget.enabled,
-                  descendantsAreFocusable: false,
-                  descendantsAreTraversable: false,
+                  descendantsAreFocusable: true,
+                  descendantsAreTraversable: true,
                   onKeyEvent: _handleKey,
                   child: InkWell(
                     key: Key('$keyPrefix-select-button'),
@@ -457,9 +490,9 @@ class _CraftskySingleSelectInputState<T>
                       isFocused: _focusNode.hasFocus,
                       decoration: InputDecoration(
                         enabled: widget.enabled,
-                        contentPadding: const EdgeInsets.symmetric(
+                        contentPadding: EdgeInsets.symmetric(
                           horizontal: 16,
-                          vertical: 14,
+                          vertical: _canClear ? 2 : 14,
                         ),
                       ),
                       child: Row(
@@ -482,13 +515,10 @@ class _CraftskySingleSelectInputState<T>
                                   ),
                             ),
                           ),
-                          ActionProgress(
-                            isLoading: widget.isLoading,
-                            child: Icon(
-                              _open
-                                  ? CraftskyIconsBold.collapse
-                                  : CraftskyIconsBold.expand,
-                            ),
+                          _trailingIcon(
+                            _open
+                                ? CraftskyIconsBold.collapse
+                                : CraftskyIconsBold.expand,
                           ),
                         ],
                       ),

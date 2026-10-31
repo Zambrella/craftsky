@@ -89,13 +89,20 @@ class CraftskyAnchoredSelectOverlay extends StatelessWidget {
     required this.onDismiss,
     required this.onEscape,
     required this.child,
+    this.allowAnchorInteraction = false,
     super.key,
   });
 
+  final bool allowAnchorInteraction;
   final GlobalKey anchorKey;
   final VoidCallback onDismiss;
   final VoidCallback onEscape;
   final Widget child;
+
+  Widget _dismissTarget() => GestureDetector(
+    behavior: HitTestBehavior.translucent,
+    onTap: onDismiss,
+  );
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(
@@ -128,12 +135,37 @@ class CraftskyAnchoredSelectOverlay extends StatelessWidget {
 
       return Stack(
         children: [
-          Positioned.fill(
-            child: GestureDetector(
-              behavior: HitTestBehavior.translucent,
-              onTap: onDismiss,
+          if (allowAnchorInteraction) ...[
+            Positioned(
+              left: 0,
+              right: 0,
+              top: 0,
+              height: anchorRect.top.clamp(0, constraints.maxHeight),
+              child: _dismissTarget(),
             ),
-          ),
+            Positioned(
+              left: 0,
+              right: 0,
+              top: anchorRect.bottom.clamp(0, constraints.maxHeight),
+              bottom: 0,
+              child: _dismissTarget(),
+            ),
+            Positioned(
+              left: 0,
+              width: anchorRect.left.clamp(0, constraints.maxWidth),
+              top: anchorRect.top,
+              height: anchorRect.height,
+              child: _dismissTarget(),
+            ),
+            Positioned(
+              left: anchorRect.right.clamp(0, constraints.maxWidth),
+              right: 0,
+              top: anchorRect.top,
+              height: anchorRect.height,
+              child: _dismissTarget(),
+            ),
+          ] else
+            Positioned.fill(child: _dismissTarget()),
           Positioned(
             left: anchorRect.left,
             top: openAbove

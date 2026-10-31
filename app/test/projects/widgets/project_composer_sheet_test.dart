@@ -67,7 +67,11 @@ void main() {
     expect(find.byType(ProjectComposerSheet), findsOneWidget);
   });
 
-  for (final status in ProjectOptionCatalogs.statuses) {
+  for (final status in [
+    for (final option in ProjectOptionCatalogs.statuses)
+      CraftskySelectOption<String?>(value: option.value, label: option.label),
+    const CraftskySelectOption<String?>(value: null, label: 'Select Status'),
+  ]) {
     testWidgets('restored drafts retain saved status (${status.value})', (
       tester,
     ) async {
@@ -104,6 +108,21 @@ void main() {
       expect(form.value['status'], status.value);
     });
   }
+
+  testWidgets('optional project status can be cleared in the form', (
+    tester,
+  ) async {
+    await _pumpComposer(tester, 'clear-status-composer');
+    final clear = find.byKey(const Key('status-clear'));
+    await tester.ensureVisible(clear);
+    await tester.tap(clear);
+    await tester.pumpAndSettle();
+    final form = tester.state<FormBuilderState>(find.byType(FormBuilder))
+      ..save();
+    expect(form.value['status'], isNull);
+    expect(find.byKey(const Key('status-clear')), findsNothing);
+    expect(find.byKey(const Key('craftType-clear')), findsNothing);
+  });
 
   testWidgets('new projects default to complete', (tester) async {
     await _pumpComposer(tester, 'default-status-composer');

@@ -1650,8 +1650,9 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
           name: ProjectComposerFields.status,
           label: l10n.projectComposerStatusLabel,
           initialValue:
-              _initialFormValues[ProjectComposerFields.status] as String? ??
-              ProjectOptionCatalogs.finishedStatusToken,
+              _initialFormValues.containsKey(ProjectComposerFields.status)
+              ? _initialFormValues[ProjectComposerFields.status] as String?
+              : ProjectOptionCatalogs.finishedStatusToken,
           options: _selectOptions(ProjectOptionCatalogs.statuses),
           enabled: controlsEnabled,
         ),

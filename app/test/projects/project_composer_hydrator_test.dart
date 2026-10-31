@@ -5,6 +5,18 @@ import 'package:craftsky_app/projects/options/project_option_catalogs.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('restoring a project preserves an omitted optional status', () {
+    final values = hydrateScheduledProjectComposer({
+      'common': {'craftType': ProjectOptionCatalogs.knittingCraftToken},
+    });
+    expect(values.containsKey(ProjectComposerFields.status), isTrue);
+    expect(values[ProjectComposerFields.status], isNull);
+    expect(
+      hydrateScheduledProjectComposer(null)[ProjectComposerFields.status],
+      ProjectOptionCatalogs.finishedStatusToken,
+    );
+  });
+
   test('restored colours and design tags have typed multi-select values', () {
     for (final source in [
       null,
