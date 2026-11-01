@@ -29,6 +29,7 @@ final class NotificationDeliveryEnvelope {
     'rootUri',
     'sourceUri',
     'caseReference',
+    'openReference',
   };
 
   final String notificationId;
@@ -40,7 +41,10 @@ final class NotificationDeliveryEnvelope {
     Map<String, Object?> data, {
     NotificationOpenSource source = NotificationOpenSource.backgroundOpen,
   }) {
-    final notificationId = data['notificationId'];
+    // Chat deliveries carry an opaque open reference instead of a social ID.
+    final notificationId = data['type'] == 'chat'
+        ? data['openReference']
+        : data['notificationId'];
     final title = data['displayTitle'];
     final body = data['displayBody'];
     if (notificationId is! String ||
@@ -69,7 +73,8 @@ final class NotificationDeliveryEnvelope {
       source: source,
     );
     if (openAttempt.accountSubscriptionId == null ||
-        openAttempt.facts is! ValidNotificationFacts) {
+        (openAttempt.facts is! ValidNotificationFacts &&
+            openAttempt.facts is! ChatNotificationFacts)) {
       return null;
     }
 

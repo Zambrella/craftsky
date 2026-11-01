@@ -54,6 +54,14 @@ ActiveAccountOperation chatAccountOperation(Ref ref, AccountKey account) {
   return operation;
 }
 
+void refreshChatAfterPush(Ref ref, AccountKey account) {
+  ref.invalidate(chatUnreadCountsProvider(account));
+  // Force loaded lists and the visible conversation to reconcile even if
+  // the heartbeat revision has not advanced. Retain controllers and drafts.
+  final coordinator = chatSyncCoordinatorProvider(account);
+  if (ref.exists(coordinator)) ref.read(coordinator).value?.retry();
+}
+
 @riverpod
 Future<ChatRepository> accountChatRepository(
   Ref ref,
@@ -172,6 +180,72 @@ Future<ChatUnreadCounts> chatUnreadCounts(Ref ref, AccountKey account) async {
 }
 
 @riverpod
+class ChatPendingReads extends _$ChatPendingReads {
+  @override
+  Map<
+    ChatConversationId,
+    ({ChatBucket bucket, ChatUnreadCounts counts, Object token})
+  >
+  build(AccountKey account) {
+    chatAccountOperation(ref, account);
+    ref.watch(
+      chatStatusProvider(account).select((value) => value.value?.generation),
+    );
+    return const {};
+  }
+
+  void Function() begin(ChatConversation conversation) {
+    final id = conversation.id;
+    final counts = ref.read(chatUnreadCountsProvider(account)).value;
+    if (state.containsKey(id) || counts == null) return () {};
+    final pending = (
+      bucket: conversation.bucket,
+      counts: counts,
+      token: Object(),
+    );
+    state = {...state, id: pending};
+    return () {
+      if (ref.mounted && identical(state[id]?.token, pending.token)) {
+        state = {...state}..remove(id);
+      }
+    };
+  }
+}
+
+@riverpod
+ChatUnreadCounts? displayedChatUnreadCounts(Ref ref, AccountKey account) {
+  final counts = ref.watch(chatUnreadCountsProvider(account)).value;
+  if (counts == null) return null;
+  final pending = ref.watch(chatPendingReadsProvider(account));
+  int adjusted(int count, ChatBucket bucket) {
+    if (count == 100) return count;
+    var result = count;
+    for (final read in pending.values.where(
+      (value) => value.bucket == bucket,
+    )) {
+      final baseline = bucket == ChatBucket.accepted
+          ? read.counts.accepted
+          : read.counts.requests;
+      if (baseline == 100) continue;
+      final reading = pending.values
+          .where(
+            (value) =>
+                value.bucket == bucket && identical(value.counts, read.counts),
+          )
+          .length;
+      final limit = (baseline - reading).clamp(0, 100);
+      if (limit < result) result = limit;
+    }
+    return result;
+  }
+
+  return ChatUnreadCounts.fromMap({
+    'accepted': adjusted(counts.accepted, ChatBucket.accepted),
+    'requests': adjusted(counts.requests, ChatBucket.request),
+  });
+}
+
+@riverpod
 Future<ChatConversationController> chatConversationController(
   Ref ref,
   AccountKey account,
@@ -210,6 +284,13 @@ Future<ChatConversationController> chatConversationController(
     draftLease: store.lease(account),
     operation: operation,
     reporter: ref.read(errorReporterProvider),
+    onReadStarted: (conversation) => ref
+        .read(chatPendingReadsProvider(account).notifier)
+        .begin(conversation),
+    // Keep the optimistic read until the refreshed count has settled.
+    onReadReconciled: () => operation.step(
+      () => ref.read(chatUnreadCountsProvider(account).future),
+    ),
     onSharedStateChanged: () async {
       operation.requireCurrent();
       ref.invalidate(chatUnreadCountsProvider(account));

@@ -682,6 +682,8 @@ class _ConversationViewState extends ConsumerState<_ConversationView>
                                         minLines: 1,
                                         maxLines: 5,
                                         keyboardType: TextInputType.multiline,
+                                        textCapitalization:
+                                            TextCapitalization.sentences,
                                         errorText:
                                             _text.text.isNotEmpty &&
                                                 validateMessageText(

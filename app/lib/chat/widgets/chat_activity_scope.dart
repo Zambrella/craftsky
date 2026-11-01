@@ -115,12 +115,7 @@ class _AttachedChatActivityState extends State<_AttachedChatActivity> {
   @override
   Widget build(BuildContext context) {
     final coordinator = widget.coordinator;
-    final snapshot = coordinator?.snapshot;
-    final stale =
-        coordinator?.failed == true ||
-        (snapshot != null &&
-            snapshot.state != 'ready' &&
-            snapshot.state != 'syncing');
+    final stale = coordinator?.showSyncWarning == true;
     final l10n = AppLocalizations.of(context);
     return ChatMessageEffect(
       severity: MessageSeverity.warning,

@@ -155,6 +155,7 @@ RouteBase get $authenticatedShellRoute => ShellRouteData.$route(
                   path: 'conversations/:conversationId',
                   name: 'message-conversation',
                   hasOverriddenOnExit: false,
+                  parentNavigatorKey: ChatConversationRoute.$parentNavigatorKey,
                   factory: $ChatConversationRoute._fromState,
                 ),
               ],

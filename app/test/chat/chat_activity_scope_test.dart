@@ -66,6 +66,14 @@ void main() {
       ),
       findsNothing,
     );
+    expect(messenger.calls, isEmpty);
+    now = now.add(const Duration(seconds: 30));
+    await tester.pump(const Duration(seconds: 30));
+    await tester.pumpAndSettle();
+    expect(messenger.calls, isEmpty);
+    now = now.add(const Duration(seconds: 30));
+    await tester.pump(const Duration(seconds: 30));
+    await tester.pumpAndSettle();
     expect(messenger.calls, hasLength(1));
     expect(messenger.calls.single.$1, 'warning');
     await tester.enterText(find.byType(TextField), 'synthetic draft');

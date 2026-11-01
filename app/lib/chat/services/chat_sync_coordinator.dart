@@ -38,6 +38,7 @@ final class ChatSyncCoordinator extends ChangeNotifier {
   final DateTime Function() _now;
   final _random = Random();
   int _failures = 0;
+  int _consecutiveSyncFailures = 0;
   DateTime? _retryNotBefore;
   ChatSyncSnapshot? snapshot;
   bool failed = false;
@@ -98,6 +99,8 @@ final class ChatSyncCoordinator extends ChangeNotifier {
   }
 
   bool get _current => !_disposed && _operation.isCurrent;
+  // Suppress brief outages without delaying retries or recovery refreshes.
+  bool get showSyncWarning => _consecutiveSyncFailures >= 3;
   bool get _canPoll => _current && _active && _view != ChatView.none;
   Duration get _cadence =>
       Duration(seconds: _view == ChatView.conversation ? 4 : 30);
@@ -184,6 +187,10 @@ final class ChatSyncCoordinator extends ChangeNotifier {
       }
       if (!_canPoll || version != _version) return;
       snapshot = next;
+      _consecutiveSyncFailures =
+          next.state == 'ready' || next.state == 'syncing'
+          ? 0
+          : _consecutiveSyncFailures + 1;
       failed = false;
       _failures = 0;
       _retryNotBefore = null;
@@ -216,6 +223,7 @@ final class ChatSyncCoordinator extends ChangeNotifier {
         }
         _retryNotBefore = _now().add(delay);
         if (!_canPoll || version != _version) return;
+        _consecutiveSyncFailures++;
         failed = true;
         notifyListeners();
         if (error is ApiUnauthorized ||

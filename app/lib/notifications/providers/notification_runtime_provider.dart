@@ -6,7 +6,6 @@ import 'package:craftsky_app/auth/providers/account_boundary_provider.dart';
 import 'package:craftsky_app/auth/providers/account_operation_guard.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/auth/providers/unsaved_work_guard_provider.dart';
-import 'package:craftsky_app/chat/models/chat_conversation.dart';
 import 'package:craftsky_app/chat/providers/chat_providers.dart';
 import 'package:craftsky_app/notifications/models/notification_effect.dart';
 import 'package:craftsky_app/notifications/providers/notification_lifecycle_provider.dart';
@@ -78,10 +77,7 @@ NotificationRuntime notificationRuntime(Ref ref) {
         .refresh(),
     effects: effects,
     refreshChatCount: (account) {
-      ref
-        ..invalidate(chatUnreadCountsProvider(account))
-        ..invalidate(chatInboxControllerProvider(account, ChatBucket.accepted))
-        ..invalidate(chatInboxControllerProvider(account, ChatBucket.request));
+      refreshChatAfterPush(ref, account);
     },
     resolveChat: (lease, reference) async {
       final operation = ActiveAccountOperation.capture(ref);

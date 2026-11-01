@@ -17,7 +17,7 @@ class ChatUnreadIcon extends ConsumerWidget {
     );
     final counts = account == null
         ? null
-        : ref.watch(chatUnreadCountsProvider(account)).value;
+        : ref.watch(displayedChatUnreadCountsProvider(account));
     if (counts == null || counts.accepted == 0) return Icon(icon);
     return Semantics(
       label: AppLocalizations.of(context)

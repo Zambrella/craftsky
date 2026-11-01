@@ -28,6 +28,98 @@ import 'package:http_mock_adapter/http_mock_adapter.dart';
 // IT-015 / IT-019 / NFR-001: account dependency and stale acquisition.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  test('foreground push refreshes counts, lists and visible messages '
+      'without replacing the draft', () async {
+    FlutterSecureStorage.setMockInitialValues({});
+    final account = AccountKey('did:plc:alice');
+    final repository = _Repository()..page = _privatePage();
+    final container = _sessionContainer(repository)
+      ..listen(chatSessionRuntimeProvider, (_, _) {});
+    await container.read(sessionRegistryProvider.future);
+    final sync = await container.read(
+      chatSyncCoordinatorProvider(account).future,
+    );
+    final family = chatConversationControllerProvider(
+      account,
+      ChatConversationId.parse('conversation'),
+    );
+    container.listen(family, (_, _) {});
+    final controller = await container.read(family.future);
+    controller.edit('Keep this draft');
+    sync
+      ..setView(ChatView.conversation, conversationId: controller.id)
+      ..setForeground(active: true);
+    await container.pump();
+    final counts = repository.countCalls;
+    final lists = repository.listCalls;
+    final history = repository.historyCalls;
+    container.read(Provider<void>((ref) => refreshChatAfterPush(ref, account)));
+    await container.pump();
+    expect(repository.countCalls, greaterThan(counts));
+    expect(repository.listCalls, greaterThan(lists));
+    expect(repository.historyCalls, greaterThan(history));
+    expect(container.read(family).value, same(controller));
+    expect(controller.draft.text, 'Keep this draft');
+    sync.setForeground(active: false);
+  });
+  for (final bucket in ChatBucket.values) {
+    test(
+      'optimistic unread $bucket reconciles once and rolls back on failure',
+      () async {
+        final account = AccountKey('did:plc:alice');
+        final repository = _Repository()
+          ..unreadAccepted = 2
+          ..unreadRequests = 2;
+        final container = _sessionContainer(repository);
+        await container.read(sessionRegistryProvider.future);
+        await container.read(chatStatusProvider(account).future);
+        await container.read(chatUnreadCountsProvider(account).future);
+        final display = displayedChatUnreadCountsProvider(account);
+        container.listen(display, (_, _) {});
+        int count() {
+          final counts = container.read(display)!;
+          return bucket == ChatBucket.accepted
+              ? counts.accepted
+              : counts.requests;
+        }
+
+        final conversation = ChatConversation.fromMap({
+          'id': 'conversation',
+          'revision': 'r',
+          'status': bucket == ChatBucket.accepted ? 'accepted' : 'request',
+          'muted': false,
+          'unreadCount': 1,
+          'canSend': true,
+          'peer': const {'did': 'did:plc:peer'},
+        });
+        expect(count(), 2);
+        final pending = container.read(
+          chatPendingReadsProvider(account).notifier,
+        );
+        final finish = pending.begin(conversation);
+        expect(count(), 1);
+        final duplicate = pending.begin(conversation);
+        duplicate();
+        expect(count(), 1);
+        // A count refresh before the read lands must not undo the optimism.
+        container.invalidate(chatUnreadCountsProvider(account));
+        await container.read(chatUnreadCountsProvider(account).future);
+        expect(count(), 1);
+        repository
+          ..unreadAccepted = 1
+          ..unreadRequests = 1;
+        container.invalidate(chatUnreadCountsProvider(account));
+        await container.read(chatUnreadCountsProvider(account).future);
+        expect(count(), 1); // No second subtraction after reconciliation.
+        finish();
+        expect(count(), 1);
+        final rollback = pending.begin(conversation);
+        expect(count(), 0);
+        rollback();
+        expect(count(), 1);
+      },
+    );
+  }
   for (final signedIn in [false, true]) {
     test(
       'UT-006 disabled or signed-out runtime avoids private reads '
@@ -1147,12 +1239,14 @@ class _Repository implements ChatRepository {
   ChatMessagePage? page;
   bool accepted = false;
   int countCalls = 0;
+  int unreadAccepted = 1;
+  int? unreadRequests;
   @override
   Future<ChatUnreadCounts> unreadCounts() async {
     countCalls++;
     return ChatUnreadCounts.fromMap({
-      'accepted': 1,
-      'requests': accepted ? 2 : 5,
+      'accepted': unreadAccepted,
+      'requests': unreadRequests ?? (accepted ? 2 : 5),
     });
   }
 

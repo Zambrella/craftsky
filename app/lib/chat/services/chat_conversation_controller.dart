@@ -27,6 +27,8 @@ final class ChatConversationController extends ChangeNotifier {
     required this._draftLease,
     required this._operation,
     this._onSharedStateChanged,
+    this._onReadStarted,
+    this._onReadReconciled,
     ChatOperationId Function()? newOperationId,
     ErrorReporter reporter = const NoopErrorReporter(),
   }) : _newOperationId =
@@ -40,6 +42,8 @@ final class ChatConversationController extends ChangeNotifier {
   final ChatDraftLease _draftLease;
   final ActiveAccountOperation _operation;
   final Future<void> Function()? _onSharedStateChanged;
+  final void Function() Function(ChatConversation)? _onReadStarted;
+  final Future<void> Function()? _onReadReconciled;
   final ChatOperationId Function() _newOperationId;
   final ErrorReporter _reporter;
   ChatConversation? conversation;
@@ -101,17 +105,29 @@ final class ChatConversationController extends ChangeNotifier {
       while (_current && _foreground && _pendingPresented != null) {
         final target = _pendingPresented!;
         _pendingPresented = null;
-        await _operation.step(() => _repository.updateRead(id, target.id));
-        if (epoch != _contentEpoch) return;
-        final summary = await _operation.step(
-          () => _repository.conversation(id),
-        );
-        if (epoch != _contentEpoch) return;
-        _publish(() {
-          _lastRead = target;
-          conversation = summary;
-        });
-        await _sharedChanged();
+        final summaryBeforeRead = conversation;
+        final finishRead =
+            summaryBeforeRead != null &&
+                summaryBeforeRead.unreadCount > 0 &&
+                summaryBeforeRead.lastMessage?.id == target.id
+            ? _onReadStarted?.call(summaryBeforeRead)
+            : null;
+        try {
+          await _operation.step(() => _repository.updateRead(id, target.id));
+          if (epoch != _contentEpoch) return;
+          final summary = await _operation.step(
+            () => _repository.conversation(id),
+          );
+          if (epoch != _contentEpoch) return;
+          _publish(() {
+            _lastRead = target;
+            conversation = summary;
+          });
+          await _sharedChanged();
+          await _onReadReconciled?.call();
+        } finally {
+          finishRead?.call();
+        }
       }
     } on AccountOperationDiscarded {
       return;
