@@ -249,6 +249,250 @@ final class ChatUnreadCountsFamily extends $Family
   String toString() => r'chatUnreadCountsProvider';
 }
 
+@ProviderFor(ChatPendingReads)
+final chatPendingReadsProvider = ChatPendingReadsFamily._();
+
+final class ChatPendingReadsProvider
+    extends
+        $NotifierProvider<
+          ChatPendingReads,
+          Map<
+            ChatConversationId,
+            ({ChatBucket bucket, ChatUnreadCounts counts, Object token})
+          >
+        > {
+  ChatPendingReadsProvider._({
+    required ChatPendingReadsFamily super.from,
+    required AccountKey super.argument,
+  }) : super(
+         retry: null,
+         name: r'chatPendingReadsProvider',
+         isAutoDispose: true,
+         dependencies: null,
+         $allTransitiveDependencies: null,
+       );
+
+  @override
+  String debugGetCreateSourceHash() => _$chatPendingReadsHash();
+
+  @override
+  String toString() {
+    return r'chatPendingReadsProvider'
+        ''
+        '($argument)';
+  }
+
+  @$internal
+  @override
+  ChatPendingReads create() => ChatPendingReads();
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(
+    Map<
+      ChatConversationId,
+      ({ChatBucket bucket, ChatUnreadCounts counts, Object token})
+    >
+    value,
+  ) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride:
+          $SyncValueProvider<
+            Map<
+              ChatConversationId,
+              ({ChatBucket bucket, ChatUnreadCounts counts, Object token})
+            >
+          >(value),
+    );
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is ChatPendingReadsProvider && other.argument == argument;
+  }
+
+  @override
+  int get hashCode {
+    return argument.hashCode;
+  }
+}
+
+String _$chatPendingReadsHash() => r'd52905fb335ac177d412c8d17924e5a83ca5174c';
+
+final class ChatPendingReadsFamily extends $Family
+    with
+        $ClassFamilyOverride<
+          ChatPendingReads,
+          Map<
+            ChatConversationId,
+            ({ChatBucket bucket, ChatUnreadCounts counts, Object token})
+          >,
+          Map<
+            ChatConversationId,
+            ({ChatBucket bucket, ChatUnreadCounts counts, Object token})
+          >,
+          Map<
+            ChatConversationId,
+            ({ChatBucket bucket, ChatUnreadCounts counts, Object token})
+          >,
+          AccountKey
+        > {
+  ChatPendingReadsFamily._()
+    : super(
+        retry: null,
+        name: r'chatPendingReadsProvider',
+        dependencies: null,
+        $allTransitiveDependencies: null,
+        isAutoDispose: true,
+      );
+
+  ChatPendingReadsProvider call(AccountKey account) =>
+      ChatPendingReadsProvider._(argument: account, from: this);
+
+  @override
+  String toString() => r'chatPendingReadsProvider';
+}
+
+abstract class _$ChatPendingReads
+    extends
+        $Notifier<
+          Map<
+            ChatConversationId,
+            ({ChatBucket bucket, ChatUnreadCounts counts, Object token})
+          >
+        > {
+  late final _$args = ref.$arg as AccountKey;
+  AccountKey get account => _$args;
+
+  Map<
+    ChatConversationId,
+    ({ChatBucket bucket, ChatUnreadCounts counts, Object token})
+  >
+  build(AccountKey account);
+  @$mustCallSuper
+  @override
+  WhenComplete runBuild() {
+    final ref =
+        this.ref
+            as $Ref<
+              Map<
+                ChatConversationId,
+                ({ChatBucket bucket, ChatUnreadCounts counts, Object token})
+              >,
+              Map<
+                ChatConversationId,
+                ({ChatBucket bucket, ChatUnreadCounts counts, Object token})
+              >
+            >;
+    final element =
+        ref.element
+            as $ClassProviderElement<
+              AnyNotifier<
+                Map<
+                  ChatConversationId,
+                  ({ChatBucket bucket, ChatUnreadCounts counts, Object token})
+                >,
+                Map<
+                  ChatConversationId,
+                  ({ChatBucket bucket, ChatUnreadCounts counts, Object token})
+                >
+              >,
+              Map<
+                ChatConversationId,
+                ({ChatBucket bucket, ChatUnreadCounts counts, Object token})
+              >,
+              Object?,
+              Object?
+            >;
+    return element.handleCreate(ref, () => build(_$args));
+  }
+}
+
+@ProviderFor(displayedChatUnreadCounts)
+final displayedChatUnreadCountsProvider = DisplayedChatUnreadCountsFamily._();
+
+final class DisplayedChatUnreadCountsProvider
+    extends
+        $FunctionalProvider<
+          ChatUnreadCounts?,
+          ChatUnreadCounts?,
+          ChatUnreadCounts?
+        >
+    with $Provider<ChatUnreadCounts?> {
+  DisplayedChatUnreadCountsProvider._({
+    required DisplayedChatUnreadCountsFamily super.from,
+    required AccountKey super.argument,
+  }) : super(
+         retry: null,
+         name: r'displayedChatUnreadCountsProvider',
+         isAutoDispose: true,
+         dependencies: null,
+         $allTransitiveDependencies: null,
+       );
+
+  @override
+  String debugGetCreateSourceHash() => _$displayedChatUnreadCountsHash();
+
+  @override
+  String toString() {
+    return r'displayedChatUnreadCountsProvider'
+        ''
+        '($argument)';
+  }
+
+  @$internal
+  @override
+  $ProviderElement<ChatUnreadCounts?> $createElement(
+    $ProviderPointer pointer,
+  ) => $ProviderElement(pointer);
+
+  @override
+  ChatUnreadCounts? create(Ref ref) {
+    final argument = this.argument as AccountKey;
+    return displayedChatUnreadCounts(ref, argument);
+  }
+
+  /// {@macro riverpod.override_with_value}
+  Override overrideWithValue(ChatUnreadCounts? value) {
+    return $ProviderOverride(
+      origin: this,
+      providerOverride: $SyncValueProvider<ChatUnreadCounts?>(value),
+    );
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is DisplayedChatUnreadCountsProvider &&
+        other.argument == argument;
+  }
+
+  @override
+  int get hashCode {
+    return argument.hashCode;
+  }
+}
+
+String _$displayedChatUnreadCountsHash() =>
+    r'f98913608302acafe1db90aa6046e908a90e0eb8';
+
+final class DisplayedChatUnreadCountsFamily extends $Family
+    with $FunctionalFamilyOverride<ChatUnreadCounts?, AccountKey> {
+  DisplayedChatUnreadCountsFamily._()
+    : super(
+        retry: null,
+        name: r'displayedChatUnreadCountsProvider',
+        dependencies: null,
+        $allTransitiveDependencies: null,
+        isAutoDispose: true,
+      );
+
+  DisplayedChatUnreadCountsProvider call(AccountKey account) =>
+      DisplayedChatUnreadCountsProvider._(argument: account, from: this);
+
+  @override
+  String toString() => r'displayedChatUnreadCountsProvider';
+}
+
 @ProviderFor(chatConversationController)
 final chatConversationControllerProvider = ChatConversationControllerFamily._();
 
@@ -308,7 +552,7 @@ final class ChatConversationControllerProvider
 }
 
 String _$chatConversationControllerHash() =>
-    r'ddb9140e691487ecf48f47153795bdcd3335a481';
+    r'97f3b27a8215885c3ea91a0f93a6ea61410df038';
 
 final class ChatConversationControllerFamily extends $Family
     with
@@ -817,7 +1061,7 @@ final class ChatSyncCoordinatorProvider
 }
 
 String _$chatSyncCoordinatorHash() =>
-    r'ae0f10160b7fbb4130f0d5944e5e9380b440c2b7';
+    r'262a8ee0b55df71544949c7953356e65836cfda8';
 
 final class ChatSyncCoordinatorFamily extends $Family
     with $FunctionalFamilyOverride<FutureOr<ChatSyncCoordinator>, AccountKey> {

@@ -58,7 +58,7 @@ class MessagingInboxPage extends ConsumerWidget {
       onAuthorize: onAuthorize,
       onClose: onClose,
       builder: (context, ref, status) {
-        final counts = ref.watch(chatUnreadCountsProvider(account)).value;
+        final counts = ref.watch(displayedChatUnreadCountsProvider(account));
         final family = chatInboxControllerProvider(account, bucket);
         Future<void> refresh(ChatInboxController controller) async {
           await controller.refresh();

@@ -60,7 +60,7 @@ final class FirebaseNotificationService implements NotificationService {
   Stream<NotificationOpenAttempt> get openedNotifications => FirebaseMessaging
       .onMessageOpenedApp
       .map(
-        (message) => _providerOpenFromMessage(
+        (message) => openAttemptFromMessage(
           message,
           NotificationOpenSource.backgroundOpen,
         ),
@@ -72,7 +72,7 @@ final class FirebaseNotificationService implements NotificationService {
   Future<NotificationOpenAttempt?> takeInitialOpen() async {
     final message = await _messaging.getInitialMessage();
     if (message == null) return null;
-    return _providerOpenFromMessage(
+    return openAttemptFromMessage(
       message,
       NotificationOpenSource.initialOpen,
     );
@@ -111,12 +111,15 @@ final class FirebaseNotificationService implements NotificationService {
     );
   }
 
-  static NotificationOpenAttempt? _providerOpenFromMessage(
+  static NotificationOpenAttempt? openAttemptFromMessage(
     RemoteMessage message,
     NotificationOpenSource source,
   ) {
-    final envelope = _envelopeFromMessage(message, source: source);
-    return envelope?.openAttempt;
+    // OS opens need routing facts only; display copy is not an authority.
+    return NotificationOpenAttempt.fromProviderData(
+      message.data,
+      source: source,
+    );
   }
 
   static NotificationDeliveryEnvelope? _envelopeFromMessage(

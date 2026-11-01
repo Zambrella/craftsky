@@ -85,7 +85,7 @@ func (service *Service) StartConversation(ctx context.Context, info auth.AuthInf
 	if !ok {
 		return result, ErrOperationUnavailable
 	}
-	err = effects.WithCapabilityEffect(ctx, expected, info.DID, info.SessionID, rpcScopes("chat.bsky.actor.getStatus", "chat.bsky.convo.getConvoAvailability", "chat.bsky.convo.getConvoForMembers"), func(ctx context.Context, session *oauth.ClientSession) error {
+	err = effects.WithCapabilityEffect(ctx, expected, info.DID, info.SessionID, rpcScopes("chat.bsky.actor.getStatus", "chat.bsky.convo.getConvoAvailability", "chat.bsky.convo.getConvoForMembers", "chat.bsky.convo.acceptConvo", "chat.bsky.convo.getConvo"), func(ctx context.Context, session *oauth.ClientSession) error {
 		current, err := service.accountInSession(ctx, info)
 		if err != nil {
 			return err
@@ -140,7 +140,28 @@ func (service *Service) StartConversation(ctx context.Context, info auth.AuthInf
 		if err != nil || actual != peer {
 			return ErrInaccessibleConversation
 		}
+		// Explicitly starting a conversation consents to it for this owner.
+		// Confirm acceptance with the provider so later reads preserve that state.
+		if *response.Convo.Status != "accepted" {
+			id := ConversationID(response.Convo.Id)
+			var accepted upstream.ConvoAcceptConvo_Output
+			if err := transport.Procedure(ctx, "chat.bsky.convo.acceptConvo", upstream.ConvoAcceptConvo_Input{ConvoId: string(id)}, &accepted); err != nil {
+				return err
+			}
+			response.Convo, err = service.supportedConversation(ctx, transport, info.DID, id)
+			if err != nil {
+				return err
+			}
+			actual, err = directPeer(info.DID, response.Convo)
+			if err != nil || actual != peer {
+				return ErrInaccessibleConversation
+			}
+			if *response.Convo.Status != "accepted" {
+				return ErrProviderResponse
+			}
+		}
 		result, err = conversationFromView(info.DID, response.Convo)
+		result.CanSend = err == nil
 		return err
 	})
 	return result, err

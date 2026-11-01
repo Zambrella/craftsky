@@ -23,6 +23,77 @@ import '../test_support/recording_error_reporter.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  for (final fails in [false, true]) {
+    test(
+      'read optimism starts before request and cleans up after success/error: $fails',
+      () async {
+        FlutterSecureStorage.setMockInitialValues({});
+        final account = AccountKey('did:plc:owner');
+        final store = ChatDraftStore(const FlutterSecureStorage());
+        await store.initialize({account});
+        final id = ChatConversationId.parse('conversation');
+        final message = {
+          'id': 'latest',
+          'revision': 'r',
+          'kind': 'text',
+          'text': 'hello',
+          'senderDid': 'did:plc:peer',
+          'sentAt': '2026-10-19T12:00:00Z',
+        };
+        final summary = ChatConversation.fromMap({
+          'id': id.value,
+          'revision': 'r',
+          'status': 'accepted',
+          'muted': false,
+          'unreadCount': 1,
+          'canSend': true,
+          'peer': const {'did': 'did:plc:peer'},
+          'lastMessage': message,
+        });
+        final remote = _Repository()
+          ..summaryReader = (() async => summary)
+          ..page = ChatMessagePage.fromMap({
+            'items': [message],
+          })
+          ..readResult = Completer<ChatConversation>();
+        final events = <String>[];
+        final controller = ChatConversationController(
+          account: account,
+          id: id,
+          repository: remote,
+          store: store,
+          draftLease: store.lease(account),
+          operation: ActiveAccountOperation.withGuard(
+            ownership: null,
+            isCurrent: () => true,
+          ),
+          onReadStarted: (_) {
+            events.add('optimistic');
+            return () => events.add('cleanup');
+          },
+          onSharedStateChanged: () async => events.add('reconciled'),
+          onReadReconciled: () async => events.add('count'),
+        );
+        addTearDown(controller.dispose);
+        await controller.load();
+        controller.setForeground(value: true);
+        final reading = controller.presented([ChatMessageId.parse('latest')]);
+        expect(events, ['optimistic']);
+        if (fails) {
+          remote.readResult!.completeError(const ApiNetworkError('offline'));
+        } else {
+          remote.readResult!.complete(summary);
+        }
+        await reading;
+        expect(
+          events,
+          fails
+              ? ['optimistic', 'cleanup']
+              : ['optimistic', 'reconciled', 'count', 'cleanup'],
+        );
+      },
+    );
+  }
   test(
     'SHARE-001 link prefill preserves and persists an existing draft',
     () async {

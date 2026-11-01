@@ -14,6 +14,50 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http_mock_adapter/http_mock_adapter.dart';
 
 void main() {
+  for (final failureMode in ['request', 'provider state', 'mixed']) {
+    testWidgets('sync warning waits for three consecutive failures and resets '
+        'after recovery: $failureMode', (tester) async {
+      final remote = _Repository();
+      final coordinator = ChatSyncCoordinator(
+        account: AccountKey('did:plc:owner'),
+        repository: remote,
+        now: () => tester.binding.clock.now(),
+        operation: ActiveAccountOperation.withGuard(
+          ownership: null,
+          isCurrent: () => true,
+        ),
+        onRevision: (_, _, _) async {},
+      );
+      addTearDown(coordinator.dispose);
+      coordinator
+        ..setView(ChatView.inbox)
+        ..setForeground(active: true);
+      await tester.pump();
+      for (var cycle = 0; cycle < 2; cycle++) {
+        for (var failure = 1; failure <= 4; failure++) {
+          remote
+            ..failure =
+                failureMode == 'request' ||
+                    (failureMode == 'mixed' && failure.isOdd)
+                ? const ApiNetworkError('offline')
+                : null
+            ..state = 'unavailable';
+          final before = remote.calls;
+          await tester.pump(const Duration(seconds: 30));
+          expect(remote.calls, before + 1);
+          expect(coordinator.showSyncWarning, failure >= 3);
+        }
+        remote
+          ..failure = null
+          ..state = 'ready';
+        await tester.pump(const Duration(seconds: 30));
+        expect(coordinator.showSyncWarning, false);
+        expect(coordinator.snapshot?.state, 'ready');
+      }
+      coordinator.dispose();
+    });
+  }
+
   for (final sessionFirst in [false, true]) {
     testWidgets(
       'FG-003 visible conversation outranks session fallback '
@@ -517,6 +561,7 @@ ChatSyncSnapshot _snapshot(int revision) => ChatSyncSnapshot.fromMap({
 
 class _Repository implements ChatRepository {
   Object? failure;
+  String state = 'ready';
   int calls = 0;
   final views = <ChatView>[];
   int revision = 1;
@@ -532,7 +577,9 @@ class _Repository implements ChatRepository {
     if (failure case final error?) {
       Error.throwWithStackTrace(error, StackTrace.current);
     }
-    return held == null ? _snapshot(revision) : await held!.future;
+    return held == null
+        ? ChatSyncSnapshot.fromMap({'revision': revision, 'state': state})
+        : await held!.future;
   }
 
   @override

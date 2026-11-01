@@ -82,6 +82,7 @@ void main() {
       String? openedProfileDid;
       Object? profilePresentation;
       final router = GoRouter(
+        navigatorKey: ChatConversationRoute.$parentNavigatorKey,
         initialLocation: switch (entry) {
           'cold' || 'reporting disabled' => details.location,
           'new message' => const NewMessageRoute(
@@ -92,7 +93,13 @@ void main() {
           _ => '/messages',
         },
         routes: [
-          inbox,
+          ShellRoute(
+            builder: (_, _, child) => Scaffold(
+              body: child,
+              bottomNavigationBar: const Text('Bottom navigation'),
+            ),
+            routes: [inbox],
+          ),
           GoRoute(
             path: '/profiles/:did',
             builder: (context, state) {
@@ -196,6 +203,7 @@ void main() {
       }
       await tester.pumpAndSettle();
       expect(find.byType(TextField), findsOneWidget);
+      expect(find.text('Bottom navigation'), findsNothing);
       expect(router.canPop(), true);
       if (entry == 'cached return') {
         expect(repository.effects, contains('read:message'));
@@ -404,6 +412,7 @@ void main() {
             ? const ChatRequestsRoute().location
             : const NewMessageRoute().location;
         final router = GoRouter(
+          navigatorKey: ChatConversationRoute.$parentNavigatorKey,
           initialLocation: switch (entry) {
             'cold' => childPath,
             _ => '/messages',

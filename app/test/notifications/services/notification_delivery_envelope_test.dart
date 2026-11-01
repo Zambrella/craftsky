@@ -3,6 +3,35 @@ import 'package:craftsky_app/notifications/services/notification_delivery_envelo
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test(
+    'chat validates its opaque reference without a social notification ID',
+    () {
+      const chat = {
+        'payloadVersion': '1',
+        'type': 'chat',
+        'accountSubscriptionId': 'routing-account-one',
+        'openReference': '00000000-0000-4000-8000-000000000123',
+        'displayTitle': 'Alice',
+        'displayBody': 'sent you a message',
+      };
+      expect(
+        NotificationDeliveryEnvelope.tryParse(chat)?.openAttempt.facts,
+        isA<ChatNotificationFacts>(),
+      );
+      for (final reference in [
+        'invalid',
+        '00000000-0000-0000-0000-000000000000',
+      ]) {
+        expect(
+          NotificationDeliveryEnvelope.tryParse({
+            ...chat,
+            'openReference': reference,
+          }),
+          isNull,
+        );
+      }
+    },
+  );
   const notificationId = '00000000-0000-4000-8000-000000000321';
   const data = <String, Object?>{
     'payloadVersion': '1',
