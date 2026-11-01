@@ -1,5 +1,11 @@
 # App Changelog
 
+## 1.11.1+17 - 2026-11-01
+
+- fix(chat): refresh unread state after reads and pushes
+- fix(app): keep dialogs above the keyboard
+- fix(navigation): hide drawer button outside drawer scope
+
 ## 1.11.0+16 - 2026-11-01
 
 - feat(chat): add direct messaging with consent and account-bound sync
