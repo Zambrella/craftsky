@@ -1,5 +1,20 @@
 # AppView Changelog
 
+## 1.1.0 - 2026-11-01
+
+- feat(chat): add direct messaging with consent and account-bound sync
+- feat(chat): polish direct messaging experience
+- feat(profile): add shared Bluesky profile links
+- chore: Disabled Sentry Metrics in dev
+- fix(appview): include projects in recent post count
+- feat(quote): preserve selected image in quote previews
+- feat(appview): auto-approve images in development
+- feat(chat): refine messaging session and conversation flows
+- feat(chat): improve direct messaging experience
+- fix(search): filter projects by primary craft
+- feat(chat): delete sent messages for self
+- fix(auth): verify optional chat OAuth scopes
+
 ## 1.0.20 - 2026-10-28
 
 - feat(notifications): highlight new activity until leaving the page
