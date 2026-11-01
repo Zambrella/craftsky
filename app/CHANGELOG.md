@@ -1,5 +1,36 @@
 # App Changelog
 
+## 1.11.0+16 - 2026-11-01
+
+- feat(chat): add direct messaging with consent and account-bound sync
+- feat(chat): polish direct messaging experience
+- feat(profile): add shared Bluesky profile links
+- feat(profile): improve profile link editing and display
+- fix(profile): confirm external link opens
+- feat(time): show compact dates for older posts
+- fix(search): disable autocorrect and suggestions
+- fix(projects): hide unavailable embroidery subtype filter
+- fix(account-deletion): report failures and allow expired intent retries
+- fix(feed): preserve optimistic interactions across project navigation
+- fix(feed): keep rapid post interactions independent
+- fix(feed): show full reply target preview
+- feat(image): add basic photo editing across composer and profile flows
+- test(patrol): verify photo rotation in live smoke journey
+- feat(quote): preserve selected image in quote previews
+- feat(onboarding): support profile links
+- feat(chat): refine messaging session and conversation flows
+- feat(projects): label knitting finished size as size made
+- test(projects): assert renamed size field ordering
+- feat(chat): improve direct messaging experience
+- feat(chat): delete sent messages for self
+- feat(chat): add link sharing and session-wide sync
+- fix(chat): preserve inbox state when returning from conversations
+- feat(select-inputs): add clear actions for optional selections
+- fix(app): keep autocomplete suggestions above keyboard
+- test(select-inputs): account for optional clear controls
+- test(feed): include chat sharing in post menu
+- feat(home): unify following and project feeds
+
 ## 1.10.0+15 - 2026-10-28
 
 - fix(projects): restore saved status in project drafts
