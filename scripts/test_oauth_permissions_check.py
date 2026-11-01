@@ -13,17 +13,38 @@ spec = importlib.util.spec_from_loader(loader.name, loader)
 module = importlib.util.module_from_spec(spec)
 loader.exec_module(module)
 
+CHAT_METHODS = '''chat.bsky.actor.getStatus
+chat.bsky.convo.listConvos
+chat.bsky.convo.listConvoRequests
+chat.bsky.convo.getConvo
+chat.bsky.convo.getMessages
+chat.bsky.convo.getConvoAvailability
+chat.bsky.convo.getConvoForMembers
+chat.bsky.convo.sendMessage
+chat.bsky.convo.deleteMessageForSelf
+chat.bsky.convo.updateRead
+chat.bsky.convo.acceptConvo
+chat.bsky.convo.muteConvo
+chat.bsky.convo.unmuteConvo
+chat.bsky.convo.leaveConvo
+chat.bsky.convo.getLog'''.split()
+CHAT_SCOPES = [f'rpc:{method}?aud=did:web:api.bsky.chat%23bsky_chat' for method in CHAT_METHODS] + [
+    'rpc:com.atproto.moderation.createReport?aud=did:plc:ar7c4by46qjdydhdevvrndac%23atproto_labeler',
+    'repo:chat.bsky.actor.declaration?action=create&action=update',
+]
+
 
 class PermissionVerificationTests(unittest.TestCase):
     def setUp(self):
         self.expected = json.loads(module.source('lexicon/social/craftsky/authFull.json', None))
         self.scopes = next(line.split('=', 1)[1] for line in module.source('appview/environments/prod.env.example', None).splitlines() if line.startswith('OAUTH_SCOPES='))
         self.record = {'value': {'$type': 'com.atproto.lexicon.schema', **self.expected}}
-        self.metadata = {'client_id': 'https://appview.craftsky.social/oauth-client-metadata.json', 'scope': self.scopes}
+        self.advertised_scopes = self.scopes.split() + CHAT_SCOPES
+        self.metadata = {'client_id': 'https://appview.craftsky.social/oauth-client-metadata.json', 'scope': ' '.join(self.advertised_scopes)}
         self.dns = {'Answer': [{'type': 16, 'data': '"did=' + module.DID + '"'}]}
         self.identity = {'id': module.DID, 'alsoKnownAs': ['at://craftsky.social'], 'service': [{'id': '#atproto_pds', 'serviceEndpoint': 'https://pds.example'}]}
 
-    def verify(self, publication_only=False):
+    def verify(self, publication_only=False, release=None):
         def read(url):
             if 'plc.directory' in url:
                 return copy.deepcopy(self.identity)
@@ -31,7 +52,7 @@ class PermissionVerificationTests(unittest.TestCase):
                 return copy.deepcopy(self.record)
             return copy.deepcopy(self.metadata)
         with patch.object(module, 'read_json', side_effect=read), patch.object(module.urllib.request, 'urlopen', side_effect=lambda *_args, **_kwargs: io.BytesIO(json.dumps(self.dns).encode())):
-            module.check('https://appview.craftsky.social', publication_only=publication_only)
+            module.check('https://appview.craftsky.social', release=release, publication_only=publication_only)
 
     def test_current_publication_and_metadata_pass(self):
         self.verify()
@@ -52,10 +73,41 @@ class PermissionVerificationTests(unittest.TestCase):
             self.verify()
 
     def test_missing_scope_and_duplicate_scope_block(self):
-        for scope in ['atproto', self.scopes + ' atproto']:
-            self.metadata['scope'] = scope
-            with self.assertRaisesRegex(ValueError, 'scopes'):
-                self.verify()
+        for missing in self.advertised_scopes:
+            with self.subTest(missing=missing):
+                self.metadata['scope'] = ' '.join(scope for scope in self.advertised_scopes if scope != missing)
+                with self.assertRaisesRegex(ValueError, 'scopes'):
+                    self.verify()
+        for extra in ['atproto', CHAT_SCOPES[0], 'rpc:chat.bsky.convo.sendMessage?aud=*']:
+            with self.subTest(extra=extra):
+                self.metadata['scope'] = ' '.join(self.advertised_scopes + [extra])
+                with self.assertRaisesRegex(ValueError, 'scopes'):
+                    self.verify()
+
+    def test_base_only_metadata_blocks(self):
+        self.metadata['scope'] = self.scopes
+        with self.assertRaisesRegex(ValueError, 'scopes'):
+            self.verify()
+
+    def test_reordered_metadata_passes(self):
+        self.metadata['scope'] = ' '.join(reversed(self.advertised_scopes))
+        self.verify()
+
+    def test_optional_scopes_are_read_from_exact_release(self):
+        original_source = module.source
+        scope_path = 'appview/internal/auth/optional_chat_scopes.txt'
+        tagged_scope = 'rpc:chat.bsky.convo.getMessages?aud=did:web:tagged.example%23bsky_chat'
+        self.metadata['scope'] = self.scopes + ' ' + tagged_scope
+
+        def tagged_source(path, release):
+            self.assertEqual(release, 'abc123')
+            if path == scope_path:
+                return tagged_scope
+            return original_source(path, None)
+
+        with patch.object(module, 'source', side_effect=tagged_source) as read_source:
+            self.verify(release='abc123')
+            read_source.assert_any_call(scope_path, 'abc123')
 
     def test_wrong_client_id_blocks(self):
         self.metadata['client_id'] = 'https://appview.craftsky.social/oauth/client-metadata.json'

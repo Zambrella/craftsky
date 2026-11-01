@@ -1,6 +1,7 @@
 package auth
 
 import (
+	_ "embed"
 	"net/url"
 	"slices"
 	"strings"
@@ -15,26 +16,14 @@ const (
 // and registration request these alongside the independently required base.
 // The report destination is deliberately distinct from the chat service.
 func OptionalChatScopes() []string {
-	methods := []string{
-		"chat.bsky.actor.getStatus",
-		"chat.bsky.convo.listConvos", "chat.bsky.convo.listConvoRequests",
-		"chat.bsky.convo.getConvo", "chat.bsky.convo.getMessages",
-		"chat.bsky.convo.getConvoAvailability", "chat.bsky.convo.getConvoForMembers",
-		"chat.bsky.convo.sendMessage",
-		"chat.bsky.convo.deleteMessageForSelf",
-		"chat.bsky.convo.updateRead", "chat.bsky.convo.acceptConvo",
-		"chat.bsky.convo.muteConvo", "chat.bsky.convo.unmuteConvo",
-		"chat.bsky.convo.leaveConvo", "chat.bsky.convo.getLog",
-	}
-	scopes := make([]string, 0, len(methods)+2)
-	for _, method := range methods {
-		scopes = append(scopes, "rpc:"+method+"?aud=did:web:api.bsky.chat%23bsky_chat")
-	}
-	return append(scopes,
-		"rpc:com.atproto.moderation.createReport?aud=did:plc:ar7c4by46qjdydhdevvrndac%23atproto_labeler",
-		"repo:chat.bsky.actor.declaration?action=create&action=update",
-	)
+	return strings.Fields(optionalChatScopes)
 }
+
+// Shared with scripts/oauth-permissions-check so exact-release verification
+// expects the same optional authority as consumer metadata and authorization.
+//
+//go:embed optional_chat_scopes.txt
+var optionalChatScopes string
 
 func advertisedConsumerScopes(base []string) []string {
 	advertised := slices.Clone(base)

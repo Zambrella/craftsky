@@ -1,0 +1,17 @@
+rpc:chat.bsky.actor.getStatus?aud=did:web:api.bsky.chat%23bsky_chat
+rpc:chat.bsky.convo.listConvos?aud=did:web:api.bsky.chat%23bsky_chat
+rpc:chat.bsky.convo.listConvoRequests?aud=did:web:api.bsky.chat%23bsky_chat
+rpc:chat.bsky.convo.getConvo?aud=did:web:api.bsky.chat%23bsky_chat
+rpc:chat.bsky.convo.getMessages?aud=did:web:api.bsky.chat%23bsky_chat
+rpc:chat.bsky.convo.getConvoAvailability?aud=did:web:api.bsky.chat%23bsky_chat
+rpc:chat.bsky.convo.getConvoForMembers?aud=did:web:api.bsky.chat%23bsky_chat
+rpc:chat.bsky.convo.sendMessage?aud=did:web:api.bsky.chat%23bsky_chat
+rpc:chat.bsky.convo.deleteMessageForSelf?aud=did:web:api.bsky.chat%23bsky_chat
+rpc:chat.bsky.convo.updateRead?aud=did:web:api.bsky.chat%23bsky_chat
+rpc:chat.bsky.convo.acceptConvo?aud=did:web:api.bsky.chat%23bsky_chat
+rpc:chat.bsky.convo.muteConvo?aud=did:web:api.bsky.chat%23bsky_chat
+rpc:chat.bsky.convo.unmuteConvo?aud=did:web:api.bsky.chat%23bsky_chat
+rpc:chat.bsky.convo.leaveConvo?aud=did:web:api.bsky.chat%23bsky_chat
+rpc:chat.bsky.convo.getLog?aud=did:web:api.bsky.chat%23bsky_chat
+rpc:com.atproto.moderation.createReport?aud=did:plc:ar7c4by46qjdydhdevvrndac%23atproto_labeler
+repo:chat.bsky.actor.declaration?action=create&action=update

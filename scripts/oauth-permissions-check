@@ -51,11 +51,15 @@ def check(origin, release=None, publication_only=False):
     if [answer['data'].strip('"') for answer in answers if answer['type'] == 16] != ['did=' + DID]:
         raise ValueError('Permission-set DNS authority does not match CraftSky')
     if not publication_only:
+        # Consumer metadata advertises the configured base plus optional chat
+        # authority. Read the same embedded list from the exact release.
+        advertised_scopes = set(scopes) | set(source(
+            'appview/internal/auth/optional_chat_scopes.txt', release).split())
         metadata = read_json(origin.rstrip('/') + '/oauth-client-metadata.json')
         if metadata.get('client_id') != origin.rstrip('/') + '/oauth-client-metadata.json':
             raise ValueError('Deployed OAuth client ID does not match canonical metadata URL')
         granted = metadata.get('scope', '').split()
-        if len(granted) != len(set(granted)) or set(granted) != set(scopes):
+        if len(granted) != len(set(granted)) or set(granted) != advertised_scopes:
             raise ValueError('Deployed OAuth scopes do not match release')
     print('OAuth permission publication' + (' verified' if publication_only else ' and deployed metadata verified'))
 
