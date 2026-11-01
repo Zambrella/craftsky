@@ -34,7 +34,9 @@ final class DraftsPage extends ConsumerWidget {
     if (activeLease == null || account == null) {
       return Scaffold(
         appBar: AppBar(
-          leading: const AppShellDrawerButton(),
+          leading: AppShellDrawerScope.maybeOf(context) == null
+              ? null
+              : const AppShellDrawerButton(),
           title: Text(l10n.draftsTitle),
         ),
         body: const CraftskySkeletonList(
@@ -48,7 +50,9 @@ final class DraftsPage extends ConsumerWidget {
     );
     return Scaffold(
       appBar: AppBar(
-        leading: const AppShellDrawerButton(),
+        leading: AppShellDrawerScope.maybeOf(context) == null
+            ? null
+            : const AppShellDrawerButton(),
         title: Text(l10n.draftsTitle),
       ),
       body: switch (drafts) {

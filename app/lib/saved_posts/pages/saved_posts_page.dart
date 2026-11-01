@@ -55,7 +55,9 @@ class _SavedPostsPageState extends ConsumerState<SavedPostsPage> {
     if (account == null) {
       return Scaffold(
         appBar: AppBar(
-          leading: const AppShellDrawerButton(),
+          leading: AppShellDrawerScope.maybeOf(context) == null
+              ? null
+              : const AppShellDrawerButton(),
           title: Text(l10n.savedPostsTitle),
         ),
         body: const CraftskySkeletonList(
@@ -74,7 +76,9 @@ class _SavedPostsPageState extends ConsumerState<SavedPostsPage> {
     if (access == null || access.isLoading) {
       return Scaffold(
         appBar: AppBar(
-          leading: const AppShellDrawerButton(),
+          leading: AppShellDrawerScope.maybeOf(context) == null
+              ? null
+              : const AppShellDrawerButton(),
           title: Text(l10n.savedPostsTitle),
         ),
         body: const CraftskySkeletonList(itemBuilder: _buildSavedPostSkeleton),
@@ -98,7 +102,9 @@ class _SavedPostsPageState extends ConsumerState<SavedPostsPage> {
 
     return Scaffold(
       appBar: AppBar(
-        leading: const AppShellDrawerButton(),
+        leading: AppShellDrawerScope.maybeOf(context) == null
+            ? null
+            : const AppShellDrawerButton(),
         title: Text(l10n.savedPostsTitle),
         actions: [
           PlusFeatureLock(

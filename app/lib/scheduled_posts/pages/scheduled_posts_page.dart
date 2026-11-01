@@ -33,7 +33,9 @@ class ScheduledPostsPage extends ConsumerWidget {
     if (activeLease == null || account == null) {
       return Scaffold(
         appBar: AppBar(
-          leading: const AppShellDrawerButton(),
+          leading: AppShellDrawerScope.maybeOf(context) == null
+              ? null
+              : const AppShellDrawerButton(),
           title: Text(l10n.scheduledPostsTitle),
         ),
         body: const CraftskySkeletonList(
@@ -44,7 +46,9 @@ class ScheduledPostsPage extends ConsumerWidget {
     final scheduled = ref.watch(scheduledPostsProvider(account));
     return Scaffold(
       appBar: AppBar(
-        leading: const AppShellDrawerButton(),
+        leading: AppShellDrawerScope.maybeOf(context) == null
+            ? null
+            : const AppShellDrawerButton(),
         title: Text(l10n.scheduledPostsTitle),
       ),
       body: switch (scheduled) {
