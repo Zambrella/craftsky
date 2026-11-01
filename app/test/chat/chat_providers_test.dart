@@ -17,6 +17,12 @@ import 'package:craftsky_app/chat/models/chat_state.dart';
 import 'package:craftsky_app/chat/providers/chat_draft_store_provider.dart';
 import 'package:craftsky_app/chat/providers/chat_providers.dart';
 import 'package:craftsky_app/chat/providers/chat_session_runtime_provider.dart';
+import 'package:craftsky_app/notifications/models/notification_destination.dart';
+import 'package:craftsky_app/notifications/models/notification_effect.dart';
+import 'package:craftsky_app/notifications/models/notification_open_event.dart';
+import 'package:craftsky_app/notifications/providers/notification_runtime_provider.dart';
+import 'package:craftsky_app/onboarding/models/onboarding_completion.dart';
+import 'package:craftsky_app/onboarding/providers/onboarding_status_provider.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/api/providers/dio_provider.dart';
 import 'package:dio/dio.dart';
@@ -28,6 +34,86 @@ import 'package:http_mock_adapter/http_mock_adapter.dart';
 // IT-015 / IT-019 / NFR-001: account dependency and stale acquisition.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  for (final removeAccount in [false, true]) {
+    test('cold-start DM open survives a delayed conversation lookup '
+        'removed=$removeAccount', () async {
+      final account = AccountKey('did:plc:alice');
+      final base = SessionRegistry.empty().upsertAndActivate(
+        token: 'synthetic',
+        did: account.did.value,
+        handle: 'alice.test',
+      );
+      final lease = base.activeLease!.session;
+      final repository = _Repository();
+      final response = Completer<ChatConversationId>();
+      repository.notificationTarget = response.future;
+      final container = ProviderContainer.test(
+        retry: (_, _) => null,
+        overrides: [
+          secureSessionRegistryStorageProvider.overrideWithValue(
+            _Storage(base.saveRoutingBinding(lease, 'binding')),
+          ),
+          accountChatRepositoryProvider.overrideWith(
+            (ref, account) async => repository,
+          ),
+          onboardingStatusProvider(lease).overrideWithBuild(
+            (ref, _) async => const OnboardingCompletion(completed: true),
+          ),
+        ],
+      );
+      await container.read(sessionRegistryProvider.future);
+      final effects = <NotificationEffect>[];
+      final subscription = container
+          .read(notificationEffectStreamProvider)
+          .listen(effects.add);
+      addTearDown(subscription.cancel);
+      final runtime = container.read(notificationRuntimeProvider);
+      await runtime.start();
+      await runtime.receiveOpen(
+        NotificationOpenAttempt.fromProviderData({
+          'payloadVersion': '1',
+          'type': 'chat',
+          'accountSubscriptionId': 'binding',
+          'openReference': '00000000-0000-4000-8000-000000000123',
+        }, source: NotificationOpenSource.initialOpen),
+      );
+      final opening = runtime.updateReadiness(
+        did: account.did,
+        onboarded: true,
+      );
+      await repository.notificationEntered.future;
+      // Let a frame elapse while the network response is pending.
+      await container.pump();
+      expect(effects, isEmpty);
+      if (removeAccount) {
+        await container
+            .read(sessionRegistryProvider.notifier)
+            .removeConfirmed(lease);
+      }
+      response.complete(ChatConversationId.parse('conversation'));
+      await opening;
+      await container.pump();
+      expect(effects.whereType<NotificationUnavailableEffect>(), isEmpty);
+      final navigation = effects.whereType<NotificationNavigationEffect>();
+      if (removeAccount) {
+        expect(navigation, isEmpty);
+      } else {
+        expect(
+          navigation.single.outcome.destination,
+          isA<ChatConversationDestination>(),
+        );
+      }
+      expect(
+        container.exists(
+          chatNotificationOpenProvider(
+            account,
+            ChatOpenReference.parse('00000000-0000-4000-8000-000000000123'),
+          ),
+        ),
+        isFalse,
+      );
+    });
+  }
   test('foreground push refreshes counts, lists and visible messages '
       'without replacing the draft', () async {
     FlutterSecureStorage.setMockInitialValues({});
@@ -1160,6 +1246,16 @@ ChatMessagePage _privatePage() => ChatMessagePage.fromMap(const {
 });
 
 class _Repository implements ChatRepository {
+  final notificationEntered = Completer<void>();
+  Future<ChatConversationId>? notificationTarget;
+  @override
+  Future<ChatConversationId> notificationOpen(
+    ChatOpenReference reference,
+  ) async {
+    notificationEntered.complete();
+    return await notificationTarget!;
+  }
+
   bool enabled = true;
   int listCalls = 0;
   final listBuckets = <ChatBucket>[];

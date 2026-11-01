@@ -82,16 +82,20 @@ NotificationRuntime notificationRuntime(Ref ref) {
     resolveChat: (lease, reference) async {
       final operation = ActiveAccountOperation.capture(ref);
       if (operation.ownership?.session != lease) return null;
+      final target = chatNotificationOpenProvider(lease.account, reference);
+      // The OS open has no widget watching this auto-disposed lookup. Own it
+      // until resolution completes, including frames awaiting the network.
+      final subscription = ref.listen(target, (_, _) {});
       try {
         return await operation.step(
-          () => ref.read(
-            chatNotificationOpenProvider(lease.account, reference).future,
-          ),
+          () => ref.read(target.future),
         );
       } on AccountOperationDiscarded {
         return null;
       } on Object {
         return null;
+      } finally {
+        subscription.close();
       }
     },
     activateRecipient: activation.activate,
