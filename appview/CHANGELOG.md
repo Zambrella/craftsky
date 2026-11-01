@@ -1,5 +1,9 @@
 # AppView Changelog
 
+## 1.1.1 - 2026-11-01
+
+- fix(chat): refresh unread state after reads and pushes
+
 ## 1.1.0 - 2026-11-01
 
 - feat(chat): add direct messaging with consent and account-bound sync
