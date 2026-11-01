@@ -24,6 +24,72 @@ Widget _app(Widget child, {Dio? dio}) => ProviderScope(
 );
 
 void main() {
+  for (final (size, keyboardHeight) in [
+    (const Size(1200, 800), 440.0),
+    (const Size(390, 844), 340.0),
+  ]) {
+    testWidgets('add link avoids keyboard and restores position at $size', (
+      tester,
+    ) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = size;
+      final keyboardTop = size.height - keyboardHeight;
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetViewInsets);
+
+      await tester.pumpWidget(
+        _app(ProfileLinksEditor(links: const [], onChanged: (_) {})),
+      );
+      await tester.tap(find.byKey(const Key('profile-link-add')));
+      await tester.pumpAndSettle();
+
+      final surface = find
+          .descendant(
+            of: find.byType(CraftskyDialog),
+            matching: find.byType(Material),
+          )
+          .first;
+      final originalRect = tester.getRect(surface);
+      final url = find.byType(TextField).first;
+      await tester.tap(url);
+      await tester.enterText(url, 'https://example.com');
+      tester.view.viewInsets = FakeViewPadding(bottom: keyboardHeight);
+      await tester.pumpAndSettle();
+
+      expect(tester.getRect(surface).bottom, lessThanOrEqualTo(keyboardTop));
+      expect(tester.getRect(surface).top, lessThan(originalRect.top));
+      expect(tester.takeException(), isNull);
+
+      // Short viewports must allow the remaining fields and actions to scroll
+      // into the visible area above the keyboard.
+      final scrollable = find
+          .descendant(
+            of: find.byType(CraftskyDialog),
+            matching: find.byType(Scrollable),
+          )
+          .first;
+      final save = find.byKey(const Key('profile-link-save'));
+      await tester.scrollUntilVisible(save, 80, scrollable: scrollable);
+      await tester.pumpAndSettle();
+      expect(tester.getRect(save).bottom, lessThanOrEqualTo(keyboardTop));
+
+      tester.view.viewInsets = FakeViewPadding.zero;
+      await tester.pumpAndSettle();
+      expect(tester.getRect(surface), originalRect);
+      expect(find.text('https://example.com'), findsOneWidget);
+
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+      expect(find.byType(CraftskyDialog), findsNothing);
+
+      // Reopening after dismissal also retains the centered layout.
+      await tester.tap(find.byKey(const Key('profile-link-add')));
+      await tester.pumpAndSettle();
+      expect(tester.getRect(surface), originalRect);
+    });
+  }
+
   test('overflow retains the first row when the second row must make room', () {
     expect(profileLinkVisibleCount([300, 300, 300], 320), 1);
     expect(profileLinkVisibleCount([250, 250, 250], 320), 2);

@@ -47,60 +47,76 @@ class CraftskyDialog extends StatelessWidget {
     final shadowColor = shadows.dropLg.first.color;
     final radius = BorderRadius.circular(radii.r3);
 
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: _horizontalInset,
-          vertical: _horizontalInset,
-        ),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: _maxWidth),
-          child: Stack(
-            children: [
-              Positioned.fill(
-                child: Transform.translate(
-                  offset: shadowOffset,
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: shadowColor,
-                      borderRadius: radius,
+    // Unlike Material's Dialog, this custom surface must reserve keyboard
+    // insets itself. Constrain the existing scroll view to the visible area.
+    return AnimatedPadding(
+      padding: MediaQuery.viewInsetsOf(context),
+      duration: MediaQuery.disableAnimationsOf(context)
+          ? Duration.zero
+          : const Duration(milliseconds: 100),
+      curve: Curves.decelerate,
+      child: MediaQuery.removeViewInsets(
+        context: context,
+        removeLeft: true,
+        removeTop: true,
+        removeRight: true,
+        removeBottom: true,
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: _horizontalInset,
+              vertical: _horizontalInset,
+            ),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: _maxWidth),
+              child: Stack(
+                children: [
+                  Positioned.fill(
+                    child: Transform.translate(
+                      offset: shadowOffset,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: shadowColor,
+                          borderRadius: radius,
+                        ),
+                      ),
                     ),
                   ),
-                ),
-              ),
-              Material(
-                color: Colors.transparent,
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: swatches.paper3,
-                    borderRadius: radius,
-                    border: Border.all(color: colors.onSurface, width: 1.5),
-                  ),
-                  padding: EdgeInsets.all(spacing.sp5),
-                  child: SingleChildScrollView(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Text(title, style: theme.textTheme.titleLarge),
-                        SizedBox(height: spacing.sp4),
-                        DefaultTextStyle.merge(
-                          style: theme.textTheme.bodyMedium,
-                          child: body,
+                  Material(
+                    color: Colors.transparent,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: swatches.paper3,
+                        borderRadius: radius,
+                        border: Border.all(color: colors.onSurface, width: 1.5),
+                      ),
+                      padding: EdgeInsets.all(spacing.sp5),
+                      child: SingleChildScrollView(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Text(title, style: theme.textTheme.titleLarge),
+                            SizedBox(height: spacing.sp4),
+                            DefaultTextStyle.merge(
+                              style: theme.textTheme.bodyMedium,
+                              child: body,
+                            ),
+                            SizedBox(height: spacing.sp5),
+                            Wrap(
+                              alignment: WrapAlignment.end,
+                              spacing: spacing.sp2,
+                              runSpacing: spacing.sp2,
+                              children: actions,
+                            ),
+                          ],
                         ),
-                        SizedBox(height: spacing.sp5),
-                        Wrap(
-                          alignment: WrapAlignment.end,
-                          spacing: spacing.sp2,
-                          runSpacing: spacing.sp2,
-                          children: actions,
-                        ),
-                      ],
+                      ),
                     ),
                   ),
-                ),
+                ],
               ),
-            ],
+            ),
           ),
         ),
       ),
