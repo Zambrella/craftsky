@@ -110,7 +110,12 @@ void main() {
         components.cast<Map<String, dynamic>>().map(
           (component) => component['/'],
         ),
-        ['/auth/complete', '/account-deletion/reauth-complete'],
+        [
+          '/auth/complete',
+          '/account-deletion/reauth-complete',
+          '/posts/*',
+          '/profiles/*',
+        ],
       );
     },
   );

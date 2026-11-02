@@ -1450,5 +1450,29 @@
     "path": "/v1/profile-links/{did}/{rkey}/reports",
     "category": "appview.profile_links.reports",
     "public": false
+  },
+  {
+    "method": "GET",
+    "path": "/v1/public/posts/{did}/{rkey}",
+    "category": "appview.public.post.detail",
+    "public": true
+  },
+  {
+    "method": "GET",
+    "path": "/v1/public/profiles/{handleOrDid}",
+    "category": "appview.public.profile.detail",
+    "public": true
+  },
+  {
+    "method": "GET",
+    "path": "/v1/public/profiles/{handleOrDid}/posts",
+    "category": "appview.public.profile.list",
+    "public": true
+  },
+  {
+    "method": "GET",
+    "path": "/v1/public/profiles/{handleOrDid}/projects",
+    "category": "appview.public.profile.list",
+    "public": true
   }
 ]

@@ -594,3 +594,15 @@ service-status-dev-clear:
 # Normal app-run, with local status URL and Android status-port reverse mapping.
 app-run-status *ARGS: app-env-init
     ./scripts/service-status-dev app -- {{ARGS}}
+
+# Server-rendered public web pages (does not deploy).
+public-app-setup:
+    cd web-client && npm ci && npx playwright install chromium
+
+public-app-check:
+    python3 -m unittest discover -s scripts -p test_public_app_dev.py
+    cd web-client && npm run check && npm test && npm run build && npm run test:e2e && WEB_CLIENT_WORKER=1 npm run test:e2e
+
+# Run the web client against this worktree's backend (start just dev-d first).
+public-app-dev *ARGS:
+    ./scripts/public-app-dev {{ARGS}}

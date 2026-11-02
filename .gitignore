@@ -64,3 +64,12 @@ __pycache__/
 # Dedicated status host local tooling
 service-status/.wrangler/
 service-status/.venv/
+
+# Server-rendered web client
+web-client/node_modules/
+web-client/.svelte-kit/
+web-client/.wrangler/
+web-client/test-results/
+web-client/playwright-report/
+web-client/.env*
+!web-client/.env.example

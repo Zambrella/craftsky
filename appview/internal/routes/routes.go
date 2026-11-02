@@ -134,16 +134,16 @@ func (m v1Middleware) wrap(policy RoutePolicy, handler http.Handler) http.Handle
 			visitorHandler.ServeHTTP(w, r)
 		})
 	}
-	// Discovery has a dedicated public-field allowlist, so identity decorators
-	// must not expand its summaries. All authorization wrappers still apply.
-	boundedDiscovery := policy.Method == http.MethodGet && policy.PathPattern == "/v1/profiles/recent"
+	// Discovery and anonymous pages have explicit public-field allowlists.
+	// Identity decorators must not expand these responses. Authorization still applies.
+	boundedDiscovery := policy.Method == http.MethodGet && (policy.PathPattern == "/v1/profiles/recent" || strings.HasPrefix(policy.PathPattern, "/v1/public/"))
 	if m.hydrator != nil && !boundedDiscovery {
 		wrapped = m.hydrator.Handler(wrapped)
 	}
 	if m.accountTypeHydrator != nil && !boundedDiscovery {
 		wrapped = m.accountTypeHydrator.Handler(wrapped)
 	}
-	if m.folderRedactor != nil {
+	if m.folderRedactor != nil && !strings.HasPrefix(policy.PathPattern, "/v1/public/") {
 		wrapped = m.folderRedactor.Handler(wrapped)
 	}
 	// Keep BodyLimit outside response decorators so ResponseController reaches
@@ -500,6 +500,7 @@ func AddRoutes(_ context.Context, mux Registrar, deps *Dependencies) {
 	})
 
 	postStore := api.NewPostStoreWithPlayback(deps.DB, observer, deps.VideoPlayback)
+	registerPublicPageRoutes(mux, v1mw, api.NewPublicPageStore(deps.DB, postStore, deps.HandleResolver, businessStore), deps.HandleResolver)
 	savedPostStore := api.NewSavedPostStore(deps.DB)
 	profilePinOptions := api.ProfilePinStoreOptions{Observer: observer, RequirePlus: deps.Subscriptions != nil}
 	if deps.Subscriptions != nil {

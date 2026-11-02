@@ -1,0 +1,6 @@
+User-agent: *
+Allow: /profiles/
+Allow: /posts/
+Disallow: /auth/
+Disallow: /account-deletion/
+Disallow: /*?*cursor=

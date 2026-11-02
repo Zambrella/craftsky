@@ -1,0 +1,35 @@
+name: Public web client
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'web-client/**'
+      - 'verified-links/**'
+      - 'scripts/public-app-dev'
+      - 'scripts/test_public_app_dev.py'
+      - 'justfile'
+      - '.github/workflows/web-client-ci.yml'
+permissions:
+  contents: read
+jobs:
+  web-client:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: web-client
+    steps:
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: web-client/package-lock.json
+      - run: python3 -m unittest discover -s ../scripts -p test_public_app_dev.py
+      - run: npm ci
+      - run: npm run check
+      - run: npm test
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+      - run: WEB_CLIENT_WORKER=1 npm run test:e2e

@@ -1,0 +1,8 @@
+{
+ "$schema":"./node_modules/wrangler/config-schema.json",
+ "name":"craftsky-public-app",
+ "compatibility_date":"2026-11-02",
+ "compatibility_flags":["nodejs_compat"],
+ "pages_build_output_dir":".svelte-kit/cloudflare",
+ "vars":{"APPVIEW_ORIGIN":"https://appview.craftsky.social"}
+}
