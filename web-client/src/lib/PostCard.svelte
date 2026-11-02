@@ -1,4 +1,6 @@
 <script lang="ts">
+	import type { Snippet } from 'svelte';
+	import type { Facet } from './api/types';
 	import Avatar from './Avatar.svelte';
 	import CraftBadge from './CraftBadge.svelte';
 	import {
@@ -14,7 +16,30 @@
 		postTitle,
 		type Post
 	} from './public';
-	let { post, detail = false }: { post: Post; detail?: boolean } = $props();
+	let {
+		post,
+		detail = false,
+		content,
+		media,
+		field,
+		member = false
+	}: {
+		post: Post;
+		detail?: boolean;
+		content?: Snippet<[string]>;
+		media?: Snippet;
+		field?: Snippet<[string, Facet[] | undefined]>;
+		member?: boolean;
+	} = $props();
+	const profileHref = (did: string) =>
+		member ? '/app/profile/' + encodeURIComponent(did) : profilePath(did);
+	const postHref = () =>
+		member
+			? '/app/posts/' +
+				encodeURIComponent(post.author.did) +
+				'/' +
+				encodeURIComponent(post.rkey)
+			: postPath(post);
 	const detailFields: Record<string, string> = {
 		projectType: 'Project type',
 		size: 'Size',
@@ -40,14 +65,14 @@
 	class:post-detail={detail}
 >
 	<div class="author">
-		<a href={profilePath(post.author.did)}
+		<a href={profileHref(post.author.did)}
 			><Avatar author={post.author} /><span
 				><strong>{authorName(post.author)}</strong
 				>{#if post.author.business}<span class="business-label"
 						>Business account</span
 					>{/if}<small>@{post.author.handle}</small></span
 			></a
-		><a class="date" href={postPath(post)}
+		><a class="date" href={postHref()}
 			><time
 				datetime={post.createdAt}
 				title={fullTimestamp(post.createdAt)}
@@ -64,9 +89,10 @@
 		{#if !detail}<h2 class="visually-hidden">
 				{postTitle(post)}
 			</h2>{/if}
-		{#if detail}<p class="prose">{post.text}</p>{:else}<a
-				class="post-body-link"
-				href={postPath(post)}><p class="prose">{post.text}</p></a
+		{#if detail || content}<p class="prose">
+				{#if content}{@render content(post.text)}{:else}{post.text}{/if}
+			</p>{:else}<a class="post-body-link" href={postHref()}
+				><p class="prose">{post.text}</p></a
 			>{/if}
 	{/if}
 
@@ -90,7 +116,7 @@
 						/></a
 					>{/if}{/each}
 		</div>{/if}
-	{#if post.video && safeURL(post.video.playlist)}
+	{#if media}{@render media()}{:else if post.video && safeURL(post.video.playlist)}
 		<video
 			controls
 			preload="none"
@@ -109,7 +135,7 @@
 	{#if post.project}
 		<div class="project-summary">
 			{#if detail}<h1>{postTitle(post)}</h1>{:else}<h2>
-					<a href={postPath(post)}>{postTitle(post)}</a>
+					<a href={postHref()}>{postTitle(post)}</a>
 				</h2>{/if}
 			<div class="project-chips">
 				{#if post.project.common.status}<span
@@ -142,7 +168,13 @@
 				{#if common.pattern}{@const pattern = common.pattern}
 					<dt>Pattern</dt>
 					<dd>
-						{#if safeURL(pattern.url)}<a
+						{#if field && pattern.name}{@render field(
+								pattern.name,
+								pattern.nameFacets
+							)}{#if safeURL(pattern.url)}
+								<a href={safeURL(pattern.url)} rel="ugc nofollow noreferrer"
+									>Pattern website ↗</a
+								>{/if}{:else if safeURL(pattern.url)}<a
 								href={safeURL(pattern.url)}
 								rel="ugc nofollow noreferrer"
 								>{pattern.name || 'View pattern'}</a
@@ -150,23 +182,32 @@
 								(pattern.selfDrafted ? 'Self drafted' : 'Not specified')}{/if}
 					</dd>
 					{#if pattern.designer}<dt>Designer</dt>
-						<dd>{pattern.designer}</dd>{/if}{#if pattern.publisher}<dt>
-							Publisher
-						</dt>
-						<dd>{pattern.publisher}</dd>{/if}{#if pattern.difficulty}<dt>
-							Difficulty
-						</dt>
+						<dd>
+							{#if field}{@render field(
+									pattern.designer,
+									pattern.designerFacets
+								)}{:else}{pattern.designer}{/if}
+						</dd>{/if}{#if pattern.publisher}<dt>Publisher</dt>
+						<dd>
+							{#if field}{@render field(
+									pattern.publisher,
+									pattern.publisherFacets
+								)}{:else}{pattern.publisher}{/if}
+						</dd>{/if}{#if pattern.difficulty}<dt>Difficulty</dt>
 						<dd>{label(pattern.difficulty)}</dd>{/if}{/if}
 				{#if common.materials?.length}<dt>Materials</dt>
 					<dd>
 						<ul>
 							{#each common.materials as material}<li>
-									{material.text}
+									{#if field}{@render field(
+											material.text,
+											material.facets
+										)}{:else}{material.text}{/if}
 								</li>{/each}
 						</ul>
 					</dd>{/if}
 				{#if common.colors?.length}<dt>Colours</dt>
-					<dd>{common.colors.join(', ')}</dd>{/if}
+					<dd>{common.colors.map(label).join(', ')}</dd>{/if}
 				{#if gaugeText(post.project.details?.gauge)}<dt>Gauge</dt>
 					<dd>{gaugeText(post.project.details?.gauge)}</dd>{/if}
 				{#each Object.entries(post.project.details || {}) as [key, value]}{#if detailFields[key] && typeof value === 'string'}<dt
@@ -180,7 +221,9 @@
 					<dd>{common.tags.map((t) => '#' + t).join(' ')}</dd>{/if}
 			</dl>
 		</section>{/if}
-	{#if post.project}<p class="prose project-notes">{post.text}</p>{/if}
+	{#if post.project}<p class="prose project-notes">
+			{#if content}{@render content(post.text)}{:else}{post.text}{/if}
+		</p>{/if}
 	{#if post.editedAt}<p class="muted">
 			Edited <time datetime={post.editedAt}>{date(post.editedAt)}</time>
 		</p>{/if}

@@ -38,6 +38,7 @@ func RouteDependencies(deps *Deps) *routes.Dependencies {
 		OperatorConsole:        deps.OperatorConsole,
 		OperatorAuthentication: operatorAuthentication,
 		Config: routes.Config{
+			WebAppOrigin:              deps.Config.WebAppOrigin,
 			Env:                       routes.Environment(deps.Config.Env),
 			AllowedOrigins:            append([]string(nil), deps.Config.AllowedOrigins...),
 			ExpectedHosts:             append([]string(nil), deps.Config.ExpectedHosts...),

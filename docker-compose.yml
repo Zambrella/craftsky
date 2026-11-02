@@ -157,6 +157,7 @@ services:
         required: false
     environment:
       APPVIEW_ENV: dev
+      WEB_APP_ORIGIN: ${WEB_APP_ORIGIN:-https://app.craftsky.social}
       DATABASE_URL: postgres://craftsky:dev@postgres:5432/craftsky_dev?sslmode=disable
       TAP_WS_URL: ws://tap:2480/channel
       TAP_ACK_TIMEOUT: "10s"

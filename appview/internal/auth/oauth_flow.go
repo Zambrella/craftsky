@@ -150,8 +150,7 @@ func (service *OAuthFlowService) StartRegistration(
 	defer cancel()
 	ctx = operationCtx
 	if service.registrationOAuth == nil || service.registrationProviderOrigin == "" || deviceID == "" ||
-		(mode != HandoffVerifiedLink && mode != HandoffLoopback && mode != HandoffDevScheme) ||
-		(mode == HandoffLoopback) != (loopbackURI != "") {
+		!validHandoffDestination(mode, loopbackURI) {
 		return "", ErrOAuthFlowInvalid
 	}
 	reservation, err := service.store.ReserveAuthRequestCapacity(ctx)
@@ -200,8 +199,7 @@ func (service *OAuthFlowService) StartLogin(
 	defer cancel()
 	ctx = operationCtx
 	if handle == "" || deviceID == "" ||
-		(mode != HandoffVerifiedLink && mode != HandoffLoopback && mode != HandoffDevScheme) ||
-		(mode == HandoffLoopback) != (loopbackURI != "") {
+		!validHandoffDestination(mode, loopbackURI) {
 		return "", ErrOAuthFlowInvalid
 	}
 	identifier, err := syntax.ParseAtIdentifier(handle.String())
@@ -262,6 +260,17 @@ func (service *OAuthFlowService) StartAccountDeletion(
 	jobID uuid.UUID,
 	deviceID string,
 ) (string, error) {
+	return service.startAccountDeletion(ctx, owner, jobID, deviceID, "")
+}
+
+func (service *OAuthFlowService) StartBrowserAccountDeletion(ctx context.Context, owner syntax.DID, jobID uuid.UUID, deviceID, completionURI string) (string, error) {
+	if !validStoredBrowserCompletion(completionURI, BrowserDeletionCompletionPath) {
+		return "", ErrOAuthFlowInvalid
+	}
+	return service.startAccountDeletion(ctx, owner, jobID, deviceID, completionURI)
+}
+
+func (service *OAuthFlowService) startAccountDeletion(ctx context.Context, owner syntax.DID, jobID uuid.UUID, deviceID, completionURI string) (string, error) {
 	operationCtx, cancel := oauthOperationContext(ctx, service.startOperationTimeout)
 	defer cancel()
 	ctx = operationCtx
@@ -305,6 +314,12 @@ func (service *OAuthFlowService) StartAccountDeletion(
 		requestCtx := WithAccountDeletionAuthRequestAuthority(
 			authCtx, owner, authority.Generation, authority.AuthEpoch, jobID, deviceID,
 		)
+		if completionURI != "" {
+			metadata, _ := AuthRequestMetadataFromContext(requestCtx)
+			metadata.HandoffMode = HandoffBrowser
+			metadata.LoopbackURI = completionURI
+			requestCtx = context.WithValue(requestCtx, authRequestMetadataContextKey{}, metadata)
+		}
 		if err := service.store.SaveAuthRequestInfo(requestCtx, *requestInfo); err != nil {
 			return err
 		}

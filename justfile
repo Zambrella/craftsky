@@ -595,14 +595,22 @@ service-status-dev-clear:
 app-run-status *ARGS: app-env-init
     ./scripts/service-status-dev app -- {{ARGS}}
 
-# Server-rendered public web pages (does not deploy).
+# SvelteKit web client and preserved public SSR pages (does not deploy).
 public-app-setup:
     cd web-client && npm ci && npx playwright install chromium
 
 public-app-check:
     python3 -m unittest discover -s scripts -p test_public_app_dev.py
-    cd web-client && npm run check && npm test && npm run build && npm run test:e2e && WEB_CLIENT_WORKER=1 npm run test:e2e
+    cd web-client && npm run check && npm test && npm run build && npm run test:e2e && npm run test:e2e:app && WEB_CLIENT_WORKER=1 npm run test:e2e && WEB_CLIENT_WORKER=1 npm run test:e2e:app
 
 # Run the web client against this worktree's backend (start just dev-d first).
 public-app-dev *ARGS:
     ./scripts/public-app-dev {{ARGS}}
+
+# Web app launcher; starts only the frontend (requires just dev-d first).
+web-run *ARGS:
+    ./scripts/public-app-dev {{ARGS}}
+
+web-client-setup: public-app-setup
+
+web-client-check: public-app-check

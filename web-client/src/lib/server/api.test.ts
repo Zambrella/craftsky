@@ -48,14 +48,12 @@ it('does not reflect malformed JSON or network errors', async () => {
 });
 
 it('rejects redirects without requesting the Location target', async () => {
-	const fake = vi
-		.fn<typeof fetch>()
-		.mockResolvedValue(
-			new Response(null, {
-				status: 302,
-				headers: { location: 'https://private.example' }
-			})
-		);
+	const fake = vi.fn<typeof fetch>().mockResolvedValue(
+		new Response(null, {
+			status: 302,
+			headers: { location: 'https://private.example' }
+		})
+	);
 	await expect(publicAPI(fake, 'posts/a/b')).rejects.toMatchObject({
 		status: 503
 	});

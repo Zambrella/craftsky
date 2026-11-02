@@ -1,11 +1,13 @@
-name: Public web client
+name: CraftSky web client
 on:
   pull_request:
     branches: [main]
     paths:
       - 'web-client/**'
+      - 'appview/VERSION'
       - 'verified-links/**'
       - 'scripts/public-app-dev'
+      - 'scripts/compose-dev'
       - 'scripts/test_public_app_dev.py'
       - 'justfile'
       - '.github/workflows/web-client-ci.yml'
@@ -32,4 +34,6 @@ jobs:
       - run: npm run build
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e
+      - run: npm run test:e2e:app
       - run: WEB_CLIENT_WORKER=1 npm run test:e2e
+      - run: WEB_CLIENT_WORKER=1 npm run test:e2e:app

@@ -6,7 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   const host = 'app.craftsky.social';
 
-  test('Android accepts all paths on the verified HTTPS host', () {
+  test('Android routes mobile links while browser callbacks stay on the web', () {
     final manifest = File(
       'android/app/src/main/AndroidManifest.xml',
     ).readAsStringSync();
@@ -14,11 +14,31 @@ void main() {
     expect('android:autoVerify="true"'.allMatches(manifest), hasLength(1));
     expect('android:scheme="https"'.allMatches(manifest), hasLength(1));
     expect('android:host="$host"'.allMatches(manifest), hasLength(1));
-    expect(
-      manifest,
-      isNot(contains(RegExp(r'android:path\w*\s*='))),
-      reason: 'HTTPS links must accept every path, including callbacks',
+    final paths = RegExp(r'android:path(Prefix)?="([^"]+)"')
+        .allMatches(manifest)
+        .toList();
+    bool accepts(String path) => paths.any(
+      (match) => match[1] == 'Prefix'
+          ? path.startsWith(match[2]!)
+          : path == match[2],
     );
+    for (final path in [
+      '/auth/complete',
+      '/account-deletion/reauth-complete',
+      '/posts/did:plc:alice/first',
+      '/profiles/alice.test',
+    ]) {
+      expect(accepts(path), isTrue, reason: path);
+    }
+    for (final path in [
+      '/auth/browser/complete',
+      '/auth/browser/confirm',
+      '/account-deletion/browser/reauth-complete',
+      '/app/home',
+      '/sign-in',
+    ]) {
+      expect(accepts(path), isFalse, reason: path);
+    }
     expect(manifest, isNot(contains('android:scheme="craftsky"')));
     expect(manifest, isNot(contains('android:scheme="craftsky-dev"')));
   });

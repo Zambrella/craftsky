@@ -1,0 +1,305 @@
+.composer {
+	max-width: 850px;
+	margin: auto;
+	padding: 24px;
+	display: grid;
+	gap: 20px;
+}
+.composer-heading {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 1rem;
+}
+.composer h1 {
+	font-family: 'DM Serif Display', serif;
+	font-weight: 400;
+	font-size: 2.15rem;
+}
+.composer h2 {
+	font-size: 1.15rem;
+}
+.composer .eyebrow {
+	font-size: 0.8rem;
+	letter-spacing: 0.09em;
+	text-transform: uppercase;
+	color: var(--ink-3);
+}
+.composer form {
+	background: var(--surface);
+	border: 1px solid var(--ink);
+	border-radius: 16px;
+	box-shadow: 3px 3px 0 var(--shadow);
+	padding: 24px;
+	min-width: 0;
+}
+.composer label {
+	display: grid;
+	gap: 6px;
+	font-size: 0.95rem;
+}
+.composer input:not([type='checkbox'], [type='radio'], [type='file']),
+.composer textarea,
+.composer select {
+	width: 100%;
+	padding: 11px 12px;
+	border: 1px solid var(--hairline);
+	border-radius: 8px;
+	background: var(--paper);
+	color: var(--ink);
+	font: inherit;
+	min-width: 0;
+}
+.composer textarea {
+	resize: vertical;
+}
+.composer input:focus,
+.composer textarea:focus,
+.composer select:focus {
+	outline: 2px solid var(--primary);
+	outline-offset: 2px;
+}
+.composer button,
+.composer .file-button {
+	background: var(--paper);
+	color: var(--ink);
+	border: 1px solid var(--ink);
+	border-radius: 8px;
+	padding: 9px 14px;
+	font: inherit;
+	cursor: pointer;
+	text-decoration: none;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 6px;
+}
+.composer button:hover,
+.composer .file-button:hover {
+	background: var(--paper-2);
+}
+.composer button.primary {
+	background: var(--primary);
+	color: var(--on-primary);
+}
+.composer button.primary:hover {
+	background: var(--primary-hover);
+}
+.composer button:disabled {
+	opacity: 0.55;
+	cursor: wait;
+}
+.composer button.danger {
+	color: var(--red-ink);
+}
+.composer .muted {
+	color: var(--ink-3);
+	font-size: 0.85rem;
+}
+.composer fieldset {
+	border: 1px solid var(--hairline);
+	border-radius: 10px;
+	margin: 0;
+	padding: 12px;
+	min-width: 0;
+}
+.composer fieldset.editor-fields {
+	border: 0;
+	border-radius: 0;
+	padding: 0;
+	display: grid;
+	gap: 18px;
+}
+.composer .fields {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 14px;
+}
+.composer .stack {
+	display: grid;
+	gap: 14px;
+}
+.composer .fields.gauge {
+	grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.composer .chips,
+.composer .toolbar {
+	display: flex;
+	gap: 10px;
+	flex-wrap: wrap;
+	align-items: center;
+}
+.composer .check {
+	display: flex;
+	flex-direction: row;
+	gap: 8px;
+	align-items: center;
+}
+.composer .chips .check {
+	background: var(--paper);
+	border-radius: 20px;
+	padding: 7px 12px;
+}
+.composer .check input {
+	accent-color: var(--primary);
+	width: 17px;
+	height: 17px;
+	flex-shrink: 0;
+}
+.composer-section {
+	border-top: 1px solid var(--hairline);
+	padding-top: 18px;
+	display: grid;
+	gap: 15px;
+}
+.composer details {
+	border: 1px solid var(--hairline);
+	border-radius: 10px;
+	padding: 12px;
+}
+.composer summary {
+	cursor: pointer;
+	font-weight: 600;
+}
+.composer details[open] > summary {
+	margin-bottom: 14px;
+}
+.composer .post-text {
+	border: 0;
+	background: transparent;
+	font-size: 1.15rem;
+	padding: 0;
+	line-height: 1.6;
+	min-height: 180px;
+}
+.composer .post-text-label {
+	font-weight: 600;
+}
+.composer .post-text-label textarea {
+	font-weight: 400;
+}
+.composer .character-count {
+	margin-top: -12px;
+	text-align: right;
+	color: var(--ink-3);
+	font-size: 0.85rem;
+}
+.composer .over-limit {
+	color: var(--red-ink);
+}
+.composer .kind-switch {
+	display: flex;
+	gap: 8px;
+}
+.composer .kind-switch [aria-pressed='true'] {
+	background: var(--primary-soft);
+	border-color: var(--primary);
+	color: var(--primary);
+}
+.composer .media-grid {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 14px;
+}
+.composer .file-button {
+	position: relative;
+	overflow: hidden;
+}
+.composer .file-button input {
+	position: absolute;
+	inset: 0;
+	opacity: 0;
+	width: 100%;
+	cursor: pointer;
+}
+.composer .file-button:focus-within {
+	outline: 3px solid var(--primary);
+	outline-offset: 3px;
+}
+.composer .video-editor,
+.composer .external-preview {
+	display: grid;
+	gap: 12px;
+}
+.composer video {
+	max-height: 420px;
+	max-width: 100%;
+	background: #000;
+	border-radius: 12px;
+}
+.composer .inline-field {
+	display: flex;
+	gap: 10px;
+}
+.composer .inline-field button {
+	white-space: nowrap;
+}
+.composer-actions {
+	display: flex;
+	gap: 16px;
+	justify-content: space-between;
+	align-items: center;
+	border-top: 1px solid var(--hairline);
+	margin-top: 22px;
+	padding-top: 18px;
+}
+.composer-error,
+.composer-pending {
+	background: var(--red-soft);
+	color: var(--red-ink);
+	padding: 16px;
+	border-radius: 12px;
+	display: grid;
+	gap: 12px;
+}
+.composer-notice {
+	padding: 14px;
+	background: var(--primary-soft);
+	border-radius: 12px;
+}
+.composer .context {
+	margin: 0;
+	border-left: 3px solid var(--primary);
+	padding: 16px;
+	background: var(--paper-2);
+	border-radius: 8px;
+	display: grid;
+	gap: 8px;
+}
+.composer .loading {
+	padding: 3rem;
+	text-align: center;
+}
+.composer .error {
+	color: var(--red-ink);
+}
+@media (max-width: 650px) {
+	.composer {
+		padding: 14px;
+	}
+	.composer form {
+		padding: 16px;
+		box-shadow: 2px 2px 0 var(--shadow);
+	}
+	.composer .media-grid,
+	.composer .fields {
+		grid-template-columns: 1fr;
+	}
+	.composer .fields.gauge {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
+	.composer-actions {
+		align-items: flex-start;
+		flex-direction: column;
+	}
+	.composer-actions .toolbar {
+		width: 100%;
+		justify-content: flex-end;
+	}
+	.composer .inline-field {
+		flex-wrap: wrap;
+	}
+	.composer h1 {
+		font-size: 1.8rem;
+	}
+}

@@ -14,5 +14,6 @@
 		Discover the stories, materials, and little details behind what we make.
 	</p>
 	<p>Open a shared CraftSky profile, post, or project to explore it here.</p>
-	<a class="button" href="https://craftsky.social">Meet CraftSky</a>
+	<a class="button" href="/sign-in">Join the community</a>
+	<a href="https://craftsky.social">Meet CraftSky ↗</a>
 </section>

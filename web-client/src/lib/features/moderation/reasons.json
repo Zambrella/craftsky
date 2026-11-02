@@ -1,0 +1,188 @@
+{
+	"groups": [
+		{
+			"value": "childSafety",
+			"label": "Child safety"
+		},
+		{
+			"value": "sexualIntimate",
+			"label": "Sexual or intimate content"
+		},
+		{
+			"value": "danger",
+			"label": "Threats, violence or self-harm"
+		},
+		{
+			"value": "harassmentPrivacy",
+			"label": "Harassment, hate or privacy"
+		},
+		{
+			"value": "fraudIdentity",
+			"label": "Fraud, scams or impersonation"
+		},
+		{
+			"value": "contentIntegrity",
+			"label": "Spam, misleading or off-topic content"
+		},
+		{
+			"value": "intellectualProperty",
+			"label": "Copyright or trade marks"
+		},
+		{
+			"value": "other",
+			"label": "Something else"
+		}
+	],
+	"reasons": [
+		{
+			"value": "childSexualExploitation",
+			"label": "Child sexual exploitation",
+			"group": "childSafety"
+		},
+		{
+			"value": "grooming",
+			"label": "Grooming",
+			"group": "childSafety"
+		},
+		{
+			"value": "childAbuseMaterial",
+			"label": "Suspected child sexual abuse material",
+			"group": "childSafety"
+		},
+		{
+			"value": "intimateImageAbuse",
+			"label": "Intimate-image abuse or cyberflashing",
+			"group": "sexualIntimate"
+		},
+		{
+			"value": "sexualExploitation",
+			"label": "Sexual exploitation",
+			"group": "sexualIntimate"
+		},
+		{
+			"value": "adultContent",
+			"label": "Pornographic or adult content",
+			"group": "sexualIntimate"
+		},
+		{
+			"value": "graphicContent",
+			"label": "Graphic content",
+			"group": "sexualIntimate"
+		},
+		{
+			"value": "immediateDanger",
+			"label": "Someone is in immediate danger",
+			"group": "danger"
+		},
+		{
+			"value": "credibleThreat",
+			"label": "Credible threat",
+			"group": "danger"
+		},
+		{
+			"value": "terrorism",
+			"label": "Terrorism",
+			"group": "danger"
+		},
+		{
+			"value": "violence",
+			"label": "Violence",
+			"group": "danger"
+		},
+		{
+			"value": "selfHarm",
+			"label": "Encouraging serious self-harm",
+			"group": "danger"
+		},
+		{
+			"value": "harassment",
+			"label": "Harassment",
+			"group": "harassmentPrivacy"
+		},
+		{
+			"value": "hate",
+			"label": "Hate",
+			"group": "harassmentPrivacy"
+		},
+		{
+			"value": "stalking",
+			"label": "Stalking",
+			"group": "harassmentPrivacy"
+		},
+		{
+			"value": "doxxing",
+			"label": "Doxxing",
+			"group": "harassmentPrivacy"
+		},
+		{
+			"value": "blockEvasion",
+			"label": "Block evasion",
+			"group": "harassmentPrivacy"
+		},
+		{
+			"value": "privacy",
+			"label": "Privacy violation",
+			"group": "harassmentPrivacy"
+		},
+		{
+			"value": "fraud",
+			"label": "Fraud",
+			"group": "fraudIdentity"
+		},
+		{
+			"value": "scam",
+			"label": "Scam",
+			"group": "fraudIdentity"
+		},
+		{
+			"value": "phishing",
+			"label": "Phishing",
+			"group": "fraudIdentity"
+		},
+		{
+			"value": "impersonation",
+			"label": "Impersonation",
+			"group": "fraudIdentity"
+		},
+		{
+			"value": "counterfeit",
+			"label": "Counterfeit goods",
+			"group": "fraudIdentity"
+		},
+		{
+			"value": "spam",
+			"label": "Spam",
+			"group": "contentIntegrity"
+		},
+		{
+			"value": "platformManipulation",
+			"label": "Platform manipulation",
+			"group": "contentIntegrity"
+		},
+		{
+			"value": "misleading",
+			"label": "Misleading",
+			"group": "contentIntegrity"
+		},
+		{
+			"value": "suspectedAiGenerated",
+			"label": "Suspected AI-generated",
+			"group": "contentIntegrity"
+		},
+		{
+			"value": "offTopic",
+			"label": "Off-topic",
+			"group": "contentIntegrity"
+		},
+		{
+			"value": "intellectualProperty",
+			"label": "Intellectual property",
+			"group": "intellectualProperty"
+		},
+		{
+			"value": "other",
+			"label": "Other",
+			"group": "other"
+		}
+	]
+}

@@ -1,3 +1,4 @@
+import type { Facet } from './api/types';
 export const origin = 'https://app.craftsky.social';
 export type Author = {
 	did: string;
@@ -34,8 +35,11 @@ export type Project = {
 			publisher?: string;
 			difficulty?: string;
 			selfDrafted?: boolean;
+			nameFacets?: Facet[];
+			designerFacets?: Facet[];
+			publisherFacets?: Facet[];
 		};
-		materials?: { text: string }[];
+		materials?: { text: string; facets?: Facet[] }[];
 		colors?: string[];
 		designTags?: string[];
 		tags?: string[];

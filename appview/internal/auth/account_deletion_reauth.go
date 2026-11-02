@@ -33,6 +33,7 @@ const (
 	HandoffVerifiedLink HandoffMode = "verified_link"
 	HandoffLoopback     HandoffMode = "loopback"
 	HandoffDevScheme    HandoffMode = "dev_scheme"
+	HandoffBrowser      HandoffMode = "browser"
 )
 
 type AuthRequestState string
@@ -157,10 +158,10 @@ func (metadata AuthRequestMetadata) valid() bool {
 	if strings.TrimSpace(metadata.DeviceID) == "" {
 		return false
 	}
-	if metadata.HandoffMode != HandoffVerifiedLink && metadata.HandoffMode != HandoffLoopback && metadata.HandoffMode != HandoffDevScheme {
+	if metadata.HandoffMode != HandoffVerifiedLink && metadata.HandoffMode != HandoffLoopback && metadata.HandoffMode != HandoffDevScheme && metadata.HandoffMode != HandoffBrowser {
 		return false
 	}
-	if (metadata.HandoffMode == HandoffLoopback) != (metadata.LoopbackURI != "") {
+	if metadata.Purpose != AccountDeletionOAuthPurpose && !validHandoffDestination(metadata.HandoffMode, metadata.LoopbackURI) {
 		return false
 	}
 	switch metadata.Purpose {
@@ -173,7 +174,7 @@ func (metadata AuthRequestMetadata) valid() bool {
 			strings.TrimSpace(metadata.AuthorizationServerIssuer) != "" &&
 			metadata.RegistrationProviderOrigin == "" && metadata.RegistrationIssuer == ""
 	case AccountDeletionOAuthPurpose:
-		return metadata.JobID != uuid.Nil && metadata.HandoffMode == HandoffVerifiedLink &&
+		return metadata.JobID != uuid.Nil && ((metadata.HandoffMode == HandoffVerifiedLink && metadata.LoopbackURI == "") || (metadata.HandoffMode == HandoffBrowser && validStoredBrowserCompletion(metadata.LoopbackURI, BrowserDeletionCompletionPath))) &&
 			metadata.hasOwnerAuthority() && metadata.RegistrationProviderOrigin == "" &&
 			metadata.RegistrationIssuer == ""
 	case RegistrationOAuthPurpose:

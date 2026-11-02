@@ -228,7 +228,7 @@ func testConfigFile(t *testing.T, contents string) string {
 		"CRAFTSKY_SESSION_ACTIVITY_WRITE_INTERVAL", "OAUTH_LOGIN_START_TIMEOUT",
 		"OAUTH_CALLBACK_OPERATION_TIMEOUT", "OAUTH_SESSION_OPERATION_TIMEOUT", "OAUTH_HANDOFF_EXCHANGE_TTL",
 		"OAUTH_HANDOFF_CONFIRMATION_TTL", "OAUTH_HANDOFF_RECEIPT_KEY",
-		"OAUTH_HANDOFF_RECEIPT_KEY_VERSION", "APP_VERIFIED_LINK_ORIGIN", "APPVIEW_ENABLE_DEV_OAUTH_SCHEME",
+		"OAUTH_HANDOFF_RECEIPT_KEY_VERSION", "APP_VERIFIED_LINK_ORIGIN", "WEB_APP_ORIGIN", "APPVIEW_ENABLE_DEV_OAUTH_SCHEME",
 		"APPVIEW_PUBLISH_HOST", "APPVIEW_EXPECTED_HOSTS", "APPVIEW_DEV_REMOTE_ACCESS",
 		"APPVIEW_DEV_PROTECTED_TRANSPORT", "APPVIEW_DEV_AUTH_SECRET",
 		"MAX_POST_IMAGES", "MAX_IMAGE_UPLOAD_BYTES", "APPVIEW_JSON_BODY_LIMIT_BYTES",
@@ -1665,6 +1665,28 @@ func TestLoadConfigIntimateImageTargetRequiresExplicitValidDuration(t *testing.T
 			}
 			if err != nil || cfg.SafetyIntimateImageResponseWithin != tc.want {
 				t.Fatalf("target=%v err=%v", cfg.SafetyIntimateImageResponseWithin, err)
+			}
+		})
+	}
+}
+
+func TestLoadConfigWebAppOriginIsExplicitAndValidated(t *testing.T) {
+	const base = "DATABASE_URL=postgres://dev\nALLOWED_ORIGINS=*\nCRAFTSKY_DEV_DID=did:plc:test\nTAP_WS_URL=ws://tap\n"
+	for _, value := range []string{"", "http://127.0.0.1:25319", "https://evil.example"} {
+		t.Run(value, func(t *testing.T) {
+			cfg, err := LoadConfig(EnvDev, testConfigFile(t, base+"WEB_APP_ORIGIN="+value+"\n"))
+			if value == "https://evil.example" {
+				if err == nil || !strings.Contains(err.Error(), "WEB_APP_ORIGIN") {
+					t.Fatal("uncontrolled web origin accepted")
+				}
+				return
+			}
+			want := value
+			if want == "" {
+				want = "https://app.craftsky.social"
+			}
+			if err != nil || cfg.WebAppOrigin != want {
+				t.Fatalf("origin=%q err=%v", cfg.WebAppOrigin, err)
 			}
 		})
 	}

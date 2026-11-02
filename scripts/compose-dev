@@ -168,6 +168,15 @@ else
 fi
 
 export CRAFTSKY_POSTGRES_PORT=$postgres_port
+# Browser OAuth targets the same stable worktree web port as public-app-dev.
+public_app_port=${CRAFTSKY_PUBLIC_APP_PORT:-$(dotenv_value CRAFTSKY_PUBLIC_APP_PORT)}
+if [[ -z "$public_app_port" ]]; then
+  web_checkout_checksum=$(printf '%s' "$repo_root" | cksum | awk '{print $1}')
+  public_app_port=$((25000 + web_checkout_checksum % 1000))
+fi
+validate_port CRAFTSKY_PUBLIC_APP_PORT "$public_app_port"
+export WEB_APP_ORIGIN="http://127.0.0.1:${public_app_port}"
+
 export CRAFTSKY_APPVIEW_PORT=$appview_port
 export CRAFTSKY_MINIO_PORT=$minio_port
 export CRAFTSKY_MINIO_CONSOLE_PORT=$minio_console_port

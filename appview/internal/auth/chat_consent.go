@@ -18,8 +18,7 @@ func (service *OAuthFlowService) StartChatAuthorization(ctx context.Context, inf
 	ctx, cancel := oauthOperationContext(ctx, service.startOperationTimeout)
 	defer cancel()
 	if info.DID == "" || info.SessionID == "" || bearer == "" || device == "" ||
-		(mode != HandoffVerifiedLink && mode != HandoffLoopback && mode != HandoffDevScheme) ||
-		(mode == HandoffLoopback) != (loopback != "") {
+		!validHandoffDestination(mode, loopback) {
 		return "", ErrOAuthFlowInvalid
 	}
 	hash := sha256.Sum256([]byte(bearer))

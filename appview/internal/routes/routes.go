@@ -377,6 +377,7 @@ func AddRoutes(_ context.Context, mux Registrar, deps *Dependencies) {
 		blueskyProfileProjector:  deps.BlueskyProfileProjector,
 		craftskyProfileProjector: deps.CraftskyProfileProjector,
 		loginCompleteURL:         deps.LoginCompleteURL,
+		webAppOrigin:             deps.Config.WebAppOrigin,
 		deletionCompleteURL:      deps.DeletionCompleteURL,
 		allowDevScheme:           deps.Config.EnableDevOAuthScheme,
 	})
@@ -430,7 +431,7 @@ func AddRoutes(_ context.Context, mux Registrar, deps *Dependencies) {
 	}
 
 	registerAuthRoutes(authRouteBundle{mux: mux, middleware: v1mw, handlers: oauthHandlers})
-	registerChatRoutes(chatRouteBundle{mux: mux, middleware: v1mw, status: deps.ChatStatus, sender: deps.ChatSender, consumer: deps.ChatConsumer, authorization: deps.ChatAuthorization, allowDevScheme: deps.Config.Env == EnvDev && deps.Config.EnableDevOAuthScheme, logger: deps.Logger})
+	registerChatRoutes(chatRouteBundle{mux: mux, middleware: v1mw, status: deps.ChatStatus, sender: deps.ChatSender, consumer: deps.ChatConsumer, authorization: deps.ChatAuthorization, webAppOrigin: deps.Config.WebAppOrigin, allowDevScheme: deps.Config.Env == EnvDev && deps.Config.EnableDevOAuthScheme, logger: deps.Logger})
 	registerOperatorConsole(mux, v1mw, deps)
 	registerModerationRoutes(moderationRouteBundle{
 		db: deps.DB, mux: mux, middleware: v1mw, store: moderationCases,
@@ -457,7 +458,7 @@ func AddRoutes(_ context.Context, mux Registrar, deps *Dependencies) {
 	})
 	registerLogoutRoute(logoutRouteBundle{mux: mux, middleware: v1mw, handlers: oauthHandlers})
 	registerAccountDeletionRoutes(accountDeletionRouteBundle{
-		mux: mux, middleware: v1mw, service: deps.AccountDeletion,
+		mux: mux, middleware: v1mw, service: deps.AccountDeletion, webAppOrigin: deps.Config.WebAppOrigin,
 	})
 	registerSubscriptionRoutes(subscriptionRouteBundle{
 		mux: mux, middleware: v1mw, store: deps.Subscriptions, now: deps.Now,
