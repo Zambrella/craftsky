@@ -1,6 +1,10 @@
 <script lang="ts">
 	import Icon from '../shell/Icon.svelte';
-	let { name, size = 24 }: { name: string; size?: number } = $props();
+	let {
+		name,
+		size = 24,
+		bold = false
+	}: { name: string; size?: number; bold?: boolean } = $props();
 </script>
 
-<Icon {name} {size} filled={name === 'subscription'} />
+<Icon {name} {size} {bold} filled={name === 'subscription'} />

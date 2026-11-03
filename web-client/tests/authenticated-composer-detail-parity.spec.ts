@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import AxeBuilder from '@axe-core/playwright';
 import type { Post } from '../src/lib/api/types';
 
 const base = 'http://127.0.0.1:19846';
@@ -341,7 +342,7 @@ test('crop editing opens a full compact viewport, traps edits and returns focus 
 	});
 	await page.getByLabel('Image description').fill('Original private image');
 	const trigger = page.getByRole('button', {
-		name: 'Crop / rotate',
+		name: 'Edit photo',
 		exact: true
 	});
 	await trigger.click();
@@ -350,11 +351,31 @@ test('crop editing opens a full compact viewport, traps edits and returns focus 
 	const bounds = await dialog.boundingBox();
 	expect(bounds?.width).toBe(390);
 	expect(bounds?.height).toBe(844);
-	await expect(
-		page.getByRole('button', { name: 'Save draft', exact: true })
-	).toBeDisabled();
-	await dialog.getByLabel('Width (%)', { exact: true }).fill('50');
-	await dialog.getByRole('button', { name: 'Rotate 90° ↻' }).click();
+	await expect(page.locator('.save-draft')).toBeDisabled();
+	await dialog
+		.getByRole('button', { name: 'Crop bottom right corner' })
+		.press('Shift+ArrowLeft');
+	await dialog.getByRole('button', { name: 'Rotate photo' }).click();
+	const corner = await dialog
+		.getByRole('button', { name: 'Crop bottom right corner' })
+		.boundingBox();
+	expect(corner).not.toBeNull();
+	await page.mouse.move(
+		corner!.x + corner!.width / 2,
+		corner!.y + corner!.height / 2
+	);
+	await page.mouse.down();
+	await page.mouse.move(
+		corner!.x + corner!.width / 2 + 30,
+		corner!.y + corner!.height / 2,
+		{ steps: 5 }
+	);
+	await page.mouse.up();
+	await expect(dialog.locator('.crop-selection')).not.toHaveAttribute(
+		'style',
+		/height: 100%/
+	);
+	await dialog.screenshot({ path: test.info().outputPath('crop-editor.png') });
 	await page.keyboard.press('Escape');
 	await expect(dialog).not.toBeVisible();
 	await expect(trigger).toBeFocused();
@@ -362,8 +383,9 @@ test('crop editing opens a full compact viewport, traps edits and returns focus 
 		page.getByRole('img', { name: 'Original private image', exact: true })
 	).toHaveJSProperty('naturalWidth', 8);
 	await trigger.click();
-	await expect(dialog.getByLabel('Width (%)', { exact: true })).toHaveValue(
-		'100'
+	await expect(dialog.locator('.crop-selection')).toHaveAttribute(
+		'style',
+		/width: 100%/
 	);
 	await dialog.getByRole('button', { name: 'Apply edit', exact: true }).click();
 	await expect(dialog).not.toBeVisible();
@@ -459,6 +481,7 @@ test('Save closes only after persistence, and Close keeps or restores an existin
 		buffer: await imageFixture(page)
 	});
 	await page.getByLabel('Image description').fill('Original image description');
+	await page.getByRole('button', { name: 'Back to post', exact: true }).click();
 	await expect(
 		page.getByText('Draft saved on this device', { exact: true })
 	).toBeVisible();
@@ -487,7 +510,9 @@ test('Save closes only after persistence, and Close keeps or restores an existin
 		page.getByRole('button', { name: 'Save changes', exact: true })
 	).toBeDisabled();
 	await text.fill('Autosaved changes to discard');
+	await page.getByRole('button', { name: /Photos.*Reorder photos/ }).click();
 	await page.getByLabel('Image description').fill('Changed image description');
+	await page.getByRole('button', { name: 'Back to post', exact: true }).click();
 	await expect(
 		page.getByText('Draft saved on this device', { exact: true })
 	).toBeVisible();
@@ -500,6 +525,7 @@ test('Save closes only after persistence, and Close keeps or restores an existin
 		.getByRole('link', { name: 'Continue editing', exact: true })
 		.click();
 	await expect(text).toHaveValue('Original saved draft');
+	await page.getByRole('button', { name: /Photos.*Reorder photos/ }).click();
 	await expect(page.getByLabel('Image description')).toHaveValue(
 		'Original image description'
 	);
@@ -688,9 +714,7 @@ test('media export blocks Done, cancellation and Save until the exact image edit
 			);
 		};
 	});
-	await page
-		.getByRole('button', { name: 'Crop / rotate', exact: true })
-		.click();
+	await page.getByRole('button', { name: 'Edit photo', exact: true }).click();
 	const dialog = page.getByRole('dialog', { name: 'Edit photo', exact: true });
 	await dialog.getByRole('button', { name: 'Apply edit', exact: true }).click();
 	await expect(
@@ -699,9 +723,7 @@ test('media export blocks Done, cancellation and Save until the exact image edit
 	await expect(
 		dialog.getByRole('button', { name: 'Apply edit', exact: true })
 	).toBeDisabled();
-	await expect(
-		page.getByRole('button', { name: 'Save draft', exact: true })
-	).toBeDisabled();
+	await expect(page.locator('.save-draft')).toBeDisabled();
 	await page.keyboard.press('Escape');
 	await expect(dialog).toBeVisible();
 	await expect
@@ -716,9 +738,7 @@ test('media export blocks Done, cancellation and Save until the exact image edit
 		(window as unknown as { releaseCrop: () => void }).releaseCrop()
 	);
 	await expect(dialog).not.toBeVisible();
-	await expect(
-		page.getByRole('button', { name: 'Save draft', exact: true })
-	).toBeEnabled();
+	await expect(page.locator('.save-draft')).toBeEnabled();
 	expect(
 		(await calls()).filter(
 			(call) => call.method === 'POST' && call.path.includes('/blobs/')
@@ -846,8 +866,9 @@ test('complete body URLs automatically load native previews through AppView, wit
 	await expect(card).toHaveCount(0);
 	await page
 		.locator('.media-card')
-		.getByRole('button', { name: 'Remove', exact: true })
+		.getByRole('button', { name: 'Remove image 1', exact: true })
 		.click();
+	await page.getByRole('button', { name: 'Back to post', exact: true }).click();
 	await expect(card).toBeVisible();
 	expect(requests).toHaveLength(2);
 	expect(
@@ -923,4 +944,107 @@ test('a delayed preview for replaced text cannot overwrite the current URL or it
 			})
 	);
 	expect(uri).toBe('https://current.example/pattern');
+});
+
+test('photo selection opens details, retains descriptions on return, and supports reorder and removal', async ({
+	page
+}) => {
+	const errors: string[] = [];
+	page.on('pageerror', (error) => errors.push(error.message));
+	await page.setViewportSize({ width: 402, height: 874 });
+	await page.goto('/app/compose/project');
+	const buffer = await imageFixture(page);
+	await page
+		.locator('input[type=file][multiple]')
+		.first()
+		.setInputFiles([
+			{ name: 'first.png', mimeType: 'image/png', buffer },
+			{ name: 'second.png', mimeType: 'image/png', buffer }
+		]);
+	const details = page.getByRole('dialog', {
+		name: 'Photo details',
+		exact: true
+	});
+	await expect(details).toBeVisible();
+	await details
+		.getByRole('textbox', { name: 'Image description', exact: true })
+		.first()
+		.fill('Blue cotton fabric');
+	await details
+		.getByRole('button', { name: 'Move image 1 later', exact: true })
+		.click();
+	await expect(
+		details
+			.getByRole('textbox', { name: 'Image description', exact: true })
+			.nth(1)
+	).toHaveValue('Blue cotton fabric');
+	await details.screenshot({
+		path: test.info().outputPath('photo-details.png')
+	});
+	const audit = await new AxeBuilder({ page })
+		.include('.photo-details-page')
+		.withTags(['wcag2a', 'wcag2aa', 'wcag21aa'])
+		.analyze();
+	expect(audit.violations).toEqual([]);
+	await details
+		.getByRole('button', { name: 'Back to post', exact: true })
+		.click();
+	await expect(details).not.toBeVisible();
+	const summary = page.getByRole('button', { name: /Photos.*Reorder photos/ });
+	await expect(summary).toContainText('1 / 2 described');
+	await summary.click();
+	await expect(
+		details
+			.getByRole('textbox', { name: 'Image description', exact: true })
+			.nth(1)
+	).toHaveValue('Blue cotton fabric');
+	await details
+		.getByRole('button', { name: 'Remove image 1', exact: true })
+		.click();
+	await expect(
+		details.getByRole('textbox', { name: 'Image description', exact: true })
+	).toHaveValue('Blue cotton fabric');
+	await details
+		.getByRole('button', { name: 'Back to post', exact: true })
+		.click();
+	await page.getByRole('button', { name: 'Clear photos', exact: true }).click();
+	await expect(
+		page.locator('input[type=file][multiple]').first()
+	).toBeAttached();
+	expect(errors).toEqual([]);
+});
+
+test('browser Back closes photo details without discarding the project', async ({
+	page
+}) => {
+	await page.goto('/app/home');
+	await page
+		.getByRole('button', { name: 'Create post', exact: true })
+		.filter({ visible: true })
+		.click();
+	await page
+		.getByRole('dialog', { name: 'What would you like to share?' })
+		.getByRole('link', { name: /Project post/ })
+		.click();
+	const buffer = await imageFixture(page);
+	await page
+		.locator('input[type=file][multiple]')
+		.first()
+		.setInputFiles({ name: 'photo.png', mimeType: 'image/png', buffer });
+	const details = page.getByRole('dialog', {
+		name: 'Photo details',
+		exact: true
+	});
+	await expect(details).toBeVisible();
+	await details
+		.getByRole('textbox', { name: 'Image description', exact: true })
+		.fill('Retained photo description');
+	await page.goBack();
+	await expect(details).toBeHidden();
+	await expect(page).toHaveURL(/\/app\/compose\/project$/);
+	await expect(page.getByRole('dialog', { name: 'Save draft?' })).toBeHidden();
+	await page.getByRole('button', { name: /Photos.*Reorder photos/ }).click();
+	await expect(
+		details.getByRole('textbox', { name: 'Image description', exact: true })
+	).toHaveValue('Retained photo description');
 });

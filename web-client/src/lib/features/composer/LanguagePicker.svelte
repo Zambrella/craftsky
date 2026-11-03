@@ -258,7 +258,7 @@
 	}
 	li > button:hover,
 	.language-menu button:hover {
-		background: var(--paper-2);
+		background: color-mix(in srgb, var(--primary) 8%, transparent);
 	}
 	small,
 	.language-limit {

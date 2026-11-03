@@ -1,10 +1,13 @@
 <script lang="ts">
-	import { onDestroy, onMount, untrack } from 'svelte';
+	import { getContext, onDestroy, onMount, untrack } from 'svelte';
 	import type { CraftskyAPI, ScheduledPostSummary } from '#lib/api/client.ts';
 	import { drafts, type Draft } from './store.ts';
 	import { draftPreview, draftURL } from './presentation';
 	import DraftThumbnail from './DraftThumbnail.svelte';
 	import Icon from '../shell/Icon.svelte';
+	const createPost = getContext<(event: MouseEvent) => void>(
+		'craftsky-create-post'
+	);
 	let deleteDialog: HTMLDialogElement;
 	let deletion = $state<{ id: string; remote: boolean; owner: string }>();
 	let {
@@ -104,21 +107,7 @@
 <section class="draft-workspace" aria-busy={loading || busy}>
 	<header class="draft-appbar">
 		<h1>{isScheduled ? 'Scheduled posts' : 'Drafts'}</h1>
-		<button
-			class="icon-action"
-			aria-label="Refresh drafts"
-			disabled={loading || busy}
-			onclick={() => load()}><Icon name="refresh" /></button
-		>
 	</header>
-	<nav aria-label="Drafts and scheduled posts">
-		<a aria-current={!isScheduled ? 'page' : undefined} href="/app/drafts"
-			>On this device</a
-		>
-		<a aria-current={isScheduled ? 'page' : undefined} href="/app/scheduled"
-			>Scheduled</a
-		>
-	</nav>
 	{#if error}<div class="feedback error" role="alert">
 			{error}<button onclick={() => load()}>Try again</button>
 		</div>{/if}
@@ -135,7 +124,7 @@
 				<Icon name="calendar" />
 				<h2>Scheduled posts</h2>
 				<p>No scheduled posts yet.</p>
-				<a href="/app/compose">Create a post</a>
+				<a href="/app/compose" onclick={createPost}>Create a post</a>
 			</div>{:else}<p class="privacy-note">
 				Scheduled posts and their media stay private until publication.
 			</p>{/if}
@@ -273,24 +262,6 @@
 		font-weight: 700;
 		font-family: inherit;
 	}
-	nav {
-		display: flex;
-		border-bottom: 1px solid var(--hairline);
-	}
-	nav a {
-		flex: 1;
-		text-align: center;
-		padding: 13px 12px;
-		color: var(--ink-3);
-		font-size: 14px;
-		font-weight: 600;
-		text-decoration: none;
-		border-bottom: 3px solid transparent;
-	}
-	nav a[aria-current='page'] {
-		color: var(--primary);
-		border-color: var(--primary);
-	}
 	.draft-list {
 		list-style: none;
 		padding: 0;
@@ -304,7 +275,7 @@
 		gap: 4px;
 	}
 	.draft-row:hover {
-		background: var(--paper-2);
+		background: color-mix(in srgb, var(--primary) 8%, transparent);
 	}
 	.draft-main {
 		display: flex;
@@ -363,7 +334,7 @@
 		text-decoration: none;
 	}
 	.icon-action:hover {
-		background: var(--hairline);
+		background: color-mix(in srgb, var(--primary) 8%, transparent);
 	}
 	.schedule-icon {
 		color: var(--primary);

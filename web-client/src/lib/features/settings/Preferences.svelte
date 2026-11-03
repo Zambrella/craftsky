@@ -28,11 +28,7 @@
 	import { Work } from './work.svelte.ts';
 	import Feedback from './Feedback.svelte';
 	import PushSettings from '#lib/features/push/PushSettings.svelte';
-	import {
-		configured as diagnosticsConfigured,
-		consent,
-		setConsent
-	} from '#lib/features/diagnostics/client.ts';
+	import { consent, setConsent } from '#lib/features/diagnostics/client.ts';
 	let {
 		api,
 		section,
@@ -154,7 +150,6 @@
 		try {
 			localStorage.setItem('craftsky.theme', value);
 		} catch {}
-		work.notice = 'Appearance updated.';
 	}
 	async function replaceLanguages(nextPrimary: string, nextContent: string) {
 		if (work.busy || work.retry) return;
@@ -323,20 +318,16 @@
 			><SettingsIcon name="errorReporting" /><span class="tile-copy"
 				><span>Error reporting</span><small
 					>Send crash reports and diagnostic logs to help improve CraftSky.</small
-				>{#if !diagnosticsConfigured()}<small
-						>Optional error reporting is not configured for this web client.</small
-					>{/if}</span
+				></span
 			><input
 				type="checkbox"
 				role="switch"
 				aria-label="Error reporting"
 				checked={diagnostics}
-				disabled={!diagnosticsConfigured()}
 				onchange={(event) => {
 					try {
 						setConsent(event.currentTarget.checked);
 						diagnostics = event.currentTarget.checked;
-						work.notice = 'Privacy preference saved.';
 					} catch {
 						work.error = 'This browser could not save your preference.';
 					}
@@ -348,15 +339,13 @@
 	<section class="panel stack">
 		<SingleSelect
 			label="App language"
+			helperText="Select which language to use for the app's user interface."
 			value="en"
 			required
 			showRequired={false}
 			options={[{ id: 'en', label: 'English' }]}
 			onchange={() => {}}
 		/>
-		<p class="helper">
-			Select which language to use for the app's user interface.
-		</p>
 		<p class="helper section-heading">
 			<SettingsIcon name="translate" size={18} />More app languages are coming.
 		</p>
@@ -364,28 +353,29 @@
 	<section class="panel stack">
 		<SingleSelect
 			label="Primary language"
+			helperText="Select the default language used when you create a post."
 			value={primary}
 			required
 			showRequired={false}
 			options={languageOptions.map((language) => ({
 				id: language.tag,
-				label: language.name
+				label: language.name,
+				description: language.tag
 			}))}
 			disabled={work.busy || !!work.retry}
 			onchange={(value) => replaceLanguages(value, content)}
 		/>
-		<p class="helper">
-			Select the default language used when you create a post.
-		</p>
 	</section>
 	<section class="panel stack">
 		<MultiSelect
 			label="Content languages"
+			helperText="Select which languages you want posts in your feeds and discovery results to include. If none are selected, all languages will be shown."
 			placeholder="Add more languages…"
 			values={content.split(', ').filter(Boolean)}
 			options={languageOptions.map((value) => ({
 				id: value.tag,
-				label: value.name
+				label: value.name,
+				description: value.tag
 			}))}
 			maximum={50}
 			disabled={work.busy || !!work.retry}
@@ -393,10 +383,6 @@
 				replaceLanguages(primary, values.join(', '));
 			}}
 		/>
-		<p class="helper">
-			Select which languages you want posts in your feeds and discovery results
-			to include. If none are selected, all languages will be shown.
-		</p>
 	</section>
 {:else if !work.loading && loaded && section === 'notifications'}
 	<p class="muted notification-intro">
@@ -684,10 +670,14 @@
 	.notification-intro {
 		margin: 16px 0 24px;
 	}
-	.notification-push {
-		border-top: 1px solid var(--hairline);
-		padding-top: 16px;
+	:global(.settings-workspace) .notification-card h2 {
+		margin-bottom: 16px;
+	}
+	:global(.settings-workspace) .notification-push {
+		border-top: 1px solid var(--ink-4);
+		padding-top: 8px;
 		margin-top: 20px;
+		min-height: 57px;
 	}
 	.notification-card > label:not(.notification-push) {
 		margin-top: 24px;

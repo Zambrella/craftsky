@@ -336,7 +336,8 @@
 		justify-content: center;
 	}
 	.relationship-list > .row {
-		padding: 12px 16px;
+		padding: 4px 16px;
+		min-height: 56px;
 		border: 0;
 	}
 	.relationship-list > .row button {
@@ -364,7 +365,7 @@
 		color: inherit;
 		text-decoration: none;
 		flex: 1;
-		min-height: 48px;
+		min-height: 40px;
 	}
 	.relationship-list :global(.avatar) {
 		width: 41px;

@@ -89,7 +89,7 @@
 	}
 	small {
 		display: block;
-		color: var(--ink-2);
+		color: var(--ink-3);
 		font-size: 13px;
 		line-height: 1.45;
 		white-space: nowrap;

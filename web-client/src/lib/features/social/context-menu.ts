@@ -6,13 +6,17 @@ const scrollLocks = new WeakMap<
 >();
 
 /** Responsive native menu presentation, dismissal, and compact keyboard focus. */
-export function contextMenu(node: HTMLDetailsElement) {
+export function contextMenu(
+	node: HTMLDetailsElement,
+	options?: { anchor?: () => HTMLElement | undefined }
+) {
 	const document = node.ownerDocument;
 	const view = document.defaultView!;
 	node.classList.add('native-context-menu');
 	const compact = view.matchMedia('(max-width: 900px)');
 	const menu = node.querySelector<HTMLElement>('.menu-items');
-	const summary = node.querySelector<HTMLElement>('summary');
+	const anchor = () =>
+		options?.anchor?.() || node.querySelector<HTMLElement>('summary');
 	let locked = false;
 	let wasOpen = false;
 	let backdrop = node.querySelector<HTMLButtonElement>(
@@ -83,7 +87,7 @@ export function contextMenu(node: HTMLDetailsElement) {
 		if (event.key !== 'Escape') return;
 		event.preventDefault();
 		node.open = false;
-		node.querySelector<HTMLElement>('summary')?.focus();
+		anchor()?.focus();
 	}
 	function choose(event: MouseEvent) {
 		const target = (event.target as Element | null)?.closest?.('button,a');
@@ -94,6 +98,7 @@ export function contextMenu(node: HTMLDetailsElement) {
 	}
 	function position() {
 		if (!node.open) return;
+		const summary = anchor();
 		if (!menu || !summary) return;
 		if (compact.matches) {
 			lock();
@@ -129,7 +134,7 @@ export function contextMenu(node: HTMLDetailsElement) {
 				menu?.contains(document.activeElement) ||
 				document.activeElement === backdrop
 			)
-				summary?.focus();
+				anchor()?.focus();
 		}
 		wasOpen = node.open;
 	}

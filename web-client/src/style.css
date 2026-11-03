@@ -35,6 +35,7 @@
 	--ink: #161210;
 	--ink-2: #3e3733;
 	--ink-3: #736a64;
+	--ink-4: #a69e97;
 	--primary: #1535d6;
 	--primary-hover: #122eba;
 	--primary-pressed: #0f279e;
@@ -72,6 +73,7 @@
 		--ink: #f5efe4;
 		--ink-2: #cfc6bb;
 		--ink-3: #968d84;
+		--ink-4: #6f6862;
 		--primary: #7890ff;
 		--primary-hover: #8ea0ff;
 		--primary-pressed: #6a81ed;
@@ -96,6 +98,7 @@
 	--ink: #f5efe4;
 	--ink-2: #cfc6bb;
 	--ink-3: #968d84;
+	--ink-4: #6f6862;
 	--primary: #7890ff;
 	--primary-hover: #8ea0ff;
 	--primary-pressed: #6a81ed;
@@ -437,7 +440,7 @@ footer a {
 }
 .gallery {
 	display: flex;
-	align-items: flex-start;
+	align-items: stretch;
 	gap: 12px;
 	overflow-x: auto;
 	scroll-snap-type: x mandatory;
@@ -447,7 +450,9 @@ footer a {
 	border-radius: 6px;
 }
 .gallery > a {
-	display: block;
+	display: flex;
+	align-items: center;
+	justify-content: center;
 	flex: 0 0 100%;
 	min-width: 0;
 	scroll-snap-align: center;
@@ -481,6 +486,8 @@ video {
 	margin-top: 12px;
 }
 .project-summary h1 {
+	font-family: inherit;
+	font-weight: 600;
 	font-size: 22px;
 	line-height: 1.2;
 	letter-spacing: -0.015em;
@@ -708,7 +715,7 @@ dd ul {
 	min-height: 40px;
 }
 .profile-links a:hover {
-	background: var(--paper-2);
+	background: color-mix(in srgb, var(--primary) 8%, var(--surface));
 }
 .tabs {
 	overflow-x: auto;
@@ -859,7 +866,7 @@ button,
 }
 button:hover,
 .secondary-button:hover {
-	background: var(--paper-2);
+	background: color-mix(in srgb, var(--primary) 8%, var(--surface));
 	color: var(--ink);
 }
 button:disabled {
@@ -1161,7 +1168,7 @@ summary {
 }
 .post-actions button:hover,
 .post-actions a:hover {
-	background: var(--paper-2);
+	background: color-mix(in srgb, var(--primary) 8%, transparent);
 }
 .post-actions button[aria-pressed='true'] {
 	color: var(--primary);
@@ -1365,7 +1372,7 @@ dialog > button {
 	border-radius: 999px;
 }
 .app-sidebar nav a:hover {
-	background: var(--paper-2);
+	background: color-mix(in srgb, var(--primary) 8%, transparent);
 }
 .app-sidebar nav a[aria-current] {
 	color: var(--primary);
@@ -1529,7 +1536,7 @@ dialog > button {
 	box-shadow: none;
 }
 .icon-button:hover {
-	background: color-mix(in srgb, var(--ink) 7%, transparent);
+	background: color-mix(in srgb, var(--primary) 8%, transparent);
 }
 .count-badge {
 	background: var(--primary);
@@ -1638,10 +1645,10 @@ dialog > button {
 		.workspace-heading,
 	.app-main.shell-root > .messages-workspace > .workspace-heading,
 	.app-main.shell-root > .messages-workspace > .workspace-header {
-		padding-left: 56px;
+		padding-left: 72px;
 	}
 	.app-main.shell-root > .draft-workspace > .draft-appbar {
-		padding-left: 56px;
+		padding-left: 72px;
 	}
 	.app-sidebar {
 		display: none;
@@ -1880,7 +1887,15 @@ dialog > button {
 
 /* Flutter InkWell tints actionable surfaces without moving cards or changing images. */
 @media (hover: hover) {
-	.app-main .member-post:not(:has(.notice)):hover,
+	.app-main
+		.member-post:not(
+			:has(
+				.notice,
+				.quote-card:hover,
+				.external-card:hover,
+				.post-actions:hover
+			)
+		):hover,
 	.app-main a.product-card:hover,
 	.app-main a.event-card:hover,
 	.app-main .notification:has(.notification-main[href]):hover {
@@ -1950,5 +1965,15 @@ dialog > button {
 		height: 4px;
 		border-radius: 999px;
 		background: var(--ink-2);
+	}
+}
+
+/* Compact layouts scroll like the mobile app without reserving a desktop gutter. */
+@media (max-width: 900px) {
+	html {
+		scrollbar-width: none;
+	}
+	html::-webkit-scrollbar {
+		display: none;
 	}
 }

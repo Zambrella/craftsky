@@ -89,7 +89,10 @@ test('refresh removes a formerly visible post when its current presentation is p
 	await expect(
 		page.getByText('VISIBLE_REFRESH_CANARY', { exact: true })
 	).toBeVisible();
-	await page.getByRole('button', { name: 'Refresh', exact: true }).click();
+	await page
+		.getByRole('link', { name: 'Home', exact: true })
+		.filter({ visible: true })
+		.click();
 	await expect(page.getByText('This content is muted.')).toBeVisible();
 	await expect(
 		page.getByText('VISIBLE_REFRESH_CANARY', { exact: true })
@@ -131,7 +134,10 @@ test('a late mutation response cannot restore a post hidden by a newer refresh',
 	await page.goto('/app/home');
 	await page.getByRole('button', { name: /Like$/ }).click();
 	await waiting;
-	await page.getByRole('button', { name: 'Refresh', exact: true }).click();
+	await page
+		.getByRole('link', { name: 'Home', exact: true })
+		.filter({ visible: true })
+		.click();
 	await expect(page.getByText('This content is blocked.')).toBeVisible();
 	const completed = page.waitForResponse((response) =>
 		response.url().endsWith('/likes')

@@ -91,14 +91,31 @@
 
 <div class="workspace-heading">
 	<h1>Home</h1>
-	<div class="heading-actions">
-		<button
-			class="refresh icon-button"
-			aria-label="Refresh"
-			disabled={work.busy}
-			onclick={() => load()}><Icon name="refresh" /></button
-		>
-	</div>
+	{#if craft}<div class="heading-actions">
+			<ChoiceMenu
+				label="Sort projects"
+				appBar
+				value={page.url.searchParams.get('sort') || 'chronological'}
+				url={page.url}
+				options={[
+					{ value: 'chronological', label: 'Newest', icon: 'sort' },
+					{ value: 'popular', label: 'Popular', icon: 'growth' }
+				]}
+			/>
+			<button
+				class="filter-trigger icon-button"
+				aria-label="Filter projects"
+				onclick={() => {
+					filterVersion++;
+					filterDialog.showModal();
+				}}
+				><Icon name="filter" /><span class="filter-label">Filters</span
+				>{#if Object.keys(filters).length}<span
+						class="filter-dot"
+						aria-label="Filters applied"
+					></span>{/if}</button
+			>
+		</div>{/if}
 </div>
 <nav class="tabs" aria-label="Home feeds">
 	<a href="/app/home" aria-current={!craft ? 'page' : undefined}
@@ -113,28 +130,7 @@
 				></span>{/if}{label(key)}</a
 		>{/each}
 </nav>
-{#if craft}<div class="feed-tools">
-		<ChoiceMenu
-			label="Sort projects"
-			value={page.url.searchParams.get('sort') || 'chronological'}
-			url={page.url}
-			options={[
-				{ value: 'chronological', label: 'Newest', icon: 'sort' },
-				{ value: 'popular', label: 'Popular', icon: 'growth' }
-			]}
-		/>
-		<button
-			class="filter-trigger"
-			onclick={() => {
-				filterVersion++;
-				filterDialog.showModal();
-			}}
-			><Icon name="filter" />Filter projects{#if Object.keys(filters).length}<span
-					class="filter-dot"
-					aria-label="Filters applied"
-				></span>{/if}</button
-		>
-	</div>{/if}
+
 <Status
 	{work}
 	skeleton="posts"
@@ -231,23 +227,18 @@
 		gap: 8px;
 		align-items: center;
 	}
-	.refresh {
-		width: 44px;
-		height: 44px;
-	}
-	.feed-tools {
-		display: flex;
-		justify-content: flex-end;
-		align-items: center;
-		gap: 8px;
-		padding: 12px 16px;
-	}
 	.filter-trigger {
 		display: flex;
 		align-items: center;
 		gap: 6px;
-		min-height: 42px;
+		min-height: 44px;
+		border: 0;
+		box-shadow: none;
+		background: transparent;
 		font-size: 14px;
+	}
+	.filter-label {
+		display: none;
 	}
 	.filter-dot {
 		width: 7px;
@@ -318,6 +309,9 @@
 		margin: 0;
 	}
 	@media (max-width: 900px) {
+		.filter-label {
+			display: inline;
+		}
 		.filter-trigger {
 			position: fixed;
 			right: 16px;

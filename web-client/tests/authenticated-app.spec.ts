@@ -474,7 +474,7 @@ test('project pattern and material annotations link to their makers and hashtags
 		}
 	);
 	await page.goto('/app/posts/did%3Aplc%3Aalice/first');
-	const details = page.getByRole('region', { name: 'Project details' });
+	const details = page.locator('.post-card');
 	await expect(
 		details.getByRole('link', { name: '#LinenDress', exact: true })
 	).toHaveAttribute('href', /\/app\/(tags|search)/);
@@ -581,16 +581,18 @@ test('restores private image bytes from IndexedDB after reload and isolates anot
 		.locator('input[type=file][multiple]')
 		.setInputFiles({ name: 'quilt.png', mimeType: 'image/png', buffer: png });
 	await page.getByLabel('Image description').fill('A blue quilt');
-	await page.getByRole('button', { name: 'Crop / rotate' }).click();
-	await expect(
-		page.getByRole('button', { name: 'Save draft', exact: true })
-	).toBeDisabled();
-	await page.getByLabel('Width (%)', { exact: true }).fill('50');
-	await page.getByRole('button', { name: 'Rotate 90° ↻' }).click();
+	await page.getByRole('button', { name: 'Edit photo', exact: true }).click();
+	await expect(page.locator('.save-draft')).toBeDisabled();
+	for (let i = 0; i < 5; i++)
+		await page
+			.getByRole('button', { name: 'Crop bottom right corner' })
+			.press('Shift+ArrowLeft');
+	await page.getByRole('button', { name: 'Rotate photo' }).click();
 	await page.getByRole('button', { name: 'Apply edit', exact: true }).click();
 	await expect(
 		page.getByRole('img', { name: 'A blue quilt' })
 	).toHaveJSProperty('naturalWidth', 10);
+	await page.getByRole('button', { name: 'Back to post', exact: true }).click();
 	await page.getByRole('button', { name: 'Save draft', exact: true }).click();
 	await expect(page.getByText('Draft saved', { exact: true })).toBeVisible();
 	await page.goto('/app/drafts');
@@ -602,6 +604,7 @@ test('restores private image bytes from IndexedDB after reload and isolates anot
 			exact: true
 		})
 	).toHaveValue('Alice private quilt draft');
+	await page.getByRole('button', { name: /Photos.*Reorder photos/ }).click();
 	await expect(page.getByLabel('Image description')).toHaveValue(
 		'A blue quilt'
 	);
@@ -638,6 +641,7 @@ test('schedules private media, restores the schedule and requests publication no
 		buffer: await imageFixture(page)
 	});
 	await page.getByLabel('Image description').fill('Knitting on blue needles');
+	await page.getByRole('button', { name: 'Back to post', exact: true }).click();
 	await page.getByRole('button', { name: 'When', exact: true }).click();
 	await page
 		.getByRole('menuitemradio', { name: 'Schedule for later', exact: true })

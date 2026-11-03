@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onDestroy, tick, untrack } from 'svelte';
+	import Icon from './features/shell/Icon.svelte';
 	import { safeURL, type Image } from './public';
 	let {
 		images,
@@ -24,6 +25,46 @@
 	let requested: number | undefined;
 	let previousDistance = Infinity;
 	let settled: ReturnType<typeof setTimeout> | undefined;
+	let drag: { id: number; x: number; left: number } | undefined;
+	let dragging = $state(false);
+	let dragged = false;
+	function startDrag(event: PointerEvent) {
+		interrupt();
+		dragged = false;
+		if (
+			interactive &&
+			pictures.length > 1 &&
+			event.pointerType === 'mouse' &&
+			event.button === 0 &&
+			gallery
+		)
+			drag = {
+				id: event.pointerId,
+				x: event.clientX,
+				left: gallery.scrollLeft
+			};
+	}
+	function moveDrag(event: PointerEvent) {
+		if (!drag || drag.id !== event.pointerId || !gallery) return;
+		const delta = event.clientX - drag.x;
+		if (!dragging && Math.abs(delta) < 6) return;
+		dragging = true;
+		dragged = true;
+		gallery.setPointerCapture(event.pointerId);
+		gallery.scrollLeft = drag.left - delta;
+	}
+	function endDrag(event: PointerEvent) {
+		if (!drag || drag.id !== event.pointerId) return;
+		drag = undefined;
+		const moved = dragging;
+		dragging = false;
+		if (gallery?.hasPointerCapture(event.pointerId))
+			gallery.releasePointerCapture(event.pointerId);
+		if (moved) {
+			sync();
+			select(active);
+		}
+	}
 	function clearRequest() {
 		requested = undefined;
 		clearTimeout(settled);
@@ -146,12 +187,26 @@
 {#if pictures.length}<div class="post-images" class:interactive>
 		<div
 			class="gallery"
+			class:dragging
 			bind:this={gallery}
 			role="region"
 			aria-label="Post images"
 			onscroll={sync}
 			onscrollend={finish}
-			onpointerdown={interrupt}
+			onpointerdown={startDrag}
+			onpointermove={moveDrag}
+			onpointerup={endDrag}
+			onpointercancel={endDrag}
+			ondragstart={(event) => {
+				if (interactive) event.preventDefault();
+			}}
+			onclickcapture={(event) => {
+				if (dragged) {
+					event.preventDefault();
+					event.stopPropagation();
+					dragged = false;
+				}
+			}}
 			onwheel={interrupt}
 		>
 			{#each pictures as picture, index}<a
@@ -185,10 +240,23 @@
 				>{/each}
 		</div>
 		{#if interactive}
-			{#if pictures.length > 1}<span
-					class="image-counter"
-					aria-live="polite"
-					aria-atomic="true">{active + 1}/{pictures.length}</span
+			{#if pictures.length > 1}
+				<button
+					class="image-arrow previous"
+					type="button"
+					aria-label="Previous image"
+					disabled={active === 0}
+					onclick={() => select(active - 1)}><Icon name="back" /></button
+				>
+				<button
+					class="image-arrow next"
+					type="button"
+					aria-label="Next image"
+					disabled={active === pictures.length - 1}
+					onclick={() => select(active + 1)}><Icon name="chevron" /></button
+				>
+				<span class="image-counter" aria-live="polite" aria-atomic="true"
+					>{active + 1}/{pictures.length}</span
 				>
 				<div class="image-pages" role="group" aria-label="Choose a post image">
 					{#each pictures as _, index}<button
@@ -219,6 +287,39 @@
 	</dialog>{/if}
 
 <style>
+	.gallery.dragging {
+		scroll-snap-type: none;
+		cursor: grabbing;
+		user-select: none;
+	}
+	.image-arrow {
+		position: absolute;
+		top: calc(50% - 20px);
+		z-index: 2;
+		width: 40px;
+		height: 40px;
+		min-height: 40px;
+		padding: 8px;
+		border: 0;
+		border-radius: 50%;
+		background: #16121099;
+		color: white;
+		box-shadow: none;
+	}
+	.image-arrow:hover {
+		background: #161210cc;
+		color: white;
+	}
+	.image-arrow:disabled {
+		visibility: hidden;
+	}
+	.image-arrow.previous {
+		left: 8px;
+	}
+	.image-arrow.next {
+		right: 8px;
+	}
+
 	.post-images {
 		position: relative;
 	}

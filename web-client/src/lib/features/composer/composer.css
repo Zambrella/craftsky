@@ -103,8 +103,9 @@
 .composer input:focus-visible,
 .composer textarea:focus-visible,
 .composer select:focus-visible {
-	outline: 2px solid var(--primary);
-	outline-offset: 3px;
+	outline: 2px solid var(--ink);
+	outline-offset: -2px;
+	box-shadow: 3px 3px var(--shadow);
 }
 .composer button,
 .composer .file-button {
@@ -126,7 +127,7 @@
 }
 .composer button:hover,
 .composer .file-button:hover {
-	background: var(--paper-2);
+	background: color-mix(in srgb, var(--primary) 8%, transparent);
 }
 .composer button.primary {
 	background: var(--primary);
@@ -782,4 +783,39 @@
 	background: transparent;
 	box-shadow: none;
 	color: var(--primary);
+}
+
+/* Reserve the native field shadow footprint, then lift the input on focus. */
+.composer
+	input:not(
+		[type='checkbox'],
+		[type='radio'],
+		[type='file'],
+		[type='search'],
+		[role='combobox']
+	),
+.composer .facet-input textarea {
+	width: calc(100% - 3px);
+	margin-bottom: 3px;
+	transform: translate(3px, 3px);
+	transition:
+		transform 120ms ease-out,
+		box-shadow 120ms ease-out;
+}
+.composer
+	input:not(
+		[type='checkbox'],
+		[type='radio'],
+		[type='file'],
+		[type='search'],
+		[role='combobox']
+	):focus,
+.composer .facet-input textarea:focus {
+	transform: translate(0, 0);
+}
+@media (prefers-reduced-motion: reduce) {
+	.composer input,
+	.composer .facet-input textarea {
+		transition: none;
+	}
 }

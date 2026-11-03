@@ -412,7 +412,7 @@ export class CraftskyAPI {
 					...pageQuery(options),
 					sort: options.sort,
 					folderId: options.folderId,
-					unfiled: options.unfiled
+					unfiled: options.unfiled || undefined
 				},
 				options.signal
 			),

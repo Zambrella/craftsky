@@ -144,6 +144,6 @@
 	}
 	.member:hover,
 	.craft-link:hover {
-		background: var(--paper-2);
+		background: color-mix(in srgb, var(--primary) 8%, transparent);
 	}
 </style>

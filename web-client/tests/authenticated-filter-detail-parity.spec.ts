@@ -71,7 +71,8 @@ test('native compact filter form uses search, dependent choices and Cancel witho
 	await page.screenshot({
 		path: test.info().outputPath('native-filter-picker.png')
 	});
-	await choices.getByRole('checkbox', { name: 'Garment', exact: true }).click();
+	// Click the option label, as a person does, rather than the checkbox itself.
+	await choices.locator('label').filter({ hasText: 'Garment' }).click();
 	await expect(choices).toHaveCount(0);
 	await expect(type).toBeFocused();
 	await expect(type).toHaveValue('');

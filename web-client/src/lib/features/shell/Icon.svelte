@@ -3,8 +3,14 @@
 	let {
 		name,
 		size = 24,
-		filled = false
-	}: { name: string; size?: number; filled?: boolean } = $props();
+		filled = false,
+		bold = false
+	}: {
+		name: string;
+		size?: number;
+		filled?: boolean;
+		bold?: boolean;
+	} = $props();
 	let icon = $derived(
 		nativeIconPaths[nativeIconAliases[name] || name] || nativeIconPaths.info
 	);
@@ -17,5 +23,11 @@
 	fill="currentColor"
 	aria-hidden="true"
 	focusable="false"
-	><path d={filled ? icon.fill || icon.regular : icon.regular} /></svg
+	><path
+		d={bold
+			? icon.bold || icon.regular
+			: filled
+				? icon.fill || icon.regular
+				: icon.regular}
+	/></svg
 >

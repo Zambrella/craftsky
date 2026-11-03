@@ -48,9 +48,7 @@
 		if (transforming[key] !== value)
 			transforming = { ...transforming, [key]: value };
 	}
-	let avatar = $state<File | null | undefined>(),
-		banner = $state<File | null | undefined>();
-	let showCover = $state(false);
+	let avatar = $state<File | null | undefined>();
 	const editorId = $props.id();
 	let linkDialog = $state<HTMLDialogElement>(null!);
 	let editingLink = $state<string | null>(null),
@@ -58,8 +56,7 @@
 		linkTitle = $state(''),
 		linkError = $state('');
 	let draggedLink = $state<string>();
-	let avatarURL = $state(''),
-		bannerURL = $state('');
+	let avatarURL = $state('');
 	let dead = false;
 	const craftOrder = [
 		'sewing',
@@ -152,7 +149,6 @@
 					icon: link.iconBlob
 				}));
 				avatarURL = profile.avatar || '';
-				bannerURL = profile.banner || '';
 			}
 		);
 	});
@@ -160,7 +156,6 @@
 		dead = true;
 		work.dispose();
 		if (avatarURL.startsWith('blob:')) URL.revokeObjectURL(avatarURL);
-		if (bannerURL.startsWith('blob:')) URL.revokeObjectURL(bannerURL);
 	});
 	confirmNavigation(() => dirty, {
 		title: 'Discard changes?',
@@ -175,7 +170,7 @@
 			event.returnValue = '';
 		}
 	}
-	function choose(event: Event, kind: 'avatar' | 'banner') {
+	function choose(event: Event, kind: 'avatar') {
 		const file = (event.target as HTMLInputElement).files?.[0];
 		if (!file) return;
 		if (
@@ -185,15 +180,10 @@
 			work.error = 'Choose a JPEG, PNG or WebP image under 20 MB.';
 			return;
 		}
-		const old = kind === 'avatar' ? avatarURL : bannerURL;
+		const old = avatarURL;
 		if (old.startsWith('blob:')) URL.revokeObjectURL(old);
-		if (kind === 'avatar') {
-			avatar = file;
-			avatarURL = URL.createObjectURL(file);
-		} else {
-			banner = file;
-			bannerURL = URL.createObjectURL(file);
-		}
+		avatar = file;
+		avatarURL = URL.createObjectURL(file);
 		imageDrafts = {
 			...imageDrafts,
 			[kind]: {
@@ -210,8 +200,7 @@
 		imageDrafts = { ...imageDrafts, [kind]: value };
 		if (!value.blob) return;
 		const file = new File([value.blob], value.name, { type: value.mime });
-		if (kind === 'avatar') avatar = file;
-		else banner = file;
+		avatar = file;
 		dirty = true;
 	}
 
@@ -359,16 +348,12 @@
 				)
 				.map(({ uri, cid }) => ({ uri, cid }))
 		};
-		const a = avatar,
-			b = banner;
+		const a = avatar;
 		let frozen: ProfileUpdate | undefined;
 		void work.run(
 			async () => {
 				if (!frozen) {
-					for (const [kind, file] of [
-						['avatar', a],
-						['banner', b]
-					] as const) {
+					for (const [kind, file] of [['avatar', a]] as const) {
 						if (file === null) values[kind] = null;
 						else if (file instanceof File && values[kind] === undefined) {
 							const prepared = await prepareImage(file, file.name);
@@ -450,7 +435,7 @@
 					class="form-grid profile-images"
 					class:onboarding-images={scope === 'identity'}
 				>
-					{#each scope === 'identity' || !showCover ? ['avatar'] : ['avatar', 'banner'] as kind}<div
+					{#each ['avatar'] as kind}<div
 							class="stack"
 							class:avatar-field={kind === 'avatar'}
 						>
@@ -484,14 +469,7 @@
 											avatarURL = '';
 											dirty = true;
 										}}>Remove picture</button
-									>{/if}
-							{:else}<label
-									>Cover photo<input
-										type="file"
-										accept="image/jpeg,image/png,image/webp"
-										onchange={(event) => choose(event, 'banner')}
-									/></label
-								>{/if}
+									>{/if}{/if}
 							{#if imageDrafts[kind]}<MediaEditor
 									describe={false}
 									allowReorder={false}
@@ -507,25 +485,11 @@
 										if (kind === 'avatar') {
 											avatar = null;
 											avatarURL = '';
-										} else {
-											banner = null;
-											bannerURL = '';
 										}
 										dirty = true;
 									}}
 									onmove={() => {}}
-								/>{:else if kind === 'banner' && bannerURL}<img
-									class="profile-edit-image"
-									src={bannerURL}
-									alt="Cover preview"
-								/><button
-									type="button"
-									onclick={() => {
-										banner = null;
-										bannerURL = '';
-										dirty = true;
-									}}>Remove cover</button
-								>{/if}
+								/>{/if}
 						</div>{/each}
 				</div>
 				<label
@@ -737,15 +701,7 @@
 						rel="noopener noreferrer">Request more</a
 					>
 				</fieldset>{/if}
-			{#if scope === 'all'}<button
-					type="button"
-					class="cover-toggle"
-					disabled={imageBusy}
-					onclick={() => (showCover = !showCover)}
-					>{showCover
-						? 'Hide cover photo controls'
-						: 'Edit cover photo'}</button
-				>{/if}{#if imageBusy}<p role="status">
+			{#if imageBusy}<p role="status">
 					Apply or cancel your image edits before continuing.
 				</p>{/if}{#if scope !== 'all'}<button
 					class="button"
@@ -852,14 +808,6 @@
 		box-shadow: none;
 		color: var(--primary);
 	}
-	.cover-toggle {
-		align-self: flex-start;
-		background: transparent;
-		border: 0;
-		box-shadow: none;
-		color: var(--primary);
-		padding-left: 0;
-	}
 	.workspace-header {
 		justify-content: flex-start;
 		gap: 8px;
@@ -903,14 +851,6 @@
 		max-width: 320px;
 		margin: 0 auto 8px;
 	}
-	.avatar-field .profile-edit-image {
-		width: 104px;
-		height: 104px;
-		border-radius: 50%;
-		border: 1.5px solid var(--ink);
-		object-fit: cover;
-		margin: 0 auto;
-	}
 	.profile-images input[type='file'] {
 		font-size: 12px;
 		max-width: 100%;
@@ -953,6 +893,7 @@
 		min-height: 56px;
 	}
 	.craft-row .craft-choice {
+		flex-direction: row;
 		flex: 1;
 		display: flex;
 		align-items: center;
@@ -1017,6 +958,7 @@
 		gap: 0;
 	}
 	.link-card {
+		justify-content: flex-start;
 		display: flex;
 		align-items: center;
 		gap: 16px;
@@ -1074,6 +1016,8 @@
 		cursor: grab;
 	}
 	.drag-handle span {
+		width: 16px;
+		flex: 0 0 16px;
 		display: block;
 		height: 7px;
 		border-block: 2px solid var(--ink-2);

@@ -301,7 +301,9 @@
 		if (
 			!detail &&
 			post &&
-			element.closest('.prose') &&
+			!element.closest(
+				'.quote-card,.external-card,.post-actions,.post-images,.notice'
+			) &&
 			!element.closest('a,button,input,textarea,select,summary') &&
 			!window.getSelection()?.toString() &&
 			event.button === 0 &&
@@ -869,8 +871,10 @@
 	.post-actions summary::-webkit-details-marker {
 		display: none;
 	}
+	.post-actions .reaction:hover,
+	.post-actions .bookmark:hover,
 	.post-actions summary:hover {
-		background: var(--paper-2);
+		background: color-mix(in srgb, var(--primary) 8%, transparent);
 	}
 	.post-share .menu-items {
 		right: auto;

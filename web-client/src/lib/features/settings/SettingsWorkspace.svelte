@@ -6,8 +6,8 @@
 		Profile,
 		SubscriptionAccess
 	} from '#lib/api/client.ts';
-	import { onDestroy, untrack } from 'svelte';
-	import { page } from '$app/state';
+	import { getContext, onDestroy, untrack } from 'svelte';
+	import CompactIdentity from '../social/CompactIdentity.svelte';
 	import Avatar from '#lib/Avatar.svelte';
 	import { colours } from './model.ts';
 	import { disablePush, forgetPush } from '../push/client.ts';
@@ -39,10 +39,7 @@
 		profile = $state<Profile>(),
 		access = $state<SubscriptionAccess>();
 	let theme = $state('Use device setting');
-	let accountDialog: HTMLDialogElement;
-	let accounts = $derived(
-		(page.data.accounts || []) as { id: string; did: string; handle: string }[]
-	);
+	const openAccounts = getContext<() => void>('craftsky-open-accounts');
 	let paid = $derived(!!access?.givesAccess && access.effectiveTier !== 'free');
 	function loadMenu() {
 		void menu.load(
@@ -85,34 +82,6 @@
 				access.effectiveTier === 'business'
 		)
 	);
-	async function switchAccount(id: string) {
-		if (id === session.id) {
-			accountDialog.close();
-			return;
-		}
-		if (
-			!(await ask({
-				title: 'Switch accounts?',
-				detail: 'Save any unfinished work first.',
-				confirmLabel: 'Switch account'
-			}))
-		)
-			return;
-		void menu.run(
-			async () => {
-				const response = await fetch('/api/auth/switch', {
-					method: 'POST',
-					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify({ accountId: id })
-				});
-				if (!response.ok)
-					throw new Error('The account could not be switched. Try again.');
-				location.assign('/app/home');
-			},
-			() => {},
-			''
-		);
-	}
 	async function signOut() {
 		if (
 			!(await ask({
@@ -168,24 +137,19 @@
 							avatar: profile?.avatar
 						}}
 					/>
-					<div>
-						<span class="settings-name"
-							><strong>{profile?.displayName || '@' + session.handle}</strong
-							>{#each (profile?.crafts || [])
-								.map((craft) => craft.split('#').at(-1) || craft)
-								.filter( (craft) => ['knitting', 'sewing', 'crochet', 'quilting', 'embroidery'].includes(craft) ) as craft}<span
-									class="craft-icon"
-									style={`--craft-icon:url('/crafts/${craft}.svg')`}
-									role="img"
-									aria-label={craft}
-								></span>{/each}</span
-						>{#if profile?.displayName}<small>@{session.handle}</small>{/if}
-					</div>
+					<CompactIdentity
+						author={{
+							did: session.did,
+							handle: session.handle,
+							displayName: profile?.displayName,
+							crafts: profile?.crafts || []
+						}}
+					/>
 				</div>
-				<button class="settings-tile" onclick={() => accountDialog.showModal()}
+				<button class="settings-tile" onclick={openAccounts}
 					><SettingsIcon name="switch" /><span class="tile-copy"
 						>Switch account</span
-					><SettingsIcon name="chevron" size={20} /></button
+					><SettingsIcon name="chevron" size={24} /></button
 				>
 				{#if !restricted && subscriptionsEnabled()}<a
 						class="panel subscription-callout"
@@ -210,6 +174,8 @@
 							{#each group.items as [slug, label]}{@const external =
 									slug === 'feedback'}<a
 									class="settings-tile"
+									class:coming-soon={!subscriptionsEnabled() &&
+										['growth', 'customisation'].includes(slug)}
 									aria-label={!subscriptionsEnabled() &&
 									['growth', 'customisation'].includes(slug)
 										? label + ' is coming soon'
@@ -231,7 +197,7 @@
 									><span class="tile-leading"
 										><SettingsIcon
 											name={slug}
-										/>{#if !paid && ['growth', 'customisation'].includes(slug)}<span
+										/>{#if subscriptionsEnabled() && !paid && ['growth', 'customisation'].includes(slug)}<span
 												class="plus-mark">+</span
 											>{/if}</span
 									><span class="tile-copy"
@@ -242,7 +208,7 @@
 											>{/if}</span
 									><SettingsIcon
 										name={external ? 'external' : 'chevron'}
-										size={20}
+										size={24}
 									/></a
 								>{/each}
 						</nav>
@@ -296,24 +262,4 @@
 		{:else}<h1 class="workspace-heading">Page not found</h1>
 			<p>Choose a page in <a href="/app/settings">Settings</a>.</p>{/if}
 	{/key}
-	<dialog class="settings-dialog" bind:this={accountDialog}>
-		<h2>Switch account</h2>
-		{#if menu.error}<p class="error" role="alert">{menu.error}</p>{/if}
-		<div class="nav-list">
-			{#each accounts as account}<button
-					class="settings-tile"
-					disabled={menu.busy}
-					aria-current={account.id === session.id ? 'true' : undefined}
-					onclick={() => switchAccount(account.id)}
-					><SettingsIcon name="account" /><span class="tile-copy"
-						>@{account.handle}{#if account.id === session.id}<small
-								>Current account</small
-							>{/if}</span
-					></button
-				>{/each}<a class="settings-tile" href="/sign-in?add=1"
-				><SettingsIcon name="plus" /><span>Add another account</span></a
-			>
-		</div>
-		<button onclick={() => accountDialog.close()}>Close</button>
-	</dialog>
 </div>

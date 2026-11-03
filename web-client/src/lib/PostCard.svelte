@@ -5,6 +5,7 @@
 	import CraftBadge from './CraftBadge.svelte';
 	import ImageCarousel from './ImageCarousel.svelte';
 	import Icon from './features/shell/Icon.svelte';
+	import catalogue from './features/composer/catalogue.json';
 	import {
 		authorName,
 		gaugeText,
@@ -142,23 +143,72 @@
 			}
 		};
 	}
-	const detailFields: Record<string, string> = {
-		projectType: 'Project type',
-		size: 'Size',
-		yarnWeight: 'Yarn weight',
-		needleSizeMm: 'Needle size',
-		hookSizeMm: 'Hook size',
-		finishedSize: 'Finished size',
-		sizeMade: 'Size made',
-		fitNotes: 'Fit notes',
-		projectSubtype: 'Project subtype',
-		gauge: 'Gauge',
-		piecingTechnique: 'Piecing technique',
-		quiltingMethod: 'Quilting method',
-		fabric: 'Fabric',
-		techniques: 'Techniques',
-		modifications: 'Modifications'
-	};
+	const detailRows = $derived.by(() => {
+		const common = post.project?.common;
+		if (!common) return [];
+		const details = post.project?.details || {};
+		const rows: { label: string; value: string; href?: string }[] = [];
+		const option = (value: string) =>
+			catalogue.find((entry) => entry.id === value)?.label || label(value);
+		const add = (name: string, value: unknown, optionValue = false) => {
+			if (typeof value === 'string' && value.trim())
+				rows.push({
+					label: name,
+					value: optionValue ? option(value) : value.trim()
+				});
+		};
+		add('Duration', common.duration);
+		add('Difficulty', common.pattern?.difficulty, true);
+		const href = safeURL(common.pattern?.url);
+		if (href)
+			rows.push({
+				label: 'Link',
+				value: href.replace(/^https?:\/\//, '').replace(/\/$/, ''),
+				href
+			});
+		const type = [details.projectType, details.projectSubtype]
+			.filter(
+				(value): value is string => typeof value === 'string' && !!value.trim()
+			)
+			.map(option)
+			.join(' > ');
+		add('Project type', type);
+		const craft = common.craftType.split('#').at(-1);
+		if (craft === 'sewing') {
+			add('Size made', details.sizeMade);
+			add('Fit notes', details.fitNotes);
+		} else if (craft === 'knitting' || craft === 'crochet') {
+			add('Yarn weight', details.yarnWeight, true);
+			add(
+				craft === 'knitting' ? 'Needle size' : 'Hook size',
+				craft === 'knitting' ? details.needleSizeMm : details.hookSizeMm
+			);
+			add('Gauge', gaugeText(details.gauge));
+			add('Finished size', details.finishedSize);
+		} else if (craft === 'quilting') {
+			add('Size', details.size);
+			add('Piecing technique', details.piecingTechnique, true);
+			add('Quilting method', details.quiltingMethod, true);
+		} else
+			for (const [key, value] of Object.entries(details))
+				if (!['$type', 'projectType', 'projectSubtype'].includes(key))
+					add(label(key), value);
+		return rows;
+	});
+	const chipSections = $derived(
+		[
+			{ label: 'Colours', values: post.project?.common.colors || [] },
+			{ label: 'Design', values: post.project?.common.designTags || [] },
+			{ label: 'Tags', values: post.project?.common.tags || [] }
+		].filter((section) => section.values.some((value) => value.trim()))
+	);
+	const materialValues = $derived(
+		post.project?.common.materials?.filter((material) =>
+			material.text.trim()
+		) || []
+	);
+	const optionLabel = (value: string) =>
+		catalogue.find((entry) => entry.id === value)?.label || label(value);
 </script>
 
 <article
@@ -277,8 +327,8 @@
 			</div>
 		</div>
 	{/if}
-	{#if post.project && !detail && (hasPattern || sizeSummary)}
-		<dl class="project-preview-metadata">
+	{#if post.project && (hasPattern || (detail ? detailRows.length : sizeSummary))}
+		<dl class="project-preview-metadata" class:project-detail-metadata={detail}>
 			{#if hasPattern && pattern}<dt>Pattern</dt>
 				<dd>
 					{#if pattern.name?.trim()}{#if field}{@render field(
@@ -301,87 +351,86 @@
 							{' · '}
 						{/if}Self-drafted{/if}
 				</dd>{/if}
-			{#if sizeSummary}<dt>{sizeSummary.label}</dt>
+			{#if !detail && sizeSummary}<dt>{sizeSummary.label}</dt>
 				<dd>{sizeSummary.value}</dd>{/if}
+			{#if detail}{#each detailRows as row}<dt>{row.label}</dt>
+					<dd>
+						{#if row.href}<a href={row.href} rel="ugc nofollow noreferrer"
+								>{row.value}</a
+							>{:else}{row.value}{/if}
+					</dd>{/each}{/if}
 		</dl>
 	{/if}
 
-	{#if post.project && detail}{@const common = post.project.common}
-		<section class="project-details" aria-label="Project details">
-			<h2>The project details</h2>
-			<dl>
-				<dt>Craft</dt>
-				<dd>{label(common.craftType)}</dd>
-				{#if common.additionalCrafts?.length}<dt>Other crafts</dt>
-					<dd>
-						{common.additionalCrafts.map((c) => label(c.craftType)).join(', ')}
-					</dd>{/if}
-				{#if common.status}<dt>Status</dt>
-					<dd>{label(common.status)}</dd>{/if}
-				{#if common.duration}<dt>Time spent</dt>
-					<dd>{common.duration}</dd>{/if}
-				{#if common.pattern}{@const pattern = common.pattern}
-					<dt>Pattern</dt>
-					<dd>
-						{#if field && pattern.name}{@render field(
-								pattern.name,
-								pattern.nameFacets
-							)}{#if safeURL(pattern.url)}
-								<a href={safeURL(pattern.url)} rel="ugc nofollow noreferrer"
-									>Pattern website ↗</a
-								>{/if}{:else if safeURL(pattern.url)}<a
-								href={safeURL(pattern.url)}
-								rel="ugc nofollow noreferrer"
-								>{pattern.name || 'View pattern'}</a
-							>{:else}{pattern.name ||
-								(pattern.selfDrafted ? 'Self drafted' : 'Not specified')}{/if}
-					</dd>
-					{#if pattern.designer}<dt>Designer</dt>
-						<dd>
-							{#if field}{@render field(
-									pattern.designer,
-									pattern.designerFacets
-								)}{:else}{pattern.designer}{/if}
-						</dd>{/if}{#if pattern.publisher}<dt>Publisher</dt>
-						<dd>
-							{#if field}{@render field(
-									pattern.publisher,
-									pattern.publisherFacets
-								)}{:else}{pattern.publisher}{/if}
-						</dd>{/if}{#if pattern.difficulty}<dt>Difficulty</dt>
-						<dd>{label(pattern.difficulty)}</dd>{/if}{/if}
-				{#if common.materials?.length}<dt>Materials</dt>
-					<dd>
-						<ul>
-							{#each common.materials as material}<li>
-									{#if field}{@render field(
-											material.text,
-											material.facets
-										)}{:else}{material.text}{/if}
-								</li>{/each}
-						</ul>
-					</dd>{/if}
-				{#if common.colors?.length}<dt>Colours</dt>
-					<dd>{common.colors.map(label).join(', ')}</dd>{/if}
-				{#if gaugeText(post.project.details?.gauge)}<dt>Gauge</dt>
-					<dd>{gaugeText(post.project.details?.gauge)}</dd>{/if}
-				{#each Object.entries(post.project.details || {}) as [key, value]}{#if detailFields[key] && typeof value === 'string'}<dt
-						>
-							{detailFields[key]}
-						</dt>
-						<dd>{value.includes('#') ? label(value) : value}</dd>{/if}{/each}
-				{#if common.designTags?.length}<dt>Design details</dt>
-					<dd>{common.designTags.map(label).join(', ')}</dd>{/if}
-				{#if common.tags?.length}<dt>Tags</dt>
-					<dd>{common.tags.map((t) => '#' + t).join(' ')}</dd>{/if}
-			</dl>
-		</section>{/if}
+	{#if post.project && detail && (materialValues.length || chipSections.length)}
+		<section
+			class="project-chip-sections"
+			aria-label="Project materials and style"
+		>
+			{#if materialValues.length}<div>
+					<h3>Materials</h3>
+					<div class="detail-chips">
+						{#each materialValues as material}<span
+								>{#if field}{@render field(
+										material.text,
+										material.facets
+									)}{:else}{material.text}{/if}</span
+							>{/each}
+					</div>
+				</div>{/if}
+			{#each chipSections as section}<div>
+					<h3>{section.label}</h3>
+					<div class="detail-chips">
+						{#each section.values.filter((value) => value.trim()) as value}<span
+								>{section.label === 'Tags' ? value : optionLabel(value)}</span
+							>{/each}
+					</div>
+				</div>{/each}
+		</section>
+	{/if}
 	{#if post.project}<p class="prose project-notes">
 			{#if content}{@render content(post.text)}{:else}{post.text}{/if}
 		</p>{/if}
 </article>
 
 <style>
+	.project-detail-metadata a {
+		text-decoration: none;
+	}
+	.project-chip-sections {
+		margin-top: 12px;
+		padding-top: 8px;
+		border-top: 1px solid var(--hairline);
+		display: grid;
+		gap: 8px;
+	}
+	.project-chip-sections h3 {
+		margin: 0 0 4px;
+		font-family: inherit;
+		font-size: 12px;
+		font-weight: 600;
+		line-height: 1.2;
+		letter-spacing: 1.68px;
+		text-transform: uppercase;
+		color: var(--ink-3);
+	}
+	.detail-chips {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 4px;
+	}
+	.detail-chips > span {
+		padding: 4px 8px;
+		border: 1.2px solid var(--ink);
+		border-radius: 999px;
+		font-size: 12px;
+		font-weight: 600;
+		line-height: 1.2;
+	}
+	.project-detail-metadata {
+		align-items: center;
+	}
+
 	.edited-indicator {
 		display: inline-flex;
 		align-items: center;

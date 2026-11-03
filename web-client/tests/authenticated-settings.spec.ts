@@ -40,7 +40,7 @@ test('business images are reviewed, cropped and stripped/recompressed before exp
 		dialog.getByRole('button', { name: 'Use image', exact: true })
 	).toBeDisabled();
 	await dialog
-		.getByRole('button', { name: 'Rotate 90° ↻', exact: true })
+		.getByRole('button', { name: 'Rotate photo', exact: true })
 		.click();
 	await dialog.getByRole('button', { name: 'Apply edit', exact: true }).click();
 	await expect(

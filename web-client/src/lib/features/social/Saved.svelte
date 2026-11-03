@@ -291,7 +291,7 @@
 		text-decoration: none;
 	}
 	.folders-overview > a:hover {
-		background: var(--paper-2);
+		background: color-mix(in srgb, var(--primary) 8%, transparent);
 	}
 	.folders-overview strong {
 		font-size: 16px;

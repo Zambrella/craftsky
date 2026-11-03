@@ -30,6 +30,14 @@ function setup(value: unknown = {}, status = 200, headers?: HeadersInit) {
 }
 
 describe('AppView wire contracts', () => {
+	it('omits false unfiled flags because saved-post queries only accept true when present', async () => {
+		const { api, request } = setup({ items: [] });
+		await api.saved.list({ unfiled: false, sort: 'newest' });
+		expect(request().url).toBe('/api/appview/v1/saved-posts?sort=newest');
+		await api.saved.list({ unfiled: true });
+		expect(request().url).toBe('/api/appview/v1/saved-posts?unfiled=true');
+	});
+
 	it('keeps Instagram import IDs and creation counts in their actual response envelope', async () => {
 		const summary = {
 			importId: 'import-1',

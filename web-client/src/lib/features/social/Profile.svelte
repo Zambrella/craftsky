@@ -1,4 +1,5 @@
 <script lang="ts">
+	import ProfileLinkIcon from './ProfileLinkIcon.svelte';
 	import { confirmExternalLink } from './prompt';
 	import { contextMenu } from './context-menu';
 	import { onMount, onDestroy, untrack } from 'svelte';
@@ -231,11 +232,6 @@
 					style:mask-image={texture(profile.customisation)}
 					aria-hidden="true"
 				></span>{/if}
-			{#if safeLink(profile.banner || '')}<img
-					class="banner"
-					src={safeLink(profile.banner!)}
-					alt=""
-				/>{/if}
 		</div>
 		<div class="profile-identity" bind:this={identityElement}>
 			<Avatar
@@ -442,7 +438,7 @@
 									target="_blank"
 									rel="ugc nofollow noopener noreferrer"
 									onclick={confirmExternalLink}
-									><Icon name="link" size={18} />{link.title ||
+									><ProfileLinkIcon url={link.icon} />{link.title ||
 										new URL(link.url).hostname}<Icon
 										name="external"
 										size={16}
@@ -598,9 +594,6 @@
 		mask-mode: alpha;
 		image-rendering: pixelated;
 		pointer-events: none;
-	}
-	.profile-band .banner {
-		position: relative;
 	}
 
 	.profile-meta {

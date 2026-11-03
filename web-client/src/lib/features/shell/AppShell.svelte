@@ -1,5 +1,6 @@
 <script lang="ts">
-	import { usePrompt } from '../social/prompt';
+	import { usePrompt, confirmExternalLink } from '../social/prompt';
+	import { afterNavigate } from '$app/navigation';
 	const ask = usePrompt();
 	import BrowserPush from '../push/BrowserPush.svelte';
 	import { disablePush, forgetPush } from '../push/client.ts';
@@ -13,6 +14,7 @@
 		type Profile
 	} from '#lib/api/client.ts';
 	import Icon from './Icon.svelte';
+	import { contextMenu } from '../social/context-menu';
 	import Avatar from '#lib/Avatar.svelte';
 	import CompactIdentity from '../social/CompactIdentity.svelte';
 	import DiscoverySidebar from './DiscoverySidebar.svelte';
@@ -30,8 +32,63 @@
 		accounts: { id: string; did: string; handle: string }[];
 		children: Snippet<[CraftskyAPI]>;
 	} = $props();
+	setContext('craftsky-open-accounts', () => openAccounts());
+	let navigationDepth = 0;
+	afterNavigate((navigation) => {
+		if (navigation.type === 'enter') navigationDepth = 0;
+		else if (navigation.type === 'popstate')
+			navigationDepth = Math.max(0, navigationDepth + navigation.delta);
+		else if (navigation.from && !navigation.willUnload) navigationDepth++;
+	});
+	setContext('craftsky-back', (event: MouseEvent) => {
+		if (
+			navigationDepth > 0 &&
+			!event.metaKey &&
+			!event.ctrlKey &&
+			!event.shiftKey &&
+			!event.altKey
+		) {
+			event.preventDefault();
+			history.back();
+		}
+	});
+	onMount(() => {
+		const external = (event: MouseEvent) => {
+			if (event.defaultPrevented || !(event.target instanceof Element)) return;
+			const anchor = event.target.closest<HTMLAnchorElement>('a[href]');
+			if (
+				!anchor ||
+				anchor.hasAttribute('download') ||
+				anchor.hasAttribute('data-external-confirmed')
+			)
+				return;
+			const url = new URL(anchor.href);
+			if (
+				['http:', 'https:', 'mailto:'].includes(url.protocol) &&
+				url.origin !== location.origin
+			)
+				confirmExternalLink(event, anchor);
+		};
+		document.addEventListener('click', external);
+		return () => document.removeEventListener('click', external);
+	});
 	const version = __CRAFTSKY_VERSION__.trim();
 	let accountProfiles = $state<Record<string, Profile>>({});
+	let accountAnchor = $state<{ left: number; top: number }>();
+	function openAccounts(event?: MouseEvent) {
+		const trigger = event?.currentTarget;
+		if (trigger instanceof HTMLElement && window.innerWidth > 900) {
+			const bounds =
+				trigger.closest('.rail-row')?.getBoundingClientRect() ||
+				trigger.getBoundingClientRect();
+			accountAnchor = {
+				left: Math.min(innerWidth - 288, bounds.right),
+				top: bounds.top
+			};
+		} else accountAnchor = undefined;
+		drawer = false;
+		accountMenu = true;
+	}
 	$effect(() => {
 		if (!accountMenu) return;
 		let current = true;
@@ -77,6 +134,10 @@
 	let identity = $state<Profile>();
 	let postTypeMenu = $state<HTMLDialogElement>(null!);
 	let firstPost = $state(true);
+	let postTypeContext: HTMLDetailsElement;
+	let postTypeTrigger: HTMLElement | undefined;
+	let scrollY = $state(0);
+	setContext('craftsky-create-post', choosePostType);
 	let comingSoonFeature = $state('');
 	let comingSoonDialog: HTMLDialogElement;
 	let profileScrolled = $state(false);
@@ -89,7 +150,9 @@
 	let discovery = $derived(
 		desktop && !gated && eligibility?.state === 'eligible'
 	);
-	function choosePostType() {
+	function choosePostType(event: MouseEvent) {
+		event.preventDefault();
+		postTypeTrigger = event.currentTarget as HTMLElement;
 		drawer = false;
 		try {
 			firstPost =
@@ -98,13 +161,15 @@
 		} catch {
 			firstPost = true;
 		}
-		postTypeMenu.showModal();
+		if (firstPost) postTypeMenu.showModal();
+		else postTypeContext.open = true;
 	}
 	function chosePostType() {
 		try {
 			localStorage.setItem('craftsky.post-type.seen.' + session.did, 'true');
 		} catch {}
 		postTypeMenu.close();
+		postTypeContext.open = false;
 	}
 	const branchPaths = [
 		'/app/home',
@@ -423,7 +488,10 @@
 	}}
 />
 <BrowserPush {api} {session} />
-<svelte:window onscroll={() => (profileScrolled = window.scrollY > 72)} />
+<svelte:window
+	bind:scrollY
+	onscroll={() => (profileScrolled = window.scrollY > 72)}
+/>
 <header
 	class="app-topbar"
 	class:on-profile={ownProfile}
@@ -471,10 +539,7 @@
 						class="icon-button rail-switch"
 						aria-label={'Switch accounts, @' + session.handle}
 						aria-expanded={accountMenu}
-						onclick={() => {
-							drawer = false;
-							accountMenu = true;
-						}}><Icon name="switch" size={20} /></button
+						onclick={openAccounts}><Icon name="switch" size={20} /></button
 					>{/if}
 			</div>{/each}
 	</nav>
@@ -497,11 +562,15 @@
 </aside>
 {#if accountMenu}<button
 		class="account-scrim"
+		class:anchored={!!accountAnchor}
 		aria-label="Close account switcher"
 		onclick={() => (accountMenu = false)}
 	></button>
 	<div
 		class="account-menu panel"
+		class:anchored={!!accountAnchor}
+		style:--account-left={accountAnchor ? `${accountAnchor.left}px` : undefined}
+		style:--account-top={accountAnchor ? `${accountAnchor.top}px` : undefined}
 		role="dialog"
 		aria-modal="true"
 		aria-label="Accounts"
@@ -537,7 +606,7 @@
 			</button>
 		{/each}
 		<a class="add-account" href="/sign-in?add=1"
-			><Icon name="userPlus" />Add account</a
+			><Icon name="following" bold />Add account</a
 		>
 	</div>{/if}
 {#if notice}<div class="shell-notice" role="status">{notice}</div>{/if}
@@ -553,14 +622,13 @@
 	{#if error && !expired}<div class="notice" role="alert">
 			{#if !ready}<h1>Account unavailable</h1>{/if}
 			{error}<button onclick={boot}>Retry</button>
-			{#if !ready}<button onclick={() => (accountMenu = true)}
-					>Switch account</button
+			{#if !ready}<button onclick={() => openAccounts()}>Switch account</button
 				><button onclick={logout}>Sign out</button>{/if}
 		</div>{/if}{#if expired}<section class="panel stack">
 			<h1>Your session has expired</h1>
 			<p>Sign in to continue using this account.</p>
 			<a class="button" href="/sign-in">Sign in</a><button
-				onclick={() => (accountMenu = true)}>Switch account</button
+				onclick={() => openAccounts()}>Switch account</button
 			><button onclick={logout}>Sign out</button>
 		</section>{:else if !ready}{#if !error}<p class="empty" role="status">
 				Loading your CraftSky…
@@ -618,7 +686,7 @@
 			oncontextmenu={(event) => {
 				if (key === 'profile') {
 					event.preventDefault();
-					accountMenu = true;
+					openAccounts();
 				}
 			}}
 			onclick={(event) => reselect(event, key)}
@@ -639,35 +707,67 @@
 				>{/if}</a
 		>{/each}
 </nav>
+{#if !gated && !drawer && !accountMenu && scrollY >= 200 && !page.url.pathname.includes('/compose') && !page.url.pathname.endsWith('/edit')}
+	<button
+		class="scroll-to-top"
+		class:above-tabs={!fullscreen}
+		aria-label="Scroll to top"
+		onclick={() =>
+			window.scrollTo({
+				top: 0,
+				behavior: matchMedia('(prefers-reduced-motion: reduce)').matches
+					? 'instant'
+					: 'smooth'
+			})}><Icon name="moveUp" bold /></button
+	>
+{/if}
+<details
+	bind:this={postTypeContext}
+	class="post-type-context"
+	use:contextMenu={{ anchor: () => postTypeTrigger }}
+>
+	<summary class="visually-hidden" tabindex="-1">Create post</summary>
+	<div class="menu-items">
+		<a href="/app/compose" onclick={chosePostType}
+			><Icon name="textPost" bold /><span
+				><strong>Regular post</strong><small
+					>Share a quick update, thought or question.</small
+				></span
+			></a
+		>
+		<a href="/app/compose/project" onclick={chosePostType}
+			><Icon name="projectPost" bold /><span
+				><strong>Project post</strong><small
+					>Add photos and structured project details.</small
+				></span
+			></a
+		>
+	</div>
+</details>
 <dialog
 	bind:this={postTypeMenu}
 	class="post-type-chooser"
 	aria-labelledby="post-type-title"
 >
-	<header>
-		<h2 id="post-type-title">
-			{firstPost ? 'What would you like to share?' : 'Create post'}
-		</h2>
-		<button
-			class="icon-button"
-			aria-label="Close post type chooser"
-			onclick={() => postTypeMenu.close()}><Icon name="close" /></button
-		>
-	</header>
+	<h2 id="post-type-title">What would you like to share?</h2>
 	<a href="/app/compose" onclick={chosePostType}
-		><Icon name="document" /><span
+		><Icon name="textPost" bold /><span
 			><strong>Regular post</strong><small
-				>Share a quick update, thought or question.</small
+				>Share a quick update, ask a question, or show what’s inspiring you.</small
 			></span
-		><Icon name="chevron" size={20} /></a
+		></a
 	>
 	<a href="/app/compose/project" onclick={chosePostType}
-		><Icon name="image" /><span
+		><Icon name="projectPost" bold /><span
 			><strong>Project post</strong><small
-				>Add photos and structured project details.</small
+				>Document something you’re making, with details like the craft, pattern,
+				materials, and progress.</small
 			></span
-		><Icon name="chevron" size={20} /></a
+		></a
 	>
+	<div class="post-type-cancel">
+		<button onclick={() => postTypeMenu.close()}>Cancel</button>
+	</div>
 </dialog>
 <dialog
 	bind:this={comingSoonDialog}
@@ -684,6 +784,53 @@
 </dialog>
 
 <style>
+	.account-menu:not(.anchored) {
+		top: auto;
+		bottom: 0;
+		left: 50%;
+		transform: translateX(-50%);
+		width: min(640px, 100vw);
+		max-height: 80dvh;
+		border: 0;
+		border-radius: 22px 22px 0 0;
+		padding: 56px 0 max(24px, env(safe-area-inset-bottom));
+	}
+	.account-menu:not(.anchored)::before {
+		content: '';
+		position: absolute;
+		top: 20px;
+		left: calc(50% - 16px);
+		width: 32px;
+		height: 4px;
+		border-radius: 999px;
+		background: var(--ink-2);
+	}
+	.account-menu.anchored {
+		left: var(--account-left);
+		top: var(--account-top);
+		transform: none;
+		width: 280px;
+		padding: 8px 0;
+		border-radius: 14px;
+		background: var(--surface);
+	}
+	.account-scrim.anchored {
+		background: transparent;
+	}
+	.account-menu.anchored .person-row {
+		padding: 8px 16px;
+		min-height: 56px;
+	}
+	.account-menu.anchored .add-account {
+		min-height: 56px;
+		padding: 8px 16px;
+		font-size: 16px;
+		gap: 16px;
+	}
+	.account-menu.anchored .person-row[aria-current] {
+		color: var(--ink-4);
+	}
+
 	.coming-soon-dialog {
 		width: min(360px, calc(100vw - 48px));
 		border-radius: 14px;
@@ -720,38 +867,70 @@
 	.app-topbar.on-profile.profile-scrolled {
 		background: var(--paper);
 	}
-	.post-type-chooser {
-		width: min(440px, calc(100vw - 32px));
-		border-radius: 22px;
-		background: var(--paper);
-		padding: 16px;
+	.scroll-to-top {
+		position: fixed;
+		z-index: 20;
+		left: 272px;
+		bottom: 16px;
+		width: 40px;
+		height: 40px;
+		padding: 8px;
+		border: 0;
+		border-radius: 12px;
+		background: var(--paper-2);
+		color: var(--ink-2);
+		box-shadow: 0 2px 5px #0002;
 	}
-	.post-type-chooser header {
-		display: flex;
-		align-items: center;
-		justify-content: space-between;
-		gap: 8px;
-		margin-bottom: 12px;
+	@media (max-width: 900px) {
+		.scroll-to-top {
+			left: 16px;
+			bottom: calc(16px + env(safe-area-inset-bottom));
+		}
+		.scroll-to-top.above-tabs {
+			bottom: calc(80px + env(safe-area-inset-bottom));
+		}
+	}
+	.post-type-context .menu-items a {
+		min-height: 72px;
+	}
+	.post-type-context strong,
+	.post-type-context small {
+		display: block;
+	}
+	.post-type-context strong {
+		font-size: 14px;
+		line-height: 1.3;
+	}
+	.post-type-context small {
+		font-size: 13px;
+		line-height: 1.45;
+		color: var(--ink-2);
+		font-weight: 400;
+		margin-top: 4px;
+	}
+	.post-type-chooser {
+		width: min(360px, calc(100vw - 48px));
+		padding: 24px;
+		background: var(--surface);
 	}
 	.post-type-chooser h2 {
 		font-size: 20px;
 		line-height: 1.25;
-		margin: 0;
+		margin: 0 0 16px;
 	}
 	.post-type-chooser > a {
 		display: flex;
-		gap: 16px;
+		gap: 12px;
 		align-items: center;
 		color: var(--ink);
 		text-decoration: none;
 		padding: 16px;
-		border: 1.5px solid var(--ink);
-		border-radius: 14px;
-		background: var(--surface);
-		margin-top: 12px;
+		border: 1px solid var(--ink);
+		border-radius: 12px;
+		margin-top: 16px;
 	}
 	.post-type-chooser > a:hover {
-		background: var(--primary-soft);
+		background: color-mix(in srgb, var(--primary) 8%, transparent);
 	}
 	.post-type-chooser > a > span {
 		flex: 1;
@@ -768,5 +947,16 @@
 		line-height: 1.5;
 		color: var(--ink-2);
 		margin-top: 4px;
+	}
+	.post-type-cancel {
+		display: flex;
+		justify-content: flex-end;
+		margin-top: 24px;
+	}
+	.post-type-cancel button {
+		border: 0;
+		background: transparent;
+		box-shadow: none;
+		color: var(--primary);
 	}
 </style>

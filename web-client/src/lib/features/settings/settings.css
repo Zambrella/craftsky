@@ -196,7 +196,7 @@
 	box-shadow: none;
 }
 .settings-workspace .settings-tile:hover {
-	background: color-mix(in srgb, var(--ink) 5%, transparent);
+	background: color-mix(in srgb, var(--primary) 8%, transparent);
 }
 .settings-workspace .settings-tile > svg {
 	flex-shrink: 0;
@@ -323,8 +323,7 @@
 	height: 48px;
 	object-fit: cover;
 	border-radius: 50%;
-	border: 1.5px solid var(--ink);
-	background: var(--primary-soft);
+	border: 2.5px solid var(--profile-accent);
 	flex-shrink: 0;
 }
 .settings-workspace .avatar-placeholder {
@@ -346,7 +345,7 @@
 }
 .settings-workspace .identity small {
 	display: block;
-	color: var(--ink-2);
+	color: var(--ink-3);
 	font-size: 13px;
 }
 .settings-workspace table {
@@ -531,25 +530,12 @@
 .settings-workspace[data-settings-page='customisation'] h1 {
 	margin-bottom: 8px;
 }
-.settings-workspace .settings-name {
-	display: flex;
-	align-items: center;
-	gap: 8px;
-}
-.settings-workspace .settings-name .craft-icon {
-	width: 18px;
-	height: 18px;
-}
 .settings-workspace .settings-identity .avatar {
 	width: 41px;
 	height: 41px;
 	border: 2.5px solid var(--profile-accent);
 }
-.settings-workspace .settings-identity small {
-	color: var(--ink-3);
-	font-size: 14px;
-	font-weight: 600;
-}
+
 .settings-workspace .settings-tile.danger {
 	color: var(--red-ink);
 }
@@ -577,4 +563,66 @@
 	margin: 0;
 	padding: 10px 14px;
 	font-weight: 400;
+}
+
+/* Native index rows fill the body; identity shares CompactProfileIdentity. */
+.settings-workspace[data-settings-page='index'] > h1 {
+	margin-bottom: 0;
+}
+.settings-workspace[data-settings-page='index'] > .settings-tile {
+	width: calc(100% + 32px);
+	margin-inline: -16px;
+}
+.settings-workspace .settings-identity {
+	padding: 12px 0 8px;
+	min-height: 76px;
+}
+.settings-workspace .settings-tile.coming-soon {
+	opacity: 0.72;
+}
+.settings-workspace .settings-tile.coming-soon .tile-leading {
+	opacity: 0.72;
+}
+
+.settings-workspace[data-settings-page='appearance'] .native-option {
+	display: grid;
+	grid-template-columns: 40px minmax(0, 1fr) 24px;
+	gap: 16px;
+	padding: 0 24px 0 16px;
+}
+.settings-workspace[data-settings-page='appearance'] input[type='radio'] {
+	appearance: none;
+	justify-self: center;
+	margin: 0;
+	width: 20px;
+	height: 20px;
+	border: 2px solid var(--ink-2);
+	border-radius: 50%;
+	background: transparent;
+}
+.settings-workspace[data-settings-page='appearance']
+	input[type='radio']:checked {
+	border-color: var(--primary);
+	background: radial-gradient(circle, var(--primary) 0 5px, transparent 5.5px);
+}
+.settings-workspace .section-heading {
+	padding: 0;
+}
+.settings-workspace[data-settings-page='languages'] .panel.stack {
+	gap: 12px;
+}
+.settings-workspace[data-settings-page='languages'] .helper {
+	margin: 0;
+}
+
+.settings-workspace[data-settings-page='privacy'] .native-option {
+	gap: 16px;
+	padding-inline: 16px 24px;
+}
+.settings-workspace[data-settings-page='account'] h1,
+.settings-workspace[data-settings-page='about'] h1 {
+	margin-bottom: 0;
+}
+.settings-workspace[data-settings-page='account'] .section-label {
+	padding-bottom: 8px;
 }

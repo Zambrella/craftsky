@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount, onDestroy, tick } from 'svelte';
+	import { onMount, onDestroy, tick, getContext } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import {
@@ -30,6 +30,7 @@
 		rkey: string;
 		section?: string;
 	} = $props();
+	const back = getContext<(event: MouseEvent) => void>('craftsky-back');
 	const work = new Work();
 	let post = $state<PostPresentation>(),
 		comments = $state<CommentItem[]>([]),
@@ -149,7 +150,8 @@
 		href={section
 			? `/app/posts/${encodeURIComponent(did)}/${encodeURIComponent(rkey)}`
 			: '/app/home'}
-		aria-label="Back"><Icon name="back" /></a
+		aria-label="Back"
+		onclick={back}><Icon name="back" /></a
 	>
 	<h1>
 		{section

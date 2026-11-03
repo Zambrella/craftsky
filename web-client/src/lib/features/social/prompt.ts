@@ -35,8 +35,10 @@ export function prompt(
 }
 
 /** The final anchor click is a user gesture, so new-tab links survive popup blockers. */
-export function confirmExternalLink(event: MouseEvent) {
-	const anchor = event.currentTarget;
+export function confirmExternalLink(
+	event: MouseEvent,
+	anchor: EventTarget | null = event.currentTarget
+) {
 	if (!(anchor instanceof HTMLAnchorElement)) return;
 	event.preventDefault();
 	const href = anchor.href;

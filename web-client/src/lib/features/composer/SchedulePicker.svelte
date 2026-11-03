@@ -272,7 +272,7 @@
 		flex: 1;
 	}
 	.schedule-menu button:hover {
-		background: var(--paper-2);
+		background: color-mix(in srgb, var(--primary) 8%, transparent);
 	}
 	.schedule-dialog {
 		margin: auto;

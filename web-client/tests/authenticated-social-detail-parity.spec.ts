@@ -1161,3 +1161,229 @@ test('external links show their destination in a native confirmation and Cancel 
 	await dialog.getByRole('link', { name: 'Open link', exact: true }).click();
 	await expect(page).toHaveURL(href);
 });
+
+test('notification post Back returns to the notification list', async ({
+	page
+}) => {
+	const value = post('liked');
+	await timeline(page, value);
+	await page.route(/\/api\/appview\/v1\/notifications(?:\?.*)?$/, (route) =>
+		route.fulfill({
+			json: {
+				items: [
+					{
+						id: 'liked',
+						type: 'like',
+						actor: maker,
+						subjectPost: value,
+						contentAvailable: true,
+						createdAt: value.createdAt,
+						indexedAt: value.indexedAt,
+						isNew: true
+					}
+				]
+			}
+		})
+	);
+	await page.goto('/app/activity');
+	await page.locator('.notification-main').click();
+	await expect(page).toHaveURL(/\/posts\/.*\/liked$/);
+	await page.getByRole('link', { name: 'Back', exact: true }).click();
+	await expect(page).toHaveURL(/\/app\/activity$/);
+	await expect(page.locator('.notification-main')).toBeVisible();
+});
+
+test('external preview confirms and nested hover leaves the outer post unchanged', async ({
+	page
+}) => {
+	await timeline(
+		page,
+		post('external', {
+			external: {
+				uri: 'https://example.com/pattern',
+				title: 'External pattern',
+				description: 'A pattern preview'
+			}
+		})
+	);
+	await page.goto('/app/home');
+	const card = page.locator('.member-post').first();
+	const link = card.locator('.external-card');
+	await page.mouse.move(0, 0);
+	const background = await card.evaluate(
+		(el) => getComputedStyle(el).backgroundColor
+	);
+	await link.hover();
+	await expect(card).toHaveCSS('background-color', background);
+	await link.click();
+	await expect(
+		page.getByRole('dialog', { name: 'Open link?', exact: true })
+	).toBeVisible();
+	await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+	await expect(page).toHaveURL(/\/app\/home$/);
+});
+
+test('inline carousel arrows and mouse swipe retain the feed and centre mixed ratios', async ({
+	page
+}) => {
+	await page.setViewportSize({ width: 402, height: 874 });
+	await timeline(
+		page,
+		post('carousel', {
+			images: [1, 2].map((i) => ({
+				cid: 'image-' + i,
+				alt: 'Photo ' + i,
+				thumb: `https://fixture.craftsky.test/${i}.svg`,
+				fullsize: `https://fixture.craftsky.test/${i}.svg`,
+				aspectRatio: { width: 400, height: i === 1 ? 500 : 200 }
+			}))
+		})
+	);
+	await page.route('https://fixture.craftsky.test/*.svg', (route) =>
+		route.fulfill({
+			contentType: 'image/svg+xml',
+			body: `<svg xmlns="http://www.w3.org/2000/svg" width="400" height="${route.request().url().endsWith('1.svg') ? 500 : 200}"><rect width="400" height="500" fill="#f7d46a"/></svg>`
+		})
+	);
+	await page.goto('/app/home');
+	const carousel = page.locator('.post-images').first();
+	await carousel
+		.getByRole('button', { name: 'Next image', exact: true })
+		.click();
+	await expect(
+		carousel.getByRole('button', { name: 'Show image 2 of 2', exact: true })
+	).toHaveAttribute('aria-pressed', 'true');
+	const bounds = (await carousel.locator('.gallery').boundingBox())!;
+	await page.mouse.move(bounds.x + 50, bounds.y + 90);
+	await page.mouse.down();
+	await page.mouse.move(bounds.x + bounds.width - 20, bounds.y + 90, {
+		steps: 12
+	});
+	await page.mouse.up();
+	await expect(
+		carousel.getByRole('button', { name: 'Show image 1 of 2', exact: true })
+	).toHaveAttribute('aria-pressed', 'true');
+	await expect(page).toHaveURL(/\/app\/home$/);
+	await expect(carousel.locator('.gallery > a').first()).toHaveCSS(
+		'align-items',
+		'center'
+	);
+});
+
+test('project card surface opens native metadata and material chips', async ({
+	page
+}) => {
+	await timeline(
+		page,
+		post('details', {
+			project: {
+				common: {
+					title: 'Linen trousers',
+					craftType: 'social.craftsky.feed.defs#sewing',
+					status: 'social.craftsky.feed.defs#finished',
+					duration: '5 days',
+					pattern: {
+						name: '#trousers',
+						designer: 'Maker',
+						url: 'https://example.com/pattern',
+						difficulty: 'beginner'
+					},
+					materials: [{ text: 'Blue linen' }],
+					colors: ['blue']
+				},
+				details: {
+					projectType: 'social.craftsky.project.defs#garment',
+					projectSubtype: 'social.craftsky.project.sewing#trousers',
+					sizeMade: 'M',
+					fitNotes: 'Relaxed fit'
+				}
+			}
+		})
+	);
+	await page.goto('/app/home');
+	await page.locator('.status-badge').click();
+	await expect(page).toHaveURL(/\/posts\/.*\/details$/);
+	await expect(
+		page.getByRole('heading', { name: 'Linen trousers', exact: true })
+	).toBeVisible();
+	const metadata = page.locator('.project-detail-metadata');
+	await expect(metadata.locator('dt')).toHaveText([
+		'Pattern',
+		'Duration',
+		'Difficulty',
+		'Link',
+		'Project type',
+		'Size made',
+		'Fit notes'
+	]);
+	await expect(metadata).toContainText('Garment >');
+	await expect(page.locator('.detail-chips').first()).toHaveText('Blue linen');
+	await expect(
+		page.getByText('The project details', { exact: true })
+	).toHaveCount(0);
+});
+
+test('returning authors get the compact post context menu and matching search focus', async ({
+	page
+}) => {
+	await page.setViewportSize({ width: 402, height: 874 });
+	await page.addInitScript(() =>
+		localStorage.setItem('craftsky.post-type.seen.did:plc:alice', 'true')
+	);
+	await page.goto('/app/home');
+	await page.getByRole('button', { name: 'Create post', exact: true }).click();
+	const menu = page.locator('.post-type-context[open] .menu-items');
+	await expect(menu).toBeVisible();
+	await expect(
+		page.getByRole('dialog', { name: 'What would you like to share?' })
+	).not.toBeVisible();
+	await menu.getByRole('link', { name: /Regular post/ }).click();
+	await expect(page).toHaveURL(/\/app\/compose$/);
+	await page.getByRole('link', { name: 'Close editor', exact: true }).click();
+	await page.goto('/app/search');
+	const search = page.locator('#search');
+	await search.click();
+	await expect(search).toHaveCSS('border-top-width', '0px');
+	await expect(search).toHaveCSS('box-shadow', 'none');
+	await expect(page.locator('.search-field')).toHaveCSS(
+		'box-shadow',
+		'rgb(22, 18, 16) 3px 3px 0px 0px'
+	);
+});
+
+test('long lists offer scroll to top and account menus adapt to their trigger', async ({
+	page
+}) => {
+	await page.route('**/api/appview/v1/feed/timeline*', (route) =>
+		route.fulfill({
+			json: {
+				items: Array.from({ length: 12 }, (_, i) => ({
+					itemKey: String(i),
+					post: post('item' + i)
+				}))
+			}
+		})
+	);
+	await page.goto('/app/home');
+	await expect(page.locator('.member-post')).toHaveCount(12);
+	const top = page.getByRole('button', { name: 'Scroll to top', exact: true });
+	await expect(top).toBeHidden();
+	await page.evaluate(() => window.scrollTo(0, 600));
+	await expect(top).toBeVisible();
+	await top.click();
+	await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
+	await page.getByRole('button', { name: /^Switch accounts,/ }).click();
+	await expect(page.locator('.account-menu.anchored')).toBeVisible();
+	await page.keyboard.press('Escape');
+	await page.setViewportSize({ width: 402, height: 874 });
+	await page
+		.getByRole('button', { name: 'Open navigation', exact: true })
+		.click();
+	await page.getByRole('button', { name: /^Switch accounts,/ }).click();
+	const sheet = page.getByRole('dialog', { name: 'Accounts', exact: true });
+	await expect(sheet).toBeVisible();
+	expect(
+		await sheet.evaluate((e) => Math.round(e.getBoundingClientRect().bottom))
+	).toBe(874);
+	await expect(sheet.locator('.person-row[aria-current=true]')).toBeDisabled();
+});

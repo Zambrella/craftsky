@@ -3,6 +3,7 @@
 	import { contextMenu } from './context-menu';
 	let {
 		label,
+		appBar = false,
 		value,
 		options,
 		disabled = false,
@@ -10,6 +11,7 @@
 		url
 	}: {
 		label: string;
+		appBar?: boolean;
 		value: string;
 		options: { value: string; label: string; icon: string }[];
 		disabled?: boolean;
@@ -26,13 +28,17 @@
 	}
 </script>
 
-<details class="choice-menu" use:contextMenu>
+<details class="choice-menu" class:app-bar={appBar} use:contextMenu>
 	<summary
 		aria-label={label + ': ' + selected.label}
 		aria-disabled={disabled}
 		onclick={(event) => {
 			if (disabled) event.preventDefault();
-		}}><Icon name={selected.icon} size={20} />{selected.label}</summary
+		}}
+		><Icon
+			name={selected.icon}
+			size={appBar ? 24 : 20}
+		/>{#if !appBar}{selected.label}{/if}</summary
 	>
 	<div class="menu-items">
 		{#each options as option}
@@ -55,6 +61,17 @@
 </details>
 
 <style>
+	.app-bar summary {
+		width: 44px;
+		height: 44px;
+		padding: 10px;
+		border: 0;
+		border-radius: 50%;
+	}
+	.app-bar summary :global(svg) {
+		color: var(--ink-2);
+	}
+
 	summary {
 		list-style: none;
 		min-height: 40px;

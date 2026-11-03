@@ -38,12 +38,6 @@
 		><Icon name="back" /></a
 	>
 	<h1>#{tag}</h1>
-	<button
-		class="icon-button"
-		aria-label="Refresh"
-		disabled={work.busy}
-		onclick={() => load()}><Icon name="refresh" /></button
-	>
 </div>
 <Status
 	{work}

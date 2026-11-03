@@ -35,7 +35,7 @@
 }
 .native-context-menu .menu-items a:hover,
 .native-context-menu .menu-items button:hover {
-	background: var(--paper-2);
+	background: color-mix(in srgb, var(--primary) 8%, transparent);
 }
 .native-context-menu .menu-items svg {
 	width: 24px;

@@ -3,6 +3,7 @@
 	import Icon from './features/shell/Icon.svelte';
 	let {
 		label,
+		helperText,
 		value = '',
 		options,
 		disabled = false,
@@ -12,8 +13,9 @@
 		onchange
 	}: {
 		label: string;
+		helperText?: string;
 		value?: string;
-		options: { id: string; label: string }[];
+		options: { id: string; label: string; description?: string }[];
 		disabled?: boolean;
 		required?: boolean;
 		placeholder?: string;
@@ -30,7 +32,8 @@
 		options.filter(
 			(option) =>
 				!searchable ||
-				option.label
+				[option.label, option.description || '']
+					.join(' ')
 					.toLocaleLowerCase()
 					.includes(query.trim().toLocaleLowerCase())
 		)
@@ -155,8 +158,8 @@
 			aria-required={required}
 			{disabled}
 			readonly={!searchable}
-			value={open ? query : selected}
-			placeholder={placeholder || `Select ${label}`}
+			value={open && searchable ? query : selected}
+			placeholder={(open && selected) || placeholder || `Select ${label}`}
 			onclick={() => void show()}
 			onkeydown={key}
 			oninput={(event) => {
@@ -177,7 +180,8 @@
 					{disabled}
 					onclick={() => choose('')}><Icon name="clear" size={24} /></button
 				>{:else}
-				<span><Icon name={searchable ? 'search' : 'down'} size={24} /></span
+				<span class:expanded={open && !searchable}
+					><Icon name={searchable ? 'search' : 'down'} size={24} /></span
 				>{/if}
 		</div>
 	</div>
@@ -197,15 +201,33 @@
 					data-index={index}
 					tabindex="-1"
 					aria-selected={option.id === value}
+					aria-label={option.label}
 					class:highlighted={highlighted === index}
 					onpointerdown={(event) => event.preventDefault()}
-					onclick={() => choose(option.id)}>{option.label}</button
+					onclick={() => choose(option.id)}
+					>{option.label}{#if option.description}<small
+							class="option-description">{option.description}</small
+						>{/if}</button
 				>
 			{:else}<p>No results</p>{/each}{/if}
 	</div>
+	{#if helperText}<p class="field-helper">{helperText}</p>{/if}
 </div>
 
 <style>
+	.field-helper {
+		margin: 0;
+		font-size: 14px;
+		line-height: 1.5;
+		color: var(--ink-2);
+	}
+	.option-description {
+		display: block;
+		font-size: 14px;
+		line-height: 1.5;
+		color: var(--ink-2);
+	}
+
 	.native-single-select {
 		min-width: 0;
 		display: grid;
@@ -215,9 +237,11 @@
 		margin: 0;
 		font-size: 16px;
 		font-weight: 700;
+		line-height: 1.3;
 	}
 	.single-field {
 		position: relative;
+		padding: 0 3px 3px 0;
 	}
 	.native-single-select .single-field input[type='text'][role='combobox'] {
 		width: 100%;
@@ -226,11 +250,18 @@
 		border-radius: 14px;
 		padding: 12px 56px 12px 16px;
 		background: var(--surface);
+		transform: translate(3px, 3px);
+		transition: transform 120ms ease-out;
+	}
+	.single-field input::placeholder {
+		color: var(--ink);
+		opacity: 1;
 	}
 	.single-field input:read-only {
 		cursor: pointer;
 	}
 	.single-field input:focus {
+		transform: translate(0, 0);
 		border-color: var(--ink);
 		outline: 2px solid var(--ink);
 		outline-offset: -2px;
@@ -238,17 +269,31 @@
 	}
 	.single-adornments {
 		position: absolute;
-		right: 12px;
+		right: 15px;
 		top: 0;
-		height: 100%;
+		height: calc(100% - 3px);
+		transform: translate(3px, 3px);
+		transition: transform 120ms ease-out;
 		display: flex;
 		align-items: center;
 		pointer-events: none;
+	}
+	.single-field:focus-within .single-adornments {
+		transform: none;
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.single-field input,
+		.single-adornments {
+			transition: none;
+		}
 	}
 	.single-adornments span {
 		display: grid;
 		place-items: center;
 		width: 28px;
+	}
+	.single-adornments span.expanded {
+		transform: rotate(180deg);
 	}
 	.single-adornments button {
 		pointer-events: auto;
@@ -268,8 +313,8 @@
 		position: fixed;
 		inset: auto;
 		margin: 0;
-		padding: 6px;
-		border: 1px solid var(--hairline);
+		padding: 8px;
+		border: 1px solid var(--ink-4);
 		border-radius: 14px;
 		background: var(--surface);
 		color: var(--ink);
@@ -291,7 +336,7 @@
 		font-weight: 400;
 	}
 	.single-choices button.highlighted {
-		background: color-mix(in srgb, var(--primary) 4%, var(--surface));
+		background: color-mix(in srgb, var(--primary-soft) 42%, var(--surface));
 		color: var(--primary);
 	}
 	.single-choices button:hover {

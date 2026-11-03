@@ -3,6 +3,7 @@
 	import Icon from './features/shell/Icon.svelte';
 	let {
 		label,
+		helperText,
 		values,
 		options,
 		disabled = false,
@@ -11,8 +12,9 @@
 		onchange
 	}: {
 		label: string;
+		helperText?: string;
 		values: string[];
-		options: { id: string; label: string }[];
+		options: { id: string; label: string; description?: string }[];
 		disabled?: boolean;
 		maximum?: number;
 		placeholder?: string;
@@ -27,7 +29,8 @@
 	let suppressFocus = false;
 	const matches = $derived(
 		options.filter((option) =>
-			option.label
+			[option.label, option.description || '']
+				.join(' ')
 				.toLocaleLowerCase()
 				.includes(query.trim().toLocaleLowerCase())
 		)
@@ -121,7 +124,7 @@
 						aria-label={`Remove ${value.label} from ${label}`}
 						{disabled}
 						onclick={() => onchange(values.filter((id) => id !== value.id))}
-						>{value.label}<Icon name="close" size={18} /></button
+						>{value.label}<Icon name="close" size={18} bold /></button
 					>{/each}
 			</div>{/if}
 		<div class="selection-search">
@@ -180,8 +183,10 @@
 			{#each matches as option (option.id)}<label
 					class="select-option"
 					class:chosen={values.includes(option.id)}
+					onpointerdown={(event) => event.preventDefault()}
 					><input
 						type="checkbox"
+						aria-label={option.label}
 						onkeydown={(event) => {
 							if (event.key === 'Escape') {
 								event.preventDefault();
@@ -195,12 +200,30 @@
 							const checked = event.currentTarget.checked;
 							if (!toggle(option.id)) event.currentTarget.checked = !checked;
 						}}
-					/>{option.label}</label
+					/><span
+						>{option.label}{#if option.description}<small
+								class="option-description">{option.description}</small
+							>{/if}</span
+					></label
 				>{:else}<p>No matches found.</p>{/each}
 		</div>{/if}
+	{#if helperText}<p class="field-helper">{helperText}</p>{/if}
 </div>
 
 <style>
+	.field-helper {
+		margin: 8px 0 0;
+		font-size: 14px;
+		line-height: 1.5;
+		color: var(--ink-2);
+	}
+	.option-description {
+		display: block;
+		font-size: 14px;
+		line-height: 1.5;
+		color: var(--ink-2);
+	}
+
 	.native-multi-select {
 		position: relative;
 		min-width: 0;
@@ -212,9 +235,13 @@
 		display: block;
 		font-size: 16px;
 		font-weight: 700;
+		line-height: 1.3;
 		margin-bottom: 8px;
 	}
 	.selection-field {
+		margin: 0 3px 3px 0;
+		transform: translate(3px, 3px);
+		transition: transform 120ms ease-out;
 		display: flex;
 		flex-direction: column;
 		align-items: stretch;
@@ -226,6 +253,7 @@
 		background: var(--surface);
 	}
 	.selection-field:focus-within {
+		transform: none;
 		border-color: var(--ink);
 		box-shadow: 3px 3px 0 var(--shadow);
 	}
@@ -292,9 +320,9 @@
 		left: 0;
 		right: 0;
 		overflow: auto;
-		border: 1px solid var(--hairline);
+		border: 1px solid var(--ink-4);
 		border-radius: 14px;
-		padding: 6px;
+		padding: 8px;
 		background: var(--surface);
 		box-shadow: 0 8px 18px #00000026;
 	}
@@ -332,6 +360,11 @@
 	}
 	.select-choices p {
 		padding: 16px;
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.selection-field {
+			transition: none;
+		}
 	}
 	@media (hover: hover) {
 		.native-multi-select:not(.disabled) .selection-field:hover {

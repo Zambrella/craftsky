@@ -12,3 +12,9 @@
 				if (part.external) confirmExternalLink(event);
 			}}>{part.text}</a
 		>{:else}{part.text}{/if}{/each}
+
+<style>
+	a {
+		text-decoration: none;
+	}
+</style>

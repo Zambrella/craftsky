@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onDestroy, tick, untrack } from 'svelte';
 	import Icon from '../shell/Icon.svelte';
+	import CropSurface from './CropSurface.svelte';
 	import type { DraftMedia } from '../drafts/store.ts';
 	import { prepareImage } from './media.ts';
 	let {
@@ -13,6 +14,8 @@
 		disabled = false,
 		describe = true,
 		allowReorder = true,
+		nativePhoto = false,
+		ondrag = () => {},
 		onBusyChange = () => {},
 		onEditingChange = () => {}
 	}: {
@@ -25,6 +28,8 @@
 		disabled?: boolean;
 		describe?: boolean;
 		allowReorder?: boolean;
+		nativePhoto?: boolean;
+		ondrag?: (dragging: boolean) => void;
 		onBusyChange?: (busy: boolean) => void;
 		onEditingChange?: (editing: boolean) => void;
 	} = $props();
@@ -53,9 +58,13 @@
 		else if (!editing && dialog.open) dialog.close();
 	});
 	$effect(() => {
-		onBusyChange(busy);
+		const value = busy;
+		untrack(() => onBusyChange(value));
 	});
-	$effect(() => onEditingChange(editing));
+	$effect(() => {
+		const value = editing;
+		untrack(() => onEditingChange(value));
+	});
 	onDestroy(() => {
 		disposed = true;
 		operation++;
@@ -181,45 +190,100 @@
 	}
 </script>
 
-<article class="media-card">
-	<img
-		src={url}
-		alt={media.alt || `Image ${index + 1} preview`}
-		style={`transform:rotate(${editing ? rotation * 90 : 0}deg);clip-path:inset(${editing ? y : 0}% ${editing ? Math.max(0, 100 - x - width) : 0}% ${editing ? Math.max(0, 100 - y - height) : 0}% ${editing ? x : 0}%)`}
-	/>
+<article class="media-card" class:native-photo={nativePhoto}>
+	{#if nativePhoto}<div class="photo-controls">
+			<span class="photo-number" class:first={index === 0}>{index + 1}</span
+			><span class="control-spacer"></span><button
+				type="button"
+				disabled={disabled || busy || index === 0}
+				onclick={() => onmove(-1)}
+				aria-label={`Move image ${index + 1} earlier`}
+				><Icon name="moveUp" bold /></button
+			><button
+				type="button"
+				disabled={disabled || busy || index === count - 1}
+				onclick={() => onmove(1)}
+				aria-label={`Move image ${index + 1} later`}
+				><span class="down-arrow"><Icon name="moveUp" bold /></span></button
+			><button
+				type="button"
+				class="remove-photo"
+				disabled={disabled || busy}
+				onclick={onremove}
+				aria-label={`Remove image ${index + 1}`}
+				><Icon name="trash" bold /></button
+			><button
+				type="button"
+				class="photo-drag"
+				aria-label={`Drag to reorder image ${index + 1}`}
+				draggable={!disabled && !busy}
+				ondragstart={(event) => {
+					ondrag(true);
+					event.dataTransfer?.setData('text/plain', media.id);
+				}}
+				ondragend={() => ondrag(false)}
+				><span aria-hidden="true">⠿</span></button
+			>
+		</div>{/if}
+	<div class="photo-preview">
+		<img
+			src={url}
+			alt={media.alt || `Image ${index + 1} preview`}
+			style={`transform:rotate(${editing ? rotation * 90 : 0}deg);clip-path:inset(${editing ? y : 0}% ${editing ? Math.max(0, 100 - x - width) : 0}% ${editing ? Math.max(0, 100 - y - height) : 0}% ${editing ? x : 0}%)`}
+		/>
+		{#if nativePhoto && (media.blob || media.remoteUrl)}<button
+				bind:this={trigger}
+				type="button"
+				class="edit-photo"
+				aria-label="Edit photo"
+				disabled={disabled || busy}
+				onclick={openEditor}><Icon name="edit" /></button
+			>{/if}
+	</div>
 	{#if describe}<label
-			>Image description<textarea
+			><span class="alt-heading"
+				>{#if nativePhoto}<span
+						><span class="alt-text-icon" aria-hidden="true">T</span>ALT TEXT</span
+					><small class:described={!!media.alt.trim()}
+						>{media.alt.trim() ? 'Described' : 'Help screen readers'}</small
+					>{:else}Image description{/if}</span
+			><textarea
+				aria-label="Image description"
 				rows="2"
 				maxlength="1000"
 				value={media.alt}
 				disabled={disabled || busy}
 				oninput={(e) => onchange({ ...media, alt: e.currentTarget.value })}
-				placeholder="Describe this image for people who cannot see it"
-			></textarea></label
+				placeholder={nativePhoto
+					? 'Describe the image for someone who cannot see it, including the craft, materials, colors, and important details.'
+					: 'Describe this image for people who cannot see it'}
+			></textarea>{#if nativePhoto}<span class="alt-count"
+					>{Array.from(media.alt).length}/1000</span
+				>{/if}</label
 		>{/if}
-	<div class="toolbar">
-		{#if allowReorder}<button
+	{#if !nativePhoto}<div class="toolbar">
+			{#if allowReorder}<button
+					type="button"
+					disabled={disabled || busy || index === 0}
+					onclick={() => onmove(-1)}
+					aria-label={`Move image ${index + 1} earlier`}>←</button
+				><button
+					type="button"
+					disabled={disabled || busy || index === count - 1}
+					onclick={() => onmove(1)}
+					aria-label={`Move image ${index + 1} later`}>→</button
+				>{/if}{#if media.blob || media.remoteUrl}<button
+					bind:this={trigger}
+					type="button"
+					disabled={disabled || busy}
+					onclick={openEditor}>Crop / rotate</button
+				>{/if}<button
 				type="button"
-				disabled={disabled || busy || index === 0}
-				onclick={() => onmove(-1)}
-				aria-label={`Move image ${index + 1} earlier`}>←</button
-			><button
-				type="button"
-				disabled={disabled || busy || index === count - 1}
-				onclick={() => onmove(1)}
-				aria-label={`Move image ${index + 1} later`}>→</button
-			>{/if}{#if media.blob || media.remoteUrl}<button
-				bind:this={trigger}
-				type="button"
+				class="danger"
 				disabled={disabled || busy}
-				onclick={openEditor}>Crop / rotate</button
-			>{/if}<button
-			type="button"
-			class="danger"
-			disabled={disabled || busy}
-			onclick={onremove}>Remove</button
-		>
-	</div>
+				onclick={onremove}>Remove</button
+			>
+		</div>{/if}
 	<dialog
 		bind:this={dialog}
 		class="image-edit-dialog"
@@ -248,42 +312,30 @@
 					onclick={apply}><Icon name="check" /></button
 				>
 			</header>
-			<div class="image-edit-stage">
-				<img
-					src={url}
-					alt="Crop preview"
-					style={`transform:rotate(${rotation * 90}deg);clip-path:inset(${y}% ${Math.max(0, 100 - x - width)}% ${Math.max(0, 100 - y - height)}% ${x}%)`}
-				/>
-			</div>
-			<fieldset disabled={disabled || busy}>
-				<legend class="sr-only">Crop and rotate</legend><button
+			<CropSurface
+				{url}
+				{rotation}
+				{x}
+				{y}
+				{width}
+				{height}
+				disabled={disabled || busy}
+				onchange={(crop) => {
+					x = crop.x;
+					y = crop.y;
+					width = crop.width;
+					height = crop.height;
+				}}
+			/>
+			<div class="image-edit-tools">
+				<button
 					type="button"
-					onclick={() => (rotation = (rotation + 1) % 4)}>Rotate 90° ↻</button
+					disabled={disabled || busy}
+					onclick={() => (rotation = (rotation + 1) % 4)}
+					aria-label="Rotate photo"
+					><Icon name="refresh" /><span>Rotate</span></button
 				>
-				<div class="fields">
-					{#each [['x', 'Left'], ['y', 'Top'], ['width', 'Width'], ['height', 'Height']] as [key, name]}<label
-							>{name} (%)<input
-								type="number"
-								min={key === 'width' || key === 'height' ? 1 : 0}
-								max="100"
-								value={key === 'x'
-									? x
-									: key === 'y'
-										? y
-										: key === 'width'
-											? width
-											: height}
-								oninput={(e) => {
-									const value = Number(e.currentTarget.value);
-									if (key === 'x') x = value;
-									else if (key === 'y') y = value;
-									else if (key === 'width') width = value;
-									else height = value;
-								}}
-							/></label
-						>{/each}
-				</div>
-			</fieldset>
+			</div>
 			{#if error}<p role="alert">{error}</p>{/if}{#if busy}<p role="status">
 					Preparing image…
 				</p>{/if}{/if}
@@ -292,6 +344,135 @@
 </article>
 
 <style>
+	.photo-preview {
+		position: relative;
+	}
+	.media-card.native-photo {
+		background: var(--surface);
+		border: 1.5px solid var(--ink);
+		border-radius: 14px;
+		box-shadow: 3px 3px var(--shadow);
+		margin: 0 3px 27px 0;
+		padding: 16px;
+		gap: 12px;
+	}
+	.native-photo .photo-preview > img {
+		height: auto;
+		max-height: 420px;
+		border: 1px solid var(--ink);
+		border-radius: 0;
+		display: block;
+	}
+	.photo-controls {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+	}
+	.control-spacer {
+		flex: 1;
+	}
+	.photo-number {
+		display: grid;
+		place-items: center;
+		width: 50px;
+		height: 50px;
+		flex: none;
+		border: 2px solid var(--ink);
+		border-radius: 50%;
+		background: var(--paper-2);
+		font-size: 20px;
+		font-weight: 800;
+	}
+	.photo-number.first {
+		background: var(--primary);
+		color: white;
+	}
+	.photo-controls button {
+		display: grid;
+		place-items: center;
+		width: 52px;
+		height: 52px;
+		padding: 12px;
+		flex: none;
+		border: 2px solid var(--ink);
+		border-radius: 50%;
+		box-shadow: none;
+		background: var(--surface);
+	}
+	.photo-controls button:disabled {
+		color: var(--ink-4);
+		border-color: var(--ink-4);
+		opacity: 1;
+	}
+	.photo-controls .remove-photo {
+		color: #f03a2e;
+	}
+	.photo-controls .photo-drag {
+		width: 34px;
+		padding: 0;
+		border: 0;
+		color: var(--ink-3);
+		font-size: 34px;
+		cursor: grab;
+	}
+	.down-arrow {
+		display: flex;
+		transform: rotate(180deg);
+	}
+	.edit-photo {
+		position: absolute;
+		bottom: 4px;
+		right: 4px;
+		width: 48px;
+		height: 48px;
+		padding: 12px;
+		border: 0;
+		border-radius: 50%;
+		background: var(--primary);
+		color: white;
+		box-shadow: none;
+	}
+	.alt-heading {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 8px;
+	}
+	.native-photo .alt-heading > span {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		color: var(--ink-2);
+		font-size: 12px;
+		font-weight: 800;
+		letter-spacing: 1.5px;
+	}
+	.alt-text-icon {
+		font-family: serif;
+		font-size: 24px;
+		font-weight: 400;
+	}
+	.alt-heading small {
+		font-size: 12px;
+		font-weight: 700;
+		color: var(--red-ink);
+	}
+	.alt-heading small.described {
+		color: light-dark(#4e6e1f, #a8c779);
+	}
+	.native-photo label {
+		margin-top: 4px;
+	}
+	.native-photo textarea {
+		min-height: 128px;
+		resize: vertical;
+	}
+	.alt-count {
+		text-align: right;
+		font-size: 14px;
+		font-weight: 400;
+	}
+
 	.media-card {
 		padding: 1rem;
 		border: 1px solid var(--hairline);
@@ -357,59 +538,23 @@
 		color: inherit;
 		box-shadow: none;
 	}
-	.image-edit-stage {
-		flex: 1;
-		min-height: 200px;
-		display: grid;
-		place-items: center;
-		overflow: hidden;
-		margin: 16px;
-		border: 1px solid #fff8;
+	.image-edit-tools {
+		display: flex;
+		justify-content: center;
+		padding: 12px 24px calc(20px + env(safe-area-inset-bottom));
 	}
-	.image-edit-stage img {
-		width: 100%;
-		height: 100%;
-		max-height: 55dvh;
-		object-fit: contain;
-		border-radius: 0;
+	.image-edit-tools button {
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
 		background: transparent;
-	}
-	.image-edit-dialog fieldset {
-		display: grid;
-		gap: 16px;
-		border: 0;
-		margin: 0;
-		padding: 16px 24px calc(24px + env(safe-area-inset-bottom));
-	}
-	.image-edit-dialog .fields {
-		display: grid;
-		grid-template-columns: repeat(4, minmax(0, 1fr));
-		gap: 12px;
-	}
-	.image-edit-dialog label {
-		font-size: 13px;
-	}
-	.image-edit-dialog input {
-		background: #2b2824;
-		border: 1px solid #fff8;
-		color: #fffaf2;
-		padding: 12px 8px;
-	}
-	.image-edit-dialog fieldset > button {
-		justify-self: center;
-		background: transparent;
-		color: inherit;
+		color: #f5efe4;
 		border: 0;
 		box-shadow: none;
+		font-size: 12px;
 	}
+
 	.image-edit-dialog p {
 		padding: 8px 24px;
-	}
-	.sr-only {
-		position: absolute;
-		width: 1px;
-		height: 1px;
-		overflow: hidden;
-		clip-path: inset(50%);
 	}
 </style>

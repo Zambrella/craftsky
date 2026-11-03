@@ -366,12 +366,7 @@
 						class="icon-link"
 						href={conversationURL(viewState.id) + '/details'}
 						aria-label="Details"><Icon name="more" /></a
-					>{/if}<button
-					class="icon-link"
-					disabled={viewState?.busy || viewState?.loading}
-					onclick={() => controller?.refresh()}
-					aria-label="Refresh messages"><Icon name="refresh" /></button
-				>
+					>{/if}
 			</nav>{/if}
 	</header>
 	{#if viewState?.error}<div class="feedback error" role="alert">
@@ -1117,7 +1112,7 @@
 	}
 	.icon-link:hover,
 	.back:hover {
-		background: var(--paper-2);
+		background: color-mix(in srgb, var(--primary) 8%, transparent);
 	}
 	.badge {
 		display: inline-flex;
@@ -1353,7 +1348,7 @@
 		text-align: left;
 	}
 	.conversation-row:hover {
-		background: var(--paper-2);
+		background: color-mix(in srgb, var(--primary) 8%, transparent);
 	}
 	.avatar {
 		font-family: 'DM Serif Display', serif;
@@ -1623,7 +1618,7 @@
 		display: none;
 	}
 	.message-meta summary:hover {
-		background: var(--paper-2);
+		background: color-mix(in srgb, var(--primary) 8%, transparent);
 	}
 	.message-menu {
 		position: absolute;
@@ -1656,7 +1651,7 @@
 	}
 	.message-menu button:hover,
 	.message-menu a:hover {
-		background: var(--paper-2);
+		background: color-mix(in srgb, var(--primary) 8%, transparent);
 		border-radius: 6px;
 	}
 	.message-composer {

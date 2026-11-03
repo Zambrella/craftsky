@@ -84,6 +84,8 @@
 		align-items: center;
 	}
 	.avatar {
+		border: 0;
+		box-shadow: none;
 		width: 40px;
 		height: 40px;
 		flex-shrink: 0;

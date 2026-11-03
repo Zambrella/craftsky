@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { usePrompt } from '../social/prompt';
+	const ask = usePrompt();
 	import { onMount, onDestroy, tick } from 'svelte';
 	import type {
 		CraftskyAPI,
@@ -124,6 +126,17 @@
 			}
 		);
 	}
+	async function beginDeletion() {
+		if (
+			await ask({
+				title: 'Delete CraftSky account?',
+				detail: `Deleting the CraftSky account identified by ${session.did} permanently removes all your CraftSky data from your PDS and all private data held by CraftSky. It won’t delete your PDS, DID, or wider AT Protocol account.\n\nTo continue, you’ll need to authenticate with your PDS again.`,
+				confirmLabel: 'Continue',
+				danger: true
+			})
+		)
+			startDeletion();
+	}
 	function startDeletion() {
 		void work.run(
 			() =>
@@ -231,16 +244,16 @@
 			target="_blank"
 			rel="noopener noreferrer"
 			><SettingsIcon name="document" /><span class="tile-copy">Terms</span
-			><SettingsIcon name="external" size={20} /></a
+			><SettingsIcon name="external" size={24} /></a
 		>
 		<a
 			class="settings-tile"
 			href="https://craftsky.social/privacy"
 			target="_blank"
 			rel="noopener noreferrer"
-			><SettingsIcon name="privacy" /><span class="tile-copy"
+			><SettingsIcon name="shield" /><span class="tile-copy"
 				>Privacy policy</span
-			><SettingsIcon name="external" size={20} /></a
+			><SettingsIcon name="external" size={24} /></a
 		>
 		{#if version}<div class="settings-tile">
 				<SettingsIcon name="about" /><span class="tile-copy"
@@ -254,19 +267,13 @@
 			<p class="account-type">
 				{businessAccess ? 'Business' : 'Regular'}
 			</p>{/if}
-		{#if eligibility.state === 'eligible'}<a
-				class="settings-tile"
-				href="/app/settings/business"
-				><SettingsIcon name="business" /><span class="tile-copy"
-					>Manage business profile</span
-				><SettingsIcon name="chevron" size={20} /></a
-			>{/if}
+
 		<button
 			class="settings-tile delete-account-row"
 			disabled={work.busy}
-			onclick={() => (deleteOpen = !deleteOpen)}
-			><SettingsIcon name="delete" /><span class="tile-copy"
-				>Delete CraftSky account</span
+			onclick={beginDeletion}
+			><SettingsIcon name="delete" bold /><span class="tile-copy"
+				>Delete account</span
 			></button
 		>
 	</div>
@@ -448,6 +455,7 @@
 <style>
 	.account-type {
 		padding: 0 16px 12px;
+		margin: 0;
 	}
 	:global(.settings-workspace) .delete-account-row {
 		color: var(--red-ink);

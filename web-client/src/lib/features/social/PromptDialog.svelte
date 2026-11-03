@@ -53,6 +53,7 @@
 		>
 		{#if href}<a
 				class="primary-button"
+				data-external-confirmed
 				{href}
 				{target}
 				rel="noopener noreferrer"
@@ -75,11 +76,14 @@
 	}
 	h2 {
 		font-size: 20px;
-		margin: 0 0 12px;
+		margin: 0 0 16px;
 	}
 	p {
+		white-space: pre-line;
+		overflow-wrap: anywhere;
 		line-height: 1.5;
-		margin: 0 0 20px;
+		font-size: 14px;
+		margin: 0 0 24px;
 	}
 	.destination {
 		font-size: 14px;
@@ -92,7 +96,17 @@
 		flex-wrap: wrap;
 		justify-content: flex-end;
 		align-items: center;
-		gap: 12px;
+		gap: 8px;
+	}
+	button,
+	.primary-button {
+		padding-inline: 24px;
+	}
+	button.danger {
+		background: #f03a2e;
+		color: white;
+		border-color: var(--ink);
+		box-shadow: 3px 3px var(--shadow);
 	}
 	.cancel {
 		background: transparent;

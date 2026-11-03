@@ -43,6 +43,7 @@
 	} from './media.ts';
 	import ProjectEditor from './ProjectEditor.svelte';
 	import MediaEditor from './MediaEditor.svelte';
+	import PhotoAttachments from './PhotoAttachments.svelte';
 	import FacetTextInput from './FacetTextInput.svelte';
 	import LanguagePicker from './LanguagePicker.svelte';
 	import ComposerTarget from './ComposerTarget.svelte';
@@ -71,6 +72,7 @@
 	let loading = $state(true);
 	let initialized = $state(false);
 	let busy = $state(false);
+	let photoPageOpen = $state(false);
 	let mediaTasks = $state<string[]>([]);
 	let mediaEdits = $state<string[]>([]);
 	let error = $state('');
@@ -248,7 +250,8 @@
 		mounted = true;
 	});
 	beforeNavigate((nav) => {
-		if (approvedNavigation || !initialized || nav.willUnload) return;
+		if (photoPageOpen || approvedNavigation || !initialized || nav.willUnload)
+			return;
 		if (draft.pending) return; // Exact durable recovery survives leaving a pending action.
 		if (changed || mediaEdits.length) {
 			nav.cancel();
@@ -1236,74 +1239,17 @@
 					</p>
 
 					<section class="composer-section attachment-section">
-						<h2>
-							Photos{#if draft.kind === 'project'}<span class="required-note"
-									>required</span
-								>{/if}
-						</h2>
-						{#if !draft.video && !retainedVideo}<div class="attachment-help">
-								<p>
-									<span class="alt-symbol" aria-hidden="true">ALT</span>{draft
-										.images.length
-										? `${draft.images.filter((image) => image.alt.trim()).length} / ${draft.images.length} described`
-										: '0 described'}
-								</p>
-								<p>
-									{draft.images.length
-										? `${draft.images.length} of 8 photos · Use the arrows to reorder`
-										: 'Up to 8 photos'}
-								</p>
-							</div>{/if}
-						{#if !draft.video && draft.images.length < 8 && !retainedExternal}<label
-								class="file-button attachment-picker"
-								><span class="attachment-add-icon"
-									><Icon name="plus" size={34} /></span
-								><span class="attachment-picker-copy"
-									><strong
-										>{canAddVideo
-											? 'Add photos or a video'
-											: draft.images.length
-												? 'Add another photo'
-												: 'Add a photo'}</strong
-									><small
-										>{canAddVideo
-											? 'Up to 8 photos or one video'
-											: draft.images.length
-												? `${8 - draft.images.length} photos remaining`
-												: 'Up to 8 photos'}</small
-									></span
-								><input
-									type="file"
-									aria-label={canAddVideo
-										? 'Add photos or a video'
-										: 'Add images'}
-									accept={canAddVideo
-										? 'image/jpeg,image/png,image/webp,video/mp4'
-										: 'image/jpeg,image/png,image/webp'}
-									multiple
-									onchange={(event) => {
-										void addAttachments(event.currentTarget.files);
-										event.currentTarget.value = '';
-									}}
-								/></label
-							>{/if}
-
-						{#if draft.images.length}<div class="media-grid">
-								{#each draft.images as image, index (image.id)}<MediaEditor
-										media={image}
-										{index}
-										count={draft.images.length}
-										disabled={locked}
-										onBusyChange={(value) => mediaBusy(image.id, value)}
-										onEditingChange={(value) => mediaEditing(image.id, value)}
-										onchange={(value) => (draft.images[index] = value)}
-										onremove={() =>
-											(draft.images = draft.images.filter(
-												(item) => item.id !== image.id
-											))}
-										onmove={(direction) => moveImage(index, direction)}
-									/>{/each}
-							</div>{/if}
+						{#if !draft.video && !retainedVideo && !retainedExternal}<PhotoAttachments
+								images={draft.images}
+								required={draft.kind === 'project'}
+								disabled={locked}
+								{canAddVideo}
+								onadd={addAttachments}
+								onchange={(images) => (draft.images = images)}
+								onBusyChange={mediaBusy}
+								onEditingChange={mediaEditing}
+								onOpenChange={(open) => (photoPageOpen = open)}
+							/>{/if}
 						{#if draft.video}<div class="video-editor">
 								<div class="video-selected">
 									<Icon name="video" /><span
