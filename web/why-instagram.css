@@ -6,7 +6,9 @@
 .why-wrap { width: min(1200px, calc(100% - 80px)); margin-inline: auto; }
 .why-nav { display: flex; justify-content: space-between; align-items: center; padding-block: 28px; border-bottom: 2px solid; gap: 24px; }
 .why-brand { display: inline-flex; align-items: center; gap: 8px; font-weight: 900; letter-spacing: -.06em; font-size: 32px; text-decoration: none; color: var(--ink); white-space: nowrap; }
-.why-brand img { display: block; flex-shrink: 0; width: 40px; height: 40px; }
+.why-brand-mark { position: relative; display: block; flex-shrink: 0; width: 40px; height: 40px; overflow: hidden; }
+/* The adaptive icon's 584px hand sits inside a transparent 1080px canvas. */
+.why-brand-mark img { position: absolute; display: block; width: calc(40px * 1080 / 584); height: calc(40px * 1080 / 584); max-width: none; left: 50%; top: 50%; transform: translate(-50%, -50%); }
 .why-nav-cta { font-size: 15px; font-weight: 700; }
 .why-hero { padding-block: 65px 70px; }
 .why-kicker { font-size: 12px; text-transform: uppercase; font-weight: 800; letter-spacing: .15em; margin-bottom: 28px !important; }
@@ -14,7 +16,6 @@
 .why-hero h1>span { color: var(--cobalt); }
 .why-hero-bottom { display: grid; grid-template-columns: 1.4fr 1fr; gap: 60px; align-items: center; margin-top: 40px; }
 .why-lede { font-size: clamp(21px, 2.2vw, 29px); font-weight: 700; line-height: 1.35; }
-.why-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 22px; margin-block: 28px 18px; font-size: 15px; font-weight: bold; }
 .why-button { display: inline-block; background: var(--cobalt); color: white; padding: 17px 25px; border: 2px solid var(--ink); border-radius: var(--r-4); box-shadow: 5px 5px 0 var(--ink); text-decoration: none; font-size: 16px; font-weight: 800; transition: transform 120ms; }
 .why-button:hover { background: var(--cobalt-deep); color: white; transform: translateY(-2px); }
 .why-small { font-size: 13px; margin-top: 20px !important; }
