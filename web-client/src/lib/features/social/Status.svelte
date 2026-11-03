@@ -8,7 +8,8 @@
 		reload
 	}: {
 		work: Work;
-		skeleton?: 'posts' | 'people' | 'profile';
+		skeleton?:
+			'posts' | 'people' | 'profile' | 'activity' | 'management' | 'comments';
 		reload?: () => void;
 	} = $props();
 </script>

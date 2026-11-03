@@ -1,11 +1,17 @@
 <script lang="ts">
+	import { usePrompt } from '../social/prompt';
+	const ask = usePrompt();
 	import { tick, untrack } from 'svelte';
 	import type { CraftskyAPI, Json, JsonObject } from '#lib/api/client.ts';
 	import { label, options, record, str } from './model.ts';
 	import FacetTextInput from './FacetTextInput.svelte';
+	import FieldCounter from './FieldCounter.svelte';
+	import { recordTextLimit } from './text-limit';
 	import Icon from '../shell/Icon.svelte';
 	import ProjectDetail from './ProjectDetail.svelte';
 	import MultiSelect from '#lib/MultiSelect.svelte';
+	import SingleSelect from '#lib/SingleSelect.svelte';
+	import toolSizes from './tool-sizes.json';
 	let {
 		project,
 		api,
@@ -74,18 +80,13 @@
 		});
 	}
 	function projectType(value: string) {
-		const subtype = str(details.projectSubtype);
 		onchange({
 			...project,
 			details: {
 				...details,
 				$type: `social.craftsky.project.${shortCraft}#details`,
 				projectType: value || undefined,
-				projectSubtype: options('projectSubtype', craft, value).some(
-					(option) => option.id === subtype
-				)
-					? subtype
-					: undefined
+				projectSubtype: undefined
 			}
 		});
 	}
@@ -106,6 +107,14 @@
 			},
 			details: undefined
 		});
+	}
+	function withCurrent(
+		choices: { id: string; label: string }[],
+		value: string
+	) {
+		return value && !choices.some((option) => option.id === value)
+			? [...choices, { id: value, label: label(value) }]
+			: choices;
 	}
 	function selected(key: string): string[] {
 		const values = common[key];
@@ -208,12 +217,17 @@
 		[next[index], next[destination]] = [next[destination], next[index]];
 		updateCommon('materials', next);
 	}
-	function closeMaterials() {
+	async function closeMaterials() {
 		if (
 			materialText !== str(editingMaterial?.text) &&
-			!confirm(
-				"Discard material changes? Your current material input won't be saved. Materials you've already added will be kept."
-			)
+			!(await ask({
+				title: 'Discard material changes?',
+				detail:
+					"Your current material input won't be saved. Materials you've already added will be kept.",
+				confirmLabel: 'Discard',
+				cancelLabel: 'Keep editing',
+				danger: true
+			}))
 		)
 			return false;
 		materialText = '';
@@ -236,17 +250,14 @@
 >
 	{#if part !== 'details'}
 		<div class="project-basics">
-			<label
-				><span>Primary craft <small class="required-note">required</small></span
-				><select
-					value={craft}
-					onchange={(e) => changeCraft(e.currentTarget.value)}
-					><option value="">Select Primary craft</option
-					>{#each options('craft') as option}<option value={option.id}
-							>{option.label}</option
-						>{/each}</select
-				></label
-			>
+			<SingleSelect
+				label="Primary craft"
+				required
+				{disabled}
+				value={craft}
+				options={withCurrent(options('craft'), craft)}
+				onchange={changeCraft}
+			/>
 		</div>
 		<MultiSelect
 			label="Additional crafts"
@@ -257,31 +268,31 @@
 			{disabled}
 			onchange={additional}
 		/>
-		<label
-			>Project title<input
-				maxlength="200"
-				value={str(common.title)}
-				oninput={(e) =>
-					updateCommon('title', e.currentTarget.value || undefined)}
-				placeholder="Add a short project title"
-			/></label
-		>
+		<div>
+			<label
+				>Project title<input
+					use:recordTextLimit={{ graphemes: 200, bytes: 500 }}
+					value={str(common.title)}
+					oninput={(e) =>
+						updateCommon('title', e.currentTarget.value || undefined)}
+					placeholder="Add a short project title"
+				/></label
+			><FieldCounter value={str(common.title)} maximum={200} />
+		</div>
 
-		<label
-			>Status<select
-				value={str(common.status)}
-				onchange={(e) =>
-					updateCommon('status', e.currentTarget.value || undefined)}
-				><option value="">Not specified</option
-				>{#each options('status') as option}<option value={option.id}
-						>{option.label}</option
-					>{/each}</select
-			></label
-		>
+		<SingleSelect
+			label="Status"
+			{disabled}
+			value={str(common.status)}
+			options={withCurrent(options('status'), str(common.status))}
+			onchange={(value) => updateCommon('status', value || undefined)}
+		/>
 		<FacetTextInput
 			{api}
 			{disabled}
 			label="Pattern tag or name"
+			maximum={200}
+			maximumBytes={500}
 			value={str(pattern.name) || '#'}
 			allowed={['hashtag']}
 			onchange={(value) =>
@@ -290,15 +301,17 @@
 					value.trim() === '#' ? undefined : value || undefined
 				)}
 		/>
-		<label
-			>Duration<input
-				maxlength="100"
-				value={str(common.duration)}
-				oninput={(e) =>
-					updateCommon('duration', e.currentTarget.value || undefined)}
-				placeholder="e.g. 2 days or 4 weeks"
-			/></label
-		>
+		<div>
+			<label
+				>Duration<input
+					use:recordTextLimit={{ graphemes: 100, bytes: 500 }}
+					value={str(common.duration)}
+					oninput={(e) =>
+						updateCommon('duration', e.currentTarget.value || undefined)}
+					placeholder="e.g. 2 days or 4 weeks"
+				/></label
+			><FieldCounter value={str(common.duration)} maximum={100} />
+		</div>
 	{/if}
 	{#if part !== 'main'}
 		<div class="more-details-heading">
@@ -318,19 +331,14 @@
 			onclose={() => (activeDetail = undefined)}
 		>
 			<div class="stack">
-				<label class="check"
-					><input
-						type="checkbox"
-						checked={pattern.selfDrafted === true}
-						onchange={(e) =>
-							updatePattern('selfDrafted', e.currentTarget.checked)}
-					/>Self drafted</label
-				>
 				<div class="fields">
 					<FacetTextInput
 						{api}
 						{disabled}
 						label="Designer"
+						maximum={200}
+						maximumBytes={500}
+						placeholder="Add pattern designer"
 						value={str(pattern.designer)}
 						allowed={['mention']}
 						onchange={(value) => updatePattern('designer', value || undefined)}
@@ -338,30 +346,45 @@
 						{api}
 						{disabled}
 						label="Publisher"
+						maximum={200}
+						maximumBytes={500}
+						placeholder="Add pattern publisher"
 						value={str(pattern.publisher)}
 						allowed={['mention']}
 						onchange={(value) => updatePattern('publisher', value || undefined)}
 					/>
 				</div>
 				<label
-					>Pattern link<input
+					>Link<input
 						type="url"
 						value={str(pattern.url)}
 						oninput={(e) =>
 							updatePattern('url', e.currentTarget.value || undefined)}
-						placeholder="https://"
+						placeholder="https://example.com/pattern"
 					/></label
-				><label
-					>Difficulty<select
-						value={str(pattern.difficulty)}
-						onchange={(e) =>
-							updatePattern('difficulty', e.currentTarget.value || undefined)}
-						><option value="">Not specified</option
-						>{#each options('difficulty') as option}<option value={option.id}
-								>{option.label}</option
-							>{/each}</select
-					></label
-				>
+				><SingleSelect
+					label="Difficulty"
+					{disabled}
+					value={str(pattern.difficulty)}
+					options={withCurrent(options('difficulty'), str(pattern.difficulty))}
+					onchange={(value) => updatePattern('difficulty', value || undefined)}
+				/>
+				<label class="switch-row">
+					<span
+						><strong>Self-drafted pattern</strong><small
+							>I drafted this pattern</small
+						></span
+					>
+					<input
+						type="checkbox"
+						role="switch"
+						aria-label="Self-drafted pattern"
+						{disabled}
+						checked={pattern.selfDrafted === true}
+						onchange={(event) =>
+							updatePattern('selfDrafted', event.currentTarget.checked)}
+					/>
+				</label>
 			</div>
 		</ProjectDetail>
 		<ProjectDetail
@@ -456,7 +479,7 @@
 		{#if ['sewing', 'knitting', 'crochet', 'quilting'].includes(shortCraft)}
 			<ProjectDetail
 				title={label(craft) + ' details'}
-				description="Size, tools and techniques"
+				description="Add project type and craft-specific details"
 				icon="adjustments"
 				open={activeDetail === 'craft'}
 				{disabled}
@@ -465,95 +488,125 @@
 			>
 				<div class="stack">
 					<div class="fields">
-						<label
-							>Project type<select
-								value={str(details.projectType)}
-								onchange={(e) => {
-									projectType(e.currentTarget.value);
-								}}
-								><option value="">Not specified</option
-								>{#each options('projectType', craft) as option}<option
-										value={option.id}>{option.label}</option
-									>{/each}</select
-							></label
-						><label
-							>Project subtype<select
-								value={str(details.projectSubtype)}
-								onchange={(e) =>
-									updateDetail(
-										'projectSubtype',
-										e.currentTarget.value || undefined
-									)}
-								><option value="">Not specified</option
-								>{#each options('projectSubtype', craft, str(details.projectType)) as option}<option
-										value={option.id}>{option.label}</option
-									>{/each}</select
-							></label
-						>
+						<SingleSelect
+							label="Project type"
+							{disabled}
+							value={str(details.projectType)}
+							options={withCurrent(
+								options('projectType', craft).sort((a, b) =>
+									a.label.localeCompare(b.label)
+								),
+								str(details.projectType)
+							)}
+							onchange={projectType}
+						/><SingleSelect
+							label="Project subtype"
+							disabled={disabled ||
+								!details.projectType ||
+								!options('projectSubtype', craft, str(details.projectType))
+									.length}
+							value={str(details.projectSubtype)}
+							options={details.projectType
+								? withCurrent(
+										options(
+											'projectSubtype',
+											craft,
+											str(details.projectType)
+										).sort((a, b) => a.label.localeCompare(b.label)),
+										str(details.projectSubtype)
+									)
+								: []}
+							onchange={(value) =>
+								updateDetail('projectSubtype', value || undefined)}
+						/>
 					</div>
-					{#if shortCraft === 'sewing'}<label
-							>Size made<input
-								maxlength="100"
-								value={str(details.sizeMade)}
-								oninput={(e) =>
-									updateDetail('sizeMade', e.currentTarget.value || undefined)}
-							/></label
-						><label
-							>Fit notes<textarea
-								rows="3"
-								maxlength="600"
-								value={str(details.fitNotes)}
-								oninput={(e) =>
-									updateDetail('fitNotes', e.currentTarget.value || undefined)}
-							></textarea></label
-						>{/if}
-					{#if textile}<div class="fields">
+					{#if shortCraft === 'sewing'}<div>
 							<label
-								>Yarn weight<select
-									value={str(details.yarnWeight)}
-									onchange={(e) =>
+								>Size made<input
+									use:recordTextLimit={{ graphemes: 100, bytes: 500 }}
+									placeholder="e.g. Medium or custom measurements"
+									value={str(details.sizeMade)}
+									oninput={(e) =>
 										updateDetail(
-											'yarnWeight',
+											'sizeMade',
 											e.currentTarget.value || undefined
 										)}
-									><option value="">Not specified</option
-									>{#each options('yarnWeight') as option}<option
-											value={option.id}>{option.label}</option
-										>{/each}</select
-								></label
-							><label
-								>{shortCraft === 'knitting' ? 'Needle' : 'Hook'} size (mm)<input
-									inputmode="decimal"
-									value={str(
+								/></label
+							><FieldCounter value={str(details.sizeMade)} maximum={100} />
+						</div>
+						<div>
+							<label
+								>Fit notes<textarea
+									rows="3"
+									use:recordTextLimit={{ graphemes: 600, bytes: 6000 }}
+									placeholder="Add fit notes"
+									value={str(details.fitNotes)}
+									oninput={(e) =>
+										updateDetail(
+											'fitNotes',
+											e.currentTarget.value || undefined
+										)}></textarea></label
+							><FieldCounter value={str(details.fitNotes)} maximum={600} />
+						</div>{/if}
+					{#if textile}<div class="fields">
+							<SingleSelect
+								label="Yarn weight"
+								{disabled}
+								value={str(details.yarnWeight)}
+								options={withCurrent(
+									options('yarnWeight'),
+									str(details.yarnWeight)
+								)}
+								onchange={(value) =>
+									updateDetail('yarnWeight', value || undefined)}
+							/><SingleSelect
+								label={shortCraft === 'knitting' ? 'Needle size' : 'Hook size'}
+								{disabled}
+								value={str(
+									details[
+										shortCraft === 'knitting' ? 'needleSizeMm' : 'hookSizeMm'
+									]
+								)}
+								options={withCurrent(
+									toolSizes[shortCraft === 'knitting' ? 'needle' : 'hook'].map(
+										(value) => ({ id: value, label: value })
+									),
+									str(
 										details[
 											shortCraft === 'knitting' ? 'needleSizeMm' : 'hookSizeMm'
 										]
-									)}
-									oninput={(e) =>
-										updateDetail(
-											shortCraft === 'knitting' ? 'needleSizeMm' : 'hookSizeMm',
-											e.currentTarget.value || undefined
-										)}
-									placeholder="4.0mm"
-								/></label
-							>
-						</div>
-						<label
-							>{shortCraft === 'knitting' ? 'Size made' : 'Finished size'}<input
-								maxlength="100"
-								value={str(details.finishedSize)}
-								oninput={(e) =>
+									)
+								)}
+								onchange={(value) =>
 									updateDetail(
-										'finishedSize',
-										e.currentTarget.value || undefined
+										shortCraft === 'knitting' ? 'needleSizeMm' : 'hookSizeMm',
+										value || undefined
 									)}
-							/></label
-						>
-						<fieldset>
-							<legend>Gauge</legend>
+							/>
+						</div>
+						{#if shortCraft === 'knitting'}
+							<div>
+								<label
+									>Size made<input
+										use:recordTextLimit={{ graphemes: 100, bytes: 500 }}
+										placeholder="Add size made"
+										value={str(details.finishedSize)}
+										oninput={(e) =>
+											updateDetail(
+												'finishedSize',
+												e.currentTarget.value || undefined
+											)}
+									/></label
+								><FieldCounter
+									value={str(details.finishedSize)}
+									maximum={100}
+								/>
+							</div>{/if}
+						<div class="gauge-fields">
 							<div class="fields gauge">
-								{#each [['stitches', 'Stitches'], ['rows', 'Rows'], ['measurement', 'Over']] as [key, name]}<label
-										>{name}<input
+								{#each [['stitches', 'Stitches'], ['rows', 'Rows'], ['measurement', 'Measurement']] as [key, name]}<label
+										>Gauge {name.toLowerCase()}<input
+											placeholder={name}
 											type="number"
 											min="1"
 											step="1"
@@ -562,41 +615,72 @@
 												: ''}
 											oninput={(e) => gauge(key, e.currentTarget.value)}
 										/></label
-									>{/each}<label
-									>Unit<select
-										value={str(record(details.gauge).unit)}
-										onchange={(e) => gauge('unit', e.currentTarget.value)}
-										><option value="">Choose</option><option value="cm"
-											>cm</option
-										><option value="in">inches</option></select
-									></label
-								>
+									>{/each}<SingleSelect
+									label="Gauge unit"
+									{disabled}
+									value={str(record(details.gauge).unit)}
+									options={[
+										{ id: 'cm', label: 'cm' },
+										{ id: 'in', label: 'in' }
+									]}
+									onchange={(value) => gauge('unit', value)}
+								/>
 							</div>
-						</fieldset>{/if}
-					{#if shortCraft === 'quilting'}<label
-							>Finished size<input
-								maxlength="100"
-								value={str(details.size)}
-								oninput={(e) =>
-									updateDetail('size', e.currentTarget.value || undefined)}
-							/></label
-						>{#each [['piecingTechnique', 'Piecing technique'], ['quiltingMethod', 'Quilting method']] as [key, name]}<label
-								>{name}<select
-									value={str(details[key])}
-									onchange={(e) =>
-										updateDetail(key, e.currentTarget.value || undefined)}
-									><option value="">Not specified</option
-									>{#each options(key, craft) as option}<option
-											value={option.id}>{option.label}</option
-										>{/each}</select
-								></label
-							>{/each}{/if}
+						</div>
+						{#if shortCraft === 'crochet'}
+							<div>
+								<label
+									>Finished size<input
+										use:recordTextLimit={{ graphemes: 100, bytes: 500 }}
+										placeholder="Add finished size"
+										value={str(details.finishedSize)}
+										oninput={(e) =>
+											updateDetail(
+												'finishedSize',
+												e.currentTarget.value || undefined
+											)}
+									/></label
+								><FieldCounter
+									value={str(details.finishedSize)}
+									maximum={100}
+								/>
+							</div>{/if}{/if}
+					{#if shortCraft === 'quilting'}<div>
+							<label
+								>Size<input
+									use:recordTextLimit={{ graphemes: 100, bytes: 500 }}
+									placeholder="Add finished size"
+									value={str(details.size)}
+									oninput={(e) =>
+										updateDetail('size', e.currentTarget.value || undefined)}
+								/></label
+							><FieldCounter value={str(details.size)} maximum={100} />
+						</div>
+						{#each [['piecingTechnique', 'Piecing technique'], ['quiltingMethod', 'Quilting method']] as [key, name]}<SingleSelect
+								label={name}
+								{disabled}
+								value={str(details[key])}
+								options={withCurrent(options(key, craft), str(details[key]))}
+								onchange={(value) => updateDetail(key, value || undefined)}
+							/>{/each}{/if}
 				</div>
 			</ProjectDetail>{/if}
 	{/if}
 </section>
 
 <style>
+	.switch-row small {
+		display: block;
+		font-weight: 400;
+		color: var(--ink-3);
+	}
+	.project-editor :global(.fields) {
+		grid-template-columns: 1fr;
+	}
+	.project-editor :global(.gauge-fields) {
+		display: grid;
+		gap: 16px;
+	}
 	.project-editor
 		:global(.native-multi-select .selection-values input[type='search']) {
 		border: 0;

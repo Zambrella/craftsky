@@ -38,7 +38,10 @@ test('Home tabs and compact post authors use the native bare glyphs in craft ord
 	await expect(feeds.getByRole('link')).toHaveText([
 		'Following',
 		'Knitting',
-		'Sewing'
+		'Sewing',
+		'Crochet',
+		'Embroidery',
+		'Quilting'
 	]);
 	const following = feeds.getByRole('link', { name: 'Following', exact: true });
 	await expect(following).toHaveAttribute('aria-current', 'page');
@@ -70,6 +73,68 @@ test('Home tabs and compact post authors use the native bare glyphs in craft ord
 		'16px'
 	);
 	await expect(author.locator('.craft-badge')).toHaveCount(0);
+});
+
+test('desktop discovery follows the native breakpoint, isolates retry and selects short craft links', async ({
+	page
+}) => {
+	await page.setViewportSize({ width: 1200, height: 900 });
+	let requests = 0;
+	await page.route('**/api/appview/v1/profiles/recent*', (route) => {
+		requests++;
+		return requests === 1
+			? route.fulfill({
+					status: 503,
+					json: { error: 'unavailable', message: 'Try again' }
+				})
+			: route.fulfill({
+					json: {
+						items: [
+							{
+								did: 'did:plc:new',
+								handle: 'new.test',
+								displayName: 'New Maker',
+								crafts: ['crochet']
+							}
+						]
+					}
+				});
+	});
+	await page.goto('/app/home');
+	await expect(
+		page.getByRole('navigation', { name: 'Home feeds' })
+	).toBeVisible();
+	await expect(
+		page.getByRole('complementary', { name: 'Discover CraftSky' })
+	).toHaveCount(0);
+	expect(requests).toBe(0);
+	await page.setViewportSize({ width: 1366, height: 1024 });
+	const discovery = page.getByRole('complementary', {
+		name: 'Discover CraftSky'
+	});
+	await expect(discovery.getByText("Couldn't load new members.")).toBeVisible();
+	await expect(
+		discovery.getByRole('link', { name: 'Knitting', exact: true })
+	).toBeVisible();
+	await discovery.getByRole('button', { name: 'Retry' }).click();
+	await expect(
+		discovery.getByRole('link', { name: /New Maker/ })
+	).toBeVisible();
+	await discovery.getByRole('link', { name: 'Knitting', exact: true }).click();
+	await expect(
+		page
+			.getByRole('navigation', { name: 'Home feeds' })
+			.getByRole('link', { name: 'Knitting', exact: true })
+	).toHaveAttribute('aria-current', 'page');
+	await page
+		.getByRole('button', { name: 'Switch accounts, @alice.test', exact: true })
+		.click();
+	await expect(
+		page.getByRole('dialog', { name: 'Accounts', exact: true })
+	).toBeVisible();
+	await page.keyboard.press('Escape');
+	await page.setViewportSize({ width: 900, height: 900 });
+	await expect(discovery).toHaveCount(0);
 });
 
 test('compact author crafts normalize lexicon IDs, retain unknown accessible labels and count overflow', async ({

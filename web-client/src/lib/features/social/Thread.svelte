@@ -16,6 +16,7 @@
 	import Avatar from '#lib/Avatar.svelte';
 	import EmptyState from './EmptyState.svelte';
 	import CompactIdentity from './CompactIdentity.svelte';
+	import ChoiceMenu from './ChoiceMenu.svelte';
 	let {
 		api,
 		session,
@@ -170,6 +171,7 @@
 		{api}
 		did={session.did}
 		detail
+		initialImageCid={page.url.searchParams.get('imageCid') || undefined}
 		onRemove={() => {
 			location.href = '/app/home';
 		}}
@@ -215,16 +217,20 @@
 			</p>{/if}{/each}{:else}
 	<div class="comments-heading">
 		<h2 class="visually-hidden">Comments</h2>
-		<label class="visually-hidden" for="comment-sort">Comment order</label
-		><select
-			id="comment-sort"
-			bind:value={sort}
+		<ChoiceMenu
+			label="Comment order"
+			value={sort}
 			disabled={work.busy}
-			onchange={() => load()}
-			><option value="oldest">Oldest</option><option value="newest"
-				>Newest</option
-			><option value="follows">Follows</option></select
-		>
+			options={[
+				{ value: 'newest', label: 'Newest', icon: 'sort' },
+				{ value: 'oldest', label: 'Oldest', icon: 'oldest' },
+				{ value: 'follows', label: 'Follows', icon: 'following' }
+			]}
+			onchange={(value) => {
+				sort = value as typeof sort;
+				load();
+			}}
+		/>
 	</div>
 	{#if post && visible(post)}<a
 			class="comment-compose"
@@ -315,12 +321,6 @@
 	.comments-heading h2 {
 		margin: 0;
 		font-size: 18px;
-	}
-	.comments-heading select {
-		width: auto;
-		max-width: 50%;
-		font-size: 13px;
-		margin: 0;
 	}
 	.comment-compose {
 		margin: 0 16px 16px;

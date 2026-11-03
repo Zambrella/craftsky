@@ -71,13 +71,20 @@ test('native compact filter form uses search, dependent choices and Cancel witho
 	await page.screenshot({
 		path: test.info().outputPath('native-filter-picker.png')
 	});
-	await choices.getByRole('checkbox', { name: 'Garment', exact: true }).check();
+	await choices.getByRole('checkbox', { name: 'Garment', exact: true }).click();
+	await expect(choices).toHaveCount(0);
+	await expect(type).toBeFocused();
 	await expect(type).toHaveValue('');
 	await expect(subtype).toBeEnabled();
 	await subtype.fill('sweater');
 	await expect(choices).toHaveCount(0);
-	await dialog.getByRole('checkbox', { name: 'Sweater', exact: true }).check();
-	await subtype.press('Escape');
+	await subtype.press('Enter');
+	await expect(
+		dialog.getByRole('button', {
+			name: 'Remove Sweater from Project subtype',
+			exact: true
+		})
+	).toBeVisible();
 	await expect(dialog).toBeVisible();
 	await dialog
 		.getByRole('button', {
@@ -94,7 +101,7 @@ test('native compact filter form uses search, dependent choices and Cancel witho
 	).toHaveCount(0);
 	const color = dialog.getByRole('searchbox', { name: 'Color', exact: true });
 	await color.fill('blue');
-	await dialog.getByRole('checkbox', { name: 'Blue', exact: true }).check();
+	await dialog.getByRole('checkbox', { name: 'Blue', exact: true }).click();
 	await color.press('Enter');
 	await expect(dialog).toBeVisible();
 	expect(new URL(page.url()).searchParams.has('color')).toBe(false);
@@ -131,8 +138,11 @@ test('native selection limit and Clear all retain craft/sort until explicit Appl
 		name: 'Color options',
 		exact: true
 	});
-	for (let i = 0; i < 9; i++)
-		await choices.locator('input:not(:checked):not(:disabled)').first().check();
+	for (let i = 0; i < 9; i++) {
+		await color.click();
+		await choices.locator('input:not(:checked):not(:disabled)').first().click();
+	}
+	await color.click();
 	await expect(choices.locator('input:checked')).toHaveCount(10);
 	await expect(
 		choices.locator('input:not(:checked):not(:disabled)')
@@ -152,4 +162,27 @@ test('native selection limit and Clear all retain craft/sort until explicit Appl
 	expect(query.get('sort')).toBe('popular');
 	expect(query.has('color')).toBe(false);
 	expect(query.has('selfDrafted')).toBe(false);
+});
+
+test('native sort sheets preserve craft filters and move to a pointer menu on wide layouts', async ({
+	page
+}) => {
+	await page.setViewportSize({ width: 402, height: 874 });
+	await page.goto('/app/home?craft=knitting&status=finished');
+	await page.getByLabel('Sort projects: Newest', { exact: true }).click();
+	const menu = page.locator('.choice-menu[open] .menu-items');
+	await expect(menu).toHaveCSS('position', 'fixed');
+	await menu.getByRole('link', { name: 'Popular', exact: true }).click();
+	await expect(page).toHaveURL(/sort=popular/);
+	expect(new URL(page.url()).searchParams.get('craft')).toBe('knitting');
+	expect(new URL(page.url()).searchParams.get('status')).toBe('finished');
+	await page.setViewportSize({ width: 1280, height: 900 });
+	await page.getByLabel('Sort projects: Popular', { exact: true }).click();
+	await expect(menu).toHaveCSS('border-top-left-radius', '14px');
+	expect(
+		await menu.evaluate((el) => el.getBoundingClientRect().width)
+	).toBeLessThanOrEqual(280);
+	await expect(page.locator('html')).not.toHaveCSS('overflow', 'hidden');
+	await page.keyboard.press('Escape');
+	await expect(page.locator('.choice-menu[open]')).toHaveCount(0);
 });

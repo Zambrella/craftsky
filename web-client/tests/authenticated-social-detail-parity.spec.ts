@@ -34,6 +34,17 @@ const post = (rkey = 'first', overrides: Record<string, unknown> = {}) => ({
 	...overrides
 });
 async function timeline(page: Page, value: ReturnType<typeof post>) {
+	await page.route('**/api/appview/v1/posts/**/comments*', (route) =>
+		route.fulfill({ json: { comments: { items: [], cursor: null } } })
+	);
+	await page.route(/\/api\/appview\/v1\/posts\/[^/]+\/[^/?]+$/, (route) => {
+		const parts = new URL(route.request().url()).pathname
+			.split('/')
+			.map(decodeURIComponent);
+		return parts.at(-1) === value.rkey && parts.at(-2) === value.author.did
+			? route.fulfill({ json: value })
+			: route.continue();
+	});
 	await page.route('**/api/appview/v1/feed/timeline*', (route) =>
 		route.fulfill({ json: { items: [{ itemKey: 'stable', post: value }] } })
 	);
@@ -60,6 +71,90 @@ test.beforeEach(async ({ context, page }) => {
 			sameSite: 'Lax'
 		}
 	]);
+});
+
+test('project feed summaries retain pattern facets, credits, size and compact edit metadata', async ({
+	page
+}) => {
+	await page.setViewportSize({ width: 402, height: 874 });
+	await timeline(
+		page,
+		post('project', {
+			editedAt: '2026-11-01T13:00:00Z',
+			project: {
+				common: {
+					title: 'Weekend cardigan',
+					craftType: 'social.craftsky.feed.defs#knitting',
+					status: 'social.craftsky.feed.defs#finished',
+					pattern: {
+						name: '#cardigan',
+						nameFacets: [
+							{
+								index: { byteStart: 0, byteEnd: 9 },
+								features: [
+									{ $type: 'app.bsky.richtext.facet#tag', tag: 'cardigan' }
+								]
+							}
+						],
+						designer: 'Martha',
+						publisher: 'Studio',
+						selfDrafted: true
+					}
+				},
+				details: { finishedSize: 'Medium' }
+			}
+		})
+	);
+	await page.goto('/app/home');
+	const card = page.locator('.post-card').first();
+	const metadata = card.locator('.project-preview-metadata');
+	await expect(metadata).toContainText('Pattern');
+	await expect(metadata).toContainText('by Martha, Studio');
+	await expect(metadata).toContainText('Studio · Self-drafted');
+	await expect(metadata).toContainText('Finished size');
+	await expect(metadata).toContainText('Medium');
+	await expect(
+		metadata.getByRole('link', { name: '#cardigan' })
+	).toHaveAttribute('href', /cardigan/);
+	await expect(card.locator('.author .edited-indicator')).toBeVisible();
+	await expect(card.locator('.author .date')).toHaveAttribute(
+		'title',
+		/Edited/
+	);
+	await expect(card.locator('p.muted')).toHaveCount(0);
+	await expect(page.locator('.post-actions').first()).toHaveCSS(
+		'border-top-style',
+		'solid'
+	);
+	await page.screenshot({
+		path: test.info().outputPath('project-feed-summary.png')
+	});
+});
+
+test('empty pattern metadata stays absent and unrecognised status remains outlined', async ({
+	page
+}) => {
+	await timeline(
+		page,
+		post('project', {
+			project: {
+				common: {
+					title: 'A project',
+					craftType: 'sewing',
+					status: 'planned',
+					pattern: { name: ' ', designer: ' ' }
+				},
+				details: { sizeMade: ' ' }
+			}
+		})
+	);
+	await page.goto('/app/home');
+	await expect(page.getByRole('heading', { name: 'A project' })).toBeVisible();
+	await expect(page.locator('.project-preview-metadata')).toHaveCount(0);
+	await expect(page.locator('.status-badge')).toHaveCSS(
+		'background-color',
+		'rgba(0, 0, 0, 0)'
+	);
 });
 
 test('quoted projects use native compact identity, text before image and four-line preview', async ({
@@ -192,7 +287,7 @@ test('unsaved bookmark confirms before writing and Cancel leaves it unchanged', 
 	});
 	await expect(
 		dialog.getByRole('combobox', { name: 'Folder', exact: true })
-	).toHaveValue('');
+	).toHaveValue('No folder');
 	expect(writes).toBe(0);
 	await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
 	await expect(dialog).not.toBeVisible();
@@ -233,12 +328,21 @@ test('compact share and overflow menus expose native actions and quote the displ
 		.click();
 	await page.getByLabel('Share post', { exact: true }).click();
 	const share = page.locator('.post-share[open]');
+	await expect(share.getByRole('switch')).toHaveCSS('width', '52px');
+	await expect(share.getByRole('switch')).toHaveCSS('height', '32px');
 	await expect(share.locator('.menu-items')).toHaveCSS('position', 'fixed');
+	await expect(share.locator('.menu-items')).toHaveCSS(
+		'border-top-left-radius',
+		'22px'
+	);
+	await expect(
+		share.getByRole('button', { name: 'Repost', exact: true })
+	).toHaveCSS('min-height', '56px');
 	await expect(
 		share.getByRole('button', { name: 'Repost', exact: true })
 	).toBeVisible();
 	await share
-		.getByRole('checkbox', { name: 'Quote image 2 of 2', exact: true })
+		.getByRole('switch', { name: 'Use current image (2 of 2)', exact: true })
 		.check();
 	const quote = new URL(
 		(await share
@@ -256,6 +360,18 @@ test('compact share and overflow menus expose native actions and quote the displ
 		.click({ position: { x: 2, y: 2 } });
 	await page.getByLabel('More post actions', { exact: true }).click();
 	const menu = page.locator('.post-overflow[open]');
+	await page.setViewportSize({ width: 800, height: 1000 });
+	await expect(menu.locator('.menu-items')).toHaveCSS('width', '800px');
+	await expect(page.locator('html')).toHaveCSS('overflow', 'hidden');
+	await menu.getByRole('button', { name: 'Copy link', exact: true }).focus();
+	await page.keyboard.press('Shift+Tab');
+	await expect(
+		menu.getByRole('button', { name: 'Report post', exact: true })
+	).toBeFocused();
+	await page.keyboard.press('Tab');
+	await expect(
+		menu.getByRole('button', { name: 'Copy link', exact: true })
+	).toBeFocused();
 	await expect(
 		menu.getByRole('button', { name: 'Copy link', exact: true })
 	).toBeVisible();
@@ -280,6 +396,11 @@ test('compact share and overflow menus expose native actions and quote the displ
 	await menu
 		.getByRole('button', { name: 'Close post menu' })
 		.click({ position: { x: 2, y: 2 } });
+	await expect(page.locator('html')).not.toHaveCSS('overflow', 'hidden');
+	await page.setViewportSize({ width: 375, height: 812 });
+	await page.getByRole('link', { name: 'Craft image 2', exact: true }).click();
+	await expect(page).toHaveURL(/\/posts\/.*\/images\?imageCid=image-2$/);
+	await expect(page.locator('.image-counter').first()).toHaveText('2/2');
 	await page.getByRole('link', { name: 'Craft image 2', exact: true }).click();
 	await expect(page.locator('.image-dialog[open] img')).toHaveAttribute(
 		'src',
@@ -292,8 +413,14 @@ test('compact share and overflow menus expose native actions and quote the displ
 	);
 	await page.keyboard.press('Escape');
 	await page.getByLabel('Share post', { exact: true }).click();
+	await share
+		.getByRole('switch', { name: 'Use current image (2 of 2)', exact: true })
+		.check();
 	await expect(
-		share.getByRole('checkbox', { name: 'Quote image 2 of 2', exact: true })
+		share.getByRole('switch', {
+			name: 'Use current image (2 of 2)',
+			exact: true
+		})
 	).toBeChecked();
 	expect(
 		new URL(
@@ -752,27 +879,82 @@ test('profile editor Close preserves the unsaved draft when discard is declined'
 		.getByRole('textbox', { name: 'Display name', exact: true })
 		.fill('Unsaved maker name');
 	const close = page.getByRole('link', { name: 'Close editor', exact: true });
-	await Promise.all([
-		page.waitForEvent('dialog').then(async (dialog) => {
-			expect(dialog.message()).toBe('Discard your unsaved profile changes?');
-			await dialog.dismiss();
-		}),
-		close.click()
-	]);
+	await close.click();
+	const discard = page.getByRole('dialog', {
+		name: 'Discard changes?',
+		exact: true
+	});
+	await expect(discard).toContainText("Your edits won't be saved.");
+	await discard
+		.getByRole('button', { name: 'Keep editing', exact: true })
+		.click();
 	await expect(page).toHaveURL(/\/app\/profile\/edit$/);
 	await expect(
 		page.getByRole('textbox', { name: 'Display name', exact: true })
 	).toHaveValue('Unsaved maker name');
 	expect(writes).toHaveLength(0);
-	await Promise.all([
-		page.waitForEvent('dialog').then(async (dialog) => {
-			expect(dialog.message()).toBe('Discard your unsaved profile changes?');
-			await dialog.accept();
-		}),
-		close.click()
-	]);
+	await close.click();
+	await discard.getByRole('button', { name: 'Discard', exact: true }).click();
 	await expect(page).toHaveURL(/\/app\/profile\/did%3Aplc%3Aalice$/);
 	expect(writes).toHaveLength(0);
+});
+
+test('browser Back can cancel and then discard profile edits without saving', async ({
+	page
+}) => {
+	await page.goto('/app/home');
+	const writes = await profileEditor(page);
+	// Establish an in-app history entry instead of a document navigation.
+	await page.getByRole('link', { name: 'Close editor', exact: true }).click();
+	await page.getByRole('link', { name: 'Edit profile', exact: true }).click();
+	await page
+		.getByRole('textbox', { name: 'Display name', exact: true })
+		.fill('Unsaved history edit');
+	await page.evaluate(() => history.back());
+	const dialog = page.getByRole('dialog', {
+		name: 'Discard changes?',
+		exact: true
+	});
+	await expect(dialog).toBeVisible();
+	await dialog
+		.getByRole('button', { name: 'Keep editing', exact: true })
+		.click();
+	await expect(page).toHaveURL(/\/profile\/edit$/);
+	await page.evaluate(() => history.back());
+	await dialog.getByRole('button', { name: 'Discard', exact: true }).click();
+	await expect(page).toHaveURL(/\/profile\/did%3Aplc%3Aalice$/);
+	expect(writes).toHaveLength(0);
+});
+
+test('loading skeletons stop shimmering for reduced motion and disappear when content arrives', async ({
+	page
+}) => {
+	let release!: () => void;
+	const waiting = new Promise<void>((resolve) => (release = resolve));
+	await page.route('**/api/appview/v1/feed/timeline*', async (route) => {
+		await waiting;
+		await route.fulfill({
+			json: { items: [{ itemKey: 'stable', post: post() }] }
+		});
+	});
+	await page.emulateMedia({ reducedMotion: 'reduce' });
+	await page.goto('/app/home');
+	const skeleton = page.getByRole('status', { name: 'Loading content' });
+	await expect(skeleton).toBeVisible();
+	await expect(skeleton.locator('.bone').first()).toHaveCSS(
+		'animation-name',
+		'none'
+	);
+	await page.emulateMedia({ reducedMotion: 'no-preference' });
+	await expect(skeleton.locator('.bone').first()).not.toHaveCSS(
+		'animation-name',
+		'none'
+	);
+	release();
+	await expect(skeleton).not.toBeVisible();
+	await expect(
+		page.getByText('Weekend making.', { exact: true })
+	).toBeVisible();
 });
 
 test('authoritative profile save immediately refreshes shell identity and ignores other-account update events', async ({
@@ -827,12 +1009,16 @@ test('authoritative profile save immediately refreshes shell identity and ignore
 	await page
 		.getByRole('button', { name: 'Open navigation', exact: true })
 		.click();
-	const identity = page.locator('.account-trigger .shell-identity strong');
-	await expect(identity).toHaveText('Saved maker identity');
-	await expect(page.locator('.account-trigger img')).toHaveAttribute(
-		'src',
-		'https://fixture.craftsky.test/saved-avatar.svg'
+	await page
+		.getByRole('button', { name: 'Switch accounts, @alice.test', exact: true })
+		.click();
+	const identity = page.locator(
+		'.account-menu [aria-current] .shell-identity strong'
 	);
+	await expect(identity).toHaveText('Saved maker identity');
+	await expect(
+		page.locator('.account-menu [aria-current] img')
+	).toHaveAttribute('src', 'https://fixture.craftsky.test/saved-avatar.svg');
 	const before = reads;
 	profile = { ...profile, displayName: 'Fresh authoritative identity' };
 	await page.evaluate(
@@ -858,4 +1044,120 @@ test('authoritative profile save immediately refreshes shell identity and ignore
 	await expect(identity).toHaveText('Fresh authoritative identity');
 	expect(reads - before).toBe(1);
 	expect(owners.every((owner) => owner === account.id)).toBe(true);
+});
+
+test('fullscreen gallery expands alt text, resets zoom across images, handles swipes and restores focus', async ({
+	page
+}) => {
+	await page.setViewportSize({ width: 402, height: 874 });
+	const description =
+		'A hand knitted blanket with alternating blue and gold cables. '.repeat(12);
+	await timeline(
+		page,
+		post('gallery', {
+			images: [1, 2].map((i) => ({
+				cid: 'gallery-' + i,
+				alt: i === 1 ? description : 'Second photograph',
+				thumb: `https://fixture.craftsky.test/${i}.svg`,
+				fullsize: `https://fixture.craftsky.test/${i}.svg`,
+				aspectRatio: { width: 400, height: 600 }
+			}))
+		})
+	);
+	await page.route('https://fixture.craftsky.test/*.svg', (route) =>
+		route.fulfill({
+			contentType: 'image/svg+xml',
+			body: '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="600"><rect width="400" height="600" fill="#f7d46a"/></svg>'
+		})
+	);
+	await page.goto('/app/home');
+	const open = page.locator('.gallery a').first();
+	await open.click();
+	await expect(page).toHaveURL(/\/posts\/.*\/gallery\?imageCid=gallery-1$/);
+	await open.click();
+	const gallery = page.getByRole('dialog', {
+		name: 'Image gallery',
+		exact: true
+	});
+	await expect(gallery).toHaveCSS('background-color', 'rgb(0, 0, 0)');
+	expect(
+		await gallery.evaluate((el) => [el.clientWidth, el.clientHeight])
+	).toEqual([402, 874]);
+	await expect(gallery.locator('.count')).toHaveText('1/2');
+	await gallery.getByRole('button', { name: 'Show more', exact: true }).click();
+	await expect(gallery.locator('.description p')).toHaveCSS(
+		'max-height',
+		'349.6px'
+	);
+	await expect(
+		gallery.getByRole('button', { name: 'Show less', exact: true })
+	).toHaveAttribute('aria-expanded', 'true');
+	await gallery.screenshot({
+		path: test.info().outputPath('native-fullscreen-gallery.png')
+	});
+	await page.keyboard.press('+');
+	await expect(gallery.locator('img')).toHaveCSS(
+		'transform',
+		'matrix(1.5, 0, 0, 1.5, 0, 0)'
+	);
+	await page.keyboard.press('ArrowRight');
+	await expect(gallery.locator('.count')).toHaveText('2/2');
+	await expect(gallery.locator('img')).toHaveCSS(
+		'transform',
+		'matrix(1, 0, 0, 1, 0, 0)'
+	);
+	await expect(gallery.getByRole('button', { name: 'Show more' })).toHaveCount(
+		0
+	);
+	// Drag right on the unzoomed image returns to the first page.
+	await page.mouse.move(80, 400);
+	await page.mouse.down();
+	await page.mouse.move(300, 410, { steps: 6 });
+	await page.mouse.up();
+	await expect(gallery.locator('.count')).toHaveText('1/2');
+	await expect(
+		gallery.getByRole('button', { name: 'Show more' })
+	).toBeVisible();
+	await page.keyboard.press('Escape');
+	await expect(gallery).toHaveCount(0);
+	await expect(open).toBeFocused();
+	await expect(page.locator('html')).not.toHaveCSS('overflow', 'hidden');
+});
+
+test('external links show their destination in a native confirmation and Cancel restores focus', async ({
+	page,
+	context
+}) => {
+	const href = 'https://fixture.craftsky.test/pattern';
+	await timeline(
+		page,
+		post('link', {
+			text: 'Pattern link',
+			facets: [
+				{
+					index: { byteStart: 0, byteEnd: 12 },
+					features: [{ $type: 'app.bsky.richtext.facet#link', uri: href }]
+				}
+			]
+		})
+	);
+	await page.route(href, (route) =>
+		route.fulfill({
+			contentType: 'text/html',
+			body: '<title>Pattern destination</title><p>Pattern</p>'
+		})
+	);
+	await page.goto('/app/home');
+	const link = page.getByRole('link', { name: 'Pattern link', exact: true });
+	await link.click();
+	const dialog = page.getByRole('dialog', { name: 'Open link?', exact: true });
+	await expect(dialog).toContainText('This will open outside CraftSky.');
+	await expect(dialog.locator('.destination')).toHaveText(href);
+	await expect(dialog).toHaveCSS('border-radius', '14px');
+	await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+	await expect(link).toBeFocused();
+	await expect(page).toHaveURL(/\/app\/home$/);
+	await link.click();
+	await dialog.getByRole('link', { name: 'Open link', exact: true }).click();
+	await expect(page).toHaveURL(href);
 });

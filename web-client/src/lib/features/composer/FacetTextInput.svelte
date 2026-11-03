@@ -1,4 +1,6 @@
 <script lang="ts">
+	import FieldCounter from './FieldCounter.svelte';
+	import { limitText, recordTextLimit } from './text-limit';
 	import { onDestroy, tick, untrack } from 'svelte';
 	import type { CraftskyAPI } from '#lib/api/client.ts';
 	import {
@@ -17,6 +19,8 @@
 		allowed = ['mention', 'hashtag'],
 		className = '',
 		hint = '',
+		maximum,
+		maximumBytes,
 		onsubmit = () => {}
 	}: {
 		api: CraftskyAPI;
@@ -29,6 +33,8 @@
 		allowed?: ActiveFacetToken['kind'][];
 		className?: string;
 		hint?: string;
+		maximum?: number;
+		maximumBytes?: number;
 		onsubmit?: () => void;
 	} = $props();
 	const uid = $props.id();
@@ -153,7 +159,14 @@
 			return;
 		const next = replaceFacetToken(editor.value, current, choices[index].value);
 		close();
-		onchange(next.text);
+		onchange(
+			maximum
+				? limitText(next.text, {
+						graphemes: maximum,
+						bytes: maximumBytes ?? maximum * 10
+					})
+				: next.text
+		);
 		await tick();
 		if (dead || !editor) return;
 		editor.focus();
@@ -201,6 +214,9 @@
 	<textarea
 		id={uid}
 		bind:this={editor}
+		use:recordTextLimit={maximum
+			? { graphemes: maximum, bytes: maximumBytes ?? maximum * 10 }
+			: undefined}
 		class={className}
 		{value}
 		{rows}
@@ -243,6 +259,7 @@
 			composing = false;
 			update();
 		}}></textarea>
+	{#if maximum}<FieldCounter {value} {maximum} />{/if}
 	{#if open}<div class="facet-popup">
 			<div
 				id={`${uid}-suggestions`}

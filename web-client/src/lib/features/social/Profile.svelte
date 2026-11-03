@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { confirmExternalLink } from './prompt';
 	import { contextMenu } from './context-menu';
 	import { onMount, onDestroy, untrack } from 'svelte';
 	import { page } from '$app/state';
@@ -344,23 +345,20 @@
 										encodeURIComponent(profile.did)
 								)}><Icon name="send" />Send via chat</a
 						>
-						<button
-							onclick={() => {
-								const url =
-									'https://app.craftsky.social/profiles/' +
-									encodeURIComponent(profile!.did);
-								void work.run(() =>
-									navigator.share
-										? navigator.share({ url })
-										: navigator.clipboard.writeText(url)
-								);
-							}}><Icon name="share" />Share</button
-						>
-						<div class="profile-menu-divider"></div>
-						{#if profile.did === session.did}<a
-								href="/app/settings/customisation"
-								><Icon name="edit" />Customise profile</a
-							>{:else}{#if !profile.blocking && !profile.blockedBy}<button
+						{#if profile.did !== session.did}<button
+								onclick={() => {
+									const url =
+										'https://app.craftsky.social/profiles/' +
+										encodeURIComponent(profile!.did);
+									void work.run(() =>
+										navigator.share
+											? navigator.share({ url })
+											: navigator.clipboard.writeText(url)
+									);
+								}}><Icon name="share" />Share</button
+							>
+							<div class="profile-menu-divider"></div>
+							{#if !profile.blocking && !profile.blockedBy}<button
 									disabled={work.busy || !!work.retry}
 									onclick={() => relationship('mute')}
 									><Icon name="mute" />{profile.muted
@@ -443,10 +441,7 @@
 									href={safeLink(link.url)}
 									target="_blank"
 									rel="ugc nofollow noopener noreferrer"
-									onclick={(event) => {
-										if (!confirm('Open this external website?'))
-											event.preventDefault();
-									}}
+									onclick={confirmExternalLink}
 									><Icon name="link" size={18} />{link.title ||
 										new URL(link.url).hostname}<Icon
 										name="external"
@@ -550,62 +545,9 @@
 	</div>{/if}
 
 <style>
-	.menu-backdrop {
-		display: none;
-	}
-	.profile-menu-divider {
-		border-top: 1px solid var(--hairline);
-		margin: 6px 0;
-	}
-	.profile-menu .menu-items a,
-	.profile-menu .menu-items button {
-		display: flex;
-		align-items: center;
-		gap: 12px;
-	}
 	.profile-menu .destructive {
 		color: var(--red-ink);
 	}
-	@media (max-width: 600px) {
-		.menu-backdrop {
-			display: block;
-			position: fixed;
-			inset: 0;
-			z-index: 39;
-			width: 100%;
-			height: 100dvh;
-			border: 0;
-			border-radius: 0;
-			background: rgb(0 0 0 / 40%);
-		}
-		.profile-menu .menu-items {
-			position: fixed;
-			z-index: 40;
-			inset: auto 0 0 !important;
-			width: 100%;
-			max-height: 75dvh !important;
-			padding: 12px 16px max(24px, env(safe-area-inset-bottom));
-			border: 0;
-			border-radius: 16px 16px 0 0;
-			background: var(--paper-2);
-			box-shadow: none;
-		}
-		.profile-menu .menu-items::before {
-			content: '';
-			display: block;
-			width: 32px;
-			height: 4px;
-			margin: 0 auto 12px;
-			border-radius: 4px;
-			background: var(--ink-3);
-		}
-		.profile-menu .menu-items a,
-		.profile-menu .menu-items button {
-			min-height: 48px;
-			padding: 12px 10px;
-		}
-	}
-
 	.profile-compact-header {
 		position: sticky;
 		top: 0;

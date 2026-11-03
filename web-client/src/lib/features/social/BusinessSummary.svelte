@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { confirmExternalLink } from './prompt';
 	import type { BusinessProfile } from '#lib/api/types.ts';
 	import Icon from '../shell/Icon.svelte';
 	import {
@@ -57,16 +58,7 @@
 			href={action.href}
 			target={action.href.startsWith('https:') ? '_blank' : undefined}
 			rel="ugc nofollow noopener noreferrer"
-			onclick={(event) => {
-				if (
-					!confirm(
-						action.href.startsWith('mailto:')
-							? 'Open your email app?'
-							: 'Open this external website?'
-					)
-				)
-					event.preventDefault();
-			}}
+			onclick={confirmExternalLink}
 			><Icon
 				name={action.href.startsWith('mailto:') ? 'mail' : 'external'}
 				size={18}

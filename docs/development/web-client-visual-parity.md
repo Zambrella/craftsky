@@ -1,5 +1,9 @@
 # Web client visual and interaction review
 
+The subsequent app-wide simulator/Figma audit and latest validation are recorded
+in [the complete parity audit](web-client-complete-parity-audit.md). The results
+below describe the earlier passes.
+
 Reviewed on 2–3 November 2026 against the Flutter source in this checkout. The
 existing public AppView reads and public SSR routes are preserved. No API,
 lexicon, billing provider or production infrastructure changes are part of this
@@ -176,6 +180,33 @@ uv run --with fonttools python web-client/scripts/generate-native-icons.py
 ```
 
 ## Boundaries
+
+### Figma-backed project-card follow-up (3 November)
+
+Compared the live web feed and Flutter `ProjectCard`/`PostCard` source with
+[the Figma project card](https://www.figma.com/design/PZzIL0qkhtkRAnvxNgSmF9/?node-id=71-118).
+Feed cards now include the previously missing pattern credits, self-drafted
+label and craft-specific size summary. Pattern facets retain their existing
+navigation. Blank metadata produces no empty separator. Edited timestamps use
+a compact pencil beside the original timestamp, with the full edit time in the
+tooltip and accessible description. Unrecognised statuses remain outlined;
+finished and work-in-progress retain their colour treatments. Post action rows
+use the solid divider and compact spacing/type sizing from the references.
+
+Flutter source remains authoritative where it differs from the Figma example:
+the summary metadata label column is 112px and existing compact chip sizing is
+retained. These changes do not alter API responses or record writes.
+
+Validation: 273 unit tests, 158 authenticated browser tests and 9 public SSR
+tests passed locally. After the final credit-spacing and accessible-description
+adjustments, type checking and the build passed, followed by all 15 focused
+social-parity tests and 9 public SSR tests on the Cloudflare Worker artifact.
+The live web feed and the 402px project-summary capture were visually inspected.
+
+Fresh native traversal for this follow-up is blocked by `DEVICE_IN_USE` on both
+simulators. The completed composer-audit thread still owns their device sessions.
+No account data was changed and this follow-up must not be treated as a fresh
+iPhone/iPad visual sign-off.
 
 This is a source-backed and rendered comparison, not a claim of pixel identity
 or exhaustive live account parity. Profile headers collapse to a compact identity;

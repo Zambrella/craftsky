@@ -1,5 +1,9 @@
 <script lang="ts">
+	import SingleSelect from '#lib/SingleSelect.svelte';
+	import ImageGallery from './ImageGallery.svelte';
+	import Snackbar from './Snackbar.svelte';
 	import { contextMenu } from './context-menu';
+	import { subscriptionsEnabled, comingSoon } from '../shell/release-config';
 	import { goto } from '$app/navigation';
 	import { onDestroy, untrack, getContext } from 'svelte';
 	import { profilePins } from './pins.svelte';
@@ -40,6 +44,7 @@
 		api,
 		did,
 		detail = false,
+		initialImageCid,
 		savedAt,
 		onRemove = () => {},
 		onMoved = () => {}
@@ -49,6 +54,7 @@
 		api: CraftskyAPI;
 		did: string;
 		detail?: boolean;
+		initialImageCid?: string;
 		savedAt?: string;
 		onRemove?: () => void;
 		onMoved?: () => void;
@@ -56,13 +62,18 @@
 	const dialogId = $props.id();
 	const access =
 		getContext<() => SubscriptionAccess | undefined>('craftsky-access');
-	const plus = $derived(access?.()?.effectiveTier !== 'free' && !!access?.());
+	const plus = $derived(
+		subscriptionsEnabled() &&
+			access?.()?.effectiveTier !== 'free' &&
+			!!access?.()?.givesAccess
+	);
 	const pins = profilePins(untrack(() => api));
 	let post = $state<Post | undefined>(
 		untrack(() => (visible(value) ? value : undefined))
 	);
 	let revealed = $state(false),
 		message = $state(''),
+		messageError = $state(false),
 		busy = $state(false),
 		retry = $state<(() => Promise<void>) | undefined>();
 	let dead = false;
@@ -76,7 +87,7 @@
 	let relationshipNotice = $state<'muted' | 'blocked' | ''>('');
 	let useCurrentImage = $state(false);
 	let folders = $state<SavedFolder[]>([]);
-	let gallery = $state<HTMLDialogElement>(null!);
+	let galleryOpen = $state(false);
 	let imageIndex = $state(0);
 	let inlineImageIndex = $state(0);
 	let revision = 0;
@@ -86,6 +97,7 @@
 		post = visible(incoming) ? incoming : undefined;
 		revealed = false;
 		message = '';
+		messageError = false;
 		busy = false;
 		retry = undefined;
 		reportOpen = false;
@@ -109,6 +121,7 @@
 		const captured = revision;
 		busy = true;
 		message = '';
+		messageError = false;
 		try {
 			const result = await run();
 			if (dead || captured !== revision) return;
@@ -116,6 +129,7 @@
 			retry = undefined;
 		} catch (error) {
 			if (dead || captured !== revision) return;
+			messageError = true;
 			message =
 				error instanceof APIError
 					? error.message
@@ -216,10 +230,15 @@
 		const captured = revision;
 		try {
 			await navigator.clipboard.writeText(canonicalLink());
-			if (!dead && captured === revision) message = 'Link copied.';
+			if (!dead && captured === revision) {
+				messageError = false;
+				message = 'Link copied.';
+			}
 		} catch {
-			if (!dead && captured === revision)
+			if (!dead && captured === revision) {
+				messageError = true;
 				message = 'The link could not be copied. Please try again.';
+			}
 		}
 	}
 	function quoteHref() {
@@ -303,8 +322,15 @@
 		);
 		if (index < 0) return;
 		event.preventDefault();
+		if (!detail) {
+			const cid = post.images[index].cid;
+			void goto(
+				postRoute(post) + (cid ? '?imageCid=' + encodeURIComponent(cid) : '')
+			);
+			return;
+		}
 		imageIndex = index;
-		gallery.showModal();
+		galleryOpen = true;
 	}
 	async function report(submission: ReportSubmission) {
 		if (!post) return;
@@ -401,6 +427,11 @@
 					post={publicPost(post)}
 					{detail}
 					member
+					initialImageIndex={Math.max(
+						0,
+						post.images?.findIndex((image) => image.cid === initialImageCid) ??
+							0
+					)}
 					onImageChange={(index) => {
 						inlineImageIndex = index;
 					}}
@@ -515,7 +546,9 @@
 						></a
 					>
 					{#if !post.reply}<details class="post-share" use:contextMenu>
-							<summary aria-label="Share post"
+							<summary
+								aria-label="Share post"
+								onclick={() => (useCurrentImage = false)}
 								><Icon name="repost" size={22} /><span
 									>{post.repostCount + post.quoteCount || ''}</span
 								></summary
@@ -538,14 +571,22 @@
 										? 'Undo repost'
 										: 'Repost'}</button
 								>
-								<a href={quoteHref()}><Icon name="quote" />Quote post</a
-								>{#if post.images?.length}<label class="quote-image-option"
-										><input
+								<div class="quote-menu-row">
+									<a href={quoteHref()} aria-label="Quote post"
+										><Icon name="quote" /><span
+											>Quote post{#if post.images?.length}<small
+													>Use current image ({inlineImageIndex + 1} of {post
+														.images.length})</small
+												>{/if}</span
+										></a
+									>
+									{#if post.images?.length}<input
 											type="checkbox"
+											role="switch"
+											aria-label={`Use current image (${inlineImageIndex + 1} of ${post.images.length})`}
 											bind:checked={useCurrentImage}
-										/>Quote image {inlineImageIndex + 1} of {post.images
-											.length}</label
-									>{/if}
+										/>{/if}
+								</div>
 							</div>
 						</details>{/if}
 					<span class="action-spacer"></span>
@@ -658,13 +699,17 @@
 				onSubmit={report}
 				onCancel={() => (reportOpen = false)}
 			/>{/if}
-		{#if message}<p role="status" class="notice">
+		{#if message && !messageError}<Snackbar
+				{message}
+				onDismiss={() => (message = '')}
+			/>{:else if message}<p role="status" class="notice">
 				{message}{#if retry}<button disabled={busy} onclick={() => retry?.()}
 						>Retry the same action</button
 					><button
 						onclick={() => {
 							retry = undefined;
 							message = '';
+							messageError = false;
 						}}>Dismiss</button
 					>{/if}
 			</p>{/if}
@@ -687,13 +732,18 @@
 			<h2 id={dialogId + '-save-title'}>
 				{folderMode === 'move' ? 'Move saved post' : 'Save post'}
 			</h2>
-			<label
-				>Folder<select bind:value={selectedFolder} disabled={busy}
-					><option value="">No folder</option>{#each folders as folder}<option
-							value={folder.id}>{folder.name}</option
-						>{/each}</select
-				></label
-			>
+			<SingleSelect
+				label="Folder"
+				value={selectedFolder}
+				required
+				showRequired={false}
+				options={[
+					{ id: '', label: 'No folder' },
+					...folders.map((folder) => ({ id: folder.id, label: folder.name }))
+				]}
+				disabled={busy}
+				onchange={(value) => (selectedFolder = value)}
+			/>
 			{#if plus}{#if creatingFolder}<label
 						>Folder name<input
 							bind:value={folderName}
@@ -710,7 +760,12 @@
 						disabled={busy}
 						class="new-folder"
 						onclick={() => (creatingFolder = true)}>New folder</button
-					>{/if}{/if}
+					>{/if}{:else if !subscriptionsEnabled()}<button
+					type="button"
+					class="new-folder"
+					aria-label="New folder is coming soon"
+					onclick={() => comingSoon('New folder')}>New folder</button
+				>{/if}
 			{#if message}<p role="status">
 					{message}{#if retry}<button
 							type="button"
@@ -729,31 +784,11 @@
 			</div>
 		</form>
 	</dialog>
-	<dialog
-		bind:this={gallery}
-		class="image-dialog"
-		onkeydown={(event) => {
-			if (event.key === 'ArrowLeft') imageIndex = Math.max(0, imageIndex - 1);
-			if (event.key === 'ArrowRight')
-				imageIndex = Math.min((post?.images?.length || 1) - 1, imageIndex + 1);
-		}}
-	>
-		<button class="close" onclick={() => gallery.close()}>Close</button
-		>{#if post.images?.[imageIndex]}<img
-				src={safeLink(post.images[imageIndex].fullsize || '')}
-				alt={post.images[imageIndex].alt}
-			/>
-			<p>{post.images[imageIndex].alt}</p>
-			<p>{imageIndex + 1} / {post.images.length}</p>
-			{#if post.images.length > 1}<button
-					onclick={() => (imageIndex = Math.max(0, imageIndex - 1))}
-					disabled={imageIndex === 0}>Previous</button
-				><button
-					onclick={() =>
-						(imageIndex = Math.min(post!.images!.length - 1, imageIndex + 1))}
-					disabled={imageIndex === post.images.length - 1}>Next</button
-				>{/if}{/if}
-	</dialog>
+	{#if galleryOpen && post.images?.length}<ImageGallery
+			images={post.images}
+			initialIndex={imageIndex}
+			onclose={() => (galleryOpen = false)}
+		/>{/if}
 {/if}
 
 <style>
@@ -785,10 +820,10 @@
 	}
 	.post-actions {
 		margin: 0 12px;
-		padding: 4px 0;
-		gap: 4px;
+		padding: 0;
+		gap: 0;
 		flex-wrap: nowrap;
-		border-top: 1px dashed var(--hairline);
+		border-top: 1px solid var(--hairline);
 	}
 	.post-actions .reaction,
 	.post-actions .bookmark,
@@ -796,9 +831,9 @@
 		display: inline-flex;
 		align-items: center;
 		justify-content: center;
-		gap: 6px;
+		gap: 4px;
 		min-width: 42px;
-		height: 44px;
+		height: 40px;
 		padding: 8px;
 		border: 0;
 		border-radius: 8px;
@@ -809,7 +844,7 @@
 	.post-actions .reaction span,
 	.post-share summary span {
 		font-variant-numeric: tabular-nums;
-		font-size: 13px;
+		font-size: 15px;
 		min-width: 8px;
 	}
 	.post-actions .liked {
@@ -844,25 +879,6 @@
 	.post-overflow .menu-items {
 		right: -2px;
 	}
-	.menu-items {
-		min-width: 215px;
-		z-index: 15;
-	}
-	.menu-items a,
-	.menu-items button {
-		display: flex;
-		align-items: center;
-		gap: 10px;
-		font-size: 15px;
-		font-weight: 400;
-		padding: 8px 10px;
-		white-space: nowrap;
-	}
-	.menu-items :global(svg) {
-		flex-shrink: 0;
-		width: 20px;
-		height: 20px;
-	}
 	.post-actions .delete-action {
 		color: var(--red-ink);
 	}
@@ -877,25 +893,26 @@
 	.quote-placeholder {
 		padding: 12px;
 	}
-	.menu-backdrop {
-		display: none;
-	}
-	.menu-divider {
-		border-top: 1px solid var(--hairline);
-		margin: 6px 0;
-	}
-	.quote-image-option {
+	.quote-menu-row {
 		display: flex;
 		align-items: center;
-		gap: 10px;
-		padding: 8px 10px;
-		font-size: 13px;
-		color: var(--ink-2);
+		padding-right: 16px;
 	}
-	.quote-image-option input {
-		width: 18px;
-		height: 18px;
-		margin: 0;
+	.quote-menu-row a {
+		flex: 1;
+		min-width: 0;
+	}
+	.quote-menu-row a > span {
+		display: grid;
+		gap: 4px;
+	}
+	.quote-menu-row small {
+		font-size: 12px;
+		font-weight: 400;
+		color: var(--ink-3);
+	}
+	.quote-menu-row input {
+		flex-shrink: 0;
 	}
 	.save-dialog {
 		width: min(500px, calc(100vw - 48px));
@@ -903,11 +920,6 @@
 	.save-dialog label {
 		font-size: 16px;
 		font-weight: 700;
-	}
-	.save-dialog select {
-		font-weight: 400;
-		border-color: var(--ink-3);
-		box-shadow: none;
 	}
 	.save-dialog .new-folder {
 		border: 0;
@@ -944,43 +956,6 @@
 		padding: 20px;
 	}
 	@media (max-width: 600px) {
-		.menu-backdrop {
-			display: block;
-			position: fixed;
-			inset: 0;
-			z-index: 39;
-			border: 0;
-			border-radius: 0;
-			background: rgb(0 0 0 / 40%);
-			width: 100%;
-			height: 100dvh;
-		}
-		.post-actions .menu-items {
-			position: fixed;
-			z-index: 40;
-			inset: auto 0 0 !important;
-			width: 100%;
-			max-height: 75dvh !important;
-			padding: 12px 16px max(24px, env(safe-area-inset-bottom));
-			border-radius: 16px 16px 0 0;
-			border: 0;
-			box-shadow: none;
-			background: var(--paper-2);
-		}
-		.post-actions .menu-items::before {
-			content: '';
-			display: block;
-			width: 32px;
-			height: 4px;
-			margin: 0 auto 12px;
-			border-radius: 4px;
-			background: var(--ink-3);
-		}
-		.menu-items a,
-		.menu-items button {
-			padding: 14px 10px;
-			min-height: 48px;
-		}
 		.member-post {
 			margin-left: 16px;
 			margin-right: 16px;

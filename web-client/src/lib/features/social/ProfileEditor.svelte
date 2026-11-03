@@ -1,6 +1,7 @@
 <script lang="ts">
+	import { confirmNavigation } from '../social/navigation-prompt';
 	import { onMount, onDestroy } from 'svelte';
-	import { beforeNavigate, goto } from '$app/navigation';
+	import { goto } from '$app/navigation';
 	import {
 		CraftskyAPI,
 		newOperationKey,
@@ -161,9 +162,12 @@
 		if (avatarURL.startsWith('blob:')) URL.revokeObjectURL(avatarURL);
 		if (bannerURL.startsWith('blob:')) URL.revokeObjectURL(bannerURL);
 	});
-	beforeNavigate((nav) => {
-		if (dirty && !confirm('Discard your unsaved profile changes?'))
-			nav.cancel();
+	confirmNavigation(() => dirty, {
+		title: 'Discard changes?',
+		detail: "Your edits won't be saved.",
+		confirmLabel: 'Discard',
+		cancelLabel: 'Keep editing',
+		danger: true
 	});
 	function unload(event: BeforeUnloadEvent) {
 		if (dirty) {
@@ -1049,16 +1053,6 @@
 	.editor-actions summary::-webkit-details-marker {
 		display: none;
 	}
-	.editor-actions .menu-items {
-		min-width: 200px;
-	}
-	.editor-actions .menu-items button {
-		display: flex;
-		align-items: center;
-		gap: 12px;
-		padding: 12px;
-		font-weight: 400;
-	}
 	.editor-actions .remove-link {
 		color: var(--red-ink);
 	}
@@ -1095,9 +1089,6 @@
 		background: var(--surface);
 		padding: 6px 12px;
 		font-size: 14px;
-	}
-	.link-menu-backdrop {
-		display: none;
 	}
 	.link-editor-dialog {
 		width: min(440px, calc(100vw - 48px));
@@ -1147,35 +1138,6 @@
 		font-weight: 600;
 		padding: 8px;
 	}
-	@media (max-width: 600px) {
-		.link-menu-backdrop {
-			display: block;
-			position: fixed;
-			inset: 0;
-			z-index: 39;
-			width: 100%;
-			height: 100dvh;
-			border: 0;
-			border-radius: 0;
-			background: rgb(0 0 0 / 40%);
-		}
-		.editor-actions .menu-items {
-			position: fixed;
-			z-index: 40;
-			inset: auto 0 0 !important;
-			width: 100%;
-			max-height: 70dvh !important;
-			padding: 12px 16px max(24px, env(safe-area-inset-bottom));
-			background: var(--surface);
-			border: 0;
-			border-radius: 16px 16px 0 0;
-			box-shadow: none;
-		}
-		.editor-actions .menu-items button {
-			min-height: 48px;
-		}
-	}
-
 	.onboarding-description {
 		margin: 0;
 		padding: 0 16px 8px;

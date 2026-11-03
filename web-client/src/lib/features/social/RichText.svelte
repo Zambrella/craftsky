@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { confirmExternalLink } from './prompt';
 	import { facetParts } from './model';
 	import type { Facet } from '#lib/api/types.ts';
 	let { text, facets }: { text: string; facets?: Facet[] | null } = $props();
@@ -8,7 +9,6 @@
 			href={part.href}
 			rel={part.external ? 'ugc nofollow noreferrer' : undefined}
 			onclick={(event) => {
-				if (part.external && !confirm('Open this external website?'))
-					event.preventDefault();
+				if (part.external) confirmExternalLink(event);
 			}}>{part.text}</a
 		>{:else}{part.text}{/if}{/each}

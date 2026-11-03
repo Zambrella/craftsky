@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { contextMenu } from './context-menu';
+	import { subscriptionsEnabled, comingSoon } from '../shell/release-config';
 	import { onMount, onDestroy } from 'svelte';
 	import { page } from '$app/state';
 	import {
@@ -14,13 +15,16 @@
 	import { allFolders } from './saved-model';
 	import Icon from '../shell/Icon.svelte';
 	import EmptyState from './EmptyState.svelte';
+	import ChoiceMenu from './ChoiceMenu.svelte';
 	let { api, did }: { api: CraftskyAPI; did: string } = $props();
 	const work = new Work();
 	let items = $state<SavedItem[]>([]),
 		folders = $state<SavedFolder[]>([]),
 		cursor = $state<string | null>(null),
 		folderName = $state('');
-	const folderId = page.url.searchParams.get('folder') || '';
+	const folderId = subscriptionsEnabled()
+		? page.url.searchParams.get('folder') || ''
+		: '';
 	let folderDialog = $state<HTMLDialogElement>(null!),
 		deleteDialog = $state<HTMLDialogElement>(null!),
 		folderMode = $state<'create' | 'rename'>('create');
@@ -28,18 +32,23 @@
 		folders.find((folder) => folder.id === folderId)
 	);
 	function editFolder(mode: 'create' | 'rename') {
+		if (mode === 'create' && !subscriptionsEnabled()) {
+			comingSoon('Folders');
+			return;
+		}
 		folderMode = mode;
 		folderName = mode === 'rename' ? currentFolder?.name || '' : '';
 		folderDialog.showModal();
 	}
-	let folderSupport = $state(true),
+	let folderSupport = $state(subscriptionsEnabled()),
 		deleteSaves = $state(false);
-	const unfiled = page.url.searchParams.get('unfiled') === 'true';
+	const unfiled =
+		subscriptionsEnabled() && page.url.searchParams.get('unfiled') === 'true';
 	const showAll = page.url.searchParams.get('all') === 'true';
 	async function load(more = false) {
 		await work.run(
 			async () => {
-				if (!more)
+				if (!more && subscriptionsEnabled())
 					try {
 						folders = await allFolders(api);
 					} catch (error) {
@@ -106,7 +115,7 @@
 			{currentFolder?.name || (unfiled ? 'Unfiled posts' : 'Saved posts')}
 		</h1>
 	</div>
-	{#if folderSupport}{#if folderId}<details
+	{#if folderSupport || !subscriptionsEnabled()}{#if folderId}<details
 				class="folder-actions"
 				use:contextMenu
 			>
@@ -125,13 +134,17 @@
 				</div>
 			</details>{:else}<button
 				class="icon-button"
-				aria-label="Create folder"
-				title="Create folder"
+				aria-label={subscriptionsEnabled()
+					? 'Create folder'
+					: 'Folders is coming soon'}
+				title={subscriptionsEnabled()
+					? 'Create folder'
+					: 'Folders is coming soon'}
 				disabled={work.busy}
 				onclick={() => editFolder('create')}><Icon name="folder" /></button
 			>{/if}{/if}
 </div>
-<Status {work} skeleton="posts" reload={() => load()} />
+<Status {work} skeleton="management" reload={() => load()} />
 {#if folderSupport && !folderId && !unfiled && folders.length}<section
 		class="folders-overview"
 	>
@@ -143,42 +156,26 @@
 				></a
 			>{/each}
 	</section>{/if}
-<div class="saved-list-heading">
-	<h2>
-		{folderId
-			? 'Saved posts'
-			: folderSupport && !showAll
-				? 'Unfiled'
-				: 'Saved posts'}
-	</h2>
-	<form
-		method="get"
-		action="/app/saved"
-		onchange={(event) => event.currentTarget.requestSubmit()}
-	>
-		{#if showAll}<input type="hidden" name="all" value="true" />{/if}
-		{#if folderId}<input
-				type="hidden"
-				name="folder"
-				value={folderId}
-			/>{/if}{#if unfiled}<input
-				type="hidden"
-				name="unfiled"
-				value="true"
-			/>{/if}<label
-			><Icon name="sort" size={18} /><span class="visually-hidden"
-				>Sort saved posts</span
-			><select
-				aria-label="Sort saved posts"
-				name="sort"
-				value={page.url.searchParams.get('sort') || 'newest'}
-				><option value="newest">Newest</option><option value="oldest"
-					>Oldest</option
-				></select
-			></label
-		>
-	</form>
-</div>
+{#if items.length || (subscriptionsEnabled() && folders.length)}
+	<div class="saved-list-heading">
+		<h2>
+			{folderId
+				? 'Saved posts'
+				: folderSupport && !showAll
+					? 'Unfiled'
+					: 'Saved posts'}
+		</h2>
+		<ChoiceMenu
+			label="Sort saved posts"
+			value={page.url.searchParams.get('sort') || 'newest'}
+			url={page.url}
+			options={[
+				{ value: 'newest', label: 'Newest', icon: 'sort' },
+				{ value: 'oldest', label: 'Oldest', icon: 'oldest' }
+			]}
+		/>
+	</div>
+{/if}
 {#if folderSupport && !folderId}<nav
 		class="saved-scope"
 		aria-label="Saved posts"
@@ -201,7 +198,7 @@
 		}}
 	/>{:else}{#if !work.busy && !work.error}<EmptyState
 			title="Saved posts"
-			detail="Your saved inspiration will appear here."
+			detail="Nothing saved yet"
 			icon="saved"
 		/>{/if}{/each}
 {#if cursor}<button
@@ -253,8 +250,7 @@
 
 <style>
 	.saved-title,
-	.saved-list-heading,
-	.saved-list-heading label {
+	.saved-list-heading {
 		display: flex;
 		align-items: center;
 		gap: 8px;
@@ -313,12 +309,6 @@
 		margin: 0;
 		font-size: 18px;
 	}
-	.saved-list-heading select {
-		width: auto;
-		margin: 0;
-		max-width: 175px;
-		font-size: 13px;
-	}
 	.saved-scope {
 		display: flex;
 		gap: 16px;
@@ -349,9 +339,5 @@
 		justify-content: flex-end;
 		gap: 12px;
 		margin-top: 20px;
-	}
-
-	.saved-list-heading label {
-		flex-direction: row;
 	}
 </style>

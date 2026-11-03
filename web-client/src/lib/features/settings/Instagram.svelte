@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { usePrompt } from '../social/prompt';
+	const ask = usePrompt();
 	import { onMount, onDestroy } from 'svelte';
 	import {
 		newOperationKey,
@@ -526,8 +528,15 @@
 								>{/if}<button
 								class="danger"
 								disabled={work.busy}
-								onclick={() => {
-									if (confirm('Delete this imported following list?'))
+								onclick={async () => {
+									if (
+										await ask({
+											title: 'Delete import?',
+											detail: 'Delete this imported following list?',
+											confirmLabel: 'Delete',
+											danger: true
+										})
+									)
 										update(
 											() => api.instagram.deleteImport(item.importId),
 											'Import deleted.'
@@ -604,11 +613,15 @@
 	{#if account}<button
 			class="danger revoke-verification"
 			disabled={work.busy || !!work.retry}
-			onclick={() => {
+			onclick={async () => {
 				if (
-					confirm(
-						'Revoke Instagram verification? This removes your Instagram verification and deletes your imported handles. Existing CraftSky follows will not be affected.'
-					)
+					await ask({
+						title: 'Revoke Instagram verification?',
+						detail:
+							'This removes your Instagram verification and deletes your imported handles. Existing CraftSky follows will not be affected.',
+						confirmLabel: 'Revoke',
+						danger: true
+					})
 				)
 					update(
 						() => api.instagram.revoke(),

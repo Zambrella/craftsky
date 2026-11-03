@@ -92,28 +92,13 @@
 	font-size: 16px;
 	font-weight: 400;
 }
-.settings-workspace
-	input:not([type='checkbox']):not([type='radio']):not([type='file']),
-.settings-workspace select,
-.settings-workspace textarea {
-	border: 1.5px solid var(--ink);
-	border-radius: 6px;
-	background: var(--surface);
-	color: var(--ink);
-	padding: 14px 12px;
-	min-height: 48px;
-	width: 100%;
-	font:
-		400 16px/1.5 Outfit,
-		sans-serif;
-	box-sizing: border-box;
-}
+/* Field appearance comes from the shared controls and style.css. */
 .settings-workspace input[type='file'] {
 	max-width: 100%;
 	font: inherit;
 	font-weight: 400;
 }
-.settings-workspace input[type='checkbox'],
+.settings-workspace input[type='checkbox']:not([role='switch']),
 .settings-workspace input[type='radio'] {
 	accent-color: var(--primary);
 	width: 20px;
@@ -465,47 +450,6 @@
 }
 .settings-workspace .switch-row .tile-copy {
 	flex: 1;
-}
-.settings-workspace .switch-row input[role='switch'] {
-	appearance: none;
-	-webkit-appearance: none;
-	margin: 0;
-	width: 52px;
-	height: 32px;
-	border: 2px solid var(--ink-3);
-	background: var(--paper-2);
-	border-radius: 999px;
-	position: relative;
-	cursor: pointer;
-	transition: background 120ms;
-}
-.settings-workspace .switch-row input[role='switch']::after {
-	content: '';
-	position: absolute;
-	width: 16px;
-	height: 16px;
-	left: 6px;
-	top: 6px;
-	border-radius: 50%;
-	background: var(--ink-3);
-	transition:
-		left 120ms,
-		width 120ms;
-}
-.settings-workspace .switch-row input[role='switch']:checked {
-	background: var(--primary);
-	border-color: var(--primary);
-}
-.settings-workspace .switch-row input[role='switch']:checked::after {
-	width: 24px;
-	height: 24px;
-	top: 2px;
-	left: 22px;
-	background: var(--on-primary);
-}
-.settings-workspace .switch-row input[role='switch']:disabled {
-	opacity: 0.45;
-	cursor: default;
 }
 .settings-workspace .section-heading {
 	display: flex;

@@ -35,7 +35,7 @@
 		if (!more && !work.error) await api.notifications.seen().catch(() => {});
 	}
 	function destination(item: AppNotification) {
-		if (!notificationCopy(item).available) return undefined;
+		if (!notificationCopy(item).interactive) return undefined;
 		if (item.caseReference)
 			return (
 				'/app/settings/moderation/' + encodeURIComponent(item.caseReference)
@@ -86,60 +86,71 @@
 
 <div class="workspace-heading notification-heading">
 	<h1>Notifications</h1>
-	<form
-		class="notification-tools"
-		method="get"
-		action="/app/activity"
-		onchange={(event) => event.currentTarget.requestSubmit()}
-	>
-		<label
-			><Icon name="filter" size={18} /><span class="visually-hidden"
-				>Category</span
-			><select aria-label="Category" name="category" value={category || ''}
-				>{#each notificationCategories as [value, label]}<option {value}
-						>{label}</option
-					>{/each}</select
-			></label
+	<details class="notification-categories" use:contextMenu>
+		<summary
+			class="category-trigger"
+			aria-label={notificationCategories.find(
+				([value]) => value === (category || '')
+			)?.[1] || 'All categories'}
 		>
-	</form>
-	<details class="notification-menu" use:contextMenu>
-		<summary class="icon-button" aria-label="Notification actions"
-			><Icon name="more" /></summary
-		>
+			<Icon name="filter" size={18} />
+			{notificationCategories.find(
+				([value]) => value === (category || '')
+			)?.[1] || 'All categories'}
+		</summary>
 		<div class="menu-items">
-			<a href="/app/settings/notifications">Notification preferences</a><button
-				disabled={work.busy}
-				onclick={() => load()}>Refresh</button
-			>
+			{#each notificationCategories as [value, label, icon]}
+				<a
+					href={'/app/activity' + (value ? '?category=' + value : '')}
+					aria-current={(category || '') === value ? 'page' : undefined}
+				>
+					<Icon name={icon} /><span>{label}</span>
+					{#if (category || '') === value}<Icon name="check" />{/if}
+				</a>
+			{/each}
 		</div>
 	</details>
 </div>
 <Status
 	{work}
-	skeleton="people"
+	skeleton="activity"
 	reload={() => load()}
 />{#each items as item}{@const copy = notificationCopy(item)}
 	<article
 		class="notification"
 		class:unread={item.isNew}
+		class:system={!item.actor}
 		style={profileStyle(item.actor?.customisation)}
 	>
 		<a class="notification-main" href={destination(item)}
-			><div class="notification-avatar">
-				{#if item.actor && item.actor.available !== false}<Avatar
-						author={{
-							did: item.actor.did,
-							handle: item.actor.handle,
-							displayName: item.actor.displayName || undefined,
-							avatar: item.actor.avatar || undefined
-						}}
-					/>{:else}<span class="system-avatar"><Icon name="shield" /></span
-					>{/if}<span
-					class="notification-kind"
-					class:like={copy.icon === 'heart'}
-					class:repost={copy.icon === 'repost'}><Icon name={copy.icon} /></span
-				>
-			</div>
+			>{#if item.actor}<div class="notification-avatar">
+					<Avatar
+						author={copy.available
+							? {
+									did: item.actor.did,
+									handle: item.actor.handle,
+									displayName: item.actor.displayName || undefined,
+									avatar: item.actor.avatar || undefined
+								}
+							: {
+									did: 'unavailable',
+									handle: '',
+									displayName: 'Account unavailable'
+								}}
+					/>
+					<span
+						class="notification-kind"
+						class:like={copy.icon === 'heart' || !copy.available}
+						class:repost={copy.icon === 'repost'}
+						class:accent={copy.icon === 'at' || copy.icon === 'quotes'}
+						class:generic={copy.icon === 'activity' && copy.available}
+						><Icon name={copy.icon} filled /></span
+					>
+				</div>{:else}<span
+					class="system-icon"
+					class:generic={copy.icon === 'activity'}
+					><Icon name={copy.icon} /></span
+				>{/if}
 			<div class="notification-body">
 				<p class="notification-title">
 					{#if item.actor && copy.available}<strong
@@ -194,39 +205,43 @@
 	>{/if}
 
 <style>
-	.notification-tools {
-		padding: 0;
+	.notification-categories {
 		margin-left: auto;
-		display: flex;
-		justify-content: flex-end;
 	}
-	.notification-tools label {
+	.category-trigger {
 		display: flex;
 		align-items: center;
-		gap: 6px;
+		gap: 8px;
+		min-height: 40px;
+		padding: 8px 12px;
 		border: 1.5px solid var(--hairline);
 		border-radius: 8px;
-		padding-left: 10px;
+		font-size: 15px;
+		font-weight: 600;
+		cursor: pointer;
 	}
-	.notification-tools select {
-		border: 0;
-		margin: 0;
-		min-height: 42px;
-		width: auto;
-		font-size: 14px;
-		background: transparent;
+	.category-trigger::-webkit-details-marker {
+		display: none;
+	}
+	.category-trigger :global(svg) {
+		color: var(--primary);
+	}
+	.notification-categories .menu-items span {
+		flex: 1;
+	}
+	.notification-categories .menu-items [aria-current='page'] {
+		background: color-mix(in srgb, var(--primary) 4%, var(--surface));
 	}
 	.notification {
+		position: relative;
 		display: block;
 		border: 0;
-		border-bottom: 1px solid var(--hairline);
 		padding: 12px 16px;
 		margin: 0;
 		background: transparent;
 	}
 	.notification.unread {
-		background: color-mix(in srgb, var(--primary-soft) 55%, transparent);
-		border-bottom-color: var(--hairline);
+		background: color-mix(in srgb, var(--primary) 7%, var(--paper));
 	}
 	.notification-main {
 		display: flex;
@@ -251,8 +266,8 @@
 		position: absolute;
 		bottom: 0;
 		right: 0;
-		width: 25px;
-		height: 25px;
+		width: 26px;
+		height: 26px;
 		border: 2px solid var(--paper);
 		display: grid;
 		place-items: center;
@@ -268,14 +283,29 @@
 		width: 14px;
 		height: 14px;
 	}
-	.system-avatar {
-		width: 44px;
-		height: 44px;
-		background: var(--primary-soft);
-		display: grid;
-		place-items: center;
-		border-radius: 50%;
+	.system-icon {
+		width: 24px;
+		height: 24px;
+		color: var(--primary);
+		flex: none;
 	}
+	.system-icon.generic {
+		color: var(--ink-3);
+	}
+	.system .notification-main {
+		align-items: center;
+	}
+	.notification.unread::after {
+		content: '';
+		position: absolute;
+		top: 8px;
+		right: 8px;
+		width: 6px;
+		height: 6px;
+		border-radius: 50%;
+		background: var(--primary);
+	}
+
 	.notification-body {
 		min-width: 0;
 		flex: 1;
@@ -289,11 +319,6 @@
 		color: var(--ink-2);
 		line-height: 1.4;
 		margin: 0 0 4px;
-		display: -webkit-box;
-		-webkit-line-clamp: 3;
-		line-clamp: 3;
-		-webkit-box-orient: vertical;
-		overflow: hidden;
 	}
 	.notification-context {
 		margin: 0 0 4px;
@@ -315,16 +340,24 @@
 	}
 	.notification-preview p {
 		margin: 4px 0 0;
+		white-space: pre-wrap;
+		display: -webkit-box;
+		-webkit-line-clamp: 3;
+		line-clamp: 3;
+		-webkit-box-orient: vertical;
+		overflow: hidden;
 	}
 	.follow-notification {
 		margin: 8px 0 0 71px;
 		min-height: 36px;
 		padding: 6px 16px;
+		border: 1.5px solid var(--ink);
+		box-shadow: 3px 3px 0 var(--ink);
 		color: var(--on-primary);
 		background: var(--primary);
 	}
 	.follow-notification.following {
-		background: transparent;
+		background: var(--surface);
 		color: var(--ink);
 	}
 	.notification time {
@@ -341,54 +374,35 @@
 		text-overflow: ellipsis;
 		white-space: nowrap;
 	}
-	.notification-tools {
+	.notification-categories {
 		flex-shrink: 0;
-	}
-	.notification-tools select {
-		appearance: none;
-		padding-right: 10px;
-		max-width: 160px;
-	}
-	.notification-menu {
-		position: relative;
-	}
-	.notification-menu summary {
-		list-style: none;
-		cursor: pointer;
-	}
-	.notification-menu .icon-button {
-		min-width: 32px;
-		padding: 4px;
 	}
 	@media (max-width: 600px) {
 		.notification-heading {
 			gap: 4px;
 		}
-		.notification-tools select {
-			max-width: 104px;
-			font-size: 14px;
+		.category-trigger {
+			max-width: 170px;
 		}
-	}
-
-	.notification-tools label {
-		flex-direction: row;
-	}
-	.notification-tools select {
-		box-shadow: none;
-		border: 0;
-		background: transparent;
-		padding-left: 0;
 	}
 	.notification-kind {
 		background: var(--primary);
 		color: var(--on-primary);
 	}
 	.notification-kind.like {
-		background: #f33232;
+		background: #f03a2e;
 		color: white;
 	}
 	.notification-kind.repost {
 		background: var(--butter);
 		color: var(--ink);
+	}
+	.notification-kind.accent {
+		background: var(--accent, #f03a2e);
+		color: white;
+	}
+	.notification-kind.generic {
+		background: var(--ink-3);
+		color: white;
 	}
 </style>

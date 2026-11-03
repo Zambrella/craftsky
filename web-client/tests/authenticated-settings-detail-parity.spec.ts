@@ -119,12 +119,13 @@ test('settings enables messaging in place and failed shared preferences keep the
 	);
 	await expect(push).not.toBeChecked();
 	const incoming = page.getByRole('combobox', { name: 'Who can message me' });
-	await expect(incoming).toHaveValue('following');
-	await incoming.selectOption('nobody');
+	await expect(incoming).toHaveValue('People I follow');
+	await incoming.click();
+	await page.getByRole('option', { name: 'Nobody', exact: true }).click();
 	await expect(page.getByRole('alert')).toContainText(
 		'Preference was not saved.'
 	);
-	await expect(incoming).toHaveValue('following');
+	await expect(incoming).toHaveValue('People I follow');
 	expect(writes.map((value) => value.body)).toEqual([
 		{ enabled: true },
 		{ pushEnabled: true },
@@ -183,11 +184,14 @@ test('failed native notification choices restore the saved category without chan
 	const likes = page
 		.locator('.notification-card')
 		.filter({ has: page.getByRole('heading', { name: 'Likes', exact: true }) });
-	await likes.getByRole('combobox').selectOption('peopleIFollow');
+	await likes.getByRole('combobox').click();
+	await likes
+		.getByRole('option', { name: 'People I follow', exact: true })
+		.click();
 	await expect(page.getByRole('alert')).toContainText(
 		'Notification preferences were not saved.'
 	);
-	await expect(likes.getByRole('combobox')).toHaveValue('everyone');
+	await expect(likes.getByRole('combobox')).toHaveValue('Everyone');
 	await likes
 		.getByRole('switch', { name: 'Likes push notifications', exact: true })
 		.click();
@@ -197,7 +201,7 @@ test('failed native notification choices restore the saved category without chan
 	const follows = page.locator('.notification-card').filter({
 		has: page.getByRole('heading', { name: 'Follows', exact: true })
 	});
-	await expect(follows.getByRole('combobox')).toHaveValue('peopleIFollow');
+	await expect(follows.getByRole('combobox')).toHaveValue('People I follow');
 	await expect(follows.getByRole('switch')).toBeChecked();
 	expect(writes.map((value) => value.body)).toEqual([
 		{ preferences: { like: { scope: 'peopleIFollow' } } },
@@ -276,6 +280,12 @@ test('native content-language chips preserve authoritative preferences after fai
 		await readJSON(route, preferences);
 	});
 	await page.goto('/app/settings/languages');
+	const primaryLanguage = page.getByRole('combobox', {
+		name: 'Primary language',
+		exact: true
+	});
+	await expect(primaryLanguage).toHaveCSS('border-radius', '14px');
+	await expect(primaryLanguage).toHaveCSS('padding-right', '56px');
 	await page
 		.getByRole('button', {
 			name: 'Remove English from Content languages',
@@ -323,7 +333,7 @@ test('native content-language chips preserve authoritative preferences after fai
 	).toHaveCount(0);
 	await expect(
 		page.getByRole('combobox', { name: 'Primary language', exact: true })
-	).toHaveValue('cy');
+	).toHaveValue('Welsh');
 	expect(writes.map((value) => value.body)).toEqual([
 		{ primaryLanguage: 'cy', contentLanguages: ['cy'] },
 		{ primaryLanguage: 'cy', contentLanguages: ['en', 'cy', 'fr'] },
@@ -359,7 +369,9 @@ test('following is the native count-bearing profile list with inline crafts and 
 		page.getByRole('heading', { level: 1, name: 'Following (42)' })
 	).toBeVisible();
 	await expect(
-		page.getByRole('link', { name: /Bob Maker.*@bob.test/ })
+		page
+			.locator('.app-main')
+			.getByRole('link', { name: /Bob Maker.*@bob.test/ })
 	).toHaveAttribute('href', '/app/profile/did%3Aplc%3Abob');
 	await expect(
 		page.getByRole('img', { name: /Crafts: Knitting, Future craft/i })
@@ -395,11 +407,11 @@ test('product currency uses the supported ISO catalogue and saves a native-lengt
 		name: 'Currency',
 		exact: true
 	});
-	await expect(currency).toHaveValue('GBP');
-	await expect(
-		currency.getByRole('option', { name: 'JPY - Japanese Yen', exact: true })
-	).toHaveCount(1);
-	await currency.selectOption('JPY');
+	await expect(currency).toHaveValue('GBP - British Pound');
+	await currency.fill('JPY');
+	await dialog
+		.getByRole('option', { name: 'JPY - Japanese Yen', exact: true })
+		.click();
 	await dialog.getByLabel('Price · optional', { exact: true }).fill('2500');
 	await dialog.getByLabel('Title', { exact: true }).fill('🧶'.repeat(150));
 	await dialog
@@ -468,10 +480,10 @@ test('all-day event edits retain future catalog values and freeze the original d
 	const dialog = page.locator('.event-dialog');
 	await expect(
 		dialog.getByRole('combobox', { name: 'Mode', exact: true })
-	).toHaveValue('future-mode');
+	).toHaveValue('Future mode');
 	await expect(
 		dialog.getByRole('combobox', { name: 'Status', exact: true })
-	).toHaveValue('future-status');
+	).toHaveValue('Future status');
 	await dialog
 		.getByRole('searchbox', { name: 'Your roles', exact: true })
 		.click();
@@ -648,14 +660,14 @@ test('Instagram keeps the native private confirmation choice and describes all r
 	);
 	await expect(discoverable).not.toBeChecked();
 
-	let confirmation = '';
-	page.once('dialog', async (dialog) => {
-		confirmation = dialog.message();
-		await dialog.accept();
-	});
 	await page
 		.getByRole('button', { name: 'Revoke Instagram verification', exact: true })
 		.click();
+	const dialog = page.getByRole('dialog', {
+		name: 'Revoke Instagram verification?'
+	});
+	const confirmation = await dialog.innerText();
+	await dialog.getByRole('button', { name: 'Revoke', exact: true }).click();
 	await expect(
 		page
 			.getByRole('status')

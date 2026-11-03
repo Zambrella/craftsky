@@ -37,6 +37,10 @@ test.beforeEach(async ({ context, page }) => {
 			contentType: 'image/png'
 		})
 	);
+	let picturedPost: unknown;
+	await page.route(/\/api\/appview\/v1\/posts\/[^/]+\/[^/?]+$/, (route) =>
+		route.fulfill({ json: picturedPost })
+	);
 	await page.route('**/api/appview/v1/feed/timeline*', async (route) => {
 		const response = await route.fetch(),
 			body = await response.json();
@@ -49,6 +53,7 @@ test.beforeEach(async ({ context, page }) => {
 			thumb: `https://fixture.craftsky.test/image-${index}.png`,
 			aspectRatio: { width: 512, height: 512 }
 		}));
+		picturedPost = body.items[0].post;
 		await route.fulfill({ response, json: body });
 	});
 });
@@ -111,6 +116,11 @@ test('opening the selected photo retains the existing fullscreen gallery and key
 	await card
 		.getByRole('button', { name: 'Show image 2 of 3', exact: true })
 		.click();
+	await expect(card.locator('.image-counter')).toHaveText('2/3');
+	await card
+		.getByRole('link', { name: 'CraftSky illustration 2', exact: true })
+		.click();
+	await expect(page).toHaveURL(/\/posts\/.*\?imageCid=bafyimage2$/);
 	await expect(card.locator('.image-counter')).toHaveText('2/3');
 	await card
 		.getByRole('link', { name: 'CraftSky illustration 2', exact: true })

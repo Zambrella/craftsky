@@ -133,7 +133,7 @@ test('keeps existing saved language choices when browser languages differ', asyn
 	await page.goto('/app/settings/languages');
 	await expect(
 		page.getByRole('combobox', { name: 'Primary language', exact: true })
-	).toHaveValue('cy');
+	).toHaveValue('Welsh');
 	await expect(
 		page.getByText(/If none are selected, all languages will be shown\./)
 	).toBeVisible();
@@ -148,7 +148,7 @@ test('keeps existing saved language choices when browser languages differ', asyn
 	).not.toBeChecked();
 	await expect(
 		page.getByRole('combobox', { name: 'Primary language', exact: true })
-	).toHaveValue('cy');
+	).toHaveValue('Welsh');
 	expect(
 		(await calls()).filter(
 			(call) =>
@@ -191,13 +191,21 @@ test('initializes each newly selected account through its own bound session', as
 	await expect(
 		page.getByRole('heading', { name: 'Home', exact: true })
 	).toBeVisible();
-	await page.locator('.account-trigger').click();
-	page.once('dialog', (dialog) => dialog.accept());
+	await page.getByRole('button', { name: /^Switch accounts,/ }).click();
 	await page
 		.locator('.account-menu .person-row')
 		.filter({ hasText: '@bob.test' })
 		.click();
-	await expect(page.locator('.account-trigger')).toContainText('@bob.test');
+	await page
+		.getByRole('dialog', { name: 'Switch accounts?', exact: true })
+		.getByRole('button', { name: 'Switch account', exact: true })
+		.click();
+	await expect(
+		page.getByRole('button', {
+			name: 'Switch accounts, @bob.test',
+			exact: true
+		})
+	).toBeVisible();
 	await expect(
 		page.getByRole('heading', { name: 'Home', exact: true })
 	).toBeVisible();

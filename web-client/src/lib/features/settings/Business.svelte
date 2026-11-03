@@ -1,4 +1,7 @@
 <script lang="ts">
+	import SingleSelect from '#lib/SingleSelect.svelte';
+	import { usePrompt } from '../social/prompt';
+	const ask = usePrompt();
 	import { onMount, onDestroy, tick } from 'svelte';
 	import MediaEditor from '../composer/MediaEditor.svelte';
 	import MultiSelect from '#lib/MultiSelect.svelte';
@@ -318,12 +321,16 @@
 				error instanceof Error ? error.message : 'Check your business details.';
 		}
 	}
-	function deleteProfile() {
+	async function deleteProfile() {
 		if (
 			!cid ||
-			!confirm(
-				'Remove your business declaration and return to a regular account? Your posts remain.'
-			)
+			!(await ask({
+				title: 'Remove business declaration?',
+				detail:
+					'Remove your business declaration and return to a regular account? Your posts remain.',
+				confirmLabel: 'Remove',
+				danger: true
+			}))
 		)
 			return;
 		const expected = cid,
@@ -504,8 +511,16 @@
 				error instanceof Error ? error.message : 'Check your event details.';
 		}
 	}
-	function deleteEvent(event: BusinessEvent) {
-		if (!confirm(`Delete “${event.name}”? This cannot be undone.`)) return;
+	async function deleteEvent(event: BusinessEvent) {
+		if (
+			!(await ask({
+				title: 'Delete event?',
+				detail: `Delete “${event.name}”? This cannot be undone.`,
+				confirmLabel: 'Delete',
+				danger: true
+			}))
+		)
+			return;
 		const key = newOperationKey();
 		void work.run(
 			() => api.business.deleteEvent(event.did, event.rkey, event.cid, key),
@@ -627,15 +642,18 @@
 						/></label
 					><label>Town or locality<input bind:value={locality} /></label>
 				</div>
-				<label
-					>Primary action<select bind:value={action}
-						><option value="">None</option>{#each actions as value}<option
-								{value}>{title(value)}</option
-							>{/each}{#if action && !actions.includes(action)}<option
-								value={action}>{title(action)}</option
-							>{/if}</select
-					></label
-				><label
+				<SingleSelect
+					label="Primary action"
+					value={action}
+					options={[
+						{ id: '', label: 'None' },
+						...[
+							...actions,
+							...(action && !actions.includes(action) ? [action] : [])
+						].map((id) => ({ id, label: title(id) }))
+					]}
+					onchange={(value) => (action = value)}
+				/><label
 					>Action destination<input
 						bind:value={destination}
 						placeholder={action === 'email'
@@ -779,14 +797,18 @@
 													bind:value={product.amount}
 													placeholder="24.5"
 												/></label
-											><label
-												>Currency<select bind:value={product.currency}
-													><option value="">None</option
-													>{#each currencyOptions as currency}<option
-															value={currency.code}>{currency.label}</option
-														>{/each}</select
-												></label
-											>
+											><SingleSelect
+												label="Currency"
+												value={product.currency}
+												options={[
+													{ id: '', label: 'None' },
+													...currencyOptions.map((currency) => ({
+														id: currency.code,
+														label: currency.label
+													}))
+												]}
+												onchange={(value) => (product.currency = value)}
+											/>
 										</div>
 										<div class="actions">
 											<button
@@ -945,12 +967,14 @@
 								All-day events end on the following date, in the selected time
 								zone.
 							</p>{/if}
-						<label
-							>Time zone<select bind:value={timeZone}
-								>{#each zones as value}<option {value}>{value}</option
-									>{/each}</select
-							></label
-						>
+						<SingleSelect
+							label="Time zone"
+							value={timeZone}
+							required
+							showRequired={false}
+							options={zones.map((id) => ({ id, label: id }))}
+							onchange={(value) => (timeZone = value)}
+						/>
 						<MultiSelect
 							label="Your roles"
 							values={eventRoles}
@@ -971,19 +995,25 @@
 						/>
 						<p class="helper">Choose up to four roles.</p>
 						<div class="two-col">
-							<label
-								>Mode<select bind:value={mode}
-									>{#each ['in-person', 'online', 'hybrid', ...(!['in-person', 'online', 'hybrid'].includes(mode) ? [mode] : [])] as value}<option
-											{value}>{title(value)}</option
-										>{/each}</select
-								></label
-							><label
-								>Status<select bind:value={status}
-									>{#each ['scheduled', 'cancelled', 'postponed', ...(!['scheduled', 'cancelled', 'postponed'].includes(status) ? [status] : [])] as value}<option
-											{value}>{title(value)}</option
-										>{/each}</select
-								></label
-							>
+							<SingleSelect
+								label="Mode"
+								value={mode}
+								required
+								showRequired={false}
+								options={[
+									...new Set(['in-person', 'online', 'hybrid', mode])
+								].map((id) => ({ id, label: title(id) }))}
+								onchange={(value) => (mode = value)}
+							/><SingleSelect
+								label="Status"
+								value={status}
+								required
+								showRequired={false}
+								options={[
+									...new Set(['scheduled', 'cancelled', 'postponed', status])
+								].map((id) => ({ id, label: title(id) }))}
+								onchange={(value) => (status = value)}
+							/>
 						</div>
 						<label>Summary<textarea bind:value={summary}></textarea></label>
 						<label>Venue name<input bind:value={venue} /></label><label

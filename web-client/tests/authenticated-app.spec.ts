@@ -708,8 +708,9 @@ test('supports mobile navigation and project fields without horizontal overflow'
 		page.getByRole('heading', { name: 'Project post', exact: true })
 	).toBeVisible();
 	await page
-		.getByLabel('Primary craft')
-		.selectOption('social.craftsky.feed.defs#sewing');
+		.getByRole('combobox', { name: 'Primary craft required', exact: true })
+		.click();
+	await page.getByRole('option', { name: 'Sewing', exact: true }).click();
 	await page.getByLabel('Project title', { exact: true }).fill('Linen dress');
 	await page
 		.getByLabel('Project description')
@@ -741,9 +742,7 @@ test('supports mobile navigation and project fields without horizontal overflow'
 		path: test.info().outputPath('mobile-project-editor.png'),
 		fullPage: false
 	});
-	await page
-		.getByRole('combobox', { name: 'Status', exact: true })
-		.selectOption('');
+	await page.getByRole('button', { name: 'Clear Status', exact: true }).click();
 	await page.getByRole('button', { name: 'Save draft', exact: true }).click();
 	await expect(page.getByText('Draft saved', { exact: true })).toBeVisible();
 	await expect(
@@ -796,7 +795,8 @@ test('project detail pages fill the compact viewport and keep changes on Back, E
 	await page.goto('/app/compose/project');
 	await page
 		.getByRole('combobox', { name: 'Primary craft required', exact: true })
-		.selectOption('social.craftsky.feed.defs#sewing');
+		.click();
+	await page.getByRole('option', { name: 'Sewing', exact: true }).click();
 	await page
 		.getByRole('textbox', { name: 'Project title', exact: true })
 		.fill('Three detail pages');
@@ -838,10 +838,10 @@ test('project detail pages fill the compact viewport and keep changes on Back, E
 		.getByRole('textbox', { name: 'Designer', exact: true })
 		.fill('@bob.test');
 	await pattern
-		.getByRole('textbox', { name: 'Pattern link', exact: true })
+		.getByRole('textbox', { name: 'Link', exact: true })
 		.fill('https://example.com/pattern');
 	await pattern
-		.getByRole('textbox', { name: 'Pattern link', exact: true })
+		.getByRole('textbox', { name: 'Link', exact: true })
 		.press('Enter');
 	await expect(pattern).toBeVisible();
 	await back('Pattern details');
@@ -879,7 +879,7 @@ test('project detail pages fill the compact viewport and keep changes on Back, E
 		restoredPattern.getByRole('textbox', { name: 'Designer', exact: true })
 	).toHaveValue('@bob.test');
 	await expect(
-		restoredPattern.getByRole('textbox', { name: 'Pattern link', exact: true })
+		restoredPattern.getByRole('textbox', { name: 'Link', exact: true })
 	).toHaveValue('https://example.com/pattern');
 	await page.keyboard.press('Escape');
 	await expect(restoredPattern).toBeHidden();

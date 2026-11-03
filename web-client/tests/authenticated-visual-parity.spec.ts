@@ -247,13 +247,7 @@ test('native post type chooser opens the selected fullscreen editor', async ({
 	page
 }) => {
 	await settleAccountView(page, '/app/home');
-	await page
-		.getByRole('button', { name: 'Open navigation', exact: true })
-		.click();
-	await page
-		.getByRole('dialog', { name: 'Navigation', exact: true })
-		.getByRole('button', { name: 'Create post', exact: true })
-		.click();
+	await page.getByRole('button', { name: 'Create post', exact: true }).click();
 	const chooser = page.getByRole('dialog', {
 		name: 'What would you like to share?'
 	});

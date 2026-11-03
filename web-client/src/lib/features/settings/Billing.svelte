@@ -1,4 +1,7 @@
 <script lang="ts">
+	import SingleSelect from '#lib/SingleSelect.svelte';
+	import { usePrompt } from '../social/prompt';
+	const ask = usePrompt();
 	import { onMount, onDestroy } from 'svelte';
 	import { page } from '$app/state';
 	import SettingsIcon from './SettingsIcon.svelte';
@@ -80,11 +83,14 @@
 			'License assignment updated.'
 		);
 	}
-	function unassign(license: BillingLicense) {
+	async function unassign(license: BillingLicense) {
 		if (
-			!confirm(
-				'Remove this license assignment? The assigned account will lose its subscription access.'
-			)
+			!(await ask({
+				title: 'Remove license assignment?',
+				detail: 'The assigned account will lose its subscription access.',
+				confirmLabel: 'Remove',
+				danger: true
+			}))
 		)
 			return;
 		void work.run(
@@ -220,23 +226,31 @@
 									class="error"
 								>
 									This license needs attention: {title(license.anomaly)}
-								</p>{:else if canAssignLicense(billing, license)}<label
-									>Account<select
-										disabled={work.busy}
-										value={targets[license.id]}
-										onchange={(event) =>
-											(targets = {
-												...targets,
-												[license.id]: event.currentTarget.value
-											})}
-										>{#each accounts as account}<option value={account.did}
-												>@{account.handle}</option
-											>{/each}{#if !accounts.some((account) => account.did === targets[license.id])}<option
-												value={targets[license.id]}
-												>{targets[license.id] || 'Choose an account'}</option
-											>{/if}</select
-									></label
-								>
+								</p>{:else if canAssignLicense(billing, license)}<SingleSelect
+									label="Account"
+									value={targets[license.id]}
+									required
+									showRequired={false}
+									disabled={work.busy}
+									options={[
+										...accounts.map((account) => ({
+											id: account.did,
+											label: '@' + account.handle
+										})),
+										...(!accounts.some(
+											(account) => account.did === targets[license.id]
+										)
+											? [
+													{
+														id: targets[license.id] || '',
+														label: targets[license.id] || 'Choose an account'
+													}
+												]
+											: [])
+									]}
+									onchange={(value) =>
+										(targets = { ...targets, [license.id]: value })}
+								/>
 								<details>
 									<summary>Assign another account</summary><label
 										>Account DID<input

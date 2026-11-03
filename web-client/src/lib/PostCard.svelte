@@ -4,10 +4,10 @@
 	import Avatar from './Avatar.svelte';
 	import CraftBadge from './CraftBadge.svelte';
 	import ImageCarousel from './ImageCarousel.svelte';
+	import Icon from './features/shell/Icon.svelte';
 	import {
 		authorName,
 		gaugeText,
-		date,
 		compactDate,
 		fullTimestamp,
 		label,
@@ -24,7 +24,8 @@
 		media,
 		field,
 		member = false,
-		onImageChange
+		onImageChange,
+		initialImageIndex = 0
 	}: {
 		post: Post;
 		detail?: boolean;
@@ -33,7 +34,9 @@
 		field?: Snippet<[string, Facet[] | undefined]>;
 		member?: boolean;
 		onImageChange?: (index: number) => void;
+		initialImageIndex?: number;
 	} = $props();
+	const editDescriptionId = $props.id();
 	const profileHref = (did: string) =>
 		member ? '/app/profile/' + encodeURIComponent(did) : profilePath(did);
 	const postHref = () =>
@@ -62,6 +65,35 @@
 		}));
 	});
 	let visibleCraftCount = $state(5);
+	const pattern = $derived(post.project?.common.pattern);
+	const hasPattern = $derived(
+		!!pattern &&
+			!!(
+				pattern.name?.trim() ||
+				pattern.designer?.trim() ||
+				pattern.publisher?.trim() ||
+				pattern.selfDrafted
+			)
+	);
+	const sizeSummary = $derived.by(() => {
+		const craft = post.project?.common.craftType.split('#').at(-1);
+		const details = post.project?.details;
+		const key =
+			craft === 'sewing'
+				? 'sizeMade'
+				: craft === 'knitting' || craft === 'crochet'
+					? 'finishedSize'
+					: craft === 'quilting'
+						? 'size'
+						: undefined;
+		const value = key && details?.[key];
+		return typeof value === 'string' && value.trim()
+			? {
+					label: key === 'finishedSize' ? 'Finished size' : 'Size',
+					value: value.trim()
+				}
+			: undefined;
+	});
 	function fitCrafts(node: HTMLElement, entries: typeof authorCrafts) {
 		let disposed = false;
 		const canvas = document.createElement('canvas');
@@ -172,7 +204,14 @@
 			class="date"
 			href={postHref()}
 			aria-label={member ? 'Open post' : undefined}
-			><time
+			aria-describedby={post.editedAt ? editDescriptionId : undefined}
+			title={fullTimestamp(post.createdAt) +
+				(post.editedAt ? '\nEdited ' + fullTimestamp(post.editedAt) : '')}
+			>{#if post.editedAt}<span class="edited-indicator" aria-hidden="true"
+					><Icon name="edit" size={13} /></span
+				><span id={editDescriptionId} class="visually-hidden"
+					>Edited {fullTimestamp(post.editedAt)}</span
+				>{/if}<time
 				datetime={post.createdAt}
 				title={fullTimestamp(post.createdAt)}
 				aria-label={fullTimestamp(post.createdAt)}
@@ -199,6 +238,7 @@
 			images={post.images}
 			{detail}
 			interactive={member}
+			initialIndex={initialImageIndex}
 			onChange={onImageChange}
 		/>{/if}
 	{#if media}{@render media()}{:else if post.video && safeURL(post.video.playlist)}
@@ -225,7 +265,9 @@
 			<div class="project-chips">
 				{#if post.project.common.status}<span
 						class="status-badge"
-						class:finished={post.project.common.status.endsWith('#finished')}
+						class:finished={post.project.common.status.split('#').at(-1) ===
+							'finished'}
+						class:wip={post.project.common.status.split('#').at(-1) === 'wip'}
 						>{label(post.project.common.status)}</span
 					>{/if}
 				<CraftBadge craft={post.project.common.craftType} />
@@ -234,6 +276,34 @@
 					/>{/each}
 			</div>
 		</div>
+	{/if}
+	{#if post.project && !detail && (hasPattern || sizeSummary)}
+		<dl class="project-preview-metadata">
+			{#if hasPattern && pattern}<dt>Pattern</dt>
+				<dd>
+					{#if pattern.name?.trim()}{#if field}{@render field(
+								pattern.name,
+								pattern.nameFacets
+							)}{:else}{pattern.name}{/if}{/if}
+					{#if pattern.name?.trim() && (pattern.designer?.trim() || pattern.publisher?.trim())}
+						{' by '}
+					{/if}
+					{#if pattern.designer?.trim()}{#if field}{@render field(
+								pattern.designer,
+								pattern.designerFacets
+							)}{:else}{pattern.designer}{/if}{/if}{#if pattern.designer?.trim() && pattern.publisher?.trim()}{', '}
+					{/if}
+					{#if pattern.publisher?.trim()}{#if field}{@render field(
+								pattern.publisher,
+								pattern.publisherFacets
+							)}{:else}{pattern.publisher}{/if}{/if}
+					{#if pattern.selfDrafted}{#if pattern.name?.trim() || pattern.designer?.trim() || pattern.publisher?.trim()}
+							{' · '}
+						{/if}Self-drafted{/if}
+				</dd>{/if}
+			{#if sizeSummary}<dt>{sizeSummary.label}</dt>
+				<dd>{sizeSummary.value}</dd>{/if}
+		</dl>
 	{/if}
 
 	{#if post.project && detail}{@const common = post.project.common}
@@ -309,12 +379,35 @@
 	{#if post.project}<p class="prose project-notes">
 			{#if content}{@render content(post.text)}{:else}{post.text}{/if}
 		</p>{/if}
-	{#if post.editedAt}<p class="muted">
-			Edited <time datetime={post.editedAt}>{date(post.editedAt)}</time>
-		</p>{/if}
 </article>
 
 <style>
+	.edited-indicator {
+		display: inline-flex;
+		align-items: center;
+		margin-right: 4px;
+	}
+	.project-preview-metadata {
+		display: grid;
+		grid-template-columns: 112px minmax(0, 1fr);
+		gap: 4px 0;
+		border-top: 1px solid var(--hairline);
+		padding-top: 8px;
+		margin: 12px 0 0;
+	}
+	.project-preview-metadata dt {
+		font-size: 12px;
+		letter-spacing: 1.68px;
+		text-transform: uppercase;
+		color: var(--ink-3);
+	}
+	.project-preview-metadata dd {
+		margin: 0;
+		font-size: 13px;
+		font-weight: 600;
+		line-height: 1.45;
+		overflow-wrap: anywhere;
+	}
 	.member-author-line {
 		display: flex;
 		align-items: center;

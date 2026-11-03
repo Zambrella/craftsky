@@ -172,12 +172,14 @@ test('craft filters support multiple selections, repeated wire values and URL re
 	await page
 		.getByRole('group', { name: 'Project type options', exact: true })
 		.getByRole('checkbox', { name: 'Garment', exact: true })
-		.check();
+		.click();
+	await page
+		.getByRole('searchbox', { name: 'Project type', exact: true })
+		.click();
 	await page
 		.getByRole('group', { name: 'Project type options', exact: true })
 		.getByRole('checkbox', { name: 'Accessory', exact: true })
-		.check();
-	await page.keyboard.press('Escape');
+		.click();
 	await page
 		.getByRole('searchbox', { name: 'Project subtype', exact: true })
 		.click();
@@ -192,11 +194,12 @@ test('craft filters support multiple selections, repeated wire values and URL re
 	await page
 		.getByRole('group', { name: 'Color options', exact: true })
 		.getByRole('checkbox', { name: 'Blue', exact: true })
-		.check();
+		.click();
+	await page.getByRole('searchbox', { name: 'Color', exact: true }).click();
 	await page
 		.getByRole('group', { name: 'Color options', exact: true })
 		.getByRole('checkbox', { name: 'Red', exact: true })
-		.check();
+		.click();
 	await page
 		.getByRole('button', { name: 'Apply filters', exact: true })
 		.click();

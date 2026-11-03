@@ -1,15 +1,17 @@
 <script lang="ts">
-	import { onDestroy, untrack } from 'svelte';
+	import { onDestroy, tick, untrack } from 'svelte';
 	import { safeURL, type Image } from './public';
 	let {
 		images,
 		detail = false,
 		interactive = false,
+		initialIndex = 0,
 		onChange
 	}: {
 		images: Image[];
 		detail?: boolean;
 		interactive?: boolean;
+		initialIndex?: number;
 		onChange?: (index: number) => void;
 	} = $props();
 	const pictures = $derived(
@@ -38,10 +40,18 @@
 		if (next !== signature) {
 			signature = next;
 			clearRequest();
-			active = 0;
-			untrack(() => report(0));
+			active = Math.max(
+				0,
+				pictures.indexOf(images[untrack(() => initialIndex)])
+			);
+			untrack(() => report(active));
 			description?.close();
-			gallery?.scrollTo({ left: 0, behavior: 'instant' });
+			const selected = active;
+			void tick().then(() => {
+				const left = targetOffset(selected);
+				if (left !== undefined)
+					gallery?.scrollTo({ left, behavior: 'instant' });
+			});
 		}
 	});
 	onDestroy(() => {

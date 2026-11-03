@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onDestroy, untrack } from 'svelte';
 	import Icon from '../shell/Icon.svelte';
+	import { subscriptionsEnabled, comingSoon } from '../shell/release-config';
 	import { scheduledLocalDate, scheduleWindow } from './model';
 	let {
 		owner,
@@ -38,6 +39,10 @@
 		});
 	});
 	function positionMenu() {
+		if (!subscriptionsEnabled()) {
+			comingSoon('Scheduled posts');
+			return;
+		}
 		if (!allowed) {
 			upgrade.showModal();
 			return;
@@ -98,9 +103,11 @@
 	type="button"
 	class="schedule-control"
 	class:scheduled={later}
-	aria-label="When"
+	aria-label={subscriptionsEnabled()
+		? 'When'
+		: 'Scheduled posts is coming soon'}
 	title="When"
-	popovertarget={allowed ? uid + '-menu' : undefined}
+	popovertarget={allowed && subscriptionsEnabled() ? uid + '-menu' : undefined}
 	onclick={positionMenu}
 	{disabled}
 	><Icon name="clock" />{#if !allowed}<span

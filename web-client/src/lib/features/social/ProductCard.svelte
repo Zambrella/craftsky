@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { confirmExternalLink } from './prompt';
 	import type { BusinessProfile } from '#lib/api/types.ts';
 	import { safeLink } from './model';
 	import { money } from './business-model';
@@ -28,9 +29,7 @@
 		target="_blank"
 		rel="ugc nofollow noopener noreferrer"
 		aria-label={'View product ' + product.title}
-		onclick={(event) => {
-			if (!confirm('Open this external website?')) event.preventDefault();
-		}}>{@render content()}</a
+		onclick={confirmExternalLink}>{@render content()}</a
 	>{:else}<article class="panel product-card">{@render content()}</article>{/if}
 
 <style>

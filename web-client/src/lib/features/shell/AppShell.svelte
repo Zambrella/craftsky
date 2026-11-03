@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { usePrompt } from '../social/prompt';
+	const ask = usePrompt();
 	import BrowserPush from '../push/BrowserPush.svelte';
 	import { disablePush, forgetPush } from '../push/client.ts';
 	import { onMount, onDestroy, tick, untrack, type Snippet } from 'svelte';
@@ -12,6 +14,8 @@
 	} from '#lib/api/client.ts';
 	import Icon from './Icon.svelte';
 	import Avatar from '#lib/Avatar.svelte';
+	import CompactIdentity from '../social/CompactIdentity.svelte';
+	import DiscoverySidebar from './DiscoverySidebar.svelte';
 	import Onboarding from '../social/Onboarding.svelte';
 	import { loadLanguagePreferences } from './languages';
 	import { ownProfileRoute } from './navigation';
@@ -26,6 +30,26 @@
 		accounts: { id: string; did: string; handle: string }[];
 		children: Snippet<[CraftskyAPI]>;
 	} = $props();
+	const version = __CRAFTSKY_VERSION__.trim();
+	let accountProfiles = $state<Record<string, Profile>>({});
+	$effect(() => {
+		if (!accountMenu) return;
+		let current = true;
+		untrack(() => {
+			for (const account of accounts) {
+				if (account.id === accountId || accountProfiles[account.did]) continue;
+				void api.profiles
+					.get(account.did)
+					.then((profile) => {
+						if (current) accountProfiles[account.did] = profile;
+					})
+					.catch(() => {});
+			}
+		});
+		return () => {
+			current = false;
+		};
+	});
 	const accountId = untrack(() => session.id);
 	let expired = $state(false);
 	const api = new CraftskyAPI(
@@ -53,11 +77,17 @@
 	let identity = $state<Profile>();
 	let postTypeMenu = $state<HTMLDialogElement>(null!);
 	let firstPost = $state(true);
+	let comingSoonFeature = $state('');
+	let comingSoonDialog: HTMLDialogElement;
 	let profileScrolled = $state(false);
+	let desktop = $state(false);
 	let gated = $derived(
 		!ready ||
 			expired ||
 			(eligibility?.state === 'eligible' && onboarding?.completed === false)
+	);
+	let discovery = $derived(
+		desktop && !gated && eligibility?.state === 'eligible'
 	);
 	function choosePostType() {
 		drawer = false;
@@ -174,6 +204,17 @@
 			newMessages = results[1].value.accepted;
 	}
 	onMount(() => {
+		const showComingSoon = (event: Event) => {
+			const feature = (event as CustomEvent<unknown>).detail;
+			if (typeof feature !== 'string' || !feature || gated) return;
+			comingSoonFeature = feature;
+			comingSoonDialog.showModal();
+		};
+		window.addEventListener('craftsky-coming-soon', showComingSoon);
+		const desktopQuery = window.matchMedia('(min-width: 1201px)');
+		const updateDesktop = () => (desktop = desktopQuery.matches);
+		updateDesktop();
+		desktopQuery.addEventListener('change', updateDesktop);
 		try {
 			const theme = localStorage.getItem('craftsky.theme');
 			if (theme === 'light' || theme === 'dark')
@@ -225,6 +266,8 @@
 		window.addEventListener('craftsky-draft-saved', draftSaved);
 		window.addEventListener('craftsky-profile-updated', profileUpdated);
 		return () => {
+			window.removeEventListener('craftsky-coming-soon', showComingSoon);
+			desktopQuery.removeEventListener('change', updateDesktop);
 			profileRevision++;
 			clearInterval(timer);
 			clearTimeout(noticeTimer);
@@ -240,7 +283,14 @@
 			accountMenu = false;
 			return;
 		}
-		if (!confirm('Switch accounts? Save any unfinished work first.')) return;
+		if (
+			!(await ask({
+				title: 'Switch accounts?',
+				detail: 'Save any unfinished work first.',
+				confirmLabel: 'Switch account'
+			}))
+		)
+			return;
 		try {
 			const result = await fetch('/api/auth/switch', {
 				method: 'POST',
@@ -254,7 +304,14 @@
 		}
 	}
 	async function logout() {
-		if (!confirm('Sign out of this account?')) return;
+		if (
+			!(await ask({
+				title: 'Sign out?',
+				detail: 'Sign out of this account?',
+				confirmLabel: 'Sign out'
+			}))
+		)
+			return;
 		try {
 			await disablePush(api, accountId).catch(() => {});
 			const response = await fetch('/api/auth/logout', {
@@ -283,7 +340,7 @@
 			if (drawer || accountMenu)
 				document
 					.querySelector<HTMLElement>(
-						accountMenu ? '.account-menu button' : '.app-sidebar.open button'
+						accountMenu ? '.account-menu a[href]' : '.app-sidebar.open a[href]'
 					)
 					?.focus();
 		});
@@ -334,7 +391,12 @@
 			!page.url.search
 		) {
 			event.preventDefault();
-			window.scrollTo({ top: 0, behavior: 'smooth' });
+			window.scrollTo({
+				top: 0,
+				behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches
+					? 'instant'
+					: 'smooth'
+			});
 			window.dispatchEvent(new Event('craftsky-refresh'));
 		}
 	}
@@ -391,58 +453,47 @@
 	inert={accountMenu}
 	hidden={gated}
 >
-	<button
-		class="icon-button mobile-only"
-		aria-label="Close navigation"
-		onclick={() => (drawer = false)}><Icon name="close" /></button
-	>
-	<button
-		class="account-trigger"
-		aria-label={'Switch accounts, @' + session.handle}
-		aria-expanded={accountMenu}
-		onclick={() => {
-			drawer = false;
-			accountMenu = !accountMenu;
-		}}
-	>
-		{#if identity?.avatar}<img
-				class="shell-avatar"
-				src={identity.avatar}
-				alt=""
-			/>{:else}<span
-				class="shell-avatar shell-avatar-fallback"
-				aria-hidden="true"
-				>{(identity?.displayName || session.handle)
-					.slice(0, 1)
-					.toUpperCase()}</span
-			>{/if}
-		<span class="shell-identity"
-			><strong>{identity?.displayName || session.handle}</strong><span
-				>@{session.handle}</span
-			></span
-		><Icon name="down" size={18} />
-	</button>
 	<nav aria-label="App navigation">
-		{#each nav as [key, label, href]}<a
-				{href}
-				aria-current={active(key) ? 'page' : undefined}
-				onclick={(event) => reselect(event, key)}
-				><Icon name={key} filled={active(key)} /><span>{label}</span
-				>{#if key === 'activity' && newActivity}<span class="count-badge"
-						>{newActivity > 99 ? '99+' : newActivity}</span
-					>{:else if key === 'messages' && newMessages}<span class="count-badge"
-						>{newMessages > 99 ? '99+' : newMessages}</span
-					>{/if}</a
-			>{/each}
+		{#each nav as [key, label, href]}<div class="rail-row">
+				<a
+					{href}
+					aria-current={active(key) ? 'page' : undefined}
+					onclick={(event) => reselect(event, key)}
+					><span class="rail-icon"
+						><Icon name={key} filled={active(key)} /></span
+					><span>{label === 'Activity' ? 'Notifications' : label}</span
+					>{#if key === 'activity' && newActivity}<span class="count-badge"
+							>{newActivity > 99 ? '99+' : newActivity}</span
+						>{:else if key === 'messages' && newMessages}<span
+							class="count-badge">{newMessages > 99 ? '99+' : newMessages}</span
+						>{/if}</a
+				>{#if key === 'profile'}<button
+						class="icon-button rail-switch"
+						aria-label={'Switch accounts, @' + session.handle}
+						aria-expanded={accountMenu}
+						onclick={() => {
+							drawer = false;
+							accountMenu = true;
+						}}><Icon name="switch" size={20} /></button
+					>{/if}
+			</div>{/each}
 	</nav>
-	<button class="button" onclick={choosePostType}
-		><Icon name="plus" />Create post</button
-	><a
-		class="sidebar-about"
-		href="https://craftsky.social"
-		target="_blank"
-		rel="noreferrer">Your craft. Your community.</a
+	<button class="button" onclick={choosePostType} aria-label="Create post"
+		><Icon name="plus" />New post</button
 	>
+	<div class="sidebar-about">
+		<a href="https://craftsky.social/terms" target="_blank" rel="noreferrer"
+			>Terms</a
+		><a href="https://craftsky.social/privacy" target="_blank" rel="noreferrer"
+			>Privacy</a
+		><a
+			href="https://userinput.app/s/did:plc:lmmx63zcns6gewgxqfdt4kof/3mpr5izppvt2k?lang=en"
+			target="_blank"
+			rel="noreferrer"
+			class="sidebar-feedback"><Icon name="messages" size={20} />Feedback</a
+		>
+		{#if version}<small>{version}</small>{/if}
+	</div>
 </aside>
 {#if accountMenu}<button
 		class="account-scrim"
@@ -456,22 +507,44 @@
 		aria-label="Accounts"
 		tabindex="-1"
 	>
-		<h2>Your accounts</h2>
-		{#each accounts as account}<button
+		{#each accounts as account}{@const profile =
+				account.id === accountId ? identity : accountProfiles[account.did]}
+			<button
 				class="person-row"
+				disabled={account.id === accountId}
 				aria-current={account.id === accountId ? 'true' : undefined}
 				onclick={() => changeAccount(account.id)}
-				>@{account.handle}{#if account.id === accountId}<span
-						>Current account</span
-					>{/if}</button
-			>{/each}<a href="/sign-in?add=1">Add another account</a><button
-			onclick={logout}>Sign out @{session.handle}</button
-		><button onclick={() => (accountMenu = false)}>Close</button>
+			>
+				<Avatar
+					author={{
+						did: account.did,
+						handle: account.handle,
+						displayName: profile?.displayName || undefined,
+						avatar: profile?.avatar || undefined
+					}}
+				/>
+				<div class="shell-identity">
+					<CompactIdentity
+						author={{
+							did: account.did,
+							handle: account.handle,
+							displayName: profile?.displayName || undefined,
+							crafts: profile?.crafts || []
+						}}
+					/>
+				</div>
+				{#if account.id === accountId}<Icon name="check" />{/if}
+			</button>
+		{/each}
+		<a class="add-account" href="/sign-in?add=1"
+			><Icon name="userPlus" />Add account</a
+		>
 	</div>{/if}
 {#if notice}<div class="shell-notice" role="status">{notice}</div>{/if}
 <main
 	id="main"
 	class="app-main"
+	class:has-discovery={discovery}
 	class:is-gated={gated}
 	class:shell-root={shellRoot}
 	class:fullscreen
@@ -511,6 +584,17 @@
 			}}
 		/>{:else}{@render children(api)}{/if}
 </main>
+{#if discovery}<aside
+		class="app-discovery"
+		aria-label="Discover CraftSky"
+		inert={drawer || accountMenu}
+	>
+		<DiscoverySidebar
+			{api}
+			profile={identity}
+			onProfile={(profile) => (identity = profile)}
+		/>
+	</aside>{/if}
 {#if ready && !expired && !accountMenu && !drawer && eligibility?.state === 'eligible' && onboarding?.completed && ((page.url.pathname === '/app/home' && !page.url.searchParams.get('craft')) || ownProfile)}<button
 		class="button compose-fab"
 		onclick={choosePostType}
@@ -585,8 +669,34 @@
 		><Icon name="chevron" size={20} /></a
 	>
 </dialog>
+<dialog
+	bind:this={comingSoonDialog}
+	class="coming-soon-dialog"
+	aria-labelledby="coming-soon-title"
+>
+	<h2 id="coming-soon-title">{comingSoonFeature} is coming soon</h2>
+	<p>
+		{comingSoonFeature} isn't available yet. We'll let you know when it launches.
+	</p>
+	<div class="actions">
+		<button onclick={() => comingSoonDialog.close()}>OK</button>
+	</div>
+</dialog>
 
 <style>
+	.coming-soon-dialog {
+		width: min(360px, calc(100vw - 48px));
+		border-radius: 14px;
+		box-shadow: 10px 10px var(--shadow);
+	}
+	.coming-soon-dialog h2 {
+		font-size: 20px;
+	}
+	.coming-soon-dialog .actions {
+		display: flex;
+		justify-content: flex-end;
+		margin-top: 16px;
+	}
 	.shell-notice {
 		position: fixed;
 		z-index: 100;

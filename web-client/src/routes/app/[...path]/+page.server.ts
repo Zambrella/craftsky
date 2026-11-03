@@ -1,4 +1,5 @@
 import { redirect } from '@sveltejs/kit';
+import { env } from 'node:process';
 import type { PageServerLoad } from './$types';
 import {
 	selected,
@@ -50,6 +51,7 @@ export const load: PageServerLoad = async ({ cookies, url, params }) => {
 			throw error;
 	}
 	return {
+		subscriptionsEnabled: env.SUBSCRIPTIONS_ENABLED === 'true',
 		session: publicAccount(account),
 		accounts: credentials(cookies, url).map(publicAccount),
 		path: (params.path || 'home').split('/')

@@ -14,7 +14,9 @@
 	import { label } from '#lib/public.ts';
 	import { browseFilters } from './filter-model';
 	import Icon from '../shell/Icon.svelte';
+	import ChoiceMenu from './ChoiceMenu.svelte';
 	import EmptyState from './EmptyState.svelte';
+	import { craftFeeds, craftKey } from './craft-feeds';
 	let { api, did }: { api: CraftskyAPI; did: string } = $props();
 	const work = new Work();
 	let profile = $state<Profile>();
@@ -101,10 +103,9 @@
 <nav class="tabs" aria-label="Home feeds">
 	<a href="/app/home" aria-current={!craft ? 'page' : undefined}
 		><Icon name="users" size={18} />Following</a
-	>{#each profile?.crafts || [] as item}{@const key =
-			item.split('#').at(-1)?.trim().toLowerCase() || ''}<a
-			href={'/app/home?craft=' + encodeURIComponent(item)}
-			aria-current={craft === item ? 'page' : undefined}
+	>{#each craftFeeds(profile?.crafts) as item}{@const key = craftKey(item.id)}<a
+			href={'/app/home?craft=' + encodeURIComponent(item.id)}
+			aria-current={craftKey(craft) === key ? 'page' : undefined}
 			>{#if ['knitting', 'crochet', 'sewing', 'embroidery', 'quilting'].includes(key)}<span
 					class="feed-craft-icon"
 					style:--craft-icon={`url('/craft_icons/${key}.svg')`}
@@ -113,27 +114,15 @@
 		>{/each}
 </nav>
 {#if craft}<div class="feed-tools">
-		<form
-			method="get"
-			action="/app/home"
-			onchange={(event) => event.currentTarget.requestSubmit()}
-		>
-			{#each [...page.url.searchParams] as [key, value]}{#if key !== 'craft' && key !== 'sort'}<input
-						type="hidden"
-						name={key}
-						{value}
-					/>{/if}{/each}
-			<input type="hidden" name="craft" value={craft} /><label
-				><Icon name="sort" /><span class="visually-hidden">Sort</span><select
-					aria-label="Sort"
-					name="sort"
-					value={page.url.searchParams.get('sort') || 'chronological'}
-					><option value="chronological">Newest first</option><option
-						value="popular">Popular</option
-					></select
-				></label
-			>
-		</form>
+		<ChoiceMenu
+			label="Sort projects"
+			value={page.url.searchParams.get('sort') || 'chronological'}
+			url={page.url}
+			options={[
+				{ value: 'chronological', label: 'Newest', icon: 'sort' },
+				{ value: 'popular', label: 'Popular', icon: 'growth' }
+			]}
+		/>
 		<button
 			class="filter-trigger"
 			onclick={() => {
@@ -253,20 +242,6 @@
 		gap: 8px;
 		padding: 12px 16px;
 	}
-	.feed-tools form {
-		margin: 0;
-	}
-	.feed-tools label {
-		display: flex;
-		align-items: center;
-		gap: 4px;
-	}
-	.feed-tools select {
-		width: auto;
-		min-height: 42px;
-		margin: 0;
-		font-size: 14px;
-	}
 	.filter-trigger {
 		display: flex;
 		align-items: center;
@@ -366,9 +341,5 @@
 			border: 0;
 			border-radius: 0;
 		}
-	}
-
-	.feed-tools label {
-		flex-direction: row;
 	}
 </style>

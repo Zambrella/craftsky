@@ -46,6 +46,17 @@
 			input.focus({ preventScroll: true });
 		}
 	}
+	function toggle(id: string) {
+		if (disabled) return false;
+		const checked = !values.includes(id);
+		if (checked && values.length >= maximum) return false;
+		const accepted = onchange(
+			checked ? [...values, id] : values.filter((value) => value !== id)
+		);
+		if (accepted === false) return false;
+		if (checked) close(true);
+		return true;
+	}
 	function position() {
 		if (!root) return;
 		const box = root.getBoundingClientRect(),
@@ -134,7 +145,10 @@
 					open = true;
 				}}
 				onkeydown={async (event) => {
-					if (event.key === 'Enter') event.preventDefault();
+					if (event.key === 'Enter') {
+						event.preventDefault();
+						if (open && matches[0]) toggle(matches[0].id);
+					}
 					if (event.key === 'Escape' && open) {
 						event.preventDefault();
 						event.stopPropagation();
@@ -179,13 +193,7 @@
 						disabled={!values.includes(option.id) && values.length >= maximum}
 						onchange={(event) => {
 							const checked = event.currentTarget.checked;
-							const accepted = onchange(
-								checked
-									? [...values, option.id]
-									: values.filter((id) => id !== option.id)
-							);
-							if (accepted === false) event.currentTarget.checked = !checked;
-							else if (checked) query = '';
+							if (!toggle(option.id)) event.currentTarget.checked = !checked;
 						}}
 					/>{option.label}</label
 				>{:else}<p>No matches found.</p>{/each}
@@ -284,11 +292,11 @@
 		left: 0;
 		right: 0;
 		overflow: auto;
-		border: 1.5px solid var(--hairline);
+		border: 1px solid var(--hairline);
 		border-radius: 14px;
 		padding: 6px;
 		background: var(--surface);
-		box-shadow: 0 12px 24px #0002;
+		box-shadow: 0 8px 18px #00000026;
 	}
 	.select-choices.above {
 		top: auto;
@@ -299,7 +307,7 @@
 		flex-direction: row;
 		align-items: center;
 		gap: 16px;
-		min-height: 48px;
+		min-height: 56px;
 		margin: 0;
 		padding: 10px 14px;
 		border-radius: 8px;
@@ -324,5 +332,10 @@
 	}
 	.select-choices p {
 		padding: 16px;
+	}
+	@media (hover: hover) {
+		.native-multi-select:not(.disabled) .selection-field:hover {
+			background: color-mix(in srgb, var(--primary) 8%, var(--surface));
+		}
 	}
 </style>

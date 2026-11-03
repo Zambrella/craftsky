@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { confirmExternalLink } from './prompt';
 	import { contextMenu } from './context-menu';
 	import { onMount, onDestroy } from 'svelte';
 	import { CraftskyAPI, type BusinessEvent } from '#lib/api/client.ts';
@@ -34,9 +35,6 @@
 	onMount(() => {
 		void load();
 	});
-	function openExternal(click: MouseEvent) {
-		if (!confirm('Open this external website?')) click.preventDefault();
-	}
 
 	onDestroy(() => work.dispose());
 </script>
@@ -133,14 +131,15 @@
 						href={safeLink(event.eventUri!)}
 						target="_blank"
 						rel="ugc nofollow noopener noreferrer"
-						onclick={openExternal}
+						onclick={confirmExternalLink}
 						><Icon name="external" size={20} />Event website</a
 					>{/if}{#if safeLink(event.registrationUri || '')}<a
 						class="button"
 						href={safeLink(event.registrationUri!)}
 						target="_blank"
 						rel="ugc nofollow noopener noreferrer"
-						onclick={openExternal}><Icon name="external" size={20} />Register</a
+						onclick={confirmExternalLink}
+						><Icon name="external" size={20} />Register</a
 					>{/if}
 			</div>
 			<a class="organiser" href={'/app/profile/' + encodeURIComponent(did)}

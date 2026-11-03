@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { usePrompt } from '../social/prompt';
+	const ask = usePrompt();
 	import { onMount, onDestroy } from 'svelte';
 	import {
 		newOperationKey,
@@ -261,14 +263,16 @@
 				>
 				{#if kind === 'mutes' || kind === 'blocks'}<button
 						disabled={work.busy || !!work.retry}
-						onclick={() => {
+						onclick={async () => {
 							if (
 								kind === 'blocks' &&
-								!confirm(
-									profile.handle
+								!(await ask({
+									title: 'Unblock account?',
+									detail: profile.handle
 										? `Unblock @${profile.handle}?`
-										: 'Unblock this account?'
-								)
+										: 'Unblock this account?',
+									confirmLabel: 'Unblock'
+								}))
 							)
 								return;
 							remove(profile);

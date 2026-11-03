@@ -19,7 +19,7 @@
 		disabled?: boolean;
 		onopen: () => void;
 		onclose: () => void;
-		beforeClose?: () => boolean;
+		beforeClose?: () => boolean | Promise<boolean>;
 		children: Snippet;
 	} = $props();
 	const uid = $props.id();
@@ -37,10 +37,13 @@
 		disposed = true;
 		dialog?.close();
 	});
-	function close() {
+	async function close() {
 		if (disposed || closing) return;
-		if (!beforeClose()) return;
 		closing = true;
+		if (!(await beforeClose()) || disposed) {
+			closing = false;
+			return;
+		}
 		// Close while the focused child still exists, then release its snippet.
 		// Return explicitly to the action row, including browsers that do not focus clicked buttons.
 		dialog?.close();

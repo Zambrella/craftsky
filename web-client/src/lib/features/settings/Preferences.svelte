@@ -1,6 +1,8 @@
 <script lang="ts">
+	import SingleSelect from '#lib/SingleSelect.svelte';
+	import { confirmNavigation } from '../social/navigation-prompt';
 	import { onMount, onDestroy } from 'svelte';
-	import { beforeNavigate } from '$app/navigation';
+
 	import Avatar from '#lib/Avatar.svelte';
 	import MultiSelect from '#lib/MultiSelect.svelte';
 	import SettingsIcon from './SettingsIcon.svelte';
@@ -52,17 +54,16 @@
 	let customDirty = $derived(
 		colour !== savedColour || background !== savedBackground
 	);
-	beforeNavigate(({ cancel }) => {
-		if (
-			section === 'customisation' &&
-			customDirty &&
-			!work.busy &&
-			!confirm(
-				"Discard customisation changes? Your customisation changes won't be saved."
-			)
-		)
-			cancel();
-	});
+	confirmNavigation(
+		() => section === 'customisation' && customDirty && !work.busy,
+		{
+			title: 'Discard customisation changes?',
+			detail: "Your customisation changes won't be saved.",
+			confirmLabel: 'Discard',
+			cancelLabel: 'Keep editing',
+			danger: true
+		}
+	);
 	let pattern = $derived(
 		background === 'none'
 			? ''
@@ -345,11 +346,14 @@
 	</div>
 {:else if !work.loading && loaded && section === 'languages'}
 	<section class="panel stack">
-		<label
-			>App language<select value="en"
-				><option value="en">English</option></select
-			></label
-		>
+		<SingleSelect
+			label="App language"
+			value="en"
+			required
+			showRequired={false}
+			options={[{ id: 'en', label: 'English' }]}
+			onchange={() => {}}
+		/>
 		<p class="helper">
 			Select which language to use for the app's user interface.
 		</p>
@@ -358,18 +362,18 @@
 		</p>
 	</section>
 	<section class="panel stack">
-		<label
-			>Primary language<select
-				required
-				value={primary}
-				disabled={work.busy || !!work.retry}
-				onchange={(event) =>
-					replaceLanguages(event.currentTarget.value, content)}
-				>{#each languageOptions as language}<option value={language.tag}
-						>{language.name}</option
-					>{/each}</select
-			></label
-		>
+		<SingleSelect
+			label="Primary language"
+			value={primary}
+			required
+			showRequired={false}
+			options={languageOptions.map((language) => ({
+				id: language.tag,
+				label: language.name
+			}))}
+			disabled={work.busy || !!work.retry}
+			onchange={(value) => replaceLanguages(value, content)}
+		/>
 		<p class="helper">
 			Select the default language used when you create a post.
 		</p>
@@ -419,17 +423,18 @@
 						Push alerts notify you about changes to your account standing.
 						Turning them off does not change your standing, moderation history,
 						or enforcement.
-					</p>{:else}<label
-						>From<select
-							value={pref.scope}
-							disabled={work.busy}
-							onchange={(event) =>
-								notification(category, 'scope', event.currentTarget.value)}
-							><option value="everyone">Everyone</option><option
-								value="peopleIFollow">People I follow</option
-							></select
-						></label
-					>{/if}
+					</p>{:else}<SingleSelect
+						label="From"
+						value={pref.scope}
+						required
+						showRequired={false}
+						options={[
+							{ id: 'everyone', label: 'Everyone' },
+							{ id: 'peopleIFollow', label: 'People I follow' }
+						]}
+						disabled={work.busy}
+						onchange={(value) => notification(category, 'scope', value)}
+					/>{/if}
 				<label class="switch-row notification-push"
 					><span class="tile-copy">Push notifications</span><input
 						type="checkbox"
@@ -571,17 +576,19 @@
 				This setting is shared with Bluesky and other apps. Changes may take
 				time to appear there and do not remove existing conversations.
 			</p>
-			{#if canSetPolicy}<label
-					>Who can message me<select
-						value={incoming}
-						disabled={work.busy || !!work.retry}
-						onchange={(event) =>
-							changeIncoming(event.currentTarget.value as typeof incoming)}
-						><option value="everyone">Everyone</option><option value="following"
-							>People I follow</option
-						><option value="nobody">Nobody</option></select
-					></label
-				>{:else}<p class="helper">
+			{#if canSetPolicy}<SingleSelect
+					label="Who can message me"
+					value={incoming}
+					required
+					showRequired={false}
+					options={[
+						{ id: 'everyone', label: 'Everyone' },
+						{ id: 'following', label: 'People I follow' },
+						{ id: 'nobody', label: 'Nobody' }
+					]}
+					disabled={work.busy || !!work.retry}
+					onchange={(value) => changeIncoming(value as typeof incoming)}
+				/>{:else}<p class="helper">
 					Reconnect with incoming-message settings permission to change this
 					shared setting.
 				</p>
@@ -651,11 +658,6 @@
 	:global(.settings-workspace[data-settings-page='languages']) label {
 		font-size: 16px;
 	}
-	:global(.settings-workspace[data-settings-page='languages']) select {
-		border-radius: 14px;
-		border-color: var(--ink-3);
-		min-height: 52px;
-	}
 	.profile-preview :global(.avatar[data-swatch='paper']) {
 		background: var(--paper-2);
 	}
@@ -668,11 +670,6 @@
 	}
 	:global(.settings-workspace) .notification-card > label {
 		font-size: 16px;
-	}
-	:global(.settings-workspace) .notification-card select {
-		border-radius: 14px;
-		border-color: var(--ink-3);
-		min-height: 52px;
 	}
 	.notification-push .tile-copy {
 		font-weight: 600;

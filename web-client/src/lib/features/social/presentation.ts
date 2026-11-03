@@ -3,13 +3,13 @@ import { visible } from './model';
 
 export const notificationCategories = [
 	['', 'All categories', 'activity'],
-	['follow', 'Follows', 'profile'],
 	['like', 'Likes', 'heart'],
-	['reply', 'Comments and replies', 'comment'],
-	['mention', 'Mentions', 'comment'],
-	['quote', 'Quotes', 'share'],
+	['follow', 'Follows', 'userPlus'],
+	['reply', 'Comments & replies', 'comment'],
+	['mention', 'Mentions', 'at'],
+	['quote', 'Quotes', 'quotes'],
 	['repost', 'Reposts', 'repost'],
-	['instagramMatch', 'Instagram matches', 'profile'],
+	['instagramMatch', 'Instagram matches', 'instagramMatch'],
 	['moderation', 'Moderation', 'shield']
 ] as const;
 
@@ -28,17 +28,20 @@ export function notificationCopy(item: AppNotification) {
 				? 'comment'
 				: 'post';
 	const actions: Record<string, [string, string]> = {
-		follow: ['followed you', 'profile'],
+		follow: ['followed you', 'userPlus'],
 		like: [`liked your ${role}`, 'heart'],
 		repost: [`reposted your ${role}`, 'repost'],
-		quote: [`quoted your ${role}`, 'share'],
+		quote: [`quoted your ${role}`, 'quotes'],
 		reply: [
 			role === 'post' ? 'commented on your post' : `replied to your ${role}`,
 			'comment'
 		],
-		mention: [`mentioned you in a ${role}`, 'comment'],
-		instagrammatch: ['was found through your Instagram following', 'profile'],
-		moderation: ['Account moderation update', 'shield']
+		mention: [`mentioned you in a ${role}`, 'at'],
+		instagrammatch: [
+			'was found through your Instagram following',
+			'instagramMatch'
+		],
+		moderation: ['Review an update to your account standing', 'shield']
 	};
 	const [action, icon] = actions[type] || ['New activity', 'activity'];
 	const subject =
@@ -59,7 +62,8 @@ export function notificationCopy(item: AppNotification) {
 			: '';
 	return {
 		action: sourceUnavailable ? 'Activity unavailable' : action,
-		icon,
+		icon: sourceUnavailable ? 'activity' : icon,
+		interactive: !sourceUnavailable && !!actions[type],
 		available: !sourceUnavailable,
 		canFollow:
 			!sourceUnavailable &&

@@ -22,11 +22,11 @@ aliases = {
     "home": "house", "search": "magnifyingGlass", "messages": "chatCircle",
     "activity": "bell", "profile": "user", "saved": "bookmarks", "scheduled": "clock",
     "drafts": "notePencil", "settings": "gear", "menu": "list", "plus": "plus",
-    "close": "x", "back": "arrowLeft", "chevron": "caretRight", "down": "caretDown",
+    "close": "x", "clear": "xCircle", "instagramMatch": "userFocus", "back": "arrowLeft", "chevron": "caretRight", "down": "caretDown",
     "mute": "speakerSlash", "block": "prohibit", "report": "flag", "copy": "link",
     "heart": "heart", "comment": "chatCircle", "share": "shareNetwork", "repost": "repeat",
     "more": "dotsThree", "refresh": "arrowsClockwise", "filter": "funnelSimple",
-    "sort": "sortDescending", "folder": "folder", "check": "check", "edit": "pencilSimple",
+    "sort": "sortDescending", "oldest": "sortAscending", "folder": "folder", "check": "check", "edit": "pencilSimple",
     "external": "arrowSquareOut", "link": "link", "pin": "pushPin", "shield": "shieldCheck",
     "calendar": "calendarBlank", "image": "imageSquare", "mail": "envelope",
     "location": "mapPin", "logout": "signOut", "moon": "moon", "globe": "globe",
@@ -46,7 +46,7 @@ aliases = {
     "currency": "currencyDollar", "pattern": "bookOpen", "book": "bookOpen",
     "palette": "palette", "adjustments": "slidersHorizontal",
 }
-filled = {aliases[name] for name in ("home", "search", "messages", "activity", "profile", "saved", "scheduled", "drafts", "settings", "heart", "like", "subscription")}
+filled = {aliases[name] for name in ("home", "search", "messages", "activity", "profile", "saved", "scheduled", "drafts", "settings", "heart", "like", "subscription", "follow", "quote", "mention", "instagramMatch", "repost", "comment", "shield")}
 paths = {}
 for weight, filename in [("regular", "Phosphor.ttf"), ("fill", "Phosphor-Fill.ttf")]:
     font = TTFont(source / "lib/fonts" / filename)

@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { usePrompt } from '../social/prompt';
+	const ask = usePrompt();
 	import type {
 		CraftskyAPI,
 		Profile,
@@ -22,6 +24,7 @@
 	import Instagram from './Instagram.svelte';
 	import Business from './Business.svelte';
 	import './settings.css';
+	import { subscriptionsEnabled, comingSoon } from '../shell/release-config';
 	let {
 		api,
 		path,
@@ -77,7 +80,9 @@
 	let shownGroups = $derived(
 		visibleSettingsGroups(
 			restricted,
-			!!access?.givesAccess && access.effectiveTier === 'business'
+			subscriptionsEnabled() &&
+				!!access?.givesAccess &&
+				access.effectiveTier === 'business'
 		)
 	);
 	async function switchAccount(id: string) {
@@ -85,7 +90,14 @@
 			accountDialog.close();
 			return;
 		}
-		if (!confirm('Switch accounts? Save any unfinished work first.')) return;
+		if (
+			!(await ask({
+				title: 'Switch accounts?',
+				detail: 'Save any unfinished work first.',
+				confirmLabel: 'Switch account'
+			}))
+		)
+			return;
 		void menu.run(
 			async () => {
 				const response = await fetch('/api/auth/switch', {
@@ -101,8 +113,15 @@
 			''
 		);
 	}
-	function signOut() {
-		if (!confirm('Sign out of this account?')) return;
+	async function signOut() {
+		if (
+			!(await ask({
+				title: 'Sign out?',
+				detail: 'Sign out of this account?',
+				confirmLabel: 'Sign out'
+			}))
+		)
+			return;
 		void menu.run(
 			async () => {
 				if (!session.id) throw new Error('Reopen Settings to sign out.');
@@ -168,7 +187,7 @@
 						>Switch account</span
 					><SettingsIcon name="chevron" size={20} /></button
 				>
-				{#if !restricted}<a
+				{#if !restricted && subscriptionsEnabled()}<a
 						class="panel subscription-callout"
 						href="/app/settings/subscriptions"
 						><h2>
@@ -191,6 +210,19 @@
 							{#each group.items as [slug, label]}{@const external =
 									slug === 'feedback'}<a
 									class="settings-tile"
+									aria-label={!subscriptionsEnabled() &&
+									['growth', 'customisation'].includes(slug)
+										? label + ' is coming soon'
+										: undefined}
+									onclick={(event) => {
+										if (
+											!subscriptionsEnabled() &&
+											['growth', 'customisation'].includes(slug)
+										) {
+											event.preventDefault();
+											comingSoon(label);
+										}
+									}}
 									href={external
 										? 'https://userinput.app/s/did:plc:lmmx63zcns6gewgxqfdt4kof/3mpr5izppvt2k?lang=en'
 										: `/app/settings/${slug}`}
@@ -224,6 +256,18 @@
 					></button
 				>
 			{/if}
+		{:else if !subscriptionsEnabled() && ['customisation', 'growth', 'subscriptions', 'billing', 'products', 'events', 'business'].includes(section)}<h1
+				class="workspace-heading"
+			>
+				{section === 'growth'
+					? 'Growth'
+					: section === 'customisation'
+						? 'Customisation'
+						: 'Subscriptions'} is coming soon
+			</h1>
+			<p class="empty">
+				This feature isn't available yet. We'll let you know when it launches.
+			</p>
 		{:else if ['appearance', 'customisation', 'languages', 'notifications', 'privacy', 'messaging'].includes(section)}<Preferences
 				{api}
 				{section}

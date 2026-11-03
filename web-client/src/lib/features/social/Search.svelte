@@ -20,6 +20,7 @@
 	import Icon from '../shell/Icon.svelte';
 	import EmptyState from './EmptyState.svelte';
 	import CompactIdentity from './CompactIdentity.svelte';
+	import ChoiceMenu from './ChoiceMenu.svelte';
 	import { label } from '#lib/public.ts';
 	let { api, did }: { api: CraftskyAPI; did: string } = $props();
 	const work = new Work();
@@ -187,15 +188,22 @@
 					href={'/app/tags/' + encodeURIComponent(tag.tag)}>#{tag.tag}</a
 				>{/each}
 		</div>{/if}
-	{#if q && tab === 'posts'}<label class="search-sort"
-			>Sort<select
-				name="sort"
+	<input
+		type="hidden"
+		name="sort"
+		value={page.url.searchParams.get('sort') || 'chronological'}
+	/>
+	{#if q && tab === 'posts'}<div class="search-sort">
+			<ChoiceMenu
+				label="Sort results"
 				value={page.url.searchParams.get('sort') || 'chronological'}
-				><option value="chronological">Newest first</option><option
-					value="popular">Popular</option
-				></select
-			></label
-		>{/if}
+				url={page.url}
+				options={[
+					{ value: 'chronological', label: 'Newest', icon: 'sort' },
+					{ value: 'popular', label: 'Popular', icon: 'growth' }
+				]}
+			/>
+		</div>{/if}
 </form>
 {#if q}<nav class="tabs" aria-label="Search categories">
 		{#each ['posts', 'projects', 'profiles', 'hashtags'] as item}<a
@@ -332,10 +340,6 @@
 		justify-content: flex-end;
 		font-size: 14px;
 		gap: 8px;
-	}
-	.search-sort select {
-		width: auto;
-		margin: 0;
 	}
 	.search-discovery {
 		padding: 16px;

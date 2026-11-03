@@ -1,4 +1,5 @@
 <script lang="ts">
+	import SingleSelect from '#lib/SingleSelect.svelte';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { onMount, tick, untrack } from 'svelte';
@@ -468,20 +469,22 @@
 						This setting is shared with Bluesky and other apps. Changes may take
 						time to appear there and do not remove existing conversations.
 					</p>
-					{#if viewState.policy && viewState.status.capabilities.canSetPolicy}<label
-							>Allow incoming messages<select
-								value={viewState.policy.allowIncoming}
-								disabled={viewState.busy}
-								onchange={(event) =>
-									controller?.setPolicy(
-										event.currentTarget.value as
-											'everyone' | 'following' | 'nobody'
-									)}
-								><option value="everyone">Everyone</option><option
-									value="following">People I follow</option
-								><option value="nobody">Nobody</option></select
-							></label
-						>{:else}<p>
+					{#if viewState.policy && viewState.status.capabilities.canSetPolicy}<SingleSelect
+							label="Allow incoming messages"
+							value={viewState.policy.allowIncoming}
+							required
+							showRequired={false}
+							options={[
+								{ id: 'everyone', label: 'Everyone' },
+								{ id: 'following', label: 'People I follow' },
+								{ id: 'nobody', label: 'Nobody' }
+							]}
+							disabled={viewState.busy}
+							onchange={(value) =>
+								controller?.setPolicy(
+									value as 'everyone' | 'following' | 'nobody'
+								)}
+						/>{:else}<p>
 							Reconnect with incoming-message settings permission to change this
 							shared setting.
 						</p>
@@ -733,15 +736,15 @@
 					Message reports go to Bluesky only. CraftSky moderators do not receive
 					these reports.
 				</p>
-				<label
-					>Reason<select
-						bind:value={reportReason}
-						disabled={viewState.busy || !!viewState.report}
-						>{#each reportReasons as [label, value]}<option {value}
-								>{label}</option
-							>{/each}</select
-					></label
-				><label
+				<SingleSelect
+					label="Reason"
+					value={reportReason}
+					required
+					showRequired={false}
+					options={reportReasons.map(([label, id]) => ({ id, label }))}
+					disabled={viewState.busy || !!viewState.report}
+					onchange={(value) => (reportReason = value)}
+				/><label
 					>Explanation (optional)<textarea
 						rows="5"
 						bind:value={reportExplanation}
@@ -1307,7 +1310,6 @@
 		gap: 8px;
 		font-size: 14px;
 	}
-	.settings-body select,
 	.settings-body textarea,
 	.recipient-search input,
 	.message-composer textarea {
@@ -1786,7 +1788,6 @@
 	}
 	button:focus-visible,
 	input:focus-visible,
-	select:focus-visible,
 	textarea:focus-visible {
 		outline: 3px solid var(--primary);
 		outline-offset: 3px;

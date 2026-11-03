@@ -2,10 +2,15 @@ import { describe, expect, it } from 'vitest';
 import { contextMenu } from './context-menu';
 
 function fixture() {
-	const document = new EventTarget(),
+	const document = Object.assign(new EventTarget(), {
+			defaultView: Object.assign(new EventTarget(), {
+				matchMedia: () => ({ matches: false })
+			})
+		}),
 		focus = { called: false };
 	const node = Object.assign(new EventTarget(), {
 		open: true,
+		classList: { add: () => {} },
 		ownerDocument: document,
 		contains: () => false,
 		querySelector: () => ({

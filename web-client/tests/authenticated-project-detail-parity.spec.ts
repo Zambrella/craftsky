@@ -109,6 +109,33 @@ async function storedProject(page: Page) {
 		{ owner: alice.did, id: draftId }
 	);
 }
+
+test('project text limits preserve complete emoji and defer truncation until IME commits', async ({
+	page
+}) => {
+	await seed(page, {});
+	const title = page.getByRole('textbox', {
+		name: 'Project title',
+		exact: true
+	});
+	await title.fill('🧶'.repeat(150));
+	await expect(title).toHaveValue('🧶'.repeat(125));
+	const duration = page.getByRole('textbox', { name: 'Duration', exact: true });
+	await duration.fill('e\u0301'.repeat(101));
+	await expect(duration).toHaveValue('e\u0301'.repeat(100));
+	await title.evaluate((input: HTMLInputElement) => {
+		input.dispatchEvent(
+			new CompositionEvent('compositionstart', { bubbles: true })
+		);
+		input.value = '界'.repeat(180);
+		input.dispatchEvent(
+			new InputEvent('input', { bubbles: true, isComposing: true })
+		);
+	});
+	await expect(title).toHaveValue('界'.repeat(180));
+	await title.dispatchEvent('compositionend');
+	await expect(title).toHaveValue('界'.repeat(166));
+});
 async function save(page: Page) {
 	await page.getByRole('button', { name: 'Save changes', exact: true }).click();
 	await expect(page.getByText('Draft saved', { exact: true })).toBeVisible();
@@ -148,23 +175,20 @@ test('searchable project selections retain unknown values and existing craft met
 		exact: true
 	});
 	await additional.fill('Crochet');
-	await page.getByRole('checkbox', { name: 'Crochet', exact: true }).check();
-	await additional.press('Escape');
+	await page.getByRole('checkbox', { name: 'Crochet', exact: true }).click();
 	const dialog = await materials(page);
 	const colours = dialog.getByRole('searchbox', {
 		name: 'Colours',
 		exact: true
 	});
 	await colours.fill('Red');
-	await dialog.getByRole('checkbox', { name: 'Red', exact: true }).check();
-	await colours.press('Escape');
+	await dialog.getByRole('checkbox', { name: 'Red', exact: true }).click();
 	const design = dialog.getByRole('searchbox', {
 		name: 'Design',
 		exact: true
 	});
 	await design.fill('Stripes');
-	await dialog.getByRole('checkbox', { name: 'Stripes', exact: true }).check();
-	await design.press('Escape');
+	await dialog.getByRole('checkbox', { name: 'Stripes', exact: true }).click();
 	await dialog
 		.getByRole('button', { name: 'Back to project', exact: true })
 		.click();
@@ -194,7 +218,8 @@ test('searchable project selections retain unknown values and existing craft met
 	).toHaveValue('Native project fields');
 	await page
 		.getByRole('combobox', { name: 'Primary craft', exact: false })
-		.selectOption(knitting);
+		.click();
+	await page.getByRole('option', { name: 'Knitting', exact: true }).click();
 	await save(page);
 	await expect
 		.poll(() => storedProject(page))
@@ -312,21 +337,27 @@ test('native material limits allow editing at capacity and discard confirmation 
 	await expect(input).toHaveValue('');
 	await expect(dialog.locator('.material-chip')).toHaveCount(10);
 	await input.fill('Pending material');
-	page.once('dialog', (dialog) => dialog.dismiss());
 	await dialog
 		.getByRole('button', { name: 'Back to project', exact: true })
 		.click();
 	await expect(dialog).toBeVisible();
+	await page
+		.getByRole('dialog', { name: 'Discard material changes?', exact: true })
+		.getByRole('button', { name: 'Keep editing', exact: true })
+		.click();
 	await expect(input).toHaveValue('Pending material');
-	page.once('dialog', async (dialog) => {
-		expect(dialog.message()).toContain(
-			"Materials you've already added will be kept."
-		);
-		await dialog.accept();
-	});
+
 	await dialog
 		.getByRole('button', { name: 'Back to project', exact: true })
 		.click();
+	const discard = page.getByRole('dialog', {
+		name: 'Discard material changes?',
+		exact: true
+	});
+	await expect(discard).toContainText(
+		"Materials you've already added will be kept."
+	);
+	await discard.getByRole('button', { name: 'Discard', exact: true }).click();
 	await expect(dialog).toBeHidden();
 	const reopened = await materials(page);
 	await expect(
@@ -350,4 +381,66 @@ test('native material limits allow editing at capacity and discard confirmation 
 				]
 			}
 		});
+});
+
+test('single project choices search, clear, dismiss and preserve catalogued tool sizes after draft reopening', async ({
+	page
+}) => {
+	await page.setViewportSize({ width: 390, height: 844 });
+	await seed(page, { craftType: 'social.craftsky.feed.defs#knitting' });
+	await page
+		.getByRole('button', { name: 'Knitting details', exact: true })
+		.click();
+	const subtype = page.getByRole('combobox', {
+		name: 'Project subtype',
+		exact: true
+	});
+	await expect(subtype).toBeDisabled();
+	const type = page.getByRole('combobox', {
+		name: 'Project type',
+		exact: true
+	});
+	await type.fill('gar');
+	await page.getByRole('option', { name: 'Garment', exact: true }).click();
+	await expect(type).toHaveValue('Garment');
+	await expect(type).toBeFocused();
+	await expect(subtype).toBeEnabled();
+	await subtype.fill('card');
+	await page.keyboard.press('Enter');
+	await expect(subtype).toHaveValue('Cardigan');
+	const needle = page.getByRole('combobox', {
+		name: 'Needle size',
+		exact: true
+	});
+	await needle.fill('4.0');
+	await expect(page.getByRole('option')).toHaveCount(1);
+	await page.keyboard.press('Enter');
+	await expect(needle).toHaveValue('4.0mm');
+	await needle.click();
+	await page.keyboard.press('Escape');
+	await expect(needle).toHaveValue('4.0mm');
+	await expect(
+		page.getByRole('dialog', { name: 'Knitting details', exact: true })
+	).toBeVisible();
+	await page.screenshot({
+		path: test.info().outputPath('native-knitting-selects.png')
+	});
+	await page
+		.getByRole('button', { name: 'Back to project', exact: true })
+		.click();
+	await save(page);
+	await page.goto(`/app/compose/project?draft=${draftId}`);
+	await page
+		.getByRole('button', { name: 'Knitting details', exact: true })
+		.click();
+	await expect(needle).toHaveValue('4.0mm');
+	await expect(subtype).toHaveValue('Cardigan');
+	await page
+		.getByRole('button', { name: 'Clear Project type', exact: true })
+		.click();
+	await expect(subtype).toBeDisabled();
+	await expect(subtype).toHaveValue('');
+	await expect(
+		page.getByRole('button', { name: 'Clear Project subtype', exact: true })
+	).toHaveCount(0);
 });

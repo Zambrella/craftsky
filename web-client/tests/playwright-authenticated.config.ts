@@ -1,6 +1,7 @@
 import { defineConfig } from '@playwright/test';
 import { fileURLToPath } from 'node:url';
 const cwd = fileURLToPath(new URL('..', import.meta.url));
+const subscriptions = process.env.WEB_CLIENT_SUBSCRIPTIONS_ENABLED || 'true';
 export default defineConfig({
 	testDir: '.',
 	outputDir: '../test-results-authenticated',
@@ -22,11 +23,14 @@ export default defineConfig({
 		{
 			command:
 				process.env.WEB_CLIENT_WORKER === '1'
-					? 'npx wrangler pages dev .svelte-kit/cloudflare --ip 127.0.0.1 --port 19846 --binding APPVIEW_ORIGIN=http://127.0.0.1:19847'
+					? `npx wrangler pages dev .svelte-kit/cloudflare --ip 127.0.0.1 --port 19846 --binding APPVIEW_ORIGIN=http://127.0.0.1:19847 --binding SUBSCRIPTIONS_ENABLED=${subscriptions}`
 					: 'npm run preview -- --port 19846',
 			cwd,
 			port: 19846,
-			env: { APPVIEW_ORIGIN: 'http://127.0.0.1:19847' },
+			env: {
+				APPVIEW_ORIGIN: 'http://127.0.0.1:19847',
+				SUBSCRIPTIONS_ENABLED: subscriptions
+			},
 			reuseExistingServer: false
 		}
 	]

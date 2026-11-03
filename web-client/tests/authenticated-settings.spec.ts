@@ -195,7 +195,8 @@ test('language preferences use supported choices and replace the complete prefer
 	await page.goto('/app/settings/languages');
 	await page
 		.getByRole('combobox', { name: 'Primary language', exact: true })
-		.selectOption('cy');
+		.fill('Welsh');
+	await page.getByRole('option', { name: 'Welsh', exact: true }).click();
 	await expect(
 		page.getByRole('combobox', { name: 'Primary language', exact: true })
 	).toBeEnabled();
@@ -205,7 +206,7 @@ test('language preferences use supported choices and replace the complete prefer
 	await page
 		.getByRole('searchbox', { name: 'Content languages', exact: true })
 		.fill('French');
-	await page.getByLabel('French', { exact: true }).check();
+	await page.getByLabel('French', { exact: true }).click();
 	await expect(
 		page.getByRole('button', {
 			name: 'Remove French from Content languages',
@@ -231,7 +232,7 @@ test('language preferences use supported choices and replace the complete prefer
 	await page.reload();
 	await expect(
 		page.getByRole('combobox', { name: 'Primary language', exact: true })
-	).toHaveValue('cy');
+	).toHaveValue('Welsh');
 	await expect(
 		page.getByRole('button', {
 			name: 'Remove French from Content languages',
@@ -252,7 +253,10 @@ test('notification changes patch only the chosen category and field', async ({
 	const row = page
 		.locator('.notification-card')
 		.filter({ has: page.getByRole('heading', { name: 'Likes', exact: true }) });
-	await row.getByRole('combobox').selectOption('peopleIFollow');
+	await row.getByRole('combobox').click();
+	await row
+		.getByRole('option', { name: 'People I follow', exact: true })
+		.click();
 	await expect(row.getByRole('combobox')).toBeEnabled();
 	await row
 		.getByRole('switch', { name: 'Likes push notifications', exact: true })
@@ -466,7 +470,8 @@ test('business events create, edit using the accepted CID, and delete', async ({
 		.fill('Indigo dye workshop');
 	await page
 		.getByRole('combobox', { name: 'Time zone', exact: true })
-		.selectOption('UTC');
+		.fill('UTC');
+	await page.getByRole('option', { name: 'UTC', exact: true }).click();
 	await page.getByLabel('Starts', { exact: true }).fill('2026-12-01T10:00');
 	await page.getByLabel('Ends', { exact: true }).fill('2026-12-01T12:00');
 	await page.getByRole('button', { name: 'Save event' }).click();
@@ -481,8 +486,11 @@ test('business events create, edit using the accepted CID, and delete', async ({
 	await expect(
 		page.getByRole('heading', { name: 'Natural indigo workshop', exact: true })
 	).toBeVisible();
-	page.once('dialog', (dialog) => dialog.accept());
 	await page.getByRole('button', { name: 'Delete', exact: true }).click();
+	await page
+		.getByRole('dialog', { name: 'Delete event?' })
+		.getByRole('button', { name: 'Delete', exact: true })
+		.click();
 	await expect(
 		page.getByText('No upcoming events yet.', { exact: false })
 	).toBeVisible();

@@ -168,13 +168,21 @@ test('two browser accounts switch independently and isolate API401 while preserv
 	expect(
 		state.accounts.find((account) => account.id === state.active)?.did
 	).toBe(bob.did);
-	await page.locator('.account-trigger').click();
-	page.once('dialog', (dialog) => dialog.accept());
+	await page.getByRole('button', { name: /^Switch accounts,/ }).click();
 	await page
 		.locator('.account-menu .person-row')
 		.filter({ hasText: '@alice.test' })
 		.click();
-	await expect(page.locator('.account-trigger')).toContainText('@alice.test');
+	await page
+		.getByRole('dialog', { name: 'Switch accounts?', exact: true })
+		.getByRole('button', { name: 'Switch account', exact: true })
+		.click();
+	await expect(
+		page.getByRole('button', {
+			name: 'Switch accounts, @alice.test',
+			exact: true
+		})
+	).toBeVisible();
 	state = await accounts(page);
 	const bobId = state.accounts.find((account) => account.did === bob.did)!.id,
 		aliceId = state.accounts.find((account) => account.did === alice.did)!.id;
@@ -243,9 +251,10 @@ for (const status of [503, 401]) {
 			.click();
 		const chooser = page.getByRole('dialog', { name: 'Accounts', exact: true });
 		await expect(chooser).toBeVisible();
-		page.once('dialog', (dialog) => dialog.accept());
-		await chooser
-			.getByRole('button', { name: '@bob.test', exact: true })
+		await chooser.getByRole('button', { name: /@bob\.test/ }).click();
+		await page
+			.getByRole('dialog', { name: 'Switch accounts?', exact: true })
+			.getByRole('button', { name: 'Switch account', exact: true })
 			.click();
 		await expect(
 			page.getByRole('heading', { name: 'Home', exact: true })

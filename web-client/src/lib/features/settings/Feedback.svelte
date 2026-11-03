@@ -1,5 +1,6 @@
 <script lang="ts">
 	import type { Work } from './work.svelte.ts';
+	import Snackbar from '../social/Snackbar.svelte';
 	let { work, reload }: { work: Work; reload?: () => void } = $props();
 </script>
 
@@ -16,4 +17,7 @@
 				>{/if}
 		</div>
 	</div>{/if}
-{#if work.notice}<p class="notice" role="status">{work.notice}</p>{/if}
+{#if work.notice}<Snackbar
+		message={work.notice}
+		onDismiss={() => (work.notice = '')}
+	/>{/if}
