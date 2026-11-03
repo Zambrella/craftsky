@@ -15,6 +15,8 @@ import {
 	mergeMessages,
 	validateText,
 	reportReasons,
+	sharedCraftskyLink,
+	prefillSharedLink,
 	type MessageDraft,
 	type FrozenReport,
 	type StorageLike
@@ -37,6 +39,7 @@ export interface MessagesState {
 	conversations: ChatConversation[];
 	cursor?: string | null;
 	conversation?: ChatConversation;
+	peerBlocked: boolean;
 	messages: ChatMessage[];
 	historyCursor?: string | null;
 	draft: MessageDraft;
@@ -57,6 +60,7 @@ const initial = (): MessagesState => ({
 	notice: '',
 	counts: { accepted: 0, requests: 0 },
 	conversations: [],
+	peerBlocked: false,
 	messages: [],
 	draft: { text: '' },
 	draftSaved: true,
@@ -91,6 +95,7 @@ export class MessagesController {
 	private readID?: string;
 	private pendingRead?: string;
 	private readingEpoch?: number;
+	private blockAttempt?: { did: string; key: string };
 	constructor(
 		readonly api: CraftskyAPI,
 		readonly account: string,
@@ -284,8 +289,19 @@ export class MessagesController {
 				this.failure(error);
 		}
 	}
-	async start(recipient: string): Promise<string | undefined> {
+	async start(
+		recipient: string,
+		sharedLink?: string
+	): Promise<string | undefined> {
 		if (this.state.busy) return;
+		const link =
+			sharedLink === undefined ? undefined : sharedCraftskyLink(sharedLink);
+		if (sharedLink !== undefined && !link) {
+			this.update({
+				error: 'Open the original CraftSky content to share this link.'
+			});
+			return;
+		}
 		const epoch = this.epoch;
 		this.update({ busy: true, error: '' });
 		try {
@@ -300,7 +316,21 @@ export class MessagesController {
 			const id =
 				availability.conversationId ||
 				(await this.api.chat.start(recipient)).id;
-			if (this.current(epoch)) return id;
+			if (!this.current(epoch)) return;
+			if (link) {
+				// Persistence must complete before the recipient page is opened. No send is started here.
+				try {
+					const draft = prefillSharedLink(this.store.load(id), link);
+					this.store.save(id, draft);
+				} catch {
+					this.update({
+						error:
+							'The shared link could not be saved on this device. Your existing draft has been kept. Try again after checking browser storage.'
+					});
+					return;
+				}
+			}
+			return id;
 		} catch (error) {
 			if (this.current(epoch)) this.failure(error);
 		} finally {
@@ -329,7 +359,13 @@ export class MessagesController {
 	}
 	async send(retry = false): Promise<void> {
 		const { id, conversation } = this.state;
-		if (!id || this.state.busy || !conversation?.canSend) return;
+		if (
+			!id ||
+			this.state.busy ||
+			this.state.peerBlocked ||
+			!conversation?.canSend
+		)
+			return;
 		const epoch = this.epoch;
 		let draft = this.state.draft;
 		try {
@@ -507,6 +543,25 @@ export class MessagesController {
 							: item
 					)
 				})
+		);
+	}
+	async blockPeer(): Promise<void> {
+		const peer = this.state.conversation?.peer;
+		if (!peer || this.state.peerBlocked || this.state.busy) return;
+		// Explicit retries retain the same write key after a lost response.
+		if (this.blockAttempt?.did !== peer.did)
+			this.blockAttempt = { did: peer.did, key: crypto.randomUUID() };
+		const operation = this.blockAttempt;
+		await this.action(
+			() => this.api.profiles.block(operation.did, operation.key),
+			() => {
+				this.blockAttempt = undefined;
+				this.update({
+					peerBlocked: true,
+					notice:
+						'Account blocked. You can manage blocked accounts in Settings.'
+				});
+			}
 		);
 	}
 	async setEnabled(enabled: boolean): Promise<void> {

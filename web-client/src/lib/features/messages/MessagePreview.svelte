@@ -128,7 +128,7 @@
 		border-radius: 10px;
 		text-decoration: none;
 		color: var(--ink);
-		background: var(--surface);
+		background: var(--paper-2);
 		width: 100%;
 		max-width: 380px;
 	}

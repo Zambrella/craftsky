@@ -1,6 +1,29 @@
 import { describe, it, expect } from 'vitest';
-import { businessAction } from './business-model';
+import { businessAction, eventDisplay } from './business-model';
 describe('published business actions', () => {
+	it('formats native all-day ranges with an inclusive final day and handles invalid timestamps', () => {
+		const start = new Date(2026, 10, 1),
+			end = new Date(2026, 10, 3);
+		const display = eventDisplay(
+			{
+				startsAt: start.toISOString(),
+				endsAt: end.toISOString(),
+				isAllDay: true
+			},
+			'en-GB'
+		);
+		expect(display).toEqual({
+			date: '1 Nov 2026 – 2 Nov 2026',
+			time: 'All day'
+		});
+		expect(
+			eventDisplay({
+				startsAt: 'invalid',
+				endsAt: end.toISOString(),
+				isAllDay: false
+			})
+		).toEqual({ date: 'Date unavailable', time: '' });
+	});
 	it('allows labelled HTTPS actions and a single header-free mail address', () => {
 		expect(
 			businessAction({

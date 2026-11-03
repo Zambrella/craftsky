@@ -7,10 +7,15 @@
 		CraftskyAPI,
 		type OnboardingStatus,
 		type EligibilityStatus,
-		type SubscriptionAccess
+		type SubscriptionAccess,
+		type Profile
 	} from '#lib/api/client.ts';
 	import Icon from './Icon.svelte';
+	import Avatar from '#lib/Avatar.svelte';
 	import Onboarding from '../social/Onboarding.svelte';
+	import { loadLanguagePreferences } from './languages';
+	import { ownProfileRoute } from './navigation';
+	import { profileStyle } from '../social/model';
 	import { setContext } from 'svelte';
 	let {
 		session,
@@ -45,6 +50,71 @@
 		eligibility = $state<EligibilityStatus>(),
 		ready = $state(false),
 		access = $state<SubscriptionAccess>();
+	let identity = $state<Profile>();
+	let postTypeMenu = $state<HTMLDialogElement>(null!);
+	let firstPost = $state(true);
+	let profileScrolled = $state(false);
+	let gated = $derived(
+		!ready ||
+			expired ||
+			(eligibility?.state === 'eligible' && onboarding?.completed === false)
+	);
+	function choosePostType() {
+		drawer = false;
+		try {
+			firstPost =
+				localStorage.getItem('craftsky.post-type.seen.' + session.did) !==
+				'true';
+		} catch {
+			firstPost = true;
+		}
+		postTypeMenu.showModal();
+	}
+	function chosePostType() {
+		try {
+			localStorage.setItem('craftsky.post-type.seen.' + session.did, 'true');
+		} catch {}
+		postTypeMenu.close();
+	}
+	const branchPaths = [
+		'/app/home',
+		'/app/search',
+		'/app/messages',
+		'/app/activity',
+		'/app/saved',
+		'/app/scheduled',
+		'/app/drafts',
+		'/app/settings'
+	];
+	let ownProfile = $derived(
+		ownProfileRoute(
+			page.url.pathname,
+			session,
+			identity?.handle || session.handle
+		)
+	);
+	let savedChild = $derived(
+		page.url.pathname === '/app/saved' &&
+			(page.url.searchParams.has('folder') ||
+				page.url.searchParams.get('unfiled') === 'true')
+	);
+	let shellRoot = $derived(
+		(branchPaths.includes(page.url.pathname) && !savedChild) || ownProfile
+	);
+	let fullscreen = $derived(
+		!ownProfile &&
+			![
+				'/app/home',
+				'/app/search',
+				'/app/messages',
+				'/app/messages/requests',
+				'/app/messages/new',
+				'/app/activity',
+				'/app/profile/' + encodeURIComponent(session.did)
+			].includes(page.url.pathname)
+	);
+	let notice = $state('');
+	let noticeTimer: ReturnType<typeof setTimeout> | undefined;
 	let dead = false;
 	let timer: ReturnType<typeof setInterval>;
 	setContext('craftsky-access', () => access);
@@ -70,13 +140,19 @@
 			if (dead) return;
 			eligibility = policy;
 			if (policy.state === 'eligible') {
-				const [status, tier] = await Promise.all([
+				const [status, tier, , profile] = await Promise.all([
 					api.account.onboarding(),
-					api.billing.access().catch(() => undefined)
+					api.billing.access().catch(() => undefined),
+					loadLanguagePreferences(
+						api,
+						navigator.languages || [navigator.language]
+					),
+					api.profiles.me().catch(() => undefined)
 				]);
 				if (dead) return;
 				onboarding = status;
 				access = tier;
+				identity = profile;
 			}
 			ready = true;
 			void counts();
@@ -105,13 +181,65 @@
 		} catch {}
 		void boot();
 		timer = setInterval(counts, 30000);
-		return () => clearInterval(timer);
+		const draftSaved = (event: Event) => {
+			const detail = (event as CustomEvent<unknown>).detail;
+			if (dead || expired || !ready || !detail || typeof detail !== 'object')
+				return;
+			const value = detail as Record<string, unknown>;
+			if (value.accountId !== session.id || value.did !== session.did) return;
+			notice = 'Draft saved';
+			clearTimeout(noticeTimer);
+			noticeTimer = setTimeout(() => {
+				notice = '';
+			}, 4000);
+		};
+		let profileRevision = 0;
+		const profileUpdated = async (event: Event) => {
+			const detail = (event as CustomEvent<unknown>).detail;
+			if (dead || expired || !ready || !detail || typeof detail !== 'object')
+				return;
+			const value = detail as Record<string, unknown>;
+			if (
+				value.accountId !== accountId ||
+				value.accountId !== session.id ||
+				value.did !== session.did
+			)
+				return;
+			const revision = ++profileRevision,
+				currentDid = session.did;
+			try {
+				const profile = await api.profiles.me();
+				if (
+					!dead &&
+					!expired &&
+					revision === profileRevision &&
+					session.id === accountId &&
+					session.did === currentDid &&
+					profile.did === currentDid
+				)
+					identity = profile;
+			} catch {
+				// The save already succeeded; retain the last known identity until its next refresh.
+			}
+		};
+		window.addEventListener('craftsky-draft-saved', draftSaved);
+		window.addEventListener('craftsky-profile-updated', profileUpdated);
+		return () => {
+			profileRevision++;
+			clearInterval(timer);
+			clearTimeout(noticeTimer);
+			window.removeEventListener('craftsky-draft-saved', draftSaved);
+			window.removeEventListener('craftsky-profile-updated', profileUpdated);
+		};
 	});
 	onDestroy(() => {
 		dead = true;
 	});
 	async function changeAccount(id: string) {
-		if (id === accountId) return;
+		if (id === accountId) {
+			accountMenu = false;
+			return;
+		}
 		if (!confirm('Switch accounts? Save any unfinished work first.')) return;
 		try {
 			const result = await fetch('/api/auth/switch', {
@@ -147,26 +275,31 @@
 		}
 	}
 	$effect(() => {
-		if (!drawer) return;
+		if (!drawer && !accountMenu) return;
 		const previous = document.activeElement as HTMLElement | null;
 		const overflow = document.documentElement.style.overflow;
 		document.documentElement.style.overflow = 'hidden';
 		void tick().then(() => {
-			if (drawer)
+			if (drawer || accountMenu)
 				document
-					.querySelector<HTMLElement>('.app-sidebar.open button')
+					.querySelector<HTMLElement>(
+						accountMenu ? '.account-menu button' : '.app-sidebar.open button'
+					)
 					?.focus();
 		});
 		const trap = (event: KeyboardEvent) => {
 			if (event.key === 'Escape') {
 				event.preventDefault();
 				drawer = false;
+				accountMenu = false;
 				return;
 			}
 			if (event.key !== 'Tab') return;
 			const controls = [
 				...document.querySelectorAll<HTMLElement>(
-					'.app-sidebar.open a[href],.app-sidebar.open button:not([disabled])'
+					accountMenu
+						? '.account-menu a[href],.account-menu button:not([disabled])'
+						: '.app-sidebar.open a[href],.app-sidebar.open button:not([disabled])'
 				)
 			].filter((item) => item.getClientRects().length);
 			const first = controls[0],
@@ -228,19 +361,20 @@
 	}}
 />
 <BrowserPush {api} {session} />
-<header class="app-topbar" inert={drawer}>
+<svelte:window onscroll={() => (profileScrolled = window.scrollY > 72)} />
+<header
+	class="app-topbar"
+	class:on-profile={ownProfile}
+	class:profile-scrolled={profileScrolled}
+	style={ownProfile ? profileStyle(identity?.customisation) : undefined}
+	class:visible={shellRoot && !gated}
+	inert={drawer || accountMenu}
+>
 	<button
 		class="icon-button mobile-only"
 		aria-label="Open navigation"
 		aria-expanded={drawer}
 		onclick={() => (drawer = !drawer)}><Icon name="menu" /></button
-	><a class="brand" href="/app/home"
-		><img src="/favicon.svg" width="32" height="32" alt="" />CraftSky</a
-	><button
-		class="account-trigger"
-		aria-expanded={accountMenu}
-		onclick={() => (accountMenu = !accountMenu)}
-		>@{session.handle}<span aria-hidden="true">⌄</span></button
 	>
 </header>
 {#if drawer}<button
@@ -254,18 +388,46 @@
 	role={drawer ? 'dialog' : undefined}
 	aria-modal={drawer ? true : undefined}
 	aria-label="Navigation"
+	inert={accountMenu}
+	hidden={gated}
 >
 	<button
 		class="icon-button mobile-only"
 		aria-label="Close navigation"
-		onclick={() => (drawer = false)}>Close</button
+		onclick={() => (drawer = false)}><Icon name="close" /></button
 	>
+	<button
+		class="account-trigger"
+		aria-label={'Switch accounts, @' + session.handle}
+		aria-expanded={accountMenu}
+		onclick={() => {
+			drawer = false;
+			accountMenu = !accountMenu;
+		}}
+	>
+		{#if identity?.avatar}<img
+				class="shell-avatar"
+				src={identity.avatar}
+				alt=""
+			/>{:else}<span
+				class="shell-avatar shell-avatar-fallback"
+				aria-hidden="true"
+				>{(identity?.displayName || session.handle)
+					.slice(0, 1)
+					.toUpperCase()}</span
+			>{/if}
+		<span class="shell-identity"
+			><strong>{identity?.displayName || session.handle}</strong><span
+				>@{session.handle}</span
+			></span
+		><Icon name="down" size={18} />
+	</button>
 	<nav aria-label="App navigation">
 		{#each nav as [key, label, href]}<a
 				{href}
 				aria-current={active(key) ? 'page' : undefined}
 				onclick={(event) => reselect(event, key)}
-				><Icon name={key} /><span>{label}</span
+				><Icon name={key} filled={active(key)} /><span>{label}</span
 				>{#if key === 'activity' && newActivity}<span class="count-badge"
 						>{newActivity > 99 ? '99+' : newActivity}</span
 					>{:else if key === 'messages' && newMessages}<span class="count-badge"
@@ -273,14 +435,27 @@
 					>{/if}</a
 			>{/each}
 	</nav>
-	<a class="button" href="/app/compose"><Icon name="plus" />Create post</a><a
+	<button class="button" onclick={choosePostType}
+		><Icon name="plus" />Create post</button
+	><a
 		class="sidebar-about"
 		href="https://craftsky.social"
 		target="_blank"
 		rel="noreferrer">Your craft. Your community.</a
 	>
 </aside>
-{#if accountMenu}<section class="account-menu panel" aria-label="Accounts">
+{#if accountMenu}<button
+		class="account-scrim"
+		aria-label="Close account switcher"
+		onclick={() => (accountMenu = false)}
+	></button>
+	<div
+		class="account-menu panel"
+		role="dialog"
+		aria-modal="true"
+		aria-label="Accounts"
+		tabindex="-1"
+	>
 		<h2>Your accounts</h2>
 		{#each accounts as account}<button
 				class="person-row"
@@ -292,19 +467,31 @@
 			>{/each}<a href="/sign-in?add=1">Add another account</a><button
 			onclick={logout}>Sign out @{session.handle}</button
 		><button onclick={() => (accountMenu = false)}>Close</button>
-	</section>{/if}
-<main id="main" class="app-main" inert={drawer}>
-	{#if error}<div class="notice" role="alert">
+	</div>{/if}
+{#if notice}<div class="shell-notice" role="status">{notice}</div>{/if}
+<main
+	id="main"
+	class="app-main"
+	class:is-gated={gated}
+	class:shell-root={shellRoot}
+	class:fullscreen
+	inert={drawer || accountMenu}
+>
+	{#if error && !expired}<div class="notice" role="alert">
+			{#if !ready}<h1>Account unavailable</h1>{/if}
 			{error}<button onclick={boot}>Retry</button>
+			{#if !ready}<button onclick={() => (accountMenu = true)}
+					>Switch account</button
+				><button onclick={logout}>Sign out</button>{/if}
 		</div>{/if}{#if expired}<section class="panel stack">
 			<h1>Your session has expired</h1>
 			<p>Sign in to continue using this account.</p>
-			<a class="button" href="/sign-in">Sign in</a><a href="/app/home"
-				>Use another account</a
-			>
-		</section>{:else if !ready}<p class="empty" role="status">
-			Loading your CraftSky…
-		</p>{:else if eligibility?.state === 'restricted' && !allowedRestricted()}<section
+			<a class="button" href="/sign-in">Sign in</a><button
+				onclick={() => (accountMenu = true)}>Switch account</button
+			><button onclick={logout}>Sign out</button>
+		</section>{:else if !ready}{#if !error}<p class="empty" role="status">
+				Loading your CraftSky…
+			</p>{/if}{:else if eligibility?.state === 'restricted' && !allowedRestricted()}<section
 			class="panel stack"
 		>
 			<h1>Your account is restricted</h1>
@@ -324,14 +511,152 @@
 			}}
 		/>{:else}{@render children(api)}{/if}
 </main>
-<nav class="bottom-nav" aria-label="Main tabs" inert={drawer}>
+{#if ready && !expired && !accountMenu && !drawer && eligibility?.state === 'eligible' && onboarding?.completed && ((page.url.pathname === '/app/home' && !page.url.searchParams.get('craft')) || ownProfile)}<button
+		class="button compose-fab"
+		onclick={choosePostType}
+		aria-label="Create post"><Icon name="plus" />New post</button
+	>{/if}
+<nav
+	class="bottom-nav"
+	class:fullscreen={fullscreen || gated}
+	aria-label="Main tabs"
+	inert={drawer || accountMenu}
+>
 	{#each nav.slice(0, 5) as [key, label, href]}<a
 			{href}
 			aria-current={active(key) ? 'page' : undefined}
+			aria-label={label}
+			aria-describedby={key === 'activity' && newActivity
+				? 'bottom-activity-count'
+				: key === 'messages' && newMessages
+					? 'bottom-message-count'
+					: undefined}
+			oncontextmenu={(event) => {
+				if (key === 'profile') {
+					event.preventDefault();
+					accountMenu = true;
+				}
+			}}
 			onclick={(event) => reselect(event, key)}
-			><Icon name={key} /><span>{label}</span
-			>{#if key === 'activity' && newActivity}<span class="dot"
-				></span>{:else if key === 'messages' && newMessages}<span class="dot"
-				></span>{/if}</a
+			>{#if key === 'profile'}<Avatar
+					author={identity || session}
+				/>{:else}<Icon name={key} filled={active(key)} />{/if}<span
+				class="visually-hidden">{label}</span
+			>{#if key === 'activity' && newActivity}<span
+					class="bottom-count"
+					id="bottom-activity-count"
+					aria-label={`${newActivity} new activities`}
+					>{newActivity > 99 ? '99+' : newActivity}</span
+				>{:else if key === 'messages' && newMessages}<span
+					class="bottom-count"
+					id="bottom-message-count"
+					aria-label={`${newMessages} unread conversations`}
+					>{newMessages > 99 ? '99+' : newMessages}</span
+				>{/if}</a
 		>{/each}
 </nav>
+<dialog
+	bind:this={postTypeMenu}
+	class="post-type-chooser"
+	aria-labelledby="post-type-title"
+>
+	<header>
+		<h2 id="post-type-title">
+			{firstPost ? 'What would you like to share?' : 'Create post'}
+		</h2>
+		<button
+			class="icon-button"
+			aria-label="Close post type chooser"
+			onclick={() => postTypeMenu.close()}><Icon name="close" /></button
+		>
+	</header>
+	<a href="/app/compose" onclick={chosePostType}
+		><Icon name="document" /><span
+			><strong>Regular post</strong><small
+				>Share a quick update, thought or question.</small
+			></span
+		><Icon name="chevron" size={20} /></a
+	>
+	<a href="/app/compose/project" onclick={chosePostType}
+		><Icon name="image" /><span
+			><strong>Project post</strong><small
+				>Add photos and structured project details.</small
+			></span
+		><Icon name="chevron" size={20} /></a
+	>
+</dialog>
+
+<style>
+	.shell-notice {
+		position: fixed;
+		z-index: 100;
+		bottom: calc(88px + env(safe-area-inset-bottom));
+		left: 50%;
+		transform: translateX(-50%);
+		width: min(560px, calc(100vw - 32px));
+		max-width: calc(100vw - 32px);
+		padding: 14px 16px;
+		border: 1.5px solid var(--ink);
+		border-radius: 14px;
+		background: var(--surface);
+		color: var(--ink);
+		box-shadow: 0 3px 8px #0003;
+		font-size: 14px;
+	}
+
+	.app-topbar.on-profile:not(.profile-scrolled) :global(.icon-button) {
+		color: var(--profile-foreground);
+	}
+	.app-topbar.on-profile.profile-scrolled {
+		background: var(--paper);
+	}
+	.post-type-chooser {
+		width: min(440px, calc(100vw - 32px));
+		border-radius: 22px;
+		background: var(--paper);
+		padding: 16px;
+	}
+	.post-type-chooser header {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 8px;
+		margin-bottom: 12px;
+	}
+	.post-type-chooser h2 {
+		font-size: 20px;
+		line-height: 1.25;
+		margin: 0;
+	}
+	.post-type-chooser > a {
+		display: flex;
+		gap: 16px;
+		align-items: center;
+		color: var(--ink);
+		text-decoration: none;
+		padding: 16px;
+		border: 1.5px solid var(--ink);
+		border-radius: 14px;
+		background: var(--surface);
+		margin-top: 12px;
+	}
+	.post-type-chooser > a:hover {
+		background: var(--primary-soft);
+	}
+	.post-type-chooser > a > span {
+		flex: 1;
+		min-width: 0;
+	}
+	.post-type-chooser strong {
+		display: block;
+		font-size: 16px;
+		font-weight: 600;
+	}
+	.post-type-chooser small {
+		display: block;
+		font-size: 14px;
+		line-height: 1.5;
+		color: var(--ink-2);
+		margin-top: 4px;
+	}
+</style>

@@ -5,6 +5,7 @@ export type Author = {
 	handle: string;
 	displayName?: string;
 	avatar?: string;
+	crafts?: string[];
 	business?: boolean;
 };
 export type Profile = Author & {

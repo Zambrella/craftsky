@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
 	MessageDraftStore,
+	sharedCraftskyLink,
+	prefillSharedLink,
 	freezeSend,
 	reconcileSend,
 	validateText,
@@ -164,5 +166,49 @@ describe('message link handling', () => {
 			'https://app.craftsky.social/events/did:plc:alice/event#fragment'
 		])
 			expect(craftskyMessageLink(url)).toBeUndefined();
+	});
+});
+
+describe('review-before-send CraftSky link bridge', () => {
+	const link = 'https://app.craftsky.social/posts/did%3Aplc%3Aalice/post';
+	it('only accepts an entire controlled public link, not embedded text or external credential URLs', () => {
+		expect(sharedCraftskyLink(link)).toBe(link);
+		expect(
+			sharedCraftskyLink(
+				'https://app.craftsky.social/profiles/did%3Aplc%3Aalice'
+			)
+		).toBeTruthy();
+		expect(
+			sharedCraftskyLink(
+				'https://app.craftsky.social/events/did%3Aplc%3Aalice/event'
+			)
+		).toBeTruthy();
+		for (const raw of [
+			'hello ' + link,
+			link + ' extra',
+			link + '?secret=value',
+			link + '#fragment',
+			'https://app.craftsky.social.evil.test/profiles/did:plc:a',
+			'https://user:secret@app.craftsky.social/posts/did:plc:a/post',
+			link + '\n'
+		])
+			expect(sharedCraftskyLink(raw)).toBeUndefined();
+	});
+	it('preserves newer text, appends exactly once and leaves the frozen attempt unchanged', () => {
+		const pending = {
+			operationId: key,
+			text: 'Frozen original',
+			state: 'uncertain' as const
+		};
+		const draft = { text: 'Newer draft', pending };
+		const next = prefillSharedLink(draft, link);
+		expect(next).toEqual({ text: 'Newer draft\n\n' + link, pending });
+		expect(next.pending).toBe(pending);
+		expect(prefillSharedLink(next, link)).toBe(next);
+		expect(prefillSharedLink({ text: pending.text, pending }, link)).toEqual({
+			text: link,
+			pending
+		});
+		expect(draft.text).toBe('Newer draft');
 	});
 });

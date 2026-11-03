@@ -14,8 +14,13 @@
 	import Avatar from '#lib/Avatar.svelte';
 	import { Work } from './work.svelte';
 	import Status from './Status.svelte';
-	import { name } from './model';
-	import { recentDestination } from './search-model';
+	import { profileStyle } from './model';
+	import { recentDestination, searchDestination } from './search-model';
+	import { goto } from '$app/navigation';
+	import Icon from '../shell/Icon.svelte';
+	import EmptyState from './EmptyState.svelte';
+	import CompactIdentity from './CompactIdentity.svelte';
+	import { label } from '#lib/public.ts';
 	let { api, did }: { api: CraftskyAPI; did: string } = $props();
 	const work = new Work();
 	let query = $state(page.url.searchParams.get('q') || ''),
@@ -26,7 +31,7 @@
 		tags = $state<Hashtag[]>([]),
 		recent = $state<RecentSearch[]>([]),
 		cursor = $state<string | null>(null);
-	const tab = page.url.searchParams.get('tab') || 'projects';
+	const tab = page.url.searchParams.get('tab') || 'posts';
 	const q = page.url.searchParams.get('q') || '';
 	let timer: ReturnType<typeof setTimeout>;
 	let suggestionGeneration = 0;
@@ -110,45 +115,79 @@
 			avatar: author.avatar || undefined
 		};
 	}
+	function remember(author: Author) {
+		void api.search
+			.saveRecent({
+				type: 'profile',
+				displayLabel: '@' + author.handle,
+				payload: {
+					did: author.did,
+					handle: author.handle,
+					displayName: author.displayName,
+					avatar: author.avatar,
+					crafts: author.crafts
+				}
+			})
+			.catch(() => {});
+	}
 </script>
 
-<div class="workspace-heading"><h1>Discover</h1></div>
-<form class="panel search-form" method="get" action="/app/search">
-	<label for="search">Search CraftSky</label>
-	<div class="row">
-		<input
-			id="search"
-			name="q"
-			type="search"
-			bind:value={query}
-			oninput={suggest}
-			placeholder="Patterns, projects, people…"
-		/><button class="button">Search</button>
+<div class="workspace-heading"><h1>Search</h1></div>
+<form
+	class="search-form"
+	method="get"
+	action="/app/search"
+	onsubmit={(event) => {
+		event.preventDefault();
+		const target = searchDestination(
+			query,
+			String(new FormData(event.currentTarget).get('sort') || '')
+		);
+		if (target) void goto(target);
+	}}
+>
+	<label class="visually-hidden" for="search">Search CraftSky</label>
+	<div class="search-input-row">
+		<div class="search-field">
+			<Icon name="search" /><input
+				id="search"
+				name="q"
+				type="search"
+				bind:value={query}
+				oninput={suggest}
+				placeholder="Search hashtags, people or projects..."
+			/>
+			{#if query}<button
+					type="button"
+					class="clear-search icon-button"
+					aria-label="Clear search"
+					onclick={() => {
+						query = '';
+						suggestions = undefined;
+						suggestionGeneration++;
+						document.getElementById('search')?.focus();
+					}}><Icon name="close" size={18} /></button
+				>{/if}
+		</div>
+		<button class="search-submit">Search</button>{#if query || q}<a
+				class="cancel-search"
+				href="/app/search">Cancel</a
+			>{/if}
 	</div>
 	<input type="hidden" name="tab" value={tab} />
 	{#if suggestions}<div class="suggestions">
 			{#each suggestions.profiles.items as author}<a
+					class="suggestion-profile"
 					href={'/app/profile/' + encodeURIComponent(author.did)}
-					onclick={() => {
-						void api.search
-							.saveRecent({
-								type: 'profile',
-								displayLabel: '@' + author.handle,
-								payload: {
-									did: author.did,
-									handle: author.handle,
-									displayName: author.displayName,
-									avatar: author.avatar,
-									crafts: author.crafts
-								}
-							})
-							.catch(() => {});
-					}}>{name(author)} · @{author.handle}</a
+					onclick={() => remember(author)}
+					><Avatar author={authorValue(author)} /><CompactIdentity
+						{author}
+					/></a
 				>{/each}{#each suggestions.hashtags.items as tag}<a
 					href={'/app/tags/' + encodeURIComponent(tag.tag)}>#{tag.tag}</a
 				>{/each}
 		</div>{/if}
-	{#if tab === 'posts'}<label
+	{#if q && tab === 'posts'}<label class="search-sort"
 			>Sort<select
 				name="sort"
 				value={page.url.searchParams.get('sort') || 'chronological'}
@@ -158,76 +197,270 @@
 			></label
 		>{/if}
 </form>
-<nav class="tabs" aria-label="Search categories">
-	{#each ['projects', 'posts', 'profiles', 'hashtags'] as item}<a
-			href={'/app/search?' + new URLSearchParams({ q, tab: item })}
-			aria-current={tab === item ? 'page' : undefined}
-			>{item[0].toUpperCase() + item.slice(1)}</a
-		>{/each}
-</nav>
-<Status {work} />
-{#if !q}<section class="panel">
-		<h2>Recently searched</h2>
-		{#each recent as item}<div class="row">
-				<a href={recentDestination(item)}>{item.displayLabel}</a><button
-					aria-label="Remove recent search"
-					onclick={() =>
-						void work.run(
-							() => api.search.deleteRecent(item.id),
-							() => (recent = recent.filter((old) => old.id !== item.id))
-						)}>×</button
-				>
-			</div>{:else}<p>No recent searches yet.</p>{/each}
-	</section>
-	<section class="panel stack">
-		<h2>Popular hashtags</h2>
-		{#each top?.groups || [] as group}<div class="stack">
-				<h3>{group.craftType.split('#').pop()}</h3>
-				<div class="actions">
-					{#each group.items as tag}<a
-							href={'/app/tags/' + encodeURIComponent(tag.tag)}
-							>#{tag.tag} <small>{tag.count}</small></a
-						>{/each}
-				</div>
-			</div>{/each}
-	</section>
-	<h2 class="section-heading">New makers</h2>{/if}
+{#if q}<nav class="tabs" aria-label="Search categories">
+		{#each ['posts', 'projects', 'profiles', 'hashtags'] as item}<a
+				href={'/app/search?' + new URLSearchParams({ q, tab: item })}
+				aria-current={tab === item ? 'page' : undefined}
+				>{item === 'hashtags'
+					? 'Tags'
+					: item[0].toUpperCase() + item.slice(1)}</a
+			>{/each}
+	</nav>{/if}
+<Status
+	{work}
+	skeleton={tab === 'profiles' || !q ? 'people' : 'posts'}
+	reload={() => load()}
+/>
+{#if !q}{#if recent.length}<section class="search-discovery">
+			<h2>Recent searches</h2>
+			{#each recent as item}<div class="recent-row">
+					<a href={recentDestination(item)}>{item.displayLabel}</a><button
+						aria-label="Remove recent search"
+						disabled={work.busy}
+						onclick={() =>
+							void work.run(
+								() => api.search.deleteRecent(item.id),
+								() => (recent = recent.filter((old) => old.id !== item.id))
+							)}><Icon name="close" size={18} /></button
+					>
+				</div>{/each}
+		</section>{/if}
+	{#if top?.groups.length}<section class="search-discovery stack">
+			<h2>Trending hashtags</h2>
+			{#each top.groups as group}<div class="stack">
+					<h3>{label(group.craftType)}</h3>
+					<div class="tag-chips">
+						{#each group.items as tag}<a
+								href={'/app/tags/' + encodeURIComponent(tag.tag)}>#{tag.tag}</a
+							>{/each}
+					</div>
+				</div>{/each}
+		</section>{/if}
+	{#if authors.length}<h2 class="section-heading">New makers</h2>{/if}
+{/if}
 {#each authors as author}<a
-		class="panel account-row"
+		class="account-row maker-result"
+		style={profileStyle(author.customisation)}
 		href={'/app/profile/' + encodeURIComponent(author.did)}
-		onclick={() => {
-			void api.search
-				.saveRecent({
-					type: 'profile',
-					displayLabel: '@' + author.handle,
-					payload: {
-						did: author.did,
-						handle: author.handle,
-						displayName: author.displayName,
-						avatar: author.avatar,
-						crafts: author.crafts
-					}
-				})
-				.catch(() => {});
-		}}
-		><Avatar author={authorValue(author)} /><span
-			><strong>{name(author)}</strong><small>@{author.handle}</small>
-			<p>{author.description || ''}</p></span
+		onclick={() => remember(author)}
+		><Avatar author={authorValue(author)} /><CompactIdentity {author} />
 		></a
 	>{/each}
 {#each posts as post}<MemberPost value={post} {api} {did} />{/each}
 {#each tags as tag}<a
-		class="panel account-row"
+		class="account-row tag-result"
 		href={'/app/tags/' + encodeURIComponent(tag.tag)}
-		><strong>#{tag.tag}</strong><span>{tag.postCount} posts</span></a
+		><span class="hashtag-icon">#</span><span
+			><strong>#{tag.tag}</strong><small>{tag.postCount} posts</small></span
+		></a
 	>{/each}
-{#if q && !work.busy && !work.error && !authors.length && !posts.length && !tags.length}<p
-		class="empty"
-	>
-		No results yet. Try another search.
-	</p>{/if}
+{#if q && !work.busy && !work.error && !authors.length && !posts.length && !tags.length}<EmptyState
+		title="No results found"
+		detail="Try another search."
+		icon="search"
+	/>{/if}
 {#if cursor}<button
 		class="button next"
 		disabled={work.busy}
 		onclick={() => load(true)}>Load more</button
 	>{/if}
+
+<style>
+	.search-form {
+		padding: 12px 16px;
+		margin: 0;
+		position: relative;
+	}
+	.search-input-row {
+		display: flex;
+		gap: 10px;
+		align-items: center;
+	}
+	.search-field {
+		min-width: 0;
+		flex: 1;
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		border: 1.5px solid var(--ink);
+		border-radius: 12px;
+		padding: 0 10px;
+		background: var(--surface);
+	}
+	.search-field:focus-within {
+		outline: 2px solid var(--primary);
+		outline-offset: 2px;
+	}
+	.search-field input {
+		min-width: 0;
+		width: 100%;
+		border: 0;
+		margin: 0;
+		padding: 12px 0;
+		background: transparent;
+		box-shadow: none;
+		outline: 0;
+	}
+	.search-field input::-webkit-search-cancel-button {
+		display: none;
+	}
+	.search-field > :global(svg) {
+		flex-shrink: 0;
+		color: var(--ink-2);
+	}
+	.clear-search {
+		border: 0;
+		padding: 8px 0 8px 8px;
+		min-width: 32px;
+		background: transparent;
+		box-shadow: none;
+	}
+	.search-submit {
+		padding: 10px 12px;
+		min-height: 44px;
+		font-size: 14px;
+	}
+	.cancel-search {
+		font-size: 14px;
+		text-decoration: none;
+		color: var(--primary);
+	}
+	.search-sort {
+		display: flex;
+		margin-top: 12px;
+		align-items: center;
+		justify-content: flex-end;
+		font-size: 14px;
+		gap: 8px;
+	}
+	.search-sort select {
+		width: auto;
+		margin: 0;
+	}
+	.search-discovery {
+		padding: 16px;
+		border-bottom: 1px solid var(--hairline);
+	}
+	.search-discovery h2 {
+		font-size: 18px;
+		margin: 0 0 12px;
+	}
+	.search-discovery h3 {
+		font-size: 13px;
+		color: var(--ink-2);
+		font-weight: 600;
+	}
+	.tag-chips {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 8px;
+	}
+	.tag-chips a {
+		display: inline-flex;
+		gap: 8px;
+		border: 1px solid var(--hairline);
+		background: var(--surface);
+		border-radius: 20px;
+		padding: 6px 10px;
+		font-size: 14px;
+		text-decoration: none;
+	}
+	.recent-row {
+		display: flex;
+		gap: 8px;
+		align-items: center;
+		min-height: 48px;
+	}
+	.recent-row a {
+		display: flex;
+		gap: 12px;
+		align-items: center;
+		text-decoration: none;
+		color: var(--ink);
+		flex: 1;
+	}
+	.recent-row button {
+		border: 0;
+		box-shadow: none;
+		background: transparent;
+		padding: 10px;
+	}
+	.maker-result,
+	.tag-result {
+		margin: 0;
+		padding: 12px 16px;
+		gap: 12px;
+		border: 0;
+		border-bottom: 1px solid var(--hairline);
+		border-radius: 0;
+		text-decoration: none;
+		color: var(--ink);
+	}
+
+	.hashtag-icon {
+		width: 44px;
+		height: 44px;
+		display: grid;
+		place-items: center;
+		background: var(--primary-soft);
+		color: var(--primary);
+		border-radius: 50%;
+		font-size: 24px;
+	}
+	.suggestions {
+		z-index: 20;
+		position: relative;
+		padding: 8px 0;
+		margin-top: 8px;
+		background: var(--surface);
+		border: 1px solid var(--hairline);
+		border-radius: 12px;
+	}
+	.suggestions a {
+		display: block;
+		padding: 10px 12px;
+		text-decoration: none;
+		color: var(--ink);
+		font-size: 14px;
+	}
+	.suggestions .suggestion-profile {
+		display: flex;
+		align-items: center;
+		gap: 12px;
+	}
+	@media (max-width: 600px) {
+		.search-submit {
+			position: absolute;
+			width: 1px;
+			height: 1px;
+			padding: 0;
+			overflow: hidden;
+			clip-path: inset(50%);
+		}
+	}
+
+	.search-form .search-field input#search {
+		border: 0;
+		box-shadow: none;
+		border-radius: 0;
+		padding: 15px 0;
+		margin: 0;
+		background: transparent;
+		outline: 0;
+	}
+	.search-field {
+		border-color: var(--ink-2);
+	}
+	.search-sort {
+		flex-direction: row;
+	}
+	.search-discovery {
+		border: 0;
+	}
+	.tag-chips a {
+		border: 1.5px solid var(--ink);
+		color: var(--ink);
+		font-weight: 600;
+		padding: 6px 12px;
+	}
+</style>

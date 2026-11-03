@@ -23,6 +23,8 @@
 	<a class="skip" href="#main">Skip to content</a>
 	{#if page.url.pathname.startsWith('/app/') || page.url.pathname === '/app'}
 		{@render children()}
+	{:else if page.url.pathname === '/sign-in'}
+		<main id="main" class="welcome-main">{@render children()}</main>
 	{:else}
 		<header class="site-header">
 			<div class="header-content">

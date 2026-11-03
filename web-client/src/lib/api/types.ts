@@ -495,9 +495,11 @@ export interface AppNotification {
 	createdAt: string;
 	indexedAt: string;
 	isNew: boolean;
-	actor?: Author;
+	contentAvailable?: boolean;
+	actor?: Author & { available?: boolean };
 	subjectPost?: PostPresentation;
 	preview?: { text: string; projectTitle?: string; role: string };
+	quotedPreview?: { text: string; projectTitle?: string; role?: string };
 	uri?: ATURI;
 	cid?: CID;
 	rkey?: string;

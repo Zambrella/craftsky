@@ -6,13 +6,16 @@
 		CraftskyAPI,
 		type PostPresentation,
 		type CommentItem,
-		type Author,
-		type ReplyPage
+		type Author
 	} from '#lib/api/client.ts';
 	import MemberPost from './MemberPost.svelte';
-	import { visible, name, postAddress } from './model';
+	import { visible, postAddress } from './model';
 	import { Work } from './work.svelte';
 	import Status from './Status.svelte';
+	import Icon from '../shell/Icon.svelte';
+	import Avatar from '#lib/Avatar.svelte';
+	import EmptyState from './EmptyState.svelte';
+	import CompactIdentity from './CompactIdentity.svelte';
 	let {
 		api,
 		session,
@@ -34,6 +37,7 @@
 		cursor = $state<string | null>();
 	let sort = $state<'oldest' | 'newest' | 'follows'>('oldest');
 	let focusMessage = $state('');
+	let collapsed = $state<string[]>([]);
 	const focused = page.url.searchParams.get('focus') || undefined;
 	onMount(() => {
 		void load();
@@ -103,22 +107,21 @@
 					if (result.page.focus?.status === 'included')
 						void tick().then(() => {
 							if (!dead)
-								document
-									.querySelector('.comment.focused')
-									?.scrollIntoView({
-										block: 'center',
-										behavior: matchMedia('(prefers-reduced-motion: reduce)')
-											.matches
-											? 'instant'
-											: 'smooth'
-									});
+								document.querySelector('.comment.focused')?.scrollIntoView({
+									block: 'center',
+									behavior: matchMedia('(prefers-reduced-motion: reduce)')
+										.matches
+										? 'instant'
+										: 'smooth'
+								});
 						});
 				}
 			}
 		);
 	}
 	function replies(comment: CommentItem) {
-		if (!visible(comment.post) || !comment.replies.cursor) return;
+		if (!visible(comment.post)) return;
+		const more = comment.replies.loaded && !!comment.replies.cursor;
 		const address = comment.post;
 		void work.run(
 			() =>
@@ -128,20 +131,41 @@
 			(result) => {
 				comment.replies = {
 					...result,
-					items: [...comment.replies.items, ...result.items]
+					items: more
+						? [...comment.replies.items, ...result.items]
+						: result.items
 				};
 				comments = [...comments];
+				collapsed = collapsed.filter((uri) => uri !== address.uri);
 			}
 		);
 	}
 </script>
 
 <div class="workspace-header">
-	<h1>{section ? section[0].toUpperCase() + section.slice(1) : 'Post'}</h1>
-	<a href="/app/home">Home</a>
+	<a
+		class="icon-button thread-back"
+		href={section
+			? `/app/posts/${encodeURIComponent(did)}/${encodeURIComponent(rkey)}`
+			: '/app/home'}
+		aria-label="Back"><Icon name="back" /></a
+	>
+	<h1>
+		{section
+			? section[0].toUpperCase() +
+				section.slice(1) +
+				(section === 'likes' && post && visible(post)
+					? ` (${post.likeCount})`
+					: '')
+			: 'Post'}
+	</h1>
 </div>
-<Status {work} />{#if focusMessage}<p class="notice">{focusMessage}</p>{/if}
-{#if post}<MemberPost
+<Status
+	{work}
+	skeleton={section === 'likes' || section === 'reposts' ? 'people' : 'posts'}
+	reload={() => load()}
+/>{#if focusMessage}<p class="notice">{focusMessage}</p>{/if}
+{#if post && !section}<MemberPost
 		value={post}
 		{api}
 		did={session.did}
@@ -150,12 +174,38 @@
 			location.href = '/app/home';
 		}}
 	/>{/if}
+{#if !section && post && visible(post) && (post.likeCount || post.repostCount || post.quoteCount)}<nav
+		class="thread-interactions"
+		aria-label="Post interactions"
+	>
+		{#if post.likeCount}<a
+				href={`/app/posts/${encodeURIComponent(did)}/${encodeURIComponent(rkey)}/likes`}
+				>{post.likeCount} {post.likeCount === 1 ? 'Like' : 'Likes'}</a
+			>{/if}{#if post.repostCount}<a
+				href={`/app/posts/${encodeURIComponent(did)}/${encodeURIComponent(rkey)}/reposts`}
+				>{post.repostCount} {post.repostCount === 1 ? 'Repost' : 'Reposts'}</a
+			>{/if}{#if post.quoteCount}<a
+				href={`/app/posts/${encodeURIComponent(did)}/${encodeURIComponent(rkey)}/quotes`}
+				>{post.quoteCount} {post.quoteCount === 1 ? 'Quote' : 'Quotes'}</a
+			>{/if}
+	</nav>{/if}
 {#if section === 'likes' || section === 'reposts'}<section class="stack">
 		{#each people as author}<a
-				class="person-row panel"
+				class="thread-person"
 				href={'/app/profile/' + encodeURIComponent(author.did)}
-				><strong>{name(author)}</strong><span>@{author.handle}</span></a
-			>{:else}{#if !work.busy}<p class="empty">No {section} yet.</p>{/if}{/each}
+				><Avatar
+					author={{
+						did: author.did,
+						handle: author.handle,
+						displayName: author.displayName || undefined,
+						avatar: author.avatar || undefined
+					}}
+				/><CompactIdentity {author} /></a
+			>{:else}{#if !work.busy && !work.error}<EmptyState
+					title={section === 'likes' ? 'Likes' : 'Reposts'}
+					detail={`No ${section} yet.`}
+					icon={section === 'likes' ? 'heart' : 'repost'}
+				/>{/if}{/each}
 	</section>{:else if section === 'quotes'}{#each quotes as quote}<MemberPost
 			value={quote}
 			{api}
@@ -163,25 +213,26 @@
 		/>{:else}{#if !work.busy}<p class="empty">
 				No quotes yet.
 			</p>{/if}{/each}{:else}
-	<div class="workspace-header">
-		<h2>Comments</h2>
+	<div class="comments-heading">
+		<h2 class="visually-hidden">Comments</h2>
 		<label class="visually-hidden" for="comment-sort">Comment order</label
 		><select
 			id="comment-sort"
 			bind:value={sort}
 			disabled={work.busy}
 			onchange={() => load()}
-			><option value="oldest">Oldest first</option><option value="newest"
-				>Newest first</option
-			><option value="follows">People I follow</option></select
+			><option value="oldest">Oldest</option><option value="newest"
+				>Newest</option
+			><option value="follows">Follows</option></select
 		>
 	</div>
 	{#if post && visible(post)}<a
-			class="button next"
+			class="comment-compose"
 			href={'/app/compose/reply?did=' +
 				encodeURIComponent(did) +
 				'&rkey=' +
-				encodeURIComponent(rkey)}>Add a comment</a
+				encodeURIComponent(rkey)}
+			aria-label="Add a comment"><Icon name="comment" size={20} />Comment</a
 		>{/if}
 	{#each comments as comment, i (`${'uri' in comment.post ? comment.post.uri : i}`)}<section
 			class="comment"
@@ -191,26 +242,180 @@
 				value={comment.post}
 				{api}
 				did={session.did}
-			/>{#if visible(comment.post)}<a
-					class="reply-link"
-					href={'/app/compose/reply?did=' +
-						encodeURIComponent(comment.post.author.did) +
-						'&rkey=' +
-						encodeURIComponent(comment.post.rkey)}>Reply to comment</a
-				>{/if}
-			<div class="replies">
-				{#each comment.replies.items as reply, j (`${'uri' in reply.post ? reply.post.uri : j}`)}<MemberPost
-						value={reply.post}
-						{api}
-						did={session.did}
-					/>{/each}{#if comment.replies.cursor}<button
-						onclick={() => replies(comment)}
-						disabled={work.busy}>Show more replies</button
-					>{/if}
-			</div>
-		</section>{:else}{#if !work.busy}<p class="empty">
-				Start the conversation.
-			</p>{/if}{/each}{/if}
+				onRemove={() => (comments = comments.filter((old) => old !== comment))}
+			/>
+			{#if visible(comment.post) && ((comment.replies.loaded && comment.replies.items.length) || comment.post.replyCount > 0)}<div
+					class="reply-controls"
+				>
+					{#if !comment.replies.loaded || collapsed.includes(comment.post.uri)}<button
+							disabled={work.busy}
+							onclick={() => {
+								if (comment.replies.loaded && visible(comment.post))
+									collapsed = collapsed.filter(
+										(uri) => uri !== comment.post.uri
+									);
+								else replies(comment);
+							}}
+							>Show {comment.post.replyCount}
+							{comment.post.replyCount === 1 ? 'reply' : 'replies'}</button
+						>{:else}<button
+							onclick={() => {
+								if (visible(comment.post))
+									collapsed = [...collapsed, comment.post.uri];
+							}}>Hide replies</button
+						>{/if}
+				</div>{/if}
+			{#if comment.replies.loaded && (!visible(comment.post) || !collapsed.includes(comment.post.uri))}
+				<div class="replies">
+					{#each comment.replies.items as reply, j (`${'uri' in reply.post ? reply.post.uri : j}`)}<MemberPost
+							value={reply.post}
+							{api}
+							did={session.did}
+							onRemove={() => {
+								comment.replies.items = comment.replies.items.filter(
+									(old) => old !== reply
+								);
+								comments = [...comments];
+							}}
+						/>{/each}{#if comment.replies.cursor}<button
+							onclick={() => replies(comment)}
+							disabled={work.busy}>Load more replies</button
+						>{/if}
+				</div>{/if}
+		</section>{:else}{#if !work.busy && !work.error}<EmptyState
+				title="Comments"
+				detail="Start the conversation with a comment."
+				icon="comment"
+			/>{/if}{/each}{/if}
 {#if cursor}<button class="next" disabled={work.busy} onclick={() => load(true)}
 		>Load more</button
 	>{/if}
+
+<style>
+	.workspace-header {
+		justify-content: flex-start;
+		gap: 8px;
+	}
+	.workspace-header h1 {
+		flex: 1;
+	}
+	.thread-back {
+		display: grid;
+		place-items: center;
+		width: 40px;
+		height: 44px;
+	}
+	.comments-heading {
+		display: flex;
+		align-items: center;
+		justify-content: flex-end;
+		gap: 12px;
+		padding: 8px 16px;
+	}
+	.comments-heading h2 {
+		margin: 0;
+		font-size: 18px;
+	}
+	.comments-heading select {
+		width: auto;
+		max-width: 50%;
+		font-size: 13px;
+		margin: 0;
+	}
+	.comment-compose {
+		margin: 0 16px 16px;
+		padding: 12px 16px;
+		min-height: 48px;
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		border: 1px solid var(--hairline);
+		border-radius: 12px;
+		color: var(--ink-2);
+		background: var(--surface);
+		text-decoration: none;
+	}
+	.thread-person {
+		display: flex;
+		gap: 12px;
+		align-items: center;
+		padding: 12px 16px;
+		color: var(--ink);
+		text-decoration: none;
+		border-bottom: 1px solid var(--hairline);
+	}
+
+	.comment {
+		padding: 12px 0;
+		border-bottom: 1px dashed var(--hairline);
+	}
+	.comment :global(.member-post) {
+		border: 0;
+		box-shadow: none;
+		border-radius: 0;
+		background: transparent;
+		margin-bottom: 0;
+	}
+	.comment :global(.post-card) {
+		background: transparent;
+		border-radius: 0;
+	}
+	.comment.focused {
+		border-left: 4px solid var(--primary);
+		background: var(--primary-soft);
+	}
+	.thread-interactions {
+		display: flex;
+		gap: 16px;
+		flex-wrap: wrap;
+		margin: 12px 16px;
+	}
+	.thread-interactions a {
+		color: var(--ink);
+		font-size: 14px;
+		font-weight: 600;
+		text-decoration: none;
+	}
+	.reply-controls {
+		padding: 4px 28px;
+	}
+	.reply-controls button,
+	.replies > button {
+		background: transparent;
+		border: 0;
+		box-shadow: none;
+		color: var(--primary);
+		font-size: 13px;
+		padding: 8px 0;
+	}
+	@media (max-width: 600px) {
+		.comment-compose {
+			position: fixed;
+			z-index: 8;
+			bottom: max(16px, env(safe-area-inset-bottom));
+			left: 16px;
+			right: 16px;
+			margin: 0;
+			border: 1.5px solid var(--ink);
+			border-radius: 999px;
+			box-shadow: 3px 3px 0 var(--shadow);
+			background: var(--primary);
+			color: white;
+			justify-content: center;
+			font-weight: 600;
+			min-height: 52px;
+		}
+		.comment:last-child {
+			margin-bottom: 64px;
+		}
+	}
+	.replies {
+		margin: 8px 16px 0 32px;
+		padding-left: 4px;
+		border-left: 2px solid var(--hairline);
+	}
+	.replies :global(.member-post) {
+		margin-left: 0;
+		margin-right: 0;
+	}
+</style>

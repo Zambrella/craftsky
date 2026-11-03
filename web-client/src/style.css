@@ -53,6 +53,7 @@
 	--shadow: #161210;
 	--card-radius: 14px;
 	--header-height: 64px;
+	--app-bar-height: 56px;
 	color-scheme: light;
 	font-family: Outfit, system-ui, sans-serif;
 	font-size: 16px;
@@ -216,6 +217,24 @@ main {
 	max-width: 800px;
 	margin: 24px auto 48px;
 	min-height: 65vh;
+}
+.welcome-main {
+	max-width: none;
+	margin: 0;
+	min-height: 100svh;
+}
+.avatar > span,
+.shell-avatar-fallback {
+	font-family: 'DM Serif Display', Georgia, serif;
+	font-weight: 400;
+}
+.app-main.is-gated {
+	width: 100%;
+	margin: 0 auto;
+	min-height: 100svh;
+}
+.app-sidebar[hidden] {
+	display: none;
 }
 footer {
 	max-width: 800px;
@@ -454,7 +473,7 @@ video {
 	background: var(--paper-2);
 	border-radius: 6px;
 }
-.post-card > p:has(> a) {
+.post-card > .video-fallback {
 	font-size: 13px;
 	color: var(--ink-2);
 }
@@ -820,10 +839,11 @@ button,
 	min-height: 44px;
 	padding: 8px 14px;
 	border: 1.5px solid var(--ink);
-	border-radius: 10px;
+	border-radius: 999px;
 	background: var(--surface);
 	color: var(--ink);
 	font-weight: 600;
+	font-size: 15px;
 	text-decoration: none;
 	cursor: pointer;
 	transition:
@@ -855,12 +875,23 @@ select,
 textarea {
 	width: 100%;
 	min-width: 0;
-	padding: 12px;
-	border: 1.5px solid var(--ink);
-	border-radius: 10px;
+	padding: 14px 16px;
+	border: 1.5px solid var(--ink-3);
+	border-radius: 14px;
 	background: var(--surface);
+	box-shadow: none;
 	font-weight: 400;
 	font-size: 16px;
+}
+:is(
+	input:not([type='checkbox']):not([type='radio']):not([type='file']):not(
+			[type='color']
+		),
+	select,
+	textarea
+):focus {
+	border-color: var(--ink);
+	box-shadow: 3px 3px 0 var(--shadow);
 }
 input[type='file'] {
 	width: 100%;
@@ -881,7 +912,7 @@ label {
 	display: flex;
 	flex-direction: column;
 	gap: 6px;
-	font-size: 14px;
+	font-size: 16px;
 	font-weight: 600;
 	min-width: 0;
 }
@@ -916,7 +947,7 @@ summary {
 	border: 1.5px solid var(--ink);
 	border-radius: var(--card-radius);
 	box-shadow: 3px 3px 0 var(--shadow);
-	padding: 20px;
+	padding: 16px;
 	margin: 16px;
 	color: var(--ink);
 	min-width: 0;
@@ -993,12 +1024,19 @@ summary {
 	justify-content: space-between;
 	align-items: center;
 	gap: 12px;
-	padding: 20px 16px;
-	flex-wrap: wrap;
+	padding: 6px 16px;
+	min-height: var(--app-bar-height);
+	position: sticky;
+	top: 0;
+	z-index: 9;
+	border-bottom: 1.5px solid var(--ink);
+	background: var(--paper);
 }
 .workspace-header h1,
 .workspace-heading h1 {
-	font-size: 28px;
+	font-size: 20px;
+	line-height: 1.25;
+	letter-spacing: 0;
 }
 .workspace-header select {
 	width: auto;
@@ -1243,99 +1281,138 @@ dialog > button {
 	max-width: 680px;
 	margin: 28px auto;
 }
+/* The authenticated shell follows AppShell's compact/rail breakpoint and page app bars. */
 .app-topbar {
-	height: var(--header-height);
-	position: sticky;
-	top: 0;
-	z-index: 20;
-	display: flex;
-	align-items: center;
-	gap: 16px;
-	background: var(--paper);
-	border-bottom: 1.5px solid var(--ink);
-	padding: 8px 24px;
-}
-.app-topbar .brand {
-	min-width: 220px;
-}
-.account-trigger {
-	margin-left: auto;
-	max-width: min(60%, 340px);
-	font-size: 13px;
-	overflow-wrap: anywhere;
-	text-align: left;
-	min-width: 0;
-}
-.account-trigger span {
-	margin-left: 8px;
+	display: none;
 }
 .app-sidebar {
 	position: fixed;
-	left: max(calc((100vw - 1360px) / 2), 0px);
+	inset: 0 auto 0 max(calc((100vw - 1360px) / 2), 0px);
 	width: 256px;
-	top: var(--header-height);
-	height: calc(100svh - var(--header-height));
-	padding: 20px 16px;
-	overflow-y: auto;
-	border-right: 1.5px solid var(--hairline);
+	padding: 16px 12px;
+	overflow: auto;
+	border-right: 1.5px solid var(--ink);
 	background: var(--paper);
 	z-index: 12;
 }
 .app-sidebar nav {
 	display: flex;
 	flex-direction: column;
-	gap: 4px;
+	gap: 0;
 }
 .app-sidebar nav a {
 	display: flex;
 	align-items: center;
 	gap: 16px;
-	color: var(--ink);
+	color: var(--ink-3);
 	text-decoration: none;
 	padding: 12px 16px;
-	min-height: 48px;
+	min-height: 56px;
 	font-size: 16px;
 	font-weight: 600;
-	border-radius: 12px;
+	border-radius: 999px;
 }
 .app-sidebar nav a:hover {
 	background: var(--paper-2);
 }
 .app-sidebar nav a[aria-current] {
 	color: var(--primary);
-	background: var(--primary-soft);
 }
 .app-sidebar .button {
-	margin: 24px 4px 16px;
+	margin: 16px 4px;
 	width: calc(100% - 8px);
 }
 .sidebar-about {
-	font-size: 12px;
-	color: var(--ink-2);
-	padding: 16px;
 	display: block;
+	padding: 16px;
+	color: var(--ink-2);
+	font-size: 12px;
+}
+.account-trigger {
+	display: flex;
+	width: 100%;
+	justify-content: flex-start;
+	padding: 16px 8px 24px;
+	border: 0;
+	border-radius: 0;
+	background: transparent;
+	gap: 12px;
+	box-shadow: none;
+	text-align: left;
+}
+.account-trigger:hover {
+	background: transparent;
+}
+.shell-avatar {
+	width: 48px;
+	height: 48px;
+	flex: 0 0 48px;
+	border-radius: 50%;
+	object-fit: cover;
+}
+.shell-avatar-fallback {
+	display: grid;
+	place-items: center;
+	background: var(--primary-soft);
+	color: var(--primary);
+	font-size: 22px;
+	font-weight: 600;
+}
+.shell-identity {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	min-width: 0;
+	flex: 1;
+}
+.shell-identity strong {
+	color: var(--ink);
+	font-size: 16px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.shell-identity > span {
+	color: var(--ink-2);
+	font-size: 13px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 .app-main {
-	width: min(calc(100% - 280px), 800px);
+	width: min(calc(100% - 256px), 800px);
 	max-width: 800px;
-	margin: 0 max(calc((100vw - 1360px) / 2 + 16px), 16px) 80px
-		max(calc((100vw - 1360px) / 2 + 280px), 280px);
-	min-height: calc(100svh - var(--header-height));
+	margin: 0 auto 48px max(calc((100vw - 1360px) / 2 + 256px), 256px);
+	min-height: 100svh;
+	font-size: 14px;
 }
 .app-main > .settings-workspace,
 .app-main > .messages-workspace {
-	padding: 16px;
+	padding: 0;
 }
 .app-main .tabs {
-	top: var(--header-height);
+	top: var(--app-bar-height);
+	font-size: 13px;
+}
+.app-main .tabs a {
+	font-weight: 600;
 }
 .icon-button {
+	display: inline-flex;
+	flex-shrink: 0;
+	align-items: center;
+	justify-content: center;
 	border: 0;
 	background: transparent;
+	color: inherit;
 	padding: 8px;
-	min-width: 44px;
-	min-height: 44px;
+	min-width: 48px;
+	min-height: 48px;
 	border-radius: 50%;
+	box-shadow: none;
+}
+.icon-button:hover {
+	background: color-mix(in srgb, var(--ink) 7%, transparent);
 }
 .count-badge {
 	background: var(--primary);
@@ -1347,104 +1424,148 @@ dialog > button {
 }
 .account-menu {
 	position: fixed;
-	right: 16px;
-	top: var(--header-height);
-	z-index: 25;
+	left: 50%;
+	top: 50%;
+	transform: translate(-50%, -50%);
+	margin: 0;
+	z-index: 41;
 	display: flex;
 	flex-direction: column;
 	gap: 12px;
-	max-width: 380px;
-	width: calc(100vw - 32px);
-	max-height: 75svh;
+	width: min(420px, calc(100vw - 48px));
+	max-height: 80svh;
 	overflow: auto;
+	border-radius: 22px;
+	padding: 24px;
 }
 .account-menu h2 {
-	font-size: 18px;
+	font-size: 20px;
+}
+.account-menu .person-row {
+	min-height: 56px;
+	justify-content: space-between;
+	border: 0;
+	box-shadow: none;
+	border-radius: 8px;
 }
 .account-menu .person-row[aria-current] {
 	background: var(--primary-soft);
-	border-color: var(--primary);
+	color: var(--primary);
+}
+.account-menu > a {
+	padding: 12px 8px;
+}
+.account-scrim,
+.drawer-scrim {
+	position: fixed;
+	inset: 0;
+	width: 100%;
+	height: 100svh;
+	border: 0;
+	border-radius: 0;
+	background: #0008;
+	z-index: 40;
+	box-shadow: none;
+}
+.account-scrim:hover,
+.drawer-scrim:hover {
+	background: #0008;
 }
 .bottom-nav,
-.mobile-only {
-	display: none;
-}
+.mobile-only,
 .drawer-scrim {
 	display: none;
 }
-@media (min-width: 1400px) {
-	.app-main {
-		margin-left: calc((100vw - 1360px) / 2 + 280px);
-	}
+.compose-fab {
+	display: none;
 }
-@media (max-width: 900px) {
+.app-main .workspace-heading > button:not(.button),
+.app-main .workspace-header > button:not(.button) {
+	border: 0;
+	background: transparent;
+	box-shadow: none;
+	color: var(--primary);
+	padding: 8px;
+}
+@media (max-width: 1100px) and (min-width: 901px) {
 	.app-sidebar {
 		width: 220px;
+		padding: 16px 8px;
 	}
 	.app-main {
 		width: calc(100% - 220px);
 		margin-left: 220px;
 		margin-right: 0;
 	}
-	.app-topbar .brand {
-		min-width: 180px;
-	}
 	.app-sidebar nav a {
-		padding: 10px;
+		padding: 12px;
 		gap: 12px;
 	}
-	.app-sidebar {
-		padding: 16px 10px;
-	}
 }
-@media (max-width: 700px) {
-	.app-topbar {
-		padding: 8px 12px;
-		gap: 8px;
+@media (max-width: 900px) {
+	.app-topbar.visible {
+		display: flex;
+		align-items: center;
+		justify-content: flex-start;
+		position: fixed;
+		top: 0;
+		left: 0;
+		height: var(--app-bar-height);
+		width: 56px;
+		padding: 0 4px;
+		pointer-events: none;
+		z-index: 21;
 	}
-	.app-topbar .brand {
-		min-width: 0;
-		font-size: 19px;
-	}
-	.app-topbar .brand img {
-		width: 28px;
-		height: 28px;
-	}
-	.account-trigger {
-		max-width: 43%;
-		padding: 6px 8px;
-		font-size: 12px;
-		min-height: 40px;
+	.app-topbar > button {
+		pointer-events: auto;
 	}
 	.app-main {
 		width: 100%;
-		margin: 0 0 100px;
 		max-width: 100%;
+		margin: 0 0 calc(64px + env(safe-area-inset-bottom));
+		min-height: calc(100svh - 64px);
+	}
+	.app-main.fullscreen {
+		margin-bottom: 0;
+		min-height: 100svh;
+	}
+	.app-main.shell-root > .workspace-heading,
+	.app-main.shell-root > .workspace-header,
+	.app-main.shell-root
+		> .settings-workspace[data-settings-page='index']
+		.workspace-heading,
+	.app-main.shell-root > .messages-workspace > .workspace-heading,
+	.app-main.shell-root > .messages-workspace > .workspace-header {
+		padding-left: 56px;
+	}
+	.app-main.shell-root > .draft-workspace > .draft-appbar {
+		padding-left: 56px;
 	}
 	.app-sidebar {
 		display: none;
-		left: 0;
-		top: 0;
+		inset: 0 auto 0 0;
 		z-index: 31;
-		max-width: 82vw;
-		width: 280px;
+		max-width: 85vw;
+		width: 304px;
 		height: 100svh;
-		border-right: 1.5px solid var(--ink);
-		padding-top: 24px;
+		border: 1.5px solid var(--ink);
+		border-left: 0;
+		border-radius: 0 22px 22px 0;
+		padding: 16px 12px;
 	}
 	.app-sidebar.open {
 		display: block;
 	}
+	.app-sidebar > .icon-button {
+		margin-left: auto;
+		display: flex;
+	}
+	.app-sidebar .account-trigger {
+		padding-top: 8px;
+	}
 	.drawer-scrim {
 		display: block;
-		position: fixed;
-		inset: 0;
-		background: #0008;
 		z-index: 30;
-		width: 100%;
-		height: 100svh;
-		border: 0;
-		border-radius: 0;
 	}
 	.mobile-only {
 		display: inline-flex;
@@ -1458,48 +1579,72 @@ dialog > button {
 		right: 0;
 		background: var(--paper);
 		border-top: 1.5px solid var(--ink);
-		padding: 6px 4px max(6px, env(safe-area-inset-bottom));
+		height: calc(64px + env(safe-area-inset-bottom));
+		padding: 0 4px env(safe-area-inset-bottom);
 		z-index: 19;
+	}
+	.bottom-nav.fullscreen {
+		display: none;
 	}
 	.bottom-nav > a {
 		display: flex;
+		flex: 1;
 		flex-direction: column;
 		align-items: center;
 		justify-content: center;
-		gap: 3px;
-		padding: 5px 4px;
+		gap: 4px;
 		min-width: 48px;
-		min-height: 48px;
+		min-height: 64px;
 		position: relative;
 		text-decoration: none;
-		color: var(--ink-2);
-		font-size: 10px;
+		color: var(--ink-3);
+		font-size: 12px;
+		line-height: 1.2;
 		font-weight: 600;
 	}
 	.bottom-nav > a[aria-current] {
 		color: var(--primary);
-		background: var(--primary-soft);
-		border-radius: 12px;
+		background: transparent;
 	}
-	.bottom-nav .dot {
+	.bottom-nav .bottom-count {
 		position: absolute;
-		top: 3px;
-		right: 10px;
-		background: var(--primary);
-		border-radius: 50%;
-		width: 8px;
-		height: 8px;
+		top: 4px;
+		left: calc(50% + 6px);
+		background: #e52732;
+		color: #fff;
+		border: 2px solid var(--paper);
+		border-radius: 999px;
+		min-width: 20px;
+		height: 20px;
+		padding: 0 3px;
+		font-size: 12px;
+		line-height: 16px;
+		text-align: center;
+		font-weight: 700;
+	}
+	.compose-fab {
+		position: fixed;
+		right: 16px;
+		bottom: calc(80px + env(safe-area-inset-bottom));
+		z-index: 15;
+		display: inline-flex;
+		align-items: center;
+		gap: 8px;
+		padding: 14px 20px;
+		border-radius: 22px;
 	}
 	.workspace-header,
 	.workspace-heading {
-		padding: 18px 16px;
-	}
-	.panel {
-		padding: 16px;
+		min-height: 56px;
+		padding: 4px 16px;
+		flex-wrap: nowrap;
 	}
 	.workspace-header h1,
 	.workspace-heading h1 {
-		font-size: 24px;
+		font-size: 20px;
+	}
+	.panel {
+		padding: 16px;
 	}
 	.form-grid,
 	.choice-grid,
@@ -1512,20 +1657,20 @@ dialog > button {
 	}
 	.post-actions a,
 	.post-actions button {
-		font-size: 12px;
+		font-size: 13px;
 	}
 	.replies {
 		margin-left: 16px;
 	}
 	.app-main > .settings-workspace,
 	.app-main > .messages-workspace {
-		padding: 12px;
+		padding: 0;
 	}
 	.auth-panel {
 		margin: 24px 16px;
 	}
 	.onboarding {
-		margin: 16px;
+		margin: 0;
 	}
 	.tabs {
 		overflow-x: auto;
@@ -1547,6 +1692,16 @@ dialog > button {
 	}
 	.toolbar form > label {
 		width: 100%;
+	}
+	.account-menu {
+		top: auto;
+		bottom: 0;
+		left: 0;
+		transform: none;
+		border-radius: 22px 22px 0 0;
+		width: 100%;
+		max-height: 85svh;
+		padding-bottom: max(24px, env(safe-area-inset-bottom));
 	}
 }
 .row,

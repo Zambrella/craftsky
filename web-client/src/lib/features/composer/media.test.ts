@@ -1,6 +1,34 @@
 import { describe, expect, it, vi } from 'vitest';
-import { uploadVideo } from './media.ts';
+import { attachmentSelection, uploadVideo } from './media.ts';
 import type { CraftskyAPI } from '#lib/api/client.ts';
+
+describe('native-style attachment selection', () => {
+	it('dispatches photos and a single video without allowing mixed or multiple-video embeds', () => {
+		expect(attachmentSelection([])).toBeUndefined();
+		expect(
+			attachmentSelection([
+				{ type: 'image/png', name: 'a.png' },
+				{ type: 'image/jpeg', name: 'b.jpg' }
+			])
+		).toBe('images');
+		expect(attachmentSelection([{ type: 'video/mp4', name: 'a.mp4' }])).toBe(
+			'video'
+		);
+		expect(attachmentSelection([{ type: '', name: 'A.MP4' }])).toBe('video');
+		expect(() =>
+			attachmentSelection([
+				{ type: 'video/mp4', name: 'a.mp4' },
+				{ type: 'image/png', name: 'a.png' }
+			])
+		).toThrow('Choose photos or one video');
+		expect(() =>
+			attachmentSelection([
+				{ type: 'video/mp4', name: 'a.mp4' },
+				{ type: 'video/mp4', name: 'b.mp4' }
+			])
+		).toThrow('Choose photos or one video');
+	});
+});
 
 describe('approved video capability transport', () => {
 	it('only adds a harmless MP4 free box for an explicit missing-blob recovery', async () => {

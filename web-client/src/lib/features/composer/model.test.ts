@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
 	buildFacets,
+	selectedQuoteImage,
+	responseLabel,
+	scheduledLocalDate,
+	scheduledUTCDate,
+	scheduleWindow,
+	defaultProject,
 	editChanges,
 	freezeWrite,
 	options,
@@ -12,6 +18,15 @@ import { newDraft } from '../drafts/store.ts';
 import type { JsonObject, PostEditSeed } from '#lib/api/client.ts';
 
 describe('composer data contracts', () => {
+	it('uses profile craft preference order and leaves unsupported or empty preferences unselected', () => {
+		expect(defaultProject(['unknown', 'sewing', 'knitting']).common).toEqual({
+			craftType: 'social.craftsky.feed.defs#sewing',
+			status: 'social.craftsky.feed.defs#finished'
+		});
+		expect(defaultProject(['unknown']).common).toEqual({
+			status: 'social.craftsky.feed.defs#finished'
+		});
+	});
 	it('builds UTF-8 facet offsets after emoji and resolves exact mention handles', async () => {
 		const text = '🧶 Hello @maker.example #knitting https://example.com';
 		const handles: string[] = [];
@@ -217,5 +232,44 @@ describe('composer data contracts', () => {
 		expect(editChanges(draft, [])).toEqual({
 			embed: { alt: 'Updated description' }
 		});
+	});
+});
+
+describe('native composition context', () => {
+	it('only uses a current image CID returned with the quote target', () => {
+		const target = {
+			images: [{ cid: 'current' }, { cid: 'second' }]
+		} as Parameters<typeof selectedQuoteImage>[0];
+		expect(selectedQuoteImage(target, 'second')).toBe('second');
+		expect(selectedQuoteImage(target, 'stale')).toBeUndefined();
+		expect(selectedQuoteImage(target, null)).toBeUndefined();
+		expect(selectedQuoteImage({}, 'current')).toBeUndefined();
+	});
+	it('distinguishes a root comment from a nested reply using strong refs', () => {
+		const root = {
+				uri: 'at://did:plc:a/social.craftsky.feed.post/root',
+				cid: 'root-cid'
+			},
+			parent = {
+				uri: 'at://did:plc:b/social.craftsky.feed.post/comment',
+				cid: 'comment-cid'
+			};
+		expect(responseLabel({ reply: { root, parent: root } })).toBe('Comment');
+		expect(responseLabel({ reply: { root, parent } })).toBe('Reply');
+	});
+	it('preserves a valid local scheduling instant and rejects corrupt dates', () => {
+		const local = '2027-05-04T15:32';
+		expect(scheduledLocalDate(scheduledUTCDate(local))).toBe(local);
+		expect(scheduledUTCDate('not a date')).toBeUndefined();
+		expect(scheduledLocalDate('bad')).toBe('');
+		expect(scheduledUTCDate('')).toBeUndefined();
+	});
+});
+
+it('matches the native whole-minute scheduling window, including fractional-minute boundaries', () => {
+	const now = Date.parse('2026-11-03T10:00:12.123Z');
+	expect(scheduleWindow(now)).toEqual({
+		earliest: Date.parse('2026-11-03T10:06:00Z'),
+		latest: Date.parse('2026-12-01T10:00:00Z')
 	});
 });

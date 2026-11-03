@@ -1,5 +1,15 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
+	import { beforeNavigate } from '$app/navigation';
+	import Avatar from '#lib/Avatar.svelte';
+	import MultiSelect from '#lib/MultiSelect.svelte';
+	import SettingsIcon from './SettingsIcon.svelte';
+	import { effectiveCustomisation } from './native-settings.ts';
+	import {
+		backgroundLabels,
+		notificationCategories,
+		notificationLabels
+	} from './presentation.ts';
 	import type {
 		CraftskyAPI,
 		NotificationPreferences,
@@ -10,8 +20,6 @@
 		colours,
 		languageOptions,
 		languagePreferences,
-		record,
-		text,
 		title,
 		type Session
 	} from './model.ts';
@@ -29,34 +37,37 @@
 		session
 	}: { api: CraftskyAPI; section: string; session: Session } = $props();
 	const work = new Work();
+	let loaded = $state(false);
 	let theme = $state('system'),
 		diagnostics = $state(false);
 	let preferences = $state<NotificationPreferences>({ preferences: {} });
 	let primary = $state('en'),
 		content = $state('');
-	let languageSearch = $state('');
-	let languageMatches = $derived(
-		languageOptions.filter((value) =>
-			`${value.name} ${value.tag}`
-				.toLowerCase()
-				.includes(languageSearch.toLowerCase())
-		)
-	);
-	function toggleLanguage(tag: string) {
-		const selected = content.split(', ').filter(Boolean);
-		content = (
-			selected.includes(tag)
-				? selected.filter((value) => value !== tag)
-				: [...selected, tag]
-		).join(', ');
-	}
 	let colour = $state('cobalt'),
 		background = $state('none');
+	let savedColour = $state('cobalt'),
+		savedBackground = $state('none'),
+		profileAvatar = $state(''),
+		profileName = $state('');
+	let customDirty = $derived(
+		colour !== savedColour || background !== savedBackground
+	);
+	beforeNavigate(({ cancel }) => {
+		if (
+			section === 'customisation' &&
+			customDirty &&
+			!work.busy &&
+			!confirm(
+				"Discard customisation changes? Your customisation changes won't be saved."
+			)
+		)
+			cancel();
+	});
 	let pattern = $derived(
 		background === 'none'
 			? ''
 			: background.startsWith('craft-')
-				? `/crafts/${background.slice(6)}.svg`
+				? `/profile_backgrounds/${background}.svg`
 				: `/profile_backgrounds/${background}.png`
 	);
 	let allowsPlus = $state(false);
@@ -65,29 +76,21 @@
 	let incoming = $state<'everyone' | 'following' | 'nobody'>('everyone'),
 		push = $state(false),
 		connected = $state(false);
-	const notificationLabels: Record<string, string> = {
-		like: 'Likes',
-		follow: 'New followers',
-		reply: 'Replies',
-		mention: 'Mentions',
-		quote: 'Quotes',
-		repost: 'Reposts',
-		instagramMatch: 'Instagram matches',
-		moderation: 'Moderation',
-		everythingElse: 'Everything else'
-	};
+
 	function load() {
 		if (section === 'notifications')
 			return work.load(
 				() => api.notifications.preferences(),
 				(value) => {
 					preferences = value;
+					loaded = true;
 				}
 			);
 		if (section === 'languages')
 			return work.load(
 				() => api.languages.get(),
 				(value) => {
+					loaded = true;
 					primary = value.primaryLanguage;
 					content = value.contentLanguages.join(', ');
 				}
@@ -96,10 +99,14 @@
 			return work.load(
 				() => Promise.all([api.profiles.me(), api.billing.access()]),
 				([profile, access]) => {
-					const custom = record(profile.customisation);
-					colour = text(custom.colour) || 'cobalt';
-					background =
-						text(custom.profileBackground) || text(custom.background) || 'none';
+					loaded = true;
+					const custom = effectiveCustomisation(profile.customisation);
+					colour = custom.colour;
+					background = custom.background;
+					savedColour = colour;
+					savedBackground = background;
+					profileAvatar = profile.avatar || '';
+					profileName = profile.displayName || '';
 					allowsPlus = access.givesAccess && access.effectiveTier !== 'free';
 				}
 			);
@@ -108,14 +115,17 @@
 				async () => {
 					const status = await api.chat.status();
 					const [policy, prefs] = await Promise.all([
-						status.capabilities.canSetPolicy
+						status.enabled && status.capabilities.canSetPolicy
 							? api.chat.incoming()
 							: Promise.resolve(null),
-						api.chat.pushPreference()
+						status.enabled
+							? api.chat.pushPreference()
+							: Promise.resolve({ pushEnabled: status.pushEnabled })
 					]);
 					return [status, policy, prefs] as const;
 				},
 				([status, policy, prefs]) => {
+					loaded = true;
 					connected = status.enabled;
 					chatState = status.state;
 					canSetPolicy = status.capabilities.canSetPolicy;
@@ -132,7 +142,11 @@
 		} catch {}
 		load();
 	});
-	onDestroy(() => work.dispose());
+	let disposed = false;
+	onDestroy(() => {
+		disposed = true;
+		work.dispose();
+	});
 	function setTheme(value: string) {
 		theme = value;
 		document.documentElement.dataset.theme = value;
@@ -141,17 +155,27 @@
 		} catch {}
 		work.notice = 'Appearance updated.';
 	}
-	function saveLanguages(event: SubmitEvent) {
-		event.preventDefault();
+	async function replaceLanguages(nextPrimary: string, nextContent: string) {
+		if (work.busy || work.retry) return;
+		const previous = { primary, content };
 		try {
-			const value: LanguagePreferences = languagePreferences(primary, content);
-			void work.run(
+			const value: LanguagePreferences = languagePreferences(
+				nextPrimary,
+				nextContent
+			);
+			primary = value.primaryLanguage;
+			content = value.contentLanguages.join(', ');
+			await work.run(
 				() => api.languages.replace(value),
 				(result) => {
 					primary = result.primaryLanguage;
 					content = result.contentLanguages.join(', ');
 				}
 			);
+			if (!disposed && work.error) {
+				primary = previous.primary;
+				content = previous.content;
+			}
 		} catch (error) {
 			work.error =
 				error instanceof Error ? error.message : 'Check your languages.';
@@ -160,18 +184,104 @@
 	function saveCustomisation(event: SubmitEvent) {
 		event.preventDefault();
 		const value = { colour, profileBackground: background };
-		void work.run(() =>
-			api.transport.request('PUT', '/v1/profiles/me/customisation', {
-				body: value
-			})
+		void work.run(
+			() =>
+				api.transport.request('PUT', '/v1/profiles/me/customisation', {
+					body: value
+				}),
+			() => {
+				savedColour = value.colour;
+				savedBackground = value.profileBackground;
+			},
+			'Profile customisation saved.'
 		);
 	}
-	function notification(
+	async function setMessaging(enabled: boolean) {
+		if (work.busy || work.retry) return;
+		const previous = connected;
+		let confirmed = false;
+		connected = enabled;
+		await work.run(
+			async () => {
+				const status = await api.chat.setConnection(enabled);
+				if (status.enabled !== enabled)
+					throw new Error(
+						'Messaging connection change was not confirmed. Try again.'
+					);
+				const [policy, preference] = await Promise.allSettled([
+					status.enabled && status.capabilities.canSetPolicy
+						? api.chat.incoming()
+						: Promise.resolve(null),
+					status.enabled
+						? api.chat.pushPreference()
+						: Promise.resolve({ pushEnabled: status.pushEnabled })
+				]);
+				return { status, policy, preference };
+			},
+			({ status, policy, preference }) => {
+				confirmed = true;
+				connected = status.enabled;
+				chatState = status.state;
+				canSetPolicy = status.capabilities.canSetPolicy;
+				push =
+					preference.status === 'fulfilled'
+						? preference.value.pushEnabled
+						: status.pushEnabled;
+				incoming =
+					policy.status === 'fulfilled'
+						? policy.value?.allowIncoming || 'everyone'
+						: 'everyone';
+				if (policy.status === 'rejected' || preference.status === 'rejected')
+					work.error = 'Some messaging settings could not load. Try again.';
+			},
+			''
+		);
+		if (!disposed && !confirmed) connected = previous;
+	}
+	async function changePush(next: boolean) {
+		if (work.busy || work.retry) return;
+		const previous = push;
+		push = next;
+		await work.run(
+			() => api.chat.setPushPreference(next),
+			(saved) => {
+				push = saved.pushEnabled;
+			},
+			''
+		);
+		if (!disposed && work.error) push = previous;
+	}
+	async function changeIncoming(next: 'everyone' | 'following' | 'nobody') {
+		if (work.busy || work.retry) return;
+		const previous = incoming;
+		incoming = next;
+		await work.run(
+			() => api.chat.setIncoming(next),
+			(saved) => {
+				incoming = saved.allowIncoming;
+			},
+			''
+		);
+		if (!disposed && work.error) incoming = previous;
+	}
+	async function notification(
 		category: string,
 		field: 'scope' | 'pushEnabled',
 		value: string | boolean
 	) {
-		void work.run(
+		if (work.busy || work.retry) return;
+		const previous = preferences;
+		const pref = preferences.preferences[category];
+		if (!pref) return;
+		const next =
+			field === 'scope'
+				? { ...pref, scope: value as typeof pref.scope }
+				: { ...pref, pushEnabled: value === true };
+		preferences = {
+			...preferences,
+			preferences: { ...preferences.preferences, [category]: next }
+		};
+		await work.run(
 			() =>
 				api.notifications.patchPreferences({
 					preferences: { [category]: { [field]: value } }
@@ -180,146 +290,163 @@
 				preferences = result;
 			}
 		);
+		if (!disposed && work.error) preferences = previous;
 	}
 </script>
 
-<h1>
-	{section === 'customisation' ? 'Profile customisation' : title(section)}
+<h1 class="workspace-heading">
+	{section === 'customisation'
+		? 'Customisation'
+		: section === 'notifications'
+			? 'Notification settings'
+			: section === 'messaging'
+				? 'Direct messages'
+				: title(section)}
 </h1>
 <Feedback {work} reload={load} />
 {#if section === 'appearance'}
-	<section class="panel">
-		<h2>Colour theme</h2>
-		<p class="muted">Choose how CraftSky looks on this browser.</p>
-		<div class="stack">
-			{#each [['system', 'Use device setting'], ['light', 'Light'], ['dark', 'Dark']] as [value, label]}<label
-					class="check"
-					><input
-						type="radio"
-						name="theme"
-						checked={theme === value}
-						onchange={() => setTheme(value)}
-					/>{label}</label
-				>{/each}
-		</div>
-	</section>
-{:else if section === 'privacy'}
-	<section class="panel">
-		<h2>Error reporting</h2>
-		{#if diagnosticsConfigured()}<label class="check"
+	<div class="native-list" role="radiogroup" aria-label="Colour theme">
+		{#each [['system', 'Use device setting'], ['light', 'Light'], ['dark', 'Dark']] as [value, label]}<label
+				class="check native-option"
 				><input
-					type="checkbox"
-					bind:checked={diagnostics}
-					onchange={() => {
-						try {
-							setConsent(diagnostics);
-							work.notice = 'Privacy preference saved.';
-						} catch {
-							work.error = 'This browser could not save your preference.';
-						}
-					}}
-				/>Allow optional diagnostics on this browser</label
-			>
-			<p class="muted">
-				Help improve CraftSky by allowing technical error reports. Your posts,
-				messages and credentials are never included.
-			</p>
-		{:else}<p class="muted">
-				Optional error reporting is not configured for this web client.
-			</p>{/if}
-		<a href="https://craftsky.social/privacy" target="_blank" rel="noreferrer"
-			>Privacy policy ↗</a
+					type="radio"
+					name="theme"
+					checked={theme === value}
+					onchange={() => setTheme(value)}
+				/><span>{label}</span><SettingsIcon name={value} /></label
+			>{/each}
+	</div>
+{:else if section === 'privacy'}
+	<div class="native-list">
+		<label class="switch-row native-option"
+			><SettingsIcon name="errorReporting" /><span class="tile-copy"
+				><span>Error reporting</span><small
+					>Send crash reports and diagnostic logs to help improve CraftSky.</small
+				>{#if !diagnosticsConfigured()}<small
+						>Optional error reporting is not configured for this web client.</small
+					>{/if}</span
+			><input
+				type="checkbox"
+				role="switch"
+				aria-label="Error reporting"
+				checked={diagnostics}
+				disabled={!diagnosticsConfigured()}
+				onchange={(event) => {
+					try {
+						setConsent(event.currentTarget.checked);
+						diagnostics = event.currentTarget.checked;
+						work.notice = 'Privacy preference saved.';
+					} catch {
+						work.error = 'This browser could not save your preference.';
+					}
+				}}
+			/></label
 		>
-	</section>
-{:else if !work.loading && section === 'languages'}
-	<form class="panel stack" onsubmit={saveLanguages}>
-		<fieldset class="form-fields" disabled={work.busy || !!work.retry}>
-			<h2>Your languages</h2>
-			<p class="muted">
-				App language: English. CraftSky currently offers its interface in
-				English.
-			</p>
-			<label
-				>Primary language<select required bind:value={primary}
-					>{#each languageOptions as language}<option value={language.tag}
-							>{language.name}</option
-						>{/each}</select
-				></label
-			>
-			<fieldset>
-				<legend>Content languages</legend><label
-					>Find a language<input
-						type="search"
-						bind:value={languageSearch}
-						placeholder="Search languages"
-					/></label
-				>
-				<p class="muted">
-					{content
-						? content
-								.split(', ')
-								.map(
-									(tag) =>
-										languageOptions.find((value) => value.tag === tag)?.name ||
-										tag
-								)
-								.join(', ')
-						: 'All languages'}
-				</p>
-				<div class="language-list">
-					{#each languageMatches as language}<label class="check"
-							><input
-								type="checkbox"
-								checked={content.split(', ').includes(language.tag)}
-								onchange={() => toggleLanguage(language.tag)}
-							/>{language.name}</label
-						>{/each}
-				</div>
-			</fieldset>
-			<p class="muted">
-				These preferences help label your posts and find content you can read.
-				Leave content languages empty to include all languages.
-			</p>
-			<button class="primary" disabled={work.busy}>Save languages</button>
-		</fieldset>
-	</form>
-{:else if !work.loading && section === 'notifications'}
-	<PushSettings {api} {session} />
-	<section class="panel">
-		<h2>Activity notifications</h2>
-		<p class="muted">
-			Choose whose activity appears and which categories can send push
-			notifications to your registered devices.
+	</div>
+{:else if !work.loading && loaded && section === 'languages'}
+	<section class="panel stack">
+		<label
+			>App language<select value="en"
+				><option value="en">English</option></select
+			></label
+		>
+		<p class="helper">
+			Select which language to use for the app's user interface.
 		</p>
-		{#each Object.entries(preferences.preferences) as [category, pref]}<div
-				class="row"
+		<p class="helper section-heading">
+			<SettingsIcon name="translate" size={18} />More app languages are coming.
+		</p>
+	</section>
+	<section class="panel stack">
+		<label
+			>Primary language<select
+				required
+				value={primary}
+				disabled={work.busy || !!work.retry}
+				onchange={(event) =>
+					replaceLanguages(event.currentTarget.value, content)}
+				>{#each languageOptions as language}<option value={language.tag}
+						>{language.name}</option
+					>{/each}</select
+			></label
+		>
+		<p class="helper">
+			Select the default language used when you create a post.
+		</p>
+	</section>
+	<section class="panel stack">
+		<MultiSelect
+			label="Content languages"
+			placeholder="Add more languages…"
+			values={content.split(', ').filter(Boolean)}
+			options={languageOptions.map((value) => ({
+				id: value.tag,
+				label: value.name
+			}))}
+			maximum={50}
+			disabled={work.busy || !!work.retry}
+			onchange={(values) => {
+				replaceLanguages(primary, values.join(', '));
+			}}
+		/>
+		<p class="helper">
+			Select which languages you want posts in your feeds and discovery results
+			to include. If none are selected, all languages will be shown.
+		</p>
+	</section>
+{:else if !work.loading && loaded && section === 'notifications'}
+	<p class="muted notification-intro">
+		Category preferences apply to all devices signed in to this account.
+	</p>
+	<PushSettings {api} {session} />
+	{#each notificationCategories as category}{@const pref =
+			preferences.preferences[category]}{#if pref}<section
+				class="panel notification-card"
 			>
-				<div>
-					<h3>{notificationLabels[category] || title(category)}</h3>
-					{#if !['moderation', 'instagramMatch'].includes(category)}<label
-							><span class="muted">Notify me about</span><select
-								value={pref.scope}
-								disabled={work.busy}
-								onchange={(e) =>
-									notification(category, 'scope', e.currentTarget.value)}
-								><option value="everyone">Everyone</option><option
-									value="peopleIFollow">People I follow</option
-								></select
-							></label
-						>{/if}
-				</div>
-				<label class="check"
-					><input
+				<h2 class="section-heading">
+					<SettingsIcon
+						name={category === 'instagramMatch'
+							? 'instagram'
+							: category === 'everythingElse'
+								? 'notifications'
+								: category}
+					/>{notificationLabels[category]}
+				</h2>
+				{#if category === 'instagramMatch'}<p class="helper">
+						Push alerts are based on your private Instagram matches and never
+						name the matched account.
+					</p>{:else if category === 'moderation'}<p class="helper">
+						Push alerts notify you about changes to your account standing.
+						Turning them off does not change your standing, moderation history,
+						or enforcement.
+					</p>{:else}<label
+						>From<select
+							value={pref.scope}
+							disabled={work.busy}
+							onchange={(event) =>
+								notification(category, 'scope', event.currentTarget.value)}
+							><option value="everyone">Everyone</option><option
+								value="peopleIFollow">People I follow</option
+							></select
+						></label
+					>{/if}
+				<label class="switch-row notification-push"
+					><span class="tile-copy">Push notifications</span><input
 						type="checkbox"
+						role="switch"
+						aria-label={`${notificationLabels[category]} push notifications`}
 						checked={pref.pushEnabled}
 						disabled={work.busy}
-						onchange={(e) =>
-							notification(category, 'pushEnabled', e.currentTarget.checked)}
-					/>Push</label
+						onchange={(event) =>
+							notification(
+								category,
+								'pushEnabled',
+								event.currentTarget.checked
+							)}
+					/></label
 				>
-			</div>{/each}
-	</section>
-{:else if !work.loading && section === 'customisation'}
+			</section>{/if}{/each}
+{:else if !work.loading && loaded && section === 'customisation'}
 	{#if !allowsPlus}<section class="panel">
 			<h2>Make your profile your own</h2>
 			<p>
@@ -330,133 +457,246 @@
 				>View subscription access</a
 			>
 		</section>
-	{:else}<form class="panel stack" onsubmit={saveCustomisation}>
+	{:else}<form class="stack customisation-form" onsubmit={saveCustomisation}>
 			<fieldset class="form-fields" disabled={work.busy || !!work.retry}>
+				<div
+					class="profile-preview"
+					role="img"
+					aria-label="Profile customisation preview"
+					style={`--chosen-colour:${colours[colour]}`}
+				>
+					{#if pattern}<div
+							class="preview-pattern"
+							aria-hidden="true"
+							style={`mask-image:url('${pattern}')`}
+						></div>{/if}
+					<Avatar
+						author={{
+							did: session.did,
+							handle: session.handle,
+							displayName: profileName,
+							avatar: profileAvatar
+						}}
+						large
+					/>
+				</div>
 				<fieldset>
-					<legend>Profile colour</legend>
-					<div class="pills">
-						{#each Object.entries(colours) as [value, hex]}<label class="check"
+					<legend>Colour</legend>
+					<div class="pills colour-choices">
+						{#each Object.entries(colours) as [value, hex]}<label
+								class="check"
+								style={colour === value ? `background:${hex};color:white` : ''}
 								><input
 									type="radio"
 									name="colour"
 									bind:group={colour}
 									{value}
-								/><span class="swatch" style={`background:${hex}`}
-								></span>{title(value)}</label
+								/>{value === 'lime' ? 'Green' : title(value)}</label
 							>{/each}
 					</div>
 				</fieldset>
-				<label
-					>Profile background<select bind:value={background}
-						>{#each backgrounds as value}<option {value}>{title(value)}</option
-							>{/each}</select
-					></label
+				<fieldset>
+					<legend>Profile background</legend>
+					<div class="pills">
+						{#each backgrounds as value}<label class="check"
+								><input
+									type="radio"
+									name="background"
+									bind:group={background}
+									{value}
+								/>{backgroundLabels[value] || title(value)}</label
+							>{/each}
+					</div>
+				</fieldset>
+				<button
+					class="primary customisation-save"
+					disabled={work.busy || !customDirty}>Save</button
 				>
-				<div class="preview" style={`--chosen-colour:${colours[colour]}`}>
-					{#if pattern}<div
-							class="preview-pattern"
-							aria-hidden="true"
-							style={`background-image:url('${pattern}');background-size:${background.startsWith('craft-') ? '100px' : '160px'}`}
-						></div>{/if}
-					<strong>{session.handle}</strong><span
-						>{background === 'none'
-							? 'Your craft, your space.'
-							: title(background)}</span
-					>
-				</div>
-				<button class="primary" disabled={work.busy}>Save customisation</button>
 			</fieldset>
 		</form>{/if}
-{:else if !work.loading && section === 'messaging'}
-	<section class="panel stack">
-		<h2>Direct messages</h2>
-		<p>
-			{chatState === 'ready'
-				? 'Messaging is connected to your account.'
-				: chatState === 'authorizationNeeded'
-					? 'Verify your identity to finish connecting messaging.'
-					: chatState === 'unavailable'
-						? 'Messaging is temporarily unavailable.'
-						: chatState === 'restricted'
-							? 'Messaging is restricted for this account.'
-							: 'Messaging is not connected.'}
-		</p>
-		<a class="action" href="/app/messages"
-			>{connected ? 'Open messages' : 'Connect messaging'}</a
-		>{#if connected}{#if canSetPolicy}<label
-					>Who can send message requests?<select
-						bind:value={incoming}
-						disabled={work.busy}
-						onchange={() => work.run(() => api.chat.setIncoming(incoming))}
+{:else if !work.loading && loaded && section === 'messaging'}
+	<div class="stack messaging-preferences">
+		{#if !connected}<div class="stack">
+				<p>
+					This is your shared Bluesky inbox, showing conversations with CraftSky
+					members, including those started in other apps. Read, accept, mute and
+					leave actions also affect those apps.
+				</p>
+				<p>
+					Messages are stored by Bluesky, outside public PDS records. They are
+					not end-to-end encrypted.
+				</p>
+				<p>
+					Message reports go to Bluesky only. CraftSky moderators do not receive
+					these reports.
+				</p>
+			</div>{/if}
+		<label class="switch-row"
+			><span class="tile-copy"
+				><span>Enable messaging</span><small
+					>Use messaging in CraftSky. Turning it off stops CraftSky message
+					access and push notifications.</small
+				></span
+			><input
+				type="checkbox"
+				role="switch"
+				checked={connected}
+				disabled={work.busy || !!work.retry}
+				onchange={(event) => setMessaging(event.currentTarget.checked)}
+			/></label
+		>
+		{#if chatState === 'authorizationNeeded'}<p class="notice">
+				Verify your identity to finish connecting messaging.
+			</p>
+			<a class="action" href="/app/messages">Review permissions</a
+			>{:else if chatState === 'unavailable'}<p class="notice">
+				Messaging is temporarily unavailable.
+			</p>{:else if chatState === 'restricted'}<p class="notice">
+				Messaging is restricted for this account.
+			</p>{/if}
+		{#if connected}<label class="switch-row"
+				><span class="tile-copy"
+					><span>Push notifications</span><small
+						>Receive push notifications about new messages.</small
+					></span
+				><input
+					type="checkbox"
+					role="switch"
+					checked={push}
+					disabled={work.busy || !!work.retry}
+					onchange={(event) => changePush(event.currentTarget.checked)}
+				/></label
+			>
+			<p class="muted">
+				This setting is shared with Bluesky and other apps. Changes may take
+				time to appear there and do not remove existing conversations.
+			</p>
+			{#if canSetPolicy}<label
+					>Who can message me<select
+						value={incoming}
+						disabled={work.busy || !!work.retry}
+						onchange={(event) =>
+							changeIncoming(event.currentTarget.value as typeof incoming)}
 						><option value="everyone">Everyone</option><option value="following"
 							>People I follow</option
 						><option value="nobody">Nobody</option></select
 					></label
-				>{/if}<label class="check"
-				><input
-					type="checkbox"
-					bind:checked={push}
-					disabled={work.busy}
-					onchange={() => work.run(() => api.chat.setPushPreference(push))}
-				/>Message notifications on registered mobile devices</label
-			><button
-				class="danger"
-				disabled={work.busy}
-				onclick={() => {
-					if (
-						confirm(
-							'Disconnect direct messaging? Your messages remain on the messaging service.'
-						)
-					)
-						void work.run(
-							() => api.chat.setConnection(false),
-							() => {
-								connected = false;
-								chatState = 'disabled';
-							},
-							'Messaging disconnected.'
-						);
-				}}>Disconnect messaging</button
-			>{/if}
-	</section>
+				>{:else}<p class="helper">
+					Reconnect with incoming-message settings permission to change this
+					shared setting.
+				</p>
+				<a class="action" href="/app/messages">Review messaging permissions</a
+				>{/if}
+			<a class="action" href="/app/messages">Open messages</a>
+		{/if}
+	</div>
 {/if}
 
 <style>
-	.swatch {
-		height: 18px;
-		width: 18px;
-		border: 1px solid var(--ink);
-		border-radius: 50%;
-	}
-	.preview {
+	.profile-preview {
+		height: 160px;
 		position: relative;
 		overflow: hidden;
-		border-radius: 12px;
+		display: flex;
+		align-items: center;
+		justify-content: center;
 		background: var(--chosen-colour);
-		color: white;
-		padding: 2rem;
-		display: grid;
-		gap: 0.5rem;
-	}
-	.preview strong,
-	.preview span {
-		position: relative;
-		z-index: 1;
+		border-radius: 0;
+		margin-bottom: 8px;
 	}
 	.preview-pattern {
 		position: absolute;
 		inset: 0;
 		opacity: 0.18;
+		background: #fff;
+		mask-repeat: repeat;
+		mask-mode: alpha;
+		image-rendering: pixelated;
 		pointer-events: none;
 	}
-	.preview strong {
-		font-size: 1.5rem;
+	.profile-preview :global(.avatar) {
+		position: relative;
+		width: 106px;
+		height: 106px;
+		border: 5px solid var(--chosen-colour);
+		border-radius: 50%;
+		box-shadow: none;
 	}
-	.language-list {
-		max-height: 320px;
-		overflow: auto;
-		display: grid;
-		gap: 0.7rem;
-		padding: 0.5rem 0;
+	.profile-preview :global(.avatar > span) {
+		font-size: 38px;
+	}
+
+	:global(.settings-workspace) .customisation-form .pills label {
+		font-size: 13px;
+		line-height: 1.3;
+		font-weight: 600;
+		min-height: 34px;
+		padding: 6px 12px;
+		gap: 0;
+		position: relative;
+	}
+	:global(.settings-workspace) .customisation-form .pills input {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		opacity: 0;
+	}
+	:global(.settings-workspace)
+		.customisation-form
+		.pills
+		label:has(input:focus-visible) {
+		outline: 3px solid var(--primary);
+		outline-offset: 3px;
+	}
+	:global(.settings-workspace[data-settings-page='languages']) label {
+		font-size: 16px;
+	}
+	:global(.settings-workspace[data-settings-page='languages']) select {
+		border-radius: 14px;
+		border-color: var(--ink-3);
+		min-height: 52px;
+	}
+	.profile-preview :global(.avatar[data-swatch='paper']) {
+		background: var(--paper-2);
+	}
+	:global(.settings-workspace) .customisation-save {
+		width: 100%;
+		margin-top: 12px;
+	}
+	:global(.settings-workspace) .notification-intro {
+		font-size: 16px;
+	}
+	:global(.settings-workspace) .notification-card > label {
+		font-size: 16px;
+	}
+	:global(.settings-workspace) .notification-card select {
+		border-radius: 14px;
+		border-color: var(--ink-3);
+		min-height: 52px;
+	}
+	.notification-push .tile-copy {
+		font-weight: 600;
+	}
+	:global(.settings-workspace) .customisation-save:disabled {
+		opacity: 1;
+		background: color-mix(in srgb, var(--ink) 30%, var(--paper));
+		color: var(--surface);
+		border-color: color-mix(in srgb, var(--ink) 40%, var(--paper));
+		box-shadow: 3px 3px 0 color-mix(in srgb, var(--ink) 20%, var(--paper));
+	}
+	.notification-intro {
+		margin: 16px 0 24px;
+	}
+	.notification-push {
+		border-top: 1px solid var(--hairline);
+		padding-top: 16px;
+		margin-top: 20px;
+	}
+	.notification-card > label:not(.notification-push) {
+		margin-top: 24px;
+	}
+	.messaging-preferences {
+		padding: 8px;
+		gap: 24px;
 	}
 </style>

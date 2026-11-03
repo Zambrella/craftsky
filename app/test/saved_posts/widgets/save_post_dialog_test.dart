@@ -21,8 +21,32 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../../support/native_reference_capture.dart';
+
 void main() {
   setUpAll(initializeMappers);
+
+  testWidgets(
+    'capture native Save dialog without saving or creating folders',
+    (tester) async {
+      await prepareNativeReference(tester);
+      final repository = _DialogSavedPostRepository(
+        folderPages: {null: const SavedPostFolderPage(items: [])},
+      );
+      await _pumpDialog(tester, AccountKey('did:plc:alice'), repository);
+      await tester.pumpAndSettle();
+      expect(repository.saveCalls, 0);
+      expect(repository.createNames, isEmpty);
+      await saveNativeReference(tester, 'save-post-dialog');
+      await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
+      await tester.pumpAndSettle();
+      expect(find.byType(SavePostDialog), findsNothing);
+      expect(repository.saveCalls, 0);
+      expect(repository.createNames, isEmpty);
+    },
+    skip: !const bool.fromEnvironment('CAPTURE_NATIVE_REFERENCES'),
+    variant: TargetPlatformVariant.only(TargetPlatform.iOS),
+  );
 
   group('folder-enabled save dialog', () {
     testWidgets('AT-002 pages distinct folders and confirms once', (
@@ -380,25 +404,27 @@ Future<void> _pumpDialog(
   SavedPostRepository repository,
 ) => tester
     .pumpWidget(
-      ProviderScope(
-        overrides: [
-          accountSavedPostRepositoryProvider(
-            account,
-          ).overrideWith((ref) async => repository),
-        ],
-        child: MaterialApp(
-          theme: AppTheme.lightThemeData,
-          localizationsDelegates: appLocalizationsDelegates,
-          supportedLocales: AppLocalizations.supportedLocales,
-          home: Scaffold(
-            body: Builder(
-              builder: (context) => FilledButton(
-                onPressed: () => showSavePostDialog(
-                  context,
-                  account: account,
-                  post: _post(),
+      NativeReferenceFrame(
+        child: ProviderScope(
+          overrides: [
+            accountSavedPostRepositoryProvider(
+              account,
+            ).overrideWith((ref) async => repository),
+          ],
+          child: MaterialApp(
+            theme: AppTheme.lightThemeData,
+            localizationsDelegates: appLocalizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: Scaffold(
+              body: Builder(
+                builder: (context) => FilledButton(
+                  onPressed: () => showSavePostDialog(
+                    context,
+                    account: account,
+                    post: _post(),
+                  ),
+                  child: const Text('Open'),
                 ),
-                child: const Text('Open'),
               ),
             ),
           ),

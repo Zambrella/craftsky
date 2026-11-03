@@ -154,41 +154,52 @@ test('craft filters support multiple selections, repeated wire values and URL re
 		return route.fulfill({ json: { items: [] } });
 	});
 	await page.goto('/app/home?craft=knitting');
-	await page.getByText('Filter projects', { exact: true }).click();
+	await page.getByRole('button', { name: /^Filter projects/ }).click();
+	await expect(
+		page.getByRole('dialog', { name: 'Filter Knitting projects', exact: true })
+	).toBeVisible();
 	await page
-		.locator('details[data-filter="patternDifficulty"] > summary')
+		.getByRole('searchbox', { name: 'Pattern difficulty', exact: true })
 		.click();
 	await expect(
 		page
-			.getByRole('group', { name: 'Pattern difficulty', exact: true })
+			.getByRole('group', { name: 'Pattern difficulty options', exact: true })
 			.getByRole('checkbox', { name: 'Intermediate', exact: true })
 	).toHaveCount(1);
-	await page.locator('details[data-filter="projectType"] > summary').click();
 	await page
-		.getByRole('group', { name: 'Project type', exact: true })
+		.getByRole('searchbox', { name: 'Project type', exact: true })
+		.click();
+	await page
+		.getByRole('group', { name: 'Project type options', exact: true })
 		.getByRole('checkbox', { name: 'Garment', exact: true })
 		.check();
 	await page
-		.getByRole('group', { name: 'Project type', exact: true })
+		.getByRole('group', { name: 'Project type options', exact: true })
 		.getByRole('checkbox', { name: 'Accessory', exact: true })
 		.check();
-	await page.locator('details[data-filter="projectSubtype"] > summary').click();
+	await page.keyboard.press('Escape');
+	await page
+		.getByRole('searchbox', { name: 'Project subtype', exact: true })
+		.click();
 	expect(
 		await page
-			.getByRole('group', { name: 'Project subtype', exact: true })
+			.getByRole('group', { name: 'Project subtype options', exact: true })
 			.getByRole('checkbox')
 			.count()
 	).toBeGreaterThan(1);
-	await page.locator('details[data-filter="color"] > summary').click();
+	await page.keyboard.press('Escape');
+	await page.getByRole('searchbox', { name: 'Color', exact: true }).click();
 	await page
-		.getByRole('group', { name: 'Colour', exact: true })
+		.getByRole('group', { name: 'Color options', exact: true })
 		.getByRole('checkbox', { name: 'Blue', exact: true })
 		.check();
 	await page
-		.getByRole('group', { name: 'Colour', exact: true })
+		.getByRole('group', { name: 'Color options', exact: true })
 		.getByRole('checkbox', { name: 'Red', exact: true })
 		.check();
-	await page.getByRole('button', { name: 'Apply', exact: true }).click();
+	await page
+		.getByRole('button', { name: 'Apply filters', exact: true })
+		.click();
 	await expect.poll(() => requests.length).toBe(2);
 	const query = requests[1].searchParams;
 	expect(query.getAll('color').sort()).toEqual(['blue', 'red']);
@@ -201,16 +212,19 @@ test('craft filters support multiple selections, repeated wire values and URL re
 	expect(query.getAll('craftType')).toEqual([
 		'social.craftsky.feed.defs#knitting'
 	]);
-	await page.getByText('Filter projects', { exact: true }).click();
-	await page.locator('details[data-filter="color"] > summary').click();
+	await page.getByRole('button', { name: /^Filter projects/ }).click();
+	await expect(
+		page.getByRole('dialog', { name: 'Filter Knitting projects', exact: true })
+	).toBeVisible();
+	await page.getByRole('searchbox', { name: 'Color', exact: true }).click();
 	await expect(
 		page
-			.getByRole('group', { name: 'Colour', exact: true })
+			.getByRole('group', { name: 'Color options', exact: true })
 			.getByRole('checkbox', { name: 'Blue', exact: true })
 	).toBeChecked();
 	await expect(
 		page
-			.getByRole('group', { name: 'Colour', exact: true })
+			.getByRole('group', { name: 'Color options', exact: true })
 			.getByRole('checkbox', { name: 'Red', exact: true })
 	).toBeChecked();
 });
@@ -258,7 +272,7 @@ test('pin controls use the actual slot state and exclude replies', async ({
 		replyCard.getByRole('button', { name: /^(Unpin|Pin)$/ })
 	).toHaveCount(0);
 	await expect(
-		replyCard.getByRole('link', { name: 'Quote', exact: true })
+		replyCard.getByRole('link', { name: 'Quote post', exact: true })
 	).toHaveCount(0);
 });
 test('a profile Message destination opens the selected recipient conversation', async ({
@@ -325,7 +339,9 @@ test('profile headers tint craft textures and keep popularity counts in settings
 	).toContain('/profile_backgrounds/craft-knitting.svg');
 	await expect(page.getByText('99 followers', { exact: true })).toHaveCount(0);
 	await expect(page.getByText('88 following', { exact: true })).toHaveCount(0);
-	await expect(
-		page.getByText('3 posts in the last 7 days', { exact: true })
-	).toBeVisible();
+	const summary = page.locator('.profile-stats');
+	await expect(summary.getByText('3 posts', { exact: true })).toBeVisible();
+	await expect(summary.getByText('Last 7 days', { exact: true })).toBeVisible();
+	await expect(summary.getByText('2', { exact: true })).toBeVisible();
+	await expect(summary.getByText('Projects', { exact: true })).toBeVisible();
 });

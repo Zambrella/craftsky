@@ -29,13 +29,34 @@
 		record,
 		str,
 		textLength,
-		validateDraft
+		validateDraft,
+		selectedQuoteImage,
+		responseLabel,
+		scheduledLocalDate,
+		scheduledUTCDate
 	} from './model.ts';
-	import { inspectVideo, prepareImage, uploadVideo } from './media.ts';
+	import {
+		attachmentSelection,
+		inspectVideo,
+		prepareImage,
+		uploadVideo
+	} from './media.ts';
 	import ProjectEditor from './ProjectEditor.svelte';
 	import MediaEditor from './MediaEditor.svelte';
 	import FacetTextInput from './FacetTextInput.svelte';
+	import LanguagePicker from './LanguagePicker.svelte';
+	import ComposerTarget from './ComposerTarget.svelte';
+	import SchedulePicker from './SchedulePicker.svelte';
+	import SponsoredPicker from './SponsoredPicker.svelte';
+	import ComposerLinkPreview from './ComposerLinkPreview.svelte';
+	import {
+		ComposerLinkPreviews,
+		previewNavigation,
+		type PreviewState
+	} from './link-preview';
+	import Icon from '../shell/Icon.svelte';
 	import VideoPlayer from '../social/VideoPlayer.svelte';
+	import { ComposerRecovery } from './recovery';
 	import './composer.css';
 	let {
 		api,
@@ -58,11 +79,27 @@
 	let stored = $state('');
 	let mounted = $state(false);
 	let dirty = $state(false);
+	let recovery = $state<ComposerRecovery>();
+	let closeDialog: HTMLDialogElement;
+	let closing = $state(false);
+	let existingDraft = $state(false);
+	let closeDestination = $state('/app/home');
+	let closeTarget = $state('/app/home');
+	let approvedNavigation = false;
+	let editRevision = 0;
 	let context = $state<Post>();
-	let language = $state('en');
 	let scheduleAt = $state('');
 	let showSchedule = $state(false);
-	let link = $state('');
+	let scheduleFull = $state(false);
+	let previews = $state<ComposerLinkPreviews>();
+	let externalFrozen = $state(false);
+	let previewState = $state<PreviewState>({
+		index: 0,
+		total: 0,
+		loading: false,
+		dismissed: false,
+		suppressed: false
+	});
 	let videoURL = $state('');
 	let generation = 0;
 	let destroyed = false;
@@ -71,7 +108,11 @@
 		getContext<
 			() => import('#lib/api/client.ts').SubscriptionAccess | undefined
 		>('craftsky-access');
-	const locked = $derived(busy || mediaTasks.length > 0 || !!draft.pending);
+	const locked = $derived(
+		busy || closing || mediaTasks.length > 0 || !!draft.pending
+	);
+	// Compare the live immutable Blob identities: snapshots clone Blob instances.
+	const changed = $derived(recovery?.hasChanges(draft) ?? false);
 	function mediaBusy(id: string, value: boolean) {
 		if (value && !mediaTasks.includes(id)) mediaTasks = [...mediaTasks, id];
 		else if (!value && mediaTasks.includes(id))
@@ -91,18 +132,24 @@
 			!draft.quote &&
 			!draft.video
 	);
+	const canChooseSchedule = $derived(
+		!draft.edit && !draft.reply && !draft.quote && !draft.video
+	);
 	const title = $derived(
 		draft.edit
 			? 'Edit post'
 			: draft.reply
-				? 'Reply'
+				? responseLabel(draft)
 				: draft.quote
-					? 'Quote post'
+					? 'Quote'
 					: draft.scheduleId
 						? 'Edit scheduled post'
 						: draft.kind === 'project'
-							? 'New project'
+							? 'Project post'
 							: 'New post'
+	);
+	const canSaveDraft = $derived(
+		!draft.reply && !draft.quote && !draft.edit && !draft.scheduleId
 	);
 	const draftSize = $derived(textLength(draft.text));
 	const fixedEmbed = $derived(
@@ -115,6 +162,27 @@
 	const retainedVideo = $derived(
 		!!draft.edit?.post.video && draft.embedChanges !== null && !draft.video
 	);
+	const retainedExternal = $derived(externalFrozen && !!draft.external);
+	const previewSuppressed = $derived(
+		draft.kind === 'project' ||
+			fixedEmbed ||
+			retainedVideo ||
+			retainedExternal ||
+			!!draft.quote ||
+			!!draft.video ||
+			draft.images.length > 0 ||
+			(!!draft.edit && draft.text === str(draft.edit.editable.text))
+	);
+	const canAddVideo = $derived(
+		!fixedEmbed &&
+			!draft.images.length &&
+			!draft.quote &&
+			!draft.reply &&
+			!retainedExternal &&
+			!showSchedule &&
+			!draft.scheduleId &&
+			!draft.video
+	);
 	$effect(() => {
 		const identity = session.did;
 		const route = path.join('/');
@@ -123,6 +191,20 @@
 			untrack(() => {
 				void initialize(identity, route, new URLSearchParams(query));
 			});
+	});
+	$effect(() => {
+		const text = draft.text,
+			suppressed = previewSuppressed,
+			dismissed = draft.externalDismissed === true;
+		if (
+			mounted &&
+			initialized &&
+			!loading &&
+			!busy &&
+			!closing &&
+			!draft.pending
+		)
+			untrack(() => previews?.update(text, suppressed, dismissed));
 	});
 	$effect(() => {
 		const video = draft.video;
@@ -135,29 +217,22 @@
 		};
 	});
 	$effect(() => {
-		if (!mounted || loading || busy) return;
+		const lifecycle = recovery;
+		if (!mounted || loading || busy || closing || !lifecycle?.active) return;
 		const snapshot = $state.snapshot(draft as unknown) as Draft;
 		JSON.stringify(snapshot);
-		if (
-			!snapshot.text &&
-			!snapshot.images.length &&
-			!snapshot.video &&
-			!snapshot.external &&
-			!snapshot.edit &&
-			!snapshot.scheduleId &&
-			!snapshot.pending &&
-			JSON.stringify(snapshot.project || {}) ===
-				JSON.stringify(snapshot.kind === 'project' ? defaultProject() : {})
-		)
+		const revision = ++editRevision;
+		if (!changed && !snapshot.pending) {
+			dirty = false;
 			return;
+		}
 		dirty = true;
-		const owner = session.did;
 		const seq = generation;
 		const timer = setTimeout(() => {
-			void drafts
-				.save(owner, snapshot)
+			void lifecycle
+				.checkpoint(snapshot)
 				.then(() => {
-					if (seq === generation && !destroyed) {
+					if (seq === generation && revision === editRevision && !destroyed) {
 						stored = 'Draft saved on this device';
 						dirty = false;
 					}
@@ -173,26 +248,102 @@
 		mounted = true;
 	});
 	beforeNavigate((nav) => {
-		if (mediaEdits.length && !confirm('Discard unapplied image edits?')) {
+		if (approvedNavigation || !initialized || nav.willUnload) return;
+		if (draft.pending) return; // Exact durable recovery survives leaving a pending action.
+		if (changed || mediaEdits.length) {
 			nav.cancel();
-			return;
+			requestClose(nav.to?.url.href || closeDestination);
 		}
-		if (dirty && !loading && !busy && !draft.pending)
-			void drafts
-				.save(session.did, $state.snapshot(draft as unknown) as Draft)
-				.catch(() => {});
 	});
 	onDestroy(() => {
+		preserveRecovery();
 		destroyed = true;
 		generation++;
 		controller.abort();
+		previews?.dispose();
+		closeDialog?.close();
 	});
+	function preserveRecovery() {
+		const lifecycle = recovery;
+		if (
+			!approvedNavigation &&
+			initialized &&
+			lifecycle?.active &&
+			lifecycle.hasChanges(draft)
+		) {
+			void lifecycle
+				.checkpoint($state.snapshot(draft as unknown) as Draft)
+				.catch(() => {});
+		}
+		lifecycle?.abandon();
+	}
+	async function leaveEditor(destination: string) {
+		approvedNavigation = true;
+		try {
+			await goto(destination);
+		} finally {
+			approvedNavigation = false;
+		}
+	}
+	function requestClose(destination = closeDestination) {
+		if (closing) return;
+		if (draft.pending) {
+			void leaveEditor(destination).catch((e) => {
+				error = message(e);
+			});
+			return;
+		}
+		closeTarget = destination;
+		if (!changed && !mediaEdits.length && !busy && !mediaTasks.length) {
+			void leaveEditor(destination).catch((e) => {
+				error = message(e);
+			});
+			return;
+		}
+		closeDialog.showModal();
+	}
+	function keepEditing() {
+		if (!closing) closeDialog.close();
+	}
+	async function discardDraft() {
+		const lifecycle = recovery,
+			seq = generation;
+		if (!lifecycle?.active || locked || mediaEdits.length) return;
+		previews?.pause();
+		closing = true;
+		error = '';
+		try {
+			await lifecycle.discard($state.snapshot(draft as unknown) as Draft);
+			if (seq !== generation || destroyed || recovery !== lifecycle) return;
+			dirty = false;
+			closeDialog.close();
+			await leaveEditor(closeTarget);
+		} catch (e) {
+			if (seq === generation && !destroyed) error = message(e);
+		} finally {
+			if (seq === generation && !destroyed) closing = false;
+		}
+	}
 	async function initialize(
 		owner: string,
 		route: string,
 		query: URLSearchParams
 	) {
+		preserveRecovery();
+		previews?.dispose();
+		previews = undefined;
+		previewState = {
+			index: 0,
+			total: 0,
+			loading: false,
+			dismissed: false,
+			suppressed: false
+		};
+		recovery = undefined;
+		closeDialog?.close();
+		closing = false;
 		const seq = ++generation;
+		const ownedApi = api;
 		controller.abort();
 		controller = new AbortController();
 		loading = true;
@@ -203,7 +354,9 @@
 		stored = '';
 		busy = false;
 		dirty = false;
+		scheduleFull = false;
 		try {
+			let nextContext: Post | undefined;
 			let next = newDraft(
 				owner,
 				route.includes('project') ? 'project' : 'standard'
@@ -231,7 +384,7 @@
 					throw new Error('This draft was not found for your account.');
 				next = value;
 			} else if (scheduled) {
-				const item = await api.schedules.get(scheduled);
+				const item = await ownedApi.schedules.get(scheduled);
 				const payload = item.payload;
 				next = {
 					...next,
@@ -244,7 +397,8 @@
 					sponsored: payload.sponsored === true,
 					project: payload.project ? record(payload.project) : undefined,
 					scheduleId: item.id,
-					scheduledAt: item.scheduledAt
+					scheduledAt: item.scheduledAt,
+					scheduleLater: true
 				};
 				const media = Array.isArray(payload.media)
 					? payload.media.map(record)
@@ -252,7 +406,7 @@
 				next.images = await Promise.all(
 					media.map(async (value) => {
 						const id = str(value.id);
-						const bytes = await api.schedules.media(id, controller.signal);
+						const bytes = await ownedApi.schedules.media(id, controller.signal);
 						return {
 							id,
 							scheduledId: id,
@@ -275,7 +429,7 @@
 					};
 					if (external.thumbMediaId) {
 						const id = str(external.thumbMediaId);
-						const bytes = await api.schedules.media(id, controller.signal);
+						const bytes = await ownedApi.schedules.media(id, controller.signal);
 						next.externalImage = {
 							id,
 							scheduledId: id,
@@ -289,7 +443,7 @@
 			} else if (mode === 'edit') {
 				if (!did || !rkey || did !== owner)
 					throw new Error('Choose one of your posts to edit.');
-				const seed = await api.posts.editSeed(did, rkey);
+				const seed = await ownedApi.posts.editSeed(did, rkey);
 				const value = seed.editable;
 				next = {
 					...next,
@@ -342,28 +496,129 @@
 			} else if (mode === 'reply' || mode === 'quote') {
 				if (!did || !rkey)
 					throw new Error('Choose a post to reply to or quote.');
-				const target = await api.posts.get(did, rkey);
+				const [target, preferences] = await Promise.all([
+					ownedApi.posts.get(did, rkey),
+					ownedApi.languages.get().catch(() => undefined)
+				]);
+				if (preferences) next.langs = [preferences.primaryLanguage];
 				if (!('author' in target)) throw new Error('This post is unavailable.');
 				if (mode === 'quote' && target.reply)
 					throw new Error(
 						'Replies cannot be quoted. Open the original post to quote it.'
 					);
-				context = target;
+				nextContext = target;
 				const ref: StrongRef = { uri: target.uri, cid: target.cid };
 				if (mode === 'reply')
 					next.reply = { root: target.reply?.root || ref, parent: ref };
-				else next.quote = ref;
+				else {
+					next.quote = ref;
+					next.quoteImageCid = selectedQuoteImage(
+						target,
+						query.get('imageCid')
+					);
+				}
 			} else {
-				const preferences = await api.languages.get().catch(() => undefined);
+				const [preferences, profile] = await Promise.all([
+					ownedApi.languages.get().catch(() => undefined),
+					next.kind === 'project'
+						? ownedApi.profiles.me().catch(() => undefined)
+						: Promise.resolve(undefined)
+				]);
 				if (preferences) next.langs = [preferences.primaryLanguage];
+				if (next.kind === 'project') {
+					next.project = defaultProject(profile?.crafts);
+				}
 			}
 			if (seq !== generation || destroyed) return;
+			if (saved && (next.reply || next.quote)) {
+				const ref = next.reply?.parent || next.quote;
+				const parts = ref?.uri.split('/');
+				if (parts?.length === 5 && parts[3] === 'social.craftsky.feed.post') {
+					const target = await ownedApi.posts.get(parts[2], parts[4]);
+					if ('author' in target) nextContext = target;
+					if (next.quote && nextContext)
+						next.quoteImageCid = selectedQuoteImage(
+							nextContext,
+							next.quoteImageCid
+						);
+				}
+			}
+			if (seq !== generation || destroyed) return;
+			if (!next.reply && !next.quote && !next.edit) {
+				void ownedApi.schedules
+					.list()
+					.then((capacity) => {
+						if (seq === generation && !destroyed)
+							scheduleFull = !next.scheduleId && capacity.items.length >= 3;
+					})
+					.catch(() => {});
+			}
 			if (next.kind === 'project' && !next.project)
 				next.project = defaultProject();
+			context = nextContext;
+			if (nextContext && query.get('imageCid') && !next.quoteImageCid)
+				notice =
+					'The selected image is no longer available. Your quote will use the original post.';
+			existingDraft = !!saved;
+			closeDestination = saved
+				? '/app/drafts'
+				: scheduled
+					? '/app/scheduled'
+					: did && rkey
+						? `/app/posts/${encodeURIComponent(did)}/${encodeURIComponent(rkey)}`
+						: '/app/home';
+			closeTarget = closeDestination;
+			recovery = new ComposerRecovery(owner, next.id, next, !!saved);
 			draft = next;
+			externalFrozen =
+				!!next.edit &&
+				!!next.external &&
+				next.external.uri ===
+					str(record(record(next.edit.editable.embed).external).uri);
+			previews = new ComposerLinkPreviews(
+				async (candidate, signal) => {
+					const value = await ownedApi.media.linkPreview(
+						candidate.identity,
+						signal
+					);
+					if (
+						typeof value.title !== 'string' ||
+						typeof value.description !== 'string' ||
+						!value.title.trim()
+					)
+						throw new Error('Invalid link preview response');
+					const external = {
+						uri: previewNavigation(
+							{ ...candidate, fragment: '' },
+							value.url || value.uri || candidate.identity
+						),
+						title: value.title,
+						description: value.description
+					};
+					const image = await previewThumbnail(record(value.thumbnail), signal);
+					return { external, image };
+				},
+				(state) => {
+					if (seq !== generation || destroyed) return;
+					previewState = state;
+					if (loading || busy || closing || draft.pending || retainedExternal)
+						return;
+					draft.external = state.selected?.external;
+					draft.externalImage = state.selected?.image;
+					draft.externalSource = state.selected?.sourceIdentity;
+					draft.externalResolvedURI = state.selected?.resolvedURI;
+				}
+			);
+			if (next.external && !retainedExternal)
+				previews.seed(next.text, {
+					external: next.external,
+					image: next.externalImage,
+					sourceIdentity: next.externalSource,
+					resolvedURI: next.externalResolvedURI
+				});
 			initialized = true;
-			language = next.langs.join(', ');
-			showSchedule = !!next.scheduleId;
+			showSchedule =
+				!!next.scheduleId || next.scheduleLater === true || !!next.scheduledAt;
 			scheduleAt = next.scheduledAt ? localDate(next.scheduledAt) : '';
 		} catch (e) {
 			if (seq === generation && !destroyed) error = message(e);
@@ -372,10 +627,13 @@
 		}
 	}
 	function localDate(value: string) {
-		const date = new Date(value);
-		return new Date(date.getTime() - date.getTimezoneOffset() * 60000)
-			.toISOString()
-			.slice(0, 16);
+		return scheduledLocalDate(value);
+	}
+	function changeSchedule(later: boolean, date: string) {
+		showSchedule = later;
+		scheduleAt = date;
+		draft.scheduleLater = later;
+		draft.scheduledAt = later ? scheduledUTCDate(date) : undefined;
 	}
 	function message(e: unknown) {
 		if (e instanceof APIError && e.fields)
@@ -386,26 +644,51 @@
 			? e.message
 			: 'The action could not be completed.';
 	}
-	async function saveDraft() {
-		const owner = session.did,
+	async function saveDraft(destination = closeDestination) {
+		const lifecycle = recovery,
 			seq = generation;
+		if (
+			!lifecycle?.active ||
+			!canSaveDraft ||
+			locked ||
+			mediaEdits.length ||
+			!changed
+		)
+			return;
+		previews?.pause();
+		closing = true;
+		error = '';
 		try {
-			await drafts.save(owner, $state.snapshot(draft as unknown) as Draft);
-			if (seq === generation && !destroyed) {
-				stored = 'Draft saved on this device';
-				notice = 'Your draft and media are saved on this device.';
-				dirty = false;
-			}
+			await lifecycle.checkpoint($state.snapshot(draft as unknown) as Draft);
+			if (seq !== generation || destroyed || recovery !== lifecycle) return;
+			dirty = false;
+			stored = 'Draft saved on this device';
+			closeDialog.close();
+			window.dispatchEvent(
+				new CustomEvent('craftsky-draft-saved', {
+					detail: { accountId: session.id, did: lifecycle.owner }
+				})
+			);
+			await leaveEditor(destination);
 		} catch (e) {
 			if (seq === generation && !destroyed) error = message(e);
+		} finally {
+			if (seq === generation && !destroyed) closing = false;
 		}
 	}
-	function setLanguages(value: string) {
-		language = value;
-		draft.langs = value
-			.split(',')
-			.map((item) => item.trim())
-			.filter(Boolean);
+
+	async function addAttachments(files: FileList | null) {
+		if (!files || locked) return;
+		try {
+			const kind = attachmentSelection(Array.from(files));
+			if (kind === 'video') {
+				if (!canAddVideo)
+					throw new Error('Video cannot be added to this post.');
+				await addVideo(files);
+			} else if (kind === 'images') await addImages(files);
+		} catch (e) {
+			error = message(e);
+		}
 	}
 	async function addImages(files: FileList | null) {
 		if (!files || locked) return;
@@ -422,6 +705,12 @@
 			}
 			if (seq === generation && !destroyed) {
 				draft.images = [...draft.images, ...prepared];
+				if (!retainedExternal) {
+					draft.external = undefined;
+					draft.externalImage = undefined;
+					draft.externalSource = undefined;
+					draft.externalResolvedURI = undefined;
+				}
 				if (draft.edit?.post.video) draft.embedChanges = null;
 			}
 		} catch (e) {
@@ -442,6 +731,10 @@
 			const value = await inspectVideo(files[0]);
 			if (seq === generation && !destroyed) {
 				draft.video = value;
+				draft.external = undefined;
+				draft.externalImage = undefined;
+				draft.externalSource = undefined;
+				draft.externalResolvedURI = undefined;
 				draft.videoRecovery = 0;
 			}
 		} catch (e) {
@@ -457,38 +750,46 @@
 		[copy[index], copy[other]] = [copy[other], copy[index]];
 		draft.images = copy;
 	}
-	async function previewLink() {
-		const seq = generation;
-		busy = true;
-		error = '';
+	async function previewThumbnail(
+		thumb: JsonObject,
+		signal: AbortSignal
+	): Promise<DraftMedia | undefined> {
+		if (
+			typeof thumb.bytes !== 'string' ||
+			!/^(image\/jpeg|image\/png|image\/webp)$/.test(str(thumb.mimeType)) ||
+			thumb.bytes.length > 1_333_336 ||
+			thumb.bytes.length % 4 !== 0
+		)
+			return;
 		try {
-			const value = await api.media.linkPreview(link, controller.signal);
-			if (seq !== generation || destroyed) return;
-			draft.external = {
-				uri: value.url || link,
-				title: value.title,
-				description: value.description
-			};
-			const thumb = record(value.thumbnail);
+			const decoded = atob(thumb.bytes);
 			if (
-				typeof thumb.bytes === 'string' &&
-				thumb.bytes.length < 1_400_000 &&
-				typeof thumb.mimeType === 'string'
-			) {
-				const bytes = Uint8Array.from(atob(thumb.bytes), (char) =>
-					char.charCodeAt(0)
-				);
-				const prepared = await prepareImage(
-					new Blob([bytes], { type: thumb.mimeType }),
-					'Link preview'
-				);
-				if (seq === generation && !destroyed) draft.externalImage = prepared;
-			}
-		} catch (e) {
-			if (seq === generation && !destroyed) error = message(e);
-		} finally {
-			if (seq === generation && !destroyed) busy = false;
+				decoded.length > 1_000_000 ||
+				btoa(decoded) !== thumb.bytes ||
+				signal.aborted
+			)
+				return;
+			const image = await prepareImage(
+				new Blob([Uint8Array.from(decoded, (char) => char.charCodeAt(0))], {
+					type: str(thumb.mimeType)
+				}),
+				'Link preview'
+			);
+			return signal.aborted ? undefined : image;
+		} catch {
+			return;
 		}
+	}
+	function dismissPreview() {
+		if (locked) return;
+		draft.externalDismissed = true;
+		externalFrozen = false;
+		draft.external = undefined;
+		draft.externalImage = undefined;
+		draft.externalSource = undefined;
+		draft.externalResolvedURI = undefined;
+		if (draft.edit && record(record(draft.edit.editable.embed).external).uri)
+			draft.embedChanges = null;
 	}
 	async function immediateImage(
 		image: DraftMedia,
@@ -546,7 +847,7 @@
 		if (media.length) payload.media = media;
 		if (value.external) {
 			const external: JsonObject = {
-				sourceUri: value.external.uri,
+				sourceUri: value.externalSource || value.external.uri,
 				uri: value.external.uri,
 				title: value.external.title,
 				description: value.external.description
@@ -557,10 +858,17 @@
 		}
 		return payload;
 	}
+	function checkpoint(owner: string, value: Draft) {
+		const lifecycle = recovery;
+		return lifecycle?.owner === owner && lifecycle.id === value.id
+			? lifecycle.checkpoint(value)
+			: drafts.save(owner, value);
+	}
 	async function submit(
 		action: 'publish' | 'schedule' | 'publish-now' = 'publish'
 	) {
-		if (busy || mediaTasks.length || mediaEdits.length || loading) return;
+		if (busy || closing || mediaTasks.length || mediaEdits.length || loading)
+			return;
 		if (draft.pending) {
 			await retry();
 			return;
@@ -569,6 +877,7 @@
 			seq = generation;
 		const signal = controller.signal;
 		const working = $state.snapshot(draft as unknown) as Draft;
+		previews?.pause();
 		busy = true;
 		error = '';
 		notice = '';
@@ -681,7 +990,7 @@
 			draft = working;
 			// Keep an exact durable request before starting an externally visible write.
 			try {
-				await drafts.save(owner, $state.snapshot(draft as unknown) as Draft);
+				await checkpoint(owner, $state.snapshot(draft as unknown) as Draft);
 			} catch (storageError) {
 				draft.pending = undefined;
 				throw storageError;
@@ -726,6 +1035,10 @@
 		draftId: string
 	) {
 		progress = 'Confirming your post…';
+		const lifecycle =
+			recovery?.owner === owner && recovery.id === draftId
+				? recovery
+				: undefined;
 		try {
 			let destination = '/app/home';
 			let resultNotice = 'Your post has been published.';
@@ -774,12 +1087,19 @@
 			}
 			// An accepted public write stays accepted even if local cleanup fails.
 			// A retained pending draft can only recheck the original idempotent action.
-			await drafts.remove(owner, draftId).catch(() => {});
+			await (
+				lifecycle ? lifecycle.complete() : drafts.remove(owner, draftId)
+			).catch(() => {});
 			if (seq !== generation || destroyed) return;
 			draft.pending = undefined;
 			notice = resultNotice;
 			dirty = false;
-			await goto(destination);
+			try {
+				await leaveEditor(destination);
+			} catch {
+				error =
+					'Your action completed, but the next page could not be opened. Use navigation to continue.';
+			}
 		} catch (e) {
 			if (seq !== generation || destroyed) return;
 			const uncertain =
@@ -790,7 +1110,7 @@
 			if (uncertain) {
 				error =
 					'This action is still being confirmed. The exact request has been saved. Retry to check the same action; do not create a second post.';
-				await drafts.save(owner, $state.snapshot(draft as unknown) as Draft);
+				await checkpoint(owner, $state.snapshot(draft as unknown) as Draft);
 			} else {
 				draft.pending = undefined;
 				if (
@@ -800,7 +1120,7 @@
 				) {
 					draft.videoRecovery = (draft.videoRecovery || 0) + 1;
 				}
-				await drafts.save(owner, $state.snapshot(draft as unknown) as Draft);
+				await checkpoint(owner, $state.snapshot(draft as unknown) as Draft);
 				if (e instanceof APIError && e.status === 409)
 					error =
 						'This post changed while you were editing. Your draft is saved. Reload the current post before applying your changes.';
@@ -824,11 +1144,30 @@
 <svelte:window onbeforeunload={beforeLeave} />
 <section class="composer">
 	<header class="composer-heading">
-		<div>
-			<p class="eyebrow">Share what you make</p>
-			<h1>{title}</h1>
-		</div>
-		<a href="/app/drafts">Drafts</a>
+		<a
+			class="close-composer"
+			href={closeDestination}
+			aria-label="Close editor"
+			aria-disabled={closing}
+			onclick={(event) => {
+				event.preventDefault();
+				requestClose();
+			}}><Icon name="close" /></a
+		>
+		<h1>{title}</h1>
+		{#if canSaveDraft}<button
+				class="save-draft"
+				type="button"
+				onclick={() => saveDraft()}
+				disabled={!initialized ||
+					!changed ||
+					closing ||
+					busy ||
+					mediaTasks.length > 0 ||
+					mediaEdits.length > 0 ||
+					!!draft.pending}
+				>{existingDraft ? 'Save changes' : 'Save draft'}</button
+			>{/if}
 	</header>
 	{#if error}<div class="composer-error" role="alert">{error}</div>{/if}
 	{#if notice}<p role="status" class="composer-notice">{notice}</p>{/if}
@@ -842,253 +1181,284 @@
 					new URLSearchParams(page.url.search)
 				)}>Try loading the editor again</button
 		>{:else}
-		{#if draft.pending}<section class="composer-pending">
-				<h2>Waiting for confirmation</h2>
-				<p>
-					Your original action is saved and editing is paused while its outcome
-					is checked.
-				</p>
-				<button class="primary" disabled={busy} onclick={retry}
-					>Check the same action</button
-				>
-			</section>{/if}
-		{#if context}<blockquote class="context">
-				<strong>{context.author.displayName || context.author.handle}</strong>
-				<p>{context.text}</p>
-				{#if draft.quote && context.images?.length}<label
-						>Image from the quoted post<select
-							disabled={locked}
-							value={draft.quoteImageCid || ''}
-							onchange={(e) =>
-								(draft.quoteImageCid = e.currentTarget.value || undefined)}
-							><option value="">No selected image</option
-							>{#each context.images as image, index}{#if image.cid}<option
-										value={image.cid}
-										>{image.alt || `Image ${index + 1}`}</option
-									>{/if}{/each}</select
-						></label
-					>{/if}
-			</blockquote>{/if}
 		<form
+			class:project-composer={draft.kind === 'project'}
 			onsubmit={(e) => {
 				e.preventDefault();
-				void submit(showSchedule ? 'schedule' : 'publish');
 			}}
 		>
-			<fieldset disabled={locked} class="editor-fields">
-				{#if !draft.edit && !draft.reply && !draft.quote}<div
-						class="kind-switch"
-						role="group"
-						aria-label="Post type"
-					>
-						<button
-							type="button"
-							aria-pressed={draft.kind === 'standard'}
-							onclick={() => (draft.kind = 'standard')}>Post</button
-						><button
-							type="button"
-							aria-pressed={draft.kind === 'project'}
-							onclick={() => {
-								draft.kind = 'project';
-								draft.project ||= defaultProject();
-							}}>Project</button
+			<div class="composer-scroll">
+				{#if draft.pending}<section class="composer-pending">
+						<h2>Waiting for confirmation</h2>
+						<p>
+							Your original action is saved and editing is paused while its
+							outcome is checked.
+						</p>
+						<button class="primary" disabled={busy} onclick={retry}
+							>Check the same action</button
 						>
+					</section>{/if}
+				{#if context}<div class="target-context">
+						<ComposerTarget post={context} fullText={!!draft.reply} />
 					</div>{/if}
-				<div class="post-text-label">
-					<FacetTextInput
-						{api}
-						label={draft.reply
-							? 'Your reply'
-							: draft.kind === 'project'
-								? 'Tell the story of your project'
-								: 'What have you been making?'}
-						value={draft.text}
-						onchange={(value) => (draft.text = value)}
-						rows={6}
-						disabled={locked}
-						className="post-text"
-						placeholder={draft.reply
-							? 'Add your reply…'
-							: 'Share a little of your craft…'}
-					/>
-				</div>
-				<p class:over-limit={draftSize > 2000} class="character-count">
-					{draftSize.toLocaleString()} / 2,000
-				</p>
-				{#if draft.kind === 'project' && draft.project}<ProjectEditor
-						{api}
-						disabled={locked}
-						project={draft.project}
-						onchange={(value) => (draft.project = value)}
-					/>{/if}
-				<section class="composer-section">
-					<h2>Photos and video</h2>
-					<div class="toolbar">
-						{#if !draft.video && draft.images.length < 8 && !draft.external}<label
-								class="file-button"
-								>＋ Add images<input
+				<fieldset disabled={locked} class="editor-fields">
+					{#if draft.kind === 'project' && draft.project}<ProjectEditor
+							{api}
+							owner={session.id + ':' + session.did}
+							disabled={locked}
+							project={draft.project}
+							part="main"
+							onchange={(value) => (draft.project = value)}
+						/>{/if}
+					<div class="post-text-label">
+						<FacetTextInput
+							{api}
+							label={draft.reply
+								? `Write your ${responseLabel(draft).toLowerCase()}`
+								: draft.kind === 'project'
+									? 'Project description'
+									: 'What would you like to share?'}
+							hint="required"
+							value={draft.text}
+							onchange={(value) => (draft.text = value)}
+							rows={draft.reply ? 5 : draft.kind === 'project' ? 6 : 3}
+							disabled={locked}
+							className="post-text"
+							placeholder={draft.reply
+								? `Add your ${responseLabel(draft).toLowerCase()}…`
+								: draft.kind === 'project'
+									? 'Tell everyone about your project'
+									: "Share what you're making, learning, or thinking..."}
+						/>
+					</div>
+					<p class:over-limit={draftSize > 2000} class="character-count">
+						{draftSize}/2000
+					</p>
+
+					<section class="composer-section attachment-section">
+						<h2>
+							Photos{#if draft.kind === 'project'}<span class="required-note"
+									>required</span
+								>{/if}
+						</h2>
+						{#if !draft.video && !retainedVideo}<div class="attachment-help">
+								<p>
+									<span class="alt-symbol" aria-hidden="true">ALT</span>{draft
+										.images.length
+										? `${draft.images.filter((image) => image.alt.trim()).length} / ${draft.images.length} described`
+										: '0 described'}
+								</p>
+								<p>
+									{draft.images.length
+										? `${draft.images.length} of 8 photos · Use the arrows to reorder`
+										: 'Up to 8 photos'}
+								</p>
+							</div>{/if}
+						{#if !draft.video && draft.images.length < 8 && !retainedExternal}<label
+								class="file-button attachment-picker"
+								><span class="attachment-add-icon"
+									><Icon name="plus" size={34} /></span
+								><span class="attachment-picker-copy"
+									><strong
+										>{canAddVideo
+											? 'Add photos or a video'
+											: draft.images.length
+												? 'Add another photo'
+												: 'Add a photo'}</strong
+									><small
+										>{canAddVideo
+											? 'Up to 8 photos or one video'
+											: draft.images.length
+												? `${8 - draft.images.length} photos remaining`
+												: 'Up to 8 photos'}</small
+									></span
+								><input
 									type="file"
-									accept="image/jpeg,image/png,image/webp"
+									aria-label={canAddVideo
+										? 'Add photos or a video'
+										: 'Add images'}
+									accept={canAddVideo
+										? 'image/jpeg,image/png,image/webp,video/mp4'
+										: 'image/jpeg,image/png,image/webp'}
 									multiple
-									onchange={(e) => {
-										void addImages(e.currentTarget.files);
-										e.currentTarget.value = '';
-									}}
-								/></label
-							>{/if}{#if !fixedEmbed && !draft.images.length && !draft.quote && !draft.reply && !draft.external && !draft.video}<label
-								class="file-button"
-								>▷ Add video<input
-									type="file"
-									accept="video/mp4"
-									onchange={(e) => {
-										void addVideo(e.currentTarget.files);
-										e.currentTarget.value = '';
+									onchange={(event) => {
+										void addAttachments(event.currentTarget.files);
+										event.currentTarget.value = '';
 									}}
 								/></label
 							>{/if}
-					</div>
-					{#if draft.images.length}<div class="media-grid">
-							{#each draft.images as image, index (image.id)}<MediaEditor
-									media={image}
-									{index}
-									count={draft.images.length}
-									disabled={locked}
-									onBusyChange={(value) => mediaBusy(image.id, value)}
-									onEditingChange={(value) => mediaEditing(image.id, value)}
-									onchange={(value) => (draft.images[index] = value)}
-									onremove={() =>
-										(draft.images = draft.images.filter(
-											(item) => item.id !== image.id
-										))}
-									onmove={(direction) => moveImage(index, direction)}
-								/>{/each}
-						</div>{/if}
-					{#if draft.video}<div class="video-editor">
-							<video controls src={videoURL} aria-label="Video preview"
-								><track kind="captions" /></video
-							><label
-								>Video description<textarea
-									maxlength="1000"
-									rows="2"
-									bind:value={draft.video.alt}
-									placeholder="Describe what happens in this video"
-								></textarea></label
-							><button
-								type="button"
-								class="danger"
-								onclick={() => (draft.video = undefined)}>Remove video</button
-							>
-							<p class="muted">MP4 · up to ten minutes · up to 300 MB</p>
-						</div>{/if}
-					{#if retainedVideo && draft.edit?.post.video}
-						<div class="video-editor">
-							<VideoPlayer
-								video={draft.edit.post.video}
-								{api}
-								did={draft.edit.post.author.did}
-								rkey={draft.edit.post.rkey}
-							/>
-							<label
-								>Video description<textarea
-									rows="2"
-									maxlength="1000"
-									value={str(
-										draft.embedChanges?.alt ??
-											record(draft.edit.editable.embed).alt
-									)}
-									oninput={(e) =>
-										(draft.embedChanges = { alt: e.currentTarget.value })}
-								></textarea></label
-							>
-							<button
-								type="button"
-								class="danger"
-								onclick={() => (draft.embedChanges = null)}
-								>Remove published video</button
-							>
-						</div>
-					{/if}
-				</section>
-				{#if (draft.kind !== 'project' || draft.external) && !fixedEmbed && !retainedVideo && !draft.quote && !draft.video && !draft.images.length}<section
-						class="composer-section"
-					>
-						<h2>Link preview</h2>
-						{#if draft.external}<div class="external-preview">
-								<label>Title<input bind:value={draft.external.title} /></label
+
+						{#if draft.images.length}<div class="media-grid">
+								{#each draft.images as image, index (image.id)}<MediaEditor
+										media={image}
+										{index}
+										count={draft.images.length}
+										disabled={locked}
+										onBusyChange={(value) => mediaBusy(image.id, value)}
+										onEditingChange={(value) => mediaEditing(image.id, value)}
+										onchange={(value) => (draft.images[index] = value)}
+										onremove={() =>
+											(draft.images = draft.images.filter(
+												(item) => item.id !== image.id
+											))}
+										onmove={(direction) => moveImage(index, direction)}
+									/>{/each}
+							</div>{/if}
+						{#if draft.video}<div class="video-editor">
+								<div class="video-selected">
+									<Icon name="video" /><span
+										><strong>Video selected</strong><small
+											>{draft.video.name}</small
+										></span
+									>
+								</div>
+								<video controls src={videoURL} aria-label="Video preview"
+									><track kind="captions" /></video
 								><label
-									>Description<textarea
+									>Video description<textarea
+										maxlength="1000"
 										rows="2"
-										bind:value={draft.external.description}></textarea></label
-								><a href={draft.external.uri} target="_blank" rel="noreferrer"
-									>{draft.external.uri}</a
+										bind:value={draft.video.alt}
+										placeholder="Describe what happens in this video"
+									></textarea></label
+								><label class="file-button replace-video"
+									>Replace video<input
+										type="file"
+										accept="video/mp4"
+										aria-label="Replace video"
+										onchange={(event) => {
+											void addVideo(event.currentTarget.files);
+											event.currentTarget.value = '';
+										}}
+									/></label
 								><button
 									type="button"
+									class="danger"
 									onclick={() => {
-										draft.external = undefined;
-										draft.externalImage = undefined;
-									}}>Remove preview</button
+										draft.video = undefined;
+										draft.videoRecovery = 0;
+									}}>Remove video</button
 								>
-							</div>{:else}<div class="inline-field">
-								<input
-									type="url"
-									aria-label="Link to preview"
-									bind:value={link}
-									placeholder="https://"
-								/><button type="button" onclick={previewLink} disabled={!link}
-									>Add preview</button
-								>
+								<p class="muted">MP4 · up to ten minutes · up to 300 MB</p>
 							</div>{/if}
-					</section>{/if}
-				<section class="composer-section">
-					<div class="fields">
-						<label
-							>Post languages<span class="muted"
-								>Language tags separated by commas</span
-							><input
-								value={language}
-								oninput={(e) => setLanguages(e.currentTarget.value)}
-								placeholder="en, fr"
-							/></label
-						>{#if !draft.reply}<label class="check"
-								><input
-									type="checkbox"
-									bind:checked={draft.sponsored}
-								/>Sponsored content</label
-							>{/if}
+						{#if retainedVideo && draft.edit?.post.video}
+							<div class="video-editor">
+								<VideoPlayer
+									video={draft.edit.post.video}
+									{api}
+									did={draft.edit.post.author.did}
+									rkey={draft.edit.post.rkey}
+								/>
+								<label
+									>Video description<textarea
+										rows="2"
+										maxlength="1000"
+										value={str(
+											draft.embedChanges?.alt ??
+												record(draft.edit.editable.embed).alt
+										)}
+										oninput={(e) =>
+											(draft.embedChanges = { alt: e.currentTarget.value })}
+									></textarea></label
+								>
+								<label class="file-button replace-video"
+									>Replace video<input
+										type="file"
+										accept="video/mp4"
+										aria-label="Replace video"
+										onchange={(event) => {
+											void addVideo(event.currentTarget.files);
+											event.currentTarget.value = '';
+										}}
+									/></label
+								>
+								<button
+									type="button"
+									class="danger"
+									onclick={() => (draft.embedChanges = null)}
+									>Remove published video</button
+								>
+							</div>
+						{/if}
+					</section>
+					{#if draft.external && !draft.images.length && !draft.quote && !draft.video && !retainedVideo}<div
+							class="link-preview-section"
+						>
+							<ComposerLinkPreview
+								external={draft.external}
+								image={draft.externalImage}
+								thumbnailUrl={draft.edit?.post.external?.thumb?.url}
+								loading={previewState.loading}
+								index={retainedExternal ? 1 : previewState.index || 1}
+								total={retainedExternal ? 1 : previewState.total || 1}
+								disabled={locked}
+								onremove={dismissPreview}
+								onprevious={() => previews?.move(-1)}
+								onnext={() => previews?.move(1)}
+							/>
+						</div>
+					{:else if previewState.loading && !previewSuppressed && !draft.externalDismissed}<p
+							role="status"
+							class="link-preview-section"
+						>
+							Loading link preview
+						</p>{/if}
+					{#if draft.externalDismissed && !previewSuppressed}<p
+							class="link-preview-section preview-dismissed"
+							role="status"
+						>
+							Link previews hidden <button
+								type="button"
+								disabled={locked}
+								onclick={() => {
+									draft.externalDismissed = false;
+								}}>Undo</button
+							>
+						</p>{/if}
+					<div class="metadata-controls" aria-label="Post options">
+						<LanguagePicker
+							owner={session.id + ':' + session.did}
+							languages={draft.langs}
+							disabled={locked}
+							onchange={(value) => (draft.langs = value)}
+						/>
+						{#if !draft.reply}<SponsoredPicker
+								owner={session.id + ':' + session.did}
+								value={draft.sponsored}
+								disabled={locked}
+								onchange={(value) => (draft.sponsored = value)}
+							/>{/if}
+						{#if canChooseSchedule && !draft.pending}<SchedulePicker
+								owner={session.id + ':' + session.did}
+								later={showSchedule}
+								value={scheduleAt}
+								disabled={locked || (!!tier && !tier() && !draft.scheduleId)}
+								fixed={!!draft.scheduleId}
+								allowed={canSchedule}
+								full={scheduleFull}
+								onchange={changeSchedule}
+							/>{/if}
 					</div>
-				</section>
-			</fieldset>
-			{#if canSchedule && !draft.pending}<section class="composer-section">
-					<label class="check"
-						><input
-							type="checkbox"
-							bind:checked={showSchedule}
-							disabled={busy || !!draft.scheduleId}
-						/>Schedule for later</label
-					>{#if showSchedule}<label
-							>Publish date and time<input
-								type="datetime-local"
-								bind:value={scheduleAt}
-								min={localDate(
-									new Date(Date.now() + 5 * 60 * 1000).toISOString()
-								)}
-								disabled={busy}
-								required
-							/><span class="muted"
-								>Your time zone: {Intl.DateTimeFormat().resolvedOptions()
-									.timeZone}. CraftSky Plus or Business is required.</span
-							></label
-						>{/if}
-				</section>{/if}
+					{#if canChooseSchedule && scheduleFull}<p class="schedule-warning">
+							You can't schedule another post because you already have 3
+							scheduled posts. <a href="/app/scheduled"
+								>Manage scheduled posts</a
+							>
+						</p>{/if}
+					{#if draft.kind === 'project' && draft.project}<ProjectEditor
+							{api}
+							owner={session.id + ':' + session.did}
+							disabled={locked}
+							project={draft.project}
+							part="details"
+							onchange={(value) => (draft.project = value)}
+						/>{/if}
+				</fieldset>
+			</div>
 			<footer class="composer-actions">
 				<span class="muted" role="status">{progress || stored}</span>
 				<div class="toolbar">
-					<button
-						type="button"
-						onclick={saveDraft}
-						disabled={busy || mediaTasks.length > 0 || mediaEdits.length > 0}
-						>Save draft</button
-					>{#if draft.scheduleId && !draft.pending}<button
+					{#if draft.scheduleId && !draft.pending}<button
 							type="button"
 							onclick={() => submit('publish-now')}
 							disabled={busy}>Publish now</button
@@ -1097,8 +1467,10 @@
 						type="button"
 						onclick={() => submit(showSchedule ? 'schedule' : 'publish')}
 						disabled={busy ||
+							closing ||
 							mediaTasks.length > 0 ||
 							mediaEdits.length > 0 ||
+							(showSchedule && scheduleFull) ||
 							loading}
 						>{busy
 							? 'Working…'
@@ -1109,11 +1481,51 @@
 									: draft.edit
 										? 'Save changes'
 										: draft.reply
-											? 'Reply'
-											: 'Publish'}</button
+											? responseLabel(draft)
+											: 'Post'}</button
 					>
 				</div>
 			</footer>
 		</form>
 	{/if}
 </section>
+
+<dialog
+	bind:this={closeDialog}
+	class="composer-close-dialog"
+	aria-label={canSaveDraft ? 'Save your draft?' : 'Discard draft?'}
+	oncancel={(event) => {
+		if (closing) event.preventDefault();
+	}}
+>
+	<h2>{canSaveDraft ? 'Save your draft?' : 'Discard draft?'}</h2>
+	<p>
+		{canSaveDraft
+			? 'You can save this work on this device before closing.'
+			: "Your changes won't be saved."}
+	</p>
+	{#if draft.pending}<p>
+			Check the original action before discarding this draft.
+		</p>{/if}
+	{#if mediaEdits.length || mediaTasks.length || busy}<p>
+			Finish or cancel your media edit before closing.
+		</p>{/if}
+	{#if error}<p class="error" role="alert">{error}</p>{/if}
+	<div class="composer-close-actions">
+		<button type="button" disabled={closing} onclick={keepEditing}
+			>Keep editing</button
+		><button
+			type="button"
+			class="danger"
+			disabled={locked || mediaEdits.length > 0}
+			onclick={discardDraft}
+			>{existingDraft ? 'Discard changes' : 'Discard'}</button
+		>{#if canSaveDraft}<button
+				type="button"
+				class="primary"
+				disabled={locked || mediaEdits.length > 0 || !changed}
+				onclick={() => saveDraft(closeTarget)}
+				>{existingDraft ? 'Save changes' : 'Save draft'}</button
+			>{/if}
+	</div>
+</dialog>

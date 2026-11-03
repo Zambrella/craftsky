@@ -44,7 +44,8 @@ function oauthFlow(name, callback, device, kind, sourceToken) {
 	return flow;
 }
 const owners = { alice: 'did:plc:alice', bob: 'did:plc:bob' };
-let settings = new Map();
+let settings = new Map(),
+	visualStates = new Map();
 let calls = [],
 	posts = new Map(),
 	mutations = new Map(),
@@ -93,8 +94,297 @@ const post = (owner, rkey = 'first', payload = {}) => ({
 	viewerHasSaved: false,
 	...payload
 });
+// Rich, account-scoped read models are opt-in review fixtures, never live chat/PDS data.
+const visualImage = {
+	cid: 'bafyvisualillustration',
+	mime: 'image/png',
+	size: 22000,
+	alt: 'CraftSky hand illustration',
+	thumb: 'https://fixture.craftsky.test/app-icon.png',
+	fullsize: 'https://fixture.craftsky.test/app-icon.png',
+	aspectRatio: { width: 512, height: 512 }
+};
+function visualData(owner) {
+	if (visualStates.has(owner)) return visualStates.get(owner);
+	const other = owner === owners.alice ? owners.bob : owners.alice;
+	const peers = [
+		{ ...profile(other), available: true },
+		{
+			...profile(other),
+			did: 'did:plc:visual-martha',
+			handle: 'martha.makes.test',
+			displayName: 'Martha Jones',
+			accountType: 'regular',
+			business: undefined,
+			crafts: ['social.craftsky.feed.defs#sewing'],
+			viewerIsFollowing: true,
+			available: true
+		},
+		{
+			...profile(other),
+			did: 'did:plc:visual-theo',
+			handle: 'theo.knits.test',
+			displayName: 'Theo Chen',
+			accountType: 'regular',
+			business: undefined,
+			crafts: ['social.craftsky.feed.defs#knitting'],
+			viewerIsFollowing: true,
+			available: true
+		}
+	];
+	const timestamp = '2026-11-02T10:30:00Z';
+	const first = posts.get(`${owner}/first`);
+	if (first)
+		Object.assign(first, {
+			images: [visualImage],
+			likeCount: 12,
+			replyCount: 3,
+			viewerHasSaved: true
+		});
+	const project = post(owner, 'visual-cardigan', {
+		text: 'A cosy cardigan for autumn afternoons. I loved working with this wool.',
+		images: [visualImage],
+		tags: ['knitting', 'cardigan'],
+		likeCount: 24,
+		replyCount: 4,
+		viewerHasSaved: true,
+		project: {
+			common: {
+				title: 'Weekend cardigan',
+				craftType: 'social.craftsky.feed.defs#knitting',
+				status: 'social.craftsky.feed.defs#finished',
+				tags: ['knitting', 'cardigan'],
+				pattern: { name: 'Weekend cardigan', designer: 'Martha Jones' },
+				materials: [{ text: 'Soft wool in a warm blue shade.' }]
+			}
+		}
+	});
+	posts.set(`${owner}/visual-cardigan`, project);
+	const messages = [
+		{
+			id: 'visual-message-1',
+			revision: '1',
+			kind: 'text',
+			senderDid: other,
+			text: 'Hi! Your cardigan turned out beautifully. Which yarn did you use?',
+			sentAt: '2026-11-02T09:40:00Z'
+		},
+		{
+			id: 'visual-message-2',
+			revision: '2',
+			kind: 'text',
+			senderDid: owner,
+			text: 'Thank you! A soft DK wool from a local dyer. It was lovely to work with.',
+			sentAt: '2026-11-02T09:42:00Z'
+		},
+		{
+			id: 'visual-message-3',
+			revision: '3',
+			kind: 'text',
+			senderDid: other,
+			text: 'That sounds perfect. I’m planning a similar project for winter.',
+			sentAt: '2026-11-02T10:15:00Z'
+		}
+	];
+	const actor = ({ did, handle, displayName }) => ({
+		did,
+		handle,
+		displayName
+	});
+	const conversation = {
+		id: 'visual-accepted',
+		revision: '3',
+		status: 'accepted',
+		muted: false,
+		unreadCount: 1,
+		canSend: true,
+		peer: actor(peers[0]),
+		members: [actor(profile(owner)), actor(peers[0])],
+		lastMessage: messages.at(-1)
+	};
+	const requestMessage = {
+		id: 'visual-request-message',
+		revision: '1',
+		kind: 'text',
+		senderDid: peers[1].did,
+		text: 'Hello! I saw your sewing project and wondered if you could share the pattern?',
+		sentAt: '2026-11-02T08:10:00Z'
+	};
+	const request = {
+		id: 'visual-request',
+		revision: '1',
+		status: 'request',
+		muted: false,
+		unreadCount: 1,
+		canSend: false,
+		peer: actor(peers[1]),
+		members: [actor(profile(owner)), actor(peers[1])],
+		lastMessage: requestMessage
+	};
+	const folder = {
+		id: '20c69251-1dcc-4a47-8104-d1877c575f34',
+		name: 'Weekend inspiration',
+		createdAt: timestamp,
+		updatedAt: timestamp
+	};
+	project.viewerSavedFolderId = folder.id;
+	if (first) first.viewerSavedFolderId = null;
+	const event = {
+		uri: `at://${owner}/social.craftsky.business.event/visual-workshop`,
+		cid: 'visual-event-cid',
+		rkey: 'visual-workshop',
+		did: owner,
+		name: 'Natural colour knitting workshop',
+		summary:
+			'A relaxed afternoon exploring wool, colour and simple knitting techniques together.',
+		startsAt: '2026-12-05T10:00:00Z',
+		endsAt: '2026-12-05T13:00:00Z',
+		timeZone: 'Europe/London',
+		roles: [
+			{ value: 'organizer', known: true },
+			{ value: 'instructor', known: true }
+		],
+		status: { value: 'scheduled', known: true },
+		mode: { value: 'in-person', known: true },
+		isAllDay: false,
+		createdAt: timestamp,
+		past: false,
+		publicSuppressionReasons: [],
+		upcomingExclusionReasons: [],
+		venueName: 'The Craft Studio, London',
+		eventUri: 'https://craftsky.social/',
+		image: visualImage
+	};
+	const value = {
+		peers,
+		project,
+		folder,
+		event,
+		enabled: true,
+		pushEnabled: true,
+		allowIncoming: 'everyone',
+		revision: 1,
+		conversations: [conversation, request],
+		messages: new Map([
+			[conversation.id, messages],
+			[request.id, [requestMessage]]
+		]),
+		folders: [folder],
+		saved: [
+			{ savedAt: timestamp, folderId: null, post: first },
+			{ savedAt: '2026-11-01T15:20:00Z', folderId: folder.id, post: project }
+		],
+		notifications: [
+			{
+				id: 'visual-notification-like',
+				type: 'like',
+				actor: { ...peers[0], viewerIsFollowing: false },
+				subjectPost: first,
+				isNew: true,
+				createdAt: '2026-11-02T10:20:00Z',
+				indexedAt: '2026-11-02T10:20:01Z'
+			},
+			{
+				id: 'visual-notification-follow',
+				type: 'follow',
+				actor: { ...peers[1], viewerIsFollowing: false },
+				isNew: true,
+				createdAt: '2026-11-02T09:50:00Z',
+				indexedAt: '2026-11-02T09:50:01Z'
+			},
+			{
+				id: 'visual-notification-reply',
+				type: 'reply',
+				actor: peers[2],
+				subjectPost: project,
+				preview: {
+					text: 'The colour is beautiful! How much wool did you use?',
+					projectTitle: 'Weekend cardigan',
+					role: 'comment'
+				},
+				isNew: true,
+				createdAt: '2026-11-02T09:30:00Z',
+				indexedAt: '2026-11-02T09:30:01Z'
+			},
+			{
+				id: 'visual-notification-repost',
+				type: 'repost',
+				actor: peers[0],
+				subjectPost: project,
+				isNew: false,
+				createdAt: '2026-11-01T18:00:00Z',
+				indexedAt: '2026-11-01T18:00:01Z'
+			}
+		]
+	};
+	const state = settings.get(owner);
+	if (!state.events.length) state.events.push(event);
+	state.business.products = state.business.products.map((product) => ({
+		...product,
+		image: { ...product.image, ...visualImage }
+	}));
+	for (const category of [
+		'like',
+		'follow',
+		'reply',
+		'mention',
+		'quote',
+		'repost',
+		'instagramMatch',
+		'moderation',
+		'everythingElse'
+	])
+		state.notifications[category] ??= { scope: 'everyone', pushEnabled: true };
+	visualStates.set(owner, value);
+	return value;
+}
+function visualChatStatus(value) {
+	return {
+		generation: 1,
+		enabled: value.enabled,
+		pushEnabled: value.pushEnabled,
+		state: value.enabled ? 'ready' : 'disabled',
+		capabilities: {
+			canRead: value.enabled,
+			canSend: value.enabled,
+			canReport: value.enabled,
+			canSetPolicy: value.enabled
+		},
+		syncState: 'ready',
+		lastSuccessAt: '2026-11-02T10:30:00Z'
+	};
+}
+function visualGrowth(period = '30d') {
+	const length = period === '7d' ? 7 : period === '1y' ? 365 : 30;
+	const end = new Date('2026-11-02T00:00:00Z');
+	const points = Array.from({ length }, (_, index) => {
+		const day = new Date(end);
+		day.setUTCDate(end.getUTCDate() - length + index + 1);
+		const date = day.toISOString().slice(0, 10);
+		return {
+			date,
+			count:
+				date < '2026-09-01' || index === length - 5
+					? null
+					: 84 - Math.floor((length - index - 1) / 2)
+		};
+	});
+	const observed = points.filter((point) => point.count !== null);
+	return {
+		period,
+		rangeStart: points[0].date,
+		rangeEnd: points.at(-1).date,
+		availableFrom: '2026-09-01',
+		latestSnapshotDate: points.at(-1).date,
+		latestCapturedAt: '2026-11-02T02:00:00Z',
+		latestFollowerCount: 84,
+		netChange: observed.at(-1).count - observed[0].count,
+		points
+	};
+}
 function reset() {
 	control = { owners: {}, confirmFailures: 0 };
+	visualStates = new Map();
 	authEvents = [];
 	authFlows = new Map();
 	deletions = new Map();
@@ -175,6 +465,10 @@ createServer(async (req, res) => {
 	if (pathname === '/__test/requests') return send(200, calls);
 	if (pathname === '/__test/control' && method === 'POST') {
 		const value = await fixtureJSON(req);
+		for (const [name, flags] of Object.entries(value.owners || {})) {
+			if (Object.hasOwn(flags, 'languages'))
+				settings.get(owners[name]).languages = flags.languages;
+		}
 		control = {
 			...control,
 			...value,
@@ -339,6 +633,304 @@ createServer(async (req, res) => {
 				flags.apiStatus === 401 ? 'session_expired' : 'temporary_unavailable',
 			message: 'Controlled fixture response'
 		});
+	// Visual data is explicitly enabled by the capture suite; default regression fixtures stay unchanged.
+	if (control.visual === true || flags.visual === true) {
+		const visual = visualData(owner);
+		const page = (items) => ({
+			items: url.searchParams.has('cursor') ? [] : items
+		});
+		const matches = (value) =>
+			JSON.stringify(value)
+				.toLowerCase()
+				.includes((url.searchParams.get('q') || '').toLowerCase());
+		if (pathname === '/v1/chat/status')
+			return send(200, visualChatStatus(visual));
+		if (pathname === '/v1/chat/connection' && method === 'PUT') {
+			if (typeof body?.enabled !== 'boolean')
+				return send(400, {
+					error: 'invalid_request',
+					message: 'enabled is required'
+				});
+			visual.enabled = body.enabled;
+			visual.revision++;
+			return send(200, visualChatStatus(visual));
+		}
+		if (pathname === '/v1/chat/incoming-policy') {
+			if (method === 'PUT') visual.allowIncoming = body.allowIncoming;
+			return send(200, {
+				allowIncoming: visual.allowIncoming,
+				persisted: true
+			});
+		}
+		if (pathname === '/v1/chat/push-preferences') {
+			if (method === 'PUT') visual.pushEnabled = body.pushEnabled;
+			return send(200, { pushEnabled: visual.pushEnabled });
+		}
+		if (pathname === '/v1/chat/unread-counts')
+			return send(200, {
+				accepted: visual.conversations
+					.filter((item) => item.status === 'accepted')
+					.reduce((sum, item) => sum + item.unreadCount, 0),
+				requests: visual.conversations
+					.filter((item) => item.status === 'request')
+					.reduce((sum, item) => sum + item.unreadCount, 0)
+			});
+		if (pathname === '/v1/chat/sync' && method === 'POST')
+			return send(200, {
+				revision: visual.revision,
+				state: visual.enabled ? 'ready' : 'disabled',
+				lastSuccessAt: '2026-11-02T10:30:00Z'
+			});
+		if (pathname === '/v1/chat/availability') {
+			const available = visual.peers.some(
+				(item) => item.did === url.searchParams.get('recipientDid')
+			);
+			const conversation = visual.conversations.find(
+				(item) => item.peer.did === url.searchParams.get('recipientDid')
+			);
+			return send(200, {
+				canChat: available,
+				...(conversation ? { conversationId: conversation.id } : {})
+			});
+		}
+		if (pathname === '/v1/chat/conversations') {
+			if (method === 'POST') {
+				let conversation = visual.conversations.find(
+					(item) => item.peer.did === body?.recipientDid
+				);
+				if (!conversation) {
+					const peer = visual.peers.find(
+						(item) => item.did === body?.recipientDid
+					);
+					if (!peer)
+						return send(404, {
+							error: 'recipient_unavailable',
+							message: 'Choose a fixture conversation participant'
+						});
+					const actor = ({ did, handle, displayName }) => ({
+						did,
+						handle,
+						displayName
+					});
+					conversation = {
+						id: 'visual-new-' + peer.did.split(':').at(-1),
+						revision: '1',
+						status: 'accepted',
+						muted: false,
+						unreadCount: 0,
+						canSend: true,
+						peer: actor(peer),
+						members: [actor(profile(owner)), actor(peer)]
+					};
+					visual.conversations.push(conversation);
+					visual.messages.set(conversation.id, []);
+					visual.revision++;
+				}
+				return send(200, conversation);
+			}
+			return send(
+				200,
+				page(
+					visual.conversations.filter(
+						(item) =>
+							item.status === (url.searchParams.get('status') || 'accepted')
+					)
+				)
+			);
+		}
+		const chatTarget = pathname.match(
+			/^\/v1\/chat\/conversations\/([^/]+)(?:\/(.*))?$/
+		);
+		if (chatTarget) {
+			const conversation = visual.conversations.find(
+				(item) => item.id === chatTarget[1]
+			);
+			if (!conversation)
+				return send(404, {
+					error: 'conversation_not_found',
+					message: 'Conversation not found'
+				});
+			const messages = visual.messages.get(conversation.id) || [];
+			if (chatTarget[2] === 'details')
+				return send(200, { conversation, messages: page(messages) });
+			if (chatTarget[2] === 'messages' && method === 'GET')
+				return send(200, page(messages));
+			if (chatTarget[2] === 'read' && method === 'PUT') {
+				if (!messages.some((item) => item.id === body?.messageId))
+					return send(400, {
+						error: 'invalid_message',
+						message: 'Message not found in this conversation'
+					});
+				if (conversation.unreadCount) visual.revision++;
+				conversation.unreadCount = 0;
+				return send(200, conversation);
+			}
+			if (!chatTarget[2] && method === 'GET') return send(200, conversation);
+		}
+		if (pathname === '/v1/notifications/new-count')
+			return send(200, {
+				newCount: visual.notifications.filter((item) => item.isNew).length
+			});
+		if (pathname === '/v1/notifications' && method === 'GET')
+			return send(
+				200,
+				page(
+					visual.notifications.filter(
+						(item) =>
+							!url.searchParams.get('category') ||
+							item.type === url.searchParams.get('category')
+					)
+				)
+			);
+		if (pathname === '/v1/notifications/seen' && method === 'POST') {
+			for (const item of visual.notifications) item.isNew = false;
+			return send(204);
+		}
+		if (pathname === '/v1/saved-post-folders' && method === 'GET')
+			return send(200, page(visual.folders));
+		if (pathname === '/v1/saved-posts' && method === 'GET') {
+			let items = visual.saved.filter((item) =>
+				url.searchParams.get('folderId')
+					? item.folderId === url.searchParams.get('folderId')
+					: url.searchParams.get('unfiled') === 'true'
+						? item.folderId === null
+						: true
+			);
+			items = [...items].sort(
+				(left, right) =>
+					(url.searchParams.get('sort') === 'oldest' ? 1 : -1) *
+					left.savedAt.localeCompare(right.savedAt)
+			);
+			return send(200, page(items));
+		}
+		if (pathname === '/v1/profiles/me/follower-growth')
+			return send(200, visualGrowth(url.searchParams.get('period') || '30d'));
+		const relationships = pathname.match(
+			/^\/v1\/profiles\/([^/]+)\/(followers|following|mutes|blocks|mutual-followers)$/
+		);
+		if (relationships && method === 'GET') {
+			const kind = relationships[2];
+			const items =
+				kind === 'followers' || kind === 'mutual-followers'
+					? visual.peers.slice(0, 2)
+					: kind === 'mutes'
+						? [{ ...visual.peers[2], muted: true }]
+						: kind === 'blocks'
+							? [{ ...visual.peers[1], blocking: true }]
+							: visual.peers;
+			return send(200, { ...page(items), totalCount: items.length });
+		}
+		if (
+			[
+				`/v1/profiles/me`,
+				`/v1/profiles/${owner}`,
+				`/v1/profiles/${profile(owner).handle}`
+			].includes(pathname) &&
+			method === 'GET'
+		)
+			return send(200, {
+				...profile(owner),
+				projectCount: 1,
+				postCount: 2,
+				postsLast7Days: 2,
+				hasUpcomingEvents: true
+			});
+		if (
+			pathname === '/v1/profiles/recent' ||
+			pathname === '/v1/search/profiles'
+		)
+			return send(200, page(visual.peers.filter(matches)));
+		if (pathname === '/v1/search/suggestions')
+			return send(200, {
+				profiles: { items: visual.peers.filter(matches), hasMore: false },
+				hashtags: {
+					items: [
+						{ tag: 'knitting', postCount: 42 },
+						{ tag: 'cardigan', postCount: 18 }
+					].filter(matches),
+					hasMore: false
+				}
+			});
+		if (pathname === '/v1/search/hashtags/top')
+			return send(200, {
+				groups: [
+					{
+						craftType: 'social.craftsky.feed.defs#knitting',
+						items: [
+							{ tag: 'knitting', count: 42 },
+							{ tag: 'cardigan', count: 18 },
+							{ tag: 'slowfashion', count: 12 }
+						]
+					},
+					{
+						craftType: 'social.craftsky.feed.defs#sewing',
+						items: [
+							{ tag: 'sewing', count: 31 },
+							{ tag: 'handmade', count: 22 }
+						]
+					}
+				]
+			});
+		if (pathname === '/v1/search/hashtags')
+			return send(
+				200,
+				page(
+					[
+						{ tag: 'knitting', postCount: 42 },
+						{ tag: 'cardigan', postCount: 18 },
+						{ tag: 'sewing', postCount: 31 }
+					].filter(matches)
+				)
+			);
+		if (pathname === '/v1/search/recent' && method === 'GET')
+			return send(200, {
+				items: [
+					{
+						id: 'visual-recent-search',
+						type: 'query',
+						displayLabel: 'knitting',
+						payload: { q: 'knitting', tab: 'posts' },
+						createdAt: '2026-11-01T12:00:00Z',
+						updatedAt: '2026-11-01T12:00:00Z'
+					}
+				]
+			});
+		if (
+			pathname === '/v1/search/posts' ||
+			pathname === '/v1/search/projects' ||
+			pathname === '/v1/projects' ||
+			/^\/v1\/search\/hashtags\/[^/]+\/posts$/.test(pathname)
+		) {
+			let items = [...posts.values()].filter(
+				(item) => item.author.did === owner
+			);
+			if (pathname === '/v1/projects' || pathname === '/v1/search/projects')
+				items = items.filter((item) => !!item.project);
+			return send(200, page(items.filter(matches)));
+		}
+		const eventProfile = pathname.match(
+			/^\/v1\/profiles\/([^/]+)\/events$/
+		)?.[1];
+		if (eventProfile)
+			return send(
+				200,
+				page(
+					eventProfile === 'me' ||
+						eventProfile === owner ||
+						eventProfile === profile(owner).handle
+						? [visual.event]
+						: []
+				)
+			);
+		if (pathname === `/v1/events/${owner}/visual-workshop` && method === 'GET')
+			return send(200, visual.event);
+		const person = visual.peers.find(
+			(item) =>
+				pathname === `/v1/profiles/${item.did}` ||
+				pathname === `/v1/profiles/${item.handle}`
+		);
+		if (person && method === 'GET') return send(200, person);
+	}
 	if (pathname === '/v1/auth/logout' && method === 'POST') {
 		authSessions.delete(token);
 		return send(204);
@@ -459,9 +1051,37 @@ createServer(async (req, res) => {
 		return send(200, { accepted: 0, requests: 0 });
 	if (pathname === '/v1/languages/preferences') {
 		const state = settings.get(owner);
+		if (!state.languages)
+			return send(404, {
+				error: 'language_preferences_not_found',
+				message: 'Language preferences not found'
+			});
 		if (method === 'PUT') state.languages = body;
 		return send(200, state.languages);
 	}
+	if (
+		pathname === '/v1/languages/preferences/initialize' &&
+		method === 'POST'
+	) {
+		if (flags.languageInitializeFailures > 0) {
+			flags.languageInitializeFailures--;
+			return send(503, {
+				error: 'unavailable',
+				message: 'Language setup unavailable'
+			});
+		}
+		const state = settings.get(owner);
+		state.languages ??= body;
+		return send(200, state.languages);
+	}
+	if (
+		['/v1/feed/timeline', '/v1/projects'].includes(pathname) &&
+		!settings.get(owner).languages
+	)
+		return send(500, {
+			error: 'internal_error',
+			message: 'language preferences lookup failed'
+		});
 	const state = settings.get(owner);
 	if (pathname === '/v1/notifications/preferences') {
 		if (method === 'PATCH')
@@ -839,6 +1459,8 @@ createServer(async (req, res) => {
 		if (method === 'PUT') Object.assign(item, body);
 		return send(200, item);
 	}
+	if (pathname === '/v1/profiles/recent')
+		return send(200, { items: Object.values(owners).map(profile) });
 	if (pathname.startsWith('/v1/profiles/')) {
 		const match = pathname.match(/^\/v1\/profiles\/([^/]+)(?:\/(.*))?$/);
 		const id = match?.[1].replace(/^@/, '');

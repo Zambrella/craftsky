@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount, onDestroy, tick } from 'svelte';
 	import MediaEditor from '../composer/MediaEditor.svelte';
+	import MultiSelect from '#lib/MultiSelect.svelte';
 	import { prepareImage } from '../composer/media.ts';
 	import type { DraftMedia } from '../drafts/store.ts';
 	import {
@@ -31,12 +32,15 @@
 	import { safeURL } from '#lib/public.ts';
 	import { Work } from './work.svelte.ts';
 	import Feedback from './Feedback.svelte';
+	import SettingsIcon from './SettingsIcon.svelte';
+	import { currencyOptions, requireRecordText } from './native-settings.ts';
 	let {
 		api,
 		session,
 		section
 	}: { api: CraftskyAPI; session: Session; section: string } = $props();
 	const work = new Work();
+	let loaded = $state(false);
 	let cid = $state<string | null>(null),
 		allowsBusiness = $state(false),
 		types = $state<string[]>([]),
@@ -50,10 +54,38 @@
 		locality = $state(''),
 		action = $state(''),
 		destination = $state('');
+	let productEditor = $state<number | null>(null);
+	let productDialog = $state<HTMLDialogElement>();
+	let productSnapshot = $state<Product[] | null>(null);
+	$effect(() => {
+		if (productEditor !== null)
+			void tick().then(() => productDialog?.showModal());
+	});
+	function editProduct(index: number | null) {
+		productSnapshot = structuredClone($state.snapshot(products));
+		work.error = '';
+		work.notice = '';
+		productEditor = index === null ? products.length : index;
+		if (index === null)
+			products = [
+				...products,
+				{ title: '', uri: '', amount: '', currency: '' }
+			];
+	}
+	function cancelProduct() {
+		if (work.busy || work.retry || imageEditor || imageTransformBusy) return;
+		if (productSnapshot) products = productSnapshot;
+		productSnapshot = null;
+		productEditor = null;
+	}
 	let products = $state<Product[]>([]),
 		events = $state<BusinessEvent[]>([]),
 		cursor = $state<string | null>(null),
 		filter = $state<'upcoming' | 'history'>('upcoming');
+	let eventDialog = $state<HTMLDialogElement>();
+	$effect(() => {
+		if (eventOpen) void tick().then(() => eventDialog?.showModal());
+	});
 	let eventOpen = $state(false),
 		editing = $state<BusinessEvent | null>(null),
 		eventName = $state(''),
@@ -211,6 +243,7 @@
 	}
 	function load() {
 		return work.load(data, (value) => {
+			loaded = true;
 			applyProfile(value.profile);
 			allowsBusiness = value.allowed;
 			events = value.page?.items || [];
@@ -218,6 +251,10 @@
 		});
 	}
 	function profileBody(preserveProducts: boolean): JsonObject {
+		requireRecordText(tagline, 'Tagline', 100, 1000);
+		requireRecordText(hours, 'Opening hours', 300, 3000);
+		requireRecordText(area, 'Service area', 200, 2000);
+		requireRecordText(locality, 'Town or locality', 100, 1000);
 		if (types.length > 5 || offers.length > 10)
 			throw new Error('Choose at most five business types and ten offerings.');
 		if (country && !/^[A-Z]{2}$/.test(country))
@@ -258,8 +295,8 @@
 			...(action ? { primaryAction: { type: action, destination } } : {})
 		};
 	}
-	function saveProfile(event: SubmitEvent) {
-		event.preventDefault();
+	function saveProfile(event?: SubmitEvent) {
+		event?.preventDefault();
 		if (imageEditor || imageTransformBusy || imageEditing) return;
 		try {
 			const body = profileBody(section !== 'products'),
@@ -269,6 +306,10 @@
 				() => api.business.saveProfile(body, expected, key),
 				(result) => {
 					cid = result.cid;
+					if (section === 'products') {
+						productEditor = null;
+						productSnapshot = null;
+					}
 				},
 				section === 'products' ? 'Products saved.' : 'Business profile saved.'
 			);
@@ -312,6 +353,9 @@
 			next[index]
 		];
 		products = next;
+		if (productEditor === index) productEditor = index + direction;
+		else if (productEditor === index + direction) productEditor = index;
+		saveProfile();
 	}
 	async function upload(event: Event, index: number | null) {
 		const file = (event.currentTarget as HTMLInputElement).files?.[0];
@@ -334,6 +378,8 @@
 
 	function editEvent(value: BusinessEvent | null) {
 		editing = value;
+		work.error = '';
+		work.notice = '';
 		eventOpen = true;
 		eventName = value?.name || '';
 		summary = text(value?.summary);
@@ -352,12 +398,33 @@
 		start = wallTime(value?.startsAt, timeZone);
 		end = wallTime(value?.endsAt, timeZone);
 		allDay = value?.isAllDay === true;
+		if (allDay) {
+			start = start.slice(0, 10);
+			end = end.slice(0, 10);
+		}
 		eventImage = fromImage(value?.image);
+	}
+	function setAllDay(value: boolean) {
+		allDay = value;
+		start = value
+			? start.slice(0, 10)
+			: start.length === 10
+				? start + 'T00:00'
+				: start;
+		end = value ? end.slice(0, 10) : end.length === 10 ? end + 'T00:00' : end;
+		if (value && start && (!end || end <= start)) {
+			const next = new Date(start + 'T00:00:00Z');
+			next.setUTCDate(next.getUTCDate() + 1);
+			end = next.toISOString().slice(0, 10);
+		}
 	}
 	function saveEvent(event: SubmitEvent) {
 		event.preventDefault();
 		if (imageEditor || imageTransformBusy || imageEditing) return;
 		try {
+			requireRecordText(eventName, 'Event name', 200, 2000);
+			requireRecordText(summary, 'Summary', 1000, 10000);
+			requireRecordText(venue, 'Venue name', 200, 2000);
 			if (!eventName.trim()) throw new Error('Enter an event name.');
 			if (!eventRoles.length || eventRoles.length > 4)
 				throw new Error('Choose between one and four roles.');
@@ -472,9 +539,11 @@
 	});
 </script>
 
-<h1>{section === 'business' ? 'Business profile' : title(section)}</h1>
+<h1 class="workspace-heading">
+	{section === 'business' ? 'Business profile' : title(section)}
+</h1>
 <Feedback {work} reload={load} />
-{#if !work.loading}
+{#if !work.loading && loaded}
 	{#if section !== 'business' && !allowsBusiness}<section class="panel">
 			<h2>CraftSky Business</h2>
 			<p>
@@ -500,53 +569,54 @@
 					A business declaration makes commercial activity transparent to the
 					community. Your business account is clearly labelled.
 				</p>
-				<fieldset>
-					<legend>Business types · choose up to five</legend>
-					<div class="pills">
-						{#each businessTypes as value}<label class="check"
-								><input
-									type="checkbox"
-									bind:group={types}
-									{value}
-									disabled={work.busy ||
-										!!work.retry ||
-										!!imageEditor ||
-										imageTransformBusy}
-								/>{title(value)}</label
-							>{/each}
-					</div>
-					{#if unknownTypes.length}<p class="muted">
-							Additional values saved by another client will be preserved: {unknownTypes
-								.map(title)
-								.join(', ')}.
+				<div class="stack">
+					<MultiSelect
+						label="Business types"
+						values={types}
+						maximum={5}
+						options={businessTypes
+							.map((value) => ({ id: value, label: title(value) }))
+							.sort((a, b) => a.label.localeCompare(b.label))}
+						disabled={work.busy ||
+							!!work.retry ||
+							!!imageEditor ||
+							imageTransformBusy}
+						onchange={(value) => {
+							types = value;
+						}}
+					/>
+					<p class="helper">Choose up to five business types.</p>
+					{#if unknownTypes.length}<p class="helper">
+							Other business types: {unknownTypes.map(title).join(', ')}.
 						</p>{/if}
-				</fieldset>
-				<fieldset>
-					<legend>What you offer · choose up to ten</legend>
-					<div class="pills">
-						{#each offerings as value}<label class="check"
-								><input
-									type="checkbox"
-									bind:group={offers}
-									{value}
-									disabled={work.busy ||
-										!!work.retry ||
-										!!imageEditor ||
-										imageTransformBusy}
-								/>{title(value)}</label
-							>{/each}
-					</div>
-					{#if unknownOffers.length}<p class="muted">
-							Additional offerings will be preserved: {unknownOffers
-								.map(title)
-								.join(', ')}.
+				</div>
+				<div class="stack">
+					<MultiSelect
+						label="What you offer"
+						values={offers}
+						maximum={10}
+						options={offerings
+							.map((value) => ({ id: value, label: title(value) }))
+							.sort((a, b) => a.label.localeCompare(b.label))}
+						disabled={work.busy ||
+							!!work.retry ||
+							!!imageEditor ||
+							imageTransformBusy}
+						onchange={(value) => {
+							offers = value;
+						}}
+					/>
+					<p class="helper">Choose up to ten offerings.</p>
+					{#if unknownOffers.length}<p class="helper">
+							Other offerings: {unknownOffers.map(title).join(', ')}.
 						</p>{/if}
-				</fieldset>
-				<label>Tagline<input maxlength="100" bind:value={tagline} /></label
+				</div>
+				<label>Tagline<textarea rows="2" bind:value={tagline}></textarea></label
 				><label
-					>Opening hours<textarea maxlength="300" bind:value={hours}
-					></textarea></label
-				><label>Service area<input maxlength="200" bind:value={area} /></label>
+					>Opening hours<textarea rows="4" bind:value={hours}></textarea></label
+				><label
+					>Service area<textarea rows="3" bind:value={area}></textarea></label
+				>
 				<div class="two-col">
 					<label
 						>Country code<input
@@ -555,12 +625,7 @@
 							oninput={() => (country = country.toUpperCase())}
 							placeholder="GB"
 						/></label
-					><label
-						>Town or locality<input
-							maxlength="100"
-							bind:value={locality}
-						/></label
-					>
+					><label>Town or locality<input bind:value={locality} /></label>
 				</div>
 				<label
 					>Primary action<select bind:value={action}
@@ -612,112 +677,148 @@
 						!!imageEditor ||
 						imageTransformBusy}
 				>
-					<p class="muted">
-						Feature up to four products. Each needs a title, image and secure
-						destination link.
+					<p class="muted" aria-live="polite">
+						{products.length} of 4 products
 					</p>
-					{#each products as product, index}<section class="panel stack">
-							<div class="row">
-								<h2>Product {index + 1}</h2>
-								<div class="actions">
-									<button
-										type="button"
-										disabled={work.busy || index === 0}
-										aria-label={`Move product ${index + 1} up`}
-										onclick={() => move(index, -1)}>↑</button
-									><button
-										type="button"
-										disabled={work.busy || index === products.length - 1}
-										aria-label={`Move product ${index + 1} down`}
-										onclick={() => move(index, 1)}>↓</button
-									><button
-										type="button"
-										class="danger"
-										disabled={work.busy}
-										onclick={() =>
-											(products = products.filter((_, i) => i !== index))}
-										>Remove</button
-									>
-								</div>
-							</div>
-							<label
-								>Title<input
-									required
-									maxlength="150"
-									bind:value={product.title}
-								/></label
-							><label
-								>Destination link<input
-									type="url"
-									required
-									bind:value={product.uri}
-									placeholder="https://…"
-								/></label
-							>{#if product.image?.thumb}<img
-									class="preview-image"
-									src={product.image.thumb}
-									alt={product.image.alt}
-								/>{/if}<label
-								>{product.image ? 'Replace image' : 'Product image'}<input
-									type="file"
-									accept="image/jpeg,image/png,image/webp"
-									disabled={work.busy}
-									onchange={(event) => upload(event, index)}
-								/></label
-							>{#if product.image}<button
-									type="button"
-									disabled={work.busy}
-									onclick={() => editImage(index, product.image!)}
-									>Edit image</button
-								><label
-									>Image alternative text<textarea
-										maxlength="1000"
-										bind:value={product.image.alt}></textarea></label
-								>{/if}
-							<div class="two-col">
-								<label
-									>Price · optional<input
-										inputmode="decimal"
-										bind:value={product.amount}
-										placeholder="24.5"
-									/></label
-								><label
-									>Currency<input
-										maxlength="3"
-										bind:value={product.currency}
-										oninput={() =>
-											(product.currency = product.currency.toUpperCase())}
-										placeholder="GBP"
-									/></label
+					{#if !products.length}<div class="empty">
+							<SettingsIcon name="products" /><strong>Products</strong>No
+							featured products yet.
+						</div>{/if}
+					{#each products as product, index}<section class="panel product-item">
+							<button
+								type="button"
+								class="product-summary"
+								disabled={work.busy || !!work.retry}
+								aria-label={`Edit ${product.title || 'new product'}`}
+								onclick={() => editProduct(index)}
+								>{#if safeURL(product.image?.thumb)}<img
+										src={safeURL(product.image?.thumb)}
+										alt=""
+									/>{:else}<span class="product-placeholder"
+										><SettingsIcon name="products" size={32} /></span
+									>{/if}<span class="tile-copy"
+									><strong>{product.title || 'New product'}</strong><small
+										class="product-destination">{product.uri}</small
+									>{#if product.amount}<small
+											>{product.currency} {product.amount}</small
+										>{/if}</span
+								><SettingsIcon name="chevron" size={20} /></button
+							>
+							{#if productEditor === index}<dialog
+									class="settings-dialog product-dialog"
+									bind:this={productDialog}
+									oncancel={(event) => {
+										event.preventDefault();
+										cancelProduct();
+									}}
 								>
-							</div>
+									<Feedback {work} />
+									<div class="stack product-editor">
+										<div class="row">
+											<h2>
+												{productSnapshot && index < productSnapshot.length
+													? 'Edit product'
+													: 'Add product'}
+											</h2>
+											<div class="actions">
+												<button
+													type="button"
+													disabled={work.busy || index === 0}
+													aria-label={`Move product ${index + 1} up`}
+													onclick={() => move(index, -1)}>↑</button
+												><button
+													type="button"
+													disabled={work.busy || index === products.length - 1}
+													aria-label={`Move product ${index + 1} down`}
+													onclick={() => move(index, 1)}>↓</button
+												><button
+													type="button"
+													class="danger"
+													disabled={work.busy}
+													onclick={() => {
+														products = products.filter((_, i) => i !== index);
+														productEditor = null;
+														saveProfile();
+													}}>Remove</button
+												>
+											</div>
+										</div>
+										<label
+											>Title<input required bind:value={product.title} /></label
+										><label
+											>Destination link<input
+												type="url"
+												required
+												bind:value={product.uri}
+												placeholder="https://…"
+											/></label
+										>{#if product.image?.thumb}<img
+												class="preview-image"
+												src={product.image.thumb}
+												alt={product.image.alt}
+											/>{/if}<label
+											>{product.image ? 'Replace image' : 'Product image'}<input
+												type="file"
+												accept="image/jpeg,image/png,image/webp"
+												disabled={work.busy}
+												onchange={(event) => upload(event, index)}
+											/></label
+										>{#if product.image}<button
+												type="button"
+												disabled={work.busy}
+												onclick={() => editImage(index, product.image!)}
+												>Edit image</button
+											><label
+												>Image alternative text<textarea
+													bind:value={product.image.alt}></textarea></label
+											>{/if}
+										<div class="two-col">
+											<label
+												>Price · optional<input
+													inputmode="decimal"
+													bind:value={product.amount}
+													placeholder="24.5"
+												/></label
+											><label
+												>Currency<select bind:value={product.currency}
+													><option value="">None</option
+													>{#each currencyOptions as currency}<option
+															value={currency.code}>{currency.label}</option
+														>{/each}</select
+												></label
+											>
+										</div>
+										<div class="actions">
+											<button
+												class="primary"
+												disabled={work.busy || !!work.retry}
+												>Save product</button
+											><button
+												type="button"
+												disabled={work.busy || !!work.retry}
+												onclick={cancelProduct}>Cancel</button
+											>
+										</div>
+									</div>
+								</dialog>{/if}
 						</section>{/each}
-					<div class="actions">
+					<div class="actions product-actions">
 						{#if products.length < 4}<button
 								type="button"
+								class="primary"
 								disabled={work.busy ||
 									!!work.retry ||
 									!!imageEditor ||
 									imageTransformBusy}
-								onclick={() =>
-									(products = [
-										...products,
-										{ title: '', uri: '', amount: '', currency: '' }
-									])}>Add product</button
-							>{/if}<button
-							class="primary"
-							disabled={work.busy ||
-								!!work.retry ||
-								!!imageEditor ||
-								imageTransformBusy}>Save products</button
-						>
+								onclick={() => editProduct(null)}
+								><SettingsIcon name="plus" />Add product</button
+							>{/if}
 					</div>
 				</fieldset>
 			</form>{/if}
 	{:else if section === 'events'}
-		<section class="panel">
-			<div class="row">
-				<h2>Your events</h2>
+		<section class="events-manager">
+			<div class="actions events-toolbar">
 				<button
 					class="primary"
 					disabled={work.busy ||
@@ -727,14 +828,29 @@
 					onclick={() => editEvent(null)}>Create event</button
 				>
 			</div>
-			<label
-				>Show<select bind:value={filter} disabled={work.busy} onchange={load}
-					><option value="upcoming">Upcoming events</option><option
-						value="history">Event history</option
-					></select
-				></label
-			>{#each events as event}<article class="event-item">
-					<h3>{event.name}</h3>
+			<div class="settings-tabs" aria-label="Events">
+				{#each [['upcoming', 'Upcoming'], ['history', 'History']] as [value, label]}<button
+						aria-pressed={filter === value}
+						disabled={work.busy || !!work.retry}
+						onclick={() => {
+							filter = value as typeof filter;
+							load();
+						}}>{label}</button
+					>{/each}
+			</div>
+			{#each events as event}<article class="panel event-item">
+					{#if safeURL(event.image?.thumb)}<img
+							class="event-cover"
+							src={safeURL(event.image?.thumb)}
+							alt={event.image?.alt || ''}
+							loading="lazy"
+						/>{/if}
+					<h3>
+						<a
+							href={`/app/events/${encodeURIComponent(event.did)}/${encodeURIComponent(event.rkey)}`}
+							>{event.name}</a
+						>
+					</h3>
 					<p>{dateTime(event.startsAt)} – {dateTime(event.endsAt)}</p>
 					<p class="muted">
 						{title(openValue(event.status))} · {title(
@@ -774,137 +890,154 @@
 						>
 					</div>
 				</article>{:else}<p class="empty">
-					No {filter === 'upcoming' ? 'upcoming' : 'past'} events.
+					<SettingsIcon name="events" /><strong>Events</strong>{filter ===
+					'upcoming'
+						? 'No upcoming events yet.'
+						: 'No event history yet.'}
 				</p>{/each}{#if cursor}<button disabled={work.busy} onclick={more}
 					>Load more events</button
 				>{/if}
 		</section>
-		{#if eventOpen}<form class="panel stack" onsubmit={saveEvent}>
-				<fieldset
-					class="form-fields"
-					disabled={work.busy ||
-						!!work.retry ||
-						!!imageEditor ||
-						imageTransformBusy}
-				>
-					<h2>{editing ? 'Edit event' : 'Create event'}</h2>
-					<label
-						>Event name<input
-							required
-							maxlength="200"
-							bind:value={eventName}
-						/></label
-					><label
-						>Summary<textarea maxlength="1000" bind:value={summary}
-						></textarea></label
+		{#if eventOpen}<dialog
+				class="settings-dialog event-dialog"
+				bind:this={eventDialog}
+				oncancel={(event) => {
+					if (work.busy || !!imageEditor || imageTransformBusy)
+						event.preventDefault();
+					else eventOpen = false;
+				}}
+			>
+				<form class="stack" onsubmit={saveEvent}>
+					<Feedback {work} />
+					<fieldset
+						class="form-fields"
+						disabled={work.busy ||
+							!!work.retry ||
+							!!imageEditor ||
+							imageTransformBusy}
 					>
-					<fieldset>
-						<legend>Your roles · up to four</legend>
-						<div class="pills">
-							{#each roles as value}<label class="check"
-									><input
-										type="checkbox"
-										bind:group={eventRoles}
-										{value}
-									/>{title(value)}</label
-								>{/each}
+						<h2>{editing ? 'Edit event' : 'Create event'}</h2>
+						<label>Event name<input required bind:value={eventName} /></label>
+						<label class="switch-row"
+							><span class="tile-copy">All-day event</span><input
+								type="checkbox"
+								role="switch"
+								checked={allDay}
+								onchange={(event) => setAllDay(event.currentTarget.checked)}
+							/></label
+						>
+						<div class="two-col">
+							<label
+								>Starts<input
+									type={allDay ? 'date' : 'datetime-local'}
+									required
+									bind:value={start}
+								/></label
+							><label
+								>Ends<input
+									type={allDay ? 'date' : 'datetime-local'}
+									required
+									bind:value={end}
+								/></label
+							>
 						</div>
-					</fieldset>
-					<div class="two-col">
+						{#if allDay}<p class="helper">
+								All-day events end on the following date, in the selected time
+								zone.
+							</p>{/if}
 						<label
-							>Mode<select bind:value={mode}
-								>{#each ['in-person', 'online', 'hybrid'] as value}<option
-										{value}>{title(value)}</option
-									>{/each}</select
-							></label
-						><label
-							>Status<select bind:value={status}
-								>{#each ['scheduled', 'cancelled', 'postponed'] as value}<option
-										{value}>{title(value)}</option
+							>Time zone<select bind:value={timeZone}
+								>{#each zones as value}<option {value}>{value}</option
 									>{/each}</select
 							></label
 						>
-					</div>
-					<label
-						>Time zone<select bind:value={timeZone}
-							>{#each zones as value}<option {value}>{value}</option
-								>{/each}</select
-						></label
-					><label class="check"
-						><input type="checkbox" bind:checked={allDay} />All-day event</label
-					>
-					<div class="two-col">
-						<label
-							>Starts<input
-								type="datetime-local"
-								required
-								bind:value={start}
-							/></label
-						><label
-							>Ends<input
-								type="datetime-local"
-								required
-								bind:value={end}
-							/></label
-						>
-					</div>
-					{#if allDay}<p class="muted">
-							All-day events start at midnight and end at midnight on the
-							following day, in the selected time zone.
-						</p>{/if}<label
-						>Venue name<input maxlength="200" bind:value={venue} /></label
-					><label
-						>Event website<input
-							type="url"
-							bind:value={eventUri}
-							placeholder="https://…"
-						/></label
-					><label
-						>Registration link<input
-							type="url"
-							bind:value={registrationUri}
-							placeholder="https://…"
-						/></label
-					>{#if eventImage?.thumb}<img
-							class="preview-image"
-							src={eventImage.thumb}
-							alt={eventImage.alt}
-						/>{/if}<label
-						>Event image · optional<input
-							type="file"
-							accept="image/jpeg,image/png,image/webp"
-							disabled={work.busy}
-							onchange={(event) => upload(event, null)}
-						/></label
-					>{#if eventImage}<button
-							type="button"
-							disabled={work.busy}
-							onclick={() => editImage(null, eventImage!)}>Edit image</button
-						><label
-							>Image alternative text<textarea
-								maxlength="1000"
-								bind:value={eventImage.alt}></textarea></label
-						><button
-							type="button"
-							disabled={work.busy}
-							onclick={() => (eventImage = undefined)}
-							>Remove event image</button
-						>{/if}
-					<div class="actions">
-						<button
-							class="primary"
+						<MultiSelect
+							label="Your roles"
+							values={eventRoles}
+							maximum={4}
+							options={[
+								...roles,
+								...eventRoles.filter((value) => !roles.includes(value))
+							]
+								.map((value) => ({ id: value, label: title(value) }))
+								.sort((a, b) => a.label.localeCompare(b.label))}
 							disabled={work.busy ||
 								!!work.retry ||
 								!!imageEditor ||
-								imageTransformBusy}>Save event</button
-						><button
-							type="button"
-							disabled={work.busy}
-							onclick={() => (eventOpen = false)}>Cancel</button
-						>
-					</div>
-				</fieldset>
-			</form>{/if}
+								imageTransformBusy}
+							onchange={(value) => {
+								eventRoles = value;
+							}}
+						/>
+						<p class="helper">Choose up to four roles.</p>
+						<div class="two-col">
+							<label
+								>Mode<select bind:value={mode}
+									>{#each ['in-person', 'online', 'hybrid', ...(!['in-person', 'online', 'hybrid'].includes(mode) ? [mode] : [])] as value}<option
+											{value}>{title(value)}</option
+										>{/each}</select
+								></label
+							><label
+								>Status<select bind:value={status}
+									>{#each ['scheduled', 'cancelled', 'postponed', ...(!['scheduled', 'cancelled', 'postponed'].includes(status) ? [status] : [])] as value}<option
+											{value}>{title(value)}</option
+										>{/each}</select
+								></label
+							>
+						</div>
+						<label>Summary<textarea bind:value={summary}></textarea></label>
+						<label>Venue name<input bind:value={venue} /></label><label
+							>Event website<input
+								type="url"
+								bind:value={eventUri}
+								placeholder="https://…"
+							/></label
+						><label
+							>Registration link<input
+								type="url"
+								bind:value={registrationUri}
+								placeholder="https://…"
+							/></label
+						>{#if eventImage?.thumb}<img
+								class="preview-image"
+								src={eventImage.thumb}
+								alt={eventImage.alt}
+							/>{/if}<label
+							>Event image · optional<input
+								type="file"
+								accept="image/jpeg,image/png,image/webp"
+								disabled={work.busy}
+								onchange={(event) => upload(event, null)}
+							/></label
+						>{#if eventImage}<button
+								type="button"
+								disabled={work.busy}
+								onclick={() => editImage(null, eventImage!)}>Edit image</button
+							><label
+								>Image alternative text<textarea bind:value={eventImage.alt}
+								></textarea></label
+							><button
+								type="button"
+								disabled={work.busy}
+								onclick={() => (eventImage = undefined)}
+								>Remove event image</button
+							>{/if}
+						<div class="actions">
+							<button
+								class="primary"
+								disabled={work.busy ||
+									!!work.retry ||
+									!!imageEditor ||
+									imageTransformBusy}>Save event</button
+							><button
+								type="button"
+								disabled={work.busy}
+								onclick={() => (eventOpen = false)}>Cancel</button
+							>
+						</div>
+					</fieldset>
+				</form>
+			</dialog>{/if}
 	{/if}
 {/if}
 
@@ -963,11 +1096,81 @@
 		background: rgb(0 0 0 / 0.5);
 	}
 
-	.event-item {
-		padding: 1rem 0;
-		border-bottom: 1px solid var(--hairline);
+	.product-actions {
+		position: sticky;
+		bottom: 80px;
+		justify-content: flex-end;
+		padding-top: 16px;
 	}
-	.event-item:last-child {
+	.product-destination {
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+	.product-item {
+		padding: 12px;
+	}
+	:global(.settings-workspace) .product-summary {
+		width: 100%;
 		border: 0;
+		border-radius: 0;
+		background: transparent;
+		text-align: left;
+		font-weight: 400;
+		justify-content: flex-start;
+		padding: 0;
+		display: flex;
+		align-items: center;
+		gap: 12px;
+		cursor: pointer;
+		list-style: none;
+		min-height: 88px;
+	}
+	.product-summary::-webkit-details-marker {
+		display: none;
+	}
+	.product-summary img,
+	.product-placeholder {
+		width: 88px;
+		height: 88px;
+		object-fit: cover;
+		border-radius: 6px;
+		flex-shrink: 0;
+	}
+	.product-placeholder {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		background: var(--paper-2);
+		color: var(--ink-3);
+	}
+	.product-summary strong {
+		font-size: 16px;
+		font-weight: 600;
+	}
+	.product-summary small {
+		color: var(--ink-2);
+		font-size: 14px;
+	}
+	.product-editor {
+		padding: 16px 4px 4px;
+	}
+	.events-toolbar {
+		justify-content: flex-end;
+	}
+	.event-item h3 a {
+		color: inherit;
+		text-decoration: none;
+	}
+	.event-cover {
+		display: block;
+		width: 100%;
+		max-height: 240px;
+		object-fit: cover;
+		margin-bottom: 12px;
+		border-radius: 6px;
+	}
+	.event-dialog {
+		padding: 24px;
 	}
 </style>

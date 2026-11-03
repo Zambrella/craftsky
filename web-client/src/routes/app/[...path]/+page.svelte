@@ -76,6 +76,7 @@
 						did={data.session.did}
 					/>{:else if section === 'activity'}<Activity
 						{api}
+						did={data.session.did}
 					/>{:else if section === 'messages'}{#await import('#lib/features/messages/MessagesWorkspace.svelte')}<p
 							class="empty"
 							role="status"
@@ -137,6 +138,7 @@
 							{api}
 							did={path[1]}
 							rkey={path[2]}
+							viewerDid={data.session.did}
 						/>{:catch}<section class="notice" role="alert">
 							This page could not load. <button
 								onclick={() => location.reload()}>Reload</button

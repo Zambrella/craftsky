@@ -8,6 +8,10 @@ their feature pages and their AppView API clients. The web uses the same AppView
 contracts through an account-bound, same-origin browser BFF. Existing public
 profile/post reads remain separate and are preserved.
 
+The subsequent [visual and interaction review](web-client-visual-parity.md)
+records the simulator/widget references, screen coverage, native styling and
+navigation changes, repeatable screenshot checks and browser-specific boundaries.
+
 | Mobile domain | Web implementation | Verification and boundaries |
 |---|---|---|
 | Sign-in, create account, multiaccount, expired sessions | `web-client/src/routes/sign-in`, `routes/auth/browser`, `routes/api/auth`, `lib/features/shell` | OAuth registration delegates account creation to the configured provider, as mobile does. Passwords and PDS credentials stay with the provider/AppView. Browser BFF unit tests cover receipt/callback/state/account binding and additive identity enrichment. Existing-account sign-in was verified through the real provider and local AppView, reaching `/app/home` with an active browser session; live provider signup and recovery were not exercised. |
@@ -22,21 +26,24 @@ profile/post reads remain separate and are preserved.
 | Business declarations/products/events | `lib/features/settings/Business.svelte`, `lib/features/social/Event.svelte`, `BusinessSummary.svelte` | Typed forms, full business snapshots, preservation flags, product ordering, UTC/IANA event times and CID preconditions. Images can be reviewed, cropped/rotated, described and recompressed before explicit upload. The profile summary renders offerings, location and primary contact/action fields. Local browser tests cover declaration CAS/product preservation, the real browser image transform and event create/edit/delete. |
 | Notifications and messaging | `lib/features/social/Activity.svelte`, `lib/features/messages`; `settings/Preferences.svelte` | Activity/seen/category preferences and direct-message authorization, requests, drafts, receipts, report/delete/mute/leave flows exist. Messaging uses the shared Bluesky service, matching native. The Instagram-match activity destination opens Instagram discovery. Actual Bluesky/FCM delivery was not exercised. |
 | Restricted accounts, moderation and deletion | `lib/features/settings/Account.svelte`, `SettingsWorkspace.svelte`; browser deletion BFF | Restricted users retain account/standing/muted/blocked/about navigation. Their account page skips member-only profile reads. Deletion uses fresh browser reauthentication and exact DID confirmation; proof is HttpOnly, not browser storage. Accepted deletion clears only that account's local composer/chat/push state; device cleanup failures cannot retry an accepted deletion. Case history, affected-content references with validated destinations, effects, email appeal and case-reference copying are implemented. |
-| Languages and appearance | `lib/features/settings/Preferences.svelte` | Uses the exact pinned AppView base-language catalog; interface remains English as in mobile. System/light/dark choices persist per browser. Browser tests exercise theme reload and a full language preference replacement. |
+| Languages and appearance | `lib/features/shell/languages.ts`, `lib/features/settings/Preferences.svelte` | Account startup loads authoritative language preferences before rendering feeds. Only a missing-preferences response triggers idempotent initialization from supported browser locales using Flutter's English-fallback rules. Existing choices, including all-language content, remain unchanged. Failed setup retains a retry gate. Uses the exact pinned AppView base-language catalog; interface remains English as in mobile. System/light/dark choices persist per browser. Browser tests cover setup ordering, saved choices, retry, account switching, theme reload and full preference replacement. |
 | Subscriptions and licenses | `lib/features/settings/Billing.svelte` | Existing access, account/reconciliation, assignment/reassignment and unassignment are implemented. Existing subscriptions link to the official App Store or Google Play management page. Purchases and restore remain in mobile, per the user's explicit direction. Local browser test proves assignment targets the entered DID. |
 | Instagram discovery | `lib/features/settings/Instagram.svelte`, `archive.ts`, `bzip-stream.ts` | Verification challenge, status, explicit candidate confirmation, discoverability, revoke/reactivate, reviewed following import, import management and follow/dismiss suggestions are implemented. Manual/JSON and stored/Deflate/Deflate64/BZip2/ZIP64 archives are supported with 20 MB output, 100k entries, 64 MB directory bounds, CRC and strict header checks. BZip2 runs in a dedicated cancellable Worker with a 30-second deadline and 40 MB compressed-input cap; both BZip2 and ZIP checksums are verified. Tests do not prove Meta webhook delivery or production verification. |
 | Browser background push | `lib/features/push`, `src/service-worker`, migration `000113_browser_push` | Optional public Firebase/VAPID configuration, explicit permission, per-account bindings, token renewal and owner-scoped disable/logout cleanup. Go admission/sender tests and the real PostgreSQL migration test pass. Browser worker activation passes locally; actual configured Firebase/OS delivery remains unverified. Browser clicks select the owning account and open Activity or the authenticated chat reference. |
 | Optional diagnostics | `lib/features/diagnostics` | Official Sentry SDK loads only after consent. Current SDK granular data collection is disabled; native error type/cause/stack coordinates survive a strict event/envelope allowlist. Actual SDK serialized-canary tests and consent lifecycle tests pass. No production DSN, ingestion, source-map upload or release symbolication was configured or verified. |
 | About/legal/cache controls | `lib/features/settings/Account.svelte` | Terms/privacy/guidelines/support links are present. Native image-cache management is delegated to browser cache/site controls; the web worker does not cache private pages, messages or API responses. |
 
-## Final validation
+## Original implementation validation
 
-Completed locally on 2 November 2026 against the final application source:
+The following results were recorded locally on 2 November 2026 before the visual
+comparison pass. Current frontend results are recorded in the visual review
+linked above; backend, launcher and mobile-association checks below were not
+rerun for these frontend-only changes.
 
 - `npm run check`: **0 errors, 0 warnings**.
-- `npm test`: **183 tests across 28 files passed**, covering API contracts, privacy, sessions, media, storage, messaging, filters, archive bounds and recovery. Three added handoff regressions cover legitimate AppView identity enrichment, ignoring unrelated upstream fields, and retaining strict browser-cookie schemas.
+- `npm test`: **195 tests across 29 files passed**, covering API contracts, privacy, sessions, media, storage, messaging, filters, archive bounds and recovery. Handoff regressions cover legitimate AppView identity enrichment, ignoring unrelated upstream fields, and retaining strict browser-cookie schemas. Language bootstrap tests cover locale defaults, missing rows, authoritative saved choices and initialization failures.
 - `npm run build`: production SvelteKit/Cloudflare artifact and bundled service worker built successfully. HLS, archive codecs and optional diagnostic SDK code are loaded separately from the initial application.
-- `npm run test:e2e:app`: **35 authenticated Chromium scenarios passed** on production preview; **the same 35 passed** with `WEB_CLIENT_WORKER=1` against the built Cloudflare Worker. This includes the real bundled BZip2 worker, compact quote DTOs, project-field annotations, repeated filter parameters, browser OAuth confirmation, restricted accounts, empty-202 deletion acceptance, business image transforms and subscription management links.
+- `npm run test:e2e:app`: **39 authenticated Chromium scenarios passed** on production preview; **the same 39 passed** with `WEB_CLIENT_WORKER=1` against the built Cloudflare Worker. This includes language initialization before feeds, saved preference preservation, setup retry and account isolation, the real bundled BZip2 worker, compact quote DTOs, project-field annotations, repeated filter parameters, browser OAuth confirmation, restricted accounts, empty-202 deletion acceptance, business image transforms and subscription management links.
 - `npm run test:e2e`: **9 public Chromium scenarios passed** on production preview; **the same 9 passed** against the built Worker. Initial HTML, metadata, privacy, native callback/association bytes, accessibility, light/dark themes and narrow layouts remain covered.
 - `./scripts/appview-test focused ./internal/auth ./internal/api ./internal/app ./internal/push ./internal/accountdeletion ./internal/routes`: **all six suites passed against this worktree's PostgreSQL and MinIO**, including the complete migration history and preserved public-read privacy rules. The additional browser-push migration regression also passed against PostgreSQL.
 - `fvm flutter test test/auth/platform/verified_link_configuration_test.dart`: **6 tests passed**. Android's shared-link/mobile-callback path rules match iOS; browser-only callbacks are excluded.
@@ -57,6 +64,13 @@ The browser fixture includes the same enrichment for ordinary and chat handoffs.
 After this fix, all five authentication browser scenarios passed again on both
 production preview and the Cloudflare Worker, alongside the 183-test unit suite,
 clean type checking and the production build.
+
+A subsequent live Home check exposed a missing language-preferences row. The
+web shell now performs the same read-or-initialize step as Flutter before
+rendering eligible account content. Real local AppView requests for language
+preferences, the timeline and project browsing all returned HTTP 200 after the
+fix, with the Home error absent. The initialization endpoint preserves existing
+rows; no manual database repair or backend change was needed.
 
 Remaining external verification is configuration-dependent: additional PDS
 providers, account creation/recovery, PDS image/video processing, Instagram/Meta DM

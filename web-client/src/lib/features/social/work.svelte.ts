@@ -1,6 +1,7 @@
 import { APIError, MutationOutcomeUnknownError } from '#lib/api/client.ts';
 export class Work {
 	busy = $state(false);
+	hasLoaded = $state(false);
 	error = $state('');
 	retry = $state<(() => Promise<void>) | undefined>();
 	private active = true;
@@ -33,7 +34,10 @@ export class Work {
 					this.retry = () => this.run(operation, accept);
 			}
 		} finally {
-			if (this.active) this.busy = false;
+			if (this.active) {
+				this.busy = false;
+				this.hasLoaded = true;
+			}
 		}
 	}
 }

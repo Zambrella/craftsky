@@ -1,9 +1,15 @@
-import { test, expect, type BrowserContext } from '@playwright/test';
-import bzipFixture from '../src/lib/features/settings/bzip-fixture.json' with {type:'json'};
+import { test, expect, type BrowserContext, type Page } from '@playwright/test';
+import { readFileSync } from 'node:fs';
+import bzipFixture from '../src/lib/features/settings/bzip-fixture.json' with { type: 'json' };
 test('business images are reviewed, cropped and stripped/recompressed before explicit upload', async ({
 	page
 }) => {
 	await page.goto('/app/settings/products');
+	await page
+		.getByRole('button', { name: 'Edit Blue wool', exact: true })
+		.click();
+	const productDialog = page.locator('.product-dialog');
+	await expect(productDialog).toBeVisible();
 	const png = await page.evaluate(() => {
 		const canvas = document.createElement('canvas');
 		canvas.width = 32;
@@ -15,12 +21,14 @@ test('business images are reviewed, cropped and stripped/recompressed before exp
 		Buffer.from(png, 'base64'),
 		Buffer.alloc(2_100_000)
 	]);
-	await page.getByLabel('Replace image', { exact: true }).setInputFiles({
-		name: 'large-source.png',
-		mimeType: 'image/png',
-		buffer: large
-	});
-	const dialog = page.getByRole('dialog');
+	await productDialog
+		.getByLabel('Replace image', { exact: true })
+		.setInputFiles({
+			name: 'large-source.png',
+			mimeType: 'image/png',
+			buffer: large
+		});
+	const dialog = page.locator('.business-image-dialog');
 	await expect(dialog).toBeVisible();
 	expect(
 		(await calls()).filter((row) => row.path === '/v1/blobs/images')
@@ -43,8 +51,9 @@ test('business images are reviewed, cropped and stripped/recompressed before exp
 		.fill('Portrait image rotated to landscape');
 	await dialog.getByRole('button', { name: 'Use image', exact: true }).click();
 	await expect(dialog).not.toBeVisible();
-	await page
-		.getByRole('button', { name: 'Save products', exact: true })
+	await expect(productDialog).toBeVisible();
+	await productDialog
+		.getByRole('button', { name: 'Save product', exact: true })
 		.click();
 	await expect(
 		page.getByRole('status').filter({ hasText: 'Products saved.' })
@@ -58,6 +67,9 @@ test('business images are reviewed, cropped and stripped/recompressed before exp
 	const write = requests.find(
 		(row) => row.method === 'PUT' && row.path === '/v1/profiles/me/business'
 	);
+	expect(write?.owner).toBe(alice.did);
+	expect(write?.ifMatch).toBe('business-cid-0');
+	expect(write?.key).toMatch(/^[0-9a-f-]{36}$/);
 	expect(write?.body.products).toEqual([
 		expect.objectContaining({
 			image: expect.objectContaining({
@@ -140,6 +152,27 @@ async function calls() {
 		owner: string;
 	}[];
 }
+async function verifyInstagram(page: Page) {
+	await page
+		.getByRole('button', { name: 'Create verification challenge', exact: true })
+		.click();
+	await expect(
+		page.getByText('craftsky-test-challenge', { exact: true })
+	).toBeVisible();
+	await page
+		.getByRole('button', { name: 'Check verification status', exact: true })
+		.click();
+	await expect(page.getByText('@alice_makes', { exact: true })).toBeVisible();
+	await page
+		.getByRole('button', {
+			name: 'Confirm this is my Instagram account',
+			exact: true
+		})
+		.click();
+	await expect(
+		page.getByRole('status').filter({ hasText: 'Instagram account verified.' })
+	).toBeVisible();
+}
 test.beforeEach(async ({ context, page }) => {
 	await page.route('https://status.craftsky.social/app.json', (route) =>
 		route.fulfill({ json: { schemaVersion: 2, revision: 'fixture-healthy' } })
@@ -163,33 +196,70 @@ test('language preferences use supported choices and replace the complete prefer
 	await page
 		.getByRole('combobox', { name: 'Primary language', exact: true })
 		.selectOption('cy');
-	await page.getByLabel('Find a language').fill('French');
+	await expect(
+		page.getByRole('combobox', { name: 'Primary language', exact: true })
+	).toBeEnabled();
+	await page
+		.getByRole('searchbox', { name: 'Content languages', exact: true })
+		.click();
+	await page
+		.getByRole('searchbox', { name: 'Content languages', exact: true })
+		.fill('French');
 	await page.getByLabel('French', { exact: true }).check();
-	await page.getByLabel('Find a language').fill('English');
+	await expect(
+		page.getByRole('button', {
+			name: 'Remove French from Content languages',
+			exact: true
+		})
+	).toBeVisible();
+	await page
+		.getByRole('searchbox', { name: 'Content languages', exact: true })
+		.fill('English');
 	await page.getByLabel('English', { exact: true }).uncheck();
-	await page.getByRole('button', { name: 'Save languages' }).click();
 	await expect(
 		page.getByRole('status').filter({ hasText: 'Saved.' })
 	).toBeVisible();
-	const request = (await calls()).find(
+	const requests = (await calls()).filter(
 		(row) => row.method === 'PUT' && row.path === '/v1/languages/preferences'
 	);
-	expect(request?.body).toEqual({
-		primaryLanguage: 'cy',
-		contentLanguages: ['fr']
-	});
+	expect(requests.map((row) => row.body)).toEqual([
+		{ primaryLanguage: 'cy', contentLanguages: ['en'] },
+		{ primaryLanguage: 'cy', contentLanguages: ['en', 'fr'] },
+		{ primaryLanguage: 'cy', contentLanguages: ['fr'] }
+	]);
+	expect(requests.every((row) => row.owner === alice.did)).toBe(true);
+	await page.reload();
+	await expect(
+		page.getByRole('combobox', { name: 'Primary language', exact: true })
+	).toHaveValue('cy');
+	await expect(
+		page.getByRole('button', {
+			name: 'Remove French from Content languages',
+			exact: true
+		})
+	).toBeVisible();
+	await expect(
+		page.getByRole('button', {
+			name: 'Remove English from Content languages',
+			exact: true
+		})
+	).toHaveCount(0);
 });
 test('notification changes patch only the chosen category and field', async ({
 	page
 }) => {
 	await page.goto('/app/settings/notifications');
 	const row = page
-		.locator('.row')
+		.locator('.notification-card')
 		.filter({ has: page.getByRole('heading', { name: 'Likes', exact: true }) });
 	await row.getByRole('combobox').selectOption('peopleIFollow');
 	await expect(row.getByRole('combobox')).toBeEnabled();
-	await row.getByLabel('Push', { exact: true }).uncheck();
-	await expect(row.getByLabel('Push', { exact: true })).toBeEnabled();
+	await row
+		.getByRole('switch', { name: 'Likes push notifications', exact: true })
+		.uncheck();
+	await expect(
+		row.getByRole('switch', { name: 'Likes push notifications', exact: true })
+	).toBeEnabled();
 	const requests = (await calls()).filter(
 		(row) =>
 			row.method === 'PATCH' && row.path === '/v1/notifications/preferences'
@@ -200,7 +270,21 @@ test('notification changes patch only the chosen category and field', async ({
 	]);
 	await expect(
 		page.getByRole('heading', { name: 'Future Category', exact: true })
-	).toBeVisible();
+	).toHaveCount(0);
+	const follows = page.locator('.notification-card').filter({
+		has: page.getByRole('heading', { name: 'Follows', exact: true })
+	});
+	await expect(
+		follows.getByRole('switch', {
+			name: 'Follows push notifications',
+			exact: true
+		})
+	).toBeChecked();
+	const moderation = page.locator('.notification-card').filter({
+		has: page.getByRole('heading', { name: 'Moderation', exact: true })
+	});
+	await expect(moderation.getByRole('combobox')).toHaveCount(0);
+	expect(requests.every((row) => row.owner === alice.did)).toBe(true);
 });
 test('business profile saves preserve products and unknown catalog values with a CID precondition', async ({
 	page
@@ -238,6 +322,7 @@ test('license assignment targets the entered DID and is reflected after reloadin
 	await expect(
 		page.getByRole('link', { name: 'Manage in App Store', exact: true })
 	).toHaveAttribute('href', 'https://apps.apple.com/account/subscriptions');
+	await page.getByText('Assign another account', { exact: true }).click();
 	await page.getByLabel('Account DID', { exact: true }).fill('did:plc:bob');
 	await page
 		.getByRole('button', { name: 'Assign license', exact: true })
@@ -249,14 +334,23 @@ test('license assignment targets the entered DID and is reflected after reloadin
 		(row) => row.method === 'PUT' && row.path.endsWith('/license-1/assignment')
 	);
 	expect(request?.body).toEqual({ targetDid: 'did:plc:bob' });
+	expect(request?.owner).toBe(alice.did);
+	await page.reload();
 	await expect(
-		page.locator('code').filter({ hasText: 'did:plc:bob' })
+		page.getByRole('combobox', { name: 'Account', exact: true })
+	).toHaveValue('did:plc:bob');
+	await expect(
+		page.locator('.license p strong').filter({ hasText: 'did:plc:bob' })
 	).toBeVisible();
 });
 test('BZip2 ZIP imports use the bundled worker and require review before sending usernames', async ({
 	page
 }) => {
 	await page.goto('/app/settings/instagram');
+	await verifyInstagram(page);
+	await expect(
+		page.getByRole('button', { name: 'Instagram export', exact: true })
+	).toHaveAttribute('aria-pressed', 'true');
 	await page
 		.getByLabel('Choose your Instagram ZIP export or following.json', {
 			exact: true
@@ -311,21 +405,13 @@ test('Instagram verification, reviewed manual import and following a match compl
 	page
 }) => {
 	await page.goto('/app/settings/instagram');
+	await verifyInstagram(page);
 	await page
-		.getByRole('button', { name: 'Verify Instagram username', exact: true })
+		.getByRole('button', { name: 'Enter handles', exact: true })
 		.click();
 	await expect(
-		page.getByText('craftsky-test-challenge', { exact: true })
-	).toBeVisible();
-	await page.getByRole('button', { name: 'Check verification status' }).click();
-	await expect(page.getByText('@alice_makes', { exact: true })).toBeVisible();
-	await page
-		.getByRole('button', { name: 'Confirm this is my Instagram account' })
-		.click();
-	await expect(
-		page.getByRole('status').filter({ hasText: 'Instagram account verified.' })
-	).toBeVisible();
-	await page.getByText('Enter usernames manually', { exact: true }).click();
+		page.getByRole('button', { name: 'Enter handles', exact: true })
+	).toHaveAttribute('aria-pressed', 'true');
 	await page
 		.getByLabel('Instagram usernames', { exact: true })
 		.fill('@maker_one\nMaker_Two\nmaker_one\ninvalid name');
@@ -362,7 +448,19 @@ test('business events create, edit using the accepted CID, and delete', async ({
 	page
 }) => {
 	await page.goto('/app/settings/events');
+	await page.getByRole('button', { name: 'History', exact: true }).click();
+	await expect(
+		page.getByRole('button', { name: 'History', exact: true })
+	).toHaveAttribute('aria-pressed', 'true');
+	await expect(
+		page.getByText('No event history yet.', { exact: false })
+	).toBeVisible();
+	await page.getByRole('button', { name: 'Upcoming', exact: true }).click();
+	await expect(
+		page.getByRole('button', { name: 'Upcoming', exact: true })
+	).toHaveAttribute('aria-pressed', 'true');
 	await page.getByRole('button', { name: 'Create event', exact: true }).click();
+	await expect(page.locator('.event-dialog')).toBeVisible();
 	await page
 		.getByLabel('Event name', { exact: true })
 		.fill('Indigo dye workshop');
@@ -386,12 +484,14 @@ test('business events create, edit using the accepted CID, and delete', async ({
 	page.once('dialog', (dialog) => dialog.accept());
 	await page.getByRole('button', { name: 'Delete', exact: true }).click();
 	await expect(
-		page.getByText('No upcoming events.', { exact: true })
+		page.getByText('No upcoming events yet.', { exact: false })
 	).toBeVisible();
 	const requests = await calls();
 	const create = requests.find(
 		(row) => row.method === 'POST' && row.path === '/v1/events'
 	);
+	expect(create?.owner).toBe(alice.did);
+	expect(create?.key).toMatch(/^[0-9a-f-]{36}$/);
 	expect(create?.body).toMatchObject({
 		name: 'Indigo dye workshop',
 		startsAt: '2026-12-01T10:00:00.000Z',
@@ -409,4 +509,114 @@ test('business events create, edit using the accepted CID, and delete', async ({
 			(row) => row.method === 'DELETE' && row.path.endsWith('/event-1')
 		)?.ifMatch
 	).toBe('event-cid-1-next');
+});
+
+test('customisation changes preview choices and saves the exact native colour and background values', async ({
+	page
+}) => {
+	await page.goto('/app/settings/customisation');
+	const save = page.getByRole('button', { name: 'Save', exact: true });
+	await expect(save).toBeDisabled();
+	await page.getByText('Green', { exact: true }).click();
+	await page.getByText('Cross stitch', { exact: true }).click();
+	await expect(
+		page.getByRole('radio', { name: 'Green', exact: true })
+	).toBeChecked();
+	await expect(
+		page.getByRole('radio', { name: 'Cross stitch', exact: true })
+	).toBeChecked();
+	await expect(
+		page.getByLabel('Profile customisation preview')
+	).toHaveAttribute('style', /--chosen-colour:\s*#23770f/i);
+	await expect(save).toBeEnabled();
+	expect(
+		(await calls()).filter(
+			(row) => row.method === 'PUT' && row.path.endsWith('/customisation')
+		)
+	).toHaveLength(0);
+	await save.click();
+	await expect(
+		page.getByRole('status').filter({ hasText: 'Profile customisation saved.' })
+	).toBeVisible();
+	const request = (await calls()).find(
+		(row) => row.method === 'PUT' && row.path.endsWith('/customisation')
+	);
+	expect(request?.owner).toBe(alice.did);
+	expect(request?.body).toEqual({
+		colour: 'lime',
+		profileBackground: 'dotcrossdark'
+	});
+	await page.reload();
+	await expect(
+		page.getByRole('radio', { name: 'Green', exact: true })
+	).toBeChecked();
+	await expect(
+		page.getByRole('radio', { name: 'Cross stitch', exact: true })
+	).toBeChecked();
+	await expect(
+		page.getByRole('button', { name: 'Save', exact: true })
+	).toBeDisabled();
+});
+
+test('product modal cancellation restores existing details and removes an unsaved new product without writing', async ({
+	page
+}) => {
+	await page.goto('/app/settings/products');
+	await page
+		.getByRole('button', { name: 'Edit Blue wool', exact: true })
+		.click();
+	let dialog = page.locator('.product-dialog');
+	await expect(dialog).toBeVisible();
+	await dialog.getByLabel('Title', { exact: true }).fill('Unsaved wool');
+	await dialog.getByLabel('Price · optional', { exact: true }).fill('99');
+	await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+	await expect(dialog).not.toBeVisible();
+	await page
+		.getByRole('button', { name: 'Edit Blue wool', exact: true })
+		.click();
+	dialog = page.locator('.product-dialog');
+	await expect(dialog.getByLabel('Title', { exact: true })).toHaveValue(
+		'Blue wool'
+	);
+	await expect(
+		dialog.getByLabel('Price · optional', { exact: true })
+	).toHaveValue('12.5');
+	await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+	await page.getByRole('button', { name: 'Add product', exact: true }).click();
+	await expect(dialog).toBeVisible();
+	await dialog.getByLabel('Title', { exact: true }).fill('Unsaved new product');
+	await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+	await expect(
+		page.getByText('1 of 4 products', { exact: true })
+	).toBeVisible();
+	await expect(
+		page.getByRole('button', { name: 'Edit Unsaved new product', exact: true })
+	).toHaveCount(0);
+	expect(
+		(await calls()).filter(
+			(row) => row.method === 'PUT' && row.path === '/v1/profiles/me/business'
+		)
+	).toHaveLength(0);
+});
+
+test('About displays the embedded build version alongside native legal rows', async ({
+	page
+}) => {
+	await page.goto('/app/settings/about');
+	const version = readFileSync(
+		new URL('../../appview/VERSION', import.meta.url),
+		'utf8'
+	).trim();
+	const about = page.getByRole('navigation', {
+		name: 'About and legal',
+		exact: true
+	});
+	await expect(
+		about.getByRole('link', { name: 'Terms', exact: true })
+	).toHaveAttribute('href', 'https://craftsky.social/terms');
+	await expect(
+		about.getByRole('link', { name: 'Privacy policy', exact: true })
+	).toHaveAttribute('href', 'https://craftsky.social/privacy');
+	await expect(about.getByText('Version', { exact: true })).toBeVisible();
+	await expect(about.getByText(version, { exact: true })).toBeVisible();
 });

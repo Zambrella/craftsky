@@ -2,6 +2,7 @@ import { APIError, MutationOutcomeUnknownError } from '#lib/api/client.ts';
 import type { JsonObject } from '#lib/api/types.ts';
 import languageCatalogue from './languages.json';
 import currencyScales from './currencies.json';
+import { requireRecordText } from './text-limits.ts';
 export const languageOptions = Object.entries(languageCatalogue)
 	.map(([tag, name]) => ({ tag, name }))
 	.sort((a, b) => a.name.localeCompare(b.name));
@@ -258,15 +259,13 @@ export interface BusinessImage {
 	aspectRatio?: { width: number; height: number };
 }
 export function imageBody(image: BusinessImage): JsonObject {
+	requireRecordText(image.alt, 'Alternative text', 1000, 10000);
 	if (
 		!['image/jpeg', 'image/png', 'image/webp'].includes(image.mime) ||
 		image.size < 0 ||
-		image.size > 2000000 ||
-		new TextEncoder().encode(image.alt).length > 1000
+		image.size > 2000000
 	)
-		throw new Error(
-			'Use a valid image smaller than 2 MB and alternative text within 1,000 bytes.'
-		);
+		throw new Error('Use a valid image smaller than 2 MB.');
 	return {
 		image: {
 			$type: 'blob',
@@ -290,7 +289,8 @@ export function productBody(products: Product[]): JsonObject[] {
 		throw new Error('You can feature up to four products.');
 	const destinations = new Set<string>();
 	return products.map((p) => {
-		if (!p.title.trim() || [...p.title].length > 150)
+		requireRecordText(p.title, 'Product title', 150, 1500);
+		if (!p.title.trim())
 			throw new Error('Each product needs a title of up to 150 characters.');
 		if (!https(p.uri))
 			throw new Error('Each product needs a secure HTTPS destination.');

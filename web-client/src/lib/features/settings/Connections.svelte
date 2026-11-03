@@ -5,18 +5,16 @@
 		type Author,
 		type CraftskyAPI
 	} from '#lib/api/client.ts';
-	import {
-		growthSegments,
-		record,
-		text,
-		title,
-		type GrowthPoint
-	} from './model.ts';
-	import { safeURL } from '#lib/public.ts';
+	import { record, text, title, type GrowthPoint } from './model.ts';
+	import Avatar from '#lib/Avatar.svelte';
 	import { Work } from './work.svelte.ts';
 	import Feedback from './Feedback.svelte';
+	import SettingsIcon from './SettingsIcon.svelte';
+	import { followerChart } from './native-settings.ts';
+	import CompactIdentity from '../social/CompactIdentity.svelte';
 	let { api, section }: { api: CraftskyAPI; section: string } = $props();
 	const work = new Work();
+	let loaded = $state(false);
 	let items = $state<Author[]>([]),
 		cursor = $state<string | null>(null),
 		total = $state<number | null>(null);
@@ -27,6 +25,20 @@
 	let available = $state(''),
 		allowsPlus = $state(false);
 	let query = $state('');
+	let chartWidth = $state(600);
+	let chart = $derived(followerChart(points, period, chartWidth));
+	function chartDate(value: string) {
+		const date = new Date(value + 'T00:00:00Z');
+		return Number.isFinite(date.getTime())
+			? new Intl.DateTimeFormat(undefined, {
+					month: 'short',
+					...(period === '1y'
+						? { year: 'numeric' as const }
+						: { day: 'numeric' as const }),
+					timeZone: 'UTC'
+				}).format(date)
+			: value;
+	}
 	const kind = $derived(
 		section === 'muted'
 			? 'mutes'
@@ -53,6 +65,7 @@
 					return [data, access] as const;
 				},
 				([data, access]) => {
+					loaded = true;
 					const value = record(data);
 					points = Array.isArray(value.points)
 						? value.points.map((p) => {
@@ -75,6 +88,7 @@
 		return work.load(
 			() => api.profiles.relationships(kind),
 			(value) => {
+				loaded = true;
 				items = value.items;
 				cursor = value.cursor || null;
 				total = value.totalCount;
@@ -121,60 +135,96 @@
 	onDestroy(() => work.dispose());
 </script>
 
-<h1>
+<h1 class="workspace-heading">
 	{section === 'growth'
-		? 'Follower growth'
+		? 'Growth'
 		: section === 'muted'
 			? 'Muted accounts'
 			: section === 'blocked'
 				? 'Blocked accounts'
-				: title(section)}
+				: `${title(section)} (${total ?? 0})`}
 </h1>
 <Feedback {work} reload={load} />
 {#if section === 'growth'}
-	<section class="panel">
-		<div class="row">
-			<h2>Your community</h2>
-			<label
-				><span class="muted">Period</span><select
-					bind:value={period}
-					disabled={work.busy}
-					onchange={load}
-					><option value="7d">7 days</option><option value="30d">30 days</option
-					><option value="1y">1 year</option></select
-				></label
-			>
-		</div>
-		{#if !work.loading && allowsPlus}<div class="two-col">
-				<div>
-					<strong class="metric">{latest ?? '—'}</strong>
-					<p class="muted">Latest follower count</p>
-				</div>
-				<div>
-					<strong class="metric"
-						>{change === null
-							? '—'
-							: `${change > 0 ? '+' : ''}${change}`}</strong
-					>
-					<p class="muted">Change in this period</p>
-				</div>
-			</div>
-			{#if points.some((p) => p.count !== null)}<svg
-					viewBox="0 0 600 210"
-					role="img"
-					aria-label="Follower growth over the selected period. Exact values appear in the table below."
-					><path
-						d="M20,190 L580,190"
-						stroke="var(--hairline)"
-						fill="none"
-					/>{#each growthSegments(points) as path}<path
-							d={path}
-							fill="none"
-							stroke="var(--primary)"
-							stroke-width="3"
-							stroke-linecap="round"
-						/>{/each}</svg
+	<section class="growth-page">
+		{#if !work.loading && loaded && allowsPlus}<div class="follower-total">
+				<strong class="metric"
+					>{latest === null
+						? '—'
+						: new Intl.NumberFormat().format(latest)}</strong
 				>
+				<p class="muted">followers</p>
+			</div>
+			<h2>Trend</h2>
+			<p class="muted">Craftsky followers. Updated daily. Dates are UTC.</p>
+			<div class="segmented" aria-label="Growth period">
+				{#each [['7d', '7 days'], ['30d', '30 days'], ['1y', '1 year']] as [value, label]}<button
+						aria-pressed={period === value}
+						disabled={work.busy || work.loading}
+						onclick={() => {
+							period = value as typeof period;
+							load();
+						}}>{label}</button
+					>{/each}
+			</div>
+			<p class="growth-change">
+				{change === null
+					? 'Not enough history'
+					: change > 0
+						? `Up ${change}`
+						: change < 0
+							? `Down ${Math.abs(change)}`
+							: 'No change'}
+			</p>
+			{#if chart}<div class="growth-chart" bind:clientWidth={chartWidth}>
+					<svg
+						viewBox={`0 0 ${chartWidth} 240`}
+						role="img"
+						aria-label={`Follower growth: ${latest ?? 'Unavailable'} followers. ${change === null ? 'Not enough history.' : 'Net change ' + change + '.'} Exact daily values are available below.`}
+					>
+						{#each chart.ticks as tick}<line
+								x1="58"
+								x2={chartWidth - 22}
+								y1={tick.y}
+								y2={tick.y}
+								stroke="var(--hairline)"
+							/><text x="46" y={tick.y + 4} text-anchor="end"
+								>{new Intl.NumberFormat().format(tick.count)}</text
+							>{/each}
+						<rect
+							x="58"
+							y="20"
+							width={Math.max(40, chartWidth - 80)}
+							height="184"
+							stroke="var(--hairline)"
+							fill="none"
+						/>
+						{#each chart.paths as path}<path
+								d={path}
+								fill="none"
+								stroke="var(--primary)"
+								stroke-width="3"
+								stroke-linecap="round"
+							/>{/each}
+						{#each chart.dots as point}<circle
+								cx={point.x}
+								cy={point.y}
+								r="4"
+								fill="var(--surface)"
+								stroke="var(--primary)"
+								stroke-width="2"
+							/>{/each}
+						{#each chart.dates as point, index}<text
+								x={point.x}
+								y="228"
+								text-anchor={index === 0
+									? 'start'
+									: index === chart.dates.length - 1
+										? 'end'
+										: 'middle'}>{chartDate(point.date)}</text
+							>{/each}
+					</svg>
+				</div>
 				<p class="muted">
 					Gaps indicate an unavailable snapshot.{available
 						? ` History is available from ${available}.`
@@ -191,44 +241,25 @@
 						>
 					</table>
 				</details>{:else}<p class="empty">
-					Your history will appear after follower snapshots have been captured.
+					<SettingsIcon name="growth" /><strong>Followers</strong>No follower
+					history yet
 				</p>{/if}
-		{:else if !work.loading}<p>
+		{:else if !work.loading && loaded}<p>
 				Follower growth is included with CraftSky Plus and Business.
 			</p>
 			<a class="action" href="/app/settings/subscriptions"
 				>View subscription access</a
 			>{/if}
 	</section>
-{:else if !work.loading}
-	<section class="panel">
-		<label
-			>Search these accounts<input
-				type="search"
-				bind:value={query}
-				placeholder="Name or handle"
-			/></label
-		>{#if total !== null}<p class="muted">
-				{total}
-				{total === 1 ? 'account' : 'accounts'}
-			</p>{/if}
-		{#each filtered as profile (profile.did)}<div class="row">
-				<div class="identity">
-					{#if safeURL(profile.avatar || undefined)}<img
-							class="avatar"
-							src={safeURL(profile.avatar || undefined)}
-							alt=""
-							loading="lazy"
-						/>{:else}<span class="avatar" aria-hidden="true"></span>{/if}<a
-						href={`/app/profile/${encodeURIComponent(profile.did)}`}
-						><strong
-							>{profile.displayName ||
-								profile.handle ||
-								'Unavailable account'}</strong
-						><small>@{profile.handle}</small></a
-					>
-				</div>
-				{#if kind !== 'followers'}<button
+{:else if !work.loading && loaded}
+	<section class="native-list relationship-list">
+		{#each filtered as profile (profile.did)}<div class="row identity-row">
+				<a
+					class="identity profile-list-identity"
+					href={`/app/profile/${encodeURIComponent(profile.did)}`}
+					><Avatar author={profile} /><CompactIdentity author={profile} /></a
+				>
+				{#if kind === 'mutes' || kind === 'blocks'}<button
 						disabled={work.busy || !!work.retry}
 						onclick={() => {
 							if (
@@ -249,13 +280,22 @@
 								: 'Unfollow'}</button
 					>{/if}
 			</div>{:else}<p class="empty">
+				<SettingsIcon
+					name={section === 'muted'
+						? 'muted'
+						: section === 'blocked'
+							? 'blocked'
+							: 'followers'}
+				/>
 				{query
 					? 'No matching accounts.'
 					: section === 'muted'
 						? 'You have not muted any accounts.'
 						: section === 'blocked'
 							? 'You have not blocked any accounts.'
-							: `No ${section} yet.`}
+							: section === 'followers'
+								? 'No one follows you yet'
+								: 'You are not following anyone'}
 			</p>{/each}
 		{#if cursor}<button disabled={work.busy} onclick={more}>Load more</button
 			>{/if}
@@ -264,12 +304,69 @@
 
 <style>
 	.metric {
-		font-size: 2rem;
+		font-size: 30px;
+		line-height: 1.15;
+		font-weight: 600;
+		color: var(--primary);
 	}
-	svg {
+	.follower-total {
+		text-align: center;
+		padding: 8px 0 32px;
+	}
+	.growth-page {
+		padding-top: 8px;
+	}
+	.growth-change {
+		display: inline-block;
+		padding: 4px 10px;
+		border-radius: 999px;
+		background: var(--primary-soft);
+		color: var(--primary);
+		font-size: 14px;
+	}
+	.relationship-list .empty {
+		min-height: calc(100svh - 200px);
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+	}
+	.relationship-list > .row {
+		padding: 12px 16px;
+		border: 0;
+	}
+	.relationship-list > .row button {
+		border: 0;
+		background: transparent;
+		color: var(--primary);
+		padding: 8px 12px;
+	}
+
+	.growth-chart {
 		width: 100%;
-		height: auto;
+		height: 240px;
 	}
+	.growth-chart svg {
+		width: 100%;
+		height: 240px;
+	}
+	.growth-chart text {
+		font:
+			400 12px Outfit,
+			sans-serif;
+		fill: var(--ink-2);
+	}
+	.profile-list-identity {
+		color: inherit;
+		text-decoration: none;
+		flex: 1;
+		min-height: 48px;
+	}
+	.relationship-list :global(.avatar) {
+		width: 41px;
+		height: 41px;
+	}
+
 	summary {
 		cursor: pointer;
 		font-weight: 600;

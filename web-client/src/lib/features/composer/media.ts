@@ -9,6 +9,19 @@ export interface ImageTransform {
 	rotation?: number;
 	crop?: { x: number; y: number; width: number; height: number };
 }
+
+/** A native-style picker selects either photos or one video, never a mixed embed. */
+export function attachmentSelection(
+	files: readonly { type: string; name: string }[]
+): 'images' | 'video' | undefined {
+	if (!files.length) return;
+	const videos = files.filter(
+		(file) => file.type.startsWith('video/') || /\.mp4$/i.test(file.name)
+	);
+	if (videos.length && files.length !== 1)
+		throw new Error('Choose photos or one video, rather than mixing them.');
+	return videos.length ? 'video' : 'images';
+}
 export async function prepareImage(
 	source: Blob,
 	name: string,

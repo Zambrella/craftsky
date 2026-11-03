@@ -3,6 +3,7 @@
 	import type { Facet } from './api/types';
 	import Avatar from './Avatar.svelte';
 	import CraftBadge from './CraftBadge.svelte';
+	import ImageCarousel from './ImageCarousel.svelte';
 	import {
 		authorName,
 		gaugeText,
@@ -22,7 +23,8 @@
 		content,
 		media,
 		field,
-		member = false
+		member = false,
+		onImageChange
 	}: {
 		post: Post;
 		detail?: boolean;
@@ -30,6 +32,7 @@
 		media?: Snippet;
 		field?: Snippet<[string, Facet[] | undefined]>;
 		member?: boolean;
+		onImageChange?: (index: number) => void;
 	} = $props();
 	const profileHref = (did: string) =>
 		member ? '/app/profile/' + encodeURIComponent(did) : profilePath(did);
@@ -40,6 +43,73 @@
 				'/' +
 				encodeURIComponent(post.rkey)
 			: postPath(post);
+	const authorCrafts = $derived.by(() => {
+		const entries = new Map<string, string>();
+		for (const value of post.author.crafts || []) {
+			const id = value.split('#').at(-1)?.trim().toLowerCase() || '';
+			if (id) entries.set(id, label(id));
+		}
+		return [...entries].map(([id, name]) => ({
+			id,
+			name,
+			icon: [
+				'knitting',
+				'crochet',
+				'sewing',
+				'embroidery',
+				'quilting'
+			].includes(id)
+		}));
+	});
+	let visibleCraftCount = $state(5);
+	function fitCrafts(node: HTMLElement, entries: typeof authorCrafts) {
+		let disposed = false;
+		const canvas = document.createElement('canvas');
+		const context = canvas.getContext('2d');
+		function fit() {
+			if (disposed) return;
+			const name = node.querySelector('strong');
+			const measure = node.querySelector<HTMLElement>('.craft-count-measure');
+			if (!name || !measure) return;
+			if (context) context.font = getComputedStyle(measure).font;
+			const countWidth = (count: number) =>
+				context?.measureText('+' + count).width ||
+				measure.getBoundingClientRect().width;
+			const budget = Math.min(
+				node.clientWidth,
+				Math.max(
+					node.clientWidth - name.scrollWidth,
+					8 + countWidth(entries.length)
+				)
+			);
+			let visible = entries.filter((entry) => entry.icon).length;
+			while (visible > 0) {
+				const hidden = entries.length - visible;
+				const width =
+					8 +
+					visible * 16 +
+					(visible - 1) * 4 +
+					(hidden > 0 ? 4 + countWidth(hidden) : 0);
+				if (width <= budget) break;
+				visible--;
+			}
+			visibleCraftCount = visible;
+		}
+		const observer = new ResizeObserver(fit);
+		observer.observe(node);
+		void document.fonts.ready.then(fit);
+		fit();
+		return {
+			update(next: typeof authorCrafts) {
+				entries = next;
+				fit();
+			},
+			destroy() {
+				disposed = true;
+				observer.disconnect();
+			}
+		};
+	}
 	const detailFields: Record<string, string> = {
 		projectType: 'Project type',
 		size: 'Size',
@@ -67,12 +137,41 @@
 	<div class="author">
 		<a href={profileHref(post.author.did)}
 			><Avatar author={post.author} /><span
-				><strong>{authorName(post.author)}</strong
-				>{#if post.author.business}<span class="business-label"
+				>{#if member}<span
+						class="member-author-line"
+						use:fitCrafts={authorCrafts}
+						><strong>{authorName(post.author)}</strong
+						>{#if authorCrafts.length}<span
+								class="author-crafts"
+								role="img"
+								aria-label={'Crafts: ' +
+									authorCrafts.map((entry) => entry.name).join(', ')}
+								title={authorCrafts.map((entry) => entry.name).join(', ')}
+								>{#each authorCrafts
+									.filter((entry) => entry.icon)
+									.slice(0, visibleCraftCount) as entry}<span
+										class="author-craft-icon"
+										data-craft={entry.id}
+										style:--craft-icon={`url('/craft_icons/${entry.id}.svg')`}
+										aria-hidden="true"
+
+									></span>{/each}{#if authorCrafts.length > visibleCraftCount}<span
+										class="craft-count"
+										aria-hidden="true"
+										>+{authorCrafts.length - visibleCraftCount}</span
+									>{/if}</span
+							>{/if}<span class="craft-count-measure" aria-hidden="true"
+							>+{authorCrafts.length}</span
+						></span
+					>{:else}<strong>{authorName(post.author)}</strong
+					>{/if}{#if post.author.business}<span class="business-label"
 						>Business account</span
 					>{/if}<small>@{post.author.handle}</small></span
 			></a
-		><a class="date" href={postHref()}
+		><a
+			class="date"
+			href={postHref()}
+			aria-label={member ? 'Open post' : undefined}
 			><time
 				datetime={post.createdAt}
 				title={fullTimestamp(post.createdAt)}
@@ -96,26 +195,12 @@
 			>{/if}
 	{/if}
 
-	{#if post.images.length}<div
-			class="gallery"
-			role="region"
-			aria-label="Post images"
-		>
-			{#each post.images as image, i}{#if safeURL(image.fullsize)}<a
-						href={safeURL(image.fullsize)}
-						aria-label={image.alt || `View image ${i + 1}`}
-						><img
-							src={safeURL(
-								detail ? image.fullsize : image.thumb || image.fullsize
-							)}
-							alt={image.alt}
-							width={image.aspectRatio?.width}
-							height={image.aspectRatio?.height}
-							loading={detail && i === 0 ? 'eager' : 'lazy'}
-							fetchpriority={detail && i === 0 ? 'high' : 'auto'}
-						/></a
-					>{/if}{/each}
-		</div>{/if}
+	{#if post.images.length}<ImageCarousel
+			images={post.images}
+			{detail}
+			interactive={member}
+			onChange={onImageChange}
+		/>{/if}
 	{#if media}{@render media()}{:else if post.video && safeURL(post.video.playlist)}
 		<video
 			controls
@@ -127,7 +212,7 @@
 				type="application/vnd.apple.mpegurl"
 			/></video
 		>
-		<p>
+		<p class="video-fallback">
 			<a href={safeURL(post.video.playlist)}>Open video</a> · Playback requires a
 			browser that supports HLS video.
 		</p>
@@ -228,3 +313,43 @@
 			Edited <time datetime={post.editedAt}>{date(post.editedAt)}</time>
 		</p>{/if}
 </article>
+
+<style>
+	.member-author-line {
+		display: flex;
+		align-items: center;
+		min-width: 0;
+	}
+	.member-author-line strong {
+		flex: 0 1 auto;
+		min-width: 0;
+		white-space: nowrap;
+		overflow: hidden;
+		text-overflow: ellipsis;
+	}
+	.author-crafts {
+		display: inline-flex;
+		align-items: center;
+		flex-shrink: 0;
+		gap: 4px;
+		padding-left: 8px;
+	}
+	.author-craft-icon {
+		width: 16px;
+		height: 16px;
+		flex-shrink: 0;
+		background: currentColor;
+		mask: var(--craft-icon) center / contain no-repeat;
+	}
+	.craft-count,
+	.craft-count-measure {
+		font-size: 13px;
+		line-height: 1.45;
+		white-space: nowrap;
+	}
+	.craft-count-measure {
+		position: absolute;
+		visibility: hidden;
+		pointer-events: none;
+	}
+</style>

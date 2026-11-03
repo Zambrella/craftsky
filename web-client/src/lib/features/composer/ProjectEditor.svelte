@@ -1,23 +1,59 @@
 <script lang="ts">
+	import { tick, untrack } from 'svelte';
 	import type { CraftskyAPI, Json, JsonObject } from '#lib/api/client.ts';
 	import { label, options, record, str } from './model.ts';
 	import FacetTextInput from './FacetTextInput.svelte';
+	import Icon from '../shell/Icon.svelte';
+	import ProjectDetail from './ProjectDetail.svelte';
+	import MultiSelect from '#lib/MultiSelect.svelte';
 	let {
 		project,
 		api,
+		owner,
 		disabled = false,
+		part = 'all',
 		onchange
 	}: {
 		project: JsonObject;
 		api: CraftskyAPI;
+		owner: string;
 		disabled?: boolean;
+		part?: 'main' | 'details' | 'all';
 		onchange: (project: JsonObject) => void;
 	} = $props();
+	let activeDetail = $state<'pattern' | 'materials' | 'craft'>();
+	let materialText = $state(''),
+		materialError = $state('');
+	let editingMaterial = $state<JsonObject>();
+	let materialEntry = $state<HTMLDivElement>();
+	const materialSegmenter = new Intl.Segmenter(undefined, {
+		granularity: 'grapheme'
+	});
+	$effect(() => {
+		void owner;
+		untrack(() => {
+			activeDetail = undefined;
+			materialText = '';
+			materialError = '';
+			editingMaterial = undefined;
+		});
+	});
 	const common = $derived(record(project.common));
+	const materialItems = $derived(
+		Array.isArray(common.materials) ? common.materials.map(record) : []
+	);
+	const additionalItems = $derived(
+		Array.isArray(common.additionalCrafts)
+			? common.additionalCrafts.map(record)
+			: []
+	);
+	const additionalValues = $derived(
+		additionalItems.map((value) => str(value.craftType)).filter(Boolean)
+	);
 	const pattern = $derived(record(common.pattern));
 	const details = $derived(record(project.details));
 	const craft = $derived(str(common.craftType));
-	const shortCraft = $derived(craft.split('#').at(-1) || 'knitting');
+	const shortCraft = $derived(craft.split('#').at(-1) || '');
 	const textile = $derived(
 		shortCraft === 'knitting' || shortCraft === 'crochet'
 	);
@@ -54,54 +90,136 @@
 		});
 	}
 	function changeCraft(value: string) {
+		if (disabled) return;
 		onchange({
 			...project,
-			common: { ...common, craftType: value },
+			common: {
+				...common,
+				craftType: value,
+				...(Array.isArray(common.additionalCrafts)
+					? {
+							additionalCrafts: additionalItems.filter(
+								(item) => item.craftType !== value
+							)
+						}
+					: {})
+			},
 			details: undefined
 		});
 	}
-	function toggle(key: string, value: string) {
-		const values = Array.isArray(common[key]) ? (common[key] as string[]) : [];
-		if (values.includes(value))
-			updateCommon(
-				key,
-				values.filter((item) => item !== value)
-			);
-		else if (values.length < 10) updateCommon(key, [...values, value]);
-	}
-	function additional(value: string) {
-		const values = Array.isArray(common.additionalCrafts)
-			? common.additionalCrafts.map(record)
+	function selected(key: string): string[] {
+		const values = common[key];
+		return Array.isArray(values)
+			? values.filter((value): value is string => typeof value === 'string')
 			: [];
-		const exists = values.some((item) => item.craftType === value);
+	}
+	function selectOptions(family: string, values: string[], excluded = '') {
+		const choices = options(family)
+			.filter((item) => item.id !== excluded)
+			.map((item) => ({ id: item.id, label: item.label }));
+		for (const value of values)
+			if (!choices.some((item) => item.id === value))
+				choices.push({ id: value, label: label(value) });
+		return choices.sort((a, b) => a.label.localeCompare(b.label));
+	}
+	function replaceSelection(key: string, values: string[]) {
+		if (disabled || values.length > 10) return false;
+		updateCommon(key, [...new Set(values)]);
+		return true;
+	}
+	function additional(values: string[]) {
+		if (disabled || values.length > 10) return false;
 		updateCommon(
 			'additionalCrafts',
-			exists
-				? values.filter((item) => item.craftType !== value)
-				: [...values, { craftType: value }]
+			[...new Set(values)].map(
+				(value) =>
+					additionalItems.find((item) => item.craftType === value) || {
+						craftType: value
+					}
+			)
 		);
+		return true;
 	}
-	function materials(text: string) {
-		const previous = Array.isArray(common.materials)
-			? common.materials.map(record)
-			: [];
-		const values = text.split('\n').filter((value) => value.trim());
-		const used = new Set<number>();
-		const next = values.map((value, index) => {
-			let source = previous.findIndex(
-				(item, position) => !used.has(position) && item.text === value
-			);
-			if (source < 0 && values.length === previous.length && !used.has(index))
-				source = index;
-			const old = source < 0 ? undefined : previous[source];
-			if (source >= 0) used.add(source);
-			const material: JsonObject = { text: value };
-			if (old?.existingIndex !== undefined)
-				material.existingIndex = old.existingIndex;
-			if (old?.text === value && old.facets) material.facets = old.facets;
-			return material;
-		});
+	function addMaterial() {
+		if (disabled) return;
+		const text = materialText.trim();
+		if (!text) return;
+		if (
+			[...materialSegmenter.segment(text)].length > 100 ||
+			new TextEncoder().encode(text).length > 1000
+		) {
+			materialError = 'Materials must be 100 characters or fewer.';
+			return;
+		}
+		const index = editingMaterial ? materialItems.indexOf(editingMaterial) : -1;
+		if (index < 0 && materialItems.length >= 10) {
+			materialError = 'Choose up to ten materials.';
+			return;
+		}
+		const material: JsonObject = {
+			...(index >= 0 ? editingMaterial : {}),
+			text
+		};
+		if (material.text !== editingMaterial?.text) delete material.facets;
+		const next = [...materialItems];
+		if (index < 0) next.push(material);
+		else next[index] = material;
 		updateCommon('materials', next);
+		materialText = '';
+		materialError = '';
+		editingMaterial = undefined;
+		focusMaterial();
+	}
+	function focusMaterial() {
+		const account = owner;
+		void tick().then(() => {
+			const input = materialEntry?.querySelector('textarea');
+			if (account !== owner || disabled || !input?.isConnected) return;
+			input.focus();
+			input.setSelectionRange(input.value.length, input.value.length);
+		});
+	}
+	function editMaterial(material: JsonObject) {
+		if (disabled || materialText) return;
+		editingMaterial = material;
+		materialText = str(material.text);
+		materialError = '';
+		focusMaterial();
+	}
+	function removeMaterial(material: JsonObject) {
+		if (disabled) return;
+		updateCommon(
+			'materials',
+			materialItems.filter((item) => item !== material)
+		);
+		if (editingMaterial === material) {
+			editingMaterial = undefined;
+			materialText = '';
+		}
+		materialError = '';
+	}
+	function moveMaterial(material: JsonObject, direction: number) {
+		if (disabled) return;
+		const index = materialItems.indexOf(material),
+			destination = index + direction;
+		if (index < 0 || destination < 0 || destination >= materialItems.length)
+			return;
+		const next = [...materialItems];
+		[next[index], next[destination]] = [next[destination], next[index]];
+		updateCommon('materials', next);
+	}
+	function closeMaterials() {
+		if (
+			materialText !== str(editingMaterial?.text) &&
+			!confirm(
+				"Discard material changes? Your current material input won't be saved. Materials you've already added will be kept."
+			)
+		)
+			return false;
+		materialText = '';
+		editingMaterial = undefined;
+		materialError = '';
+		return true;
 	}
 
 	function gauge(key: string, value: string) {
@@ -112,293 +230,470 @@
 	}
 </script>
 
-<section class="composer-section project-editor">
-	<h2>Project details</h2>
-	<div class="fields">
-		<label
-			>Primary craft<select
-				value={craft}
-				onchange={(e) => changeCraft(e.currentTarget.value)}
-				>{#each options('craft') as option}<option value={option.id}
-						>{option.label}</option
-					>{/each}</select
-			></label
-		><label
-			>Status<select
-				value={str(common.status)}
-				onchange={(e) => updateCommon('status', e.currentTarget.value)}
-				>{#each options('status') as option}<option value={option.id}
-						>{option.label}</option
-					>{/each}</select
-			></label
-		>
-	</div>
-	<label
-		>Project title<input
-			maxlength="200"
-			value={str(common.title)}
-			oninput={(e) => updateCommon('title', e.currentTarget.value || undefined)}
-			placeholder="What have you been making?"
-		/></label
-	>
-	<fieldset>
-		<legend>Other crafts in this project</legend>
-		<div class="chips">
-			{#each options('craft').filter((item) => item.id !== craft) as item}<label
-					class="check"
-					><input
-						type="checkbox"
-						checked={(Array.isArray(common.additionalCrafts)
-							? common.additionalCrafts
-							: []
-						).some((value) => record(value).craftType === item.id)}
-						onchange={() => additional(item.id)}
-					/>{item.label}</label
-				>{/each}
-		</div>
-	</fieldset>
-	<label
-		>Time spent<input
-			maxlength="100"
-			value={str(common.duration)}
-			oninput={(e) =>
-				updateCommon('duration', e.currentTarget.value || undefined)}
-			placeholder="For example, a lovely weekend"
-		/></label
-	>
-	<details open={!!Object.keys(pattern).length}>
-		<summary>Pattern</summary>
-		<div class="stack">
-			<label class="check"
-				><input
-					type="checkbox"
-					checked={pattern.selfDrafted === true}
-					onchange={(e) =>
-						updatePattern('selfDrafted', e.currentTarget.checked)}
-				/>Self drafted</label
-			>
-			<FacetTextInput
-				{api}
-				{disabled}
-				label="Pattern name"
-				value={str(pattern.name) || '#'}
-				allowed={['hashtag']}
-				onchange={(value) =>
-					updatePattern(
-						'name',
-						value.trim() === '#' ? undefined : value || undefined
-					)}
-			/>
-			<div class="fields">
-				<FacetTextInput
-					{api}
-					{disabled}
-					label="Designer"
-					value={str(pattern.designer)}
-					allowed={['mention']}
-					onchange={(value) => updatePattern('designer', value || undefined)}
-				/><FacetTextInput
-					{api}
-					{disabled}
-					label="Publisher"
-					value={str(pattern.publisher)}
-					allowed={['mention']}
-					onchange={(value) => updatePattern('publisher', value || undefined)}
-				/>
-			</div>
+<section
+	class="composer-section project-editor"
+	class:project-main={part === 'main'}
+>
+	{#if part !== 'details'}
+		<div class="project-basics">
 			<label
-				>Pattern link<input
-					type="url"
-					value={str(pattern.url)}
-					oninput={(e) =>
-						updatePattern('url', e.currentTarget.value || undefined)}
-					placeholder="https://"
-				/></label
-			><label
-				>Difficulty<select
-					value={str(pattern.difficulty)}
-					onchange={(e) =>
-						updatePattern('difficulty', e.currentTarget.value || undefined)}
-					><option value="">Not specified</option
-					>{#each options('difficulty') as option}<option value={option.id}
+				><span>Primary craft <small class="required-note">required</small></span
+				><select
+					value={craft}
+					onchange={(e) => changeCraft(e.currentTarget.value)}
+					><option value="">Select Primary craft</option
+					>{#each options('craft') as option}<option value={option.id}
 							>{option.label}</option
 						>{/each}</select
 				></label
 			>
 		</div>
-	</details>
-	<FacetTextInput
-		{api}
-		{disabled}
-		label="Materials"
-		hint="One material per line"
-		rows={3}
-		value={(Array.isArray(common.materials) ? common.materials : [])
-			.map((item) => str(record(item).text))
-			.join('\n')}
-		onchange={materials}
-		placeholder="Yarn, fabric, thread and other supplies"
-	/>
-	<details>
-		<summary>Colours and design</summary>
-		<fieldset>
-			<legend>Colours</legend>
-			<div class="chips">
-				{#each options('color') as item}<label class="check"
-						><input
-							type="checkbox"
-							checked={Array.isArray(common.colors) &&
-								common.colors.includes(item.id)}
-							onchange={() => toggle('colors', item.id)}
-						/>{item.label}</label
-					>{/each}
-			</div>
-		</fieldset>
-		<fieldset>
-			<legend>Design tags</legend>
-			<div class="chips">
-				{#each options('designTag') as item}<label class="check"
-						><input
-							type="checkbox"
-							checked={Array.isArray(common.designTags) &&
-								common.designTags.includes(item.id)}
-							onchange={() => toggle('designTags', item.id)}
-						/>{item.label}</label
-					>{/each}
-			</div>
-		</fieldset>
-		<p class="muted">Choose up to ten in each group.</p>
-	</details>
-	{#if ['sewing', 'knitting', 'crochet', 'quilting'].includes(shortCraft)}
-		<details open={!!Object.keys(details).length}>
-			<summary>{label(craft)} details</summary>
+		<MultiSelect
+			label="Additional crafts"
+			placeholder="Find other crafts used in this project"
+			values={additionalValues}
+			options={selectOptions('craft', additionalValues, craft)}
+			maximum={10}
+			{disabled}
+			onchange={additional}
+		/>
+		<label
+			>Project title<input
+				maxlength="200"
+				value={str(common.title)}
+				oninput={(e) =>
+					updateCommon('title', e.currentTarget.value || undefined)}
+				placeholder="Add a short project title"
+			/></label
+		>
+
+		<label
+			>Status<select
+				value={str(common.status)}
+				onchange={(e) =>
+					updateCommon('status', e.currentTarget.value || undefined)}
+				><option value="">Not specified</option
+				>{#each options('status') as option}<option value={option.id}
+						>{option.label}</option
+					>{/each}</select
+			></label
+		>
+		<FacetTextInput
+			{api}
+			{disabled}
+			label="Pattern tag or name"
+			value={str(pattern.name) || '#'}
+			allowed={['hashtag']}
+			onchange={(value) =>
+				updatePattern(
+					'name',
+					value.trim() === '#' ? undefined : value || undefined
+				)}
+		/>
+		<label
+			>Duration<input
+				maxlength="100"
+				value={str(common.duration)}
+				oninput={(e) =>
+					updateCommon('duration', e.currentTarget.value || undefined)}
+				placeholder="e.g. 2 days or 4 weeks"
+			/></label
+		>
+	{/if}
+	{#if part !== 'main'}
+		<div class="more-details-heading">
+			<h2>Add more details</h2>
+			<p class="muted">
+				Optional details help other crafters discover and understand your
+				project.
+			</p>
+		</div>
+		<ProjectDetail
+			title="Pattern details"
+			description="Add designer, publisher, link and difficulty"
+			icon="pattern"
+			open={activeDetail === 'pattern'}
+			{disabled}
+			onopen={() => (activeDetail = 'pattern')}
+			onclose={() => (activeDetail = undefined)}
+		>
 			<div class="stack">
+				<label class="check"
+					><input
+						type="checkbox"
+						checked={pattern.selfDrafted === true}
+						onchange={(e) =>
+							updatePattern('selfDrafted', e.currentTarget.checked)}
+					/>Self drafted</label
+				>
 				<div class="fields">
-					<label
-						>Project type<select
-							value={str(details.projectType)}
-							onchange={(e) => {
-								projectType(e.currentTarget.value);
-							}}
-							><option value="">Not specified</option
-							>{#each options('projectType', craft) as option}<option
-									value={option.id}>{option.label}</option
-								>{/each}</select
-						></label
-					><label
-						>Project subtype<select
-							value={str(details.projectSubtype)}
-							onchange={(e) =>
-								updateDetail(
-									'projectSubtype',
-									e.currentTarget.value || undefined
-								)}
-							><option value="">Not specified</option
-							>{#each options('projectSubtype', craft, str(details.projectType)) as option}<option
-									value={option.id}>{option.label}</option
-								>{/each}</select
-						></label
+					<FacetTextInput
+						{api}
+						{disabled}
+						label="Designer"
+						value={str(pattern.designer)}
+						allowed={['mention']}
+						onchange={(value) => updatePattern('designer', value || undefined)}
+					/><FacetTextInput
+						{api}
+						{disabled}
+						label="Publisher"
+						value={str(pattern.publisher)}
+						allowed={['mention']}
+						onchange={(value) => updatePattern('publisher', value || undefined)}
+					/>
+				</div>
+				<label
+					>Pattern link<input
+						type="url"
+						value={str(pattern.url)}
+						oninput={(e) =>
+							updatePattern('url', e.currentTarget.value || undefined)}
+						placeholder="https://"
+					/></label
+				><label
+					>Difficulty<select
+						value={str(pattern.difficulty)}
+						onchange={(e) =>
+							updatePattern('difficulty', e.currentTarget.value || undefined)}
+						><option value="">Not specified</option
+						>{#each options('difficulty') as option}<option value={option.id}
+								>{option.label}</option
+							>{/each}</select
+					></label
+				>
+			</div>
+		</ProjectDetail>
+		<ProjectDetail
+			title="Materials and style"
+			description="Help others discover projects like yours"
+			icon="palette"
+			open={activeDetail === 'materials'}
+			beforeClose={closeMaterials}
+			{disabled}
+			onopen={() => (activeDetail = 'materials')}
+			onclose={() => (activeDetail = undefined)}
+		>
+			<section class="material-field" aria-label="Materials">
+				<h3>Materials</h3>
+				{#each materialItems as material, index}{#if material !== editingMaterial}<div
+							class="material-chip"
+						>
+							<span>{str(material.text)}</span>
+							<div class="material-actions">
+								<button
+									type="button"
+									class="material-up"
+									aria-label={`Move material ${index + 1} up`}
+									disabled={disabled || index === 0}
+									onclick={() => moveMaterial(material, -1)}
+									><Icon name="down" size={16} /></button
+								><button
+									type="button"
+									aria-label={`Move material ${index + 1} down`}
+									disabled={disabled || index === materialItems.length - 1}
+									onclick={() => moveMaterial(material, 1)}
+									><Icon name="down" size={16} /></button
+								><button
+									type="button"
+									aria-label={`Edit material ${str(material.text)}`}
+									title={materialText
+										? 'Add or clear the current material first'
+										: 'Edit material'}
+									disabled={disabled || !!materialText}
+									onclick={() => editMaterial(material)}
+									><Icon name="edit" size={18} /></button
+								><button
+									type="button"
+									aria-label={`Remove material ${str(material.text)}`}
+									{disabled}
+									onclick={() => removeMaterial(material)}
+									><Icon name="close" size={18} /></button
+								>
+							</div>
+						</div>{/if}{/each}
+				<div class="material-entry" bind:this={materialEntry}>
+					<FacetTextInput
+						{api}
+						{disabled}
+						label="Materials"
+						value={materialText}
+						placeholder="Add material"
+						onchange={(value) => {
+							materialText = value.replace(/[\r\n]+/g, ' ');
+						}}
+						onsubmit={addMaterial}
+					/><button
+						type="button"
+						class="material-add"
+						disabled={disabled || !materialText.trim()}
+						onclick={addMaterial}>Add</button
 					>
 				</div>
-				{#if shortCraft === 'sewing'}<label
-						>Size made<input
-							maxlength="100"
-							value={str(details.sizeMade)}
-							oninput={(e) =>
-								updateDetail('sizeMade', e.currentTarget.value || undefined)}
-						/></label
-					><label
-						>Fit notes<textarea
-							rows="3"
-							maxlength="600"
-							value={str(details.fitNotes)}
-							oninput={(e) =>
-								updateDetail('fitNotes', e.currentTarget.value || undefined)}
-						></textarea></label
-					>{/if}
-				{#if textile}<div class="fields">
+				{#if materialError}<p class="material-error" role="alert">
+						{materialError}
+					</p>{/if}
+			</section>
+			<MultiSelect
+				label="Colours"
+				placeholder="Search colours"
+				values={selected('colors')}
+				options={selectOptions('color', selected('colors'))}
+				maximum={10}
+				{disabled}
+				onchange={(values) => replaceSelection('colors', values)}
+			/>
+			<MultiSelect
+				label="Design"
+				placeholder="Search designs"
+				values={selected('designTags')}
+				options={selectOptions('designTag', selected('designTags'))}
+				maximum={10}
+				{disabled}
+				onchange={(values) => replaceSelection('designTags', values)}
+			/>
+		</ProjectDetail>
+		{#if ['sewing', 'knitting', 'crochet', 'quilting'].includes(shortCraft)}
+			<ProjectDetail
+				title={label(craft) + ' details'}
+				description="Size, tools and techniques"
+				icon="adjustments"
+				open={activeDetail === 'craft'}
+				{disabled}
+				onopen={() => (activeDetail = 'craft')}
+				onclose={() => (activeDetail = undefined)}
+			>
+				<div class="stack">
+					<div class="fields">
 						<label
-							>Yarn weight<select
-								value={str(details.yarnWeight)}
-								onchange={(e) =>
-									updateDetail(
-										'yarnWeight',
-										e.currentTarget.value || undefined
-									)}
+							>Project type<select
+								value={str(details.projectType)}
+								onchange={(e) => {
+									projectType(e.currentTarget.value);
+								}}
 								><option value="">Not specified</option
-								>{#each options('yarnWeight') as option}<option
+								>{#each options('projectType', craft) as option}<option
 										value={option.id}>{option.label}</option
 									>{/each}</select
 							></label
 						><label
-							>{shortCraft === 'knitting' ? 'Needle' : 'Hook'} size (mm)<input
-								inputmode="decimal"
-								value={str(
-									details[
-										shortCraft === 'knitting' ? 'needleSizeMm' : 'hookSizeMm'
-									]
-								)}
-								oninput={(e) =>
+							>Project subtype<select
+								value={str(details.projectSubtype)}
+								onchange={(e) =>
 									updateDetail(
-										shortCraft === 'knitting' ? 'needleSizeMm' : 'hookSizeMm',
+										'projectSubtype',
 										e.currentTarget.value || undefined
 									)}
-								placeholder="4.0mm"
-							/></label
-						>
-					</div>
-					<label
-						>Finished size<input
-							maxlength="100"
-							value={str(details.finishedSize)}
-							oninput={(e) =>
-								updateDetail(
-									'finishedSize',
-									e.currentTarget.value || undefined
-								)}
-						/></label
-					>
-					<fieldset>
-						<legend>Gauge</legend>
-						<div class="fields gauge">
-							{#each [['stitches', 'Stitches'], ['rows', 'Rows'], ['measurement', 'Over']] as [key, name]}<label
-									>{name}<input
-										type="number"
-										min="1"
-										step="1"
-										value={typeof record(details.gauge)[key] === 'number'
-											? Number(record(details.gauge)[key])
-											: ''}
-										oninput={(e) => gauge(key, e.currentTarget.value)}
-									/></label
-								>{/each}<label
-								>Unit<select
-									value={str(record(details.gauge).unit)}
-									onchange={(e) => gauge('unit', e.currentTarget.value)}
-									><option value="">Choose</option><option value="cm">cm</option
-									><option value="in">inches</option></select
-								></label
-							>
-						</div>
-					</fieldset>{/if}
-				{#if shortCraft === 'quilting'}<label
-						>Finished size<input
-							maxlength="100"
-							value={str(details.size)}
-							oninput={(e) =>
-								updateDetail('size', e.currentTarget.value || undefined)}
-						/></label
-					>{#each [['piecingTechnique', 'Piecing technique'], ['quiltingMethod', 'Quilting method']] as [key, name]}<label
-							>{name}<select
-								value={str(details[key])}
-								onchange={(e) =>
-									updateDetail(key, e.currentTarget.value || undefined)}
 								><option value="">Not specified</option
-								>{#each options(key, craft) as option}<option value={option.id}
-										>{option.label}</option
+								>{#each options('projectSubtype', craft, str(details.projectType)) as option}<option
+										value={option.id}>{option.label}</option
 									>{/each}</select
 							></label
-						>{/each}{/if}
-			</div>
-		</details>{/if}
+						>
+					</div>
+					{#if shortCraft === 'sewing'}<label
+							>Size made<input
+								maxlength="100"
+								value={str(details.sizeMade)}
+								oninput={(e) =>
+									updateDetail('sizeMade', e.currentTarget.value || undefined)}
+							/></label
+						><label
+							>Fit notes<textarea
+								rows="3"
+								maxlength="600"
+								value={str(details.fitNotes)}
+								oninput={(e) =>
+									updateDetail('fitNotes', e.currentTarget.value || undefined)}
+							></textarea></label
+						>{/if}
+					{#if textile}<div class="fields">
+							<label
+								>Yarn weight<select
+									value={str(details.yarnWeight)}
+									onchange={(e) =>
+										updateDetail(
+											'yarnWeight',
+											e.currentTarget.value || undefined
+										)}
+									><option value="">Not specified</option
+									>{#each options('yarnWeight') as option}<option
+											value={option.id}>{option.label}</option
+										>{/each}</select
+								></label
+							><label
+								>{shortCraft === 'knitting' ? 'Needle' : 'Hook'} size (mm)<input
+									inputmode="decimal"
+									value={str(
+										details[
+											shortCraft === 'knitting' ? 'needleSizeMm' : 'hookSizeMm'
+										]
+									)}
+									oninput={(e) =>
+										updateDetail(
+											shortCraft === 'knitting' ? 'needleSizeMm' : 'hookSizeMm',
+											e.currentTarget.value || undefined
+										)}
+									placeholder="4.0mm"
+								/></label
+							>
+						</div>
+						<label
+							>{shortCraft === 'knitting' ? 'Size made' : 'Finished size'}<input
+								maxlength="100"
+								value={str(details.finishedSize)}
+								oninput={(e) =>
+									updateDetail(
+										'finishedSize',
+										e.currentTarget.value || undefined
+									)}
+							/></label
+						>
+						<fieldset>
+							<legend>Gauge</legend>
+							<div class="fields gauge">
+								{#each [['stitches', 'Stitches'], ['rows', 'Rows'], ['measurement', 'Over']] as [key, name]}<label
+										>{name}<input
+											type="number"
+											min="1"
+											step="1"
+											value={typeof record(details.gauge)[key] === 'number'
+												? Number(record(details.gauge)[key])
+												: ''}
+											oninput={(e) => gauge(key, e.currentTarget.value)}
+										/></label
+									>{/each}<label
+									>Unit<select
+										value={str(record(details.gauge).unit)}
+										onchange={(e) => gauge('unit', e.currentTarget.value)}
+										><option value="">Choose</option><option value="cm"
+											>cm</option
+										><option value="in">inches</option></select
+									></label
+								>
+							</div>
+						</fieldset>{/if}
+					{#if shortCraft === 'quilting'}<label
+							>Finished size<input
+								maxlength="100"
+								value={str(details.size)}
+								oninput={(e) =>
+									updateDetail('size', e.currentTarget.value || undefined)}
+							/></label
+						>{#each [['piecingTechnique', 'Piecing technique'], ['quiltingMethod', 'Quilting method']] as [key, name]}<label
+								>{name}<select
+									value={str(details[key])}
+									onchange={(e) =>
+										updateDetail(key, e.currentTarget.value || undefined)}
+									><option value="">Not specified</option
+									>{#each options(key, craft) as option}<option
+											value={option.id}>{option.label}</option
+										>{/each}</select
+								></label
+							>{/each}{/if}
+				</div>
+			</ProjectDetail>{/if}
+	{/if}
 </section>
+
+<style>
+	.project-editor
+		:global(.native-multi-select .selection-values input[type='search']) {
+		border: 0;
+		border-radius: 0;
+		background: transparent;
+		padding: 0;
+		min-height: 30px;
+		width: 100px;
+		min-width: 50px;
+		flex: 1;
+		box-shadow: none;
+	}
+	.project-editor :global(.native-multi-select .select-option) {
+		display: flex;
+		flex-direction: row;
+		align-items: center;
+		gap: 16px;
+		margin: 0;
+		padding: 10px 14px;
+		font-weight: 400;
+	}
+	.material-field {
+		display: grid;
+		gap: 8px;
+	}
+	.material-field h3 {
+		font:
+			700 16px/1.5 Outfit,
+			sans-serif;
+		margin: 0;
+	}
+	.material-chip {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		padding: 12px 8px 12px 16px;
+		background: var(--surface);
+		border: 1.5px solid var(--ink-3);
+		border-radius: 14px;
+	}
+	.material-chip > span {
+		flex: 1;
+		min-width: 0;
+		overflow-wrap: anywhere;
+		font-size: 16px;
+		font-weight: 600;
+	}
+	.material-actions {
+		display: flex;
+		flex: none;
+		align-items: center;
+	}
+	.material-actions button {
+		display: grid;
+		place-items: center;
+		width: 28px;
+		height: 32px;
+		min-height: 32px;
+		padding: 4px;
+		border: 0;
+		border-radius: 50%;
+		background: transparent;
+		box-shadow: none;
+		color: var(--ink);
+	}
+	.material-up :global(svg) {
+		transform: rotate(180deg);
+	}
+	.material-entry {
+		position: relative;
+	}
+	.material-entry :global(.facet-input > label) {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		overflow: hidden;
+		clip-path: inset(50%);
+	}
+	.material-entry :global(.facet-input textarea) {
+		padding-right: 64px;
+		min-height: 56px;
+		border-radius: 14px;
+	}
+	.material-add {
+		position: absolute;
+		right: 8px;
+		top: 6px;
+		min-height: 44px;
+		padding: 8px;
+		color: var(--primary);
+		background: transparent;
+		border: 0;
+		box-shadow: none;
+	}
+	.material-error {
+		font-size: 14px;
+		color: var(--red-ink);
+		margin: 0;
+	}
+</style>

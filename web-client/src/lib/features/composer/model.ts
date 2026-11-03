@@ -4,6 +4,7 @@ import {
 	type JsonObject,
 	type PostEditChanges,
 	type PostPayload,
+	type Post,
 	type Project
 } from '#lib/api/client.ts';
 import type { Draft, PendingWrite } from '../drafts/store.ts';
@@ -27,12 +28,20 @@ export const label = (token: string) =>
 	catalogue.find((entry) => entry.id === token)?.label ||
 	token.split('#').at(-1) ||
 	token;
-export const defaultProject = (): JsonObject => ({
-	common: {
-		craftType: 'social.craftsky.feed.defs#knitting',
-		status: 'social.craftsky.feed.defs#finished'
-	}
-});
+export const defaultProject = (crafts: readonly string[] = []): JsonObject => {
+	const craft = crafts
+		.map(
+			(value) =>
+				options('craft').find((item) => item.id.split('#').at(-1) === value)?.id
+		)
+		.find(Boolean);
+	return {
+		common: {
+			...(craft ? { craftType: craft } : {}),
+			status: 'social.craftsky.feed.defs#finished'
+		}
+	};
+};
 export function record(value: unknown): JsonObject {
 	return value && typeof value === 'object' && !Array.isArray(value)
 		? (value as JsonObject)
@@ -40,6 +49,47 @@ export function record(value: unknown): JsonObject {
 }
 export function str(value: unknown): string {
 	return typeof value === 'string' ? value : '';
+}
+/** Resolve a carousel selection against fresh target assets, never an arbitrary query CID. */
+export function selectedQuoteImage(
+	post: Pick<Post, 'images'>,
+	cid: string | null | undefined
+): string | undefined {
+	return cid && post.images?.some((image) => image.cid === cid)
+		? cid
+		: undefined;
+}
+export function responseLabel(
+	draft: Pick<Draft, 'reply'>
+): 'Comment' | 'Reply' {
+	return draft.reply?.parent.uri === draft.reply?.root.uri
+		? 'Comment'
+		: 'Reply';
+}
+export function scheduledLocalDate(value: string | undefined): string {
+	if (!value) return '';
+	const date = new Date(value);
+	return Number.isFinite(date.getTime())
+		? new Date(date.getTime() - date.getTimezoneOffset() * 60000)
+				.toISOString()
+				.slice(0, 16)
+		: '';
+}
+export function scheduledUTCDate(value: string): string | undefined {
+	const date = new Date(value);
+	return value && Number.isFinite(date.getTime())
+		? date.toISOString()
+		: undefined;
+}
+/** Flutter ScheduleTimeWindow: whole minutes, five minutes through 28 days. */
+export function scheduleWindow(now = Date.now()): {
+	earliest: number;
+	latest: number;
+} {
+	return {
+		earliest: Math.ceil((now + 5 * 60_000) / 60_000) * 60_000,
+		latest: Math.floor((now + 28 * 86_400_000) / 60_000) * 60_000
+	};
 }
 const graphemes = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
 export function textLength(text: string): number {

@@ -54,7 +54,7 @@ async function seed(context: BrowserContext, both = false) {
 }
 async function signIn(page: Page, handle = 'alice.test') {
 	await page.goto('/sign-in');
-	await page.getByLabel('Your handle').fill(handle);
+	await page.getByLabel('Your Atmosphere Handle').fill(handle);
 	await page.getByRole('button', { name: 'Sign in', exact: true }).click();
 }
 async function accounts(page: Page) {
@@ -215,6 +215,51 @@ test('two browser accounts switch independently and isolate API401 while preserv
 	).toBe(true);
 });
 
+for (const status of [503, 401]) {
+	test(`startup ${status} preserves an accessible switch to another retained account`, async ({
+		page,
+		context
+	}) => {
+		await page.setViewportSize({ width: 402, height: 874 });
+		await seed(context, true);
+		await configure({
+			owners: {
+				alice: { apiStatus: status, apiPath: '/v1/account/eligibility' }
+			}
+		});
+		await page.goto('/app/home');
+		await expect(
+			page.getByRole('heading', {
+				name:
+					status === 401 ? 'Your session has expired' : 'Account unavailable',
+				exact: true
+			})
+		).toBeVisible();
+		await expect(
+			page.getByText('Loading your CraftSky…', { exact: true })
+		).toHaveCount(0);
+		await page
+			.getByRole('button', { name: 'Switch account', exact: true })
+			.click();
+		const chooser = page.getByRole('dialog', { name: 'Accounts', exact: true });
+		await expect(chooser).toBeVisible();
+		page.once('dialog', (dialog) => dialog.accept());
+		await chooser
+			.getByRole('button', { name: '@bob.test', exact: true })
+			.click();
+		await expect(
+			page.getByRole('heading', { name: 'Home', exact: true })
+		).toBeVisible();
+		const state = await accounts(page);
+		expect(
+			state.accounts.find((account) => account.id === state.active)?.did
+		).toBe(bob.did);
+		expect(state.accounts.some((account) => account.did === alice.did)).toBe(
+			status === 503
+		);
+	});
+}
+
 test('onboarding requires the16-year age and policy declaration independently of diagnostics configuration', async ({
 	page,
 	context
@@ -223,11 +268,11 @@ test('onboarding requires the16-year age and policy declaration independently of
 	await configure({ owners: { alice: { completed: false } } });
 	await page.goto('/app/home');
 	await expect(
-		page.getByRole('heading', { name: 'Set up your profile' })
+		page.getByRole('heading', { name: 'Make it yours', exact: true })
 	).toBeVisible();
 	await page.getByRole('button', { name: 'Continue', exact: true }).click();
 	await expect(
-		page.getByRole('heading', { name: 'Choose your crafts' })
+		page.getByRole('heading', { name: 'What do you make?', exact: true })
 	).toBeVisible();
 	await page.getByRole('button', { name: 'Continue', exact: true }).click();
 	await expect(
@@ -284,12 +329,17 @@ test('restricted accounts retain settings and complete owner-bound reauthenticat
 		page.getByRole('heading', { name: 'Settings', exact: true })
 	).toBeVisible();
 	await page.goto('/app/settings/account');
-	await expect(
-		page.getByRole('heading', { name: 'Delete CraftSky account', exact: true })
-	).toBeVisible();
 	await page
-		.getByRole('button', { name: 'Delete CraftSky account…', exact: true })
+		.getByRole('button', { name: 'Delete CraftSky account', exact: true })
 		.click();
+	const deletionDialog = page.getByRole('dialog');
+	await expect(deletionDialog).toBeVisible();
+	await expect(
+		deletionDialog.getByRole('heading', {
+			name: 'Delete CraftSky account',
+			exact: true
+		})
+	).toBeVisible();
 	await page
 		.getByRole('button', { name: 'Verify identity to continue', exact: true })
 		.click();

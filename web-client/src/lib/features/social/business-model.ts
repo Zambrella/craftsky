@@ -1,5 +1,31 @@
 import type { JsonObject } from '#lib/api/types.ts';
 import { safeLink } from './model';
+import type { BusinessEvent } from '#lib/api/types.ts';
+
+export function eventDisplay(
+	event: Pick<BusinessEvent, 'startsAt' | 'endsAt' | 'isAllDay'>,
+	locale?: string
+) {
+	const start = new Date(event.startsAt),
+		end = new Date(Date.parse(event.endsAt) - (event.isAllDay ? 86400000 : 0));
+	if (!Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime()))
+		return { date: 'Date unavailable', time: '' };
+	const date = (value: Date) =>
+		value.toLocaleDateString(locale, {
+			day: 'numeric',
+			month: 'short',
+			year: 'numeric'
+		});
+	const time = (value: Date) =>
+		value.toLocaleTimeString(locale, { hour: 'numeric', minute: '2-digit' });
+	return {
+		date:
+			event.isAllDay && date(start) !== date(end)
+				? `${date(start)} – ${date(end)}`
+				: date(start),
+		time: event.isAllDay ? 'All day' : `${time(start)} – ${time(end)}`
+	};
+}
 export function countryName(value: unknown): string {
 	if (typeof value !== 'string') return '';
 	try {

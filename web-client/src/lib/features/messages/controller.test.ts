@@ -5,6 +5,7 @@ import {
 	type ChatConversation,
 	type ChatStatus
 } from '#lib/api/client.ts';
+import { MessageDraftStore } from './model';
 import { MessagesController } from './controller';
 class MemoryStorage {
 	values = new Map<string, string>();
@@ -67,6 +68,48 @@ function setup(storage = new MemoryStorage()) {
 	return { api, controller, storage, publish };
 }
 describe('account-owned messaging operations', () => {
+	it('retains the block write key on retry and disables sending after confirmation', async () => {
+		const { api, controller } = setup();
+		await controller.navigate(['conversation']);
+		const block = vi
+			.spyOn(api.profiles, 'block')
+			.mockRejectedValueOnce(new APIError(0, 'network_error', 'Offline'))
+			.mockResolvedValue({
+				did: 'did:plc:peer',
+				muted: false,
+				blocking: true,
+				blockedBy: false
+			});
+		await controller.blockPeer();
+		expect(controller.state.peerBlocked).toBe(false);
+		await controller.blockPeer();
+		expect(block.mock.calls[1]).toEqual(block.mock.calls[0]);
+		expect(controller.state.peerBlocked).toBe(true);
+	});
+	it('does not publish a late block result into a different conversation', async () => {
+		const { api, controller } = setup();
+		await controller.navigate(['conversation']);
+		let finish!: (value: {
+			did: string;
+			muted: boolean;
+			blocking: boolean;
+			blockedBy: boolean;
+		}) => void;
+		vi.spyOn(api.profiles, 'block').mockImplementation(
+			() => new Promise((resolve) => (finish = resolve))
+		);
+		const pending = controller.blockPeer();
+		await controller.navigate(['another']);
+		finish({
+			did: 'did:plc:peer',
+			muted: false,
+			blocking: true,
+			blockedBy: false
+		});
+		await pending;
+		expect(controller.state.peerBlocked).toBe(false);
+		expect(controller.state.busy).toBe(false);
+	});
 	it('persists the frozen operation before calling the server and fails closed if persistence fails', async () => {
 		const { api, controller, storage } = setup();
 		await controller.navigate(['conversation']);
@@ -225,5 +268,66 @@ describe('account-owned messaging operations', () => {
 		await controller.sync(true);
 		expect(controller.state.messages).toEqual([]);
 		expect(controller.state.conversation).toBeUndefined();
+	});
+});
+
+describe('account-owned shared-link recipient selection', () => {
+	const link = 'https://app.craftsky.social/posts/did%3Aplc%3Aalice/post';
+	it('commits to the exact account/conversation before navigation and never sends', async () => {
+		const { api, controller, storage } = setup();
+		const store = new MessageDraftStore(storage, 'account-a');
+		store.save('existing', { text: 'My draft' });
+		vi.spyOn(api.chat, 'availability').mockResolvedValue({
+			canChat: true,
+			conversationId: 'existing'
+		});
+		const send = vi.spyOn(api.chat, 'send'),
+			start = vi.spyOn(api.chat, 'start');
+		expect(await controller.start('did:plc:peer', link)).toBe('existing');
+		expect(store.load('existing').text).toBe('My draft\n\n' + link);
+		expect(
+			new MessageDraftStore(storage, 'account-b').load('existing')
+		).toEqual({ text: '' });
+		expect(send).not.toHaveBeenCalled();
+		expect(start).not.toHaveBeenCalled();
+	});
+	it('does not navigate when browser persistence fails and retains the prior draft', async () => {
+		const { api, controller, storage } = setup();
+		const store = new MessageDraftStore(storage, 'account-a');
+		store.save('existing', { text: 'Keep' });
+		vi.spyOn(api.chat, 'availability').mockResolvedValue({
+			canChat: true,
+			conversationId: 'existing'
+		});
+		vi.spyOn(storage, 'setItem').mockImplementation(() => {
+			throw new Error('quota');
+		});
+		expect(await controller.start('did:plc:peer', link)).toBeUndefined();
+		expect(store.load('existing').text).toBe('Keep');
+		expect(controller.state.error).toContain('could not be saved');
+		expect(controller.state.busy).toBe(false);
+	});
+	it('discards a recipient result after the active controller is disposed', async () => {
+		const { api, controller, storage } = setup();
+		let finish!: (value: { canChat: boolean; conversationId: string }) => void;
+		vi.spyOn(api.chat, 'availability').mockImplementation(
+			() =>
+				new Promise((resolve) => {
+					finish = resolve;
+				})
+		);
+		const pending = controller.start('did:plc:peer', link);
+		controller.dispose();
+		finish({ canChat: true, conversationId: 'existing' });
+		expect(await pending).toBeUndefined();
+		expect(storage.values.size).toBe(0);
+	});
+	it('rejects an unrecognized link before contacting messaging services', async () => {
+		const { api, controller } = setup();
+		const read = vi.spyOn(api.chat, 'availability');
+		expect(
+			await controller.start('did:plc:peer', 'https://evil.test')
+		).toBeUndefined();
+		expect(read).not.toHaveBeenCalled();
 	});
 });

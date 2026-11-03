@@ -1,8 +1,10 @@
 <script lang="ts">
 	import { page } from '$app/state';
 	import { label } from '#lib/public.ts';
+	import MultiSelect from '#lib/MultiSelect.svelte';
 	import { filterFamilies, filterOptions } from './filter-model';
-	let { craft = '' }: { craft?: string } = $props();
+	let { craft = '', expanded = false }: { craft?: string; expanded?: boolean } =
+		$props();
 	let selected = $state<Record<string, string[]>>(
 		Object.fromEntries(
 			filterFamilies.map(([family]) => [
@@ -15,40 +17,53 @@
 			])
 		)
 	);
+	let selfDrafted = $state(page.url.searchParams.get('selfDrafted') === 'true');
 	let feedback = $state('');
 	const maximum = $derived(craft ? 49 : 50);
+	const order = [
+		'projectType',
+		'projectSubtype',
+		'patternDifficulty',
+		'color',
+		'designTag',
+		'yarnWeight',
+		'piecingTechnique',
+		'quiltingMethod',
+		'status'
+	];
+	const titles: Record<string, string> = {
+		color: 'Color',
+		designTag: 'Design'
+	};
 	function options(family: string) {
 		const values = filterOptions(family, craft, selected.projectType);
 		return [
-			...values,
+			...values.map((option) => ({ id: option.id, label: option.labels.en })),
 			...(selected[family] || [])
 				.filter((value) => !values.some((option) => option.id === value))
-				.map((value) => ({ id: value, labels: { en: label(value) } }))
+				.map((value) => ({ id: value, label: label(value) }))
 		];
 	}
-	function toggle(family: string, id: string, event: Event) {
-		const input = event.currentTarget as HTMLInputElement,
-			before = selected[family] || [];
+	function update(family: string, next: string[]) {
 		if (
-			input.checked &&
-			(before.length >= 10 ||
-				Object.values(selected).reduce(
-					(sum, values) => sum + values.length,
-					0
-				) >= maximum)
+			next.length > 10 ||
+			Object.entries(selected).reduce(
+				(sum, [key, values]) =>
+					sum + (key === family ? next.length : values.length),
+				0
+			) > maximum
 		) {
-			input.checked = false;
 			feedback = `Choose up to 10 options in each filter and ${maximum} options across these filters.`;
-			return;
+			return false;
 		}
-		const next = input.checked
-			? [...before, id]
-			: before.filter((value) => value !== id);
 		selected = { ...selected, [family]: next };
-		feedback = '';
 		if (family === 'projectType') {
 			const allowed = new Set(
-				filterOptions('projectSubtype', craft, next).map((option) => option.id)
+				next.length
+					? filterOptions('projectSubtype', craft, next).map(
+							(option) => option.id
+						)
+					: []
 			);
 			selected = {
 				...selected,
@@ -57,173 +72,107 @@
 				)
 			};
 		}
+		feedback = '';
+		return true;
 	}
-	function clear(family: string) {
-		selected = { ...selected, [family]: [] };
+	export function clearAll() {
+		selected = Object.fromEntries(
+			filterFamilies.map(([family]) => [family, []])
+		);
+		selfDrafted = false;
 		feedback = '';
 	}
 </script>
 
-<details class="filter-panel">
-	<summary>Filter projects</summary>
-	<p class="filter-help">Choose one or more options in each filter.</p>
+<div class="filter-panel" class:embedded={expanded}>
 	<div class="filter-grid">
-		{#each filterFamilies as [family, title]}{@const values =
-				options(family)}{#if values.length}<details
-					class="filter-family"
+		{#each order as family}{@const values = options(family)}{@const title =
+				titles[family] ||
+				filterFamilies.find(([key]) => key === family)?.[1] ||
+				family}
+			{#if values.length || family === 'projectSubtype'}<div
 					data-filter={family}
 				>
-					<summary
-						><span>{title}</span><span
-							class:selected-count={selected[family].length > 0}
-							>{selected[family].length
-								? `${selected[family].length} selected`
-								: 'Any'}</span
-						></summary
-					>
-					<fieldset>
-						<legend class="visually-hidden">{title}</legend>
-						<div class="filter-options">
-							{#each values as option (option.id)}<label
-									class="filter-option"
-									class:chosen={selected[family].includes(option.id)}
-									><input
-										type="checkbox"
-										name={family}
-										value={option.id}
-										checked={selected[family].includes(option.id)}
-										onchange={(event) => toggle(family, option.id, event)}
-									/><span>{option.labels.en}</span></label
-								>{/each}
-						</div>
-					</fieldset>
-					{#if selected[family].length}<button
-							class="clear-filter"
-							type="button"
-							onclick={() => clear(family)}>Clear {title.toLowerCase()}</button
-						>{/if}
-				</details>{/if}{/each}
+					<MultiSelect
+						label={title}
+						options={values}
+						values={selected[family]}
+						disabled={family === 'projectSubtype' &&
+							!selected.projectType.length}
+						onchange={(next) => update(family, next)}
+					/>
+					{#each selected[family] as value}<input
+							type="hidden"
+							name={family}
+							{value}
+						/>{/each}
+				</div>{/if}
+		{/each}
 		<label class="self-drafted"
-			><input
+			><span>Self drafted</span><input
 				type="checkbox"
+				role="switch"
 				name="selfDrafted"
 				value="true"
-				checked={page.url.searchParams.get('selfDrafted') === 'true'}
-			/><span>Self drafted patterns only</span></label
+				bind:checked={selfDrafted}
+			/></label
 		>
 	</div>
 	{#if feedback}<p class="filter-feedback" role="status">{feedback}</p>{/if}
-</details>
+</div>
 
 <style>
-	.filter-help {
-		font-size: 14px;
-		color: var(--ink-3);
-		margin: 12px 0 16px;
+	.filter-panel {
+		padding: 16px;
+		border: 0;
+		border-radius: 0;
+		box-shadow: none;
+		background: transparent;
 	}
 	.filter-grid {
 		display: grid;
-		grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
-		gap: 12px;
-		align-items: start;
+		gap: 24px;
 	}
-	.filter-family {
-		border: 1px solid var(--hairline);
-		border-radius: 10px;
-		background: var(--surface);
-		overflow: clip;
-	}
-	.filter-family > summary {
+	.self-drafted {
 		display: flex;
+		flex-direction: row;
 		align-items: center;
 		justify-content: space-between;
-		gap: 12px;
-		padding: 12px 14px;
-		cursor: pointer;
-		list-style: none;
-		font-weight: 600;
-	}
-	.filter-family > summary:after {
-		content: '⌄';
-		color: var(--ink-3);
-	}
-	.filter-family[open] > summary:after {
-		transform: rotate(180deg);
-	}
-	.filter-family > summary > span:nth-child(2) {
-		margin-left: auto;
-		font-size: 12px;
+		min-height: 48px;
+		font-size: 16px;
 		font-weight: 400;
-		color: var(--ink-3);
 	}
-	.filter-family > summary .selected-count {
-		background: var(--primary-soft);
-		color: var(--ink);
-		padding: 2px 8px;
-		border-radius: 20px;
-	}
-	.filter-family fieldset {
-		padding: 0;
-		margin: 0;
-		border: 0;
-		min-width: 0;
-	}
-	.filter-options {
-		max-height: 250px;
-		overflow: auto;
-		padding: 4px 10px 10px;
-		display: grid;
-		gap: 4px;
-	}
-	.filter-option,
-	.self-drafted {
-		display: flex;
-		align-items: center;
-		gap: 10px;
-		padding: 10px;
-		border-radius: 8px;
-		font-weight: 400;
-		cursor: pointer;
-	}
-	.filter-option input,
 	.self-drafted input {
-		width: 18px;
-		height: 18px;
-		flex: none;
-		accent-color: var(--primary);
+		appearance: none;
+		width: 52px;
+		height: 32px;
+		border: 1px solid var(--ink-3);
+		border-radius: 20px;
+		background: var(--paper-2);
+		position: relative;
 		margin: 0;
 	}
-	.filter-option:hover {
-		background: var(--paper);
+	.self-drafted input::after {
+		content: '';
+		position: absolute;
+		left: 4px;
+		top: 4px;
+		width: 22px;
+		height: 22px;
+		border-radius: 50%;
+		background: var(--ink-3);
 	}
-	.filter-option.chosen {
-		background: var(--primary-soft);
+	.self-drafted input:checked {
+		background: var(--primary);
+		border-color: var(--primary);
 	}
-	.clear-filter {
-		display: block;
-		padding: 10px 14px;
-		background: none;
-		border: 0;
-		color: var(--primary);
-		font: inherit;
-		font-size: 14px;
-		cursor: pointer;
-		text-decoration: underline;
+	.self-drafted input:checked::after {
+		left: 24px;
+		background: var(--on-primary);
 	}
 	.filter-feedback {
-		font-size: 14px;
 		color: var(--red-ink);
-		margin-top: 12px;
-	}
-	.self-drafted {
-		min-height: 48px;
-		border: 1px solid var(--hairline);
-	}
-	.filter-family > summary:focus-visible,
-	.filter-option input:focus-visible,
-	.self-drafted input:focus-visible,
-	.clear-filter:focus-visible {
-		outline: 3px solid var(--primary);
-		outline-offset: 3px;
+		margin-top: 16px;
+		font-size: 14px;
 	}
 </style>

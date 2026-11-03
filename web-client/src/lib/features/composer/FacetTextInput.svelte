@@ -16,7 +16,8 @@
 		disabled = false,
 		allowed = ['mention', 'hashtag'],
 		className = '',
-		hint = ''
+		hint = '',
+		onsubmit = () => {}
 	}: {
 		api: CraftskyAPI;
 		label: string;
@@ -28,6 +29,7 @@
 		allowed?: ActiveFacetToken['kind'][];
 		className?: string;
 		hint?: string;
+		onsubmit?: () => void;
 	} = $props();
 	const uid = $props.id();
 	let editor = $state<HTMLTextAreaElement>();
@@ -175,7 +177,10 @@
 			void choose(active);
 			return;
 		}
-		if (rows === 1 && event.key === 'Enter') event.preventDefault();
+		if (rows === 1 && event.key === 'Enter') {
+			event.preventDefault();
+			onsubmit();
+		}
 		if (event.key === 'Escape' && token) {
 			event.preventDefault();
 			dismissed = `${token.kind}:${token.start}:${token.end}:${token.query}`;
@@ -186,7 +191,12 @@
 
 <div class="facet-input">
 	<label for={uid}
-		>{label}{#if hint}<span class="facet-hint">{hint}</span>{/if}</label
+		>{label}{#if hint}<span
+				class="facet-hint"
+				class:required={hint.toLowerCase() === 'required'}
+				id={uid + '-hint'}
+				aria-hidden="true">{hint}</span
+			>{/if}</label
 	>
 	<textarea
 		id={uid}
@@ -197,6 +207,7 @@
 		wrap={rows === 1 ? 'off' : 'soft'}
 		{placeholder}
 		{disabled}
+		aria-describedby={hint ? uid + '-hint' : undefined}
 		aria-autocomplete="list"
 		aria-controls={open ? `${uid}-suggestions` : undefined}
 		aria-activedescendant={open && choices.length
@@ -274,12 +285,25 @@
 		min-width: 0;
 	}
 	.facet-input label {
-		display: grid;
-		gap: 4px;
+		display: flex;
+		flex-direction: row;
+		flex-wrap: wrap;
+		align-items: baseline;
+		gap: 8px;
+	}
+	.facet-input label .facet-hint {
+		font-size: 12px;
+		font-weight: 400;
+	}
+
+	.facet-input label .facet-hint.required {
+		font-weight: 600;
+		letter-spacing: 1.68px;
 	}
 	.facet-input textarea {
 		width: 100%;
 		font: inherit;
+		font-size: 16px;
 		resize: vertical;
 	}
 	.facet-input textarea[rows='1'] {

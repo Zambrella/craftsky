@@ -53,9 +53,14 @@ export interface Draft {
 		thumb?: BlobReference;
 	};
 	externalImage?: DraftMedia;
+	externalDismissed?: boolean;
+	externalSource?: string;
+	externalResolvedURI?: string;
 	embedChanges?: JsonObject | null;
 	edit?: PostEditSeed;
 	scheduleId?: string;
+	/** Device-private scheduling choice; never part of a public post payload. */
+	scheduleLater?: boolean;
 	scheduledAt?: string;
 	pending?: PendingWrite;
 }
@@ -169,6 +174,13 @@ export const drafts = {
 		const copy = structuredClone(draft);
 		copy.updatedAt = new Date().toISOString();
 		await transaction('readwrite', (store) => store.put(copy));
+	},
+	/** Explicit Discard restores the activation's original private snapshot without changing its timestamp. */
+	async restore(owner: string, draft: Draft): Promise<void> {
+		assertOwner(owner, draft);
+		await transaction('readwrite', (store) =>
+			store.put(structuredClone(draft))
+		);
 	},
 	async remove(owner: string, id: string): Promise<void> {
 		await transaction('readwrite', (store) => store.delete([owner, id]));

@@ -4,6 +4,8 @@
 	import { Work } from './work.svelte';
 	import Status from './Status.svelte';
 	import MemberPost from './MemberPost.svelte';
+	import Icon from '../shell/Icon.svelte';
+	import EmptyState from './EmptyState.svelte';
 	let { api, did, tag }: { api: CraftskyAPI; did: string; tag: string } =
 		$props();
 	const work = new Work();
@@ -32,16 +34,47 @@
 </script>
 
 <div class="workspace-heading">
+	<a href="/app/search" class="icon-button" aria-label="Back to search"
+		><Icon name="back" /></a
+	>
 	<h1>#{tag}</h1>
-	<button onclick={() => load()}>Refresh</button>
+	<button
+		class="icon-button"
+		aria-label="Refresh"
+		disabled={work.busy}
+		onclick={() => load()}><Icon name="refresh" /></button
+	>
 </div>
-<Status {work} />{#each posts as post}<MemberPost
+<Status
+	{work}
+	skeleton="posts"
+	reload={() => load()}
+/>{#each posts as post}<MemberPost
 		value={post}
 		{api}
 		{did}
-	/>{:else}{#if !work.busy}<p class="empty">
-			No posts found for this hashtag.
-		</p>{/if}{/each}{#if cursor}<button
+	/>{:else}{#if !work.busy && !work.error}<EmptyState
+			title={'#' + tag}
+			detail="No posts found for this hashtag."
+			icon="search"
+		/>{/if}{/each}{#if cursor}<button
 		class="button next"
 		onclick={() => load(true)}>Load more</button
 	>{/if}
+
+<style>
+	.workspace-heading {
+		justify-content: flex-start;
+		gap: 8px;
+	}
+	.workspace-heading h1 {
+		flex: 1;
+		overflow-wrap: anywhere;
+	}
+	.icon-button {
+		display: grid;
+		place-items: center;
+		width: 40px;
+		min-height: 44px;
+	}
+</style>

@@ -16,8 +16,13 @@
 	import { safeURL } from '#lib/public.ts';
 	import { Work } from './work.svelte.ts';
 	import Feedback from './Feedback.svelte';
+	import SettingsIcon from './SettingsIcon.svelte';
+	import Avatar from '#lib/Avatar.svelte';
+	import CompactIdentity from '../social/CompactIdentity.svelte';
 	let { api }: { api: CraftskyAPI } = $props();
 	const work = new Work();
+	let loaded = $state(false);
+	let disposed = false;
 	const archiveAbort = new AbortController();
 	type Account = {
 		state: string;
@@ -70,6 +75,7 @@
 		parsed = $state<ParsedFollowing | null>(null),
 		sourceType = $state('manual'),
 		fileName = $state('');
+	let inputKind = $state<'export' | 'manual'>('export');
 	let selectedImport = $state<Record<string, unknown> | null>(null);
 	const transport = $derived(api.transport);
 	async function fetchData(): Promise<Data> {
@@ -84,6 +90,7 @@
 		return { account: a, verification: v, imports: i, suggestions: s };
 	}
 	function apply(data: Data) {
+		loaded = true;
 		available = data.account.integrationAvailable;
 		account = data.account.account;
 		const previous = verification;
@@ -98,7 +105,12 @@
 				dmUrl: previous?.dmUrl
 			};
 		}
-		discoverable = account?.discoverable ?? discoverable;
+		if (
+			verification?.state === 'pendingConfirmation' &&
+			previous?.verificationId !== verification.verificationId
+		)
+			discoverable = true;
+		else discoverable = account?.discoverable ?? discoverable;
 		imports = data.imports.items;
 		importCursor = data.imports.cursor || null;
 		suggestions = data.suggestions.items;
@@ -116,6 +128,20 @@
 			apply,
 			notice
 		);
+	}
+	async function setDiscoverable(discoverable: boolean) {
+		if (!account || work.busy || work.retry) return;
+		const previous = account;
+		account = { ...account, discoverable };
+		await work.run(
+			async () => {
+				await api.instagram.settings({ discoverable });
+				return fetchData();
+			},
+			apply,
+			'Discovery preference saved.'
+		);
+		if (!disposed && work.error) account = previous;
 	}
 	function verify() {
 		void work.run(
@@ -223,67 +249,60 @@
 	}
 	onMount(load);
 	onDestroy(() => {
+		disposed = true;
 		work.dispose();
 		archiveAbort.abort();
 	});
 </script>
 
-<h1>Find your Instagram community</h1>
+<h1 class="workspace-heading">Find people from Instagram</h1>
 <Feedback {work} reload={load} />
-{#if !work.loading}
+{#if !work.loading && loaded}
 	{#if !available}<p class="notice">
 			Instagram verification is temporarily unavailable. Your saved account and
 			imports remain below.
 		</p>{/if}
 	<section class="panel stack">
-		<h2>Your Instagram account</h2>
+		<h2 class="section-heading">
+			<SettingsIcon name="instagram" />{account
+				? 'Instagram account'
+				: 'Verify your Instagram account'}
+		</h2>
 		{#if account}<p>
-				<strong>@{account.username}</strong> · {title(account.state)}
+				Verified as <strong>@{account.username}</strong>
 			</p>
 			{#if account.verifiedAt}<p class="muted">
 					Verified {dateTime(account.verifiedAt)}
 				</p>{/if}{#if account.conflictPending}<p class="notice">
 					This account has a pending ownership conflict. Verification may be
 					required again.
-				</p>{/if}<label class="check"
-				><input
-					type="checkbox"
-					checked={account.discoverable}
+				</p>{/if}
+			{#if account.reactivationRequired || account.state === 'membershipInactive'}<p
+				>
+					Reactivation keeps discovery off until you choose to turn it on again.
+				</p>
+				<button
 					disabled={work.busy || !!work.retry}
-					onchange={(event) =>
-						update(
-							() =>
-								api.instagram.settings({
-									discoverable: event.currentTarget.checked
-								}),
-							'Discovery preference saved.'
-						)}
-				/>Let people who followed me on Instagram find me on CraftSky</label
-			>{#if account.reactivationRequired}<button
-					disabled={work.busy}
 					onclick={() =>
 						update(
 							() => api.instagram.settings({ reactivate: true }),
 							'Instagram account reactivated.'
-						)}>Reactivate account</button
-				>{/if}<button
-				class="danger"
-				disabled={work.busy || !!work.retry}
-				onclick={() => {
-					if (
-						confirm(
-							'Disconnect your Instagram account from CraftSky discovery?'
-						)
-					)
-						update(
-							() => api.instagram.revoke(),
-							'Instagram account disconnected.'
-						);
-				}}>Disconnect Instagram account</button
-			>
+						)}>Reactivate Instagram account</button
+				>
+			{:else}<label class="switch-row"
+					><span class="tile-copy"
+						>Let others find me by my Instagram username</span
+					><input
+						type="checkbox"
+						role="switch"
+						checked={account.discoverable}
+						disabled={work.busy || !!work.retry}
+						onchange={(event) => setDiscoverable(event.currentTarget.checked)}
+					/></label
+				>{/if}
 		{:else}<p>
-				Verify your Instagram username so the people you already know can find
-				you here. CraftSky will never ask for your Instagram password.
+				Send a one-time challenge to CraftSky's official Instagram account. You
+				will confirm the username here before it is verified.
 			</p>{/if}
 		{#if verification && ['pendingDm', 'processing', 'pendingConfirmation'].includes(verification.state)}<div
 				class="verification stack"
@@ -327,10 +346,26 @@
 							>@{verification.candidateUsername}</strong
 						>
 					</p>
-					<label class="check"
-						><input type="checkbox" bind:checked={discoverable} />Allow people
-						who followed me to find me here</label
-					><button
+					<div class="segmented" aria-label="Instagram discovery">
+						<button
+							type="button"
+							aria-pressed={discoverable}
+							disabled={work.busy || !!work.retry}
+							onclick={() => (discoverable = true)}>Allow discovery</button
+						><button
+							type="button"
+							aria-pressed={!discoverable}
+							disabled={work.busy || !!work.retry}
+							onclick={() => (discoverable = false)}>Keep private</button
+						>
+					</div>
+					<p class="helper">
+						{discoverable
+							? 'When enabled, eligible CraftSky members who imported your Instagram username may see a private suggestion to follow you.'
+							: 'Your Instagram account remains verified, but CraftSky will not match it with people who imported your username.'}
+					</p>
+					<p class="helper">Confirm only if this is your Instagram username.</p>
+					<button
 						class="primary"
 						disabled={work.busy}
 						onclick={() => {
@@ -362,181 +397,253 @@
 					)}{verification.retryCode
 						? ` · ${title(verification.retryCode)}`
 						: ''}
-				</p>{/if}<button
-				class="primary"
-				disabled={work.busy || !available}
-				onclick={verify}
-				>{account
-					? 'Verify another username'
-					: 'Verify Instagram username'}</button
-			>{/if}
+				</p>{/if}{#if available}<button
+					class="primary"
+					disabled={work.busy}
+					onclick={verify}
+					>{account
+						? 'Verify another username'
+						: 'Create verification challenge'}</button
+				>{/if}{/if}
 	</section>
-	<section class="panel stack">
-		<h2>Import your following list</h2>
-		<p>
-			Import usernames from Instagram’s JSON data export, or enter one username
-			per line. Your imported list stays private.
-		</p>
-		<label
-			>Choose your Instagram ZIP export or following.json<input
-				type="file"
-				accept="application/json,application/zip,.json,.zip"
-				disabled={work.busy}
-				onchange={readFile}
-			/></label
-		>
-		<details>
-			<summary>Enter usernames manually</summary>
-			<form class="stack" onsubmit={parseManual}>
-				<fieldset class="form-fields" disabled={work.busy || !!work.retry}>
-					<label
-						>Instagram usernames<textarea
-							bind:value={manual}
-							placeholder={'@maker_one\nmaker_two'}></textarea></label
-					><button disabled={work.busy}>Review usernames</button>
-				</fieldset>
-			</form>
-		</details>
-		{#if parsed}<div class="notice">
-				<h3>Review import{fileName ? `: ${fileName}` : ''}</h3>
-				<p>
-					{parsed.entries.length} valid usernames · {parsed.duplicates} duplicates
-					removed · {parsed.ignored} invalid entries ignored
+	<a
+		class="import-help"
+		href="https://craftsky.social/instagram-import"
+		target="_blank"
+		rel="noopener noreferrer"
+		>How to export your Instagram following <SettingsIcon
+			name="external"
+			size={16}
+		/></a
+	>
+	{#if !account}<p class="muted">
+			Complete verification to import the accounts you follow.
+		</p>{:else}
+		<section class="panel stack">
+			<h2 class="section-heading">
+				<SettingsIcon name="followers" />Import accounts you follow
+			</h2>
+			<div class="segmented" aria-label="Import method">
+				<button
+					aria-pressed={inputKind === 'export'}
+					disabled={work.busy}
+					onclick={() => (inputKind = 'export')}>Instagram export</button
+				><button
+					aria-pressed={inputKind === 'manual'}
+					disabled={work.busy}
+					onclick={() => (inputKind = 'manual')}>Enter handles</button
+				>
+			</div>
+			{#if inputKind === 'export'}<p class="helper">
+					Choose JSON format and All time when exporting from Instagram, then
+					select the downloaded ZIP here. CraftSky processes it on this device
+					and uploads only the usernames of accounts you follow. Everything else
+					stays on your device.
 				</p>
-				<p class="muted">
-					{parsed.entries
-						.slice(0, 8)
-						.map((e) => `@${e.username}`)
-						.join(', ')}{parsed.entries.length > 8 ? '…' : ''}
+				<label
+					>Choose your Instagram ZIP export or following.json<input
+						type="file"
+						accept="application/json,application/zip,.json,.zip"
+						disabled={work.busy}
+						onchange={readFile}
+					/></label
+				>
+			{:else}<p class="helper">
+					Enter the Instagram handles of accounts you follow, one per line.
 				</p>
-				<div class="actions">
-					<button
-						class="primary"
-						disabled={work.busy || !parsed.entries.length}
-						onclick={importFollowing}
-						>Import {parsed.entries.length} usernames</button
-					><button disabled={work.busy} onclick={() => (parsed = null)}
-						>Cancel</button
-					>
-				</div>
-			</div>{/if}
-	</section>
-	<section class="panel">
-		<h2>Your imports</h2>
-		{#each imports as item}<div class="import-row">
-				<div class="row">
-					<div>
-						<h3>{item.followingCount} usernames</h3>
-						<small class="muted"
-							>{title(item.sourceType)} · {title(item.state)} · {dateTime(
-								item.createdAt
-							)}</small
-						>
-					</div>
+				<form class="stack" onsubmit={parseManual}>
+					<fieldset class="form-fields" disabled={work.busy || !!work.retry}>
+						<label
+							>Instagram usernames<textarea
+								bind:value={manual}
+								placeholder={'@maker_one\nmaker_two'}></textarea></label
+						><button disabled={work.busy}>Review usernames</button>
+					</fieldset>
+				</form>{/if}
+			<p class="helper">
+				Importing creates private suggestions only. You choose whether to follow
+				each account.
+			</p>
+			{#if parsed}<div class="notice">
+					<h3>Review import{fileName ? `: ${fileName}` : ''}</h3>
+					<p>
+						{parsed.entries.length} valid usernames · {parsed.duplicates} duplicates
+						removed · {parsed.ignored} invalid entries ignored
+					</p>
+					<p class="muted">
+						{parsed.entries
+							.slice(0, 8)
+							.map((e) => `@${e.username}`)
+							.join(', ')}{parsed.entries.length > 8 ? '…' : ''}
+					</p>
 					<div class="actions">
 						<button
-							disabled={work.busy}
-							onclick={() =>
-								work.run(
-									() => api.instagram.import(item.importId),
-									(detail) => {
-										selectedImport = record(detail);
-									},
-									''
-								)}>Details</button
-						>{#if ['inactive', 'membershipInactive'].includes(item.state)}<button
-								disabled={work.busy}
-								onclick={() =>
-									update(
-										() =>
-											api.instagram.updateImport(item.importId, {
-												reactivate: true
-											}),
-										'Import reactivated.'
-									)}>Reactivate</button
-							>{/if}<button
-							class="danger"
-							disabled={work.busy}
-							onclick={() => {
-								if (confirm('Delete this imported following list?'))
-									update(
-										() => api.instagram.deleteImport(item.importId),
-										'Import deleted.'
-									);
-							}}>Delete</button
+							class="primary"
+							disabled={work.busy || !parsed.entries.length}
+							onclick={importFollowing}
+							>Import {parsed.entries.length} usernames</button
+						><button disabled={work.busy} onclick={() => (parsed = null)}
+							>Cancel</button
 						>
 					</div>
-				</div>
-			</div>{:else}<p class="empty">
-				No following lists imported yet.
-			</p>{/each}{#if importCursor}<button
-				disabled={work.busy}
-				onclick={moreImports}>Load more imports</button
-			>{/if}{#if selectedImport}{@const detail = record(
-				selectedImport.import || selectedImport
-			)}
-			<div class="notice">
-				<h3>Import details</h3>
-				<p>Status: {title(text(detail.state))}</p>
-				<p>
-					{typeof detail.followingCount === 'number'
-						? detail.followingCount
-						: '—'} usernames · {dateTime(detail.createdAt)}
-				</p>
-				<button onclick={() => (selectedImport = null)}>Close details</button>
-			</div>{/if}
-	</section>
-	<section class="panel">
-		<h2>Makers you know</h2>
-		<p class="muted">
-			Matches from your private following list who chose to be discoverable.
-		</p>
-		{#each suggestions as suggestion (suggestion.suggestionId)}<div class="row">
-				<div class="identity">
-					{#if safeURL(suggestion.target.avatar)}<img
-							class="avatar"
-							src={safeURL(suggestion.target.avatar)}
-							alt=""
-							loading="lazy"
-						/>{/if}<a
+				</div>{/if}
+		</section>
+		<section class="panel">
+			<h2 class="section-heading">
+				<SettingsIcon name="document" />Your imports
+			</h2>
+			{#each imports as item}<div class="import-row">
+					<div class="row">
+						<div>
+							<h3>{item.followingCount} usernames</h3>
+							<small class="muted"
+								>{title(item.sourceType)} · {title(item.state)} · {dateTime(
+									item.createdAt
+								)}</small
+							>
+						</div>
+						<div class="actions">
+							<button
+								disabled={work.busy}
+								onclick={() =>
+									work.run(
+										() => api.instagram.import(item.importId),
+										(detail) => {
+											selectedImport = record(detail);
+										},
+										''
+									)}>Details</button
+							>{#if ['inactive', 'membershipInactive'].includes(item.state)}<button
+									disabled={work.busy}
+									onclick={() =>
+										update(
+											() =>
+												api.instagram.updateImport(item.importId, {
+													reactivate: true
+												}),
+											'Import reactivated.'
+										)}>Reactivate</button
+								>{/if}<button
+								class="danger"
+								disabled={work.busy}
+								onclick={() => {
+									if (confirm('Delete this imported following list?'))
+										update(
+											() => api.instagram.deleteImport(item.importId),
+											'Import deleted.'
+										);
+								}}>Delete</button
+							>
+						</div>
+					</div>
+				</div>{:else}<p class="empty">
+					No following lists imported yet.
+				</p>{/each}{#if importCursor}<button
+					disabled={work.busy}
+					onclick={moreImports}>Load more imports</button
+				>{/if}{#if selectedImport}{@const detail = record(
+					selectedImport.import || selectedImport
+				)}
+				<div class="notice">
+					<h3>Import details</h3>
+					<p>Status: {title(text(detail.state))}</p>
+					<p>
+						{typeof detail.followingCount === 'number'
+							? detail.followingCount
+							: '—'} usernames · {dateTime(detail.createdAt)}
+					</p>
+					<button onclick={() => (selectedImport = null)}>Close details</button>
+				</div>{/if}
+		</section>
+		<section class="panel">
+			<h2 class="section-heading">
+				<SettingsIcon name="followers" />Possible CraftSky accounts
+			</h2>
+			<p class="muted">
+				Your imports find possible CraftSky accounts privately. Nobody is
+				followed until you choose Follow.
+			</p>
+			{#each suggestions as suggestion (suggestion.suggestionId)}<div
+					class="row"
+				>
+					<a
+						class="identity instagram-identity"
 						href={`/app/profile/${encodeURIComponent(suggestion.target.did)}`}
-						><strong
-							>{suggestion.target.displayName ||
-								suggestion.target.handle}</strong
-						><small>@{suggestion.target.handle}</small></a
+						><Avatar author={suggestion.target} /><CompactIdentity
+							author={suggestion.target}
+						/></a
 					>
-				</div>
-				<div class="actions">
-					<button
-						class="primary"
-						disabled={work.busy || !!work.retry}
-						onclick={() => accept(suggestion)}>Follow</button
-					><button
-						disabled={work.busy || !!work.retry}
-						onclick={() => {
-							const id = suggestion.suggestionId;
-							void work.run(
-								() => api.instagram.dismissSuggestion(id),
-								() => {
-									suggestions = suggestions.filter(
-										(s) => s.suggestionId !== id
-									);
-								},
-								'Suggestion dismissed.'
-							);
-						}}>Dismiss</button
-					>
-				</div>
-			</div>{:else}<p class="empty">
-				No new matches yet. Check back as more makers join CraftSky.
-			</p>{/each}{#if suggestionCursor}<button
-				disabled={work.busy}
-				onclick={moreSuggestions}>Load more matches</button
-			>{/if}
-	</section>
+					<div class="actions">
+						<button
+							class="primary"
+							disabled={work.busy || !!work.retry}
+							onclick={() => accept(suggestion)}>Follow</button
+						><button
+							disabled={work.busy || !!work.retry}
+							onclick={() => {
+								const id = suggestion.suggestionId;
+								void work.run(
+									() => api.instagram.dismissSuggestion(id),
+									() => {
+										suggestions = suggestions.filter(
+											(s) => s.suggestionId !== id
+										);
+									},
+									'Suggestion dismissed.'
+								);
+							}}>Dismiss</button
+						>
+					</div>
+				</div>{:else}<p class="empty">
+					No possible CraftSky accounts yet.
+				</p>{/each}{#if suggestionCursor}<button
+					disabled={work.busy}
+					onclick={moreSuggestions}>Load more matches</button
+				>{/if}
+		</section>{/if}
+	{#if account}<button
+			class="danger revoke-verification"
+			disabled={work.busy || !!work.retry}
+			onclick={() => {
+				if (
+					confirm(
+						'Revoke Instagram verification? This removes your Instagram verification and deletes your imported handles. Existing CraftSky follows will not be affected.'
+					)
+				)
+					update(
+						() => api.instagram.revoke(),
+						'Instagram verification revoked.'
+					);
+			}}
+			><SettingsIcon name="link" size={18} />Revoke Instagram verification</button
+		>{/if}
 {/if}
 
 <style>
+	.instagram-identity {
+		flex: 1;
+		color: inherit;
+		text-decoration: none;
+	}
+	.revoke-verification {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		margin-top: 24px;
+	}
+	.import-help {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		margin: 16px 0;
+		font-size: 14px;
+		font-weight: 600;
+		text-decoration: none;
+	}
+	:global(.settings-workspace) .segmented {
+		margin: 0;
+	}
+
 	.verification {
 		padding: 1rem;
 		background: var(--paper);
@@ -547,10 +654,5 @@
 		padding: 1rem;
 		border: 1px dashed var(--ink);
 		border-radius: 6px;
-	}
-	summary {
-		cursor: pointer;
-		padding: 0.75rem 0;
-		font-weight: 600;
 	}
 </style>

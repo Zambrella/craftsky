@@ -2,6 +2,11 @@
 	import { onDestroy, onMount, untrack } from 'svelte';
 	import type { CraftskyAPI, ScheduledPostSummary } from '#lib/api/client.ts';
 	import { drafts, type Draft } from './store.ts';
+	import { draftPreview, draftURL } from './presentation';
+	import DraftThumbnail from './DraftThumbnail.svelte';
+	import Icon from '../shell/Icon.svelte';
+	let deleteDialog: HTMLDialogElement;
+	let deletion = $state<{ id: string; remote: boolean; owner: string }>();
 	let {
 		api,
 		path,
@@ -28,6 +33,9 @@
 		const tab = isScheduled;
 		if (mounted)
 			untrack(() => {
+				deleteDialog?.close();
+				deletion = undefined;
+				busy = false;
 				void load(owner, tab);
 			});
 	});
@@ -57,31 +65,33 @@
 			if (seq === generation && !destroyed) loading = false;
 		}
 	}
-	async function remove(id: string, remote: boolean) {
-		if (
-			busy ||
-			!confirm(
-				remote
-					? 'Delete this scheduled post? It will not be published.'
-					: 'Delete this local draft and its media from this device?'
-			)
-		)
-			return;
+	function askRemove(id: string, remote: boolean) {
+		if (busy) return;
+		deletion = { id, remote, owner: session.did };
+		deleteDialog.showModal();
+	}
+	async function remove() {
+		const target = deletion;
+		if (busy || !target || target.owner !== session.did) return;
+		const { id, remote, owner } = target;
 		const seq = generation;
 		busy = true;
 		error = '';
 		try {
 			if (remote) await api.schedules.delete(id);
-			else await drafts.remove(session.did, id);
+			else await drafts.remove(owner, id);
 			if (seq === generation && !destroyed) {
+				deleteDialog.close();
+				deletion = undefined;
 				notice = remote ? 'Scheduled post deleted.' : 'Draft deleted.';
+				busy = false;
 				await load();
 			}
 		} catch (e) {
 			if (seq === generation && !destroyed)
 				error = e instanceof Error ? e.message : 'Could not delete this item.';
 		} finally {
-			if (!destroyed) busy = false;
+			if (seq === generation && !destroyed) busy = false;
 		}
 	}
 	const date = (value: string) =>
@@ -91,221 +101,413 @@
 		});
 </script>
 
-<section class="draft-workspace">
-	<header>
-		<div>
-			<p class="eyebrow">Your work in progress</p>
-			<h1>{isScheduled ? 'Scheduled posts' : 'Drafts'}</h1>
-		</div>
-		<a class="new-post" href="/app/compose">＋ New post</a>
+<section class="draft-workspace" aria-busy={loading || busy}>
+	<header class="draft-appbar">
+		<h1>{isScheduled ? 'Scheduled posts' : 'Drafts'}</h1>
+		<button
+			class="icon-action"
+			aria-label="Refresh drafts"
+			disabled={loading || busy}
+			onclick={() => load()}><Icon name="refresh" /></button
+		>
 	</header>
 	<nav aria-label="Drafts and scheduled posts">
-		<a class:active={!isScheduled} href="/app/drafts">On this device</a><a
-			class:active={isScheduled}
-			href="/app/scheduled">Scheduled</a
+		<a aria-current={!isScheduled ? 'page' : undefined} href="/app/drafts"
+			>On this device</a
+		>
+		<a aria-current={isScheduled ? 'page' : undefined} href="/app/scheduled"
+			>Scheduled</a
 		>
 	</nav>
-	{#if error}<div class="feedback" role="alert">
+	{#if error}<div class="feedback error" role="alert">
 			{error}<button onclick={() => load()}>Try again</button>
-		</div>{/if}{#if notice}<p role="status">{notice}</p>{/if}
-	{#if loading}<p role="status" class="empty">
-			Loading your {isScheduled ? 'scheduled posts' : 'drafts'}…
-		</p>{:else if isScheduled}
-		<p class="muted">
-			Scheduled posts and their media stay private until publication.
-		</p>
+		</div>{/if}
+	{#if notice}<p class="feedback" role="status">{notice}</p>{/if}
+	{#if loading}<div
+			class="draft-skeleton"
+			role="status"
+			aria-label="Loading drafts"
+		>
+			{#each [1, 2, 3, 4] as row}<div><span></span><i></i></div>{/each}
+		</div>
+	{:else if isScheduled}
 		{#if !scheduled.length}<div class="empty">
-				<h2>Something to look forward to</h2>
-				<p>Schedule a post from the editor and it will appear here.</p>
+				<Icon name="calendar" />
+				<h2>Scheduled posts</h2>
+				<p>No scheduled posts yet.</p>
 				<a href="/app/compose">Create a post</a>
-			</div>{/if}
-		{#each scheduled as item (item.id)}<article>
-				<div class="copy">
-					<span class="badge"
-						>{item.kind === 'project' ? 'Project' : 'Post'} · {item.status.replaceAll(
-							'_',
-							' '
-						)}</span
+			</div>{:else}<p class="privacy-note">
+				Scheduled posts and their media stay private until publication.
+			</p>{/if}
+		<ul class="draft-list">
+			{#each scheduled as item (item.id)}<li class="draft-row scheduled-row">
+					<a
+						class="draft-main"
+						href={`/app/compose?schedule=${encodeURIComponent(item.id)}`}
 					>
-					<h2>{item.projectTitle || item.textPreview || 'Untitled post'}</h2>
-					<p class="muted">{date(item.scheduledAt)}</p>
-					{#if item.lastErrorCode || item.subscriptionRequired}<p
-							class="attention"
+						<span class="schedule-icon" aria-hidden="true"
+							><Icon name="clock" size={32} /></span
 						>
-							{item.subscriptionRequired
-								? 'An active CraftSky Plus or Business subscription is required.'
-								: `Needs attention: ${item.lastErrorCode?.replaceAll('_', ' ')}`}
-						</p>{/if}{#if item.needsAttentionExpiresAt}<p class="muted">
-							Review before {date(item.needsAttentionExpiresAt)}
-						</p>{/if}
-				</div>
-				<div class="actions">
-					<a href={`/app/compose?schedule=${encodeURIComponent(item.id)}`}
-						>Edit / publish now</a
-					><button disabled={busy} onclick={() => remove(item.id, true)}
-						>Delete</button
-					>
-				</div>
-			</article>{/each}
-	{:else}<p class="muted">
-			Drafts and media are stored privately in this browser for @{session.handle}.
-			They do not sync between devices.
-		</p>
-		{#if !local.length}<div class="empty">
-				<h2>A little space for your next idea</h2>
-				<p>
-					Start a post or project. Your draft and photos will be saved here.
-				</p>
-				<a href="/app/compose">Create a post</a>
-			</div>{/if}
-		{#each local as item (item.id)}<article>
-				<div class="copy">
-					<span class="badge"
-						>{item.pending
-							? 'Awaiting confirmation'
-							: item.edit
-								? 'Post edit'
-								: item.kind === 'project'
-									? 'Project'
-									: 'Post'}</span
-					>
-					<h2>{item.text.slice(0, 140) || 'Untitled draft'}</h2>
-					<p class="muted">
-						{date(item.updatedAt)}{item.images.length
-							? ` · ${item.images.length} images`
-							: ''}{item.video ? ' · Video' : ''}
-					</p>
-				</div>
-				<div class="actions">
-					<a href={`/app/compose?draft=${encodeURIComponent(item.id)}`}
-						>{item.pending ? 'Check action' : 'Continue editing'}</a
-					>{#if !item.pending}<button
+						<span class="copy"
+							><strong
+								>{item.projectTitle ||
+									item.textPreview ||
+									'Untitled post'}</strong
+							>
+							<span
+								>{item.kind === 'project' ? 'Project' : 'Post'} · {date(
+									item.scheduledAt
+								)}</span
+							>
+							<span class="schedule-status"
+								>{item.status.replaceAll('_', ' ')}</span
+							>
+							{#if item.lastErrorCode || item.subscriptionRequired}<span
+									class="attention"
+									>{item.subscriptionRequired
+										? 'CraftSky Plus or Business is required.'
+										: `Needs attention: ${item.lastErrorCode?.replaceAll('_', ' ')}`}</span
+								>{/if}
+							{#if item.needsAttentionExpiresAt}<span
+									>Review before {date(item.needsAttentionExpiresAt)}</span
+								>{/if}
+						</span>
+					</a>
+					<div class="row-actions">
+						<a
+							class="icon-action"
+							href={`/app/compose?schedule=${encodeURIComponent(item.id)}`}
+							aria-label="Edit scheduled post"><Icon name="edit" /></a
+						><button
+							class="icon-action"
+							aria-label="Delete scheduled post"
 							disabled={busy}
-							onclick={() => remove(item.id, false)}>Delete</button
-						>{/if}
-				</div>
-			</article>{/each}{/if}
+							onclick={() => askRemove(item.id, true)}
+							><Icon name="trash" /></button
+						>
+					</div>
+				</li>{/each}
+		</ul>
+	{:else}
+		{#if !local.length}<div class="empty">
+				<Icon name="drafts" />
+				<h2>Drafts</h2>
+				<p>No drafts yet. Save a post or project to come back to it later.</p>
+			</div>{:else}<p class="privacy-note">
+				Saved on this device for @{session.handle}. Drafts do not sync between
+				devices.
+			</p>{/if}
+		<ul class="draft-list">
+			{#each local as item (item.id)}{@const preview = draftPreview(item)}
+				<li class="draft-row">
+					<a class="draft-main" href={draftURL(item)}
+						><DraftThumbnail draft={item} /><span class="copy"
+							><strong>{preview.title}</strong>{#if preview.body}<span
+									class="story">{preview.body}</span
+								>{/if}<span>{preview.kind} · {date(item.updatedAt)}</span></span
+						></a
+					>
+					<div class="row-actions">
+						<a
+							class="icon-action"
+							href={draftURL(item)}
+							aria-label={item.pending ? 'Check action' : 'Continue editing'}
+							><Icon name="edit" /></a
+						>{#if !item.pending}<button
+								class="icon-action"
+								aria-label="Delete draft"
+								disabled={busy}
+								onclick={() => askRemove(item.id, false)}
+								><Icon name="trash" /></button
+							>{/if}
+					</div>
+				</li>{/each}
+		</ul>
+	{/if}
 </section>
+<dialog
+	bind:this={deleteDialog}
+	class="draft-dialog"
+	oncancel={(event) => {
+		if (busy) event.preventDefault();
+		else deletion = undefined;
+	}}
+>
+	<h2>{deletion?.remote ? 'Delete scheduled post?' : 'Delete draft?'}</h2>
+	<p>
+		{deletion?.remote
+			? 'This scheduled post will be deleted and will not be published.'
+			: 'This draft and its media will be deleted from this device. This cannot be undone.'}
+	</p>
+	<div class="dialog-actions">
+		<button
+			disabled={busy}
+			onclick={() => {
+				deletion = undefined;
+				deleteDialog.close();
+			}}>Cancel</button
+		><button class="danger" disabled={busy} onclick={remove}
+			>{busy ? 'Deleting…' : 'Delete'}</button
+		>
+	</div>
+</dialog>
 
 <style>
 	.draft-workspace {
-		max-width: 850px;
-		padding: 24px;
+		max-width: 760px;
 		margin: auto;
-		display: grid;
-		gap: 20px;
+		min-height: 70vh;
+		background: var(--paper);
 	}
-	header {
+	.draft-appbar {
 		display: flex;
-		justify-content: space-between;
 		align-items: center;
-		gap: 16px;
+		justify-content: space-between;
+		gap: 12px;
+		min-height: 64px;
+		padding: 8px 16px;
 	}
 	h1 {
-		font-family: 'DM Serif Display', serif;
-		font-size: 2.1rem;
-		font-weight: 400;
-	}
-	.eyebrow {
-		font-size: 0.8rem;
-		text-transform: uppercase;
-		letter-spacing: 0.09em;
-		color: var(--ink-3);
+		margin: 0;
+		font-size: 22px;
+		font-weight: 700;
+		font-family: inherit;
 	}
 	nav {
 		display: flex;
-		gap: 12px;
 		border-bottom: 1px solid var(--hairline);
 	}
 	nav a {
-		padding: 10px 12px;
-		text-decoration: none;
+		flex: 1;
+		text-align: center;
+		padding: 13px 12px;
 		color: var(--ink-3);
+		font-size: 14px;
+		font-weight: 600;
+		text-decoration: none;
+		border-bottom: 3px solid transparent;
 	}
-	nav .active {
+	nav a[aria-current='page'] {
 		color: var(--primary);
-		border-bottom: 3px solid var(--primary);
+		border-color: var(--primary);
 	}
-	article {
+	.draft-list {
+		list-style: none;
+		padding: 0;
+		margin: 0;
+	}
+	.draft-row {
 		display: flex;
-		justify-content: space-between;
-		gap: 18px;
-		background: var(--surface);
-		border: 1px solid var(--ink);
-		border-radius: 14px;
-		padding: 20px;
-		box-shadow: 2px 2px 0 var(--shadow);
+		align-items: center;
+		padding: 4px 8px 4px 16px;
+		min-height: 84px;
+		gap: 4px;
 	}
-	h2 {
-		font-size: 1.15rem;
-		white-space: pre-wrap;
+	.draft-row:hover {
+		background: var(--paper-2);
+	}
+	.draft-main {
+		display: flex;
+		flex: 1;
+		gap: 16px;
+		align-items: center;
+		padding: 12px 0;
+		min-width: 0;
+		color: var(--ink);
+		text-decoration: none;
 	}
 	.copy {
 		display: grid;
-		gap: 8px;
+		gap: 4px;
 		min-width: 0;
 	}
-	.muted {
+	.copy strong,
+	.story {
+		display: -webkit-box;
+		-webkit-line-clamp: 2;
+		line-clamp: 2;
+		-webkit-box-orient: vertical;
+		overflow: hidden;
+		overflow-wrap: anywhere;
+	}
+	.copy strong {
+		font-size: 16px;
+		font-weight: 500;
+		line-height: 1.4;
+	}
+	.copy span {
 		color: var(--ink-3);
-		font-size: 0.9rem;
+		font-size: 12px;
+		line-height: 1.5;
 	}
-	.badge {
-		font-size: 0.8rem;
-		color: var(--primary);
+	.copy .story {
+		font-size: 14px;
 	}
-	.actions {
+	.row-actions {
 		display: flex;
-		flex-direction: column;
-		align-items: flex-end;
-		gap: 10px;
-		flex-shrink: 0;
+		flex: none;
 	}
-	button,
-	.new-post {
-		border: 1px solid var(--ink);
-		padding: 8px 12px;
-		background: var(--paper);
-		border-radius: 8px;
+	.icon-action {
+		width: 44px;
+		height: 44px;
+		padding: 11px;
+		display: inline-grid;
+		place-items: center;
+		border: 0;
+		border-radius: 50%;
+		background: transparent;
 		color: var(--ink);
 		font: inherit;
-		text-decoration: none;
+		font-size: 24px;
 		cursor: pointer;
+		text-decoration: none;
+	}
+	.icon-action:hover {
+		background: var(--hairline);
+	}
+	.schedule-icon {
+		color: var(--primary);
+		font-size: 36px;
+		width: 48px;
+		text-align: center;
+		flex: none;
+	}
+	.copy .schedule-status {
+		color: var(--primary);
+		text-transform: capitalize;
+	}
+	.copy .attention {
+		color: var(--red-ink);
+	}
+	.privacy-note {
+		padding: 12px 16px;
+		color: var(--ink-3);
+		font-size: 12px;
+		line-height: 1.6;
 	}
 	.empty {
-		padding: 50px 20px;
+		min-height: 55vh;
+		max-width: 400px;
+		padding: 48px 24px;
+		margin: auto;
+		display: flex;
+		flex-direction: column;
+		align-items: center;
+		justify-content: center;
+		gap: 12px;
 		text-align: center;
-		display: grid;
-		gap: 16px;
 	}
-	.feedback,
-	.attention {
-		padding: 12px;
-		background: var(--red-soft);
-		color: var(--red-ink);
-		border-radius: 8px;
+	.empty :global(svg) {
+		width: 48px;
+		height: 48px;
+		color: var(--primary);
+		stroke-width: 1.6;
+	}
+	.empty h2 {
+		font-size: 22px;
+		font-weight: 600;
+	}
+	.empty p {
+		color: var(--ink-3);
+		line-height: 1.6;
+	}
+	.empty a {
+		color: var(--primary);
+		padding: 8px;
 	}
 	.feedback {
 		display: flex;
 		justify-content: space-between;
 		align-items: center;
+		gap: 12px;
+		padding: 14px 16px;
+		margin: 12px 16px;
+		border-radius: 10px;
+		background: var(--primary-soft);
 	}
-	@media (max-width: 650px) {
-		.draft-workspace {
-			padding: 16px;
-		}
-		article {
+	.feedback.error {
+		background: var(--red-soft);
+		color: var(--red-ink);
+	}
+	.feedback button,
+	.dialog-actions button {
+		border: 0;
+		padding: 12px;
+		background: transparent;
+		color: var(--primary);
+		font: inherit;
+		font-weight: 600;
+		cursor: pointer;
+	}
+	.draft-dialog {
+		max-width: min(400px, calc(100vw - 32px));
+		padding: 24px;
+		border: 1px solid var(--ink);
+		border-radius: 20px;
+		color: var(--ink);
+		background: var(--paper);
+		box-shadow: 4px 4px 0 var(--ink);
+	}
+	.draft-dialog::backdrop {
+		background: #0006;
+	}
+	.draft-dialog h2 {
+		font-size: 21px;
+		margin-bottom: 16px;
+	}
+	.draft-dialog p {
+		line-height: 1.6;
+		color: var(--ink-3);
+	}
+	.dialog-actions {
+		display: flex;
+		justify-content: flex-end;
+		margin-top: 20px;
+		gap: 8px;
+	}
+	.dialog-actions .danger {
+		color: var(--red-ink);
+	}
+	button:disabled {
+		opacity: 0.5;
+		cursor: default;
+	}
+	.draft-skeleton {
+		padding: 16px;
+		display: grid;
+		gap: 24px;
+	}
+	.draft-skeleton > div {
+		display: flex;
+		gap: 16px;
+		align-items: center;
+	}
+	.draft-skeleton span {
+		width: 48px;
+		height: 48px;
+		background: var(--paper-2);
+		border-radius: 8px;
+	}
+	.draft-skeleton i {
+		width: 60%;
+		height: 32px;
+		border-radius: 6px;
+		background: var(--paper-2);
+	}
+	@media (max-width: 420px) {
+		.row-actions {
 			flex-direction: column;
 		}
-		.actions {
-			flex-direction: row;
-			align-items: center;
-			justify-content: flex-end;
+		.icon-action {
+			width: 40px;
+			height: 40px;
+			padding: 10px;
 		}
-		header {
-			align-items: flex-start;
+		.draft-row {
+			padding-left: 12px;
 		}
-		.new-post {
-			white-space: nowrap;
+		.draft-main {
+			gap: 10px;
 		}
 	}
 </style>

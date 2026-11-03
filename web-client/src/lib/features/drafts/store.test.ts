@@ -119,3 +119,21 @@ describe('private draft storage', () => {
 		}
 	});
 });
+
+it('restores a private draft scheduling choice and exact instant without leaking it into another owner', async () => {
+	const owner = `did:plc:${crypto.randomUUID()}`,
+		other = `did:plc:${crypto.randomUUID()}`,
+		draft = newDraft(owner);
+	draft.scheduleLater = true;
+	draft.scheduledAt = '2027-05-04T15:32:00.000Z';
+	draft.langs = ['en', 'fr'];
+	draft.sponsored = true;
+	await drafts.save(owner, draft);
+	expect(await drafts.get(owner, draft.id)).toMatchObject({
+		scheduleLater: true,
+		scheduledAt: draft.scheduledAt,
+		langs: ['en', 'fr'],
+		sponsored: true
+	});
+	expect(await drafts.get(other, draft.id)).toBeUndefined();
+});

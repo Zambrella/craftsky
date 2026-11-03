@@ -290,3 +290,34 @@ export function craftskyMessageLink(
 		}
 	}
 }
+
+/** Only a complete, recognized public CraftSky URL may enter the share bridge. */
+export function sharedCraftskyLink(
+	raw: string | undefined | null
+): string | undefined {
+	if (!raw || raw.length > 2048 || /[\s\u0000-\u001f\u007f\\]/.test(raw))
+		return;
+	const parts = messageLinks(raw);
+	if (
+		parts.length !== 1 ||
+		parts[0].text !== raw ||
+		!parts[0].href ||
+		!craftskyMessageLink(raw)
+	)
+		return;
+	return parts[0].href;
+}
+
+export function prefillSharedLink(
+	draft: MessageDraft,
+	link: string
+): MessageDraft {
+	const safe = sharedCraftskyLink(link);
+	if (!safe)
+		throw new Error('Open the original CraftSky content to share this link.');
+	if (messageLinks(draft.text).some((part) => part.href === safe)) return draft;
+	// An existing delivery keeps its frozen text/ID; the shared link becomes a separate editable draft.
+	const text =
+		draft.pending && draft.text === draft.pending.text ? '' : draft.text;
+	return { ...draft, text: text ? `${text}\n\n${safe}` : safe };
+}
