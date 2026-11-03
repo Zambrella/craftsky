@@ -9,6 +9,7 @@ const publicRoutes = [
   '/reporting',
   '/copyright',
   '/instagram-import',
+  '/why-instagram-sucks-for-crafters',
 ];
 const postHogHost = 'https://t.craftsky.social';
 const consentKey = 'craftsky.analytics-consent';

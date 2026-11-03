@@ -13,6 +13,7 @@ ROUTES = {
     "/reporting": "reporting.html",
     "/copyright": "copyright.html",
     "/instagram-import": "instagram-import.html",
+    "/why-instagram-sucks-for-crafters": "why-instagram-sucks-for-crafters.html",
 }
 
 
