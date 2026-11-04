@@ -1,4 +1,8 @@
-import { safeEvent } from './privacy.ts';
+import {
+	safeEvent,
+	failureContext,
+	type DiagnosticOperation
+} from './privacy.ts';
 import type { StackFrame } from '@sentry/browser';
 
 function frames(error: Error): StackFrame[] {
@@ -54,6 +58,19 @@ function selected(
 }
 
 /** Local protection is independent of optional SDK loading and consent. */
+export function logFailure(error: unknown, operation?: DiagnosticOperation) {
+	try {
+		console.error(
+			JSON.stringify({
+				...selected(error),
+				...failureContext(error, operation)
+			})
+		);
+	} catch {
+		/* Diagnostics cannot change application behavior. */
+	}
+}
+
 export function installLocalDiagnostics(target: Window = window): () => void {
 	const log = (
 		error: unknown,

@@ -30,6 +30,31 @@ function setup(value: unknown = {}, status = 200, headers?: HeadersInit) {
 }
 
 describe('AppView wire contracts', () => {
+	it('uses the response request ID when an error envelope is missing it and retains parse causes', async () => {
+		const requestId = '12345678-1234-4123-8123-123456789012';
+		const { api } = setup(
+			{ error: 'internal_error', message: 'private' },
+			500,
+			{ 'X-Request-ID': requestId }
+		);
+		await expect(api.account.whoami()).rejects.toMatchObject({
+			status: 500,
+			requestId
+		});
+		const broken = new APITransport(
+			async () =>
+				new Response('private unreadable body', {
+					status: 502,
+					headers: { 'X-Request-ID': requestId }
+				})
+		);
+		await expect(broken.get('/v1/whoami')).rejects.toMatchObject({
+			status: 502,
+			code: 'invalid_response',
+			requestId,
+			cause: expect.any(SyntaxError)
+		});
+	});
 	it('omits false unfiled flags because saved-post queries only accept true when present', async () => {
 		const { api, request } = setup({ items: [] });
 		await api.saved.list({ unfiled: false, sort: 'newest' });
@@ -287,7 +312,7 @@ describe('transport failure and mutation semantics', () => {
 			{
 				error: 'validation_failed',
 				message: 'Check the form',
-				requestId: 'req-id',
+				requestId: '12345678-1234-4123-8123-123456789012',
 				fields: { text: 'Too long' }
 			},
 			422
@@ -296,7 +321,7 @@ describe('transport failure and mutation semantics', () => {
 			status: 422,
 			code: 'validation_failed',
 			message: 'Check the form',
-			requestId: 'req-id',
+			requestId: '12345678-1234-4123-8123-123456789012',
 			fields: { text: 'Too long' },
 			retryable: false
 		});

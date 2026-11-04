@@ -8,6 +8,7 @@
 	const createPost = getContext<(event: MouseEvent) => void>(
 		'craftsky-create-post'
 	);
+	const uid = $props.id();
 	let deleteDialog: HTMLDialogElement;
 	let deletion = $state<{ id: string; remote: boolean; owner: string }>();
 	let {
@@ -105,7 +106,7 @@
 </script>
 
 <section class="draft-workspace" aria-busy={loading || busy}>
-	<header class="draft-appbar">
+	<header class="workspace-header draft-appbar">
 		<h1>{isScheduled ? 'Scheduled posts' : 'Drafts'}</h1>
 	</header>
 	{#if error}<div class="feedback error" role="alert">
@@ -217,12 +218,15 @@
 <dialog
 	bind:this={deleteDialog}
 	class="draft-dialog"
+	aria-labelledby={uid + '-delete-title'}
 	oncancel={(event) => {
 		if (busy) event.preventDefault();
 		else deletion = undefined;
 	}}
 >
-	<h2>{deletion?.remote ? 'Delete scheduled post?' : 'Delete draft?'}</h2>
+	<h2 id={uid + '-delete-title'}>
+		{deletion?.remote ? 'Delete scheduled post?' : 'Delete draft?'}
+	</h2>
 	<p>
 		{deletion?.remote
 			? 'This scheduled post will be deleted and will not be published.'
@@ -235,7 +239,7 @@
 				deletion = undefined;
 				deleteDialog.close();
 			}}>Cancel</button
-		><button class="danger" disabled={busy} onclick={remove}
+		><button class="danger button" disabled={busy} onclick={remove}
 			>{busy ? 'Deleting…' : 'Delete'}</button
 		>
 	</div>
@@ -243,7 +247,7 @@
 
 <style>
 	.draft-workspace {
-		max-width: 760px;
+		width: 100%;
 		margin: auto;
 		min-height: 70vh;
 		background: var(--paper);
@@ -253,12 +257,12 @@
 		align-items: center;
 		justify-content: space-between;
 		gap: 12px;
-		min-height: 64px;
+		min-height: 56px;
 		padding: 8px 16px;
 	}
 	h1 {
 		margin: 0;
-		font-size: 22px;
+		font-size: 20px;
 		font-weight: 700;
 		font-family: inherit;
 	}
@@ -375,7 +379,7 @@
 		stroke-width: 1.6;
 	}
 	.empty h2 {
-		font-size: 22px;
+		font-size: 20px;
 		font-weight: 600;
 	}
 	.empty p {
@@ -411,13 +415,13 @@
 		cursor: pointer;
 	}
 	.draft-dialog {
-		max-width: min(400px, calc(100vw - 32px));
+		width: min(360px, calc(100vw - 48px));
 		padding: 24px;
-		border: 1px solid var(--ink);
-		border-radius: 20px;
+		border: 1.5px solid var(--ink);
+		border-radius: 14px;
 		color: var(--ink);
-		background: var(--paper);
-		box-shadow: 4px 4px 0 var(--ink);
+		background: var(--surface);
+		box-shadow: 10px 10px 0 var(--shadow);
 	}
 	.draft-dialog::backdrop {
 		background: #0006;
@@ -437,7 +441,13 @@
 		gap: 8px;
 	}
 	.dialog-actions .danger {
-		color: var(--red-ink);
+		color: #fff;
+		background: var(--danger-fill);
+		border: 1.5px solid var(--ink);
+		box-shadow: 3px 3px var(--shadow);
+	}
+	.dialog-actions .danger:hover {
+		background: color-mix(in srgb, var(--danger-fill) 92%, #000);
 	}
 	button:disabled {
 		opacity: 0.5;

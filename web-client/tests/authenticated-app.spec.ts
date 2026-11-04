@@ -151,7 +151,12 @@ test('inline mention and hashtag pickers support keyboard selection and publish 
 		return route.fulfill({
 			json: {
 				items: [
-					{ did: alice.did, handle: alice.handle, displayName: 'Alice Maker' }
+					{
+						did: alice.did,
+						handle: alice.handle,
+						displayName: 'Alice Maker',
+						avatar: 'https://fixture.craftsky.test/avatar.png'
+					}
 				]
 			}
 		});
@@ -169,6 +174,9 @@ test('inline mention and hashtag pickers support keyboard selection and publish 
 		page.getByRole('listbox', { name: 'Account suggestions' })
 	).toBeVisible();
 	await expect(page.getByRole('option', { name: /Alice Maker/ })).toBeVisible();
+	await expect(
+		page.getByRole('option', { name: /Alice Maker/ }).locator('.avatar img')
+	).toHaveAttribute('src', 'https://fixture.craftsky.test/avatar.png');
 	await editor.press('ArrowDown');
 	await editor.press('Enter');
 	await expect(editor).toHaveValue('Thanks @alice.test ');
@@ -178,7 +186,7 @@ test('inline mention and hashtag pickers support keyboard selection and publish 
 		page.getByRole('listbox', { name: 'Hashtag suggestions' })
 	).toBeVisible();
 	await expect(
-		page.getByRole('option', { name: '#knitting', exact: true })
+		page.getByRole('option', { name: '#knitting 12 posts', exact: true })
 	).toBeVisible();
 	await editor.press('Enter');
 	await expect(editor).toHaveValue('Thanks @alice.test #knitting ');
@@ -725,7 +733,7 @@ test('supports mobile navigation and project fields without horizontal overflow'
 	await page.getByLabel('Size made').fill('12');
 	await page.getByLabel('Fit notes').fill('Shortened the sleeves');
 	await page
-		.getByRole('dialog', { name: 'Sewing details', exact: true })
+		.getByRole('region', { name: 'Sewing details', exact: true })
 		.getByRole('button', { name: 'Back to project', exact: true })
 		.click();
 	await expect(
@@ -782,7 +790,7 @@ test('supports mobile navigation and project fields without horizontal overflow'
 		page.getByRole('textbox', { name: 'Fit notes', exact: true })
 	).toHaveValue('Shortened the sleeves');
 	await page
-		.getByRole('dialog', { name: 'Sewing details', exact: true })
+		.getByRole('region', { name: 'Sewing details', exact: true })
 		.getByRole('button', { name: 'Back to project', exact: true })
 		.click();
 	expect(
@@ -810,24 +818,25 @@ test('project detail pages fill the compact viewport and keep changes on Back, E
 
 	const open = async (title: string) => {
 		await page.getByRole('button', { name: title, exact: true }).click();
-		const detail = page.getByRole('dialog', { name: title, exact: true });
+		const detail = page.getByRole('region', { name: title, exact: true });
 		await expect(detail).toBeVisible();
-		await expect(
-			page.locator('dialog.project-detail-dialog[open]')
-		).toHaveCount(1);
+		await expect(page.locator('.project-detail-page')).toHaveCount(1);
 		return detail;
 	};
 	const back = async (title: string) => {
 		await page
-			.getByRole('dialog', { name: title, exact: true })
+			.getByRole('region', { name: title, exact: true })
 			.getByRole('button', { name: 'Back to project', exact: true })
 			.click();
 		await expect(
-			page.getByRole('dialog', { name: title, exact: true })
+			page.getByRole('region', { name: title, exact: true })
 		).toBeHidden();
 		await expect(
 			page.getByRole('button', { name: title, exact: true })
 		).toBeFocused();
+		await expect(
+			page.getByRole('button', { name: title, exact: true })
+		).toBeInViewport();
 	};
 
 	const pattern = await open('Pattern details');
@@ -848,7 +857,18 @@ test('project detail pages fill the compact viewport and keep changes on Back, E
 		.getByRole('textbox', { name: 'Link', exact: true })
 		.press('Enter');
 	await expect(pattern).toBeVisible();
+	await pattern
+		.getByRole('switch', { name: 'Self-drafted pattern', exact: true })
+		.press('Enter');
+	await expect(page.locator('.composer-error')).toHaveCount(0);
 	await back('Pattern details');
+	await page.goForward();
+	await expect(pattern).toBeVisible();
+	await expect(
+		pattern.getByRole('textbox', { name: 'Designer', exact: true })
+	).toHaveValue('@bob.test');
+	await page.goBack();
+	await expect(pattern).toBeHidden();
 
 	const materials = await open('Materials and style');
 	await materials

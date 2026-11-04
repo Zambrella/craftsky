@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { reorderRow } from './reorder-row';
 	import { confirmNavigation } from '../social/navigation-prompt';
 	import { onMount, onDestroy } from 'svelte';
 	import { goto } from '$app/navigation';
@@ -26,12 +27,14 @@
 		api,
 		session,
 		scope = 'all',
-		onSaved
+		onSaved,
+		onBusyChange = () => {}
 	}: {
 		api: CraftskyAPI;
 		session: { id: string; did: string; handle: string };
 		scope?: 'all' | 'identity' | 'crafts';
 		onSaved?: () => void;
+		onBusyChange?: (busy: boolean) => void;
 	} = $props();
 	const work = new Work();
 	let original = $state<Profile>();
@@ -55,8 +58,8 @@
 		linkURL = $state(''),
 		linkTitle = $state(''),
 		linkError = $state('');
-	let draggedLink = $state<string>();
 	let avatarURL = $state('');
+	let savedLinks = '';
 	let dead = false;
 	const craftOrder = [
 		'sewing',
@@ -71,7 +74,6 @@
 			(a, b) =>
 				craftOrder.indexOf(craftKey(a.id)) - craftOrder.indexOf(craftKey(b.id))
 		);
-	let draggedCraft = $state<string>();
 	function craftKey(value: string) {
 		return value.split('#').at(-1)?.trim().toLowerCase() || '';
 	}
@@ -149,6 +151,7 @@
 					icon: link.iconBlob
 				}));
 				avatarURL = profile.avatar || '';
+				savedLinks = JSON.stringify(links);
 			}
 		);
 	});
@@ -304,6 +307,9 @@
 		links = next;
 		dirty = true;
 	}
+	$effect(() => {
+		onBusyChange(work.busy || !!work.retry || imageBusy);
+	});
 	function save() {
 		if (!original || work.busy || work.retry || imageBusy) return;
 		if (!dirty && onSaved) {
@@ -348,6 +354,10 @@
 				)
 				.map(({ uri, cid }) => ({ uri, cid }))
 		};
+		if (JSON.stringify(links) === savedLinks) {
+			delete values.links;
+			delete values.removedLinks;
+		}
 		const a = avatar;
 		let frozen: ProfileUpdate | undefined;
 		void work.run(
@@ -375,6 +385,17 @@
 					return;
 				}
 				dirty = false;
+				original = saved;
+				links = (saved.editableLinks || saved.links || []).map((link) => ({
+					rkey: link.uri.split('/').pop()!,
+					cid: link.cid,
+					url: link.url,
+					title: link.title,
+					createdAt: link.createdAt || new Date().toISOString(),
+					icon: link.iconBlob
+				}));
+				savedLinks = JSON.stringify(links);
+				avatar = undefined;
 				window.dispatchEvent(
 					new CustomEvent('craftsky-profile-updated', { detail: owner })
 				);
@@ -386,7 +407,7 @@
 </script>
 
 <svelte:window onbeforeunload={unload} />
-<div class="workspace-header">
+<div class="workspace-header" class:onboarding-title={scope !== 'all'}>
 	{#if scope === 'all'}<a
 			class="icon-button"
 			href={'/app/profile/' + encodeURIComponent(session.did)}
@@ -424,6 +445,7 @@
 {#if original}<form
 		id={editorId + '-profile-form'}
 		class="profile-form stack"
+		class:onboarding-form={scope !== 'all'}
 		oninput={() => (dirty = true)}
 		onsubmit={(event) => {
 			event.preventDefault();
@@ -451,7 +473,10 @@
 											avatar: avatarURL || undefined
 										}}
 										large
-									/><label class="camera-picker" title="Change profile picture"
+									/><label
+										class="camera-picker"
+										class:onboarding-avatar={scope === 'identity'}
+										title="Change profile picture"
 										><Icon name="camera" size={18} /><span
 											class="visually-hidden">Profile picture</span
 										><input
@@ -461,7 +486,14 @@
 										/></label
 									>
 								</div>
-								{#if avatarURL && !imageDrafts.avatar}<button
+								{#if scope === 'identity'}<label class="change-avatar"
+										>Change avatar<input
+											type="file"
+											accept="image/jpeg,image/png,image/webp"
+											onchange={(event) => choose(event, 'avatar')}
+										/></label
+									>{/if}
+								{#if scope === 'all' && avatarURL && !imageDrafts.avatar}<button
 										class="remove-avatar"
 										type="button"
 										onclick={() => {
@@ -492,6 +524,9 @@
 								/>{/if}
 						</div>{/each}
 				</div>
+				{#if scope === 'identity'}<p class="signed-in">
+						Signed in as @{session.handle}
+					</p>{/if}
 				<label
 					>Display name<input bind:value={displayName} maxlength="640" /><span
 						class="field-count"
@@ -513,16 +548,10 @@
 					<p class="links-helper">Add up to 10 links</p>
 					{#each links as link, i (link.rkey)}<div
 							class="profile-link"
-							ondragover={(event) => {
-								if (draggedLink) event.preventDefault();
-							}}
-							ondrop={(event) => {
-								event.preventDefault();
-								const from = links.findIndex(
-									(value) => value.rkey === draggedLink
-								);
-								draggedLink = undefined;
-								moveLink(from, i);
+							use:reorderRow={{
+								group: 'profile-links',
+								index: i,
+								onmove: moveLink
 							}}
 							role="group"
 							aria-label={linkLabel(link)}
@@ -590,14 +619,8 @@
 										}
 									}}
 									type="button"
-									draggable="true"
 									aria-label={'Reorder link ' + linkLabel(link)}
 									title="Drag to reorder, or use Alt and the up or down arrow keys."
-									ondragstart={(event) => {
-										draggedLink = link.rkey;
-										event.dataTransfer?.setData('text/plain', link.rkey);
-									}}
-									ondragend={() => (draggedLink = undefined)}
 									><span aria-hidden="true"></span></button
 								>{/if}
 						</div>{/each}
@@ -608,23 +631,23 @@
 							><Icon name="plus" size={18} />Add link</button
 						>{/if}
 				</fieldset>
-			{/if}{#if scope !== 'identity'}<fieldset class="crafts-editor">
+			{/if}{#if scope !== 'identity'}<fieldset
+					class="crafts-editor"
+					class:onboarding-crafts={scope === 'crafts'}
+				>
 					<legend>Crafts</legend>
 					<p class="crafts-helper">Pick the crafts you make</p>
 					<div class="craft-rows">
 						{#each craftRows as craft (craft.value)}<div
 								class="craft-row"
+								use:reorderRow={{
+									group: 'profile-crafts',
+									index: craft.index,
+									enabled: craft.index >= 0,
+									onmove: reorderCraft
+								}}
 								role="group"
 								aria-label={craft.label}
-								ondragover={(event) => {
-									if (draggedCraft && craft.index >= 0) event.preventDefault();
-								}}
-								ondrop={(event) => {
-									event.preventDefault();
-									const from = crafts.indexOf(draggedCraft || '');
-									draggedCraft = undefined;
-									reorderCraft(from, craft.index);
-								}}
 							>
 								<label class="craft-choice"
 									><input
@@ -681,15 +704,9 @@
 									<button
 										type="button"
 										class="drag-handle"
-										draggable="true"
 										aria-label={'Drag to reorder ' + craft.label}
 										title="Drag to reorder, or use Alt and the up or down arrow keys."
 										onkeydown={(event) => reorderCraftKey(event, craft.index)}
-										ondragstart={(event) => {
-											draggedCraft = craft.value;
-											event.dataTransfer?.setData('text/plain', craft.value);
-										}}
-										ondragend={() => (draggedCraft = undefined)}
 										><span aria-hidden="true"></span></button
 									>{/if}
 							</div>{/each}
@@ -703,14 +720,16 @@
 				</fieldset>{/if}
 			{#if imageBusy}<p role="status">
 					Apply or cancel your image edits before continuing.
-				</p>{/if}{#if scope !== 'all'}<button
-					class="button"
-					disabled={work.busy ||
-						!!work.retry ||
-						imageBusy ||
-						(!dirty && !onSaved)}
-					>{onSaved ? 'Continue' : 'Save profile'}</button
-				>{/if}
+				</p>{/if}{#if scope !== 'all'}<div class="onboarding-action">
+					<button
+						class="button"
+						disabled={work.busy ||
+							!!work.retry ||
+							imageBusy ||
+							(!dirty && !onSaved)}
+						>{work.busy ? 'Saving…' : dirty ? 'Save & next' : 'Next'}</button
+					>
+				</div>{/if}
 		</div>
 	</form>{/if}
 
@@ -758,6 +777,109 @@
 </dialog>
 
 <style>
+	.onboarding-crafts > legend,
+	.onboarding-crafts > .crafts-helper {
+		display: none;
+	}
+	.onboarding-images .avatar-picker :global(.avatar) {
+		border: 0;
+		box-shadow: none;
+	}
+	.workspace-header.onboarding-title {
+		border: 0;
+		min-height: 0;
+		padding: 0;
+	}
+	.onboarding-title h1 {
+		font:
+			700 28px/1.25 Outfit,
+			sans-serif;
+		margin: 0 0 8px;
+	}
+	.onboarding-description.onboarding-description {
+		padding: 0;
+		margin: 0 0 24px;
+		font-size: 16px;
+		line-height: 1.5;
+	}
+	.profile-form.onboarding-form {
+		padding: 0;
+	}
+	.signed-in {
+		text-align: center;
+		margin: 8px 0;
+	}
+	.change-avatar {
+		position: relative;
+		overflow: hidden;
+		padding: 8px 12px;
+		color: var(--primary);
+		font-weight: 600;
+		cursor: pointer;
+	}
+	.change-avatar input {
+		position: absolute;
+		inset: 0;
+		opacity: 0;
+		cursor: pointer;
+	}
+	.change-avatar:hover {
+		background: color-mix(in srgb, var(--primary) 8%, transparent);
+		border-radius: 20px;
+	}
+	.camera-picker.onboarding-avatar {
+		inset: 0;
+		border: 0;
+		width: 100%;
+		height: 100%;
+		background: transparent;
+		color: transparent;
+	}
+	.onboarding-images {
+		margin: 0;
+	}
+	.onboarding-action {
+		position: fixed;
+		bottom: 0;
+		left: 50%;
+		transform: translateX(-50%);
+		width: min(100%, 768px);
+		padding: 12px 24px calc(24px + env(safe-area-inset-bottom));
+		background: var(--paper);
+		z-index: 5;
+	}
+	.onboarding-action button {
+		width: 100%;
+	}
+
+	.profile-form input:not([type='checkbox'], [type='file']),
+	.profile-form textarea,
+	.link-editor-dialog input {
+		width: calc(100% - 3px);
+		transform: translate(3px, 3px);
+		margin-bottom: 3px;
+		transition:
+			transform 120ms ease-out,
+			box-shadow 120ms ease-out;
+	}
+	.profile-form input:not([type='checkbox'], [type='file']):focus,
+	.profile-form textarea:focus,
+	.link-editor-dialog input:focus {
+		outline: 2px solid var(--ink);
+		outline-offset: -2px;
+		border-color: var(--ink);
+		box-shadow: 3px 3px var(--shadow);
+		transform: translate(0, 0);
+		background: var(--surface);
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.profile-form input,
+		.profile-form textarea,
+		.link-editor-dialog input {
+			transition: none;
+		}
+	}
+
 	.profile-images {
 		grid-template-columns: 1fr;
 	}
@@ -839,7 +961,7 @@
 	}
 	.profile-form input,
 	.profile-form textarea {
-		margin: 0;
+		margin: 0 0 3px;
 		font-size: 16px;
 	}
 	.profile-images {
@@ -1007,6 +1129,8 @@
 		transform: rotate(-90deg);
 	}
 	.drag-handle {
+		touch-action: none;
+		user-select: none;
 		width: 40px;
 		height: 44px;
 		border: 0;

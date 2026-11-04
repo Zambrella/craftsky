@@ -208,7 +208,6 @@ for (const [name, route] of screens) {
 			).toBeVisible();
 		}
 		const audit = await new AxeBuilder({ page })
-			.include('.app-main')
 			.withTags(['wcag2a', 'wcag2aa', 'wcag21aa'])
 			.analyze();
 		expect(audit.violations).toEqual([]);
@@ -319,11 +318,7 @@ test('compact navigation and account sheets retain keyboard focus and dismiss wi
 	await expect(accounts).toHaveCount(0);
 });
 
-for (const [name, route] of [
-	['home', '/app/home'],
-	['settings', '/app/settings'],
-	['composer', '/app/compose']
-] as const) {
+for (const [name, route] of screens) {
 	test(`wide dark layout and accessibility: ${name}`, async ({
 		page
 	}, testInfo) => {
@@ -444,7 +439,7 @@ test('project detail page has the native compact app bar and accessible fields',
 	await page
 		.getByRole('button', { name: 'Pattern details', exact: true })
 		.click();
-	const detail = page.getByRole('dialog', {
+	const detail = page.getByRole('region', {
 		name: 'Pattern details',
 		exact: true
 	});
@@ -459,8 +454,33 @@ test('project detail page has the native compact app bar and accessible fields',
 	).toBe(56);
 	await capture(page, testInfo, 'composer-project-details');
 	const audit = await new AxeBuilder({ page })
-		.include('.project-detail-dialog[open]')
+		.include('.project-detail-page')
 		.withTags(['wcag2a', 'wcag2aa', 'wcag21aa'])
 		.analyze();
 	expect(audit.violations).toEqual([]);
+	await page.setViewportSize({ width: 1280, height: 900 });
+	await expect
+		.poll(async () => {
+			const detailBounds = await detail.boundingBox();
+			const mainBounds = await page.locator('main').boundingBox();
+			return (
+				detailBounds &&
+				mainBounds &&
+				Math.abs(detailBounds.width - mainBounds.width) < 1 &&
+				Math.abs(detailBounds.x - mainBounds.x) < 1
+			);
+		})
+		.toBe(true);
+	await page.getByRole('button', { name: /Switch accounts/ }).click();
+	await expect(
+		page.getByRole('dialog', { name: 'Accounts', exact: true })
+	).toBeVisible();
+	await page.keyboard.press('Escape');
+	await expect(
+		page.getByRole('dialog', { name: 'Accounts', exact: true })
+	).toBeHidden();
+	await expect(detail).toBeVisible();
+	await page.screenshot({
+		path: testInfo.outputPath('composer-project-details-desktop.png')
+	});
 });

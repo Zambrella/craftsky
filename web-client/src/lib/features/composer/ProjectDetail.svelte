@@ -1,5 +1,8 @@
 <script lang="ts">
-	import { onDestroy, type Snippet } from 'svelte';
+	import { onDestroy, tick, type Snippet } from 'svelte';
+	import { pushState } from '$app/navigation';
+	import { page } from '$app/state';
+	import { mountComposerPage } from './page-layout';
 	import Icon from '../shell/Icon.svelte';
 	let {
 		title,
@@ -23,35 +26,44 @@
 		children: Snippet;
 	} = $props();
 	const uid = $props.id();
-	let dialog = $state<HTMLDialogElement>();
 	let trigger: HTMLButtonElement;
-	let disposed = false;
 	let closing = false;
-	$effect(() => {
-		const node = dialog;
-		if (!node) return;
-		if (open && !node.open) node.showModal();
-		else if (!open && node.open) node.close();
-	});
-	onDestroy(() => {
-		disposed = true;
-		dialog?.close();
-	});
+	let disposed = false;
+	async function openPage() {
+		await pushState('', { ...page.state, projectDetail: uid });
+	}
 	async function close() {
-		if (disposed || closing) return;
+		if (closing || disposed) return;
 		closing = true;
 		if (!(await beforeClose()) || disposed) {
 			closing = false;
 			return;
 		}
-		// Close while the focused child still exists, then release its snippet.
-		// Return explicitly to the action row, including browsers that do not focus clicked buttons.
-		dialog?.close();
-		onclose();
-		if (trigger?.isConnected && !trigger.disabled)
-			trigger.focus({ preventScroll: true });
-		closing = false;
+		history.back();
 	}
+	$effect(() => {
+		if (page.state.projectDetail === uid) {
+			if (!open) onopen();
+		} else if (open) void finishBack();
+	});
+	async function finishBack() {
+		const accepted = closing || (await beforeClose());
+		if (disposed) return;
+		if (!accepted) {
+			await pushState('', { ...page.state, projectDetail: uid });
+			return;
+		}
+		onclose();
+		closing = false;
+		await tick();
+		requestAnimationFrame(() => {
+			if (!disposed && !open) trigger?.focus({ preventScroll: true });
+		});
+	}
+
+	onDestroy(() => {
+		disposed = true;
+	});
 </script>
 
 <button
@@ -60,11 +72,10 @@
 	class="project-detail-action"
 	aria-label={title}
 	aria-describedby={uid + '-description'}
-	aria-haspopup="dialog"
-	aria-controls={uid + '-dialog'}
+	aria-controls={uid + '-page'}
 	aria-expanded={open}
 	{disabled}
-	onclick={onopen}
+	onclick={openPage}
 >
 	<Icon name={icon} /><span
 		><strong>{title}</strong><small id={uid + '-description'}
@@ -72,37 +83,53 @@
 		></span
 	><Icon name="chevron" />
 </button>
-<dialog
-	id={uid + '-dialog'}
-	bind:this={dialog}
-	class="project-detail-dialog"
-	aria-labelledby={uid + '-title'}
-	aria-modal="true"
-	oncancel={(event) => {
-		event.preventDefault();
-		close();
+
+<svelte:window
+	onkeydown={(event) => {
+		if (
+			open &&
+			event.key === 'Enter' &&
+			event.target instanceof HTMLInputElement &&
+			event.target.closest('.project-detail-page')
+		)
+			event.preventDefault();
+		if (
+			open &&
+			event.key === 'Escape' &&
+			!event.defaultPrevented &&
+			!document.querySelector('.app-main[inert]') &&
+			!document.querySelector('dialog[open]')
+		) {
+			event.preventDefault();
+			void close();
+		}
 	}}
-	onclose={() => {
-		if (open) close();
-	}}
->
-	{#if open}
-		<header class="project-detail-heading">
-			<button
-				type="button"
-				class="project-detail-back"
-				aria-label="Back to project"
-				onclick={close}><Icon name="back" /></button
-			>
-			<h2 id={uid + '-title'}>{title}</h2>
-		</header>
-		<div class="project-detail-scroll">
-			<fieldset class="project-detail-fields" {disabled}>
-				{@render children()}
-			</fieldset>
-		</div>
-	{/if}
-</dialog>
+/>
+{#if open}
+	<div class="project-detail-host">
+		<section
+			id={uid + '-page'}
+			class="project-detail-page composer"
+			aria-labelledby={uid + '-title'}
+			use:mountComposerPage
+		>
+			<header class="workspace-header project-detail-heading">
+				<button
+					type="button"
+					class="icon-button project-detail-back"
+					aria-label="Back to project"
+					onclick={close}><Icon name="back" /></button
+				>
+				<h1 id={uid + '-title'}>{title}</h1>
+			</header>
+			<div class="project-detail-scroll">
+				<fieldset class="project-detail-fields" {disabled}>
+					{@render children()}
+				</fieldset>
+			</div>
+		</section>
+	</div>
+{/if}
 
 <style>
 	.project-detail-action {
@@ -145,86 +172,55 @@
 		opacity: 0.5;
 		cursor: default;
 	}
-	.project-detail-dialog {
-		margin: auto;
-		padding: 0;
-		width: min(640px, calc(100vw - 48px));
-		height: min(760px, calc(100dvh - 48px));
+
+	.project-detail-page {
+		position: fixed;
+		z-index: 25;
+		top: 0;
+		left: var(--app-content-left, 0px);
+		width: var(--app-content-width, 100vw);
 		max-width: none;
-		max-height: none;
-		overflow: hidden;
-		border: 1.5px solid var(--ink);
-		border-radius: 16px;
+		min-height: 100dvh;
+		height: 100dvh;
+		margin: 0;
 		background: var(--paper);
-		color: var(--ink);
-		box-shadow: 4px 4px 0 var(--ink);
-	}
-	.project-detail-dialog[open] {
-		display: flex;
-		flex-direction: column;
-	}
-	.project-detail-dialog::backdrop {
-		background: #0006;
 	}
 	.project-detail-heading {
-		display: flex;
-		align-items: center;
-		gap: 12px;
-		min-height: 56px;
-		height: 56px;
-		padding: 8px 16px;
-		border-bottom: 1.5px solid var(--ink);
-		background: var(--paper);
 		flex: none;
+		justify-content: flex-start;
+		gap: 16px;
+		padding: 3px 8px;
+		height: 56px;
 	}
-	.project-detail-heading h2 {
-		min-width: 0;
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
-		font-size: 20px;
-		font-weight: 700;
-		font-family: inherit;
+	.project-detail-heading h1 {
+		margin: 0;
+		font:
+			600 20px/1.25 Outfit,
+			sans-serif;
 	}
 	.project-detail-back {
-		display: grid;
-		place-items: center;
-		width: 40px;
-		height: 40px;
-		min-height: 40px;
-		padding: 8px;
-		margin-left: -8px;
+		color: var(--ink);
+		width: 48px;
+		height: 48px;
 		border: 0;
 		border-radius: 50%;
+		padding: 12px;
 		background: transparent;
-		color: var(--ink);
 		box-shadow: none;
 	}
 	.project-detail-scroll {
 		flex: 1;
 		min-height: 0;
 		overflow: auto;
-		overscroll-behavior: contain;
 		padding: 24px 16px calc(24px + env(safe-area-inset-bottom));
+		overscroll-behavior: contain;
 	}
 	.project-detail-fields {
 		display: grid;
 		gap: 16px;
 		border: 0;
-		border-radius: 0;
 		padding: 0;
 		margin: 0;
 		min-width: 0;
-	}
-	@media (max-width: 700px) {
-		.project-detail-dialog {
-			inset: 0;
-			margin: 0;
-			width: 100vw;
-			height: 100dvh;
-			border: 0;
-			border-radius: 0;
-			box-shadow: none;
-		}
 	}
 </style>

@@ -34,8 +34,8 @@
 	.snackbar {
 		position: fixed;
 		z-index: 95;
-		left: 16px;
-		right: 16px;
+		left: calc(var(--app-content-left, 0px) + 16px);
+		width: calc(var(--app-content-width, 100vw) - 32px);
 		bottom: calc(16px + env(safe-area-inset-bottom));
 		padding: 14px 16px;
 		border: 1.5px solid var(--ink);

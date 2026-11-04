@@ -144,7 +144,7 @@ async function materials(page: Page) {
 	await page
 		.getByRole('button', { name: 'Materials and style', exact: true })
 		.click();
-	const dialog = page.getByRole('dialog', {
+	const dialog = page.getByRole('region', {
 		name: 'Materials and style',
 		exact: true
 	});
@@ -337,9 +337,7 @@ test('native material limits allow editing at capacity and discard confirmation 
 	await expect(input).toHaveValue('');
 	await expect(dialog.locator('.material-chip')).toHaveCount(10);
 	await input.fill('Pending material');
-	await dialog
-		.getByRole('button', { name: 'Back to project', exact: true })
-		.click();
+	await page.goBack();
 	await expect(dialog).toBeVisible();
 	await page
 		.getByRole('dialog', { name: 'Discard material changes?', exact: true })
@@ -420,7 +418,7 @@ test('single project choices search, clear, dismiss and preserve catalogued tool
 	await page.keyboard.press('Escape');
 	await expect(needle).toHaveValue('4.0mm');
 	await expect(
-		page.getByRole('dialog', { name: 'Knitting details', exact: true })
+		page.getByRole('region', { name: 'Knitting details', exact: true })
 	).toBeVisible();
 	await page.screenshot({
 		path: test.info().outputPath('native-knitting-selects.png')

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { dragScroll } from '#lib/drag-scroll.ts';
 	import SingleSelect from '#lib/SingleSelect.svelte';
 	import { usePrompt } from '../social/prompt';
 	const ask = usePrompt();
@@ -850,7 +851,7 @@
 					onclick={() => editEvent(null)}>Create event</button
 				>
 			</div>
-			<div class="settings-tabs" aria-label="Events">
+			<div class="settings-tabs" use:dragScroll aria-label="Events">
 				{#each [['upcoming', 'Upcoming'], ['history', 'History']] as [value, label]}<button
 						aria-pressed={filter === value}
 						disabled={work.busy || !!work.retry}

@@ -42,3 +42,24 @@ export function replaceFacetToken(
 		caret: token.start + replacement.length + space.length
 	};
 }
+
+/** Display ranges only; mention identity is still resolved when publishing. */
+export function facetSegments(
+	text: string
+): { text: string; facet: boolean }[] {
+	const parts: { text: string; facet: boolean }[] = [];
+	const pattern =
+		/(https?:\/\/[^\s<>]+)|(?:^|[\s(])(@[a-zA-Z0-9][a-zA-Z0-9.-]*\.[a-zA-Z]{2,})|(?:^|[\s(])(#[\p{L}\p{N}_]+)/gu;
+	let offset = 0;
+	for (const match of text.matchAll(pattern)) {
+		const token = match[1] || match[2] || match[3];
+		const start = match.index! + match[0].indexOf(token);
+		if (start > offset)
+			parts.push({ text: text.slice(offset, start), facet: false });
+		parts.push({ text: token, facet: true });
+		offset = start + token.length;
+	}
+	if (offset < text.length)
+		parts.push({ text: text.slice(offset), facet: false });
+	return parts;
+}

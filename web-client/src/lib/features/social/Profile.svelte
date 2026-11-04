@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { dragScroll } from '#lib/drag-scroll.ts';
 	import ProfileLinkIcon from './ProfileLinkIcon.svelte';
 	import { confirmExternalLink } from './prompt';
 	import { contextMenu } from './context-menu';
@@ -476,7 +477,7 @@
 					reportLink = undefined;
 				}}
 			/>{/if}
-		<nav class="tabs" aria-label="Profile content">
+		<nav class="tabs" use:dragScroll aria-label="Profile content">
 			{#each tabs as item}<a
 					href={'?tab=' + item}
 					aria-current={tab === item ? 'page' : undefined}>{tabLabel(item)}</a
@@ -772,7 +773,10 @@
 		min-height: 48px;
 		padding: 10px 24px;
 		font-size: 16px;
-		background: var(--profile-soft, var(--primary-soft));
+		background: light-dark(
+			var(--profile-soft, var(--primary-soft)),
+			var(--surface)
+		);
 		border: 1.5px solid var(--ink);
 		box-shadow: 3px 3px var(--shadow);
 		color: var(--ink);
@@ -780,13 +784,19 @@
 	.profile-actions .settings-action,
 	.profile-actions .message-action {
 		border-radius: 50%;
-		background: var(--profile-soft, var(--primary-soft));
+		background: light-dark(
+			var(--profile-soft, var(--primary-soft)),
+			var(--surface)
+		);
 	}
 	.profile-actions summary.icon-button {
 		border: 0;
 		box-shadow: none;
 		border-radius: 50%;
-		background: var(--profile-soft, var(--primary-soft));
+		background: light-dark(
+			var(--profile-soft, var(--primary-soft)),
+			var(--surface)
+		);
 		width: 40px;
 		height: 40px;
 	}

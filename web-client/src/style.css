@@ -45,6 +45,7 @@
 	--profile-soft: #d8ddf9;
 	--red-soft: #fdded9;
 	--red-ink: #b82016;
+	--danger-fill: #b82016;
 	--butter: #f7d46a;
 	--clay: #e27b4a;
 	--moss: #6e8b3d;
@@ -1888,7 +1889,7 @@ dialog > button {
 /* Flutter InkWell tints actionable surfaces without moving cards or changing images. */
 @media (hover: hover) {
 	.app-main
-		.member-post:not(
+		.member-post:not(:has(.post-detail)):not(
 			:has(
 				.notice,
 				.quote-card:hover,
@@ -1976,4 +1977,87 @@ dialog > button {
 	html::-webkit-scrollbar {
 		display: none;
 	}
+}
+
+/* Interactive surfaces share a cobalt state layer; reading surfaces stay still. */
+@media (hover: hover) {
+	.member-post:not(:has(.post-detail, .notice)) {
+		cursor: pointer;
+	}
+	.app-main
+		:is(
+			.tag-chips a,
+			.account-row,
+			.person-row:not(:disabled),
+			.thread-person,
+			.comment-compose,
+			.thread-interactions a,
+			.tabs a,
+			.profile-tabs a,
+			.native-list .identity-row:has(a),
+			.profile-link .link-card,
+			.craft-choice,
+			.icon-button,
+			.drag-handle,
+			.editor-actions > summary
+		):hover {
+		background: color-mix(in srgb, var(--primary) 8%, transparent);
+	}
+	.app-main
+		:is(
+			a[href],
+			summary,
+			button:not(:disabled),
+			[role='option'],
+			label:has(
+				input:is([type='checkbox'], [type='radio'], [type='file']):not(
+						:disabled
+					)
+			)
+		) {
+		cursor: pointer;
+	}
+}
+
+@media (hover: hover) {
+	.account-menu .person-row:not(:disabled):hover {
+		background: color-mix(in srgb, var(--primary) 8%, transparent);
+	}
+	.app-main .primary:not(:disabled):hover {
+		background: var(--primary-hover);
+		color: var(--on-primary);
+	}
+	.app-main .drag-handle {
+		cursor: grab;
+	}
+	.app-main:has(.reorder-ghost),
+	.app-main:has(.reorder-ghost) * {
+		cursor: grabbing !important;
+	}
+}
+
+/* Text labels remain accessible names without acting as hover/click targets. */
+label:has(textarea),
+label:has(input:not([type='checkbox']):not([type='radio']):not([type='file'])) {
+	pointer-events: none;
+	cursor: default;
+}
+label :is(input, textarea, select, button, a) {
+	pointer-events: auto;
+}
+:is(
+	input:not([type='checkbox']):not([type='radio']):not([type='file']),
+	textarea,
+	select
+):focus-visible {
+	outline: none;
+}
+.tabs,
+.settings-tabs {
+	touch-action: pan-x pan-y;
+}
+.tabs[data-dragging],
+.settings-tabs[data-dragging] {
+	cursor: grabbing;
+	user-select: none;
 }

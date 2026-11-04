@@ -173,10 +173,9 @@ test('two browser accounts switch independently and isolate API401 while preserv
 		.locator('.account-menu .person-row')
 		.filter({ hasText: '@alice.test' })
 		.click();
-	await page
-		.getByRole('dialog', { name: 'Switch accounts?', exact: true })
-		.getByRole('button', { name: 'Switch account', exact: true })
-		.click();
+	await expect(
+		page.getByRole('dialog', { name: 'Switch accounts?', exact: true })
+	).toHaveCount(0);
 	await expect(
 		page.getByRole('button', {
 			name: 'Switch accounts, @alice.test',
@@ -252,10 +251,9 @@ for (const status of [503, 401]) {
 		const chooser = page.getByRole('dialog', { name: 'Accounts', exact: true });
 		await expect(chooser).toBeVisible();
 		await chooser.getByRole('button', { name: /@bob\.test/ }).click();
-		await page
-			.getByRole('dialog', { name: 'Switch accounts?', exact: true })
-			.getByRole('button', { name: 'Switch account', exact: true })
-			.click();
+		await expect(
+			page.getByRole('dialog', { name: 'Switch accounts?', exact: true })
+		).toHaveCount(0);
 		await expect(
 			page.getByRole('heading', { name: 'Home', exact: true })
 		).toBeVisible();
@@ -279,23 +277,23 @@ test('onboarding requires the16-year age and policy declaration independently of
 	await expect(
 		page.getByRole('heading', { name: 'Make it yours', exact: true })
 	).toBeVisible();
-	await page.getByRole('button', { name: 'Continue', exact: true }).click();
+	await page.getByRole('button', { name: 'Next', exact: true }).click();
 	await expect(
 		page.getByRole('heading', { name: 'What do you make?', exact: true })
 	).toBeVisible();
-	await page.getByRole('button', { name: 'Continue', exact: true }).click();
+	await page.getByRole('button', { name: 'Next', exact: true }).click();
 	await expect(
 		page.getByRole('heading', { name: 'Our community guidelines' })
 	).toBeVisible();
 	const declaration = page.getByRole('checkbox', { name: /16 years old/ }),
 		join = page.getByRole('button', {
-			name: 'Join the community',
+			name: 'Finish',
 			exact: true
 		});
 	await expect(declaration).toBeVisible();
 	await expect(join).toBeDisabled();
 	const diagnostics = page.getByRole('checkbox', {
-		name: /optional error reporting/
+		name: /Enable error reporting/
 	});
 	if (await diagnostics.count()) {
 		await diagnostics.check();

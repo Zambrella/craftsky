@@ -19,6 +19,64 @@ afterEach(async () => {
 	sdk.getCurrentScope().setUser(null);
 });
 describe('diagnostic source selection and serialization', () => {
+	it('retains release, debug IDs, handled state and AppView correlation in serialized SDK output', async () => {
+		const bodies: string[] = [];
+		const client = sdk.init(
+			diagnosticOptions(
+				sdk,
+				'https://public@o1.ingest.sentry.io/1',
+				() => true,
+				async (_request, init) => {
+					bodies.push(String(init?.body));
+					return new Response('', { status: 200 });
+				},
+				{ release: 'craftsky-web@1.1.1+abc123', environment: 'preview' }
+			)
+		)!;
+		const id = '12345678-1234-4123-8123-123456789012';
+		client.addEventProcessor((event) => ({
+			...event,
+			debug_meta: {
+				images: [
+					{
+						type: 'sourcemap',
+						debug_id: id,
+						code_file: `https://app.craftsky.social/_app/immutable/chunks/view.js?token=${canary}`
+					},
+					{
+						type: 'sourcemap',
+						debug_id: id,
+						code_file: `https://private.example/${canary}`
+					}
+				]
+			}
+		}));
+		const error = new APIError(
+			503,
+			'temporarily_unavailable',
+			canary,
+			id,
+			{ draft: canary },
+			undefined,
+			{ cause: makeError() }
+		);
+		sdk.captureException(error, {
+			contexts: { diagnostic: { operation: 'workspace', recipient: canary } }
+		});
+		await client.flush(1000);
+		expect(bodies).toHaveLength(1);
+		const wire = bodies[0];
+		expect(wire).not.toContain(canary);
+		expect(wire).toContain('craftsky-web@1.1.1+abc123');
+		expect(wire).toContain('"environment":"preview"');
+		expect(wire).toContain('"httpStatus":503');
+		expect(wire).toContain('"errorCode":"temporarily_unavailable"');
+		expect(wire).toContain('"appViewRequestId":"' + id + '"');
+		expect(wire).toContain('"debug_id":"' + id + '"');
+		expect(wire).toContain('"handled":true');
+		expect(wire).toContain('APIError');
+		expect(wire).toContain('RangeError');
+	});
 	it('preserves native cause types and code coordinates in actual SDK wire output while dropping private canaries', async () => {
 		const bodies: string[] = [];
 		const fetcher: typeof fetch = async (_request, init) => {

@@ -1,4 +1,7 @@
 <script lang="ts">
+	import { textareaPresentation } from './textarea-presentation';
+	import Avatar from '#lib/Avatar.svelte';
+	import type { Author } from '#lib/api/types.ts';
 	import FieldCounter from './FieldCounter.svelte';
 	import { limitText, recordTextLimit } from './text-limit';
 	import { onDestroy, tick, untrack } from 'svelte';
@@ -38,13 +41,14 @@
 		onsubmit?: () => void;
 	} = $props();
 	const uid = $props.id();
+	let caret = $state({ left: 0, top: 0 });
 	let editor = $state<HTMLTextAreaElement>();
 	let focused = $state(false);
 	let composing = $state(false);
 	let token = $state<ActiveFacetToken>();
-	let choices = $state<{ value: string; name: string; description?: string }[]>(
-		[]
-	);
+	let choices = $state<
+		{ value: string; name: string; description?: string; author?: Author }[]
+	>([]);
 	let active = $state(0);
 	let loading = $state(false);
 	let failed = $state(false);
@@ -118,7 +122,8 @@
 								result.items.map((person) => ({
 									value: person.handle,
 									name: person.displayName || `@${person.handle}`,
-									description: `@${person.handle}`
+									description: `@${person.handle}`,
+									author: person
 								}))
 							)
 					: api.search
@@ -126,7 +131,8 @@
 							.then((result) =>
 								result.items.map((tag) => ({
 									value: tag.tag,
-									name: `#${tag.tag}`
+									name: `#${tag.tag}`,
+									description: `${tag.postCount ?? 0} ${(tag.postCount ?? 0) === 1 ? 'post' : 'posts'}`
 								}))
 							)
 			)
@@ -214,6 +220,12 @@
 	<textarea
 		id={uid}
 		bind:this={editor}
+		use:textareaPresentation={{
+			value,
+			position: (next) => {
+				if (next.left !== caret.left || next.top !== caret.top) caret = next;
+			}
+		}}
 		use:recordTextLimit={maximum
 			? { graphemes: maximum, bytes: maximumBytes ?? maximum * 10 }
 			: undefined}
@@ -260,7 +272,11 @@
 			update();
 		}}></textarea>
 	{#if maximum}<FieldCounter {value} {maximum} />{/if}
-	{#if open}<div class="facet-popup">
+	{#if open}<div
+			class="facet-popup"
+			style:left={caret.left + 'px'}
+			style:top={caret.top + 'px'}
+		>
 			<div
 				id={`${uid}-suggestions`}
 				role="listbox"
@@ -279,29 +295,63 @@
 							void choose(index);
 						}}
 					>
-						<strong>{choice.name}</strong>{#if choice.description}<span
-								>{choice.description}</span
-							>{/if}
+						<span class="suggestion-avatar"
+							>{#if choice.author}<Avatar author={choice.author} />{:else}<span
+									class="hashtag-symbol"
+									aria-hidden="true">#</span
+								>{/if}</span
+						><span class="suggestion-copy"
+							><strong>{choice.name}</strong>{#if choice.description}<small
+									>{choice.description}</small
+								>{/if}</span
+						>
 					</div>{/each}
 			</div>
-			<p class="facet-hint" role="status">
-				{loading
-					? 'Finding suggestions…'
-					: failed
-						? 'Suggestions could not load. You can keep typing.'
-						: 'Use ↑ ↓ and Enter to choose, or Escape to close.'}
-			</p>
+			{#if loading || failed}<p class="facet-hint" role="status">
+					{loading
+						? 'Finding suggestions…'
+						: 'Suggestions could not load. You can keep typing.'}
+				</p>{/if}
 		</div>{/if}
 </div>
 
 <style>
+	.suggestion-copy {
+		display: grid;
+		gap: 2px;
+		min-width: 0;
+	}
+	.suggestion-copy strong {
+		font-size: 14px;
+		color: var(--ink);
+	}
+	.suggestion-avatar {
+		flex: none;
+	}
+	.hashtag-symbol {
+		display: grid;
+		place-items: center;
+		width: 41px;
+		height: 41px;
+		font-size: 24px;
+		color: var(--primary);
+	}
+
 	.facet-input {
 		position: relative;
 		display: grid;
 		gap: 6px;
 		min-width: 0;
 	}
+	.facet-input :global(.facet-text-paint) {
+		z-index: 1;
+	}
+	.facet-input textarea::placeholder {
+		color: var(--ink-3);
+		-webkit-text-fill-color: var(--ink-3);
+	}
 	.facet-input label {
+		pointer-events: none;
 		display: flex;
 		flex-direction: row;
 		flex-wrap: wrap;
@@ -322,6 +372,9 @@
 		font: inherit;
 		font-size: 16px;
 		resize: vertical;
+		color: transparent;
+		caret-color: var(--ink);
+		-webkit-text-fill-color: transparent;
 	}
 	.facet-input textarea[rows='1'] {
 		min-height: 44px;
@@ -330,9 +383,7 @@
 	}
 	.facet-popup {
 		position: absolute;
-		top: 100%;
-		left: 0;
-		right: 0;
+		width: min(320px, 100%);
 		z-index: 30;
 		border: 1px solid var(--ink);
 		background: var(--surface);
@@ -344,16 +395,17 @@
 	}
 	.facet-popup [role='option'] {
 		padding: 9px 12px;
-		display: grid;
+		display: flex;
+		align-items: center;
 		border-radius: 6px;
 		cursor: pointer;
-		gap: 2px;
+		gap: 12px;
 	}
 	.facet-popup [role='option'].current,
 	.facet-popup [role='option']:hover {
 		background: var(--primary-soft);
 	}
-	.facet-popup span,
+	.facet-popup small,
 	.facet-hint {
 		font-size: 0.85rem;
 		color: var(--ink-3);

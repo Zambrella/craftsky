@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { dragScroll } from '#lib/drag-scroll.ts';
 	import { onMount, onDestroy } from 'svelte';
 	import { page } from '$app/state';
 	import type {
@@ -205,7 +206,7 @@
 			/>
 		</div>{/if}
 </form>
-{#if q}<nav class="tabs" aria-label="Search categories">
+{#if q}<nav class="tabs" use:dragScroll aria-label="Search categories">
 		{#each ['posts', 'projects', 'profiles', 'hashtags'] as item}<a
 				href={'/app/search?' + new URLSearchParams({ q, tab: item })}
 				aria-current={tab === item ? 'page' : undefined}

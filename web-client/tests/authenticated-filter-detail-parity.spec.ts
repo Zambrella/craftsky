@@ -39,7 +39,7 @@ test('native compact filter form uses search, dependent choices and Cancel witho
 	const open = () =>
 		page.getByRole('button', { name: /^Filter projects/ }).click();
 	await open();
-	const dialog = page.getByRole('dialog', {
+	const dialog = page.getByRole('region', {
 		name: 'Filter Knitting projects',
 		exact: true
 	});
@@ -107,7 +107,7 @@ test('native compact filter form uses search, dependent choices and Cancel witho
 	await expect(dialog).toBeVisible();
 	expect(new URL(page.url()).searchParams.has('color')).toBe(false);
 	await dialog
-		.getByRole('button', { name: 'Close filters', exact: true })
+		.getByRole('button', { name: 'Back to projects', exact: true })
 		.click();
 	await open();
 	await expect(
@@ -129,7 +129,7 @@ test('native selection limit and Clear all retain craft/sort until explicit Appl
 		'/app/home?craft=knitting&sort=popular&color=blue&selfDrafted=true'
 	);
 	await page.getByRole('button', { name: /^Filter projects/ }).click();
-	const dialog = page.getByRole('dialog', {
+	const dialog = page.getByRole('region', {
 		name: 'Filter Knitting projects',
 		exact: true
 	});
@@ -186,4 +186,47 @@ test('native sort sheets preserve craft filters and move to a pointer menu on wi
 	await expect(page.locator('html')).not.toHaveCSS('overflow', 'hidden');
 	await page.keyboard.press('Escape');
 	await expect(page.locator('.choice-menu[open]')).toHaveCount(0);
+});
+
+test('project filters are a content-column route with Back and Forward and no modal history after Apply', async ({
+	page
+}) => {
+	await page.goto('/app/home');
+	await page
+		.getByRole('navigation', { name: 'Home feeds' })
+		.getByRole('link', { name: 'Knitting', exact: true })
+		.click();
+	await expect(page).toHaveURL(/craft=.*knitting/);
+	const origin = page.url();
+	await page
+		.getByRole('button', { name: 'Filter projects', exact: true })
+		.click();
+	await expect(page).toHaveURL(/\/app\/home\/filters\?/);
+	const filters = page.getByRole('region', {
+		name: 'Filter Knitting projects',
+		exact: true
+	});
+	await expect(filters).toBeVisible();
+	await expect(page.locator('dialog[open]')).toHaveCount(0);
+	const main = (await page.locator('.app-main').boundingBox())!;
+	const bounds = (await filters.boundingBox())!;
+	expect(Math.abs(main.x - bounds.x)).toBeLessThan(2);
+	expect(Math.abs(main.width - bounds.width)).toBeLessThan(2);
+	await filters
+		.getByRole('switch', { name: 'Self drafted', exact: true })
+		.check();
+	await page.goBack();
+	await expect(page).toHaveURL(origin);
+	await page.goForward();
+	await expect(filters).toBeVisible();
+	await filters
+		.getByRole('switch', { name: 'Self drafted', exact: true })
+		.check();
+	await filters
+		.getByRole('button', { name: 'Apply filters', exact: true })
+		.click();
+	await expect(page).toHaveURL(/selfDrafted=true/);
+	await expect(filters).toHaveCount(0);
+	await page.goBack();
+	await expect(page).toHaveURL(/\/app\/home$/);
 });

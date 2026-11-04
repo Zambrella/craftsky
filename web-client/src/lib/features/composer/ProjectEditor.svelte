@@ -293,13 +293,9 @@
 			label="Pattern tag or name"
 			maximum={200}
 			maximumBytes={500}
-			value={str(pattern.name) || '#'}
+			value={str(pattern.name)}
 			allowed={['hashtag']}
-			onchange={(value) =>
-				updatePattern(
-					'name',
-					value.trim() === '#' ? undefined : value || undefined
-				)}
+			onchange={(value) => updatePattern('name', value || undefined)}
 		/>
 		<div>
 			<label
@@ -669,6 +665,13 @@
 </section>
 
 <style>
+	.switch-row {
+		display: flex;
+		flex-direction: row;
+		align-items: center;
+		justify-content: space-between;
+		gap: 16px;
+	}
 	.switch-row small {
 		display: block;
 		font-weight: 400;

@@ -117,15 +117,16 @@ Firebase receipt, production configuration or device app-link behaviour.
 
 ## Optional browser error reporting
 
-Set `PUBLIC_SENTRY_DSN` at build time to make optional error reporting available.
-It stays off until the device owner opts in during onboarding or Settings →
-Privacy. Disabling consent closes the SDK and blocks queued exports. Only native
-exception kinds and selected application-code stack coordinates are sent; API,
-offline and cancellation failures are excluded. Default request instrumentation,
-breadcrumbs, traces, replay, logs, attachments, private prose, URLs and viewer
-context are disabled or removed again at the transport boundary.
-Serialized-SDK tests verify protected-data canaries. Production delivery and
-release symbolication require separate deployment validation.
+Set `PUBLIC_SENTRY_DSN` and `PUBLIC_SENTRY_ENVIRONMENT` at build time. Reporting
+stays off until explicitly enabled in onboarding or Settings → Privacy. Unexpected
+browser/framework failures and consumed workspace/composer failures retain safe
+stacks, deployment metadata and AppView correlation; private payloads and expected
+cancellation/offline/validation failures are excluded. Revoking consent stops export.
+
+Builds stamp debug IDs and retain source maps privately in `.sentry-artifacts/`,
+removing maps from public assets. Run `npm run sentry:upload` with the authenticated
+Sentry CLI before deploying that exact build. Ordinary builds do not upload code.
+See [diagnostics setup, privacy and verification](src/lib/features/diagnostics/README.md).
 
 ## Browser notifications
 

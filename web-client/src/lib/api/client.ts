@@ -398,7 +398,7 @@ export class CraftskyAPI {
 				signal
 			),
 		hashtagSuggestions: (q: string, limit = 10, signal?: AbortSignal) =>
-			this.transport.page<{ tag: string }>(
+			this.transport.page<{ tag: string; postCount: number }>(
 				'/v1/facets/hashtags',
 				{ q, limit },
 				signal

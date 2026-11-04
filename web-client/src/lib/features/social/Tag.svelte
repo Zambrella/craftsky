@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount, onDestroy } from 'svelte';
+	import { onMount, onDestroy, getContext } from 'svelte';
 	import type { CraftskyAPI, PostPresentation } from '#lib/api/client.ts';
 	import { Work } from './work.svelte';
 	import Status from './Status.svelte';
@@ -8,6 +8,7 @@
 	import EmptyState from './EmptyState.svelte';
 	let { api, did, tag }: { api: CraftskyAPI; did: string; tag: string } =
 		$props();
+	const back = getContext<(event: MouseEvent) => void>('craftsky-back');
 	const work = new Work();
 	let posts = $state<PostPresentation[]>([]),
 		cursor = $state<string | null>(null);
@@ -34,7 +35,7 @@
 </script>
 
 <div class="workspace-heading">
-	<a href="/app/search" class="icon-button" aria-label="Back to search"
+	<a href="/app/search" class="icon-button" aria-label="Back" onclick={back}
 		><Icon name="back" /></a
 	>
 	<h1>#{tag}</h1>

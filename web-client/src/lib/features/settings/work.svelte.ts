@@ -1,4 +1,5 @@
 import { accountScope, message, pendingWrite } from './model.ts';
+import { reportFailure } from '../diagnostics/client.ts';
 
 export class Work {
 	loading = $state(true);
@@ -20,6 +21,7 @@ export class Work {
 			const value = await request();
 			if (this.scope.current(token)) apply(value);
 		} catch (error) {
+			void reportFailure(error, 'workspace');
 			if (this.scope.current(token)) this.error = message(error);
 		} finally {
 			if (this.scope.current(token)) this.loading = false;
@@ -43,6 +45,7 @@ export class Work {
 				this.notice = notice;
 			}
 		} catch (error) {
+			void reportFailure(error, 'workspace');
 			if (this.scope.current(token)) {
 				this.error = message(error);
 				if (pendingWrite(error))

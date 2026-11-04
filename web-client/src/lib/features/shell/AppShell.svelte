@@ -1,11 +1,16 @@
 <script lang="ts">
 	import { usePrompt, confirmExternalLink } from '../social/prompt';
-	import { afterNavigate } from '$app/navigation';
+	import {
+		afterNavigate,
+		beforeNavigate,
+		goto,
+		replaceState
+	} from '$app/navigation';
 	const ask = usePrompt();
 	import BrowserPush from '../push/BrowserPush.svelte';
 	import { disablePush, forgetPush } from '../push/client.ts';
 	import { onMount, onDestroy, tick, untrack, type Snippet } from 'svelte';
-	import { page } from '$app/state';
+	import { page, navigating } from '$app/state';
 	import {
 		CraftskyAPI,
 		type OnboardingStatus,
@@ -23,6 +28,8 @@
 	import { ownProfileRoute } from './navigation';
 	import { profileStyle } from '../social/model';
 	import { setContext } from 'svelte';
+	import { PageHistory, pageHistoryContext } from './page-history';
+	import { reportFailure } from '../diagnostics/client.ts';
 	let {
 		session,
 		accounts,
@@ -33,23 +40,81 @@
 		children: Snippet<[CraftskyAPI]>;
 	} = $props();
 	setContext('craftsky-open-accounts', () => openAccounts());
-	let navigationDepth = 0;
-	afterNavigate((navigation) => {
-		if (navigation.type === 'enter') navigationDepth = 0;
-		else if (navigation.type === 'popstate')
-			navigationDepth = Math.max(0, navigationDepth + navigation.delta);
-		else if (navigation.from && !navigation.willUnload) navigationDepth++;
-	});
-	setContext('craftsky-back', (event: MouseEvent) => {
+	const pageHistory = new PageHistory();
+	setContext(pageHistoryContext, pageHistory);
+	beforeNavigate((navigation) => {
 		if (
-			navigationDepth > 0 &&
+			navigation.to &&
+			navigation.from &&
+			navigation.to.url.href !== navigation.from.url.href
+		)
+			pageHistory.leave(
+				navigationDepth,
+				navigationDepth +
+					(navigation.type === 'popstate' ? navigation.delta : 1),
+				navigation.type === 'popstate'
+			);
+	});
+	let navigationDepth = 0;
+	let routeHistory: string[] = [];
+	let returning: (() => void) | undefined;
+	let replacing = false;
+	afterNavigate((navigation) => {
+		const current = page.url.href;
+		if (navigation.type === 'enter') {
+			navigationDepth = 0;
+			routeHistory = [current];
+		} else if (navigation.type === 'popstate')
+			navigationDepth =
+				page.state.navigationIndex ??
+				Math.max(0, navigationDepth + navigation.delta);
+		else if (navigation.from && !navigation.willUnload && !replacing) {
+			navigationDepth++;
+			routeHistory = routeHistory.slice(0, navigationDepth);
+		}
+		replaceState('', { ...page.state, navigationIndex: navigationDepth });
+		routeHistory[navigationDepth] = current;
+		pageHistory.arrive(navigationDepth, navigation.type === 'popstate');
+		returning?.();
+		returning = undefined;
+	});
+	setContext('craftsky-return', async (destination: string) => {
+		// A route can render controls before its afterNavigate callback has run.
+		// Settle that transition before choosing an entry to return to.
+		if (navigating.to) await navigating.complete;
+		const target = new URL(destination, location.href);
+		const previous = routeHistory[navigationDepth - 1];
+		if (
+			previous &&
+			new URL(previous).pathname === target.pathname &&
+			(!target.search || new URL(previous).search === target.search)
+		) {
+			await new Promise<void>((resolve) => {
+				returning = resolve;
+				history.back();
+			});
+		} else {
+			replacing = true;
+			try {
+				await goto(destination, { replaceState: true });
+			} finally {
+				replacing = false;
+			}
+		}
+	});
+	setContext('craftsky-back', async (event: MouseEvent) => {
+		if (
+			(navigationDepth > 0 || navigating.to) &&
 			!event.metaKey &&
 			!event.ctrlKey &&
 			!event.shiftKey &&
 			!event.altKey
 		) {
 			event.preventDefault();
-			history.back();
+			const fallback = (event.currentTarget as HTMLAnchorElement).href;
+			if (navigating.to) await navigating.complete;
+			if (navigationDepth > 0) history.back();
+			else await goto(fallback);
 		}
 	});
 	onMount(() => {
@@ -72,6 +137,29 @@
 		document.addEventListener('click', external);
 		return () => document.removeEventListener('click', external);
 	});
+	function contentBounds(node: HTMLElement) {
+		const update = () => {
+			const box = node.getBoundingClientRect();
+			document.documentElement.style.setProperty(
+				'--app-content-left',
+				`${box.left}px`
+			);
+			document.documentElement.style.setProperty(
+				'--app-content-width',
+				`${box.width}px`
+			);
+		};
+		const observer = new ResizeObserver(update);
+		observer.observe(node);
+		window.addEventListener('resize', update);
+		update();
+		return {
+			destroy() {
+				observer.disconnect();
+				window.removeEventListener('resize', update);
+			}
+		};
+	}
 	const version = __CRAFTSKY_VERSION__.trim();
 	let accountProfiles = $state<Record<string, Profile>>({});
 	let accountAnchor = $state<{ left: number; top: number }>();
@@ -251,7 +339,8 @@
 			}
 			ready = true;
 			void counts();
-		} catch {
+		} catch (cause) {
+			void reportFailure(cause, 'startup');
 			if (!dead)
 				error = 'CraftSky could not load your account. Please try again.';
 		}
@@ -342,20 +431,14 @@
 	});
 	onDestroy(() => {
 		dead = true;
+		pageHistory.dispose();
 	});
 	async function changeAccount(id: string) {
 		if (id === accountId) {
 			accountMenu = false;
 			return;
 		}
-		if (
-			!(await ask({
-				title: 'Switch accounts?',
-				detail: 'Save any unfinished work first.',
-				confirmLabel: 'Switch account'
-			}))
-		)
-			return;
+		accountMenu = false;
 		try {
 			const result = await fetch('/api/auth/switch', {
 				method: 'POST',
@@ -612,6 +695,7 @@
 {#if notice}<div class="shell-notice" role="status">{notice}</div>{/if}
 <main
 	id="main"
+	use:contentBounds
 	class="app-main"
 	class:has-discovery={discovery}
 	class:is-gated={gated}
@@ -848,9 +932,11 @@
 		position: fixed;
 		z-index: 100;
 		bottom: calc(88px + env(safe-area-inset-bottom));
-		left: 50%;
+		left: calc(
+			var(--app-content-left, 0px) + var(--app-content-width, 100vw) / 2
+		);
 		transform: translateX(-50%);
-		width: min(560px, calc(100vw - 32px));
+		width: calc(var(--app-content-width, 100vw) - 32px);
 		max-width: calc(100vw - 32px);
 		padding: 14px 16px;
 		border: 1.5px solid var(--ink);
@@ -875,11 +961,22 @@
 		width: 40px;
 		height: 40px;
 		padding: 8px;
-		border: 0;
-		border-radius: 12px;
-		background: var(--paper-2);
+		border: 1.5px solid var(--ink);
+		border-radius: 50%;
+		background: light-dark(#ededed, #24201d);
 		color: var(--ink-2);
-		box-shadow: 0 2px 5px #0002;
+		box-shadow: 0 3px 5px #0003;
+	}
+	.scroll-to-top:hover {
+		background: color-mix(
+			in srgb,
+			var(--primary) 8%,
+			light-dark(#ededed, #24201d)
+		);
+		box-shadow: 0 4px 6px #0003;
+	}
+	.scroll-to-top:active {
+		box-shadow: none;
 	}
 	@media (max-width: 900px) {
 		.scroll-to-top {

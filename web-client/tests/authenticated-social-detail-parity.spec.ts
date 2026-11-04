@@ -1387,3 +1387,232 @@ test('long lists offer scroll to top and account menus adapt to their trigger', 
 	).toBe(874);
 	await expect(sheet.locator('.person-row[aria-current=true]')).toBeDisabled();
 });
+
+test('post hover only advertises navigation and closing a comment does not leave a composer history entry', async ({
+	page
+}) => {
+	await timeline(page, post());
+	await page.goto('/app/home');
+	const card = page.locator('.member-post').first();
+	await expect(card).toBeVisible();
+	await expect(card).toHaveCSS('cursor', 'pointer');
+	const idle = await card.evaluate((n) => getComputedStyle(n).backgroundColor);
+	await card.hover({ position: { x: 4, y: 4 } });
+	await expect
+		.poll(() => card.evaluate((n) => getComputedStyle(n).backgroundColor))
+		.not.toBe(idle);
+	await page.getByText('Weekend making.', { exact: true }).click();
+	await expect(page).toHaveURL(/\/app\/posts\//);
+	const detail = page.locator('.member-post').first();
+	await page.mouse.move(0, 0);
+	const detailIdle = await detail.evaluate(
+		(n) => getComputedStyle(n).backgroundColor
+	);
+	await detail.hover({ position: { x: 4, y: 4 } });
+	await expect(detail).toHaveCSS('background-color', detailIdle);
+	await expect(detail).not.toHaveCSS('cursor', 'pointer');
+	await page.locator('.comment-compose').click();
+	await expect(page).toHaveURL(/\/compose\/reply/);
+	await page.getByRole('link', { name: 'Close editor', exact: true }).click();
+	await expect(page).toHaveURL(/\/app\/posts\//);
+	await page.getByRole('link', { name: 'Back', exact: true }).click();
+	await expect(page).toHaveURL(/\/app\/home$/);
+});
+
+test('likes rows keep avatar and identity centred, contiguous and highlighted on hover', async ({
+	page
+}) => {
+	await timeline(page, post('first', { likeCount: 2 }));
+	await page.route('**/api/appview/v1/posts/**/likes*', (route) =>
+		route.fulfill({
+			json: {
+				items: [
+					maker,
+					{
+						...maker,
+						did: 'did:plc:carol',
+						handle: 'carol.test',
+						displayName: 'Carol Maker'
+					}
+				]
+			}
+		})
+	);
+	await page.goto('/app/posts/did%3Aplc%3Abob/first/likes');
+	const rows = page.locator('.thread-person');
+	await expect(rows).toHaveCount(2);
+	const metrics = await rows.evaluateAll((nodes) =>
+		nodes.map((n) => {
+			const row = n.getBoundingClientRect(),
+				avatar = n.querySelector('.avatar')!.getBoundingClientRect();
+			return {
+				top: row.top,
+				bottom: row.bottom,
+				height: row.height,
+				center: row.y + row.height / 2,
+				avatarCenter: avatar.y + avatar.height / 2
+			};
+		})
+	);
+	expect(metrics[0].height).toBe(56);
+	expect(metrics[1].top).toBe(metrics[0].bottom);
+	expect(metrics[0].center).toBe(metrics[0].avatarCenter);
+	const idle = await rows
+		.first()
+		.evaluate((n) => getComputedStyle(n).backgroundColor);
+	await rows.first().hover();
+	await expect
+		.poll(() =>
+			rows.first().evaluate((n) => getComputedStyle(n).backgroundColor)
+		)
+		.not.toBe(idle);
+});
+
+test('profile drag lifts the complete row, supports cancel and commits only on profile save', async ({
+	page
+}) => {
+	const writes = await profileEditor(page);
+	const links = page.locator('.profile-link:not(.reorder-ghost)');
+	const first = links.first(),
+		second = links.nth(1);
+	await first.evaluate((node) =>
+		node.scrollIntoView({ block: 'center', behavior: 'instant' })
+	);
+	const handle = await first.locator('.drag-handle').boundingBox(),
+		target = await second.boundingBox();
+	await page.mouse.move(
+		handle!.x + handle!.width / 2,
+		handle!.y + handle!.height / 2
+	);
+	await page.mouse.down();
+	await page.mouse.move(
+		target!.x + target!.width / 2,
+		target!.y + target!.height / 2 + 10,
+		{ steps: 8 }
+	);
+	const ghost = page.locator('.reorder-ghost');
+	await expect(ghost).toContainText('Alpha');
+	await expect(ghost.locator('.link-card')).toBeVisible();
+	await page.screenshot({
+		path: test.info().outputPath('profile-row-lift.png')
+	});
+	await page.keyboard.press('Escape');
+	await page.mouse.up();
+	await expect(ghost).toHaveCount(0);
+	await expect(links.locator('.link-card')).toHaveText(['Alpha', 'Beta']);
+	await first.evaluate((node) =>
+		node.scrollIntoView({ block: 'center', behavior: 'instant' })
+	);
+	const h = await first.locator('.drag-handle').boundingBox(),
+		t = await second.boundingBox();
+	await page.mouse.move(h!.x + h!.width / 2, h!.y + h!.height / 2);
+	await page.mouse.down();
+	await page.mouse.move(t!.x + t!.width / 2, t!.y + t!.height / 2 + 10, {
+		steps: 8
+	});
+	await page.mouse.up();
+	await expect(links.locator('.link-card')).toHaveText(['Beta', 'Alpha']);
+	const crafts = page.getByRole('group', { name: 'Crafts', exact: true });
+	await crafts.getByRole('checkbox', { name: 'Sewing', exact: true }).check();
+	const sewing = crafts.getByRole('group', { name: 'Sewing', exact: true });
+	await sewing.scrollIntoViewIfNeeded();
+	const sh = await sewing.locator('.drag-handle').boundingBox();
+	const knitting = await crafts
+		.getByRole('group', { name: 'Knitting', exact: true })
+		.boundingBox();
+	await page.mouse.move(sh!.x + sh!.width / 2, sh!.y + sh!.height / 2);
+	await page.mouse.down();
+	await page.mouse.move(
+		sh!.x + sh!.width / 2,
+		knitting!.y + knitting!.height / 2 - 10,
+		{ steps: 8 }
+	);
+	await expect(page.locator('.reorder-ghost')).toContainText('Sewing');
+	await page.mouse.up();
+	await expect(crafts.locator('.craft-name').first()).toHaveText('Sewing');
+	expect(writes).toHaveLength(0);
+	await page.getByRole('button', { name: 'Save profile', exact: true }).click();
+	await expect.poll(() => writes.length).toBe(1);
+	expect(
+		(writes[0].body.links as { rkey: string }[]).map((x) => x.rkey)
+	).toEqual(['beta', 'alpha']);
+});
+
+test('desktop sponsored menu has no overflow and toast stays inside the content column', async ({
+	page
+}) => {
+	await page.goto('/app/compose/project');
+	const trigger = page.getByRole('button', {
+		name: 'Sponsored options',
+		exact: true
+	});
+	await trigger.click();
+	const dialog = page.getByRole('dialog', { name: 'Sponsored', exact: true });
+	await expect(dialog).toBeVisible();
+	const overflow = await dialog.evaluate((n) => ({
+		x: n.scrollWidth - n.clientWidth,
+		y: n.scrollHeight - n.clientHeight
+	}));
+	expect(overflow).toEqual({ x: 0, y: 0 });
+	await page.screenshot({
+		path: test.info().outputPath('sponsored-desktop-menu.png')
+	});
+	await page.keyboard.press('Escape');
+	await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
+	await page.goto('/app/home');
+	await page.getByLabel('More post actions', { exact: true }).first().click();
+	await page.getByRole('button', { name: 'Copy link', exact: true }).click();
+	const toast = page.locator('.snackbar');
+	await expect(toast).toBeVisible();
+	const main = await page.locator('main').boundingBox(),
+		bounds = await toast.boundingBox();
+	expect(bounds!.x).toBeGreaterThanOrEqual(main!.x);
+	expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(main!.x + main!.width);
+});
+
+test('draft app bars share the standard app header and profile focus uses ink rather than cobalt', async ({
+	page
+}) => {
+	await page.goto('/app/home');
+	const header = page.locator('.workspace-header,.workspace-heading').first();
+	const standard = await header.evaluate((n) => ({
+		height: n.getBoundingClientRect().height,
+		border: getComputedStyle(n).borderBottom,
+		background: getComputedStyle(n).backgroundColor
+	}));
+	for (const path of ['/app/drafts', '/app/scheduled']) {
+		await page.goto(path);
+		await expect(page.locator('.draft-appbar')).toBeVisible();
+		expect(
+			await page.locator('.draft-appbar').evaluate((n) => ({
+				height: n.getBoundingClientRect().height,
+				border: getComputedStyle(n).borderBottom,
+				background: getComputedStyle(n).backgroundColor
+			}))
+		).toEqual(standard);
+	}
+	await profileEditor(page);
+	const input = page.getByRole('textbox', {
+		name: 'Display name',
+		exact: true
+	});
+	await input.focus();
+	const ink = await page.evaluate(() =>
+		getComputedStyle(document.documentElement).getPropertyValue('--ink').trim()
+	);
+	await expect
+		.poll(() => input.evaluate((n) => getComputedStyle(n).outlineColor))
+		.toBe(
+			await page.evaluate((value) => {
+				const n = document.createElement('span');
+				n.style.color = value;
+				document.body.append(n);
+				const c = getComputedStyle(n).color;
+				n.remove();
+				return c;
+			}, ink)
+		);
+	await page.screenshot({
+		path: test.info().outputPath('profile-field-focus.png')
+	});
+});

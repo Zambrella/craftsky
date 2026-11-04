@@ -1,4 +1,5 @@
 import { APIError, MutationOutcomeUnknownError } from '#lib/api/client.ts';
+import { reportFailure } from '../diagnostics/client.ts';
 export class Work {
 	busy = $state(false);
 	hasLoaded = $state(false);
@@ -22,6 +23,7 @@ export class Work {
 				this.retry = undefined;
 			}
 		} catch (error) {
+			void reportFailure(error, 'workspace');
 			if (this.active) {
 				this.error =
 					error instanceof APIError

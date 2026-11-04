@@ -1,4 +1,5 @@
 <script lang="ts">
+	import HandleInput from '#lib/HandleInput.svelte';
 	import { page } from '$app/state';
 	import { onMount } from 'svelte';
 	let handle = $state(''),
@@ -71,15 +72,9 @@
 				start('login');
 			}}
 		>
-			<label for="handle">Your Atmosphere Handle</label><input
-				id="handle"
-				bind:value={handle}
-				placeholder="your-handle.bsky.social"
-				autocomplete="username"
-				required
-				disabled={busy || !ready}
-			/><button class="button secondary-sign-in" disabled={busy || !ready}
-				>{busy ? 'Redirecting…' : 'Sign in'}</button
+			<HandleInput bind:value={handle} disabled={!ready || busy} /><button
+				class="button secondary-sign-in"
+				disabled={busy || !ready}>{busy ? 'Redirecting…' : 'Sign in'}</button
 			>
 		</form>
 		<details class="atmosphere-explainer">
@@ -210,13 +205,6 @@
 		display: flex;
 		flex-direction: column;
 		gap: 16px;
-	}
-	label {
-		font-size: 16px;
-		font-weight: 700;
-	}
-	input {
-		min-height: 56px;
 	}
 	.secondary-sign-in {
 		background: var(--surface);

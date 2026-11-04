@@ -162,7 +162,7 @@ test('craft filters support multiple selections, repeated wire values and URL re
 	await page.goto('/app/home?craft=knitting');
 	await page.getByRole('button', { name: /^Filter projects/ }).click();
 	await expect(
-		page.getByRole('dialog', { name: 'Filter Knitting projects', exact: true })
+		page.getByRole('region', { name: 'Filter Knitting projects', exact: true })
 	).toBeVisible();
 	await page
 		.getByRole('searchbox', { name: 'Pattern difficulty', exact: true })
@@ -223,7 +223,7 @@ test('craft filters support multiple selections, repeated wire values and URL re
 	]);
 	await page.getByRole('button', { name: /^Filter projects/ }).click();
 	await expect(
-		page.getByRole('dialog', { name: 'Filter Knitting projects', exact: true })
+		page.getByRole('region', { name: 'Filter Knitting projects', exact: true })
 	).toBeVisible();
 	await page.getByRole('searchbox', { name: 'Color', exact: true }).click();
 	await expect(

@@ -324,7 +324,7 @@
 		display: inline-block;
 		padding: 4px 10px;
 		border-radius: 999px;
-		background: var(--primary-soft);
+		background: color-mix(in srgb, var(--primary) 10%, var(--paper));
 		color: var(--primary);
 		font-size: 14px;
 	}

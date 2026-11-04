@@ -1,5 +1,11 @@
 import * as publicEnv from '$app/env/public';
 import { diagnosticOptions } from './options.ts';
+import {
+	expectedFailure,
+	failureContext,
+	type DiagnosticOperation
+} from './privacy.ts';
+import { logFailure } from './local.ts';
 const key = 'craftsky.diagnostics-consent';
 export const configured = () => !!publicEnv.PUBLIC_SENTRY_DSN;
 export function consent(): boolean {
@@ -44,9 +50,36 @@ export async function applyConsent() {
 		if (version !== revision || !allowed()) return;
 		sdk = loaded;
 		client = loaded.init(
-			diagnosticOptions(loaded, publicEnv.PUBLIC_SENTRY_DSN, allowed)
+			diagnosticOptions(
+				loaded,
+				publicEnv.PUBLIC_SENTRY_DSN,
+				allowed,
+				undefined,
+				{
+					release: __CRAFTSKY_WEB_RELEASE__,
+					environment: publicEnv.PUBLIC_SENTRY_ENVIRONMENT || 'development'
+				}
+			)
 		);
 	} catch {
 		/* Optional diagnostics must never affect normal application behavior. */
+	}
+}
+
+/** The boundary consuming a failure owns reporting; the original cause stays in memory. */
+export async function reportFailure(
+	error: unknown,
+	operation: DiagnosticOperation
+) {
+	try {
+		logFailure(error, operation);
+		if (expectedFailure(error) || !allowed()) return;
+		await applyConsent();
+		if (!client || !sdk || !allowed()) return;
+		sdk.captureException(error, {
+			contexts: { diagnostic: failureContext(error, operation) }
+		});
+	} catch {
+		/* Optional reporting never changes responses, retries or navigation. */
 	}
 }

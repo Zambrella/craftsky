@@ -10,6 +10,7 @@
 	} from '#lib/api/client.ts';
 	import MemberPost from './MemberPost.svelte';
 	import { visible, postAddress } from './model';
+	import { rememberPage } from '../shell/page-history';
 	import { Work } from './work.svelte';
 	import Status from './Status.svelte';
 	import Icon from '../shell/Icon.svelte';
@@ -31,18 +32,35 @@
 		section?: string;
 	} = $props();
 	const back = getContext<(event: MouseEvent) => void>('craftsky-back');
+	const historyView = rememberPage<{
+		pages: number;
+		sort: 'oldest' | 'newest' | 'follows';
+		collapsed: string[];
+	}>('thread');
+	let loadedPages = $state(0);
 	const work = new Work();
 	let post = $state<PostPresentation>(),
 		comments = $state<CommentItem[]>([]),
 		people = $state<Author[]>([]),
 		quotes = $state<PostPresentation[]>([]),
 		cursor = $state<string | null>();
-	let sort = $state<'oldest' | 'newest' | 'follows'>('oldest');
+	let sort = $state<'oldest' | 'newest' | 'follows'>(
+		historyView?.value?.sort || 'oldest'
+	);
 	let focusMessage = $state('');
-	let collapsed = $state<string[]>([]);
+	let collapsed = $state<string[]>(historyView?.value?.collapsed || []);
+	$effect(() => {
+		historyView?.save({ pages: loadedPages, sort, collapsed: [...collapsed] });
+	});
 	const focused = page.url.searchParams.get('focus') || undefined;
 	onMount(() => {
-		void load();
+		void (async () => {
+			const pages = historyView?.value?.pages || 1;
+			await load();
+			while (!dead && cursor && !work.error && loadedPages < pages)
+				await load(true);
+			historyView?.ready();
+		})();
 	});
 	let dead = false;
 	onDestroy(() => {
@@ -52,7 +70,7 @@
 	function load(more = false) {
 		const nextCursor = more ? cursor : undefined;
 		const ordering = sort;
-		void work.run(
+		return work.run(
 			async () => {
 				const root = more ? post : await api.posts.get(did, rkey);
 				if (!section && root && visible(root) && root.reply) {
@@ -90,6 +108,7 @@
 					void goto(result.href, { replaceState: true });
 					return;
 				}
+				loadedPages = more ? loadedPages + 1 : 1;
 				post = result.root;
 				if (result.kind === 'people') {
 					people = more ? [...people, ...result.page.items] : result.page.items;
@@ -193,7 +212,9 @@
 				>{post.quoteCount} {post.quoteCount === 1 ? 'Quote' : 'Quotes'}</a
 			>{/if}
 	</nav>{/if}
-{#if section === 'likes' || section === 'reposts'}<section class="stack">
+{#if section === 'likes' || section === 'reposts'}<section
+		class="thread-people"
+	>
 		{#each people as author}<a
 				class="thread-person"
 				href={'/app/profile/' + encodeURIComponent(author.did)}
@@ -225,7 +246,7 @@
 			disabled={work.busy}
 			options={[
 				{ value: 'newest', label: 'Newest', icon: 'sort' },
-				{ value: 'oldest', label: 'Oldest', icon: 'oldest' },
+				{ value: 'oldest', label: 'Oldest', icon: 'filter' },
 				{ value: 'follows', label: 'Follows', icon: 'following' }
 			]}
 			onchange={(value) => {
@@ -248,6 +269,7 @@
 		>
 			<MemberPost
 				value={comment.post}
+				detail
 				{api}
 				did={session.did}
 				onRemove={() => (comments = comments.filter((old) => old !== comment))}
@@ -277,6 +299,7 @@
 				<div class="replies">
 					{#each comment.replies.items as reply, j (`${'uri' in reply.post ? reply.post.uri : j}`)}<MemberPost
 							value={reply.post}
+							detail
 							{api}
 							did={session.did}
 							onRemove={() => {
@@ -325,42 +348,64 @@
 		font-size: 18px;
 	}
 	.comment-compose {
-		margin: 0 16px 16px;
-		padding: 12px 16px;
-		min-height: 48px;
+		margin: 16px 16px 32px;
+		padding: 8px 16px;
+		min-height: 40px;
 		display: flex;
 		align-items: center;
-		gap: 10px;
-		border: 1px solid var(--hairline);
-		border-radius: 12px;
-		color: var(--ink-2);
-		background: var(--surface);
+		justify-content: center;
+		gap: 8px;
+		border: 0;
+		border-radius: 999px;
+		color: var(--on-primary);
+		background: var(--primary);
+		font-weight: 600;
 		text-decoration: none;
+	}
+	.comment-compose:hover {
+		background: color-mix(in srgb, var(--primary) 92%, var(--ink));
 	}
 	.thread-person {
 		display: flex;
 		gap: 12px;
 		align-items: center;
-		padding: 12px 16px;
+		padding: 4px 16px;
+		min-height: 56px;
 		color: var(--ink);
 		text-decoration: none;
-		border-bottom: 1px solid var(--hairline);
 	}
 
 	.comment {
-		padding: 12px 0;
-		border-bottom: 1px dashed var(--hairline);
+		padding: 0 16px;
 	}
 	.comment :global(.member-post) {
 		border: 0;
 		box-shadow: none;
 		border-radius: 0;
 		background: transparent;
-		margin-bottom: 0;
+		margin: 0 0 8px;
 	}
 	.comment :global(.post-card) {
 		background: transparent;
 		border-radius: 0;
+	}
+	.comment :global(.post-card) {
+		padding: 8px 12px;
+	}
+	.comment :global(.post-actions) {
+		border-top: 0;
+		margin: 0 8px;
+		padding: 0 0 8px;
+	}
+	.comment :global(.author small) {
+		color: var(--ink-3);
+		font-weight: 400;
+	}
+	.replies :global(.author small) {
+		color: var(--ink-2);
+	}
+	.comment :global(.author) {
+		margin-bottom: 12px;
 	}
 	.comment.focused {
 		border-left: 4px solid var(--primary);
@@ -373,21 +418,21 @@
 		margin: 12px 16px;
 	}
 	.thread-interactions a {
-		color: var(--ink);
+		color: var(--primary);
 		font-size: 14px;
 		font-weight: 600;
 		text-decoration: none;
 	}
 	.reply-controls {
-		padding: 4px 28px;
+		padding: 0 16px 8px 72px;
 	}
 	.reply-controls button,
 	.replies > button {
 		background: transparent;
 		border: 0;
 		box-shadow: none;
-		color: var(--primary);
-		font-size: 13px;
+		color: light-dark(#597231, #9ebc68);
+		font-size: 14px;
 		padding: 8px 0;
 	}
 	@media (max-width: 600px) {
@@ -398,9 +443,9 @@
 			left: 16px;
 			right: 16px;
 			margin: 0;
-			border: 1.5px solid var(--ink);
+			border: 0;
 			border-radius: 999px;
-			box-shadow: 3px 3px 0 var(--shadow);
+			box-shadow: none;
 			background: var(--primary);
 			color: white;
 			justify-content: center;
@@ -412,9 +457,11 @@
 		}
 	}
 	.replies {
-		margin: 8px 16px 0 32px;
-		padding-left: 4px;
-		border-left: 2px solid var(--hairline);
+		margin: 0 16px 8px 32px;
+		padding: 8px 0;
+		border: 1px solid var(--ink-4);
+		border-radius: 14px;
+		background: var(--paper-2);
 	}
 	.replies :global(.member-post) {
 		margin-left: 0;

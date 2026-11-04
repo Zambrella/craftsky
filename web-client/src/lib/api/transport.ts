@@ -24,9 +24,10 @@ export class APIError extends Error {
 		message: string,
 		readonly requestId?: string,
 		readonly fields?: Record<string, string>,
-		readonly retryAfter?: number
+		readonly retryAfter?: number,
+		options?: ErrorOptions
 	) {
-		super(message);
+		super(message, options);
 	}
 	get retryable(): boolean {
 		return this.status === 0 || this.status === 429 || this.status >= 500;
@@ -163,6 +164,7 @@ export class APITransport {
 			);
 		}
 		const retryAfter = retrySeconds(response.headers.get('Retry-After'));
+		const headerRequestId = response.headers.get('X-Request-ID') || undefined;
 		let value: unknown;
 		if (options.response === 'bytes' && response.ok)
 			return (await response.arrayBuffer()) as T;
@@ -184,12 +186,16 @@ export class APITransport {
 		if (text) {
 			try {
 				value = JSON.parse(text);
-			} catch {
+			} catch (cause) {
 				if (key) throw new MutationOutcomeUnknownError(key);
 				throw new APIError(
 					response.status,
 					'invalid_response',
-					'CraftSky returned an unreadable response.'
+					'CraftSky returned an unreadable response.',
+					headerRequestId,
+					undefined,
+					undefined,
+					{ cause }
 				);
 			}
 		}
@@ -228,7 +234,12 @@ export class APITransport {
 				typeof envelope.message === 'string'
 					? envelope.message
 					: 'The request could not be completed.',
-				typeof envelope.requestId === 'string' ? envelope.requestId : undefined,
+				typeof envelope.requestId === 'string' &&
+					/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(
+						envelope.requestId
+					)
+					? envelope.requestId
+					: headerRequestId,
 				fields,
 				retryAfter
 			);

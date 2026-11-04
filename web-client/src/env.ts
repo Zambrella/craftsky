@@ -11,5 +11,6 @@ export const variables = defineEnvVars({
 	PUBLIC_FIREBASE_MESSAGING_SENDER_ID: optionalPublic,
 	PUBLIC_FIREBASE_VAPID_KEY: optionalPublic,
 	PUBLIC_FIREBASE_AUTH_DOMAIN: optionalPublic,
-	PUBLIC_SENTRY_DSN: optionalPublic
+	PUBLIC_SENTRY_DSN: optionalPublic,
+	PUBLIC_SENTRY_ENVIRONMENT: optionalPublic
 });

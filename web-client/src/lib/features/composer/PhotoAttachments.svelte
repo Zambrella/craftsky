@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { onDestroy, tick } from 'svelte';
-	import { beforeNavigate } from '$app/navigation';
+	import { pushState } from '$app/navigation';
+	import { page } from '$app/state';
+	import { mountComposerPage } from './page-layout';
 	import Icon from '../shell/Icon.svelte';
 	import MediaEditor from './MediaEditor.svelte';
 	import PhotoThumbnail from './PhotoThumbnail.svelte';
@@ -26,29 +28,35 @@
 		onEditingChange: (id: string, editing: boolean) => void;
 		onOpenChange?: (open: boolean) => void;
 	} = $props();
-	let dialog: HTMLDialogElement;
+	const uid = $props.id();
 	let open = $state(false);
 	let disposed = false;
 	let previous: HTMLElement | undefined;
 	let dragged: string | undefined;
 	let editing = $state<string[]>([]);
 	const described = $derived(images.filter((image) => image.alt.trim()).length);
-	function show() {
+	async function show() {
 		previous =
 			document.activeElement instanceof HTMLElement
 				? document.activeElement
 				: undefined;
-		open = true;
-		onOpenChange(true);
-		dialog.showModal();
+		await pushState('', { ...page.state, photoDetails: uid });
 	}
 	function close() {
 		if (disabled || editing.length) return;
-		dialog.close();
-		open = false;
-		onOpenChange(false);
-		previous?.focus({ preventScroll: true });
+		history.back();
 	}
+	$effect(() => {
+		const next = page.state.photoDetails === uid;
+		if (open && !next && (disabled || editing.length)) {
+			void pushState('', { ...page.state, photoDetails: uid });
+			return;
+		}
+		if (open === next) return;
+		open = next;
+		onOpenChange(next);
+		if (!next) void tick().then(() => previous?.focus({ preventScroll: true }));
+	});
 	async function add(files: FileList | null) {
 		await onadd(files);
 		await tick();
@@ -60,15 +68,8 @@
 		next.splice(to, 0, next.splice(from, 1)[0]);
 		onchange(next);
 	}
-	beforeNavigate((navigation) => {
-		if (open && !navigation.willUnload) {
-			navigation.cancel();
-			close();
-		}
-	});
 	onDestroy(() => {
 		disposed = true;
-		dialog?.close();
 	});
 </script>
 
@@ -139,16 +140,25 @@
 {:else}
 	{@render header()}{@render picker(canAddVideo)}
 {/if}
-<dialog
-	bind:this={dialog}
-	class="photo-details-page"
-	aria-label="Photo details"
-	oncancel={(event) => {
-		event.preventDefault();
-		close();
+<svelte:window
+	onkeydown={(event) => {
+		if (
+			open &&
+			event.key === 'Escape' &&
+			!event.defaultPrevented &&
+			!document.querySelector('dialog[open]')
+		) {
+			event.preventDefault();
+			close();
+		}
 	}}
->
-	{#if open}<header class="photo-page-header">
+/>
+{#if open}<section
+		class="photo-details-page"
+		aria-label="Photo details"
+		use:mountComposerPage
+	>
+		<header class="photo-page-header">
 			<button
 				type="button"
 				aria-label="Back to post"
@@ -198,8 +208,8 @@
 					/>
 				</div>{/each}
 			{@render picker(false)}
-		</div>{/if}
-</dialog>
+		</div>
+	</section>{/if}
 
 <style>
 	.photos-heading h2 {
@@ -242,6 +252,10 @@
 		border: 2px dashed var(--ink);
 		border-radius: 24px;
 		cursor: pointer;
+	}
+	.photo-picker:has(input:focus-visible) {
+		outline: 3px solid var(--primary);
+		outline-offset: 3px;
 	}
 	.photo-picker input {
 		position: absolute;
@@ -318,19 +332,21 @@
 	}
 	.photo-details-page {
 		position: fixed;
-		inset: 0;
-		width: min(680px, 100vw);
+		top: 0;
+		left: var(--app-content-left, 0px);
+		width: var(--app-content-width, 100vw);
+		z-index: 25;
 		height: 100dvh;
 		max-width: none;
 		max-height: none;
-		margin: auto;
+		margin: 0;
 		padding: 0;
 		border: 0;
 		border-radius: 0;
 		background: var(--paper);
 		overflow: hidden;
 	}
-	.photo-details-page[open] {
+	.photo-details-page {
 		display: flex;
 		flex-direction: column;
 	}

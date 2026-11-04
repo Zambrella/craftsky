@@ -2,8 +2,27 @@ import adapter from '@sveltejs/adapter-cloudflare';
 import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig } from 'vitest/config';
 import { readFileSync } from 'node:fs';
+import { sentryVitePlugin } from '@sentry/vite-plugin';
+import { webRelease } from './scripts/sentry-build.mjs';
+const sentryBuildPlugin = () =>
+	sentryVitePlugin({
+		telemetry: false,
+		sourcemaps: { disable: 'disable-upload' },
+		// Only debug-ID injection is needed here; runtime release metadata is explicit.
+		release: {
+			name: '',
+			inject: false,
+			create: false,
+			finalize: false,
+			setCommits: false,
+			deploy: false
+		}
+	});
 export default defineConfig({
+	build: { sourcemap: 'hidden' },
+	worker: { plugins: () => [sentryBuildPlugin()] },
 	define: {
+		__CRAFTSKY_WEB_RELEASE__: JSON.stringify(webRelease),
 		__CRAFTSKY_VERSION__: JSON.stringify(
 			readFileSync(
 				new URL('../appview/VERSION', import.meta.url),
@@ -30,7 +49,8 @@ export default defineConfig({
 					'object-src': ['none']
 				}
 			}
-		})
+		}),
+		sentryBuildPlugin()
 	],
 	test: { include: ['src/**/*.test.ts'] }
 });

@@ -5,10 +5,12 @@ export function diagnosticOptions(
 	sdk: typeof Sentry,
 	dsn: string,
 	allowed: () => boolean,
-	nativeFetch?: typeof fetch
+	nativeFetch?: typeof fetch,
+	deployment: { release?: string; environment?: string } = {}
 ): Sentry.BrowserOptions {
 	return {
 		dsn,
+		...deployment,
 		defaultIntegrations: false,
 		integrations: [
 			sdk.globalHandlersIntegration(),

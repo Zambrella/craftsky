@@ -196,10 +196,9 @@ test('initializes each newly selected account through its own bound session', as
 		.locator('.account-menu .person-row')
 		.filter({ hasText: '@bob.test' })
 		.click();
-	await page
-		.getByRole('dialog', { name: 'Switch accounts?', exact: true })
-		.getByRole('button', { name: 'Switch account', exact: true })
-		.click();
+	await expect(
+		page.getByRole('dialog', { name: 'Switch accounts?', exact: true })
+	).toHaveCount(0);
 	await expect(
 		page.getByRole('button', {
 			name: 'Switch accounts, @bob.test',

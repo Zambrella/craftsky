@@ -215,6 +215,13 @@
 </div>
 
 <style>
+	.native-single-select > label {
+		display: flex;
+		flex-direction: row;
+		align-items: baseline;
+		gap: 8px;
+		pointer-events: none;
+	}
 	.field-helper {
 		margin: 0;
 		font-size: 14px;

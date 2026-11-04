@@ -103,7 +103,7 @@
 		padding-inline: 24px;
 	}
 	button.danger {
-		background: #f03a2e;
+		background: var(--danger-fill);
 		color: white;
 		border-color: var(--ink);
 		box-shadow: 3px 3px var(--shadow);

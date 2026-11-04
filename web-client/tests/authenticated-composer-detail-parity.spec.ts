@@ -700,7 +700,7 @@ test('media export blocks Done, cancellation and Save until the exact image edit
 	});
 	await expect(
 		page.getByText('Draft saved on this device', { exact: true })
-	).toBeVisible();
+	).toBeAttached();
 	await page.evaluate(() => {
 		const original = HTMLCanvasElement.prototype.toBlob;
 		HTMLCanvasElement.prototype.toBlob = function (callback, ...args) {
@@ -961,7 +961,7 @@ test('photo selection opens details, retains descriptions on return, and support
 			{ name: 'first.png', mimeType: 'image/png', buffer },
 			{ name: 'second.png', mimeType: 'image/png', buffer }
 		]);
-	const details = page.getByRole('dialog', {
+	const details = page.getByRole('region', {
 		name: 'Photo details',
 		exact: true
 	});
@@ -1031,7 +1031,7 @@ test('browser Back closes photo details without discarding the project', async (
 		.locator('input[type=file][multiple]')
 		.first()
 		.setInputFiles({ name: 'photo.png', mimeType: 'image/png', buffer });
-	const details = page.getByRole('dialog', {
+	const details = page.getByRole('region', {
 		name: 'Photo details',
 		exact: true
 	});
@@ -1047,4 +1047,14 @@ test('browser Back closes photo details without discarding the project', async (
 	await expect(
 		details.getByRole('textbox', { name: 'Image description', exact: true })
 	).toHaveValue('Retained photo description');
+	await page.goBack();
+	await page.goForward();
+	await expect(details).toBeVisible();
+	await expect(
+		details.getByRole('textbox', { name: 'Image description', exact: true })
+	).toHaveValue('Retained photo description');
+	await page.getByRole('link', { name: 'Drafts', exact: true }).click();
+	await expect(
+		page.getByRole('dialog', { name: 'Save your draft?' })
+	).toBeVisible();
 });

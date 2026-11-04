@@ -79,3 +79,16 @@ describe('inline facet editing', () => {
 		expect(resolved).toBe(0);
 	});
 });
+
+it('paints display facets without changing surrounding Unicode or text', async () => {
+	const { facetSegments } = await import('./facet-input');
+	const text = '🧶 Hello @bob.test and #couture https://example.test/page';
+	const segments = facetSegments(text);
+	expect(segments.map((part) => part.text).join('')).toBe(text);
+	expect(
+		segments.filter((part) => part.facet).map((part) => part.text)
+	).toEqual(['@bob.test', '#couture', 'https://example.test/page']);
+	expect(facetSegments('mail@example.test plain <script>')).toEqual([
+		{ text: 'mail@example.test plain <script>', facet: false }
+	]);
+});

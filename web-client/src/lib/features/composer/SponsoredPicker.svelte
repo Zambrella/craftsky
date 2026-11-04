@@ -23,6 +23,22 @@
 		disposed = true;
 		dialog?.close();
 	});
+	function show() {
+		const rect = trigger?.getBoundingClientRect();
+		if (rect && innerWidth > 900) {
+			const width = Math.min(280, innerWidth - 32);
+			dialog.style.left = `${Math.max(8, Math.min(innerWidth - width - 8, rect.left))}px`;
+			dialog.style.top =
+				rect.top > innerHeight / 2 ? 'auto' : `${rect.bottom + 4}px`;
+			dialog.style.bottom =
+				rect.top > innerHeight / 2 ? `${innerHeight - rect.top + 4}px` : 'auto';
+		} else {
+			dialog.style.removeProperty('left');
+			dialog.style.removeProperty('top');
+			dialog.style.removeProperty('bottom');
+		}
+		dialog.showModal();
+	}
 	function close() {
 		dialog.close();
 		if (!disposed) trigger?.focus({ preventScroll: true });
@@ -38,7 +54,7 @@
 	aria-pressed={value}
 	title="Sponsored"
 	{disabled}
-	onclick={() => dialog.showModal()}><Icon name="currency" /></button
+	onclick={show}><Icon name="currency" /></button
 >
 <dialog
 	bind:this={dialog}
@@ -76,6 +92,29 @@
 </dialog>
 
 <style>
+	.sponsored-dialog > .visually-hidden {
+		top: 0;
+		left: 0;
+		min-width: 0;
+		min-height: 0;
+		margin: 0;
+		padding: 0;
+		width: 1px;
+		height: 1px;
+	}
+	.sponsored-dialog > .visually-hidden:focus-visible {
+		position: static !important;
+		width: auto;
+		height: auto;
+		margin: 16px 0 0;
+		padding: 8px 12px;
+		clip-path: none;
+		white-space: normal;
+	}
+	.sponsored-dialog label:hover {
+		background: color-mix(in srgb, var(--primary) 8%, transparent);
+	}
+
 	.sponsored-control {
 		display: grid;
 		place-items: center;
@@ -90,18 +129,21 @@
 		color: var(--primary);
 	}
 	.sponsored-dialog {
-		margin: auto;
-		width: 400px;
+		position: fixed;
+		inset: auto;
+		margin: 0;
+		overflow: hidden;
+		width: 280px;
 		max-width: calc(100vw - 32px);
-		padding: 24px;
-		background: var(--paper);
+		padding: 16px;
+		background: var(--surface);
 		color: var(--ink);
 		border: 1.5px solid var(--ink);
-		border-radius: 20px;
+		border-radius: 14px;
 		box-shadow: 3px 3px 0 var(--ink);
 	}
 	.sponsored-dialog::backdrop {
-		background: #0006;
+		background: transparent;
 	}
 	.sponsored-dialog label {
 		display: flex;
@@ -126,41 +168,13 @@
 		font-weight: 400;
 		line-height: 1.5;
 	}
-	.sponsored-dialog input {
-		appearance: none;
-		position: relative;
-		width: 44px;
-		height: 26px;
-		margin: 0;
-		flex: none;
-		border: 1.5px solid var(--ink);
-		border-radius: 20px;
-		background: var(--paper-2);
-		cursor: pointer;
-	}
-	.sponsored-dialog input::before {
-		content: '';
-		display: block;
-		position: absolute;
-		width: 18px;
-		height: 18px;
-		left: 2.5px;
-		top: 2.5px;
-		border: 1px solid var(--ink);
-		border-radius: 50%;
-		background: var(--paper);
-		transition: transform 150ms;
-	}
-	.sponsored-dialog input:checked {
-		background: var(--primary);
-	}
-	.sponsored-dialog input:checked::before {
-		transform: translateX(17px);
-	}
 	.sheet-handle {
 		display: none;
 	}
-	@media (max-width: 700px) {
+	@media (max-width: 900px) {
+		.sponsored-dialog::backdrop {
+			background: #0006;
+		}
 		.sponsored-dialog {
 			position: fixed;
 			inset: auto 0 0;
@@ -179,11 +193,6 @@
 			margin: 0 auto 24px;
 			background: var(--ink-3);
 			border-radius: 4px;
-		}
-	}
-	@media (prefers-reduced-motion: reduce) {
-		.sponsored-dialog input::before {
-			transition: none;
 		}
 	}
 </style>

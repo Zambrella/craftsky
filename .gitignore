@@ -73,3 +73,4 @@ web-client/test-results/
 web-client/playwright-report/
 web-client/.env*
 !web-client/.env.example
+web-client/.sentry-artifacts/

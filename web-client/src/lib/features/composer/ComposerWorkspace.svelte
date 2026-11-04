@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { getContext, onDestroy, onMount, untrack } from 'svelte';
 	import { page } from '$app/state';
-	import { goto, beforeNavigate } from '$app/navigation';
+	import { beforeNavigate } from '$app/navigation';
 	import {
 		APIError,
 		MutationOutcomeUnknownError,
@@ -58,6 +58,7 @@
 	import Icon from '../shell/Icon.svelte';
 	import VideoPlayer from '../social/VideoPlayer.svelte';
 	import { ComposerRecovery } from './recovery';
+	import { reportFailure } from '../diagnostics/client.ts';
 	import './composer.css';
 	let {
 		api,
@@ -72,7 +73,6 @@
 	let loading = $state(true);
 	let initialized = $state(false);
 	let busy = $state(false);
-	let photoPageOpen = $state(false);
 	let mediaTasks = $state<string[]>([]);
 	let mediaEdits = $state<string[]>([]);
 	let error = $state('');
@@ -185,14 +185,18 @@
 			!draft.scheduleId &&
 			!draft.video
 	);
+	let initializedRoute = '';
 	$effect(() => {
 		const identity = session.did;
 		const route = path.join('/');
 		const query = page.url.search;
-		if (mounted)
+		const key = JSON.stringify([session.id, identity, route, query]);
+		if (mounted && key !== initializedRoute) {
+			initializedRoute = key;
 			untrack(() => {
 				void initialize(identity, route, new URLSearchParams(query));
 			});
+		}
 	});
 	$effect(() => {
 		const text = draft.text,
@@ -250,8 +254,7 @@
 		mounted = true;
 	});
 	beforeNavigate((nav) => {
-		if (photoPageOpen || approvedNavigation || !initialized || nav.willUnload)
-			return;
+		if (approvedNavigation || !initialized || nav.willUnload) return;
 		if (draft.pending) return; // Exact durable recovery survives leaving a pending action.
 		if (changed || mediaEdits.length) {
 			nav.cancel();
@@ -280,10 +283,12 @@
 		}
 		lifecycle?.abandon();
 	}
+	const returnTo =
+		getContext<(destination: string) => Promise<void>>('craftsky-return');
 	async function leaveEditor(destination: string) {
 		approvedNavigation = true;
 		try {
-			await goto(destination);
+			await returnTo(destination);
 		} finally {
 			approvedNavigation = false;
 		}
@@ -639,6 +644,7 @@
 		draft.scheduledAt = later ? scheduledUTCDate(date) : undefined;
 	}
 	function message(e: unknown) {
+		void reportFailure(e, 'composer');
 		if (e instanceof APIError && e.fields)
 			return `${e.message} ${Object.entries(e.fields)
 				.map(([field, value]) => `${field}: ${value}`)
@@ -1248,7 +1254,6 @@
 								onchange={(images) => (draft.images = images)}
 								onBusyChange={mediaBusy}
 								onEditingChange={mediaEditing}
-								onOpenChange={(open) => (photoPageOpen = open)}
 							/>{/if}
 						{#if draft.video}<div class="video-editor">
 								<div class="video-selected">

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { dragScroll } from '#lib/drag-scroll.ts';
 	import { onMount, onDestroy } from 'svelte';
 	import { page } from '$app/state';
 	import type {
@@ -8,7 +9,9 @@
 		PostPresentation
 	} from '#lib/api/client.ts';
 	import MemberPost from './MemberPost.svelte';
-	import Filters from './Filters.svelte';
+	import { rememberPage } from '../shell/page-history';
+	import ProjectFiltersPage from './ProjectFiltersPage.svelte';
+	import { goto } from '$app/navigation';
 	import { Work } from './work.svelte';
 	import Status from './Status.svelte';
 	import { label } from '#lib/public.ts';
@@ -18,6 +21,9 @@
 	import EmptyState from './EmptyState.svelte';
 	import { craftFeeds, craftKey } from './craft-feeds';
 	let { api, did }: { api: CraftskyAPI; did: string } = $props();
+	const historyView = rememberPage<number>('feed-pages');
+	let loadedPages = 0;
+	let disposed = false;
 	const work = new Work();
 	let profile = $state<Profile>();
 	let items = $state<
@@ -26,9 +32,6 @@
 		cursor = $state<string | null>(null);
 	const craft = page.url.searchParams.get('craft') || '';
 	const filters = browseFilters(page.url.searchParams);
-	let filterDialog = $state<HTMLDialogElement>(null!);
-	let filterFields = $state<{ clearAll: () => void }>(null!);
-	let filterVersion = $state(0);
 	async function load(more = false) {
 		await work.run(
 			async () => {
@@ -77,139 +80,105 @@
 						]
 					: result.items;
 				cursor = result.cursor || null;
+				loadedPages = more ? loadedPages + 1 : 1;
+				historyView?.save(loadedPages);
 			}
 		);
 	}
 	onMount(() => {
 		const refresh = () => void load();
 		window.addEventListener('craftsky-refresh', refresh);
-		void load();
+		void (async () => {
+			const pages = historyView?.value || 1;
+			await load();
+			while (!disposed && cursor && !work.error && loadedPages < pages)
+				await load(true);
+			historyView?.ready();
+		})();
 		return () => window.removeEventListener('craftsky-refresh', refresh);
 	});
-	onDestroy(() => work.dispose());
+	onDestroy(() => {
+		disposed = true;
+		work.dispose();
+	});
 </script>
 
-<div class="workspace-heading">
-	<h1>Home</h1>
-	{#if craft}<div class="heading-actions">
-			<ChoiceMenu
-				label="Sort projects"
-				appBar
-				value={page.url.searchParams.get('sort') || 'chronological'}
-				url={page.url}
-				options={[
-					{ value: 'chronological', label: 'Newest', icon: 'sort' },
-					{ value: 'popular', label: 'Popular', icon: 'growth' }
-				]}
-			/>
-			<button
-				class="filter-trigger icon-button"
-				aria-label="Filter projects"
-				onclick={() => {
-					filterVersion++;
-					filterDialog.showModal();
-				}}
-				><Icon name="filter" /><span class="filter-label">Filters</span
-				>{#if Object.keys(filters).length}<span
-						class="filter-dot"
-						aria-label="Filters applied"
-					></span>{/if}</button
-			>
-		</div>{/if}
-</div>
-<nav class="tabs" aria-label="Home feeds">
-	<a href="/app/home" aria-current={!craft ? 'page' : undefined}
-		><Icon name="users" size={18} />Following</a
-	>{#each craftFeeds(profile?.crafts) as item}{@const key = craftKey(item.id)}<a
-			href={'/app/home?craft=' + encodeURIComponent(item.id)}
-			aria-current={craftKey(craft) === key ? 'page' : undefined}
-			>{#if ['knitting', 'crochet', 'sewing', 'embroidery', 'quilting'].includes(key)}<span
-					class="feed-craft-icon"
-					style:--craft-icon={`url('/craft_icons/${key}.svg')`}
-					aria-hidden="true"
-				></span>{/if}{label(key)}</a
-		>{/each}
-</nav>
-
-<Status
-	{work}
-	skeleton="posts"
-	reload={() => load()}
-/>{#each items as item (item.key)}<MemberPost
-		value={item.post}
-		reason={item.reason}
-		{api}
-		{did}
-		onRemove={() => (items = items.filter((old) => old.key !== item.key))}
-	/>{:else}{#if !work.busy && !work.error}<EmptyState
-			title={craft ? label(craft) : 'Feed'}
-			detail={craft
-				? 'No projects match these filters yet.'
-				: 'Your feed is quiet.'}
-			icon="home"
-		>
-			{#snippet actions()}{#if !craft}<a href="/app/settings/instagram"
-						>Connect Instagram</a
-					><a href="/app/search">Search CraftSky</a><a
-						href={'/app/home?craft=' +
-							encodeURIComponent(
-								profile?.crafts[0] || 'social.craftsky.feed.defs#knitting'
-							)}>Explore projects</a
-					>{:else}<a href={'/app/home?craft=' + encodeURIComponent(craft)}
-						>Clear filters</a
-					>{/if}{/snippet}
-		</EmptyState>{/if}{/each}{#if cursor}<button
-		class="button next"
-		disabled={work.busy}
-		onclick={() => load(true)}>Load more</button
-	>{/if}
-
-<dialog
-	bind:this={filterDialog}
-	class="project-filter-dialog"
-	aria-labelledby="filter-title"
->
-	<form method="get" action="/app/home">
-		<header>
-			<button
-				type="button"
-				class="icon-button"
-				aria-label="Close filters"
-				onclick={() => filterDialog.close()}><Icon name="close" /></button
-			>
-			<h2 id="filter-title">
-				{#if ['knitting', 'crochet', 'sewing', 'embroidery', 'quilting'].includes(craft
-						.split('#')
-						.at(-1)
-						?.toLowerCase() || '')}<span
+<div hidden={page.url.pathname.endsWith('/filters')}>
+	<div class="workspace-heading">
+		<h1>Home</h1>
+		{#if craft}<div class="heading-actions">
+				<ChoiceMenu
+					label="Sort projects"
+					appBar
+					value={page.url.searchParams.get('sort') || 'chronological'}
+					url={page.url}
+					options={[
+						{ value: 'chronological', label: 'Newest', icon: 'sort' },
+						{ value: 'popular', label: 'Popular', icon: 'growth' }
+					]}
+				/>
+				<button
+					class="filter-trigger icon-button"
+					aria-label="Filter projects"
+					onclick={() => goto('/app/home/filters' + page.url.search)}
+					><Icon name="filter" /><span class="filter-label">Filters</span
+					>{#if Object.keys(filters).length}<span
+							class="filter-dot"
+							aria-label="Filters applied"
+						></span>{/if}</button
+				>
+			</div>{/if}
+	</div>
+	<nav class="tabs" use:dragScroll aria-label="Home feeds">
+		<a href="/app/home" aria-current={!craft ? 'page' : undefined}
+			><Icon name="users" size={18} />Following</a
+		>{#each craftFeeds(profile?.crafts) as item}{@const key = craftKey(
+				item.id
+			)}<a
+				href={'/app/home?craft=' + encodeURIComponent(item.id)}
+				aria-current={craftKey(craft) === key ? 'page' : undefined}
+				>{#if ['knitting', 'crochet', 'sewing', 'embroidery', 'quilting'].includes(key)}<span
 						class="feed-craft-icon"
-						style:--craft-icon={`url('/craft_icons/${craft.split('#').at(-1)?.toLowerCase()}.svg')`}
+						style:--craft-icon={`url('/craft_icons/${key}.svg')`}
 						aria-hidden="true"
-					></span>{/if}
-				Filter {label(craft)} projects
-			</h2>
-		</header>
-		<input type="hidden" name="craft" value={craft} /><input
-			type="hidden"
-			name="sort"
-			value={page.url.searchParams.get('sort') || 'chronological'}
-		/>
-		<div class="filter-scroll">
-			{#key filterVersion}<Filters
-					bind:this={filterFields}
-					{craft}
-					expanded
-				/>{/key}
-		</div>
-		<footer>
-			<button
-				type="button"
-				class="clear-all-filters"
-				onclick={() => filterFields.clearAll()}>Clear all</button
-			><button class="button">Apply filters</button>
-		</footer>
-	</form>
-</dialog>
+					></span>{/if}{label(key)}</a
+			>{/each}
+	</nav>
+
+	<Status
+		{work}
+		skeleton="posts"
+		reload={() => load()}
+	/>{#each items as item (item.key)}<MemberPost
+			value={item.post}
+			reason={item.reason}
+			{api}
+			{did}
+			onRemove={() => (items = items.filter((old) => old.key !== item.key))}
+		/>{:else}{#if !work.busy && !work.error}<EmptyState
+				title={craft ? label(craft) : 'Feed'}
+				detail={craft
+					? 'No projects match these filters yet.'
+					: 'Your feed is quiet.'}
+				icon="home"
+			>
+				{#snippet actions()}{#if !craft}<a href="/app/settings/instagram"
+							>Connect Instagram</a
+						><a href="/app/search">Search CraftSky</a><a
+							href={'/app/home?craft=' +
+								encodeURIComponent(
+									profile?.crafts[0] || 'social.craftsky.feed.defs#knitting'
+								)}>Explore projects</a
+						>{:else}<a href={'/app/home?craft=' + encodeURIComponent(craft)}
+							>Clear filters</a
+						>{/if}{/snippet}
+			</EmptyState>{/if}{/each}{#if cursor}<button
+			class="button next"
+			disabled={work.busy}
+			onclick={() => load(true)}>Load more</button
+		>{/if}
+</div>
+{#if page.url.pathname.endsWith('/filters')}<ProjectFiltersPage />{/if}
 
 <style>
 	.tabs a {
@@ -246,68 +215,6 @@
 		border-radius: 50%;
 		background: var(--primary);
 	}
-	.project-filter-dialog {
-		width: min(620px, calc(100vw - 32px));
-		padding: 0;
-		height: min(900px, calc(100dvh - 48px));
-		max-height: none;
-		overflow: hidden;
-		background: var(--paper);
-	}
-	.project-filter-dialog form {
-		display: flex;
-		flex-direction: column;
-		height: 100%;
-	}
-	.filter-scroll {
-		flex: 1;
-		min-height: 0;
-		overflow: auto;
-	}
-	.project-filter-dialog header,
-	.project-filter-dialog footer {
-		padding: 16px;
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		gap: 16px;
-	}
-	.project-filter-dialog header {
-		border-bottom: 1.5px solid var(--ink);
-		flex: none;
-		min-height: 56px;
-		padding: 4px 8px;
-		justify-content: flex-start;
-		gap: 8px;
-	}
-	.project-filter-dialog footer {
-		position: sticky;
-		bottom: 0;
-		background: var(--paper);
-		border: 0;
-		margin: 0;
-		width: 100%;
-		flex: none;
-	}
-	.project-filter-dialog footer > .button {
-		box-shadow: none;
-		border: 0;
-		font-size: 16px;
-	}
-	.clear-all-filters {
-		font-size: 16px;
-		border: 0;
-		background: transparent;
-		box-shadow: none;
-		color: var(--primary);
-	}
-	.project-filter-dialog h2 {
-		display: flex;
-		align-items: center;
-		gap: 6px;
-		font-size: 20px;
-		margin: 0;
-	}
 	@media (max-width: 900px) {
 		.filter-label {
 			display: inline;
@@ -322,18 +229,6 @@
 			padding: 10px 18px;
 			box-shadow: 3px 3px var(--shadow);
 			background: var(--surface);
-		}
-	}
-	@media (max-width: 900px) {
-		.project-filter-dialog {
-			margin: 0;
-			inset: 0;
-			width: 100vw;
-			max-width: 100vw;
-			height: 100dvh;
-			max-height: none;
-			border: 0;
-			border-radius: 0;
 		}
 	}
 </style>
