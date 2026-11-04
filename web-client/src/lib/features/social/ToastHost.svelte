@@ -51,12 +51,12 @@
 		? 'calc(16px + env(safe-area-inset-bottom))'
 		: undefined}
 >
-	{#if hub.items[0]}{@const toast = hub.items[0]}
-		{#key toast.source}<ToastSurface
-				message={toast.message}
-				warning={toast.warning}
-				children={toast.children}
-				onDismiss={() => hub.dismiss(toast.source)}
-			/>{/key}
-	{/if}
+	{#each hub.items.slice(0, 1) as toast (toast.source)}
+		<ToastSurface
+			message={toast.message}
+			warning={toast.warning}
+			children={toast.children}
+			onDismiss={() => hub.dismiss(toast.source)}
+		/>
+	{/each}
 </div>

@@ -77,6 +77,27 @@ test.beforeEach(async ({ context, page }) => {
 test('hashtag Back returns to the originating feed or post and restores paginated feed position', async ({
 	page
 }) => {
+	const runtimeErrors: string[] = [];
+	await page.exposeFunction('recordNavigationError', (name: string) =>
+		runtimeErrors.push(name)
+	);
+	await page.addInitScript(() => {
+		const record = (error: unknown) => {
+			void (
+				window as unknown as {
+					recordNavigationError: (name: string) => Promise<void>;
+				}
+			).recordNavigationError(
+				error instanceof Error ? error.name : 'UnknownError'
+			);
+		};
+		// The app's privacy handler suppresses native error reporting. Observe the
+		// original events too, without recording fixture messages or payloads.
+		window.addEventListener('error', (event) => record(event.error));
+		window.addEventListener('unhandledrejection', (event) =>
+			record(event.reason)
+		);
+	});
 	const values = Array.from({ length: 20 }, (_, i) =>
 		post('scroll-' + i, {
 			text: '#sewing ' + 'A detailed craft update. '.repeat(20),
@@ -110,6 +131,12 @@ test('hashtag Back returns to the originating feed or post and restores paginate
 	await page.route('**/api/appview/v1/posts/**/comments*', (route) =>
 		route.fulfill({ json: { comments: { items: [], cursor: null } } })
 	);
+	await page.route('**/api/appview/v1/search/hashtags/sewing/posts*', (route) =>
+		route.fulfill({
+			status: 503,
+			json: { error: 'unavailable', message: 'Temporary hashtag outage.' }
+		})
+	);
 	await page.goto('/app/home');
 	await page.getByRole('button', { name: 'Load more', exact: true }).click();
 	await expect(page.locator('.member-post')).toHaveCount(20);
@@ -118,9 +145,13 @@ test('hashtag Back returns to the originating feed or post and restores paginate
 	const y = await page.evaluate(() => scrollY);
 	await card.getByRole('link', { name: '#sewing', exact: true }).click();
 	await expect(page).toHaveURL(/\/app\/tags\/sewing$/);
+	await expect(page.locator('.snackbar.warning')).toContainText(
+		'Temporary hashtag outage.'
+	);
 	await page.getByRole('link', { name: 'Back', exact: true }).click();
 	await expect(page).toHaveURL(/\/app\/home$/);
 	await expect(page.locator('.member-post')).toHaveCount(20);
+	await expect(page.locator('.snackbar.warning')).toHaveCount(0);
 	await expect.poll(() => page.evaluate(() => scrollY)).toBeCloseTo(y, 0);
 	await card.getByRole('link', { name: 'Open post', exact: true }).click();
 	await expect(page).toHaveURL(/scroll-15$/);
@@ -139,6 +170,7 @@ test('hashtag Back returns to the originating feed or post and restores paginate
 	await expect(page).toHaveURL(/scroll-15$/);
 	await page.goBack();
 	await expect.poll(() => page.evaluate(() => scrollY)).toBeCloseTo(y, 0);
+	expect(runtimeErrors).toEqual([]);
 });
 
 test('pattern text permits deleting the hash and plain names, with the self-drafted switch trailing', async ({

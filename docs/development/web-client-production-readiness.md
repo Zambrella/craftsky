@@ -1,16 +1,18 @@
 # Web client production readiness — 4 November 2026
 
-Decision: **do not promote this candidate yet**. Review target: `web-client/`,
-starting at commit `e581f73d3fa5`, with the local fixes described below.
+The navigation blocker identified in the initial review is **resolved locally**.
+Public promotion still requires the hosted checks below. Review target:
+`web-client/`, starting at commit `e581f73d3fa5`; the follow-up fixes the shared
+toast renderer on top of `4221b5d4`.
 
-## Release blocker
+## Resolved navigation blocker
 
 The existing `authenticated-navigation-parity.spec.ts` scenario “hashtag Back
 returns to the originating feed or post and restores paginated feed position”
-fails on both the production preview and Cloudflare Worker artifact. Load the
-second timeline page, scroll to the sixteenth post, open its hashtag, then use
-Back. All twenty posts return, but scroll position is 0 instead of 3197 in the
-fixture viewport. The first restoration assertion fails.
+originally failed on both the production preview and Cloudflare Worker artifact.
+Loading the second timeline page, scrolling to the sixteenth post, opening its
+hashtag, then using Back returned all twenty posts, but scroll position was 0
+instead of 3197 in the fixture viewport. The first restoration assertion failed.
 
 Reproduce from `web-client/` after `npm run build`:
 
@@ -20,12 +22,21 @@ WEB_CLIENT_WORKER=1 npm run test:e2e:app -- --grep 'hashtag Back'
 ```
 
 Three isolated repetitions failed on preview, and the full Worker suite also
-reproduced the failure. Temporary tracing showed the popstate navigation entering
-SvelteKit's completion code but its awaited UI-settlement promise not resolving
-before the assertion deadline. Consequently AppShell's `afterNavigate` callback
-and `PageHistory.arrive` did not run for that return. This locates the stalled
-path; the underlying cause is still unconfirmed. All temporary application and
-framework tracing was removed. No speculative navigation workaround was retained.
+reproduced the failure. Removing a warning during route cleanup emptied the toast
+queue while the old keyed child still evaluated `toast.source`. That threw a
+TypeError in `ToastHost.svelte`, interrupting UI settlement before AppShell's
+`afterNavigate` and `PageHistory.arrive` could restore scrolling. The privacy
+handler prevents default browser error reporting; observing the original error
+event in the fixture test exposed the exception.
+
+The shared renderer now uses a keyed `each` over the first queue item. This keeps
+the displayed item's reference valid until its removal, preserving one-toast
+display, queue ordering and replacement behavior. No router or scroll workaround
+was needed. The regression explicitly shows a failed-hashtag warning, removes it
+by returning to the feed, checks pagination and scroll across Back/Forward, and
+asserts there were no original browser error/rejection events. Three isolated
+repetitions pass after the fix, alongside repeated queue/retry checks. Temporary
+raw-error tracing was removed; the permanent test records error types only.
 
 ## Fixes from this review
 
@@ -43,17 +54,18 @@ framework tracing was removed. No speculative navigation workaround was retained
 
 ## Validation
 
+The complete `just web-client-check` gate passed after the navigation fix.
+
 - Svelte check: 0 errors, 0 warnings, including after the changes.
 - Unit tests: 316 passed across 51 files.
 - Production build: passed; verified zero `.map` files in either public output
   directory. Private debug-ID source maps were prepared without upload.
 - Public browser tests: 9 passed on preview and 9 passed on Worker.
-- Initial full authenticated preview run: 310 passed, 5 configuration skips,
-  3 failures (toast contrast, animation timing, and the navigation blocker).
-  Focused recheck after changes: the four toast/animation cases passed; navigation
-  remains failing. The complete preview suite has not been rerun after the fixes.
-- Full authenticated Worker run after the fixes: 314 passed, 5 configuration
-  skips, 1 failure (the navigation blocker).
+- Full authenticated preview run after the navigation fix: 315 passed,
+  5 configuration skips, zero failures.
+- Full authenticated Worker run after the navigation fix: 315 passed,
+  5 configuration skips, zero failures.
+- `git diff --check`: passed.
 - Deployment-wrapper tests: 7 passed. Development-launcher tests: 5 passed.
 - Dependency audit: zero production-dependency advisories. Full audit: four low
   entries through build-time deepmerge, four moderate entries through Sentry's
@@ -74,8 +86,8 @@ from this machine, so public application availability is not verified.
 
 Before public promotion:
 
-1. Resolve the navigation blocker and pass the complete gate with
-   `just web-client-check`.
+1. Retain the navigation fix and pass the complete gate with
+   `just web-client-check` on the exact candidate.
 2. Upload a clean, reviewed candidate with `just web-client-preview`; verify real
    hosted sign-in against the required AppView browser callback support. This
    review did not authenticate against or mutate production accounts.
