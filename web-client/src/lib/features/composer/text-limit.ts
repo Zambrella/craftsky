@@ -1,4 +1,4 @@
-const segments = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
+import { graphemes } from '#lib/text.ts';
 const encoder = new TextEncoder();
 export type TextLimit = { graphemes: number; bytes: number };
 
@@ -7,7 +7,7 @@ export function limitText(value: string, limit: TextLimit): string {
 	let count = 0,
 		bytes = 0,
 		end = 0;
-	for (const { segment, index } of segments.segment(value)) {
+	for (const { segment, index } of graphemes(value)) {
 		bytes += encoder.encode(segment).length;
 		if (++count > limit.graphemes || bytes > limit.bytes) break;
 		end = index + segment.length;

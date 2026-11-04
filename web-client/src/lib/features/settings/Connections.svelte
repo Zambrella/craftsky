@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { appendPage } from '#lib/pagination.ts';
 	import { usePrompt } from '../social/prompt';
 	const ask = usePrompt();
 	import { onMount, onDestroy } from 'svelte';
@@ -103,10 +104,7 @@
 		void work.run(
 			() => api.profiles.relationships(kind, { cursor: next }),
 			(value) => {
-				items = [
-					...items,
-					...value.items.filter((p) => !items.some((old) => old.did === p.did))
-				];
+				items = appendPage(items, value.items, (item) => item.did);
 				cursor = value.cursor || null;
 			},
 			''

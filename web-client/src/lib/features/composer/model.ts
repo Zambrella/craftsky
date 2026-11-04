@@ -1,3 +1,4 @@
+import { graphemeCount as textLength } from '#lib/text.ts';
 import {
 	newOperationKey,
 	type Facet,
@@ -91,10 +92,7 @@ export function scheduleWindow(now = Date.now()): {
 		latest: Math.floor((now + 28 * 86_400_000) / 60_000) * 60_000
 	};
 }
-const graphemes = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
-export function textLength(text: string): number {
-	return [...graphemes.segment(text)].length;
-}
+export { graphemeCount as textLength } from '#lib/text.ts';
 export function validateText(
 	text: string,
 	max: number,

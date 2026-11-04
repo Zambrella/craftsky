@@ -1,3 +1,4 @@
+import { graphemeBoundary } from '#lib/text.ts';
 import type { Facet } from '#lib/api/types.ts';
 import { facetParts } from './model';
 
@@ -7,11 +8,8 @@ export function collapsedBody(
 	facets?: Facet[] | null,
 	limit = 300
 ) {
-	const graphemes = [
-		...new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(text)
-	];
-	if (graphemes.length <= limit) return { text, collapsible: false };
-	let cutoff = graphemes[limit].index;
+	let cutoff = graphemeBoundary(text, limit);
+	if (cutoff === text.length) return { text, collapsible: false };
 	let offset = 0;
 	for (const part of facetParts(text, facets)) {
 		if (part.href && offset < cutoff && offset + part.text.length > cutoff)

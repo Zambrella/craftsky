@@ -9,6 +9,13 @@ import {
 } from './model';
 import { recentDestination } from './search-model';
 describe('social presentation boundaries', () => {
+	it('preserves unannotated Unicode and empty text', () => {
+		for (const text of ['', '🧶 é plain text']) {
+			for (const facets of [undefined, null, []]) {
+				expect(facetParts(text, facets)).toEqual([{ text }]);
+			}
+		}
+	});
 	it('resolves UTF8 facets only on valid text boundaries and rejects overlapping ranges', () => {
 		const text = '🧶 Hi Alice!';
 		expect(

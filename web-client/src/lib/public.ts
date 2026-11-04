@@ -92,13 +92,13 @@ export function label(value: string): string {
 			.replace(/^./, (c) => c.toUpperCase())
 	);
 }
-export const date = (value: string) =>
-	new Intl.DateTimeFormat('en-GB', {
-		day: 'numeric',
-		month: 'long',
-		year: 'numeric',
-		timeZone: 'UTC'
-	}).format(new Date(value));
+const dateFormatter = new Intl.DateTimeFormat('en-GB', {
+	day: 'numeric',
+	month: 'long',
+	year: 'numeric',
+	timeZone: 'UTC'
+});
+export const date = (value: string) => dateFormatter.format(new Date(value));
 export const description = (text: string) =>
 	Array.from(text.replace(/\s+/g, ' ').trim()).slice(0, 200).join('');
 export function postTitle(post: Post): string {
@@ -121,18 +121,20 @@ export function gaugeText(value: unknown): string | undefined {
 	return `${gauge.stitches} stitches${typeof gauge.rows === 'number' ? ` × ${gauge.rows} rows` : ''} over ${gauge.measurement} ${gauge.unit}`;
 }
 
+const compactDateFormatter = new Intl.DateTimeFormat('en-GB', {
+	day: 'numeric',
+	month: 'short',
+	year: '2-digit',
+	timeZone: 'UTC'
+});
+
 // Match Flutter's RelativeTimeText: exactly seven days is still relative.
 export function compactDate(value: string, now = Date.now()): string {
 	const delta = now - new Date(value).getTime();
 	if (delta > 7 * 86400000) {
 		// Intl/CLDR versions differ on punctuation around a two-digit year.
 		// Flutter uses a literal d MMM yy pattern, so keep only its date parts.
-		return new Intl.DateTimeFormat('en-GB', {
-			day: 'numeric',
-			month: 'short',
-			year: '2-digit',
-			timeZone: 'UTC'
-		})
+		return compactDateFormatter
 			.formatToParts(new Date(value))
 			.filter((part) => ['day', 'month', 'year'].includes(part.type))
 			.map((part) => part.value)
@@ -144,9 +146,10 @@ export function compactDate(value: string, now = Date.now()): string {
 	if (delta < 86400000) return `${Math.floor(delta / 3600000)}h`;
 	return `${Math.floor(delta / 86400000)}d`;
 }
+const timestampFormatter = new Intl.DateTimeFormat('en-GB', {
+	dateStyle: 'full',
+	timeStyle: 'short',
+	timeZone: 'UTC'
+});
 export const fullTimestamp = (value: string) =>
-	new Intl.DateTimeFormat('en-GB', {
-		dateStyle: 'full',
-		timeStyle: 'short',
-		timeZone: 'UTC'
-	}).format(new Date(value)) + ' UTC';
+	timestampFormatter.format(new Date(value)) + ' UTC';

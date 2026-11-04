@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { appendPage } from '#lib/pagination.ts';
 	import { dragScroll } from '#lib/drag-scroll.ts';
 	import { onMount, onDestroy } from 'svelte';
 	import { page } from '$app/state';
@@ -72,12 +73,7 @@
 			},
 			(result) => {
 				items = more
-					? [
-							...items,
-							...result.items.filter(
-								(item) => !items.some((old) => old.key === item.key)
-							)
-						]
+					? appendPage(items, result.items, (item) => item.key)
 					: result.items;
 				cursor = result.cursor || null;
 				loadedPages = more ? loadedPages + 1 : 1;

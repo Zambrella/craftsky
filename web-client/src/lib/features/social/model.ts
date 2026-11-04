@@ -56,15 +56,17 @@ export interface TextPart {
 	href?: string;
 	external?: boolean;
 }
+const encoder = new TextEncoder();
 export function facetParts(
 	text: string,
 	facets: Facet[] | null | undefined
 ): TextPart[] {
+	if (!Array.isArray(facets) || !facets.length) return [{ text }];
 	const offsets = new Map<number, number>([[0, 0]]);
 	let bytes = 0,
 		index = 0;
 	for (const point of text) {
-		bytes += new TextEncoder().encode(point).length;
+		bytes += encoder.encode(point).length;
 		index += point.length;
 		offsets.set(bytes, index);
 	}
@@ -80,7 +82,7 @@ export function facetParts(
 					Array.isArray(facet.features)
 			)
 		: [];
-	for (const facet of [...annotations].sort(
+	for (const facet of annotations.sort(
 		(a, b) => a.index.byteStart - b.index.byteStart
 	)) {
 		const start = offsets.get(facet.index.byteStart),

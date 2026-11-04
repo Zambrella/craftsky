@@ -1,3 +1,4 @@
+import { graphemeCount } from '#lib/text.ts';
 import type { ChatMessage, ChatReceipt } from '#lib/api/client.ts';
 
 export interface FrozenSend {
@@ -24,11 +25,7 @@ const operationID =
 	/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const states = new Set(['pending', 'uncertain', 'failed']);
 const encoder = new TextEncoder();
-const segmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
-
-export function graphemeCount(text: string): number {
-	return [...segmenter.segment(text)].length;
-}
+export { graphemeCount } from '#lib/text.ts';
 export function validateText(text: string, report = false): string | undefined {
 	if (!text.isWellFormed())
 		return 'Remove the invalid character before continuing.';

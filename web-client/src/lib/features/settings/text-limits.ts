@@ -1,6 +1,6 @@
-const segmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
-export const characterCount = (value: string) =>
-	[...segmenter.segment(value)].length;
+import { graphemeCount as characterCount } from '#lib/text.ts';
+export { graphemeCount as characterCount } from '#lib/text.ts';
+const encoder = new TextEncoder();
 /** Keep both Lexicon limits; HTML maxlength counts UTF-16 code units instead. */
 export function requireRecordText(
 	value: string,
@@ -10,7 +10,7 @@ export function requireRecordText(
 ) {
 	if (
 		characterCount(value) > characters ||
-		new TextEncoder().encode(value).length > bytes
+		encoder.encode(value).length > bytes
 	)
 		throw new Error(`${label} is too long.`);
 }

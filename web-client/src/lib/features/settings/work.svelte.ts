@@ -8,11 +8,13 @@ export class Work {
 	notice = $state('');
 	retry = $state<(() => Promise<void>) | null>(null);
 	private scope = accountScope();
+	private active = true;
 	dispose() {
+		this.active = false;
 		this.scope.invalidate();
 	}
 	async load<T>(request: () => Promise<T>, apply: (value: T) => void) {
-		if (this.busy || this.retry) return;
+		if (!this.active || this.busy || this.retry) return;
 		this.scope.invalidate();
 		const token = this.scope.token();
 		this.loading = true;
@@ -32,7 +34,7 @@ export class Work {
 		apply: (value: T) => void = () => {},
 		notice = 'Saved.'
 	) {
-		if (this.busy || this.retry) return;
+		if (!this.active || this.busy || this.retry) return;
 		const token = this.scope.token();
 		this.busy = true;
 		this.error = '';

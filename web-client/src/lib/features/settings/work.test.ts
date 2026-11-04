@@ -3,6 +3,15 @@ import { MutationOutcomeUnknownError } from '#lib/api/client.ts';
 import { Work } from './work.svelte.ts';
 
 describe('settings async work', () => {
+	it('does not start reads or writes after disposal', async () => {
+		const work = new Work();
+		work.dispose();
+		let calls = 0;
+		const request = async () => ++calls;
+		await work.load(request, () => {});
+		await work.run(request);
+		expect(calls).toBe(0);
+	});
 	it('suppresses a late completion after disposal', async () => {
 		const work = new Work();
 		let finish!: (value: string) => void;

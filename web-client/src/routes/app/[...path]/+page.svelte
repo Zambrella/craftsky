@@ -10,6 +10,13 @@
 	let section = $derived(path[0] || 'home');
 </script>
 
+{#snippet loading()}<p class="empty" role="status">Loading…</p>{/snippet}
+{#snippet loadError()}<section class="notice" role="alert">
+		This page could not load. <button onclick={() => location.reload()}
+			>Reload</button
+		>
+	</section>{/snippet}
+
 {#key data.session.id}<AppShell session={data.session} accounts={data.accounts}
 		>{#snippet children(
 			api
@@ -17,59 +24,23 @@
 				{#if section === 'home'}<Feed
 						{api}
 						did={data.session.did}
-					/>{:else if section === 'search'}{#await import('#lib/features/social/Search.svelte')}<p
-							class="empty"
-							role="status"
-						>
-							Loading…
-						</p>{:then Module}<Module.default
+					/>{:else if section === 'search'}{#await import('#lib/features/social/Search.svelte')}{@render loading()}{:then Module}<Module.default
 							{api}
 							did={data.session.did}
-						/>{:catch}<section class="notice" role="alert">
-							This page could not load. <button
-								onclick={() => location.reload()}>Reload</button
-							>
-						</section>{/await}{:else if section === 'profile' && path[1] === 'edit'}{#await import('#lib/features/social/ProfileEditor.svelte')}<p
-							class="empty"
-							role="status"
-						>
-							Loading…
-						</p>{:then Module}<Module.default
+						/>{:catch}{@render loadError()}{/await}{:else if section === 'profile' && path[1] === 'edit'}{#await import('#lib/features/social/ProfileEditor.svelte')}{@render loading()}{:then Module}<Module.default
 							{api}
 							session={data.session}
-						/>{:catch}<section class="notice" role="alert">
-							This page could not load. <button
-								onclick={() => location.reload()}>Reload</button
-							>
-						</section>{/await}{:else if section === 'profile'}{#await import('#lib/features/social/Profile.svelte')}<p
-							class="empty"
-							role="status"
-						>
-							Loading…
-						</p>{:then Module}<Module.default
+						/>{:catch}{@render loadError()}{/await}{:else if section === 'profile'}{#await import('#lib/features/social/Profile.svelte')}{@render loading()}{:then Module}<Module.default
 							{api}
 							session={data.session}
 							id={path[1] || data.session.did}
-						/>{:catch}<section class="notice" role="alert">
-							This page could not load. <button
-								onclick={() => location.reload()}>Reload</button
-							>
-						</section>{/await}{:else if section === 'posts' && path.length >= 3}{#await import('#lib/features/social/Thread.svelte')}<p
-							class="empty"
-							role="status"
-						>
-							Loading…
-						</p>{:then Module}<Module.default
+						/>{:catch}{@render loadError()}{/await}{:else if section === 'posts' && path.length >= 3}{#await import('#lib/features/social/Thread.svelte')}{@render loading()}{:then Module}<Module.default
 							{api}
 							session={data.session}
 							did={path[1]}
 							rkey={path[2]}
 							section={path[3]}
-						/>{:catch}<section class="notice" role="alert">
-							This page could not load. <button
-								onclick={() => location.reload()}>Reload</button
-							>
-						</section>{/await}{:else if (section === 'tags' || section === 'tag') && path[1]}<Tag
+						/>{:catch}{@render loadError()}{/await}{:else if (section === 'tags' || section === 'tag') && path[1]}<Tag
 						{api}
 						did={data.session.did}
 						tag={path[1]}
@@ -79,73 +50,30 @@
 					/>{:else if section === 'activity'}<Activity
 						{api}
 						did={data.session.did}
-					/>{:else if section === 'messages'}{#await import('#lib/features/messages/MessagesWorkspace.svelte')}<p
-							class="empty"
-							role="status"
-						>
-							Loading…
-						</p>{:then Module}<Module.default
+					/>{:else if section === 'messages'}{#await import('#lib/features/messages/MessagesWorkspace.svelte')}{@render loading()}{:then Module}<Module.default
 							{api}
 							{path}
 							session={data.session}
-						/>{:catch}<section class="notice" role="alert">
-							This page could not load. <button
-								onclick={() => location.reload()}>Reload</button
-							>
-						</section>{/await}{:else if section === 'settings'}{#await import('#lib/features/settings/SettingsWorkspace.svelte')}<p
-							class="empty"
-							role="status"
-						>
-							Loading…
-						</p>{:then Module}<Module.default
+						/>{:catch}{@render loadError()}{/await}{:else if section === 'settings'}{#await import('#lib/features/settings/SettingsWorkspace.svelte')}{@render loading()}{:then Module}<Module.default
 							{api}
 							{path}
 							session={data.session}
-						/>{:catch}<section class="notice" role="alert">
-							This page could not load. <button
-								onclick={() => location.reload()}>Reload</button
-							>
-						</section>{/await}{:else if section === 'compose'}{#await import('#lib/features/composer/ComposerWorkspace.svelte')}<p
-							class="empty"
-							role="status"
-						>
-							Loading…
-						</p>{:then Module}<Module.default
+						/>{:catch}{@render loadError()}{/await}{:else if section === 'compose'}{#await import('#lib/features/composer/ComposerWorkspace.svelte')}{@render loading()}{:then Module}<Module.default
 							{api}
 							{path}
 							session={data.session}
-						/>{:catch}<section class="notice" role="alert">
-							This page could not load. <button
-								onclick={() => location.reload()}>Reload</button
-							>
-						</section>{/await}{:else if section === 'drafts' || section === 'scheduled'}{#await import('#lib/features/drafts/DraftsWorkspace.svelte')}<p
-							class="empty"
-							role="status"
-						>
-							Loading…
-						</p>{:then Module}<Module.default
+						/>{:catch}{@render loadError()}{/await}{:else if section === 'drafts' || section === 'scheduled'}{#await import('#lib/features/drafts/DraftsWorkspace.svelte')}{@render loading()}{:then Module}<Module.default
 							{api}
 							{path}
 							session={data.session}
-						/>{:catch}<section class="notice" role="alert">
-							This page could not load. <button
-								onclick={() => location.reload()}>Reload</button
-							>
-						</section>{/await}{:else if section === 'events' && path.length >= 3}{#await import('#lib/features/social/Event.svelte')}<p
-							class="empty"
-							role="status"
-						>
-							Loading…
-						</p>{:then Module}<Module.default
+						/>{:catch}{@render loadError()}{/await}{:else if section === 'events' && path.length >= 3}{#await import('#lib/features/social/Event.svelte')}{@render loading()}{:then Module}<Module.default
 							{api}
 							did={path[1]}
 							rkey={path[2]}
 							viewerDid={data.session.did}
-						/>{:catch}<section class="notice" role="alert">
-							This page could not load. <button
-								onclick={() => location.reload()}>Reload</button
-							>
-						</section>{/await}{:else}<section class="panel stack">
+						/>{:catch}{@render loadError()}{/await}{:else}<section
+						class="panel stack"
+					>
 						<h1>Page not found</h1>
 						<a href="/app/home">Back to your feed</a>
 					</section>{/if}

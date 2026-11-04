@@ -13,9 +13,10 @@ export class Work {
 		operation: () => Promise<T>,
 		accept: (value: T) => void = () => {}
 	) {
-		if (this.busy) return;
+		if (!this.active || this.busy) return;
 		this.busy = true;
 		this.error = '';
+		this.retry = undefined;
 		try {
 			const value = await operation();
 			if (this.active) {

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { graphemeCount } from '#lib/text.ts';
 	import { usePrompt } from '../social/prompt';
 	const ask = usePrompt();
 	import { tick, untrack } from 'svelte';
@@ -32,9 +33,6 @@
 		materialError = $state('');
 	let editingMaterial = $state<JsonObject>();
 	let materialEntry = $state<HTMLDivElement>();
-	const materialSegmenter = new Intl.Segmenter(undefined, {
-		granularity: 'grapheme'
-	});
 	$effect(() => {
 		void owner;
 		untrack(() => {
@@ -154,7 +152,7 @@
 		const text = materialText.trim();
 		if (!text) return;
 		if (
-			[...materialSegmenter.segment(text)].length > 100 ||
+			graphemeCount(text) > 100 ||
 			new TextEncoder().encode(text).length > 1000
 		) {
 			materialError = 'Materials must be 100 characters or fewer.';

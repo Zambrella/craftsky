@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { appendPage } from '#lib/pagination.ts';
 	import { dragScroll } from '#lib/drag-scroll.ts';
 	import ProfileLinkIcon from './ProfileLinkIcon.svelte';
 	import { confirmExternalLink } from './prompt';
@@ -416,12 +417,11 @@
 									() =>
 										api.profiles.mutualFollowers(id, { cursor: mutualCursor }),
 									(value) => {
-										mutuals = [
-											...mutuals,
-											...value.items.filter(
-												(item) => !mutuals.some((old) => old.did === item.did)
-											)
-										];
+										mutuals = appendPage(
+											mutuals,
+											value.items,
+											(item) => item.did
+										);
 										mutualCursor = value.cursor;
 									}
 								)}>Load more mutual followers</button

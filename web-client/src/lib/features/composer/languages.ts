@@ -1,5 +1,9 @@
 import labels from './languages.json';
 
+const choices = Object.entries(labels)
+	.sort((a, b) => a[1].localeCompare(b[1]))
+	.map(([tag, name]) => ({ tag, name, searchName: name.toLowerCase() }));
+
 /** Keep the picker aligned with Flutter's v1 language catalogue. */
 export const languageName = (tag: string): string =>
 	(labels as Record<string, string>)[tag] || tag;
@@ -8,13 +12,13 @@ export function languageChoices(
 	selected: readonly string[]
 ): [string, string][] {
 	const search = query.trim().toLowerCase();
-	return Object.entries(labels)
+	return choices
 		.filter(
-			([tag, name]) =>
+			({ tag, searchName }) =>
 				!selected.includes(tag) &&
-				(tag.includes(search) || name.toLowerCase().includes(search))
+				(tag.includes(search) || searchName.includes(search))
 		)
-		.sort((a, b) => a[1].localeCompare(b[1]));
+		.map(({ tag, name }) => [tag, name]);
 }
 export function addLanguage(
 	selected: readonly string[],

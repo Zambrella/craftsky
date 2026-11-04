@@ -1,6 +1,7 @@
 <script lang="ts">
+	import { excerpt } from '#lib/text.ts';
 	import type { CraftskyAPI } from '#lib/api/client.ts';
-	import { craftskyMessageLink, safeAvatar, graphemeCount } from './model';
+	import { craftskyMessageLink, safeAvatar } from './model';
 	let {
 		api,
 		text,
@@ -13,17 +14,6 @@
 		image?: string;
 		startsAt?: string;
 	}>();
-	const excerpt = (value: string) =>
-		graphemeCount(value) > 160
-			? [
-					...new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(
-						value
-					)
-				]
-					.slice(0, 160)
-					.map((part) => part.segment)
-					.join('') + '…'
-			: value;
 	$effect(() => {
 		const target = accepted ? craftskyMessageLink(text) : undefined;
 		const client = api;
@@ -45,7 +35,7 @@
 						return;
 					value = {
 						title: profile.displayName || profile.handle,
-						excerpt: excerpt(profile.description || ''),
+						excerpt: excerpt(profile.description || '', 160),
 						href: target.href,
 						image: safeAvatar(profile.avatar)
 					};
@@ -59,7 +49,7 @@
 						return;
 					value = {
 						title: event.name,
-						excerpt: excerpt(event.summary || event.venueName || ''),
+						excerpt: excerpt(event.summary || event.venueName || '', 160),
 						href: target.href,
 						image: safeAvatar(event.image?.thumb),
 						startsAt: event.startsAt
@@ -86,7 +76,7 @@
 							post.project?.common.title ||
 							post.author.displayName ||
 							post.author.handle,
-						excerpt: excerpt(post.text),
+						excerpt: excerpt(post.text, 160),
 						href: target.href,
 						image: safeAvatar(post.images?.[0]?.thumb || post.video?.thumbnail)
 					};
