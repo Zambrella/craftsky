@@ -14,6 +14,8 @@
 	import type { CraftskyAPI, ChatMessage } from '#lib/api/client.ts';
 	import { MessagesController, type MessagesState } from './controller';
 	import MessagePreview from './MessagePreview.svelte';
+	import ChatIdentity from './ChatIdentity.svelte';
+	import { contextMenu } from '../social/context-menu';
 	import {
 		actorLabel,
 		conversationURL,
@@ -47,6 +49,12 @@
 			viewState.status.capabilities.canRead &&
 			['ready', 'unavailable'].includes(viewState.status.state)
 	);
+	// Inbox navigation is known on the first render, before status/history load.
+	const inboxRoute = $derived(!(path[0] === 'messages' ? path[1] : path[0]));
+	const inboxActionsVisible = $derived(
+		inboxRoute && (!viewState?.status || contentReady)
+	);
+	const requestCount = $derived(viewState?.counts.requests ?? 0);
 	let search = $state('');
 	let searchTimer: ReturnType<typeof setTimeout> | undefined;
 	let reportReason = $state<string>(reportReasons[0][1]);
@@ -184,6 +192,41 @@
 			window.removeEventListener('focus', sync);
 		};
 	});
+	function anchorHistory(node: HTMLElement) {
+		let pinned = true;
+		let userScrolled = false;
+		const interact = () => {
+			userScrolled = true;
+		};
+		const scroll = () => {
+			if (!userScrolled) return;
+			pinned = node.scrollHeight - node.scrollTop - node.clientHeight < 80;
+		};
+		const resize = new ResizeObserver(() => {
+			if (pinned) node.scrollTop = node.scrollHeight;
+		});
+		const observe = () => {
+			resize.disconnect();
+			resize.observe(node);
+			for (const child of node.children) resize.observe(child);
+		};
+		const mutations = new MutationObserver(observe);
+		mutations.observe(node, { childList: true });
+		node.addEventListener('scroll', scroll, { passive: true });
+		for (const type of ['wheel', 'touchstart', 'pointerdown', 'keydown'])
+			node.addEventListener(type, interact, { passive: true });
+		observe();
+		return {
+			destroy() {
+				resize.disconnect();
+				mutations.disconnect();
+				node.removeEventListener('scroll', scroll);
+				for (const type of ['wheel', 'touchstart', 'pointerdown', 'keydown'])
+					node.removeEventListener(type, interact);
+			}
+		};
+	}
+
 	function visibleMessage(node: HTMLElement, id: string) {
 		const owner = controller,
 			conversation = viewState?.id;
@@ -298,13 +341,13 @@
 
 <section
 	class="messages-workspace"
-	class:conversation-view={contentReady && viewState?.view === 'conversation'}
+	class:conversation-view={!settingsGate && viewState?.view === 'conversation'}
 	aria-label="Direct messages"
 	aria-busy={viewState?.loading || viewState?.busy}
 >
 	<header class="message-header workspace-heading">
 		<div class="heading-group">
-			{#if viewState?.view !== 'inbox'}<a
+			{#if !inboxRoute}<a
 					class="back"
 					href={messageBackURL(viewState?.view || 'inbox', viewState?.id)}
 					aria-label="Back to messages"><Icon name="back" /></a
@@ -323,50 +366,77 @@
 						)}{/if}</a
 				>{/if}
 			<div class="heading-copy">
-				<h1>
-					{settingsGate
-						? 'Direct messages'
-						: !contentReady
-							? 'Messages'
-							: viewState?.view === 'new'
-								? 'New message'
-								: viewState?.view === 'report'
-									? viewState.reportMessage
-										? 'Report message'
-										: 'Report conversation'
-									: viewState?.view === 'details'
-										? 'Conversation details'
+				{#if contentReady && viewState?.view === 'conversation' && viewState.conversation}<h1
+						class="peer-heading"
+						aria-label={actorLabel(viewState.conversation.peer)}
+					>
+						<ChatIdentity {api} peer={viewState.conversation.peer} />
+					</h1>{:else}<h1>
+						{settingsGate
+							? 'Direct messages'
+							: !contentReady
+								? 'Messages'
+								: viewState?.view === 'new'
+									? 'New message'
+									: viewState?.view === 'report'
+										? viewState.reportMessage
+											? 'Report message'
+											: 'Report conversation'
 										: viewState?.conversation
 											? actorLabel(viewState.conversation.peer)
 											: viewState?.bucket === 'request'
 												? 'Requests'
 												: 'Messages'}
-				</h1>
-				{#if contentReady && viewState?.view === 'conversation' && viewState.conversation?.peer.handle}<span
-						class="header-handle">@{viewState.conversation.peer.handle}</span
-					>{/if}
+					</h1>{/if}
 			</div>
 		</div>
-		{#if contentReady && !settingsGate}<nav aria-label="Messaging actions">
-				{#if viewState?.view === 'inbox' && viewState.bucket === 'accepted'}<a
+		{#if inboxActionsVisible || (contentReady && !settingsGate)}<nav
+				aria-label="Messaging actions"
+			>
+				{#if inboxActionsVisible}<a
 						class="icon-link"
 						href="/app/messages/requests"
 						aria-label="Requests"
-						><Icon name="mail" />{#if viewState.counts.requests}<span
-								class="badge"
-								>{viewState.counts.requests >= 100
-									? '99+'
-									: viewState.counts.requests}</span
+						><Icon name="mail" />{#if requestCount}<span class="badge"
+								>{requestCount >= 100 ? '99+' : requestCount}</span
 							>{/if}</a
 					><a
 						class="icon-link"
 						href="/app/messages/settings"
 						aria-label="Direct message settings"><Icon name="settings" /></a
-					>{:else if viewState?.view === 'conversation' && viewState.id}<a
-						class="icon-link"
-						href={conversationURL(viewState.id) + '/details'}
-						aria-label="Details"><Icon name="more" /></a
-					>{/if}
+					>{:else if viewState?.view === 'conversation' && viewState.conversation && viewState.id}<details
+						class="conversation-actions"
+						use:contextMenu
+					>
+						<summary class="icon-link" aria-label="Conversation actions"
+							><Icon name="more" /></summary
+						>
+						<div class="menu-items">
+							<button
+								disabled={viewState.busy}
+								onclick={() => controller?.conversationAction('mute')}
+								><Icon name="muted" />{viewState.conversation.muted
+									? 'Unmute conversation'
+									: 'Mute conversation'}</button
+							>
+							{#if !viewState.peerBlocked}<button
+									class="destructive"
+									disabled={viewState.busy}
+									onclick={() => blockDialog.showModal()}
+									><Icon name="shield" />Block account</button
+								>{/if}
+							{#if viewState.status?.capabilities.canReport}<a
+									href={conversationURL(viewState.id) + '/report'}
+									><Icon name="flag" />Report conversation</a
+								>{/if}
+							<button
+								class="destructive"
+								disabled={viewState.busy}
+								onclick={() => askLeave()}
+								><Icon name="signOut" />Leave conversation</button
+							>
+						</div>
+					</details>{/if}
 			</nav>{/if}
 	</header>
 	{#if viewState?.error}<div class="feedback error" role="alert">
@@ -384,15 +454,28 @@
 	{#if authorizationError}<p class="feedback error" role="alert">
 			{authorizationError}
 		</p>{/if}
-	{#if !viewState || viewState.loading}<div class="loading" role="status">
-			<span class="visually-hidden">Loading messages…</span
-			>{#if viewState?.view === 'conversation'}<div
+	{#if !viewState || viewState.loading}<div
+			class="loading"
+			class:settings-loading={viewState?.view === 'settings'}
+			role="status"
+		>
+			<span class="visually-hidden"
+				>{viewState?.view === 'settings'
+					? 'Loading message settings…'
+					: 'Loading messages…'}</span
+			>
+			{#if viewState?.view === 'settings'}<span
+					class="loading-spinner"
+					aria-hidden="true"
+				></span>
+			{:else if viewState?.view === 'conversation'}<div
 					class="history-skeleton"
 					aria-hidden="true"
 				>
-					<i></i><i></i><i></i>
-				</div>{:else}<div class="inbox-skeleton" aria-hidden="true">
-					{#each [1, 2, 3, 4] as row}<div><i></i><span></span></div>{/each}
+					{#each Array(12) as _}<i></i>{/each}
+				</div>
+			{:else}<div class="inbox-skeleton" aria-hidden="true">
+					{#each Array(12) as _}<div><i></i><span></span></div>{/each}
 				</div>{/if}
 		</div>
 	{:else if settingsGate}
@@ -535,12 +618,8 @@
 								/>{:else}{actorLabel(conversation.peer).slice(0, 1)}{/if}</span
 						><span class="conversation-copy"
 							><span class="identity"
-								><span class="row-identity"
-									><strong>{actorLabel(conversation.peer)}</strong
-									>{#if conversation.peer.handle}<small
-											>@{conversation.peer.handle}</small
-										>{/if}</span
-								>{#if conversation.lastMessage}<time
+								><ChatIdentity {api} peer={conversation.peer} />
+								{#if conversation.lastMessage}<time
 										datetime={conversation.lastMessage.sentAt}
 										title={date(conversation.lastMessage.sentAt)}
 										>{inboxTime(conversation.lastMessage.sentAt)}</time
@@ -669,52 +748,7 @@
 			</ul>
 			<p class="disclosure">Search for someone to send a message to.</p>{/if}
 	{:else if viewState.conversation && viewState.id}
-		{#if viewState.view === 'details'}<div class="settings-body">
-				<a
-					class="peer-link"
-					href={`/app/profile/${encodeURIComponent(viewState.conversation.peer.did)}`}
-					><span class="avatar large"
-						>{#if safeAvatar(viewState.conversation.peer.avatar)}<img
-								src={safeAvatar(viewState.conversation.peer.avatar)}
-								alt=""
-								referrerpolicy="no-referrer"
-							/>{:else}{actorLabel(viewState.conversation.peer).slice(
-								0,
-								1
-							)}{/if}</span
-					><strong>{actorLabel(viewState.conversation.peer)}</strong><span
-						>@{viewState.conversation.peer.handle || 'CraftSky member'}</span
-					><span>View profile →</span></a
-				><button
-					class="setting-action"
-					disabled={viewState.busy}
-					onclick={() => controller?.conversationAction('mute')}
-					>{viewState.conversation.muted
-						? 'Unmute conversation'
-						: 'Mute conversation'}</button
-				>{#if !viewState.peerBlocked}<button
-						class="setting-action danger"
-						disabled={viewState.busy}
-						onclick={() => blockDialog.showModal()}
-						><Icon name="shield" />Block account</button
-					>{/if}<a
-					class="setting-action"
-					href={conversationURL(viewState.id) + '/report'}
-					>Report conversation</a
-				><button
-					class="setting-action danger"
-					disabled={viewState.busy}
-					onclick={() => askLeave()}>Leave conversation</button
-				>
-				<p>
-					These actions also affect your shared Bluesky inbox in other apps.
-				</p>
-				<p>
-					Message reports go to Bluesky only. CraftSky moderators do not receive
-					these reports.
-				</p>
-			</div>
-		{:else if viewState.view === 'report'}<form
+		{#if viewState.view === 'report'}<form
 				class="settings-body report-form"
 				onsubmit={(event) => {
 					event.preventDefault();
@@ -780,6 +814,7 @@
 			<div
 				class="message-history"
 				bind:this={historyNode}
+				use:anchorHistory
 				role="log"
 				aria-label={`Messages with ${actorLabel(viewState.conversation.peer)}`}
 				aria-live="polite"
@@ -817,23 +852,23 @@
 											target="_blank">{part.text}</a
 										>{:else}{part.text}{/if}{/each}
 							</p>
+							{#if message.kind === 'text'}<MessagePreview
+									{api}
+									text={message.text || ''}
+									accepted={viewState.conversation.status === 'accepted'}
+								/>{/if}
 						</div>
-						{#if message.kind === 'text'}<MessagePreview
-								{api}
-								text={message.text || ''}
-								accepted={viewState.conversation.status === 'accepted'}
-							/>{/if}
 						<div class="message-meta">
 							<time class="visually-hidden" datetime={message.sentAt}
 								>{date(message.sentAt)}</time
-							>{#if message.kind === 'text'}<details>
+							>{#if message.kind === 'text'}<details use:contextMenu>
 									<summary aria-label="Message actions">•••</summary>
-									<div class="message-menu">
+									<div class="menu-items">
 										{#if message.senderDid === session.did}<button
 												disabled={viewState.busy}
 												onclick={() => openDelete(message)}
 												>Delete for me</button
-											>{:else if viewState.status.capabilities.canReport}<a
+											>{:else if viewState.status?.capabilities.canReport}<a
 												href={conversationURL(viewState.id) +
 													'/report/' +
 													encodeURIComponent(message.id)}>Report message</a
@@ -931,14 +966,7 @@
 							class:invalid={!!validateText(viewState.draft.text) &&
 								!!viewState.draft.text}
 							>{graphemeCount(viewState.draft.text)} / 1,000</small
-						>{#if viewState.draft.text && !viewState.draft.pending}<button
-								type="button"
-								class="discard-draft"
-								aria-label="Discard draft"
-								disabled={viewState.busy}
-								onclick={() => controller?.discardDraft()}
-								><Icon name="close" size={16} /></button
-							>{/if}<button
+						><button
 							class="button send-button"
 							aria-label={viewState.busy ? 'Sending…' : 'Send message'}
 							disabled={viewState.busy ||
@@ -1039,7 +1067,7 @@
 <style>
 	.messages-workspace {
 		position: relative;
-		min-height: 70vh;
+		min-height: 100dvh;
 		max-width: 800px;
 		margin: auto;
 		background: var(--paper);
@@ -1079,6 +1107,7 @@
 		gap: 8px;
 	}
 	.heading-group {
+		flex: 1;
 		min-width: 0;
 	}
 	.back {
@@ -1152,7 +1181,6 @@
 		background: var(--red-soft);
 		color: var(--red-ink);
 	}
-	.loading,
 	.empty {
 		display: flex;
 		flex-direction: column;
@@ -1162,6 +1190,50 @@
 		text-align: center;
 		padding: 60px 24px;
 		min-height: 55vh;
+	}
+	.loading {
+		padding: 16px 12px;
+		min-height: calc(100dvh - 56px);
+		flex: 1;
+		min-width: 0;
+		overflow: hidden;
+		display: flex;
+		align-items: flex-start;
+	}
+	.settings-loading {
+		align-items: center;
+		justify-content: center;
+	}
+	.loading-spinner {
+		width: 32px;
+		height: 32px;
+		border: 3px solid var(--primary-soft);
+		border-top-color: var(--primary);
+		border-radius: 50%;
+		animation: spinner 800ms linear infinite;
+	}
+	@keyframes spinner {
+		to {
+			transform: rotate(360deg);
+		}
+	}
+	@media (prefers-reduced-motion: reduce) {
+		.loading-spinner {
+			animation: none;
+		}
+	}
+	.conversation-actions summary {
+		list-style: none;
+		cursor: pointer;
+	}
+	.conversation-actions summary::-webkit-details-marker {
+		display: none;
+	}
+	.chat-message:has(details[open]) {
+		z-index: 50;
+	}
+	.chat-message:has(details[open]) .message-meta {
+		opacity: 1;
 	}
 	.inbox-skeleton {
 		width: 100%;
@@ -1198,7 +1270,7 @@
 		border-radius: 12px;
 		background: var(--paper-2);
 	}
-	.history-skeleton i:nth-child(2) {
+	.history-skeleton i:nth-child(even) {
 		justify-self: end;
 		width: 45%;
 		background: var(--primary-soft);
@@ -1340,8 +1412,8 @@
 		display: flex;
 		align-items: center;
 		gap: 12px;
-		padding: 12px 16px;
-		min-height: 80px;
+		padding: 8px 16px;
+		min-height: 74px;
 		text-decoration: none;
 		color: var(--ink);
 		width: 100%;
@@ -1352,8 +1424,8 @@
 	}
 	.avatar {
 		font-family: 'DM Serif Display', serif;
-		width: 44px;
-		height: 44px;
+		width: 40px;
+		height: 40px;
 		border: 2px solid var(--primary);
 		border-radius: 50%;
 		flex: none;
@@ -1371,16 +1443,11 @@
 		object-fit: cover;
 	}
 	.avatar.header-peer-avatar {
-		width: 36px;
-		height: 36px;
+		width: 40px;
+		height: 40px;
 		font-size: 16px;
 		text-decoration: none;
 		color: var(--ink);
-	}
-	.avatar.large {
-		width: 80px;
-		height: 80px;
-		font-size: 32px;
 	}
 	.conversation-copy {
 		flex: 1;
@@ -1392,13 +1459,6 @@
 		align-items: baseline;
 		gap: 8px;
 	}
-	.identity strong {
-		font-size: 15px;
-		font-weight: 600;
-		overflow: hidden;
-		white-space: nowrap;
-		text-overflow: ellipsis;
-	}
 	.identity time {
 		font-size: 12px;
 		color: var(--ink-3);
@@ -1409,8 +1469,8 @@
 		white-space: nowrap;
 		text-overflow: ellipsis;
 		overflow: hidden;
-		color: var(--ink-3);
-		margin-top: 4px;
+		color: var(--ink-2);
+		margin-top: 2px;
 		font-size: 14px;
 		line-height: 1.4;
 	}
@@ -1432,17 +1492,30 @@
 	.compose-message {
 		display: inline-flex;
 		align-items: center;
-		gap: 10px;
-		position: sticky;
-		bottom: 20px;
-		float: right;
-		margin: -72px 20px 20px auto;
+		gap: 8px;
+		position: fixed;
+		left: calc(var(--app-content-left) + var(--app-content-width) - 16px);
+		transform: translateX(-100%);
+		bottom: calc(24px + env(safe-area-inset-bottom));
+		z-index: 8;
+		white-space: nowrap;
 		text-decoration: none;
-		min-height: 48px;
-		border: 1.5px solid var(--ink);
-		border-radius: 14px;
-		box-shadow: 3px 3px 0 var(--ink);
+		min-height: 56px;
+		padding: 0 24px;
+		border-radius: 999px;
 	}
+	.compose-message:hover {
+		transform: translate(calc(-100% - 1px), -1px);
+	}
+	.compose-message:active {
+		transform: translate(calc(-100% + 3px), 3px);
+	}
+	@media (max-width: 900px) {
+		.compose-message {
+			bottom: calc(96px + env(safe-area-inset-bottom));
+		}
+	}
+
 	.disclosure {
 		padding: 16px;
 		font-size: 13px;
@@ -1497,33 +1570,6 @@
 		font-weight: 600;
 		padding: 8px 16px;
 	}
-	.peer-link {
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		gap: 8px;
-		padding-bottom: 16px;
-		text-decoration: none;
-		color: var(--ink);
-	}
-	.peer-link > span:not(.avatar) {
-		font-size: 14px;
-		color: var(--ink-3);
-	}
-	.setting-action {
-		border: 0;
-		border-bottom: 1px solid var(--hairline);
-		text-decoration: none;
-		text-align: left;
-		background: none;
-		padding: 14px 0;
-		font: inherit;
-		color: var(--ink);
-		cursor: pointer;
-		display: flex;
-		align-items: center;
-		gap: 12px;
-	}
 	.danger {
 		color: var(--red-ink);
 	}
@@ -1543,7 +1589,7 @@
 		color: var(--ink-3);
 		font-size: 12px;
 		font-weight: 400;
-		padding: 12px 0 8px;
+		padding: 0 12px 12px;
 		flex: none;
 	}
 	.history-empty {
@@ -1559,7 +1605,7 @@
 		flex-direction: column;
 		align-items: flex-start;
 		gap: 4px;
-		max-width: min(85%, 560px);
+		max-width: 85%;
 		flex: none;
 		min-width: 60px;
 	}
@@ -1570,7 +1616,7 @@
 	.message-bubble {
 		padding: 12px;
 		background: var(--surface);
-		border-radius: 12px;
+		border-radius: 16px;
 		max-width: 100%;
 		font-size: 16px;
 		line-height: 1.5;
@@ -1581,7 +1627,7 @@
 	}
 	.message-bubble a {
 		color: inherit;
-		text-decoration: underline;
+		text-decoration: none;
 	}
 	.own .message-bubble {
 		background: var(--primary-soft);
@@ -1592,6 +1638,7 @@
 		color: var(--ink-3);
 	}
 	.message-meta {
+		opacity: 0;
 		position: absolute;
 		top: 8px;
 		right: -26px;
@@ -1600,6 +1647,15 @@
 		font-size: 11px;
 		color: var(--ink-3);
 		min-height: 0;
+	}
+	.chat-message:hover .message-meta,
+	.chat-message:focus-within .message-meta {
+		opacity: 1;
+	}
+	@media (hover: none) {
+		.message-meta {
+			opacity: 1;
+		}
 	}
 	.own .message-meta {
 		left: -26px;
@@ -1619,40 +1675,6 @@
 	}
 	.message-meta summary:hover {
 		background: color-mix(in srgb, var(--primary) 8%, transparent);
-	}
-	.message-menu {
-		position: absolute;
-		left: 0;
-		bottom: 100%;
-		display: grid;
-		min-width: 160px;
-		background: var(--surface);
-		border: 1.5px solid var(--ink);
-		box-shadow: 3px 3px 0 var(--ink);
-		border-radius: 10px;
-		padding: 4px;
-		z-index: 4;
-	}
-	.own .message-menu {
-		left: auto;
-		right: 0;
-	}
-	.message-menu button,
-	.message-menu a {
-		font: inherit;
-		font-size: 14px;
-		text-align: left;
-		border: 0;
-		background: none;
-		padding: 12px;
-		color: var(--ink);
-		text-decoration: none;
-		cursor: pointer;
-	}
-	.message-menu button:hover,
-	.message-menu a:hover {
-		background: color-mix(in srgb, var(--primary) 8%, transparent);
-		border-radius: 6px;
 	}
 	.message-composer {
 		position: relative;
@@ -1674,7 +1696,7 @@
 		resize: vertical;
 		grid-column: 1;
 		grid-row: 1;
-		padding: 12px 40px 12px 12px;
+		padding: 12px;
 		font-size: 16px;
 	}
 	.composer-actions {
@@ -1691,16 +1713,13 @@
 	.validation-message {
 		color: var(--red-ink);
 	}
-	.composer-actions button:not(.button) {
-		grid-column: 1 / -1;
-		justify-self: start;
-		font: inherit;
-		font-size: 12px;
-		padding: 6px 0;
-		background: none;
-		border: 0;
-		color: var(--ink-3);
-		cursor: pointer;
+
+	.composer-actions .send-button:disabled {
+		background: var(--ink-4);
+		color: var(--surface);
+		border-color: var(--ink-3);
+		opacity: 1;
+		box-shadow: 3px 3px 0 color-mix(in srgb, var(--ink) 25%, transparent);
 	}
 	.composer-actions .send-button {
 		grid-column: 2;
@@ -1791,26 +1810,12 @@
 		grid-column: 1 / -1;
 		font-size: 12px;
 	}
+	.message-header h1.peer-heading {
+		font-weight: 400;
+	}
 	.heading-copy {
+		flex: 1;
 		min-width: 0;
-	}
-	.header-handle {
-		display: block;
-		color: var(--ink-3);
-		font-size: 12px;
-		line-height: 1.3;
-	}
-	.row-identity {
-		display: grid;
-		gap: 2px;
-		min-width: 0;
-	}
-	.row-identity small {
-		font-size: 13px;
-		color: var(--ink-3);
-		white-space: nowrap;
-		overflow: hidden;
-		text-overflow: ellipsis;
 	}
 	.message-history::before {
 		content: '';
@@ -1839,17 +1844,6 @@
 	.request-panel button.button {
 		background: var(--primary);
 		color: var(--on-primary);
-	}
-	.composer-actions button.discard-draft {
-		position: absolute;
-		top: 20px;
-		right: 76px;
-		width: 28px;
-		height: 28px;
-		display: grid;
-		place-items: center;
-		padding: 4px;
-		border-radius: 50%;
 	}
 
 	@media (max-width: 600px) {

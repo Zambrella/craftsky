@@ -31,6 +31,7 @@
 :root {
 	--paper: #f5efe4;
 	--paper-2: #efe7d6;
+	--image-frame: #f8f8f8;
 	--surface: #fff;
 	--ink: #161210;
 	--ink-2: #3e3733;
@@ -70,6 +71,7 @@
 	:root:not([data-theme='light']) {
 		--paper: #171513;
 		--paper-2: #12100f;
+		--image-frame: #171513;
 		--surface: #24201d;
 		--ink: #f5efe4;
 		--ink-2: #cfc6bb;
@@ -95,6 +97,7 @@
 :root[data-theme='dark'] {
 	--paper: #171513;
 	--paper-2: #12100f;
+	--image-frame: #171513;
 	--surface: #24201d;
 	--ink: #f5efe4;
 	--ink-2: #cfc6bb;
@@ -339,6 +342,7 @@ footer a {
 	box-shadow: none;
 }
 .post-card {
+	font-size: 16px;
 	position: relative;
 	margin: 12px 16px 16px;
 	padding: 12px;
@@ -457,7 +461,9 @@ footer a {
 	flex: 0 0 100%;
 	min-width: 0;
 	scroll-snap-align: center;
-	background: var(--paper-2);
+	background: var(--image-frame);
+	outline: 1px solid var(--ink-4);
+	outline-offset: -1px;
 	border-radius: 6px;
 }
 .gallery img {
@@ -1489,7 +1495,7 @@ dialog > button {
 .app-main {
 	width: min(calc(100% - 256px), 800px);
 	max-width: 800px;
-	margin: 0 auto 48px max(calc((100vw - 256px - 800px) / 2 + 256px), 256px);
+	margin: 0 auto 0 max(calc((100vw - 256px - 800px) / 2 + 256px), 256px);
 	min-height: 100svh;
 	font-size: 14px;
 }
@@ -1507,6 +1513,9 @@ dialog > button {
 	background: var(--paper);
 }
 @media (min-width: 901px) {
+	html {
+		scrollbar-gutter: stable;
+	}
 	.app-sidebar .account-trigger {
 		display: none;
 	}

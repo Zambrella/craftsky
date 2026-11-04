@@ -225,6 +225,38 @@ describe('account-owned messaging operations', () => {
 		await controller.presented('first');
 		expect(read.mock.calls).toEqual([['conversation', 'last']]);
 	});
+	it('a read receipt updates unread metadata without replacing confirmed send permission', async () => {
+		const { api, controller } = setup();
+		vi.spyOn(api.chat, 'read').mockResolvedValue({
+			...conversation(),
+			unreadCount: 0,
+			canSend: false
+		});
+		await controller.navigate(['conversation']);
+		await controller.presented('message');
+		expect(controller.state.conversation?.unreadCount).toBe(0);
+		expect(controller.state.conversation?.canSend).toBe(true);
+	});
+	it('muting preserves send authority and accepting verifies it with a checked detail read', async () => {
+		const { api, controller } = setup();
+		await controller.navigate(['conversation']);
+		vi.spyOn(api.chat, 'mute').mockResolvedValue({
+			...conversation(),
+			muted: true,
+			canSend: false
+		});
+		await controller.conversationAction('mute');
+		expect(controller.state.conversation?.muted).toBe(true);
+		expect(controller.state.conversation?.canSend).toBe(true);
+		vi.spyOn(api.chat, 'accept').mockResolvedValue({
+			...conversation(),
+			canSend: false
+		});
+		vi.mocked(api.chat.details).mockClear();
+		await controller.conversationAction('accept');
+		expect(api.chat.details).toHaveBeenCalledWith('conversation');
+		expect(controller.state.conversation?.canSend).toBe(true);
+	});
 	it('syncs visibility without automatically resending or marking fetched history read', async () => {
 		const { api, controller } = setup();
 		const sync = vi

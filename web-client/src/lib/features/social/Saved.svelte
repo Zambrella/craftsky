@@ -197,6 +197,7 @@
 			items = items.filter((old) => old !== item);
 		}}
 	/>{:else}{#if !work.busy && !work.error}<EmptyState
+			fill
 			title="Saved posts"
 			detail="Nothing saved yet"
 			icon="saved"

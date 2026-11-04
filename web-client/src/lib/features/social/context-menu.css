@@ -1,6 +1,7 @@
 /* CraftskyContextMenu: shared by post, profile, activity, saved and editor menus. */
 .native-context-menu .menu-items {
 	position: fixed;
+	overflow-y: auto;
 	gap: 0;
 	min-width: 112px;
 	width: max-content;
@@ -24,6 +25,7 @@
 	font-size: 15px;
 	font-weight: 600;
 	line-height: 1.2;
+	width: 100%;
 	text-align: left;
 	text-decoration: none;
 	white-space: normal;

@@ -15,6 +15,7 @@
 	import SettingsIcon from './SettingsIcon.svelte';
 	import { followerChart } from './native-settings.ts';
 	import CompactIdentity from '../social/CompactIdentity.svelte';
+	import EmptyState from '../social/EmptyState.svelte';
 	let { api, section }: { api: CraftskyAPI; section: string } = $props();
 	const work = new Work();
 	let loaded = $state(false);
@@ -281,15 +282,14 @@
 								? 'Unblock'
 								: 'Unfollow'}</button
 					>{/if}
-			</div>{:else}<p class="empty">
-				<SettingsIcon
-					name={section === 'muted'
-						? 'muted'
-						: section === 'blocked'
-							? 'blocked'
-							: 'followers'}
-				/>
-				{query
+			</div>{:else}<EmptyState
+				fill
+				icon={section === 'muted'
+					? 'muted'
+					: section === 'blocked'
+						? 'blocked'
+						: 'followers'}
+				title={query
 					? 'No matching accounts.'
 					: section === 'muted'
 						? 'You have not muted any accounts.'
@@ -298,7 +298,8 @@
 							: section === 'followers'
 								? 'No one follows you yet'
 								: 'You are not following anyone'}
-			</p>{/each}
+				detail="Nothing here yet."
+			/>{/each}
 		{#if cursor}<button disabled={work.busy} onclick={more}>Load more</button
 			>{/if}
 	</section>
@@ -325,13 +326,6 @@
 		background: color-mix(in srgb, var(--primary) 10%, var(--paper));
 		color: var(--primary);
 		font-size: 14px;
-	}
-	.relationship-list .empty {
-		min-height: calc(100svh - 200px);
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		justify-content: center;
 	}
 	.relationship-list > .row {
 		padding: 4px 16px;

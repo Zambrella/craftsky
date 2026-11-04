@@ -52,6 +52,7 @@ export const load: PageServerLoad = async ({ cookies, url, params }) => {
 	}
 	return {
 		subscriptionsEnabled: env.SUBSCRIPTIONS_ENABLED === 'true',
+		videoUploadsEnabled: env.CRAFTSKY_ENABLE_VIDEO_UPLOADS === 'true',
 		session: publicAccount(account),
 		accounts: credentials(cookies, url).map(publicAccount),
 		path: (params.path || 'home').split('/')

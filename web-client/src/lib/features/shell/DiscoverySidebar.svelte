@@ -124,12 +124,13 @@
 		display: flex;
 		align-items: center;
 		gap: 12px;
-		padding: 12px 16px;
+		padding: 8px 16px;
 		text-decoration: none;
 	}
 	.craft-link {
 		color: var(--primary);
-		font-size: 14px;
+		font-size: 15px;
+		min-height: 48px;
 		font-weight: 600;
 	}
 	.craft-icon {

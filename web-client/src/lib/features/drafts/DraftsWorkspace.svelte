@@ -1,4 +1,5 @@
 <script lang="ts">
+	import EmptyState from '../social/EmptyState.svelte';
 	import { getContext, onDestroy, onMount, untrack } from 'svelte';
 	import type { CraftskyAPI, ScheduledPostSummary } from '#lib/api/client.ts';
 	import { drafts, type Draft } from './store.ts';
@@ -121,12 +122,12 @@
 			{#each [1, 2, 3, 4] as row}<div><span></span><i></i></div>{/each}
 		</div>
 	{:else if isScheduled}
-		{#if !scheduled.length}<div class="empty">
-				<Icon name="calendar" />
-				<h2>Scheduled posts</h2>
-				<p>No scheduled posts yet.</p>
-				<a href="/app/compose" onclick={createPost}>Create a post</a>
-			</div>{:else}<p class="privacy-note">
+		{#if !scheduled.length}<EmptyState
+				fill
+				icon="scheduled"
+				title="Scheduled posts"
+				detail="No scheduled posts"
+			/>{:else}<p class="privacy-note">
 				Scheduled posts and their media stay private until publication.
 			</p>{/if}
 		<ul class="draft-list">
@@ -179,11 +180,12 @@
 				</li>{/each}
 		</ul>
 	{:else}
-		{#if !local.length}<div class="empty">
-				<Icon name="drafts" />
-				<h2>Drafts</h2>
-				<p>No drafts yet. Save a post or project to come back to it later.</p>
-			</div>{:else}<p class="privacy-note">
+		{#if !local.length}<EmptyState
+				fill
+				icon="drafts"
+				title="Drafts"
+				detail="No drafts"
+			/>{:else}<p class="privacy-note">
 				Saved on this device for @{session.handle}. Drafts do not sync between
 				devices.
 			</p>{/if}
@@ -359,36 +361,6 @@
 		color: var(--ink-3);
 		font-size: 12px;
 		line-height: 1.6;
-	}
-	.empty {
-		min-height: 55vh;
-		max-width: 400px;
-		padding: 48px 24px;
-		margin: auto;
-		display: flex;
-		flex-direction: column;
-		align-items: center;
-		justify-content: center;
-		gap: 12px;
-		text-align: center;
-	}
-	.empty :global(svg) {
-		width: 48px;
-		height: 48px;
-		color: var(--primary);
-		stroke-width: 1.6;
-	}
-	.empty h2 {
-		font-size: 20px;
-		font-weight: 600;
-	}
-	.empty p {
-		color: var(--ink-3);
-		line-height: 1.6;
-	}
-	.empty a {
-		color: var(--primary);
-		padding: 8px;
 	}
 	.feedback {
 		display: flex;

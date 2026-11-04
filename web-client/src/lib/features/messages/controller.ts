@@ -23,7 +23,7 @@ import {
 } from './model';
 
 export type MessageView =
-	'inbox' | 'new' | 'settings' | 'conversation' | 'details' | 'report';
+	'inbox' | 'new' | 'settings' | 'conversation' | 'report';
 export interface MessagesState {
 	view: MessageView;
 	bucket: 'accepted' | 'request';
@@ -147,14 +147,10 @@ export class MessagesController {
 				? 'inbox'
 				: reserved.includes(first as MessageView)
 					? (first as MessageView)
-					: parts[1] === 'details'
-						? 'details'
-						: parts[1] === 'report'
-							? 'report'
-							: 'conversation';
-		const id = ['conversation', 'details', 'report'].includes(view)
-			? first
-			: undefined;
+					: parts[1] === 'report'
+						? 'report'
+						: 'conversation';
+		const id = ['conversation', 'report'].includes(view) ? first : undefined;
 		this.update({
 			...initial(),
 			view,
@@ -492,7 +488,13 @@ export class MessagesController {
 				const conversation = await this.api.chat.read(id, target);
 				if (!this.current(epoch)) return;
 				this.readID = target;
-				this.update({ conversation });
+				// A read receipt only acknowledges the watermark. Send authority comes
+				// from checked conversation/details reads, never this partial response.
+				const current = this.state.conversation;
+				if (current && conversation.id === current.id)
+					this.update({
+						conversation: { ...current, unreadCount: conversation.unreadCount }
+					});
 			}
 		} catch (error) {
 			if (this.current(epoch)) this.failure(error);
@@ -512,9 +514,13 @@ export class MessagesController {
 					await this.api.chat.leave(id);
 					return undefined;
 				}
-				return action === 'accept'
-					? this.api.chat.accept(id)
-					: this.api.chat.mute(id, !conversation.muted);
+				if (action === 'accept') {
+					await this.api.chat.accept(id);
+					// Accept acknowledges status, not the checked sending capability.
+					return (await this.api.chat.details(id)).conversation;
+				}
+				const result = await this.api.chat.mute(id, !conversation.muted);
+				return { ...conversation, muted: result.muted };
 			},
 			(result) => {
 				if (result) this.update({ conversation: result });

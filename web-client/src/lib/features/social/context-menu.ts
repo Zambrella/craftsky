@@ -96,6 +96,16 @@ export function contextMenu(
 			unlock();
 		}
 	}
+	function openSummary(event: MouseEvent) {
+		const summary = (event.target as Element | null)?.closest?.('summary');
+		if (!summary || summary.parentElement !== node) return;
+		// Position synchronously with opening. Native toggle events are queued,
+		// which otherwise exposes an unpositioned menu for the first frame.
+		event.preventDefault();
+		node.open = !node.open;
+		toggle();
+	}
+
 	function position() {
 		if (!node.open) return;
 		const summary = anchor();
@@ -107,10 +117,12 @@ export function contextMenu(
 		unlock();
 		const rect = summary.getBoundingClientRect();
 		const height = view.innerHeight;
-		const upward = rect.top > height / 2;
-		menu.style.top = upward ? 'auto' : `${rect.bottom + 4}px`;
-		menu.style.bottom = upward ? `${height - rect.top + 4}px` : 'auto';
-		menu.style.maxHeight = `${Math.max(100, (upward ? rect.top : height - rect.bottom) - 12)}px`;
+		menu.style.maxHeight = `${Math.max(0, height - 16)}px`;
+		const menuHeight = Math.min(menu.offsetHeight, height - 16);
+		const upward = rect.bottom + 4 + menuHeight > height - 8;
+		const desiredTop = upward ? rect.top - menuHeight - 4 : rect.bottom + 4;
+		menu.style.top = `${Math.max(8, Math.min(desiredTop, height - menuHeight - 8))}px`;
+		menu.style.bottom = 'auto';
 		menu.style.left = `${Math.max(8, Math.min(rect.right - menu.offsetWidth, view.innerWidth - menu.offsetWidth - 8))}px`;
 		menu.style.right = 'auto';
 		menu.style.overflowY = 'auto';
@@ -141,6 +153,7 @@ export function contextMenu(
 	document.addEventListener('pointerdown', outside);
 	document.addEventListener('keydown', escape);
 	node.addEventListener('click', choose, true);
+	node.addEventListener('click', openSummary);
 	node.addEventListener('toggle', toggle);
 	view.addEventListener('resize', position);
 	view.addEventListener('scroll', position, true);
@@ -149,6 +162,7 @@ export function contextMenu(
 			document.removeEventListener('pointerdown', outside);
 			document.removeEventListener('keydown', escape);
 			node.removeEventListener('click', choose, true);
+			node.removeEventListener('click', openSummary);
 			node.removeEventListener('toggle', toggle);
 			view.removeEventListener('resize', position);
 			view.removeEventListener('scroll', position, true);

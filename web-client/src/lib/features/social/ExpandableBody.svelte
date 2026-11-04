@@ -36,7 +36,7 @@
 		box-shadow: none;
 		font: inherit;
 		font-weight: 600;
-		color: var(--primary);
+		color: var(--ink);
 		vertical-align: baseline;
 	}
 	button:hover {

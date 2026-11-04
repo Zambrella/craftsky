@@ -5,16 +5,18 @@
 		title,
 		detail,
 		icon = 'home',
+		fill = false,
 		actions
 	}: {
 		title: string;
 		detail: string;
 		icon?: string;
+		fill?: boolean;
 		actions?: Snippet;
 	} = $props();
 </script>
 
-<section class="social-empty">
+<section class="social-empty" class:fill>
 	<div class="empty-icon"><Icon name={icon} /></div>
 	<h2>{title}</h2>
 	<p>{detail}</p>
@@ -34,6 +36,16 @@
 		text-align: center;
 		gap: 12px;
 	}
+	.social-empty.fill {
+		min-height: calc(100dvh - var(--app-bar-height) - var(--empty-offset, 0px));
+	}
+	@media (max-width: 900px) {
+		.social-empty.fill {
+			min-height: calc(
+				100dvh - var(--app-bar-height) - 80px - var(--empty-offset, 0px)
+			);
+		}
+	}
 	.empty-icon {
 		color: var(--primary);
 		width: 48px;
@@ -47,12 +59,12 @@
 	h2 {
 		font: inherit;
 		font-weight: 600;
-		font-size: 22px;
+		font-size: 20px;
 		margin: 0;
 	}
 	p {
 		margin: 0;
-		font-size: 15px;
+		font-size: 14px;
 		line-height: 1.5;
 		color: var(--ink-2);
 	}

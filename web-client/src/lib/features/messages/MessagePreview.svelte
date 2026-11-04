@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { excerpt } from '#lib/text.ts';
-	import type { CraftskyAPI } from '#lib/api/client.ts';
+	import CompactIdentity from '../social/CompactIdentity.svelte';
+	import Avatar from '#lib/Avatar.svelte';
+	import type { Profile, CraftskyAPI } from '#lib/api/client.ts';
 	import { craftskyMessageLink, safeAvatar } from './model';
 	let {
 		api,
@@ -13,6 +15,7 @@
 		href: string;
 		image?: string;
 		startsAt?: string;
+		profile?: Profile;
 	}>();
 	$effect(() => {
 		const target = accepted ? craftskyMessageLink(text) : undefined;
@@ -37,7 +40,8 @@
 						title: profile.displayName || profile.handle,
 						excerpt: excerpt(profile.description || '', 160),
 						href: target.href,
-						image: safeAvatar(profile.avatar)
+						image: safeAvatar(profile.avatar),
+						profile
 					};
 				} else if (target.kind === 'event') {
 					const event = await client.business.event(target.did, target.rkey!);
@@ -93,20 +97,30 @@
 	});
 </script>
 
-{#if preview}<a class="message-preview" href={preview.href}
-		>{#if preview.image}<img
+{#if preview}<a
+		class="message-preview"
+		class:profile-preview={!!preview.profile}
+		href={preview.href}
+	>
+		{#if preview.profile}<div class="message-preview-identity">
+				<Avatar author={preview.profile} /><CompactIdentity
+					author={preview.profile}
+				/>
+			</div>
+		{:else if preview.image}<img
 				src={preview.image}
 				alt=""
 				loading="lazy"
 				referrerpolicy="no-referrer"
-			/>{/if}<span
-			><strong>{preview.title}</strong>{#if preview.excerpt}<span
-					class="excerpt">{preview.excerpt}</span
+			/>{/if}
+		<span
+			>{#if !preview.profile}<strong>{preview.title}</strong
+				>{/if}{#if preview.excerpt}<span class="excerpt">{preview.excerpt}</span
 				>{/if}{#if preview.startsAt}<time datetime={preview.startsAt}
 					>{new Date(preview.startsAt).toLocaleString()}</time
 				>{/if}</span
-		></a
-	>{/if}
+		>
+	</a>{/if}
 
 <style>
 	.message-preview {
@@ -115,12 +129,22 @@
 		gap: 12px;
 		padding: 12px;
 		border: 1px solid var(--hairline);
-		border-radius: 10px;
+		border-radius: 6px;
 		text-decoration: none;
 		color: var(--ink);
 		background: var(--paper-2);
 		width: 100%;
-		max-width: 380px;
+		margin-top: 8px;
+		max-width: 100%;
+	}
+	.profile-preview {
+		display: block;
+	}
+	.message-preview-identity {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		margin-bottom: 4px;
 	}
 	.message-preview > span {
 		display: grid;
@@ -140,12 +164,12 @@
 	.excerpt,
 	time {
 		font-size: 13px;
-		color: var(--ink-3);
+		color: var(--ink);
 	}
 	.excerpt {
 		display: -webkit-box;
-		-webkit-line-clamp: 3;
-		line-clamp: 3;
+		-webkit-line-clamp: 2;
+		line-clamp: 2;
 		-webkit-box-orient: vertical;
 		overflow: hidden;
 	}

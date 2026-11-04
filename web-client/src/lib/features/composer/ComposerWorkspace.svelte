@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { videoUploadsEnabled } from '../shell/release-config';
 	import { getContext, onDestroy, onMount, untrack } from 'svelte';
 	import { page } from '$app/state';
 	import { beforeNavigate } from '$app/navigation';
@@ -176,7 +177,8 @@
 			(!!draft.edit && draft.text === str(draft.edit.editable.text))
 	);
 	const canAddVideo = $derived(
-		!fixedEmbed &&
+		videoUploadsEnabled() &&
+			!fixedEmbed &&
 			!draft.images.length &&
 			!draft.quote &&
 			!draft.reply &&

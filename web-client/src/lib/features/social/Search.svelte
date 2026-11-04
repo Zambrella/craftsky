@@ -237,7 +237,13 @@
 	{#if top?.groups.length}<section class="search-discovery stack">
 			<h2>Trending hashtags</h2>
 			{#each top.groups as group}<div class="stack">
-					<h3>{label(group.craftType)}</h3>
+					<h3>
+						<span
+							class="trending-craft"
+							style:--craft-icon={`url('/craft_icons/${group.craftType.split('#').at(-1)}.svg')`}
+							aria-hidden="true"
+						></span>{label(group.craftType)}
+					</h3>
 					<div class="tag-chips">
 						{#each group.items as tag}<a
 								href={'/app/tags/' + encodeURIComponent(tag.tag)}>#{tag.tag}</a
@@ -364,13 +370,22 @@
 		border-bottom: 1px solid var(--hairline);
 	}
 	.search-discovery h2 {
-		font-size: 18px;
+		font-size: 16px;
 		margin: 0 0 12px;
 	}
 	.search-discovery h3 {
-		font-size: 13px;
-		color: var(--ink-2);
+		font-size: 14px;
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		color: var(--ink);
 		font-weight: 600;
+	}
+	.trending-craft {
+		width: 18px;
+		height: 18px;
+		background: currentColor;
+		mask: var(--craft-icon) center / contain no-repeat;
 	}
 	.tag-chips {
 		display: flex;
@@ -384,7 +399,7 @@
 		background: var(--surface);
 		border-radius: 20px;
 		padding: 6px 10px;
-		font-size: 14px;
+		font-size: 13px;
 		text-decoration: none;
 	}
 	.recent-row {
