@@ -59,9 +59,13 @@ for (const reduced of [false, true]) {
 		page.on('request', (request) => requests.push(request.url()));
 		await page.goto('/app/home');
 		await expect(page.locator(ready).first()).toBeAttached();
+		// Keep the 400 ms reduced-motion reaction alive while inspecting its pixels.
+		await page.clock.install();
+		await page.clock.pauseAt(new Date());
 		const card = page.locator('.member-post').first();
 		const like = card.getByRole('button', { name: 'Like', exact: true });
 		await like.click();
+		await page.clock.runFor(80);
 		const reaction = card.locator('.like-reaction');
 		await expect(reaction).toBeVisible();
 		await expect(page.locator('.like-reaction')).toHaveCount(1);
@@ -79,13 +83,14 @@ for (const reduced of [false, true]) {
 						.getImageData(0, 0, canvas.width, canvas.height).data
 				);
 			});
-		if (!reduced) await page.waitForTimeout(180);
+		if (!reduced) await page.clock.runFor(180);
 		const first = await pixels();
 		expect(first.some((value, i) => i % 4 === 3 && value > 0)).toBe(true);
-		await page.waitForTimeout(reduced ? 60 : 120);
+		await page.clock.runFor(reduced ? 60 : 120);
 		if (reduced) expect(await pixels()).toEqual(first);
 		else expect(await pixels()).not.toEqual(first);
 		release();
+		await page.clock.runFor(1500);
 		await expect(like).toHaveAttribute('aria-pressed', 'true');
 		await expect(reaction).toHaveCount(0, { timeout: 2000 });
 		expect(requests.filter((url) => /like\.[^/]+\.riv/.test(url))).toHaveLength(

@@ -39,6 +39,24 @@ async function audit(page: Page) {
 }
 
 for (const colorScheme of ['light', 'dark'] as const) {
+	test(`warning recovery actions have accessible contrast in ${colorScheme}`, async ({
+		page
+	}) => {
+		await page.emulateMedia({ colorScheme });
+		await page.route('**/api/appview/v1/feed/timeline**', (route) =>
+			route.fulfill({
+				status: 503,
+				json: { error: 'unavailable', message: 'Please try again.' }
+			})
+		);
+		await page.goto('/app/home');
+		const warning = page.locator('.snackbar.warning');
+		await expect(
+			warning.getByRole('button', { name: 'Retry', exact: true })
+		).toBeVisible();
+		await audit(page);
+	});
+
 	test(`composer overlays and destructive confirmation are accessible in ${colorScheme}`, async ({
 		page
 	}) => {

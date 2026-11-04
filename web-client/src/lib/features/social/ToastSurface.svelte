@@ -93,7 +93,7 @@
 		background: transparent;
 		box-shadow: none;
 		border: 0;
-		color: var(--primary);
+		color: var(--ink);
 	}
 	@media (max-width: 900px) {
 		.snackbar {

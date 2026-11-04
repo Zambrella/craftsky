@@ -274,11 +274,14 @@ quote/comment rendering remain available in the authenticated application.
 
 ## Dependency audit
 
-The locked dependency audit on 2026-11-02 reported four low-severity entries
-through `deepmerge` 4.3.1, used by the Vite Svelte plugin for build configuration.
-The registry had no newer stable `deepmerge` release. Public request data is not
-passed through that build-time merge. Recheck the advisory when upgrading; do
-not apply the audit tool's proposed downgrade to pre-release-era SvelteKit.
+The locked dependency audit on 2026-11-04 reported four moderate entries through
+`glob` 13.0.6 / `minimatch` 10.2.6 in Sentry's build plugin and four low entries
+through `deepmerge` 4.3.1 in the Vite Svelte plugin. These process build inputs,
+not public request data. `npm audit --omit=dev` reported no advisories.
+The latest Sentry plugin (11.10.0) still requires `glob` 13; the patched `glob`
+14.0.2 and `minimatch` 11.0.1 require major dependency changes. Track upstream
+updates rather than forcing an unverified override. Do not apply the audit
+tool's proposed downgrades to older Sentry or pre-release-era SvelteKit.
 
 ## Production deployment and rollback
 
