@@ -19,6 +19,10 @@ class ProfileContractTests(unittest.TestCase):
                                    (profile.ROOT / 'appview/internal/app/deps.go').read_text()))
         scope_source = (profile.ROOT / 'appview/internal/auth/scopes.go').read_text()
         scopes = set(re.findall(r'"repo:([^"?]+)', scope_source))
+        # Optional chat grants are embedded from their shared release-check source.
+        optional_scopes = (profile.ROOT / 'appview/internal/auth/optional_chat_scopes.txt').read_text()
+        scopes.update(scope.removeprefix('repo:').split('?', 1)[0]
+                      for scope in optional_scopes.split() if scope.startswith('repo:'))
         # CraftSky record grants are now bundled in the included permission set.
         self.assertIn('"include:social.craftsky.authFull"', scope_source)
         permission_set = json.loads(
