@@ -16,7 +16,6 @@
 		describe = true,
 		allowReorder = true,
 		nativePhoto = false,
-		ondrag = () => {},
 		onBusyChange = () => {},
 		onEditingChange = () => {}
 	}: {
@@ -30,7 +29,6 @@
 		describe?: boolean;
 		allowReorder?: boolean;
 		nativePhoto?: boolean;
-		ondrag?: (dragging: boolean) => void;
 		onBusyChange?: (busy: boolean) => void;
 		onEditingChange?: (editing: boolean) => void;
 	} = $props();
@@ -43,9 +41,12 @@
 	let disposed = false;
 	let operation = 0;
 	const remote = new AbortController();
+	const mediaId = $derived(media.id);
+	const remoteUrl = $derived(media.remoteUrl);
+	const imageBlob = $derived(media.blob);
 	$effect(() => {
-		media.id;
-		media.remoteUrl;
+		mediaId;
+		remoteUrl;
 		untrack(() => {
 			operation++;
 			cancelEdit();
@@ -80,8 +81,8 @@
 		height = $state(100),
 		rotation = $state(0);
 	$effect(() => {
-		const blob = media.blob;
-		const next = blob ? URL.createObjectURL(blob) : media.remoteUrl || '';
+		const blob = imageBlob;
+		const next = blob ? URL.createObjectURL(blob) : remoteUrl || '';
 		url = next;
 		return () => {
 			if (blob) URL.revokeObjectURL(next);
@@ -177,12 +178,14 @@
 		}
 	}
 	function cancelEdit() {
+		const wasEditing = editing || !!dialog?.open;
 		dialog?.close();
 		editing = false;
-		void tick().then(() => {
-			if (!disposed && trigger?.isConnected && !trigger.disabled)
-				trigger.focus({ preventScroll: true });
-		});
+		if (wasEditing)
+			void tick().then(() => {
+				if (!disposed && trigger?.isConnected && !trigger.disabled)
+					trigger.focus({ preventScroll: true });
+			});
 		rotation = 0;
 		x = 0;
 		y = 0;
@@ -215,15 +218,16 @@
 				><Icon name="trash" bold /></button
 			><button
 				type="button"
-				class="photo-drag"
+				class="photo-drag drag-handle"
 				aria-label={`Drag to reorder image ${index + 1}`}
-				draggable={!disabled && !busy}
-				ondragstart={(event) => {
-					ondrag(true);
-					event.dataTransfer?.setData('text/plain', media.id);
-				}}
-				ondragend={() => ondrag(false)}
-				><span aria-hidden="true">⠿</span></button
+				disabled={disabled || busy || count < 2}
+				title="Drag to reorder, or use Alt and the up or down arrow keys."
+				onkeydown={(event) => {
+					if (event.altKey && ['ArrowUp', 'ArrowDown'].includes(event.key)) {
+						event.preventDefault();
+						onmove(event.key === 'ArrowUp' ? -1 : 1);
+					}
+				}}><span aria-hidden="true">⠿</span></button
 			>
 		</div>{/if}
 	<div class="photo-preview">
@@ -421,6 +425,8 @@
 		color: var(--ink-3);
 		font-size: 34px;
 		cursor: grab;
+		touch-action: none;
+		user-select: none;
 	}
 	.down-arrow {
 		display: flex;

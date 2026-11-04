@@ -3,6 +3,7 @@
 	import { pushState } from '$app/navigation';
 	import { page } from '$app/state';
 	import { mountComposerPage } from './page-layout';
+	import { reorderRow } from '../social/reorder-row';
 	import Icon from '../shell/Icon.svelte';
 	import MediaEditor from './MediaEditor.svelte';
 	import PhotoThumbnail from './PhotoThumbnail.svelte';
@@ -32,7 +33,6 @@
 	let open = $state(false);
 	let disposed = false;
 	let previous: HTMLElement | undefined;
-	let dragged: string | undefined;
 	let editing = $state<string[]>([]);
 	const described = $derived(images.filter((image) => image.alt.trim()).length);
 	async function show() {
@@ -170,18 +170,14 @@
 		<div class="photo-page-scroll">
 			{@render header()}
 			{#each images as media, index (media.id)}<div
+					class="photo-row"
 					role="group"
 					aria-label={`Photo ${index + 1}`}
-					ondragover={(event) => {
-						if (dragged) event.preventDefault();
-					}}
-					ondrop={(event) => {
-						event.preventDefault();
-						move(
-							images.findIndex((image) => image.id === dragged),
-							index
-						);
-						dragged = undefined;
+					use:reorderRow={{
+						group: `photos-${uid}`,
+						index,
+						enabled: !disabled && editing.length === 0 && images.length > 1,
+						onmove: move
 					}}
 				>
 					<MediaEditor
@@ -204,7 +200,6 @@
 						onremove={() =>
 							onchange(images.filter((image) => image.id !== media.id))}
 						onmove={(direction) => move(index, index + direction)}
-						ondrag={(value) => (dragged = value ? media.id : undefined)}
 					/>
 				</div>{/each}
 			{@render picker(false)}
@@ -212,6 +207,12 @@
 	</section>{/if}
 
 <style>
+	.photo-row {
+		margin: 0 3px 27px 0;
+	}
+	.photo-row :global(.media-card.native-photo) {
+		margin: 0;
+	}
 	.photos-heading h2 {
 		display: block;
 		font-size: 16px;

@@ -120,3 +120,111 @@ describe('confirmed publications', () => {
 		).toBe(false);
 	});
 });
+
+describe('indexed edits', () => {
+	it('waits for the accepted CID, then replaces cached content everywhere without changing live interactions', async () => {
+		vi.useFakeTimers();
+		try {
+			const state = new Publications(owner),
+				original = post('existing');
+			const edited = post('existing', {
+				cid: 'accepted-edit',
+				text: 'Edited text',
+				editedAt: '2026-11-04T12:00:00Z'
+			});
+			const load = vi
+				.fn()
+				.mockResolvedValueOnce(original)
+				.mockRejectedValueOnce(new Error('Read unavailable'))
+				.mockResolvedValue(edited);
+			state.watchEdit(
+				original.rkey,
+				{ acceptedCid: edited.cid, changed: true },
+				load
+			);
+			await vi.advanceTimersByTimeAsync(0);
+			expect(state.overlay(original)).toMatchObject({ text: 'Confirmed' });
+			await vi.advanceTimersByTimeAsync(3000);
+			expect(load).toHaveBeenCalledTimes(3);
+			expect(
+				state.merge(
+					[{ ...original, likeCount: 7, viewerHasLiked: true }],
+					() => true
+				)[0]
+			).toMatchObject({
+				cid: edited.cid,
+				text: 'Edited text',
+				likeCount: 7,
+				viewerHasLiked: true
+			});
+			expect(
+				state.comments(
+					[
+						{
+							post: original,
+							placement: 'viewerAuthored',
+							replies: { items: [], loaded: false }
+						}
+					],
+					'root'
+				)[0].post
+			).toMatchObject({ text: 'Edited text' });
+			const newer = {
+				...edited,
+				cid: 'even-newer',
+				text: 'Newer edit',
+				editedAt: '2026-11-04T12:01:00Z'
+			};
+			expect(state.overlay(newer)).toEqual(newer);
+			const blocked = {
+				uri: original.uri,
+				availability: 'blocked' as const,
+				relationship: { state: 'blocked', revealable: false }
+			};
+			expect(state.overlay(blocked)).toEqual(blocked);
+			expect(state.merge([], () => true)).toEqual([]); // Editing never inserts an old post at the top.
+			await vi.advanceTimersByTimeAsync(10000);
+			expect(load).toHaveBeenCalledTimes(3);
+			state.dispose();
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+	it('cancels obsolete reads on another edit, deletion and account teardown', async () => {
+		vi.useFakeTimers();
+		try {
+			const state = new Publications(owner),
+				original = post('existing');
+			let finish!: (value: Post) => void;
+			state.watchEdit(
+				original.rkey,
+				{ acceptedCid: 'first', changed: true },
+				() => new Promise((resolve) => (finish = resolve))
+			);
+			const latest = { ...original, cid: 'second', text: 'Second edit' };
+			state.watchEdit(
+				original.rkey,
+				{ acceptedCid: 'second', changed: true },
+				async () => latest
+			);
+			await vi.advanceTimersByTimeAsync(0);
+			finish({ ...original, cid: 'first', text: 'Obsolete edit' });
+			await vi.advanceTimersByTimeAsync(0);
+			expect(state.overlay(original)).toMatchObject({ text: 'Second edit' });
+			state.remove(original.uri);
+			expect(state.merge([original], () => true)).toEqual([]);
+			const other = post('another');
+			state.watchEdit(
+				other.rkey,
+				{ acceptedCid: 'later', changed: true },
+				() => new Promise((resolve) => (finish = resolve))
+			);
+			state.dispose();
+			finish({ ...other, cid: 'later', text: 'After logout' });
+			await vi.advanceTimersByTimeAsync(10000);
+			expect(state.overlay(other)).toEqual(other);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+});

@@ -1183,12 +1183,16 @@
 						? 'Your post is being published.'
 						: 'Your post has been published.';
 			} else if (pending.kind === 'edit') {
-				await api.posts.edit(
+				const result = await api.posts.edit(
 					pending.did!,
 					pending.rkey!,
 					pending.body as unknown as PostEditChanges,
 					pending.cid!,
 					pending.key
+				);
+				if (seq !== generation || destroyed) return;
+				publications?.watchEdit(pending.rkey!, result, () =>
+					api.posts.get(pending.did!, pending.rkey!)
 				);
 				destination = `/app/posts/${encodeURIComponent(pending.did!)}/${encodeURIComponent(pending.rkey!)}`;
 				resultNotice = 'Your changes have been saved.';

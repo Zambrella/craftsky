@@ -1058,3 +1058,133 @@ test('browser Back closes photo details without discarding the project', async (
 		page.getByRole('dialog', { name: 'Save your draft?' })
 	).toBeVisible();
 });
+
+for (const width of [402, 1280]) {
+	test(`photo alt text retains focus, caret and preview while typing at ${width}px`, async ({
+		page
+	}) => {
+		await page.setViewportSize({ width, height: 900 });
+		await page.goto('/app/compose');
+		await page.locator('input[type=file][multiple]').setInputFiles({
+			name: 'focus.png',
+			mimeType: 'image/png',
+			buffer: await imageFixture(page)
+		});
+		const details = page.getByRole('region', {
+			name: 'Photo details',
+			exact: true
+		});
+		const input = details.getByRole('textbox', {
+			name: 'Image description',
+			exact: true
+		});
+		const preview = details.locator('.photo-preview img');
+		const source = await preview.getAttribute('src');
+		await input.pressSequentially('Blue cotton', { delay: 25 });
+		await expect(input).toBeFocused();
+		await expect(input).toHaveValue('Blue cotton');
+		await expect(preview).toHaveAttribute('src', source!);
+		const thumbnail = page.locator('.photo-summary .thumbnails img');
+		const thumbSource = await thumbnail.getAttribute('src');
+		await input.evaluate((node) =>
+			(node as HTMLTextAreaElement).setSelectionRange(5, 5)
+		);
+		await input.pressSequentially('soft ', { delay: 25 });
+		await expect(input).toBeFocused();
+		await expect(input).toHaveValue('Blue soft cotton');
+		expect(
+			await input.evaluate(
+				(node) => (node as HTMLTextAreaElement).selectionStart
+			)
+		).toBe(10);
+		await expect(thumbnail).toHaveAttribute('src', thumbSource!);
+		await details
+			.getByRole('button', { name: 'Back to post', exact: true })
+			.click();
+		await page.getByRole('button', { name: /Photos.*Reorder photos/ }).click();
+		await expect(input).toHaveValue('Blue soft cotton');
+	});
+}
+
+for (const width of [402, 1280]) {
+	test(`photo handle lifts the complete card and keeps descriptions with reordered photos at ${width}px`, async ({
+		page
+	}) => {
+		await page.setViewportSize({ width, height: 1900 });
+		await page.goto('/app/compose');
+		const buffer = await imageFixture(page);
+		await page.locator('input[type=file][multiple]').setInputFiles([
+			{ name: 'first.png', mimeType: 'image/png', buffer },
+			{ name: 'second.png', mimeType: 'image/png', buffer }
+		]);
+		const details = page.getByRole('region', {
+			name: 'Photo details',
+			exact: true
+		});
+		const rows = details.locator('.photo-row:not(.reorder-ghost)');
+		const descriptions = rows.getByRole('textbox', {
+			name: 'Image description',
+			exact: true
+		});
+		await descriptions.nth(0).fill('First photo description');
+		await descriptions.nth(1).fill('Second photo description');
+		const firstSource = await rows
+			.first()
+			.locator('.photo-preview img')
+			.getAttribute('src');
+		const ghost = details.locator('.reorder-ghost');
+		async function liftFirst() {
+			const handle = rows
+				.first()
+				.getByRole('button', { name: 'Drag to reorder image 1', exact: true });
+			await expect(handle).toHaveCSS('touch-action', 'none');
+			await handle.scrollIntoViewIfNeeded();
+			const grip = (await handle.boundingBox())!;
+			const first = (await rows.first().boundingBox())!;
+			const second = (await rows.nth(1).boundingBox())!;
+			await page.mouse.move(grip.x + grip.width / 2, grip.y + grip.height / 2);
+			await page.mouse.down();
+			await page.mouse.move(
+				grip.x + grip.width / 2,
+				grip.y + grip.height / 2 + second.y - first.y + 20,
+				{ steps: 12 }
+			);
+			await expect(ghost.locator('article.media-card')).toBeVisible();
+			await expect(ghost.locator('.photo-preview img')).toHaveAttribute(
+				'src',
+				firstSource!
+			);
+			await expect(ghost.locator('textarea')).toHaveValue(
+				'First photo description'
+			);
+			await expect(rows.first()).toHaveCSS('opacity', '0.15');
+			expect((await ghost.boundingBox())!.height).toBeGreaterThanOrEqual(
+				first.height
+			);
+		}
+		await liftFirst();
+		await page.screenshot({
+			path: test.info().outputPath('lifted-photo-card.png')
+		});
+		await page.keyboard.press('Escape');
+		await page.mouse.up();
+		await expect(ghost).toHaveCount(0);
+		await expect(details).toBeVisible();
+		await expect(descriptions.nth(0)).toHaveValue('First photo description');
+		await expect(rows.first()).toHaveCSS('opacity', '1');
+		await liftFirst();
+		await page.mouse.up();
+		await expect(ghost).toHaveCount(0);
+		await expect(descriptions.nth(0)).toHaveValue('Second photo description');
+		await expect(descriptions.nth(1)).toHaveValue('First photo description');
+		await expect(rows.nth(1).locator('.photo-preview img')).toHaveAttribute(
+			'src',
+			firstSource!
+		);
+		await rows
+			.nth(1)
+			.getByRole('button', { name: 'Drag to reorder image 2', exact: true })
+			.press('Alt+ArrowUp');
+		await expect(descriptions.nth(0)).toHaveValue('First photo description');
+	});
+}

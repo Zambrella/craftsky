@@ -935,3 +935,69 @@ test('project detail pages fill the compact viewport and keep changes on Back, E
 		)
 	).toHaveLength(0);
 });
+
+test('indexed edits replace stale detail and cached feed content without a refresh', async ({
+	page
+}) => {
+	await compose(page);
+	await page
+		.getByRole('textbox', {
+			name: 'What would you like to share?',
+			exact: true
+		})
+		.fill('Before indexing');
+	await page.getByRole('button', { name: 'Post', exact: true }).click();
+	await expect(page).toHaveURL('/app/home');
+	const card = page
+		.locator('.member-post')
+		.filter({ has: page.getByText('Before indexing', { exact: true }) })
+		.first();
+	await card.locator('summary[aria-label="More post actions"]').click();
+	await card.getByRole('link', { name: 'Edit', exact: true }).click();
+	await expect(
+		page.getByRole('textbox', {
+			name: 'What would you like to share?',
+			exact: true
+		})
+	).toHaveValue('Before indexing');
+	let indexed = false;
+	let reads = 0;
+	const stale = await page.evaluate(async () =>
+		(await fetch('/api/appview/v1/posts/did%3Aplc%3Aalice/created-1')).json()
+	);
+	await page.route(
+		'**/api/appview/v1/posts/did%3Aplc%3Aalice/created-1',
+		async (route) => {
+			if (route.request().method() !== 'GET') return route.continue();
+			reads++;
+			if (!indexed) return route.fulfill({ json: stale });
+			return route.continue();
+		}
+	);
+	await page
+		.getByRole('textbox', {
+			name: 'What would you like to share?',
+			exact: true
+		})
+		.fill('After indexing');
+	await page.getByRole('button', { name: 'Save changes' }).click();
+	await expect(page).toHaveURL(/\/app\/posts\//);
+	await expect(
+		page.getByText('Before indexing', { exact: true })
+	).toBeVisible();
+	await expect.poll(() => reads).toBeGreaterThanOrEqual(2);
+	indexed = true;
+	await expect(page.getByText('After indexing', { exact: true })).toBeVisible();
+	// Simulate a stale cached response on return, even though the edit was observed.
+	indexed = false;
+	await page
+		.getByRole('link', { name: 'Home', exact: true })
+		.filter({ visible: true })
+		.first()
+		.click();
+	await expect(page).toHaveURL('/app/home');
+	await expect(page.getByText('After indexing', { exact: true })).toBeVisible();
+	await expect(page.getByText('Before indexing', { exact: true })).toHaveCount(
+		0
+	);
+});

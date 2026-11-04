@@ -49,7 +49,9 @@
 		accounts: { id: string; did: string; handle: string }[];
 		children: Snippet<[CraftskyAPI]>;
 	} = $props();
-	setContext(publicationsContext, new Publications(untrack(() => session.did)));
+	const publications = new Publications(untrack(() => session.did));
+	setContext(publicationsContext, publications);
+	onDestroy(() => publications.dispose());
 	setContext('craftsky-open-accounts', () => openAccounts());
 	const pageHistory = new PageHistory();
 	setContext(pageHistoryContext, pageHistory);
