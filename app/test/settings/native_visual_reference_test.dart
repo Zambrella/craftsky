@@ -36,10 +36,10 @@ import '../fakes/recording_messenger.dart';
 import '../profile/fakes/fake_profile_repository.dart';
 import '../support/native_reference_capture.dart';
 
-// Explicitly opt in: these are temporary review artifacts, not golden baselines.
+// Explicitly opt in: temporary review artifacts, not golden baselines.
 const _capture = bool.fromEnvironment('CAPTURE_NATIVE_REFERENCES');
 
-final _registry = SessionRegistry.empty().upsertAndActivate(
+final SessionRegistry _registry = SessionRegistry.empty().upsertAndActivate(
   token: 'visual-fixture-token',
   did: 'did:plc:test',
   handle: 'alice.example',

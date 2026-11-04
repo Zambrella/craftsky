@@ -6,7 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   const host = 'app.craftsky.social';
 
-  test('Android routes mobile links while browser callbacks stay on the web', () {
+  test('Android routes mobile links; browser callbacks stay on the web', () {
     final manifest = File(
       'android/app/src/main/AndroidManifest.xml',
     ).readAsStringSync();
@@ -14,13 +14,12 @@ void main() {
     expect('android:autoVerify="true"'.allMatches(manifest), hasLength(1));
     expect('android:scheme="https"'.allMatches(manifest), hasLength(1));
     expect('android:host="$host"'.allMatches(manifest), hasLength(1));
-    final paths = RegExp(r'android:path(Prefix)?="([^"]+)"')
+    final paths = RegExp('android:path(Prefix)?="([^"]+)"')
         .allMatches(manifest)
         .toList();
     bool accepts(String path) => paths.any(
-      (match) => match[1] == 'Prefix'
-          ? path.startsWith(match[2]!)
-          : path == match[2],
+      (match) =>
+          match[1] == 'Prefix' ? path.startsWith(match[2]!) : path == match[2],
     );
     for (final path in [
       '/auth/complete',

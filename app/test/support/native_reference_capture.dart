@@ -6,7 +6,9 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-const nativeReferenceKey = ValueKey('native-reference-capture');
+const ValueKey<String> nativeReferenceKey = ValueKey(
+  'native-reference-capture',
+);
 
 /// Loads real bundled fonts; widget tests otherwise render the Ahem test font.
 Future<void> prepareNativeReference(
@@ -43,7 +45,7 @@ Future<void> prepareNativeReference(
 }
 
 class NativeReferenceFrame extends StatelessWidget {
-  const NativeReferenceFrame({required this.child, super.key});
+  const new({required this.child, super.key});
   final Widget child;
 
   @override
