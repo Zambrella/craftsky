@@ -72,6 +72,71 @@ tests; that is not database validation.
 See [the feature-parity and final validation notes](../docs/development/web-client-parity.md)
 for the implemented scope and executed checks.
 
+## Live smoke test (Flutter Patrol parity)
+
+This separate, opt-in Playwright suite mirrors
+[`app/patrol_test/live_smoke_test.dart`](../app/patrol_test/live_smoke_test.dart).
+It uses real browser OAuth, this checkout's Docker AppView and the same coral/teal
+PNG fixtures. No provider, API, upload or persistence operation is mocked.
+
+Put `E2E_HANDLE` and `E2E_PASSWORD` in ignored `web-client/.env.local` using a
+**dedicated disposable Bluesky-hosted account** and its full account password.
+The runner preserves `#` in an unquoted password, matching Patrol; quoted dotenv
+values also work. Do not add inline comments to the password line. App passwords
+do not work for OAuth.
+
+```sh
+# Repository root: start this checkout's backend.
+just dev-d
+# Stop just web-run first: the test owns the configured local web callback port.
+cd web-client
+npm run test:e2e:live -- --list  # Discovery only; no account/database changes.
+npm run test:e2e:live
+# Optional visible Chromium:
+npm run test:e2e:live -- --headed
+```
+
+The runner discovers the worktree's AppView port and reads its `WEB_APP_ORIGIN`.
+Both must be explicit HTTP loopback addresses; there is no remote-backend override.
+It checks health, resolves the account DID and resets **only that DID's local
+onboarding completion**, as the Patrol wrapper does. The backend must already
+support real OAuth and allow its configured browser callback. The web port must
+be free; the suite never reuses an unrelated running server.
+
+The journey changes the profile bio, completes all three onboarding steps,
+selects the two fixtures, rotates the first image through the editor, publishes,
+likes, edits the text and removes the second image, then deletes its own post
+through the UI. Fresh account-bound AppView reads check bio persistence, image
+count, like state, changed record CID/edit timestamp, retained first image CID
+and eventual deletion/404. Image downloads use a separate unauthenticated
+request context; decoded dimensions must match the accepted crop output and the
+untouched 640×480 second image. Local previews verify fixture colors and that
+only the first image changes. Web uses the browser file input instead of the
+native OS photo picker, and the web Post action publishes without Patrol's
+native confirmation dialog.
+
+**The bio changes and test records are public on the account's real PDS**, even
+with a local AppView. A unique marker identifies each run. Cleanup targets only
+that run's owned post and uses the UI; it never bulk-deletes records. A failure
+before indexing, a stopped process, or failed deletion can leave the marked post
+behind: remove it through CraftSky before retrying. The bio is intentionally not
+restored, matching Patrol. Live tests are excluded from ordinary `npm test`,
+`test:e2e` and `test:e2e:app` and are not a CI gate.
+
+Use the wrapper rather than invoking Playwright directly. It loads credentials
+only at runtime and redacts them from line-buffered output. Trace, video,
+screenshots, persisted sessions and detailed error reports are disabled; temporary
+runner artifacts are removed. Do not enable Playwright protocol/debug logging or
+record OAuth sessions. A redacted stage and single-line failure reporter identifies the failing check.
+
+Validation on 4 November 2026: the complete live Chromium journey passed against
+this checkout's local AppView, including real Bluesky OAuth, persisted onboarding
+bio, two decoded published images, persisted like, edited text with retained
+first-image CID and like, and UI deletion followed by a fresh 404. The standalone
+live-test TypeScript check and `git diff --check` also passed. This proves the
+local web/AppView journey with the real provider/PDS, not production web hosting
+or native OS photo-picker behavior.
+
 ## Signed-in application
 
 Open `/sign-in` to sign in with an AT Protocol handle or create an account.
