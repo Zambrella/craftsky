@@ -9,8 +9,11 @@ paths.
 `web-client/` now builds the public post/project/profile application for this
 same host. It imports these callback/association sources directly, preserving the
 authentication boundary. See [web-client deployment instructions](../web-client/README.md)
-before changing the existing Pages project. The settings below describe the
-original static deployment and its rollback target.
+and the [release runbook](../docs/operations/releases.md#web-client-preview-then-release).
+The new client uses a separate Worker with preview versions and manual promotion;
+the existing Pages project remains the public host until the first release's
+explicit domain cutover. The settings below describe its static deployment and
+rollback target.
 
 ## Original Cloudflare Pages settings
 

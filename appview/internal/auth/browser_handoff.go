@@ -11,8 +11,9 @@ import (
 const BrowserLoginCompletionPath = "/auth/browser/complete"
 const BrowserDeletionCompletionPath = "/account-deletion/browser/reauth-complete"
 const DefaultWebAppOrigin = "https://app.craftsky.social"
+const PreviewWebAppOrigin = "https://preview-craftsky-public-app.hugetoothstudios.workers.dev"
 
-// ValidateWebAppOrigin permits the controlled production app origin, or an
+// ValidateWebAppOrigin permits the controlled production and preview origins, or an
 // explicitly configured local development origin. It never accepts a caller's
 // Host/Origin header as redirect authority.
 func ValidateWebAppOrigin(raw string, allowLoopback bool) (string, error) {
@@ -25,6 +26,9 @@ func ValidateWebAppOrigin(raw string, allowLoopback bool) (string, error) {
 	}
 	if u.Scheme == "https" && u.Host == "app.craftsky.social" {
 		return DefaultWebAppOrigin, nil
+	}
+	if u.Scheme == "https" && "https://"+u.Host == PreviewWebAppOrigin {
+		return PreviewWebAppOrigin, nil
 	}
 	if allowLoopback && u.Scheme == "http" && u.Hostname() == "127.0.0.1" && u.Port() != "" {
 		port, err := strconv.Atoi(u.Port())
@@ -47,7 +51,13 @@ func ValidateBrowserCompletionURI(raw, origin, path string) error {
 		return ErrOAuthFlowInvalid
 	}
 	u, err := url.Parse(raw)
-	if err != nil || len(raw) > 1024 || u.User != nil || u.Fragment != "" || u.RawPath != "" || u.Scheme+"://"+u.Host != canonical || u.Path != path {
+	if err != nil || len(raw) > 1024 || u.User != nil || u.Fragment != "" || u.RawPath != "" || u.Path != path {
+		return ErrOAuthFlowInvalid
+	}
+	targetOrigin := u.Scheme + "://" + u.Host
+	// Production also permits this one account-owned stable version alias. Never
+	// allow arbitrary workers.dev hosts, version IDs, aliases or request origins.
+	if targetOrigin != canonical && !(canonical == DefaultWebAppOrigin && targetOrigin == PreviewWebAppOrigin) {
 		return ErrOAuthFlowInvalid
 	}
 	query, err := url.ParseQuery(u.RawQuery)

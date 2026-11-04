@@ -52,6 +52,10 @@ that controlled HTTPS origin. Development may explicitly configure an HTTP IPv4
 loopback origin with a valid port. Request Host/Origin headers never establish
 backend redirect authority. Worktree tooling supplies the selected local origin.
 
+ADR 026 adds one exact, account-owned stable preview origin to the production
+callback allowlist for review before public release. Other preview/version hosts
+remain rejected; `WEB_APP_ORIGIN` continues to default to the public app origin.
+
 The OAuth callback returns HTTP 303 to the stored browser target, retaining the
 intent nonce and appending only the one-time consumer handoff code. Registration
 failures append only their reviewed error code. Deletion appends only its bound

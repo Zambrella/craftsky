@@ -54,7 +54,7 @@ func TestBrowserCompletionTargetsAreExactOriginPathAndIntentBound(t *testing.T) 
 }
 
 func TestWebAppOriginAllowsOnlyControlledProductionOrExplicitDevelopmentLoopback(t *testing.T) {
-	for _, raw := range []string{"", DefaultWebAppOrigin, DefaultWebAppOrigin + "/"} {
+	for _, raw := range []string{"", DefaultWebAppOrigin, DefaultWebAppOrigin + "/", PreviewWebAppOrigin, PreviewWebAppOrigin + "/"} {
 		if _, err := ValidateWebAppOrigin(raw, false); err != nil {
 			t.Fatal(err)
 		}
@@ -71,6 +71,61 @@ func TestWebAppOriginAllowsOnlyControlledProductionOrExplicitDevelopmentLoopback
 	}
 	if got, err := ValidateWebAppOrigin("http://127.0.0.1:25319", true); err != nil || got != "http://127.0.0.1:25319" {
 		t.Fatal(got, err)
+	}
+}
+
+func TestPreviewBrowserCompletionAllowsOnlyTheStableOwnedAlias(t *testing.T) {
+	for _, path := range []string{BrowserLoginCompletionPath, BrowserDeletionCompletionPath} {
+		target := browserTestURI(PreviewWebAppOrigin, path)
+		if err := ValidateBrowserCompletionURI(target, DefaultWebAppOrigin, path); err != nil {
+			t.Fatal("production rejected the controlled preview callback", err)
+		}
+		if !validStoredBrowserCompletion(target, path) {
+			t.Fatal("preview callback cannot survive stored metadata validation")
+		}
+		location, err := browserCompletionURL(target, DefaultWebAppOrigin, path, url.Values{"code": {"SINGLE_USE_CANARY"}})
+		if err != nil || !strings.HasPrefix(location, PreviewWebAppOrigin+path+"?") {
+			t.Fatal("callback did not retain its preview origin", err)
+		}
+		for _, origin := range []string{
+			"http://preview-craftsky-public-app.hugetoothstudios.workers.dev",
+			"https://12345678-craftsky-public-app.hugetoothstudios.workers.dev",
+			"https://other-craftsky-public-app.hugetoothstudios.workers.dev",
+			"https://preview-craftsky-public-app.attacker.workers.dev",
+			PreviewWebAppOrigin + ".evil.example",
+			PreviewWebAppOrigin + ":443",
+		} {
+			if ValidateBrowserCompletionURI(browserTestURI(origin, path), DefaultWebAppOrigin, path) == nil {
+				t.Fatalf("untrusted preview callback accepted: %s", origin)
+			}
+		}
+		if ValidateBrowserCompletionURI(target, "http://127.0.0.1:25319", path) == nil {
+			t.Fatal("preview callback crossed into a development worktree")
+		}
+	}
+}
+
+func TestPreviewLoginAndRegistrationReachTheExistingBrowserFlow(t *testing.T) {
+	for _, registration := range []bool{false, true} {
+		flow := &browserFlowRecorder{}
+		handler := &HTTPHandlers{Logger: testlog.Discard(), OAuthFlow: flow, WebAppOrigin: DefaultWebAppOrigin}
+		target := browserTestURI(PreviewWebAppOrigin, BrowserLoginCompletionPath)
+		payload := map[string]string{"handoffMode": "browser", "browserRedirectUri": target}
+		if !registration {
+			payload["handle"] = "alice.example"
+		}
+		body, _ := json.Marshal(payload)
+		request := httptest.NewRequest("POST", "/v1/auth/login", strings.NewReader(string(body)))
+		request = request.WithContext(ctxkeys.WithDeviceID(request.Context(), "browser-device"))
+		response := httptest.NewRecorder()
+		if registration {
+			handler.RegistrationHandler().ServeHTTP(response, request)
+		} else {
+			handler.LoginHandler().ServeHTTP(response, request)
+		}
+		if response.Code != 200 || flow.calls != 1 || flow.target != target || flow.mode != HandoffBrowser {
+			t.Fatalf("preview browser start failed: status=%d calls=%d", response.Code, flow.calls)
+		}
 	}
 }
 

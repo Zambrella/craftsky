@@ -282,45 +282,23 @@ not apply the audit tool's proposed downgrade to pre-release-era SvelteKit.
 
 ## Production deployment and rollback
 
-This replaces the static verified-link host, **not** the marketing Worker or an
-AppView Render service. No production settings have been changed here.
+The authoritative workflow is [Web client: preview, then release](../docs/operations/releases.md#web-client-preview-then-release).
+The client uses the `craftsky-public-app` **Worker with static assets**, not a
+Pages production build. `just web-client-preview` checks/builds and uploads a
+version without promoting live traffic. Review/sign in at
+<https://preview-craftsky-public-app.hugetoothstudios.workers.dev>, then promote
+the recorded version ID to 100% in Cloudflare's Deployments tab.
 
-1. Review and release AppView, including migrations 000112 and 000113, through the existing exact-tag workflow in
-   [releases](../docs/operations/releases.md). Confirm the four public reads work
-   anonymously, and hidden/deleted/unsafe fixtures are not returned.
-2. Identify the existing Cloudflare Pages project owning `app.craftsky.social`.
-   Record its current deployment ID and settings for rollback. Do not create a
-   second project, move the custom domain, or alter DNS as an incidental step.
-3. Change that project's root directory from `verified-links` to `web-client`,
-   build command to `npm ci && npm run build`, and output directory to
-   `.svelte-kit/cloudflare`. Build from the reviewed repository commit with Node 24.
-   Set runtime `APPVIEW_ORIGIN=https://appview.craftsky.social` in production.
-   AppView `WEB_APP_ORIGIN` must remain `https://app.craftsky.social` in production.
-   Anonymous preview checks use an explicitly reviewed nonproduction backend.
-   OAuth redirects deliberately allow only the controlled production app origin
-   or explicitly configured development loopback; arbitrary Pages preview hosts
-   cannot receive a production login handoff. Set optional Firebase public
-   variables at build time if browser notifications are enabled. The Wrangler
-   name is a local artifact label; confirm the existing project name before any
-   CLI publication and pass it explicitly with `--project-name`.
-4. Upload a preview deployment for review before promoting it to the existing
-   custom domain. Release the updated Android intent-filter rules before testing
-   browser OAuth with the native app installed; the former host-wide filter
-   otherwise claims the browser-only callbacks. Preview hosts get `X-Robots-Tag: noindex, nofollow`. Verify the
-   Worker artifact, not just the Vite development server. Keep source maps private.
-5. Confirm both association files return JSON directly with HTTP 200, no redirect;
-   callbacks remain no-store/no-referrer with restrictive CSP and no reflected
-   query values. Test ordinary and project posts, profile tabs, pagination, 404s,
-   a hidden record and a removed account. Ensure error pages are not cached.
-6. Verify shared links on release-signed Android/iOS devices with and without the
-   app installed. iOS/browser same-site navigation rules can keep a link in the
-   browser; association files alone cannot prove app opening. Check real social
-   preview fetchers and search tooling separately.
-7. Monitor backend latency and 429/503 rates. Anonymous admission limits are shared
-   across the singleton AppView, independent of optional client IDs. Add reviewed
-   per-visitor controls at the edge if needed; do not weaken backend bounds or
-   blindly trust forwarded IP headers to accommodate traffic.
+Preview sign-in requires releasing AppView with ADR 026's exact preview callback
+allowlist. Unique version URLs and other preview aliases cannot receive login
+handoffs. Preview uses production accounts/data, with real writes. The initial
+setup preserves the existing `craftsky-verified-links` Pages host on
+`app.craftsky.social`; move that domain to the Worker only at first public
+release, following the release runbook. The marketing Worker remains separate.
 
-Rollback: restore the previous Pages deployment and its static-root build settings.
-The additive AppView endpoints can remain deployed. Recheck association files and
-both callbacks after rollback. Keep the existing marketing deployment untouched.
+Preserve migrations 000112/000113 and the public-read/privacy checks; verify
+hidden/deleted/unsafe fixtures are not returned. Monitor backend latency and
+429/503 rates. AppView anonymous admission limits remain shared across the
+singleton. Edge controls must not weaken backend bounds or trust arbitrary
+forwarded IP headers. Device app linking and external share-card/search behavior
+remain live release checks, separate from local browser tests.

@@ -23,7 +23,7 @@ export default defineConfig({
 		{
 			command:
 				process.env.WEB_CLIENT_WORKER === '1'
-					? `npx wrangler pages dev .svelte-kit/cloudflare --ip 127.0.0.1 --port 19846 --binding APPVIEW_ORIGIN=http://127.0.0.1:19847 --binding SUBSCRIPTIONS_ENABLED=${subscriptions}`
+					? `npx wrangler dev --ip 127.0.0.1 --port 19846 --var APPVIEW_ORIGIN:http://127.0.0.1:19847 --var SUBSCRIPTIONS_ENABLED:${subscriptions}`
 					: 'npm run preview -- --port 19846',
 			cwd,
 			port: 19846,

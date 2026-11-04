@@ -601,6 +601,7 @@ public-app-setup:
 
 public-app-check:
     python3 -m unittest discover -s scripts -p test_public_app_dev.py
+    python3 -m unittest discover -s scripts -p test_web_client_deploy.py
     cd web-client && npm run check && npm test && npm run build && npm run test:e2e && npm run test:e2e:app && WEB_CLIENT_WORKER=1 npm run test:e2e && WEB_CLIENT_WORKER=1 npm run test:e2e:app
 
 # Run the web client against this worktree's backend (start just dev-d first).
@@ -614,3 +615,11 @@ web-run *ARGS:
 web-client-setup: public-app-setup
 
 web-client-check: public-app-check
+
+# Upload a checked version for review. Does not change live traffic or domains.
+web-client-preview *ARGS:
+    python3 scripts/web-client-deploy preview {{ARGS}}
+
+# Read-only smoke checks after preview upload or dashboard promotion.
+web-client-verify ORIGIN:
+    python3 scripts/web-client-deploy verify '{{ORIGIN}}'

@@ -659,7 +659,7 @@ func LoadConfig(env Env, envFilePath string) (Config, error) {
 	}
 	cfg.WebAppOrigin, err = auth.ValidateWebAppOrigin(strings.TrimSpace(os.Getenv("WEB_APP_ORIGIN")), env == EnvDev)
 	if err != nil {
-		return Config{}, fmt.Errorf("WEB_APP_ORIGIN must be the controlled app HTTPS origin or an explicit development IPv4 loopback origin")
+		return Config{}, fmt.Errorf("WEB_APP_ORIGIN must be a controlled app/preview HTTPS origin or an explicit development IPv4 loopback origin")
 	}
 	if cfg.EnableDevOAuthScheme, err = boolEnv("APPVIEW_ENABLE_DEV_OAUTH_SCHEME", false); err != nil {
 		return Config{}, err
