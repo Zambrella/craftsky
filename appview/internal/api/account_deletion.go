@@ -11,10 +11,15 @@ import (
 
 	"social.craftsky/appview/internal/accountdeletion"
 	"social.craftsky/appview/internal/api/envelope"
+	"social.craftsky/appview/internal/auth"
 	"social.craftsky/appview/internal/middleware"
 )
 
-func CreateAccountDeletionIntentHandler(service accountdeletion.Service) http.Handler {
+func CreateAccountDeletionIntentHandler(service accountdeletion.Service, browserOrigins ...string) http.Handler {
+	webAppOrigin := auth.DefaultWebAppOrigin
+	if len(browserOrigins) > 0 {
+		webAppOrigin = browserOrigins[0]
+	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		runID := middleware.GetRunID(r.Context())
 		owner, ok := accountDeletionScope(w, r)
@@ -30,9 +35,29 @@ func CreateAccountDeletionIntentHandler(service accountdeletion.Service) http.Ha
 			envelope.WriteError(w, http.StatusBadRequest, "invalid_request", "device identity is required", runID, nil)
 			return
 		}
+		var body struct {
+			BrowserRedirectURI string `json:"browserRedirectUri,omitempty"`
+		}
+		if r.Body != nil && r.ContentLength != 0 {
+			decoder := json.NewDecoder(io.LimitReader(r.Body, 4096))
+			decoder.DisallowUnknownFields()
+			if decoder.Decode(&body) != nil {
+				envelope.WriteError(w, 400, "invalid_request", "invalid account deletion request", runID, nil)
+				return
+			}
+			if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
+				envelope.WriteError(w, 400, "invalid_request", "invalid account deletion request", runID, nil)
+				return
+			}
+		}
+		if body.BrowserRedirectURI != "" && auth.ValidateBrowserCompletionURI(body.BrowserRedirectURI, webAppOrigin, auth.BrowserDeletionCompletionPath) != nil {
+			envelope.WriteError(w, 400, "invalid_request", "invalid browser account deletion handoff", runID, nil)
+			return
+		}
 		result, err := service.CreateIntent(r.Context(), accountdeletion.CreateIntentParams{
-			Owner:    owner,
-			DeviceID: deviceID,
+			Owner:              owner,
+			DeviceID:           deviceID,
+			BrowserRedirectURI: body.BrowserRedirectURI,
 		})
 		if err != nil {
 			writeAccountDeletionError(w, runID, err)

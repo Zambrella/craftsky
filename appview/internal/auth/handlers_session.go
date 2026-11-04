@@ -18,6 +18,7 @@ type loginRequest struct {
 	Handle              string `json:"handle"`
 	HandoffMode         string `json:"handoffMode"` // "verified_link" | "loopback" | dev-only "dev_scheme"
 	LoopbackRedirectURI string `json:"loopbackRedirectUri,omitempty"`
+	BrowserRedirectURI  string `json:"browserRedirectUri,omitempty"`
 }
 
 type loginResponse struct {
@@ -27,6 +28,7 @@ type loginResponse struct {
 type registrationRequest struct {
 	HandoffMode         string `json:"handoffMode"`
 	LoopbackRedirectURI string `json:"loopbackRedirectUri,omitempty"`
+	BrowserRedirectURI  string `json:"browserRedirectUri,omitempty"`
 }
 
 // LoginHandler starts the OAuth flow and returns the authorization URL.
@@ -60,10 +62,21 @@ func (h *HTTPHandlers) LoginHandler() http.Handler {
 			return
 		}
 		mode := HandoffMode(req.HandoffMode)
-		if mode != HandoffVerifiedLink && mode != HandoffLoopback && !(mode == HandoffDevScheme && h.AllowDevScheme) {
+		if mode != HandoffVerifiedLink && mode != HandoffLoopback && mode != HandoffBrowser && !(mode == HandoffDevScheme && h.AllowDevScheme) {
 			envelope.WriteError(w, http.StatusBadRequest, "invalid_handoff_mode",
 				"handoffMode is not available",
 				runID, nil)
+			return
+		}
+
+		if mode == HandoffBrowser {
+			if req.LoopbackRedirectURI != "" || ValidateBrowserCompletionURI(req.BrowserRedirectURI, h.WebAppOrigin, BrowserLoginCompletionPath) != nil {
+				envelope.WriteError(w, http.StatusBadRequest, "browser_redirect_uri_invalid", "browserRedirectUri is unavailable", runID, nil)
+				return
+			}
+			req.LoopbackRedirectURI = req.BrowserRedirectURI
+		} else if req.BrowserRedirectURI != "" {
+			envelope.WriteError(w, http.StatusBadRequest, "browser_redirect_uri_invalid", "browserRedirectUri requires browser handoff", runID, nil)
 			return
 		}
 		if mode == HandoffLoopback {
@@ -142,14 +155,25 @@ func (h *HTTPHandlers) RegistrationHandler() http.Handler {
 			return
 		}
 		mode := HandoffMode(req.HandoffMode)
-		if mode != HandoffVerifiedLink && mode != HandoffLoopback && !(mode == HandoffDevScheme && h.AllowDevScheme) {
+		if mode != HandoffVerifiedLink && mode != HandoffLoopback && mode != HandoffBrowser && !(mode == HandoffDevScheme && h.AllowDevScheme) {
 			envelope.WriteError(w, http.StatusBadRequest, "invalid_handoff_mode",
 				"handoffMode is not available", runID, nil)
 			return
 		}
-		if mode != HandoffLoopback && req.LoopbackRedirectURI != "" {
+		if mode != HandoffLoopback && mode != HandoffBrowser && req.LoopbackRedirectURI != "" {
 			envelope.WriteError(w, http.StatusBadRequest, "loopback_redirect_uri_invalid",
 				"loopbackRedirectUri is available only when handoffMode is loopback", runID, nil)
+			return
+		}
+
+		if mode == HandoffBrowser {
+			if req.LoopbackRedirectURI != "" || ValidateBrowserCompletionURI(req.BrowserRedirectURI, h.WebAppOrigin, BrowserLoginCompletionPath) != nil {
+				envelope.WriteError(w, http.StatusBadRequest, "browser_redirect_uri_invalid", "browserRedirectUri is unavailable", runID, nil)
+				return
+			}
+			req.LoopbackRedirectURI = req.BrowserRedirectURI
+		} else if req.BrowserRedirectURI != "" {
+			envelope.WriteError(w, http.StatusBadRequest, "browser_redirect_uri_invalid", "browserRedirectUri requires browser handoff", runID, nil)
 			return
 		}
 		if mode == HandoffLoopback {

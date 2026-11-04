@@ -4,7 +4,18 @@ Static resources served from `https://app.craftsky.social` for Android App Links
 iOS Universal Links, and safe browser fallbacks for the two OAuth completion
 paths.
 
-## Cloudflare Pages
+## Server-rendered web host
+
+`web-client/` now builds the public post/project/profile application for this
+same host. It imports these callback/association sources directly, preserving the
+authentication boundary. See [web-client deployment instructions](../web-client/README.md)
+and the [release runbook](../docs/operations/releases.md#web-client-preview-then-release).
+The new client uses a separate Worker with preview versions and manual promotion;
+the existing Pages project remains the public host until the first release's
+explicit domain cutover. The settings below describe its static deployment and
+rollback target.
+
+## Original Cloudflare Pages settings
 
 - Framework preset: None
 - Build command: empty

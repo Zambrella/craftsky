@@ -1,0 +1,60 @@
+import { redirect } from '@sveltejs/kit';
+import { env } from 'node:process';
+import type { PageServerLoad } from './$types';
+import {
+	selected,
+	credentials,
+	publicAccount,
+	device,
+	remove,
+	prefix,
+	encode,
+	options
+} from '#lib/server/auth/session.ts';
+import { upstream, UpstreamError } from '#lib/server/auth/upstream.ts';
+export const load: PageServerLoad = async ({ cookies, url, params }) => {
+	const account = selected(cookies, url);
+	if (!account) redirect(303, '/sign-in');
+	try {
+		const identity = (await upstream(
+			'/v1/whoami',
+			device(cookies, url),
+			undefined,
+			account.token
+		)) as { did: string; handle: string };
+		if (identity.did !== account.did) {
+			remove(cookies, url, account.id);
+			redirect(303, '/sign-in?error=session_expired');
+		}
+		if (
+			typeof identity.handle === 'string' &&
+			identity.handle !== account.handle
+		) {
+			account.handle = identity.handle;
+			cookies.set(
+				prefix(url) + 'account_' + account.id,
+				encode(account),
+				options(url)
+			);
+		}
+	} catch (error) {
+		if (error instanceof UpstreamError && error.status === 401) {
+			remove(cookies, url, account.id);
+			redirect(303, '/sign-in?error=session_expired');
+		}
+		if (
+			error &&
+			typeof error === 'object' &&
+			'status' in error &&
+			error.status === 303
+		)
+			throw error;
+	}
+	return {
+		subscriptionsEnabled: env.SUBSCRIPTIONS_ENABLED === 'true',
+		videoUploadsEnabled: env.CRAFTSKY_ENABLE_VIDEO_UPLOADS === 'true',
+		session: publicAccount(account),
+		accounts: credentials(cookies, url).map(publicAccount),
+		path: (params.path || 'home').split('/')
+	};
+};

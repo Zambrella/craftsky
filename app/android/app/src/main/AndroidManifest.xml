@@ -35,6 +35,12 @@
                 <data
                     android:scheme="https"
                     android:host="app.craftsky.social" />
+                <!-- Keep browser sessions and their OAuth/deletion callbacks in the browser.
+                     These path alternatives match the iOS association contract. -->
+                <data android:path="/auth/complete" />
+                <data android:path="/account-deletion/reauth-complete" />
+                <data android:pathPrefix="/posts/" />
+                <data android:pathPrefix="/profiles/" />
             </intent-filter>
         </activity>
         <!-- Don't delete the meta-data below.

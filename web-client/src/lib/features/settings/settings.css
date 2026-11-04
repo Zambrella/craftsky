@@ -1,0 +1,628 @@
+.app-main > .settings-workspace[data-settings-page] {
+	padding: 0 16px 48px;
+}
+/* Native references: app_theme.dart, SettingsRowTile, CraftskyCard, SpacingTheme. */
+.settings-workspace {
+	max-width: 760px;
+	margin: 0 auto;
+	padding: 0 16px 48px;
+	color: var(--ink);
+	font-size: 16px;
+}
+.settings-workspace h1 {
+	position: sticky;
+	top: 0;
+	z-index: 5;
+	background: var(--paper);
+	min-height: 56px;
+	display: flex;
+	align-items: center;
+	font-size: 20px;
+	font-weight: 600;
+	line-height: 1.25;
+	letter-spacing: 0;
+	margin: 0 -16px 16px;
+	padding: 0 16px;
+	border-bottom: 1.5px solid var(--ink);
+}
+.settings-workspace:has(.settings-back) h1 {
+	padding-left: 72px;
+}
+.settings-workspace h2 {
+	font-size: 20px;
+	font-weight: 600;
+	line-height: 1.25;
+	margin: 0 0 12px;
+	letter-spacing: 0;
+}
+.settings-workspace h3 {
+	font-size: 16px;
+	line-height: 1.3;
+	margin: 0 0 4px;
+}
+.settings-workspace p {
+	line-height: 1.5;
+	margin: 0 0 12px;
+}
+.settings-workspace p:last-child {
+	margin-bottom: 0;
+}
+.settings-workspace .muted,
+.settings-workspace .helper {
+	color: var(--ink-2);
+	font-size: 14px;
+	line-height: 1.5;
+}
+.settings-workspace .panel {
+	border: 1.5px solid var(--ink);
+	border-radius: 14px;
+	background: var(--surface);
+	padding: 16px;
+	margin: 0 0 16px;
+	box-shadow: 3px 3px 0 var(--shadow);
+}
+.settings-workspace .row {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	justify-content: space-between;
+	padding: 12px 0;
+	border-bottom: 1px solid var(--hairline);
+}
+.settings-workspace .row:last-child {
+	border-bottom: 0;
+}
+.settings-workspace .row > div {
+	min-width: 0;
+}
+.settings-workspace .stack {
+	display: grid;
+	gap: 16px;
+}
+.settings-workspace label {
+	display: grid;
+	gap: 8px;
+	font-size: 16px;
+	font-weight: 600;
+}
+.settings-workspace label.check {
+	display: flex;
+	gap: 12px;
+	align-items: center;
+	font-size: 16px;
+	font-weight: 400;
+}
+/* Field appearance comes from the shared controls and style.css. */
+.settings-workspace input[type='file'] {
+	max-width: 100%;
+	font: inherit;
+	font-weight: 400;
+}
+.settings-workspace input[type='checkbox']:not([role='switch']),
+.settings-workspace input[type='radio'] {
+	accent-color: var(--primary);
+	width: 20px;
+	height: 20px;
+	flex-shrink: 0;
+}
+.settings-workspace
+	:is(input, textarea, select, button, a, summary):focus-visible {
+	outline: 3px solid var(--primary);
+	outline-offset: 3px;
+}
+.settings-workspace textarea {
+	min-height: 100px;
+	resize: vertical;
+}
+.settings-workspace button,
+.settings-workspace .action {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 8px;
+	border: 1.5px solid var(--ink);
+	border-radius: 22px;
+	background: var(--surface);
+	color: var(--ink);
+	padding: 12px 20px;
+	min-height: 48px;
+	font:
+		600 15px/1.2 Outfit,
+		sans-serif;
+	cursor: pointer;
+	text-decoration: none;
+}
+.settings-workspace button.primary,
+.settings-workspace .action.primary {
+	background: var(--primary);
+	color: var(--on-primary);
+	box-shadow: 3px 3px 0 var(--shadow);
+}
+.settings-workspace button.danger,
+.settings-workspace .danger {
+	color: var(--red-ink);
+}
+.settings-workspace button:disabled {
+	opacity: 0.45;
+	cursor: default;
+}
+.settings-workspace .actions {
+	display: flex;
+	gap: 12px;
+	align-items: center;
+	flex-wrap: wrap;
+}
+.settings-workspace .error {
+	border: 1px solid var(--red-ink);
+	color: var(--red-ink);
+	background: var(--red-soft);
+	padding: 16px;
+	border-radius: 6px;
+	overflow-wrap: anywhere;
+	margin-bottom: 16px;
+}
+.settings-workspace .notice {
+	background: var(--primary-soft);
+	color: var(--ink);
+	padding: 16px;
+	border-radius: 6px;
+	margin-bottom: 16px;
+}
+.settings-workspace .nav-list {
+	display: grid;
+	gap: 0;
+}
+.settings-workspace .nav-list a::after {
+	content: none;
+}
+.settings-workspace :is(a, button).settings-tile,
+.settings-workspace .settings-tile {
+	width: 100%;
+	min-height: 56px;
+	display: flex;
+	align-items: center;
+	justify-content: flex-start;
+	gap: 16px;
+	padding: 12px 16px;
+	color: var(--ink);
+	text-align: left;
+	text-decoration: none;
+	font:
+		400 16px/1.5 Outfit,
+		sans-serif;
+	border: 0;
+	border-radius: 0;
+	background: transparent;
+	box-shadow: none;
+}
+.settings-workspace .settings-tile:hover {
+	background: color-mix(in srgb, var(--primary) 8%, transparent);
+}
+.settings-workspace .settings-tile > svg {
+	flex-shrink: 0;
+}
+.settings-workspace .tile-copy {
+	flex: 1;
+	min-width: 0;
+	display: grid;
+}
+.settings-workspace .tile-copy small {
+	font-size: 14px;
+	color: var(--ink-2);
+}
+.settings-workspace .tile-leading {
+	display: flex;
+	position: relative;
+	flex-shrink: 0;
+}
+.settings-workspace .plus-mark {
+	position: absolute;
+	right: -6px;
+	bottom: -4px;
+	border-radius: 50%;
+	background: var(--primary);
+	color: var(--on-primary);
+	font-size: 11px;
+	width: 14px;
+	height: 14px;
+	line-height: 14px;
+	text-align: center;
+	font-weight: 700;
+}
+.settings-workspace .settings-group {
+	margin: 0 -16px;
+}
+.settings-workspace h2.section-label {
+	color: var(--primary);
+	font-size: 14px;
+	font-weight: 600;
+	padding: 20px 16px 4px;
+	margin: 0;
+}
+.settings-workspace .settings-divider {
+	height: 1px;
+	background: var(--hairline);
+	margin: 12px -16px;
+}
+.settings-workspace .settings-identity {
+	padding: 0 0 8px;
+	min-height: 68px;
+}
+.settings-workspace .subscription-callout {
+	display: block;
+	padding: 16px;
+	margin: 12px 0 4px;
+	background: color-mix(in srgb, var(--primary) 10%, var(--surface));
+	text-decoration: none;
+	color: var(--ink);
+}
+.settings-workspace .subscription-callout h2 {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	font-size: 16px;
+}
+.settings-workspace .subscription-callout h2 svg {
+	color: var(--primary);
+}
+.settings-workspace .subscription-callout p {
+	font-size: 14px;
+}
+.settings-workspace .callout-action {
+	display: block;
+	text-align: center;
+	background: var(--primary);
+	color: var(--on-primary);
+	border-radius: 14px;
+	padding: 14px 12px;
+	min-height: 48px;
+	font-size: 15px;
+	font-weight: 600;
+}
+.settings-workspace .two-col {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 16px;
+}
+.settings-workspace .pills {
+	display: flex;
+	gap: 8px;
+	flex-wrap: wrap;
+}
+.settings-workspace .pills label {
+	background: var(--surface);
+	border-radius: 999px;
+	border: 1.5px solid var(--ink);
+	padding: 8px 12px;
+	font-size: 14px;
+	gap: 6px;
+}
+.settings-workspace .pills label:has(input:checked) {
+	background: var(--primary);
+	color: var(--on-primary);
+}
+.settings-workspace .pills input {
+	width: 16px;
+	height: 16px;
+	accent-color: var(--on-primary);
+}
+.settings-workspace fieldset {
+	border: 0;
+	padding: 0;
+	margin: 0;
+	min-width: 0;
+}
+.settings-workspace legend {
+	font-weight: 600;
+	font-size: 16px;
+	padding: 0;
+	margin-bottom: 8px;
+}
+.settings-workspace .avatar {
+	width: 48px;
+	height: 48px;
+	object-fit: cover;
+	border-radius: 50%;
+	border: 2.5px solid var(--profile-accent);
+	flex-shrink: 0;
+}
+.settings-workspace .avatar-placeholder {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	color: var(--primary);
+}
+.settings-workspace .identity {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	min-width: 0;
+}
+.settings-workspace .identity a {
+	color: inherit;
+	text-decoration: none;
+	overflow-wrap: anywhere;
+}
+.settings-workspace .identity small {
+	display: block;
+	color: var(--ink-3);
+	font-size: 13px;
+}
+.settings-workspace table {
+	width: 100%;
+	border-collapse: collapse;
+}
+.settings-workspace th,
+.settings-workspace td {
+	text-align: left;
+	padding: 10px;
+	border-bottom: 1px solid var(--hairline);
+}
+.settings-workspace code {
+	overflow-wrap: anywhere;
+	white-space: normal;
+	font-size: 13px;
+}
+.settings-workspace .empty {
+	padding: 48px 16px;
+	text-align: center;
+	color: var(--ink-2);
+}
+.settings-workspace .empty > svg {
+	display: block;
+	margin: 0 auto 16px;
+	color: var(--primary);
+	width: 48px;
+	height: 48px;
+}
+.settings-workspace .empty strong {
+	display: block;
+	color: var(--ink);
+	font-size: 20px;
+	margin-bottom: 8px;
+}
+.settings-workspace .loading {
+	color: var(--ink-2);
+	padding: 24px;
+	text-align: center;
+}
+.settings-workspace .preview-image {
+	max-width: 180px;
+	max-height: 160px;
+	border-radius: 6px;
+	object-fit: cover;
+}
+.settings-workspace .settings-back {
+	position: sticky;
+	top: 0;
+	z-index: 6;
+	width: 56px;
+	height: 56px;
+	margin: 0 0 -56px -16px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	color: var(--ink);
+	text-decoration: none;
+}
+.settings-workspace .settings-back span {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	clip-path: inset(50%);
+	overflow: hidden;
+}
+.settings-workspace .settings-dialog {
+	max-width: 560px;
+	width: calc(100vw - 32px);
+	max-height: 90dvh;
+	overflow: auto;
+	color: var(--ink);
+	background: var(--surface);
+	border: 1.5px solid var(--ink);
+	border-radius: 14px;
+	padding: 24px;
+	box-shadow: 6px 6px 0 var(--shadow);
+}
+.settings-workspace .settings-dialog::backdrop {
+	background: rgb(0 0 0 / 0.5);
+}
+.settings-workspace .native-list {
+	margin: 0 -16px;
+}
+.settings-workspace .native-option {
+	min-height: 56px;
+	padding: 12px 16px;
+	gap: 16px;
+}
+.settings-workspace .native-option > span {
+	flex: 1;
+}
+.settings-workspace .switch-row {
+	flex-direction: row;
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	font-size: 16px;
+	font-weight: 400;
+	min-height: 48px;
+}
+.settings-workspace .switch-row .tile-copy {
+	flex: 1;
+}
+.settings-workspace .section-heading {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+.settings-workspace .section-heading svg {
+	color: var(--primary);
+	flex-shrink: 0;
+}
+.settings-workspace .segmented {
+	display: flex;
+	width: 100%;
+	border: 1.5px solid var(--ink);
+	border-radius: 999px;
+	overflow: hidden;
+	margin: 24px 0;
+}
+.settings-workspace .segmented button {
+	flex: 1;
+	min-width: 0;
+	border: 0;
+	border-right: 1px solid var(--ink);
+	border-radius: 0;
+	padding: 12px 8px;
+	background: transparent;
+}
+.settings-workspace .segmented button:last-child {
+	border-right: 0;
+}
+.settings-workspace .segmented button[aria-pressed='true'] {
+	background: var(--primary);
+	color: var(--on-primary);
+}
+.settings-workspace .settings-tabs {
+	display: flex;
+	border-bottom: 1px solid var(--hairline);
+	margin-bottom: 16px;
+}
+.settings-workspace .settings-tabs button {
+	flex: 1;
+	border: 0;
+	border-radius: 0;
+	background: transparent;
+	border-bottom: 3px solid transparent;
+}
+.settings-workspace .settings-tabs button[aria-pressed='true'] {
+	border-bottom-color: var(--primary);
+	color: var(--primary);
+}
+.settings-workspace fieldset.form-fields {
+	display: contents;
+	border: 0;
+	margin: 0;
+	padding: 0;
+}
+@media (max-width: 520px) {
+	.settings-workspace .two-col {
+		grid-template-columns: 1fr;
+	}
+	.settings-workspace .row {
+		flex-wrap: wrap;
+	}
+	.settings-workspace .row.identity-row {
+		flex-wrap: nowrap;
+	}
+}
+@media (prefers-reduced-motion: reduce) {
+	.settings-workspace .switch-row input[role='switch'],
+	.settings-workspace .switch-row input[role='switch']::after {
+		transition: none;
+	}
+}
+
+.settings-workspace[data-settings-page='appearance'] h1,
+.settings-workspace[data-settings-page='privacy'] h1 {
+	margin-bottom: 0;
+}
+.settings-workspace[data-settings-page='customisation'] h1 {
+	margin-bottom: 8px;
+}
+.settings-workspace .settings-identity .avatar {
+	width: 41px;
+	height: 41px;
+	border: 2.5px solid var(--profile-accent);
+}
+
+.settings-workspace .settings-tile.danger {
+	color: var(--red-ink);
+}
+
+/* The native shared selector owns its inner search field and option geometry. */
+.settings-workspace
+	.native-multi-select
+	.selection-search
+	input[type='search'] {
+	border: 0;
+	border-radius: 0;
+	background: transparent;
+	padding: 0;
+	min-height: 24px;
+	width: 100%;
+	min-width: 0;
+	flex: 1;
+	box-shadow: none;
+}
+.settings-workspace .native-multi-select .select-option {
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	gap: 16px;
+	margin: 0;
+	padding: 10px 14px;
+	font-weight: 400;
+}
+
+/* Native index rows fill the body; identity shares CompactProfileIdentity. */
+.settings-workspace[data-settings-page='index'] > h1 {
+	margin-bottom: 0;
+}
+.settings-workspace[data-settings-page='index'] > .settings-tile {
+	width: calc(100% + 32px);
+	margin-inline: -16px;
+}
+.settings-workspace .settings-identity {
+	padding: 12px 0 8px;
+	min-height: 76px;
+}
+.settings-workspace .settings-tile.coming-soon {
+	opacity: 0.72;
+}
+.settings-workspace .settings-tile.coming-soon .tile-leading {
+	opacity: 0.72;
+}
+
+.settings-workspace[data-settings-page='appearance'] .native-option {
+	display: grid;
+	grid-template-columns: 40px minmax(0, 1fr) 24px;
+	gap: 16px;
+	padding: 0 24px 0 16px;
+}
+.settings-workspace[data-settings-page='appearance'] input[type='radio'] {
+	appearance: none;
+	justify-self: center;
+	margin: 0;
+	width: 20px;
+	height: 20px;
+	border: 2px solid var(--ink-2);
+	border-radius: 50%;
+	background: transparent;
+}
+.settings-workspace[data-settings-page='appearance']
+	input[type='radio']:checked {
+	border-color: var(--primary);
+	background: radial-gradient(circle, var(--primary) 0 5px, transparent 5.5px);
+}
+.settings-workspace .section-heading {
+	padding: 0;
+}
+.settings-workspace[data-settings-page='languages'] .panel.stack {
+	gap: 12px;
+}
+.settings-workspace[data-settings-page='languages'] .helper {
+	margin: 0;
+}
+
+.settings-workspace[data-settings-page='privacy'] .native-option {
+	gap: 16px;
+	padding-inline: 16px 24px;
+}
+.settings-workspace[data-settings-page='account'] h1,
+.settings-workspace[data-settings-page='about'] h1 {
+	margin-bottom: 0;
+}
+.settings-workspace[data-settings-page='account'] .section-label {
+	padding-bottom: 8px;
+}

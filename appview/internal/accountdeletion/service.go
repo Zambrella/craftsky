@@ -20,8 +20,9 @@ var (
 )
 
 type CreateIntentParams struct {
-	Owner    syntax.DID
-	DeviceID string
+	Owner              syntax.DID
+	DeviceID           string
+	BrowserRedirectURI string
 }
 
 type IntentResult struct {

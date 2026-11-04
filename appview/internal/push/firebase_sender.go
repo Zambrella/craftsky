@@ -3,6 +3,7 @@ package push
 import (
 	"context"
 	"errors"
+	"net/url"
 	"strconv"
 	"time"
 	"unicode"
@@ -96,6 +97,21 @@ func (s *FirebaseSender) buildMessage(request SendRequest) (*messaging.Message, 
 	deadline := s.now().Add(request.TTL)
 
 	switch request.Platform {
+	case "web":
+		routingID, err := uuid.Parse(request.AccountSubscriptionID)
+		if err != nil || routingID == uuid.Nil {
+			return nil, ErrPushPayloadInvalid
+		}
+		path := "/app/activity"
+		query := url.Values{"pushSubscription": {routingID.String()}}
+		if request.Chat != nil {
+			path = "/app/messages"
+			query.Set("pushReference", request.Chat.OpenReference)
+		}
+		message.Webpush = &messaging.WebpushConfig{
+			Headers:    map[string]string{"TTL": strconv.FormatInt(max(1, int64(request.TTL/time.Second)), 10)},
+			FCMOptions: &messaging.WebpushFCMOptions{Link: "https://app.craftsky.social" + path + "?" + query.Encode()},
+		}
 	case "android":
 		message.Android = &messaging.AndroidConfig{TTL: &request.TTL}
 	case "ios":

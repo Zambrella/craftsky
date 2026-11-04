@@ -14,12 +14,13 @@ type chatRouteBundle struct {
 	consumer       api.ChatConsumer
 	authorization  auth.ChatAuthorizationStarter
 	allowDevScheme bool
+	webAppOrigin   string
 	logger         *slog.Logger
 }
 
 func registerChatRoutes(routes chatRouteBundle) {
 	routes.mux.Handle("GET /v1/chat/status", routes.middleware.wrap(mustPolicy("GET", "/v1/chat/status"), api.ChatStatusHandler(routes.status)))
-	routes.mux.Handle("POST /v1/chat/authorization", routes.middleware.wrap(mustPolicy("POST", "/v1/chat/authorization"), auth.ChatAuthorizationHandler(routes.authorization, routes.allowDevScheme, routes.logger)))
+	routes.mux.Handle("POST /v1/chat/authorization", routes.middleware.wrap(mustPolicy("POST", "/v1/chat/authorization"), auth.ChatAuthorizationHandlerWithBrowser(routes.authorization, routes.allowDevScheme, routes.webAppOrigin, routes.logger)))
 	routes.mux.Handle("POST /v1/chat/conversations/{id}/messages", routes.middleware.wrap(mustPolicy("POST", "/v1/chat/conversations/{id}/messages"), api.ChatSendHandler(routes.sender)))
 	routes.mux.Handle("PUT /v1/chat/connection", routes.middleware.wrap(mustPolicy("PUT", "/v1/chat/connection"), api.ChatConsumerHandler(routes.consumer, "connection")))
 	routes.mux.Handle("GET /v1/chat/conversations", routes.middleware.wrap(mustPolicy("GET", "/v1/chat/conversations"), api.ChatConsumerHandler(routes.consumer, "list")))

@@ -15,6 +15,10 @@ func TestV1RoutePoliciesUseExplicitAccessClasses(t *testing.T) {
 	t.Parallel()
 
 	wantOverrides := map[string]AccessClass{
+		"GET /v1/public/profiles/{handleOrDid}":                                                  AccessAnonymous,
+		"GET /v1/public/profiles/{handleOrDid}/posts":                                            AccessAnonymous,
+		"GET /v1/public/profiles/{handleOrDid}/projects":                                         AccessAnonymous,
+		"GET /v1/public/posts/{did}/{rkey}":                                                      AccessAnonymous,
 		"GET /v1/admin/accounts/{did}/eligibility":                                               AccessModerator,
 		"GET /v1/admin/safety/evidence/{evidenceId}/holds":                                       AccessModerator,
 		"GET /v1/admin/safety/evidence/{evidenceId}/retention-events":                            AccessModerator,

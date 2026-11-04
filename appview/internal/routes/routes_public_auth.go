@@ -51,6 +51,7 @@ type oauthRouteDependencies struct {
 	blueskyProfileProjector  auth.BlueskyProfileProjector
 	craftskyProfileProjector auth.CraftskyProfileProjector
 	loginCompleteURL         string
+	webAppOrigin             string
 	deletionCompleteURL      string
 	allowDevScheme           bool
 }
@@ -74,6 +75,7 @@ func newOAuthHandlers(deps oauthRouteDependencies) *auth.HTTPHandlers {
 	handlers.BlueskyProfileProjector = deps.blueskyProfileProjector
 	handlers.CraftskyProfileProjector = deps.craftskyProfileProjector
 	handlers.LoginCompleteURL = deps.loginCompleteURL
+	handlers.WebAppOrigin = deps.webAppOrigin
 	handlers.DeletionCompleteURL = deps.deletionCompleteURL
 	handlers.AllowDevScheme = deps.allowDevScheme
 	return handlers
@@ -131,13 +133,14 @@ func registerLogoutRoute(routes logoutRouteBundle) {
 }
 
 type accountDeletionRouteBundle struct {
-	mux        Registrar
-	middleware v1Middleware
-	service    accountdeletion.Service
+	mux          Registrar
+	middleware   v1Middleware
+	service      accountdeletion.Service
+	webAppOrigin string
 }
 
 func registerAccountDeletionRoutes(routes accountDeletionRouteBundle) {
-	routes.mux.Handle("POST /v1/account-deletion/intents", routes.middleware.wrap(mustPolicy("POST", "/v1/account-deletion/intents"), api.CreateAccountDeletionIntentHandler(routes.service)))
+	routes.mux.Handle("POST /v1/account-deletion/intents", routes.middleware.wrap(mustPolicy("POST", "/v1/account-deletion/intents"), api.CreateAccountDeletionIntentHandler(routes.service, routes.webAppOrigin)))
 	routes.mux.Handle("DELETE /v1/account-deletion/intents/{jobId}", routes.middleware.wrap(mustPolicy("DELETE", "/v1/account-deletion/intents/{jobId}"), api.CancelAccountDeletionIntentHandler(routes.service)))
 	routes.mux.Handle("POST /v1/account-deletions/{jobId}", routes.middleware.wrap(mustPolicy("POST", "/v1/account-deletions/{jobId}"), api.AcceptAccountDeletionHandler(routes.service)))
 }

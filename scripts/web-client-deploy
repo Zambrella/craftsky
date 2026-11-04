@@ -1,0 +1,145 @@
+#!/usr/bin/env python3
+"""Upload a checked web-client version for review; never promote live traffic."""
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import os
+from pathlib import Path
+import subprocess
+import sys
+import tempfile
+from urllib.parse import urlsplit
+from urllib.request import HTTPRedirectHandler, Request, build_opener
+
+ROOT = Path(__file__).resolve().parents[1]
+CLIENT = ROOT / "web-client"
+CONFIG = CLIENT / "wrangler.jsonc"
+WORKER = "craftsky-public-app"
+ACCOUNT = "5019e87cb75545b8a7279c42dd92bd90"
+
+
+def git(*args: str) -> str:
+    return subprocess.check_output(["git", *args], cwd=ROOT, text=True).strip()
+
+
+class NoRedirects(HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
+def verify(origin: str) -> None:
+    url = urlsplit(origin)
+    if (url.scheme != "https" or url.username or url.password or url.port
+            or url.path not in ("", "/") or url.query or url.fragment
+            or not (url.hostname == "app.craftsky.social"
+                    or (url.hostname or "").endswith(".workers.dev"))):
+        raise ValueError("verification requires an HTTPS app origin or Worker version origin")
+    origin = origin.rstrip("/")
+    files = {
+        "/.well-known/assetlinks.json": "verified-links/.well-known/assetlinks.json",
+        "/.well-known/apple-app-site-association": "verified-links/.well-known/apple-app-site-association",
+        "/auth/complete": "verified-links/auth/complete.html",
+        "/account-deletion/reauth-complete": "verified-links/account-deletion/reauth-complete.html",
+    }
+    opener = build_opener(NoRedirects())
+    for path in ["/", "/sign-in", *files]:
+        request = Request(origin + path, headers={
+            "User-Agent": "CraftSky-Web-Client-Deploy/1.0",
+            "Cache-Control": "no-cache",
+        })
+        with opener.open(request, timeout=15) as response:
+            body = response.read(2 * 1024 * 1024 + 1)
+            if response.status != 200 or len(body) > 2 * 1024 * 1024:
+                raise ValueError(f"unexpected response at {path}")
+            if path in files and body != (ROOT / files[path]).read_bytes():
+                raise ValueError(f"callback/association content differs at {path}")
+            expected_type = "application/json" if path.startswith("/.well-known/") else "text/html"
+            if response.headers.get("Content-Type", "").split(";")[0] != expected_type:
+                raise ValueError(f"unexpected content type at {path}")
+            if not path.startswith("/.well-known/"):
+                if response.headers.get("Cache-Control") != "no-store":
+                    raise ValueError(f"missing no-store at {path}")
+                if response.headers.get("Referrer-Policy") != "no-referrer":
+                    raise ValueError(f"missing no-referrer at {path}")
+            if url.hostname != "app.craftsky.social":
+                if "noindex" not in response.headers.get("X-Robots-Tag", "").lower().split(", "):
+                    raise ValueError(f"preview permits search indexing at {path}")
+        print(f"Verified {path}", flush=True)
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    sub = parser.add_subparsers(dest="command", required=True)
+    preview = sub.add_parser("preview", help="check, build and upload without releasing")
+    preview.add_argument("--allow-dirty", action="store_true", help="upload an experiment, not a release candidate")
+    check = sub.add_parser("verify", help="read-only smoke check after upload or dashboard promotion")
+    check.add_argument("origin")
+    args = parser.parse_args()
+    if args.command == "verify":
+        verify(args.origin)
+        return 0
+
+    config = json.loads(CONFIG.read_text())
+    if config["name"] != WORKER or config["account_id"] != ACCOUNT:
+        raise ValueError("unexpected Cloudflare web-client target")
+    commit = git("rev-parse", "HEAD")
+    dirty = bool(git("status", "--porcelain"))
+    if dirty and not args.allow_dirty:
+        raise ValueError("commit changes before uploading a release candidate, or use --allow-dirty for an experiment")
+    wrangler = ["node", str(CLIENT / "node_modules/wrangler/bin/wrangler.js")]
+    common = ["--config", str(CONFIG), "--name", WORKER]
+    env = {**os.environ, "CLOUDFLARE_ACCOUNT_ID": ACCOUNT, "WRANGLER_SEND_METRICS": "false"}
+    # Discovery must succeed: bootstrap is a separate one-time operator action.
+    subprocess.run([*wrangler, "versions", "list", *common, "--json"], cwd=CLIENT, env=env, check=True, stdout=subprocess.DEVNULL)
+    subprocess.run(["just", "web-client-check"], cwd=ROOT, env=env, check=True)
+    if git("rev-parse", "HEAD") != commit or (not args.allow_dirty and git("status", "--porcelain")):
+        raise ValueError("checkout changed during checks; upload again")
+    artifact = CLIENT / ".svelte-kit/cloudflare"
+    if list(artifact.rglob("*.map")):
+        raise ValueError("source maps must remain outside the public artifact")
+    files = {p.relative_to(artifact).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest()
+             for p in sorted(artifact.rglob("*")) if p.is_file()}
+    release = json.loads((CLIENT / ".sentry-artifacts/release.json").read_text())["release"]
+    # The alias is stable so AppView can allow exactly one preview callback origin.
+    # The immutable version URL remains the review/promotion identity.
+    with tempfile.TemporaryDirectory(prefix="craftsky-web-client-") as temporary:
+        records = Path(temporary) / "wrangler.jsonl"
+        subprocess.run([
+            *wrangler, "versions", "upload", *common, "--preview-alias", "preview",
+            "--tag", commit[:12] + ("-dirty" if dirty else ""),
+            "--message", "Web client " + commit + (" (dirty experiment)" if dirty else ""),
+            "--keep-vars",
+        ], cwd=CLIENT, env={**env, "WRANGLER_OUTPUT_FILE_PATH": str(records)}, check=True)
+        uploaded = next(item for line in records.read_text().splitlines()
+                        if (item := json.loads(line)).get("type") == "version-upload")
+    if uploaded["worker_name"] != WORKER:
+        raise ValueError("uploaded Worker does not match requested target")
+    receipt = {
+        "worker": WORKER, "commit": commit, "dirty": dirty,
+        "release": release, "versionId": uploaded["version_id"],
+        "url": uploaded.get("preview_url"), "files": files, "verified": False,
+    }
+    directory = CLIENT / ".deployments"
+    directory.mkdir(exist_ok=True)
+    path = directory / (uploaded["version_id"] + ".json")
+    def save():
+        path.write_text(json.dumps(receipt, indent=2) + "\n")
+    save()
+    print(f"Version: {receipt['versionId']}\nPreview: {receipt['url']}\nReceipt: {path}", flush=True)
+    if not receipt["url"]:
+        raise ValueError("version uploaded, but no Version URL returned; live traffic is unchanged")
+    verify(receipt["url"])
+    receipt["verified"] = True
+    save()
+    print("Upload verified. Live traffic is unchanged. Promote this version in Cloudflare when ready.", flush=True)
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        raise SystemExit(main())
+    except (ValueError, OSError, subprocess.CalledProcessError, StopIteration) as error:
+        print(f"web-client-deploy: {error}", file=sys.stderr)
+        raise SystemExit(1)
