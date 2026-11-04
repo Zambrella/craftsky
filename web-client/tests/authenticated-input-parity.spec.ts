@@ -252,3 +252,31 @@ test('draft deletion uses the shared branded confirmation in both themes', async
 		page.getByText('Draft dialog preview', { exact: true })
 	).toBeVisible();
 });
+
+for (const width of [390, 470, 900]) {
+	test(`Home app bar reserves room for the hamburger at ${width}px`, async ({
+		page
+	}) => {
+		await page.setViewportSize({ width, height: 844 });
+		await page.goto('/app/home');
+		const menu = page.getByRole('button', {
+			name: 'Open navigation',
+			exact: true
+		});
+		const title = page.getByRole('heading', { name: 'Home', exact: true });
+		await expect(menu).toBeVisible();
+		await expect(title).toBeVisible();
+		const menuBox = (await menu.boundingBox())!,
+			titleBox = (await title.boundingBox())!;
+		expect(titleBox.x).toBeGreaterThanOrEqual(menuBox.x + menuBox.width + 8);
+		expect(
+			Math.abs(
+				titleBox.y + titleBox.height / 2 - menuBox.y - menuBox.height / 2
+			)
+		).toBeLessThan(2);
+		await menu.click();
+		await expect(
+			page.getByRole('button', { name: 'Close navigation', exact: true })
+		).toBeVisible();
+	});
+}

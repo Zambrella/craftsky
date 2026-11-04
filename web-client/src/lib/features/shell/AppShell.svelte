@@ -1,4 +1,6 @@
 <script lang="ts">
+	import Snackbar from '../social/Snackbar.svelte';
+	import { notify } from '../social/toasts.svelte';
 	import { usePrompt, confirmExternalLink } from '../social/prompt';
 	import {
 		afterNavigate,
@@ -28,7 +30,15 @@
 	import { ownProfileRoute } from './navigation';
 	import { profileStyle } from '../social/model';
 	import { setContext } from 'svelte';
+	import {
+		NotificationBadge,
+		notificationBadgeContext
+	} from './notification-badge.svelte';
 	import { PageHistory, pageHistoryContext } from './page-history';
+	import {
+		Publications,
+		publicationsContext
+	} from '../social/publications.svelte';
 	import { reportFailure } from '../diagnostics/client.ts';
 	let {
 		session,
@@ -39,6 +49,7 @@
 		accounts: { id: string; did: string; handle: string }[];
 		children: Snippet<[CraftskyAPI]>;
 	} = $props();
+	setContext(publicationsContext, new Publications(untrack(() => session.did)));
 	setContext('craftsky-open-accounts', () => openAccounts());
 	const pageHistory = new PageHistory();
 	setContext(pageHistoryContext, pageHistory);
@@ -52,7 +63,13 @@
 				navigationDepth,
 				navigationDepth +
 					(navigation.type === 'popstate' ? navigation.delta : 1),
-				navigation.type === 'popstate'
+				navigation.type === 'popstate',
+				(/^\/app\/home(?:\/filters)?\/?$/.test(navigation.from.url.pathname) &&
+					/^\/app\/home(?:\/filters)?\/?$/.test(navigation.to.url.pathname)) ||
+					(navigation.from.url.pathname === '/app/search' &&
+						navigation.to.url.pathname === '/app/search' &&
+						navigation.from.url.searchParams.get('q') ===
+							navigation.to.url.searchParams.get('q'))
 			);
 	});
 	let navigationDepth = 0;
@@ -77,6 +94,24 @@
 		pageHistory.arrive(navigationDepth, navigation.type === 'popstate');
 		returning?.();
 		returning = undefined;
+	});
+	setContext('craftsky-composer-origin', () => {
+		const from = navigating.from?.url;
+		const candidates = [
+			from?.href,
+			...routeHistory.slice(0, navigationDepth).reverse()
+		];
+		for (const value of candidates) {
+			if (!value) continue;
+			const url = new URL(value);
+			if (
+				url.origin === location.origin &&
+				url.pathname.startsWith('/app/') &&
+				!url.pathname.startsWith('/app/compose')
+			)
+				return url.pathname + url.search + url.hash;
+		}
+		return undefined;
 	});
 	setContext('craftsky-return', async (destination: string) => {
 		// A route can render controls before its afterNavigate callback has run.
@@ -213,12 +248,22 @@
 	let drawer = $state(false),
 		accountMenu = $state(false),
 		error = $state(''),
-		newActivity = $state(0),
 		newMessages = $state(0),
 		onboarding = $state<OnboardingStatus>(),
 		eligibility = $state<EligibilityStatus>(),
 		ready = $state(false),
 		access = $state<SubscriptionAccess>();
+	const activityBadge = new NotificationBadge();
+	setContext(notificationBadgeContext, () => {
+		const finish = activityBadge.beginSeen();
+		let settled = false;
+		return (succeeded: boolean) => {
+			if (settled) return;
+			settled = true;
+			finish(succeeded);
+			void counts();
+		};
+	});
 	let identity = $state<Profile>();
 	let postTypeMenu = $state<HTMLDialogElement>(null!);
 	let firstPost = $state(true);
@@ -297,7 +342,6 @@
 			].includes(page.url.pathname)
 	);
 	let notice = $state('');
-	let noticeTimer: ReturnType<typeof setTimeout> | undefined;
 	let dead = false;
 	let timer: ReturnType<typeof setInterval>;
 	setContext('craftsky-access', () => access);
@@ -347,13 +391,14 @@
 	}
 	async function counts() {
 		if (dead || document.hidden || !ready) return;
+		const activityRevision = activityBadge.capture();
 		const results = await Promise.allSettled([
 			api.notifications.count(),
 			api.chat.unread()
 		]);
 		if (dead) return;
 		if (results[0].status === 'fulfilled')
-			newActivity = results[0].value.newCount;
+			activityBadge.accept(results[0].value.newCount, activityRevision);
 		if (results[1].status === 'fulfilled')
 			newMessages = results[1].value.accepted;
 	}
@@ -383,10 +428,6 @@
 			const value = detail as Record<string, unknown>;
 			if (value.accountId !== session.id || value.did !== session.did) return;
 			notice = 'Draft saved';
-			clearTimeout(noticeTimer);
-			noticeTimer = setTimeout(() => {
-				notice = '';
-			}, 4000);
 		};
 		let profileRevision = 0;
 		const profileUpdated = async (event: Event) => {
@@ -424,7 +465,6 @@
 			desktopQuery.removeEventListener('change', updateDesktop);
 			profileRevision++;
 			clearInterval(timer);
-			clearTimeout(noticeTimer);
 			window.removeEventListener('craftsky-draft-saved', draftSaved);
 			window.removeEventListener('craftsky-profile-updated', profileUpdated);
 		};
@@ -448,7 +488,7 @@
 			if (!result.ok) throw new Error();
 			location.assign('/app/home');
 		} catch {
-			error = 'The account could not be switched. Try again.';
+			notify('The account could not be switched. Try again.', true);
 		}
 	}
 	async function logout() {
@@ -476,7 +516,7 @@
 			} catch {}
 			location.assign('/app/home');
 		} catch {
-			error = 'Could not sign out. Please try again.';
+			notify('Could not sign out. Please try again.', true);
 		}
 	}
 	$effect(() => {
@@ -613,8 +653,9 @@
 					><span class="rail-icon"
 						><Icon name={key} filled={active(key)} /></span
 					><span>{label === 'Activity' ? 'Notifications' : label}</span
-					>{#if key === 'activity' && newActivity}<span class="count-badge"
-							>{newActivity > 99 ? '99+' : newActivity}</span
+					>{#if key === 'activity' && activityBadge.count}<span
+							class="count-badge"
+							>{activityBadge.count > 99 ? '99+' : activityBadge.count}</span
 						>{:else if key === 'messages' && newMessages}<span
 							class="count-badge">{newMessages > 99 ? '99+' : newMessages}</span
 						>{/if}</a
@@ -692,7 +733,7 @@
 			><Icon name="following" bold />Add account</a
 		>
 	</div>{/if}
-{#if notice}<div class="shell-notice" role="status">{notice}</div>{/if}
+{#if notice}<Snackbar message={notice} onDismiss={() => (notice = '')} />{/if}
 <main
 	id="main"
 	use:contentBounds
@@ -762,7 +803,7 @@
 			{href}
 			aria-current={active(key) ? 'page' : undefined}
 			aria-label={label}
-			aria-describedby={key === 'activity' && newActivity
+			aria-describedby={key === 'activity' && activityBadge.count
 				? 'bottom-activity-count'
 				: key === 'messages' && newMessages
 					? 'bottom-message-count'
@@ -778,11 +819,11 @@
 					author={identity || session}
 				/>{:else}<Icon name={key} filled={active(key)} />{/if}<span
 				class="visually-hidden">{label}</span
-			>{#if key === 'activity' && newActivity}<span
+			>{#if key === 'activity' && activityBadge.count}<span
 					class="bottom-count"
 					id="bottom-activity-count"
-					aria-label={`${newActivity} new activities`}
-					>{newActivity > 99 ? '99+' : newActivity}</span
+					aria-label={`${activityBadge.count} new activities`}
+					>{activityBadge.count > 99 ? '99+' : activityBadge.count}</span
 				>{:else if key === 'messages' && newMessages}<span
 					class="bottom-count"
 					id="bottom-message-count"
@@ -927,24 +968,6 @@
 		display: flex;
 		justify-content: flex-end;
 		margin-top: 16px;
-	}
-	.shell-notice {
-		position: fixed;
-		z-index: 100;
-		bottom: calc(88px + env(safe-area-inset-bottom));
-		left: calc(
-			var(--app-content-left, 0px) + var(--app-content-width, 100vw) / 2
-		);
-		transform: translateX(-50%);
-		width: calc(var(--app-content-width, 100vw) - 32px);
-		max-width: calc(100vw - 32px);
-		padding: 14px 16px;
-		border: 1.5px solid var(--ink);
-		border-radius: 14px;
-		background: var(--surface);
-		color: var(--ink);
-		box-shadow: 0 3px 8px #0003;
-		font-size: 14px;
 	}
 
 	.app-topbar.on-profile:not(.profile-scrolled) :global(.icon-button) {

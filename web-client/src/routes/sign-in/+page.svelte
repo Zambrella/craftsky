@@ -1,4 +1,6 @@
 <script lang="ts">
+	import Snackbar from '#lib/features/social/Snackbar.svelte';
+	import { fieldError } from '#lib/field-validation.ts';
 	import HandleInput from '#lib/HandleInput.svelte';
 	import { page } from '$app/state';
 	import { onMount } from 'svelte';
@@ -20,7 +22,14 @@
 			});
 			const result = await response.json();
 			if (!response.ok) {
-				message = result.message || 'Sign-in is unavailable. Please try again.';
+				if (response.status === 400 || response.status === 422)
+					fieldError(
+						'Your Atmosphere Handle',
+						result.message || 'Enter a valid handle.'
+					);
+				else
+					message =
+						result.message || 'Sign-in is unavailable. Please try again.';
 				return;
 			}
 			window.location.assign(result.authUrl);
@@ -96,7 +105,11 @@
 				>Privacy Policy</a
 			>.
 		</p>
-		{#if message}<p role="alert" class="notice error">{message}</p>{/if}
+		{#if message}<Snackbar
+				{message}
+				warning
+				onDismiss={() => (message = '')}
+			/>{/if}
 	</section>
 </div>
 

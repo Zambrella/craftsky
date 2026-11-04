@@ -4,15 +4,26 @@ import { page } from '$app/state';
 type Entry = { y: number; state: Map<string, unknown>; loading: number };
 const entry = (): Entry => ({ y: 0, state: new Map(), loading: 0 });
 export const pageHistoryContext = Symbol('page-history');
+export type PageView<T> = {
+	value: T | undefined;
+	cachedTab: boolean;
+	save: (value: T) => void;
+	ready: () => void;
+};
 
-/** Account-scoped, in-memory view state for individual browser history entries. */
+/** Account-scoped, in-memory state for history entries and adjacent list tabs. */
 export class PageHistory {
 	private entries = new Map<number, Entry>();
+	private tabs = new Map<string, Entry>();
+	private restoringTab: Entry | undefined;
+	private tabNavigation = false;
 	private current = entry();
 	private pending: Entry | undefined;
 	private popping = false;
 	private cancelRestore = () => {};
-	leave(index: number, target: number, pop: boolean) {
+	leave(index: number, target: number, pop: boolean, tabNavigation = false) {
+		this.tabNavigation = tabNavigation;
+		if (!tabNavigation) this.tabs.clear();
 		this.cancelRestore();
 		this.popping = pop;
 		this.current.y = window.scrollY;
@@ -33,19 +44,40 @@ export class PageHistory {
 		this.pending = undefined;
 		this.popping = false;
 		this.entries.set(index, this.current);
-		if (pop) this.restore(this.current);
+		if (pop || this.restoringTab === this.current) this.restore(this.current);
+		this.restoringTab = undefined;
 	}
-	view<T>(key: string) {
+	view<T>(key: string, tabKey?: string): PageView<T> {
 		const owner =
 			(this.popping && page.state.navigationIndex !== undefined
 				? this.entries.get(page.state.navigationIndex)
 				: undefined) ||
 			this.pending ||
 			this.current;
+		// Tab links reuse loaded content; other navigations still fetch fresh data.
+		if (tabKey !== undefined) {
+			const cached = this.tabs.get(tabKey);
+			if (
+				this.tabNavigation &&
+				!this.popping &&
+				cached &&
+				!owner.state.has(key)
+			) {
+				owner.state.set(key, cached.state.get(key));
+				owner.y = cached.y;
+				if (this.pending) this.restoringTab = owner;
+				else this.restore(owner);
+			}
+			this.tabs.delete(tabKey);
+			this.tabs.set(tabKey, owner);
+			while (this.tabs.size > 20)
+				this.tabs.delete(this.tabs.keys().next().value!);
+		}
 		owner.loading++;
 		let finished = false;
 		return {
 			value: owner.state.get(key) as T | undefined,
+			cachedTab: tabKey !== undefined && this.tabNavigation,
 			save: (value: T) => owner.state.set(key, value),
 			ready: () => {
 				if (!finished) {
@@ -97,9 +129,10 @@ export class PageHistory {
 	}
 }
 
-export function rememberPage<T>(key: string) {
+export function rememberPage<T>(key: string, tabKey?: string) {
 	const view = getContext<PageHistory | undefined>(pageHistoryContext)?.view<T>(
-		key
+		key,
+		tabKey
 	);
 	onDestroy(() => view?.ready());
 	return view;

@@ -40,6 +40,7 @@
 	"dependencies": {
 		"@firebase/app": "0.16.4",
 		"@firebase/messaging": "0.13.3",
+		"@rive-app/canvas": "2.49.3",
 		"@sentry/browser": "11.10.0",
 		"@zip.js/zip.js": "2.24.0",
 		"buffer": "6.0.3",

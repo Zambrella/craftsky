@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { fieldError } from '#lib/field-validation.ts';
 	import { onDestroy, untrack } from 'svelte';
 	import Icon from '../shell/Icon.svelte';
 	import { subscriptionsEnabled, comingSoon } from '../shell/release-config';
@@ -83,8 +84,11 @@
 			date.getTime() < window.earliest ||
 			date.getTime() > window.latest
 		) {
-			error =
-				'Choose a whole-minute time from 5 minutes through 28 days from now';
+			fieldError(
+				'Publish date and time',
+				'Choose a whole-minute time from 5 minutes through 28 days from now',
+				dialog
+			);
 			return;
 		}
 		onchange(true, selected);
@@ -167,6 +171,7 @@
 	>
 		<label
 			>Publish date and time<input
+				name="selected"
 				type="datetime-local"
 				bind:value={selected}
 				min={scheduledLocalDate(

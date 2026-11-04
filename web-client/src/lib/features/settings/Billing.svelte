@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { fieldError } from '#lib/field-validation.ts';
 	import SingleSelect from '#lib/SingleSelect.svelte';
 	import { usePrompt } from '../social/prompt';
 	const ask = usePrompt();
@@ -71,7 +72,11 @@
 		}
 		const did = (targets[license.id] || '').trim();
 		if (!validDid(did)) {
-			work.error = 'Enter a complete valid DID, such as did:plc:…';
+			fieldError(
+				'Account DID',
+				'Enter a complete valid DID, such as did:plc:…',
+				event.currentTarget as HTMLFormElement
+			);
 			return;
 		}
 		void work.run(

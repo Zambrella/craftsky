@@ -5,19 +5,22 @@
 </script>
 
 {#if work.loading}<p class="loading" role="status">Loading…</p>{/if}
-{#if work.error}<div class="error" role="alert">
-		<p>{work.error}</p>
-		<div class="actions">
-			{#if work.retry}<button
-					disabled={work.busy}
-					onclick={() => work.retry?.()}>Check and retry action</button
-				>{:else if reload}<button
-					disabled={work.busy || work.loading}
-					onclick={reload}>Try again</button
-				>{/if}
-		</div>
-	</div>{/if}
-{#if work.notice}<Snackbar
-		message={work.notice}
-		onDismiss={() => (work.notice = '')}
-	/>{/if}
+<Snackbar message={work.error} warning onDismiss={() => (work.error = '')}>
+	{#if work.retry}<button
+			type="button"
+			disabled={work.busy}
+			onclick={() => work.retry?.()}>Check and retry action</button
+		>
+	{:else if reload}<button
+			type="button"
+			disabled={work.busy || work.loading}
+			onclick={reload}>Try again</button
+		>{/if}
+</Snackbar>{#if !work.error && work.retry}<p class="action-recovery">
+		This action still needs confirmation. <button
+			type="button"
+			disabled={work.busy}
+			onclick={() => work.retry?.()}>Check and retry action</button
+		>
+	</p>{/if}
+<Snackbar message={work.notice} onDismiss={() => (work.notice = '')} />

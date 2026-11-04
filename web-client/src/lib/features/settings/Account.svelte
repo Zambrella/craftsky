@@ -311,6 +311,7 @@
 							</p>
 							<code>{session.did}</code><label
 								>Account identifier<input
+									name="confirmation"
 									required
 									autocomplete="off"
 									spellcheck="false"

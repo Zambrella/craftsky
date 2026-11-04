@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onDestroy, tick, untrack } from 'svelte';
+	import { preloadAdjacent } from './adjacent-image-preloader';
 	import Icon from './features/shell/Icon.svelte';
 	import { safeURL, type Image } from './public';
 	let {
@@ -18,9 +19,26 @@
 	const pictures = $derived(
 		images.filter((image) => !!safeURL(image.fullsize))
 	);
+	const displayURLs = $derived(
+		pictures.map((picture) =>
+			safeURL(detail ? picture.fullsize : picture.thumb || picture.fullsize)
+		)
+	);
+	let available = $state<string[]>([]);
+	function decoded(index: number) {
+		const window = displayURLs.slice(Math.max(0, index - 1), index + 2);
+		available = [
+			...new Set([
+				...available.filter((url) => displayURLs.includes(url)),
+				...window.filter((url): url is string => !!url)
+			])
+		];
+	}
 	let gallery = $state<HTMLDivElement>();
 	let description = $state<HTMLDialogElement>();
-	let active = $state(0);
+	let active = $state(
+		untrack(() => Math.max(0, pictures.indexOf(images[initialIndex])))
+	);
 	let signature = '';
 	let requested: number | undefined;
 	let previousDistance = Infinity;
@@ -228,14 +246,26 @@
 						);
 					}}
 					><img
-						src={safeURL(
-							detail ? picture.fullsize : picture.thumb || picture.fullsize
-						)}
+						src={index === active ||
+						available.includes(displayURLs[index] || '')
+							? displayURLs[index]
+							: undefined}
+						use:preloadAdjacent={{
+							urls: displayURLs,
+							index,
+							active: index === active,
+							onDecoded: () => decoded(index)
+						}}
+						decoding="async"
 						alt={picture.alt}
 						width={picture.aspectRatio?.width}
 						height={picture.aspectRatio?.height}
-						loading={detail && index === 0 ? 'eager' : 'lazy'}
-						fetchpriority={detail && index === 0 ? 'high' : 'auto'}
+						loading={index === active && !detail ? 'lazy' : 'eager'}
+						fetchpriority={index === active
+							? detail
+								? 'high'
+								: 'auto'
+							: 'low'}
 					/></a
 				>{/each}
 		</div>

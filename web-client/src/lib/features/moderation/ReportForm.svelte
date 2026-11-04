@@ -6,14 +6,12 @@
 	let {
 		subject,
 		busy = false,
-		error = '',
 		onRetry,
 		onSubmit,
 		onCancel
 	}: {
 		subject: string;
 		busy?: boolean;
-		error?: string;
 		onRetry?: () => unknown;
 		onSubmit: (value: ReportSubmission) => void;
 		onCancel: () => void;
@@ -128,15 +126,14 @@
 					</p>{/if}
 				{#if group !== 'intellectualProperty'}<label class="details-label"
 						>Details<textarea
+							name="details"
 							bind:value={details}
 							maxlength="1000"
 							rows="4"
 							disabled={busy}></textarea></label
 					>
 					<p class="details-count">{details.length}/1000</p>{/if}{/if}
-			{#if error}<p class="report-error" role="alert">
-					{error}
-				</p>{/if}{#if onRetry}<button
+			{#if onRetry}<button
 					type="button"
 					disabled={busy}
 					onclick={() => onRetry?.()}>Retry the same action</button
@@ -258,10 +255,7 @@
 		line-height: 1.5;
 		margin: 8px 0;
 	}
-	.report-error {
-		color: var(--red-ink);
-		font-size: 14px;
-	}
+
 	@media (max-width: 600px) {
 		.report-page {
 			position: fixed;

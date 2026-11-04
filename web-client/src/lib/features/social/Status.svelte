@@ -1,7 +1,7 @@
 <script lang="ts">
 	import type { Work } from './work.svelte';
 	import Skeleton from './Skeleton.svelte';
-	import Icon from '../shell/Icon.svelte';
+	import Snackbar from './Snackbar.svelte';
 	let {
 		work,
 		skeleton,
@@ -19,15 +19,20 @@
 		/>{:else}<p role="status" class="social-loading">
 			<span aria-hidden="true"></span>Loading…
 		</p>{/if}{/if}
-{#if work.error}<div class="notice error" role="alert">
-		<p>{work.error}</p>
-		<Icon name="shield" />
-		{#if work.retry || reload}<button
-				disabled={work.busy}
-				onclick={() => (work.retry ? void work.retry() : reload?.())}
-				>Retry</button
-			>{/if}
-	</div>{/if}
+<Snackbar message={work.error} warning onDismiss={() => (work.error = '')}>
+	{#if work.retry || reload}<button
+			type="button"
+			disabled={work.busy}
+			onclick={() => (work.retry ? void work.retry() : reload?.())}
+			>Retry</button
+		>{/if}
+</Snackbar>{#if !work.error && work.retry}<p>
+		This action still needs confirmation. <button
+			type="button"
+			disabled={work.busy}
+			onclick={() => work.retry?.()}>Retry</button
+		>
+	</p>{/if}
 
 <style>
 	.social-loading {
@@ -45,9 +50,6 @@
 		border: 2px dashed var(--primary);
 		border-radius: 50%;
 		animation: spin 1.2s linear infinite;
-	}
-	.error {
-		margin: 16px;
 	}
 	@keyframes spin {
 		to {

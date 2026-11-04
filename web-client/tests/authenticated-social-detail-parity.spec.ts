@@ -1616,3 +1616,134 @@ test('draft app bars share the standard app header and profile focus uses ink ra
 		path: test.info().outputPath('profile-field-focus.png')
 	});
 });
+
+for (const width of [390, 1280]) {
+	test(`feed comment action opens the loaded comments section at ${width}px`, async ({
+		page
+	}) => {
+		await page.setViewportSize({ width, height: 844 });
+		await timeline(
+			page,
+			post('first', {
+				text: 'A long story about making things.\n\n'.repeat(100)
+			})
+		);
+		let release!: () => void;
+		const pending = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		await page.route('**/api/appview/v1/posts/**/comments*', async (route) => {
+			await pending;
+			await route.fulfill({ json: { comments: { items: [], cursor: null } } });
+		});
+		await page.goto('/app/home');
+		const comment = page
+			.getByRole('link', { name: 'Comments', exact: true })
+			.first();
+		await expect(comment).toHaveAttribute('href', /\?show-comments=true$/);
+		try {
+			await comment.click();
+			await expect(page).toHaveURL(/show-comments=true/);
+			await expect(page.locator('.skeleton').first()).toBeVisible();
+		} finally {
+			release();
+		}
+		const comments = page.getByRole('region', {
+			name: 'Comments',
+			exact: true
+		});
+		await expect(comments).toBeVisible();
+		await expect
+			.poll(async () => (await comments.boundingBox())!.y)
+			.toBeGreaterThanOrEqual(56);
+		await expect
+			.poll(async () => (await comments.boundingBox())!.y)
+			.toBeLessThan(160);
+		expect(await page.evaluate(() => scrollY)).toBeGreaterThan(1000);
+		await expect(
+			page
+				.locator('.post-actions')
+				.getByRole('link', { name: 'Comments', exact: true })
+		).toHaveAttribute('href', /\/compose\/reply\?/);
+		await expect(
+			page.getByRole('link', { name: 'Add a comment', exact: true })
+		).toBeVisible();
+		// Opening the post body retains the ordinary top-of-post destination.
+		await page.getByRole('link', { name: 'Back', exact: true }).click();
+		await page.locator('.post-card .prose').first().click();
+		await expect(page).not.toHaveURL(/show-comments/);
+		await expect(page.locator('.post-detail')).toBeVisible();
+		await expect.poll(() => page.evaluate(() => scrollY)).toBe(0);
+	});
+}
+
+for (const target of ['/app/home', '/app/posts/did%3Aplc%3Abob/first']) {
+	test(`comment icon hover matches the other post actions on ${target}`, async ({
+		page
+	}) => {
+		await timeline(page, post());
+		await page.goto(target);
+		const card = page.locator('.member-post').first();
+		const comment = card.getByRole('link', { name: 'Comments', exact: true });
+		const like = card.getByRole('button', { name: 'Like', exact: true });
+		await expect(comment).toBeVisible();
+		const cardIdle = await card.evaluate(
+			(n) => getComputedStyle(n).backgroundColor
+		);
+		await like.hover();
+		await like.evaluate(async (node) => {
+			await Promise.all(
+				node.getAnimations().map((animation) => animation.finished)
+			);
+		});
+		const otherAction = await like.evaluate((n) => {
+			const s = getComputedStyle(n);
+			return {
+				background: s.backgroundColor,
+				radius: s.borderRadius,
+				color: s.color
+			};
+		});
+		const before = await comment.boundingBox();
+		await comment.hover();
+		await expect(comment).toHaveCSS('background-color', otherAction.background);
+		await expect(comment).toHaveCSS('border-radius', otherAction.radius);
+		await expect(comment).toHaveCSS('color', otherAction.color);
+		await expect(comment).toHaveCSS('text-decoration-line', 'none');
+		await expect(comment).toHaveCSS('box-shadow', 'none');
+		await expect(comment).toHaveCSS('transform', 'none');
+		await expect(card).toHaveCSS('background-color', cardIdle);
+		expect(await comment.boundingBox()).toEqual(before);
+	});
+}
+
+for (const colorScheme of ['light', 'dark'] as const) {
+	test(`full-width Comment button retains its primary background and text on hover in ${colorScheme}`, async ({
+		page
+	}) => {
+		await page.emulateMedia({ colorScheme });
+		await timeline(page, post());
+		await page.goto('/app/posts/did%3Aplc%3Abob/first');
+		const button = page.getByRole('link', {
+			name: 'Add a comment',
+			exact: true
+		});
+		await expect(button).toBeVisible();
+		const textColor = await button.evaluate((n) => getComputedStyle(n).color);
+		const expectedBackground = await button.evaluate((n) => {
+			const sample = document.createElement('span');
+			sample.style.background = 'var(--primary-hover)';
+			n.append(sample);
+			const expected = getComputedStyle(sample).backgroundColor;
+			sample.remove();
+			return expected;
+		});
+		await button.hover();
+		await expect(button).toHaveCSS('background-color', expectedBackground);
+		await expect(button).toHaveCSS('color', textColor);
+		await expect(button.locator('svg')).toHaveCSS('color', textColor);
+		await expect(button).toHaveCSS('transform', 'none');
+		await button.click();
+		await expect(page).toHaveURL(/\/compose\/reply/);
+	});
+}

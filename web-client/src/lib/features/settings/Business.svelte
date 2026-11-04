@@ -1,4 +1,10 @@
 <script lang="ts">
+	import {
+		FieldValidationError,
+		presentFieldErrors,
+		showFieldError,
+		fieldError
+	} from '#lib/field-validation.ts';
 	import { dragScroll } from '#lib/drag-scroll.ts';
 	import SingleSelect from '#lib/SingleSelect.svelte';
 	import { usePrompt } from '../social/prompt';
@@ -260,24 +266,37 @@
 		requireRecordText(area, 'Service area', 200, 2000);
 		requireRecordText(locality, 'Town or locality', 100, 1000);
 		if (types.length > 5 || offers.length > 10)
-			throw new Error('Choose at most five business types and ten offerings.');
+			throw new FieldValidationError(
+				types.length > 5 ? 'Business types' : 'What you offer',
+				'Choose at most five business types and ten offerings.'
+			);
 		if (country && !/^[A-Z]{2}$/.test(country))
-			throw new Error('Use a two-letter country code, such as GB or US.');
+			throw new FieldValidationError(
+				'Country code',
+				'Use a two-letter country code, such as GB or US.'
+			);
 		if (locality && !country)
-			throw new Error('Choose a country for your locality.');
+			throw new FieldValidationError(
+				'Country code',
+				'Choose a country for your locality.'
+			);
 		if (action) {
 			if (
 				action === 'email'
 					? !/^mailto:[^\s@,;?%]+@[^\s@,;?%]+\.[^\s@,;?%]+$/.test(destination)
 					: !https(destination)
 			)
-				throw new Error(
+				throw new FieldValidationError(
+					'Action destination',
 					action === 'email'
 						? 'Use a mailto: email address.'
 						: 'Use a secure HTTPS action destination.'
 				);
 		} else if (destination)
-			throw new Error('Choose an action for this destination.');
+			throw new FieldValidationError(
+				'Primary action',
+				'Choose an action for this destination.'
+			);
 		return {
 			businessTypes: [...types],
 			offerings: [...offers],
@@ -318,6 +337,7 @@
 				section === 'products' ? 'Products saved.' : 'Business profile saved.'
 			);
 		} catch (error) {
+			if (presentFieldErrors(error)) return;
 			work.error =
 				error instanceof Error ? error.message : 'Check your business details.';
 		}
@@ -372,7 +392,10 @@
 			!['image/jpeg', 'image/png', 'image/webp'].includes(file.type) ||
 			file.size > 40000000
 		) {
-			work.error = 'Choose a JPEG, PNG or WebP image smaller than 40 MB.';
+			showFieldError(
+				event.currentTarget as HTMLInputElement,
+				'Choose a JPEG, PNG or WebP image smaller than 40 MB.'
+			);
 			return;
 		}
 		await openImage(index, {
@@ -433,9 +456,13 @@
 			requireRecordText(eventName, 'Event name', 200, 2000);
 			requireRecordText(summary, 'Summary', 1000, 10000);
 			requireRecordText(venue, 'Venue name', 200, 2000);
-			if (!eventName.trim()) throw new Error('Enter an event name.');
+			if (!eventName.trim())
+				throw new FieldValidationError('Event name', 'Enter an event name.');
 			if (!eventRoles.length || eventRoles.length > 4)
-				throw new Error('Choose between one and four roles.');
+				throw new FieldValidationError(
+					'Your roles',
+					'Choose between one and four roles.'
+				);
 			const startsAt = zonedTimestamp(
 					allDay ? `${start.slice(0, 10)}T00:00` : start,
 					timeZone
@@ -446,14 +473,23 @@
 				);
 			const duration = Date.parse(endsAt) - Date.parse(startsAt);
 			if (duration <= 0 || duration > 31 * 86400000)
-				throw new Error('The end must be after the start, within 31 days.');
+				throw new FieldValidationError(
+					'Ends',
+					'The end must be after the start, within 31 days.'
+				);
 			if (
 				(eventUri && !https(eventUri)) ||
 				(registrationUri && !https(registrationUri))
 			)
-				throw new Error('Use secure HTTPS event and registration links.');
+				throw new FieldValidationError(
+					eventUri && !https(eventUri) ? 'Event website' : 'Registration link',
+					'Use secure HTTPS event and registration links.'
+				);
 			if (eventUri && eventUri === registrationUri)
-				throw new Error('Event and registration links must be different.');
+				throw new FieldValidationError(
+					'Registration link',
+					'Event and registration links must be different.'
+				);
 			const body: JsonObject = {
 				name: eventName.trim(),
 				startsAt,
@@ -508,6 +544,7 @@
 				original ? 'Event updated.' : 'Event created.'
 			);
 		} catch (error) {
+			if (presentFieldErrors(error)) return;
 			work.error =
 				error instanceof Error ? error.message : 'Check your event details.';
 		}
@@ -627,21 +664,31 @@
 							Other offerings: {unknownOffers.map(title).join(', ')}.
 						</p>{/if}
 				</div>
-				<label>Tagline<textarea rows="2" bind:value={tagline}></textarea></label
+				<label
+					>Tagline<textarea name="tagline" rows="2" bind:value={tagline}
+					></textarea></label
 				><label
-					>Opening hours<textarea rows="4" bind:value={hours}></textarea></label
+					>Opening hours<textarea name="hours" rows="4" bind:value={hours}
+					></textarea></label
 				><label
-					>Service area<textarea rows="3" bind:value={area}></textarea></label
+					>Service area<textarea name="area" rows="3" bind:value={area}
+					></textarea></label
 				>
 				<div class="two-col">
 					<label
 						>Country code<input
+							name="country"
 							maxlength="2"
 							bind:value={country}
 							oninput={() => (country = country.toUpperCase())}
 							placeholder="GB"
 						/></label
-					><label>Town or locality<input bind:value={locality} /></label>
+					><label
+						>Town or locality<input
+							name="locality"
+							bind:value={locality}
+						/></label
+					>
 				</div>
 				<SingleSelect
 					label="Primary action"
@@ -656,6 +703,7 @@
 					onchange={(value) => (action = value)}
 				/><label
 					>Action destination<input
+						name="destination"
 						bind:value={destination}
 						placeholder={action === 'email'
 							? 'mailto:hello@example.com'
@@ -689,13 +737,7 @@
 					>Set up business profile</a
 				>
 			</section>{:else}<form class="stack" onsubmit={saveProfile}>
-				<fieldset
-					class="form-fields"
-					disabled={work.busy ||
-						!!work.retry ||
-						!!imageEditor ||
-						imageTransformBusy}
-				>
+				<div class="stack">
 					<p class="muted" aria-live="polite">
 						{products.length} of 4 products
 					</p>
@@ -732,97 +774,115 @@
 									}}
 								>
 									<Feedback {work} />
-									<div class="stack product-editor">
-										<div class="row">
-											<h2>
-												{productSnapshot && index < productSnapshot.length
-													? 'Edit product'
-													: 'Add product'}
-											</h2>
+									<fieldset
+										class="form-fields"
+										disabled={work.busy ||
+											!!work.retry ||
+											!!imageEditor ||
+											imageTransformBusy}
+									>
+										<div class="stack product-editor">
+											<div class="row">
+												<h2>
+													{productSnapshot && index < productSnapshot.length
+														? 'Edit product'
+														: 'Add product'}
+												</h2>
+												<div class="actions">
+													<button
+														type="button"
+														disabled={work.busy || index === 0}
+														aria-label={`Move product ${index + 1} up`}
+														onclick={() => move(index, -1)}>↑</button
+													><button
+														type="button"
+														disabled={work.busy ||
+															index === products.length - 1}
+														aria-label={`Move product ${index + 1} down`}
+														onclick={() => move(index, 1)}>↓</button
+													><button
+														type="button"
+														class="danger"
+														disabled={work.busy}
+														onclick={() => {
+															products = products.filter((_, i) => i !== index);
+															productEditor = null;
+															saveProfile();
+														}}>Remove</button
+													>
+												</div>
+											</div>
+											<label
+												>Title<input
+													name="product.title"
+													required
+													bind:value={product.title}
+												/></label
+											><label
+												>Destination link<input
+													name="product.uri"
+													type="url"
+													required
+													bind:value={product.uri}
+													placeholder="https://…"
+												/></label
+											>{#if product.image?.thumb}<img
+													class="preview-image"
+													src={product.image.thumb}
+													alt={product.image.alt}
+												/>{/if}<label
+												>{product.image
+													? 'Replace image'
+													: 'Product image'}<input
+													type="file"
+													accept="image/jpeg,image/png,image/webp"
+													disabled={work.busy}
+													onchange={(event) => upload(event, index)}
+												/></label
+											>{#if product.image}<button
+													type="button"
+													disabled={work.busy}
+													onclick={() => editImage(index, product.image!)}
+													>Edit image</button
+												><label
+													>Image alternative text<textarea
+														name="product.image.alt"
+														bind:value={product.image.alt}></textarea></label
+												>{/if}
+											<div class="two-col">
+												<label
+													>Price · optional<input
+														name="product.amount"
+														inputmode="decimal"
+														bind:value={product.amount}
+														placeholder="24.5"
+													/></label
+												><SingleSelect
+													label="Currency"
+													value={product.currency}
+													options={[
+														{ id: '', label: 'None' },
+														...currencyOptions.map((currency) => ({
+															id: currency.code,
+															label: currency.label
+														}))
+													]}
+													onchange={(value) => (product.currency = value)}
+												/>
+											</div>
 											<div class="actions">
 												<button
-													type="button"
-													disabled={work.busy || index === 0}
-													aria-label={`Move product ${index + 1} up`}
-													onclick={() => move(index, -1)}>↑</button
+													class="primary"
+													disabled={work.busy || !!work.retry}
+													>Save product</button
 												><button
 													type="button"
-													disabled={work.busy || index === products.length - 1}
-													aria-label={`Move product ${index + 1} down`}
-													onclick={() => move(index, 1)}>↓</button
-												><button
-													type="button"
-													class="danger"
-													disabled={work.busy}
-													onclick={() => {
-														products = products.filter((_, i) => i !== index);
-														productEditor = null;
-														saveProfile();
-													}}>Remove</button
+													disabled={work.busy || !!work.retry}
+													onclick={cancelProduct}>Cancel</button
 												>
 											</div>
 										</div>
-										<label
-											>Title<input required bind:value={product.title} /></label
-										><label
-											>Destination link<input
-												type="url"
-												required
-												bind:value={product.uri}
-												placeholder="https://…"
-											/></label
-										>{#if product.image?.thumb}<img
-												class="preview-image"
-												src={product.image.thumb}
-												alt={product.image.alt}
-											/>{/if}<label
-											>{product.image ? 'Replace image' : 'Product image'}<input
-												type="file"
-												accept="image/jpeg,image/png,image/webp"
-												disabled={work.busy}
-												onchange={(event) => upload(event, index)}
-											/></label
-										>{#if product.image}<button
-												type="button"
-												disabled={work.busy}
-												onclick={() => editImage(index, product.image!)}
-												>Edit image</button
-											><label
-												>Image alternative text<textarea
-													bind:value={product.image.alt}></textarea></label
-											>{/if}
-										<div class="two-col">
-											<label
-												>Price · optional<input
-													inputmode="decimal"
-													bind:value={product.amount}
-													placeholder="24.5"
-												/></label
-											><SingleSelect
-												label="Currency"
-												value={product.currency}
-												options={[
-													{ id: '', label: 'None' },
-													...currencyOptions.map((currency) => ({
-														id: currency.code,
-														label: currency.label
-													}))
-												]}
-												onchange={(value) => (product.currency = value)}
-											/>
-										</div>
-										<div class="actions">
-											<button
-												class="primary"
-												disabled={work.busy || !!work.retry}
-												>Save product</button
-											><button
-												type="button"
-												disabled={work.busy || !!work.retry}
-												onclick={cancelProduct}>Cancel</button
-											>
-										</div>
-									</div>
+									</fieldset>
 								</dialog>{/if}
 						</section>{/each}
 					<div class="actions product-actions">
@@ -837,7 +897,7 @@
 								><SettingsIcon name="plus" />Add product</button
 							>{/if}
 					</div>
-				</fieldset>
+				</div>
 			</form>{/if}
 	{:else if section === 'events'}
 		<section class="events-manager">
@@ -940,7 +1000,13 @@
 							imageTransformBusy}
 					>
 						<h2>{editing ? 'Edit event' : 'Create event'}</h2>
-						<label>Event name<input required bind:value={eventName} /></label>
+						<label
+							>Event name<input
+								name="eventName"
+								required
+								bind:value={eventName}
+							/></label
+						>
 						<label class="switch-row"
 							><span class="tile-copy">All-day event</span><input
 								type="checkbox"
@@ -952,12 +1018,14 @@
 						<div class="two-col">
 							<label
 								>Starts<input
+									name="start"
 									type={allDay ? 'date' : 'datetime-local'}
 									required
 									bind:value={start}
 								/></label
 							><label
 								>Ends<input
+									name="end"
 									type={allDay ? 'date' : 'datetime-local'}
 									required
 									bind:value={end}
@@ -1016,15 +1084,21 @@
 								onchange={(value) => (status = value)}
 							/>
 						</div>
-						<label>Summary<textarea bind:value={summary}></textarea></label>
-						<label>Venue name<input bind:value={venue} /></label><label
+						<label
+							>Summary<textarea name="summary" bind:value={summary}
+							></textarea></label
+						>
+						<label>Venue name<input name="venue" bind:value={venue} /></label
+						><label
 							>Event website<input
+								name="eventUri"
 								type="url"
 								bind:value={eventUri}
 								placeholder="https://…"
 							/></label
 						><label
 							>Registration link<input
+								name="registrationUri"
 								type="url"
 								bind:value={registrationUri}
 								placeholder="https://…"
@@ -1045,8 +1119,9 @@
 								disabled={work.busy}
 								onclick={() => editImage(null, eventImage!)}>Edit image</button
 							><label
-								>Image alternative text<textarea bind:value={eventImage.alt}
-								></textarea></label
+								>Image alternative text<textarea
+									name="eventImage.alt"
+									bind:value={eventImage.alt}></textarea></label
 							><button
 								type="button"
 								disabled={work.busy}
@@ -1097,7 +1172,6 @@
 			onremove={cancelImage}
 			onmove={() => {}}
 		/>
-		{#if work.error}<p class="error" role="alert">{work.error}</p>{/if}
 		<div class="actions">
 			<button
 				class="primary"

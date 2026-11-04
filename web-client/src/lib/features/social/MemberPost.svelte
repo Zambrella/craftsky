@@ -2,6 +2,8 @@
 	import SingleSelect from '#lib/SingleSelect.svelte';
 	import ImageGallery from './ImageGallery.svelte';
 	import Snackbar from './Snackbar.svelte';
+	import { notify } from './toasts.svelte';
+	import { Publications, publicationsContext } from './publications.svelte';
 	import { contextMenu } from './context-menu';
 	import { subscriptionsEnabled, comingSoon } from '../shell/release-config';
 	import { goto } from '$app/navigation';
@@ -25,6 +27,7 @@
 	import ExpandableBody from './ExpandableBody.svelte';
 	import VideoPlayer from './VideoPlayer.svelte';
 	import Icon from '../shell/Icon.svelte';
+	import LikeReaction from './LikeReaction.svelte';
 	import PostSummary from './PostSummary.svelte';
 	import ConfirmAction from './ConfirmAction.svelte';
 	import { compactDate } from '#lib/public.ts';
@@ -44,6 +47,7 @@
 		api,
 		did,
 		detail = false,
+		flat = false,
 		initialImageCid,
 		savedAt,
 		onRemove = () => {},
@@ -54,11 +58,15 @@
 		api: CraftskyAPI;
 		did: string;
 		detail?: boolean;
+		flat?: boolean;
 		initialImageCid?: string;
 		savedAt?: string;
 		onRemove?: () => void;
 		onMoved?: () => void;
 	} = $props();
+	const publications = getContext<Publications | undefined>(
+		publicationsContext
+	);
 	const dialogId = $props.id();
 	const access =
 		getContext<() => SubscriptionAccess | undefined>('craftsky-access');
@@ -90,10 +98,13 @@
 	let galleryOpen = $state(false);
 	let imageIndex = $state(0);
 	let inlineImageIndex = $state(0);
+	let cardElement = $state<HTMLElement>();
+	let heart = $state<{ play: () => void; cancel: () => void }>();
 	let revision = 0;
 	$effect(() => {
-		const incoming = value;
+		const incoming = publications?.overlay(value) || value;
 		revision++;
+		heart?.cancel();
 		post = visible(incoming) ? incoming : undefined;
 		revealed = false;
 		message = '';
@@ -129,6 +140,7 @@
 			retry = undefined;
 		} catch (error) {
 			if (dead || captured !== revision) return;
+			heart?.cancel();
 			messageError = true;
 			message =
 				error instanceof APIError
@@ -144,7 +156,11 @@
 		}
 	}
 	function toggle(kind: 'like' | 'repost') {
-		if (!post) return;
+		if (!post || busy || retry) return;
+		if (kind === 'like') {
+			if (post.viewerHasLiked) heart?.cancel();
+			else heart?.play();
+		}
 		const p = post,
 			key = newOperationKey();
 		const active = kind === 'like' ? p.viewerHasLiked : p.viewerHasReposted;
@@ -187,6 +203,9 @@
 					viewerSavedFolderId: folderId
 				};
 				folderDialog?.close();
+				notify(
+					post.viewerHasSaved ? 'Post saved.' : 'Post removed from saved posts.'
+				);
 				if (savedAt && move) onMoved();
 			}
 		);
@@ -293,7 +312,11 @@
 			key = newOperationKey();
 		void action(
 			() => api.posts.delete(p.author.did, p.rkey, p.cid, key),
-			onRemove
+			() => {
+				publications?.remove(p.uri);
+				notify('Post deleted.');
+				onRemove();
+			}
 		);
 	}
 	function showGallery(event: MouseEvent) {
@@ -410,11 +433,14 @@
 	</article>{:else}
 	<div
 		class="member-post"
+		bind:this={cardElement}
 		class:flat-saved={!!savedAt}
+		class:flat-reply={flat}
 		style={profileStyle(post.author.customisation)}
 		onclick={showGallery}
 		role="presentation"
 	>
+		<LikeReaction bind:this={heart} host={cardElement} />
 		{#if reason && !savedAt}<a
 				class="repost-attribution"
 				href={'/app/profile/' + encodeURIComponent(reason.did)}
@@ -542,7 +568,7 @@
 						href={post.reply || detail
 							? '/app/compose/reply?' +
 								new URLSearchParams({ did: post.author.did, rkey: post.rkey })
-							: postRoute(post)}
+							: postRoute(post) + '?show-comments=true'}
 						><Icon name="comment" size={22} /><span
 							>{post.reply ? 'Reply' : post.replyCount || ''}</span
 						></a
@@ -683,7 +709,6 @@
 					: `This removes the ${post.reply ? (post.reply.parent.uri === post.reply.root.uri ? 'comment' : 'reply') : 'post'} from CraftSky.`}
 				confirmLabel={confirmation === 'block' ? 'Block' : 'Delete'}
 				{busy}
-				error={message}
 				onRetry={retry}
 				onConfirm={() =>
 					confirmation === 'block' ? relationship('block', true) : remove()}
@@ -696,24 +721,30 @@
 						: 'reply'
 					: 'post'}
 				{busy}
-				error={message}
 				onRetry={retry}
 				onSubmit={report}
 				onCancel={() => (reportOpen = false)}
 			/>{/if}
-		{#if message && !messageError}<Snackbar
+		{#if message}<Snackbar
 				{message}
-				onDismiss={() => (message = '')}
-			/>{:else if message}<p role="status" class="notice">
-				{message}{#if retry}<button disabled={busy} onclick={() => retry?.()}
-						>Retry the same action</button
-					><button
-						onclick={() => {
-							retry = undefined;
-							message = '';
-							messageError = false;
-						}}>Dismiss</button
+				warning={messageError}
+				onDismiss={() => {
+					message = '';
+					messageError = false;
+				}}
+			>
+				{#if retry}<button
+						type="button"
+						disabled={busy}
+						onclick={() => retry?.()}>Retry the same action</button
 					>{/if}
+			</Snackbar>{/if}
+		{#if !message && retry}<p class="action-recovery">
+				This action still needs confirmation. <button
+					type="button"
+					disabled={busy}
+					onclick={() => retry?.()}>Retry the same action</button
+				>
 			</p>{/if}
 	</div>
 	<dialog
@@ -737,7 +768,6 @@
 			<SingleSelect
 				label="Folder"
 				value={selectedFolder}
-				required
 				showRequired={false}
 				options={[
 					{ id: '', label: 'No folder' },
@@ -748,6 +778,7 @@
 			/>
 			{#if plus}{#if creatingFolder}<label
 						>Folder name<input
+							name="folderName"
 							bind:value={folderName}
 							maxlength="80"
 							disabled={busy}
@@ -968,6 +999,23 @@
 			margin-left: 10px;
 			margin-right: 10px;
 		}
+	}
+
+	.member-post.flat-reply {
+		margin: 0;
+		padding: 0 12px 12px;
+		border: 0;
+		border-radius: 0;
+		box-shadow: none;
+		background: transparent;
+	}
+	.flat-reply :global(.post-card) {
+		padding: 12px 0;
+		border-radius: 0;
+	}
+	.flat-reply .post-actions {
+		margin: 0 -4px;
+		border-top: 0;
 	}
 
 	.member-post.flat-saved {

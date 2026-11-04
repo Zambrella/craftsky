@@ -9,6 +9,7 @@
 		type Author
 	} from '#lib/api/client.ts';
 	import MemberPost from './MemberPost.svelte';
+	import { Publications, publicationsContext } from './publications.svelte';
 	import { visible, postAddress } from './model';
 	import { rememberPage } from '../shell/page-history';
 	import { Work } from './work.svelte';
@@ -31,6 +32,9 @@
 		rkey: string;
 		section?: string;
 	} = $props();
+	const publications = getContext<Publications | undefined>(
+		publicationsContext
+	);
 	const back = getContext<(event: MouseEvent) => void>('craftsky-back');
 	const historyView = rememberPage<{
 		pages: number;
@@ -53,12 +57,30 @@
 		historyView?.save({ pages: loadedPages, sort, collapsed: [...collapsed] });
 	});
 	const focused = page.url.searchParams.get('focus') || undefined;
+	const showComments = $derived(
+		!section && page.url.searchParams.get('show-comments') === 'true'
+	);
+	let commentsSection = $state<HTMLElement>();
 	onMount(() => {
 		void (async () => {
+			const returning = !!historyView?.value?.pages;
 			const pages = historyView?.value?.pages || 1;
 			await load();
 			while (!dead && cursor && !work.error && loadedPages < pages)
 				await load(true);
+			await tick();
+			if (
+				!dead &&
+				showComments &&
+				!focused &&
+				!returning &&
+				post &&
+				!work.error
+			)
+				commentsSection?.scrollIntoView({
+					block: 'start',
+					behavior: 'instant'
+				});
 			historyView?.ready();
 		})();
 	});
@@ -109,6 +131,7 @@
 					return;
 				}
 				loadedPages = more ? loadedPages + 1 : 1;
+				if (result.root) publications?.observe([result.root]);
 				post = result.root;
 				if (result.kind === 'people') {
 					people = more ? [...people, ...result.page.items] : result.page.items;
@@ -117,9 +140,11 @@
 					quotes = more ? [...quotes, ...result.page.items] : result.page.items;
 					cursor = result.page.cursor;
 				} else {
-					comments = more
+					const values = more
 						? [...comments, ...result.page.comments.items]
 						: result.page.comments.items;
+					comments =
+						publications?.comments(values, result.root?.uri || '') || values;
 					cursor = result.page.comments.cursor;
 					focusMessage =
 						result.page.focus && result.page.focus.status !== 'included'
@@ -156,7 +181,11 @@
 						? [...comment.replies.items, ...result.items]
 						: result.items
 				};
-				comments = [...comments];
+				comments = comments.map((item) =>
+					item.post.uri === comment.post.uri ? comment : item
+				);
+				comments =
+					publications?.comments(comments, post?.uri || '') || comments;
 				collapsed = collapsed.filter((uri) => uri !== address.uri);
 			}
 		);
@@ -194,7 +223,7 @@
 		detail
 		initialImageCid={page.url.searchParams.get('imageCid') || undefined}
 		onRemove={() => {
-			location.href = '/app/home';
+			void goto('/app/home');
 		}}
 	/>{/if}
 {#if !section && post && visible(post) && (post.likeCount || post.repostCount || post.quoteCount)}<nav
@@ -238,91 +267,103 @@
 		/>{:else}{#if !work.busy}<p class="empty">
 				No quotes yet.
 			</p>{/if}{/each}{:else}
-	<div class="comments-heading">
-		<h2 class="visually-hidden">Comments</h2>
-		<ChoiceMenu
-			label="Comment order"
-			value={sort}
-			disabled={work.busy}
-			options={[
-				{ value: 'newest', label: 'Newest', icon: 'sort' },
-				{ value: 'oldest', label: 'Oldest', icon: 'filter' },
-				{ value: 'follows', label: 'Follows', icon: 'following' }
-			]}
-			onchange={(value) => {
-				sort = value as typeof sort;
-				load();
-			}}
-		/>
-	</div>
-	{#if post && visible(post)}<a
-			class="comment-compose"
-			href={'/app/compose/reply?did=' +
-				encodeURIComponent(did) +
-				'&rkey=' +
-				encodeURIComponent(rkey)}
-			aria-label="Add a comment"><Icon name="comment" size={20} />Comment</a
-		>{/if}
-	{#each comments as comment, i (`${'uri' in comment.post ? comment.post.uri : i}`)}<section
-			class="comment"
-			class:focused={comment.placement === 'focused'}
-		>
-			<MemberPost
-				value={comment.post}
-				detail
-				{api}
-				did={session.did}
-				onRemove={() => (comments = comments.filter((old) => old !== comment))}
+	<section
+		class="thread-comments"
+		class:open-comments={showComments}
+		bind:this={commentsSection}
+		aria-label="Comments"
+	>
+		<div class="comments-heading">
+			<h2 class="visually-hidden">Comments</h2>
+			<ChoiceMenu
+				label="Comment order"
+				value={sort}
+				disabled={work.busy}
+				options={[
+					{ value: 'newest', label: 'Newest', icon: 'sort' },
+					{ value: 'oldest', label: 'Oldest', icon: 'filter' },
+					{ value: 'follows', label: 'Follows', icon: 'following' }
+				]}
+				onchange={(value) => {
+					sort = value as typeof sort;
+					load();
+				}}
 			/>
-			{#if visible(comment.post) && ((comment.replies.loaded && comment.replies.items.length) || comment.post.replyCount > 0)}<div
-					class="reply-controls"
-				>
-					{#if !comment.replies.loaded || collapsed.includes(comment.post.uri)}<button
-							disabled={work.busy}
-							onclick={() => {
-								if (comment.replies.loaded && visible(comment.post))
-									collapsed = collapsed.filter(
-										(uri) => uri !== comment.post.uri
+		</div>
+		{#if post && visible(post)}<a
+				class="comment-compose"
+				href={'/app/compose/reply?did=' +
+					encodeURIComponent(did) +
+					'&rkey=' +
+					encodeURIComponent(rkey)}
+				aria-label="Add a comment"><Icon name="comment" size={20} />Comment</a
+			>{/if}
+		{#each comments as comment, i (`${'uri' in comment.post ? comment.post.uri : i}`)}<section
+				class="comment"
+				class:focused={comment.placement === 'focused'}
+			>
+				<MemberPost
+					value={comment.post}
+					detail
+					{api}
+					did={session.did}
+					onRemove={() =>
+						(comments = comments.filter((old) => old !== comment))}
+				/>
+				{#if visible(comment.post) && ((comment.replies.loaded && comment.replies.items.length) || comment.post.replyCount > 0)}<div
+						class="reply-controls"
+					>
+						{#if !comment.replies.loaded || collapsed.includes(comment.post.uri)}<button
+								disabled={work.busy}
+								onclick={() => {
+									if (comment.replies.loaded && visible(comment.post))
+										collapsed = collapsed.filter(
+											(uri) => uri !== comment.post.uri
+										);
+									else replies(comment);
+								}}
+								>Show {comment.post.replyCount}
+								{comment.post.replyCount === 1 ? 'reply' : 'replies'}</button
+							>{:else}<button
+								onclick={() => {
+									if (visible(comment.post))
+										collapsed = [...collapsed, comment.post.uri];
+								}}>Hide replies</button
+							>{/if}
+					</div>{/if}
+				{#if (comment.replies.loaded || comment.replies.items.length > 0) && (!visible(comment.post) || !collapsed.includes(comment.post.uri))}
+					<div class="replies">
+						{#each comment.replies.items as reply, j (`${'uri' in reply.post ? reply.post.uri : j}`)}<MemberPost
+								value={reply.post}
+								detail
+								{api}
+								did={session.did}
+								onRemove={() => {
+									comment.replies.items = comment.replies.items.filter(
+										(old) => old !== reply
 									);
-								else replies(comment);
-							}}
-							>Show {comment.post.replyCount}
-							{comment.post.replyCount === 1 ? 'reply' : 'replies'}</button
-						>{:else}<button
-							onclick={() => {
-								if (visible(comment.post))
-									collapsed = [...collapsed, comment.post.uri];
-							}}>Hide replies</button
-						>{/if}
-				</div>{/if}
-			{#if comment.replies.loaded && (!visible(comment.post) || !collapsed.includes(comment.post.uri))}
-				<div class="replies">
-					{#each comment.replies.items as reply, j (`${'uri' in reply.post ? reply.post.uri : j}`)}<MemberPost
-							value={reply.post}
-							detail
-							{api}
-							did={session.did}
-							onRemove={() => {
-								comment.replies.items = comment.replies.items.filter(
-									(old) => old !== reply
-								);
-								comments = [...comments];
-							}}
-						/>{/each}{#if comment.replies.cursor}<button
-							onclick={() => replies(comment)}
-							disabled={work.busy}>Load more replies</button
-						>{/if}
-				</div>{/if}
-		</section>{:else}{#if !work.busy && !work.error}<EmptyState
-				title="Comments"
-				detail="Start the conversation with a comment."
-				icon="comment"
-			/>{/if}{/each}{/if}
+									comments = [...comments];
+								}}
+							/>{/each}{#if comment.replies.cursor}<button
+								onclick={() => replies(comment)}
+								disabled={work.busy}>Load more replies</button
+							>{/if}
+					</div>{/if}
+			</section>{:else}{#if !work.busy && !work.error}<EmptyState
+					title="Comments"
+					detail="Start the conversation with a comment."
+					icon="comment"
+				/>{/if}{/each}
+	</section>{/if}
 {#if cursor}<button class="next" disabled={work.busy} onclick={() => load(true)}
 		>Load more</button
 	>{/if}
 
 <style>
+	.open-comments {
+		min-height: calc(100dvh - var(--app-bar-height));
+	}
+
 	.workspace-header {
 		justify-content: flex-start;
 		gap: 8px;
@@ -363,7 +404,8 @@
 		text-decoration: none;
 	}
 	.comment-compose:hover {
-		background: color-mix(in srgb, var(--primary) 92%, var(--ink));
+		background: var(--primary-hover);
+		color: var(--on-primary);
 	}
 	.thread-person {
 		display: flex;

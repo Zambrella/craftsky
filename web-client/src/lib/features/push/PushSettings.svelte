@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Snackbar from '../social/Snackbar.svelte';
 	import { onMount, onDestroy } from 'svelte';
 	import type { CraftskyAPI } from '#lib/api/client.ts';
 	import { bindings } from './model.ts';
@@ -74,11 +75,14 @@
 				Notifications are blocked by this browser. Allow notifications in your
 				browser settings. On iPhone or iPad, open CraftSky from your Home
 				Screen.
-			</p>{/if}{#if error}<p class="error" role="alert">
-				{error}
-			</p>{/if}{#if notice}<p class="notice" role="status">
-				{notice}
-			</p>{/if}<button
+			</p>{/if}{#if error}<Snackbar
+				message={error}
+				warning
+				onDismiss={() => (error = '')}
+			/>{/if}{#if notice}<Snackbar
+				message={notice}
+				onDismiss={() => (notice = '')}
+			/>{/if}<button
 			class="primary"
 			disabled={busy || !session.id}
 			onclick={toggle}

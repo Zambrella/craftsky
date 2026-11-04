@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { dragScroll } from '#lib/drag-scroll.ts';
-	import { onMount, onDestroy } from 'svelte';
+	import { onDestroy, getContext, untrack } from 'svelte';
 	import { page } from '$app/state';
 	import type {
 		CraftskyAPI,
@@ -17,14 +17,31 @@
 	import Status from './Status.svelte';
 	import { profileStyle } from './model';
 	import { recentDestination, searchDestination } from './search-model';
-	import { goto } from '$app/navigation';
+	import { goto, beforeNavigate } from '$app/navigation';
 	import Icon from '../shell/Icon.svelte';
 	import EmptyState from './EmptyState.svelte';
 	import CompactIdentity from './CompactIdentity.svelte';
-	import ChoiceMenu from './ChoiceMenu.svelte';
+	import {
+		PageHistory,
+		pageHistoryContext,
+		type PageView
+	} from '../shell/page-history';
 	import { label } from '#lib/public.ts';
 	let { api, did }: { api: CraftskyAPI; did: string } = $props();
-	const work = new Work();
+	type SearchSnapshot = {
+		authors: Author[];
+		posts: PostPresentation[];
+		tags: Hashtag[];
+		recent: RecentSearch[];
+		top?: TopHashtags;
+		cursor: string | null;
+		pages: number;
+	};
+	const history = getContext<PageHistory | undefined>(pageHistoryContext);
+	let historyView: PageView<SearchSnapshot> | undefined;
+	let work = $state(new Work());
+	let loaded = false;
+	let loadedPages = 0;
 	let query = $state(page.url.searchParams.get('q') || ''),
 		suggestions = $state<SearchSuggestions>();
 	let top = $state<TopHashtags>();
@@ -33,8 +50,8 @@
 		tags = $state<Hashtag[]>([]),
 		recent = $state<RecentSearch[]>([]),
 		cursor = $state<string | null>(null);
-	const tab = page.url.searchParams.get('tab') || 'posts';
-	const q = page.url.searchParams.get('q') || '';
+	const tab = $derived(page.url.searchParams.get('tab') || 'posts');
+	const q = $derived(page.url.searchParams.get('q') || '');
 	let timer: ReturnType<typeof setTimeout>;
 	let suggestionGeneration = 0;
 	function suggest() {
@@ -54,61 +71,131 @@
 			} catch {}
 		}, 250);
 	}
+	function saveView() {
+		if (loaded)
+			historyView?.save({
+				authors,
+				posts,
+				tags,
+				recent,
+				top,
+				cursor,
+				pages: loadedPages
+			});
+	}
+	beforeNavigate(saveView);
 	async function load(more = false) {
-		await work.run(
-			async () => {
-				if (!q) {
+		const term = q,
+			category = tab,
+			pending = work;
+		const options = { q: term, cursor: more ? cursor : undefined, limit: 30 };
+		await pending.run(
+			async (): Promise<
+				Partial<SearchSnapshot> & { cursor?: string | null }
+			> => {
+				if (!term) {
 					const [members, history, hashtags] = await Promise.all([
 						api.profiles.recent(),
 						api.search.recent(),
 						api.search.topHashtags()
 					]);
-					authors = members.items;
-					recent = history.items;
-					top = hashtags;
-					return null;
+					return {
+						authors: members.items,
+						recent: history.items,
+						top: hashtags
+					};
 				}
-				const options = {
-					q,
-					cursor: more ? cursor : undefined,
-					limit: 30,
-					sort:
-						page.url.searchParams.get('sort') === 'popular'
-							? ('popular' as const)
-							: ('chronological' as const)
-				};
-				if (tab === 'profiles') {
-					const result = await api.search.profiles(q, options);
-					authors = more ? [...authors, ...result.items] : result.items;
-					return result.cursor;
+				if (category === 'profiles') {
+					const result = await api.search.profiles(term, options);
+					return { authors: result.items, cursor: result.cursor };
 				}
-				if (tab === 'hashtags') {
-					const result = await api.search.hashtags(q, options);
-					tags = more ? [...tags, ...result.items] : result.items;
-					return result.cursor;
+				if (category === 'hashtags') {
+					const result = await api.search.hashtags(term, options);
+					return { tags: result.items, cursor: result.cursor };
 				}
 				const result =
-					tab === 'posts'
+					category === 'posts'
 						? await api.search.posts(options)
 						: await api.search.projects(options);
-				posts = more ? [...posts, ...result.items] : result.items;
-				return result.cursor;
+				return { posts: result.items, cursor: result.cursor };
 			},
-			(value) => (cursor = value || null)
+			(value) => {
+				if (value.authors)
+					authors = more ? [...authors, ...value.authors] : value.authors;
+				if (value.posts)
+					posts = more ? [...posts, ...value.posts] : value.posts;
+				if (value.tags) tags = more ? [...tags, ...value.tags] : value.tags;
+				if (value.recent) recent = value.recent;
+				if (value.top) top = value.top;
+				cursor = value.cursor || null;
+				loadedPages = more ? loadedPages + 1 : 1;
+				loaded = true;
+				saveView();
+			}
 		);
 	}
-	onMount(() => {
-		void load();
-		if (q)
+	$effect(() => {
+		const term = q;
+		untrack(() => {
+			query = term;
+			suggestions = undefined;
+			clearTimeout(timer);
+			suggestionGeneration++;
+		});
+		if (term)
 			void api.search
-				.saveRecent({ type: 'query', displayLabel: q, payload: { q } })
+				.saveRecent({ type: 'query', displayLabel: term, payload: { q: term } })
 				.catch(() => {});
 	});
+	$effect(() => {
+		// Even selecting the active/default tab can create a new history entry.
+		page.url.search;
+		const key = '/app/search?' + new URLSearchParams({ q, tab });
+		return untrack(() => {
+			const view = history?.view<SearchSnapshot>('search-results', key);
+			historyView = view;
+			const snapshot = view?.cachedTab ? view.value : undefined;
+			const pending = new Work();
+			let active = true;
+			work = pending;
+			loaded = !!snapshot;
+			loadedPages = snapshot?.pages || 0;
+			authors = snapshot?.authors || [];
+			posts = snapshot?.posts || [];
+			tags = snapshot?.tags || [];
+			recent = snapshot?.recent || [];
+			top = snapshot?.top;
+			cursor = snapshot?.cursor || null;
+			void (async () => {
+				if (snapshot) pending.hasLoaded = true;
+				else {
+					const pages = view?.value?.pages || 1;
+					await load();
+					while (
+						active &&
+						pending === work &&
+						cursor &&
+						!pending.error &&
+						loadedPages < pages
+					)
+						await load(true);
+				}
+				view?.ready();
+			})();
+			return () => {
+				active = false;
+				pending.dispose();
+				view?.ready();
+			};
+		});
+	});
 	onDestroy(() => {
+		saveView();
 		work.dispose();
 		clearTimeout(timer);
 		suggestionGeneration++;
 	});
+
 	function authorValue(author: Author) {
 		return {
 			did: author.did,
@@ -141,10 +228,7 @@
 	action="/app/search"
 	onsubmit={(event) => {
 		event.preventDefault();
-		const target = searchDestination(
-			query,
-			String(new FormData(event.currentTarget).get('sort') || '')
-		);
+		const target = searchDestination(query);
 		if (target) void goto(target);
 	}}
 >
@@ -188,22 +272,6 @@
 				>{/each}{#each suggestions.hashtags.items as tag}<a
 					href={'/app/tags/' + encodeURIComponent(tag.tag)}>#{tag.tag}</a
 				>{/each}
-		</div>{/if}
-	<input
-		type="hidden"
-		name="sort"
-		value={page.url.searchParams.get('sort') || 'chronological'}
-	/>
-	{#if q && tab === 'posts'}<div class="search-sort">
-			<ChoiceMenu
-				label="Sort results"
-				value={page.url.searchParams.get('sort') || 'chronological'}
-				url={page.url}
-				options={[
-					{ value: 'chronological', label: 'Newest', icon: 'sort' },
-					{ value: 'popular', label: 'Popular', icon: 'growth' }
-				]}
-			/>
 		</div>{/if}
 </form>
 {#if q}<nav class="tabs" use:dragScroll aria-label="Search categories">
@@ -357,14 +425,7 @@
 		text-decoration: none;
 		color: var(--primary);
 	}
-	.search-sort {
-		display: flex;
-		margin-top: 12px;
-		align-items: center;
-		justify-content: flex-end;
-		font-size: 14px;
-		gap: 8px;
-	}
+
 	.search-discovery {
 		padding: 16px;
 		border-bottom: 1px solid var(--hairline);
@@ -488,9 +549,7 @@
 	.search-field {
 		border-color: var(--ink-2);
 	}
-	.search-sort {
-		flex-direction: row;
-	}
+
 	.search-discovery {
 		border: 0;
 	}

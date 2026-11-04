@@ -38,7 +38,7 @@ export default defineConfig({
 				mode: 'hash',
 				directives: {
 					'default-src': ['self'],
-					'script-src': ['self'],
+					'script-src': ['self', 'wasm-unsafe-eval'],
 					'style-src': ['self', 'unsafe-inline'],
 					'img-src': ['self', 'https:', 'blob:', 'data:'],
 					'media-src': ['self', 'https:', 'blob:'],

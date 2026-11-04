@@ -659,6 +659,11 @@ test('Instagram keeps the native private confirmation choice and describes all r
 		'Discovery preference was not saved.'
 	);
 	await expect(discoverable).not.toBeChecked();
+	await page
+		.locator('.snackbar')
+		.getByRole('button', { name: 'Dismiss notification' })
+		.click();
+	await expect(page.locator('.snackbar')).toHaveCount(0);
 
 	await page
 		.getByRole('button', { name: 'Revoke Instagram verification', exact: true })

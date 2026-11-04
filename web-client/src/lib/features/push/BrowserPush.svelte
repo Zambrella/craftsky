@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
+	import Snackbar from '../social/Snackbar.svelte';
 	import { goto } from '$app/navigation';
 	import type { CraftskyAPI } from '#lib/api/client.ts';
 	import {
@@ -119,9 +120,11 @@
 			onclick={() => (notification = null)}>×</button
 		>
 	</aside>{/if}
-{#if error}<aside class="push-banner" role="alert">
-		{error}<button onclick={() => (error = '')}>Dismiss</button>
-	</aside>{/if}
+{#if error}<Snackbar
+		message={error}
+		warning
+		onDismiss={() => (error = '')}
+	/>{/if}
 
 <style>
 	.push-banner {

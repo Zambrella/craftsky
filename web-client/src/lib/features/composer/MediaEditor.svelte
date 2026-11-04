@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Snackbar from '../social/Snackbar.svelte';
 	import { onDestroy, tick, untrack } from 'svelte';
 	import Icon from '../shell/Icon.svelte';
 	import CropSurface from './CropSurface.svelte';
@@ -336,11 +337,17 @@
 					><Icon name="refresh" /><span>Rotate</span></button
 				>
 			</div>
-			{#if error}<p role="alert">{error}</p>{/if}{#if busy}<p role="status">
-					Preparing image…
-				</p>{/if}{/if}
+			{#if error}<Snackbar
+					message={error}
+					warning
+					onDismiss={() => (error = '')}
+				/>{/if}{#if busy}<p role="status">Preparing image…</p>{/if}{/if}
 	</dialog>
-	{#if error}<p role="alert" class="error">{error}</p>{/if}
+	{#if error}<Snackbar
+			message={error}
+			warning
+			onDismiss={() => (error = '')}
+		/>{/if}
 </article>
 
 <style>

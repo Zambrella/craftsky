@@ -1,3 +1,4 @@
+import { FieldValidationError } from '#lib/field-validation.ts';
 import { APIError, MutationOutcomeUnknownError } from '#lib/api/client.ts';
 import type { JsonObject } from '#lib/api/types.ts';
 import languageCatalogue from './languages.json';
@@ -291,20 +292,34 @@ export function productBody(products: Product[]): JsonObject[] {
 	return products.map((p) => {
 		requireRecordText(p.title, 'Product title', 150, 1500);
 		if (!p.title.trim())
-			throw new Error('Each product needs a title of up to 150 characters.');
+			throw new FieldValidationError(
+				'Title',
+				'Each product needs a title of up to 150 characters.'
+			);
 		if (!https(p.uri))
-			throw new Error('Each product needs a secure HTTPS destination.');
+			throw new FieldValidationError(
+				'Destination link',
+				'Each product needs a secure HTTPS destination.'
+			);
 		if (destinations.has(p.uri))
-			throw new Error('Each product needs a different destination.');
+			throw new FieldValidationError(
+				'Destination link',
+				'Each product needs a different destination.'
+			);
 		destinations.add(p.uri);
-		if (!p.image) throw new Error('Add an image to each product.');
+		if (!p.image)
+			throw new FieldValidationError(
+				'Product image',
+				'Add an image to each product.'
+			);
 		let amount = p.amount
 			.trim()
 			.replace(/(\.\d*?)0+$/, '$1')
 			.replace(/\.$/, '');
 		const currency = p.currency.trim().toUpperCase();
 		if (!!amount !== !!currency)
-			throw new Error(
+			throw new FieldValidationError(
+				'Price',
 				'Enter both the price and currency, or leave both blank.'
 			);
 		if (
@@ -314,7 +329,8 @@ export function productBody(products: Product[]): JsonObject[] {
 				(amount.split('.')[1]?.length || 0) >
 					(currencyScales[currency as keyof typeof currencyScales] ?? 0))
 		)
-			throw new Error(
+			throw new FieldValidationError(
+				'Price',
 				'Use a valid decimal price and three-letter currency code.'
 			);
 		return {

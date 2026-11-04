@@ -1,6 +1,19 @@
 <script lang="ts">
 	import '../style.css';
-	import { onMount } from 'svelte';
+	import { installFieldValidation } from '#lib/field-validation.ts';
+	import { onMount, setContext } from 'svelte';
+	import ToastHost from '#lib/features/social/ToastHost.svelte';
+	import {
+		ToastHub,
+		toastContext
+	} from '#lib/features/social/toasts.svelte.ts';
+	const toasts = new ToastHub();
+	setContext(toastContext, toasts);
+	$effect(() => {
+		const session = (page.data as { session?: { id: string; did: string } })
+			.session;
+		toasts.scope(session ? session.id + ':' + session.did : 'public');
+	});
 	import StatusHost from '#lib/features/status/StatusHost.svelte';
 	let statusBlocking = $state(false);
 	onMount(() => {
@@ -11,12 +24,16 @@
 			else delete document.documentElement.dataset.theme;
 		} catch {}
 	});
+	onMount(installFieldValidation);
 	import DiagnosticsHost from '#lib/features/diagnostics/DiagnosticsHost.svelte';
 	import { page } from '$app/state';
 	let { children } = $props();
 </script>
 
-<DiagnosticsHost /><StatusHost
+<ToastHost
+	hub={toasts}
+	fullWidth={!page.url.pathname.startsWith('/app')}
+/><DiagnosticsHost /><StatusHost
 	onBlocking={(value) => (statusBlocking = value)}
 />
 <div inert={statusBlocking}>

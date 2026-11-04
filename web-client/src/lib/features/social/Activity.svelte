@@ -1,6 +1,11 @@
 <script lang="ts">
 	import { contextMenu } from './context-menu';
-	import { onMount, onDestroy } from 'svelte';
+	import { getContext, onMount, onDestroy } from 'svelte';
+	import {
+		notificationBadgeContext,
+		type BeginNotificationSeen,
+		type FinishNotificationSeen
+	} from '../shell/notification-badge.svelte';
 	import { page } from '$app/state';
 	import { newOperationKey } from '#lib/api/client.ts';
 	import type {
@@ -18,21 +23,45 @@
 	import Icon from '../shell/Icon.svelte';
 	let { api, did = '' }: { api: CraftskyAPI; did?: string } = $props();
 	const work = new Work();
+	const beginSeen = getContext<BeginNotificationSeen | undefined>(
+		notificationBadgeContext
+	);
+	let disposed = false;
+	let pendingSeen: FinishNotificationSeen | undefined;
 	let items = $state<AppNotification[]>([]),
 		cursor = $state<string | null>(null);
 	const category =
 		(page.url.searchParams.get('category') as NotificationCategory) ||
 		undefined;
 	async function load(more = false) {
-		await work.run(
-			() =>
-				api.notifications.list({ cursor: more ? cursor : undefined, category }),
-			(value) => {
-				items = more ? [...items, ...value.items] : value.items;
-				cursor = value.cursor || null;
+		if (disposed || work.busy) return;
+		const finish = !more ? beginSeen?.() : undefined;
+		if (finish) pendingSeen = finish;
+		try {
+			await work.run(
+				() =>
+					api.notifications.list({
+						cursor: more ? cursor : undefined,
+						category
+					}),
+				(value) => {
+					items = more ? [...items, ...value.items] : value.items;
+					cursor = value.cursor || null;
+				}
+			);
+			if (disposed || work.error) return;
+			if (!more) {
+				// A started acknowledgement can finish after leaving this page.
+				if (pendingSeen === finish) pendingSeen = undefined;
+				await api.notifications.seen();
 			}
-		);
-		if (!more && !work.error) await api.notifications.seen().catch(() => {});
+			finish?.(true);
+		} catch {
+			// Seen is background bookkeeping; restore/reconcile the badge if it fails.
+		} finally {
+			finish?.(false);
+			if (pendingSeen === finish) pendingSeen = undefined;
+		}
 	}
 	function destination(item: AppNotification) {
 		if (!notificationCopy(item).interactive) return undefined;
@@ -81,7 +110,11 @@
 		);
 	}
 	onMount(() => load());
-	onDestroy(() => work.dispose());
+	onDestroy(() => {
+		disposed = true;
+		pendingSeen?.(false);
+		work.dispose();
+	});
 </script>
 
 <div class="workspace-heading notification-heading">

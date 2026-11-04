@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { clearFieldError } from './field-validation';
 	import { tick } from 'svelte';
 	import Icon from './features/shell/Icon.svelte';
 	let {
@@ -53,6 +54,7 @@
 		if (disabled) return false;
 		const checked = !values.includes(id);
 		if (checked && values.length >= maximum) return false;
+		clearFieldError(input);
 		const accepted = onchange(
 			checked ? [...values, id] : values.filter((value) => value !== id)
 		);

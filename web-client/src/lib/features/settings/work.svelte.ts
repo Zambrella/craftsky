@@ -1,3 +1,4 @@
+import { presentFieldErrors } from '#lib/field-validation.ts';
 import { accountScope, message, pendingWrite } from './model.ts';
 import { reportFailure } from '../diagnostics/client.ts';
 
@@ -23,6 +24,7 @@ export class Work {
 			const value = await request();
 			if (this.scope.current(token)) apply(value);
 		} catch (error) {
+			if (this.scope.current(token) && presentFieldErrors(error)) return;
 			void reportFailure(error, 'workspace');
 			if (this.scope.current(token)) this.error = message(error);
 		} finally {
@@ -47,6 +49,7 @@ export class Work {
 				this.notice = notice;
 			}
 		} catch (error) {
+			if (this.scope.current(token) && presentFieldErrors(error)) return;
 			void reportFailure(error, 'workspace');
 			if (this.scope.current(token)) {
 				this.error = message(error);

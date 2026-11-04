@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { notify } from './toasts.svelte';
+	import { fieldError, showFieldError } from '#lib/field-validation.ts';
 	import { reorderRow } from './reorder-row';
 	import { confirmNavigation } from '../social/navigation-prompt';
 	import { onMount, onDestroy } from 'svelte';
@@ -180,7 +182,10 @@
 			!['image/jpeg', 'image/png', 'image/webp'].includes(file.type) ||
 			file.size > 20 * 1024 * 1024
 		) {
-			work.error = 'Choose a JPEG, PNG or WebP image under 20 MB.';
+			showFieldError(
+				event.currentTarget as HTMLInputElement,
+				'Choose a JPEG, PNG or WebP image under 20 MB.'
+			);
 			return;
 		}
 		const old = avatarURL;
@@ -254,11 +259,19 @@
 		const url = normalizedLink(linkURL),
 			title = linkTitle.trim();
 		if (!url || linkURL.length > 2048) {
-			linkError = 'Enter a valid HTTPS URL without a username or password.';
+			fieldError(
+				'URL',
+				'Enter a valid HTTPS URL without a username or password.',
+				linkDialog
+			);
 			return;
 		}
 		if (!validateText(title, 30, 320)) {
-			linkError = 'Use up to 30 characters for the title.';
+			fieldError(
+				'Title (optional)',
+				'Use up to 30 characters for the title.',
+				linkDialog
+			);
 			return;
 		}
 		if (
@@ -267,7 +280,7 @@
 					value.rkey !== editingLink && normalizedLink(value.url) === url
 			)
 		) {
-			linkError = 'This link is already on your profile.';
+			fieldError('URL', 'This link is already on your profile.', linkDialog);
 			return;
 		}
 		const current = links.find((value) => value.rkey === editingLink);
@@ -321,8 +334,12 @@
 			!validateText(description, 256) ||
 			!validateText(pronouns, 20)
 		) {
-			work.error =
-				'Use up to 64 characters for your name, 20 for pronouns and 256 for your bio.';
+			if (!validateText(displayName, 64))
+				fieldError('Display name', 'Use up to 64 characters for your name.');
+			if (!validateText(description, 256))
+				fieldError('Bio', 'Use up to 256 characters for your bio.');
+			if (!validateText(pronouns, 20))
+				fieldError('Pronouns', 'Use up to 20 characters for pronouns.');
 			return;
 		}
 		if (
@@ -399,6 +416,7 @@
 				window.dispatchEvent(
 					new CustomEvent('craftsky-profile-updated', { detail: owner })
 				);
+				notify('Profile saved.');
 				if (onSaved) onSaved();
 				else void goto('/app/profile/' + encodeURIComponent(owner.did));
 			}
@@ -528,18 +546,27 @@
 						Signed in as @{session.handle}
 					</p>{/if}
 				<label
-					>Display name<input bind:value={displayName} maxlength="640" /><span
-						class="field-count"
-						aria-hidden="true">{textLength(displayName)}/64</span
+					>Display name<input
+						name="displayName"
+						bind:value={displayName}
+						maxlength="640"
+					/><span class="field-count" aria-hidden="true"
+						>{textLength(displayName)}/64</span
 					></label
 				><label
-					>Pronouns<input bind:value={pronouns} maxlength="200" /><span
-						class="field-count"
-						aria-hidden="true">{textLength(pronouns)}/20</span
+					>Pronouns<input
+						name="pronouns"
+						bind:value={pronouns}
+						maxlength="200"
+					/><span class="field-count" aria-hidden="true"
+						>{textLength(pronouns)}/20</span
 					></label
 				><label
-					>Bio<textarea bind:value={description} maxlength="2560" rows="5"
-					></textarea><span class="field-count" aria-hidden="true"
+					>Bio<textarea
+						name="description"
+						bind:value={description}
+						maxlength="2560"
+						rows="5"></textarea><span class="field-count" aria-hidden="true"
 						>{textLength(description)}/256</span
 					></label
 				>
@@ -749,6 +776,7 @@
 		</h2>
 		<label
 			>URL<input
+				name="linkURL"
 				type="text"
 				inputmode="url"
 				autocomplete="url"
@@ -762,6 +790,7 @@
 		>
 		<label
 			>Title (optional)<input
+				name="linkTitle"
 				bind:value={linkTitle}
 				oninput={() => (linkError = '')}
 				maxlength="320"

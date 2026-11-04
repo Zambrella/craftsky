@@ -1649,6 +1649,7 @@ dialog > button {
 		min-height: 100svh;
 	}
 	.app-main.shell-root > .workspace-heading,
+	.app-main.shell-root > .feed-content > .workspace-heading,
 	.app-main.shell-root > .workspace-header,
 	.app-main.shell-root
 		> .settings-workspace[data-settings-page='index']
@@ -1999,7 +2000,6 @@ dialog > button {
 			.account-row,
 			.person-row:not(:disabled),
 			.thread-person,
-			.comment-compose,
 			.thread-interactions a,
 			.tabs a,
 			.profile-tabs a,
@@ -2055,10 +2055,10 @@ label :is(input, textarea, select, button, a) {
 	pointer-events: auto;
 }
 :is(
-	input:not([type='checkbox']):not([type='radio']):not([type='file']),
-	textarea,
-	select
-):focus-visible {
+		input:not([type='checkbox']):not([type='radio']):not([type='file']),
+		textarea,
+		select
+	):focus-visible:not([aria-invalid='true']) {
 	outline: none;
 }
 .tabs,
@@ -2069,4 +2069,32 @@ label :is(input, textarea, select, button, a) {
 .settings-tabs[data-dragging] {
 	cursor: grabbing;
 	user-select: none;
+}
+
+/* Validation belongs to the field and retains existing helper descriptions. */
+.field-error {
+	color: var(--red-ink);
+	font-size: 13px;
+	margin: 4px 0 12px;
+}
+:is(input, textarea, select)[aria-invalid='true'],
+:is(input, textarea, select)[aria-invalid='true']:focus {
+	border-color: var(--red-ink);
+	outline: 2px solid var(--red-ink);
+	outline-offset: -2px;
+}
+[data-field][aria-invalid='true'] {
+	outline: 2px solid var(--red-ink);
+	outline-offset: 4px;
+}
+
+label:has(input[type='file'][aria-invalid='true']) {
+	outline: 2px solid var(--red-ink);
+	outline-offset: 2px;
+}
+
+.native-single-select:has(input[aria-invalid='true']) .single-field,
+.native-multi-select:has(input[aria-invalid='true']) .selection-field {
+	outline: 2px solid var(--red-ink);
+	outline-offset: -2px;
 }

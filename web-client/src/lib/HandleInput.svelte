@@ -99,6 +99,7 @@
 	<label for={uid}>Your Atmosphere Handle</label>
 	<input
 		id={uid}
+		required
 		bind:this={input}
 		bind:value
 		placeholder="your-handle.bsky.social"

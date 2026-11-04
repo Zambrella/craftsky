@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount, tick, untrack } from 'svelte';
+	import { preloadAdjacent } from '#lib/adjacent-image-preloader.ts';
 	import Icon from '../shell/Icon.svelte';
 	import { safeLink } from './model';
 	let {
@@ -22,6 +23,9 @@
 		x = $state(0),
 		y = $state(0);
 	const current = $derived(images[index]);
+	const displayURLs = $derived(
+		images.map((image) => safeLink(image.fullsize || image.thumb || ''))
+	);
 	const points = new Map<number, { x: number; y: number }>();
 	let start = { x: 0, y: 0, panX: 0, panY: 0 },
 		pinchDistance = 0,
@@ -160,7 +164,9 @@
 		ondblclick={() => zoom(scale > 1 ? 1 : 2)}
 	>
 		{#key index}<img
-				src={safeLink(current.fullsize || current.thumb || '')}
+				src={displayURLs[index]}
+				use:preloadAdjacent={{ urls: displayURLs, index }}
+				decoding="async"
 				alt={current.alt}
 				draggable="false"
 				style:transform={`translate(${x}px, ${y}px) scale(${scale})`}

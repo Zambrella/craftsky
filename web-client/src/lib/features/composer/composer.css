@@ -100,9 +100,9 @@
 	resize: vertical;
 	line-height: 1.5;
 }
-.composer input:focus-visible,
-.composer textarea:focus-visible,
-.composer select:focus-visible {
+.composer input:focus-visible:not([aria-invalid='true']),
+.composer textarea:focus-visible:not([aria-invalid='true']),
+.composer select:focus-visible:not([aria-invalid='true']) {
 	outline: 2px solid var(--ink);
 	outline-offset: -2px;
 	box-shadow: 3px 3px var(--shadow);
@@ -583,7 +583,7 @@
 .composer form:not(.project-composer) .link-preview-section {
 	order: 3;
 }
-.composer .post-text:focus {
+.composer .post-text:focus:not([aria-invalid='true']) {
 	border-color: var(--ink);
 	box-shadow: 3px 3px 0 var(--ink);
 	outline: none;

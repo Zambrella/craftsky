@@ -5,7 +5,6 @@
 		detail,
 		confirmLabel,
 		busy = false,
-		error = '',
 		onRetry,
 		onConfirm,
 		onCancel
@@ -14,7 +13,6 @@
 		detail: string;
 		confirmLabel: string;
 		busy?: boolean;
-		error?: string;
 		onRetry?: () => unknown;
 		onConfirm: () => void;
 		onCancel: () => void;
@@ -34,7 +32,7 @@
 >
 	<h2 id={uid + '-title'}>{title}</h2>
 	<p>{detail}</p>
-	{#if error}<p class="error" role="alert">{error}</p>{/if}
+
 	<div class="actions">
 		<button disabled={busy} onclick={onCancel}>Cancel</button
 		>{#if onRetry}<button disabled={busy} onclick={() => onRetry?.()}
@@ -67,13 +65,19 @@
 		justify-content: flex-end;
 		gap: 12px;
 	}
+	button.danger {
+		background: var(--danger-fill);
+		color: white;
+		border-color: var(--ink);
+		box-shadow: 3px 3px var(--shadow);
+	}
+	button.danger:hover {
+		background: color-mix(in srgb, var(--danger-fill) 88%, black);
+	}
 	.actions > button:first-child {
 		background: transparent;
 		border: 0;
 		box-shadow: none;
 		color: var(--primary);
-	}
-	.error {
-		color: var(--red-ink);
 	}
 </style>

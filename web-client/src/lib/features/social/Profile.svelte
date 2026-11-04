@@ -1,10 +1,12 @@
 <script lang="ts">
+	import { notify } from './toasts.svelte';
 	import { appendPage } from '#lib/pagination.ts';
 	import { dragScroll } from '#lib/drag-scroll.ts';
 	import ProfileLinkIcon from './ProfileLinkIcon.svelte';
 	import { confirmExternalLink } from './prompt';
 	import { contextMenu } from './context-menu';
-	import { onMount, onDestroy, untrack } from 'svelte';
+	import { getContext, onMount, onDestroy, untrack } from 'svelte';
+	import { Publications, publicationsContext } from './publications.svelte';
 	import { page } from '$app/state';
 	import {
 		CraftskyAPI,
@@ -41,6 +43,19 @@
 		id: string;
 	} = $props();
 	const work = new Work();
+	const publications = getContext<Publications | undefined>(
+		publicationsContext
+	);
+	let contentWork = $state(new Work());
+	const tabPages = new Map<
+		string,
+		{
+			posts: PostPresentation[];
+			events: BusinessEvent[];
+			cursor?: string | null;
+		}
+	>();
+	let loadedTab: string | undefined;
 	let profile = $state<Profile>();
 	let identityElement = $state<HTMLElement>();
 	let headerCollapsed = $state(false);
@@ -78,6 +93,20 @@
 			? page.url.searchParams.get('tab')!
 			: tabs[0]
 	);
+	const displayedPosts = $derived(
+		publications?.merge(
+			posts,
+			(post) =>
+				post.author.did === profile?.did &&
+				(tab === 'comments'
+					? !!post.reply
+					: tab === 'projects'
+						? !!post.project && !post.reply
+						: tab === 'posts'
+							? !post.reply && !post.project
+							: false)
+		) || posts
+	);
 	let generation = 0;
 	onMount(() => {
 		void work.run(
@@ -90,61 +119,75 @@
 	onDestroy(() => {
 		generation++;
 		work.dispose();
+		contentWork.dispose();
 	});
+	const profileDid = $derived(profile?.did);
 	$effect(() => {
 		const current = tab;
-		if (!profile) return;
-		const revision = ++generation;
-		cursor = undefined;
-		posts = [];
-		events = [];
-		if (current === 'about' || current === 'products') return;
-		if (current === 'events')
-			untrack(
-				() =>
-					void work.run(
-						() => api.business.profileEvents(id),
-						(value) => {
-							if (revision === generation) {
-								events = value.items;
-								cursor = value.cursor;
-							}
+		if (!profileDid) return;
+		untrack(() => {
+			if (current === loadedTab) return;
+			if (loadedTab && contentWork.hasLoaded && !contentWork.error)
+				tabPages.set(loadedTab, { posts, events, cursor });
+			loadedTab = current;
+			const revision = ++generation;
+			contentWork.dispose();
+			const pending = new Work();
+			contentWork = pending;
+			const cached = tabPages.get(current);
+			cursor = cached?.cursor;
+			posts = cached?.posts || [];
+			events = cached?.events || [];
+			if (cached || current === 'about' || current === 'products') {
+				pending.hasLoaded = true;
+				return;
+			}
+			if (current === 'events')
+				void pending.run(
+					() => api.business.profileEvents(id),
+					(value) => {
+						if (revision === generation) {
+							events = value.items;
+							cursor = value.cursor;
 						}
-					)
-			);
-		else
-			untrack(
-				() =>
-					void work.run(
-						() => api.profiles.posts(id, current as 'posts'),
-						(value) => {
-							if (revision === generation) {
-								posts = value.items;
-								cursor = value.cursor;
-							}
+					}
+				);
+			else
+				void pending.run(
+					() => api.profiles.posts(id, current as 'posts'),
+					(value) => {
+						if (revision === generation) {
+							publications?.observe(value.items);
+							posts = value.items;
+							cursor = value.cursor;
 						}
-					)
-			);
+					}
+				);
+		});
 	});
 	function more() {
 		if (!cursor) return;
+		const revision = generation;
 		if (tab === 'events')
-			void work.run(
+			void contentWork.run(
 				() => api.business.profileEvents(id, { cursor }),
 				(value) => {
+					if (revision !== generation) return;
 					events = [...events, ...value.items];
 					cursor = value.cursor;
 				}
 			);
 		else
-			void work.run(
+			void contentWork.run(
 				() => api.profiles.posts(id, tab as 'posts', { cursor }),
 				(value) => {
+					if (revision !== generation) return;
 					posts = [...posts, ...value.items];
 					cursor = value.cursor;
 				}
 			);
 	}
+
 	function follow() {
 		if (!profile) return;
 		const current = profile,
@@ -182,7 +225,14 @@
 			(value) => {
 				profile = value;
 				confirmBlock = false;
-			}
+			},
+			action === 'mute'
+				? current.muted
+					? 'Account unmuted.'
+					: 'Account muted.'
+				: current.blocking
+					? 'Account unblocked.'
+					: 'Account blocked.'
 		);
 	}
 	function report(submission: ReportSubmission) {
@@ -195,7 +245,7 @@
 			() => {
 				reportOpen = false;
 				reportLink = undefined;
-				work.error = 'Report submitted.';
+				notify('Report submitted.');
 			}
 		);
 	}
@@ -329,11 +379,14 @@
 						<button
 							disabled={work.busy}
 							onclick={() =>
-								void work.run(() =>
-									navigator.clipboard.writeText(
-										'https://app.craftsky.social/profiles/' +
-											encodeURIComponent(profile!.did)
-									)
+								void work.run(
+									() =>
+										navigator.clipboard.writeText(
+											'https://app.craftsky.social/profiles/' +
+												encodeURIComponent(profile!.did)
+										),
+									undefined,
+									'Link copied.'
 								)}><Icon name="link" />Copy link</button
 						>
 						<a
@@ -461,7 +514,6 @@
 				detail="Blocking is public on the AT Protocol. You will no longer see or interact with each other’s content."
 				confirmLabel="Block"
 				busy={work.busy}
-				error={work.error}
 				onRetry={work.retry}
 				onConfirm={() => relationship('block', true)}
 				onCancel={() => (confirmBlock = false)}
@@ -469,7 +521,6 @@
 		{#if reportOpen}<ReportForm
 				subject={reportLink ? 'profile link' : 'profile'}
 				busy={work.busy}
-				error={work.error}
 				onRetry={work.retry}
 				onSubmit={report}
 				onCancel={() => {
@@ -480,68 +531,82 @@
 		<nav class="tabs" use:dragScroll aria-label="Profile content">
 			{#each tabs as item}<a
 					href={'?tab=' + item}
+					data-sveltekit-reset="false"
 					aria-current={tab === item ? 'page' : undefined}>{tabLabel(item)}</a
 				>{/each}
 		</nav>
-		{#if tab === 'about'}<section class="profile-about stack">
-				{#if profile.business}<BusinessSummary
-						business={profile.business}
-						full
-					/>{/if}{#if profile.createdAt}<div>
-						<h3>Joined</h3>
-						<p>
-							{new Date(profile.createdAt).toLocaleDateString(undefined, {
-								month: 'long',
-								year: 'numeric'
-							})}
-						</p>
-					</div>{/if}
-			</section>
-		{:else if tab === 'products'}<section class="product-grid">
-				{#each profile.business?.products || [] as product}<ProductCard
-						{product}
-					/>{:else}<EmptyState
-						title="Products"
-						detail={profile.did === session.did
-							? 'Add products to show what your business offers.'
-							: 'No products shared yet.'}
-						icon="business"
-						>{#snippet actions()}{#if profile?.did === session.did}<a
-									href="/app/settings/products">Manage products</a
-								>{/if}{/snippet}</EmptyState
-					>{/each}
-			</section>
-		{:else if tab === 'events'}<section class="events-list">
-				{#each events as event}<BusinessEventCard
-						{event}
-					/>{:else}{#if !work.busy && !work.error}<EmptyState
-							title="Upcoming events"
+		<div class="profile-content">
+			<Status
+				work={contentWork}
+				skeleton={tab === 'comments' ? 'comments' : 'posts'}
+			/>
+			{#if tab === 'about'}<section class="profile-about stack">
+					{#if profile.business}<BusinessSummary
+							business={profile.business}
+							full
+						/>{/if}{#if profile.createdAt}<div>
+							<h3>Joined</h3>
+							<p>
+								{new Date(profile.createdAt).toLocaleDateString(undefined, {
+									month: 'long',
+									year: 'numeric'
+								})}
+							</p>
+						</div>{/if}
+				</section>
+			{:else if tab === 'products'}<section class="product-grid">
+					{#each profile.business?.products || [] as product}<ProductCard
+							{product}
+						/>{:else}<EmptyState
+							title="Products"
 							detail={profile.did === session.did
-								? 'Share your next workshop, market or event.'
-								: 'No upcoming events.'}
-							icon="calendar"
+								? 'Add products to show what your business offers.'
+								: 'No products shared yet.'}
+							icon="business"
 							>{#snippet actions()}{#if profile?.did === session.did}<a
-										href="/app/settings/events">Manage events</a
+										href="/app/settings/products">Manage products</a
 									>{/if}{/snippet}</EmptyState
-						>{/if}{/each}
-			</section>{:else}{#each posts as post, i (`${'uri' in post ? post.uri : i}`)}<MemberPost
-					value={post}
-					{api}
-					did={session.did}
-					onRemove={() => {
-						posts = posts.filter((value) => value !== post);
-					}}
-				/>{:else}{#if !work.busy}<EmptyState
-						title={tabLabel(tab)}
-						detail="Nothing shared here yet."
-						icon="drafts"
-					/>{/if}{/each}{/if}
-		{#if cursor}<button class="next" disabled={work.busy} onclick={more}
-				>Load more</button
-			>{/if}
+						>{/each}
+				</section>
+			{:else if tab === 'events'}<section class="events-list">
+					{#each events as event}<BusinessEventCard
+							{event}
+						/>{:else}{#if !contentWork.busy && !contentWork.error}<EmptyState
+								title="Upcoming events"
+								detail={profile.did === session.did
+									? 'Share your next workshop, market or event.'
+									: 'No upcoming events.'}
+								icon="calendar"
+								>{#snippet actions()}{#if profile?.did === session.did}<a
+											href="/app/settings/events">Manage events</a
+										>{/if}{/snippet}</EmptyState
+							>{/if}{/each}
+				</section>{:else}{#each displayedPosts as post, i (`${'uri' in post ? post.uri : i}`)}<MemberPost
+						value={post}
+						flat={tab === 'comments'}
+						{api}
+						did={session.did}
+						onRemove={() => {
+							posts = posts.filter((value) => value !== post);
+						}}
+					/>{:else}{#if !contentWork.busy}<EmptyState
+							title={tabLabel(tab)}
+							detail="Nothing shared here yet."
+							icon="drafts"
+						/>{/if}{/each}{/if}
+			{#if cursor}<button
+					class="next"
+					disabled={contentWork.busy}
+					onclick={more}>Load more</button
+				>{/if}
+		</div>
 	</div>{/if}
 
 <style>
+	.profile-content {
+		min-height: calc(100dvh - 106px);
+	}
+
 	.profile-menu .destructive {
 		color: var(--red-ink);
 	}
@@ -725,7 +790,7 @@
 	}
 	.member-profile > .tabs {
 		position: sticky;
-		top: 0;
+		top: var(--app-bar-height);
 		z-index: 6;
 		background: var(--paper);
 		margin-top: 0;

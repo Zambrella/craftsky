@@ -1,0 +1,181 @@
+import type { Post, PostPresentation, CommentItem } from '#lib/api/types.ts';
+import { visible } from './model';
+import { craftKey } from './craft-feeds';
+import type { ProjectFilters } from '#lib/api/types.ts';
+export const publicationsContext = Symbol('confirmed-publications');
+
+/** PDS-confirmed writes bridge the delay before list reads observe the new record. */
+export class Publications {
+	posts = $state<Post[]>([]);
+	removed = $state<string[]>([]);
+	private counters = $state<
+		Record<string, { replyCount: number; quoteCount: number }>
+	>({});
+	private acceptedAt = new Map<string, number>();
+	constructor(readonly did: string) {}
+	private recent() {
+		return this.posts.filter(
+			(post) => Date.now() - (this.acceptedAt.get(post.uri) || 0) < 300000
+		);
+	}
+	observe(values: PostPresentation[]) {
+		const latest = new Map(
+			values.filter(visible).map((post) => [post.uri, post])
+		);
+		if (
+			this.posts.some((post) => {
+				const observed = latest.get(post.uri);
+				return (
+					observed &&
+					observed.cid !== post.cid &&
+					(observed.editedAt || '') >= (post.editedAt || '')
+				);
+			})
+		)
+			this.posts = this.posts.map((post) => {
+				const observed = latest.get(post.uri);
+				return observed && (observed.editedAt || '') >= (post.editedAt || '')
+					? observed
+					: post;
+			});
+	}
+	accept(post: Post, context?: Post) {
+		if (
+			post.author.did !== this.did ||
+			this.posts.some((item) => item.uri === post.uri)
+		)
+			return;
+		this.acceptedAt.set(post.uri, Date.now());
+		this.posts = [post, ...this.posts].slice(0, 50);
+		for (const uri of this.acceptedAt.keys())
+			if (!this.posts.some((post) => post.uri === uri))
+				this.acceptedAt.delete(uri);
+		if (
+			context &&
+			(post.reply?.parent.uri === context.uri ||
+				post.quote?.uri === context.uri)
+		) {
+			const base = this.counters[context.uri] || {
+				replyCount: context.replyCount,
+				quoteCount: context.quoteCount
+			};
+			this.counters = {
+				...this.counters,
+				[context.uri]: {
+					replyCount:
+						Math.max(base.replyCount, context.replyCount) +
+						(post.reply ? 1 : 0),
+					quoteCount:
+						Math.max(base.quoteCount, context.quoteCount) + (post.quote ? 1 : 0)
+				}
+			};
+		}
+	}
+	remove(uri: string) {
+		this.acceptedAt.delete(uri);
+		this.posts = this.posts.filter((item) => item.uri !== uri);
+		this.removed = [...this.removed, uri].slice(-100);
+	}
+	overlay(value: PostPresentation): PostPresentation {
+		if (!visible(value)) return value; // Authoritative privacy/moderation always wins.
+		const post = value;
+		const counts = this.counters[post.uri];
+		return counts
+			? {
+					...post,
+					replyCount: Math.max(post.replyCount, counts.replyCount),
+					quoteCount: Math.max(post.quoteCount, counts.quoteCount)
+				}
+			: post;
+	}
+	merge(
+		values: PostPresentation[],
+		include: (post: Post) => boolean
+	): PostPresentation[] {
+		const uris = new Set(values.map((item) => item.uri));
+		return [
+			...this.recent().filter((item) => include(item) && !uris.has(item.uri)),
+			...values
+		]
+			.filter((item) => !item.uri || !this.removed.includes(item.uri))
+			.map((item) => this.overlay(item));
+	}
+	comments(values: CommentItem[], root: string): CommentItem[] {
+		const present = new Set(values.map((item) => item.post.uri));
+		const fresh: CommentItem[] = this.recent()
+			.filter(
+				(item) => item.reply?.parent.uri === root && !present.has(item.uri)
+			)
+			.map((post) => ({
+				post,
+				placement: 'viewerAuthored',
+				replies: { items: [], loaded: false }
+			}));
+		return [...fresh, ...values]
+			.filter((item) => !this.removed.includes(item.post.uri || ''))
+			.map((item) => {
+				const parents = new Set([
+					item.post.uri,
+					...item.replies.items.map((reply) => reply.post.uri)
+				]);
+				const replies = this.merge(
+					item.replies.items.map((reply) => reply.post),
+					(post) => !!post.reply && parents.has(post.reply.parent.uri)
+				);
+				return {
+					...item,
+					post: this.overlay(item.post),
+					replies: {
+						...item.replies,
+						loaded: item.replies.loaded,
+						items: replies.map((post) => ({
+							...item.replies.items.find(
+								(reply) => reply.post.uri === post.uri
+							),
+							post
+						}))
+					}
+				};
+			});
+	}
+}
+
+/** Only the primary craft controls craft-feed membership, matching AppView. */
+export function matchesProject(
+	post: Post,
+	craft: string,
+	filters: ProjectFilters
+) {
+	const project = post.project;
+	if (
+		!project ||
+		post.reply ||
+		craftKey(project.common.craftType) !== craftKey(craft)
+	)
+		return false;
+	const fields: Record<string, unknown> = {
+		...project.details,
+		status: project.common.status,
+		patternDifficulty: project.common.pattern?.difficulty,
+		color: project.common.colors,
+		designTag: project.common.designTags,
+		selfDrafted: project.common.pattern?.selfDrafted ?? false
+	};
+	return Object.entries(filters).every(([key, selected]) => {
+		if (key === 'selfDrafted')
+			return fields[key] === (selected === true || selected === 'true');
+		const desired = Array.isArray(selected) ? selected : [selected];
+		const actual = Array.isArray(fields[key])
+			? (fields[key] as unknown[])
+			: [fields[key]];
+		return desired.some(
+			(value) =>
+				typeof value === 'string' &&
+				actual.some(
+					(candidate) =>
+						typeof candidate === 'string' &&
+						craftKey(candidate) === craftKey(value)
+				)
+		);
+	});
+}

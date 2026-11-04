@@ -1,7 +1,12 @@
 <script lang="ts">
 	import { appendPage } from '#lib/pagination.ts';
 	import { dragScroll } from '#lib/drag-scroll.ts';
-	import { onMount, onDestroy } from 'svelte';
+	import { getContext, onMount, onDestroy } from 'svelte';
+	import {
+		Publications,
+		publicationsContext,
+		matchesProject
+	} from './publications.svelte';
 	import { page } from '$app/state';
 	import type {
 		CraftskyAPI,
@@ -22,17 +27,49 @@
 	import EmptyState from './EmptyState.svelte';
 	import { craftFeeds, craftKey } from './craft-feeds';
 	let { api, did }: { api: CraftskyAPI; did: string } = $props();
-	const historyView = rememberPage<number>('feed-pages');
-	let loadedPages = 0;
+	type FeedItem = { key: string; post: PostPresentation; reason?: Author };
+	type FeedSnapshot = {
+		profile?: Profile;
+		items: FeedItem[];
+		cursor: string | null;
+		pages: number;
+	};
+	const historyView = rememberPage<FeedSnapshot>(
+		'feed',
+		'/app/home' + page.url.search
+	);
+	const snapshot = historyView?.value;
+	let loadedPages = snapshot?.pages || 0;
 	let disposed = false;
+	let loaded = !!snapshot;
 	const work = new Work();
-	let profile = $state<Profile>();
-	let items = $state<
-			{ key: string; post: PostPresentation; reason?: Author }[]
-		>([]),
-		cursor = $state<string | null>(null);
+	let profile = $state<Profile | undefined>(snapshot?.profile);
+	let items = $state<FeedItem[]>(snapshot?.items || []),
+		cursor = $state<string | null>(snapshot?.cursor || null);
+	function saveView() {
+		if (loaded)
+			historyView?.save({ profile, items, cursor, pages: loadedPages });
+	}
 	const craft = page.url.searchParams.get('craft') || '';
 	const filters = browseFilters(page.url.searchParams);
+	const publications = getContext<Publications | undefined>(
+		publicationsContext
+	);
+	const displayedItems = $derived.by(() => {
+		const merged = publications?.merge(
+			items.map((item) => item.post),
+			(post) => !post.reply && (!craft || matchesProject(post, craft, filters))
+		);
+		return merged
+			? merged.map((post) => ({
+					...items.find((item) => item.post.uri === post.uri),
+					key:
+						items.find((item) => item.post.uri === post.uri)?.key ||
+						'published:' + post.uri,
+					post
+				}))
+			: items;
+	});
 	async function load(more = false) {
 		await work.run(
 			async () => {
@@ -72,12 +109,14 @@
 				};
 			},
 			(result) => {
+				publications?.observe(result.items.map((item) => item.post));
 				items = more
 					? appendPage(items, result.items, (item) => item.key)
 					: result.items;
 				cursor = result.cursor || null;
 				loadedPages = more ? loadedPages + 1 : 1;
-				historyView?.save(loadedPages);
+				loaded = true;
+				saveView();
 			}
 		);
 	}
@@ -85,21 +124,24 @@
 		const refresh = () => void load();
 		window.addEventListener('craftsky-refresh', refresh);
 		void (async () => {
-			const pages = historyView?.value || 1;
-			await load();
-			while (!disposed && cursor && !work.error && loadedPages < pages)
-				await load(true);
+			if (!snapshot) {
+				const pages = historyView?.value?.pages || 1;
+				await load();
+				while (!disposed && cursor && !work.error && loadedPages < pages)
+					await load(true);
+			} else work.hasLoaded = true;
 			historyView?.ready();
 		})();
 		return () => window.removeEventListener('craftsky-refresh', refresh);
 	});
 	onDestroy(() => {
 		disposed = true;
+		saveView();
 		work.dispose();
 	});
 </script>
 
-<div hidden={page.url.pathname.endsWith('/filters')}>
+<div class="feed-content" hidden={page.url.pathname.endsWith('/filters')}>
 	<div class="workspace-heading">
 		<h1>Home</h1>
 		{#if craft}<div class="heading-actions">
@@ -145,7 +187,7 @@
 		{work}
 		skeleton="posts"
 		reload={() => load()}
-	/>{#each items as item (item.key)}<MemberPost
+	/>{#each displayedItems as item (item.key)}<MemberPost
 			value={item.post}
 			reason={item.reason}
 			{api}

@@ -1,3 +1,4 @@
+import { FieldValidationError } from '#lib/field-validation.ts';
 import { graphemeCount as characterCount } from '#lib/text.ts';
 export { graphemeCount as characterCount } from '#lib/text.ts';
 const encoder = new TextEncoder();
@@ -12,5 +13,5 @@ export function requireRecordText(
 		characterCount(value) > characters ||
 		encoder.encode(value).length > bytes
 	)
-		throw new Error(`${label} is too long.`);
+		throw new FieldValidationError(label, `${label} is too long.`);
 }

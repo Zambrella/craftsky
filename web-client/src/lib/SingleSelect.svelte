@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { clearFieldError } from './field-validation';
 	import { tick } from 'svelte';
 	import Icon from './features/shell/Icon.svelte';
 	let {
@@ -75,6 +76,7 @@
 	function choose(next: string) {
 		if (disabled) return;
 		onchange(next);
+		clearFieldError(input);
 		close();
 		input.focus({ preventScroll: true });
 	}
@@ -146,6 +148,7 @@
 		<input
 			bind:this={input}
 			id={uid}
+			data-value={value}
 			role="combobox"
 			type="text"
 			autocomplete="off"

@@ -20,7 +20,7 @@
 {#key data.session.id}<AppShell session={data.session} accounts={data.accounts}
 		>{#snippet children(
 			api
-		)}{#key (section === 'home' ? '/app/home' : page.url.pathname) + page.url.search}
+		)}{#key ['profile', 'search'].includes(section) ? page.url.pathname : (section === 'home' ? '/app/home' : page.url.pathname) + page.url.search}
 				{#if section === 'home'}<Feed
 						{api}
 						did={data.session.did}

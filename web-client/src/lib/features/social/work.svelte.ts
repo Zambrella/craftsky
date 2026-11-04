@@ -1,3 +1,5 @@
+import { notify } from './toasts.svelte';
+import { presentFieldErrors } from '#lib/field-validation.ts';
 import { APIError, MutationOutcomeUnknownError } from '#lib/api/client.ts';
 import { reportFailure } from '../diagnostics/client.ts';
 export class Work {
@@ -11,7 +13,8 @@ export class Work {
 	}
 	async run<T>(
 		operation: () => Promise<T>,
-		accept: (value: T) => void = () => {}
+		accept: (value: T) => void = () => {},
+		notice?: string
 	) {
 		if (!this.active || this.busy) return;
 		this.busy = true;
@@ -21,9 +24,11 @@ export class Work {
 			const value = await operation();
 			if (this.active) {
 				accept(value);
+				if (notice) notify(notice);
 				this.retry = undefined;
 			}
 		} catch (error) {
+			if (this.active && presentFieldErrors(error)) return;
 			void reportFailure(error, 'workspace');
 			if (this.active) {
 				this.error =
@@ -34,7 +39,7 @@ export class Work {
 					error instanceof MutationOutcomeUnknownError ||
 					(error instanceof APIError && error.retryable)
 				)
-					this.retry = () => this.run(operation, accept);
+					this.retry = () => this.run(operation, accept, notice);
 			}
 		} finally {
 			if (this.active) {

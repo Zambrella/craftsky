@@ -1,4 +1,17 @@
 <script lang="ts">
+	import Snackbar from '../social/Snackbar.svelte';
+	import PublishingOverlay from './PublishingOverlay.svelte';
+	import {
+		Publications,
+		publicationsContext
+	} from '../social/publications.svelte';
+	import { notify } from '../social/toasts.svelte';
+	import {
+		findField,
+		showFieldError,
+		focusField,
+		presentFieldErrors
+	} from '#lib/field-validation.ts';
 	import { videoUploadsEnabled } from '../shell/release-config';
 	import { getContext, onDestroy, onMount, untrack } from 'svelte';
 	import { page } from '$app/state';
@@ -74,6 +87,14 @@
 	let loading = $state(true);
 	let initialized = $state(false);
 	let busy = $state(false);
+	let publishing = $state(false);
+	let scheduling = $state(false);
+	const publications = getContext<Publications | undefined>(
+		publicationsContext
+	);
+	const origin = getContext<(() => string | undefined) | undefined>(
+		'craftsky-composer-origin'
+	)?.();
 	let mediaTasks = $state<string[]>([]);
 	let mediaEdits = $state<string[]>([]);
 	let error = $state('');
@@ -257,6 +278,10 @@
 	});
 	beforeNavigate((nav) => {
 		if (approvedNavigation || !initialized || nav.willUnload) return;
+		if (publishing) {
+			nav.cancel();
+			return;
+		}
 		if (draft.pending) return; // Exact durable recovery survives leaving a pending action.
 		if (changed || mediaEdits.length) {
 			nav.cancel();
@@ -329,7 +354,8 @@
 			closeDialog.close();
 			await leaveEditor(closeTarget);
 		} catch (e) {
-			if (seq === generation && !destroyed) error = message(e);
+			if (seq === generation && !destroyed && !presentFieldErrors(e))
+				error = message(e);
 		} finally {
 			if (seq === generation && !destroyed) closing = false;
 		}
@@ -570,13 +596,15 @@
 				notice =
 					'The selected image is no longer available. Your quote will use the original post.';
 			existingDraft = !!saved;
-			closeDestination = saved
-				? '/app/drafts'
-				: scheduled
-					? '/app/scheduled'
-					: did && rkey
-						? `/app/posts/${encodeURIComponent(did)}/${encodeURIComponent(rkey)}`
-						: '/app/home';
+			closeDestination =
+				origin ||
+				(saved
+					? '/app/drafts'
+					: scheduled
+						? '/app/scheduled'
+						: did && rkey
+							? `/app/posts/${encodeURIComponent(did)}/${encodeURIComponent(rkey)}`
+							: '/app/home');
 			closeTarget = closeDestination;
 			recovery = new ComposerRecovery(owner, next.id, next, !!saved);
 			draft = next;
@@ -631,7 +659,8 @@
 				!!next.scheduleId || next.scheduleLater === true || !!next.scheduledAt;
 			scheduleAt = next.scheduledAt ? localDate(next.scheduledAt) : '';
 		} catch (e) {
-			if (seq === generation && !destroyed) error = message(e);
+			if (seq === generation && !destroyed && !presentFieldErrors(e))
+				error = message(e);
 		} finally {
 			if (seq === generation && !destroyed) loading = false;
 		}
@@ -682,7 +711,8 @@
 			);
 			await leaveEditor(destination);
 		} catch (e) {
-			if (seq === generation && !destroyed) error = message(e);
+			if (seq === generation && !destroyed && !presentFieldErrors(e))
+				error = message(e);
 		} finally {
 			if (seq === generation && !destroyed) closing = false;
 		}
@@ -725,10 +755,12 @@
 				if (draft.edit?.post.video) draft.embedChanges = null;
 			}
 		} catch (e) {
-			if (seq === generation && !destroyed) error = message(e);
+			if (seq === generation && !destroyed && !presentFieldErrors(e))
+				error = message(e);
 		} finally {
 			if (seq === generation && !destroyed) {
 				busy = false;
+				publishing = false;
 				progress = '';
 			}
 		}
@@ -749,7 +781,8 @@
 				draft.videoRecovery = 0;
 			}
 		} catch (e) {
-			if (seq === generation && !destroyed) error = message(e);
+			if (seq === generation && !destroyed && !presentFieldErrors(e))
+				error = message(e);
 		} finally {
 			if (seq === generation && !destroyed) busy = false;
 		}
@@ -894,7 +927,69 @@
 		notice = '';
 		try {
 			const errors = validateDraft(working, action !== 'publish');
-			if (errors.length) throw new Error(errors.join(' '));
+			if (errors.length) {
+				const text = findField(
+					working.reply
+						? `Write your ${responseLabel(working).toLowerCase()}`
+						: working.kind === 'project'
+							? 'Project description'
+							: 'What would you like to share?'
+				);
+				const textErrors = errors.filter(
+					(message) =>
+						message === 'Add some text to your post.' ||
+						message.startsWith('Posts can contain')
+				);
+				if (textErrors.length) showFieldError(text, textErrors.join(' '));
+				const remaining = errors.filter(
+					(message) => !textErrors.includes(message)
+				);
+				const mapped: string[] = [];
+				const groups = new Map<HTMLElement, string[]>();
+				const labels: [RegExp, string][] = [
+					[/^Choose a primary craft/, 'Primary craft'],
+					[/^Project title/, 'Project title'],
+					[/^Duration/, 'Duration'],
+					[/^Pattern name/, 'Pattern tag or name'],
+					[/^(Designer|Publisher)/, 'Pattern details'],
+					[/languages/, 'Post languages'],
+					[/materials/, 'Materials and style'],
+					[/^Video descriptions/, 'Video description'],
+					[/images|Image descriptions|^The video/, 'Photos'],
+					[/^Link previews|link preview URL/, 'Link preview']
+				];
+				for (const message of remaining) {
+					const craft = str(record(working.project?.common).craftType)
+						.split('#')
+						.at(-1);
+					const label = /^(Gauge|Fit notes)/.test(message)
+						? `${craft} details`
+						: labels.find(([pattern]) => pattern.test(message))?.[1];
+					const field =
+						(label && findField(label)) || findField('Post options');
+					if (field) {
+						groups.set(field, [...(groups.get(field) || []), message]);
+						mapped.push(message);
+					}
+				}
+				for (const [field, messages] of groups)
+					showFieldError(field, messages.join(' '));
+
+				for (const message of mapped)
+					remaining.splice(remaining.indexOf(message), 1);
+				if (!remaining.length) {
+					focusField(
+						textErrors.length
+							? text
+							: document.querySelector<HTMLElement>('[aria-invalid=true]') ||
+									undefined
+					);
+					return;
+				}
+				throw new Error(remaining.join(' '));
+			}
+			publishing = true;
+			scheduling = action === 'schedule';
 			let pending: PendingWrite;
 			if (action === 'schedule' || action === 'publish-now') {
 				const payload = await makeSchedulePayload(working, signal);
@@ -1009,10 +1104,12 @@
 			if (seq !== generation || destroyed) return;
 			await perform(pending, owner, seq, working.id);
 		} catch (e) {
-			if (seq === generation && !destroyed) error = message(e);
+			if (seq === generation && !destroyed && !presentFieldErrors(e))
+				error = message(e);
 		} finally {
 			if (seq === generation && !destroyed) {
 				busy = false;
+				publishing = false;
 				progress = '';
 			}
 		}
@@ -1022,6 +1119,10 @@
 		const seq = generation,
 			owner = session.did;
 		busy = true;
+		publishing = true;
+		scheduling =
+			!!draft.pending.kind?.startsWith('schedule-') &&
+			draft.pending.kind !== 'schedule-publish';
 		error = '';
 		try {
 			await perform(
@@ -1031,10 +1132,12 @@
 				draft.id
 			);
 		} catch (e) {
-			if (seq === generation && !destroyed) error = message(e);
+			if (seq === generation && !destroyed && !presentFieldErrors(e))
+				error = message(e);
 		} finally {
 			if (seq === generation && !destroyed) {
 				busy = false;
+				publishing = false;
 				progress = '';
 			}
 		}
@@ -1051,7 +1154,7 @@
 				? recovery
 				: undefined;
 		try {
-			let destination = '/app/home';
+			let destination = closeDestination;
 			let resultNotice = 'Your post has been published.';
 			if (pending.kind === 'schedule-create') {
 				await api.schedules.create(
@@ -1059,7 +1162,7 @@
 					str(pending.body.scheduledAt),
 					record(pending.body.payload)
 				);
-				destination = '/app/scheduled';
+				destination = origin || '/app/scheduled';
 				resultNotice = 'Your post has been scheduled.';
 			} else if (pending.kind === 'schedule-update') {
 				await api.schedules.update(
@@ -1067,14 +1170,14 @@
 					str(pending.body.scheduledAt),
 					record(pending.body.payload)
 				);
-				destination = '/app/scheduled';
+				destination = origin || '/app/scheduled';
 				resultNotice = 'Your schedule has been updated.';
 			} else if (pending.kind === 'schedule-publish') {
 				const result = await api.schedules.publish(
 					pending.rkey!,
 					record(pending.body.payload)
 				);
-				destination = '/app/scheduled';
+				destination = origin || '/app/scheduled';
 				resultNotice =
 					result.status === 'publishing'
 						? 'Your post is being published.'
@@ -1094,7 +1197,9 @@
 					pending.body as unknown as PostPayload,
 					pending.key
 				);
-				destination = `/app/posts/${encodeURIComponent(post.author.did)}/${encodeURIComponent(post.rkey)}`;
+				if (seq !== generation || destroyed) return;
+				publications?.accept(post, context);
+				destination = origin || closeDestination;
 			}
 			// An accepted public write stays accepted even if local cleanup fails.
 			// A retained pending draft can only recheck the original idempotent action.
@@ -1103,7 +1208,7 @@
 			).catch(() => {});
 			if (seq !== generation || destroyed) return;
 			draft.pending = undefined;
-			notice = resultNotice;
+			notify(resultNotice);
 			dirty = false;
 			try {
 				await leaveEditor(destination);
@@ -1152,6 +1257,22 @@
 	}
 </script>
 
+<PublishingOverlay
+	active={publishing}
+	video={!!draft.video}
+	fraction={progress.match(/(\d+(?:\.\d+)?)%/)
+		? Number(progress.match(/(\d+(?:\.\d+)?)%/)![1])
+		: undefined}
+	label={progress.startsWith('Uploading') || progress.startsWith('Processing')
+		? progress
+		: draft.edit
+			? 'Saving changes…'
+			: scheduling
+				? 'Scheduling post…'
+				: draft.reply
+					? `Publishing ${responseLabel(draft).toLowerCase()}…`
+					: 'Publishing post…'}
+/>
 <svelte:window onbeforeunload={beforeLeave} />
 <section class="composer">
 	<header class="composer-heading">
@@ -1180,8 +1301,12 @@
 				>{existingDraft ? 'Save changes' : 'Save draft'}</button
 			>{/if}
 	</header>
-	{#if error}<div class="composer-error" role="alert">{error}</div>{/if}
-	{#if notice}<p role="status" class="composer-notice">{notice}</p>{/if}
+	{#if error}<Snackbar
+			message={error}
+			warning
+			onDismiss={() => (error = '')}
+		/>{/if}
+	{#if notice}<Snackbar message={notice} onDismiss={() => (notice = '')} />{/if}
 	{#if loading}<p role="status" class="loading">
 			Loading your editor…
 		</p>{:else if !initialized}<button
@@ -1246,7 +1371,10 @@
 						{draftSize}/2000
 					</p>
 
-					<section class="composer-section attachment-section">
+					<section
+						class="composer-section attachment-section"
+						data-field="Photos"
+					>
 						{#if !draft.video && !retainedVideo && !retainedExternal}<PhotoAttachments
 								images={draft.images}
 								required={draft.kind === 'project'}
@@ -1269,6 +1397,7 @@
 									><track kind="captions" /></video
 								><label
 									>Video description<textarea
+										name="draft.video.alt"
 										maxlength="1000"
 										rows="2"
 										bind:value={draft.video.alt}
@@ -1336,6 +1465,7 @@
 					</section>
 					{#if draft.external && !draft.images.length && !draft.quote && !draft.video && !retainedVideo}<div
 							class="link-preview-section"
+							data-field="Link preview"
 						>
 							<ComposerLinkPreview
 								external={draft.external}
@@ -1353,6 +1483,7 @@
 					{:else if previewState.loading && !previewSuppressed && !draft.externalDismissed}<p
 							role="status"
 							class="link-preview-section"
+							data-field="Link preview"
 						>
 							Loading link preview
 						</p>{/if}
@@ -1368,7 +1499,11 @@
 								}}>Undo</button
 							>
 						</p>{/if}
-					<div class="metadata-controls" aria-label="Post options">
+					<div
+						class="metadata-controls"
+						aria-label="Post options"
+						data-field="Post options"
+					>
 						<LanguagePicker
 							owner={session.id + ':' + session.did}
 							languages={draft.langs}
@@ -1463,7 +1598,6 @@
 	{#if mediaEdits.length || mediaTasks.length || busy}<p>
 			Finish or cancel your media edit before closing.
 		</p>{/if}
-	{#if error}<p class="error" role="alert">{error}</p>{/if}
 	<div class="composer-close-actions">
 		<button type="button" disabled={closing} onclick={keepEditing}
 			>Keep editing</button

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { goto } from '$app/navigation';
 	import { contextMenu } from './context-menu';
 	import { subscriptionsEnabled, comingSoon } from '../shell/release-config';
 	import { onMount, onDestroy } from 'svelte';
@@ -79,7 +80,8 @@
 					folders = [...folders, folder];
 					folderName = '';
 					folderDialog.close();
-				}
+				},
+				'Folder created.'
 			);
 	}
 	function rename() {
@@ -90,13 +92,15 @@
 				(next) => {
 					folders = folders.map((f) => (f.id === next.id ? next : f));
 					folderDialog.close();
-				}
+				},
+				'Folder renamed.'
 			);
 	}
 	function remove() {
 		void work.run(
 			() => api.saved.deleteFolder(folderId, deleteSaves),
-			() => location.assign('/app/saved')
+			() => void goto('/app/saved'),
+			'Folder deleted.'
 		);
 	}
 
@@ -220,6 +224,7 @@
 		</h2>
 		<label
 			>Folder name<input
+				name="folderName"
 				bind:value={folderName}
 				maxlength="80"
 				required

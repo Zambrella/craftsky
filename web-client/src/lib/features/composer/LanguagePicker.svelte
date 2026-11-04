@@ -113,6 +113,7 @@
 	<h2 id={uid + '-title'}>Add post language</h2>
 	<label class="language-search"
 		>Search languages<input
+			name="search"
 			bind:this={searchInput}
 			type="search"
 			bind:value={search}

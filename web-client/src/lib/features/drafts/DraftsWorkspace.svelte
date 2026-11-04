@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Snackbar from '../social/Snackbar.svelte';
 	import EmptyState from '../social/EmptyState.svelte';
 	import { getContext, onDestroy, onMount, untrack } from 'svelte';
 	import type { CraftskyAPI, ScheduledPostSummary } from '#lib/api/client.ts';
@@ -110,10 +111,12 @@
 	<header class="workspace-header draft-appbar">
 		<h1>{isScheduled ? 'Scheduled posts' : 'Drafts'}</h1>
 	</header>
-	{#if error}<div class="feedback error" role="alert">
-			{error}<button onclick={() => load()}>Try again</button>
-		</div>{/if}
-	{#if notice}<p class="feedback" role="status">{notice}</p>{/if}
+	{#if error}<Snackbar message={error} warning onDismiss={() => (error = '')}
+			><button type="button" onclick={() => (deletion ? remove() : load())}
+				>Try again</button
+			></Snackbar
+		>{/if}
+	{#if notice}<Snackbar message={notice} onDismiss={() => (notice = '')} />{/if}
 	{#if loading}<div
 			class="draft-skeleton"
 			role="status"
@@ -362,21 +365,7 @@
 		font-size: 12px;
 		line-height: 1.6;
 	}
-	.feedback {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		gap: 12px;
-		padding: 14px 16px;
-		margin: 12px 16px;
-		border-radius: 10px;
-		background: var(--primary-soft);
-	}
-	.feedback.error {
-		background: var(--red-soft);
-		color: var(--red-ink);
-	}
-	.feedback button,
+
 	.dialog-actions button {
 		border: 0;
 		padding: 12px;

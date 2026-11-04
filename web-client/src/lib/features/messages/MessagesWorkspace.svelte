@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Snackbar from '../social/Snackbar.svelte';
 	import SingleSelect from '#lib/SingleSelect.svelte';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
@@ -67,6 +68,7 @@
 	let blockDialog: HTMLDialogElement;
 	let ignoreRequest = $state(false);
 	let clipboardNotice = $state('');
+	let clipboardError = $state(false);
 	let deleteTarget = $state<ChatMessage>();
 	const sharedLink = $derived(
 		sharedCraftskyLink(page.url.searchParams.get('link'))
@@ -330,11 +332,16 @@
 		const owner = controller;
 		try {
 			await navigator.clipboard.writeText(text);
-			if (owner === controller) clipboardNotice = 'Message copied.';
+			if (owner === controller) {
+				clipboardError = false;
+				clipboardNotice = 'Message copied.';
+			}
 		} catch {
-			if (owner === controller)
+			if (owner === controller) {
+				clipboardError = true;
 				clipboardNotice =
 					'Could not copy this message. Select the text to copy it.';
+			}
 		}
 	}
 </script>
@@ -439,21 +446,34 @@
 					</details>{/if}
 			</nav>{/if}
 	</header>
-	{#if viewState?.error}<div class="feedback error" role="alert">
-			<p>{viewState.error}</p>
-			<button disabled={viewState.busy} onclick={() => controller?.refresh()}
-				>Try again</button
-			>
-		</div>{/if}
-	{#if clipboardNotice}<p class="feedback" role="status">
-			{clipboardNotice}
-		</p>{/if}
-	{#if viewState?.notice}<p class="feedback" role="status">
-			{viewState.notice}
-		</p>{/if}
-	{#if authorizationError}<p class="feedback error" role="alert">
-			{authorizationError}
-		</p>{/if}
+	{#if viewState?.error}<Snackbar
+			message={viewState.error}
+			warning
+			onDismiss={() => {
+				if (viewState) viewState.error = '';
+			}}
+			><button
+				type="button"
+				disabled={viewState.busy}
+				onclick={() => controller?.refresh()}>Try again</button
+			></Snackbar
+		>{/if}
+	{#if clipboardNotice}<Snackbar
+			message={clipboardNotice}
+			warning={clipboardError}
+			onDismiss={() => (clipboardNotice = '')}
+		/>{/if}
+	{#if viewState?.notice}<Snackbar
+			message={viewState.notice}
+			onDismiss={() => {
+				if (viewState) viewState.notice = '';
+			}}
+		/>{/if}
+	{#if authorizationError}<Snackbar
+			message={authorizationError}
+			warning
+			onDismiss={() => (authorizationError = '')}
+		/>{/if}
 	{#if !viewState || viewState.loading}<div
 			class="loading"
 			class:settings-loading={viewState?.view === 'settings'}
@@ -775,6 +795,11 @@
 					onchange={(value) => (reportReason = value)}
 				/><label
 					>Explanation (optional)<textarea
+						name="reportExplanation"
+						aria-invalid={!!validateText(reportExplanation, true)}
+						aria-describedby={validateText(reportExplanation, true)
+							? 'report-explanation-error'
+							: undefined}
 						rows="5"
 						bind:value={reportExplanation}
 						readonly={!!viewState.report}
@@ -782,6 +807,7 @@
 						>{graphemeCount(reportExplanation)} / 2,000</small
 					></label
 				>{#if validateText(reportExplanation, true)}<p
+						id="report-explanation-error"
 						class="error"
 						role="alert"
 					>
@@ -948,6 +974,12 @@
 					<label class="visually-hidden" for="chat-compose">Message</label
 					><textarea
 						id="chat-compose"
+						aria-invalid={!!viewState.draft.text &&
+							!!validateText(viewState.draft.text)}
+						aria-describedby={viewState.draft.text &&
+						validateText(viewState.draft.text)
+							? 'chat-validation'
+							: undefined}
 						value={viewState.draft.text}
 						rows="1"
 						placeholder="Message"
@@ -977,6 +1009,7 @@
 					</div>
 					{#if viewState.draft.text && validateText(viewState.draft.text)}<p
 							class="validation-message"
+							id="chat-validation"
 						>
 							{validateText(viewState.draft.text)}
 						</p>{/if}
@@ -1008,7 +1041,6 @@
 		apps. Messages already received by the other person remain available to
 		them.
 	</p>
-	{#if viewState?.error}<p role="alert" class="error">{viewState.error}</p>{/if}
 	<div class="action-row">
 		<button onclick={() => leaveDialog.close()}>Cancel</button><button
 			class="danger"
@@ -1031,7 +1063,6 @@
 		This removes the message from your view. The other person may still have a
 		copy.
 	</p>
-	{#if viewState?.error}<p role="alert" class="error">{viewState.error}</p>{/if}
 	<div class="action-row">
 		<button onclick={() => deleteDialog.close()}>Cancel</button><button
 			class="danger"
@@ -1054,7 +1085,6 @@
 		Blocking is public on the AT Protocol. You will no longer see or interact
 		with each other's content.
 	</p>
-	{#if viewState?.error}<p role="alert" class="error">{viewState.error}</p>{/if}
 	<div class="action-row">
 		<button disabled={viewState?.busy} onclick={() => blockDialog.close()}
 			>Cancel</button

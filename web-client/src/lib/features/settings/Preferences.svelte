@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { fieldError } from '#lib/field-validation.ts';
 	import SingleSelect from '#lib/SingleSelect.svelte';
 	import { confirmNavigation } from '../social/navigation-prompt';
 	import { onMount, onDestroy } from 'svelte';
@@ -173,8 +174,10 @@
 				content = previous.content;
 			}
 		} catch (error) {
-			work.error =
-				error instanceof Error ? error.message : 'Check your languages.';
+			fieldError(
+				'Primary language',
+				error instanceof Error ? error.message : 'Check your languages.'
+			);
 		}
 	}
 	function saveCustomisation(event: SubmitEvent) {

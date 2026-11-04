@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { fieldError } from '#lib/field-validation.ts';
 	import { usePrompt } from '../social/prompt';
 	const ask = usePrompt();
 	import { onMount, onDestroy } from 'svelte';
@@ -168,8 +169,10 @@
 			work.error = '';
 		} catch (error) {
 			parsed = null;
-			work.error =
-				error instanceof Error ? error.message : 'Could not read usernames.';
+			fieldError(
+				'Instagram usernames',
+				error instanceof Error ? error.message : 'Could not read usernames.'
+			);
 		}
 	}
 	async function readFile(event: Event) {
@@ -457,6 +460,7 @@
 					<fieldset class="form-fields" disabled={work.busy || !!work.retry}>
 						<label
 							>Instagram usernames<textarea
+								name="manual"
 								bind:value={manual}
 								placeholder={'@maker_one\nmaker_two'}></textarea></label
 						><button disabled={work.busy}>Review usernames</button>

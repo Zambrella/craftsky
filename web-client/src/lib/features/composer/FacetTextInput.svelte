@@ -219,6 +219,8 @@
 	>
 	<textarea
 		id={uid}
+		name={className === 'post-text' ? 'text' : undefined}
+		aria-required={hint.toLowerCase() === 'required'}
 		bind:this={editor}
 		use:textareaPresentation={{
 			value,

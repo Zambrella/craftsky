@@ -73,7 +73,7 @@ test.beforeEach(async ({ context, page }) => {
 	await login(context);
 });
 
-test('publishes through AppView, navigates to the post and edits with the observed CID', async ({
+test('publishes through AppView, returns to the feed and edits with the observed CID', async ({
 	page
 }) => {
 	await compose(page);
@@ -84,7 +84,7 @@ test('publishes through AppView, navigates to the post and edits with the observ
 		})
 		.fill('My new handknitted scarf #knitting');
 	await page.getByRole('button', { name: 'Post', exact: true }).click();
-	await expect(page).toHaveURL(/\/app\/posts\/did%3Aplc%3Aalice\/created-1/);
+	await expect(page).toHaveURL('/app/home');
 	await expect(
 		page.getByText('My new handknitted scarf #knitting', { exact: true })
 	).toBeVisible();
@@ -134,7 +134,7 @@ test('an ambiguous write freezes the editor and retries the exact saved key and 
 	await page
 		.getByRole('button', { name: 'Check the same action', exact: true })
 		.click();
-	await expect(page).toHaveURL(/\/app\/posts\//);
+	await expect(page).toHaveURL('/app/home');
 	const attempts = (await calls()).filter(
 		(call) => call.method === 'POST' && call.path === '/v1/posts'
 	);
@@ -191,7 +191,7 @@ test('inline mention and hashtag pickers support keyboard selection and publish 
 	await editor.press('Enter');
 	await expect(editor).toHaveValue('Thanks @alice.test #knitting ');
 	await page.getByRole('button', { name: 'Post', exact: true }).click();
-	await expect(page).toHaveURL(/\/app\/posts\//);
+	await expect(page).toHaveURL('/app/home');
 	const created = (await calls()).find(
 		(call) => call.path === '/v1/posts' && call.method === 'POST'
 	);
@@ -270,7 +270,7 @@ test('accepted publication survives a local draft cleanup failure', async ({
 		})
 		.fill('Published despite a local storage cleanup failure');
 	await page.getByRole('button', { name: 'Post', exact: true }).click();
-	await expect(page).toHaveURL(/\/app\/posts\//);
+	await expect(page).toHaveURL('/app/home');
 	await expect(
 		page.getByText('Published despite a local storage cleanup failure', {
 			exact: true

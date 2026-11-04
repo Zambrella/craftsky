@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { notify } from './toasts.svelte';
 	import { confirmExternalLink } from './prompt';
 	import { contextMenu } from './context-menu';
 	import { onMount, onDestroy } from 'svelte';
@@ -53,13 +54,16 @@
 			<div class="menu-items">
 				<button
 					onclick={() =>
-						void work.run(() =>
-							navigator.clipboard.writeText(
-								'https://app.craftsky.social/events/' +
-									encodeURIComponent(did) +
-									'/' +
-									encodeURIComponent(rkey)
-							)
+						void work.run(
+							() =>
+								navigator.clipboard.writeText(
+									'https://app.craftsky.social/events/' +
+										encodeURIComponent(did) +
+										'/' +
+										encodeURIComponent(rkey)
+								),
+							undefined,
+							'Link copied.'
 						)}><Icon name="link" />Copy event link</button
 				>{#if viewerDid !== did}<button onclick={() => (reporting = !reporting)}
 						><Icon name="shield" />Report event</button
@@ -148,14 +152,13 @@
 			{#if reporting}<ReportForm
 					subject="event"
 					busy={work.busy}
-					error={work.error}
 					onRetry={work.retry}
 					onSubmit={(submission) =>
 						void work.run(
 							() => api.business.reportEvent(did, rkey, submission),
 							() => {
 								reporting = false;
-								work.error = 'Report submitted.';
+								notify('Report submitted.');
 							}
 						)}
 					onCancel={() => (reporting = false)}
