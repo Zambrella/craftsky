@@ -52,11 +52,13 @@ class NativeVideoControlsVisibility extends StatefulWidget {
   const new({
     required this.controls,
     this.hideAfter = const Duration(seconds: 3),
+    this.completed = false,
     super.key,
   });
 
   final Widget controls;
   final Duration hideAfter;
+  final bool completed;
 
   @override
   State<NativeVideoControlsVisibility> createState() =>
@@ -77,7 +79,11 @@ class _NativeVideoControlsVisibilityState
   @override
   void didUpdateWidget(NativeVideoControlsVisibility oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.hideAfter != oldWidget.hideAfter) _restartTimer();
+    if (widget.completed != oldWidget.completed) _visible = true;
+    if (widget.hideAfter != oldWidget.hideAfter ||
+        widget.completed != oldWidget.completed) {
+      _restartTimer();
+    }
   }
 
   @override
@@ -88,6 +94,7 @@ class _NativeVideoControlsVisibilityState
 
   void _restartTimer() {
     _hideTimer?.cancel();
+    if (widget.completed) return;
     _hideTimer = Timer(widget.hideAfter, () {
       if (mounted) setState(() => _visible = false);
     });
@@ -99,6 +106,7 @@ class _NativeVideoControlsVisibilityState
   }
 
   void _toggleControls() {
+    if (widget.completed) return;
     _hideTimer?.cancel();
     setState(() => _visible = !_visible);
     if (_visible) _restartTimer();
@@ -172,7 +180,7 @@ class _NativeVideoControls extends StatelessWidget {
                 final position = positionSnapshot.data ?? Duration.zero;
                 final duration = durationSnapshot.data ?? Duration.zero;
                 final volume = volumeSnapshot.data ?? 0;
-                return _NativeVideoInlineControlLayout(
+                return NativeVideoControlLayout(
                   playing: playing,
                   completed: completed,
                   position: position,
@@ -204,7 +212,7 @@ class _NativeVideoControls extends StatelessWidget {
   }
 }
 
-class _NativeVideoInlineControlLayout extends StatelessWidget {
+class NativeVideoControlLayout extends StatelessWidget {
   const new({
     required this.playing,
     required this.completed,
@@ -216,6 +224,7 @@ class _NativeVideoInlineControlLayout extends StatelessWidget {
     required this.onSeek,
     required this.onMute,
     required this.onFullscreen,
+    super.key,
   });
 
   final bool playing;
@@ -289,32 +298,38 @@ class _NativeVideoInlineControlLayout extends StatelessWidget {
         ],
       ),
     );
-    return NativeVideoControlsVisibility(
-      controls: Stack(
-        fit: StackFit.expand,
-        children: [
-          Center(
-            child: IconButton.filledTonal(
-              tooltip: playTooltip,
-              onPressed: onPlayPause,
-              icon: Icon(
-                completed
-                    ? Icons.replay
-                    : playing
-                    ? Icons.pause
-                    : Icons.play_arrow,
+    // media-kit's fullscreen route supplies Flutter's Material, while these
+    // controls need material_ui's surface for the slider and ink effects.
+    return Material(
+      type: MaterialType.transparency,
+      child: NativeVideoControlsVisibility(
+        completed: completed,
+        controls: Stack(
+          fit: StackFit.expand,
+          children: [
+            Center(
+              child: IconButton.filledTonal(
+                tooltip: playTooltip,
+                onPressed: onPlayPause,
+                icon: Icon(
+                  completed
+                      ? Icons.replay
+                      : playing
+                      ? Icons.pause
+                      : Icons.play_arrow,
+                ),
               ),
             ),
-          ),
-          PositionedDirectional(
-            start: 0,
-            end: 0,
-            bottom: 0,
-            child: fullscreen
-                ? SafeArea(top: false, child: controlBar)
-                : controlBar,
-          ),
-        ],
+            PositionedDirectional(
+              start: 0,
+              end: 0,
+              bottom: 0,
+              child: fullscreen
+                  ? SafeArea(top: false, child: controlBar)
+                  : controlBar,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -353,6 +368,11 @@ abstract interface class NativeVideoViewAdapter implements NativeVideoAdapter {
   Widget buildView({required double aspectRatio});
 }
 
+abstract interface class NativeVideoFullscreenAdapter
+    implements NativeVideoAdapter {
+  bool get isFullscreen;
+}
+
 final nativeVideoPlaybackCoordinator = NativeVideoPlaybackCoordinator();
 
 final class NativeVideoPlaybackCoordinator {
@@ -380,20 +400,35 @@ final class NativeVideoController {
 
   final NativeVideoAdapter _adapter;
   final NativeVideoPlaybackCoordinator _playbackCoordinator;
+  bool _disposed = false;
+  Future<void>? _disposal;
 
   Future<void> open(Uri playlist, {bool play = false}) async {
+    if (_disposed) return;
     await _adapter.setMuted(muted: true);
+    if (_disposed) return;
     await _adapter.open(playlist, play: play);
   }
 
-  Future<void> selectCaption(NativeVideoCaptionTrack? track) =>
-      _adapter.selectCaption(track);
+  Future<void> selectCaption(NativeVideoCaptionTrack? track) async {
+    if (_disposed) return;
+    await _adapter.selectCaption(track);
+  }
 
-  Future<void> didStartPlayback() => _playbackCoordinator.activate(this);
+  Future<void> didStartPlayback() async {
+    if (_disposed) return;
+    await _playbackCoordinator.activate(this);
+  }
 
-  Future<void> pauseForCompetingPlayback() => _adapter.pause();
+  Future<void> pauseForCompetingPlayback() async {
+    if (_disposed) return;
+    await _adapter.pause();
+  }
 
   Future<void> setVisible({required bool visible}) async {
+    if (_disposed) return;
+    // Fullscreen covers the inline view without hiding the shared player.
+    if (_adapter case NativeVideoFullscreenAdapter(isFullscreen: true)) return;
     if (!visible) {
       _playbackCoordinator.release(this);
       await _adapter.pause();
@@ -401,21 +436,30 @@ final class NativeVideoController {
   }
 
   Future<void> didEnterBackground() async {
+    if (_disposed) return;
     _playbackCoordinator.release(this);
     await _adapter.pause();
   }
 
-  Future<void> dispose() async {
+  Future<void> dispose() {
+    // Visibility notifications may arrive after the widget has been removed.
+    // Reject further operations before asynchronous native teardown starts.
+    _disposed = true;
     _playbackCoordinator.release(this);
-    await _adapter.dispose();
+    return _disposal ??= Future<void>.sync(_adapter.dispose);
   }
 }
 
-final class MediaKitNativeVideoAdapter implements NativeVideoViewAdapter {
+final class MediaKitNativeVideoAdapter
+    implements NativeVideoViewAdapter, NativeVideoFullscreenAdapter {
   new({Player? player}) : _player = player ?? Player();
 
   final Player _player;
   Orientation? _orientationBeforeFullscreen;
+  bool _fullscreen = false;
+
+  @override
+  bool get isFullscreen => _fullscreen;
 
   @override
   Stream<Object> get playbackErrors => _player.stream.error;
@@ -446,6 +490,7 @@ final class MediaKitNativeVideoAdapter implements NativeVideoViewAdapter {
     BuildContext context, {
     required bool isPortraitVideo,
   }) async {
+    _fullscreen = true;
     if (kIsWeb ||
         (defaultTargetPlatform != TargetPlatform.android &&
             defaultTargetPlatform != TargetPlatform.iOS)) {
@@ -467,6 +512,7 @@ final class MediaKitNativeVideoAdapter implements NativeVideoViewAdapter {
   }
 
   Future<void> _exitFullscreen() async {
+    _fullscreen = false;
     if (kIsWeb ||
         (defaultTargetPlatform != TargetPlatform.android &&
             defaultTargetPlatform != TargetPlatform.iOS)) {

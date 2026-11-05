@@ -3,6 +3,8 @@ import 'dart:typed_data';
 
 import 'package:craftsky_app/feed/providers/composer_video_controller.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
@@ -27,7 +29,7 @@ final class ImagePickerExistingVideo implements ExistingVideoPicker {
     Future<VideoProbeResult> Function(XFile file)? probe,
   }) : _pick =
            pick ?? (() => ImagePicker().pickVideo(source: ImageSource.gallery)),
-       _probe = probe ?? _probeWithMediaKit;
+       _probe = probe ?? _probeVideo;
 
   final Future<XFile?> Function() _pick;
   final Future<VideoProbeResult> Function(XFile file) _probe;
@@ -58,6 +60,40 @@ final class ImagePickerExistingVideo implements ExistingVideoPicker {
       posterBytes: metadata.posterBytes,
     );
   }
+}
+
+const _videoProbeChannel = MethodChannel('social.craftsky/local_video');
+
+Future<VideoProbeResult> _probeVideo(XFile file) async {
+  // MPV's software renderer aborts on rotated videos on iOS Simulator.
+  // Probe local iOS assets without creating a playback texture at all.
+  if (!kIsWeb && defaultTargetPlatform == TargetPlatform.iOS) {
+    final data = await _videoProbeChannel.invokeMapMethod<String, Object?>(
+      'probe',
+      {'path': file.path},
+    );
+    final width = data?['width'];
+    final height = data?['height'];
+    final durationMs = data?['durationMs'];
+    final poster = data?['posterBytes'];
+    if (width is! int ||
+        width <= 0 ||
+        height is! int ||
+        height <= 0 ||
+        poster is! Uint8List ||
+        poster.isEmpty) {
+      throw DiagnosticStateError('Video metadata unavailable');
+    }
+    return VideoProbeResult(
+      duration: durationMs is int && durationMs > 0
+          ? Duration(milliseconds: durationMs)
+          : null,
+      width: width,
+      height: height,
+      posterBytes: poster,
+    );
+  }
+  return await _probeWithMediaKit(file);
 }
 
 Future<VideoProbeResult> _probeWithMediaKit(XFile file) async {

@@ -1,10 +1,80 @@
-import 'dart:typed_data';
-
 import 'package:craftsky_app/feed/providers/image_picker_existing_video.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image_picker/image_picker.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  group('iOS native video preparation', () {
+    const channel = MethodChannel('social.craftsky/local_video');
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    late XFile file;
+
+    setUp(() {
+      debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+      file = XFile.fromData(Uint8List(12));
+    });
+
+    tearDown(() {
+      debugDefaultTargetPlatformOverride = null;
+      messenger.setMockMethodCallHandler(channel, null);
+    });
+
+    test('uses native portrait metadata and poster without a player', () async {
+      messenger.setMockMethodCallHandler(channel, (call) async {
+        expect(call.method, 'probe');
+        expect(call.arguments, {'path': file.path});
+        return {
+          'width': 1080,
+          'height': 1920,
+          'durationMs': 5025,
+          'posterBytes': Uint8List.fromList([1, 2, 3]),
+        };
+      });
+
+      final selection = await ImagePickerExistingVideo(pick: () async => file)
+          .pickExisting();
+      expect(selection?.width, 1080);
+      expect(selection?.height, 1920);
+      expect(selection?.duration, const Duration(milliseconds: 5025));
+      expect(selection?.posterBytes, [1, 2, 3]);
+    });
+
+    test('rejects an empty poster instead of falling back to MPV', () async {
+      messenger.setMockMethodCallHandler(
+        channel,
+        (_) async => {
+          'width': 1080,
+          'height': 1920,
+          'posterBytes': Uint8List(0),
+        },
+      );
+      await expectLater(
+        ImagePickerExistingVideo(pick: () async => file).pickExisting(),
+        throwsStateError,
+      );
+    });
+
+    test('preserves platform failures without invoking a player', () async {
+      messenger.setMockMethodCallHandler(channel, (_) async {
+        throw PlatformException(code: 'video_probe_failed');
+      });
+      await expectLater(
+        ImagePickerExistingVideo(pick: () async => file).pickExisting(),
+        throwsA(
+          isA<PlatformException>().having(
+            (e) => e.code,
+            'code',
+            'video_probe_failed',
+          ),
+        ),
+      );
+    });
+  });
+
   test('UT-001 unknown production duration remains eligible', () async {
     final duration = await resolveVideoDuration(
       current: Duration.zero,

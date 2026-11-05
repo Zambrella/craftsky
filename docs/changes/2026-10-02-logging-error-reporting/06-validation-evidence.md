@@ -339,3 +339,18 @@ See [the triage record](../../development/sentry-triage-2026-10-28.md) for the l
 - Focused registry, settings, account-boundary and diagnostic suites: 130 passed, four existing skips (`/tmp/craftsky-deletion-focused.log`). Flutter analysis: no issues (`/tmp/craftsky-deletion-analysis.log`). The required `just test` attempt could not start because this worktree's local Postgres service is not running (`/tmp/craftsky-deletion-go.log`); no Go code changed.
 - Full Flutter suite: 3,509 passed, 38 existing skips (`/tmp/craftsky-deletion-full.log`), after preparing the checkout-local Rive host runtime. `git diff --check` passed.
 - Physical iOS/Android/web reproduction, updated client release, production log/Sentry delivery and post-release recurrence remain unverified. No production faults were injected and no deployment or Sentry issue-state change was performed.
+
+### 5 November 2026: Bunny video cleanup worker
+
+- Cleanup retries select operation, stage, attempt, initiating account and the
+  durable job UUID. Initial failures log warnings; five or more failures in one
+  stage log errors and capture an issue while recovery continues.
+- `internal/video/diagnostic_boundary_test.go` verifies serialized local and
+  mock Sentry output, including protected exception/URL/key canaries and positive
+  retry/exhaustion fields. Its exact test file is permitted by the SDK import
+  boundary; production feature code imports only the observability facade.
+- The local worker removed the already-deleted test post's Bunny copy and
+  purged its CDN prefix. Playlist, thumbnail and MP4 requests returned 404.
+  Production worker rollout, production failure delivery and release-device
+  retrieval were not exercised. No production faults or issue-state changes
+  were introduced. This backend change does not require a new client build.

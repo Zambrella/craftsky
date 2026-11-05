@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:craftsky_app/feed/data/video_service_client.dart';
 import 'package:craftsky_app/feed/models/create_post_external.dart';
 import 'package:craftsky_app/feed/models/create_post_image.dart';
 import 'package:craftsky_app/feed/models/create_post_video.dart';
@@ -11,6 +12,7 @@ import 'package:craftsky_app/feed/models/post_edit.dart';
 import 'package:craftsky_app/feed/models/post_page.dart';
 import 'package:craftsky_app/feed/models/profile_pin_state.dart';
 import 'package:craftsky_app/feed/models/timeline_page.dart';
+import 'package:craftsky_app/feed/models/video_service_result.dart';
 import 'package:craftsky_app/feed/models/video_upload_limits.dart';
 import 'package:craftsky_app/moderation/models/report_result.dart';
 import 'package:craftsky_app/moderation/models/report_submission.dart';
@@ -48,6 +50,39 @@ class PostApiClient {
         );
         return VideoUploadAuthorization.fromMap(response.data!);
       });
+
+  Future<VideoServiceResult> getBunnyVideoStatus(
+    String jobId, {
+    CancelToken? cancelToken,
+  }) => unwrapApi(() async {
+    if (!RegExp(r'^[0-9a-f-]{36}$').hasMatch(jobId)) {
+      throw ArgumentError('Invalid video job');
+    }
+    try {
+      final response = await _dio.post<Map<String, dynamic>>(
+        '/v1/blobs/videos/$jobId/status',
+        cancelToken: cancelToken,
+        options: Options(receiveTimeout: const Duration(minutes: 2)),
+      );
+      return VideoServiceResult.fromJson(
+        response.data!['jobStatus'] as Map<String, dynamic>,
+      );
+    } on DioException catch (error,stackTrace) {
+      if (CancelToken.isCancel(error) ||
+          error.response?.statusCode == 401 ||
+          error.response?.statusCode == 403) { rethrow; }
+      if (error.response?.statusCode == 404) {
+        return VideoServiceResult(
+          outcome: VideoServiceOutcome.processingFailed, jobId: jobId,
+        );
+      }
+      throw VideoTransportException(
+        VideoTransportFailure.unavailable,
+ diagnosticCause:error,diagnosticStack:stackTrace,
+        httpStatus: error.response?.statusCode,
+      );
+    }
+  });
 
   Future<String> downloadVideoCaption(String route) {
     final uri = Uri.tryParse(route);

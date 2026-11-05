@@ -4,6 +4,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/netip"
+	"social.craftsky/appview/internal/video"
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
@@ -105,6 +106,7 @@ type Dependencies struct {
 	Observability            *observability.Observer
 	LinkPreviews             api.LinkPreviewService
 	ImageUploadAuthorization api.ImageUploadAuthorizationIssuer
+	BunnyVideo               *video.Bunny
 	VideoUploadAuthorization api.VideoUploadAuthorizationIssuer
 	VideoUploadLimits        api.VideoUploadLimitsService
 	VideoCompletionVerifier  api.VideoCompletionVerifier

@@ -3,6 +3,7 @@ package observability
 import (
 	"context"
 	"errors"
+	"io"
 	"log/slog"
 	"net"
 	"net/http"
@@ -732,4 +733,17 @@ func (c observedPDSClient) observeListRecords(ctx context.Context, lister auth.P
 	c.observer.observePDSWrite(operationCtx, PDSOperationCommandList, PDSStagePDSRequest, err, time.Since(started))
 	finish(pdsResult(err))
 	return records, next, err
+}
+
+func (c observedPDSClient) UploadBlobStream(ctx context.Context, mime string, body io.ReadSeeker) (*auth.UploadedBlob, error) {
+	client, ok := c.inner.(auth.StreamingBlobPDSClient)
+	if !ok {
+		return nil, errors.New("streaming PDS upload unavailable")
+	}
+	operationCtx, finish := c.observer.startPDSOperation(ctx, PDSOperationBlobUpload)
+	started := time.Now()
+	blob, err := client.UploadBlobStream(operationCtx, mime, body)
+	c.observer.observePDSWrite(operationCtx, PDSOperationBlobUpload, PDSStagePDSRequest, err, time.Since(started))
+	finish(pdsResult(err))
+	return blob, err
 }

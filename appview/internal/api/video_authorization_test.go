@@ -115,3 +115,22 @@ func TestVideoUploadAuthorizationHandler_PermissionsRequireSignIn(t *testing.T) 
 		t.Fatalf("response = %d %s", recorder.Code, recorder.Body.String())
 	}
 }
+
+func TestVideoUploadAuthorizationHandler_ReturnsBunnyUploadMetadata(t *testing.T) {
+	issuer := &fakeUploadAuthorizationIssuer{authorization: video.UploadAuthorization{
+		Provider: "bunny", Token: "ephemeral-signature", ExpiresAt: time.Date(2026, 11, 5, 12, 30, 0, 0, time.UTC),
+		JobID: "aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa", VideoID: "bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb", LibraryID: "123",
+		Title: "2026-11-05 12:00 UTC · aaaaaaaa", CollectionID: "cccccccc-cccc-4ccc-cccc-cccccccccccc",
+	}}
+	request := httptest.NewRequest(http.MethodPost, "/v1/blobs/videos/authorization", nil)
+	ctx := middleware.WithOAuthSessionID(middleware.WithDID(request.Context(), "did:plc:alice"), "session-alice")
+	recorder := httptest.NewRecorder()
+	api.VideoUploadAuthorizationHandler(issuer, nilLogger()).ServeHTTP(recorder, request.WithContext(ctx))
+	var body map[string]any
+	if err := json.Unmarshal(recorder.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if recorder.Code != http.StatusOK || body["title"] != issuer.authorization.Title || body["collectionId"] != issuer.authorization.CollectionID || body["provider"] != "bunny" || body["jobId"] != issuer.authorization.JobID {
+		t.Fatalf("incorrect Bunny authorization response: %d", recorder.Code)
+	}
+}

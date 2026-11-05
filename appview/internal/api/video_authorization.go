@@ -21,8 +21,14 @@ type VideoUploadAuthorizationIssuer interface {
 }
 
 type videoUploadAuthorizationResponse struct {
-	Token     string `json:"token"`
-	ExpiresAt string `json:"expiresAt"`
+	Token        string `json:"token"`
+	ExpiresAt    string `json:"expiresAt"`
+	Provider     string `json:"provider,omitempty"`
+	JobID        string `json:"jobId,omitempty"`
+	VideoID      string `json:"videoId,omitempty"`
+	LibraryID    string `json:"libraryId,omitempty"`
+	Title        string `json:"title,omitempty"`
+	CollectionID string `json:"collectionId,omitempty"`
 }
 
 type VideoOperationObserver interface {
@@ -62,6 +68,10 @@ func VideoUploadAuthorizationHandler(issuer VideoUploadAuthorizationIssuer, _ *s
 		}
 		authorization, err := issuer.IssueUpload(r.Context(), owner, sessionID)
 		if err != nil {
+			if errors.Is(err, video.ErrVideoQuota) {
+				envelope.WriteError(w, http.StatusTooManyRequests, "quota_exhausted", "video upload quota exhausted", runID, nil)
+				return
+			}
 			if errors.Is(err, auth.ErrPDSSessionExpired) {
 				result, reason = "rejected", "authentication"
 				writePDSError(w, http.StatusUnauthorized, "pds_session_expired", pdsSessionExpiredMessage, runID, err)
@@ -74,6 +84,7 @@ func VideoUploadAuthorizationHandler(issuer VideoUploadAuthorizationIssuer, _ *s
 			return
 		}
 		envelope.WriteJSON(w, http.StatusOK, videoUploadAuthorizationResponse{
+			Provider: authorization.Provider, JobID: authorization.JobID, VideoID: authorization.VideoID, LibraryID: authorization.LibraryID, Title: authorization.Title, CollectionID: authorization.CollectionID,
 			Token: authorization.Token, ExpiresAt: authorization.ExpiresAt.UTC().Format(time.RFC3339),
 		})
 	})

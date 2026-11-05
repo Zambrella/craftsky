@@ -445,7 +445,7 @@ func AddRoutes(_ context.Context, mux Registrar, deps *Dependencies) {
 	registerVideoRoutes(videoRouteBundle{
 		mux: mux, middleware: v1mw, authorization: deps.VideoUploadAuthorization,
 		limits: deps.VideoUploadLimits, logger: deps.Logger, observer: observer,
-		enabled: deps.Config.VideoEnabled,
+		enabled: deps.Config.VideoEnabled, bunny: deps.BunnyVideo,
 	})
 	scheduledImageValidator := newScheduledImageValidator(deps.Config.ImageDecodeLimits, observer)
 	registerSearchRoutes(searchRouteBundle{

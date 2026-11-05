@@ -152,6 +152,7 @@ func TestRouteInventoryAndV1PoliciesStayExact(t *testing.T) {
 		"POST /v1/admin/safety/holds/{holdId}/releases",
 
 		"POST /v1/blobs/images/authorization",
+		"POST /v1/blobs/videos/{jobId}/status",
 		"POST /v1/blobs/videos/authorization",
 		"GET /v1/blobs/videos/limits",
 		"GET /v1/whoami",

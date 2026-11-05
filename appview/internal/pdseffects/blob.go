@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
 	"net/url"
 	"strings"
 
@@ -26,6 +27,8 @@ type UploadBlobRequest struct {
 	ExpectedOwners  []ownerlifecycle.ExpectedOwner
 	MIME            string
 	Bytes           []byte
+	// Body is an exclusive, seekable private spool. It must not change during this call.
+	Body io.ReadSeeker
 }
 
 // PredictBlobCID returns the content-addressed raw CID expected from
@@ -80,7 +83,15 @@ func (executor *Executor) UploadBlob(
 	if request.MIME == "" || strings.ContainsAny(request.MIME, "\r\n") {
 		return nil, errors.New("PDS blob MIME type is invalid")
 	}
+	size := len(request.Bytes)
 	predictedCID, digest, err := PredictBlobCID(request.Bytes)
+	if request.Body != nil {
+		if len(request.Bytes) != 0 {
+			return nil, errors.New("ambiguous PDS blob body")
+		}
+		predictedCID, digest, size, err = predictBlobStream(request.Body)
+	}
+
 	if err != nil {
 		return nil, err
 	}
@@ -89,7 +100,7 @@ func (executor *Executor) UploadBlob(
 		predictedCID,
 		digest,
 		request.MIME,
-		len(request.Bytes),
+		size,
 	)
 	var uploaded *auth.UploadedBlob
 	err = executor.boundary.WithActiveEffects(
@@ -133,7 +144,7 @@ func (executor *Executor) UploadBlob(
 				uploaded = reconstructedBlob(
 					syntax.CID(attempt.ResultCID),
 					request.MIME,
-					int64(len(request.Bytes)),
+					int64(size),
 				)
 				return nil
 			case ownerlifecycle.OutcomePrepared:
@@ -157,7 +168,16 @@ func (executor *Executor) UploadBlob(
 				return err
 			}
 			callCtx, cancel := context.WithTimeout(effectCtx, executor.timeout)
-			uploaded, err = client.UploadBlob(callCtx, request.MIME, request.Bytes)
+			if request.Body != nil {
+				streaming, ok := client.(auth.StreamingBlobPDSClient)
+				if !ok {
+					cancel()
+					return errors.New("streaming PDS upload unavailable")
+				}
+				uploaded, err = streaming.UploadBlobStream(callCtx, request.MIME, request.Body)
+			} else {
+				uploaded, err = client.UploadBlob(callCtx, request.MIME, request.Bytes)
+			}
 			cancel()
 			if err != nil {
 				return &OutcomeAmbiguousError{
@@ -167,7 +187,7 @@ func (executor *Executor) UploadBlob(
 				}
 			}
 			if uploaded == nil || uploaded.Raw == nil || uploaded.CID != predictedCID.String() ||
-				uploaded.MIME != request.MIME || uploaded.Size != int64(len(request.Bytes)) {
+				uploaded.MIME != request.MIME || uploaded.Size != int64(size) {
 				return &ConflictError{
 					OperationID: request.OperationID,
 					ExactKey:    exactKey,
@@ -205,4 +225,31 @@ func reconstructedBlob(contentCID syntax.CID, mime string, size int64) *auth.Upl
 			"size":     size,
 		},
 	}
+}
+
+// PredictBlobStreamCID hashes and rewinds a bounded, seekable video source.
+func PredictBlobStreamCID(body io.ReadSeeker) (syntax.CID, error) {
+	value, _, _, err := predictBlobStream(body)
+	return value, err
+}
+func predictBlobStream(body io.ReadSeeker) (syntax.CID, [sha256.Size]byte, int, error) {
+	var digest [sha256.Size]byte
+	if _, err := body.Seek(0, io.SeekStart); err != nil {
+		return "", digest, 0, err
+	}
+	hash := sha256.New()
+	n, err := io.Copy(hash, io.LimitReader(body, 300_000_001))
+	if err != nil {
+		return "", digest, 0, err
+	}
+	if n <= 0 || n > 300_000_000 {
+		return "", digest, 0, errors.New("invalid streaming PDS blob size")
+	}
+	copy(digest[:], hash.Sum(nil))
+	encoded, err := multihash.Encode(digest[:], multihash.SHA2_256)
+	if err != nil {
+		return "", digest, 0, err
+	}
+	_, err = body.Seek(0, io.SeekStart)
+	return syntax.CID(cid.NewCidV1(cid.Raw, encoded).String()), digest, int(n), err
 }

@@ -77,6 +77,7 @@ final class VideoPublicationCoordinator {
     required void Function(VideoPublicationProgress progress) onProgress,
     DateTime Function()? clock,
     String? operationAccountDid,
+    void Function()? onTerminal,
   }) => VideoPublicationCoordinator._(
     checkEligibility,
     authorize,
@@ -87,6 +88,7 @@ final class VideoPublicationCoordinator {
     onProgress,
     clock ?? DateTime.now,
     operationAccountDid,
+    onTerminal,
   );
 
   new _(
@@ -99,6 +101,7 @@ final class VideoPublicationCoordinator {
     this._onProgress,
     this._clock,
     this._operationAccountDid,
+    this._onTerminal,
   );
 
   final Future<VideoUploadLimits> Function() _checkEligibility;
@@ -110,6 +113,7 @@ final class VideoPublicationCoordinator {
   final void Function(VideoPublicationProgress) _onProgress;
   final DateTime Function() _clock;
   final String? _operationAccountDid;
+  final void Function()? _onTerminal;
 
   VideoUploadAuthorization? _authorization;
   String? _jobId;
@@ -264,6 +268,7 @@ final class VideoPublicationCoordinator {
       _authorization = null;
       _jobId = null;
       _cancelToken = null;
+      _onTerminal?.call();
     }
   }
 

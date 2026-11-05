@@ -458,15 +458,20 @@ func translateRepositoryMutationError(err error) error {
 	return err
 }
 
-// UploadBlob calls com.atproto.repo.uploadBlob with raw image bytes.
+// UploadBlob calls com.atproto.repo.uploadBlob with raw bytes.
 // The request content type is forwarded to the PDS as provided.
 func (i *IndigoPDSClient) UploadBlob(ctx context.Context, contentType string, body []byte) (*UploadedBlob, error) {
+	return i.UploadBlobStream(ctx, contentType, bytes.NewReader(body))
+}
+
+// UploadBlobStream keeps large video bodies off the Go heap and permits DPoP retries.
+func (i *IndigoPDSClient) UploadBlobStream(ctx context.Context, contentType string, body io.ReadSeeker) (*UploadedBlob, error) {
 	nsid, err := syntax.ParseNSID("com.atproto.repo.uploadBlob")
 	if err != nil {
 		return nil, fmt.Errorf("parse nsid: %w", err)
 	}
 
-	req := atclient.NewAPIRequest(http.MethodPost, nsid, bytes.NewReader(body))
+	req := atclient.NewAPIRequest(http.MethodPost, nsid, body)
 	req.Headers.Set("Accept", "application/json")
 	req.Headers.Set("Content-Type", contentType)
 

@@ -33,5 +33,8 @@ func registerOperatorConsole(mux Registrar, mw v1Middleware, deps *Dependencies)
 		playlist, thumbnail := deps.VideoPlayback.URLs(syntax.DID("did:example:preview"), syntax.CID("preview"))
 		playbackURLs = []string{playlist, thumbnail}
 	}
+	if deps.BunnyVideo != nil {
+		playbackURLs = append(playbackURLs, deps.BunnyVideo.PlaybackOrigin())
+	}
 	mux.Handle("GET /admin/", operatorconsole.Assets(os.DirFS("admin/dist"), playbackURLs...))
 }

@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
 	"strings"
 	"testing"
 	"time"
@@ -1476,3 +1477,50 @@ func seedEffectOwnerState(
 
 var _ auth.ConditionalPDSRecordDeleter = (*effectPDS)(nil)
 var _ auth.ConditionalPDSRecordPutter = (*effectPDS)(nil)
+
+func TestExecutorStreamingBlobUsesContentIdentityAndNeverRepeatsAfterDispatch(t *testing.T) {
+	pool, lifecycles, now := newEffectExecutorStore(t)
+	owner := syntax.DID("did:plc:streamed-video")
+	seedEffectOwner(t, pool, owner, 1, now)
+	pds := newEffectPDS()
+	body := []byte("streamed MP4 bytes")
+	contentCID, _, err := PredictBlobCID(body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pds.uploadResponse = reconstructedBlob(contentCID, "video/mp4", int64(len(body)))
+	executor, err := NewExecutor(lifecycles, &storeEffectBoundary{lifecycles: lifecycles, client: pds}, owner, 10*time.Second, func() time.Time { return now })
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := UploadBlobRequest{OperationID: "video:stream:v1", MutationKey: "video:stream:v1", Owner: owner, OwnerGeneration: 1, ExpectedOwners: []ownerlifecycle.ExpectedOwner{{Owner: owner, Generation: 1}}, MIME: "video/mp4", Body: bytes.NewReader(body)}
+	for range 2 {
+		result, err := executor.UploadBlob(context.Background(), request)
+		if err != nil || result.CID != contentCID.String() {
+			t.Fatal("stream upload/replay failed", err)
+		}
+	}
+	if pds.uploadCalls != 1 {
+		t.Fatal("accepted stream dispatched twice")
+	}
+	request.OperationID = "video:stream:v2"
+	request.MutationKey = request.OperationID
+	request.Body = bytes.NewReader([]byte("different video"))
+	pds.uploadError = errors.New("lost upload response")
+	for range 2 {
+		if _, err = executor.UploadBlob(context.Background(), request); !errors.Is(err, ErrOutcomeAmbiguous) {
+			t.Fatal("lost response must remain ambiguous", err)
+		}
+	}
+	if pds.uploadCalls != 2 {
+		t.Fatal("ambiguous stream dispatched twice")
+	}
+}
+
+func (pds *effectPDS) UploadBlobStream(ctx context.Context, mime string, body io.ReadSeeker) (*auth.UploadedBlob, error) {
+	data, err := io.ReadAll(body)
+	if err != nil {
+		return nil, err
+	}
+	return pds.UploadBlob(ctx, mime, data)
+}

@@ -1450,5 +1450,11 @@
     "path": "/v1/profile-links/{did}/{rkey}/reports",
     "category": "appview.profile_links.reports",
     "public": false
+  },
+  {
+    "method": "POST",
+    "path": "/v1/blobs/videos/{jobId}/status",
+    "category": "appview.blobs.videos.status",
+    "public": false
   }
 ]

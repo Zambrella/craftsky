@@ -1,9 +1,11 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:craftsky_app/feed/media/video_source_validator.dart';
 import 'package:craftsky_app/feed/models/video_service_result.dart';
+import 'package:craftsky_app/feed/models/video_upload_limits.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
 import 'package:dio/dio.dart';
 
@@ -81,14 +83,10 @@ final class VideoServiceClient {
     );
   }
 
-  factory fromConfiguration(
-    VideoServiceConfiguration configuration,
-  ) => VideoServiceClient(uploadEndpoint: configuration.uploadEndpoint);
+  factory fromConfiguration(VideoServiceConfiguration configuration) =>
+      VideoServiceClient(uploadEndpoint: configuration.uploadEndpoint);
 
-  factory forTesting({
-    required Uri uploadEndpoint,
-    required Dio dio,
-  }) {
+  factory forTesting({required Uri uploadEndpoint, required Dio dio}) {
     _requireApprovedEndpoint(uploadEndpoint);
     return VideoServiceClient._(uploadEndpoint, dio);
   }
@@ -103,9 +101,13 @@ final class VideoServiceClient {
     required String ownerDid,
     required String authorizationHeader,
     bool bypassDeduplication = false,
+    BunnyVideoUpload? bunny,
     ProgressCallback? onProgress,
     CancelToken? cancelToken,
   }) async {
+    if (bunny != null) {
+      return await _uploadBunny(source, bunny, onProgress, cancelToken);
+    }
     _requireApprovedEndpoint(_uploadEndpoint);
     if (source.length <= 0 || source.length > maxVideoSourceBytes) {
       throw const VideoTransportException(VideoTransportFailure.invalidSource);
@@ -140,9 +142,8 @@ final class VideoServiceClient {
       );
       _requireUnredirected(response);
       final status = _jobStatus(response.data!);
-      final result = VideoServiceResult.fromJson(
-        status,
-      ).withRetryAfter(_parseRetryAfter(response));
+      final result = VideoServiceResult.fromJson(status)
+          .withRetryAfter(_parseRetryAfter(response));
       if (response.statusCode == 409) {
         if (status['error'] == 'already_exists' &&
             result.outcome != VideoServiceOutcome.completed &&
@@ -199,9 +200,8 @@ final class VideoServiceClient {
       if (responseData['jobStatus'] is! Map<String, dynamic>) {
         throw const FormatException('Invalid video job status response');
       }
-      return VideoServiceResult.fromJson(
-        _jobStatus(responseData),
-      ).withRetryAfter(_parseRetryAfter(response));
+      return VideoServiceResult.fromJson(_jobStatus(responseData))
+          .withRetryAfter(_parseRetryAfter(response));
     } on DioException catch (error, stackTrace) {
       if (CancelToken.isCancel(error)) rethrow;
       throw VideoTransportException(
@@ -210,6 +210,166 @@ final class VideoServiceClient {
         diagnosticStack: stackTrace,
         httpStatus: error.response?.statusCode,
       );
+    }
+  }
+
+  Future<VideoServiceResult> _uploadBunny(
+    VideoUploadSource source,
+    BunnyVideoUpload capability,
+    ProgressCallback? onProgress,
+    CancelToken? cancelToken,
+  ) async {
+    if (source.length <= 0 ||
+        source.length > maxVideoSourceBytes ||
+        !capability.expiresAt.isAfter(DateTime.now().toUtc())) {
+      throw const VideoTransportException(VideoTransportFailure.invalidSource);
+    }
+    final headers = <String, Object>{
+      'Tus-Resumable': '1.0.0',
+      'AuthorizationSignature': capability.signature,
+      'AuthorizationExpire':
+          '${capability.expiresAt.millisecondsSinceEpoch ~/ 1000}',
+      'LibraryId': capability.libraryId,
+      'VideoId': capability.videoId,
+    };
+    final endpoint = Uri.parse('https://video.bunnycdn.com/tusupload');
+    final fileType = base64Encode(utf8.encode('video/mp4'));
+    final title = base64Encode(utf8.encode(capability.title));
+    final collection = base64Encode(utf8.encode(capability.collectionId));
+    // This isolated client carries only the upload capability, never CraftSky
+    // sessions or the library key. Redirects are rejected on every request.
+    try {
+      final created = await _dio.postUri<Object?>(
+        endpoint,
+        options: Options(
+          headers: {
+            ...headers,
+            'Upload-Length': '${source.length}',
+            'Upload-Metadata':
+                'filetype $fileType,title $title,collection $collection',
+          },
+          followRedirects: false,
+          maxRedirects: 0,
+          responseType: ResponseType.plain,
+          validateStatus: (s) => s == 201,
+        ),
+        cancelToken: cancelToken,
+      );
+      final location = created.headers.value('location');
+      if (location == null) {
+        throw const VideoTransportException(
+          VideoTransportFailure.invalidDestination,
+        );
+      }
+      final target = endpoint.resolve(location);
+      if (!_approvedBunnyLocation(target) ||
+          created.isRedirect ||
+          created.redirects.isNotEmpty) {
+        throw const VideoTransportException(
+          VideoTransportFailure.invalidDestination,
+        );
+      }
+      var offset = 0;
+      for (var attempt = 0; attempt < 4; attempt++) {
+        try {
+          final response = await _dio.patchUri<Object?>(
+            target,
+            data: _sourceFromOffset(source, offset),
+            options: Options(
+              contentType: 'application/offset+octet-stream',
+              headers: {
+                ...headers,
+                'Upload-Offset': '$offset',
+                Headers.contentLengthHeader: source.length - offset,
+              },
+              followRedirects: false,
+              maxRedirects: 0,
+              responseType: ResponseType.plain,
+              validateStatus: (s) => s == 204,
+            ),
+            cancelToken: cancelToken,
+            onSendProgress: (sent, total) =>
+                onProgress?.call(offset + sent, source.length),
+          );
+          final next = int.tryParse(
+            response.headers.value('upload-offset') ?? '',
+          );
+          if (response.isRedirect ||
+              response.redirects.isNotEmpty ||
+              next != source.length) {
+            throw const VideoTransportException(
+              VideoTransportFailure.invalidDestination,
+            );
+          }
+          return VideoServiceResult(
+            outcome: VideoServiceOutcome.processing,
+            jobId: capability.jobId,
+          );
+        } on DioException catch (error) {
+          if (CancelToken.isCancel(error) || attempt == 3) rethrow;
+          final status = await _dio.headUri<Object?>(
+            target,
+            options: Options(
+              headers: headers,
+              followRedirects: false,
+              maxRedirects: 0,
+              responseType: ResponseType.plain,
+              validateStatus: (s) => s == 200 || s == 204,
+            ),
+            cancelToken: cancelToken,
+          );
+          final next = int.tryParse(
+            status.headers.value('upload-offset') ?? '',
+          );
+          if (status.isRedirect ||
+              status.redirects.isNotEmpty ||
+              next == null ||
+              next < 0 ||
+              next > source.length) {
+            throw const VideoTransportException(
+              VideoTransportFailure.invalidDestination,
+            );
+          }
+          if (next == source.length) {
+            return VideoServiceResult(
+              outcome: VideoServiceOutcome.processing,
+              jobId: capability.jobId,
+            );
+          }
+          offset = next;
+        }
+      }
+      throw const VideoTransportException(VideoTransportFailure.unavailable);
+    } on DioException catch (error, stackTrace) {
+      if (CancelToken.isCancel(error)) rethrow;
+      // Diagnostic selection retains typed status/causes, never request headers.
+      throw VideoTransportException(
+        VideoTransportFailure.unavailable,
+        diagnosticCause: error,
+        diagnosticStack: stackTrace,
+        httpStatus: error.response?.statusCode,
+      );
+    }
+  }
+
+  Stream<List<int>> _sourceFromOffset(
+    VideoUploadSource source,
+    int offset,
+  ) async* {
+    var seen = 0;
+    await for (final chunk in source.openRead()) {
+      final start = seen;
+      seen += chunk.length;
+      if (seen > source.length) {
+        throw const VideoTransportException(
+          VideoTransportFailure.invalidSource,
+        );
+      }
+      if (seen <= offset) continue;
+      yield chunk.sublist((offset - start).clamp(0, chunk.length));
+    }
+    if (seen != source.length) {
+      throw const VideoTransportException(VideoTransportFailure.invalidSource);
     }
   }
 
@@ -301,3 +461,12 @@ String _decodeBoundedResponse(
   }
   return utf8.decode(bytes);
 }
+
+bool _approvedBunnyLocation(Uri uri) =>
+    uri.scheme == 'https' &&
+    uri.host == 'video.bunnycdn.com' &&
+    uri.port == 443 &&
+    uri.userInfo.isEmpty &&
+    uri.path.startsWith('/tusupload/') &&
+    !uri.hasQuery &&
+    !uri.hasFragment;

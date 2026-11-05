@@ -14,6 +14,7 @@ const (
 	PurposeOAuthRequest  Purpose = "oauth_request"
 	PurposePDSJSON       Purpose = "pds_json"
 	PurposePDSUpload     Purpose = "pds_upload"
+	PurposePDSVideo      Purpose = "pds_video"
 	PurposePDSRepository Purpose = "pds_repository"
 )
 
@@ -56,6 +57,10 @@ func DefaultProfile(purpose Purpose) (Profile, error) {
 	case PurposePDSUpload:
 		profile.TotalTimeout = 20 * time.Second
 		profile.ResponseLimit = MaxPDSUploadResponseBytes
+	case PurposePDSVideo:
+		profile.TotalTimeout = 90 * time.Second
+		profile.ResponseLimit = 300_000_000
+		profile.MaxRedirects = 0
 	case PurposePDSRepository:
 		profile.TotalTimeout = 2 * time.Minute
 		profile.ResponseLimit = MaxPDSRepositoryResponseBytes
