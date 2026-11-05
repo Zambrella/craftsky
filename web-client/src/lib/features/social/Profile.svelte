@@ -13,8 +13,7 @@
 		newOperationKey,
 		type Profile,
 		type PostPresentation,
-		type BusinessEvent,
-		type Author
+		type BusinessEvent
 	} from '#lib/api/client.ts';
 	import Avatar from '#lib/Avatar.svelte';
 	import CraftBadge from '#lib/CraftBadge.svelte';
@@ -68,9 +67,7 @@
 	});
 	let posts = $state<PostPresentation[]>([]),
 		events = $state<BusinessEvent[]>([]),
-		cursor = $state<string | null>(),
-		mutuals = $state<Author[]>([]);
-	let mutualCursor = $state<string | null | undefined>();
+		cursor = $state<string | null>();
 	let reportLink = $state<string>();
 	let reportOpen = $state(false);
 	let confirmBlock = $state(false);
@@ -351,9 +348,10 @@
 					>
 				{:else}{#if !profile.blocking && !profile.blockedBy}<button
 							class="button"
+							class:following={profile.viewerIsFollowing}
 							disabled={work.busy || !!work.retry}
 							onclick={follow}
-							>{profile.viewerIsFollowing ? 'Following' : 'Follow'}</button
+							>{profile.viewerIsFollowing ? 'Unfollow' : 'Follow'}</button
 						><a
 							class="icon-button message-action"
 							href={'/messages/new?did=' + encodeURIComponent(profile.did)}
@@ -428,58 +426,23 @@
 									reportLink = undefined;
 									reportOpen = true;
 								}}><Icon name="report" />Report profile</button
-							>{/if}
+							>{#each profile.links || [] as link}{#if safeLink(link.url)}<button
+										disabled={work.busy || !!work.retry}
+										onclick={() => {
+											reportLink = link.uri.split('/').pop();
+											reportOpen = true;
+										}}
+										><Icon name="report" />Report link {link.title ||
+											link.url}</button
+									>{/if}{/each}{/if}
 					</div>
 				</details>
 			</div>
-			{#if profile.did !== session.did && profile.mutualFollowerCount}<button
+			{#if profile.did !== session.did && profile.mutualFollowerCount}<a
 					class="mutual-link"
-					onclick={() =>
-						void work.run(
-							() => api.profiles.mutualFollowers(id),
-							(value) => {
-								mutuals = value.items;
-								mutualCursor = value.cursor;
-							}
-						)}
-					><Icon name="profile" size={18} />{profile.mutualFollowerCount} mutual followers</button
+					href={'/profiles/' + encodeURIComponent(id) + '/mutual-followers'}
+					><Icon name="profile" size={18} />{profile.mutualFollowerCount} mutual followers</a
 				>{/if}
-			{#if mutuals.length}<section
-					class="mutual-list"
-					aria-label="Mutual followers"
-				>
-					{#each mutuals as author}<a
-							class="person-row"
-							href={'/profiles/' + encodeURIComponent(author.did)}
-							><Avatar
-								author={{
-									did: author.did,
-									handle: author.handle,
-									displayName: author.displayName || undefined,
-									avatar: author.avatar || undefined
-								}}
-							/><span
-								><strong>{name(author)}</strong><small>@{author.handle}</small
-								></span
-							></a
-						>{/each}
-					{#if mutualCursor}<button
-							disabled={work.busy}
-							onclick={() =>
-								void work.run(
-									() =>
-										api.profiles.mutualFollowers(id, { cursor: mutualCursor }),
-									(value) => {
-										mutuals = appendPage(
-											mutuals,
-											value.items,
-											(item) => item.did
-										);
-										mutualCursor = value.cursor;
-									}
-								)}>Load more mutual followers</button
-						>{/if}
-				</section>{/if}
 			{#if !profile.moderation || reveal}{#if profile.description}<p
 						class="profile-bio prose"
 					>
@@ -497,14 +460,7 @@
 										name="external"
 										size={16}
 									/></a
-								>{#if profile.did !== session.did}<button
-										class="icon-button"
-										aria-label={'Report link ' + (link.title || link.url)}
-										onclick={() => {
-											reportLink = link.uri.split('/').pop();
-											reportOpen = true;
-										}}><Icon name="shield" size={18} /></button
-									>{/if}
+								>
 							</li>{/if}{/each}
 				</ul>
 			{/if}
@@ -716,6 +672,10 @@
 		justify-content: center;
 		gap: 8px;
 	}
+	.profile-actions .following {
+		background: var(--primary-soft);
+		color: var(--ink);
+	}
 	.profile-actions .icon-button {
 		width: 44px;
 		height: 44px;
@@ -745,20 +705,6 @@
 		align-self: center;
 		align-items: center;
 		font-size: 14px;
-	}
-	.mutual-list {
-		border: 1px solid var(--hairline);
-		border-radius: 12px;
-	}
-	.mutual-list .person-row {
-		flex-direction: row;
-		align-items: center;
-		gap: 12px;
-	}
-	.mutual-list small {
-		display: block;
-		color: var(--ink-2);
-		font-size: 12px;
 	}
 	.profile-links {
 		justify-content: flex-start;

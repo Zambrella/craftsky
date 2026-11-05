@@ -122,7 +122,7 @@ test('native compact filter form uses search, dependent choices and Cancel witho
 		)
 	).toBe(true);
 });
-test('native selection limit and Clear all retain craft/sort until explicit Apply', async ({
+test('native selection limit and Clear all apply cleared filters and return to the craft feed', async ({
 	page
 }) => {
 	await page.goto(
@@ -150,13 +150,6 @@ test('native selection limit and Clear all retain craft/sort until explicit Appl
 	).toHaveCount(0);
 	await color.press('Escape');
 	await dialog.getByRole('button', { name: 'Clear all', exact: true }).click();
-	await expect(
-		dialog.getByRole('switch', { name: 'Self drafted', exact: true })
-	).not.toBeChecked();
-	expect(new URL(page.url()).searchParams.get('color')).toBe('blue');
-	await dialog
-		.getByRole('button', { name: 'Apply filters', exact: true })
-		.click();
 	await expect(dialog).not.toBeVisible();
 	const query = new URL(page.url()).searchParams;
 	expect(query.get('craft')).toBe('knitting');

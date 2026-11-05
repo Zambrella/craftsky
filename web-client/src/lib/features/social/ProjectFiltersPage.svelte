@@ -12,6 +12,15 @@
 	let backButton: HTMLButtonElement;
 	onMount(() => backButton?.focus({ preventScroll: true }));
 	const close = () => returnTo(origin);
+	async function clearAll() {
+		filterFields.clearAll();
+		const params = new URLSearchParams({
+			craft,
+			sort: page.url.searchParams.get('sort') || 'chronological'
+		});
+		await close();
+		await returnTo('/feed?' + params);
+	}
 	async function apply(event: SubmitEvent) {
 		event.preventDefault();
 		const params = new URLSearchParams(
@@ -65,10 +74,8 @@
 			<Filters bind:this={filterFields} {craft} expanded />
 		</div>
 		<footer>
-			<button
-				type="button"
-				class="clear-all-filters"
-				onclick={() => filterFields.clearAll()}>Clear all</button
+			<button type="button" class="clear-all-filters" onclick={clearAll}
+				>Clear all</button
 			><button class="button">Apply filters</button>
 		</footer>
 	</form>

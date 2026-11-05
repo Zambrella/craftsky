@@ -269,6 +269,7 @@
 		};
 	});
 	let identity = $state<Profile>();
+	setContext('craftsky-profile', () => identity);
 	let postTypeMenu = $state<HTMLDialogElement>(null!);
 	let firstPost = $state(true);
 	let postTypeContext: HTMLDetailsElement;
@@ -988,8 +989,9 @@
 		z-index: 20;
 		left: 272px;
 		bottom: 16px;
-		width: 40px;
-		height: 40px;
+		width: 44px;
+		height: 44px;
+		min-width: 44px;
 		padding: 8px;
 		border: 1.5px solid var(--ink);
 		border-radius: 50%;

@@ -402,13 +402,10 @@
 					)}{verification.retryCode
 						? ` · ${title(verification.retryCode)}`
 						: ''}
-				</p>{/if}{#if available}<button
+				</p>{/if}{#if available && !account}<button
 					class="primary"
 					disabled={work.busy}
-					onclick={verify}
-					>{account
-						? 'Verify another username'
-						: 'Create verification challenge'}</button
+					onclick={verify}>Create verification challenge</button
 				>{/if}{/if}
 	</section>
 	<a
