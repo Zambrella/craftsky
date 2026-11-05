@@ -2,6 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { identityCrafts, fittingIdentityCrafts } from './compact-identity';
 
 describe('native compact craft identity', () => {
+	it('renders profiles without crafts from search responses', () => {
+		expect(identityCrafts(null)).toEqual([]);
+		expect(identityCrafts(undefined)).toEqual([]);
+		expect(identityCrafts([])).toEqual([]);
+	});
 	it('normalizes lexicon IDs without changing profile order or dropping unknown crafts', () => {
 		expect(
 			identityCrafts([

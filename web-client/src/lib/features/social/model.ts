@@ -32,7 +32,7 @@ export function publicPost(post: Post): PublicPost {
 			handle: post.author.handle,
 			displayName: post.author.displayName || undefined,
 			avatar: post.author.avatar || undefined,
-			crafts: post.author.crafts,
+			crafts: post.author.crafts ?? undefined,
 			business: post.author.accountType === 'business'
 		},
 		createdAt: post.createdAt,

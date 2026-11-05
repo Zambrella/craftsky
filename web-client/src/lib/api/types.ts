@@ -59,7 +59,7 @@ export interface Author {
 	displayName?: string | null;
 	avatar?: string | null;
 	avatarCid?: string | null;
-	crafts?: string[];
+	crafts?: string[] | null;
 	customisation?: ProfileCustomisation;
 	muted?: boolean;
 	blocking?: boolean;
