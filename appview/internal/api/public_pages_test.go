@@ -91,6 +91,7 @@ func TestPublicPageStoreVisibilityAndPagination(t *testing.T) {
 	}
 	seedMember(t, pool, "did:plc:alice")
 	seedBskyProfile(t, pool, "did:plc:alice", "Alice", "")
+	exec(`UPDATE bluesky_profiles SET avatar_cid=NULL,avatar_mime=NULL WHERE did='did:plc:alice'`)
 	seedMember(t, pool, "did:plc:labeler")
 	store := api.NewPublicPageStore(pool, api.NewPostStore(pool), fakeResolver{handleFor: "alice.test"}, publicAccountTypeStub{})
 	for i := 0; i < 4; i++ {
@@ -101,20 +102,28 @@ func TestPublicPageStoreVisibilityAndPagination(t *testing.T) {
 		t.Fatalf("profile=%+v err=%v", profile, err)
 	}
 	const avatarCID = "bafkreie3w2xq7u6rs5szu6vllsq5xh7y7uv3f6blql6uz4ep6txv6m4o6a"
+	// Profile indexing populates serving columns only after per-slot clearance.
+	// It does not write the record-level image_subject_states used for posts.
+	if profile.Avatar != nil || profile.Banner != nil {
+		t.Fatal("profile without cleared serving images exposed images")
+	}
 	exec(`UPDATE bluesky_profiles SET avatar_cid=$1,avatar_mime='image/jpeg' WHERE did='did:plc:alice'`, avatarCID)
 	profile, err = store.PublicProfile(ctx, "did:plc:alice")
-	if err != nil || profile.Avatar != nil {
-		t.Fatal("uncleared avatar exposed", err)
+	if err != nil || profile.Avatar == nil || profile.Banner != nil {
+		t.Fatal("cleared avatar missing or uncleared banner exposed", err)
 	}
-	exec(`INSERT INTO image_subject_states(subject_uri,subject_kind,source_cid,visibility_state) VALUES ('at://did:plc:alice/app.bsky.actor.profile/self','profile','seed','clear')`)
+	// A later profile revision can keep the last cleared avatar while a new
+	// candidate is scanned. The serving image is independent of record CID.
+	exec(`UPDATE bluesky_profiles SET record_cid='new-profile-revision',banner_cid=$1,banner_mime='image/png' WHERE did='did:plc:alice'`, avatarCID)
 	profile, err = store.PublicProfile(ctx, "did:plc:alice")
-	if err != nil || profile.Avatar == nil {
-		t.Fatal("cleared avatar missing", err)
+	if err != nil || profile.Avatar == nil || profile.Banner == nil {
+		t.Fatal("last cleared profile images missing after record update", err)
 	}
-	exec(`UPDATE image_subject_states SET source_cid='stale' WHERE subject_kind='profile'`)
+	// Rescans and removal clear serving columns independently.
+	exec(`UPDATE bluesky_profiles SET avatar_cid=NULL,avatar_mime=NULL WHERE did='did:plc:alice'`)
 	profile, err = store.PublicProfile(ctx, "did:plc:alice")
-	if err != nil || profile.Avatar != nil {
-		t.Fatal("stale safety result exposed avatar", err)
+	if err != nil || profile.Avatar != nil || profile.Banner == nil {
+		t.Fatal("withdrawn avatar exposed or independent banner hidden", err)
 	}
 	exec(`INSERT INTO moderation_outputs(id,source_did,subject_type,subject_did,value,action) VALUES ('hide-account','did:plc:labeler','account','did:plc:alice','hide','apply')`)
 	if _, err := store.PublicProfile(ctx, "did:plc:alice"); !errors.Is(err, api.ErrProfileNotFound) {
