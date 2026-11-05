@@ -82,3 +82,22 @@ func TestBuildProfileSearchSummaryIncludesAvatar(t *testing.T) {
 		t.Fatalf("summary = %+v, want profile fields preserved", got)
 	}
 }
+
+func TestBuildProfileSearchSummarySerializesEmptyCraftsAsArray(t *testing.T) {
+	for _, crafts := range [][]string{nil, {}} {
+		summary := api.BuildProfileSearchSummary(api.ProfileSearchRow{
+			DID: "did:plc:alice", Handle: "alice.test", Crafts: crafts,
+		})
+		body, err := json.Marshal(summary)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var fields map[string]json.RawMessage
+		if err := json.Unmarshal(body, &fields); err != nil {
+			t.Fatal(err)
+		}
+		if string(fields["crafts"]) != "[]" {
+			t.Fatalf("crafts = %s, want []", fields["crafts"])
+		}
+	}
+}

@@ -44,6 +44,11 @@
 	let loadedPages = 0;
 	let query = $state(page.url.searchParams.get('q') || ''),
 		suggestions = $state<SearchSuggestions>();
+	let suggesting = $state(false);
+	let suggestionWork = $state(new Work());
+	let waitingForSuggestions = $state(false);
+	let suggestionController: AbortController | undefined;
+	const showSuggestions = $derived(suggesting && !!query.trim());
 	let top = $state<TopHashtags>();
 	let authors = $state<Author[]>([]),
 		posts = $state<PostPresentation[]>([]),
@@ -54,23 +59,41 @@
 	const q = $derived(page.url.searchParams.get('q') || '');
 	let timer: ReturnType<typeof setTimeout>;
 	let suggestionGeneration = 0;
-	function suggest() {
+	function resetSuggestions() {
 		clearTimeout(timer);
-		const generation = ++suggestionGeneration;
-		if (query.trim().length < 2) {
-			suggestions = undefined;
-			return;
-		}
-		timer = setTimeout(async () => {
-			try {
-				const value = await api.search.suggestions(query, {
-					profileLimit: 4,
-					hashtagLimit: 4
-				});
-				if (generation === suggestionGeneration) suggestions = value;
-			} catch {}
-		}, 250);
+		suggestionGeneration++;
+		suggestionController?.abort();
+		suggestionWork.dispose();
+		suggestionWork = new Work();
+		suggestions = undefined;
+		waitingForSuggestions = false;
 	}
+	function suggest() {
+		resetSuggestions();
+		const term = query.trim();
+		suggesting = !!term;
+		if (!term) return;
+		const generation = suggestionGeneration;
+		const pending = suggestionWork;
+		const controller = new AbortController();
+		suggestionController = controller;
+		waitingForSuggestions = true;
+		timer = setTimeout(() => {
+			waitingForSuggestions = false;
+			void pending.run(
+				() =>
+					api.search.suggestions(term, {
+						profileLimit: 5,
+						hashtagLimit: 5,
+						signal: controller.signal
+					}),
+				(value) => {
+					if (generation === suggestionGeneration) suggestions = value;
+				}
+			);
+		}, 300);
+	}
+
 	function saveView() {
 		if (loaded)
 			historyView?.save({
@@ -83,7 +106,11 @@
 				pages: loadedPages
 			});
 	}
-	beforeNavigate(saveView);
+	beforeNavigate(() => {
+		saveView();
+		suggesting = false;
+		resetSuggestions();
+	});
 	async function load(more = false) {
 		const term = q,
 			category = tab,
@@ -138,9 +165,8 @@
 		const term = q;
 		untrack(() => {
 			query = term;
-			suggestions = undefined;
-			clearTimeout(timer);
-			suggestionGeneration++;
+			suggesting = false;
+			resetSuggestions();
 		});
 		if (term)
 			void api.search
@@ -194,6 +220,8 @@
 		work.dispose();
 		clearTimeout(timer);
 		suggestionGeneration++;
+		suggestionController?.abort();
+		suggestionWork.dispose();
 	});
 
 	function authorValue(author: Author) {
@@ -214,7 +242,7 @@
 					handle: author.handle,
 					displayName: author.displayName,
 					avatar: author.avatar,
-					crafts: author.crafts
+					crafts: author.crafts ?? []
 				}
 			})
 			.catch(() => {});
@@ -249,105 +277,161 @@
 					aria-label="Clear search"
 					onclick={() => {
 						query = '';
-						suggestions = undefined;
-						suggestionGeneration++;
+						suggesting = false;
+						resetSuggestions();
 						document.getElementById('search')?.focus();
-					}}><Icon name="close" size={18} /></button
+					}}
+					><span class="clear-circle"><Icon name="close" size={14} bold /></span
+					></button
 				>{/if}
 		</div>
-		<button class="search-submit">Search</button>{#if query || q}<a
+		<button type="submit" class="visually-hidden" tabindex="-1">Search</button
+		>{#if query || q}<a
 				class="cancel-search"
-				href="/search">Cancel</a
+				href="/search"
+				onclick={(event) => {
+					if (!q) event.preventDefault();
+					query = '';
+					suggesting = false;
+					resetSuggestions();
+				}}>Cancel</a
 			>{/if}
 	</div>
 	<input type="hidden" name="tab" value={tab} />
-	{#if suggestions}<div class="suggestions">
-			{#each suggestions.profiles.items as author}<a
-					class="suggestion-profile"
-					href={'/profiles/' + encodeURIComponent(author.did)}
-					onclick={() => remember(author)}
-					><Avatar author={authorValue(author)} /><CompactIdentity
-						{author}
-					/></a
-				>{/each}{#each suggestions.hashtags.items as tag}<a
-					href={'/search/tags?tag=' + encodeURIComponent(tag.tag)}>#{tag.tag}</a
-				>{/each}
-		</div>{/if}
-</form>
-{#if q}<nav class="tabs" use:dragScroll aria-label="Search categories">
-		{#each ['posts', 'projects', 'profiles', 'hashtags'] as item}<a
-				href={'/search?' + new URLSearchParams({ q, tab: item })}
-				aria-current={tab === item ? 'page' : undefined}
-				>{item === 'hashtags'
-					? 'Tags'
-					: item[0].toUpperCase() + item.slice(1)}</a
-			>{/each}
-	</nav>{/if}
-<Status
-	{work}
-	skeleton={tab === 'profiles' || !q ? 'people' : 'posts'}
-	reload={() => load()}
-/>
-{#if !q}{#if recent.length}<section class="search-discovery">
-			<h2>Recent searches</h2>
-			{#each recent as item}<div class="recent-row">
-					<a href={recentDestination(item)}>{item.displayLabel}</a><button
-						aria-label="Remove recent search"
-						disabled={work.busy}
-						onclick={() =>
-							void work.run(
-								() => api.search.deleteRecent(item.id),
-								() => (recent = recent.filter((old) => old.id !== item.id))
-							)}><Icon name="close" size={18} /></button
-					>
-				</div>{/each}
-		</section>{/if}
-	{#if top?.groups.length}<section class="search-discovery stack">
-			<h2>Trending hashtags</h2>
-			{#each top.groups as group}<div class="stack">
-					<h3>
-						<span
-							class="trending-craft"
-							style:--craft-icon={`url('/craft_icons/${group.craftType.split('#').at(-1)}.svg')`}
-							aria-hidden="true"
-						></span>{label(group.craftType)}
-					</h3>
-					<div class="tag-chips">
-						{#each group.items as tag}<a
-								href={'/search/tags?tag=' + encodeURIComponent(tag.tag)}
-								>#{tag.tag}</a
+	{#if showSuggestions}
+		<div class="suggestions">
+			{#if waitingForSuggestions}<p role="status">Searching…</p>{/if}
+			<Status work={suggestionWork} skeleton="people" reload={suggest} />
+			{#if suggestions}
+				{#if suggestions.profiles.items?.length}
+					<section aria-labelledby="suggestion-profiles-heading">
+						<div class="suggestion-heading">
+							<h2 id="suggestion-profiles-heading">Profiles</h2>
+							{#if suggestions.profiles.hasMore}<a
+									class="view-all"
+									href={'/search?' +
+										new URLSearchParams({ q: query.trim(), tab: 'profiles' })}
+									>View all</a
+								>{/if}
+						</div>
+						{#each suggestions.profiles.items as author}<a
+								class="suggestion-profile account-row"
+								href={'/profiles/' + encodeURIComponent(author.did)}
+								onclick={() => remember(author)}
+								><Avatar author={authorValue(author)} /><CompactIdentity
+									{author}
+								/></a
 							>{/each}
-					</div>
-				</div>{/each}
-		</section>{/if}
-	{#if authors.length}<h2 class="section-heading">New makers</h2>{/if}
+					</section>
+				{/if}
+				{#if suggestions.hashtags.items?.length}
+					<section aria-labelledby="suggestion-hashtags-heading">
+						<div class="suggestion-heading">
+							<h2 id="suggestion-hashtags-heading">Hashtags</h2>
+							{#if suggestions.hashtags.hasMore}<a
+									class="view-all"
+									href={'/search?' +
+										new URLSearchParams({ q: query.trim(), tab: 'hashtags' })}
+									>View all</a
+								>{/if}
+						</div>
+						{#each suggestions.hashtags.items as tag}<a
+								class="suggestion-tag account-row"
+								href={'/search/tags?tag=' + encodeURIComponent(tag.tag)}
+								><span class="hashtag-icon" aria-hidden="true">#</span><span
+									><span>#{tag.tag}</span><small
+										>{tag.postCount}
+										{tag.postCount === 1 ? 'post' : 'posts'}</small
+									></span
+								></a
+							>{/each}
+					</section>
+				{/if}
+				{#if !suggestions.profiles.items?.length && !suggestions.hashtags.items?.length}<EmptyState
+						title="No results found"
+						detail="Try another search."
+						icon="search"
+					/>{/if}
+			{/if}
+		</div>
+	{/if}
+</form>
+{#if !showSuggestions}
+	{#if q}<nav class="tabs" use:dragScroll aria-label="Search categories">
+			{#each ['posts', 'projects', 'profiles', 'hashtags'] as item}<a
+					href={'/search?' + new URLSearchParams({ q, tab: item })}
+					aria-current={tab === item ? 'page' : undefined}
+					>{item === 'hashtags'
+						? 'Tags'
+						: item[0].toUpperCase() + item.slice(1)}</a
+				>{/each}
+		</nav>{/if}
+	<Status
+		{work}
+		skeleton={tab === 'profiles' || !q ? 'people' : 'posts'}
+		reload={() => load()}
+	/>
+	{#if !q}{#if recent.length}<section class="search-discovery">
+				<h2>Recent searches</h2>
+				{#each recent as item}<div class="recent-row">
+						<a href={recentDestination(item)}>{item.displayLabel}</a><button
+							aria-label="Remove recent search"
+							disabled={work.busy}
+							onclick={() =>
+								void work.run(
+									() => api.search.deleteRecent(item.id),
+									() => (recent = recent.filter((old) => old.id !== item.id))
+								)}><Icon name="close" size={18} /></button
+						>
+					</div>{/each}
+			</section>{/if}
+		{#if top?.groups.length}<section class="search-discovery stack">
+				<h2>Trending hashtags</h2>
+				{#each top.groups as group}<div class="stack">
+						<h3>
+							<span
+								class="trending-craft"
+								style:--craft-icon={`url('/craft_icons/${group.craftType.split('#').at(-1)}.svg')`}
+								aria-hidden="true"
+							></span>{label(group.craftType)}
+						</h3>
+						<div class="tag-chips">
+							{#each group.items as tag}<a
+									href={'/search/tags?tag=' + encodeURIComponent(tag.tag)}
+									>#{tag.tag}</a
+								>{/each}
+						</div>
+					</div>{/each}
+			</section>{/if}
+		{#if authors.length}<h2 class="section-heading">New makers</h2>{/if}
+	{/if}
+	{#each authors as author}<a
+			class="account-row maker-result"
+			style={profileStyle(author.customisation)}
+			href={'/profiles/' + encodeURIComponent(author.did)}
+			onclick={() => remember(author)}
+			><Avatar author={authorValue(author)} /><CompactIdentity {author} />
+			></a
+		>{/each}
+	{#each posts as post}<MemberPost value={post} {api} {did} />{/each}
+	{#each tags as tag}<a
+			class="account-row tag-result"
+			href={'/search/tags?tag=' + encodeURIComponent(tag.tag)}
+			><span class="hashtag-icon">#</span><span
+				><strong>#{tag.tag}</strong><small>{tag.postCount} posts</small></span
+			></a
+		>{/each}
+	{#if q && !work.busy && !work.error && !authors.length && !posts.length && !tags.length}<EmptyState
+			title="No results found"
+			detail="Try another search."
+			icon="search"
+		/>{/if}
+	{#if cursor}<button
+			class="button next"
+			disabled={work.busy}
+			onclick={() => load(true)}>Load more</button
+		>{/if}
 {/if}
-{#each authors as author}<a
-		class="account-row maker-result"
-		style={profileStyle(author.customisation)}
-		href={'/profiles/' + encodeURIComponent(author.did)}
-		onclick={() => remember(author)}
-		><Avatar author={authorValue(author)} /><CompactIdentity {author} />
-		></a
-	>{/each}
-{#each posts as post}<MemberPost value={post} {api} {did} />{/each}
-{#each tags as tag}<a
-		class="account-row tag-result"
-		href={'/search/tags?tag=' + encodeURIComponent(tag.tag)}
-		><span class="hashtag-icon">#</span><span
-			><strong>#{tag.tag}</strong><small>{tag.postCount} posts</small></span
-		></a
-	>{/each}
-{#if q && !work.busy && !work.error && !authors.length && !posts.length && !tags.length}<EmptyState
-		title="No results found"
-		detail="Try another search."
-		icon="search"
-	/>{/if}
-{#if cursor}<button
-		class="button next"
-		disabled={work.busy}
-		onclick={() => load(true)}>Load more</button
-	>{/if}
 
 <style>
 	.search-form {
@@ -416,13 +500,10 @@
 		background: transparent;
 		box-shadow: none;
 	}
-	.search-submit {
-		padding: 10px 12px;
-		min-height: 44px;
-		font-size: 14px;
-	}
+
 	.cancel-search {
 		font-size: 14px;
+		font-weight: 600;
 		text-decoration: none;
 		color: var(--primary);
 	}
@@ -507,35 +588,58 @@
 		font-size: 24px;
 	}
 	.suggestions {
-		z-index: 20;
-		position: relative;
 		padding: 8px 0;
-		margin-top: 8px;
-		background: var(--surface);
-		border: 1px solid var(--hairline);
-		border-radius: 12px;
+		gap: 24px;
+		background: transparent;
+		border: 0;
 	}
-	.suggestions a {
-		display: block;
-		padding: 10px 12px;
-		text-decoration: none;
-		color: var(--ink);
-		font-size: 14px;
-	}
-	.suggestions .suggestion-profile {
+	.suggestion-heading {
 		display: flex;
 		align-items: center;
+		justify-content: space-between;
 		gap: 12px;
+		margin-bottom: 8px;
 	}
-	@media (max-width: 600px) {
-		.search-submit {
-			position: absolute;
-			width: 1px;
-			height: 1px;
-			padding: 0;
-			overflow: hidden;
-			clip-path: inset(50%);
-		}
+	.suggestion-heading h2 {
+		font-size: 16px;
+		margin: 0;
+	}
+	.suggestions a {
+		text-decoration: none;
+		color: var(--ink);
+	}
+	.suggestions .view-all {
+		padding: 8px 0 8px 12px;
+		color: var(--primary);
+		font-weight: 600;
+	}
+	.suggestions .account-row {
+		padding: 8px 16px;
+		gap: 12px;
+		min-height: 60px;
+	}
+	.suggestions .suggestion-tag {
+		padding: 12px 0;
+		gap: 16px;
+	}
+	.suggestion-tag {
+		font-size: 16px;
+	}
+	.suggestion-tag small {
+		font-size: 14px;
+		margin-top: 2px;
+	}
+	.hashtag-icon {
+		flex-shrink: 0;
+		color: var(--ink);
+	}
+	.clear-circle {
+		width: 20px;
+		height: 20px;
+		border: 2px solid currentColor;
+		border-radius: 50%;
+		display: grid;
+		place-items: center;
 	}
 
 	.search-form .search-field input#search {
