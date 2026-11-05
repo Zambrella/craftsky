@@ -25,7 +25,7 @@ export default defineConfig({
 		__CRAFTSKY_WEB_RELEASE__: JSON.stringify(webRelease),
 		__CRAFTSKY_VERSION__: JSON.stringify(
 			readFileSync(
-				new URL('../appview/VERSION', import.meta.url),
+				new URL('./VERSION', import.meta.url),
 				'utf8'
 			).trim()
 		)

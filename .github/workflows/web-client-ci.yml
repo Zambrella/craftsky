@@ -4,11 +4,12 @@ on:
     branches: [main]
     paths:
       - 'web-client/**'
-      - 'appview/VERSION'
       - 'verified-links/**'
       - 'scripts/public-app-dev'
       - 'scripts/compose-dev'
       - 'scripts/test_public_app_dev.py'
+      - 'scripts/release'
+      - 'scripts/test_release.py'
       - 'scripts/web-client-deploy'
       - 'scripts/test_web_client_deploy.py'
       - 'justfile'
@@ -31,6 +32,7 @@ jobs:
           cache-dependency-path: web-client/package-lock.json
       - run: python3 -m unittest discover -s ../scripts -p test_public_app_dev.py
       - run: python3 -m unittest discover -s ../scripts -p test_web_client_deploy.py
+      - run: python3 -m unittest discover -s ../scripts -p test_release.py
       - run: npm ci
       - run: npm run check
       - run: npm test

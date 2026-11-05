@@ -612,7 +612,7 @@ test('About displays the embedded build version alongside native legal rows', as
 }) => {
 	await page.goto('/settings/about');
 	const version = readFileSync(
-		new URL('../../appview/VERSION', import.meta.url),
+		new URL('../VERSION', import.meta.url),
 		'utf8'
 	).trim();
 	const about = page.getByRole('navigation', {

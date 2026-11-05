@@ -4,8 +4,8 @@ set -euo pipefail
 usage() {
   cat <<'USAGE'
 Usage:
-  scripts/release create <appview|app> --version VERSION [--notes PATH]
-  scripts/release push <appview|app> TAG
+  scripts/release create <appview|app|web> --version VERSION [--notes PATH]
+  scripts/release push <appview|app|web> TAG
 USAGE
 }
 
@@ -23,7 +23,7 @@ repo_root() {
 }
 
 validate_stream() {
-  [[ "$1" == appview || "$1" == app ]] || die "unknown release stream: $1"
+  [[ "$1" == appview || "$1" == app || "$1" == web ]] || die "unknown release stream: $1"
 }
 
 validate_semver() {
@@ -86,6 +86,11 @@ stream_tag_version() {
       value=${BASH_REMATCH[1]}
       validate_semver "$value" || return 1
       ;;
+    web)
+      [[ "$tag" =~ ^web-v(.+)$ ]] || return 1
+      value=${BASH_REMATCH[1]}
+      validate_semver "$value" || return 1
+      ;;
     app)
       [[ "$tag" =~ ^app-v(.+)$ ]] || return 1
       value=${BASH_REMATCH[1]}
@@ -101,6 +106,10 @@ read_version() {
     [[ -f appview/VERSION ]] || die "appview/VERSION is missing"
     value=$(tr -d '\n' <appview/VERSION)
     validate_semver "$value" || die "invalid appview/VERSION: $value"
+  elif [[ "$stream" == web ]]; then
+    [[ -f web-client/VERSION ]] || die "web-client/VERSION is missing"
+    value=$(tr -d '\n' <web-client/VERSION)
+    validate_semver "$value" || die "invalid web-client/VERSION: $value"
   else
     count=$(grep -Ec '^version: ' app/pubspec.yaml)
     [[ "$count" == 1 ]] || die "expected exactly one top-level version in app/pubspec.yaml"
@@ -117,7 +126,7 @@ latest_stream_tag() {
     if [[ -z "$best_version" ]]; then
       best_tag=$tag
       best_version=$version
-    elif [[ "$stream" == appview ]] && semver_greater "$version" "$best_version"; then
+    elif [[ "$stream" != app ]] && semver_greater "$version" "$best_version"; then
       best_tag=$tag
       best_version=$version
     elif [[ "$stream" == app ]] && app_version_greater "$version" "$best_version"; then
@@ -143,6 +152,8 @@ generate_notes() {
       render.yaml
       justfile
     )
+  elif [[ "$stream" == web ]]; then
+    paths=(web-client verified-links scripts/web-client-deploy scripts/test_web_client_deploy.py scripts/release justfile)
   else
     paths=(app scripts/app-release-preflight scripts/release justfile)
   fi
@@ -168,6 +179,10 @@ write_version() {
     tmp=$(mktemp appview/.VERSION.XXXXXX)
     printf '%s\n' "$version" >"$tmp"
     mv "$tmp" appview/VERSION
+  elif [[ "$stream" == web ]]; then
+    tmp=$(mktemp web-client/.VERSION.XXXXXX)
+    printf '%s\n' "$version" >"$tmp"
+    mv "$tmp" web-client/VERSION
   else
     tmp=$(mktemp app/.pubspec.XXXXXX)
     awk -v version="$version" '/^version: / { print "version: " version; next } { print }' app/pubspec.yaml >"$tmp"
@@ -222,6 +237,13 @@ create_release() {
     changelog=appview/CHANGELOG.md
     title="AppView Changelog"
     commit_name="AppView $version"
+  elif [[ "$stream" == web ]]; then
+    validate_semver "$version" || die "invalid web version: $version"
+    tag="web-v$version"
+    version_path=web-client/VERSION
+    changelog=web-client/CHANGELOG.md
+    title="Web Client Changelog"
+    commit_name="web $version"
   else
     validate_app_version "$version" || die "invalid app version: $version"
     tag="app-v$version"
@@ -238,8 +260,8 @@ create_release() {
   else
     latest=$current
   fi
-  if [[ "$stream" == appview ]]; then
-    semver_greater "$version" "$latest" || die "AppView version must be greater than $latest"
+  if [[ "$stream" != app ]]; then
+    semver_greater "$version" "$latest" || die "$stream version must be greater than $latest"
   else
     app_version_greater "$version" "$latest" || die "app version and build number must be greater than $latest"
   fi
@@ -279,6 +301,9 @@ push_release() {
   if [[ "$stream" == appview ]]; then
     version_path=appview/VERSION
     changelog=appview/CHANGELOG.md
+  elif [[ "$stream" == web ]]; then
+    version_path=web-client/VERSION
+    changelog=web-client/CHANGELOG.md
   else
     version_path=app/pubspec.yaml
     changelog=app/CHANGELOG.md

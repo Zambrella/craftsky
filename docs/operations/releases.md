@@ -1,9 +1,9 @@
 # Releases
 
 Craftsky releases are created, built, and deployed from the maintainer's local
-machine. GitHub Actions only tests pull requests. AppView and the Flutter app
-have independent versions, tags, and changelogs. The Svelte web client uses
-reviewed Cloudflare Worker version IDs and manual dashboard promotion.
+machine. GitHub Actions only tests pull requests. AppView, the Flutter app and the Svelte web client have independent versions,
+tags and changelogs. Web releases also record the reviewed Cloudflare Worker
+version ID and use manual dashboard promotion.
 
 ## Private beta and full public launch
 
@@ -54,8 +54,8 @@ The Svelte application in `web-client/` has its own Worker,
 from the marketing Worker `craftsky-landing`, service status, and AppView on
 Render. See [ADR 026](../../adr/026-web-client-preview-promotion.md).
 
-The workflow is **upload → review/sign in on the preview → promote that exact
-version in Cloudflare**. Merging a PR does not publish the client. Do not connect
+The workflow is **create/push a web release tag → upload that exact tag →
+review/sign in on the preview → promote that exact Worker version in Cloudflare**. Merging a PR does not publish the client. Do not connect
 Workers Builds with its default automatic deploy command, or use `wrangler
 deploy` for routine releases: both immediately assign live traffic. The checked-in
 preview command only runs `wrangler versions upload`.
@@ -121,13 +121,31 @@ declares no custom domains/routes, and routine uploads preserve dashboard routes
 
 ### Upload a release candidate
 
-From the repository root, start from clean, reviewed, pushed `main`:
+The web version source is `web-client/VERSION`; release notes are in
+`web-client/CHANGELOG.md` and annotated tags use `web-vX.Y.Z`. The displayed
+version and Sentry release both use the web version, independently of AppView.
+The initial version baseline is `1.11.1`, matching the mobile version when this
+stream was introduced; it is not an assertion of a published web release.
+
+From the repository root, start from clean, reviewed, pushed `main`. For example,
+for the first tagged release, prepare a nonempty notes file outside the checkout:
 
 ```sh
 git switch main
 git pull --ff-only origin main
-just web-client-preview
+just release-create-web 1.11.2 /absolute/path/to/web-release-notes.md
+just web-client-check
+just release-push web web-v1.11.2
+just web-client-preview web-v1.11.2
 ```
+
+The first release requires explicit notes; later releases can omit the notes path
+to generate notes from relevant commits since the previous web tag. Creation and
+atomic push use the same clean-main, increasing-version, changelog and annotated-tag
+checks as the other release streams. Push the release commit/tag before adding
+further commits. Upload requires the exact tagged commit at HEAD on clean `main`,
+a matching version file, an unchanged pushed tag, and ancestry on remote `main`.
+It repeats these checks after building, before uploading.
 
 The command checks the target Worker exists, runs `web-client-check` (type checks,
 unit tests, build and public/authenticated browser suites on both runtimes), then
@@ -136,18 +154,23 @@ pages, native callback content and association files, plus cache/privacy and
 preview indexing headers. It **does not** promote traffic, change DNS/domains,
 release AppView, or run real account mutations.
 
-The output includes the version ID, immutable review URL and an ignored local
+The output includes the Git release tag, Worker version ID, immutable review URL and an ignored local
 receipt at `web-client/.deployments/<version-id>.json`. Retain the receipt, commit,
 Sentry release and review evidence in the operational release record. A failed
 hosted check leaves the upload available but does not promote it. If the upload
 succeeded before an interruption, use Cloudflare Deployments to identify it
 before retrying.
 
-For an explicitly uncommitted experiment, use `just web-client-preview
---allow-dirty`. These uploads are tagged `-dirty` and are not public release
-candidates. Commit/review the source and upload a clean candidate before release.
-The preview command refuses a dirty checkout by default; dashboard promotion is
-an operator action, so also check the recorded commit is on reviewed `main`.
+Untagged and dirty uploads are rejected; `--allow-dirty` is no longer supported.
+Use local development for uncommitted experiments. Existing experimental Worker
+versions remain in Cloudflare history and must not be promoted. Dashboard
+promotion is an operator action: Cloudflare does not enforce the Git release
+checks, so match the receipt's release tag, commit and Worker version ID.
+
+Keep web and mobile major/minor versions aligned for coordinated feature releases
+where practical, with independent patch versions for platform-specific fixes.
+Do not hold a web fix for an app-store release or bump AppView solely to match a
+client version. This is a release convention, not a cross-stream equality gate.
 
 Set optional `PUBLIC_SENTRY_*` and public Firebase web configuration at build time,
 as described in the client README. Runtime AppView/subscription settings come
@@ -168,7 +191,8 @@ build. Source maps are excluded from the public assets and Worker upload.
 
 1. Open **Cloudflare → Workers & Pages → craftsky-public-app → Deployments**.
 2. Match the full version ID from the successful preview receipt and review.
-   Check its commit tag/message, not just its position in the list.
+   Check its `web-vX.Y.Z` tag and commit message against the receipt and pushed Git
+   tag, not just its position in the list. Reject old `-dirty` or untagged uploads.
 3. Select **Promote deployment**, choose that version, and assign it **100%**
    of traffic. Confirm the deployment. This uses the uploaded code, assets and
    bindings without rebuilding. Do not use Edit code or retry a build.

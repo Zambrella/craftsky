@@ -15,18 +15,20 @@ loader.exec_module(deploy)
 
 
 class PreviewTests(unittest.TestCase):
-    def test_dirty_checkout_requires_explicit_experiment(self):
-        with patch.object(deploy, "git", side_effect=["a" * 40, " M file"]), \
-                patch.object(deploy.subprocess, "run") as run, \
-                patch("sys.argv", ["web-client-deploy", "preview"]):
-            with self.assertRaisesRegex(ValueError, "commit changes"):
-                deploy.main()
-            run.assert_not_called()
+    def test_invalid_or_dirty_release_never_uploads(self):
+        for tag, status, message in [("not-a-release", "", "web release tag"),
+                                     ("web-v1.2.3", " M file", "working tree must be clean")]:
+            with self.subTest(tag=tag), patch.object(deploy, "git", return_value=status), \
+                    patch.object(deploy.subprocess, "run") as run, \
+                    patch("sys.argv", ["web-client-deploy", "preview", tag]):
+                with self.assertRaisesRegex(ValueError, message):
+                    deploy.main()
+                run.assert_not_called()
 
     def test_failed_checks_never_upload(self):
-        with patch.object(deploy, "git", side_effect=["a" * 40, ""]), \
+        with patch.object(deploy, "release_commit", return_value="a" * 40), \
                 patch.object(deploy.subprocess, "run", side_effect=[None, subprocess.CalledProcessError(1, "just")]) as run, \
-                patch("sys.argv", ["web-client-deploy", "preview"]):
+                patch("sys.argv", ["web-client-deploy", "preview", "web-v1.2.3"]):
             with self.assertRaises(subprocess.CalledProcessError):
                 deploy.main()
             self.assertEqual(run.call_count, 2)
@@ -40,7 +42,7 @@ class PreviewTests(unittest.TestCase):
             (artifact / "_worker.js").write_text("export default {}")
             maps = client / ".sentry-artifacts"
             maps.mkdir()
-            (maps / "release.json").write_text(json.dumps({"release": "craftsky-web@test"}))
+            (maps / "release.json").write_text(json.dumps({"release": "craftsky-web@1.2.3+aaaaaaaaaaaa"}))
             commands = []
 
             def run(command, **kwargs):
@@ -52,20 +54,42 @@ class PreviewTests(unittest.TestCase):
                     }) + "\n")
 
             with patch.object(deploy, "CLIENT", client), \
-                    patch.object(deploy, "git", side_effect=["a" * 40, "", "a" * 40, ""]), \
+                    patch.object(deploy, "release_commit", return_value="a" * 40), \
                     patch.object(deploy.subprocess, "run", side_effect=run), \
                     patch.object(deploy, "verify") as verify, \
-                    patch("sys.argv", ["web-client-deploy", "preview"]):
+                    patch("sys.argv", ["web-client-deploy", "preview", "web-v1.2.3"]):
                 self.assertEqual(deploy.main(), 0)
             upload = commands[-1]
             self.assertEqual(upload[2:4], ["versions", "upload"])
             self.assertIn("--preview-alias", upload)
+            self.assertEqual(upload[upload.index("--tag") + 1], "web-v1.2.3")
             self.assertNotIn("deploy", upload)
             receipt = json.loads((client / ".deployments/version-123.json").read_text())
             self.assertEqual(receipt["versionId"], "version-123")
             self.assertTrue(receipt["verified"])
             self.assertFalse(receipt["dirty"])
+            self.assertEqual(receipt["tag"], "web-v1.2.3")
             verify.assert_called_once_with(receipt["url"])
+
+    def test_changed_checkout_or_stale_metadata_prevents_upload(self):
+        for changed in [True, False]:
+            with self.subTest(changed_checkout=changed), tempfile.TemporaryDirectory() as temporary:
+                client = Path(temporary)
+                (client / ".sentry-artifacts").mkdir()
+                (client / ".sentry-artifacts/release.json").write_text(
+                    json.dumps({"release": "craftsky-web@wrong-build"}))
+                commits = ["a" * 40, "b" * 40 if changed else "a" * 40]
+                with patch.object(deploy, "CLIENT", client), \
+                        patch.object(deploy, "release_commit", side_effect=commits), \
+                        patch.object(deploy.subprocess, "run") as run, \
+                        patch("sys.argv", ["web-client-deploy", "preview", "web-v1.2.3"]):
+                    message = "release changed" if changed else "metadata does not match"
+                    with self.assertRaisesRegex(ValueError, message):
+                        deploy.main()
+                    self.assertEqual(run.call_count, 2)
+                    self.assertEqual(run.call_args_list[1].kwargs["env"]["SENTRY_RELEASE"],
+                                     "craftsky-web@1.2.3+aaaaaaaaaaaa")
+                    self.assertFalse(any("upload" in call.args[0] for call in run.call_args_list))
 
     def test_verify_rejects_untrusted_destinations_before_network(self):
         for origin in ["http://app.craftsky.social", "https://evil.example", "https://app.craftsky.social@evil.workers.dev", "https://app.craftsky.social/path", "https://app.craftsky.social?token=canary"]:

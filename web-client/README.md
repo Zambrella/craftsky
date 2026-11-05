@@ -299,8 +299,12 @@ tool's proposed downgrades to older Sentry or pre-release-era SvelteKit.
 
 The authoritative workflow is [Web client: preview, then release](../docs/operations/releases.md#web-client-preview-then-release).
 The client uses the `craftsky-public-app` **Worker with static assets**, not a
-Pages production build. `just web-client-preview` checks/builds and uploads a
-version without promoting live traffic. Review/sign in at
+Pages production build. Create and push an annotated `web-vX.Y.Z` release with
+`just release-create-web` / `just release-push web`, then run
+`just web-client-preview web-vX.Y.Z` from that exact release commit on clean
+`main`. It checks/builds and uploads without promoting live traffic. Untagged
+and dirty uploads are rejected. `VERSION` controls the displayed version and
+Sentry release; the release command maintains `CHANGELOG.md`. Review/sign in at
 <https://preview-craftsky-public-app.hugetoothstudios.workers.dev>, then promote
 the recorded version ID to 100% in Cloudflare's Deployments tab.
 

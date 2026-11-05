@@ -48,6 +48,22 @@ hosted preview sign-in works. No database migration or lexicon change is needed.
 The first domain cutover is separate from routine version promotion. Workers
 rollback restores frontend code/configuration, not backend data or mutations.
 
+## Release identity amendment (2026-11-05)
+
+Web candidates now require an annotated, immutable, pushed `web-vX.Y.Z` tag on
+remote `main`, matching `web-client/VERSION`. The shared release command creates
+the version/changelog commit and atomically pushes it with the tag, using the
+same release controls as mobile and AppView. Upload builds only the exact tag
+at HEAD on clean `main` and repeats the preflight after checks. Dirty and
+untagged experimental uploads are no longer part of this workflow.
+
+The web version is independent of AppView and supplies both the UI version and
+Sentry release. Web/mobile major/minor versions should align for coordinated
+features when practical; patches can ship independently. Manual promotion still
+selects the already-reviewed Worker version without rebuilding. The operator
+must match its receipt to the pushed Git tag; the dashboard itself does not
+implement our Git preflight. Existing preview callback and data rules are unchanged.
+
 References: [Worker deployment management](https://developers.cloudflare.com/workers/versions-and-deployments/deployment-management/),
 [version URLs](https://developers.cloudflare.com/workers/versions-and-deployments/version-urls/),
 [Pages rollback limits](https://developers.cloudflare.com/pages/configuration/rollbacks/).

@@ -6,6 +6,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 from pathlib import Path
 import subprocess
 import sys
@@ -22,6 +23,32 @@ ACCOUNT = "5019e87cb75545b8a7279c42dd92bd90"
 
 def git(*args: str) -> str:
     return subprocess.check_output(["git", *args], cwd=ROOT, text=True).strip()
+
+
+def release_commit(tag: str) -> str:
+    """Require the exact clean, annotated, pushed release before building/uploading."""
+    if not re.fullmatch(r"web-v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)", tag):
+        raise ValueError("expected web release tag web-vX.Y.Z")
+    if git("status", "--porcelain"):
+        raise ValueError("working tree must be clean; commit changes before releasing")
+    if git("branch", "--show-current") != "main":
+        raise ValueError("web release uploads require main")
+    git("fetch", "origin", "+refs/heads/main:refs/remotes/origin/main")
+    git("fetch", "origin", "--tags")
+    if git("cat-file", "-t", "refs/tags/" + tag) != "tag":
+        raise ValueError("release tag must be annotated")
+    commit = git("rev-parse", tag + "^{commit}")
+    if git("rev-parse", "HEAD") != commit:
+        raise ValueError("release tag must point to HEAD; check out the exact release commit on main")
+    tag_object = git("rev-parse", "refs/tags/" + tag)
+    remote = git("ls-remote", "origin", "refs/tags/" + tag, "refs/tags/" + tag + "^{}")
+    refs = dict(line.split()[::-1] for line in remote.splitlines())
+    if refs.get("refs/tags/" + tag) != tag_object or refs.get("refs/tags/" + tag + "^{}") != commit:
+        raise ValueError("release tag must be pushed unchanged to origin")
+    git("merge-base", "--is-ancestor", commit, "origin/main")
+    if git("show", commit + ":web-client/VERSION") != tag.removeprefix("web-v"):
+        raise ValueError("release tag does not match tagged web-client/VERSION")
+    return commit
 
 
 class NoRedirects(HTTPRedirectHandler):
@@ -73,7 +100,7 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
     preview = sub.add_parser("preview", help="check, build and upload without releasing")
-    preview.add_argument("--allow-dirty", action="store_true", help="upload an experiment, not a release candidate")
+    preview.add_argument("tag", help="pushed annotated web-vX.Y.Z tag at HEAD on clean main")
     check = sub.add_parser("verify", help="read-only smoke check after upload or dashboard promotion")
     check.add_argument("origin")
     args = parser.parse_args()
@@ -84,32 +111,33 @@ def main() -> int:
     config = json.loads(CONFIG.read_text())
     if config["name"] != WORKER or config["account_id"] != ACCOUNT:
         raise ValueError("unexpected Cloudflare web-client target")
-    commit = git("rev-parse", "HEAD")
-    dirty = bool(git("status", "--porcelain"))
-    if dirty and not args.allow_dirty:
-        raise ValueError("commit changes before uploading a release candidate, or use --allow-dirty for an experiment")
+    commit = release_commit(args.tag)
+    expected_release = f"craftsky-web@{args.tag.removeprefix('web-v')}+{commit[:12]}"
     wrangler = ["node", str(CLIENT / "node_modules/wrangler/bin/wrangler.js")]
     common = ["--config", str(CONFIG), "--name", WORKER]
-    env = {**os.environ, "CLOUDFLARE_ACCOUNT_ID": ACCOUNT, "WRANGLER_SEND_METRICS": "false"}
+    env = {**os.environ, "CLOUDFLARE_ACCOUNT_ID": ACCOUNT, "WRANGLER_SEND_METRICS": "false",
+           "SENTRY_RELEASE": expected_release}
     # Discovery must succeed: bootstrap is a separate one-time operator action.
     subprocess.run([*wrangler, "versions", "list", *common, "--json"], cwd=CLIENT, env=env, check=True, stdout=subprocess.DEVNULL)
     subprocess.run(["just", "web-client-check"], cwd=ROOT, env=env, check=True)
-    if git("rev-parse", "HEAD") != commit or (not args.allow_dirty and git("status", "--porcelain")):
-        raise ValueError("checkout changed during checks; upload again")
+    if release_commit(args.tag) != commit:
+        raise ValueError("release changed during checks; upload again")
     artifact = CLIENT / ".svelte-kit/cloudflare"
     if list(artifact.rglob("*.map")):
         raise ValueError("source maps must remain outside the public artifact")
     files = {p.relative_to(artifact).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest()
              for p in sorted(artifact.rglob("*")) if p.is_file()}
     release = json.loads((CLIENT / ".sentry-artifacts/release.json").read_text())["release"]
+    if release != expected_release:
+        raise ValueError("build release metadata does not match the tagged version/commit")
     # The alias is stable so AppView can allow exactly one preview callback origin.
     # The immutable version URL remains the review/promotion identity.
     with tempfile.TemporaryDirectory(prefix="craftsky-web-client-") as temporary:
         records = Path(temporary) / "wrangler.jsonl"
         subprocess.run([
             *wrangler, "versions", "upload", *common, "--preview-alias", "preview",
-            "--tag", commit[:12] + ("-dirty" if dirty else ""),
-            "--message", "Web client " + commit + (" (dirty experiment)" if dirty else ""),
+            "--tag", args.tag,
+            "--message", "Web client " + args.tag + " " + commit,
             "--keep-vars",
         ], cwd=CLIENT, env={**env, "WRANGLER_OUTPUT_FILE_PATH": str(records)}, check=True)
         uploaded = next(item for line in records.read_text().splitlines()
@@ -117,7 +145,7 @@ def main() -> int:
     if uploaded["worker_name"] != WORKER:
         raise ValueError("uploaded Worker does not match requested target")
     receipt = {
-        "worker": WORKER, "commit": commit, "dirty": dirty,
+        "worker": WORKER, "commit": commit, "tag": args.tag, "dirty": False,
         "release": release, "versionId": uploaded["version_id"],
         "url": uploaded.get("preview_url"), "files": files, "verified": False,
     }
@@ -127,7 +155,7 @@ def main() -> int:
     def save():
         path.write_text(json.dumps(receipt, indent=2) + "\n")
     save()
-    print(f"Version: {receipt['versionId']}\nPreview: {receipt['url']}\nReceipt: {path}", flush=True)
+    print(f"Tag: {args.tag}\nVersion: {receipt['versionId']}\nPreview: {receipt['url']}\nReceipt: {path}", flush=True)
     if not receipt["url"]:
         raise ValueError("version uploaded, but no Version URL returned; live traffic is unchanged")
     verify(receipt["url"])

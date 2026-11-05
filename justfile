@@ -31,6 +31,16 @@ release-create-app VERSION NOTES="":
     [[ -z "$notes" ]] || args+=(--notes "$notes")
     ./scripts/release "${args[@]}"
 
+# Create a local web release commit and annotated tag.
+release-create-web VERSION NOTES="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    version={{ quote(VERSION) }}
+    notes={{ quote(NOTES) }}
+    args=(create web --version "$version")
+    [[ -z "$notes" ]] || args+=(--notes "$notes")
+    ./scripts/release "${args[@]}"
+
 # Atomically push one local release commit and tag.
 release-push STREAM TAG:
     ./scripts/release push {{ quote(STREAM) }} {{ quote(TAG) }}
@@ -601,6 +611,7 @@ public-app-setup:
 
 public-app-check:
     python3 -m unittest discover -s scripts -p test_public_app_dev.py
+    python3 -m unittest discover -s scripts -p test_release.py
     python3 -m unittest discover -s scripts -p test_web_client_deploy.py
     cd web-client && npm run check && npm test && npm run build && npm run test:e2e && npm run test:e2e:app && WEB_CLIENT_WORKER=1 npm run test:e2e && WEB_CLIENT_WORKER=1 npm run test:e2e:app
 
@@ -617,8 +628,8 @@ web-client-setup: public-app-setup
 web-client-check: public-app-check
 
 # Upload a checked version for review. Does not change live traffic or domains.
-web-client-preview *ARGS:
-    python3 scripts/web-client-deploy preview {{ARGS}}
+web-client-preview TAG:
+    python3 scripts/web-client-deploy preview {{ quote(TAG) }}
 
 # Read-only smoke checks after preview upload or dashboard promotion.
 web-client-verify ORIGIN:
