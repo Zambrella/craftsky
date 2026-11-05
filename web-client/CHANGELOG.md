@@ -1,5 +1,9 @@
 # Web Client Changelog
 
+## 1.11.3 - 2026-11-05
+
+- fix(web-client): preserve timeline identities across repost overlays (#310)
+
 ## 1.11.2 - 2026-11-05
 
 - Introduce the Svelte web client with public profiles, post and project pages, and share metadata.
