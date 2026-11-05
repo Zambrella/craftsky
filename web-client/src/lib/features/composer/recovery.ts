@@ -1,0 +1,112 @@
+import {
+	assertOwner,
+	drafts,
+	type Draft,
+	type DraftMedia
+} from '../drafts/store';
+
+type Persistence = Pick<typeof drafts, 'save' | 'restore' | 'remove'>;
+/** One editor activation owns its durable queue and the snapshot explicit Discard restores. */
+export class ComposerRecovery {
+	private tail: Promise<void> = Promise.resolve();
+	private phase: 'active' | 'discarding' | 'closed' = 'active';
+	private readonly original?: Draft;
+	private readonly baseline: string;
+	private blobs = new WeakMap<Blob, number>();
+	private nextBlob = 1;
+	constructor(
+		readonly owner: string,
+		readonly id: string,
+		initial: Draft,
+		existing: boolean,
+		private store: Persistence = drafts
+	) {
+		this.assert(initial);
+		this.baseline = this.fingerprint(initial);
+		this.original = existing ? structuredClone(initial) : undefined;
+	}
+	get active() {
+		return this.phase === 'active';
+	}
+	/** Compare the live editor value; persistence snapshots clone otherwise immutable Blob objects. */
+	hasChanges(value: Draft): boolean {
+		this.assert(value);
+		return this.fingerprint(value) !== this.baseline;
+	}
+	private fingerprint(value: Draft): string {
+		const media = (item: DraftMedia | undefined) =>
+			item && {
+				...item,
+				uploaded: undefined,
+				blob: item.blob ? this.blobIdentity(item.blob) : undefined
+			};
+		return JSON.stringify({
+			text: value.text,
+			langs: value.langs,
+			sponsored: value.sponsored,
+			kind: value.kind,
+			project: value.project,
+			images: value.images.map(media),
+			video: media(value.video),
+			external: value.external,
+			externalImage: media(value.externalImage),
+			externalDismissed: !!value.externalDismissed,
+			embedChanges: value.embedChanges,
+			scheduleLater: !!value.scheduleLater,
+			scheduledAt: value.scheduledAt
+		});
+	}
+	private blobIdentity(blob: Blob): number {
+		let identity = this.blobs.get(blob);
+		if (!identity) {
+			identity = this.nextBlob++;
+			this.blobs.set(blob, identity);
+		}
+		return identity;
+	}
+	private assert(value: Draft) {
+		assertOwner(this.owner, value);
+		if (value.id !== this.id)
+			throw new Error('This editor belongs to another draft.');
+	}
+	private enqueue(action: () => Promise<void>): Promise<void> {
+		const result = this.tail.then(action, action);
+		this.tail = result.catch(() => {});
+		return result;
+	}
+	checkpoint(value: Draft): Promise<void> {
+		this.assert(value);
+		if (!this.active)
+			return Promise.reject(new Error('This editor has already closed.'));
+		const frozen = structuredClone(value);
+		return this.enqueue(() => this.store.save(this.owner, frozen));
+	}
+	/** Wait behind every accepted checkpoint; restoration/removal wins over in-flight autosaves. */
+	discard(value: Draft): Promise<void> {
+		this.assert(value);
+		if (value.pending)
+			return Promise.reject(
+				new Error('Check the original action before discarding this draft.')
+			);
+		if (!this.active)
+			return Promise.reject(new Error('This editor has already closed.'));
+		this.phase = 'discarding';
+		return this.enqueue(async () => {
+			if (this.original)
+				await this.store.restore(this.owner, structuredClone(this.original));
+			else await this.store.remove(this.owner, this.id);
+			this.phase = 'closed';
+		}).catch((error) => {
+			if (this.phase === 'discarding') this.phase = 'active';
+			throw error;
+		});
+	}
+	/** Confirmed publication may clear its recovery row; stale autosaves must never recreate it. */
+	complete(): Promise<void> {
+		this.phase = 'closed';
+		return this.enqueue(() => this.store.remove(this.owner, this.id));
+	}
+	abandon(): void {
+		this.phase = 'closed';
+	}
+}

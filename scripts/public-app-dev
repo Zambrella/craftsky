@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+cd "$repo_root"
+
+# Keep local configuration selection inside the existing worktree-aware Compose
+# wrapper. Do not source backend secrets into the frontend process.
+if ! appview_address=$(./scripts/compose-dev port appview 8080); then
+  echo 'Start this worktree’s backend with just dev-d first.' >&2
+  exit 1
+fi
+if [[ ! "$appview_address" =~ ^(127\.0\.0\.1|0\.0\.0\.0|localhost):([0-9]+)$ ]]; then
+  echo 'No local IPv4 AppView listener found. Run just dev-d first.' >&2
+  exit 1
+fi
+appview_port=${BASH_REMATCH[2]}
+export APPVIEW_ORIGIN="http://127.0.0.1:${appview_port}"
+
+# Separate checkouts get stable browser ports as well as separate backends.
+# An explicit override can resolve the small possibility of a checksum collision.
+public_app_port=${CRAFTSKY_PUBLIC_APP_PORT:-}
+if [[ -z "$public_app_port" && -f .env.local ]]; then
+  public_app_port=$(sed -n 's/^CRAFTSKY_PUBLIC_APP_PORT=//p' .env.local | tail -n 1)
+fi
+if [[ -z "$public_app_port" ]]; then
+  checkout_checksum=$(printf '%s' "$repo_root" | cksum | awk '{print $1}')
+  public_app_port=$((25000 + checkout_checksum % 1000))
+fi
+if [[ ! "$public_app_port" =~ ^[0-9]{1,5}$ ]] || ((10#$public_app_port < 1 || 10#$public_app_port > 65535)); then
+  echo 'CRAFTSKY_PUBLIC_APP_PORT must be a port from 1 to 65535.' >&2
+  exit 1
+fi
+
+cd web-client
+if [[ ! -d node_modules ]]; then
+  npm ci
+fi
+printf 'CraftSky web: http://127.0.0.1:%s (AppView: %s)\n' "$public_app_port" "$APPVIEW_ORIGIN"
+exec npm run dev -- --port "$public_app_port" --strictPort "$@"

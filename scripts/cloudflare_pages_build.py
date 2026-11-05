@@ -16,8 +16,9 @@ ROUTES = {
     "/community-guidelines": "community-guidelines.html",
     "/reporting": "reporting.html", "/copyright": "copyright.html",
     "/instagram-import": "instagram-import.html",
+    "/why-instagram-sucks-for-crafters": "why-instagram-sucks-for-crafters.html",
 }
-PUBLIC_FILES = (*ROUTES.values(), "styles.css", "main.js", "waitlist.js", "robots.txt")
+PUBLIC_FILES = (*ROUTES.values(), "styles.css", "why-instagram.css", "main.js", "waitlist.js", "robots.txt")
 ASSET_EXTENSIONS = {".svg", ".png", ".jpg", ".jpeg", ".webp", ".gif", ".ico", ".woff", ".woff2"}
 
 

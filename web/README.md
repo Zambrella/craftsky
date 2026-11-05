@@ -5,6 +5,7 @@ Static public site served at https://craftsky.social.
 ## Contents
 
 - `index.html` — landing page, nine sections
+- `why-instagram-sucks-for-crafters.html` + `why-instagram.css` — sourced comparison campaign at `/why-instagram-sucks-for-crafters`
 - `waitlist.html` — focused waiting-list signup page at `/waitlist`
 - `privacy.html`, `terms.html`, `community-guidelines.html`, `reporting.html`,
   `copyright.html` — generated policy drafts; approval remains recorded in the readiness manifest

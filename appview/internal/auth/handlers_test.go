@@ -357,7 +357,7 @@ func TestRegistrationRequestValidationDoesNotCallProvider(t *testing.T) {
 		{name: "missing device", body: `{"handoffMode":"verified_link"}`, wantStatus: http.StatusBadRequest, wantError: "missing_device_id"},
 		{name: "invalid device", body: `{"handoffMode":"verified_link"}`, deviceID: "not valid", wantStatus: http.StatusBadRequest, wantError: "invalid_device_id"},
 		{name: "missing handoff", body: `{}`, deviceID: "registration-device", wantStatus: http.StatusBadRequest, wantError: "invalid_handoff_mode"},
-		{name: "invalid handoff", body: `{"handoffMode":"browser"}`, deviceID: "registration-device", wantStatus: http.StatusBadRequest, wantError: "invalid_handoff_mode"},
+		{name: "invalid handoff", body: `{"handoffMode":"unknown"}`, deviceID: "registration-device", wantStatus: http.StatusBadRequest, wantError: "invalid_handoff_mode"},
 		{name: "loopback URI missing", body: `{"handoffMode":"loopback"}`, deviceID: "registration-device", wantStatus: http.StatusBadRequest, wantError: "loopback_redirect_uri_required"},
 		{name: "loopback URI invalid", body: `{"handoffMode":"loopback","loopbackRedirectUri":"https://attacker.example"}`, deviceID: "registration-device", wantStatus: http.StatusBadRequest, wantError: "loopback_redirect_uri_invalid"},
 		{name: "loopback URI forbidden for verified link", body: `{"handoffMode":"verified_link","loopbackRedirectUri":"http://127.0.0.1:1234/callback"}`, deviceID: "registration-device", wantStatus: http.StatusBadRequest, wantError: "loopback_redirect_uri_invalid"},

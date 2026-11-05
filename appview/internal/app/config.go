@@ -306,6 +306,7 @@ type Config struct {
 	OAuthHandoffReceiptKeyVersion        int
 	OAuthRegistrationProviderOrigin      url.URL
 	VerifiedLinkOrigin                   url.URL
+	WebAppOrigin                         string
 	EnableDevOAuthScheme                 bool
 
 	// Media policy. Defaults preserve the approved image-posting contract;
@@ -674,6 +675,10 @@ func LoadConfig(env Env, envFilePath string) (Config, error) {
 	cfg.VerifiedLinkOrigin, err = parseCanonicalPublicOrigin(verifiedOrigin)
 	if err != nil {
 		return Config{}, fmt.Errorf("APP_VERIFIED_LINK_ORIGIN must be a canonical public HTTPS origin")
+	}
+	cfg.WebAppOrigin, err = auth.ValidateWebAppOrigin(strings.TrimSpace(os.Getenv("WEB_APP_ORIGIN")), env == EnvDev)
+	if err != nil {
+		return Config{}, fmt.Errorf("WEB_APP_ORIGIN must be a controlled app/preview HTTPS origin or an explicit development IPv4 loopback origin")
 	}
 	if cfg.EnableDevOAuthScheme, err = boolEnv("APPVIEW_ENABLE_DEV_OAUTH_SCHEME", false); err != nil {
 		return Config{}, err

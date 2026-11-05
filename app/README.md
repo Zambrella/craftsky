@@ -1,6 +1,6 @@
 # CraftSky Flutter client
 
-The Flutter client for CraftSky, supporting **iOS, Android, and web only**. Native macOS, Windows, and Linux apps are not supported. `app.craftsky.social` hosts verified app links and OAuth browser fallbacks; it is not the Flutter web app. See [CONTRIBUTING.md](../CONTRIBUTING.md) for the contribution workflow.
+The Flutter client for CraftSky, supporting **iOS, Android, and web only**. Native macOS, Windows, and Linux apps are not supported. `app.craftsky.social` hosts the server-rendered public web client, verified app links, and OAuth browser fallbacks. See [`web-client/`](../web-client/README.md). See [CONTRIBUTING.md](../CONTRIBUTING.md) for the contribution workflow.
 
 Uses [`atproto.dart`](https://github.com/myConsciousness/atproto.dart) for atproto primitives, but the happy path for data is:
 

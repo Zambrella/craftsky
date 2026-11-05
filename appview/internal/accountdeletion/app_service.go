@@ -28,6 +28,10 @@ type DeletionOAuthFlowStarter interface {
 	) (string, error)
 }
 
+type BrowserDeletionOAuthFlowStarter interface {
+	StartBrowserAccountDeletion(context.Context, syntax.DID, uuid.UUID, string, string) (string, error)
+}
+
 type AppServiceOptions struct {
 	Pool                 *pgxpool.Pool
 	Store                *Store
@@ -87,6 +91,14 @@ func (service *AppService) CreateIntent(ctx context.Context, params CreateIntent
 	if params.Owner == "" || params.DeviceID == "" {
 		return IntentResult{}, errors.New("invalid account deletion intent scope")
 	}
+	var browserStarter BrowserDeletionOAuthFlowStarter
+	if params.BrowserRedirectURI != "" {
+		var ok bool
+		browserStarter, ok = service.oauth.(BrowserDeletionOAuthFlowStarter)
+		if !ok {
+			return IntentResult{}, errors.New("browser account deletion is unavailable")
+		}
+	}
 	now := service.now().UTC()
 	jobID := uuid.New()
 	expiresAt := now.Add(service.intentTTL)
@@ -126,7 +138,12 @@ func (service *AppService) CreateIntent(ctx context.Context, params CreateIntent
 	}); err != nil {
 		return IntentResult{}, err
 	}
-	authURL, err := service.oauth.StartAccountDeletion(ctx, params.Owner, jobID, params.DeviceID)
+	var authURL string
+	if browserStarter != nil {
+		authURL, err = browserStarter.StartBrowserAccountDeletion(ctx, params.Owner, jobID, params.DeviceID, params.BrowserRedirectURI)
+	} else {
+		authURL, err = service.oauth.StartAccountDeletion(ctx, params.Owner, jobID, params.DeviceID)
+	}
 	if err != nil {
 		rollbackErr := service.cancelIntent(ctx, jobID, params.Owner, "accountDeletionStartFailed")
 		if rollbackErr != nil {

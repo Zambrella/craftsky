@@ -1,5 +1,12 @@
 # AppView Changelog
 
+## 1.2.0 - 2026-11-04
+
+- feat(web): add server-rendered public pages
+- feat(web-client): add authenticated browser app parity
+- feat(web-client): add preview upload and manual promotion workflow
+- fix(ci): resolve Flutter lint and Go module checks
+
 ## 1.1.1 - 2026-11-01
 
 - fix(chat): refresh unread state after reads and pushes

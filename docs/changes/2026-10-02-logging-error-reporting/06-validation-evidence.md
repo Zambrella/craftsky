@@ -340,6 +340,60 @@ See [the triage record](../../development/sentry-triage-2026-10-28.md) for the l
 - Full Flutter suite: 3,509 passed, 38 existing skips (`/tmp/craftsky-deletion-full.log`), after preparing the checkout-local Rive host runtime. `git diff --check` passed.
 - Physical iOS/Android/web reproduction, updated client release, production log/Sentry delivery and post-release recurrence remain unverified. No production faults were injected and no deployment or Sentry issue-state change was performed.
 
+### 3 November 2026: web-client Sentry reporting
+
+- Extended the existing consent-gated browser SDK with startup/framework and
+  consumed social/settings/composer error ownership. Original error chains stay
+  in memory; final event and wire filters retain only selected error structure,
+  code coordinates, deployment/debug-ID metadata and safe AppView correlation.
+  Cancellation, offline, validation and ambiguous pending writes remain excluded
+  from Sentry. UI, authorization and retry semantics are unchanged.
+- Svelte check passed with zero errors/warnings; all 284 unit tests across 44
+  files passed, including serialized SDK protected-value canaries, positive
+  correlation/debug-ID checks and lifecycle/failure-containment regressions.
+- All three new browser reporting scenarios passed on Node preview and again on
+  Cloudflare with subscriptions disabled. A loopback DSN and intercepted envelopes
+  verified opt-in/reload/revocation, consumed failures and export outages without
+  hosted Sentry traffic. A normal build was restored after fixture testing.
+- Production build and private source-map packaging passed. Browser source maps
+  carry matching debug IDs, their paired JS matches the public artifact, and maps
+  are absent from both public output directories. Upload is a separate explicit
+  `npm run sentry:upload` step using the authenticated CLI.
+- Sentry project inventory was inspected via the CLI. Creating
+  `craftsky/web-client` was rejected with HTTP403 by the organization's project
+  creation policy. Administrator project creation is pending; no DSN was borrowed
+  from Flutter/AppView. Hosted ingestion, source-map upload, production
+  symbolication and deployment remain unverified. No synthetic production
+  failures, release changes, retention changes or Sentry issue mutations occurred.
+- This change instruments the browser only. The web BFF/Worker has no new Sentry
+  integration; AppView retains its existing server reporting. No Flutter/Go code
+  changed, so native/device and backend release gates were not rerun.
+- The parallel accessibility audit and fixes are documented in
+  [the web accessibility audit](../../development/web-client-accessibility-audit.md).
+  `git diff --check` passed. No commit, push or deployment.
+
+### 4 November 2026: web Sentry project configuration
+
+- Administrator creation of `craftsky/web-client` was confirmed through the CLI;
+  the project platform is `javascript-svelte`. The active public client DSN was
+  retrieved through the authenticated CLI and saved only in ignored
+  `web-client/.env.local`, with `PUBLIC_SENTRY_ENVIRONMENT=development`.
+- Type checking passed with zero errors/warnings, and the configured build
+  passed. The compiled client contains the selected public DSN. Private source
+  maps match the public bundles; public deployment files contain no source maps.
+  Existing opt-in consent remains unchanged.
+- Source-map upload was rejected by automatic approval review because exporting
+  source-code-derived artifacts requires explicit authorization. No upload,
+  deployment or synthetic hosted error occurred. The local artifact is ready for
+  review/upload; hosted ingestion and symbolication remain unverified.
+
+- After explicit user approval, `npm run sentry:upload` completed successfully.
+  The CLI confirmed organization `craftsky`, project `web-client`, 56 uploaded
+  files and release `craftsky-web@1.1.1+ba372645b606`. The upload used the retained
+  matching artifacts with `--no-rewrite`; no rebuild or deployment followed.
+  Source-map upload is now verified. Actual hosted error delivery and production
+  symbolication still require a real opted-in error; no synthetic error was sent.
+
 ### 5 November 2026: Bunny video cleanup worker
 
 - Cleanup retries select operation, stage, attempt, initiating account and the

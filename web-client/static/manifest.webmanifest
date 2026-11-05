@@ -1,0 +1,3 @@
+{
+ "id":"/feed","name":"CraftSky","short_name":"CraftSky","description":"A place for your craft.","lang":"en","start_url":"/feed","scope":"/","display":"standalone","background_color":"#f5efe4","theme_color":"#1535d6","icons":[{"src":"/app-icon.png","sizes":"1080x1080","type":"image/png","purpose":"any"}]
+}

@@ -134,16 +134,16 @@ func (m v1Middleware) wrap(policy RoutePolicy, handler http.Handler) http.Handle
 			visitorHandler.ServeHTTP(w, r)
 		})
 	}
-	// Discovery has a dedicated public-field allowlist, so identity decorators
-	// must not expand its summaries. All authorization wrappers still apply.
-	boundedDiscovery := policy.Method == http.MethodGet && policy.PathPattern == "/v1/profiles/recent"
+	// Discovery and anonymous pages have explicit public-field allowlists.
+	// Identity decorators must not expand these responses. Authorization still applies.
+	boundedDiscovery := policy.Method == http.MethodGet && (policy.PathPattern == "/v1/profiles/recent" || strings.HasPrefix(policy.PathPattern, "/v1/public/"))
 	if m.hydrator != nil && !boundedDiscovery {
 		wrapped = m.hydrator.Handler(wrapped)
 	}
 	if m.accountTypeHydrator != nil && !boundedDiscovery {
 		wrapped = m.accountTypeHydrator.Handler(wrapped)
 	}
-	if m.folderRedactor != nil {
+	if m.folderRedactor != nil && !strings.HasPrefix(policy.PathPattern, "/v1/public/") {
 		wrapped = m.folderRedactor.Handler(wrapped)
 	}
 	// Keep BodyLimit outside response decorators so ResponseController reaches
@@ -377,6 +377,7 @@ func AddRoutes(_ context.Context, mux Registrar, deps *Dependencies) {
 		blueskyProfileProjector:  deps.BlueskyProfileProjector,
 		craftskyProfileProjector: deps.CraftskyProfileProjector,
 		loginCompleteURL:         deps.LoginCompleteURL,
+		webAppOrigin:             deps.Config.WebAppOrigin,
 		deletionCompleteURL:      deps.DeletionCompleteURL,
 		allowDevScheme:           deps.Config.EnableDevOAuthScheme,
 	})
@@ -430,7 +431,7 @@ func AddRoutes(_ context.Context, mux Registrar, deps *Dependencies) {
 	}
 
 	registerAuthRoutes(authRouteBundle{mux: mux, middleware: v1mw, handlers: oauthHandlers})
-	registerChatRoutes(chatRouteBundle{mux: mux, middleware: v1mw, status: deps.ChatStatus, sender: deps.ChatSender, consumer: deps.ChatConsumer, authorization: deps.ChatAuthorization, allowDevScheme: deps.Config.Env == EnvDev && deps.Config.EnableDevOAuthScheme, logger: deps.Logger})
+	registerChatRoutes(chatRouteBundle{mux: mux, middleware: v1mw, status: deps.ChatStatus, sender: deps.ChatSender, consumer: deps.ChatConsumer, authorization: deps.ChatAuthorization, webAppOrigin: deps.Config.WebAppOrigin, allowDevScheme: deps.Config.Env == EnvDev && deps.Config.EnableDevOAuthScheme, logger: deps.Logger})
 	registerOperatorConsole(mux, v1mw, deps)
 	registerModerationRoutes(moderationRouteBundle{
 		db: deps.DB, mux: mux, middleware: v1mw, store: moderationCases,
@@ -457,7 +458,7 @@ func AddRoutes(_ context.Context, mux Registrar, deps *Dependencies) {
 	})
 	registerLogoutRoute(logoutRouteBundle{mux: mux, middleware: v1mw, handlers: oauthHandlers})
 	registerAccountDeletionRoutes(accountDeletionRouteBundle{
-		mux: mux, middleware: v1mw, service: deps.AccountDeletion,
+		mux: mux, middleware: v1mw, service: deps.AccountDeletion, webAppOrigin: deps.Config.WebAppOrigin,
 	})
 	registerSubscriptionRoutes(subscriptionRouteBundle{
 		mux: mux, middleware: v1mw, store: deps.Subscriptions, now: deps.Now,
@@ -500,6 +501,7 @@ func AddRoutes(_ context.Context, mux Registrar, deps *Dependencies) {
 	})
 
 	postStore := api.NewPostStoreWithPlayback(deps.DB, observer, deps.VideoPlayback)
+	registerPublicPageRoutes(mux, v1mw, api.NewPublicPageStore(deps.DB, postStore, deps.HandleResolver, businessStore), deps.HandleResolver)
 	savedPostStore := api.NewSavedPostStore(deps.DB)
 	profilePinOptions := api.ProfilePinStoreOptions{Observer: observer, RequirePlus: deps.Subscriptions != nil}
 	if deps.Subscriptions != nil {

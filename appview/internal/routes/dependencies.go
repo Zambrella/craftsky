@@ -61,6 +61,7 @@ type InstagramLimits struct {
 // Config is the route and server policy subset of the process configuration.
 // It deliberately excludes storage, worker, and external-client settings.
 type Config struct {
+	WebAppOrigin                  string
 	Env                           Environment
 	AllowedOrigins                []string
 	ExpectedHosts                 []string

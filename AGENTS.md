@@ -112,3 +112,18 @@ Project-scoped skills that Claude Code auto-discovers:
   - The exception does not permit deleting/deactivating the DID or PDS account, deleting another namespace, directly deleting blobs, exposing PDS credentials to Flutter, or adding a reusable generic PDS-delete facility. Public AppView removal still converges through the existing Tap/indexer delete handlers.
 - An authenticated owner may explicitly remove their own `app.bsky.actor.link` record while saving profile links. The record must be owned by that DID and referenced by their current profile, and removal of the reference must succeed before or atomically with record deletion. This narrow exception does not authorize moderation cleanup, deletion in another namespace, or a generic PDS-delete endpoint.
 - Don't bypass the lexicon. Records written to a PDS must validate against the lexicon schema or the App View will drop them on index.
+
+<!-- bunny-cli:start -->
+
+## bunny.net CLI
+
+This project uses bunny.net. Manage its resources with the `bunny` CLI: databases, DNS, storage, Edge Scripts, static sites, and cloud sandboxes.
+
+- Authenticate once with `bunny login` (or set `BUNNYNET_API_KEY`); verify with `bunny api GET /user`.
+- Discover commands with `bunny --help` and `bunny <namespace> --help`; resource commands support `--output json` for machine-readable output (a few browser-opening helpers like `bunny docs` do not).
+- In unattended runs, pass a flag for every value a command would prompt for, and `--force` on destructive commands; prompts otherwise block or cancel without a TTY.
+- Key namespaces: `bunny db` (Bunny Database: create, shell, studio, tokens), `bunny dns` (zones, records, presets), `bunny sites` (static hosting and deploys), `bunny scripts` (Edge Scripts), `bunny storage` (Edge Storage zones and files), `bunny sandbox` (cloud sandboxes).
+- To query a Bunny Database from application code, use `@bunny.net/database-client`; it is server-side only, since an auth token grants access to the whole database.
+- When the CLI has no command for something, fall back to `bunny api <METHOD> <path>` against api.bunny.net.
+
+<!-- bunny-cli:end -->

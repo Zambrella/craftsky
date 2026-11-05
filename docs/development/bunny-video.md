@@ -5,6 +5,19 @@ configuration were changed. See [ADR 024](../../adr/024-bunny-video-development-
 
 ## Run locally
 
+The Svelte web client's current uploader supports the Bluesky provider only.
+When AppView selects Bunny it rejects that capability locally instead of sending
+it to Bluesky. Flutter supports the Bunny upload/status flow described here.
+
+After merging the browser client, Bunny's unreleased migrations are numbered
+`000114_bunny_video_jobs` and `000115_bunny_video_cleanup`; main's browser
+migrations retain 112 and 113. A development database already using the old
+Bunny 112/113 numbers needs a verified backup and reconciliation of the two
+browser constraints before advancing to 115. Do not blindly force the migration
+version or roll back/drop the existing Bunny tables. Fresh databases apply all
+four migrations in order. Production databases must use the normal reviewed
+migration process.
+
 The ignored `.env.local` selects `VIDEO_PROVIDER=bunny` and contains the development
 library credentials. Do not print that file or copy keys into Dart defines.
 `BUNNY_CDN_PURGE_API_KEY` supplies the separate Bunny account API credential for

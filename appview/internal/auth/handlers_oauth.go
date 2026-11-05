@@ -32,6 +32,7 @@ type HTTPHandlers struct {
 	BlueskyProfileProjector   BlueskyProfileProjector
 	CraftskyProfileProjector  CraftskyProfileProjector
 	LoginCompleteURL          string
+	WebAppOrigin              string
 	DeletionCompleteURL       string
 	AllowDevScheme            bool
 	Pool                      *pgxpool.Pool // for handoff read/write
@@ -191,6 +192,14 @@ func (h *HTTPHandlers) CallbackHandler() http.Handler {
 				failureStage = staged.stage
 			}
 			var trustedFailure *TrustedRegistrationFailure
+			if errors.As(err, &trustedFailure) && trustedFailure.Metadata.HandoffMode == HandoffBrowser {
+				if trustedFailure.Code.valid() && trustedFailure.Metadata.valid() && time.Now().Before(trustedFailure.Metadata.ExpiresAt) {
+					if location, redirectErr := browserCompletionURL(trustedFailure.Metadata.LoopbackURI, h.WebAppOrigin, BrowserLoginCompletionPath, url.Values{"error": {string(trustedFailure.Code)}}); redirectErr == nil {
+						renderBrowserCompletion(w, location)
+						return
+					}
+				}
+			}
 			if errors.As(err, &trustedFailure) {
 				data, renderErr := trustedRegistrationFailurePageData(
 					trustedFailure.Metadata,
@@ -218,6 +227,21 @@ func (h *HTTPHandlers) CallbackHandler() http.Handler {
 						slog.String("failure_stage", failureStage), slog.String("failure_reason", callbackFailureReason(err)))...)
 			}
 			renderErrorHTML(w, http.StatusBadRequest, "Sign-in could not be completed. Please try again.")
+			return
+		}
+		if result.Metadata.HandoffMode == HandoffBrowser {
+			path := BrowserLoginCompletionPath
+			values := url.Values{"code": {handoffCode}}
+			if deletionFlow {
+				path = BrowserDeletionCompletionPath
+				values = url.Values{"job-id": {deletionResult.JobID}, "proof": {deletionResult.Proof}}
+			}
+			location, err := browserCompletionURL(result.Metadata.LoopbackURI, h.WebAppOrigin, path, values)
+			if err != nil {
+				renderErrorHTML(w, http.StatusBadRequest, "Sign-in could not be completed. Please try again.")
+				return
+			}
+			renderBrowserCompletion(w, location)
 			return
 		}
 		data := callbackPageData{Code: handoffCode}

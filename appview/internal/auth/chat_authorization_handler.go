@@ -19,6 +19,10 @@ type ChatAuthorizationStarter interface {
 }
 
 func ChatAuthorizationHandler(starter ChatAuthorizationStarter, allowDev bool, loggers ...*slog.Logger) http.Handler {
+	return ChatAuthorizationHandlerWithBrowser(starter, allowDev, DefaultWebAppOrigin, loggers...)
+}
+
+func ChatAuthorizationHandlerWithBrowser(starter ChatAuthorizationStarter, allowDev bool, webAppOrigin string, loggers ...*slog.Logger) http.Handler {
 	logger := slog.Default()
 	if len(loggers) > 0 && loggers[0] != nil {
 		logger = loggers[0]
@@ -35,6 +39,7 @@ func ChatAuthorizationHandler(starter ChatAuthorizationStarter, allowDev bool, l
 			HandoffMode HandoffMode `json:"handoffMode"`
 			Loopback    string      `json:"loopbackRedirectUri,omitempty"`
 			PushEnabled *bool       `json:"pushEnabled,omitempty"`
+			Browser     string      `json:"browserRedirectUri,omitempty"`
 		}
 		decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 64<<10))
 		decoder.DisallowUnknownFields()
@@ -51,8 +56,19 @@ func ChatAuthorizationHandler(starter ChatAuthorizationStarter, allowDev bool, l
 			fail(400, "invalid_request", "invalid messaging authorization")
 			return
 		}
-		if request.HandoffMode != HandoffVerifiedLink && request.HandoffMode != HandoffLoopback && !(request.HandoffMode == HandoffDevScheme && allowDev) {
+		if request.HandoffMode != HandoffVerifiedLink && request.HandoffMode != HandoffLoopback && request.HandoffMode != HandoffBrowser && !(request.HandoffMode == HandoffDevScheme && allowDev) {
 			fail(400, "invalid_handoff_mode", "handoff mode unavailable")
+			return
+		}
+
+		if request.HandoffMode == HandoffBrowser {
+			if request.Loopback != "" || ValidateBrowserCompletionURI(request.Browser, webAppOrigin, BrowserLoginCompletionPath) != nil {
+				fail(400, "invalid_handoff_mode", "invalid browser handoff")
+				return
+			}
+			request.Loopback = request.Browser
+		} else if request.Browser != "" {
+			fail(400, "invalid_handoff_mode", "unexpected browser handoff")
 			return
 		}
 		if request.HandoffMode == HandoffLoopback {
@@ -60,7 +76,7 @@ func ChatAuthorizationHandler(starter ChatAuthorizationStarter, allowDev bool, l
 				fail(400, "invalid_handoff_mode", "invalid loopback handoff")
 				return
 			}
-		} else if request.Loopback != "" {
+		} else if request.HandoffMode != HandoffBrowser && request.Loopback != "" {
 			fail(400, "invalid_handoff_mode", "unexpected loopback handoff")
 			return
 		}

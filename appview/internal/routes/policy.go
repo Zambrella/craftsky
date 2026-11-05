@@ -297,6 +297,10 @@ func mustConfiguredPolicy(env Environment, cfg Config, method, pathPattern strin
 
 func baseV1RoutePolicies() []RoutePolicy {
 	return []RoutePolicy{
+		{Method: "GET", PathPattern: "/v1/public/profiles/{handleOrDid}", RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessAnonymous},
+		{Method: "GET", PathPattern: "/v1/public/profiles/{handleOrDid}/posts", RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessAnonymous},
+		{Method: "GET", PathPattern: "/v1/public/profiles/{handleOrDid}/projects", RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessAnonymous},
+		{Method: "GET", PathPattern: "/v1/public/posts/{did}/{rkey}", RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessAnonymous},
 		{Method: "GET", PathPattern: "/v1/chat/notification-opens/{reference}", NoActivity: true, RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},
 		{Method: "POST", PathPattern: "/v1/chat/sync", NoActivity: true, RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessCurrentMember},
 		{Method: "GET", PathPattern: "/v1/chat/incoming-policy", NoActivity: true, RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},

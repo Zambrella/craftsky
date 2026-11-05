@@ -231,7 +231,7 @@ func RegisterNotificationDeviceHandler(store NotificationDeviceStore, logger *sl
 		}
 		decoder := json.NewDecoder(r.Body)
 		decoder.DisallowUnknownFields()
-		if decoder.Decode(&request) != nil || (request.Platform != "ios" && request.Platform != "android") || strings.TrimSpace(request.Token) == "" || len(request.Token) > 4096 {
+		if decoder.Decode(&request) != nil || (request.Platform != "ios" && request.Platform != "android" && request.Platform != "web") || strings.TrimSpace(request.Token) == "" || len(request.Token) > 4096 {
 			envelope.WriteError(w, 400, "invalid_request", "invalid device registration", runID, nil)
 			return
 		}

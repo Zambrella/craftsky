@@ -1,8 +1,9 @@
 # Releases
 
 Craftsky releases are created, built, and deployed from the maintainer's local
-machine. GitHub Actions only tests pull requests. AppView and the Flutter app
-have independent versions, tags, and changelogs.
+machine. GitHub Actions only tests pull requests. AppView, the Flutter app and the Svelte web client have independent versions,
+tags and changelogs. Web releases also record the reviewed Cloudflare Worker
+version ID and use manual dashboard promotion.
 
 ## Private beta and full public launch
 
@@ -46,7 +47,214 @@ production then assigns that exact version 100% of traffic and verifies
 [`web/README.md`](../../web/README.md#build-and-deploy) for account setup,
 deployment receipts, policy-artifact handling and full-site rollback.
 
-## Shared rules
+## Web client: preview, then release
+
+The Svelte application in `web-client/` has its own Worker,
+`craftsky-public-app`, in the existing CraftSky Cloudflare account. It is separate
+from the marketing Worker `craftsky-landing`, service status, and AppView on
+Render. See [ADR 026](../../adr/026-web-client-preview-promotion.md).
+
+The workflow is **create/push a web release tag → upload that exact tag →
+review/sign in on the preview → promote that exact Worker version in Cloudflare**. Merging a PR does not publish the client. Do not connect
+Workers Builds with its default automatic deploy command, or use `wrangler
+deploy` for routine releases: both immediately assign live traffic. The checked-in
+preview command only runs `wrangler versions upload`.
+
+### Addresses and preview sign-in
+
+- Stable review/sign-in URL:
+  <https://preview-craftsky-public-app.hugetoothstudios.workers.dev>
+- Each upload also prints an immutable version URL and full Worker version ID.
+  Use the ID to identify the reviewed candidate when promoting it.
+- Public release URL: <https://app.craftsky.social>.
+
+The stable alias follows the most recent preview upload. Record the version ID
+and avoid uploading another candidate during review or an OAuth flow. Unique
+version URLs remain useful for checking the exact rendering, but **sign in on
+the stable alias**: AppView permits only that exact preview origin and the public
+app origin, not arbitrary version URLs or workers.dev hosts. Preview/public
+session cookies are separate; signing in on preview does not sign in on public.
+
+The preview is unlisted and rendered responses have `X-Robots-Tag: noindex`.
+Cloudflare can replace the application's `noindex, nofollow` header with its own
+`noindex` header on version URLs. Anyone with the link can visit; no Cloudflare
+Access policy is required for this workflow. Do not share it as a public launch.
+
+**This preview uses production AppView and real accounts/data. Posts, profile
+changes and deletion actions have real effects.** It is not an isolated staging
+environment. PDS OAuth credentials stay in AppView.
+
+### One-time setup and backend prerequisite
+
+Initial setup on 2026-11-04 created `craftsky-public-app`, enabled Version URLs,
+disabled its ordinary workers.dev route, and uploaded the initial review alias.
+The public app domain remains on the existing `craftsky-verified-links` Pages
+project until the separately controlled first public release below. No domain
+cutover or AppView release was performed by that setup.
+
+Before testing hosted preview sign-in, release AppView with ADR 026's exact preview
+callback allowlist using the [normal AppView release](#appview-release). Keep
+production `WEB_APP_ORIGIN=https://app.craftsky.social`. The same backend release
+must contain the browser-session and public-read support described in
+[`web-client/README.md`](../../web-client/README.md). No new migration is needed
+for the preview allowlist itself. Local provider fixtures do not prove live PDS
+OAuth; verify sign-in after the backend release before promoting the web client.
+
+On a new development machine, install the pinned tools and log in:
+
+```sh
+just web-client-setup
+cd web-client
+npx wrangler login
+npx wrangler whoami
+cd ..
+```
+
+Confirm the account ID matches `web-client/wrangler.jsonc`. Authentication uses
+Wrangler's login or an operator-supplied token; never commit credentials.
+
+The first Worker creation required `wrangler deploy`, because Cloudflare rejects
+`versions upload` for a Worker that does not exist. That bootstrap is complete;
+do not repeat it after attaching the public domain. If recreating a deleted
+Worker, separately review the domain/routing state first. The checked-in config
+declares no custom domains/routes, and routine uploads preserve dashboard routes.
+
+### Upload a release candidate
+
+The web version source is `web-client/VERSION`; release notes are in
+`web-client/CHANGELOG.md` and annotated tags use `web-vX.Y.Z`. The displayed
+version and Sentry release both use the web version, independently of AppView.
+The initial version baseline is `1.11.1`, matching the mobile version when this
+stream was introduced; it is not an assertion of a published web release.
+
+From the repository root, start from clean, reviewed, pushed `main`. For example,
+for the first tagged release, prepare a nonempty notes file outside the checkout:
+
+```sh
+git switch main
+git pull --ff-only origin main
+just release-create-web 1.11.2 /absolute/path/to/web-release-notes.md
+just web-client-check
+just release-push web web-v1.11.2
+just web-client-preview web-v1.11.2
+```
+
+The first release requires explicit notes; later releases can omit the notes path
+to generate notes from relevant commits since the previous web tag. Creation and
+atomic push use the same clean-main, increasing-version, changelog and annotated-tag
+checks as the other release streams. Push the release commit/tag before adding
+further commits. Upload requires the exact tagged commit at HEAD on clean `main`,
+a matching version file, an unchanged pushed tag, and ancestry on remote `main`.
+It repeats these checks after building, before uploading.
+
+The command checks the target Worker exists, runs `web-client-check` (type checks,
+unit tests, build and public/authenticated browser suites on both runtimes), then
+uploads a new version with alias `preview`. It checks the hosted welcome/sign-in
+pages, native callback content and association files, plus cache/privacy and
+preview indexing headers. It **does not** promote traffic, change DNS/domains,
+release AppView, or run real account mutations.
+
+The output includes the Git release tag, Worker version ID, immutable review URL and an ignored local
+receipt at `web-client/.deployments/<version-id>.json`. Retain the receipt, commit,
+Sentry release and review evidence in the operational release record. A failed
+hosted check leaves the upload available but does not promote it. If the upload
+succeeded before an interruption, use Cloudflare Deployments to identify it
+before retrying.
+
+Untagged and dirty uploads are rejected; `--allow-dirty` is no longer supported.
+Use local development for uncommitted experiments. Existing experimental Worker
+versions remain in Cloudflare history and must not be promoted. Dashboard
+promotion is an operator action: Cloudflare does not enforce the Git release
+checks, so match the receipt's release tag, commit and Worker version ID.
+
+Keep web and mobile major/minor versions aligned for coordinated feature releases
+where practical, with independent patch versions for platform-specific fixes.
+Do not hold a web fix for an app-store release or bump AppView solely to match a
+client version. This is a release convention, not a cross-stream equality gate.
+
+Set optional `PUBLIC_SENTRY_*` and public Firebase web configuration at build time,
+as described in the client README. Runtime AppView/subscription settings come
+from the Worker config. The default subscription flag is `false`. If reporting
+is enabled, upload the exact candidate's private source maps before promotion:
+
+```sh
+cd web-client
+npm run sentry:upload
+cd ..
+```
+
+Use the authorized Sentry CLI login. Do not rebuild between preview review,
+source-map upload and promotion; retain `.sentry-artifacts` with the matching
+build. Source maps are excluded from the public assets and Worker upload.
+
+### Promote the reviewed version in Cloudflare
+
+1. Open **Cloudflare → Workers & Pages → craftsky-public-app → Deployments**.
+2. Match the full version ID from the successful preview receipt and review.
+   Check its `web-vX.Y.Z` tag and commit message against the receipt and pushed Git
+   tag, not just its position in the list. Reject old `-dirty` or untagged uploads.
+3. Select **Promote deployment**, choose that version, and assign it **100%**
+   of traffic. Confirm the deployment. This uses the uploaded code, assets and
+   bindings without rebuilding. Do not use Edit code or retry a build.
+4. Once the public domain has been attached (first release below), check it:
+
+   ```sh
+   just web-client-verify https://app.craftsky.social
+   ```
+
+5. Verify actual sign-in, public post/profile sharing, authenticated navigation,
+   image/video uploads as applicable, and sign-out. Recheck app links on signed
+   iOS/Android builds. Record the Worker version/deployment IDs and results.
+   The smoke command does not authenticate, write posts or prove device linking.
+
+Cloudflare documents [manual promotion](https://developers.cloudflare.com/workers/versions-and-deployments/deployment-management/)
+and [version URLs](https://developers.cloudflare.com/workers/versions-and-deployments/version-urls/).
+Only the latest 100 uploaded versions are eligible for deployment. Avoid leaving
+an approved release behind a large number of subsequent experimental uploads.
+
+### First public release: move the existing domain once
+
+This is a separate production routing change performed when ready to launch.
+Routine preview upload does not perform it.
+
+1. Record the current `craftsky-verified-links` Pages deployment, custom-domain
+   settings and DNS record for rollback. Keep the Pages project and deployment.
+   Confirm `craftsky-public-app` has the reviewed version promoted to 100%.
+2. Verify the Worker preview serves both `/.well-known/assetlinks.json` and
+   `/.well-known/apple-app-site-association`, and both native callbacks, with
+   direct HTTP 200 responses. Release the narrowed Android intent filters from
+   ADR 025 before checking public browser login with the native app installed.
+3. Remove **only** `app.craftsky.social` from the Pages project's custom domains,
+   then add it under **craftsky-public-app → Settings → Domains & Routes → Add →
+   Custom Domain**. Cloudflare manages the Worker's DNS/certificate. Review any
+   existing-record conflict before replacing it; preserve the recorded Pages DNS
+   target for recovery. Do not alter `craftsky.social`, AppView or service-status
+   domains. Allow for certificate/DNS activation; this first cutover may have a
+   brief interruption.
+4. Run `just web-client-verify https://app.craftsky.social`, then the live checks
+   above. Do not add cache-everything rules: HTML, API and browser callbacks
+   deliberately remain `no-store`.
+
+After this one-time move, future **Promote deployment** actions update
+`app.craftsky.social` without DNS changes. Keep the domain managed in the
+dashboard; `versions upload` does not synchronize Worker triggers.
+
+### Rollback
+
+In **craftsky-public-app → Deployments**, select the previously recorded good
+version and promote it to 100%. Verify the public host again. This restores the
+frontend version/configuration, not database content, PDS writes or backend
+migrations. A failed post-promotion smoke check means live state has changed;
+inspect and explicitly roll back rather than assuming an automatic recovery.
+
+For the first cutover only, if the Worker cannot serve the domain reliably,
+remove its custom domain, reattach `app.craftsky.social` to the retained
+`craftsky-verified-links` Pages project, and restore/verify the recorded Pages DNS
+configuration and prior production deployment. Check both association documents
+and native callbacks again. Pages preview deployments cannot be used as
+[production rollback targets](https://developers.cloudflare.com/pages/configuration/rollbacks/).
+
+## Shared rules for AppView and Flutter releases
 
 - Start on a clean local `main` synchronized with `origin/main`.
 - Supply the next version explicitly. The release script does not infer SemVer
