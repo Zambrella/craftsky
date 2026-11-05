@@ -60,15 +60,19 @@
 			items.map((item) => item.post),
 			(post) => !post.reply && (!craft || matchesProject(post, craft, filters))
 		);
-		return merged
-			? merged.map((post) => ({
-					...items.find((item) => item.post.uri === post.uri),
-					key:
-						items.find((item) => item.post.uri === post.uri)?.key ||
-						'published:' + post.uri,
-					post
-				}))
-			: items;
+		if (!merged) return items;
+		// Several timeline activities can present the same post. Match each
+		// occurrence in order so overlays retain its own item key and reposter.
+		const byUri = new Map<PostPresentation['uri'], FeedItem[]>();
+		for (const item of items) {
+			const matches = byUri.get(item.post.uri) || [];
+			matches.push(item);
+			byUri.set(item.post.uri, matches);
+		}
+		return merged.map((post) => {
+			const item = byUri.get(post.uri)?.shift();
+			return { ...item, key: item?.key ?? 'published:' + post.uri, post };
+		});
 	});
 	async function load(more = false) {
 		await work.run(
