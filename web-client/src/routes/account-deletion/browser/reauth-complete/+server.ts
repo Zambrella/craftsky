@@ -26,7 +26,7 @@ export const GET: RequestHandler = ({ url, cookies }) => {
 			(account) => account.id === intent.accountId && account.did === intent.did
 		)
 	)
-		redirect(303, '/app/settings/account?deletion=failed');
+		redirect(303, '/settings/account?deletion=failed');
 	cookies.set(
 		prefix(url) + 'deletion_pending',
 		encode({ ...intent, proof }),
@@ -36,5 +36,5 @@ export const GET: RequestHandler = ({ url, cookies }) => {
 		)
 	);
 	cookies.delete(prefix(url) + 'deletion_intent', { path: '/' });
-	redirect(303, '/app/settings/account?deletion=ready');
+	redirect(303, '/settings/account?deletion=ready');
 };

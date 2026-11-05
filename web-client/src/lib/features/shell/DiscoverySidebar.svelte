@@ -60,14 +60,14 @@
 		</div>
 	{:else}{#each craftFeeds(profile.crafts, true) as craft}<a
 				class="craft-link"
-				href={'/app/home?craft=' + craftKey(craft.id)}
+				href={'/feed?craft=' + craftKey(craft.id)}
 				><span
 					class="craft-icon"
 					style:--craft-icon={`url('/craft_icons/${craftKey(craft.id)}.svg')`}
 					aria-hidden="true"
 				></span>{craft.labels.en}</a
 			>
-		{:else}<a class="craft-link" href="/app/profile/edit">Choose your crafts</a
+		{:else}<a class="craft-link" href="/profile/edit">Choose your crafts</a
 			>{/each}{/if}
 </section>
 <section class="members" aria-labelledby="discovery-members-title">
@@ -79,7 +79,7 @@
 		</div>
 	{:else}{#each members as author (author.did)}<a
 				class="member"
-				href={'/app/profile/' + encodeURIComponent(author.did)}
+				href={'/profiles/' + encodeURIComponent(author.did)}
 				style={profileStyle(author.customisation)}
 				><Avatar
 					author={{

@@ -11,16 +11,16 @@ it('recognizes DID, percent-encoded DID and current handle routes', () => {
 		'renamed.test'
 	])
 		expect(
-			ownProfileRoute('/app/profile/' + address, account, 'renamed.test')
+			ownProfileRoute('/profiles/' + address, account, 'renamed.test')
 		).toBe(true);
 });
 it('excludes other profiles, editing, nested paths and malformed encoding', () => {
 	for (const path of [
-		'/app/profile/did%3Aplc%3Abob',
-		'/app/profile/edit',
-		'/app/profile/alice.test/posts',
-		'/app/home',
-		'/app/profile/%ZZ'
+		'/profiles/did%3Aplc%3Abob',
+		'/profile/edit',
+		'/profiles/alice.test/posts',
+		'/feed',
+		'/profiles/%ZZ'
 	])
 		expect(ownProfileRoute(path, account)).toBe(false);
 });

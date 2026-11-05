@@ -105,7 +105,7 @@
 				try {
 					clearAccountChat(localStorage, session.id, session.did);
 				} catch {}
-				location.assign('/app/home');
+				location.assign('/feed');
 			},
 			() => {},
 			''
@@ -116,7 +116,7 @@
 <div class="settings-workspace" data-settings-page={section || 'index'}>
 	{#if section}<a
 			class="back settings-back"
-			href="/app/settings"
+			href="/settings"
 			aria-label="Back to Settings"
 			><SettingsIcon name="back" /><span>Settings</span></a
 		>{/if}
@@ -153,7 +153,7 @@
 				>
 				{#if !restricted && subscriptionsEnabled()}<a
 						class="panel subscription-callout"
-						href="/app/settings/subscriptions"
+						href="/settings/subscriptions"
 						><h2>
 							<SettingsIcon name="subscription" size={28} />{paid
 								? 'Your CraftSky subscription'
@@ -191,7 +191,9 @@
 									}}
 									href={external
 										? 'https://userinput.app/s/did:plc:lmmx63zcns6gewgxqfdt4kof/3mpr5izppvt2k?lang=en'
-										: `/app/settings/${slug}`}
+										: slug === 'notifications'
+											? '/notifications/settings'
+											: `/settings/${slug}`}
 									target={external ? '_blank' : undefined}
 									rel={external ? 'noopener noreferrer' : undefined}
 									><span class="tile-leading"
@@ -260,6 +262,6 @@
 				{section}
 			/>
 		{:else}<h1 class="workspace-heading">Page not found</h1>
-			<p>Choose a page in <a href="/app/settings">Settings</a>.</p>{/if}
+			<p>Choose a page in <a href="/settings">Settings</a>.</p>{/if}
 	{/key}
 </div>

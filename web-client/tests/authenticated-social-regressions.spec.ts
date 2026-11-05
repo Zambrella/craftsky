@@ -85,7 +85,7 @@ test('refresh removes a formerly visible post when its current presentation is p
 			}
 		})
 	);
-	await page.goto('/app/home');
+	await page.goto('/feed');
 	await expect(
 		page.getByText('VISIBLE_REFRESH_CANARY', { exact: true })
 	).toBeVisible();
@@ -131,7 +131,7 @@ test('a late mutation response cannot restore a post hidden by a newer refresh',
 			route.fulfill({ json: { uri: 'at://like', cid: 'like-cid' } });
 		started();
 	});
-	await page.goto('/app/home');
+	await page.goto('/feed');
 	await page.getByRole('button', { name: /Like$/ }).click();
 	await waiting;
 	await page
@@ -159,7 +159,7 @@ test('craft filters support multiple selections, repeated wire values and URL re
 		requests.push(new URL(route.request().url()));
 		return route.fulfill({ json: { items: [] } });
 	});
-	await page.goto('/app/home?craft=knitting');
+	await page.goto('/feed?craft=knitting');
 	await page.getByRole('button', { name: /^Filter projects/ }).click();
 	await expect(
 		page.getByRole('region', { name: 'Filter Knitting projects', exact: true })
@@ -261,7 +261,7 @@ test('pin controls use the actual slot state and exclude replies', async ({
 			}
 		})
 	);
-	await page.goto('/app/home');
+	await page.goto('/feed');
 	const rootCard = page
 		.locator('.member-post')
 		.filter({ hasText: 'ROOT_PIN_POST' });
@@ -323,8 +323,10 @@ test('a profile Message destination opens the selected recipient conversation', 
 								: { items: [] }
 		});
 	});
-	await page.goto('/app/messages/new?did=did%3Aplc%3Abob');
-	await expect(page).toHaveURL(/\/app\/messages\/selected-conversation$/);
+	await page.goto('/messages/new?did=did%3Aplc%3Abob');
+	await expect(page).toHaveURL(
+		/\/messages\/conversations\/selected-conversation$/
+	);
 	await expect(
 		page.getByRole('heading', { name: 'Bob Maker', exact: true })
 	).toBeVisible();
@@ -340,7 +342,7 @@ test('profile headers tint craft textures and keep popularity counts in settings
 			}
 		})
 	);
-	await page.goto('/app/profile/did%3Aplc%3Aalice?tab=about');
+	await page.goto('/profiles/did%3Aplc%3Aalice?tab=about');
 	const texture = page.locator('.profile-texture');
 	await expect(texture).toHaveCSS('opacity', '0.18');
 	expect(

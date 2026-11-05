@@ -171,7 +171,7 @@ export function mergeMessages(
 }
 
 export const conversationURL = (id: string): string =>
-	`/app/messages/${encodeURIComponent(id)}`;
+	`/messages/conversations/${encodeURIComponent(id)}`;
 export const actorLabel = (actor: {
 	displayName?: string | null;
 	handle?: string | null;
@@ -250,7 +250,7 @@ export function craftskyMessageLink(
 				return {
 					kind: 'profile',
 					did,
-					href: `/app/profile/${encodeURIComponent(did)}`
+					href: `/profiles/${encodeURIComponent(did)}`
 				};
 			if (
 				path.length !== 3 ||
@@ -280,7 +280,7 @@ export function craftskyMessageLink(
 				did,
 				rkey: path[2],
 				focus,
-				href: `/app/${path[0]}/${encodeURIComponent(did)}/${encodeURIComponent(path[2])}${focus ? '?focus=' + encodeURIComponent(focus) : ''}`
+				href: `/${path[0]}/${encodeURIComponent(did)}/${encodeURIComponent(path[2])}${focus ? '?focus=' + encodeURIComponent(focus) : ''}`
 			};
 		} catch {
 			continue;

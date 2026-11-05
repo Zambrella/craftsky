@@ -581,7 +581,7 @@
 				>
 					<a
 						class="identity instagram-identity"
-						href={`/app/profile/${encodeURIComponent(suggestion.target.did)}`}
+						href={`/profiles/${encodeURIComponent(suggestion.target.did)}`}
 						><Avatar author={suggestion.target} /><CompactIdentity
 							author={suggestion.target}
 						/></a

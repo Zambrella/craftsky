@@ -34,7 +34,7 @@ func TestFirebaseWebPushHasBoundedTTLPrivateAccountRoutingAndNoCollapse(t *testi
 			if err != nil || link.Scheme != "https" || link.Host != "app.craftsky.social" || link.Query().Get("pushSubscription") != subscription {
 				t.Fatalf("invalid click URL")
 			}
-			if chat && link.Path != "/app/messages" || !chat && link.Path != "/app/activity" {
+			if chat && link.Path != "/messages" || !chat && link.Path != "/notifications" {
 				t.Fatalf("click path=%s", link.Path)
 			}
 			encoded, err := json.Marshal(message)

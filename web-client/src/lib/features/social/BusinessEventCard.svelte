@@ -9,7 +9,7 @@
 
 <a
 	class="panel event-card"
-	href={'/app/events/' +
+	href={'/events/' +
 		encodeURIComponent(event.did) +
 		'/' +
 		encodeURIComponent(event.rkey)}

@@ -268,7 +268,7 @@
 		});
 		const image = post.images?.[inlineImageIndex];
 		if (useCurrentImage && image?.cid) query.set('imageCid', image.cid);
-		return '/app/compose/quote?' + query;
+		return '/compose/quote?' + query;
 	}
 	function relationship(kind: 'mute' | 'block', confirmed = false) {
 		if (!post || post.author.did === did) return;
@@ -443,7 +443,7 @@
 		<LikeReaction bind:this={heart} host={cardElement} />
 		{#if reason && !savedAt}<a
 				class="repost-attribution"
-				href={'/app/profile/' + encodeURIComponent(reason.did)}
+				href={'/profiles/' + encodeURIComponent(reason.did)}
 				><Icon name="repost" size={16} />Reposted by {reason.displayName ||
 					reason.handle}</a
 			>{/if}
@@ -530,7 +530,7 @@
 						></button>
 						<div class="menu-items">
 							<button onclick={share}><Icon name="link" />Copy link</button><a
-								href={'/app/messages/new?link=' +
+								href={'/messages/new?link=' +
 									encodeURIComponent(canonicalLink())}
 								><Icon name="send" />Send via chat</a
 							>
@@ -566,7 +566,7 @@
 						class="reaction"
 						aria-label={post.reply ? 'Reply' : 'Comments'}
 						href={post.reply || detail
-							? '/app/compose/reply?' +
+							? '/compose/reply?' +
 								new URLSearchParams({ did: post.author.did, rkey: post.rkey })
 							: postRoute(post) + '?show-comments=true'}
 						><Icon name="comment" size={22} /><span
@@ -654,7 +654,7 @@
 								<div class="menu-divider"></div>{/if}
 							<button onclick={share}><Icon name="link" />Copy link</button>
 							<a
-								href={'/app/messages/new?link=' +
+								href={'/messages/new?link=' +
 									encodeURIComponent(canonicalLink())}
 								><Icon name="send" />Send via chat</a
 							>
@@ -680,7 +680,7 @@
 										: 'post'}</button
 								>{/if}
 							{#if post.author.did === did}<a
-									href={`/app/compose/edit?did=${encodeURIComponent(post.author.did)}&rkey=${encodeURIComponent(post.rkey)}`}
+									href={`/compose/edit?did=${encodeURIComponent(post.author.did)}&rkey=${encodeURIComponent(post.rkey)}`}
 									><Icon name="edit" />Edit</a
 								>
 								{#if plus && pinSlot(post) && pins.value}<button

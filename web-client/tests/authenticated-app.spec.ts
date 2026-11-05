@@ -34,7 +34,7 @@ async function login(context: BrowserContext, who = alice) {
 	]);
 }
 async function compose(page: Page) {
-	await page.goto('/app/compose');
+	await page.goto('/compose');
 	await expect(
 		page.getByRole('heading', { name: 'New post', exact: true })
 	).toBeVisible();
@@ -84,7 +84,7 @@ test('publishes through AppView, returns to the feed and edits with the observed
 		})
 		.fill('My new handknitted scarf #knitting');
 	await page.getByRole('button', { name: 'Post', exact: true }).click();
-	await expect(page).toHaveURL('/app/home');
+	await expect(page).toHaveURL('/feed');
 	await expect(
 		page.getByText('My new handknitted scarf #knitting', { exact: true })
 	).toBeVisible();
@@ -93,7 +93,7 @@ test('publishes through AppView, returns to the feed and edits with the observed
 	);
 	expect(create?.key).toMatch(/^[0-9a-f-]{36}$/);
 	expect(create?.body).toMatchObject({ langs: ['en'], sponsored: false });
-	await page.goto('/app/compose/edit?did=did%3Aplc%3Aalice&rkey=created-1');
+	await page.goto('/compose/edit?did=did%3Aplc%3Aalice&rkey=created-1');
 	await page
 		.getByRole('textbox', {
 			name: 'What would you like to share?',
@@ -101,7 +101,7 @@ test('publishes through AppView, returns to the feed and edits with the observed
 		})
 		.fill('My edited scarf');
 	await page.getByRole('button', { name: 'Save changes' }).click();
-	await expect(page).toHaveURL(/\/app\/posts\//);
+	await expect(page).toHaveURL(/\/posts\//);
 	await expect(
 		page.getByText('My edited scarf', { exact: true })
 	).toBeVisible();
@@ -134,7 +134,7 @@ test('an ambiguous write freezes the editor and retries the exact saved key and 
 	await page
 		.getByRole('button', { name: 'Check the same action', exact: true })
 		.click();
-	await expect(page).toHaveURL('/app/home');
+	await expect(page).toHaveURL('/feed');
 	const attempts = (await calls()).filter(
 		(call) => call.method === 'POST' && call.path === '/v1/posts'
 	);
@@ -191,7 +191,7 @@ test('inline mention and hashtag pickers support keyboard selection and publish 
 	await editor.press('Enter');
 	await expect(editor).toHaveValue('Thanks @alice.test #knitting ');
 	await page.getByRole('button', { name: 'Post', exact: true }).click();
-	await expect(page).toHaveURL('/app/home');
+	await expect(page).toHaveURL('/feed');
 	const created = (await calls()).find(
 		(call) => call.path === '/v1/posts' && call.method === 'POST'
 	);
@@ -211,13 +211,13 @@ test('post reporting submits the supported spam reason through the real form', a
 	page,
 	context
 }) => {
-	await page.goto('/app/posts/did%3Aplc%3Aalice/first');
+	await page.goto('/posts/did%3Aplc%3Aalice/first');
 	await page.getByLabel('More post actions').click();
 	await expect(
 		page.getByRole('button', { name: 'Report post', exact: true })
 	).toHaveCount(0);
 	await login(context, bob);
-	await page.goto('/app/posts/did%3Aplc%3Aalice/first');
+	await page.goto('/posts/did%3Aplc%3Aalice/first');
 	await page.getByLabel('More post actions').click();
 	await page.getByRole('button', { name: 'Report post', exact: true }).click();
 	await page
@@ -270,7 +270,7 @@ test('accepted publication survives a local draft cleanup failure', async ({
 		})
 		.fill('Published despite a local storage cleanup failure');
 	await page.getByRole('button', { name: 'Post', exact: true }).click();
-	await expect(page).toHaveURL('/app/home');
+	await expect(page).toHaveURL('/feed');
 	await expect(
 		page.getByText('Published despite a local storage cleanup failure', {
 			exact: true
@@ -285,7 +285,7 @@ test('accepted publication survives a local draft cleanup failure', async ({
 test('home interactions and profile navigation use the authenticated account', async ({
 	page
 }) => {
-	await page.goto('/app/home');
+	await page.goto('/feed');
 	await expect(
 		page.getByRole('heading', { name: 'Home', exact: true })
 	).toBeVisible();
@@ -296,16 +296,16 @@ test('home interactions and profile navigation use the authenticated account', a
 	await expect(like).toHaveAttribute('aria-pressed', 'false');
 	await expect(page.locator('.post-card .date').first()).toHaveAttribute(
 		'href',
-		'/app/posts/did%3Aplc%3Aalice/first'
+		'/posts/did%3Aplc%3Aalice/first'
 	);
 	await expect(page.locator('.post-card .author a').first()).toHaveAttribute(
 		'href',
-		'/app/profile/did%3Aplc%3Aalice'
+		'/profiles/did%3Aplc%3Aalice'
 	);
 	await page.locator('.post-card .date').first().click();
-	await expect(page).toHaveURL(/\/app\/posts\/did%3Aplc%3Aalice\/first/);
+	await expect(page).toHaveURL(/\/posts\/did%3Aplc%3Aalice\/first/);
 	await page.locator('.post-card .author a').first().click();
-	await expect(page).toHaveURL(/\/app\/profile\/did%3Aplc%3Aalice/);
+	await expect(page).toHaveURL(/\/profiles\/did%3Aplc%3Aalice/);
 	await expect(
 		page.getByRole('heading', { name: 'Alice Maker', exact: true })
 	).toBeVisible();
@@ -387,11 +387,11 @@ test('compact quote previews derive their route from AT URI and show safe select
 			});
 		}
 	);
-	await page.goto('/app/posts/did%3Aplc%3Aalice/first');
+	await page.goto('/posts/did%3Aplc%3Aalice/first');
 	const quote = page.locator('.quote-card');
 	await expect(quote.locator('.summary-content')).toHaveAttribute(
 		'href',
-		'/app/posts/did%3Aplc%3Abob/quoted'
+		'/posts/did%3Aplc%3Abob/quoted'
 	);
 	await expect(
 		quote.getByRole('heading', { name: 'Quoted linen dress' })
@@ -481,27 +481,27 @@ test('project pattern and material annotations link to their makers and hashtags
 			});
 		}
 	);
-	await page.goto('/app/posts/did%3Aplc%3Aalice/first');
+	await page.goto('/posts/did%3Aplc%3Aalice/first');
 	const details = page.locator('.post-card');
 	await expect(
 		details.getByRole('link', { name: '#LinenDress', exact: true })
-	).toHaveAttribute('href', /\/app\/(tags|search)/);
+	).toHaveAttribute('href', /\/search\/tags/);
 	await expect(
 		details.getByRole('link', { name: '@bob.test', exact: true })
 	).toHaveCount(2);
 	for (const link of await details
 		.getByRole('link', { name: '@bob.test', exact: true })
 		.all())
-		await expect(link).toHaveAttribute('href', '/app/profile/did%3Aplc%3Abob');
+		await expect(link).toHaveAttribute('href', '/profiles/did%3Aplc%3Abob');
 	await expect(
 		details.getByRole('link', { name: '@alice.test', exact: true })
-	).toHaveAttribute('href', '/app/profile/did%3Aplc%3Aalice');
+	).toHaveAttribute('href', '/profiles/did%3Aplc%3Aalice');
 	await expect(details.locator('a[href^="javascript:"]')).toHaveCount(0);
 });
 test('a conflicting published edit keeps a recoverable local draft', async ({
 	page
 }) => {
-	await page.goto('/app/compose/edit?did=did%3Aplc%3Aalice&rkey=first');
+	await page.goto('/compose/edit?did=did%3Aplc%3Aalice&rkey=first');
 	await page
 		.getByRole('textbox', {
 			name: 'What would you like to share?',
@@ -518,7 +518,7 @@ test('a conflicting published edit keeps a recoverable local draft', async ({
 			exact: true
 		})
 	).toBeEnabled();
-	await page.goto('/app/drafts');
+	await page.goto('/drafts');
 	const recovered = page
 		.getByRole('listitem')
 		.filter({ has: page.getByText('Conflict changes', { exact: true }) });
@@ -562,7 +562,7 @@ test('editing an existing reply retains its structural context and excludes inva
 			});
 		}
 	);
-	await page.goto('/app/compose/edit?did=did%3Aplc%3Aalice&rkey=first');
+	await page.goto('/compose/edit?did=did%3Aplc%3Aalice&rkey=first');
 	await expect(
 		page.getByRole('textbox', { name: 'Write your comment', exact: true })
 	).toBeVisible();
@@ -603,7 +603,7 @@ test('restores private image bytes from IndexedDB after reload and isolates anot
 	await page.getByRole('button', { name: 'Back to post', exact: true }).click();
 	await page.getByRole('button', { name: 'Save draft', exact: true }).click();
 	await expect(page.getByText('Draft saved', { exact: true })).toBeVisible();
-	await page.goto('/app/drafts');
+	await page.goto('/drafts');
 	await page.reload();
 	await page.getByRole('link', { name: 'Continue editing' }).click();
 	await expect(
@@ -623,7 +623,7 @@ test('restores private image bytes from IndexedDB after reload and isolates anot
 		page.getByRole('img', { name: 'A blue quilt' })
 	).toHaveJSProperty('naturalHeight', 4);
 	await login(context, bob);
-	await page.goto('/app/drafts');
+	await page.goto('/drafts');
 	await expect(
 		page.getByText('Alice private quilt draft', { exact: true })
 	).toHaveCount(0);
@@ -665,7 +665,7 @@ test('schedules private media, restores the schedule and requests publication no
 	await page
 		.getByRole('button', { name: 'Save schedule', exact: true })
 		.click();
-	await expect(page).toHaveURL('/app/scheduled');
+	await expect(page).toHaveURL('/scheduled');
 	const schedule = page
 		.getByRole('listitem')
 		.filter({ has: page.getByText('Tomorrow’s knitting', { exact: true }) });
@@ -680,7 +680,7 @@ test('schedules private media, restores the schedule and requests publication no
 		})
 	).toHaveValue('Tomorrow’s knitting');
 	await page.getByRole('button', { name: 'Publish now', exact: true }).click();
-	await expect(page).toHaveURL('/app/scheduled');
+	await expect(page).toHaveURL('/scheduled');
 	await expect(
 		page.getByText('Tomorrow’s knitting', { exact: true })
 	).toHaveCount(0);
@@ -708,14 +708,14 @@ test('supports mobile navigation and project fields without horizontal overflow'
 	page
 }) => {
 	await page.setViewportSize({ width: 390, height: 844 });
-	await page.goto('/app/home');
+	await page.goto('/feed');
 	await page.getByRole('button', { name: 'Create post', exact: true }).click();
 	const chooser = page.getByRole('dialog', {
 		name: 'What would you like to share?',
 		exact: true
 	});
 	await expect(chooser).toBeVisible();
-	await chooser.locator('a[href="/app/compose/project"]').click();
+	await chooser.locator('a[href="/compose/project"]').click();
 	await expect(
 		page.getByRole('heading', { name: 'Project post', exact: true })
 	).toBeVisible();
@@ -804,7 +804,7 @@ test('project detail pages fill the compact viewport and keep changes on Back, E
 	page
 }) => {
 	await page.setViewportSize({ width: 390, height: 844 });
-	await page.goto('/app/compose/project');
+	await page.goto('/compose/project');
 	await page
 		.getByRole('combobox', { name: 'Primary craft required', exact: true })
 		.click();
@@ -891,7 +891,7 @@ test('project detail pages fill the compact viewport and keep changes on Back, E
 
 	await page.getByRole('button', { name: 'Save draft', exact: true }).click();
 	await expect(page.getByText('Draft saved', { exact: true })).toBeVisible();
-	await page.goto('/app/drafts');
+	await page.goto('/drafts');
 	const row = page
 		.getByRole('listitem')
 		.filter({ has: page.getByText('Three detail pages', { exact: true }) });
@@ -947,7 +947,7 @@ test('indexed edits replace stale detail and cached feed content without a refre
 		})
 		.fill('Before indexing');
 	await page.getByRole('button', { name: 'Post', exact: true }).click();
-	await expect(page).toHaveURL('/app/home');
+	await expect(page).toHaveURL('/feed');
 	const card = page
 		.locator('.member-post')
 		.filter({ has: page.getByText('Before indexing', { exact: true }) })
@@ -981,7 +981,7 @@ test('indexed edits replace stale detail and cached feed content without a refre
 		})
 		.fill('After indexing');
 	await page.getByRole('button', { name: 'Save changes' }).click();
-	await expect(page).toHaveURL(/\/app\/posts\//);
+	await expect(page).toHaveURL(/\/posts\//);
 	await expect(
 		page.getByText('Before indexing', { exact: true })
 	).toBeVisible();
@@ -995,9 +995,31 @@ test('indexed edits replace stale detail and cached feed content without a refre
 		.filter({ visible: true })
 		.first()
 		.click();
-	await expect(page).toHaveURL('/app/home');
+	await expect(page).toHaveURL('/feed');
 	await expect(page.getByText('After indexing', { exact: true })).toBeVisible();
 	await expect(page.getByText('Before indexing', { exact: true })).toHaveCount(
 		0
 	);
+});
+
+test('root opens the mobile feed route and navigation uses canonical paths', async ({
+	page
+}) => {
+	await page.goto('/');
+	await expect(page).toHaveURL('/feed');
+	await expect(
+		page.getByRole('heading', { name: 'Home', exact: true })
+	).toBeVisible();
+	const navigation = page.getByRole('navigation', { name: 'App navigation' });
+	for (const [name, path] of [
+		['Home', '/feed'],
+		['Notifications', '/notifications'],
+		['Messages', '/messages'],
+		['Profile', '/profile']
+	])
+		await expect(
+			navigation.getByRole('link', { name: new RegExp('^' + name) })
+		).toHaveAttribute('href', path);
+	await page.goto('/projects?craft=knitting');
+	await expect(page).toHaveURL('/feed?craft=knitting');
 });

@@ -207,7 +207,7 @@
 	</p>
 	<div class="schedule-actions">
 		<button type="button" onclick={() => upgrade.close()}>Close</button><a
-			href="/app/settings/subscriptions">Learn more</a
+			href="/settings/subscriptions">Learn more</a
 		>
 	</div>
 </dialog>

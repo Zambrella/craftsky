@@ -248,7 +248,7 @@
 		{:else if !work.loading && loaded}<p>
 				Follower growth is included with CraftSky Plus and Business.
 			</p>
-			<a class="action" href="/app/settings/subscriptions"
+			<a class="action" href="/settings/subscriptions"
 				>View subscription access</a
 			>{/if}
 	</section>
@@ -257,7 +257,7 @@
 		{#each filtered as profile (profile.did)}<div class="row identity-row">
 				<a
 					class="identity profile-list-identity"
-					href={`/app/profile/${encodeURIComponent(profile.did)}`}
+					href={`/profiles/${encodeURIComponent(profile.did)}`}
 					><Avatar author={profile} /><CompactIdentity author={profile} /></a
 				>
 				{#if kind === 'mutes' || kind === 'blocks'}<button

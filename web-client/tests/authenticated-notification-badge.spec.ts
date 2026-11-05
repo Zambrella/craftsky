@@ -67,11 +67,11 @@ for (const width of [390, 1280]) {
 			await route.continue();
 		});
 		await page.clock.install();
-		await page.goto('/app/home');
+		await page.goto('/feed');
 		const badge = page.locator(
 			width < 900
 				? '#bottom-activity-count'
-				: '.app-sidebar a[href="/app/activity"] .count-badge'
+				: '.app-sidebar a[href="/notifications"] .count-badge'
 		);
 		await expect(badge).toHaveText('3');
 		const nav = page.getByRole('navigation', {
@@ -81,7 +81,7 @@ for (const width of [390, 1280]) {
 		await nav
 			.getByRole('link', { name: width < 900 ? 'Activity' : /^Notifications/ })
 			.click();
-		await expect(page).toHaveURL(/app\/activity$/);
+		await expect(page).toHaveURL(/notifications$/);
 		await expect(badge).toHaveCount(0);
 		const seenRequest = page.waitForRequest(
 			'**/api/appview/v1/notifications/seen'
@@ -120,9 +120,9 @@ test('a failed seen acknowledgement restores and reconciles the badge', async ({
 		await held;
 		await route.fulfill({ status: 503, json: { error: 'unavailable' } });
 	});
-	await page.goto('/app/home');
+	await page.goto('/feed');
 	const badge = page.locator(
-		'.app-sidebar a[href="/app/activity"] .count-badge'
+		'.app-sidebar a[href="/notifications"] .count-badge'
 	);
 	await expect(badge).toHaveText('3');
 	await page

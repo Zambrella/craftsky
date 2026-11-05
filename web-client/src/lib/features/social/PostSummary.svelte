@@ -21,7 +21,7 @@
 	<header style={profileStyle(post.author.customisation)}>
 		<a
 			class="summary-author"
-			href={'/app/profile/' + encodeURIComponent(post.author.did)}
+			href={'/profiles/' + encodeURIComponent(post.author.did)}
 			aria-label={'View profile of ' + name(post.author)}
 			><Avatar author={post.author} /><CompactIdentity
 				author={post.author}

@@ -4,14 +4,15 @@ export function ownProfileRoute(
 	account: { did: string; handle: string },
 	currentHandle = account.handle
 ): boolean {
-	const match = /^\/app\/profile\/([^/]+)$/.exec(pathname);
+	if (pathname === '/profile') return true;
+	const match = /^\/profiles\/([^/]+)$/.exec(pathname);
 	if (!match) return false;
 	try {
 		const address = decodeURIComponent(match[1]);
 		return (
 			address === account.did ||
-			address.toLowerCase() === currentHandle.toLowerCase() ||
-			address.toLowerCase() === account.handle.toLowerCase()
+			address.replace(/^@/, '').toLowerCase() === currentHandle.toLowerCase() ||
+			address.replace(/^@/, '').toLowerCase() === account.handle.toLowerCase()
 		);
 	} catch {
 		return false;

@@ -429,7 +429,7 @@
 					>
 					{#if !reference}<a
 							class="action"
-							href={`/app/settings/moderation/${encodeURIComponent(ref)}`}
+							href={`/settings/moderation/${encodeURIComponent(ref)}`}
 							>Case details</a
 						>{/if}{#if entry.eventType === 'decision' && entry.appealStatus === 'none'}<a
 							class="action"

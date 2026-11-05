@@ -31,7 +31,7 @@ describe('social presentation boundaries', () => {
 			{ text: '🧶 Hi ' },
 			{
 				text: 'Alice',
-				href: '/app/profile/did%3Aplc%3Aalice',
+				href: '/profiles/did%3Aplc%3Aalice',
 				external: false
 			},
 			{ text: '!' }
@@ -83,7 +83,7 @@ describe('social presentation boundaries', () => {
 				displayLabel: 'Alice',
 				payload: { did: 'did:plc:alice' }
 			})
-		).toBe('/app/profile/did%3Aplc%3Aalice');
+		).toBe('/profiles/did%3Aplc%3Aalice');
 		const result = recentDestination({
 			id: 'two',
 			type: 'project',
@@ -106,7 +106,7 @@ it('links compact quote views by canonical AT URI without a fabricated record ke
 			uri: 'at://did:plc:alice/social.craftsky.feed.post/quoted',
 			author: { did: 'did:plc:alice', handle: 'alice.test' }
 		})
-	).toBe('/app/posts/did%3Aplc%3Aalice/quoted');
+	).toBe('/posts/did%3Aplc%3Aalice/quoted');
 });
 
 it('keeps published text readable when annotation metadata is malformed', () => {

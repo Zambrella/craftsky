@@ -7,7 +7,7 @@
 	const returnTo =
 		getContext<(destination: string) => Promise<void>>('craftsky-return');
 	const craft = page.url.searchParams.get('craft') || '';
-	const origin = '/app/home' + page.url.search;
+	const origin = '/feed' + page.url.search;
 	let filterFields = $state<{ clearAll: () => void }>(null!);
 	let backButton: HTMLButtonElement;
 	onMount(() => backButton?.focus({ preventScroll: true }));
@@ -20,7 +20,7 @@
 			)
 		);
 		await close();
-		const destination = '/app/home?' + params;
+		const destination = '/feed?' + params;
 		if (destination !== page.url.pathname + page.url.search)
 			await returnTo(destination);
 	}
@@ -35,7 +35,7 @@
 	}}
 />
 <section class="project-filter-page" aria-labelledby="filter-title">
-	<form method="get" action="/app/home" onsubmit={apply}>
+	<form method="get" action="/feed" onsubmit={apply}>
 		<header>
 			<button
 				type="button"

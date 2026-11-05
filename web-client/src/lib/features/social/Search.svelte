@@ -150,7 +150,7 @@
 	$effect(() => {
 		// Even selecting the active/default tab can create a new history entry.
 		page.url.search;
-		const key = '/app/search?' + new URLSearchParams({ q, tab });
+		const key = '/search?' + new URLSearchParams({ q, tab });
 		return untrack(() => {
 			const view = history?.view<SearchSnapshot>('search-results', key);
 			historyView = view;
@@ -225,7 +225,7 @@
 <form
 	class="search-form"
 	method="get"
-	action="/app/search"
+	action="/search"
 	onsubmit={(event) => {
 		event.preventDefault();
 		const target = searchDestination(query);
@@ -257,26 +257,26 @@
 		</div>
 		<button class="search-submit">Search</button>{#if query || q}<a
 				class="cancel-search"
-				href="/app/search">Cancel</a
+				href="/search">Cancel</a
 			>{/if}
 	</div>
 	<input type="hidden" name="tab" value={tab} />
 	{#if suggestions}<div class="suggestions">
 			{#each suggestions.profiles.items as author}<a
 					class="suggestion-profile"
-					href={'/app/profile/' + encodeURIComponent(author.did)}
+					href={'/profiles/' + encodeURIComponent(author.did)}
 					onclick={() => remember(author)}
 					><Avatar author={authorValue(author)} /><CompactIdentity
 						{author}
 					/></a
 				>{/each}{#each suggestions.hashtags.items as tag}<a
-					href={'/app/tags/' + encodeURIComponent(tag.tag)}>#{tag.tag}</a
+					href={'/search/tags?tag=' + encodeURIComponent(tag.tag)}>#{tag.tag}</a
 				>{/each}
 		</div>{/if}
 </form>
 {#if q}<nav class="tabs" use:dragScroll aria-label="Search categories">
 		{#each ['posts', 'projects', 'profiles', 'hashtags'] as item}<a
-				href={'/app/search?' + new URLSearchParams({ q, tab: item })}
+				href={'/search?' + new URLSearchParams({ q, tab: item })}
 				aria-current={tab === item ? 'page' : undefined}
 				>{item === 'hashtags'
 					? 'Tags'
@@ -314,7 +314,8 @@
 					</h3>
 					<div class="tag-chips">
 						{#each group.items as tag}<a
-								href={'/app/tags/' + encodeURIComponent(tag.tag)}>#{tag.tag}</a
+								href={'/search/tags?tag=' + encodeURIComponent(tag.tag)}
+								>#{tag.tag}</a
 							>{/each}
 					</div>
 				</div>{/each}
@@ -324,7 +325,7 @@
 {#each authors as author}<a
 		class="account-row maker-result"
 		style={profileStyle(author.customisation)}
-		href={'/app/profile/' + encodeURIComponent(author.did)}
+		href={'/profiles/' + encodeURIComponent(author.did)}
 		onclick={() => remember(author)}
 		><Avatar author={authorValue(author)} /><CompactIdentity {author} />
 		></a
@@ -332,7 +333,7 @@
 {#each posts as post}<MemberPost value={post} {api} {did} />{/each}
 {#each tags as tag}<a
 		class="account-row tag-result"
-		href={'/app/tags/' + encodeURIComponent(tag.tag)}
+		href={'/search/tags?tag=' + encodeURIComponent(tag.tag)}
 		><span class="hashtag-icon">#</span><span
 			><strong>#{tag.tag}</strong><small>{tag.postCount} posts</small></span
 		></a

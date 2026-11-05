@@ -43,11 +43,11 @@ test.beforeEach(async ({ page, context }) => {
 
 for (const [path, label, action] of [
 	[
-		'/app/compose/reply?did=did%3Aplc%3Aalice&rkey=first',
+		'/compose/reply?did=did%3Aplc%3Aalice&rkey=first',
 		'Write your comment',
 		'Comment'
 	],
-	['/app/compose', 'What would you like to share?', 'Post']
+	['/compose', 'What would you like to share?', 'Post']
 ]) {
 	test(`empty composer text is a field error: ${label}`, async ({ page }) => {
 		let writes = 0;
@@ -85,7 +85,7 @@ for (const [path, label, action] of [
 test('required and custom URL errors stay with the profile link fields', async ({
 	page
 }) => {
-	await page.goto('/app/profile/edit');
+	await page.goto('/profile/edit');
 	await page.getByRole('button', { name: 'Add link', exact: true }).click();
 	const dialog = page.getByRole('dialog', { name: 'Add link', exact: true });
 	const input = dialog.getByRole('textbox', { name: 'URL', exact: true });
@@ -103,7 +103,7 @@ test('required and custom URL errors stay with the profile link fields', async (
 test('business country validation uses its field rather than the page error', async ({
 	page
 }) => {
-	await page.goto('/app/settings/business');
+	await page.goto('/settings/business');
 	const country = page.getByLabel('Country code', { exact: true });
 	await country.fill('X');
 	await page
@@ -122,7 +122,7 @@ test('event native required fields all show inline errors before any write', asy
 		if (route.request().method() === 'POST') writes++;
 		return route.continue();
 	});
-	await page.goto('/app/settings/events');
+	await page.goto('/settings/events');
 	await page.getByRole('button', { name: 'Create event', exact: true }).click();
 	const dialog = page.locator('.event-dialog');
 	await dialog.getByRole('button', { name: 'Save event', exact: true }).click();
@@ -150,7 +150,7 @@ test('server field errors are attached to profile inputs and service failures re
 					: { error: 'unavailable', message: 'Temporarily unavailable' }
 		});
 	});
-	await page.goto('/app/profile/edit');
+	await page.goto('/profile/edit');
 	const name = page.getByRole('textbox', { name: 'Display name', exact: true });
 	await name.fill('Changed name');
 	await page.getByRole('button', { name: 'Save profile', exact: true }).click();

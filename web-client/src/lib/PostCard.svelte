@@ -39,10 +39,10 @@
 	} = $props();
 	const editDescriptionId = $props.id();
 	const profileHref = (did: string) =>
-		member ? '/app/profile/' + encodeURIComponent(did) : profilePath(did);
+		member ? '/profiles/' + encodeURIComponent(did) : profilePath(did);
 	const postHref = () =>
 		member
-			? '/app/posts/' +
+			? '/posts/' +
 				encodeURIComponent(post.author.did) +
 				'/' +
 				encodeURIComponent(post.rkey)

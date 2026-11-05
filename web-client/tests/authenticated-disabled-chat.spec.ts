@@ -66,7 +66,7 @@ test('disabled messaging matches the native settings gate without inbox actions 
 		scopes.push(route.request().headers()['x-craftsky-account-id']);
 		return route.fulfill({ json: disabled });
 	});
-	await page.goto('/app/messages');
+	await page.goto('/messages');
 	const workspace = page.getByRole('region', {
 		name: 'Direct messages',
 		exact: true
@@ -121,7 +121,7 @@ test('authorization-needed messaging retains its existing permission control in 
 			} satisfies ChatStatus
 		})
 	);
-	await page.goto('/app/messages');
+	await page.goto('/messages');
 	const workspace = page.getByRole('region', {
 		name: 'Direct messages',
 		exact: true
@@ -166,7 +166,7 @@ test('a restricted nonready gate retains refresh and can recover into the disabl
 				: disabled
 		});
 	});
-	await page.goto('/app/messages');
+	await page.goto('/messages');
 	const workspace = page.getByRole('region', {
 		name: 'Direct messages',
 		exact: true

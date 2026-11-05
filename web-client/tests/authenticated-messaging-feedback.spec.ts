@@ -41,7 +41,7 @@ test.beforeEach(async ({ page, context }) => {
 	]);
 });
 
-for (const route of ['/app/messages', '/app/messages/visual-accepted']) {
+for (const route of ['/messages', '/messages/conversations/visual-accepted']) {
 	test(`loading fills the page from the top: ${route}`, async ({ page }) => {
 		await page.setViewportSize({ width: 1376, height: 1032 });
 		let release!: () => void;
@@ -56,7 +56,7 @@ for (const route of ['/app/messages', '/app/messages/visual-accepted']) {
 			await page.goto(route);
 			const loading = page.locator('.messages-workspace .loading');
 			await expect(loading).toBeVisible();
-			if (route === '/app/messages') {
+			if (route === '/messages') {
 				await expect(
 					page.getByRole('link', { name: 'Requests', exact: true })
 				).toBeVisible();
@@ -82,7 +82,7 @@ for (const route of ['/app/messages', '/app/messages/visual-accepted']) {
 		}
 	});
 }
-test('message settings load with a spinner rather than skeleton rows', async ({
+test('canonical messaging settings show loading status without skeleton rows', async ({
 	page
 }) => {
 	let release!: () => void;
@@ -94,8 +94,10 @@ test('message settings load with a spinner rather than skeleton rows', async ({
 		await route.continue();
 	});
 	try {
-		await page.goto('/app/messages/settings/');
-		await expect(page.locator('.loading-spinner')).toBeVisible();
+		await page.goto('/settings/messaging/');
+		await expect(
+			page.getByRole('status').filter({ hasText: 'Loading' })
+		).toBeVisible();
 		await expect(page.locator('.inbox-skeleton,.history-skeleton')).toHaveCount(
 			0
 		);
@@ -109,11 +111,11 @@ test('message settings load with a spinner rather than skeleton rows', async ({
 test('Requests has an app-bar back button that returns to the inbox', async ({
 	page
 }) => {
-	await page.goto('/app/messages/requests');
+	await page.goto('/messages/requests');
 	await page
 		.getByRole('link', { name: 'Back to messages', exact: true })
 		.click();
-	await expect(page).toHaveURL(/\/app\/messages$/);
+	await expect(page).toHaveURL(/\/messages$/);
 });
 test('marking visible messages read never flashes a false sending restriction', async ({
 	page
@@ -143,7 +145,7 @@ test('marking visible messages read never flashes a false sending restriction', 
 			characterData: true
 		});
 	});
-	await page.goto('/app/messages/visual-accepted');
+	await page.goto('/messages/conversations/visual-accepted');
 	await expect(
 		page.getByRole('textbox', { name: 'Message', exact: true })
 	).toBeVisible();
@@ -160,7 +162,7 @@ for (const width of [402, 1376]) {
 		page
 	}) => {
 		await page.setViewportSize({ width, height: 874 });
-		await page.goto('/app/messages/visual-accepted');
+		await page.goto('/messages/conversations/visual-accepted');
 		await page.getByLabel('Conversation actions', { exact: true }).click();
 		const actions = page.locator('.conversation-actions .menu-items');
 		await expect(actions).toBeVisible();
@@ -170,7 +172,7 @@ for (const width of [402, 1376]) {
 			'Report conversation',
 			'Leave conversation'
 		]);
-		await expect(page).toHaveURL(/\/app\/messages\/visual-accepted$/);
+		await expect(page).toHaveURL(/\/messages\/conversations\/visual-accepted$/);
 		await page.keyboard.press('Escape');
 		const summary = page.locator('.chat-message.own summary').first();
 		await summary.click();
@@ -211,7 +213,7 @@ test('wide page columns keep their width between scrolling feeds and messages', 
 	page
 }) => {
 	await page.setViewportSize({ width: 1376, height: 874 });
-	await page.goto('/app/home');
+	await page.goto('/feed');
 	// Give non-overlay scrollbars a known size; force an overflowing feed below.
 	await page.addStyleTag({
 		content: 'html::-webkit-scrollbar { width: 16px; }'
@@ -266,7 +268,7 @@ test('wide page columns keep their width between scrolling feeds and messages', 
 test('inbox navigation icons appear before status resolves when navigating from Home', async ({
 	page
 }) => {
-	await page.goto('/app/home');
+	await page.goto('/feed');
 	await expect(page.locator('.member-post').first()).toBeVisible();
 	let release!: () => void;
 	const pending = new Promise<void>((resolve) => {
@@ -304,7 +306,7 @@ test('inbox navigation icons appear before status resolves when navigating from 
 });
 
 test('message input keeps text without a clear button', async ({ page }) => {
-	await page.goto('/app/messages/visual-accepted');
+	await page.goto('/messages/conversations/visual-accepted');
 	const input = page.getByRole('textbox', { name: 'Message', exact: true });
 	await input.fill('A draft to keep');
 	await expect(input).toHaveValue('A draft to keep');
@@ -316,7 +318,7 @@ test('message input keeps text without a clear button', async ({ page }) => {
 	).toBeEnabled();
 });
 
-for (const route of ['/app/messages', '/app/messages/visual-accepted']) {
+for (const route of ['/messages', '/messages/conversations/visual-accepted']) {
 	test(`craft icons stay loaded during typing and polling: ${route}`, async ({
 		page
 	}) => {
@@ -336,7 +338,7 @@ for (const route of ['/app/messages', '/app/messages/visual-accepted']) {
 		const original = await icons.elementHandle();
 		const initialRequests = profileRequests.length;
 		expect(initialRequests).toBeGreaterThan(0);
-		if (route !== '/app/messages') {
+		if (route !== '/messages') {
 			await page
 				.getByRole('textbox', { name: 'Message', exact: true })
 				.pressSequentially('Knitting today');
@@ -349,7 +351,7 @@ for (const route of ['/app/messages', '/app/messages/visual-accepted']) {
 			response
 				.url()
 				.includes(
-					route === '/app/messages'
+					route === '/messages'
 						? '/chat/conversations?'
 						: '/chat/conversations/visual-accepted/details'
 				)

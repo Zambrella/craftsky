@@ -21,7 +21,7 @@ describe('reviewed settings destinations', () => {
 		};
 		expect(moderationSubject(snapshot)).toEqual({
 			reference: snapshot.uri,
-			href: '/app/posts/did%3Aplc%3Amaker/example',
+			href: '/posts/did%3Aplc%3Amaker/example',
 			label: 'View post'
 		});
 		expect(moderationSubject({ ...snapshot, did: 'did:plc:other' })).toEqual({
@@ -38,7 +38,7 @@ describe('reviewed settings destinations', () => {
 			})
 		).toEqual({
 			reference: 'maker.example',
-			href: '/app/profile/did%3Aplc%3Amaker',
+			href: '/profiles/did%3Aplc%3Amaker',
 			label: 'View profile'
 		});
 	});

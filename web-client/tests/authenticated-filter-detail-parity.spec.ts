@@ -35,7 +35,7 @@ test('native compact filter form uses search, dependent choices and Cancel witho
 	page
 }) => {
 	await page.setViewportSize({ width: 402, height: 874 });
-	await page.goto('/app/home?craft=knitting');
+	await page.goto('/feed?craft=knitting');
 	const open = () =>
 		page.getByRole('button', { name: /^Filter projects/ }).click();
 	await open();
@@ -126,7 +126,7 @@ test('native selection limit and Clear all retain craft/sort until explicit Appl
 	page
 }) => {
 	await page.goto(
-		'/app/home?craft=knitting&sort=popular&color=blue&selfDrafted=true'
+		'/feed?craft=knitting&sort=popular&color=blue&selfDrafted=true'
 	);
 	await page.getByRole('button', { name: /^Filter projects/ }).click();
 	const dialog = page.getByRole('region', {
@@ -169,7 +169,7 @@ test('native sort sheets preserve craft filters and move to a pointer menu on wi
 	page
 }) => {
 	await page.setViewportSize({ width: 402, height: 874 });
-	await page.goto('/app/home?craft=knitting&status=finished');
+	await page.goto('/feed?craft=knitting&status=finished');
 	await page.getByLabel('Sort projects: Newest', { exact: true }).click();
 	const menu = page.locator('.choice-menu[open] .menu-items');
 	await expect(menu).toHaveCSS('position', 'fixed');
@@ -191,7 +191,7 @@ test('native sort sheets preserve craft filters and move to a pointer menu on wi
 test('project filters are a content-column route with Back and Forward and no modal history after Apply', async ({
 	page
 }) => {
-	await page.goto('/app/home');
+	await page.goto('/feed');
 	await page
 		.getByRole('navigation', { name: 'Home feeds' })
 		.getByRole('link', { name: 'Knitting', exact: true })
@@ -201,7 +201,7 @@ test('project filters are a content-column route with Back and Forward and no mo
 	await page
 		.getByRole('button', { name: 'Filter projects', exact: true })
 		.click();
-	await expect(page).toHaveURL(/\/app\/home\/filters\?/);
+	await expect(page).toHaveURL(/\/feed\/filters\?/);
 	const filters = page.getByRole('region', {
 		name: 'Filter Knitting projects',
 		exact: true
@@ -228,5 +228,5 @@ test('project filters are a content-column route with Back and Forward and no mo
 	await expect(page).toHaveURL(/selfDrafted=true/);
 	await expect(filters).toHaveCount(0);
 	await page.goBack();
-	await expect(page).toHaveURL(/\/app\/home$/);
+	await expect(page).toHaveURL(/\/feed$/);
 });

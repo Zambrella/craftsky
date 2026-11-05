@@ -46,7 +46,7 @@ for (const width of [402, 1376]) {
 		page
 	}) => {
 		await page.setViewportSize({ width, height: 1032 });
-		await page.goto('/app/messages');
+		await page.goto('/messages');
 		const inbox = page.locator('.conversation-list');
 		await expect(inbox.locator('.compact-identity').first()).toBeVisible();
 		await expect(inbox.locator('.inline-crafts').first()).toBeVisible();
@@ -70,7 +70,7 @@ test('page empty states center in the viewport and keep native copy', async ({
 		['drafts', 'No drafts'],
 		['scheduled', 'No scheduled posts']
 	]) {
-		await page.goto('/app/' + route);
+		await page.goto('/' + route);
 		// Scheduled fixture data is cleared so this exercises the empty state.
 		if (route === 'scheduled') {
 			await page.route('**/api/appview/v1/scheduled-posts*', (route) =>
@@ -148,7 +148,7 @@ test('late profile previews stay inside bubbles and keep the latest message visi
 			await route.fulfill({ json: await response.json() });
 		}
 	);
-	await page.goto('/app/messages/visual-accepted');
+	await page.goto('/messages/conversations/visual-accepted');
 	await expect(page.locator('.peer-heading small')).toHaveCSS(
 		'font-weight',
 		'400'
@@ -192,7 +192,7 @@ test('native release hides video upload choices when the feature is off', async 
 		process.env.WEB_CLIENT_VIDEO_UPLOADS_ENABLED !== 'false',
 		'Runs against the native video-disabled release.'
 	);
-	await page.goto('/app/compose');
+	await page.goto('/compose');
 	await expect(page.getByText('Add a photo', { exact: true })).toBeVisible();
 	await expect(page.locator('input[type=file][accept*="video"]')).toHaveCount(
 		0

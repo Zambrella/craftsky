@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { authenticatedRoute } from '#lib/routes.ts';
 	import Snackbar from '../social/Snackbar.svelte';
 	import { notify } from '../social/toasts.svelte';
 	import { usePrompt, confirmExternalLink } from '../social/prompt';
@@ -66,10 +67,10 @@
 				navigationDepth +
 					(navigation.type === 'popstate' ? navigation.delta : 1),
 				navigation.type === 'popstate',
-				(/^\/app\/home(?:\/filters)?\/?$/.test(navigation.from.url.pathname) &&
-					/^\/app\/home(?:\/filters)?\/?$/.test(navigation.to.url.pathname)) ||
-					(navigation.from.url.pathname === '/app/search' &&
-						navigation.to.url.pathname === '/app/search' &&
+				(/^\/feed(?:\/filters)?\/?$/.test(navigation.from.url.pathname) &&
+					/^\/feed(?:\/filters)?\/?$/.test(navigation.to.url.pathname)) ||
+					(navigation.from.url.pathname === '/search' &&
+						navigation.to.url.pathname === '/search' &&
 						navigation.from.url.searchParams.get('q') ===
 							navigation.to.url.searchParams.get('q'))
 			);
@@ -108,8 +109,8 @@
 			const url = new URL(value);
 			if (
 				url.origin === location.origin &&
-				url.pathname.startsWith('/app/') &&
-				!url.pathname.startsWith('/app/compose')
+				authenticatedRoute(url.pathname) &&
+				!url.pathname.startsWith('/compose')
 			)
 				return url.pathname + url.search + url.hash;
 		}
@@ -247,6 +248,7 @@
 		{ headers: { 'X-Craftsky-Account-Id': accountId } }
 	);
 
+	setContext('craftsky-api', api);
 	let drawer = $state(false),
 		accountMenu = $state(false),
 		error = $state(''),
@@ -307,14 +309,14 @@
 		postTypeContext.open = false;
 	}
 	const branchPaths = [
-		'/app/home',
-		'/app/search',
-		'/app/messages',
-		'/app/activity',
-		'/app/saved',
-		'/app/scheduled',
-		'/app/drafts',
-		'/app/settings'
+		'/feed',
+		'/search',
+		'/messages',
+		'/notifications',
+		'/saved',
+		'/scheduled',
+		'/drafts',
+		'/settings'
 	];
 	let ownProfile = $derived(
 		ownProfileRoute(
@@ -324,7 +326,7 @@
 		)
 	);
 	let savedChild = $derived(
-		page.url.pathname === '/app/saved' &&
+		(page.url.pathname === '/saved' || page.url.pathname === '/saved/folder') &&
 			(page.url.searchParams.has('folder') ||
 				page.url.searchParams.get('unfiled') === 'true')
 	);
@@ -334,13 +336,13 @@
 	let fullscreen = $derived(
 		!ownProfile &&
 			![
-				'/app/home',
-				'/app/search',
-				'/app/messages',
-				'/app/messages/requests',
-				'/app/messages/new',
-				'/app/activity',
-				'/app/profile/' + encodeURIComponent(session.did)
+				'/feed',
+				'/search',
+				'/messages',
+				'/messages/requests',
+				'/messages/new',
+				'/notifications',
+				'/profile'
 			].includes(page.url.pathname)
 	);
 	let notice = $state('');
@@ -348,19 +350,15 @@
 	let timer: ReturnType<typeof setInterval>;
 	setContext('craftsky-access', () => access);
 	const nav = [
-		['home', 'Home', '/app/home'],
-		['search', 'Search', '/app/search'],
-		['messages', 'Messages', '/app/messages'],
-		['activity', 'Activity', '/app/activity'],
-		[
-			'profile',
-			'Profile',
-			'/app/profile/' + encodeURIComponent(untrack(() => session.did))
-		],
-		['saved', 'Saved', '/app/saved'],
-		['scheduled', 'Scheduled', '/app/scheduled'],
-		['drafts', 'Drafts', '/app/drafts'],
-		['settings', 'Settings', '/app/settings']
+		['home', 'Home', '/feed'],
+		['search', 'Search', '/search'],
+		['messages', 'Messages', '/messages'],
+		['activity', 'Activity', '/notifications'],
+		['profile', 'Profile', '/profile'],
+		['saved', 'Saved', '/saved'],
+		['scheduled', 'Scheduled', '/scheduled'],
+		['drafts', 'Drafts', '/drafts'],
+		['settings', 'Settings', '/settings']
 	];
 	async function boot() {
 		error = '';
@@ -488,7 +486,7 @@
 				body: JSON.stringify({ accountId: id })
 			});
 			if (!result.ok) throw new Error();
-			location.assign('/app/home');
+			location.assign('/feed');
 		} catch {
 			notify('The account could not be switched. Try again.', true);
 		}
@@ -516,7 +514,7 @@
 				for (const key of Object.keys(localStorage))
 					if (key.startsWith(privatePrefix)) localStorage.removeItem(key);
 			} catch {}
-			location.assign('/app/home');
+			location.assign('/feed');
 		} catch {
 			notify('Could not sign out. Please try again.', true);
 		}
@@ -569,15 +567,22 @@
 
 	function active(key: string) {
 		return key === 'profile'
-			? page.url.pathname.startsWith('/app/profile')
-			: page.url.pathname.startsWith('/app/' + key);
+			? page.url.pathname.startsWith('/profile')
+			: page.url.pathname.startsWith(
+					'/' +
+						(key === 'home'
+							? 'feed'
+							: key === 'activity'
+								? 'notifications'
+								: key)
+				);
 	}
 	function reselect(event: MouseEvent, key: string) {
 		drawer = false;
 		if (
 			active(key) &&
 			key === 'home' &&
-			page.url.pathname === '/app/home' &&
+			page.url.pathname === '/feed' &&
 			!page.url.search
 		) {
 			event.preventDefault();
@@ -591,12 +596,12 @@
 		}
 	}
 	const allowedRestricted = () =>
-		page.url.pathname === '/app/settings' ||
-		page.url.pathname.startsWith('/app/settings/account') ||
-		page.url.pathname.startsWith('/app/settings/moderation') ||
-		page.url.pathname.startsWith('/app/settings/muted') ||
-		page.url.pathname.startsWith('/app/settings/blocked') ||
-		page.url.pathname.startsWith('/app/settings/about');
+		page.url.pathname === '/settings' ||
+		page.url.pathname.startsWith('/settings/account') ||
+		page.url.pathname.startsWith('/settings/moderation') ||
+		page.url.pathname.startsWith('/settings/muted') ||
+		page.url.pathname.startsWith('/settings/blocked') ||
+		page.url.pathname.startsWith('/settings/about');
 </script>
 
 <svelte:head
@@ -767,8 +772,8 @@
 				{eligibility.appealGuidance ||
 					'Review your account standing to learn more.'}
 			</p>
-			<a href="/app/settings/moderation">Account standing</a><a
-				href="/app/settings/account">Account settings</a
+			<a href="/settings/moderation">Account standing</a><a
+				href="/settings/account">Account settings</a
 			>
 		</section>{:else if onboarding && !onboarding.completed && eligibility?.state === 'eligible'}<Onboarding
 			{api}
@@ -790,7 +795,7 @@
 			onProfile={(profile) => (identity = profile)}
 		/>
 	</aside>{/if}
-{#if ready && !expired && !accountMenu && !drawer && eligibility?.state === 'eligible' && onboarding?.completed && ((page.url.pathname === '/app/home' && !page.url.searchParams.get('craft')) || ownProfile)}<button
+{#if ready && !expired && !accountMenu && !drawer && eligibility?.state === 'eligible' && onboarding?.completed && ((page.url.pathname === '/feed' && !page.url.searchParams.get('craft')) || ownProfile)}<button
 		class="button compose-fab"
 		onclick={choosePostType}
 		aria-label="Create post"><Icon name="plus" />New post</button
@@ -855,14 +860,14 @@
 >
 	<summary class="visually-hidden" tabindex="-1">Create post</summary>
 	<div class="menu-items">
-		<a href="/app/compose" onclick={chosePostType}
+		<a href="/compose" onclick={chosePostType}
 			><Icon name="textPost" bold /><span
 				><strong>Regular post</strong><small
 					>Share a quick update, thought or question.</small
 				></span
 			></a
 		>
-		<a href="/app/compose/project" onclick={chosePostType}
+		<a href="/compose/project" onclick={chosePostType}
 			><Icon name="projectPost" bold /><span
 				><strong>Project post</strong><small
 					>Add photos and structured project details.</small
@@ -877,14 +882,14 @@
 	aria-labelledby="post-type-title"
 >
 	<h2 id="post-type-title">What would you like to share?</h2>
-	<a href="/app/compose" onclick={chosePostType}
+	<a href="/compose" onclick={chosePostType}
 		><Icon name="textPost" bold /><span
 			><strong>Regular post</strong><small
 				>Share a quick update, ask a question, or show what’s inspiring you.</small
 			></span
 		></a
 	>
-	<a href="/app/compose/project" onclick={chosePostType}
+	<a href="/compose/project" onclick={chosePostType}
 		><Icon name="projectPost" bold /><span
 			><strong>Project post</strong><small
 				>Document something you’re making, with details like the craft, pattern,

@@ -52,7 +52,7 @@ test('browser reports require opt-in, survive reload and stop immediately after 
 				throw new TypeError(message);
 			}, 0);
 		}, canary);
-	await page.goto('/app/settings/privacy');
+	await page.goto('/settings/privacy');
 	const consent = page.getByRole('switch', {
 		name: 'Error reporting',
 		exact: true
@@ -98,7 +98,7 @@ test('a consumed AppView failure includes safe correlation while hiding private 
 			json: { error: 'temporarily_unavailable', message: canary }
 		})
 	);
-	await page.goto('/app/home');
+	await page.goto('/feed');
 	await expect.poll(() => envelopes.length).toBe(1);
 	const wire = envelopes[0];
 	expect(wire).toContain('"httpStatus":503');
@@ -137,7 +137,7 @@ test('expected API failures and reporting outages preserve the normal recovery U
 			}
 		})
 	);
-	await page.goto('/app/home');
+	await page.goto('/feed');
 	await expect(
 		page.getByText('Fixture failure', { exact: true })
 	).toBeVisible();

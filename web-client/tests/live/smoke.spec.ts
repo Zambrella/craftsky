@@ -174,7 +174,7 @@ async function publishedImages(
 
 async function openPost(page: Page, post: Post) {
 	await page.goto(
-		`/app/posts/${encodeURIComponent(post.author.did)}/${encodeURIComponent(post.rkey)}`
+		`/posts/${encodeURIComponent(post.author.did)}/${encodeURIComponent(post.rkey)}`
 	);
 	const card = page
 		.locator('.member-post')
@@ -224,7 +224,7 @@ test('OAuth, onboarding bio, rotate photo, two-image post, like, edit and delete
 				const cleanup = await context.newPage();
 				try {
 					await cleanup.goto(
-						`/app/posts/${encodeURIComponent(post.author.did)}/${encodeURIComponent(post.rkey)}`
+						`/posts/${encodeURIComponent(post.author.did)}/${encodeURIComponent(post.rkey)}`
 					);
 					const card = cleanup.locator('.member-post').first();
 					await card.getByLabel('More post actions').click();
@@ -241,7 +241,7 @@ test('OAuth, onboarding bio, rotate photo, two-image post, like, edit and delete
 				}
 			});
 	};
-	await page.goto('/app/compose');
+	await page.goto('/compose');
 	await page
 		.getByRole('textbox', { name: 'What would you like to share?' })
 		.fill(text);

@@ -146,7 +146,7 @@ function intent(kind: Intent['kind'] = 'login'): Intent {
 		state: capabilities,
 		active: accountA,
 		kind,
-		returnTo: '/app/messages',
+		returnTo: '/messages',
 		expiresAt: Date.now() + 300000,
 		...(kind === 'chat' ? { source: accountA } : {})
 	};
@@ -161,7 +161,7 @@ function handoff() {
 	};
 }
 function pending(kind: Intent['kind'] = 'login'): Pending {
-	return { ...handoff(), active: accountA, kind, returnTo: '/app/messages' };
+	return { ...handoff(), active: accountA, kind, returnTo: '/messages' };
 }
 let fetcher: ReturnType<typeof vi.fn<typeof fetch>>;
 let oldOrigin: string | undefined;
@@ -232,12 +232,10 @@ describe('browser cookies and untrusted metadata', () => {
 			'/app/\\evil',
 			'/app/%2e%2e/evil',
 			'/app/%5cevil',
-			'/app/home\r\nLocation:x'
+			'/feed\r\nLocation:x'
 		])
-			expect(returnPath(raw)).toBe('/app/home');
-		expect(returnPath('/app/messages?from=profile')).toBe(
-			'/app/messages?from=profile'
-		);
+			expect(returnPath(raw)).toBe('/feed');
+		expect(returnPath('/messages?from=profile')).toBe('/messages?from=profile');
 	});
 	it('rejects tampered intent/pending shape, purpose, deadlines and capability encodings', () => {
 		expect(readIntent(encode(intent()))).toBeDefined();
@@ -341,7 +339,7 @@ describe('login and durable browser confirmation', () => {
 			event(jar, '/api/auth/start', 'POST', {
 				kind: 'login',
 				handle: 'alice.example',
-				returnTo: '/app/messages'
+				returnTo: '/messages'
 			})
 		);
 		expect(result.status).toBe(200);
@@ -394,7 +392,7 @@ describe('login and durable browser confirmation', () => {
 						jar,
 						'/api/auth/start',
 						'POST',
-						{ kind: 'chat', returnTo: '/app/messages' },
+						{ kind: 'chat', returnTo: '/messages' },
 						{ 'X-Craftsky-Account-Id': A.id }
 					)
 				)
@@ -445,7 +443,7 @@ describe('login and durable browser confirmation', () => {
 			token(4)
 		);
 		expect(await location(confirm, event(jar, '/auth/browser/confirm'))).toBe(
-			'/app/messages'
+			'/messages'
 		);
 		expect(fetcher).toHaveBeenCalledTimes(3);
 		expect(credentials(jar.cookies, new URL(origin))[0].token).toBe(token(4));
@@ -466,7 +464,7 @@ describe('login and durable browser confirmation', () => {
 		expect(jar.values.has('__Host-craftsky_pending')).toBe(true);
 		expect(credentials(jar.cookies, new URL(origin))[0].token).toBe(A.token);
 		expect(await location(confirm, event(jar, '/auth/browser/confirm'))).toBe(
-			'/app/messages'
+			'/messages'
 		);
 		expect(fetcher.mock.calls[0][1]?.body).toBe(fetcher.mock.calls[1][1]?.body);
 		expect(

@@ -1,5 +1,6 @@
 <script lang="ts">
 	import '../style.css';
+	import AppShell from '#lib/features/shell/AppShell.svelte';
 	import { installFieldValidation } from '#lib/field-validation.ts';
 	import { onMount, setContext } from 'svelte';
 	import ToastHost from '#lib/features/social/ToastHost.svelte';
@@ -10,8 +11,7 @@
 	const toasts = new ToastHub();
 	setContext(toastContext, toasts);
 	$effect(() => {
-		const session = (page.data as { session?: { id: string; did: string } })
-			.session;
+		const session = page.data.session || page.data.authenticated?.session;
 		toasts.scope(session ? session.id + ':' + session.did : 'public');
 	});
 	import StatusHost from '#lib/features/status/StatusHost.svelte';
@@ -28,18 +28,21 @@
 	import DiagnosticsHost from '#lib/features/diagnostics/DiagnosticsHost.svelte';
 	import { page } from '$app/state';
 	let { children } = $props();
+	let authenticatedData = $derived(
+		page.data.authenticated || (page.data.session ? page.data : undefined)
+	);
+	let authenticated = $derived(!!authenticatedData);
 </script>
 
-<ToastHost
-	hub={toasts}
-	fullWidth={!page.url.pathname.startsWith('/app')}
-/><DiagnosticsHost /><StatusHost
-	onBlocking={(value) => (statusBlocking = value)}
-/>
+<ToastHost hub={toasts} fullWidth={!authenticated} /><DiagnosticsHost
+/><StatusHost onBlocking={(value) => (statusBlocking = value)} />
 <div inert={statusBlocking}>
 	<a class="skip" href="#main">Skip to content</a>
-	{#if page.url.pathname.startsWith('/app/') || page.url.pathname === '/app'}
-		{@render children()}
+	{#if authenticatedData}
+		{#key authenticatedData.session.id}<AppShell
+				session={authenticatedData.session}
+				accounts={authenticatedData.accounts}>{@render children()}</AppShell
+			>{/key}
 	{:else if page.url.pathname === '/sign-in'}
 		<main id="main" class="welcome-main">{@render children()}</main>
 	{:else}

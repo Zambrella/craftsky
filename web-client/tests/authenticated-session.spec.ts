@@ -87,7 +87,7 @@ test('browser sign-in crosses the fake provider and persists HttpOnly pending be
 	});
 
 	await signIn(page);
-	await expect(page).toHaveURL(/\/app\/home$/);
+	await expect(page).toHaveURL(/\/feed$/);
 	await expect(
 		page.getByRole('heading', { name: 'Home', exact: true })
 	).toBeVisible();
@@ -145,7 +145,7 @@ test('a temporary confirmation outage retains pending state and retries without 
 		)
 	).toHaveLength(0);
 	await page.getByRole('link', { name: 'Retry confirmation' }).click();
-	await expect(page).toHaveURL(/\/app\/home$/);
+	await expect(page).toHaveURL(/\/feed$/);
 	const stages = (await authState()).events.map((event) => event.stage);
 	expect(stages.filter((stage) => stage === 'confirm')).toHaveLength(2);
 	expect(stages.filter((stage) => stage === 'exchange')).toHaveLength(1);
@@ -157,9 +157,9 @@ test('two browser accounts switch independently and isolate API401 while preserv
 	context
 }) => {
 	await signIn(page);
-	await expect(page).toHaveURL(/\/app\/home$/);
+	await expect(page).toHaveURL(/\/feed$/);
 	await signIn(page, 'bob.test');
-	await expect(page).toHaveURL(/\/app\/home$/);
+	await expect(page).toHaveURL(/\/feed$/);
 	let state = await accounts(page);
 	expect(state.accounts.map((account) => account.did).sort()).toEqual([
 		alice.did,
@@ -234,7 +234,7 @@ for (const status of [503, 401]) {
 				alice: { apiStatus: status, apiPath: '/v1/account/eligibility' }
 			}
 		});
-		await page.goto('/app/home');
+		await page.goto('/feed');
 		await expect(
 			page.getByRole('heading', {
 				name:
@@ -273,7 +273,7 @@ test('onboarding requires the16-year age and policy declaration independently of
 }) => {
 	await seed(context);
 	await configure({ owners: { alice: { completed: false } } });
-	await page.goto('/app/home');
+	await page.goto('/feed');
 	await expect(
 		page.getByRole('heading', { name: 'Make it yours', exact: true })
 	).toBeVisible();
@@ -327,15 +327,15 @@ test('restricted accounts retain settings and complete owner-bound reauthenticat
 }) => {
 	await seed(context, true);
 	await configure({ owners: { alice: { eligibility: 'restricted' } } });
-	await page.goto('/app/home');
+	await page.goto('/feed');
 	await expect(
 		page.getByRole('heading', { name: 'Your account is restricted' })
 	).toBeVisible();
-	await page.goto('/app/settings');
+	await page.goto('/settings');
 	await expect(
 		page.getByRole('heading', { name: 'Settings', exact: true })
 	).toBeVisible();
-	await page.goto('/app/settings/account');
+	await page.goto('/settings/account');
 	await page
 		.getByRole('button', { name: 'Delete account', exact: true })
 		.click();
@@ -348,7 +348,7 @@ test('restricted accounts retain settings and complete owner-bound reauthenticat
 		})
 	).toBeVisible();
 	await page.getByRole('button', { name: 'Continue', exact: true }).click();
-	await expect(page).toHaveURL(/\/app\/settings\/account\?deletion=ready$/);
+	await expect(page).toHaveURL(/\/settings\/account\?deletion=ready$/);
 	const identifier = page.getByRole('textbox', {
 			name: 'Account identifier',
 			exact: true

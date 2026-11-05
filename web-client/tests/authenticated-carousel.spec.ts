@@ -61,7 +61,7 @@ test.beforeEach(async ({ context, page }) => {
 test('native photo counter, dots and description follow selection, scrolling and keyboard focus', async ({
 	page
 }) => {
-	await page.goto('/app/home');
+	await page.goto('/feed');
 	const card = page.locator('.member-post').first();
 	await expect(card.locator('.image-counter')).toHaveText('1/3');
 	await card
@@ -111,7 +111,7 @@ test('native photo counter, dots and description follow selection, scrolling and
 test('opening the selected photo retains the existing fullscreen gallery and keyboard navigation', async ({
 	page
 }) => {
-	await page.goto('/app/home');
+	await page.goto('/feed');
 	const card = page.locator('.member-post').first();
 	await card
 		.getByRole('button', { name: 'Show image 2 of 3', exact: true })
@@ -149,7 +149,7 @@ test('compact navigation displays and announces capped unread counts', async ({
 	await page.route('**/api/appview/v1/chat/unread-counts', (route) =>
 		route.fulfill({ json: { accepted: 6, requests: 2 } })
 	);
-	await page.goto('/app/home');
+	await page.goto('/feed');
 	const navigation = page.getByRole('navigation', {
 		name: 'Main tabs',
 		exact: true

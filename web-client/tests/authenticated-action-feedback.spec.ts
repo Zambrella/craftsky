@@ -44,7 +44,7 @@ test.beforeEach(async ({ page, context }) => {
 test('published confirmation survives navigation and clears when dismissed', async ({
 	page
 }) => {
-	await page.goto('/app/compose');
+	await page.goto('/compose');
 	await page
 		.getByRole('textbox', {
 			name: 'What would you like to share?',
@@ -60,7 +60,7 @@ test('published confirmation survives navigation and clears when dismissed', asy
 		.getByRole('navigation', { name: 'App navigation', exact: true })
 		.getByRole('link', { name: 'Home', exact: true })
 		.click();
-	await expect(page).toHaveURL(/app\/home$/);
+	await expect(page).toHaveURL(/feed$/);
 	await expect(toast).toContainText('Your post has been published.');
 	await toast.getByRole('button', { name: 'Dismiss notification' }).click();
 	await expect(toast).toHaveCount(0);
@@ -69,7 +69,7 @@ test('published confirmation survives navigation and clears when dismissed', asy
 test('successful actions queue one toast at a time and pause while hovered', async ({
 	page
 }) => {
-	await page.goto('/app/settings/business');
+	await page.goto('/settings/business');
 	await page.getByLabel('Tagline', { exact: true }).fill('Hand dyed wool');
 	await page.clock.install();
 	await page.getByRole('button', { name: 'Save business profile' }).click();
@@ -111,7 +111,7 @@ test('errors persist and dismissing a toast retains uncertain-write recovery', a
 				})
 			: route.continue();
 	});
-	await page.goto('/app/settings/business');
+	await page.goto('/settings/business');
 	await page.getByLabel('Tagline', { exact: true }).fill('Hand dyed wool');
 	await page.clock.install();
 	await page.getByRole('button', { name: 'Save business profile' }).click();
@@ -147,7 +147,7 @@ test('action errors in a native modal are visible, interactive and not duplicate
 				})
 			: route.continue()
 	);
-	await page.goto('/app/settings/products');
+	await page.goto('/settings/products');
 	await page
 		.getByRole('button', { name: 'Edit Blue wool', exact: true })
 		.click();
@@ -187,7 +187,7 @@ test('account switching clears queued feedback from the previous account', async
 			sameSite: 'Lax'
 		}
 	]);
-	await page.goto('/app/settings/business');
+	await page.goto('/settings/business');
 	await page.getByLabel('Tagline', { exact: true }).fill('Hand dyed wool');
 	await page.getByRole('button', { name: 'Save business profile' }).click();
 	await expect(page.locator('.snackbar')).toBeVisible();
@@ -208,7 +208,7 @@ test('account switching clears queued feedback from the previous account', async
 test('empty comments retain inline field feedback and show no action toast', async ({
 	page
 }) => {
-	await page.goto('/app/compose/reply?did=did%3Aplc%3Aalice&rkey=first');
+	await page.goto('/compose/reply?did=did%3Aplc%3Aalice&rkey=first');
 	await page.getByRole('button', { name: 'Comment', exact: true }).click();
 	await expect(
 		page.getByRole('textbox', { name: 'Write your comment', exact: true })
@@ -220,7 +220,7 @@ test('mobile toasts remain in the viewport above bottom navigation and pause on 
 	page
 }) => {
 	await page.setViewportSize({ width: 390, height: 844 });
-	await page.goto('/app/settings/business');
+	await page.goto('/settings/business');
 	await page.getByLabel('Tagline', { exact: true }).fill('Hand dyed wool');
 	await page.clock.install();
 	await page.getByRole('button', { name: 'Save business profile' }).click();
@@ -257,7 +257,7 @@ test('dismissing a post action error preserves the original retry and operation 
 				})
 			: route.continue();
 	});
-	await page.goto('/app/home');
+	await page.goto('/feed');
 	const like = page.getByRole('button', { name: /Like$/ }).first();
 	await like.click();
 	const toast = page.locator('.snackbar');

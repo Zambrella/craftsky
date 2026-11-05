@@ -117,12 +117,12 @@ export function https(value: unknown): value is string {
 	}
 }
 export const destinations: Record<string, string> = {
-	feed: '/app/home',
-	projects: '/app/home',
-	search: '/app/search',
-	notifications: '/app/activity',
-	profile: '/app/profile',
-	settings: '/app/settings'
+	feed: '/feed',
+	projects: '/feed',
+	search: '/search',
+	notifications: '/notifications',
+	profile: '/profile',
+	settings: '/settings'
 };
 export function parseStatus(value: unknown): ServiceStatus {
 	if (!object(value) || value.schemaVersion !== 2 || !revision(value.revision))

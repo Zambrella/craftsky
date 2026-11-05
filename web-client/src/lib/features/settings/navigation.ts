@@ -21,7 +21,7 @@ export function moderationSubject(value: unknown): {
 	if (snapshot.type === 'account' || snapshot.type === 'profileLink')
 		return {
 			reference,
-			href: '/app/profile/' + encodeURIComponent(did),
+			href: '/profiles/' + encodeURIComponent(did),
 			label: 'View profile'
 		};
 	const match =
@@ -33,7 +33,7 @@ export function moderationSubject(value: unknown): {
 	if (snapshot.type === 'post' && match[2] === 'social.craftsky.feed.post')
 		return {
 			reference,
-			href: `/app/posts/${encodeURIComponent(did)}/${encodeURIComponent(match[3])}`,
+			href: `/posts/${encodeURIComponent(did)}/${encodeURIComponent(match[3])}`,
 			label: 'View post'
 		};
 	if (
@@ -42,7 +42,7 @@ export function moderationSubject(value: unknown): {
 	)
 		return {
 			reference,
-			href: `/app/events/${encodeURIComponent(did)}/${encodeURIComponent(match[3])}`,
+			href: `/events/${encodeURIComponent(did)}/${encodeURIComponent(match[3])}`,
 			label: 'View event'
 		};
 	return { reference };

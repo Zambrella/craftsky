@@ -100,7 +100,7 @@
 					if (address)
 						return {
 							kind: 'redirect' as const,
-							href: `/app/posts/${encodeURIComponent(address.did)}/${encodeURIComponent(address.rkey)}?focus=${encodeURIComponent(root.uri)}`
+							href: `/posts/${encodeURIComponent(address.did)}/${encodeURIComponent(address.rkey)}?focus=${encodeURIComponent(root.uri)}`
 						};
 				}
 				if (section === 'likes' || section === 'reposts')
@@ -196,8 +196,8 @@
 	<a
 		class="icon-button thread-back"
 		href={section
-			? `/app/posts/${encodeURIComponent(did)}/${encodeURIComponent(rkey)}`
-			: '/app/home'}
+			? `/posts/${encodeURIComponent(did)}/${encodeURIComponent(rkey)}`
+			: '/feed'}
 		aria-label="Back"
 		onclick={back}><Icon name="back" /></a
 	>
@@ -223,7 +223,7 @@
 		detail
 		initialImageCid={page.url.searchParams.get('imageCid') || undefined}
 		onRemove={() => {
-			void goto('/app/home');
+			void goto('/feed');
 		}}
 	/>{/if}
 {#if !section && post && visible(post) && (post.likeCount || post.repostCount || post.quoteCount)}<nav
@@ -231,13 +231,13 @@
 		aria-label="Post interactions"
 	>
 		{#if post.likeCount}<a
-				href={`/app/posts/${encodeURIComponent(did)}/${encodeURIComponent(rkey)}/likes`}
+				href={`/posts/${encodeURIComponent(did)}/${encodeURIComponent(rkey)}/likes`}
 				>{post.likeCount} {post.likeCount === 1 ? 'Like' : 'Likes'}</a
 			>{/if}{#if post.repostCount}<a
-				href={`/app/posts/${encodeURIComponent(did)}/${encodeURIComponent(rkey)}/reposts`}
+				href={`/posts/${encodeURIComponent(did)}/${encodeURIComponent(rkey)}/reposts`}
 				>{post.repostCount} {post.repostCount === 1 ? 'Repost' : 'Reposts'}</a
 			>{/if}{#if post.quoteCount}<a
-				href={`/app/posts/${encodeURIComponent(did)}/${encodeURIComponent(rkey)}/quotes`}
+				href={`/posts/${encodeURIComponent(did)}/${encodeURIComponent(rkey)}/quotes`}
 				>{post.quoteCount} {post.quoteCount === 1 ? 'Quote' : 'Quotes'}</a
 			>{/if}
 	</nav>{/if}
@@ -246,7 +246,7 @@
 	>
 		{#each people as author}<a
 				class="thread-person"
-				href={'/app/profile/' + encodeURIComponent(author.did)}
+				href={'/profiles/' + encodeURIComponent(author.did)}
 				><Avatar
 					author={{
 						did: author.did,
@@ -292,7 +292,7 @@
 		</div>
 		{#if post && visible(post)}<a
 				class="comment-compose"
-				href={'/app/compose/reply?did=' +
+				href={'/compose/reply?did=' +
 					encodeURIComponent(did) +
 					'&rkey=' +
 					encodeURIComponent(rkey)}

@@ -137,7 +137,7 @@
 			{#each scheduled as item (item.id)}<li class="draft-row scheduled-row">
 					<a
 						class="draft-main"
-						href={`/app/compose?schedule=${encodeURIComponent(item.id)}`}
+						href={`/compose?schedule=${encodeURIComponent(item.id)}`}
 					>
 						<span class="schedule-icon" aria-hidden="true"
 							><Icon name="clock" size={32} /></span
@@ -170,7 +170,7 @@
 					<div class="row-actions">
 						<a
 							class="icon-action"
-							href={`/app/compose?schedule=${encodeURIComponent(item.id)}`}
+							href={`/compose?schedule=${encodeURIComponent(item.id)}`}
 							aria-label="Edit scheduled post"><Icon name="edit" /></a
 						><button
 							class="icon-action"

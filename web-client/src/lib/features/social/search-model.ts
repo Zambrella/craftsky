@@ -15,14 +15,14 @@ export function searchDestination(
 				: 'posts'
 	});
 	if (sort === 'popular' || sort === 'chronological') query.set('sort', sort);
-	return '/app/search?' + query;
+	return '/search?' + query;
 }
 export function recentDestination(item: RecentSearch): string {
 	const p = item.payload;
 	if (item.type === 'profile' && typeof p.did === 'string')
-		return '/app/profile/' + encodeURIComponent(p.did);
+		return '/profiles/' + encodeURIComponent(p.did);
 	if (item.type === 'hashtag' && typeof p.tag === 'string')
-		return '/app/tags/' + encodeURIComponent(p.tag);
+		return '/search/tags?tag=' + encodeURIComponent(p.tag);
 	const query = new URLSearchParams({
 		q: typeof p.q === 'string' ? p.q : '',
 		tab:
@@ -46,5 +46,5 @@ export function recentDestination(item: RecentSearch): string {
 				for (const entry of value)
 					if (typeof entry === 'string') query.append(key, entry);
 		}
-	return '/app/search?' + query;
+	return '/search?' + query;
 }

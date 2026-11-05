@@ -70,7 +70,7 @@ describe('private multiaccount push routing', () => {
 		expect(
 			targetFromURL(
 				new URL(
-					'https://app.craftsky.social/app/activity?pushSubscription=invalid'
+					'https://app.craftsky.social/notifications?pushSubscription=invalid'
 				)
 			)
 		).toBeNull();
@@ -86,7 +86,7 @@ describe('private multiaccount push routing', () => {
 		expect(
 			targetFromURL(new URL(pushURL(target), 'https://app.craftsky.social'))
 		).toEqual(target);
-		expect(pushURL(target)).toMatch(/^\/app\/messages\?/);
+		expect(pushURL(target)).toMatch(/^\/messages\?/);
 	});
 	it('rotates registration bindings without retaining stale subscription routes', () => {
 		const data = storage();

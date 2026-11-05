@@ -57,7 +57,7 @@ for (const reduced of [false, true]) {
 		});
 		const requests: string[] = [];
 		page.on('request', (request) => requests.push(request.url()));
-		await page.goto('/app/home');
+		await page.goto('/feed');
 		await expect(page.locator(ready).first()).toBeAttached();
 		// Keep the 400 ms reduced-motion reaction alive while inspecting its pixels.
 		await page.clock.install();
@@ -105,7 +105,7 @@ for (const reduced of [false, true]) {
 test('unlike cancels feedback and liking again starts a new playback', async ({
 	page
 }) => {
-	await page.goto('/app/home');
+	await page.goto('/feed');
 	await expect(page.locator(ready).first()).toBeAttached();
 	const card = page.locator('.member-post').first(),
 		like = card.getByRole('button', { name: 'Like', exact: true });
@@ -137,7 +137,7 @@ test('a rejected like cancels feedback without changing the saved like state', a
 			json: { error: 'not_allowed', message: 'This like was not saved.' }
 		});
 	});
-	await page.goto('/app/home');
+	await page.goto('/feed');
 	await expect(page.locator(ready).first()).toBeAttached();
 	const card = page.locator('.member-post').first(),
 		like = card.getByRole('button', { name: 'Like', exact: true });
@@ -160,7 +160,7 @@ test('late asset readiness keeps the immediate static fallback for that reaction
 		await held;
 		await route.continue();
 	});
-	await page.goto('/app/home');
+	await page.goto('/feed');
 	const card = page.locator('.member-post').first();
 	await card.getByRole('button', { name: 'Like', exact: true }).click();
 	const reaction = card.locator('.like-reaction');
@@ -177,7 +177,7 @@ test('heart tracks the visible part of a tall post while scrolling without resta
 	page
 }) => {
 	await page.setViewportSize({ width: 470, height: 844 });
-	await page.goto('/app/home');
+	await page.goto('/feed');
 	await expect(page.locator(ready).first()).toBeAttached();
 	const card = page.locator('.member-post').first();
 	await card
@@ -230,7 +230,7 @@ test('a malformed animation retains static feedback and never prevents a like', 
 			body: Buffer.from('invalid animation fixture')
 		})
 	);
-	await page.goto('/app/home');
+	await page.goto('/feed');
 	await expect(page.locator(ready).first()).toBeAttached();
 	const card = page.locator('.member-post').first(),
 		like = card.getByRole('button', { name: 'Like', exact: true });

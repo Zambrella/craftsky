@@ -81,6 +81,6 @@ export function historyScrollMode(
 
 export function messageBackURL(view: string, id?: string): string {
 	return id && (view === 'details' || view === 'report')
-		? '/app/messages/' + encodeURIComponent(id)
-		: '/app/messages';
+		? '/messages/conversations/' + encodeURIComponent(id)
+		: '/messages';
 }

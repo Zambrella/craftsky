@@ -4,7 +4,7 @@ import bzipFixture from '../src/lib/features/settings/bzip-fixture.json' with { 
 test('business images are reviewed, cropped and stripped/recompressed before explicit upload', async ({
 	page
 }) => {
-	await page.goto('/app/settings/products');
+	await page.goto('/settings/products');
 	await page
 		.getByRole('button', { name: 'Edit Blue wool', exact: true })
 		.click();
@@ -82,7 +82,7 @@ test('business images are reviewed, cropped and stripped/recompressed before exp
 test('bundled service worker activates without Firebase credentials or remote requests', async ({
 	page
 }) => {
-	await page.goto('/app/settings/notifications');
+	await page.goto('/notifications/settings');
 	const scope = await page.evaluate(async () => {
 		const registration = await navigator.serviceWorker.register(
 			'/service-worker.js',
@@ -181,7 +181,7 @@ test.beforeEach(async ({ context, page }) => {
 	await login(context);
 });
 test('appearance changes immediately and survives reload', async ({ page }) => {
-	await page.goto('/app/settings/appearance');
+	await page.goto('/settings/appearance');
 	await page.getByLabel('Dark', { exact: true }).check();
 	await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
 	await page.reload();
@@ -192,7 +192,7 @@ test('appearance changes immediately and survives reload', async ({ page }) => {
 test('language preferences use supported choices and replace the complete preference object', async ({
 	page
 }) => {
-	await page.goto('/app/settings/languages');
+	await page.goto('/settings/languages');
 	await page
 		.getByRole('combobox', { name: 'Primary language', exact: true })
 		.fill('Welsh');
@@ -249,7 +249,7 @@ test('language preferences use supported choices and replace the complete prefer
 test('notification changes patch only the chosen category and field', async ({
 	page
 }) => {
-	await page.goto('/app/settings/notifications');
+	await page.goto('/notifications/settings');
 	const row = page
 		.locator('.notification-card')
 		.filter({ has: page.getByRole('heading', { name: 'Likes', exact: true }) });
@@ -293,7 +293,7 @@ test('notification changes patch only the chosen category and field', async ({
 test('business profile saves preserve products and unknown catalog values with a CID precondition', async ({
 	page
 }) => {
-	await page.goto('/app/settings/business');
+	await page.goto('/settings/business');
 	await page
 		.getByLabel('Tagline', { exact: true })
 		.fill('Small batch colour for your next project');
@@ -322,7 +322,7 @@ test('business profile saves preserve products and unknown catalog values with a
 test('license assignment targets the entered DID and is reflected after reloading billing', async ({
 	page
 }) => {
-	await page.goto('/app/settings/subscriptions');
+	await page.goto('/settings/subscriptions');
 	await expect(
 		page.getByRole('link', { name: 'Manage in App Store', exact: true })
 	).toHaveAttribute('href', 'https://apps.apple.com/account/subscriptions');
@@ -350,7 +350,7 @@ test('license assignment targets the entered DID and is reflected after reloadin
 test('BZip2 ZIP imports use the bundled worker and require review before sending usernames', async ({
 	page
 }) => {
-	await page.goto('/app/settings/instagram');
+	await page.goto('/settings/instagram');
 	await verifyInstagram(page);
 	await expect(
 		page.getByRole('button', { name: 'Instagram export', exact: true })
@@ -391,7 +391,7 @@ test('BZip2 ZIP imports use the bundled worker and require review before sending
 test('moderation history shows the affected content reference and its reviewed post destination', async ({
 	page
 }) => {
-	await page.goto('/app/settings/moderation');
+	await page.goto('/settings/moderation');
 	await expect(
 		page.getByText(
 			'at://did:plc:alice/social.craftsky.feed.post/moderated-post',
@@ -400,7 +400,7 @@ test('moderation history shows the affected content reference and its reviewed p
 	).toBeVisible();
 	await expect(
 		page.getByRole('link', { name: 'View post', exact: true })
-	).toHaveAttribute('href', '/app/posts/did%3Aplc%3Aalice/moderated-post');
+	).toHaveAttribute('href', '/posts/did%3Aplc%3Aalice/moderated-post');
 	await expect(
 		page.getByRole('link', { name: 'Appeal by email', exact: true })
 	).toHaveAttribute('href', /^mailto:moderation@craftsky.social\?/);
@@ -408,7 +408,7 @@ test('moderation history shows the affected content reference and its reviewed p
 test('Instagram verification, reviewed manual import and following a match complete through real controls', async ({
 	page
 }) => {
-	await page.goto('/app/settings/instagram');
+	await page.goto('/settings/instagram');
 	await verifyInstagram(page);
 	await page
 		.getByRole('button', { name: 'Enter handles', exact: true })
@@ -451,7 +451,7 @@ test('Instagram verification, reviewed manual import and following a match compl
 test('business events create, edit using the accepted CID, and delete', async ({
 	page
 }) => {
-	await page.goto('/app/settings/events');
+	await page.goto('/settings/events');
 	await page.getByRole('button', { name: 'History', exact: true }).click();
 	await expect(
 		page.getByRole('button', { name: 'History', exact: true })
@@ -522,7 +522,7 @@ test('business events create, edit using the accepted CID, and delete', async ({
 test('customisation changes preview choices and saves the exact native colour and background values', async ({
 	page
 }) => {
-	await page.goto('/app/settings/customisation');
+	await page.goto('/settings/customisation');
 	const save = page.getByRole('button', { name: 'Save', exact: true });
 	await expect(save).toBeDisabled();
 	await page.getByText('Green', { exact: true }).click();
@@ -569,7 +569,7 @@ test('customisation changes preview choices and saves the exact native colour an
 test('product modal cancellation restores existing details and removes an unsaved new product without writing', async ({
 	page
 }) => {
-	await page.goto('/app/settings/products');
+	await page.goto('/settings/products');
 	await page
 		.getByRole('button', { name: 'Edit Blue wool', exact: true })
 		.click();
@@ -610,7 +610,7 @@ test('product modal cancellation restores existing details and removes an unsave
 test('About displays the embedded build version alongside native legal rows', async ({
 	page
 }) => {
-	await page.goto('/app/settings/about');
+	await page.goto('/settings/about');
 	const version = readFileSync(
 		new URL('../../appview/VERSION', import.meta.url),
 		'utf8'

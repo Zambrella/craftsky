@@ -17,55 +17,55 @@ const account = {
 	token: Buffer.alloc(32, 1).toString('base64url')
 };
 const screens = [
-	['home', '/app/home'],
-	['search', '/app/search'],
-	['search-results', '/app/search?q=knitting&tab=posts'],
-	['hashtag', '/app/tags/knitting'],
-	['activity', '/app/activity'],
-	['profile', '/app/profile/did%3Aplc%3Aalice'],
-	['profile-handle', '/app/profile/alice.test'],
-	['profile-posts', '/app/profile/did%3Aplc%3Aalice?tab=posts'],
-	['profile-about', '/app/profile/did%3Aplc%3Aalice?tab=about'],
-	['profile-events', '/app/profile/did%3Aplc%3Aalice?tab=events'],
-	['profile-visitor', '/app/profile/did%3Aplc%3Abob'],
-	['profile-editor', '/app/profile/edit'],
-	['thread', '/app/posts/did%3Aplc%3Aalice/first'],
-	['project-detail', '/app/posts/did%3Aplc%3Aalice/visual-cardigan'],
-	['saved', '/app/saved'],
-	['saved-folder', '/app/saved?folder=20c69251-1dcc-4a47-8104-d1877c575f34'],
-	['drafts', '/app/drafts'],
-	['scheduled', '/app/scheduled'],
-	['composer-standard', '/app/compose'],
-	['composer-project', '/app/compose/project'],
-	['chat-inbox', '/app/messages'],
-	['chat-requests', '/app/messages/requests'],
-	['chat-new', '/app/messages/new'],
-	['chat-conversation', '/app/messages/visual-accepted'],
-	['chat-request-conversation', '/app/messages/visual-request'],
-	['chat-details', '/app/messages/visual-accepted/details'],
-	['chat-report', '/app/messages/visual-accepted/report'],
-	['chat-settings', '/app/messages/settings'],
-	['business-event', '/app/events/did%3Aplc%3Aalice/visual-workshop'],
-	['settings-index', '/app/settings'],
-	['settings-appearance', '/app/settings/appearance'],
-	['settings-languages', '/app/settings/languages'],
-	['settings-notifications', '/app/settings/notifications'],
-	['settings-customisation', '/app/settings/customisation'],
-	['settings-privacy', '/app/settings/privacy'],
-	['settings-messaging', '/app/settings/messaging'],
-	['settings-growth', '/app/settings/growth'],
-	['settings-followers', '/app/settings/followers'],
-	['settings-following', '/app/settings/following'],
-	['settings-muted', '/app/settings/muted'],
-	['settings-blocked', '/app/settings/blocked'],
-	['settings-account', '/app/settings/account'],
-	['settings-moderation', '/app/settings/moderation'],
-	['settings-about', '/app/settings/about'],
-	['settings-billing', '/app/settings/subscriptions'],
-	['settings-business', '/app/settings/business'],
-	['settings-products', '/app/settings/products'],
-	['settings-events', '/app/settings/events'],
-	['settings-instagram', '/app/settings/instagram']
+	['home', '/feed'],
+	['search', '/search'],
+	['search-results', '/search?q=knitting&tab=posts'],
+	['hashtag', '/search/tags?tag=knitting'],
+	['activity', '/notifications'],
+	['profile', '/profiles/did%3Aplc%3Aalice'],
+	['profile-handle', '/profiles/alice.test'],
+	['profile-posts', '/profiles/did%3Aplc%3Aalice?tab=posts'],
+	['profile-about', '/profiles/did%3Aplc%3Aalice?tab=about'],
+	['profile-events', '/profiles/did%3Aplc%3Aalice?tab=events'],
+	['profile-visitor', '/profiles/did%3Aplc%3Abob'],
+	['profile-editor', '/profile/edit'],
+	['thread', '/posts/did%3Aplc%3Aalice/first'],
+	['project-detail', '/posts/did%3Aplc%3Aalice/visual-cardigan'],
+	['saved', '/saved'],
+	['saved-folder', '/saved/folder?folder=20c69251-1dcc-4a47-8104-d1877c575f34'],
+	['drafts', '/drafts'],
+	['scheduled', '/scheduled'],
+	['composer-standard', '/compose'],
+	['composer-project', '/compose/project'],
+	['chat-inbox', '/messages'],
+	['chat-requests', '/messages/requests'],
+	['chat-new', '/messages/new'],
+	['chat-conversation', '/messages/conversations/visual-accepted'],
+	['chat-request-conversation', '/messages/conversations/visual-request'],
+	['chat-details', '/messages/conversations/visual-accepted/details'],
+	['chat-report', '/messages/conversations/visual-accepted/report'],
+	['chat-settings', '/settings/messaging'],
+	['business-event', '/events/did%3Aplc%3Aalice/visual-workshop'],
+	['settings-index', '/settings'],
+	['settings-appearance', '/settings/appearance'],
+	['settings-languages', '/settings/languages'],
+	['settings-notifications', '/notifications/settings'],
+	['settings-customisation', '/settings/customisation'],
+	['settings-privacy', '/settings/privacy'],
+	['settings-messaging', '/settings/messaging'],
+	['settings-growth', '/settings/growth'],
+	['settings-followers', '/settings/followers'],
+	['settings-following', '/settings/following'],
+	['settings-muted', '/settings/muted'],
+	['settings-blocked', '/settings/blocked'],
+	['settings-account', '/settings/account'],
+	['settings-moderation', '/settings/moderation'],
+	['settings-about', '/settings/about'],
+	['settings-billing', '/settings/subscriptions'],
+	['settings-business', '/settings/business'],
+	['settings-products', '/settings/products'],
+	['settings-events', '/settings/events'],
+	['settings-instagram', '/settings/instagram']
 ] as const;
 
 test.use({
@@ -174,14 +174,14 @@ for (const [name, route] of screens) {
 		const navigation = page.getByRole('navigation', { name: 'Main tabs' });
 		if (
 			![
-				'/app/home',
-				'/app/search',
-				'/app/activity',
-				'/app/profile/did%3Aplc%3Aalice',
-				'/app/profile/alice.test',
-				'/app/messages',
-				'/app/messages/requests',
-				'/app/messages/new'
+				'/feed',
+				'/search',
+				'/notifications',
+				'/profiles/did%3Aplc%3Aalice',
+				'/profiles/alice.test',
+				'/messages',
+				'/messages/requests',
+				'/messages/new'
 			].includes(route.split('?')[0])
 		) {
 			await expect(navigation).toBeHidden();
@@ -245,7 +245,7 @@ test('native welcome hierarchy and usable hydrated controls', async ({
 test('native post type chooser opens the selected fullscreen editor', async ({
 	page
 }) => {
-	await settleAccountView(page, '/app/home');
+	await settleAccountView(page, '/feed');
 	await page.getByRole('button', { name: 'Create post', exact: true }).click();
 	const chooser = page.getByRole('dialog', {
 		name: 'What would you like to share?'
@@ -273,7 +273,7 @@ test('native onboarding remains outside the signed-in navigation', async ({
 		headers: { 'content-type': 'application/json' },
 		body: JSON.stringify({ owners: { alice: { completed: false } } })
 	});
-	await settleAccountView(page, '/app/home');
+	await settleAccountView(page, '/feed');
 	await expect(
 		page.getByRole('navigation', { name: 'Main tabs' })
 	).toBeHidden();
@@ -287,7 +287,7 @@ test('native onboarding remains outside the signed-in navigation', async ({
 test('compact navigation and account sheets retain keyboard focus and dismiss with Escape', async ({
 	page
 }) => {
-	await settleAccountView(page, '/app/home');
+	await settleAccountView(page, '/feed');
 	const opener = page.getByRole('button', {
 		name: 'Open navigation',
 		exact: true
@@ -347,7 +347,7 @@ for (const [name, route] of screens) {
 test('saved private draft renders a native compact row and reopens its editor', async ({
 	page
 }, testInfo) => {
-	await settleAccountView(page, '/app/compose');
+	await settleAccountView(page, '/compose');
 	await page
 		.getByRole('textbox', {
 			name: 'What would you like to share?',
@@ -356,7 +356,7 @@ test('saved private draft renders a native compact row and reopens its editor', 
 		.fill('A knitted blue cardigan');
 	await page.getByRole('button', { name: 'Save draft', exact: true }).click();
 	await expect(page.getByText('Draft saved', { exact: true })).toBeVisible();
-	await page.goto('/app/drafts');
+	await page.goto('/drafts');
 	await expect(
 		page.getByText('A knitted blue cardigan', { exact: true })
 	).toBeVisible();
@@ -392,7 +392,7 @@ test('feed bodies expand and collapse without cutting an accessible facet', asyn
 		];
 		await route.fulfill({ response, json: body });
 	});
-	await settleAccountView(page, '/app/home');
+	await settleAccountView(page, '/feed');
 	const card = page.locator('.member-post').first();
 	await expect(card.getByRole('link', { name: link, exact: true })).toHaveCount(
 		0
@@ -405,7 +405,7 @@ test('feed bodies expand and collapse without cutting an accessible facet', asyn
 	await card.getByRole('button', { name: 'Show less', exact: true }).click();
 	await expect(card).not.toContainText('All the pattern details.');
 	await card.locator('.prose').click();
-	await expect(page).toHaveURL(/\/app\/posts\/did%3Aplc%3Aalice\/first$/);
+	await expect(page).toHaveURL(/\/posts\/did%3Aplc%3Aalice\/first$/);
 });
 
 test('profile header collapses to a readable identity and retains Back navigation', async ({
@@ -421,7 +421,7 @@ test('profile header collapses to a readable identity and retains Back navigatio
 		}));
 		await route.fulfill({ response, json: body });
 	});
-	await settleAccountView(page, '/app/profile/did%3Aplc%3Abob?tab=posts');
+	await settleAccountView(page, '/profiles/did%3Aplc%3Abob?tab=posts');
 	await page.evaluate(() => window.scrollTo(0, 500));
 	await expect(page.locator('.compact-profile-identity')).toBeVisible();
 	await expect(
@@ -435,7 +435,7 @@ test('profile header collapses to a readable identity and retains Back navigatio
 test('project detail page has the native compact app bar and accessible fields', async ({
 	page
 }, testInfo) => {
-	await settleAccountView(page, '/app/compose/project');
+	await settleAccountView(page, '/compose/project');
 	await page
 		.getByRole('button', { name: 'Pattern details', exact: true })
 		.click();
