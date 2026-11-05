@@ -73,6 +73,52 @@ test.beforeEach(async ({ context, page }) => {
 	]);
 });
 
+test('following feed retains distinct original and repost entries for the same post', async ({
+	page
+}) => {
+	const value = post('repeated', {
+		text: 'One post, three timeline activities.'
+	});
+	const carol = {
+		did: 'did:plc:carol',
+		handle: 'carol.test',
+		displayName: 'Carol Maker'
+	};
+	const dana = {
+		did: 'did:plc:dana',
+		handle: 'dana.test',
+		displayName: 'Dana Maker'
+	};
+	await page.route('**/api/appview/v1/feed/timeline*', (route) =>
+		route.fulfill({
+			json: {
+				items: [
+					{
+						itemKey: 'repost:carol',
+						post: value,
+						reason: { type: 'repost', by: carol }
+					},
+					{ itemKey: 'post:original', post: value },
+					{
+						itemKey: 'repost:dana',
+						post: value,
+						reason: { type: 'repost', by: dana }
+					}
+				]
+			}
+		})
+	);
+	await page.goto('/feed');
+	await expect(page.getByText(value.text, { exact: true })).toHaveCount(3);
+	await expect(
+		page.getByRole('link', { name: 'Reposted by Carol Maker' })
+	).toBeVisible();
+	await expect(
+		page.getByRole('link', { name: 'Reposted by Dana Maker' })
+	).toBeVisible();
+	await expect(page.getByText('We couldn’t load this page.')).toHaveCount(0);
+});
+
 test('project feed summaries retain pattern facets, credits, size and compact edit metadata', async ({
 	page
 }) => {
