@@ -52,6 +52,11 @@ createServer((req, res) => {
 	if (url.pathname.startsWith('/v1/public/profiles/'))
 		return send(200, {
 			...author,
+			avatar: url.pathname.endsWith('/no-avatar.test')
+				? undefined
+				: url.pathname.endsWith('/unsafe-avatar.test')
+					? 'javascript:alert(1)'
+					: author.avatar,
 			description: 'Making things, one stitch at a time.',
 			crafts: ['sewing'],
 			links: [
