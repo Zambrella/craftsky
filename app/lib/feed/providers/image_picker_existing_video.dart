@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:typed_data';
 
+import 'package:craftsky_app/feed/media/video_source_validator.dart';
 import 'package:craftsky_app/feed/providers/composer_video_controller.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
 import 'package:flutter/foundation.dart';
@@ -42,20 +43,25 @@ final class ImagePickerExistingVideo implements ExistingVideoPicker {
     final metadata = await _probe(file);
     final header = BytesBuilder(copy: false);
     await file.openRead(0, 12).forEach(header.add);
+    final headerBytes = header.takeBytes();
+    final mimeType =
+        detectVideoSourceMimeType(headerBytes) ?? file.mimeType ?? 'video/mp4';
     final pathName = Uri.file(file.path).pathSegments.lastOrNull;
     final displayName = file.name.trim().isNotEmpty
         ? file.name
         : pathName?.trim().isNotEmpty ?? false
         ? pathName!
+        : mimeType == 'video/quicktime'
+        ? 'video.mov'
         : 'video.mp4';
     return LocalVideoSelection(
       displayName: displayName,
-      mimeType: file.mimeType ?? 'video/mp4',
+      mimeType: mimeType,
       byteLength: byteLength,
       duration: metadata.duration,
       width: metadata.width,
       height: metadata.height,
-      headerBytes: header.takeBytes(),
+      headerBytes: headerBytes,
       openRead: file.openRead,
       posterBytes: metadata.posterBytes,
     );

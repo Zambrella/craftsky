@@ -59,6 +59,15 @@ allowed. New uploads have a rolling 20-authorizations-per-owner daily allowance.
 The canonical PDS MP4 prefers Bunny's 720p fallback, falling back to available
 resolutions for smaller inputs. It is limited to 300 MB and ten minutes.
 
+The Bunny client upload path accepts MP4 and QuickTime-branded MOV sources,
+including MOV files containing H.264 or HEVC video. Selection checks the file
+header instead of trusting the extension or a missing picker MIME value. TUS
+metadata carries the detected source MIME (`video/mp4` or `video/quicktime`).
+Source files retain the 300,000,000-byte and ten-minute limits; the canonical
+processed PDS blob and playback outputs remain MP4/HLS. The legacy Bluesky
+upload path remains MP4-only. Test MOV selection, poster, rotation and upload
+on iOS, Android and web separately before production rollout.
+
 ## Bunny dashboard organisation
 
 New uploads and PDS imports are placed in a collection named with the owner's
@@ -201,6 +210,14 @@ terminal-owner copies. Image delivery is unchanged.
   title and custom metadata round-tripped through the Bunny API. The temporary
   empty video and collection were removed; no media upload or encoding was
   triggered. The rebuilt local AppView passed `/healthz`.
+- MOV regression checks cover header detection without picker MIME, exact size
+  and duration boundaries, spoofed/truncated headers, resumed QuickTime TUS
+  transfer through the shared composer binding and an MP4 publication proof.
+  Both composer publication suites and transport security/resource bounds pass.
+- Live development MOV check on 2026-11-05: one-second H.264/AAC and HEVC/AAC MOV
+  inputs encoded successfully in `craftsky-dev`; their HLS decoded and their
+  processed MP4s contained H.264/AAC. Both temporary Bunny videos were deleted.
+  This verifies Bunny processing, not real-device picker/PDS publication.
 
 Real PDS publication, physical devices and delayed 24–48-hour retention have not
 been exercised automatically and remain the manual acceptance steps above.

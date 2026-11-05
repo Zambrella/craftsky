@@ -1,3 +1,4 @@
+import 'package:craftsky_app/feed/providers/composer_video_controller.dart';
 import 'package:craftsky_app/feed/providers/image_picker_existing_video.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -84,6 +85,34 @@ void main() {
 
     expect(duration, isNull);
   });
+
+  test(
+    'MOV without platform MIME is detected and accepted by the composer',
+    () async {
+      final bytes = Uint8List.fromList([0, 0, 0, 20, ...'ftypqt  '.codeUnits]);
+      final picker = ImagePickerExistingVideo(
+        pick: () async => XFile.fromData(bytes),
+        probe: (_) async => VideoProbeResult(
+          duration: const Duration(seconds: 5),
+          width: 1080,
+          height: 1920,
+          posterBytes: Uint8List.fromList([1, 2, 3]),
+        ),
+      );
+      final composer = ComposerVideoController(picker: picker);
+      await composer.selectExisting();
+      final selected = composer.selection!;
+      expect(selected.mimeType, 'video/quicktime');
+      expect(selected.displayName, 'video.mov');
+      expect(selected.headerBytes, bytes);
+      expect(selected.width, 1080);
+      expect(selected.height, 1920);
+      expect(
+        await selected.openRead().expand((chunk) => chunk).toList(),
+        bytes,
+      );
+    },
+  );
 
   test(
     'AT-002 picker prepares duration, dimensions, and a poster locally',

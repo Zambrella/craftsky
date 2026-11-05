@@ -15,9 +15,14 @@ const _maxResponseBytes = 65536;
 const _freeBoxLength = 16;
 
 final class VideoUploadSource {
-  const new({required this.length, required this.openRead});
+  const new({
+    required this.length,
+    required this.openRead,
+    this.mimeType = 'video/mp4',
+  });
 
   final int length;
+  final String mimeType;
   final Stream<List<int>> Function() openRead;
 
   @override
@@ -109,7 +114,9 @@ final class VideoServiceClient {
       return await _uploadBunny(source, bunny, onProgress, cancelToken);
     }
     _requireApprovedEndpoint(_uploadEndpoint);
-    if (source.length <= 0 || source.length > maxVideoSourceBytes) {
+    if (source.mimeType != 'video/mp4' ||
+        source.length <= 0 ||
+        source.length > maxVideoSourceBytes) {
       throw const VideoTransportException(VideoTransportFailure.invalidSource);
     }
     if (bypassDeduplication &&
@@ -219,7 +226,8 @@ final class VideoServiceClient {
     ProgressCallback? onProgress,
     CancelToken? cancelToken,
   ) async {
-    if (source.length <= 0 ||
+    if (!supportedVideoSourceMimeTypes.contains(source.mimeType) ||
+        source.length <= 0 ||
         source.length > maxVideoSourceBytes ||
         !capability.expiresAt.isAfter(DateTime.now().toUtc())) {
       throw const VideoTransportException(VideoTransportFailure.invalidSource);
@@ -233,7 +241,7 @@ final class VideoServiceClient {
       'VideoId': capability.videoId,
     };
     final endpoint = Uri.parse('https://video.bunnycdn.com/tusupload');
-    final fileType = base64Encode(utf8.encode('video/mp4'));
+    final fileType = base64Encode(utf8.encode(source.mimeType));
     final title = base64Encode(utf8.encode(capability.title));
     final collection = base64Encode(utf8.encode(capability.collectionId));
     // This isolated client carries only the upload capability, never CraftSky

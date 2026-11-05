@@ -1540,11 +1540,11 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get postVideoValidationFailed =>
-      'The video service couldn\'t accept this MP4. Check its size and duration, then try another file.';
+      'The video service couldn\'t accept this video. Check its size and duration, then try another file.';
 
   @override
   String get postVideoProcessingFailed =>
-      'The video couldn\'t be processed. Retry or choose another MP4.';
+      'The video couldn\'t be processed. Retry or choose another video.';
 
   @override
   String get postVideoRetryableFailure =>

@@ -4,6 +4,21 @@ import 'package:mime/mime.dart';
 
 const maxVideoSourceBytes = 300000000;
 const maxVideoDuration = Duration(seconds: 600);
+const supportedVideoSourceMimeTypes = {'video/mp4', 'video/quicktime'};
+
+// mime's built-in signatures recognise MP4 but not the QuickTime ftyp brand.
+// Match the container, independently of its filename and video codec.
+final _videoMimeTypes = MimeTypeResolver()
+  ..addMagicNumber(
+    [0, 0, 0, 0, ...'ftypqt  '.codeUnits],
+    'video/quicktime',
+    mask: [0, 0, 0, 0, ...List<int>.filled(8, 255)],
+  );
+
+String? detectVideoSourceMimeType(List<int> headerBytes) {
+  final type = _videoMimeTypes.lookup('', headerBytes: headerBytes);
+  return supportedVideoSourceMimeTypes.contains(type) ? type : null;
+}
 
 enum VideoSourceRejection { unsupportedType, tooLarge, tooLong }
 
@@ -24,17 +39,20 @@ VideoSourceValidationResult validateVideoSource({
   required Uint8List headerBytes,
   required Duration? duration,
 }) {
-  final detectedType = lookupMimeType(fileName, headerBytes: headerBytes);
-  final contentType = lookupMimeType('', headerBytes: headerBytes);
-  if (detectedType != 'video/mp4' ||
-      mimeType.toLowerCase().trim() != 'video/mp4' ||
-      contentType != 'video/mp4') {
+  final detectedType = _videoMimeTypes.lookup(
+    fileName,
+    headerBytes: headerBytes,
+  );
+  final contentType = detectVideoSourceMimeType(headerBytes);
+  if (contentType == null ||
+      detectedType != contentType ||
+      mimeType.toLowerCase().trim() != contentType) {
     return const VideoSourceValidationResult(
       canUpload: false,
       rejectedReason: VideoSourceRejection.unsupportedType,
     );
   }
-  if (sizeBytes < 0 || sizeBytes > maxVideoSourceBytes) {
+  if (sizeBytes <= 0 || sizeBytes > maxVideoSourceBytes) {
     return const VideoSourceValidationResult(
       canUpload: false,
       rejectedReason: VideoSourceRejection.tooLarge,

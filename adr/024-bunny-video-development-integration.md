@@ -41,10 +41,14 @@ do not expire while referenced.
 
 ## Development policy and operations
 
-The development library uses free H.264 encoding, 360p/720p/1080p, MP4 fallback,
+The development library uses Premium H.264 encoding (approved on 2026-11-05),
+360p/720p/1080p, MP4 fallback,
 retained originals and Frankfurt-only storage. Direct playback is enabled for
 native clients. There is a rolling allowance of 20 upload authorizations per
-owner per 24 hours. Input remains MP4, at most 300,000,000 bytes and ten minutes.
+owner per 24 hours. The Bunny client accepts MP4 and QuickTime-branded MOV
+input, at most 300,000,000 bytes and ten minutes. Source MIME follows the
+detected container; the PDS handoff remains a processed MP4. The legacy Bluesky
+path remains MP4-only.
 The 720p MP4 fallback is preferred for the PDS; smaller available inputs use their
 own rendition. Existing PDS and OAuth deadlines remain in force.
 

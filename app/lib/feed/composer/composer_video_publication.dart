@@ -36,6 +36,7 @@ VideoPublicationCoordinator composerVideoPublication({
             return await service.upload(
               source: VideoUploadSource(
                 length: selection.byteLength,
+                mimeType: selection.mimeType,
                 openRead: selection.openRead,
               ),
               ownerDid: owner.session.account.did.value,

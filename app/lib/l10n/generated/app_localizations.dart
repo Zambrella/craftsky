@@ -2725,13 +2725,13 @@ abstract class AppLocalizations {
   /// Actionable failure for service-side video validation.
   ///
   /// In en, this message translates to:
-  /// **'The video service couldn\'t accept this MP4. Check its size and duration, then try another file.'**
+  /// **'The video service couldn\'t accept this video. Check its size and duration, then try another file.'**
   String get postVideoValidationFailed;
 
   /// Actionable failure for video processing.
   ///
   /// In en, this message translates to:
-  /// **'The video couldn\'t be processed. Retry or choose another MP4.'**
+  /// **'The video couldn\'t be processed. Retry or choose another video.'**
   String get postVideoProcessingFailed;
 
   /// Safe retryable fallback for video publication failures.

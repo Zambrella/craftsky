@@ -1,8 +1,15 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:craftsky_app/auth/models/account_key.dart';
+import 'package:craftsky_app/auth/models/account_session_lease.dart';
+import 'package:craftsky_app/feed/composer/composer_video_publication.dart';
+import 'package:craftsky_app/feed/data/post_api_client.dart';
 import 'package:craftsky_app/feed/data/video_service_client.dart';
+import 'package:craftsky_app/feed/models/create_post_video.dart';
+import 'package:craftsky_app/feed/models/video_service_result.dart';
 import 'package:craftsky_app/feed/models/video_upload_limits.dart';
+import 'package:craftsky_app/feed/providers/composer_video_controller.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_details.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -78,7 +85,136 @@ void main() {
     };
     expect(parts['title'], capability().title);
     expect(parts['collection'], capability().collectionId);
+    expect(parts['filetype'], 'video/mp4');
     expect(capability().toString(), isNot(contains(signature)));
+  });
+  test(
+    'MOV composer upload preserves QuickTime MIME and publishes an MP4 proof',
+    () async {
+      final bytes = Uint8List.fromList([
+        0,
+        0,
+        0,
+        20,
+        ...'ftypqt  '.codeUnits,
+        ...List<int>.filled(8, 0),
+      ]);
+      final adapter = _TusAdapter(length: bytes.length);
+      final service = VideoServiceClient.forTesting(
+        uploadEndpoint: Uri.parse(
+          'https://video.bsky.app/xrpc/app.bsky.video.uploadVideo',
+        ),
+        dio: Dio()..httpClientAdapter = adapter,
+      );
+      final selection = LocalVideoSelection(
+        displayName: 'private-camera-name.mov',
+        mimeType: 'video/quicktime',
+        byteLength: bytes.length,
+        duration: const Duration(seconds: 1),
+        width: 1080,
+        height: 1920,
+        headerBytes: bytes.sublist(0, 12),
+        openRead: () => Stream.value(bytes),
+      );
+      CreatePostVideo? published;
+      final coordinator = composerVideoPublication(
+        owner: ActiveAccountLease(
+          session: AccountSessionLease(
+            account: AccountKey('did:plc:abcdefghijklmnopqrstuvwx'),
+            sessionGeneration: 1,
+          ),
+          activationGeneration: 1,
+        ),
+        selection: selection,
+        api: _BunnyApi(
+          VideoUploadAuthorization.fromMap({
+            'provider': 'bunny',
+            'jobId': job,
+            'videoId': video,
+            'libraryId': '123',
+            'token': signature,
+            'expiresAt': '2030-01-01T00:00:00Z',
+            'title': capability().title,
+            'collectionId': capability().collectionId,
+          }),
+        ),
+        service: service,
+        publish: (proof, {required allowBlobRecovery}) async =>
+            published = proof,
+        onProgress: (_) {},
+      );
+      await coordinator.publish(
+        altText: 'A short MOV',
+        aspectRatio: (1080, 1920),
+      );
+      final metadata =
+          adapter.requests.first.headers['Upload-Metadata'] as String;
+      final fields = {
+        for (final part in metadata.split(','))
+          part.split(' ').first: utf8.decode(
+            base64Decode(part.split(' ').last),
+          ),
+      };
+      expect(fields['filetype'], 'video/quicktime');
+      expect(fields['title'], capability().title);
+      expect(fields.values.join(' '), isNot(contains('private-camera-name')));
+      expect(adapter.lastBytes, bytes.sublist(3));
+      expect(published?.blob.mimeType, 'video/mp4');
+      expect(published?.alt, 'A short MOV');
+    },
+  );
+
+  test('unsupported source MIME is rejected before contacting Bunny', () async {
+    final adapter = _TusAdapter();
+    final service = VideoServiceClient.forTesting(
+      uploadEndpoint: Uri.parse(
+        'https://video.bsky.app/xrpc/app.bsky.video.uploadVideo',
+      ),
+      dio: Dio()..httpClientAdapter = adapter,
+    );
+    await expectLater(
+      service.upload(
+        source: VideoUploadSource(
+          length: 8,
+          mimeType: 'video/webm',
+          openRead: () => Stream.value(List<int>.filled(8, 0)),
+        ),
+        ownerDid: 'did:plc:alice',
+        authorizationHeader: 'Bearer private',
+        bunny: capability(),
+      ),
+      throwsA(isA<VideoTransportException>()),
+    );
+    expect(adapter.requests, isEmpty);
+  });
+
+  test('legacy MP4 upload does not mislabel a MOV source', () async {
+    final adapter = _TusAdapter();
+    final service = VideoServiceClient.forTesting(
+      uploadEndpoint: Uri.parse(
+        'https://video.bsky.app/xrpc/app.bsky.video.uploadVideo',
+      ),
+      dio: Dio()..httpClientAdapter = adapter,
+    );
+    await expectLater(
+      service.upload(
+        source: VideoUploadSource(
+          length: 8,
+          mimeType: 'video/quicktime',
+          openRead: () => Stream.value(List<int>.filled(8, 0)),
+        ),
+        ownerDid: 'did:plc:alice',
+        authorizationHeader: 'Bearer private',
+      ),
+      throwsA(
+        isA<VideoTransportException>().having(
+          (e) => e.kind,
+          'kind',
+          VideoTransportFailure.invalidSource,
+        ),
+      ),
+    );
+    expect(adapter.requests, isEmpty);
   });
   test(
     'Bunny diagnostics keep HTTP cause without capability or body',
@@ -132,8 +268,9 @@ void main() {
 }
 
 class _TusAdapter implements HttpClientAdapter {
-  new({this.foreign = false});
+  new({this.foreign = false, this.length = 8});
   final bool foreign;
+  final int length;
   final List<RequestOptions> requests = [];
   final List<String> methods = [];
   List<int> lastBytes = [];
@@ -184,13 +321,38 @@ class _TusAdapter implements HttpClientAdapter {
       '',
       204,
       headers: {
-        'upload-offset': ['8'],
+        'upload-offset': ['$length'],
       },
     );
   }
 
   @override
   void close({bool force = false}) {}
+}
+
+class _BunnyApi extends PostApiClient {
+  new(this.authorization) : super(Dio());
+  final VideoUploadAuthorization authorization;
+  @override
+  Future<VideoUploadLimits> getVideoUploadLimits() async =>
+      const VideoUploadLimits(canUpload: true);
+  @override
+  Future<VideoUploadAuthorization> authorizeVideoUpload() async =>
+      authorization;
+  @override
+  Future<VideoServiceResult> getBunnyVideoStatus(
+    String jobId, {
+    CancelToken? cancelToken,
+  }) async => VideoServiceResult.fromJson({
+    'jobId': jobId,
+    'state': 'JOB_STATE_COMPLETED',
+    'blob': {
+      r'$type': 'blob',
+      'ref': {r'$link': 'bafyprocessed'},
+      'mimeType': 'video/mp4',
+      'size': 8,
+    },
+  });
 }
 
 class _FailureAdapter implements HttpClientAdapter {
