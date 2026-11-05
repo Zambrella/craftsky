@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { appendPage } from '#lib/pagination.ts';
 	import { dragScroll } from '#lib/drag-scroll.ts';
-	import { getContext, onMount, onDestroy } from 'svelte';
+	import { getContext, onMount, onDestroy, untrack } from 'svelte';
 	import {
 		Publications,
 		publicationsContext,
@@ -38,12 +38,17 @@
 		'feed',
 		'/feed' + page.url.search
 	);
+	const currentProfile = getContext<(() => Profile | undefined) | undefined>(
+		'craftsky-profile'
+	);
 	const snapshot = historyView?.value;
 	let loadedPages = snapshot?.pages || 0;
 	let disposed = false;
 	let loaded = !!snapshot;
 	const work = new Work();
-	let profile = $state<Profile | undefined>(snapshot?.profile);
+	let profile = $state<Profile | undefined>(
+		snapshot?.profile ?? untrack(() => currentProfile?.())
+	);
 	let items = $state<FeedItem[]>(snapshot?.items || []),
 		cursor = $state<string | null>(snapshot?.cursor || null);
 	function saveView() {
@@ -174,9 +179,8 @@
 	<nav class="tabs" use:dragScroll aria-label="Home feeds">
 		<a href="/feed" aria-current={!craft ? 'page' : undefined}
 			><Icon name="users" size={18} />Following</a
-		>{#each craftFeeds(profile?.crafts) as item}{@const key = craftKey(
-				item.id
-			)}<a
+		>{#each craftFeeds(currentProfile?.()?.crafts ?? profile?.crafts) as item}{@const key =
+				craftKey(item.id)}<a
 				href={'/feed?craft=' + encodeURIComponent(item.id)}
 				aria-current={craftKey(craft) === key ? 'page' : undefined}
 				>{#if ['knitting', 'crochet', 'sewing', 'embroidery', 'quilting'].includes(key)}<span
@@ -270,7 +274,11 @@
 			min-height: 48px;
 			padding: 10px 18px;
 			box-shadow: 3px 3px var(--shadow);
-			background: var(--surface);
+			background: var(--primary);
+			color: var(--on-primary);
+		}
+		.filter-dot {
+			background: var(--on-primary);
 		}
 	}
 </style>
