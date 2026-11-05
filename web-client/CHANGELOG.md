@@ -1,5 +1,9 @@
 # Web Client Changelog
 
+## 1.11.4 - 2026-11-05
+
+- fix(web-client): smooth feed navigation and profile actions (#311)
+
 ## 1.11.3 - 2026-11-05
 
 - fix(web-client): preserve timeline identities across repost overlays (#310)
