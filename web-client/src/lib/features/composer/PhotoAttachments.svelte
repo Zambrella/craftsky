@@ -111,7 +111,7 @@
 				type="file"
 				aria-label={video ? 'Add photos or a video' : 'Add images'}
 				accept={video
-					? 'image/jpeg,image/png,image/webp,video/mp4'
+					? 'image/jpeg,image/png,image/webp,video/mp4,video/quicktime,.mp4,.mov'
 					: 'image/jpeg,image/png,image/webp'}
 				multiple
 				{disabled}

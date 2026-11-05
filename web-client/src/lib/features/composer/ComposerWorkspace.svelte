@@ -1397,9 +1397,14 @@
 										></span
 									>
 								</div>
-								<video controls src={videoURL} aria-label="Video preview"
-									><track kind="captions" /></video
-								><label
+								{#if draft.video.previewUnavailable}
+									<p class="muted">
+										Preview unavailable in this browser. You can still upload
+										this video.
+									</p>
+								{:else}<video controls src={videoURL} aria-label="Video preview"
+										><track kind="captions" /></video
+									>{/if}<label
 									>Video description<textarea
 										name="draft.video.alt"
 										maxlength="1000"
@@ -1410,7 +1415,7 @@
 								><label class="file-button replace-video"
 									>Replace video<input
 										type="file"
-										accept="video/mp4"
+										accept="video/mp4,video/quicktime,.mp4,.mov"
 										aria-label="Replace video"
 										onchange={(event) => {
 											void addVideo(event.currentTarget.files);
@@ -1425,7 +1430,9 @@
 										draft.videoRecovery = 0;
 									}}>Remove video</button
 								>
-								<p class="muted">MP4 · up to ten minutes · up to 300 MB</p>
+								<p class="muted">
+									MP4 or MOV · up to ten minutes · up to 300 MB
+								</p>
 							</div>{/if}
 						{#if retainedVideo && draft.edit?.post.video}
 							<div class="video-editor">
@@ -1450,7 +1457,7 @@
 								<label class="file-button replace-video"
 									>Replace video<input
 										type="file"
-										accept="video/mp4"
+										accept="video/mp4,video/quicktime,.mp4,.mov"
 										aria-label="Replace video"
 										onchange={(event) => {
 											void addVideo(event.currentTarget.files);

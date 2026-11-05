@@ -153,6 +153,13 @@ func TestBunnyPublicationOwnershipDurabilityAndPlayback(t *testing.T) {
 	if playlist != "https://test.b-cdn.net/"+video+"/playlist.m3u8" || poster != "https://test.b-cdn.net/"+video+"/thumbnail.jpg" {
 		t.Fatal("incorrect playback mapping")
 	}
+	_, _, embedURL := b.URLsWithEmbed(owner, contentCID)
+	if embedURL != "https://player.mediadelivery.net/embed/123/"+video {
+		t.Fatal("incorrect hosted player mapping")
+	}
+	if _, _, foreign := b.URLsWithEmbed("did:plc:foreign", contentCID); foreign != "" {
+		t.Fatal("foreign owner received hosted mapping")
+	}
 	_, err = pool.Exec(ctx, "UPDATE bunny_video_jobs SET created_at=now()-interval '8 days' WHERE id=$1", authorization.JobID)
 	if err != nil {
 		t.Fatal(err)

@@ -117,6 +117,7 @@ export interface Video {
 	size: number;
 	alt: string;
 	playlist: string;
+	embedUrl?: string;
 	thumbnail?: string;
 	aspectRatio?: { width: number; height: number };
 	captions?: { cid: CID; lang: string; uri: string }[];

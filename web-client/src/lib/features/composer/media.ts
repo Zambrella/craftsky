@@ -4,6 +4,7 @@ import type {
 	PostPayload
 } from '#lib/api/client.ts';
 import type { DraftMedia } from '../drafts/store.ts';
+import { uploadBunnyVideo } from './bunny-video.ts';
 
 export interface ImageTransform {
 	rotation?: number;
@@ -16,7 +17,7 @@ export function attachmentSelection(
 ): 'images' | 'video' | undefined {
 	if (!files.length) return;
 	const videos = files.filter(
-		(file) => file.type.startsWith('video/') || /\.mp4$/i.test(file.name)
+		(file) => file.type.startsWith('video/') || /\.(mp4|mov)$/i.test(file.name)
 	);
 	if (videos.length && files.length !== 1)
 		throw new Error('Choose photos or one video, rather than mixing them.');
@@ -105,44 +106,70 @@ export async function prepareImage(
 		bitmap.close();
 	}
 }
+export function videoSourceMime(
+	header: Uint8Array
+): 'video/mp4' | 'video/quicktime' | undefined {
+	if (header.length < 12) return;
+	const tag = new TextDecoder('ascii').decode(header.subarray(4, 12));
+	if (tag === 'ftypqt  ') return 'video/quicktime';
+	if (['ftypisom', 'ftypmp41', 'ftypmp42', 'ftypavc1'].includes(tag))
+		return 'video/mp4';
+}
+
 export async function inspectVideo(file: File): Promise<DraftMedia> {
-	if (file.type !== 'video/mp4' || !file.size || file.size > 300_000_000)
-		throw new Error('Choose an MP4 video up to 300 MB and ten minutes.');
+	const mime = videoSourceMime(
+		new Uint8Array(await file.slice(0, 12).arrayBuffer())
+	);
+	if (!mime || !file.size || file.size > 300_000_000)
+		throw new Error('Choose an MP4 or MOV video up to 300 MB and ten minutes.');
+	const result: DraftMedia = {
+		id: crypto.randomUUID(),
+		name: file.name,
+		blob: file,
+		mime,
+		alt: ''
+	};
 	const url = URL.createObjectURL(file);
 	const element = document.createElement('video');
 	try {
-		await new Promise<void>((resolve, reject) => {
-			const timeout = setTimeout(() => {
-				element.src = '';
-				reject(new Error('Could not read this video.'));
-			}, 15000);
-			element.onloadedmetadata = () => {
-				clearTimeout(timeout);
-				resolve();
-			};
-			element.onerror = () => {
-				clearTimeout(timeout);
-				reject(new Error('This video cannot be played in your browser.'));
-			};
-			element.preload = 'metadata';
-			element.src = url;
-		});
-		if (
-			!Number.isFinite(element.duration) ||
-			element.duration > 600 ||
-			element.duration <= 0
-		)
+		try {
+			await new Promise<void>((resolve, reject) => {
+				const timeout = setTimeout(
+					() => reject(new Error('Could not read this video.')),
+					15000
+				);
+				element.onloadedmetadata = () => {
+					clearTimeout(timeout);
+					resolve();
+				};
+				element.onerror = () => {
+					clearTimeout(timeout);
+					reject(new Error('This video cannot be previewed in your browser.'));
+				};
+				element.preload = 'metadata';
+				element.src = url;
+			});
+		} catch (error) {
+			// Browsers without HEVC/QuickTime decoding can still upload a valid MOV.
+			// AppView validates duration after Bunny processing and before publication.
+			if (mime !== 'video/quicktime') throw error;
+			return { ...result, previewUnavailable: true };
+		}
+		if (!Number.isFinite(element.duration) || element.duration <= 0) {
+			if (mime === 'video/quicktime')
+				return { ...result, previewUnavailable: true };
+			throw new Error('Could not read this video.');
+		}
+		if (element.duration > 600)
 			throw new Error('Videos must be no longer than ten minutes.');
 		return {
-			id: crypto.randomUUID(),
-			name: file.name,
-			blob: file,
-			mime: 'video/mp4',
-			alt: '',
-			width: element.videoWidth,
-			height: element.videoHeight
+			...result,
+			width: element.videoWidth || undefined,
+			height: element.videoHeight || undefined
 		};
 	} finally {
+		element.onloadedmetadata = null;
+		element.onerror = null;
 		element.removeAttribute('src');
 		element.load();
 		URL.revokeObjectURL(url);
@@ -229,54 +256,78 @@ export async function uploadVideo(
 		);
 	const authorization = await api.media.videoAuthorization();
 	if (signal.aborted) throw new DOMException('Cancelled', 'AbortError');
-	// Capabilities are provider-bound. Bunny uploads use a separate TUS flow;
-	// never forward their authorization to the Bluesky upload endpoint.
-	if (authorization.provider != null && authorization.provider !== 'bluesky')
+	const bunny = authorization.provider === 'bunny';
+	if (
+		authorization.provider != null &&
+		!['bunny', 'bluesky'].includes(String(authorization.provider))
+	)
 		throw new Error(
-			'Video uploads are currently unavailable in this browser. Please try the CraftSky app.'
+			'Video uploads are currently unavailable for this account.'
 		);
 	if (
 		typeof authorization.token !== 'string' ||
 		typeof authorization.expiresAt !== 'string' ||
+		!Number.isFinite(Date.parse(authorization.expiresAt)) ||
 		Date.parse(authorization.expiresAt) <= Date.now()
 	)
 		throw new Error('Could not authorize this video upload.');
-	const endpoint = new URL('/xrpc/app.bsky.video.uploadVideo', videoOrigin);
-	endpoint.searchParams.set('did', owner);
-	endpoint.searchParams.set('name', `craftsky-${crypto.randomUUID()}.mp4`);
-	progress('Uploading video…');
-	let source = media.blob;
-	if (bypassDeduplication) {
-		if (source.size > 300_000_000 - 16)
-			throw new Error(
-				'This video is too large to restore. Choose a smaller file.'
-			);
-		const box = crypto.getRandomValues(new Uint8Array(16));
-		box.set([0, 0, 0, 16, 102, 114, 101, 101]);
-		source = new Blob([source, box], { type: 'video/mp4' });
+	let status: Record<string, unknown>;
+	let bunnyJobId: string | undefined;
+	if (bunny) {
+		bunnyJobId = await uploadBunnyVideo(
+			media,
+			authorization,
+			signal,
+			progress,
+			fetcher
+		);
+		status = { jobId: bunnyJobId, state: 'JOB_STATE_PROCESSING' };
+	} else {
+		if (media.mime !== 'video/mp4')
+			throw new Error('This upload service requires an MP4 video.');
+		const endpoint = new URL('/xrpc/app.bsky.video.uploadVideo', videoOrigin);
+		endpoint.searchParams.set('did', owner);
+		endpoint.searchParams.set('name', `craftsky-${crypto.randomUUID()}.mp4`);
+		progress('Uploading video…');
+		let source = media.blob;
+		if (bypassDeduplication) {
+			if (source.size > 300_000_000 - 16)
+				throw new Error(
+					'This video is too large to restore. Choose a smaller file.'
+				);
+			const box = crypto.getRandomValues(new Uint8Array(16));
+			box.set([0, 0, 0, 16, 102, 114, 101, 101]);
+			source = new Blob([source, box], { type: 'video/mp4' });
+		}
+		const response = await fetcher(endpoint, {
+			method: 'POST',
+			body: source,
+			headers: {
+				'Content-Type': 'video/mp4',
+				Authorization: `Bearer ${authorization.token}`
+			},
+			credentials: 'omit',
+			redirect: 'error',
+			referrerPolicy: 'no-referrer',
+			cache: 'no-store',
+			signal
+		});
+		if (!response.ok && response.status !== 409)
+			throw new Error('The video service could not accept this upload.');
+		const data = await boundedJSON(response);
+		status = (data.jobStatus || data) as Record<string, unknown>;
 	}
-	const response = await fetcher(endpoint, {
-		method: 'POST',
-		body: source,
-		headers: {
-			'Content-Type': 'video/mp4',
-			Authorization: `Bearer ${authorization.token}`
-		},
-		credentials: 'omit',
-		redirect: 'error',
-		referrerPolicy: 'no-referrer',
-		cache: 'no-store',
-		signal
-	});
-	if (!response.ok && response.status !== 409)
-		throw new Error('The video service could not accept this upload.');
-	let data = await boundedJSON(response);
-	let status = (data.jobStatus || data) as Record<string, unknown>;
 	const started = Date.now();
 	let jobId = '';
+	let polls = 0;
 	for (;;) {
+		if (signal.aborted) throw new DOMException('Cancelled', 'AbortError');
+		if (bunnyJobId && status.jobId !== bunnyJobId)
+			throw new Error('The video service returned an invalid job.');
 		if (typeof status.jobId === 'string') jobId = status.jobId;
 		const blob = blobValue(status.blob);
+		if (bunnyJobId && status.state === 'JOB_STATE_COMPLETED' && !blob)
+			throw new Error('The video service returned an invalid processed video.');
 		if (
 			blob &&
 			jobId &&
@@ -298,16 +349,27 @@ export async function uploadVideo(
 			(status.error && status.error !== 'already_exists')
 		)
 			throw new Error(
-				'Video processing failed. Check your account allowance and choose a supported MP4 video.'
+				'Video processing failed. Check your account allowance and choose a supported video.'
 			);
-		if (!jobId || Date.now() - started > 15 * 60 * 1000)
+		if (!jobId || Date.now() - started >= (bunny ? 60 : 15) * 60 * 1000)
 			throw new Error(
 				'Video processing is taking too long. Keep your draft and try again.'
 			);
 		progress(
 			`Processing video${typeof status.progress === 'number' ? ` · ${Math.min(100, Math.max(0, status.progress))}%` : ''}…`
 		);
-		await delay(2000, signal);
+		await delay(bunny ? Math.min(++polls, 5) * 1000 : 2000, signal);
+		if (bunnyJobId) {
+			const result = await api.media.videoStatus(bunnyJobId, signal);
+			if (
+				!result?.jobStatus ||
+				typeof result.jobStatus !== 'object' ||
+				Array.isArray(result.jobStatus)
+			)
+				throw new Error('The video service returned an invalid job.');
+			status = result.jobStatus;
+			continue;
+		}
 		const query = new URL('/xrpc/app.bsky.video.getJobStatus', videoOrigin);
 		query.searchParams.set('jobId', jobId);
 		const poll = await fetcher(query, {
@@ -321,7 +383,7 @@ export async function uploadVideo(
 			throw new Error(
 				'Could not check video processing. Your draft is still available.'
 			);
-		data = await boundedJSON(poll);
+		const data = await boundedJSON(poll);
 		if (!data.jobStatus || typeof data.jobStatus !== 'object')
 			throw new Error('The video service returned an invalid job.');
 		status = data.jobStatus as Record<string, unknown>;

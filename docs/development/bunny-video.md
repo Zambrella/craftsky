@@ -5,9 +5,21 @@ configuration were changed. See [ADR 024](../../adr/024-bunny-video-development-
 
 ## Run locally
 
-The Svelte web client's current uploader supports the Bluesky provider only.
-When AppView selects Bunny it rejects that capability locally instead of sending
-it to Bluesky. Flutter supports the Bunny upload/status flow described here.
+Flutter and the Svelte web client both use the provider selected by AppView.
+For Bunny, the web client uploads MP4/MOV sources directly using an in-memory,
+video-scoped TUS signature and 8 MiB chunks. Interrupted chunks recover from
+Bunny's confirmed offset. Processing status passes through the account-bound
+web proxy to AppView; publication uses its processed MP4 proof. Cancellation
+stops upload/polling and retains the draft. The existing Bluesky path remains
+available when selected by the server.
+
+A browser that cannot preview a QuickTime MOV (for example, an unsupported HEVC
+codec) shows a preview-unavailable message and still allows upload. AppView
+validates the processed duration before publication. Source headers, the 300 MB
+limit and any duration available in the browser are checked locally.
+
+For the Svelte client, start `CRAFTSKY_ENABLE_VIDEO_UPLOADS=true just web-run`
+after starting the backend. The release switch remains opt-in.
 
 After merging the browser client, Bunny's unreleased migrations are numbered
 `000114_bunny_video_jobs` and `000115_bunny_video_cleanup`; main's browser
@@ -199,6 +211,13 @@ terminal-owner copies. Image delivery is unchanged.
 
 ## Automated validation performed
 
+- Svelte upload transport and account-bound proxy tests cover MP4/MOV dispatch,
+  chunk recovery, cancellation, invalid destinations/offsets, capability isolation
+  and processed MP4 publication proofs. Browser fixtures cover MOV selection when
+  preview is unavailable, successful publication and retained drafts after failed
+  processing on both Node preview and Cloudflare Worker runtimes. These fixtures
+  do not prove live Bunny CORS, real PDS publication or device playback.
+
 - Full backend gate: `./scripts/appview-test full` (PostgreSQL/MinIO, race detector).
 - Focused video/authentication/route checks after the final authentication fix.
 - Flutter analysis of changed sources and transport tests.
@@ -234,3 +253,40 @@ terminal-owner copies. Image delivery is unchanged.
 
 Real PDS publication, physical devices and delayed 24–48-hour retention have not
 been exercised automatically and remain the manual acceptance steps above.
+
+## Hosted web player
+
+AppView's Bunny playback mapping now includes an optional `video.embedUrl` next
+to the direct `playlist` and `thumbnail` URLs. This field is read metadata only;
+PDS records, native clients and upload proofs are unchanged. A single owner/CID
+lookup supplies all three destinations. Unimported videos retain the existing
+HLS fallback without an embed URL.
+
+The Svelte player uses the current Bunny Player at `player.mediadelivery.net`
+for mapped videos. It permits only that exact iframe origin and canonical
+library/video paths, disables autoplay, media preload and remembered settings,
+and lazy-loads the iframe. It pauses via the player.js protocol when offscreen,
+when the page is hidden, and on teardown. Each iframe has a unique URL context;
+messages must match both its window and origin. No external control script or
+new npm dependency is needed.
+
+The existing HLS player is selected automatically after a reported player
+failure. It also handles videos carrying
+PDS caption tracks, since these have not been copied into Bunny. Captions stored
+on Bunny itself remain available in its hosted player. Full caption migration
+is outside this trial; existing post captions must not be silently dropped.
+
+Only `craftsky-dev` player settings were updated: current player version 2,
+primary colour `#1535D6`, compact controls enabled. Production settings and
+encoding configuration are unchanged. Browser fixture tests cover selection,
+fullscreen without restarting playback, offscreen pause and caption fallback.
+An opt-in real-player test accepts `BUNNY_PLAYER_TEST_EMBED_URL` for a synthetic
+development asset; do not point it at private or user-owned videos.
+
+On 2026-11-05, a synthetic six-second H.264 blue video in `craftsky-dev`
+initialized and played through the real hosted player in the local web client.
+The Worker runtime test also entered/exited fullscreen without pausing and
+confirmed offscreen pause through the control bridge. The temporary video was
+deleted afterward. This verifies hosted playback; it does not repeat live PDS
+publication or physical-device acceptance. The local backend was rebuilt and
+`/healthz` returned healthy after the metadata change.

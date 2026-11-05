@@ -1,0 +1,402 @@
+import { test, expect } from '@playwright/test';
+import { resolve } from 'node:path';
+const fixture = 'http://127.0.0.1:19847';
+const account = {
+	id: '0c10030a-6208-43c2-8048-d3edcc609271',
+	did: 'did:plc:alice',
+	handle: 'alice.test',
+	token: Buffer.alloc(32, 1).toString('base64url')
+};
+test.beforeEach(async ({ page, context }) => {
+	await fetch(fixture + '/__test/reset');
+	await page.route('https://status.craftsky.social/app.json', (route) =>
+		route.fulfill({ json: { schemaVersion: 2, revision: 'fixture-healthy' } })
+	);
+	await context.addCookies([
+		{
+			name: 'craftsky_account_' + account.id,
+			value: Buffer.from(JSON.stringify(account)).toString('base64url'),
+			url: 'http://127.0.0.1:19846',
+			httpOnly: true,
+			sameSite: 'Lax'
+		},
+		{
+			name: 'craftsky_active',
+			value: account.id,
+			url: 'http://127.0.0.1:19846',
+			httpOnly: true,
+			sameSite: 'Lax'
+		}
+	]);
+});
+for (const failed of [false, true]) {
+	test(`MOV uploads through Bunny and ${failed ? 'keeps the draft on processing failure' : 'publishes the processed MP4 proof'}`, async ({
+		page
+	}) => {
+		if (failed)
+			await fetch(fixture + '/__test/control', {
+				method: 'POST',
+				headers: { 'content-type': 'application/json' },
+				body: JSON.stringify({ owners: { alice: { videoFailure: true } } })
+			});
+		const uploaded: Buffer[] = [];
+		await page.route('https://video.bsky.app/**', () => {
+			throw new Error('Bunny capability must never reach Bluesky');
+		});
+		await page.route('https://video.bunnycdn.com/**', async (route) => {
+			const request = route.request();
+			expect(request.headers().cookie).toBeUndefined();
+			expect(request.headers().authorization).toBeUndefined();
+			expect(request.headers().authorizationsignature).toBe('c'.repeat(64));
+			const headers = {
+				'access-control-allow-origin': '*',
+				'access-control-expose-headers': 'Location, Upload-Offset'
+			};
+			if (request.method() === 'POST') {
+				expect(request.headers()['upload-metadata']).toContain('collection ');
+				await route.fulfill({
+					status: 201,
+					headers: {
+						...headers,
+						location: 'https://video.bunnycdn.com/tusupload/fixture'
+					}
+				});
+			} else {
+				expect(request.method()).toBe('PATCH');
+				uploaded.push(request.postDataBuffer()!);
+				await route.fulfill({
+					status: 204,
+					headers: {
+						...headers,
+						'upload-offset': String(
+							uploaded.reduce((sum, part) => sum + part.length, 0)
+						)
+					}
+				});
+			}
+		});
+		await page.goto('/compose');
+		await page
+			.getByRole('textbox', {
+				name: 'What would you like to share?',
+				exact: true
+			})
+			.fill('Bunny MOV browser publication');
+		const source = Buffer.from([
+			0,
+			0,
+			0,
+			20,
+			...Buffer.from('ftypqt  '),
+			0,
+			0,
+			0,
+			0
+		]);
+		await page
+			.getByLabel('Add photos or a video', { exact: true })
+			.setInputFiles({
+				name: 'private-source.mov',
+				mimeType: 'video/quicktime',
+				buffer: source
+			});
+		await expect(
+			page.getByText('Video selected', { exact: true })
+		).toBeVisible();
+		await expect(
+			page.getByText(
+				'Preview unavailable in this browser. You can still upload this video.'
+			)
+		).toBeVisible();
+		await page
+			.getByLabel('Video description', { exact: true })
+			.fill('A knitting demonstration');
+		await page.getByRole('button', { name: 'Post', exact: true }).click();
+		if (failed) {
+			await expect(page.getByText(/Video processing failed/)).toBeVisible();
+			await expect(
+				page.getByRole('textbox', {
+					name: 'What would you like to share?',
+					exact: true
+				})
+			).toHaveValue('Bunny MOV browser publication');
+		} else await expect(page).toHaveURL(/\/feed$/);
+		expect(Buffer.concat(uploaded)).toEqual(source);
+		const calls = await (await fetch(fixture + '/__test/requests')).json();
+		const status = calls.find(
+			(call: any) =>
+				call.path.endsWith('/status') && call.path.includes('/blobs/videos/')
+		);
+		expect(status).toMatchObject({ method: 'POST', owner: account.did });
+		const posts = calls.filter(
+			(call: any) => call.path === '/v1/posts' && call.method === 'POST'
+		);
+		if (failed) expect(posts).toHaveLength(0);
+		else {
+			expect(posts).toHaveLength(1);
+			expect(posts[0].body.embed).toMatchObject({
+				video: {
+					blob: {
+						mimeType: 'video/mp4',
+						ref: { $link: 'bafy-processed-video' }
+					},
+					alt: 'A knitting demonstration',
+					jobId: status.path.split('/')[4]
+				}
+			});
+			expect(JSON.stringify(posts[0].body)).not.toContain('private-source.mov');
+		}
+	});
+}
+
+// Synthetic blue H.264 fixture, generated with FFmpeg; no user media.
+test('video picture toggles playback and buffering uses the primary colour', async ({
+	page
+}) => {
+	const host = 'https://video-fixture.craftsky.test/';
+	await page.route('**/api/appview/v1/feed/timeline*', async (route) => {
+		const response = await route.fetch();
+		const body = await response.json();
+		body.items[0].post.images = [];
+		body.items[0].post.video = {
+			cid: 'bafy-video',
+			mime: 'video/mp4',
+			size: 100,
+			alt: 'Test video',
+			playlist: host + 'playlist.m3u8'
+		};
+		await route.fulfill({ response, json: body });
+	});
+	let release!: () => void;
+	const held = new Promise<void>((resolve) => {
+		release = resolve;
+	});
+	await page.route(host + '**', async (route) => {
+		const name = new URL(route.request().url()).pathname.slice(1);
+		if (name.endsWith('.mpegts')) await held;
+		await route.fulfill({
+			path: resolve('tests/fixtures/video', name),
+			contentType: name.endsWith('.m3u8')
+				? 'application/vnd.apple.mpegurl'
+				: 'video/mp2t',
+			headers: { 'access-control-allow-origin': '*' }
+		});
+	});
+	await page.goto('/feed');
+	const player = page.locator('.video-player').first();
+	const video = player.locator('video');
+	await player
+		.getByRole('button', { name: 'Play video', exact: true })
+		.click({ position: { x: 25, y: 25 } });
+	const loader = player.getByRole('status', { name: 'Loading video' });
+	await expect(loader).toBeVisible();
+	const spinner = loader.locator('.spinner');
+	expect(
+		await spinner.evaluate((node) => getComputedStyle(node).borderTopColor)
+	).toBe(
+		await spinner.evaluate((node) => {
+			const probe = document.createElement('span');
+			probe.style.color = 'var(--primary)';
+			node.append(probe);
+			const value = getComputedStyle(probe).color;
+			probe.remove();
+			return value;
+		})
+	);
+	release();
+	await expect
+		.poll(() => video.evaluate((node) => (node as HTMLVideoElement).paused))
+		.toBe(false);
+	await expect(loader).toHaveCount(0);
+	await player
+		.getByRole('button', { name: 'Pause video', exact: true })
+		.click({ position: { x: 35, y: 25 } });
+	await expect
+		.poll(() => video.evaluate((node) => (node as HTMLVideoElement).paused))
+		.toBe(true);
+	await player
+		.getByRole('button', { name: 'Play video', exact: true })
+		.press('Enter');
+	await expect
+		.poll(() => video.evaluate((node) => (node as HTMLVideoElement).paused))
+		.toBe(false);
+	await expect(video).toHaveAttribute('controls', '');
+	await expect(page).toHaveURL(/\/feed$/);
+});
+
+const bunnyEmbed =
+	'https://player.mediadelivery.net/embed/123/aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa';
+async function hostedVideo(
+	page: import('@playwright/test').Page,
+	extra: Record<string, unknown> = {}
+) {
+	await page.route('**/api/appview/v1/feed/timeline*', async (route) => {
+		const response = await route.fetch(),
+			body = await response.json();
+		body.items[0].post.images = [];
+		body.items[0].post.video = {
+			cid: 'bafy-video',
+			mime: 'video/mp4',
+			size: 100,
+			alt: 'Hosted test video',
+			playlist: 'https://video-fixture.craftsky.test/playlist.m3u8',
+			embedUrl: bunnyEmbed,
+			aspectRatio: { width: 9, height: 16 },
+			...extra
+		};
+		await route.fulfill({ response, json: body });
+	});
+}
+const playerFixture = `<!doctype html><html><body style="margin:0;background:black;color:white"><button id="play">Play video</button><button id="full">Fullscreen</button><script>
+ const origin=new URL(document.referrer).origin;
+ const emit=(event,value)=>parent.postMessage(JSON.stringify({context:'player.js',version:'0.0.11',event,value}),origin);
+ const ready=()=>emit('ready',{src:location.href});
+ let playing=false;
+ const button=document.querySelector('#play');
+ const pause=()=>{playing=false;button.textContent='Play video';};
+ button.onclick=()=>{playing=!playing;button.textContent=playing?'Pause video':'Play video';};
+ document.querySelector('#full').onclick=()=>document.documentElement.requestFullscreen();
+ addEventListener('message',event=>{if(event.source!==parent||event.origin!==origin)return;const data=JSON.parse(event.data);if(data.method==='addEventListener'&&data.value==='ready')ready();if(data.method==='pause')pause();});
+ ready();
+ </script></body></html>`;
+
+test('Bunny iframe is lazy, supports fullscreen and pauses when scrolled out of view', async ({
+	page
+}) => {
+	await hostedVideo(page);
+	await page.route('https://player.mediadelivery.net/**', (route) =>
+		route.fulfill({ contentType: 'text/html', body: playerFixture })
+	);
+	await page.goto('/feed');
+	const frame = page.locator('.bunny-video iframe').first();
+	await expect(frame).toBeVisible();
+	await expect(frame).toHaveAttribute('loading', 'lazy');
+	await expect(frame).toHaveAttribute('allowfullscreen', '');
+	const url = new URL((await frame.getAttribute('src'))!);
+	expect(url.searchParams.get('autoplay')).toBe('false');
+	expect(url.searchParams.get('preload')).toBe('false');
+	expect(url.searchParams.get('rememberSettings')).toBe('false');
+	await expect(page.locator('.bunny-video [role=status]')).toHaveCount(0);
+	const inside = frame.contentFrame();
+	await inside.getByRole('button', { name: 'Play video', exact: true }).click();
+	await expect(
+		inside.getByRole('button', { name: 'Pause video', exact: true })
+	).toBeVisible();
+	await inside.getByRole('button', { name: 'Fullscreen', exact: true }).click();
+	await expect
+		.poll(() => page.evaluate(() => !!document.fullscreenElement))
+		.toBe(true);
+	await page.evaluate(() => document.exitFullscreen());
+	await expect(
+		inside.getByRole('button', { name: 'Pause video', exact: true })
+	).toBeVisible();
+	await frame.evaluate((node) => {
+		node.style.position = 'fixed';
+		node.style.top = '-3000px';
+	});
+	await expect(
+		inside.getByRole('button', { name: 'Play video', exact: true })
+	).toBeAttached();
+	await page.goto('/saved');
+	await expect(page.locator('.bunny-video iframe')).toHaveCount(0);
+});
+
+test('Bunny player has spacing above it and no standard-player button', async ({
+	page
+}) => {
+	await hostedVideo(page);
+	await page.route('https://player.mediadelivery.net/**', (route) =>
+		route.fulfill({ contentType: 'text/html', body: playerFixture })
+	);
+	await page.goto('/feed');
+	await expect(page.locator('.bunny-video iframe')).toHaveCount(1);
+	await expect(
+		page.getByRole('button', { name: 'Use standard player', exact: true })
+	).toHaveCount(0);
+	await expect(page.locator('.post-video').first()).toHaveCSS(
+		'margin-top',
+		'8px'
+	);
+});
+
+test('PDS caption tracks retain the standard player', async ({ page }) => {
+	await hostedVideo(page, {
+		captions: [{ cid: 'bafy-caption', lang: 'en', uri: '/v1/caption' }]
+	});
+	await page.goto('/feed');
+	await expect(page.locator('.bunny-video iframe')).toHaveCount(0);
+	await expect(page.locator('.video-player video')).toHaveCount(1);
+});
+
+test('real development Bunny player initializes and plays the synthetic fixture', async ({
+	page
+}) => {
+	test.skip(
+		!process.env.BUNNY_PLAYER_TEST_EMBED_URL,
+		'Opt-in synthetic development fixture only.'
+	);
+	await hostedVideo(page, {
+		embedUrl: process.env.BUNNY_PLAYER_TEST_EMBED_URL
+	});
+	await page.goto('/feed');
+	const frame = page.locator('.bunny-video iframe');
+	await expect(frame).toBeVisible();
+	await expect(page.locator('.bunny-video [role=status]')).toHaveCount(0, {
+		timeout: 30000
+	});
+	const inside = frame.contentFrame();
+	await inside.getByRole('button', { name: /^play/i }).first().click();
+	await expect
+		.poll(
+			() =>
+				inside
+					.locator('video')
+					.evaluate((node) => (node as HTMLVideoElement).paused),
+			{ timeout: 30000 }
+		)
+		.toBe(false);
+	await inside
+		.getByRole('button', { name: /fullscreen/i })
+		.first()
+		.click();
+	await expect
+		.poll(() => page.evaluate(() => !!document.fullscreenElement))
+		.toBe(true);
+	await page.evaluate(() => document.exitFullscreen());
+	await expect
+		.poll(() =>
+			inside
+				.locator('video')
+				.evaluate((node) => (node as HTMLVideoElement).paused)
+		)
+		.toBe(false);
+	await frame.evaluate((node) => {
+		node.style.position = 'fixed';
+		node.style.top = '-3000px';
+	});
+	await expect
+		.poll(() =>
+			inside
+				.locator('video')
+				.evaluate((node) => (node as HTMLVideoElement).paused)
+		)
+		.toBe(true);
+});
+
+test('reported Bunny errors switch to the standard player', async ({
+	page
+}) => {
+	await hostedVideo(page);
+	await page.route('https://player.mediadelivery.net/**', (route) =>
+		route.fulfill({
+			contentType: 'text/html',
+			body: playerFixture.replace(
+				'ready();\n </script>',
+				"ready(); setTimeout(()=>emit('error',{}),100);\n </script>"
+			)
+		})
+	);
+	await page.goto('/feed');
+	await expect(page.locator('.video-player video')).toHaveCount(1);
+	await expect(page.locator('.bunny-video iframe')).toHaveCount(0);
+});

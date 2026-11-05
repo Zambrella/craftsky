@@ -128,6 +128,7 @@ type PostVideoView struct {
 	Alt         string                `json:"alt"`
 	AspectRatio *PostImageAspectRatio `json:"aspectRatio,omitempty"`
 	Playlist    string                `json:"playlist"`
+	EmbedURL    string                `json:"embedUrl,omitempty"`
 	Thumbnail   string                `json:"thumbnail,omitempty"`
 	Captions    []PostVideoCaption    `json:"captions,omitempty"`
 }
@@ -441,12 +442,19 @@ func buildPostVideoView(row *PostRow, playback PlaybackURLBuilder) *PostVideoVie
 	if err != nil || parsedCID.String() != embed.Video.Ref.Link {
 		return nil
 	}
-	playlist, thumbnail := playback.URLs(syntax.DID(row.DID), syntax.CID(embed.Video.Ref.Link))
+	var playlist, thumbnail, embedURL string
+	if hosted, ok := playback.(interface {
+		URLsWithEmbed(syntax.DID, syntax.CID) (string, string, string)
+	}); ok {
+		playlist, thumbnail, embedURL = hosted.URLsWithEmbed(syntax.DID(row.DID), syntax.CID(embed.Video.Ref.Link))
+	} else {
+		playlist, thumbnail = playback.URLs(syntax.DID(row.DID), syntax.CID(embed.Video.Ref.Link))
+	}
 	if playlist == "" {
 		return nil
 	}
 	view := &PostVideoView{CID: embed.Video.Ref.Link, MIME: embed.Video.MIMEType, Size: embed.Video.Size, Alt: embed.Alt,
-		AspectRatio: embed.AspectRatio, Playlist: playlist, Thumbnail: thumbnail}
+		AspectRatio: embed.AspectRatio, Playlist: playlist, Thumbnail: thumbnail, EmbedURL: embedURL}
 	for _, caption := range embed.Captions {
 		captionCID, err := cid.Parse(caption.File.Ref.Link)
 		if err != nil || captionCID.String() != caption.File.Ref.Link || caption.File.MIMEType != "text/vtt" ||

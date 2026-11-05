@@ -18,7 +18,7 @@ changes. Preserve the existing Bluesky implementation behind the default
 configuration and deployments are unchanged.
 
 For Bunny, AppView creates an owner/generation-bound durable job and returns
-one 30-minute TUS signature scoped to that vendor video ID. Flutter sends the
+one 30-minute TUS signature scoped to that vendor video ID. Flutter and the Svelte client send the
 signature only to the fixed HTTPS Bunny TUS endpoint or validated same-origin
 upload resource. Redirects, foreign locations, query strings and fragments are
 rejected. The capability stays in the active upload attempt and is cleared on
@@ -26,8 +26,13 @@ success, cancellation, failure and lifecycle interruption. The library/account
 API keys and PDS OAuth credentials stay server-side.
 
 This extends ADR 012's direct external video-upload decision with a separate
-Bunny capability; it does not delegate PDS authority to Bunny or Flutter.
+Bunny capability; it does not delegate PDS authority to Bunny or either client.
 Bunny cannot publish records or upload into the owner's PDS.
+
+The Svelte client uses the same capability boundary: no AppView bearer token or
+browser cookies are sent to Bunny. Status requests use the account-bound web
+proxy with an explicitly allowlisted job UUID route. Its uploads use bounded
+chunks and recover from the server-confirmed TUS offset.
 
 After transcoding, an authenticated POST status request may download a processed
 MP4 into a private, bounded temporary file and upload it through the existing
@@ -87,3 +92,14 @@ mapping. Unimported videos retain their previous provider URLs. Images remain
 on their existing delivery path. A future batch lookup can remove per-video
 queries at higher feed volume. Backups must preserve the media mapping; the
 PDS MP4 remains the portable recovery source.
+
+## Hosted web playback trial
+
+Bunny-backed read views may expose an optional `embedUrl` alongside their direct
+HLS URLs. The Svelte client uses the current hosted Bunny Player for these videos;
+Flutter continues to consume direct HLS. Existing PDS caption tracks select the
+standard web player until caption synchronization is implemented. The embed is
+public playback metadata, not upload authority. The web CSP permits only Bunny's
+current player iframe origin, and its scoped control bridge checks origin and
+source window and releases listeners on teardown. The trial does not alter PDS
+records, production configuration, or the default provider.

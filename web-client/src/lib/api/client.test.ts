@@ -30,6 +30,24 @@ function setup(value: unknown = {}, status = 200, headers?: HeadersInit) {
 }
 
 describe('AppView wire contracts', () => {
+	it('polls Bunny video completion through the authenticated AppView POST', async () => {
+		const jobId = 'aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa';
+		const controller = new AbortController();
+		const { api, request, fetcher } = setup({
+			jobStatus: { jobId, state: 'JOB_STATE_PROCESSING' }
+		});
+		expect(await api.media.videoStatus(jobId, controller.signal)).toMatchObject(
+			{ jobStatus: { jobId } }
+		);
+		expect(request().method).toBe('POST');
+		expect(request().url).toBe(`/api/appview/v1/blobs/videos/${jobId}/status`);
+		expect(request().signal).toBe(controller.signal);
+		expect(request().body).toBeUndefined();
+		expect(() => api.media.videoStatus('../authorization')).toThrow(
+			'Invalid video job'
+		);
+		expect(fetcher).toHaveBeenCalledTimes(1);
+	});
 	it('uses the response request ID when an error envelope is missing it and retains parse causes', async () => {
 		const requestId = '12345678-1234-4123-8123-123456789012';
 		const { api } = setup(

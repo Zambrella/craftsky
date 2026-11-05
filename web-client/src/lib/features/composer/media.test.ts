@@ -31,7 +31,7 @@ describe('native-style attachment selection', () => {
 });
 
 describe('approved video capability transport', () => {
-	it.each(['bunny', 'unknown'])(
+	it.each(['unknown'])(
 		'does not send %s capabilities to Bluesky',
 		async (provider) => {
 			const api = {
@@ -61,7 +61,7 @@ describe('approved video capability transport', () => {
 					fetcher
 				)
 			).rejects.toThrow(
-				'Video uploads are currently unavailable in this browser'
+				'Video uploads are currently unavailable for this account'
 			);
 			expect(fetcher).not.toHaveBeenCalled();
 		}

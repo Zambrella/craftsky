@@ -386,17 +386,25 @@ func (b *Bunny) Verify(ctx context.Context, owner syntax.DID, id string, blob Bl
 // URLs resolves the durable owner/CID mapping. Existing unimported posts retain
 // their previous provider URLs. The bounded lookup never exposes a vendor key.
 func (b *Bunny) URLs(owner syntax.DID, cid syntax.CID) (string, string) {
+	playlist, thumbnail, _ := b.URLsWithEmbed(owner, cid)
+	return playlist, thumbnail
+}
+
+// URLsWithEmbed resolves all playback destinations in one owner-scoped lookup.
+// The embed URL is public playback metadata, never a Stream API capability.
+func (b *Bunny) URLsWithEmbed(owner syntax.DID, cid syntax.CID) (string, string, string) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	var video string
 	err := b.pool.QueryRow(ctx, `SELECT video_id::text FROM bunny_video_jobs WHERE owner_did=$1 AND blob_cid=$2 AND library_id=$3 AND state='ready' ORDER BY updated_at DESC LIMIT 1`, owner, cid, b.library).Scan(&video)
 	if err == nil {
-		return "https://" + b.cdn + "/" + video + "/playlist.m3u8", "https://" + b.cdn + "/" + video + "/thumbnail.jpg"
+		return "https://" + b.cdn + "/" + video + "/playlist.m3u8", "https://" + b.cdn + "/" + video + "/thumbnail.jpg", "https://player.mediadelivery.net/embed/" + b.library + "/" + video
 	}
 	if errors.Is(err, pgx.ErrNoRows) && b.fallback != nil {
-		return b.fallback.URLs(owner, cid)
+		playlist, thumbnail := b.fallback.URLs(owner, cid)
+		return playlist, thumbnail, ""
 	}
-	return "", ""
+	return "", "", ""
 }
 
 func (b *Bunny) String() string { return "Bunny(<configured>)" }
