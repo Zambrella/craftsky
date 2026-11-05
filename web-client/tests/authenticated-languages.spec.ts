@@ -74,7 +74,7 @@ test('initializes missing language preferences before requesting Home and preser
 		await pending;
 		await route.continue();
 	});
-	await page.goto('/app/home');
+	await page.goto('/feed');
 	try {
 		await expect.poll(() => initializationStarted).toBe(true);
 		await expect(
@@ -130,7 +130,7 @@ test('keeps existing saved language choices when browser languages differ', asyn
 	await configure({
 		alice: { languages: { primaryLanguage: 'cy', contentLanguages: [] } }
 	});
-	await page.goto('/app/settings/languages');
+	await page.goto('/settings/languages');
 	await expect(
 		page.getByRole('combobox', { name: 'Primary language', exact: true })
 	).toHaveValue('Welsh');
@@ -163,7 +163,7 @@ test('keeps Home behind a retryable setup gate if language initialization fails'
 	await configure({
 		alice: { languages: null, languageInitializeFailures: 1 }
 	});
-	await page.goto('/app/home');
+	await page.goto('/feed');
 	await expect(page.getByRole('alert')).toContainText(
 		'CraftSky could not load your account'
 	);
@@ -187,7 +187,7 @@ test('initializes each newly selected account through its own bound session', as
 	page
 }) => {
 	await configure({ alice: { languages: null }, bob: { languages: null } });
-	await page.goto('/app/home');
+	await page.goto('/feed');
 	await expect(
 		page.getByRole('heading', { name: 'Home', exact: true })
 	).toBeVisible();

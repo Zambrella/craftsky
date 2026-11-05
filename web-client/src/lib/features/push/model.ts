@@ -117,7 +117,7 @@ export function pushURL(target: PushTarget): string {
 		pushSubscription: target.subscriptionId
 	});
 	if (target.reference) params.set('pushReference', target.reference);
-	return `${target.reference ? '/app/messages' : '/app/activity'}?${params}`;
+	return `${target.reference ? '/messages' : '/notifications'}?${params}`;
 }
 export function accountForTarget(
 	rows: PushBinding[],

@@ -131,7 +131,8 @@ export class MessagesController {
 		this.searchEpoch++;
 	}
 	async navigate(path: string[], force = false): Promise<void> {
-		const parts = path[0] === 'messages' ? path.slice(1) : path;
+		const nested = path[0] === 'messages' ? path.slice(1) : path;
+		const parts = nested[0] === 'conversations' ? nested.slice(1) : nested;
 		const route = parts.join('/');
 		if (!force && route === this.route && !this.state.loading) return;
 		this.route = route;

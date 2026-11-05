@@ -33,7 +33,7 @@ test.beforeEach(async ({ context, page }) => {
 test('Home tabs and compact post authors use the native bare glyphs in craft order', async ({
 	page
 }) => {
-	await page.goto('/app/home');
+	await page.goto('/feed');
 	const feeds = page.getByRole('navigation', { name: 'Home feeds' });
 	await expect(feeds.getByRole('link')).toHaveText([
 		'Following',
@@ -100,7 +100,7 @@ test('desktop discovery follows the native breakpoint, isolates retry and select
 					}
 				});
 	});
-	await page.goto('/app/home');
+	await page.goto('/feed');
 	await expect(
 		page.getByRole('navigation', { name: 'Home feeds' })
 	).toBeVisible();
@@ -186,7 +186,7 @@ test('compact author crafts normalize lexicon IDs, retain unknown accessible lab
 			}
 		})
 	);
-	await page.goto('/app/home');
+	await page.goto('/feed');
 	const author = page.locator('.post-card .author').first();
 	await expect(
 		author.getByRole('img', {

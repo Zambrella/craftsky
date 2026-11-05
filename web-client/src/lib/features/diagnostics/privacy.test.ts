@@ -104,7 +104,7 @@ describe('diagnostic source selection and serialization', () => {
 		client.addEventProcessor((event) => ({
 			...event,
 			request: {
-				url: `https://app.craftsky.social/app/messages/${canary}?proof=${canary}`,
+				url: `https://app.craftsky.social/messages/conversations/${canary}?proof=${canary}`,
 				headers: { cookie: canary },
 				data: canary
 			},

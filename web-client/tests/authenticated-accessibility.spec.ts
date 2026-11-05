@@ -49,7 +49,7 @@ for (const colorScheme of ['light', 'dark'] as const) {
 				json: { error: 'unavailable', message: 'Please try again.' }
 			})
 		);
-		await page.goto('/app/home');
+		await page.goto('/feed');
 		const warning = page.locator('.snackbar.warning');
 		await expect(
 			warning.getByRole('button', { name: 'Retry', exact: true })
@@ -61,7 +61,7 @@ for (const colorScheme of ['light', 'dark'] as const) {
 		page
 	}) => {
 		await page.emulateMedia({ colorScheme });
-		await page.goto('/app/compose');
+		await page.goto('/compose');
 		const text = page.getByRole('textbox', {
 			name: 'What would you like to share?'
 		});
@@ -99,8 +99,8 @@ for (const colorScheme of ['light', 'dark'] as const) {
 			page.getByRole('button', { name: 'Post languages' })
 		).toBeFocused();
 		await page.getByRole('button', { name: 'Save draft', exact: true }).click();
-		await expect(page).toHaveURL(/\/app\/home$/);
-		await page.goto('/app/drafts');
+		await expect(page).toHaveURL(/\/feed$/);
+		await page.goto('/drafts');
 		const remove = page.getByRole('button', {
 			name: 'Delete draft',
 			exact: true
@@ -117,7 +117,7 @@ for (const colorScheme of ['light', 'dark'] as const) {
 		page
 	}) => {
 		await page.emulateMedia({ colorScheme });
-		await page.goto('/app/compose/project');
+		await page.goto('/compose/project');
 		const craft = page.getByRole('combobox', {
 			name: 'Primary craft required'
 		});
@@ -129,7 +129,7 @@ for (const colorScheme of ['light', 'dark'] as const) {
 		await audit(page);
 		await page.keyboard.press('Enter');
 		await expect(craft).toBeFocused();
-		await page.goto('/app/home/filters?craft=knitting');
+		await page.goto('/feed/filters?craft=knitting');
 		await expect(
 			page.getByRole('button', { name: 'Back to projects' })
 		).toBeFocused();
@@ -150,7 +150,7 @@ for (const colorScheme of ['light', 'dark'] as const) {
 		await audit(page);
 		await page.keyboard.press('Escape');
 		await expect(color).toBeFocused();
-		await expect(page).toHaveURL(/\/app\/home\/filters/);
+		await expect(page).toHaveURL(/\/feed\/filters/);
 	});
 }
 
@@ -185,7 +185,7 @@ test('sign-in suggestions and all onboarding steps remain accessible in both the
 			body: JSON.stringify({ owners: { alice: { completed: false } } })
 		});
 		await page.setViewportSize({ width: 402, height: 874 });
-		await page.goto('/app/home');
+		await page.goto('/feed');
 		await expect(
 			page.getByRole('heading', { name: 'Make it yours' })
 		).toBeVisible();

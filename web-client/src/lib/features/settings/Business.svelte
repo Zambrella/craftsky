@@ -604,7 +604,7 @@
 				with CraftSky Business. Purchase or change your subscription in the mobile
 				app.
 			</p>
-			<a class="action" href="/app/settings/subscriptions"
+			<a class="action" href="/settings/subscriptions"
 				>View subscription access</a
 			>
 		</section>
@@ -733,9 +733,7 @@
 	{:else if section === 'products'}
 		{#if !cid}<section class="panel">
 				<p>Create your business declaration before adding products.</p>
-				<a class="action" href="/app/settings/business"
-					>Set up business profile</a
-				>
+				<a class="action" href="/settings/business">Set up business profile</a>
 			</section>{:else}<form class="stack" onsubmit={saveProfile}>
 				<div class="stack">
 					<p class="muted" aria-live="polite">
@@ -930,7 +928,7 @@
 						/>{/if}
 					<h3>
 						<a
-							href={`/app/events/${encodeURIComponent(event.did)}/${encodeURIComponent(event.rkey)}`}
+							href={`/events/${encodeURIComponent(event.did)}/${encodeURIComponent(event.rkey)}`}
 							>{event.name}</a
 						>
 					</h3>

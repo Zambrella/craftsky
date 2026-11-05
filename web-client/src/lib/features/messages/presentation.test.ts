@@ -47,10 +47,10 @@ describe('mobile message presentation', () => {
 		).toBe('end');
 	});
 	it('returns from a conversation to the inbox and from its details to the conversation', () => {
-		expect(messageBackURL('conversation', 'one')).toBe('/app/messages');
+		expect(messageBackURL('conversation', 'one')).toBe('/messages');
 		expect(messageBackURL('details', 'one/two')).toBe(
-			'/app/messages/one%2Ftwo'
+			'/messages/conversations/one%2Ftwo'
 		);
-		expect(messageBackURL('inbox')).toBe('/app/messages');
+		expect(messageBackURL('inbox')).toBe('/messages');
 	});
 });

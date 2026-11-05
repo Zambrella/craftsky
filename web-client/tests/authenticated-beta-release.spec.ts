@@ -37,7 +37,7 @@ test('beta release hides subscriptions and keeps unavailable actions local', asy
 		process.env.WEB_CLIENT_SUBSCRIPTIONS_ENABLED !== 'false',
 		'Runs against the native beta configuration.'
 	);
-	await page.goto('/app/settings');
+	await page.goto('/settings');
 	await expect(
 		page.getByRole('heading', { name: 'Settings', exact: true })
 	).toBeVisible();
@@ -49,15 +49,15 @@ test('beta release hides subscriptions and keeps unavailable actions local', asy
 		page.getByRole('dialog', { name: 'Growth is coming soon', exact: true })
 	).toBeVisible();
 	await page.getByRole('button', { name: 'OK', exact: true }).click();
-	await expect(page).toHaveURL(/\/app\/settings$/);
-	await page.goto('/app/settings/customisation');
+	await expect(page).toHaveURL(/\/settings$/);
+	await page.goto('/settings/customisation');
 	await expect(
 		page.getByRole('heading', { name: 'Customisation is coming soon' })
 	).toBeVisible();
 	await expect(
 		page.getByRole('button', { name: 'Save', exact: true })
 	).toHaveCount(0);
-	await page.goto('/app/compose');
+	await page.goto('/compose');
 	await page
 		.getByRole('button', { name: 'Scheduled posts is coming soon' })
 		.click();
@@ -65,7 +65,7 @@ test('beta release hides subscriptions and keeps unavailable actions local', asy
 		page.getByRole('dialog', { name: 'Scheduled posts is coming soon' })
 	).toBeVisible();
 	await page.getByRole('button', { name: 'OK', exact: true }).click();
-	await page.goto('/app/saved');
+	await page.goto('/saved');
 	await expect(page.locator('.saved-scope')).toHaveCount(0);
 	await expect(
 		page.getByRole('heading', { name: 'Unfiled', exact: true })

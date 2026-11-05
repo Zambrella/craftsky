@@ -98,7 +98,7 @@ test('inline thumbnails wait for current decode and warm only the changing adjac
 			contentType: 'image/png'
 		});
 	});
-	await page.goto('/app/home');
+	await page.goto('/feed');
 	const card = page.locator('.member-post').first();
 	await card.locator('.gallery').scrollIntoViewIfNeeded();
 	await expect.poll(seen).toEqual(['thumb-0.png']);
@@ -133,7 +133,7 @@ test('middle-of-album detail and fullscreen views warm full-size neighbours with
 	page
 }) => {
 	const seen = requests(page);
-	await page.goto('/app/posts/did%3Aplc%3Aalice/first?imageCid=preload-3');
+	await page.goto('/posts/did%3Aplc%3Aalice/first?imageCid=preload-3');
 	const card = page.locator('.member-post').first();
 	await expect(card.locator('.image-counter')).toHaveText('4/6');
 	await expect.poll(seen).toEqual(['full-2.png', 'full-3.png', 'full-4.png']);
@@ -186,7 +186,7 @@ for (const leave of [false, true]) {
 			};
 		});
 		const seen = requests(page);
-		await page.goto('/app/home');
+		await page.goto('/feed');
 		const card = page.locator('.member-post').first();
 		await card.locator('.gallery').scrollIntoViewIfNeeded();
 		await expect
@@ -203,7 +203,7 @@ for (const leave of [false, true]) {
 				.getByRole('navigation', { name: 'Main tabs', exact: true })
 				.getByRole('link', { name: 'Search', exact: true })
 				.click();
-			await expect(page).toHaveURL('/app/search');
+			await expect(page).toHaveURL('/search');
 		} else {
 			await card
 				.getByRole('button', { name: 'Show image 4 of 6', exact: true })
@@ -232,7 +232,7 @@ test('a failed speculative neighbour is silent and remains a normal visible-imag
 	await page.route(host + 'full-4.png', (route) =>
 		route.fulfill({ status: 404, body: 'Not found' })
 	);
-	await page.goto('/app/posts/did%3Aplc%3Aalice/first?imageCid=preload-3');
+	await page.goto('/posts/did%3Aplc%3Aalice/first?imageCid=preload-3');
 	const card = page.locator('.member-post').first();
 	await expect.poll(seen).toEqual(['full-2.png', 'full-3.png', 'full-4.png']);
 	await expect(page.locator('.snackbar')).toHaveCount(0);

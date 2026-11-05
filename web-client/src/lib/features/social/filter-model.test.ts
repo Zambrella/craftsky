@@ -116,7 +116,7 @@ describe('post presentation and actions', () => {
 					features: [{ $type: 'app.bsky.richtext.facet#tag', tag: 'knitting' }]
 				}
 			])[0].href
-		).toBe('/app/tags/knitting');
+		).toBe('/search/tags?tag=knitting');
 		for (const craft of [
 			'knitting',
 			'crochet',

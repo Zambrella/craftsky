@@ -66,9 +66,7 @@
 	function destination(item: AppNotification) {
 		if (!notificationCopy(item).interactive) return undefined;
 		if (item.caseReference)
-			return (
-				'/app/settings/moderation/' + encodeURIComponent(item.caseReference)
-			);
+			return '/settings/moderation/' + encodeURIComponent(item.caseReference);
 		if (item.subjectPost && visible(item.subjectPost))
 			return (
 				postRoute(item.subjectPost) +
@@ -77,14 +75,14 @@
 		const ref = postAddress(item.uri || '');
 		if (ref)
 			return (
-				'/app/posts/' +
+				'/posts/' +
 				encodeURIComponent(ref.did) +
 				'/' +
 				encodeURIComponent(ref.rkey)
 			);
 		return item.actor
-			? '/app/profile/' + encodeURIComponent(item.actor.did)
-			: '/app/settings/account';
+			? '/profiles/' + encodeURIComponent(item.actor.did)
+			: '/settings/account';
 	}
 	function follow(item: AppNotification) {
 		const actor = item.actor;
@@ -134,7 +132,7 @@
 		<div class="menu-items">
 			{#each notificationCategories as [value, label, icon]}
 				<a
-					href={'/app/activity' + (value ? '?category=' + value : '')}
+					href={'/notifications' + (value ? '?category=' + value : '')}
 					aria-current={(category || '') === value ? 'page' : undefined}
 				>
 					<Icon name={icon} /><span>{label}</span>
@@ -228,7 +226,7 @@
 				? 'No notifications in this category yet.'
 				: 'You’re all caught up.'}
 			icon="activity"
-			>{#snippet actions()}{#if category}<a href="/app/activity"
+			>{#snippet actions()}{#if category}<a href="/notifications"
 						>Show all notifications</a
 					>{/if}{/snippet}</EmptyState
 		>{/if}{/each}{#if cursor}<button

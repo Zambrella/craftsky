@@ -281,7 +281,7 @@
 					'Content-Type': 'application/json',
 					'X-Craftsky-Account-Id': account
 				},
-				body: JSON.stringify({ kind: 'chat', returnTo: '/app/messages' })
+				body: JSON.stringify({ kind: 'chat', returnTo: '/messages' })
 			});
 			if (!response.ok) throw new Error('Authorization unavailable');
 			const result = (await response.json()) as { authUrl: string };
@@ -320,7 +320,7 @@
 	}
 	async function leave() {
 		const owner = controller;
-		await owner?.conversationAction('leave', () => void goto('/app/messages'));
+		await owner?.conversationAction('leave', () => void goto('/messages'));
 		if (owner === controller && !owner?.state.error) leaveDialog.close();
 	}
 	async function blockPeer() {
@@ -361,7 +361,7 @@
 				>{/if}
 			{#if contentReady && viewState?.view === 'conversation' && viewState.conversation}<a
 					class="header-peer-avatar avatar"
-					href={`/app/profile/${encodeURIComponent(viewState.conversation.peer.did)}`}
+					href={`/profiles/${encodeURIComponent(viewState.conversation.peer.did)}`}
 					aria-label="View profile"
 					>{#if safeAvatar(viewState.conversation.peer.avatar)}<img
 							src={safeAvatar(viewState.conversation.peer.avatar)}
@@ -402,14 +402,14 @@
 			>
 				{#if inboxActionsVisible}<a
 						class="icon-link"
-						href="/app/messages/requests"
+						href="/messages/requests"
 						aria-label="Requests"
 						><Icon name="mail" />{#if requestCount}<span class="badge"
 								>{requestCount >= 100 ? '99+' : requestCount}</span
 							>{/if}</a
 					><a
 						class="icon-link"
-						href="/app/messages/settings"
+						href="/settings/messaging"
 						aria-label="Direct message settings"><Icon name="settings" /></a
 					>{:else if viewState?.view === 'conversation' && viewState.conversation && viewState.id}<details
 						class="conversation-actions"
@@ -671,7 +671,7 @@
 			>{/if}
 		{#if viewState.bucket === 'accepted' && viewState.status.capabilities.canSend}<a
 				class="compose-message button"
-				href="/app/messages/new"><Icon name="edit" />New message</a
+				href="/messages/new"><Icon name="edit" />New message</a
 			>{/if}
 	{:else if viewState.view === 'new'}
 		{#if page.url.searchParams.has('link')}<p
@@ -1021,7 +1021,7 @@
 		{/if}
 	{:else if !viewState.error}<div class="empty">
 			<h2>Conversation unavailable</h2>
-			<a href="/app/messages">Return to messages</a>
+			<a href="/messages">Return to messages</a>
 		</div>{/if}
 </section>
 

@@ -50,7 +50,7 @@ async function newPost(page: import('@playwright/test').Page) {
 		.getByRole('link', { name: /^Regular post/ })
 		.filter({ visible: true })
 		.click();
-	await expect(page).toHaveURL(/app\/compose$/);
+	await expect(page).toHaveURL(/compose$/);
 }
 for (const reduced of [false, true]) {
 	test(`publishing uses the real Rive asset and returns to an updated feed: reduced=${reduced}`, async ({
@@ -75,7 +75,7 @@ for (const reduced of [false, true]) {
 		});
 		const errors: string[] = [];
 		page.on('pageerror', (error) => errors.push(error.message));
-		await page.goto('/app/home');
+		await page.goto('/feed');
 		await expect(page.locator('.post-card').first()).toBeVisible();
 		const before = await page.locator('.post-card').count();
 		await newPost(page);
@@ -130,9 +130,9 @@ for (const reduced of [false, true]) {
 		else expect(second.hash).not.toBe(first.hash);
 		await page.keyboard.press('Escape');
 		await expect(overlay).toBeVisible();
-		await expect(page).toHaveURL(/app\/compose$/);
+		await expect(page).toHaveURL(/compose$/);
 		release();
-		await expect(page).toHaveURL('/app/home');
+		await expect(page).toHaveURL('/feed');
 		await expect(
 			page
 				.locator('.post-card')
@@ -155,7 +155,7 @@ for (const reduced of [false, true]) {
 test('publishing from a profile returns to that exact tab with the accepted post', async ({
 	page
 }) => {
-	await page.goto('/app/profile/did%3Aplc%3Aalice?tab=posts');
+	await page.goto('/profiles/did%3Aplc%3Aalice?tab=posts');
 	await expect(page.locator('.profile-content')).toBeVisible();
 	await newPost(page);
 	await page
@@ -165,7 +165,7 @@ test('publishing from a profile returns to that exact tab with the accepted post
 		})
 		.fill('Posted from my profile');
 	await page.getByRole('button', { name: 'Post', exact: true }).click();
-	await expect(page).toHaveURL('/app/profile/did%3Aplc%3Aalice?tab=posts');
+	await expect(page).toHaveURL('/profiles/did%3Aplc%3Aalice?tab=posts');
 	await expect(page.locator('.profile-content')).toContainText(
 		'Posted from my profile'
 	);
@@ -177,14 +177,14 @@ test('a confirmed comment returns to the original thread and appears before inde
 	await page.route('**/api/appview/v1/posts/*/*/comments*', (route) =>
 		route.fulfill({ json: { comments: { items: [], cursor: null } } })
 	);
-	await page.goto('/app/posts/did%3Aplc%3Aalice/first?show-comments=true');
+	await page.goto('/posts/did%3Aplc%3Aalice/first?show-comments=true');
 	await page.getByRole('link', { name: 'Add a comment', exact: true }).click();
 	await page
 		.getByRole('textbox', { name: 'Write your comment', exact: true })
 		.fill('A confirmed new comment');
 	await page.getByRole('button', { name: 'Comment', exact: true }).click();
 	await expect(page).toHaveURL(
-		'/app/posts/did%3Aplc%3Aalice/first?show-comments=true'
+		'/posts/did%3Aplc%3Aalice/first?show-comments=true'
 	);
 	await expect(page.locator('.thread-comments')).toContainText(
 		'A confirmed new comment'
@@ -199,7 +199,7 @@ for (const theme of ['light', 'dark']) {
 			(theme) => localStorage.setItem('craftsky.theme', theme),
 			theme
 		);
-		await page.goto('/app/posts/did%3Aplc%3Aalice/first');
+		await page.goto('/posts/did%3Aplc%3Aalice/first');
 		await page.getByLabel('More post actions', { exact: true }).first().click();
 		await page.getByRole('button', { name: 'Delete', exact: true }).click();
 		const dialog = page.getByRole('dialog', {
@@ -225,7 +225,7 @@ test('animation loading failure retains the publishing overlay and does not prev
 		if (route.request().method() === 'POST') await held;
 		await route.continue();
 	});
-	await page.goto('/app/compose');
+	await page.goto('/compose');
 	await page
 		.getByRole('textbox', {
 			name: 'What would you like to share?',
@@ -239,7 +239,7 @@ test('animation loading failure retains the publishing overlay and does not prev
 	});
 	await expect(overlay.locator('.stitches')).toBeVisible();
 	release();
-	await expect(page).toHaveURL('/app/home');
+	await expect(page).toHaveURL('/feed');
 	await expect(
 		page
 			.locator('.post-card')
@@ -257,7 +257,7 @@ test('an unconfirmed write closes the overlay, retains the exact draft and adds 
 			headers: { 'retry-after': '1' }
 		})
 	);
-	await page.goto('/app/home');
+	await page.goto('/feed');
 	await expect(page.locator('.post-card').first()).toBeVisible();
 	await newPost(page);
 	await page
@@ -275,7 +275,7 @@ test('an unconfirmed write closes the overlay, retains the exact draft and adds 
 		.getByRole('navigation', { name: 'App navigation', exact: true })
 		.getByRole('link', { name: 'Home', exact: true })
 		.click();
-	await expect(page).toHaveURL('/app/home');
+	await expect(page).toHaveURL('/feed');
 	await expect(
 		page.locator('.post-card').filter({ hasText: 'Unconfirmed publication' })
 	).toHaveCount(0);

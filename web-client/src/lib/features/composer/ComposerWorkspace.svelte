@@ -107,8 +107,8 @@
 	let closeDialog: HTMLDialogElement;
 	let closing = $state(false);
 	let existingDraft = $state(false);
-	let closeDestination = $state('/app/home');
-	let closeTarget = $state('/app/home');
+	let closeDestination = $state('/feed');
+	let closeTarget = $state('/feed');
 	let approvedNavigation = false;
 	let editRevision = 0;
 	let context = $state<Post>();
@@ -599,12 +599,12 @@
 			closeDestination =
 				origin ||
 				(saved
-					? '/app/drafts'
+					? '/drafts'
 					: scheduled
-						? '/app/scheduled'
+						? '/scheduled'
 						: did && rkey
-							? `/app/posts/${encodeURIComponent(did)}/${encodeURIComponent(rkey)}`
-							: '/app/home');
+							? `/posts/${encodeURIComponent(did)}/${encodeURIComponent(rkey)}`
+							: '/feed');
 			closeTarget = closeDestination;
 			recovery = new ComposerRecovery(owner, next.id, next, !!saved);
 			draft = next;
@@ -1162,7 +1162,7 @@
 					str(pending.body.scheduledAt),
 					record(pending.body.payload)
 				);
-				destination = origin || '/app/scheduled';
+				destination = origin || '/scheduled';
 				resultNotice = 'Your post has been scheduled.';
 			} else if (pending.kind === 'schedule-update') {
 				await api.schedules.update(
@@ -1170,14 +1170,14 @@
 					str(pending.body.scheduledAt),
 					record(pending.body.payload)
 				);
-				destination = origin || '/app/scheduled';
+				destination = origin || '/scheduled';
 				resultNotice = 'Your schedule has been updated.';
 			} else if (pending.kind === 'schedule-publish') {
 				const result = await api.schedules.publish(
 					pending.rkey!,
 					record(pending.body.payload)
 				);
-				destination = origin || '/app/scheduled';
+				destination = origin || '/scheduled';
 				resultNotice =
 					result.status === 'publishing'
 						? 'Your post is being published.'
@@ -1194,7 +1194,7 @@
 				publications?.watchEdit(pending.rkey!, result, () =>
 					api.posts.get(pending.did!, pending.rkey!)
 				);
-				destination = `/app/posts/${encodeURIComponent(pending.did!)}/${encodeURIComponent(pending.rkey!)}`;
+				destination = `/posts/${encodeURIComponent(pending.did!)}/${encodeURIComponent(pending.rkey!)}`;
 				resultNotice = 'Your changes have been saved.';
 			} else {
 				const post = await api.posts.create(
@@ -1533,9 +1533,7 @@
 					</div>
 					{#if canChooseSchedule && scheduleFull}<p class="schedule-warning">
 							You can't schedule another post because you already have 3
-							scheduled posts. <a href="/app/scheduled"
-								>Manage scheduled posts</a
-							>
+							scheduled posts. <a href="/scheduled">Manage scheduled posts</a>
 						</p>{/if}
 					{#if draft.kind === 'project' && draft.project}<ProjectEditor
 							{api}

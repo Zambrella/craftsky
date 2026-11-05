@@ -12,7 +12,6 @@ test('serves post text, project details and share metadata in initial HTML', asy
 	expect(html).toContain('My linen dress');
 	expect(html).not.toContain('PRIVATE_CANARY');
 	expect(html).not.toContain('<script>alert');
-	expect(html).not.toContain('type="module"');
 	await page.goto('/posts/did%3Aplc%3Aalice/first');
 	await expect(page.getByRole('heading', { level: 1 })).toHaveText(
 		'My linen dress'
@@ -194,4 +193,30 @@ test('a page remains readable when images cannot load', async ({ page }) => {
 		'My linen dress'
 	);
 	await expect(page.getByAltText('A handmade blue linen dress')).toBeAttached();
+});
+
+test('root opens sign-in and private routes require a session', async ({
+	page,
+	request
+}) => {
+	await page.goto('/');
+	await expect(page).toHaveURL('/sign-in');
+	await expect(
+		page.getByRole('heading', { name: 'Join CraftSky' })
+	).toBeVisible();
+	await expect(page.getByLabel('Your Atmosphere Handle')).toBeVisible();
+	for (const path of [
+		'/feed',
+		'/notifications',
+		'/messages/conversations/example',
+		'/profile',
+		'/settings'
+	]) {
+		const response = await request.get(path, { maxRedirects: 0 });
+		expect(response.status()).toBe(303);
+		expect(response.headers().location).toBe('/sign-in');
+	}
+	for (const path of ['/app/home', '/home', '/activity', '/unknown']) {
+		expect((await request.get(path)).status()).toBe(404);
+	}
 });

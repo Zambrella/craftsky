@@ -100,7 +100,7 @@ test('feed tabs retain independent scroll positions and all loaded pages', async
 		craftRequests++;
 		return route.fulfill({ json: { items: posts('knitting'), cursor: null } });
 	});
-	await page.goto('/app/home');
+	await page.goto('/feed');
 	await expect(page.locator('.member-post')).toHaveCount(12);
 	await page.getByRole('button', { name: 'Load more', exact: true }).click();
 	await expect(page.locator('.member-post')).toHaveCount(24);
@@ -172,7 +172,7 @@ test('profile tab changes retain the header, scroll and loaded lists; replies us
 			}
 		});
 	});
-	await page.goto('/app/profile/did%3Aplc%3Aalice?tab=posts');
+	await page.goto('/profiles/did%3Aplc%3Aalice?tab=posts');
 	await expect(page.locator('.member-post')).toHaveCount(12);
 	const identity = await page.locator('.profile-identity').elementHandle();
 	const initialProfileRequests = profileRequests;
@@ -241,7 +241,7 @@ test('switching away from a loading profile tab ignores its late response and ca
 		await pending;
 		await route.fulfill({ json: { items: posts('comment', 1) } });
 	});
-	await page.goto('/app/profile/did%3Aplc%3Aalice?tab=posts');
+	await page.goto('/profiles/did%3Aplc%3Aalice?tab=posts');
 	await expect(page.locator('.member-post')).toHaveCount(12);
 	const tabs = page.getByRole('navigation', { name: 'Profile content' });
 	try {
@@ -297,7 +297,7 @@ test('search categories retain loaded results and independent positions without 
 			}
 		});
 	});
-	await page.goto('/app/search?q=test&sort=popular');
+	await page.goto('/search?q=test&sort=popular');
 	await expect(page.locator('.member-post')).toHaveCount(12);
 	const input = await page
 		.getByRole('searchbox', { name: 'Search CraftSky', exact: true })
@@ -333,7 +333,7 @@ test('search categories retain loaded results and independent positions without 
 		if (category === 'Posts') {
 			// Normalise a legacy URL that has sort but no explicit tab, then keep scrolling.
 			await switchTab(tabs.getByRole('link', { name: 'Posts', exact: true }));
-			await expect(page).toHaveURL('/app/search?q=test&tab=posts');
+			await expect(page).toHaveURL('/search?q=test&tab=posts');
 			await page.evaluate(() => new Promise(requestAnimationFrame));
 			await expect
 				.poll(() => page.evaluate(() => scrollY))
@@ -391,7 +391,7 @@ test('switching away from a loading search tab ignores its late result', async (
 		await pending;
 		await route.fulfill({ json: { items: posts('search-project', 1) } });
 	});
-	await page.goto('/app/search?q=test');
+	await page.goto('/search?q=test');
 	await expect(page.locator('.member-post')).toHaveCount(1);
 	const tabs = page.getByRole('navigation', { name: 'Search categories' });
 	try {

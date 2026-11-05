@@ -1,3 +1,4 @@
+import { authenticatedRoute } from '#lib/routes.ts';
 import { Buffer } from 'node:buffer';
 import type { Cookies } from '@sveltejs/kit';
 
@@ -101,19 +102,19 @@ export function returnPath(raw: unknown): string {
 	if (
 		typeof raw !== 'string' ||
 		raw.length > 2048 ||
-		!raw.startsWith('/app/') ||
+		!raw.startsWith('/') ||
 		/[\\\u0000-\u0020\u007f]/.test(raw) ||
 		/%(?:2f|5c|00|0a|0d)/i.test(raw)
 	)
-		return '/app/home';
+		return '/feed';
 	try {
 		const url = new URL(raw, 'https://app.craftsky.social');
 		return url.origin === 'https://app.craftsky.social' &&
-			url.pathname.startsWith('/app/')
+			authenticatedRoute(url.pathname)
 			? url.pathname + url.search + url.hash
-			: '/app/home';
+			: '/feed';
 	} catch {
-		return '/app/home';
+		return '/feed';
 	}
 }
 export function readIntent(value: string | undefined): Intent | undefined {

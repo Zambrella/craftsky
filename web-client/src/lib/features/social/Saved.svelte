@@ -99,7 +99,7 @@
 	function remove() {
 		void work.run(
 			() => api.saved.deleteFolder(folderId, deleteSaves),
-			() => void goto('/app/saved'),
+			() => void goto('/saved'),
 			'Folder deleted.'
 		);
 	}
@@ -112,7 +112,7 @@
 	<div class="saved-title">
 		{#if folderId || unfiled}<a
 				class="icon-button"
-				href="/app/saved"
+				href="/saved"
 				aria-label="Back to saved posts"><Icon name="back" /></a
 			>{/if}
 		<h1>
@@ -154,7 +154,7 @@
 	>
 		<h2>Folders</h2>
 		{#each folders as folder}<a
-				href={'/app/saved?folder=' + encodeURIComponent(folder.id)}
+				href={'/saved/folder?folder=' + encodeURIComponent(folder.id)}
 				><Icon name="folder" /><strong>{folder.name}</strong><span
 					aria-hidden="true">›</span
 				></a
@@ -184,11 +184,10 @@
 		class="saved-scope"
 		aria-label="Saved posts"
 	>
-		<a href="/app/saved?all=true" aria-current={showAll ? 'page' : undefined}
+		<a href="/saved?all=true" aria-current={showAll ? 'page' : undefined}
 			>All saved</a
-		><a
-			href="/app/saved?unfiled=true"
-			aria-current={!showAll ? 'page' : undefined}>Unfiled</a
+		><a href="/saved?unfiled=true" aria-current={!showAll ? 'page' : undefined}
+			>Unfiled</a
 		>
 	</nav>{/if}
 {#each items as item}<MemberPost

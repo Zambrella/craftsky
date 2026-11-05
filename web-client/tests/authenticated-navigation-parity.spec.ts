@@ -137,19 +137,19 @@ test('hashtag Back returns to the originating feed or post and restores paginate
 			json: { error: 'unavailable', message: 'Temporary hashtag outage.' }
 		})
 	);
-	await page.goto('/app/home');
+	await page.goto('/feed');
 	await page.getByRole('button', { name: 'Load more', exact: true }).click();
 	await expect(page.locator('.member-post')).toHaveCount(20);
 	const card = page.locator('.member-post').nth(15);
 	await card.scrollIntoViewIfNeeded();
 	const y = await page.evaluate(() => scrollY);
 	await card.getByRole('link', { name: '#sewing', exact: true }).click();
-	await expect(page).toHaveURL(/\/app\/tags\/sewing$/);
+	await expect(page).toHaveURL(/\/search\/tags\?tag=sewing$/);
 	await expect(page.locator('.snackbar.warning')).toContainText(
 		'Temporary hashtag outage.'
 	);
 	await page.getByRole('link', { name: 'Back', exact: true }).click();
-	await expect(page).toHaveURL(/\/app\/home$/);
+	await expect(page).toHaveURL(/\/feed$/);
 	await expect(page.locator('.member-post')).toHaveCount(20);
 	await expect(page.locator('.snackbar.warning')).toHaveCount(0);
 	await expect.poll(() => page.evaluate(() => scrollY)).toBeCloseTo(y, 0);
@@ -163,7 +163,7 @@ test('hashtag Back returns to the originating feed or post and restores paginate
 	await page.getByRole('link', { name: 'Back', exact: true }).click();
 	await expect(page).toHaveURL(/scroll-15$/);
 	await page.getByRole('link', { name: 'Back', exact: true }).click();
-	await expect(page).toHaveURL(/\/app\/home$/);
+	await expect(page).toHaveURL(/\/feed$/);
 	await expect(page.locator('.member-post')).toHaveCount(20);
 	await expect.poll(() => page.evaluate(() => scrollY)).toBeCloseTo(y, 0);
 	await page.goForward();
@@ -176,7 +176,7 @@ test('hashtag Back returns to the originating feed or post and restores paginate
 test('pattern text permits deleting the hash and plain names, with the self-drafted switch trailing', async ({
 	page
 }) => {
-	await page.goto('/app/compose/project');
+	await page.goto('/compose/project');
 	const field = page.getByRole('textbox', {
 		name: 'Pattern tag or name',
 		exact: true
@@ -209,7 +209,7 @@ test('pattern text permits deleting the hash and plain names, with the self-draf
 	await expect(field).toHaveValue('Falconer pants');
 	await field.fill('#falconer');
 	await page.getByRole('button', { name: 'Save draft', exact: true }).click();
-	await expect(page).toHaveURL(/\/app\/home$/);
+	await expect(page).toHaveURL(/\/feed$/);
 	await page.getByRole('link', { name: 'Drafts', exact: true }).click();
 	await page
 		.getByRole('link', { name: 'Continue editing', exact: true })
@@ -248,7 +248,7 @@ test('comments use flat cards and shaded reply branches with working controls in
 			}
 		})
 	);
-	await page.goto('/app/posts/did%3Aplc%3Abob/root');
+	await page.goto('/posts/did%3Aplc%3Abob/root');
 	const branch = page.locator('.replies');
 	await expect(branch).toBeVisible();
 	const compose = page.getByRole('link', {
@@ -293,4 +293,44 @@ test('comments use flat cards and shaded reply branches with working controls in
 	);
 	await branch.getByRole('link', { name: 'Reply', exact: true }).click();
 	await expect(page).toHaveURL(/compose\/reply/);
+});
+
+test('changing the mobile tag query reloads results within the same route', async ({
+	page
+}) => {
+	const tags: string[] = [];
+	await page.route('**/api/appview/v1/search/hashtags/*/posts*', (route) => {
+		const tag = new URL(route.request().url()).pathname.split('/').at(-2)!;
+		tags.push(tag);
+		return route.fulfill({
+			json: {
+				items: [
+					post('tagged', {
+						text: '#crochet',
+						facets: [
+							{
+								index: { byteStart: 0, byteEnd: 8 },
+								features: [
+									{ $type: 'app.bsky.richtext.facet#tag', tag: 'crochet' }
+								]
+							}
+						]
+					})
+				]
+			}
+		});
+	});
+	await page.goto('/search/tags?tag=sewing');
+	await expect(
+		page.getByRole('heading', { name: '#sewing', exact: true })
+	).toBeVisible();
+	await page
+		.locator('.post-card')
+		.getByRole('link', { name: '#crochet', exact: true })
+		.click();
+	await expect(page).toHaveURL('/search/tags?tag=crochet');
+	await expect(
+		page.getByRole('heading', { name: '#crochet', exact: true })
+	).toBeVisible();
+	expect(tags).toEqual(['sewing', 'crochet']);
 });

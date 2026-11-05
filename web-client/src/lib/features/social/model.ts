@@ -21,7 +21,7 @@ export function postRoute(
 	post: Pick<Post, 'uri' | 'author'> & { rkey?: string }
 ) {
 	const address = postAddress(post.uri);
-	return `/app/posts/${encodeURIComponent(address?.did || post.author.did)}/${encodeURIComponent(address?.rkey || post.rkey || '')}`;
+	return `/posts/${encodeURIComponent(address?.did || post.author.did)}/${encodeURIComponent(address?.rkey || post.rkey || '')}`;
 }
 export function publicPost(post: Post): PublicPost {
 	return {
@@ -108,9 +108,9 @@ export function facetParts(
 				typeof feature.did === 'string' &&
 				/^did:[a-z]+:[^/\s]+$/.test(feature.did)
 			)
-				href = '/app/profile/' + encodeURIComponent(feature.did);
+				href = '/profiles/' + encodeURIComponent(feature.did);
 			if (type.endsWith('#tag') && typeof feature.tag === 'string')
-				href = '/app/tags/' + encodeURIComponent(feature.tag);
+				href = '/search/tags?tag=' + encodeURIComponent(feature.tag);
 			if (href) break;
 		}
 		if (!href) continue;

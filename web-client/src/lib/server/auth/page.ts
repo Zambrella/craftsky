@@ -1,6 +1,6 @@
 import { redirect } from '@sveltejs/kit';
 import { env } from 'node:process';
-import type { PageServerLoad } from './$types';
+import type { RequestEvent } from '@sveltejs/kit';
 import {
 	selected,
 	credentials,
@@ -12,7 +12,10 @@ import {
 	options
 } from '#lib/server/auth/session.ts';
 import { upstream, UpstreamError } from '#lib/server/auth/upstream.ts';
-export const load: PageServerLoad = async ({ cookies, url, params }) => {
+export async function authenticatedPage({
+	cookies,
+	url
+}: Pick<RequestEvent, 'cookies' | 'url'>) {
 	const account = selected(cookies, url);
 	if (!account) redirect(303, '/sign-in');
 	try {
@@ -55,6 +58,6 @@ export const load: PageServerLoad = async ({ cookies, url, params }) => {
 		videoUploadsEnabled: env.CRAFTSKY_ENABLE_VIDEO_UPLOADS === 'true',
 		session: publicAccount(account),
 		accounts: credentials(cookies, url).map(publicAccount),
-		path: (params.path || 'home').split('/')
+		path: url.pathname.slice(1).split('/').map(decodeURIComponent)
 	};
-};
+}

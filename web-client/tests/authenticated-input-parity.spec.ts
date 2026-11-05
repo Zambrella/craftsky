@@ -38,7 +38,7 @@ test('tab strip drags without activating a tab and still permits clicks', async 
 	page
 }) => {
 	await page.setViewportSize({ width: 390, height: 844 });
-	await page.goto('/app/home');
+	await page.goto('/feed');
 	const tabs = page.getByRole('navigation', { name: 'Home feeds' });
 	await expect(tabs).toBeVisible();
 	const rect = (await tabs.boundingBox())!;
@@ -59,7 +59,7 @@ test('facets paint in primary colour and suggestions follow the caret without ke
 	await page.route('**/api/appview/v1/facets/hashtags?*', (route) =>
 		route.fulfill({ json: { items: [{ tag: 'sewing', postCount: 12 }] } })
 	);
-	await page.goto('/app/compose/standard');
+	await page.goto('/compose/standard');
 	const field = page.getByRole('textbox', {
 		name: 'What would you like to share?'
 	});
@@ -102,7 +102,7 @@ test('facets paint in primary colour and suggestions follow the caret without ke
 test('primary craft required note is inline and field titles do not highlight or activate controls', async ({
 	page
 }) => {
-	await page.goto('/app/compose/project');
+	await page.goto('/compose/project');
 	const field = page.getByRole('combobox', { name: 'Primary craft' });
 	const title = page
 		.locator('.native-single-select')
@@ -177,7 +177,7 @@ test('onboarding keeps one editor across steps, uses fixed actions and retains u
 		body: JSON.stringify({ owners: { alice: { completed: false } } })
 	});
 	await page.setViewportSize({ width: 402, height: 874 });
-	await page.goto('/app/home');
+	await page.goto('/feed');
 	await expect(
 		page.getByRole('heading', { name: 'Make it yours' })
 	).toBeVisible();
@@ -225,12 +225,12 @@ test('onboarding keeps one editor across steps, uses fixed actions and retains u
 test('draft deletion uses the shared branded confirmation in both themes', async ({
 	page
 }) => {
-	await page.goto('/app/compose');
+	await page.goto('/compose');
 	await page
 		.getByRole('textbox', { name: 'What would you like to share?' })
 		.fill('Draft dialog preview');
 	await page.getByRole('button', { name: 'Save draft', exact: true }).click();
-	await expect(page).toHaveURL(/\/app\/home$/);
+	await expect(page).toHaveURL(/\/feed$/);
 	await page.getByRole('link', { name: 'Drafts', exact: true }).click();
 	await page.getByRole('button', { name: 'Delete draft', exact: true }).click();
 	const dialog = page.getByRole('dialog', { name: 'Delete draft?' });
@@ -258,7 +258,7 @@ for (const width of [390, 470, 900]) {
 		page
 	}) => {
 		await page.setViewportSize({ width, height: 844 });
-		await page.goto('/app/home');
+		await page.goto('/feed');
 		const menu = page.getByRole('button', {
 			name: 'Open navigation',
 			exact: true

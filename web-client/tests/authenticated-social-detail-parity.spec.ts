@@ -105,7 +105,7 @@ test('project feed summaries retain pattern facets, credits, size and compact ed
 			}
 		})
 	);
-	await page.goto('/app/home');
+	await page.goto('/feed');
 	const card = page.locator('.post-card').first();
 	const metadata = card.locator('.project-preview-metadata');
 	await expect(metadata).toContainText('Pattern');
@@ -148,7 +148,7 @@ test('empty pattern metadata stays absent and unrecognised status remains outlin
 			}
 		})
 	);
-	await page.goto('/app/home');
+	await page.goto('/feed');
 	await expect(page.getByRole('heading', { name: 'A project' })).toBeVisible();
 	await expect(page.locator('.project-preview-metadata')).toHaveCount(0);
 	await expect(page.locator('.status-badge')).toHaveCSS(
@@ -196,7 +196,7 @@ test('quoted projects use native compact identity, text before image and four-li
 			body: '<svg xmlns="http://www.w3.org/2000/svg" width="800" height="400"><rect width="800" height="400" fill="blue"/></svg>'
 		})
 	);
-	await page.goto('/app/home');
+	await page.goto('/feed');
 	const quote = page.getByRole('complementary', { name: 'Quoted post' });
 	await expect(quote.locator('.avatar')).toBeVisible();
 	await quote.screenshot({
@@ -216,11 +216,11 @@ test('quoted projects use native compact identity, text before image and four-li
 	);
 	await expect(quote.locator('a.summary-content')).toHaveAttribute(
 		'href',
-		'/app/posts/did%3Aplc%3Abob/dinosaur'
+		'/posts/did%3Aplc%3Abob/dinosaur'
 	);
 	await expect(
 		quote.getByRole('link', { name: 'View profile of Bob Maker', exact: true })
-	).toHaveAttribute('href', '/app/profile/did%3Aplc%3Abob');
+	).toHaveAttribute('href', '/profiles/did%3Aplc%3Abob');
 	await expect(quote.locator('a a')).toHaveCount(0);
 	expect(
 		await quote.evaluate(
@@ -236,7 +236,7 @@ test('quoted projects use native compact identity, text before image and four-li
 	await quote
 		.getByRole('link', { name: 'View profile of Bob Maker', exact: true })
 		.click();
-	await expect(page).toHaveURL(/\/app\/profile\/did%3Aplc%3Abob$/);
+	await expect(page).toHaveURL(/\/profiles\/did%3Aplc%3Abob$/);
 });
 
 test('protected quoted content never enters the native summary', async ({
@@ -259,7 +259,7 @@ test('protected quoted content never enters the native summary', async ({
 			quoteView: { state: 'blocked', revealable: false, post: quoted }
 		})
 	);
-	await page.goto('/app/home');
+	await page.goto('/feed');
 	await expect(page.getByText('Quoted post blocked.')).toBeVisible();
 	await expect(page.locator('.quote-card img')).toHaveCount(0);
 	await expect(page.locator('.quote-card .avatar')).toHaveCount(0);
@@ -278,7 +278,7 @@ test('unsaved bookmark confirms before writing and Cancel leaves it unchanged', 
 		writes++;
 		return route.fulfill({ json: {} });
 	});
-	await page.goto('/app/home');
+	await page.goto('/feed');
 	await page.getByRole('button', { name: 'Save', exact: true }).click();
 	const dialog = page.getByRole('dialog', { name: 'Save post', exact: true });
 	await expect(dialog).toBeVisible();
@@ -322,7 +322,7 @@ test('compact share and overflow menus expose native actions and quote the displ
 			body: '<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"/>'
 		})
 	);
-	await page.goto('/app/home');
+	await page.goto('/feed');
 	await page
 		.getByRole('button', { name: 'Show image 2 of 2', exact: true })
 		.click();
@@ -441,7 +441,7 @@ test('report category/reason stages can change and cancel without submitting pri
 		reports++;
 		return route.fulfill({ json: { status: 'ok' } });
 	});
-	await page.goto('/app/home');
+	await page.goto('/feed');
 	await page.getByLabel('More post actions', { exact: true }).click();
 	await page.getByRole('button', { name: 'Report post', exact: true }).click();
 	const dialog = page.getByRole('dialog', { name: 'Report post', exact: true });
@@ -519,7 +519,7 @@ test('thread loads initial replies, hides/reopens the cached branch, and targets
 		}
 		return route.fulfill({ json: root });
 	});
-	await page.goto('/app/posts/did%3Aplc%3Abob/thread');
+	await page.goto('/posts/did%3Aplc%3Abob/thread');
 	await expect(
 		page.getByRole('link', { name: '6 Likes', exact: true })
 	).toBeVisible();
@@ -540,10 +540,7 @@ test('thread loads initial replies, hides/reopens the cached branch, and targets
 	const nested = page.locator('.replies .member-post');
 	await expect(
 		nested.getByRole('link', { name: 'Reply', exact: true })
-	).toHaveAttribute(
-		'href',
-		'/app/compose/reply?did=did%3Aplc%3Abob&rkey=nested'
-	);
+	).toHaveAttribute('href', '/compose/reply?did=did%3Aplc%3Abob&rkey=nested');
 });
 
 test('mute removes protected author content and keeps the write bound to the selected account', async ({
@@ -575,7 +572,7 @@ test('mute removes protected author content and keeps the write bound to the sel
 			json: { did: maker.did, muted: true, blocking: false, blockedBy: false }
 		});
 	});
-	await page.goto('/app/home');
+	await page.goto('/feed');
 	await expect(
 		page.getByText('PRIVATE_MUTED_CANARY', { exact: true })
 	).toBeVisible();
@@ -620,7 +617,7 @@ test('unavailable activity suppresses actor identity, both previews, follow and 
 					}
 				})
 	);
-	await page.goto('/app/activity');
+	await page.goto('/notifications');
 	await expect(
 		page.getByText('Activity unavailable', { exact: true })
 	).toBeVisible();
@@ -676,7 +673,7 @@ async function profileEditor(page: Page) {
 			json: { ...editableProfile, editableLinks: editableProfile.links }
 		});
 	});
-	await page.goto('/app/profile/edit');
+	await page.goto('/profile/edit');
 	await expect(
 		page.getByRole('button', { name: 'Edit link Alpha', exact: true })
 	).toBeVisible();
@@ -888,21 +885,21 @@ test('profile editor Close preserves the unsaved draft when discard is declined'
 	await discard
 		.getByRole('button', { name: 'Keep editing', exact: true })
 		.click();
-	await expect(page).toHaveURL(/\/app\/profile\/edit$/);
+	await expect(page).toHaveURL(/\/profile\/edit$/);
 	await expect(
 		page.getByRole('textbox', { name: 'Display name', exact: true })
 	).toHaveValue('Unsaved maker name');
 	expect(writes).toHaveLength(0);
 	await close.click();
 	await discard.getByRole('button', { name: 'Discard', exact: true }).click();
-	await expect(page).toHaveURL(/\/app\/profile\/did%3Aplc%3Aalice$/);
+	await expect(page).toHaveURL(/\/profiles\/did%3Aplc%3Aalice$/);
 	expect(writes).toHaveLength(0);
 });
 
 test('browser Back can cancel and then discard profile edits without saving', async ({
 	page
 }) => {
-	await page.goto('/app/home');
+	await page.goto('/feed');
 	const writes = await profileEditor(page);
 	// Establish an in-app history entry instead of a document navigation.
 	await page.getByRole('link', { name: 'Close editor', exact: true }).click();
@@ -922,7 +919,7 @@ test('browser Back can cancel and then discard profile edits without saving', as
 	await expect(page).toHaveURL(/\/profile\/edit$/);
 	await page.evaluate(() => history.back());
 	await dialog.getByRole('button', { name: 'Discard', exact: true }).click();
-	await expect(page).toHaveURL(/\/profile\/did%3Aplc%3Aalice$/);
+	await expect(page).toHaveURL(/\/profiles\/did%3Aplc%3Aalice$/);
 	expect(writes).toHaveLength(0);
 });
 
@@ -938,7 +935,7 @@ test('loading skeletons stop shimmering for reduced motion and disappear when co
 		});
 	});
 	await page.emulateMedia({ reducedMotion: 'reduce' });
-	await page.goto('/app/home');
+	await page.goto('/feed');
 	const skeleton = page.getByRole('status', { name: 'Loading content' });
 	await expect(skeleton).toBeVisible();
 	await expect(skeleton.locator('.bone').first()).toHaveCSS(
@@ -989,12 +986,12 @@ test('authoritative profile save immediately refreshes shell identity and ignore
 			json: { ...profile, editableLinks: profile.links }
 		});
 	});
-	await page.goto('/app/profile/edit');
+	await page.goto('/profile/edit');
 	await page
 		.getByRole('textbox', { name: 'Display name', exact: true })
 		.fill('Saved maker identity');
 	await page.getByRole('button', { name: 'Save profile', exact: true }).click();
-	await expect(page).toHaveURL(/\/app\/profile\/did%3Aplc%3Aalice$/);
+	await expect(page).toHaveURL(/\/profiles\/did%3Aplc%3Aalice$/);
 	const bottomProfile = page
 		.getByRole('navigation', { name: 'Main tabs', exact: true })
 		.getByRole('link', { name: 'Profile', exact: true });
@@ -1070,7 +1067,7 @@ test('fullscreen gallery expands alt text, resets zoom across images, handles sw
 			body: '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="600"><rect width="400" height="600" fill="#f7d46a"/></svg>'
 		})
 	);
-	await page.goto('/app/home');
+	await page.goto('/feed');
 	const open = page.locator('.gallery a').first();
 	await open.click();
 	await expect(page).toHaveURL(/\/posts\/.*\/gallery\?imageCid=gallery-1$/);
@@ -1147,7 +1144,7 @@ test('external links show their destination in a native confirmation and Cancel 
 			body: '<title>Pattern destination</title><p>Pattern</p>'
 		})
 	);
-	await page.goto('/app/home');
+	await page.goto('/feed');
 	const link = page.getByRole('link', { name: 'Pattern link', exact: true });
 	await link.click();
 	const dialog = page.getByRole('dialog', { name: 'Open link?', exact: true });
@@ -1156,7 +1153,7 @@ test('external links show their destination in a native confirmation and Cancel 
 	await expect(dialog).toHaveCSS('border-radius', '14px');
 	await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
 	await expect(link).toBeFocused();
-	await expect(page).toHaveURL(/\/app\/home$/);
+	await expect(page).toHaveURL(/\/feed$/);
 	await link.click();
 	await dialog.getByRole('link', { name: 'Open link', exact: true }).click();
 	await expect(page).toHaveURL(href);
@@ -1185,11 +1182,11 @@ test('notification post Back returns to the notification list', async ({
 			}
 		})
 	);
-	await page.goto('/app/activity');
+	await page.goto('/notifications');
 	await page.locator('.notification-main').click();
 	await expect(page).toHaveURL(/\/posts\/.*\/liked$/);
 	await page.getByRole('link', { name: 'Back', exact: true }).click();
-	await expect(page).toHaveURL(/\/app\/activity$/);
+	await expect(page).toHaveURL(/\/notifications$/);
 	await expect(page.locator('.notification-main')).toBeVisible();
 });
 
@@ -1206,7 +1203,7 @@ test('external preview confirms and nested hover leaves the outer post unchanged
 			}
 		})
 	);
-	await page.goto('/app/home');
+	await page.goto('/feed');
 	const card = page.locator('.member-post').first();
 	const link = card.locator('.external-card');
 	await page.mouse.move(0, 0);
@@ -1220,7 +1217,7 @@ test('external preview confirms and nested hover leaves the outer post unchanged
 		page.getByRole('dialog', { name: 'Open link?', exact: true })
 	).toBeVisible();
 	await page.getByRole('button', { name: 'Cancel', exact: true }).click();
-	await expect(page).toHaveURL(/\/app\/home$/);
+	await expect(page).toHaveURL(/\/feed$/);
 });
 
 test('inline carousel arrows and mouse swipe retain the feed and centre mixed ratios', async ({
@@ -1245,7 +1242,7 @@ test('inline carousel arrows and mouse swipe retain the feed and centre mixed ra
 			body: `<svg xmlns="http://www.w3.org/2000/svg" width="400" height="${route.request().url().endsWith('1.svg') ? 500 : 200}"><rect width="400" height="500" fill="#f7d46a"/></svg>`
 		})
 	);
-	await page.goto('/app/home');
+	await page.goto('/feed');
 	const carousel = page.locator('.post-images').first();
 	await carousel
 		.getByRole('button', { name: 'Next image', exact: true })
@@ -1263,7 +1260,7 @@ test('inline carousel arrows and mouse swipe retain the feed and centre mixed ra
 	await expect(
 		carousel.getByRole('button', { name: 'Show image 1 of 2', exact: true })
 	).toHaveAttribute('aria-pressed', 'true');
-	await expect(page).toHaveURL(/\/app\/home$/);
+	await expect(page).toHaveURL(/\/feed$/);
 	await expect(carousel.locator('.gallery > a').first()).toHaveCSS(
 		'align-items',
 		'center'
@@ -1300,7 +1297,7 @@ test('project card surface opens native metadata and material chips', async ({
 			}
 		})
 	);
-	await page.goto('/app/home');
+	await page.goto('/feed');
 	await page.locator('.status-badge').click();
 	await expect(page).toHaveURL(/\/posts\/.*\/details$/);
 	await expect(
@@ -1330,7 +1327,7 @@ test('returning authors get the compact post context menu and matching search fo
 	await page.addInitScript(() =>
 		localStorage.setItem('craftsky.post-type.seen.did:plc:alice', 'true')
 	);
-	await page.goto('/app/home');
+	await page.goto('/feed');
 	await page.getByRole('button', { name: 'Create post', exact: true }).click();
 	const menu = page.locator('.post-type-context[open] .menu-items');
 	await expect(menu).toBeVisible();
@@ -1338,9 +1335,9 @@ test('returning authors get the compact post context menu and matching search fo
 		page.getByRole('dialog', { name: 'What would you like to share?' })
 	).not.toBeVisible();
 	await menu.getByRole('link', { name: /Regular post/ }).click();
-	await expect(page).toHaveURL(/\/app\/compose$/);
+	await expect(page).toHaveURL(/\/compose$/);
 	await page.getByRole('link', { name: 'Close editor', exact: true }).click();
-	await page.goto('/app/search');
+	await page.goto('/search');
 	const search = page.locator('#search');
 	await search.click();
 	await expect(search).toHaveCSS('border-top-width', '0px');
@@ -1364,7 +1361,7 @@ test('long lists offer scroll to top and account menus adapt to their trigger', 
 			}
 		})
 	);
-	await page.goto('/app/home');
+	await page.goto('/feed');
 	await expect(page.locator('.member-post')).toHaveCount(12);
 	const top = page.getByRole('button', { name: 'Scroll to top', exact: true });
 	await expect(top).toBeHidden();
@@ -1392,7 +1389,7 @@ test('post hover only advertises navigation and closing a comment does not leave
 	page
 }) => {
 	await timeline(page, post());
-	await page.goto('/app/home');
+	await page.goto('/feed');
 	const card = page.locator('.member-post').first();
 	await expect(card).toBeVisible();
 	await expect(card).toHaveCSS('cursor', 'pointer');
@@ -1402,7 +1399,7 @@ test('post hover only advertises navigation and closing a comment does not leave
 		.poll(() => card.evaluate((n) => getComputedStyle(n).backgroundColor))
 		.not.toBe(idle);
 	await page.getByText('Weekend making.', { exact: true }).click();
-	await expect(page).toHaveURL(/\/app\/posts\//);
+	await expect(page).toHaveURL(/\/posts\//);
 	const detail = page.locator('.member-post').first();
 	await page.mouse.move(0, 0);
 	const detailIdle = await detail.evaluate(
@@ -1414,9 +1411,9 @@ test('post hover only advertises navigation and closing a comment does not leave
 	await page.locator('.comment-compose').click();
 	await expect(page).toHaveURL(/\/compose\/reply/);
 	await page.getByRole('link', { name: 'Close editor', exact: true }).click();
-	await expect(page).toHaveURL(/\/app\/posts\//);
+	await expect(page).toHaveURL(/\/posts\//);
 	await page.getByRole('link', { name: 'Back', exact: true }).click();
-	await expect(page).toHaveURL(/\/app\/home$/);
+	await expect(page).toHaveURL(/\/feed$/);
 });
 
 test('likes rows keep avatar and identity centred, contiguous and highlighted on hover', async ({
@@ -1438,7 +1435,7 @@ test('likes rows keep avatar and identity centred, contiguous and highlighted on
 			}
 		})
 	);
-	await page.goto('/app/posts/did%3Aplc%3Abob/first/likes');
+	await page.goto('/posts/did%3Aplc%3Abob/first/likes');
 	const rows = page.locator('.thread-person');
 	await expect(rows).toHaveCount(2);
 	const metrics = await rows.evaluateAll((nodes) =>
@@ -1541,7 +1538,7 @@ test('profile drag lifts the complete row, supports cancel and commits only on p
 test('desktop sponsored menu has no overflow and toast stays inside the content column', async ({
 	page
 }) => {
-	await page.goto('/app/compose/project');
+	await page.goto('/compose/project');
 	const trigger = page.getByRole('button', {
 		name: 'Sponsored options',
 		exact: true
@@ -1559,7 +1556,7 @@ test('desktop sponsored menu has no overflow and toast stays inside the content 
 	});
 	await page.keyboard.press('Escape');
 	await page.context().grantPermissions(['clipboard-read', 'clipboard-write']);
-	await page.goto('/app/home');
+	await page.goto('/feed');
 	await page.getByLabel('More post actions', { exact: true }).first().click();
 	await page.getByRole('button', { name: 'Copy link', exact: true }).click();
 	const toast = page.locator('.snackbar');
@@ -1573,14 +1570,14 @@ test('desktop sponsored menu has no overflow and toast stays inside the content 
 test('draft app bars share the standard app header and profile focus uses ink rather than cobalt', async ({
 	page
 }) => {
-	await page.goto('/app/home');
+	await page.goto('/feed');
 	const header = page.locator('.workspace-header,.workspace-heading').first();
 	const standard = await header.evaluate((n) => ({
 		height: n.getBoundingClientRect().height,
 		border: getComputedStyle(n).borderBottom,
 		background: getComputedStyle(n).backgroundColor
 	}));
-	for (const path of ['/app/drafts', '/app/scheduled']) {
+	for (const path of ['/drafts', '/scheduled']) {
 		await page.goto(path);
 		await expect(page.locator('.draft-appbar')).toBeVisible();
 		expect(
@@ -1636,7 +1633,7 @@ for (const width of [390, 1280]) {
 			await pending;
 			await route.fulfill({ json: { comments: { items: [], cursor: null } } });
 		});
-		await page.goto('/app/home');
+		await page.goto('/feed');
 		const comment = page
 			.getByRole('link', { name: 'Comments', exact: true })
 			.first();
@@ -1677,7 +1674,7 @@ for (const width of [390, 1280]) {
 	});
 }
 
-for (const target of ['/app/home', '/app/posts/did%3Aplc%3Abob/first']) {
+for (const target of ['/feed', '/posts/did%3Aplc%3Abob/first']) {
 	test(`comment icon hover matches the other post actions on ${target}`, async ({
 		page
 	}) => {
@@ -1723,7 +1720,7 @@ for (const colorScheme of ['light', 'dark'] as const) {
 	}) => {
 		await page.emulateMedia({ colorScheme });
 		await timeline(page, post());
-		await page.goto('/app/posts/did%3Aplc%3Abob/first');
+		await page.goto('/posts/did%3Aplc%3Abob/first');
 		const button = page.getByRole('link', {
 			name: 'Add a comment',
 			exact: true

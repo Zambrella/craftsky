@@ -33,7 +33,7 @@ void main() {
       '/auth/browser/complete',
       '/auth/browser/confirm',
       '/account-deletion/browser/reauth-complete',
-      '/app/home',
+      '/feed',
       '/sign-in',
     ]) {
       expect(accepts(path), isFalse, reason: path);

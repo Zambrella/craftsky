@@ -96,7 +96,7 @@ test('settings enables messaging in place and failed shared preferences keep the
 			}
 		});
 	}
-	await page.goto('/app/settings/messaging');
+	await page.goto('/settings/messaging');
 	const connection = page.getByRole('switch', {
 		name: /^Enable messaging(?:\s|$)/
 	});
@@ -108,7 +108,7 @@ test('settings enables messaging in place and failed shared preferences keep the
 	});
 	await expect(push).toBeVisible();
 	await expect(push).toBeEnabled();
-	await expect(page).toHaveURL(/\/app\/settings\/messaging$/);
+	await expect(page).toHaveURL(/\/settings\/messaging$/);
 	expect(preferenceReads.sort()).toEqual([
 		'incoming-policy',
 		'push-preferences'
@@ -145,7 +145,7 @@ test('an unconfirmed messaging connection does not leave the switch enabled', as
 	await page.route(`**${appview}/chat/connection`, (route) =>
 		readJSON(route, status(false))
 	);
-	await page.goto('/app/settings/messaging');
+	await page.goto('/settings/messaging');
 	const connection = page.getByRole('switch', {
 		name: /^Enable messaging(?:\s|$)/
 	});
@@ -180,7 +180,7 @@ test('failed native notification choices restore the saved category without chan
 			}
 		});
 	});
-	await page.goto('/app/settings/notifications');
+	await page.goto('/notifications/settings');
 	const likes = page
 		.locator('.notification-card')
 		.filter({ has: page.getByRole('heading', { name: 'Likes', exact: true }) });
@@ -236,7 +236,7 @@ test('future customisation values render native defaults without writing them ba
 		if (request.url().includes('/profile_backgrounds/'))
 			assetRequests.push(request.url());
 	});
-	await page.goto('/app/settings/customisation');
+	await page.goto('/settings/customisation');
 	await expect(
 		page.getByRole('radio', { name: 'Cobalt', exact: true })
 	).toBeChecked();
@@ -279,7 +279,7 @@ test('native content-language chips preserve authoritative preferences after fai
 		preferences = route.request().postDataJSON();
 		await readJSON(route, preferences);
 	});
-	await page.goto('/app/settings/languages');
+	await page.goto('/settings/languages');
 	const primaryLanguage = page.getByRole('combobox', {
 		name: 'Primary language',
 		exact: true
@@ -364,7 +364,7 @@ test('following is the native count-bearing profile list with inline crafts and 
 			cursor: null
 		})
 	);
-	await page.goto('/app/settings/following');
+	await page.goto('/settings/following');
 	await expect(
 		page.getByRole('heading', { level: 1, name: 'Following (42)' })
 	).toBeVisible();
@@ -372,7 +372,7 @@ test('following is the native count-bearing profile list with inline crafts and 
 		page
 			.locator('.app-main')
 			.getByRole('link', { name: /Bob Maker.*@bob.test/ })
-	).toHaveAttribute('href', '/app/profile/did%3Aplc%3Abob');
+	).toHaveAttribute('href', '/profiles/did%3Aplc%3Abob');
 	await expect(
 		page.getByRole('img', { name: /Crafts: Knitting, Future craft/i })
 	).toBeVisible();
@@ -398,7 +398,7 @@ test('product currency uses the supported ISO catalogue and saves a native-lengt
 			indexing: 'pending'
 		});
 	});
-	await page.goto('/app/settings/products');
+	await page.goto('/settings/products');
 	await page
 		.getByRole('button', { name: 'Edit Blue wool', exact: true })
 		.click();
@@ -475,7 +475,7 @@ test('all-day event edits retain future catalog values and freeze the original d
 			});
 		}
 	);
-	await page.goto('/app/settings/events');
+	await page.goto('/settings/events');
 	await page.getByRole('button', { name: 'Edit', exact: true }).click();
 	const dialog = page.locator('.event-dialog');
 	await expect(
@@ -553,7 +553,7 @@ test('future subscription states keep independent tier cards without exposing un
 			]
 		})
 	);
-	await page.goto('/app/settings/subscriptions');
+	await page.goto('/settings/subscriptions');
 	await expect(
 		page.getByRole('region', { name: 'CraftSky Plus', exact: true })
 	).toBeVisible();
@@ -631,7 +631,7 @@ test('Instagram keeps the native private confirmation choice and describes all r
 			});
 		}
 	);
-	await page.goto('/app/settings/instagram');
+	await page.goto('/settings/instagram');
 	await page.getByRole('button', { name: 'Keep private', exact: true }).click();
 	await expect(
 		page.getByRole('button', { name: 'Keep private', exact: true })

@@ -38,7 +38,7 @@ test.beforeEach(async ({ context, page }) => {
 	});
 });
 async function seed(page: Page, common: JsonObject) {
-	await page.goto('/app/drafts');
+	await page.goto('/drafts');
 	await expect(
 		page.getByRole('heading', { level: 1, name: 'Drafts', exact: true })
 	).toBeVisible();
@@ -86,7 +86,7 @@ async function seed(page: Page, common: JsonObject) {
 			}),
 		draft as unknown
 	);
-	await page.goto(`/app/compose/project?draft=${draftId}`);
+	await page.goto(`/compose/project?draft=${draftId}`);
 	await expect(
 		page.getByRole('textbox', { name: 'Project title', exact: true })
 	).toHaveValue('Native project fields');
@@ -212,7 +212,7 @@ test('searchable project selections retain unknown values and existing craft met
 				]
 			}
 		});
-	await page.goto(`/app/compose/project?draft=${draftId}`);
+	await page.goto(`/compose/project?draft=${draftId}`);
 	await expect(
 		page.getByRole('textbox', { name: 'Project title', exact: true })
 	).toHaveValue('Native project fields');
@@ -427,7 +427,7 @@ test('single project choices search, clear, dismiss and preserve catalogued tool
 		.getByRole('button', { name: 'Back to project', exact: true })
 		.click();
 	await save(page);
-	await page.goto(`/app/compose/project?draft=${draftId}`);
+	await page.goto(`/compose/project?draft=${draftId}`);
 	await page
 		.getByRole('button', { name: 'Knitting details', exact: true })
 		.click();

@@ -102,10 +102,10 @@ func (s *FirebaseSender) buildMessage(request SendRequest) (*messaging.Message, 
 		if err != nil || routingID == uuid.Nil {
 			return nil, ErrPushPayloadInvalid
 		}
-		path := "/app/activity"
+		path := "/notifications"
 		query := url.Values{"pushSubscription": {routingID.String()}}
 		if request.Chat != nil {
-			path = "/app/messages"
+			path = "/messages"
 			query.Set("pushReference", request.Chat.OpenReference)
 		}
 		message.Webpush = &messaging.WebpushConfig{

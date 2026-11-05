@@ -33,6 +33,7 @@ export default defineConfig({
 	plugins: [
 		sveltekit({
 			adapter: adapter(),
+			files: { params: 'src/params.ts' },
 			serviceWorker: { register: false },
 			csp: {
 				mode: 'hash',

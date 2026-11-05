@@ -30,5 +30,5 @@ export function draftPreview(draft: Draft): {
 }
 
 export function draftURL(draft: Pick<Draft, 'id'>): string {
-	return '/app/compose?draft=' + encodeURIComponent(draft.id);
+	return '/compose?draft=' + encodeURIComponent(draft.id);
 }

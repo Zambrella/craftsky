@@ -418,7 +418,7 @@
 				);
 				notify('Profile saved.');
 				if (onSaved) onSaved();
-				else void goto('/app/profile/' + encodeURIComponent(owner.did));
+				else void goto('/profiles/' + encodeURIComponent(owner.did));
 			}
 		);
 	}
@@ -428,7 +428,7 @@
 <div class="workspace-header" class:onboarding-title={scope !== 'all'}>
 	{#if scope === 'all'}<a
 			class="icon-button"
-			href={'/app/profile/' + encodeURIComponent(session.did)}
+			href={'/profiles/' + encodeURIComponent(session.did)}
 			aria-label="Close editor"
 			onclick={(event) => {
 				if (work.busy) event.preventDefault();

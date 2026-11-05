@@ -2,7 +2,19 @@
 
 SvelteKit 3 / Svelte 5 / TypeScript client and server-rendered public pages for
 `https://app.craftsky.social`. The marketing site stays in `web/`. The mobile app
-continues to use Flutter. The signed-in application lives at `/app/home`.
+continues to use Flutter. The signed-in application lives at `/feed`.
+
+Browser routes use the mobile router's names: `/feed`, `/search`,
+`/search/tags?tag=…`, `/notifications`, `/notifications/settings`, `/messages`,
+`/messages/conversations/:conversationId`, `/profile`, `/profiles/:did` (or
+`/profiles/@handle`), `/posts/:did/:rkey`, `/events/:did/:rkey`, `/saved`,
+`/saved/folder?folder=…`, `/scheduled`, `/drafts`, and `/settings/*`.
+`/projects` redirects to `/feed`, preserving query parameters, as on mobile.
+`/` opens `/sign-in` when signed out and `/feed` when signed in. Public post and
+profile URLs render the public view when signed out and the app view when signed
+in. Browser pages for mobile modals retain `/compose/*`, `/profile/edit`, and
+`/feed/filters`; they also have no `/app` prefix.
+
 See [ADR 024](../adr/024-public-server-rendered-web-client.md) and
 [ADR 025](../adr/025-browser-consumer-handoff.md).
 

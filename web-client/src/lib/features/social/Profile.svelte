@@ -258,7 +258,7 @@
 	>
 		<a
 			class="icon-button"
-			href="/app/home"
+			href="/feed"
 			aria-label="Back"
 			onclick={(event) => {
 				if (history.length > 1) {
@@ -343,10 +343,10 @@
 			<div class="actions profile-actions">
 				{#if profile.did === session.did}<a
 						class="secondary-button"
-						href="/app/profile/edit"><Icon name="edit" />Edit profile</a
+						href="/profile/edit"><Icon name="edit" />Edit profile</a
 					><a
 						class="icon-button settings-action"
-						href="/app/settings"
+						href="/settings"
 						aria-label="Settings"><Icon name="settings" /></a
 					>
 				{:else}{#if !profile.blocking && !profile.blockedBy}<button
@@ -356,7 +356,7 @@
 							>{profile.viewerIsFollowing ? 'Following' : 'Follow'}</button
 						><a
 							class="icon-button message-action"
-							href={'/app/messages/new?did=' + encodeURIComponent(profile.did)}
+							href={'/messages/new?did=' + encodeURIComponent(profile.did)}
 							aria-label="Message"><Icon name="messages" /></a
 						>{:else if profile.blocking}<button
 							class="secondary-button"
@@ -390,7 +390,7 @@
 								)}><Icon name="link" />Copy link</button
 						>
 						<a
-							href={'/app/messages/new?link=' +
+							href={'/messages/new?link=' +
 								encodeURIComponent(
 									'https://app.craftsky.social/profiles/' +
 										encodeURIComponent(profile.did)
@@ -450,7 +450,7 @@
 				>
 					{#each mutuals as author}<a
 							class="person-row"
-							href={'/app/profile/' + encodeURIComponent(author.did)}
+							href={'/profiles/' + encodeURIComponent(author.did)}
 							><Avatar
 								author={{
 									did: author.did,
@@ -564,7 +564,7 @@
 								: 'No products shared yet.'}
 							icon="business"
 							>{#snippet actions()}{#if profile?.did === session.did}<a
-										href="/app/settings/products">Manage products</a
+										href="/settings/products">Manage products</a
 									>{/if}{/snippet}</EmptyState
 						>{/each}
 				</section>
@@ -578,7 +578,7 @@
 									: 'No upcoming events.'}
 								icon="calendar"
 								>{#snippet actions()}{#if profile?.did === session.did}<a
-											href="/app/settings/events">Manage events</a
+											href="/settings/events">Manage events</a
 										>{/if}{/snippet}</EmptyState
 							>{/if}{/each}
 				</section>{:else}{#each displayedPosts as post, i (`${'uri' in post ? post.uri : i}`)}<MemberPost

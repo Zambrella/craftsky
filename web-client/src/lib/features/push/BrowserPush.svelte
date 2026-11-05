@@ -52,10 +52,10 @@
 				const resolved = await api.chat.notificationOpen(target.reference);
 				if (!dead)
 					await goto(
-						`/app/messages/${encodeURIComponent(resolved.conversationId)}`,
+						`/messages/conversations/${encodeURIComponent(resolved.conversationId)}`,
 						{ replaceState: true }
 					);
-			} else if (!dead) await goto('/app/activity', { replaceState: true });
+			} else if (!dead) await goto('/notifications', { replaceState: true });
 			if (!dead) notification = null;
 		} catch (e) {
 			if (!dead)

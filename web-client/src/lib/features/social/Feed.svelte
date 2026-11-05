@@ -36,7 +36,7 @@
 	};
 	const historyView = rememberPage<FeedSnapshot>(
 		'feed',
-		'/app/home' + page.url.search
+		'/feed' + page.url.search
 	);
 	const snapshot = historyView?.value;
 	let loadedPages = snapshot?.pages || 0;
@@ -158,7 +158,7 @@
 				<button
 					class="filter-trigger icon-button"
 					aria-label="Filter projects"
-					onclick={() => goto('/app/home/filters' + page.url.search)}
+					onclick={() => goto('/feed/filters' + page.url.search)}
 					><Icon name="filter" /><span class="filter-label">Filters</span
 					>{#if Object.keys(filters).length}<span
 							class="filter-dot"
@@ -168,12 +168,12 @@
 			</div>{/if}
 	</div>
 	<nav class="tabs" use:dragScroll aria-label="Home feeds">
-		<a href="/app/home" aria-current={!craft ? 'page' : undefined}
+		<a href="/feed" aria-current={!craft ? 'page' : undefined}
 			><Icon name="users" size={18} />Following</a
 		>{#each craftFeeds(profile?.crafts) as item}{@const key = craftKey(
 				item.id
 			)}<a
-				href={'/app/home?craft=' + encodeURIComponent(item.id)}
+				href={'/feed?craft=' + encodeURIComponent(item.id)}
 				aria-current={craftKey(craft) === key ? 'page' : undefined}
 				>{#if ['knitting', 'crochet', 'sewing', 'embroidery', 'quilting'].includes(key)}<span
 						class="feed-craft-icon"
@@ -200,14 +200,14 @@
 					: 'Your feed is quiet.'}
 				icon="home"
 			>
-				{#snippet actions()}{#if !craft}<a href="/app/settings/instagram"
+				{#snippet actions()}{#if !craft}<a href="/settings/instagram"
 							>Connect Instagram</a
-						><a href="/app/search">Search CraftSky</a><a
-							href={'/app/home?craft=' +
+						><a href="/search">Search CraftSky</a><a
+							href={'/feed?craft=' +
 								encodeURIComponent(
 									profile?.crafts[0] || 'social.craftsky.feed.defs#knitting'
 								)}>Explore projects</a
-						>{:else}<a href={'/app/home?craft=' + encodeURIComponent(craft)}
+						>{:else}<a href={'/feed?craft=' + encodeURIComponent(craft)}
 							>Clear filters</a
 						>{/if}{/snippet}
 			</EmptyState>{/if}{/each}{#if cursor}<button

@@ -5,13 +5,13 @@ import type { RecentSearch } from '#lib/api/types.ts';
 describe('native search intent', () => {
 	it('submits trimmed queries to Posts and routes leading handles/tags to the matching tab', () => {
 		expect(searchDestination('  @alice  ')).toBe(
-			'/app/search?q=%40alice&tab=profiles'
+			'/search?q=%40alice&tab=profiles'
 		);
 		expect(searchDestination('#knitting')).toBe(
-			'/app/search?q=%23knitting&tab=hashtags'
+			'/search?q=%23knitting&tab=hashtags'
 		);
 		expect(searchDestination('linen dress', 'popular')).toBe(
-			'/app/search?q=linen+dress&tab=posts&sort=popular'
+			'/search?q=linen+dress&tab=posts&sort=popular'
 		);
 		expect(searchDestination('   ')).toBeUndefined();
 	});
@@ -23,7 +23,7 @@ describe('native search intent', () => {
 				type: 'query',
 				payload: { q: '@alice' }
 			} as RecentSearch)
-		).toBe('/app/search?q=%40alice&tab=profiles');
+		).toBe('/search?q=%40alice&tab=profiles');
 		expect(
 			recentDestination({
 				id: 'project-1',
@@ -31,6 +31,6 @@ describe('native search intent', () => {
 				type: 'project',
 				payload: { q: 'linen' }
 			} as RecentSearch)
-		).toBe('/app/search?q=linen&tab=projects');
+		).toBe('/search?q=linen&tab=projects');
 	});
 });

@@ -29,6 +29,6 @@ describe('native draft row presentation', () => {
 			pending: { key: 'frozen', body: {} }
 		};
 		expect(draftPreview(draft).kind).toBe('Awaiting confirmation');
-		expect(draftURL(draft)).toBe('/app/compose?draft=draft%26other%3Done');
+		expect(draftURL(draft)).toBe('/compose?draft=draft%26other%3Done');
 	});
 });

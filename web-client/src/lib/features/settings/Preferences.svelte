@@ -447,7 +447,7 @@
 				Profile colours and backgrounds are included with CraftSky Plus and
 				Business. Manage purchases in the mobile app.
 			</p>
-			<a class="action" href="/app/settings/subscriptions"
+			<a class="action" href="/settings/subscriptions"
 				>View subscription access</a
 			>
 		</section>
@@ -542,7 +542,7 @@
 		{#if chatState === 'authorizationNeeded'}<p class="notice">
 				Verify your identity to finish connecting messaging.
 			</p>
-			<a class="action" href="/app/messages">Review permissions</a
+			<a class="action" href="/messages">Review permissions</a
 			>{:else if chatState === 'unavailable'}<p class="notice">
 				Messaging is temporarily unavailable.
 			</p>{:else if chatState === 'restricted'}<p class="notice">
@@ -581,9 +581,8 @@
 					Reconnect with incoming-message settings permission to change this
 					shared setting.
 				</p>
-				<a class="action" href="/app/messages">Review messaging permissions</a
-				>{/if}
-			<a class="action" href="/app/messages">Open messages</a>
+				<a class="action" href="/messages">Review messaging permissions</a>{/if}
+			<a class="action" href="/messages">Open messages</a>
 		{/if}
 	</div>
 {/if}

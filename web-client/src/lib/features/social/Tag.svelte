@@ -35,7 +35,7 @@
 </script>
 
 <div class="workspace-heading">
-	<a href="/app/search" class="icon-button" aria-label="Back" onclick={back}
+	<a href="/search" class="icon-button" aria-label="Back" onclick={back}
 		><Icon name="back" /></a
 	>
 	<h1>#{tag}</h1>

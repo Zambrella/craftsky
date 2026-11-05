@@ -43,7 +43,7 @@
 <div class="workspace-header event-appbar">
 	<a
 		class="icon-button"
-		href={'/app/profile/' + encodeURIComponent(did) + '?tab=events'}
+		href={'/profiles/' + encodeURIComponent(did) + '?tab=events'}
 		aria-label="Back to organiser"><Icon name="back" /></a
 	>
 	<h1>Event</h1>
@@ -146,7 +146,7 @@
 						><Icon name="external" size={20} />Register</a
 					>{/if}
 			</div>
-			<a class="organiser" href={'/app/profile/' + encodeURIComponent(did)}
+			<a class="organiser" href={'/profiles/' + encodeURIComponent(did)}
 				><Icon name="business" size={18} />View organiser</a
 			>
 			{#if reporting}<ReportForm

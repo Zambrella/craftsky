@@ -148,7 +148,7 @@ test('root comments and nested replies show native identity and the full plain-t
 }) => {
 	await page.setViewportSize({ width: 390, height: 844 });
 	await mockTargets(page);
-	await page.goto('/app/compose/reply?did=did%3Aplc%3Abob&rkey=root');
+	await page.goto('/compose/reply?did=did%3Aplc%3Abob&rkey=root');
 	await expect(
 		page.getByRole('heading', { name: 'Comment', exact: true })
 	).toBeVisible();
@@ -167,7 +167,7 @@ test('root comments and nested replies show native identity and the full plain-t
 	await expect(
 		page.getByRole('button', { name: 'Comment', exact: true })
 	).toBeVisible();
-	await page.goto('/app/compose/reply?did=did%3Aplc%3Abob&rkey=nested');
+	await page.goto('/compose/reply?did=did%3Aplc%3Abob&rkey=nested');
 	await expect(
 		page.getByRole('heading', { name: 'Reply', exact: true })
 	).toBeVisible();
@@ -186,7 +186,7 @@ test('quotes stay compact and accept only the selected CID present on the freshl
 }) => {
 	await mockTargets(page);
 	await page.goto(
-		'/app/compose/quote?did=did%3Aplc%3Abob&rkey=root&imageCid=current-image'
+		'/compose/quote?did=did%3Aplc%3Abob&rkey=root&imageCid=current-image'
 	);
 	await page
 		.getByRole('textbox', {
@@ -210,7 +210,7 @@ test('quotes stay compact and accept only the selected CID present on the freshl
 		page.getByRole('button', { name: 'Save draft', exact: true })
 	).toHaveCount(0);
 	await page.goto(
-		'/app/compose/quote?did=did%3Aplc%3Abob&rkey=root&imageCid=unknown-stale-image'
+		'/compose/quote?did=did%3Aplc%3Abob&rkey=root&imageCid=unknown-stale-image'
 	);
 	await page
 		.getByRole('textbox', {
@@ -236,7 +236,7 @@ test('quotes stay compact and accept only the selected CID present on the freshl
 test('post languages use the selected-language menu and a separate searchable add dialog', async ({
 	page
 }) => {
-	await page.goto('/app/compose');
+	await page.goto('/compose');
 	await page
 		.getByRole('button', { name: 'Post languages', exact: true })
 		.click();
@@ -273,7 +273,7 @@ test('post languages use the selected-language menu and a separate searchable ad
 test('When preserves the local scheduling instant through a saved draft and Now clears it', async ({
 	page
 }) => {
-	await page.goto('/app/compose');
+	await page.goto('/compose');
 	await page
 		.getByRole('textbox', {
 			name: 'What would you like to share?',
@@ -299,11 +299,11 @@ test('When preserves the local scheduling instant through a saved draft and Now 
 		page.getByRole('button', { name: 'Save schedule', exact: true })
 	).toBeVisible();
 	await page.getByRole('button', { name: 'Save draft', exact: true }).click();
-	await expect(page).toHaveURL(/\/app\/home$/);
+	await expect(page).toHaveURL(/\/feed$/);
 	await expect(
 		page.getByRole('status').filter({ hasText: 'Draft saved' })
 	).toBeVisible();
-	await page.goto('/app/drafts');
+	await page.goto('/drafts');
 	await page
 		.getByRole('link', { name: 'Continue editing', exact: true })
 		.click();
@@ -334,7 +334,7 @@ test('crop editing opens a full compact viewport, traps edits and returns focus 
 	page
 }) => {
 	await page.setViewportSize({ width: 390, height: 844 });
-	await page.goto('/app/compose');
+	await page.goto('/compose');
 	await page.locator('input[type=file][multiple]').setInputFiles({
 		name: 'private.png',
 		mimeType: 'image/png',
@@ -404,23 +404,23 @@ test('Send via chat preserves the account conversation draft and adds the contro
 		headers: { 'content-type': 'application/json' },
 		body: JSON.stringify({ visual: true })
 	});
-	await page.goto('/app/messages/visual-accepted');
+	await page.goto('/messages/conversations/visual-accepted');
 	await page
 		.getByRole('textbox', { name: 'Message', exact: true })
 		.fill('My existing private draft');
 	const link = 'https://app.craftsky.social/posts/did%3Aplc%3Aalice/first';
-	await page.goto('/app/messages/new?link=' + encodeURIComponent(link));
+	await page.goto('/messages/new?link=' + encodeURIComponent(link));
 	await expect(
 		page.getByText(
 			'Choose someone to send this link to. It will be added to your draft for review.'
 		)
 	).toBeVisible();
 	await page.locator('.conversation-list button.recipient').first().click();
-	await expect(page).toHaveURL(/\/app\/messages\/visual-accepted$/);
+	await expect(page).toHaveURL(/\/messages\/conversations\/visual-accepted$/);
 	await expect(
 		page.getByRole('textbox', { name: 'Message', exact: true })
 	).toHaveValue('My existing private draft\n\n' + link);
-	await page.goto('/app/messages/new?link=' + encodeURIComponent(link));
+	await page.goto('/messages/new?link=' + encodeURIComponent(link));
 	await page.locator('.conversation-list button.recipient').first().click();
 	await expect(
 		page.getByRole('textbox', { name: 'Message', exact: true })
@@ -446,7 +446,7 @@ test('full scheduled capacity disables a new scheduled slot while keeping Post n
 			json: { items: [{ id: 'one' }, { id: 'two' }, { id: 'three' }] }
 		})
 	);
-	await page.goto('/app/compose');
+	await page.goto('/compose');
 	await expect(
 		page.getByText('you already have 3 scheduled posts', { exact: false })
 	).toBeVisible();
@@ -463,13 +463,13 @@ test('full scheduled capacity disables a new scheduled slot while keeping Post n
 	).toBeEnabled();
 	await expect(
 		page.getByRole('link', { name: 'Manage scheduled posts', exact: true })
-	).toHaveAttribute('href', '/app/scheduled');
+	).toHaveAttribute('href', '/scheduled');
 });
 
 test('Save closes only after persistence, and Close keeps or restores an existing autosaved draft on explicit choice', async ({
 	page
 }) => {
-	await page.goto('/app/compose');
+	await page.goto('/compose');
 	const text = page.getByRole('textbox', {
 		name: 'What would you like to share?',
 		exact: true
@@ -497,11 +497,11 @@ test('Save closes only after persistence, and Close keeps or restores an existin
 	await expect(text).toHaveValue('Original saved draft');
 	await page.getByRole('link', { name: 'Close editor', exact: true }).click();
 	await close.getByRole('button', { name: 'Save draft', exact: true }).click();
-	await expect(page).toHaveURL(/\/app\/home$/);
+	await expect(page).toHaveURL(/\/feed$/);
 	await expect(
 		page.getByRole('status').filter({ hasText: 'Draft saved' })
 	).toBeVisible();
-	await page.goto('/app/drafts');
+	await page.goto('/drafts');
 	await page
 		.getByRole('link', { name: 'Continue editing', exact: true })
 		.click();
@@ -520,7 +520,7 @@ test('Save closes only after persistence, and Close keeps or restores an existin
 	await close
 		.getByRole('button', { name: 'Discard changes', exact: true })
 		.click();
-	await expect(page).toHaveURL(/\/app\/drafts$/);
+	await expect(page).toHaveURL(/\/drafts$/);
 	await page
 		.getByRole('link', { name: 'Continue editing', exact: true })
 		.click();
@@ -538,7 +538,7 @@ test('explicit Discard removes a new autosaved draft and leaves another accountâ
 	page,
 	context
 }) => {
-	await page.goto('/app/compose');
+	await page.goto('/compose');
 	await page
 		.getByRole('textbox', {
 			name: 'What would you like to share?',
@@ -580,8 +580,8 @@ test('explicit Discard removes a new autosaved draft and leaves another accountâ
 		.getByRole('dialog', { name: 'Save your draft?', exact: true })
 		.getByRole('button', { name: 'Discard', exact: true })
 		.click();
-	await expect(page).toHaveURL(/\/app\/home$/);
-	await page.goto('/app/drafts');
+	await expect(page).toHaveURL(/\/feed$/);
+	await page.goto('/drafts');
 	await expect(
 		page.getByText('Alice explicitly discarded', { exact: true })
 	).toHaveCount(0);
@@ -607,7 +607,7 @@ test('explicit Discard removes a new autosaved draft and leaves another accountâ
 			sameSite: 'Lax'
 		}
 	]);
-	await page.goto('/app/drafts');
+	await page.goto('/drafts');
 	await expect(
 		page.getByText('Bob protected draft', { exact: true })
 	).toBeVisible();
@@ -616,7 +616,7 @@ test('explicit Discard removes a new autosaved draft and leaves another accountâ
 test('closing an uncertain write keeps its exact frozen recovery and never offers destructive discard', async ({
 	page
 }) => {
-	await page.goto('/app/compose');
+	await page.goto('/compose');
 	await page
 		.getByRole('textbox', {
 			name: 'What would you like to share?',
@@ -657,12 +657,12 @@ test('closing an uncertain write keeps its exact frozen recovery and never offer
 				};
 			})
 	);
-	await page.goto('/app/compose?draft=' + frozen.id);
+	await page.goto('/compose?draft=' + frozen.id);
 	await expect(
 		page.getByRole('heading', { name: 'Waiting for confirmation', exact: true })
 	).toBeVisible();
 	await page.getByRole('link', { name: 'Close editor', exact: true }).click();
-	await expect(page).toHaveURL(/\/app\/drafts$/);
+	await expect(page).toHaveURL(/\/drafts$/);
 	await expect(
 		page.getByRole('dialog', { name: 'Save your draft?', exact: true })
 	).toHaveCount(0);
@@ -692,7 +692,7 @@ test('closing an uncertain write keeps its exact frozen recovery and never offer
 test('media export blocks Done, cancellation and Save until the exact image edit completes', async ({
 	page
 }) => {
-	await page.goto('/app/compose');
+	await page.goto('/compose');
 	await page.locator('input[type=file][multiple]').setInputFiles({
 		name: 'private.png',
 		mimeType: 'image/png',
@@ -750,7 +750,7 @@ test('Sponsored opens the native compact bottom modal and applies its switch for
 	page
 }) => {
 	await page.setViewportSize({ width: 390, height: 844 });
-	await page.goto('/app/compose');
+	await page.goto('/compose');
 	await page
 		.getByRole('button', { name: 'Sponsored options', exact: true })
 		.click();
@@ -781,7 +781,7 @@ test('required text stays inline and the native grapheme counter has no grouping
 	page
 }) => {
 	await page.setViewportSize({ width: 402, height: 874 });
-	await page.goto('/app/compose');
+	await page.goto('/compose');
 	const field = page.locator('.post-text-label .facet-input'),
 		label = field.locator('label'),
 		required = label.locator('.facet-hint');
@@ -822,7 +822,7 @@ test('complete body URLs automatically load native previews through AppView, wit
 			}
 		});
 	});
-	await page.goto('/app/compose');
+	await page.goto('/compose');
 	const text = page.getByRole('textbox', {
 		name: 'What would you like to share?',
 		exact: true
@@ -896,7 +896,7 @@ test('a delayed preview for replaced text cannot overwrite the current URL or it
 			}
 		});
 	});
-	await page.goto('/app/compose');
+	await page.goto('/compose');
 	const text = page.getByRole('textbox', {
 		name: 'What would you like to share?',
 		exact: true
@@ -952,7 +952,7 @@ test('photo selection opens details, retains descriptions on return, and support
 	const errors: string[] = [];
 	page.on('pageerror', (error) => errors.push(error.message));
 	await page.setViewportSize({ width: 402, height: 874 });
-	await page.goto('/app/compose/project');
+	await page.goto('/compose/project');
 	const buffer = await imageFixture(page);
 	await page
 		.locator('input[type=file][multiple]')
@@ -1017,7 +1017,7 @@ test('photo selection opens details, retains descriptions on return, and support
 test('browser Back closes photo details without discarding the project', async ({
 	page
 }) => {
-	await page.goto('/app/home');
+	await page.goto('/feed');
 	await page
 		.getByRole('button', { name: 'Create post', exact: true })
 		.filter({ visible: true })
@@ -1041,7 +1041,7 @@ test('browser Back closes photo details without discarding the project', async (
 		.fill('Retained photo description');
 	await page.goBack();
 	await expect(details).toBeHidden();
-	await expect(page).toHaveURL(/\/app\/compose\/project$/);
+	await expect(page).toHaveURL(/\/compose\/project$/);
 	await expect(page.getByRole('dialog', { name: 'Save draft?' })).toBeHidden();
 	await page.getByRole('button', { name: /Photos.*Reorder photos/ }).click();
 	await expect(
@@ -1064,7 +1064,7 @@ for (const width of [402, 1280]) {
 		page
 	}) => {
 		await page.setViewportSize({ width, height: 900 });
-		await page.goto('/app/compose');
+		await page.goto('/compose');
 		await page.locator('input[type=file][multiple]').setInputFiles({
 			name: 'focus.png',
 			mimeType: 'image/png',
@@ -1111,7 +1111,7 @@ for (const width of [402, 1280]) {
 		page
 	}) => {
 		await page.setViewportSize({ width, height: 1900 });
-		await page.goto('/app/compose');
+		await page.goto('/compose');
 		const buffer = await imageFixture(page);
 		await page.locator('input[type=file][multiple]').setInputFiles([
 			{ name: 'first.png', mimeType: 'image/png', buffer },
