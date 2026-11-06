@@ -1,9 +1,9 @@
 <script lang="ts">
+	import { UserFacingError, userErrorMessage } from '#lib/user-facing-error.ts';
 	import {
 		FieldValidationError,
 		presentFieldErrors,
-		showFieldError,
-		fieldError
+		showFieldError
 	} from '#lib/field-validation.ts';
 	import { dragScroll } from '#lib/drag-scroll.ts';
 	import SingleSelect from '#lib/SingleSelect.svelte';
@@ -49,7 +49,7 @@
 		session,
 		section
 	}: { api: CraftskyAPI; session: Session; section: string } = $props();
-	const work = new Work();
+	const work = new Work('settings.Business.action');
 	let loaded = $state(false);
 	let cid = $state<string | null>(null),
 		allowsBusiness = $state(false),
@@ -158,7 +158,8 @@
 		void work.run(
 			async () => {
 				if (!media.blob) {
-					if (!selection.original) throw new Error('Choose an image first.');
+					if (!selection.original)
+						throw new UserFacingError('Choose an image first.');
 					return { ...selection.original, alt: media.alt };
 				}
 				const prepared = await prepareImage(media.blob, media.name);
@@ -186,7 +187,8 @@
 				imageDialog?.close();
 				imageEditor = null;
 			},
-			'Image ready. Save to update your business profile.'
+			'Image ready. Save to update your business profile.',
+			'settings.Business.useImage'
 		);
 	}
 
@@ -252,13 +254,17 @@
 		return { profile, allowed, page };
 	}
 	function load() {
-		return work.load(data, (value) => {
-			loaded = true;
-			applyProfile(value.profile);
-			allowsBusiness = value.allowed;
-			events = value.page?.items || [];
-			cursor = value.page?.cursor || null;
-		});
+		return work.load(
+			data,
+			(value) => {
+				loaded = true;
+				applyProfile(value.profile);
+				allowsBusiness = value.allowed;
+				events = value.page?.items || [];
+				cursor = value.page?.cursor || null;
+			},
+			'settings.Business.load'
+		);
 	}
 	function profileBody(preserveProducts: boolean): JsonObject {
 		requireRecordText(tagline, 'Tagline', 100, 1000);
@@ -334,12 +340,12 @@
 						productSnapshot = null;
 					}
 				},
-				section === 'products' ? 'Products saved.' : 'Business profile saved.'
+				section === 'products' ? 'Products saved.' : 'Business profile saved.',
+				'settings.Business.saveProfile'
 			);
 		} catch (error) {
 			if (presentFieldErrors(error)) return;
-			work.error =
-				error instanceof Error ? error.message : 'Check your business details.';
+			work.error = userErrorMessage(error);
 		}
 	}
 	async function deleteProfile() {
@@ -371,7 +377,8 @@
 				action = '';
 				destination = '';
 			},
-			'Business profile removed.'
+			'Business profile removed.',
+			'settings.Business.deleteProfile'
 		);
 	}
 	function move(index: number, direction: number) {
@@ -541,12 +548,12 @@
 					eventOpen = false;
 					editing = null;
 				},
-				original ? 'Event updated.' : 'Event created.'
+				original ? 'Event updated.' : 'Event created.',
+				'settings.Business.saveEvent'
 			);
 		} catch (error) {
 			if (presentFieldErrors(error)) return;
-			work.error =
-				error instanceof Error ? error.message : 'Check your event details.';
+			work.error = userErrorMessage(error);
 		}
 	}
 	async function deleteEvent(event: BusinessEvent) {
@@ -565,7 +572,8 @@
 			() => {
 				events = events.filter((item) => item.rkey !== event.rkey);
 			},
-			'Event deleted.'
+			'Event deleted.',
+			'settings.Business.deleteEvent'
 		);
 	}
 	function more() {
@@ -577,7 +585,8 @@
 					events = [...events, ...page.items];
 					cursor = page.cursor || null;
 				},
-				''
+				'',
+				'settings.Business.more'
 			);
 	}
 	onMount(() => {

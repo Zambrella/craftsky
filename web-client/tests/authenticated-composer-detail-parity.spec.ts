@@ -185,6 +185,11 @@ test('quotes stay compact and accept only the selected CID present on the freshl
 	page
 }) => {
 	await mockTargets(page);
+	const submissions: { embed?: { imageCid?: string } }[] = [];
+	await page.route('**/api/appview/v1/posts', async (route) => {
+		submissions.push(route.request().postDataJSON());
+		await route.fulfill({ status: 503, json: { error: 'unavailable' } });
+	});
 	await page.goto(
 		'/compose/quote?did=did%3Aplc%3Abob&rkey=root&imageCid=current-image'
 	);
@@ -196,12 +201,8 @@ test('quotes stay compact and accept only the selected CID present on the freshl
 		.fill('Selected image quote');
 	await expect(
 		page.getByText('Draft saved on this device', { exact: true })
-	).toBeVisible();
-	expect(
-		(await savedDrafts(page)).find(
-			(value) => value.text === 'Selected image quote'
-		)?.quoteImageCid
-	).toBe('current-image');
+	).toHaveCount(0);
+	expect(await savedDrafts(page)).toEqual([]);
 
 	await expect(
 		page.getByRole('blockquote', { name: 'Quoted post' }).locator('p')
@@ -209,6 +210,12 @@ test('quotes stay compact and accept only the selected CID present on the freshl
 	await expect(
 		page.getByRole('button', { name: 'Save draft', exact: true })
 	).toHaveCount(0);
+	await page.getByRole('button', { name: 'Post', exact: true }).click();
+	await expect.poll(() => submissions.length).toBe(1);
+	expect(submissions[0].embed?.imageCid).toBe('current-image');
+	await expect(
+		page.getByRole('heading', { name: 'Waiting for confirmation' })
+	).toBeVisible();
 	await page.goto(
 		'/compose/quote?did=did%3Aplc%3Abob&rkey=root&imageCid=unknown-stale-image'
 	);
@@ -220,17 +227,15 @@ test('quotes stay compact and accept only the selected CID present on the freshl
 		.fill('Unknown image quote');
 	await expect(
 		page.getByText('Draft saved on this device', { exact: true })
-	).toBeVisible();
-	expect(
-		(await savedDrafts(page)).find(
-			(value) => value.text === 'Unknown image quote'
-		)?.quoteImageCid
-	).toBeUndefined();
+	).toHaveCount(0);
 	await expect(
 		page.getByText(
 			'The selected image is no longer available. Your quote will use the original post.'
 		)
 	).toBeVisible();
+	await page.getByRole('button', { name: 'Post', exact: true }).click();
+	await expect.poll(() => submissions.length).toBe(2);
+	expect(submissions[1].embed?.imageCid).toBeUndefined();
 });
 
 test('post languages use the selected-language menu and a separate searchable add dialog', async ({
@@ -408,6 +413,10 @@ test('Send via chat preserves the account conversation draft and adds the contro
 	await page
 		.getByRole('textbox', { name: 'Message', exact: true })
 		.fill('My existing private draft');
+	await page.getByRole('button', { name: 'Save draft', exact: true }).click();
+	await expect(
+		page.getByText('Draft saved on this device.', { exact: true })
+	).toBeVisible();
 	const link = 'https://app.craftsky.social/posts/did%3Aplc%3Aalice/first';
 	await page.goto('/messages/new?link=' + encodeURIComponent(link));
 	await expect(
@@ -420,15 +429,39 @@ test('Send via chat preserves the account conversation draft and adds the contro
 	await expect(
 		page.getByRole('textbox', { name: 'Message', exact: true })
 	).toHaveValue('My existing private draft\n\n' + link);
+	if (
+		await page.getByRole('button', { name: 'Save draft', exact: true }).count()
+	) {
+		await page.getByRole('button', { name: 'Save draft', exact: true }).click();
+		await expect(
+			page.getByRole('button', { name: 'Save draft', exact: true })
+		).toHaveCount(0);
+	}
 	await page.goto('/messages/new?link=' + encodeURIComponent(link));
 	await page.locator('.conversation-list button.recipient').first().click();
 	await expect(
 		page.getByRole('textbox', { name: 'Message', exact: true })
 	).toHaveValue('My existing private draft\n\n' + link);
+	if (
+		await page.getByRole('button', { name: 'Save draft', exact: true }).count()
+	) {
+		await page.getByRole('button', { name: 'Save draft', exact: true }).click();
+		await expect(
+			page.getByRole('button', { name: 'Save draft', exact: true })
+		).toHaveCount(0);
+	}
 	await page.reload();
 	await expect(
 		page.getByRole('textbox', { name: 'Message', exact: true })
 	).toHaveValue('My existing private draft\n\n' + link);
+	if (
+		await page.getByRole('button', { name: 'Save draft', exact: true }).count()
+	) {
+		await page.getByRole('button', { name: 'Save draft', exact: true }).click();
+		await expect(
+			page.getByRole('button', { name: 'Save draft', exact: true })
+		).toHaveCount(0);
+	}
 	expect(
 		(await calls()).filter(
 			(call) =>
@@ -466,7 +499,7 @@ test('full scheduled capacity disables a new scheduled slot while keeping Post n
 	).toHaveAttribute('href', '/scheduled');
 });
 
-test('Save closes only after persistence, and Close keeps or restores an existing autosaved draft on explicit choice', async ({
+test('Save closes only after persistence, and Discard leaves the explicit saved version unchanged', async ({
 	page
 }) => {
 	await page.goto('/compose');
@@ -484,7 +517,7 @@ test('Save closes only after persistence, and Close keeps or restores an existin
 	await page.getByRole('button', { name: 'Back to post', exact: true }).click();
 	await expect(
 		page.getByText('Draft saved on this device', { exact: true })
-	).toBeVisible();
+	).toHaveCount(0);
 	await page.getByRole('link', { name: 'Close editor', exact: true }).click();
 	const close = page.getByRole('dialog', {
 		name: 'Save your draft?',
@@ -509,13 +542,13 @@ test('Save closes only after persistence, and Close keeps or restores an existin
 	await expect(
 		page.getByRole('button', { name: 'Save changes', exact: true })
 	).toBeDisabled();
-	await text.fill('Autosaved changes to discard');
+	await text.fill('Unsaved changes to discard');
 	await page.getByRole('button', { name: /Photos.*Reorder photos/ }).click();
 	await page.getByLabel('Image description').fill('Changed image description');
 	await page.getByRole('button', { name: 'Back to post', exact: true }).click();
 	await expect(
 		page.getByText('Draft saved on this device', { exact: true })
-	).toBeVisible();
+	).toHaveCount(0);
 	await page.getByRole('link', { name: 'Close editor', exact: true }).click();
 	await close
 		.getByRole('button', { name: 'Discard changes', exact: true })
@@ -534,7 +567,7 @@ test('Save closes only after persistence, and Close keeps or restores an existin
 	).toHaveJSProperty('naturalWidth', 8);
 });
 
-test('explicit Discard removes a new autosaved draft and leaves another account’s recovery intact', async ({
+test('explicit Discard drops unsaved edits and leaves another account’s recovery intact', async ({
 	page,
 	context
 }) => {
@@ -547,22 +580,29 @@ test('explicit Discard removes a new autosaved draft and leaves another account�
 		.fill('Alice explicitly discarded');
 	await expect(
 		page.getByText('Draft saved on this device', { exact: true })
-	).toBeVisible();
+	).toHaveCount(0);
 	await page.evaluate(
 		() =>
 			new Promise<void>((resolve, reject) => {
 				const request = indexedDB.open('craftsky-private-drafts', 1);
+				request.onupgradeneeded = () => {
+					request.result
+						.createObjectStore('drafts', { keyPath: ['owner', 'id'] })
+						.createIndex('owner', 'owner');
+				};
 				request.onsuccess = () => {
 					const db = request.result,
 						tx = db.transaction('drafts', 'readwrite'),
 						store = tx.objectStore('drafts'),
 						get = store.getAll();
 					get.onsuccess = () => {
-						const original = get.result.find(
-							(value) => value.owner === 'did:plc:alice'
-						);
 						store.put({
-							...original,
+							id: crypto.randomUUID(),
+							updatedAt: new Date().toISOString(),
+							kind: 'standard',
+							langs: ['en'],
+							sponsored: false,
+							images: [],
 							owner: 'did:plc:bob',
 							text: 'Bob protected draft'
 						});
@@ -623,9 +663,8 @@ test('closing an uncertain write keeps its exact frozen recovery and never offer
 			exact: true
 		})
 		.fill('Frozen review fixture');
-	await expect(
-		page.getByText('Draft saved on this device', { exact: true })
-	).toBeVisible();
+	await page.getByRole('button', { name: 'Save draft', exact: true }).click();
+	await expect(page).toHaveURL(/\/feed$/);
 	const frozen = await page.evaluate(
 		() =>
 			new Promise<{ id: string; key: string }>((resolve, reject) => {
@@ -698,9 +737,7 @@ test('media export blocks Done, cancellation and Save until the exact image edit
 		mimeType: 'image/png',
 		buffer: await imageFixture(page)
 	});
-	await expect(
-		page.getByText('Draft saved on this device', { exact: true })
-	).toBeAttached();
+	await expect(page.getByLabel('Image description')).toBeVisible();
 	await page.evaluate(() => {
 		const original = HTMLCanvasElement.prototype.toBlob;
 		HTMLCanvasElement.prototype.toBlob = function (callback, ...args) {
@@ -923,9 +960,8 @@ test('a delayed preview for replaced text cannot overwrite the current URL or it
 	await expect(
 		card.getByRole('heading', { name: 'Current pattern', exact: true })
 	).toBeVisible();
-	await expect(
-		page.getByText('Draft saved on this device', { exact: true })
-	).toBeVisible();
+	await page.getByRole('button', { name: 'Save draft', exact: true }).click();
+	await expect(page).toHaveURL(/\/feed$/);
 	const uri = await page.evaluate(
 		() =>
 			new Promise<string>((resolve) => {

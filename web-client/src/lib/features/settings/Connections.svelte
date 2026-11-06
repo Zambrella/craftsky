@@ -17,7 +17,7 @@
 	import CompactIdentity from '../social/CompactIdentity.svelte';
 	import EmptyState from '../social/EmptyState.svelte';
 	let { api, section }: { api: CraftskyAPI; section: string } = $props();
-	const work = new Work();
+	const work = new Work('settings.Connections.action');
 	let loaded = $state(false);
 	let items = $state<Author[]>([]),
 		cursor = $state<string | null>(null),
@@ -87,7 +87,8 @@
 					change = typeof value.netChange === 'number' ? value.netChange : null;
 					available = text(value.availableFrom);
 					allowsPlus = access.givesAccess && access.effectiveTier !== 'free';
-				}
+				},
+				'settings.Connections.load'
 			);
 		return work.load(
 			() => api.profiles.relationships(kind),
@@ -96,7 +97,8 @@
 				items = value.items;
 				cursor = value.cursor || null;
 				total = value.totalCount;
-			}
+			},
+			'settings.Connections.load'
 		);
 	}
 	function more() {
@@ -108,7 +110,8 @@
 				items = appendPage(items, value.items, (item) => item.did);
 				cursor = value.cursor || null;
 			},
-			''
+			'',
+			'settings.Connections.more'
 		);
 	}
 	function remove(profile: Author) {
@@ -129,7 +132,8 @@
 				? 'Account unmuted.'
 				: kind === 'blocks'
 					? 'Account unblocked.'
-					: 'Unfollowed.'
+					: 'Unfollowed.',
+			'settings.Connections.remove'
 		);
 	}
 	onMount(load);

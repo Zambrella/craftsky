@@ -1169,7 +1169,7 @@ test('fullscreen gallery expands alt text, resets zoom across images, handles sw
 
 test('external links show their destination in a native confirmation and Cancel restores focus', async ({
 	page,
-	context
+	context: _context
 }) => {
 	const href = 'https://fixture.craftsky.test/pattern';
 	await timeline(

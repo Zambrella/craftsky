@@ -1,5 +1,6 @@
+import { InputError, userErrorMessage } from '#lib/user-facing-error.ts';
 import { FieldValidationError } from '#lib/field-validation.ts';
-import { APIError, MutationOutcomeUnknownError } from '#lib/api/client.ts';
+import { MutationOutcomeUnknownError } from '#lib/api/client.ts';
 import type { JsonObject } from '#lib/api/types.ts';
 import languageCatalogue from './languages.json';
 import currencyScales from './currencies.json';
@@ -14,10 +15,7 @@ export const title = (value: string) =>
 		.replace(/([a-z])([A-Z])/g, '$1 $2')
 		.replace(/[-_]/g, ' ')
 		.replace(/^./, (c) => c.toUpperCase());
-export const message = (error: unknown): string =>
-	error instanceof APIError || error instanceof Error
-		? error.message
-		: 'The request could not be completed. Please try again.';
+export const message = userErrorMessage;
 export const dateTime = (value: unknown): string =>
 	typeof value === 'string' && Number.isFinite(Date.parse(value))
 		? new Intl.DateTimeFormat(undefined, {
@@ -149,21 +147,22 @@ export interface ParsedFollowing {
 }
 export function parseFollowing(source: string, json = false): ParsedFollowing {
 	if (new TextEncoder().encode(source).byteLength > 20 * 1024 * 1024)
-		throw new Error('Choose a file smaller than 20 MB.');
+		throw new InputError('Choose a file smaller than 20 MB.');
 	let values: unknown[];
 	if (!json) values = source.split(/\r?\n/);
 	else {
 		let parsed: unknown;
 		try {
 			parsed = JSON.parse(source);
-		} catch {
-			throw new Error(
-				'This file is not valid JSON. Choose Instagram’s following.json file.'
+		} catch (cause) {
+			throw new InputError(
+				'This file is not valid JSON. Choose Instagram’s following.json file.',
+				{ cause }
 			);
 		}
 		const rows = record(parsed).relationships_following;
 		if (!Array.isArray(rows))
-			throw new Error(
+			throw new InputError(
 				'Choose Instagram’s following.json file containing relationships_following.'
 			);
 		values = rows.flatMap((row) => {
@@ -201,7 +200,9 @@ export function parseFollowing(source: string, json = false): ParsedFollowing {
 		}
 		seen.add(username);
 		if (seen.size > 10000)
-			throw new Error('Import at most 10,000 Instagram usernames at a time.');
+			throw new InputError(
+				'Import at most 10,000 Instagram usernames at a time.'
+			);
 	}
 	return {
 		entries: [...seen].map((username) => ({ username })),
@@ -245,7 +246,7 @@ export function languagePreferences(primary: string, source: string) {
 	];
 	const tags = [primary, ...values];
 	if (tags.some((tag) => !Object.hasOwn(languageCatalogue, tag)))
-		throw new Error(
+		throw new InputError(
 			'Choose supported languages, such as English, French or Portuguese.'
 		);
 	return { primaryLanguage: primary, contentLanguages: values };
@@ -266,7 +267,7 @@ export function imageBody(image: BusinessImage): JsonObject {
 		image.size < 0 ||
 		image.size > 2000000
 	)
-		throw new Error('Use a valid image smaller than 2 MB.');
+		throw new InputError('Use a valid image smaller than 2 MB.');
 	return {
 		image: {
 			$type: 'blob',
@@ -287,7 +288,7 @@ export interface Product {
 }
 export function productBody(products: Product[]): JsonObject[] {
 	if (products.length > 4)
-		throw new Error('You can feature up to four products.');
+		throw new InputError('You can feature up to four products.');
 	const destinations = new Set<string>();
 	return products.map((p) => {
 		requireRecordText(p.title, 'Product title', 150, 1500);
@@ -312,7 +313,7 @@ export function productBody(products: Product[]): JsonObject[] {
 				'Product image',
 				'Add an image to each product.'
 			);
-		let amount = p.amount
+		const amount = p.amount
 			.trim()
 			.replace(/(\.\d*?)0+$/, '$1')
 			.replace(/\.$/, '');
@@ -345,7 +346,7 @@ export function productBody(products: Product[]): JsonObject[] {
 /** Converts a wall-clock form value in an IANA timezone, rejecting DST gaps. */
 export function zonedTimestamp(value: string, zone: string): string {
 	const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(value);
-	if (!match) throw new Error('Choose a valid date and time.');
+	if (!match) throw new InputError('Choose a valid date and time.');
 	const values = match.slice(1).map(Number),
 		target = Date.UTC(
 			values[0],
@@ -362,7 +363,7 @@ export function zonedTimestamp(value: string, zone: string): string {
 		values[3] > 23 ||
 		values[4] > 59
 	)
-		throw new Error('Choose a valid date and time.');
+		throw new InputError('Choose a valid date and time.');
 	let candidate = target;
 	const format = new Intl.DateTimeFormat('en-CA', {
 		timeZone: zone,
@@ -387,7 +388,7 @@ export function zonedTimestamp(value: string, zone: string): string {
 	};
 	for (let i = 0; i < 4; i++) candidate += target - represented(candidate);
 	if (represented(candidate) !== target)
-		throw new Error(
+		throw new InputError(
 			'This time does not exist in the selected time zone. Choose another time.'
 		);
 	return new Date(candidate).toISOString();

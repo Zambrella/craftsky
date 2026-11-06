@@ -103,7 +103,7 @@ test('a consumed AppView failure includes safe correlation while hiding private 
 	const wire = envelopes[0];
 	expect(wire).toContain('"httpStatus":503');
 	expect(wire).toContain('"appViewRequestId":"' + id + '"');
-	expect(wire).toContain('"operation":"workspace"');
+	expect(wire).toContain('"operation":"social.Feed.load"');
 	expect(wire).toContain('"debug_id"');
 	expect(wire).not.toContain(canary);
 	expect(wire).not.toContain('feed/timeline');
@@ -139,14 +139,16 @@ test('expected API failures and reporting outages preserve the normal recovery U
 	);
 	await page.goto('/feed');
 	await expect(
-		page.getByText('Fixture failure', { exact: true })
+		page.getByText("That didn't work. Please try again.", { exact: true })
 	).toBeVisible();
 	expect(reports).toBe(0);
 	status = 500;
 	await page.reload();
 	await expect.poll(() => reports).toBe(1);
 	await expect(
-		page.getByText('Fixture failure', { exact: true })
+		page.getByText('CraftSky is having trouble right now. Please try again.', {
+			exact: true
+		})
 	).toBeVisible();
 	await expect(
 		page.getByRole('button', { name: 'Retry', exact: true })

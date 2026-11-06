@@ -16,6 +16,7 @@ import { GET as deletionComplete } from '../../../routes/account-deletion/browse
 import { POST as deletionConfirm } from '../../../routes/api/auth/deletion/confirm/+server';
 import { GET as deletionStatus } from '../../../routes/api/auth/deletion/status/+server';
 import {
+	store,
 	encode,
 	decode,
 	credentials,
@@ -808,4 +809,56 @@ describe('bounded trusted upstream transport', () => {
 			);
 		}
 	});
+});
+
+it.each(['login', 'chat'] as const)(
+	'keeps refreshed %s credentials and newer selection when an old request returns 401',
+	async (kind) => {
+		const old = new CookieJar().add(A).add(B).active(A.id);
+		let finish!: (response: Response) => void;
+		fetcher.mockImplementationOnce(
+			() =>
+				new Promise((resolve) => {
+					finish = resolve;
+				})
+		);
+		const waiting = call(proxyGet, event(old, '/api/appview/v1/profiles/me'));
+		await vi.waitFor(() => expect(fetcher).toHaveBeenCalled());
+		const browser = new CookieJar().add(A).add(B).active(A.id);
+		const fresh = store(browser.cookies, new URL(origin), {
+			...pending(kind),
+			...(kind === 'chat'
+				? { source: A.id, purpose: 'chat' as const, sourceTokenHash: token(5) }
+				: {})
+		});
+		expect(fresh.id).toBe(A.id);
+		expect(fresh.generation).toBeDefined();
+		browser.active(B.id);
+		browser.values.set('__Host-craftsky_intent', encode(intent()));
+		old.changes = [];
+		finish(response({ error: 'unauthorized' }, 401));
+		await waiting;
+		for (const change of old.changes) {
+			if (change.value === undefined) browser.values.delete(change.name);
+			else browser.values.set(change.name, change.value);
+		}
+		expect(
+			credentials(browser.cookies, new URL(origin)).find(
+				(a) => a.id === fresh.id
+			)?.token
+		).toBe(fresh.token);
+		expect(selected(browser.cookies, new URL(origin))?.id).toBe(B.id);
+		expect(browser.values.has('__Host-craftsky_intent')).toBe(true);
+	}
+);
+it('rejects declared oversized JSON before fetching upstream', async () => {
+	const jar = new CookieJar().add(A).active(A.id);
+	const result = await call(
+		proxyPost,
+		event(jar, '/api/appview/v1/posts', 'POST', '{}', {
+			'content-length': '1048577'
+		})
+	);
+	expect(result.status).toBe(413);
+	expect(fetcher).not.toHaveBeenCalled();
 });

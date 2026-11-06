@@ -1,9 +1,10 @@
+import { InputError } from './user-facing-error';
 import { APIError } from './api/transport';
 
 type Field = HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement;
 const errors = new WeakMap<HTMLElement, HTMLElement>();
 let serial = 0;
-export class FieldValidationError extends Error {
+export class FieldValidationError extends InputError {
 	constructor(
 		readonly field: string,
 		message: string

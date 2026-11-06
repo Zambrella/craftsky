@@ -23,7 +23,7 @@
 		tierStateLabel
 	} from './native-settings.ts';
 	let { api, session }: { api: CraftskyAPI; session: Session } = $props();
-	const work = new Work();
+	const work = new Work('settings.Billing.action');
 	let accounts = $derived(
 		(page.data.accounts || []) as { did: string; handle: string }[]
 	);
@@ -47,7 +47,8 @@
 			([a, b]) => {
 				access = a;
 				apply(b);
-			}
+			},
+			'settings.Billing.load'
 		);
 	}
 	function refresh() {
@@ -60,7 +61,8 @@
 				access = a;
 				apply(b);
 			},
-			'Refresh requested. Store updates can take a little time; refresh again if needed.'
+			'Refresh requested. Store updates can take a little time; refresh again if needed.',
+			'settings.Billing.refresh'
 		);
 	}
 	function assign(license: BillingLicense, event: SubmitEvent) {
@@ -85,7 +87,8 @@
 				return api.billing.get();
 			},
 			apply,
-			'License assignment updated.'
+			'License assignment updated.',
+			'settings.Billing.assign'
 		);
 	}
 	async function unassign(license: BillingLicense) {
@@ -104,7 +107,8 @@
 				return api.billing.get();
 			},
 			apply,
-			'License unassigned.'
+			'License unassigned.',
+			'settings.Billing.unassign'
 		);
 	}
 	onMount(load);

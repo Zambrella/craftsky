@@ -1,3 +1,5 @@
+import { boundedBody, bodyLimit } from '#lib/server/auth/body.ts';
+import { UpstreamError } from '#lib/server/auth/upstream.ts';
 import type { RequestHandler } from './$types';
 import { device, selected, remove } from '#lib/server/auth/session.ts';
 import {
@@ -51,42 +53,31 @@ const handler: RequestHandler = async ({ request, url, cookies, params }) => {
 		}
 	}
 	try {
-		let body: Uint8Array | undefined;
-		if (!['GET', 'HEAD'].includes(request.method) && request.body) {
-			const reader = request.body.getReader();
-			const chunks: Uint8Array[] = [];
-			let length = 0;
-			try {
-				for (;;) {
-					const next = await reader.read();
-					if (next.done) break;
-					length += next.value.length;
-					if (length > 32 * 1024 * 1024) {
-						await reader.cancel();
-						return Response.json(
-							{ error: 'body_too_large', message: 'This upload is too large.' },
-							{ status: 413 }
-						);
-					}
-					chunks.push(next.value);
-				}
-			} finally {
-				reader.releaseLock();
-			}
-			body = new Uint8Array(length);
-			let offset = 0;
-			for (const chunk of chunks) {
-				body.set(chunk, offset);
-				offset += chunk.length;
-			}
+		const signal = AbortSignal.any([
+			request.signal,
+			AbortSignal.timeout(120000)
+		]);
+		const input = boundedBody(
+			request,
+			bodyLimit(request.method, decoded),
+			signal
+		);
+		let response: Response;
+		try {
+			response = await fetch(appviewOrigin() + target + url.search, {
+				method: request.method,
+				headers,
+				body: input.body,
+				duplex: 'half',
+				redirect: 'manual',
+				signal
+			} as RequestInit);
+		} catch (error) {
+			throw input.failure() ?? error;
+		} finally {
+			input.close();
 		}
-		const response = await fetch(appviewOrigin() + target + url.search, {
-			method: request.method,
-			headers,
-			body: body as BodyInit | undefined,
-			redirect: 'manual',
-			signal: AbortSignal.timeout(120000)
-		});
+
 		if (response.status >= 300 && response.status < 400)
 			return Response.json(
 				{ error: 'upstream_redirect', message: 'Request unavailable.' },
@@ -109,7 +100,12 @@ const handler: RequestHandler = async ({ request, url, cookies, params }) => {
 			headers: output
 		});
 	} catch (error) {
-		return safeFailure(error);
+		return safeFailure(
+			error instanceof DOMException && error.name === 'TimeoutError'
+				? new UpstreamError(504, 'request_timeout', undefined, { cause: error })
+				: error,
+			'appview.proxy'
+		);
 	}
 };
 export {

@@ -25,11 +25,11 @@ export class MemoryStorage implements StorageLike {
 	}
 }
 describe('private message drafts and delivery', () => {
-	it('retains the frozen text and operation across a reload without silently resending', () => {
+	it('retains the frozen text and operation across a reload without silently resending', async () => {
 		const storage = new MemoryStorage();
 		const store = new MessageDraftStore(storage, 'account-a');
 		const attempt = freezeSend({ text: 'Original message' }, () => key);
-		store.save('conversation', attempt);
+		await store.save('conversation', attempt);
 		expect(
 			new MessageDraftStore(storage, 'account-a').load('conversation')
 		).toEqual({
@@ -211,4 +211,20 @@ describe('review-before-send CraftSky link bridge', () => {
 		});
 		expect(draft.text).toBe('Newer draft');
 	});
+});
+
+it('rejects a stale tab save instead of overwriting frozen delivery', async () => {
+	const storage = new MemoryStorage();
+	const a = new MessageDraftStore(storage, 'account');
+	const b = new MessageDraftStore(storage, 'account');
+	a.load('chat');
+	b.load('chat');
+	await a.save(
+		'chat',
+		freezeSend({ text: 'Frozen' }, () => key)
+	);
+	await expect(b.save('chat', { text: 'Stale' })).rejects.toThrow(
+		'another tab'
+	);
+	expect(a.load('chat').pending?.text).toBe('Frozen');
 });

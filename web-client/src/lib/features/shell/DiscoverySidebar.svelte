@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { reportFailure } from '../diagnostics/client';
 	import { onMount, onDestroy } from 'svelte';
 	import type { CraftskyAPI, Profile, Author } from '#lib/api/client.ts';
 	import Avatar from '#lib/Avatar.svelte';
@@ -25,7 +26,8 @@
 		try {
 			const result = await api.profiles.recent();
 			if (!dead) members = result.items;
-		} catch {
+		} catch (cause) {
+			void reportFailure(cause, 'discovery.members');
 			if (!dead) error = true;
 		} finally {
 			if (!dead) loading = false;
@@ -36,7 +38,8 @@
 		try {
 			const result = await api.profiles.me();
 			if (!dead) onProfile(result);
-		} catch {
+		} catch (cause) {
+			void reportFailure(cause, 'discovery.crafts');
 			/* Keep the local retry control available. */
 		} finally {
 			if (!dead) retryingCrafts = false;

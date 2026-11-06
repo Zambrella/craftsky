@@ -10,8 +10,7 @@
 		newOperationKey,
 		type Profile,
 		type ProfileLinkInput,
-		type ProfileUpdate,
-		type BlobReference
+		type ProfileUpdate
 	} from '#lib/api/client.ts';
 	import MediaEditor from '../composer/MediaEditor.svelte';
 	import type { DraftMedia } from '../drafts/store';
@@ -38,7 +37,7 @@
 		onSaved?: () => void;
 		onBusyChange?: (busy: boolean) => void;
 	} = $props();
-	const work = new Work();
+	const work = new Work('social.ProfileEditor.action');
 	let original = $state<Profile>();
 	let displayName = $state(''),
 		description = $state(''),
@@ -154,7 +153,9 @@
 				}));
 				avatarURL = profile.avatar || '';
 				savedLinks = JSON.stringify(links);
-			}
+			},
+			undefined,
+			'social.ProfileEditor.profiles.me'
 		);
 	});
 	onDestroy(() => {
@@ -416,10 +417,14 @@
 				window.dispatchEvent(
 					new CustomEvent('craftsky-profile-updated', { detail: owner })
 				);
-				notify('Profile saved.');
 				if (onSaved) onSaved();
-				else void goto('/profiles/' + encodeURIComponent(owner.did));
-			}
+				else {
+					notify('Profile saved.');
+					void goto('/profiles/' + encodeURIComponent(owner.did));
+				}
+			},
+			undefined,
+			'social.ProfileEditor.save'
 		);
 	}
 </script>

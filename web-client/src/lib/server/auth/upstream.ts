@@ -1,5 +1,8 @@
+import { logServerFailure, type ServerOperation } from '../diagnostics';
 import { env } from 'node:process';
 export class UpstreamError extends Error {
+	readonly name = 'UpstreamError';
+	requestId?: string;
 	constructor(
 		public status: number,
 		public code: string,
@@ -125,6 +128,7 @@ export async function upstream(
 			throw new UpstreamError(502, 'upstream_redirect');
 		if (!response.ok) {
 			let code = 'request_failed';
+			let responseCause: unknown;
 			try {
 				const value = JSON.parse(await boundedText(response.body, 32768)) as {
 					error?: string;
@@ -134,22 +138,32 @@ export async function upstream(
 					/^[a-z0-9_]{1,80}$/.test(value.error)
 				)
 					code = value.error;
-			} catch {}
+			} catch (cause) {
+				responseCause = cause;
+			}
 			const retry = response.headers.get('retry-after');
-			throw new UpstreamError(
+			const failure = new UpstreamError(
 				response.status,
 				code,
-				retry && /^\d{1,5}$/.test(retry) ? retry : undefined
+				retry && /^\d{1,5}$/.test(retry) ? retry : undefined,
+				{ cause: responseCause }
 			);
+			failure.requestId = response.headers.get('X-Request-ID') || undefined;
+			throw failure;
 		}
 		if (response.status === 204) return undefined;
 		try {
 			const body = await boundedText(response.body, 1024 * 1024);
 			return body.trim() ? JSON.parse(body) : undefined;
 		} catch (error) {
-			throw new UpstreamError(502, 'invalid_upstream_response', undefined, {
-				cause: error
-			});
+			const failure = new UpstreamError(
+				502,
+				'invalid_upstream_response',
+				undefined,
+				{ cause: error }
+			);
+			failure.requestId = response.headers.get('X-Request-ID') || undefined;
+			throw failure;
 		}
 	} catch (error) {
 		if (error instanceof UpstreamError) throw error;
@@ -158,10 +172,21 @@ export async function upstream(
 		});
 	}
 }
-export function safeFailure(error: unknown) {
+export function safeFailure(
+	error: unknown,
+	operation: ServerOperation = 'auth.request'
+) {
 	const known = error instanceof UpstreamError;
 	const status =
 		known && error.status >= 400 && error.status <= 599 ? error.status : 503;
+	logServerFailure(
+		error,
+		operation,
+		'request',
+		known
+			? { status: error.status, code: error.code, requestId: error.requestId }
+			: {}
+	);
 	return Response.json(
 		{
 			error: known ? error.code : 'unavailable',

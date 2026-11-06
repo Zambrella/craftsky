@@ -146,6 +146,9 @@ test('hashtag Back returns to the originating feed or post and restores paginate
 	await card.getByRole('link', { name: '#sewing', exact: true }).click();
 	await expect(page).toHaveURL(/\/search\/tags\?tag=sewing$/);
 	await expect(page.locator('.snackbar.warning')).toContainText(
+		'CraftSky is having trouble right now. Please try again.'
+	);
+	await expect(page.locator('body')).not.toContainText(
 		'Temporary hashtag outage.'
 	);
 	await page.getByRole('link', { name: 'Back', exact: true }).click();

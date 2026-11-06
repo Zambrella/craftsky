@@ -151,6 +151,9 @@ test('native selection limit and Clear all apply cleared filters and return to t
 	await color.press('Escape');
 	await dialog.getByRole('button', { name: 'Clear all', exact: true }).click();
 	await expect(dialog).not.toBeVisible();
+	await expect
+		.poll(() => new URL(page.url()).searchParams.has('color'))
+		.toBe(false);
 	const query = new URL(page.url()).searchParams;
 	expect(query.get('craft')).toBe('knitting');
 	expect(query.get('sort')).toBe('popular');

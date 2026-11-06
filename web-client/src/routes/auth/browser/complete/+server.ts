@@ -1,3 +1,4 @@
+import { logServerFailure } from '#lib/server/diagnostics.ts';
 import { redirect } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import {
@@ -12,7 +13,11 @@ import {
 	capability,
 	type Pending
 } from '#lib/server/auth/session.ts';
-import { upstream, exactQuery } from '#lib/server/auth/upstream.ts';
+import {
+	upstream,
+	exactQuery,
+	UpstreamError
+} from '#lib/server/auth/upstream.ts';
 export const GET: RequestHandler = async ({ url, cookies, request }) => {
 	const intent = readIntent(cookies.get(prefix(url) + 'intent'));
 	if (
@@ -59,7 +64,15 @@ export const GET: RequestHandler = async ({ url, cookies, request }) => {
 		};
 		cookies.set(prefix(url) + 'pending', encode(pending), options(url, 600));
 		cookies.delete(prefix(url) + 'intent', { path: '/' });
-	} catch {
+	} catch (error) {
+		logServerFailure(
+			error,
+			'auth.callback',
+			'request',
+			error instanceof UpstreamError
+				? { status: error.status, code: error.code, requestId: error.requestId }
+				: {}
+		);
 		redirect(303, '/sign-in?error=handoff_unavailable');
 	}
 	// The pending cookie must survive its own response before activation is confirmed.

@@ -1,4 +1,13 @@
 <script lang="ts">
+	import { executePublication } from './publication';
+	import type { DiagnosticOperation } from '../diagnostics/privacy';
+	import {
+		UserFacingError,
+		InputError,
+		userErrorMessage
+	} from '#lib/user-facing-error.ts';
+	import { apiErrorMessage } from '#lib/api/error-message.ts';
+
 	import Snackbar from '../social/Snackbar.svelte';
 	import PublishingOverlay from './PublishingOverlay.svelte';
 	import {
@@ -22,8 +31,6 @@
 		type CraftskyAPI,
 		type JsonObject,
 		type Post,
-		type PostEditChanges,
-		type PostPayload,
 		type StrongRef
 	} from '#lib/api/client.ts';
 	import {
@@ -56,7 +63,6 @@
 		uploadVideo
 	} from './media.ts';
 	import ProjectEditor from './ProjectEditor.svelte';
-	import MediaEditor from './MediaEditor.svelte';
 	import PhotoAttachments from './PhotoAttachments.svelte';
 	import FacetTextInput from './FacetTextInput.svelte';
 	import LanguagePicker from './LanguagePicker.svelte';
@@ -102,7 +108,6 @@
 	let progress = $state('');
 	let stored = $state('');
 	let mounted = $state(false);
-	let dirty = $state(false);
 	let recovery = $state<ComposerRecovery>();
 	let closeDialog: HTMLDialogElement;
 	let closing = $state(false);
@@ -110,7 +115,6 @@
 	let closeDestination = $state('/feed');
 	let closeTarget = $state('/feed');
 	let approvedNavigation = false;
-	let editRevision = 0;
 	let context = $state<Post>();
 	let scheduleAt = $state('');
 	let showSchedule = $state(false);
@@ -128,6 +132,7 @@
 	let generation = 0;
 	let destroyed = false;
 	let controller = new AbortController();
+	let publicationController = new AbortController();
 	const tier =
 		getContext<
 			() => import('#lib/api/client.ts').SubscriptionAccess | undefined
@@ -245,34 +250,6 @@
 			if (video?.blob) URL.revokeObjectURL(next);
 		};
 	});
-	$effect(() => {
-		const lifecycle = recovery;
-		if (!mounted || loading || busy || closing || !lifecycle?.active) return;
-		const snapshot = $state.snapshot(draft as unknown) as Draft;
-		JSON.stringify(snapshot);
-		const revision = ++editRevision;
-		if (!changed && !snapshot.pending) {
-			dirty = false;
-			return;
-		}
-		dirty = true;
-		const seq = generation;
-		const timer = setTimeout(() => {
-			void lifecycle
-				.checkpoint(snapshot)
-				.then(() => {
-					if (seq === generation && revision === editRevision && !destroyed) {
-						stored = 'Draft saved on this device';
-						dirty = false;
-					}
-				})
-				.catch(() => {
-					if (seq === generation && !destroyed)
-						stored = 'Could not save draft on this device';
-				});
-		}, 1000);
-		return () => clearTimeout(timer);
-	});
 	onMount(() => {
 		mounted = true;
 	});
@@ -297,18 +274,7 @@
 		closeDialog?.close();
 	});
 	function preserveRecovery() {
-		const lifecycle = recovery;
-		if (
-			!approvedNavigation &&
-			initialized &&
-			lifecycle?.active &&
-			lifecycle.hasChanges(draft)
-		) {
-			void lifecycle
-				.checkpoint($state.snapshot(draft as unknown) as Draft)
-				.catch(() => {});
-		}
-		lifecycle?.abandon();
+		recovery?.abandon();
 	}
 	const returnTo =
 		getContext<(destination: string) => Promise<void>>('craftsky-return');
@@ -324,14 +290,14 @@
 		if (closing) return;
 		if (draft.pending) {
 			void leaveEditor(destination).catch((e) => {
-				error = message(e);
+				error = message(e, 'composer.requestClose');
 			});
 			return;
 		}
 		closeTarget = destination;
 		if (!changed && !mediaEdits.length && !busy && !mediaTasks.length) {
 			void leaveEditor(destination).catch((e) => {
-				error = message(e);
+				error = message(e, 'composer.requestClose');
 			});
 			return;
 		}
@@ -350,12 +316,12 @@
 		try {
 			await lifecycle.discard($state.snapshot(draft as unknown) as Draft);
 			if (seq !== generation || destroyed || recovery !== lifecycle) return;
-			dirty = false;
+
 			closeDialog.close();
 			await leaveEditor(closeTarget);
 		} catch (e) {
 			if (seq === generation && !destroyed && !presentFieldErrors(e))
-				error = message(e);
+				error = message(e, 'composer.discardDraft');
 		} finally {
 			if (seq === generation && !destroyed) closing = false;
 		}
@@ -389,7 +355,7 @@
 		context = undefined;
 		stored = '';
 		busy = false;
-		dirty = false;
+
 		scheduleFull = false;
 		try {
 			let nextContext: Post | undefined;
@@ -417,14 +383,15 @@
 			if (saved) {
 				const value = await drafts.get(owner, saved);
 				if (!value)
-					throw new Error('This draft was not found for your account.');
+					throw new UserFacingError(
+						'This draft was not found for your account.'
+					);
 				next = value;
 			} else if (scheduled) {
 				const item = await ownedApi.schedules.get(scheduled);
 				const payload = item.payload;
 				next = {
 					...next,
-					id: item.operationId,
 					kind: payload.kind === 'project' ? 'project' : 'standard',
 					text: str(payload.text),
 					langs: Array.isArray(payload.langs)
@@ -478,7 +445,7 @@
 				}
 			} else if (mode === 'edit') {
 				if (!did || !rkey || did !== owner)
-					throw new Error('Choose one of your posts to edit.');
+					throw new InputError('Choose one of your posts to edit.');
 				const seed = await ownedApi.posts.editSeed(did, rkey);
 				const value = seed.editable;
 				next = {
@@ -531,15 +498,16 @@
 					};
 			} else if (mode === 'reply' || mode === 'quote') {
 				if (!did || !rkey)
-					throw new Error('Choose a post to reply to or quote.');
+					throw new InputError('Choose a post to reply to or quote.');
 				const [target, preferences] = await Promise.all([
 					ownedApi.posts.get(did, rkey),
 					ownedApi.languages.get().catch(() => undefined)
 				]);
 				if (preferences) next.langs = [preferences.primaryLanguage];
-				if (!('author' in target)) throw new Error('This post is unavailable.');
+				if (!('author' in target))
+					throw new UserFacingError('This post is unavailable.');
 				if (mode === 'quote' && target.reply)
-					throw new Error(
+					throw new UserFacingError(
 						'Replies cannot be quoted. Open the original post to quote it.'
 					);
 				nextContext = target;
@@ -624,7 +592,7 @@
 						typeof value.description !== 'string' ||
 						!value.title.trim()
 					)
-						throw new Error('Invalid link preview response');
+						throw new UserFacingError('Invalid link preview response');
 					const external = {
 						uri: previewNavigation(
 							{ ...candidate, fragment: '' },
@@ -660,7 +628,7 @@
 			scheduleAt = next.scheduledAt ? localDate(next.scheduledAt) : '';
 		} catch (e) {
 			if (seq === generation && !destroyed && !presentFieldErrors(e))
-				error = message(e);
+				error = message(e, 'composer.initialize');
 		} finally {
 			if (seq === generation && !destroyed) loading = false;
 		}
@@ -674,15 +642,14 @@
 		draft.scheduleLater = later;
 		draft.scheduledAt = later ? scheduledUTCDate(date) : undefined;
 	}
-	function message(e: unknown) {
-		void reportFailure(e, 'composer');
+	function message(e: unknown, operation: DiagnosticOperation) {
+		void reportFailure(e, operation);
 		if (e instanceof APIError && e.fields)
-			return `${e.message} ${Object.entries(e.fields)
+			return `${apiErrorMessage(e)} ${Object.entries(e.fields)
 				.map(([field, value]) => `${field}: ${value}`)
 				.join(' · ')}`;
-		return e instanceof Error
-			? e.message
-			: 'The action could not be completed.';
+		if (e instanceof APIError) return apiErrorMessage(e);
+		return userErrorMessage(e);
 	}
 	async function saveDraft(destination = closeDestination) {
 		const lifecycle = recovery,
@@ -701,7 +668,7 @@
 		try {
 			await lifecycle.checkpoint($state.snapshot(draft as unknown) as Draft);
 			if (seq !== generation || destroyed || recovery !== lifecycle) return;
-			dirty = false;
+
 			stored = 'Draft saved on this device';
 			closeDialog.close();
 			window.dispatchEvent(
@@ -712,7 +679,7 @@
 			await leaveEditor(destination);
 		} catch (e) {
 			if (seq === generation && !destroyed && !presentFieldErrors(e))
-				error = message(e);
+				error = message(e, 'composer.saveDraft');
 		} finally {
 			if (seq === generation && !destroyed) closing = false;
 		}
@@ -724,11 +691,11 @@
 			const kind = attachmentSelection(Array.from(files));
 			if (kind === 'video') {
 				if (!canAddVideo)
-					throw new Error('Video cannot be added to this post.');
+					throw new InputError('Video cannot be added to this post.');
 				await addVideo(files);
 			} else if (kind === 'images') await addImages(files);
 		} catch (e) {
-			error = message(e);
+			error = message(e, 'composer.addAttachments');
 		}
 	}
 	async function addImages(files: FileList | null) {
@@ -738,7 +705,7 @@
 		error = '';
 		try {
 			if (draft.images.length + files.length > 8)
-				throw new Error('Choose up to eight images.');
+				throw new InputError('Choose up to eight images.');
 			const prepared: DraftMedia[] = [];
 			for (const file of Array.from(files)) {
 				progress = `Preparing image ${prepared.length + 1} of ${files.length}…`;
@@ -756,7 +723,7 @@
 			}
 		} catch (e) {
 			if (seq === generation && !destroyed && !presentFieldErrors(e))
-				error = message(e);
+				error = message(e, 'composer.addImages');
 		} finally {
 			if (seq === generation && !destroyed) {
 				busy = false;
@@ -782,17 +749,10 @@
 			}
 		} catch (e) {
 			if (seq === generation && !destroyed && !presentFieldErrors(e))
-				error = message(e);
+				error = message(e, 'composer.addVideo');
 		} finally {
 			if (seq === generation && !destroyed) busy = false;
 		}
-	}
-	function moveImage(index: number, direction: number) {
-		const copy = [...draft.images];
-		const other = index + direction;
-		if (other < 0 || other >= copy.length) return;
-		[copy[index], copy[other]] = [copy[other], copy[index]];
-		draft.images = copy;
 	}
 	async function previewThumbnail(
 		thumb: JsonObject,
@@ -840,7 +800,7 @@
 		signal: AbortSignal
 	): Promise<void> {
 		if (image.uploaded || image.existingIndex !== undefined) return;
-		if (!image.blob) throw new Error('An image file is missing.');
+		if (!image.blob) throw new UserFacingError('An image file is missing.');
 		const result = await api.media.image(image.blob, image.mime, signal);
 		image.uploaded = result.blob;
 	}
@@ -849,7 +809,7 @@
 		signal: AbortSignal
 	): Promise<string> {
 		if (image.scheduledId) return image.scheduledId;
-		if (!image.blob) throw new Error('A media file is missing.');
+		if (!image.blob) throw new UserFacingError('A media file is missing.');
 		const id = image.id;
 		await api.schedules.stageMedia(id, image.blob, image.mime, signal);
 		image.scheduledId = id;
@@ -906,7 +866,7 @@
 		const lifecycle = recovery;
 		return lifecycle?.owner === owner && lifecycle.id === value.id
 			? lifecycle.checkpoint(value)
-			: drafts.save(owner, value);
+			: Promise.reject(new UserFacingError('This editor has already closed.'));
 	}
 	async function submit(
 		action: 'publish' | 'schedule' | 'publish-now' = 'publish'
@@ -919,7 +879,11 @@
 		}
 		const owner = session.did,
 			seq = generation;
-		const signal = controller.signal;
+		publicationController = new AbortController();
+		const signal = AbortSignal.any([
+			controller.signal,
+			publicationController.signal
+		]);
 		const working = $state.snapshot(draft as unknown) as Draft;
 		previews?.pause();
 		busy = true;
@@ -986,7 +950,7 @@
 					);
 					return;
 				}
-				throw new Error(remaining.join(' '));
+				throw new InputError(remaining.join(' '));
 			}
 			publishing = true;
 			scheduling = action === 'schedule';
@@ -995,7 +959,7 @@
 				const payload = await makeSchedulePayload(working, signal);
 				if (action === 'publish-now') {
 					if (!working.scheduleId)
-						throw new Error('This post is not scheduled.');
+						throw new UserFacingError('This post is not scheduled.');
 					pending = {
 						key: working.id,
 						kind: 'schedule-publish',
@@ -1009,7 +973,7 @@
 						!Number.isFinite(date.getTime()) ||
 						date.getTime() < Date.now() + 5 * 60 * 1000
 					)
-						throw new Error(
+						throw new InputError(
 							'Choose a time at least five minutes in the future.'
 						);
 					pending = {
@@ -1105,7 +1069,10 @@
 			await perform(pending, owner, seq, working.id);
 		} catch (e) {
 			if (seq === generation && !destroyed && !presentFieldErrors(e))
-				error = message(e);
+				error =
+					publicationController.signal.aborted && !draft.pending
+						? 'Publishing stopped. Your edits are still here; choose Save draft to keep them.'
+						: message(e, 'composer.submit');
 		} finally {
 			if (seq === generation && !destroyed) {
 				busy = false;
@@ -1116,6 +1083,7 @@
 	}
 	async function retry() {
 		if (busy || !draft.pending) return;
+		publicationController = new AbortController();
 		const seq = generation,
 			owner = session.did;
 		busy = true;
@@ -1133,7 +1101,7 @@
 			);
 		} catch (e) {
 			if (seq === generation && !destroyed && !presentFieldErrors(e))
-				error = message(e);
+				error = message(e, 'composer.retry');
 		} finally {
 			if (seq === generation && !destroyed) {
 				busy = false;
@@ -1154,66 +1122,30 @@
 				? recovery
 				: undefined;
 		try {
-			let destination = closeDestination;
-			let resultNotice = 'Your post has been published.';
-			if (pending.kind === 'schedule-create') {
-				await api.schedules.create(
-					pending.key,
-					str(pending.body.scheduledAt),
-					record(pending.body.payload)
-				);
-				destination = origin || '/scheduled';
-				resultNotice = 'Your post has been scheduled.';
-			} else if (pending.kind === 'schedule-update') {
-				await api.schedules.update(
-					pending.rkey!,
-					str(pending.body.scheduledAt),
-					record(pending.body.payload)
-				);
-				destination = origin || '/scheduled';
-				resultNotice = 'Your schedule has been updated.';
-			} else if (pending.kind === 'schedule-publish') {
-				const result = await api.schedules.publish(
-					pending.rkey!,
-					record(pending.body.payload)
-				);
-				destination = origin || '/scheduled';
-				resultNotice =
-					result.status === 'publishing'
-						? 'Your post is being published.'
-						: 'Your post has been published.';
-			} else if (pending.kind === 'edit') {
-				const result = await api.posts.edit(
-					pending.did!,
-					pending.rkey!,
-					pending.body as unknown as PostEditChanges,
-					pending.cid!,
-					pending.key
-				);
-				if (seq !== generation || destroyed) return;
-				publications?.watchEdit(pending.rkey!, result, () =>
+			const result = await executePublication(
+				api,
+				pending,
+				AbortSignal.any([controller.signal, publicationController.signal])
+			);
+			if (seq !== generation || destroyed) return;
+			if (result.post) publications?.accept(result.post, context);
+			if (result.edit)
+				publications?.watchEdit(pending.rkey!, result.edit, () =>
 					api.posts.get(pending.did!, pending.rkey!)
 				);
-				destination = `/posts/${encodeURIComponent(pending.did!)}/${encodeURIComponent(pending.rkey!)}`;
-				resultNotice = 'Your changes have been saved.';
-			} else {
-				const post = await api.posts.create(
-					pending.body as unknown as PostPayload,
-					pending.key
-				);
-				if (seq !== generation || destroyed) return;
-				publications?.accept(post, context);
-				destination = origin || closeDestination;
-			}
+			const destination =
+				pending.kind === 'edit'
+					? result.destination!
+					: origin || result.destination || closeDestination;
 			// An accepted public write stays accepted even if local cleanup fails.
 			// A retained pending draft can only recheck the original idempotent action.
-			await (
-				lifecycle ? lifecycle.complete() : drafts.remove(owner, draftId)
-			).catch(() => {});
+			await (lifecycle?.complete() ?? Promise.resolve()).catch((error) => {
+				void reportFailure(error, 'composer.perform');
+			});
 			if (seq !== generation || destroyed) return;
 			draft.pending = undefined;
-			notify(resultNotice);
-			dirty = false;
+			notify(result.notice);
+
 			try {
 				await leaveEditor(destination);
 			} catch {
@@ -1230,7 +1162,6 @@
 			if (uncertain) {
 				error =
 					'This action is still being confirmed. The exact request has been saved. Retry to check the same action; do not create a second post.';
-				await checkpoint(owner, $state.snapshot(draft as unknown) as Draft);
 			} else {
 				draft.pending = undefined;
 				if (
@@ -1240,21 +1171,21 @@
 				) {
 					draft.videoRecovery = (draft.videoRecovery || 0) + 1;
 				}
-				await checkpoint(owner, $state.snapshot(draft as unknown) as Draft);
+				await lifecycle?.rejected();
 				if (e instanceof APIError && e.status === 409)
 					error =
-						'This post changed while you were editing. Your draft is saved. Reload the current post before applying your changes.';
+						'This post changed while you were editing. Your edits are still here. Reload the current post before applying your changes.';
 				else if (e instanceof APIError && e.code === 'video_blob_missing')
 					error =
 						(draft.videoRecovery || 0) < 2
 							? 'The video could not be retrieved. Try publishing again to upload a fresh copy.'
 							: 'The video could not be restored. Remove it and choose the file again.';
-				else error = message(e);
+				else error = message(e, 'composer.perform');
 			}
 		}
 	}
 	function beforeLeave(event: BeforeUnloadEvent) {
-		if ((dirty || mediaEdits.length) && !draft.pending) {
+		if ((changed || mediaEdits.length) && !draft.pending) {
 			event.preventDefault();
 			event.returnValue = '';
 		}
@@ -1263,6 +1194,7 @@
 
 <PublishingOverlay
 	active={publishing}
+	onstop={() => publicationController.abort()}
 	video={!!draft.video}
 	fraction={progress.match(/(\d+(?:\.\d+)?)%/)
 		? Number(progress.match(/(\d+(?:\.\d+)?)%/)![1])

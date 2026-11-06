@@ -277,7 +277,7 @@ for (const status of [400, 500]) {
 			await expect.poll(() => envelopes.length).toBe(1);
 			expect(envelopes[0]).toContain('"httpStatus":500');
 			expect(envelopes[0]).toContain('12345678-1234-4123-8123-123456789012');
-			expect(envelopes[0]).toContain('"operation":"workspace"');
+			expect(envelopes[0]).toContain('"operation":"social.Search.suggest"');
 			expect(envelopes[0]).not.toContain('PRIVATE_SEARCH_FAILURE_CANARY');
 			expect(envelopes[0]).not.toContain('PRIVATE_QUERY_CANARY');
 		} else expect(envelopes).toHaveLength(0);

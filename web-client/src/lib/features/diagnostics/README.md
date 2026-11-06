@@ -16,12 +16,28 @@ An already sent request cannot be recalled.
 
 The SDK owns unhandled errors/rejections. SvelteKit's client error hook owns
 unexpected framework failures. The social/settings Work helpers, startup boundary
-and composer consumed-error boundary call `reportFailure` with the original error.
+and feature consuming boundaries call `reportFailure` with the original error.
+Pass a static action label from `DiagnosticOperation`; do not derive labels from
+paths, account IDs, private resources or user text. Work helpers carry their
+labels through retries. Repeated messaging polling/storage failures report once
+until recovery, rather than once per poll or keystroke.
 Feature code never imports Sentry. Reporter failures cannot affect normal UI,
 responses or retry behavior. Expected cancellation, offline, API 4xx and pending
 mutation outcomes are suppressed from Sentry; malformed responses and API 5xx
 failures remain actionable. Their supporting local diagnostic output is protected
-independently of Sentry and consent.
+independently of Sentry and consent. Expected failures use warning-level local
+output; unexpected failures use error-level output. Correctable `InputError`
+(including field validation) and browser permission denials are expected.
+
+Use `userErrorMessage` for presentation. Only `UserFacingError` and its input
+subclasses may expose reviewed client-authored copy; ordinary exceptions use the
+Flutter-aligned generic fallback. Never construct these wrappers from dependency
+or server prose. Wrappers should retain an original cause when one exists.
+
+Worker logging uses `lib/server/diagnostics.ts`, separately from the browser SDK.
+The unknown-error hook and consuming public/auth/proxy boundaries own these logs;
+handled HTTP responses are not logged again by the hook. Only selected cause
+kinds, Worker coordinates and bounded operational metadata are emitted.
 
 Only GlobalHandlers, bounded LinkedErrors and Dedupe integrations are installed.
 SDK 11 uses `dataCollection` rather than `sendDefaultPii`; private collection

@@ -12,7 +12,7 @@
 	const back = getContext<((event: MouseEvent) => void) | undefined>(
 		'craftsky-back'
 	);
-	const work = new Work();
+	const work = new Work('social.MutualFollowers.action');
 	let items = $state<Author[]>([]);
 	let cursor = $state<string | null | undefined>();
 	const profileURL = $derived('/profiles/' + encodeURIComponent(id));
@@ -25,7 +25,9 @@
 					? appendPage(items, value.items, (item) => item.did)
 					: value.items;
 				cursor = value.cursor;
-			}
+			},
+			undefined,
+			'social.MutualFollowers.load'
 		);
 	}
 	onMount(() => void load());

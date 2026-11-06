@@ -1,3 +1,4 @@
+import { InputError, UserFacingError } from '#lib/user-facing-error.ts';
 import type { CraftskyAPI } from '#lib/api/client.ts';
 import {
 	bindings,
@@ -20,18 +21,19 @@ async function messaging() {
 	if (setup) return setup;
 	setup = (async () => {
 		const config = configuration();
-		if (!config) throw new Error('Browser notifications are not configured.');
+		if (!config)
+			throw new UserFacingError('Browser notifications are not configured.');
 		if (
 			!('serviceWorker' in navigator) ||
 			!('Notification' in window) ||
 			!window.isSecureContext
 		)
-			throw new Error(
+			throw new InputError(
 				'This browser does not support notifications. On iPhone or iPad, add CraftSky to your Home Screen first.'
 			);
 		const sdk = await import('@firebase/messaging');
 		if (!(await sdk.isSupported()))
-			throw new Error(
+			throw new InputError(
 				'This browser does not support notifications. On iPhone or iPad, add CraftSky to your Home Screen first.'
 			);
 		const { initializeApp, getApps } = await import('@firebase/app');
@@ -57,10 +59,10 @@ export async function registerPush(
 ) {
 	if (requestPermission) {
 		if (!('Notification' in window))
-			throw new Error('This browser does not support notifications.');
+			throw new InputError('This browser does not support notifications.');
 		const result = await Notification.requestPermission();
 		if (result !== 'granted')
-			throw new Error(
+			throw new InputError(
 				result === 'denied'
 					? 'Notifications are blocked. Allow notifications in your browser settings to enable them.'
 					: 'Notification permission was not granted.'
@@ -74,7 +76,7 @@ export async function registerPush(
 		serviceWorkerRegistration: registration
 	});
 	if (!token)
-		throw new Error(
+		throw new UserFacingError(
 			'The browser could not create a notification registration.'
 		);
 	const previous = bindings(localStorage).find(
