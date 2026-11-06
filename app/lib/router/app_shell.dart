@@ -28,6 +28,7 @@ import 'package:craftsky_app/router/widgets/desktop_discovery_sidebar.dart';
 import 'package:craftsky_app/saved_posts/providers/saved_post_folders_provider.dart';
 import 'package:craftsky_app/saved_posts/providers/saved_posts_provider.dart';
 import 'package:craftsky_app/settings/settings_links.dart';
+import 'package:craftsky_app/shared/browsing/browsing_provider.dart';
 import 'package:craftsky_app/shared/link/external_link.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/shared/widgets/root_overlay_scope.dart';
@@ -518,6 +519,23 @@ class _AppShellState extends ConsumerState<AppShell> {
 
   @override
   Widget build(BuildContext context) {
+    if (ref.watch(isGuestBrowsingProvider)) {
+      return Scaffold(
+        body: widget.navigationShell,
+        bottomNavigationBar: NavigationBar(
+          selectedIndex: widget.navigationShell.currentIndex == 1 ? 1 : 0,
+          onDestinationSelected: (index) =>
+              widget.navigationShell.goBranch(index),
+          destinations: const [
+            NavigationDestination(
+              icon: Icon(Icons.home_outlined),
+              label: 'Home',
+            ),
+            NavigationDestination(icon: Icon(Icons.search), label: 'Search'),
+          ],
+        ),
+      );
+    }
     final formFactor = FormFactorWidget.of(context);
     final registry = ref.watch(sessionRegistryProvider).value;
     final activeIdentity = ref.watch(activeAccountIdentityProvider).value;
@@ -532,7 +550,12 @@ class _AppShellState extends ConsumerState<AppShell> {
                 value.did == activeLease.account.did) {
           ref
             ..invalidate(activeAccountIdentityProvider)
-            ..invalidate(userProfileProvider(activeLease.account.did))
+            ..invalidate(
+              userProfileProvider(
+                activeLease.account.did,
+                audience: ref.read(browsingContextProvider),
+              ),
+            )
             ..invalidate(savedPostFoldersProvider(activeLease.account))
             ..invalidate(savedPostsProvider)
             ..invalidate(followerGrowthProvider);

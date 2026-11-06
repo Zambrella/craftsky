@@ -27,6 +27,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../test_support/member_browsing_context.dart';
 import 'fakes/fake_search_repository.dart';
 
 void main() {
@@ -615,6 +616,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            testMemberBrowsingOverride,
             searchRepositoryProvider.overrideWithValue(repository),
             activeLanguagePreferencesProvider.overrideWith(
               (ref) => const LanguagePreferences(
@@ -677,6 +679,7 @@ Widget _searchPageApp({
 }) {
   return ProviderScope(
     overrides: [
+      testMemberBrowsingOverride,
       activeLanguagePreferencesProvider.overrideWith(
         (ref) => const LanguagePreferences(
           primaryLanguage: 'en',

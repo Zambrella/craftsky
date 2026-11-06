@@ -17,7 +17,8 @@ final class BusinessEventDetailProvider
         $AsyncNotifierProvider<BusinessEventDetail, BusinessEventDetailState> {
   BusinessEventDetailProvider._({
     required BusinessEventDetailFamily super.from,
-    required BusinessEventDetailTarget super.argument,
+    required (BusinessEventDetailTarget, {BrowsingContext? audience})
+    super.argument,
   }) : super(
          retry: null,
          name: r'businessEventDetailProvider',
@@ -33,7 +34,7 @@ final class BusinessEventDetailProvider
   String toString() {
     return r'businessEventDetailProvider'
         ''
-        '($argument)';
+        '$argument';
   }
 
   @$internal
@@ -52,7 +53,7 @@ final class BusinessEventDetailProvider
 }
 
 String _$businessEventDetailHash() =>
-    r'f923c765c244b0a10ecc8220f248ef0801f97596';
+    r'1180ddf83b68dff224c3582676becab65dbf975a';
 
 final class BusinessEventDetailFamily extends $Family
     with
@@ -61,7 +62,7 @@ final class BusinessEventDetailFamily extends $Family
           AsyncValue<BusinessEventDetailState>,
           BusinessEventDetailState,
           FutureOr<BusinessEventDetailState>,
-          BusinessEventDetailTarget
+          (BusinessEventDetailTarget, {BrowsingContext? audience})
         > {
   BusinessEventDetailFamily._()
     : super(
@@ -72,8 +73,13 @@ final class BusinessEventDetailFamily extends $Family
         isAutoDispose: true,
       );
 
-  BusinessEventDetailProvider call(BusinessEventDetailTarget target) =>
-      BusinessEventDetailProvider._(argument: target, from: this);
+  BusinessEventDetailProvider call(
+    BusinessEventDetailTarget target, {
+    BrowsingContext? audience,
+  }) => BusinessEventDetailProvider._(
+    argument: (target, audience: audience),
+    from: this,
+  );
 
   @override
   String toString() => r'businessEventDetailProvider';
@@ -81,10 +87,15 @@ final class BusinessEventDetailFamily extends $Family
 
 abstract class _$BusinessEventDetail
     extends $AsyncNotifier<BusinessEventDetailState> {
-  late final _$args = ref.$arg as BusinessEventDetailTarget;
-  BusinessEventDetailTarget get target => _$args;
+  late final _$args =
+      ref.$arg as (BusinessEventDetailTarget, {BrowsingContext? audience});
+  BusinessEventDetailTarget get target => _$args.$1;
+  BrowsingContext? get audience => _$args.audience;
 
-  FutureOr<BusinessEventDetailState> build(BusinessEventDetailTarget target);
+  FutureOr<BusinessEventDetailState> build(
+    BusinessEventDetailTarget target, {
+    BrowsingContext? audience,
+  });
   @$mustCallSuper
   @override
   WhenComplete runBuild() {
@@ -105,6 +116,9 @@ abstract class _$BusinessEventDetail
               Object?,
               Object?
             >;
-    return element.handleCreate(ref, () => build(_$args));
+    return element.handleCreate(
+      ref,
+      () => build(_$args.$1, audience: _$args.audience),
+    );
   }
 }

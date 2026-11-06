@@ -19,6 +19,7 @@ import 'package:material_ui/material_ui.dart';
 
 import '../fakes/auth_session_fakes.dart';
 import '../feed/fakes/fake_post_repository.dart';
+import '../test_support/member_browsing_context.dart';
 
 void main() {
   test('AT-006 owner Events route uses the canonical settings location', () {
@@ -69,6 +70,7 @@ void main() {
         addTearDown(tester.view.resetPhysicalSize);
         final container = ProviderContainer.test(
           overrides: [
+            testMemberBrowsingOverride,
             authSessionProvider.overrideWith(SignedInAuthSession.new),
             onboardingStatusProvider.overrideWith2(
               (_) => CompletedOnboardingStatus(),

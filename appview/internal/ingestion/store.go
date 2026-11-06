@@ -16,6 +16,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"social.craftsky/appview/internal/guestvisibility"
+	"social.craftsky/appview/internal/guestvisibilitydb"
 	"social.craftsky/appview/internal/ownerlifecycle"
 	"social.craftsky/appview/internal/postfence"
 	"social.craftsky/appview/internal/postpublication"
@@ -186,6 +188,9 @@ func (store *Store) ingestRecordTx(
 		outcome := tap.Applied()
 		return outcome, insertReceipt(ctx, tx, fingerprint, event.ID, "record", outcome, event.URI, tap.ReasonStaleSource, now)
 	case sourceVersionDuplicate:
+		if err := store.initializeDuplicateGuestVisibility(ctx, tx, event, authority); err != nil {
+			return tap.Outcome{}, err
+		}
 		outcome, err := readCurrentJobOutcome(ctx, tx, event.URI)
 		if err != nil {
 			return tap.Outcome{}, err
@@ -252,6 +257,36 @@ func (store *Store) ingestRecordTx(
 		}
 	}
 	return outcome, insertReceipt(ctx, tx, fingerprint, event.ID, "record", outcome, event.URI, outcome.Reason, now)
+}
+
+// An actual normal duplicate delivery is authoritative evidence for just its
+// subject. It does not request replay, inspect other owners, or reopen completed
+// projection jobs. Lifecycle/source locks are already held by the ingestor.
+func (store *Store) initializeDuplicateGuestVisibility(ctx context.Context, tx pgx.Tx, event tap.Event, authority *sourceAuthority) error {
+	if authority == nil || authority.Lifecycle.State != ownerlifecycle.StateActive || event.Collection != "app.bsky.actor.profile" || event.Rkey != "self" {
+		return nil
+	}
+	validation := sourcevalidation.Validate(event)
+	if validation.StructuralStatus != sourcevalidation.Valid || validation.SemanticStatus != sourcevalidation.Valid {
+		return nil
+	}
+	source, err := sourceTx(ctx, tx, event.URI)
+	if err != nil {
+		return err
+	}
+	if source.OrderingStatus != "authoritative" || source.ProjectionDisposition != "eligible" || source.ProjectionGeneration == nil || *source.ProjectionGeneration != authority.Lifecycle.Generation {
+		return nil
+	}
+	unknown, err := guestvisibilitydb.New(tx).GuestVisibilityNeedsInitialization(ctx, event.DID.String())
+	if err != nil || !unknown {
+		return err
+	}
+	preference := guestvisibility.Unknown
+	if event.Action != "delete" {
+		preference = guestvisibility.ParsePreference(event.Record)
+	}
+	_, err = guestvisibility.ApplyTx(ctx, tx, event.DID, preference, guestvisibility.Evidence{Revision: event.Rev, CID: event.CID, Kind: guestvisibility.Source})
+	return err
 }
 
 func lockSourceVersionTx(ctx context.Context, tx pgx.Tx, event tap.Event) (sourceVersionDecision, error) {

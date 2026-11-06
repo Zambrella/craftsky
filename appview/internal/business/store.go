@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -20,6 +21,7 @@ type Store struct {
 var ErrEventNotFound = errors.New("business: event not found")
 
 type EventReadInput struct {
+	Guest     bool
 	CallerDID syntax.DID
 	OwnerDID  syntax.DID
 	Rkey      syntax.RecordKey
@@ -27,6 +29,7 @@ type EventReadInput struct {
 }
 
 type UpcomingEventListInput struct {
+	Guest     bool
 	CallerDID syntax.DID
 	OwnerDID  syntax.DID
 	AsOf      time.Time
@@ -102,11 +105,12 @@ func (s *Store) ReadEvent(ctx context.Context, input EventReadInput) (EventView,
 		             AND subscription.app_id IS NOT NULL AND subscription.mapped_tier=license.tier
 		             AND subscription.anomaly='none'
 		       ) THEN 'business' ELSE 'regular' END,
-		       `+eventBlockedSQL+`, `+eventModeratedSQL+`
+		       `+eventBlockedSQL+`, `+eventModerationReadSQL(input.Guest)+`
 		FROM craftsky_business_events event
 		LEFT JOIN craftsky_profiles membership ON membership.did = event.owner_did
 		WHERE event.owner_did = $2 AND event.rkey = $3
 		  AND appview_image_subject_is_clear(event.uri, event.cid)
+ `+guestEventOwnerSQL(input.Guest)+`
 	`, input.CallerDID, input.OwnerDID, input.Rkey, s.accessEnvironment).Scan(
 		&raw, &view.URI, &view.CID, &startsAt, &endsAt,
 		&ownerCurrent, &accountType, &blocked, &moderated,
@@ -164,12 +168,13 @@ func (s *Store) ListUpcomingEvents(ctx context.Context, input UpcomingEventListI
 		WHERE event.owner_did = $2
 		  AND appview_owner_is_active(event.owner_did)
 		  AND appview_image_subject_is_clear(event.uri, event.cid)
+ `+guestEventOwnerSQL(input.Guest)+`
 		  AND event.ends_at > $3
 		  AND event.ends_at > event.starts_at
 		  AND event.ends_at - event.starts_at <= interval '31 days'
 		  AND COALESCE(event.status, 'scheduled') NOT IN ('cancelled', 'postponed')
 		  AND NOT `+eventBlockedSQL+`
-		  AND NOT `+eventModeratedSQL+`
+		  AND NOT `+eventModerationReadSQL(input.Guest)+`
 		  AND ($4::timestamptz IS NULL OR
 		       (event.starts_at, event.uri) > ($4::timestamptz, $5::text))
 		ORDER BY event.starts_at ASC, event.uri ASC
@@ -463,4 +468,19 @@ func (s *Store) ReadAccountTypes(ctx context.Context, dids []syntax.DID) (map[sy
 		return nil, fmt.Errorf("iterate account types: %w", err)
 	}
 	return result, nil
+}
+
+func eventModerationReadSQL(guest bool) string {
+	if guest {
+		return strings.ReplaceAll(eventModeratedSQL, "('hide', 'takedown')", "('hide', 'takedown', 'warn')")
+	}
+	return eventModeratedSQL
+}
+
+func guestEventOwnerSQL(guest bool) string {
+	if !guest {
+		return ""
+	}
+	return `AND EXISTS (SELECT 1 FROM bluesky_profiles guest_profile WHERE guest_profile.did=event.owner_did AND guest_profile.guest_visibility_hidden IS FALSE AND guest_profile.guest_visibility_hold_key IS NULL)
+ AND NOT EXISTS (SELECT 1 FROM moderation_account_standings standing WHERE standing.owner_did=event.owner_did AND standing.effective_suspended)`
 }

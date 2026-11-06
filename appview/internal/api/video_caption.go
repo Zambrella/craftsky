@@ -76,7 +76,11 @@ func VideoCaptionHandler(store VideoCaptionPostReader, fetcher VideoCaptionBlobF
 			return
 		}
 		w.Header().Set("Content-Type", "text/vtt; charset=utf-8")
-		w.Header().Set("Cache-Control", "private, max-age=300")
+		if readAudience(r.Context()) == GuestAudience {
+			w.Header().Set("Cache-Control", "no-store")
+		} else {
+			w.Header().Set("Cache-Control", "private, max-age=300")
+		}
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write(body)
 	})
@@ -112,4 +116,20 @@ func indexedVideoHasCaption(row *PostRow, wanted syntax.CID) bool {
 func validWebVTT(body []byte) bool {
 	body = bytes.TrimPrefix(body, []byte{0xef, 0xbb, 0xbf})
 	return bytes.HasPrefix(body, []byte("WEBVTT")) && (len(body) == 6 || body[6] == '\n' || body[6] == '\r' || body[6] == ' ' || body[6] == '\t')
+}
+
+// PublicVideoCaptionHandler uses the same indexed membership and blob bounds,
+// with guest eligibility in the post query and no reusable content cache.
+func PublicVideoCaptionHandler(store VideoCaptionPostReader, fetcher VideoCaptionBlobFetcher, logger *slog.Logger) http.Handler {
+	next := VideoCaptionHandler(store, fetcher, logger)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "no-store")
+		if len(r.URL.Query()) != 0 {
+			envelope.WriteError(w, 400, "invalid_request", "Invalid public read request", middleware.GetRunID(r.Context()), nil)
+			return
+		}
+		ctx, cancel := context.WithTimeout(withReadAudience(r.Context(), GuestAudience), 8*time.Second)
+		defer cancel()
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
 }

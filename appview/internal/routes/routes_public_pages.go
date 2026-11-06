@@ -9,7 +9,7 @@ import (
 	"social.craftsky/appview/internal/middleware"
 )
 
-func registerPublicPageRoutes(mux Registrar, middleware v1Middleware, store api.PublicPageReader, resolver api.HandleResolver) {
+func registerPublicPageRoutes(mux Registrar, middleware v1Middleware, store api.PublicBrowsingReader, resolver api.HandleResolver, captions http.Handler) {
 	// Anonymous callers have no trusted device/session key. Bound the aggregate
 	// work across these routes independently of optional client headers.
 	limiter := rate.NewLimiter(20, 40)
@@ -22,6 +22,26 @@ func registerPublicPageRoutes(mux Registrar, middleware v1Middleware, store api.
 	} {
 		mux.Handle("GET "+route.path, middleware.wrap(mustPolicy("GET", route.path), publicPageAdmission(limiter, slots, api.PublicPagesHandler(store, resolver, route.resource))))
 	}
+	for _, route := range []struct{ path, resource string }{
+		{"/v1/public/projects", "projectFeed"},
+		{"/v1/public/search/hashtags/{tag}/posts", "tagPosts"},
+		{"/v1/public/profiles/{handleOrDid}/events", "events"},
+		{"/v1/public/events/{did}/{rkey}", "event"},
+		{"/v1/public/posts/{did}/{rkey}/likes", "interactions/likes"},
+		{"/v1/public/posts/{did}/{rkey}/reposts", "interactions/reposts"},
+		{"/v1/public/posts/{did}/{rkey}/quotes", "interactions/quotes"},
+		{"/v1/public/search/profiles", "search/profiles"},
+		{"/v1/public/search/posts", "search/posts"},
+		{"/v1/public/search/projects", "search/projects"},
+		{"/v1/public/search/hashtags", "search/hashtags"},
+		{"/v1/public/profiles/{handleOrDid}/comments", "comments"},
+		{"/v1/public/profiles/{handleOrDid}/reposts", "reposts"},
+		{"/v1/public/posts/{did}/{rkey}/thread", "thread"},
+	} {
+		mux.Handle("GET "+route.path, middleware.wrap(mustPolicy("GET", route.path), publicPageAdmission(limiter, slots, api.PublicBrowsingHandler(store, resolver, route.resource))))
+	}
+	path := "/v1/public/posts/{did}/{rkey}/video-captions/{captionCid}"
+	mux.Handle("GET "+path, middleware.wrap(mustPolicy("GET", path), publicPageAdmission(limiter, slots, captions)))
 }
 
 func publicPageAdmission(limiter *rate.Limiter, slots chan struct{}, next http.Handler) http.Handler {
@@ -30,6 +50,10 @@ func publicPageAdmission(limiter *rate.Limiter, slots chan struct{}, next http.H
 		reject := func(status int, code string) {
 			w.Header().Set("Retry-After", "1")
 			envelope.WriteError(w, status, code, "page temporarily unavailable", middleware.GetRunID(r.Context()), nil)
+		}
+		if r.Context().Err() != nil {
+			reject(503, "unavailable")
+			return
 		}
 		if !limiter.Allow() {
 			reject(429, "rate_limited")

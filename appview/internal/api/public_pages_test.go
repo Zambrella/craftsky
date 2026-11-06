@@ -76,6 +76,7 @@ func TestPublicPagesHandler(t *testing.T) {
 const publicPageDDL = postStoreDDL + `
 CREATE OR REPLACE FUNCTION appview_owner_is_active(owner TEXT) RETURNS BOOLEAN LANGUAGE SQL STABLE AS $$ SELECT EXISTS(SELECT 1 FROM owner_lifecycles WHERE owner_did=owner AND state='active') $$;
 ALTER TABLE bluesky_profiles ADD COLUMN IF NOT EXISTS description TEXT, ADD COLUMN IF NOT EXISTS pronouns TEXT, ADD COLUMN IF NOT EXISTS banner_cid TEXT, ADD COLUMN IF NOT EXISTS banner_mime TEXT, ADD COLUMN IF NOT EXISTS record_cid TEXT NOT NULL DEFAULT 'profile-cid', ADD COLUMN IF NOT EXISTS links JSONB NOT NULL DEFAULT '[]';
+CREATE TABLE profile_customisations(owner_did TEXT PRIMARY KEY,colour TEXT,profile_background TEXT);
 CREATE TABLE bluesky_profile_links(uri TEXT PRIMARY KEY,did TEXT,cid TEXT,record JSONB);
 CREATE TABLE moderation_account_standings(owner_did TEXT PRIMARY KEY,effective_suspended BOOLEAN);
 `
@@ -83,6 +84,9 @@ CREATE TABLE moderation_account_standings(owner_did TEXT PRIMARY KEY,effective_s
 func TestPublicPageStoreVisibilityAndPagination(t *testing.T) {
 	ctx := context.Background()
 	pool := testdb.WithSchema(t, publicPageDDL)
+	if err := testdb.ApplyMigrations(ctx, pool, "000114_profile_guest_visibility.up.sql"); err != nil {
+		t.Fatal(err)
+	}
 	exec := func(q string, args ...any) {
 		t.Helper()
 		if _, err := pool.Exec(ctx, q, args...); err != nil {
@@ -92,6 +96,8 @@ func TestPublicPageStoreVisibilityAndPagination(t *testing.T) {
 	seedMember(t, pool, "did:plc:alice")
 	seedBskyProfile(t, pool, "did:plc:alice", "Alice", "")
 	exec(`UPDATE bluesky_profiles SET avatar_cid=NULL,avatar_mime=NULL WHERE did='did:plc:alice'`)
+	exec(`UPDATE bluesky_profiles SET guest_visibility_hidden=false,guest_visibility_revision='3m234567abc22',guest_visibility_record_cid=record_cid,guest_visibility_evidence='source' WHERE did='did:plc:alice'`)
+
 	seedMember(t, pool, "did:plc:labeler")
 	store := api.NewPublicPageStore(pool, api.NewPostStore(pool), fakeResolver{handleFor: "alice.test"}, publicAccountTypeStub{})
 	for i := 0; i < 4; i++ {
@@ -198,6 +204,7 @@ func TestPublicPageStoreMigratedSchema(t *testing.T) {
 	exec(`INSERT INTO owner_lifecycles(owner_did,state,generation,auth_epoch,transition_reason,transitioned_at) VALUES ('did:plc:alice','active',1,1,'test',now())`)
 	seedMember(t, pool, "did:plc:alice")
 	seedBskyProfile(t, pool, "did:plc:alice", "Alice", "")
+	exec(`UPDATE bluesky_profiles SET guest_visibility_hidden=false,guest_visibility_revision='3m234567abc22',guest_visibility_record_cid=record_cid,guest_visibility_evidence='source' WHERE did='did:plc:alice'`)
 	uri := seedPost(t, pool, "did:plc:alice", "first", "Public project", time.Now())
 	exec(`INSERT INTO image_subject_states(subject_uri,subject_kind,source_cid,visibility_state) SELECT uri,'post',cid,'clear' FROM craftsky_posts WHERE uri=$1`, uri)
 	store := api.NewPublicPageStore(pool, api.NewPostStore(pool), fakeResolver{handleFor: "alice.test"}, business.NewStore(pool))
@@ -210,5 +217,79 @@ func TestPublicPageStoreMigratedSchema(t *testing.T) {
 	posts, err := store.PublicPosts(ctx, "did:plc:alice", false, 20, "")
 	if err != nil || len(posts.Items) != 1 {
 		t.Fatalf("posts=%+v err=%v", posts, err)
+	}
+}
+
+// IT-008 / RULE-001, RULE-002, RULE-004 / AC-006, AC-010, AC-017.
+func TestPublicPagesEnforceGuestVisibilityWithoutRepair(t *testing.T) {
+	ctx := context.Background()
+	pool := testdb.WithMigratedSchema(t)
+	if _, err := pool.Exec(ctx, `INSERT INTO owner_lifecycles(owner_did,state,generation,auth_epoch,transition_reason,transitioned_at) VALUES ('did:plc:alice','active',1,1,'test',now())`); err != nil {
+		t.Fatal(err)
+	}
+	seedMember(t, pool, "did:plc:alice")
+	seedBskyProfile(t, pool, "did:plc:alice", "PRIVATE_AUTHOR_CANARY", "")
+	uri := seedPost(t, pool, "did:plc:alice", "guest", "PRIVATE_POST_CANARY", time.Now())
+	if _, err := pool.Exec(ctx, `INSERT INTO image_subject_states(subject_uri,subject_kind,source_cid,visibility_state) SELECT uri,'post',cid,'clear' FROM craftsky_posts WHERE uri=$1`, uri); err != nil {
+		t.Fatal(err)
+	}
+	store := api.NewPublicPageStore(pool, api.NewPostStore(pool), fakeResolver{handleFor: "alice.test"}, business.NewStore(pool))
+	public, hidden := false, true
+	for _, tc := range []struct {
+		name   string
+		hidden *bool
+		hold   bool
+		status int
+	}{
+		{"unknown", nil, false, 404}, {"public", &public, false, 200}, {"opted out", &hidden, false, 403}, {"pending write", &public, true, 404},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if tc.hidden != nil {
+				if _, err := pool.Exec(ctx, `UPDATE bluesky_profiles SET guest_visibility_hidden=$1,guest_visibility_revision='3m234567abc22',guest_visibility_record_cid='profile',guest_visibility_evidence='source',guest_visibility_hold_key=NULL WHERE did='did:plc:alice'`, *tc.hidden); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if tc.hold {
+				if _, err := pool.Exec(ctx, `UPDATE bluesky_profiles SET guest_visibility_hold_key='018f4d5c-7a61-7d40-a1a2-777777777777' WHERE did='did:plc:alice'`); err != nil {
+					t.Fatal(err)
+				}
+			}
+			for _, resource := range []string{"profile", "post", "posts", "projects"} {
+				request := httptest.NewRequest("GET", "/v1/public/test", nil)
+				request.SetPathValue("handleOrDid", "did:plc:alice")
+				request.SetPathValue("did", "did:plc:alice")
+				request.SetPathValue("rkey", "guest")
+				request.Header.Set("Authorization", "Bearer spoofed-owner")
+				request.Header.Set("Cookie", "owner=spoofed")
+				response := httptest.NewRecorder()
+				api.PublicPagesHandler(store, fakeResolver{}, resource).ServeHTTP(response, request)
+				if response.Code != tc.status {
+					t.Fatalf("%s status=%d want=%d body=%s", resource, response.Code, tc.status, response.Body.String())
+				}
+				if tc.status != 200 && (strings.Contains(response.Body.String(), "PRIVATE_") || strings.Contains(response.Body.String(), "spoofed")) {
+					t.Fatal("guest response exposed protected data")
+				}
+			}
+			var repairs int
+			if err := pool.QueryRow(ctx, `SELECT count(*) FROM tap_repository_jobs WHERE did='did:plc:alice'`).Scan(&repairs); err != nil || repairs != 0 {
+				t.Fatalf("guest reads caused repair: %d %v", repairs, err)
+			}
+		})
+	}
+}
+
+// UT-009 / NFR-002 / AC-012: bounds are validated before dependency calls.
+func TestPublicPageRequestBounds(t *testing.T) {
+	for _, query := range []string{"?limit=21", "?limit=0", "?limit=-1", "?limit=abc", "?cursor=" + strings.Repeat("a", 2049), "?viewerDid=did:plc:owner", "?sort=popular", "?limit=1&limit=2"} {
+		t.Run(query[:min(len(query), 45)], func(t *testing.T) {
+			store := &publicPageStub{}
+			r := httptest.NewRequest("GET", "/"+query, nil)
+			r.SetPathValue("handleOrDid", "did:plc:alice")
+			w := httptest.NewRecorder()
+			api.PublicPagesHandler(store, fakeResolver{}, "posts").ServeHTTP(w, r)
+			if w.Code != 400 || store.calls != 0 {
+				t.Fatalf("status=%d calls=%d body=%s", w.Code, store.calls, w.Body.String())
+			}
+		})
 	}
 }

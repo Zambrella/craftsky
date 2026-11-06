@@ -133,7 +133,7 @@ test('autocomplete matches native grouping, counts, result limits and discovery 
 	);
 	await expect(
 		page.getByRole('button', { name: 'Search', exact: true })
-	).toHaveClass('visually-hidden');
+	).toHaveClass(/\bvisually-hidden\b/);
 	expect(request.searchParams.get('profileLimit')).toBe('5');
 	expect(request.searchParams.get('hashtagLimit')).toBe('5');
 	await expect(

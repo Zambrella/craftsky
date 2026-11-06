@@ -14,6 +14,7 @@ import 'package:craftsky_app/shared/mutations/pds_record_operation_controller.da
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../../test_support/member_browsing_context.dart';
 import '../fakes/fake_post_repository.dart';
 
 final _aliceDid = Did.parse('did:plc:alice');
@@ -71,6 +72,7 @@ void main() {
       );
       final container = ProviderContainer.test(
         overrides: [
+          testMemberBrowsingOverride,
           activeLanguagePreferencesProvider.overrideWith(
             (ref) => const LanguagePreferences(
               primaryLanguage: 'en',
@@ -109,6 +111,7 @@ void main() {
         );
         final container = ProviderContainer.test(
           overrides: [
+            testMemberBrowsingOverride,
             postRepositoryProvider.overrideWithValue(fake),
             pdsMutationDelayProvider.overrideWithValue((_) async {}),
             pdsMutationJitterProvider.overrideWithValue((_) => 0),
@@ -136,6 +139,7 @@ void main() {
     test('idle build returns null', () async {
       final container = ProviderContainer.test(
         overrides: [
+          testMemberBrowsingOverride,
           activeLanguagePreferencesProvider.overrideWith(
             (ref) => const LanguagePreferences(
               primaryLanguage: 'en',
@@ -164,6 +168,7 @@ void main() {
       );
       final container = ProviderContainer.test(
         overrides: [
+          testMemberBrowsingOverride,
           activeLanguagePreferencesProvider.overrideWith(
             (ref) => const LanguagePreferences(
               primaryLanguage: 'en',
@@ -174,22 +179,40 @@ void main() {
         ],
       );
 
-      await container.read(userPostsProvider(_aliceDid).future);
+      await container.read(
+        userPostsProvider(
+          _aliceDid,
+          audience: testMemberBrowsingAudience,
+        ).future,
+      );
 
       await container
           .read(deletePostProvider.notifier)
           .delete(post: _post(rkey: 'a'));
 
-      container.invalidate(userPostsProvider(_aliceDid));
+      container.invalidate(
+        userPostsProvider(_aliceDid, audience: testMemberBrowsingAudience),
+      );
       final staleRefresh = await container.read(
-        userPostsProvider(_aliceDid).future,
+        userPostsProvider(
+          _aliceDid,
+          audience: testMemberBrowsingAudience,
+        ).future,
       );
       expect(staleRefresh.items.map((post) => post.rkey), ['b']);
 
       expect(deleted, [('did:plc:alice', 'a')]);
 
-      final didList = container.read(userPostsProvider(_aliceDid)).value!;
-      final handleList = container.read(userPostsProvider(_aliceDid)).value!;
+      final didList = container
+          .read(
+            userPostsProvider(_aliceDid, audience: testMemberBrowsingAudience),
+          )
+          .value!;
+      final handleList = container
+          .read(
+            userPostsProvider(_aliceDid, audience: testMemberBrowsingAudience),
+          )
+          .value!;
       expect(didList.items.map((p) => p.rkey), ['b']);
       expect(handleList.items.map((p) => p.rkey), ['b']);
     });
@@ -202,6 +225,7 @@ void main() {
       );
       final container = ProviderContainer.test(
         overrides: [
+          testMemberBrowsingOverride,
           activeLanguagePreferencesProvider.overrideWith(
             (ref) => const LanguagePreferences(
               primaryLanguage: 'en',
@@ -212,14 +236,23 @@ void main() {
         ],
       );
 
-      await container.read(userPostsProvider(_aliceDid).future);
+      await container.read(
+        userPostsProvider(
+          _aliceDid,
+          audience: testMemberBrowsingAudience,
+        ).future,
+      );
 
       await container
           .read(deletePostProvider.notifier)
           .delete(post: _post(rkey: 'a'));
 
       expect(container.read(deletePostProvider).hasError, isTrue);
-      final list = container.read(userPostsProvider(_aliceDid)).value!;
+      final list = container
+          .read(
+            userPostsProvider(_aliceDid, audience: testMemberBrowsingAudience),
+          )
+          .value!;
       expect(list.items.map((p) => p.rkey), ['a']);
     });
 
@@ -227,6 +260,7 @@ void main() {
       final fake = FakePostRepository(onDelete: (did, rkey) async {});
       final container = ProviderContainer.test(
         overrides: [
+          testMemberBrowsingOverride,
           activeLanguagePreferencesProvider.overrideWith(
             (ref) => const LanguagePreferences(
               primaryLanguage: 'en',
@@ -259,6 +293,7 @@ void main() {
         );
         final container = ProviderContainer.test(
           overrides: [
+            testMemberBrowsingOverride,
             activeLanguagePreferencesProvider.overrideWith(
               (ref) => const LanguagePreferences(
                 primaryLanguage: 'en',
@@ -268,27 +303,63 @@ void main() {
             postRepositoryProvider.overrideWithValue(fake),
           ],
         );
-        await container.read(userPostsProvider(_aliceDid).future);
-        await container.read(userProjectsProvider(_aliceDid).future);
+        await container.read(
+          userPostsProvider(
+            _aliceDid,
+            audience: testMemberBrowsingAudience,
+          ).future,
+        );
+        await container.read(
+          userProjectsProvider(
+            _aliceDid,
+            audience: testMemberBrowsingAudience,
+          ).future,
+        );
 
         await container
             .read(deletePostProvider.notifier)
             .delete(
               post: _post(rkey: 'project', project: _project),
             );
-        await container.read(userProjectsProvider(_aliceDid).future);
+        await container.read(
+          userProjectsProvider(
+            _aliceDid,
+            audience: testMemberBrowsingAudience,
+          ).future,
+        );
 
         expect(
-          container.read(userProjectsProvider(_aliceDid)).value!.items,
-          isEmpty,
-        );
-        expect(
-          container.read(userProjectsProvider(_aliceDid)).value!.items,
+          container
+              .read(
+                userProjectsProvider(
+                  _aliceDid,
+                  audience: testMemberBrowsingAudience,
+                ),
+              )
+              .value!
+              .items,
           isEmpty,
         );
         expect(
           container
-              .read(userPostsProvider(_aliceDid))
+              .read(
+                userProjectsProvider(
+                  _aliceDid,
+                  audience: testMemberBrowsingAudience,
+                ),
+              )
+              .value!
+              .items,
+          isEmpty,
+        );
+        expect(
+          container
+              .read(
+                userPostsProvider(
+                  _aliceDid,
+                  audience: testMemberBrowsingAudience,
+                ),
+              )
               .value!
               .items
               .map((post) => post.rkey),
@@ -296,7 +367,12 @@ void main() {
         );
         expect(
           container
-              .read(userPostsProvider(_aliceDid))
+              .read(
+                userPostsProvider(
+                  _aliceDid,
+                  audience: testMemberBrowsingAudience,
+                ),
+              )
               .value!
               .items
               .map((post) => post.rkey),

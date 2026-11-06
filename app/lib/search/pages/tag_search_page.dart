@@ -5,6 +5,7 @@ import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/search/models/search_queries.dart';
 import 'package:craftsky_app/search/models/search_sort.dart';
 import 'package:craftsky_app/search/providers/hashtag_search_provider.dart';
+import 'package:craftsky_app/shared/browsing/browsing_provider.dart';
 import 'package:craftsky_app/shared/widgets/auto_paginated_list_view.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
@@ -34,6 +35,7 @@ class _TagSearchPageState extends ConsumerState<TagSearchPage> {
         Theme.of(context).extension<SpacingTheme>() ?? const SpacingTheme();
     final provider = hashtagSearchProvider(
       HashtagSearchQuery(tag: widget.tag, sort: _sort),
+      audience: ref.read(browsingContextProvider),
     );
     final tagResultsAsync = ref.watch(provider);
 
@@ -41,14 +43,15 @@ class _TagSearchPageState extends ConsumerState<TagSearchPage> {
       appBar: AppBar(
         title: Text(l10n.tagSearchTitle(widget.tag)),
         actions: [
-          Padding(
-            padding: EdgeInsetsDirectional.only(end: spacing.sp4),
-            child: SortMenuButton<SearchSort>(
-              selectedValue: _sort,
-              options: _sortOptions(l10n),
-              onChanged: (sort) => setState(() => _sort = sort),
+          if (!ref.watch(isGuestBrowsingProvider))
+            Padding(
+              padding: EdgeInsetsDirectional.only(end: spacing.sp4),
+              child: SortMenuButton<SearchSort>(
+                selectedValue: _sort,
+                options: _sortOptions(l10n),
+                onChanged: (sort) => setState(() => _sort = sort),
+              ),
             ),
-          ),
         ],
       ),
       body: switch (tagResultsAsync) {

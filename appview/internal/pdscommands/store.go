@@ -323,6 +323,7 @@ func (store *Store) CompactExpired(ctx context.Context, limit int) (int, error) 
 	rows, err := store.pool.Query(ctx, `
 		SELECT id FROM pds_commands
 		WHERE state IN ('accepted','rejected') AND replay_expires_at <= $1
+ AND NOT EXISTS (SELECT 1 FROM bluesky_profiles profile WHERE profile.guest_visibility_hold_key=pds_commands.id)
 		ORDER BY replay_expires_at,id
 		LIMIT $2
 	`, store.now().UTC().Truncate(time.Microsecond), limit)
@@ -367,6 +368,15 @@ func (store *Store) CompactExpired(ctx context.Context, limit int) (int, error) 
 			}
 			now := store.now().UTC().Truncate(time.Microsecond)
 			if !ShouldCompact(state, replayExpiresAt, now) {
+				return nil
+			}
+			// Keep the owner recovery identity until its privacy hold is
+			// resolved. Command and hold writers take this same lock order.
+			var held bool
+			if err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM bluesky_profiles WHERE guest_visibility_hold_key=$1)`, id).Scan(&held); err != nil {
+				return err
+			}
+			if held {
 				return nil
 			}
 			hash := ScopedKeyHash(owner, kind, key)
@@ -554,6 +564,12 @@ func (store *Store) completeDispatchTx(
 	completion DispatchCompletion,
 	now time.Time,
 ) error {
+	return store.completeObservedDispatchTx(ctx, tx, attemptID, completion, now, false)
+}
+
+// allowSupersession is private and used only after the owner-profile recovery
+// transaction proves a stable head has invalidated the original swapCommit.
+func (store *Store) completeObservedDispatchTx(ctx context.Context, tx pgx.Tx, attemptID uuid.UUID, completion DispatchCompletion, now time.Time, allowSupersession bool) error {
 	var commandID uuid.UUID
 	var dispatchOutcome, rawState string
 	if err := tx.QueryRow(ctx, `
@@ -569,8 +585,8 @@ func (store *Store) completeDispatchTx(
 	if completion.Outcome == DispatchInvalidSwap || completion.Outcome == DispatchRateLimited {
 		validTransition = CommandState(rawState) == CommandDispatching
 	}
-	recoveredAcceptance := dispatchOutcome == "ambiguous" && rawState == "ambiguous" && completion.Outcome == CommandAccepted
-	if (dispatchOutcome != "dispatching" && !recoveredAcceptance) || !validTransition {
+	recoveredTerminal := dispatchOutcome == "ambiguous" && rawState == "ambiguous" && (completion.Outcome == CommandAccepted || (allowSupersession && completion.Outcome == CommandRejected))
+	if (dispatchOutcome != "dispatching" && !recoveredTerminal) || !validTransition {
 		return ErrIllegalTransition
 	}
 	if _, err := tx.Exec(ctx, `
@@ -658,7 +674,8 @@ func (store *Store) addressedUpdateBody(ctx context.Context, command PreparedCom
 	err := store.withTransaction(ctx, func(tx pgx.Tx) error {
 		return tx.QueryRow(ctx, `SELECT record FROM pds_command_steps
 			WHERE command_id=$1 AND plan_version=$2 AND ordinal=0
-			AND action='update' AND selected_uri=$3`, command.ID, command.ActivePlanVersion, uri).Scan(&body)
+			AND (action='update' OR (action='create' AND $4)) AND selected_uri=$3`, command.ID, command.ActivePlanVersion, uri,
+			command.ScopedKey.OperationKind == "profile.guest_visibility" && uri == guestProfileURI(command.ExpectedOwner)).Scan(&body)
 	})
 	if err != nil {
 		return nil, fmt.Errorf("read addressed update dispatch evidence: %w", err)
@@ -667,8 +684,8 @@ func (store *Store) addressedUpdateBody(ctx context.Context, command PreparedCom
 }
 
 // completeAddressedRecovery records a read-only observation separately from an
-// exact write receipt, in the same transaction as terminal command acceptance.
-func (store *Store) completeAddressedRecovery(ctx context.Context, command PreparedCommand, record AuthoritativeRecord, result TerminalResult, finalize func(pgx.Tx) error) error {
+// exact write receipt, in the same transaction as terminal command completion.
+func (store *Store) completeAddressedRecovery(ctx context.Context, command PreparedCommand, record AuthoritativeRecord, result TerminalResult, requireAdvancedGuestHead bool, finalize func(pgx.Tx) error) error {
 	if err := validateTerminalResult(result); err != nil {
 		return err
 	}
@@ -679,10 +696,27 @@ func (store *Store) completeAddressedRecovery(ctx context.Context, command Prepa
 			WHERE command_id=$1 AND plan_version=$2 ORDER BY attempt_ordinal DESC LIMIT 1`, command.ID, command.ActivePlanVersion).Scan(&attemptID); err != nil {
 			return fmt.Errorf("read addressed recovery dispatch: %w", err)
 		}
-		if err := store.completeDispatchTx(ctx, tx, attemptID, DispatchCompletion{
-			Outcome: CommandAccepted, ResultRecords: record.Record,
+		if requireAdvancedGuestHead {
+			// A stable, strictly later head invalidates the original swapCommit,
+			// including a remote request still in flight. Restrict semantic
+			// recovery to this one owner profile operation, never generic edits.
+			var head syntax.CID
+			var revision syntax.TID
+			var kind string
+			if err := tx.QueryRow(ctx, `SELECT dispatch.repository_cid,dispatch.repository_revision,command.operation_kind
+                FROM pds_command_dispatches dispatch JOIN pds_commands command ON command.id=dispatch.command_id
+                WHERE dispatch.id=$1 FOR UPDATE OF dispatch,command`, attemptID).Scan(&head, &revision, &kind); err != nil {
+				return err
+			}
+			if kind != "profile.guest_visibility" || command.SelectedURI != guestProfileURI(command.ExpectedOwner) ||
+				head == "" || revision == "" || record.ObservationCID == "" || record.ObservationCID == head || record.ObservationRevision <= revision {
+				return ErrRepositoryConflict
+			}
+		}
+		if err := store.completeObservedDispatchTx(ctx, tx, attemptID, DispatchCompletion{
+			Outcome: result.State, ResultRecords: record.Record,
 			ObservationCID: record.ObservationCID, ObservationRevision: record.ObservationRevision,
-		}, now); err != nil {
+		}, now, requireAdvancedGuestHead); err != nil {
 			return err
 		}
 		if err := completeCommandTx(ctx, tx, command.ID, result, now); err != nil {

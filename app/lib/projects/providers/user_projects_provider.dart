@@ -1,4 +1,3 @@
-import 'package:craftsky_app/auth/providers/account_operation_guard.dart';
 import 'package:craftsky_app/feed/models/post_page.dart';
 import 'package:craftsky_app/feed/providers/like_post_overlay.dart';
 import 'package:craftsky_app/feed/providers/post_record_overlay.dart';
@@ -7,6 +6,9 @@ import 'package:craftsky_app/languages/providers/language_preferences_provider.d
 import 'package:craftsky_app/projects/models/user_projects_state.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
+import 'package:craftsky_app/shared/browsing/browsing_context.dart';
+import 'package:craftsky_app/shared/browsing/browsing_provider.dart';
+import 'package:craftsky_app/shared/browsing/content_read_guard.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'user_projects_provider.g.dart';
@@ -18,7 +20,13 @@ class UserProjects extends _$UserProjects {
   static String formatLogValue(Object? value) => value.toString();
 
   @override
-  Future<UserProjectsState> build(Did did) async {
+  Future<UserProjectsState> build(Did did, {BrowsingContext? audience}) async {
+    final read = await ContentReadGuard.captureWhenReady(ref);
+    read.requireCurrent(discarded: const ApiCanceled());
+    if (audience != null && read.context != audience) {
+      throw const ContentReadDiscarded();
+    }
+
     listenForPostEdits(ref, () {
       final current = state.value;
       if (current == null) return;
@@ -26,8 +34,10 @@ class UserProjects extends _$UserProjects {
         current.copyWith(items: applyLoadedPostEdits(ref, current.items)),
       );
     });
-    ref.watch(activeContentLanguagePolicyProvider);
-    final accountOperation = ActiveAccountOperation.capture(ref);
+    if (!ref.watch(isGuestBrowsingProvider)) {
+      ref.watch(activeContentLanguagePolicyProvider);
+    }
+    final accountOperation = ContentReadGuard.capture(ref);
     final repo = ref.watch(postRepositoryProvider);
     final page = await repo.listProjectsByAuthor(
       did,
@@ -53,7 +63,7 @@ class UserProjects extends _$UserProjects {
     if (!state.hasValue || state.isLoading) return;
     final current = state.requireValue;
     if (!current.hasMore) return;
-    final accountOperation = ActiveAccountOperation.capture(ref);
+    final accountOperation = ContentReadGuard.capture(ref);
 
     state = const AsyncLoading<UserProjectsState>();
 

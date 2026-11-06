@@ -1,0 +1,9 @@
+DROP INDEX bluesky_profiles_guest_visibility_hold_idx;
+ALTER TABLE bluesky_profiles
+    DROP CONSTRAINT bluesky_profiles_guest_visibility_known,
+    DROP CONSTRAINT bluesky_profiles_guest_visibility_evidence,
+    DROP COLUMN guest_visibility_hidden,
+    DROP COLUMN guest_visibility_revision,
+    DROP COLUMN guest_visibility_record_cid,
+    DROP COLUMN guest_visibility_evidence,
+    DROP COLUMN guest_visibility_hold_key;

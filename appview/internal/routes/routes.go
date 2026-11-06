@@ -502,7 +502,10 @@ func AddRoutes(_ context.Context, mux Registrar, deps *Dependencies) {
 
 	postStore := api.NewPostStoreWithPlayback(deps.DB, observer, deps.VideoPlayback)
 	registerPublicStatsRoute(mux, v1mw, api.NewPublicStatsStore(deps.DB))
-	registerPublicPageRoutes(mux, v1mw, api.NewPublicPageStore(deps.DB, postStore, deps.HandleResolver, businessStore), deps.HandleResolver)
+	registerPublicPageRoutes(mux, v1mw, api.NewPublicPageStore(deps.DB, postStore, deps.HandleResolver, businessStore), deps.HandleResolver, api.PublicVideoCaptionHandler(postStore, deps.VideoCaptionFetcher, deps.Logger))
+	visibilitySettings, _ := deps.PDSAddressedCommands.(api.GuestVisibilitySettings)
+	registerGuestVisibilityRoutes(mux, v1mw, visibilitySettings)
+
 	savedPostStore := api.NewSavedPostStore(deps.DB)
 	profilePinOptions := api.ProfilePinStoreOptions{Observer: observer, RequirePlus: deps.Subscriptions != nil}
 	if deps.Subscriptions != nil {

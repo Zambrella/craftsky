@@ -49,7 +49,7 @@ func (s *SearchStore) searchHashtagsObserved(ctx context.Context, req HashtagSea
 		  AND trim(tag.raw_tag) <> ''
 		  AND lower(trim(tag.raw_tag)) LIKE '%' || $2 || '%' ESCAPE '\'
 		`+relationshipTopLevelPredicate("$5")+`
-		`+postVisibleModerationPredicate+`
+		`+postReadPredicate(ctx)+`
 		)`+hashtagAggregationCTEs+`
 		ORDER BY
 		  CASE
@@ -151,7 +151,7 @@ func (s *SearchStore) topHashtagsObserved(ctx context.Context, req TopHashtagsRe
 			  AND p.reply_root_uri IS NULL AND p.reply_parent_uri IS NULL AND p.quote_uri IS NULL
 			  AND $1 = ANY(` + projectCraftValuesSQL + `)
 			` + relationshipTopLevelPredicate("$3") + `
-			` + postVisibleModerationPredicate + `
+			` + postReadPredicate(ctx) + `
 			)` + hashtagAggregationCTEs + `
 			ORDER BY c.post_count DESC, c.tag_key ASC
 			LIMIT $2`

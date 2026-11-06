@@ -11,6 +11,7 @@ import 'package:material_ui/material_ui.dart';
 
 import '../../fakes/recording_messenger.dart';
 import '../../feed/fakes/fake_post_repository.dart';
+import '../../test_support/member_browsing_context.dart';
 
 typedef ProfilePageRequest = ({String? cursor, int? limit});
 
@@ -20,10 +21,12 @@ Future<void> pumpProfileTab(
   required FakePostRepository repository,
   AppMessenger? messenger,
   List<dynamic> overrides = const [],
+  bool memberFixture = true,
 }) {
   return tester.pumpWidget(
     ProviderScope(
       overrides: List.from([
+        if (memberFixture) testMemberBrowsingOverride,
         activeLanguagePreferencesProvider.overrideWith(
           (ref) => const LanguagePreferences(
             primaryLanguage: 'en',

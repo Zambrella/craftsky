@@ -15,6 +15,7 @@ import 'package:craftsky_app/moderation/widgets/report_flow.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
+import 'package:craftsky_app/shared/browsing/browsing_provider.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/shared/widgets/auto_paginated_list_view.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
@@ -33,7 +34,11 @@ class PostQuotesPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final provider = postQuotesProvider(did, rkey);
+    final provider = postQuotesProvider(
+      did,
+      rkey,
+      audience: ref.read(browsingContextProvider),
+    );
     final quotes = ref.watch(provider);
     final data = quotes.value;
     final auth = ref.watch(authSessionProvider).value;

@@ -230,18 +230,17 @@ test('a page remains readable when images cannot load', async ({ page }) => {
 	await expect(page.getByAltText('A handmade blue linen dress')).toBeAttached();
 });
 
-test('root opens sign-in and private routes require a session', async ({
+test('root opens public home and private routes retain authentication', async ({
 	page,
 	request
 }) => {
 	await page.goto('/');
-	await expect(page).toHaveURL('/sign-in');
+	await expect(page).toHaveURL('/feed');
 	await expect(
-		page.getByRole('heading', { name: 'Join CraftSky' })
+		page.getByRole('heading', { name: 'Home', exact: true })
 	).toBeVisible();
-	await expect(page.getByLabel('Your Atmosphere Handle')).toBeVisible();
+	expect((await request.get('/feed', { maxRedirects: 0 })).status()).toBe(200);
 	for (const path of [
-		'/feed',
 		'/notifications',
 		'/messages/conversations/example',
 		'/profile',
@@ -251,7 +250,6 @@ test('root opens sign-in and private routes require a session', async ({
 		expect(response.status()).toBe(303);
 		expect(response.headers().location).toBe('/sign-in');
 	}
-	for (const path of ['/app/home', '/home', '/activity', '/unknown']) {
+	for (const path of ['/app/home', '/home', '/activity', '/unknown'])
 		expect((await request.get(path)).status()).toBe(404);
-	}
 });

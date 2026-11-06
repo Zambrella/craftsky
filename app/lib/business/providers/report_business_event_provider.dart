@@ -8,6 +8,7 @@ import 'package:craftsky_app/moderation/models/report_result.dart';
 import 'package:craftsky_app/moderation/models/report_submission.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
+import 'package:craftsky_app/shared/browsing/browsing_provider.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -46,7 +47,14 @@ class ReportBusinessEvent extends _$ReportBusinessEvent {
         owner: owner,
         rkey: rkey,
       );
-      ref.read(businessEventDetailProvider(target).notifier).markUnavailable();
+      ref
+          .read(
+            businessEventDetailProvider(
+              target,
+              audience: ref.read(browsingContextProvider),
+            ).notifier,
+          )
+          .markUnavailable();
     }
     state = result;
   }

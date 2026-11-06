@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
 	"social.craftsky/appview/internal/api"
 	"social.craftsky/appview/internal/testdb"
 )
@@ -68,6 +69,9 @@ func TestPublicStatsHandler(t *testing.T) {
 func TestPublicStatsStoreCountsVisiblePostSnapshots(t *testing.T) {
 	ctx := context.Background()
 	pool := testdb.WithSchema(t, publicPageDDL)
+	if err := testdb.ApplyMigrations(ctx, pool, "000114_profile_guest_visibility.up.sql"); err != nil {
+		t.Fatal(err)
+	}
 	store := api.NewPublicStatsStore(pool)
 	exec := func(query string, args ...any) {
 		t.Helper()
@@ -87,8 +91,11 @@ func TestPublicStatsStoreCountsVisiblePostSnapshots(t *testing.T) {
 	const sewing = "social.craftsky.feed.defs#sewing"
 	const extensionCraft = "social.example.crafts#lace"
 	const finished = "social.craftsky.feed.defs#finished"
-	seedMember(t, pool, alice)
-	seedMember(t, pool, "did:plc:labeler")
+	seedStatsMember(t, pool, alice)
+	seedStatsMember(t, pool, "did:plc:labeler")
+	seedMember(t, pool, "did:plc:unknown-stats")
+	seedStatsMember(t, pool, "did:plc:hidden-stats")
+	exec(`UPDATE bluesky_profiles SET guest_visibility_hidden=true WHERE did='did:plc:hidden-stats'`)
 	project := func(owner, key, craft, status string) string {
 		t.Helper()
 		uri := seedPost(t, pool, owner, key, "Public project", time.Now())
@@ -113,18 +120,18 @@ func TestPublicStatsStoreCountsVisiblePostSnapshots(t *testing.T) {
 	// Aggregate visibility must match anonymous reads, independent of a viewer.
 	for _, state := range []string{"departed", "deletion_pending", "deleting", "terminal"} {
 		owner := "did:plc:" + state
-		seedMember(t, pool, owner)
+		seedStatsMember(t, pool, owner)
 		project(owner, "hidden", knitting, finished)
 		exec(`UPDATE owner_lifecycles SET state=$2 WHERE owner_did=$1`, owner, state)
 	}
-	seedMember(t, pool, "did:plc:suspended")
+	seedStatsMember(t, pool, "did:plc:suspended")
 	project("did:plc:suspended", "hidden", knitting, finished)
 	exec(`INSERT INTO moderation_account_standings(owner_did,effective_suspended) VALUES('did:plc:suspended',true)`)
 	// A record indexed without a CraftSky membership must not contribute.
 	project("did:plc:nonmember", "hidden", knitting, finished)
 	for _, value := range []string{"hide", "takedown", "warn"} {
 		owner := "did:plc:" + value
-		seedMember(t, pool, owner)
+		seedStatsMember(t, pool, owner)
 		project(owner, "hidden", knitting, finished)
 		exec(`INSERT INTO moderation_outputs(id,source_did,subject_type,subject_did,value,action) VALUES($1,'did:plc:labeler','account',$2,$3,'apply')`, "account-"+value, owner, value)
 		uri := project(alice, "post-"+value, knitting, finished)
@@ -159,7 +166,7 @@ func TestPublicStatsStoreMigratedSchema(t *testing.T) {
 	if _, err := pool.Exec(ctx, `INSERT INTO owner_lifecycles(owner_did,state,generation,auth_epoch,transition_reason,transitioned_at) VALUES('did:plc:alice','active',1,1,'test',now())`); err != nil {
 		t.Fatal(err)
 	}
-	seedMember(t, pool, "did:plc:alice")
+	seedStatsMember(t, pool, "did:plc:alice")
 	uri := seedPost(t, pool, "did:plc:alice", "knit", "Finished scarf", time.Now())
 	seedProjectMaterialization(t, pool, uri, "social.craftsky.feed.defs#knitting", "Scarf")
 	if _, err := pool.Exec(ctx, `
@@ -173,5 +180,13 @@ func TestPublicStatsStoreMigratedSchema(t *testing.T) {
 	stats, err := api.NewPublicStatsStore(pool).PublicStats(ctx)
 	if err != nil || stats.Accounts != 1 || stats.Posts != 1 || stats.ProjectPosts != 1 || stats.FinishedProjectPosts != 1 || len(stats.ProjectsByCraft) != 1 || stats.ProjectsByCraft[0].Count != 1 {
 		t.Fatalf("production-schema statistics=%+v err=%v", stats, err)
+	}
+}
+
+func seedStatsMember(t *testing.T, pool *pgxpool.Pool, did string) {
+	t.Helper()
+	seedMember(t, pool, did)
+	if _, err := pool.Exec(context.Background(), `INSERT INTO bluesky_profiles(did,record_cid,guest_visibility_hidden,guest_visibility_revision,guest_visibility_record_cid,guest_visibility_evidence) VALUES($1,'stats-profile',false,'3m234567abc22','stats-profile','source')`, did); err != nil {
+		t.Fatal(err)
 	}
 }

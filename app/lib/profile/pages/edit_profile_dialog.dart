@@ -29,6 +29,8 @@ import 'package:craftsky_app/profile/widgets/profile_page_error.dart';
 import 'package:craftsky_app/router/responsive_modal_navigation.dart';
 import 'package:craftsky_app/settings/settings_links.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
+import 'package:craftsky_app/shared/browsing/browsing_context.dart';
+import 'package:craftsky_app/shared/browsing/browsing_provider.dart';
 import 'package:craftsky_app/shared/image/basic_image_editor.dart';
 import 'package:craftsky_app/shared/link/external_link.dart';
 import 'package:craftsky_app/shared/media/image_source_menu.dart';
@@ -96,7 +98,7 @@ Future<void> showEditProfileDialog(
 /// route's auto-injected `CloseButton` (the "free" close affordance
 /// from `fullscreenDialog: true`) is reachable even before the profile
 /// resolves.
-class EditProfileDialog extends ConsumerWidget {
+class EditProfileDialog extends ConsumerStatefulWidget {
   const new({
     this.linkLauncher = launchExternalLink,
     this.confirmOpenLink = showOpenLinkDialog,
@@ -107,7 +109,14 @@ class EditProfileDialog extends ConsumerWidget {
   final ExternalLinkConfirmer confirmOpenLink;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<EditProfileDialog> createState() => _EditProfileDialogState();
+}
+
+class _EditProfileDialogState extends ConsumerState<EditProfileDialog> {
+  Profile? _snapshot;
+
+  @override
+  Widget build(BuildContext context) {
     final auth = ref.watch(authSessionProvider);
     final myDid = switch (auth) {
       AsyncData(value: SignedIn(:final did)) => did,
@@ -116,7 +125,16 @@ class EditProfileDialog extends ConsumerWidget {
 
     if (myDid == null) return const _EditProfileLoadingScaffold();
 
-    final profileAsync = ref.watch(userProfileProvider(myDid));
+    final audience = ref.watch(browsingContextProvider);
+    if (audience is! MemberBrowsingContext ||
+        audience.lease.session.account.did != myDid) {
+      _snapshot = null;
+      return const _EditProfileLoadingScaffold();
+    }
+    if (_snapshot?.did != myDid) _snapshot = null;
+    final profileAsync = ref.watch(
+      userProfileProvider(myDid, audience: ref.read(browsingContextProvider)),
+    );
     final lease = ref
         .watch(sessionRegistryProvider)
         .value
@@ -125,22 +143,37 @@ class EditProfileDialog extends ConsumerWidget {
     SubscriptionAccess? confirmedAccess;
     if (lease?.account.did == myDid) {
       final access = ref.watch(subscriptionAccessProvider(lease!));
-      if (access.isLoading) return const _EditProfileLoadingScaffold();
+      if (access.isLoading && _snapshot == null) {
+        return const _EditProfileLoadingScaffold();
+      }
       if (access case AsyncData(:final value)) {
         confirmedAccess = value;
       }
     }
+    _snapshot = profileAsync.value ?? _snapshot;
+    if (_snapshot case final value?) {
+      return _EditProfileForm(
+        profile: projectOwnerFeatureAccess(value, confirmedAccess),
+        linkLauncher: widget.linkLauncher,
+        confirmOpenLink: widget.confirmOpenLink,
+      );
+    }
     return switch (profileAsync) {
       AsyncValue(:final value?) => _EditProfileForm(
         profile: projectOwnerFeatureAccess(value, confirmedAccess),
-        linkLauncher: linkLauncher,
-        confirmOpenLink: confirmOpenLink,
+        linkLauncher: widget.linkLauncher,
+        confirmOpenLink: widget.confirmOpenLink,
       ),
       AsyncError(:final error) => Scaffold(
         appBar: AppBar(),
         body: ProfilePageError(
           error: error,
-          onRetry: () => ref.invalidate(userProfileProvider(myDid)),
+          onRetry: () => ref.invalidate(
+            userProfileProvider(
+              myDid,
+              audience: ref.read(browsingContextProvider),
+            ),
+          ),
         ),
       ),
       _ => const _EditProfileLoadingScaffold(),

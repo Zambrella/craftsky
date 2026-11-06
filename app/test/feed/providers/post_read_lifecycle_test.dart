@@ -17,10 +17,13 @@ import 'package:craftsky_app/projects/providers/project_repository_provider.dart
 import 'package:craftsky_app/projects/providers/user_projects_provider.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
+import 'package:craftsky_app/shared/browsing/browsing_context.dart';
+import 'package:craftsky_app/shared/browsing/content_read_guard.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../projects/fakes/fake_project_repository.dart';
+import '../../test_support/member_browsing_context.dart';
 import '../fakes/fake_post_repository.dart';
 
 final _did = Did.parse('did:plc:alice');
@@ -46,6 +49,40 @@ Post _post() => Post(
 );
 
 void main() {
+  test(
+    'UT-005 an obsolete post audience cannot start a read in the new audience',
+    () async {
+      var reads = 0;
+      final container = ProviderContainer.test(
+        retry: (_, _) => null,
+        overrides: [
+          testMemberBrowsingOverride,
+          postRepositoryProvider.overrideWithValue(
+            FakePostRepository(
+              onFetch: (_, _) async {
+                reads++;
+                return _post();
+              },
+            ),
+          ),
+        ],
+      );
+      await expectLater(
+        container.read(
+          single
+              .postProvider(
+                _did,
+                _rkey,
+                audience: const GuestBrowsingContext(epoch: 100),
+              )
+              .future,
+        ),
+        throwsA(isA<ContentReadDiscarded>()),
+      );
+      expect(reads, 0);
+    },
+  );
+
   setUpAll(initializeMappers);
 
   test(
@@ -54,6 +91,7 @@ void main() {
       final late = Completer<Post>();
       final container = ProviderContainer.test(
         overrides: [
+          testMemberBrowsingOverride,
           postRepositoryProvider.overrideWithValue(
             FakePostRepository(
               onFetch: (_, _) => late.future,
@@ -98,6 +136,7 @@ void main() {
         );
         final container = ProviderContainer.test(
           overrides: [
+            testMemberBrowsingOverride,
             activeLanguagePreferencesProvider.overrideWith(
               (ref) => const LanguagePreferences(
                 primaryLanguage: 'en',
@@ -113,34 +152,110 @@ void main() {
           ],
         );
         final subscription = switch (kind) {
-          'comments' => container.listen(userCommentsProvider(_did), (_, _) {}),
-          'projects' => container.listen(userProjectsProvider(_did), (_, _) {}),
-          'reposts' => container.listen(userRepostsProvider(_did), (_, _) {}),
-          'browse' => container.listen(projectFeedProvider(_query), (_, _) {}),
+          'comments' => container.listen(
+            userCommentsProvider(_did, audience: testMemberBrowsingAudience),
+            (_, _) {},
+          ),
+          'projects' => container.listen(
+            userProjectsProvider(_did, audience: testMemberBrowsingAudience),
+            (_, _) {},
+          ),
+          'reposts' => container.listen(
+            userRepostsProvider(_did, audience: testMemberBrowsingAudience),
+            (_, _) {},
+          ),
+          'browse' => container.listen(
+            projectFeedProvider(_query, audience: testMemberBrowsingAudience),
+            (_, _) {},
+          ),
           _ => container.listen(
-            postCommentSectionProvider(_did, _rkey),
+            postCommentSectionProvider(
+              _did,
+              _rkey,
+              audience: testMemberBrowsingAudience,
+            ),
             (_, _) {},
           ),
         };
         await switch (kind) {
-          'comments' => container.read(userCommentsProvider(_did).future),
-          'projects' => container.read(userProjectsProvider(_did).future),
-          'reposts' => container.read(userRepostsProvider(_did).future),
-          'browse' => container.read(projectFeedProvider(_query).future),
-          _ => container.read(postCommentSectionProvider(_did, _rkey).future),
+          'comments' => container.read(
+            userCommentsProvider(
+              _did,
+              audience: testMemberBrowsingAudience,
+            ).future,
+          ),
+          'projects' => container.read(
+            userProjectsProvider(
+              _did,
+              audience: testMemberBrowsingAudience,
+            ).future,
+          ),
+          'reposts' => container.read(
+            userRepostsProvider(
+              _did,
+              audience: testMemberBrowsingAudience,
+            ).future,
+          ),
+          'browse' => container.read(
+            projectFeedProvider(
+              _query,
+              audience: testMemberBrowsingAudience,
+            ).future,
+          ),
+          _ => container.read(
+            postCommentSectionProvider(
+              _did,
+              _rkey,
+              audience: testMemberBrowsingAudience,
+            ).future,
+          ),
         };
         final pending = switch (kind) {
           'comments' =>
-            container.read(userCommentsProvider(_did).notifier).build(_did),
+            container
+                .read(
+                  userCommentsProvider(
+                    _did,
+                    audience: testMemberBrowsingAudience,
+                  ).notifier,
+                )
+                .build(_did),
           'projects' =>
-            container.read(userProjectsProvider(_did).notifier).build(_did),
+            container
+                .read(
+                  userProjectsProvider(
+                    _did,
+                    audience: testMemberBrowsingAudience,
+                  ).notifier,
+                )
+                .build(_did),
           'reposts' =>
-            container.read(userRepostsProvider(_did).notifier).build(_did),
+            container
+                .read(
+                  userRepostsProvider(
+                    _did,
+                    audience: testMemberBrowsingAudience,
+                  ).notifier,
+                )
+                .build(_did),
           'browse' =>
-            container.read(projectFeedProvider(_query).notifier).build(_query),
+            container
+                .read(
+                  projectFeedProvider(
+                    _query,
+                    audience: testMemberBrowsingAudience,
+                  ).notifier,
+                )
+                .build(_query),
           _ =>
             container
-                .read(postCommentSectionProvider(_did, _rkey).notifier)
+                .read(
+                  postCommentSectionProvider(
+                    _did,
+                    _rkey,
+                    audience: testMemberBrowsingAudience,
+                  ).notifier,
+                )
                 .build(_did, _rkey),
         };
         final canceled = expectLater(pending, throwsA(isA<ApiCanceled>()));

@@ -16,7 +16,7 @@ final class ProfileSearchProvider
     extends $AsyncNotifierProvider<ProfileSearch, ProfileSearchResultsState> {
   ProfileSearchProvider._({
     required ProfileSearchFamily super.from,
-    required ProfileSearchQuery super.argument,
+    required (ProfileSearchQuery, {BrowsingContext? audience}) super.argument,
   }) : super(
          retry: null,
          name: r'profileSearchProvider',
@@ -32,7 +32,7 @@ final class ProfileSearchProvider
   String toString() {
     return r'profileSearchProvider'
         ''
-        '($argument)';
+        '$argument';
   }
 
   @$internal
@@ -50,7 +50,7 @@ final class ProfileSearchProvider
   }
 }
 
-String _$profileSearchHash() => r'e9e1475dbc886f7e463c64d77739013db725f83e';
+String _$profileSearchHash() => r'1f46c3cbc1000fd5c8dd45f3badff21ee917ef85';
 
 final class ProfileSearchFamily extends $Family
     with
@@ -59,7 +59,7 @@ final class ProfileSearchFamily extends $Family
           AsyncValue<ProfileSearchResultsState>,
           ProfileSearchResultsState,
           FutureOr<ProfileSearchResultsState>,
-          ProfileSearchQuery
+          (ProfileSearchQuery, {BrowsingContext? audience})
         > {
   ProfileSearchFamily._()
     : super(
@@ -70,8 +70,13 @@ final class ProfileSearchFamily extends $Family
         isAutoDispose: true,
       );
 
-  ProfileSearchProvider call(ProfileSearchQuery query) =>
-      ProfileSearchProvider._(argument: query, from: this);
+  ProfileSearchProvider call(
+    ProfileSearchQuery query, {
+    BrowsingContext? audience,
+  }) => ProfileSearchProvider._(
+    argument: (query, audience: audience),
+    from: this,
+  );
 
   @override
   String toString() => r'profileSearchProvider';
@@ -79,10 +84,15 @@ final class ProfileSearchFamily extends $Family
 
 abstract class _$ProfileSearch
     extends $AsyncNotifier<ProfileSearchResultsState> {
-  late final _$args = ref.$arg as ProfileSearchQuery;
-  ProfileSearchQuery get query => _$args;
+  late final _$args =
+      ref.$arg as (ProfileSearchQuery, {BrowsingContext? audience});
+  ProfileSearchQuery get query => _$args.$1;
+  BrowsingContext? get audience => _$args.audience;
 
-  FutureOr<ProfileSearchResultsState> build(ProfileSearchQuery query);
+  FutureOr<ProfileSearchResultsState> build(
+    ProfileSearchQuery query, {
+    BrowsingContext? audience,
+  });
   @$mustCallSuper
   @override
   WhenComplete runBuild() {
@@ -103,6 +113,9 @@ abstract class _$ProfileSearch
               Object?,
               Object?
             >;
-    return element.handleCreate(ref, () => build(_$args));
+    return element.handleCreate(
+      ref,
+      () => build(_$args.$1, audience: _$args.audience),
+    );
   }
 }

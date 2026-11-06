@@ -9,6 +9,7 @@ import 'package:craftsky_app/profile/providers/profile_repository_provider.dart'
 import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
 import 'package:craftsky_app/shared/api/pds_mutation_contract.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
+import 'package:craftsky_app/shared/browsing/browsing_provider.dart';
 import 'package:craftsky_app/shared/mutations/pds_record_operation_controller.dart';
 import 'package:craftsky_app/shared/mutations/pds_record_reconciliation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -94,9 +95,16 @@ void invalidateFollowProfileReads(Ref ref, Did targetDid) {
   if (!ref.mounted) return;
   final selfDid = ref.read(sessionRegistryProvider).value?.activeDid;
   ref
-    ..invalidate(userProfileProvider(targetDid))
+    ..invalidate(
+      userProfileProvider(
+        targetDid,
+        audience: ref.read(browsingContextProvider),
+      ),
+    )
     ..invalidate(timelineProvider);
   if (selfDid != null && selfDid != targetDid) {
-    ref.invalidate(userProfileProvider(selfDid));
+    ref.invalidate(
+      userProfileProvider(selfDid, audience: ref.read(browsingContextProvider)),
+    );
   }
 }

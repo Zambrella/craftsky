@@ -9,13 +9,21 @@ import {
 	device,
 	remove
 } from '#lib/server/auth/session.ts';
+import { guestRoute } from '#lib/routes.ts';
 import { upstream, UpstreamError } from '#lib/server/auth/upstream.ts';
 export async function authenticatedPage({
 	cookies,
 	url
 }: Pick<RequestEvent, 'cookies' | 'url'>) {
+	const signInLocation = (expired = false) => {
+		const query = new URLSearchParams();
+		if (guestRoute(url.pathname))
+			query.set('returnTo', url.pathname + url.search);
+		if (expired) query.set('error', 'session_expired');
+		return '/sign-in' + (query.size ? '?' + query : '');
+	};
 	const account = selected(cookies, url);
-	if (!account) redirect(303, '/sign-in');
+	if (!account) redirect(303, signInLocation());
 	try {
 		const identity = (await upstream(
 			'/v1/whoami',
@@ -25,7 +33,7 @@ export async function authenticatedPage({
 		)) as { did: string; handle: string };
 		if (identity.did !== account.did) {
 			remove(cookies, url, account.id);
-			redirect(303, '/sign-in?error=session_expired');
+			redirect(303, signInLocation(true));
 		}
 		if (
 			typeof identity.handle === 'string' &&
@@ -36,7 +44,7 @@ export async function authenticatedPage({
 	} catch (error) {
 		if (error instanceof UpstreamError && error.status === 401) {
 			remove(cookies, url, account.id);
-			redirect(303, '/sign-in?error=session_expired');
+			redirect(303, signInLocation(true));
 		}
 		if (
 			error &&

@@ -4,6 +4,7 @@ import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/providers/profile_identity_cache_invalidator.dart';
 import 'package:craftsky_app/profile/providers/profile_record_overlay.dart';
 import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
+import 'package:craftsky_app/shared/browsing/browsing_provider.dart';
 import 'package:craftsky_app/shared/media/uploaded_image_blob.dart';
 import 'package:craftsky_app/shared/mutations/pds_record_operation_controller.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -26,7 +27,10 @@ final class ProfileMutationPublication {
             lease) {
       return;
     }
-    final profile = userProfileProvider(lease.account.did);
+    final profile = userProfileProvider(
+      lease.account.did,
+      audience: _ref.read(browsingContextProvider),
+    );
     if (_ref.exists(profile)) {
       _ref.read(profile.notifier).refresh();
     } else {

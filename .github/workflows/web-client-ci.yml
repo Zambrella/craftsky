@@ -34,7 +34,7 @@ jobs:
       - run: python3 -m unittest discover -s ../scripts -p test_web_client_deploy.py
       - run: python3 -m unittest discover -s ../scripts -p test_release.py
       - run: npm ci
-      - run: npx playwright install --with-deps chromium
+      - run: npx playwright install --with-deps chromium webkit
       - run: npm run test:release
       - name: Upload local fixture failure artifacts
         if: failure()
@@ -44,6 +44,7 @@ jobs:
           path: |
             web-client/test-results/
             web-client/test-results-authenticated/
+            web-client/test-results-guest/
             web-client/playwright-report/
           retention-days: 7
           if-no-files-found: ignore

@@ -4,6 +4,7 @@ import 'package:craftsky_app/business/providers/profile_business_events_provider
 import 'package:craftsky_app/business/widgets/event_card.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
+import 'package:craftsky_app/shared/browsing/browsing_provider.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
@@ -30,7 +31,12 @@ class ProfileEventsTab extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final events = ref.watch(profileBusinessEventsProvider(target));
+    final events = ref.watch(
+      profileBusinessEventsProvider(
+        target,
+        audience: ref.read(browsingContextProvider),
+      ),
+    );
     return switch (events) {
       AsyncData(:final value) => _content(context, ref, value),
       AsyncError() => _initialError(context, ref),
@@ -99,7 +105,12 @@ class ProfileEventsTab extends ConsumerWidget {
                     message: l10n.businessEventsRefreshError,
                     onRetry: () => unawaited(
                       ref
-                          .read(profileBusinessEventsProvider(target).notifier)
+                          .read(
+                            profileBusinessEventsProvider(
+                              target,
+                              audience: ref.read(browsingContextProvider),
+                            ).notifier,
+                          )
                           .refresh(),
                     ),
                   ),
@@ -108,7 +119,12 @@ class ProfileEventsTab extends ConsumerWidget {
                     message: l10n.businessEventsLoadMoreError,
                     onRetry: () => unawaited(
                       ref
-                          .read(profileBusinessEventsProvider(target).notifier)
+                          .read(
+                            profileBusinessEventsProvider(
+                              target,
+                              audience: ref.read(browsingContextProvider),
+                            ).notifier,
+                          )
                           .loadMore(),
                     ),
                   )
@@ -121,7 +137,12 @@ class ProfileEventsTab extends ConsumerWidget {
                   TextButton(
                     onPressed: () => unawaited(
                       ref
-                          .read(profileBusinessEventsProvider(target).notifier)
+                          .read(
+                            profileBusinessEventsProvider(
+                              target,
+                              audience: ref.read(browsingContextProvider),
+                            ).notifier,
+                          )
                           .loadMore(),
                     ),
                     child: Text(l10n.businessEventsLoadMoreAction),
@@ -134,7 +155,10 @@ class ProfileEventsTab extends ConsumerWidget {
                       : () => unawaited(
                           ref
                               .read(
-                                profileBusinessEventsProvider(target).notifier,
+                                profileBusinessEventsProvider(
+                                  target,
+                                  audience: ref.read(browsingContextProvider),
+                                ).notifier,
                               )
                               .refresh(),
                         ),
@@ -163,7 +187,12 @@ class ProfileEventsTab extends ConsumerWidget {
             TextButton(
               onPressed: () => unawaited(
                 ref
-                    .read(profileBusinessEventsProvider(target).notifier)
+                    .read(
+                      profileBusinessEventsProvider(
+                        target,
+                        audience: ref.read(browsingContextProvider),
+                      ).notifier,
+                    )
                     .retryInitial(),
               ),
               child: Text(l10n.businessEventsRetryAction),

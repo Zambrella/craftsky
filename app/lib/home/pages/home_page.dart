@@ -24,6 +24,7 @@ import 'package:craftsky_app/router/app_shell_drawer.dart';
 import 'package:craftsky_app/router/responsive_modal_navigation.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/search/models/search_sort.dart';
+import 'package:craftsky_app/shared/browsing/browsing_provider.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/shared/widgets/auto_paginated_list_view.dart';
 import 'package:craftsky_app/shared/widgets/craft_icon.dart';
@@ -108,7 +109,10 @@ class _HomePageState extends ConsumerState<HomePage>
   }
 
   List<HomeFeedDefinition> _definitions(List<ProjectOption> crafts) => [
-    const HomeFeedDefinition.following(),
+    if (ref.read(isGuestBrowsingProvider))
+      const HomeFeedDefinition.allCrafts()
+    else
+      const HomeFeedDefinition.following(),
     for (final craft in crafts) HomeFeedDefinition.project(craft),
   ];
 
@@ -150,7 +154,8 @@ class _HomePageState extends ConsumerState<HomePage>
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    if (_feeds[_selectedFeedIndex].source == HomeFeedSource.projects) {
+    if (!ref.watch(isGuestBrowsingProvider) &&
+        _feeds[_selectedFeedIndex].source == HomeFeedSource.projects) {
       ref
         ..listen(deletePostProvider, (previous, next) {
           switch ((previous, next)) {
@@ -184,18 +189,32 @@ class _HomePageState extends ConsumerState<HomePage>
     final activeQuery = activeCraft == null
         ? null
         : ProjectBrowseQuery(
-            craftTypes: [activeCraft],
+            craftTypes: activeCraft.isEmpty ? [] : [activeCraft],
             filters: _filtersFor(activeCraft),
             sort: _sortFor(activeFeed.id),
           );
     final hasActiveProjects =
         activeQuery != null &&
-        (ref.watch(projectFeedProvider(activeQuery)).value?.items.isNotEmpty ??
+        (ref
+                .watch(
+                  projectFeedProvider(
+                    activeQuery,
+                    audience: ref.read(browsingContextProvider),
+                  ),
+                )
+                .value
+                ?.items
+                .isNotEmpty ??
             false);
     ref.listen(feedReselectProvider, (_, _) {
       if (activeQuery == null) return;
       _scrollToTop();
-      ref.invalidate(projectFeedProvider(activeQuery));
+      ref.invalidate(
+        projectFeedProvider(
+          activeQuery,
+          audience: ref.read(browsingContextProvider),
+        ),
+      );
     });
     return Scaffold(
       floatingActionButton: activeFeed.supportsFilters
@@ -498,15 +517,22 @@ class _ProjectTabScrollViewState extends ConsumerState<_ProjectTabScrollView>
   Widget build(BuildContext context) {
     super.build(context);
     final query = ProjectBrowseQuery(
-      craftTypes: [widget.craftType],
+      craftTypes: widget.craftType.isEmpty ? [] : [widget.craftType],
       filters: widget.filters,
       sort: widget.sort,
     );
-    final projectFeedAsync = ref.watch(projectFeedProvider(query));
+    final projectFeedAsync = ref.watch(
+      projectFeedProvider(query, audience: ref.read(browsingContextProvider)),
+    );
     return YarnRefreshScrollView(
       controller: widget.controller,
       onRefresh: () async {
-        final _ = await ref.refresh(projectFeedProvider(query).future);
+        final _ = await ref.refresh(
+          projectFeedProvider(
+            query,
+            audience: ref.read(browsingContextProvider),
+          ).future,
+        );
       },
       slivers: [
         SliverToBoxAdapter(
@@ -524,11 +550,22 @@ class _ProjectTabScrollViewState extends ConsumerState<_ProjectTabScrollView>
             hasLoadMoreError: projectFeedAsync.hasError,
             hasActiveFilters: widget.filters.toQueryParameters().isNotEmpty,
             onClearFilters: widget.onClearFilters,
-            onNearEnd: () =>
-                ref.read(projectFeedProvider(query).notifier).loadMore(),
+            onNearEnd: () => ref
+                .read(
+                  projectFeedProvider(
+                    query,
+                    audience: ref.read(browsingContextProvider),
+                  ).notifier,
+                )
+                .loadMore(),
           ),
           _ when projectFeedAsync.hasError => _ProjectErrorSliver(
-            onRetry: () => ref.invalidate(projectFeedProvider(query)),
+            onRetry: () => ref.invalidate(
+              projectFeedProvider(
+                query,
+                audience: ref.read(browsingContextProvider),
+              ),
+            ),
           ),
           _ => CraftskySkeletonSliverList(
             itemCount: 3,

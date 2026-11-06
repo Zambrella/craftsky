@@ -53,9 +53,15 @@ async function seed(context: BrowserContext, both = false) {
 	]);
 }
 async function signIn(page: Page, handle = 'alice.test') {
-	await page.goto('/sign-in');
+	// Guest home already has the eventual /feed URL. Wait for the actual
+	// provider confirmation instead of using that URL as an auth barrier.
+	const confirmation = page.waitForResponse(
+		(response) => new URL(response.url()).pathname === '/auth/browser/confirm'
+	);
+	await page.goto('/sign-in?add=1');
 	await page.getByLabel('Your Atmosphere Handle').fill(handle);
 	await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+	await confirmation;
 }
 async function accounts(page: Page) {
 	return await page.evaluate(async () => {
@@ -133,7 +139,7 @@ test('a temporary confirmation outage retains pending state and retries without 
 }) => {
 	await configure({ confirmFailures: 1 });
 	await signIn(page);
-	await expect(page).toHaveURL(/\/sign-in\?error=confirmation_pending$/);
+	await expect(page).toHaveURL(/\/feed\?.*error=confirmation_pending/);
 	expect(
 		(await context.cookies()).some(
 			(cookie) => cookie.name === 'craftsky_pending'
@@ -390,7 +396,7 @@ test('restricted accounts retain settings and complete owner-bound reauthenticat
 	expect(wrong).toBe(400);
 	expect((await authState()).deletions[0].accepted).toBe(false);
 	await confirm.click();
-	await expect(page).toHaveURL(/\/sign-in$/);
+	await expect(page).toHaveURL(/\/feed(?:\?auth=1)?$/);
 	expect((await accounts(page)).accounts.map((account) => account.did)).toEqual(
 		[bob.did]
 	);

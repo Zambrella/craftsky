@@ -19,7 +19,7 @@ final class UserRepostsProvider
   /// Cursor-accumulating active repost subjects, keyed by the reposter DID.
   UserRepostsProvider._({
     required UserRepostsFamily super.from,
-    required Did super.argument,
+    required (Did, {BrowsingContext? audience}) super.argument,
   }) : super(
          retry: null,
          name: r'userRepostsProvider',
@@ -35,7 +35,7 @@ final class UserRepostsProvider
   String toString() {
     return r'userRepostsProvider'
         ''
-        '($argument)';
+        '$argument';
   }
 
   @$internal
@@ -53,7 +53,7 @@ final class UserRepostsProvider
   }
 }
 
-String _$userRepostsHash() => r'fc36b3aee24dc5be389835d8776f7ec261afd1f8';
+String _$userRepostsHash() => r'd2bfe1e378cf6ec665233db0eb2531a8608854f8';
 
 /// Cursor-accumulating active repost subjects, keyed by the reposter DID.
 
@@ -64,7 +64,7 @@ final class UserRepostsFamily extends $Family
           AsyncValue<UserPostsState>,
           UserPostsState,
           FutureOr<UserPostsState>,
-          Did
+          (Did, {BrowsingContext? audience})
         > {
   UserRepostsFamily._()
     : super(
@@ -77,8 +77,8 @@ final class UserRepostsFamily extends $Family
 
   /// Cursor-accumulating active repost subjects, keyed by the reposter DID.
 
-  UserRepostsProvider call(Did did) =>
-      UserRepostsProvider._(argument: did, from: this);
+  UserRepostsProvider call(Did did, {BrowsingContext? audience}) =>
+      UserRepostsProvider._(argument: (did, audience: audience), from: this);
 
   @override
   String toString() => r'userRepostsProvider';
@@ -87,10 +87,11 @@ final class UserRepostsFamily extends $Family
 /// Cursor-accumulating active repost subjects, keyed by the reposter DID.
 
 abstract class _$UserReposts extends $AsyncNotifier<UserPostsState> {
-  late final _$args = ref.$arg as Did;
-  Did get did => _$args;
+  late final _$args = ref.$arg as (Did, {BrowsingContext? audience});
+  Did get did => _$args.$1;
+  BrowsingContext? get audience => _$args.audience;
 
-  FutureOr<UserPostsState> build(Did did);
+  FutureOr<UserPostsState> build(Did did, {BrowsingContext? audience});
   @$mustCallSuper
   @override
   WhenComplete runBuild() {
@@ -103,6 +104,9 @@ abstract class _$UserReposts extends $AsyncNotifier<UserPostsState> {
               Object?,
               Object?
             >;
-    return element.handleCreate(ref, () => build(_$args));
+    return element.handleCreate(
+      ref,
+      () => build(_$args.$1, audience: _$args.audience),
+    );
   }
 }

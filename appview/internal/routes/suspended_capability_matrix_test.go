@@ -412,6 +412,7 @@ func TestEveryAuthenticatedV1MutationHasExactSuspensionClassification(t *testing
 		"POST /v1/scheduled-posts/{id}/publication",
 		"PUT /v1/events/{did}/{rkey}",
 		"PUT /v1/posts/{did}/{rkey}/pin",
+		"PUT /v1/preferences/logged-out-visibility",
 		"PUT /v1/profiles/me",
 		"PUT /v1/profiles/me/business",
 		"PUT /v1/profiles/me/customisation",

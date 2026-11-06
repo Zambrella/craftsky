@@ -215,6 +215,7 @@ class PostCommentSectionMapper extends ClassMapperBase<PostCommentSection> {
       CommentPageMapper.ensureInitialized();
       CommentSortMapper.ensureInitialized();
       FocusContextMapper.ensureInitialized();
+      PublicThreadAncestorMapper.ensureInitialized();
     }
     return _instance!;
   }
@@ -240,6 +241,10 @@ class PostCommentSectionMapper extends ClassMapperBase<PostCommentSection> {
     _$focus,
     opt: true,
   );
+  static List<PublicThreadAncestor> _$ancestors(PostCommentSection v) =>
+      v.ancestors;
+  static const Field<PostCommentSection, List<PublicThreadAncestor>>
+  _f$ancestors = Field('ancestors', _$ancestors, opt: true, def: const []);
 
   @override
   final MappableFields<PostCommentSection> fields = const {
@@ -247,6 +252,7 @@ class PostCommentSectionMapper extends ClassMapperBase<PostCommentSection> {
     #comments: _f$comments,
     #sort: _f$sort,
     #focus: _f$focus,
+    #ancestors: _f$ancestors,
   };
 
   static PostCommentSection _instantiate(DecodingData data) {
@@ -255,6 +261,7 @@ class PostCommentSectionMapper extends ClassMapperBase<PostCommentSection> {
       comments: data.dec(_f$comments),
       sort: data.dec(_f$sort),
       focus: data.dec(_f$focus),
+      ancestors: data.dec(_f$ancestors),
     );
   }
 
@@ -332,11 +339,18 @@ abstract class PostCommentSectionCopyWith<
   PostCopyWith<$R, Post, Post> get post;
   CommentPageCopyWith<$R, CommentPage, CommentPage> get comments;
   FocusContextCopyWith<$R, FocusContext, FocusContext>? get focus;
+  ListCopyWith<
+    $R,
+    PublicThreadAncestor,
+    PublicThreadAncestorCopyWith<$R, PublicThreadAncestor, PublicThreadAncestor>
+  >
+  get ancestors;
   $R call({
     Post? post,
     CommentPage? comments,
     CommentSort? sort,
     FocusContext? focus,
+    List<PublicThreadAncestor>? ancestors,
   });
   PostCommentSectionCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(
     Then<$Out2, $R2> t,
@@ -361,17 +375,30 @@ class _PostCommentSectionCopyWithImpl<$R, $Out>
   FocusContextCopyWith<$R, FocusContext, FocusContext>? get focus =>
       $value.focus?.copyWith.$chain((v) => call(focus: v));
   @override
+  ListCopyWith<
+    $R,
+    PublicThreadAncestor,
+    PublicThreadAncestorCopyWith<$R, PublicThreadAncestor, PublicThreadAncestor>
+  >
+  get ancestors => ListCopyWith(
+    $value.ancestors,
+    (v, t) => v.copyWith.$chain(t),
+    (v) => call(ancestors: v),
+  );
+  @override
   $R call({
     Post? post,
     CommentPage? comments,
     CommentSort? sort,
     Object? focus = $none,
+    List<PublicThreadAncestor>? ancestors,
   }) => $apply(
     FieldCopyWithData({
       if (post != null) #post: post,
       if (comments != null) #comments: comments,
       if (sort != null) #sort: sort,
       if (focus != $none) #focus: focus,
+      if (ancestors != null) #ancestors: ancestors,
     }),
   );
   @override
@@ -380,6 +407,7 @@ class _PostCommentSectionCopyWithImpl<$R, $Out>
     comments: data.get(#comments, or: $value.comments),
     sort: data.get(#sort, or: $value.sort),
     focus: data.get(#focus, or: $value.focus),
+    ancestors: data.get(#ancestors, or: $value.ancestors),
   );
 
   @override
@@ -1307,4 +1335,153 @@ class _FocusContextCopyWithImpl<$R, $Out>
   FocusContextCopyWith<$R2, FocusContext, $Out2> $chain<$R2, $Out2>(
     Then<$Out2, $R2> t,
   ) => _FocusContextCopyWithImpl<$R2, $Out2>($value, $cast, t);
+}
+
+class PublicThreadAncestorMapper extends ClassMapperBase<PublicThreadAncestor> {
+  PublicThreadAncestorMapper._();
+
+  static PublicThreadAncestorMapper? _instance;
+  static PublicThreadAncestorMapper ensureInitialized() {
+    if (_instance == null) {
+      MapperContainer.globals.use(_instance = PublicThreadAncestorMapper._());
+      PostMapper.ensureInitialized();
+    }
+    return _instance!;
+  }
+
+  @override
+  final String id = 'PublicThreadAncestor';
+
+  static String _$state(PublicThreadAncestor v) => v.state;
+  static const Field<PublicThreadAncestor, String> _f$state = Field(
+    'state',
+    _$state,
+  );
+  static Post? _$post(PublicThreadAncestor v) => v.post;
+  static const Field<PublicThreadAncestor, Post> _f$post = Field(
+    'post',
+    _$post,
+    opt: true,
+  );
+
+  @override
+  final MappableFields<PublicThreadAncestor> fields = const {
+    #state: _f$state,
+    #post: _f$post,
+  };
+  @override
+  final bool ignoreNull = true;
+
+  static PublicThreadAncestor _instantiate(DecodingData data) {
+    return PublicThreadAncestor(
+      state: data.dec(_f$state),
+      post: data.dec(_f$post),
+    );
+  }
+
+  @override
+  final Function instantiate = _instantiate;
+
+  static PublicThreadAncestor fromMap(Map<String, dynamic> map) {
+    return ensureInitialized().decodeMap<PublicThreadAncestor>(map);
+  }
+
+  static PublicThreadAncestor fromJson(String json) {
+    return ensureInitialized().decodeJson<PublicThreadAncestor>(json);
+  }
+}
+
+mixin PublicThreadAncestorMappable {
+  String toJson() {
+    return PublicThreadAncestorMapper.ensureInitialized()
+        .encodeJson<PublicThreadAncestor>(this as PublicThreadAncestor);
+  }
+
+  Map<String, dynamic> toMap() {
+    return PublicThreadAncestorMapper.ensureInitialized()
+        .encodeMap<PublicThreadAncestor>(this as PublicThreadAncestor);
+  }
+
+  PublicThreadAncestorCopyWith<
+    PublicThreadAncestor,
+    PublicThreadAncestor,
+    PublicThreadAncestor
+  >
+  get copyWith =>
+      _PublicThreadAncestorCopyWithImpl<
+        PublicThreadAncestor,
+        PublicThreadAncestor
+      >(this as PublicThreadAncestor, $identity, $identity);
+  @override
+  String toString() {
+    return PublicThreadAncestorMapper.ensureInitialized().stringifyValue(
+      this as PublicThreadAncestor,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return PublicThreadAncestorMapper.ensureInitialized().equalsValue(
+      this as PublicThreadAncestor,
+      other,
+    );
+  }
+
+  @override
+  int get hashCode {
+    return PublicThreadAncestorMapper.ensureInitialized().hashValue(
+      this as PublicThreadAncestor,
+    );
+  }
+}
+
+extension PublicThreadAncestorValueCopy<$R, $Out>
+    on ObjectCopyWith<$R, PublicThreadAncestor, $Out> {
+  PublicThreadAncestorCopyWith<$R, PublicThreadAncestor, $Out>
+  get $asPublicThreadAncestor => $base.as(
+    (v, t, t2) => _PublicThreadAncestorCopyWithImpl<$R, $Out>(v, t, t2),
+  );
+}
+
+abstract class PublicThreadAncestorCopyWith<
+  $R,
+  $In extends PublicThreadAncestor,
+  $Out
+>
+    implements ClassCopyWith<$R, $In, $Out> {
+  PostCopyWith<$R, Post, Post>? get post;
+  $R call({String? state, Post? post});
+  PublicThreadAncestorCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(
+    Then<$Out2, $R2> t,
+  );
+}
+
+class _PublicThreadAncestorCopyWithImpl<$R, $Out>
+    extends ClassCopyWithBase<$R, PublicThreadAncestor, $Out>
+    implements PublicThreadAncestorCopyWith<$R, PublicThreadAncestor, $Out> {
+  _PublicThreadAncestorCopyWithImpl(super.value, super.then, super.then2);
+
+  @override
+  late final ClassMapperBase<PublicThreadAncestor> $mapper =
+      PublicThreadAncestorMapper.ensureInitialized();
+  @override
+  PostCopyWith<$R, Post, Post>? get post =>
+      $value.post?.copyWith.$chain((v) => call(post: v));
+  @override
+  $R call({String? state, Object? post = $none}) => $apply(
+    FieldCopyWithData({
+      if (state != null) #state: state,
+      if (post != $none) #post: post,
+    }),
+  );
+  @override
+  PublicThreadAncestor $make(CopyWithData data) => PublicThreadAncestor(
+    state: data.get(#state, or: $value.state),
+    post: data.get(#post, or: $value.post),
+  );
+
+  @override
+  PublicThreadAncestorCopyWith<$R2, PublicThreadAncestor, $Out2>
+  $chain<$R2, $Out2>(Then<$Out2, $R2> t) =>
+      _PublicThreadAncestorCopyWithImpl<$R2, $Out2>($value, $cast, t);
 }

@@ -4,6 +4,7 @@ import 'package:craftsky_app/auth/providers/account_operation_guard.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/post_comment_section.dart';
 import 'package:craftsky_app/feed/providers/post_record_overlay.dart';
+import 'package:craftsky_app/shared/browsing/browsing_provider.dart';
 import 'package:craftsky_app/shared/mutations/pds_record_operation_controller.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -51,12 +52,14 @@ Post applyPostInteractionOverlays(
   Ref ref,
   Post post, {
   bool reconcile = true,
-}) => applyPostInteractionOverlaysForLease(
-  ref.read(pdsRecordOperationControllerProvider),
-  captureActiveAccountOperation(ref)?.session,
-  post,
-  reconcile: reconcile,
-);
+}) => ref.read(isGuestBrowsingProvider)
+    ? post
+    : applyPostInteractionOverlaysForLease(
+        ref.read(pdsRecordOperationControllerProvider),
+        captureActiveAccountOperation(ref)?.session,
+        post,
+        reconcile: reconcile,
+      );
 
 Post applyPostInteractionOverlaysForLease(
   PdsRecordOperationController controller,

@@ -20,7 +20,13 @@ final class PostInteractionAccountsProvider
         > {
   PostInteractionAccountsProvider._({
     required PostInteractionAccountsFamily super.from,
-    required (Did, RecordKey, PostInteractionAccountKind) super.argument,
+    required (
+      Did,
+      RecordKey,
+      PostInteractionAccountKind, {
+      BrowsingContext? audience,
+    })
+    super.argument,
   }) : super(
          retry: null,
          name: r'postInteractionAccountsProvider',
@@ -56,7 +62,7 @@ final class PostInteractionAccountsProvider
 }
 
 String _$postInteractionAccountsHash() =>
-    r'acac46c088e019f0003c879d89966a338a9416dc';
+    r'634191240aa173ba7e0712e25cf2d284737452ed';
 
 final class PostInteractionAccountsFamily extends $Family
     with
@@ -65,7 +71,12 @@ final class PostInteractionAccountsFamily extends $Family
           AsyncValue<PostInteractionAccountsState>,
           PostInteractionAccountsState,
           FutureOr<PostInteractionAccountsState>,
-          (Did, RecordKey, PostInteractionAccountKind)
+          (
+            Did,
+            RecordKey,
+            PostInteractionAccountKind, {
+            BrowsingContext? audience,
+          })
         > {
   PostInteractionAccountsFamily._()
     : super(
@@ -79,9 +90,10 @@ final class PostInteractionAccountsFamily extends $Family
   PostInteractionAccountsProvider call(
     Did did,
     RecordKey rkey,
-    PostInteractionAccountKind kind,
-  ) => PostInteractionAccountsProvider._(
-    argument: (did, rkey, kind),
+    PostInteractionAccountKind kind, {
+    BrowsingContext? audience,
+  }) => PostInteractionAccountsProvider._(
+    argument: (did, rkey, kind, audience: audience),
     from: this,
   );
 
@@ -91,16 +103,25 @@ final class PostInteractionAccountsFamily extends $Family
 
 abstract class _$PostInteractionAccounts
     extends $AsyncNotifier<PostInteractionAccountsState> {
-  late final _$args = ref.$arg as (Did, RecordKey, PostInteractionAccountKind);
+  late final _$args =
+      ref.$arg
+          as (
+            Did,
+            RecordKey,
+            PostInteractionAccountKind, {
+            BrowsingContext? audience,
+          });
   Did get did => _$args.$1;
   RecordKey get rkey => _$args.$2;
   PostInteractionAccountKind get kind => _$args.$3;
+  BrowsingContext? get audience => _$args.audience;
 
   FutureOr<PostInteractionAccountsState> build(
     Did did,
     RecordKey rkey,
-    PostInteractionAccountKind kind,
-  );
+    PostInteractionAccountKind kind, {
+    BrowsingContext? audience,
+  });
   @$mustCallSuper
   @override
   WhenComplete runBuild() {
@@ -123,7 +144,7 @@ abstract class _$PostInteractionAccounts
             >;
     return element.handleCreate(
       ref,
-      () => build(_$args.$1, _$args.$2, _$args.$3),
+      () => build(_$args.$1, _$args.$2, _$args.$3, audience: _$args.audience),
     );
   }
 }
@@ -135,7 +156,7 @@ final class PostQuotesProvider
     extends $AsyncNotifierProvider<PostQuotes, PostQuotesState> {
   PostQuotesProvider._({
     required PostQuotesFamily super.from,
-    required (Did, RecordKey) super.argument,
+    required (Did, RecordKey, {BrowsingContext? audience}) super.argument,
   }) : super(
          retry: null,
          name: r'postQuotesProvider',
@@ -169,7 +190,7 @@ final class PostQuotesProvider
   }
 }
 
-String _$postQuotesHash() => r'0d6fc5f3129c0e1154d7cb3fe58d082218e2f9b7';
+String _$postQuotesHash() => r'2193424f3ac3d6c1bf474bb863b5848d20b17d91';
 
 final class PostQuotesFamily extends $Family
     with
@@ -178,7 +199,7 @@ final class PostQuotesFamily extends $Family
           AsyncValue<PostQuotesState>,
           PostQuotesState,
           FutureOr<PostQuotesState>,
-          (Did, RecordKey)
+          (Did, RecordKey, {BrowsingContext? audience})
         > {
   PostQuotesFamily._()
     : super(
@@ -189,19 +210,30 @@ final class PostQuotesFamily extends $Family
         isAutoDispose: true,
       );
 
-  PostQuotesProvider call(Did did, RecordKey rkey) =>
-      PostQuotesProvider._(argument: (did, rkey), from: this);
+  PostQuotesProvider call(
+    Did did,
+    RecordKey rkey, {
+    BrowsingContext? audience,
+  }) => PostQuotesProvider._(
+    argument: (did, rkey, audience: audience),
+    from: this,
+  );
 
   @override
   String toString() => r'postQuotesProvider';
 }
 
 abstract class _$PostQuotes extends $AsyncNotifier<PostQuotesState> {
-  late final _$args = ref.$arg as (Did, RecordKey);
+  late final _$args = ref.$arg as (Did, RecordKey, {BrowsingContext? audience});
   Did get did => _$args.$1;
   RecordKey get rkey => _$args.$2;
+  BrowsingContext? get audience => _$args.audience;
 
-  FutureOr<PostQuotesState> build(Did did, RecordKey rkey);
+  FutureOr<PostQuotesState> build(
+    Did did,
+    RecordKey rkey, {
+    BrowsingContext? audience,
+  });
   @$mustCallSuper
   @override
   WhenComplete runBuild() {
@@ -214,6 +246,9 @@ abstract class _$PostQuotes extends $AsyncNotifier<PostQuotesState> {
               Object?,
               Object?
             >;
-    return element.handleCreate(ref, () => build(_$args.$1, _$args.$2));
+    return element.handleCreate(
+      ref,
+      () => build(_$args.$1, _$args.$2, audience: _$args.audience),
+    );
   }
 }

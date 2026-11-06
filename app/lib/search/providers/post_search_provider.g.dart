@@ -16,7 +16,7 @@ final class PostSearchProvider
     extends $AsyncNotifierProvider<PostSearch, SearchPostResultsState> {
   PostSearchProvider._({
     required PostSearchFamily super.from,
-    required PostSearchQuery super.argument,
+    required (PostSearchQuery, {BrowsingContext? audience}) super.argument,
   }) : super(
          retry: null,
          name: r'postSearchProvider',
@@ -32,7 +32,7 @@ final class PostSearchProvider
   String toString() {
     return r'postSearchProvider'
         ''
-        '($argument)';
+        '$argument';
   }
 
   @$internal
@@ -50,7 +50,7 @@ final class PostSearchProvider
   }
 }
 
-String _$postSearchHash() => r'31cc42268b663aafb8272b427d3883a2f4f1fde6';
+String _$postSearchHash() => r'b870f0df822803d4ca65a445c6d4163b1f55b935';
 
 final class PostSearchFamily extends $Family
     with
@@ -59,7 +59,7 @@ final class PostSearchFamily extends $Family
           AsyncValue<SearchPostResultsState>,
           SearchPostResultsState,
           FutureOr<SearchPostResultsState>,
-          PostSearchQuery
+          (PostSearchQuery, {BrowsingContext? audience})
         > {
   PostSearchFamily._()
     : super(
@@ -70,18 +70,23 @@ final class PostSearchFamily extends $Family
         isAutoDispose: true,
       );
 
-  PostSearchProvider call(PostSearchQuery query) =>
-      PostSearchProvider._(argument: query, from: this);
+  PostSearchProvider call(PostSearchQuery query, {BrowsingContext? audience}) =>
+      PostSearchProvider._(argument: (query, audience: audience), from: this);
 
   @override
   String toString() => r'postSearchProvider';
 }
 
 abstract class _$PostSearch extends $AsyncNotifier<SearchPostResultsState> {
-  late final _$args = ref.$arg as PostSearchQuery;
-  PostSearchQuery get query => _$args;
+  late final _$args =
+      ref.$arg as (PostSearchQuery, {BrowsingContext? audience});
+  PostSearchQuery get query => _$args.$1;
+  BrowsingContext? get audience => _$args.audience;
 
-  FutureOr<SearchPostResultsState> build(PostSearchQuery query);
+  FutureOr<SearchPostResultsState> build(
+    PostSearchQuery query, {
+    BrowsingContext? audience,
+  });
   @$mustCallSuper
   @override
   WhenComplete runBuild() {
@@ -99,6 +104,9 @@ abstract class _$PostSearch extends $AsyncNotifier<SearchPostResultsState> {
               Object?,
               Object?
             >;
-    return element.handleCreate(ref, () => build(_$args));
+    return element.handleCreate(
+      ref,
+      () => build(_$args.$1, audience: _$args.audience),
+    );
   }
 }

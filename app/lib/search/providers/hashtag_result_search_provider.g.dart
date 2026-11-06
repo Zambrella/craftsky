@@ -17,7 +17,8 @@ final class HashtagResultSearchProvider
         $AsyncNotifierProvider<HashtagResultSearch, HashtagSearchResultsState> {
   HashtagResultSearchProvider._({
     required HashtagResultSearchFamily super.from,
-    required HashtagResultSearchQuery super.argument,
+    required (HashtagResultSearchQuery, {BrowsingContext? audience})
+    super.argument,
   }) : super(
          retry: null,
          name: r'hashtagResultSearchProvider',
@@ -33,7 +34,7 @@ final class HashtagResultSearchProvider
   String toString() {
     return r'hashtagResultSearchProvider'
         ''
-        '($argument)';
+        '$argument';
   }
 
   @$internal
@@ -52,7 +53,7 @@ final class HashtagResultSearchProvider
 }
 
 String _$hashtagResultSearchHash() =>
-    r'8e91a509a23a944911b07544a5c9c5f958664235';
+    r'887b2031e82b0c93f9b6a9e0bfcf840bbf178cf2';
 
 final class HashtagResultSearchFamily extends $Family
     with
@@ -61,7 +62,7 @@ final class HashtagResultSearchFamily extends $Family
           AsyncValue<HashtagSearchResultsState>,
           HashtagSearchResultsState,
           FutureOr<HashtagSearchResultsState>,
-          HashtagResultSearchQuery
+          (HashtagResultSearchQuery, {BrowsingContext? audience})
         > {
   HashtagResultSearchFamily._()
     : super(
@@ -72,8 +73,13 @@ final class HashtagResultSearchFamily extends $Family
         isAutoDispose: true,
       );
 
-  HashtagResultSearchProvider call(HashtagResultSearchQuery query) =>
-      HashtagResultSearchProvider._(argument: query, from: this);
+  HashtagResultSearchProvider call(
+    HashtagResultSearchQuery query, {
+    BrowsingContext? audience,
+  }) => HashtagResultSearchProvider._(
+    argument: (query, audience: audience),
+    from: this,
+  );
 
   @override
   String toString() => r'hashtagResultSearchProvider';
@@ -81,10 +87,15 @@ final class HashtagResultSearchFamily extends $Family
 
 abstract class _$HashtagResultSearch
     extends $AsyncNotifier<HashtagSearchResultsState> {
-  late final _$args = ref.$arg as HashtagResultSearchQuery;
-  HashtagResultSearchQuery get query => _$args;
+  late final _$args =
+      ref.$arg as (HashtagResultSearchQuery, {BrowsingContext? audience});
+  HashtagResultSearchQuery get query => _$args.$1;
+  BrowsingContext? get audience => _$args.audience;
 
-  FutureOr<HashtagSearchResultsState> build(HashtagResultSearchQuery query);
+  FutureOr<HashtagSearchResultsState> build(
+    HashtagResultSearchQuery query, {
+    BrowsingContext? audience,
+  });
   @$mustCallSuper
   @override
   WhenComplete runBuild() {
@@ -105,6 +116,9 @@ abstract class _$HashtagResultSearch
               Object?,
               Object?
             >;
-    return element.handleCreate(ref, () => build(_$args));
+    return element.handleCreate(
+      ref,
+      () => build(_$args.$1, audience: _$args.audience),
+    );
   }
 }

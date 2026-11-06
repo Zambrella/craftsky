@@ -104,7 +104,7 @@ func (s *SearchStore) searchProfilesObserved(ctx context.Context, viewerDID stri
 				  AND NOT appview_owner_is_terminal(b.subject_did)
 			)
 		)
-		` + profileVisibleModerationPredicate + `
+		` + profileReadPredicate(ctx) + `
 		)
 		SELECT did, handle, handle_lower, display_name, description, avatar_cid, avatar_mime, crafts, is_craftsky_profile, viewer_is_following, muted, blocking, blocked_by, followed_rank, relevance_rank
 		FROM ranked

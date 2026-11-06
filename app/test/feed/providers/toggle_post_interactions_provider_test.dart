@@ -22,6 +22,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show ProviderException;
 import 'package:flutter_test/flutter_test.dart';
 
+import '../../test_support/member_browsing_context.dart';
 import '../fakes/fake_post_repository.dart';
 
 final _aliceDid = Did.parse('did:plc:alice');
@@ -101,6 +102,7 @@ void main() {
         var removals = 0;
         final container = ProviderContainer.test(
           overrides: [
+            testMemberBrowsingOverride,
             postRepositoryProvider.overrideWithValue(
               FakePostRepository(
                 onLike: (_, _) async => _interaction(first),
@@ -165,6 +167,7 @@ void main() {
     final response = Completer<InteractionWriteResponse>();
     final container = ProviderContainer.test(
       overrides: [
+        testMemberBrowsingOverride,
         postRepositoryProvider.overrideWithValue(
           FakePostRepository(onLike: (_, _) => response.future),
         ),
@@ -197,6 +200,7 @@ void main() {
         );
         final container = ProviderContainer.test(
           overrides: [
+            testMemberBrowsingOverride,
             postRepositoryProvider.overrideWithValue(repo),
           ],
         );
@@ -255,7 +259,10 @@ void main() {
         },
       );
       final container = ProviderContainer.test(
-        overrides: [postRepositoryProvider.overrideWithValue(fake)],
+        overrides: [
+          testMemberBrowsingOverride,
+          postRepositoryProvider.overrideWithValue(fake),
+        ],
       );
 
       await container.read(toggleLikePostProvider.notifier).toggle(post: post);
@@ -274,6 +281,7 @@ void main() {
       final cause = StateError('repository unavailable');
       final container = ProviderContainer.test(
         overrides: [
+          testMemberBrowsingOverride,
           postRepositoryProvider.overrideWith((ref) => throw cause),
         ],
       );
@@ -316,6 +324,7 @@ void main() {
       late ProviderContainer container;
       container = ProviderContainer.test(
         overrides: [
+          testMemberBrowsingOverride,
           postRepositoryProvider.overrideWith((ref) => selected),
           pdsMutationDelayProvider.overrideWithValue((_) async {
             selected = replacement;
@@ -344,7 +353,10 @@ void main() {
           onLike: (did, rkey) => response.future,
         );
         final container = ProviderContainer.test(
-          overrides: [postRepositoryProvider.overrideWithValue(fake)],
+          overrides: [
+            testMemberBrowsingOverride,
+            postRepositoryProvider.overrideWithValue(fake),
+          ],
         );
 
         final mutation = container
@@ -374,6 +386,7 @@ void main() {
       );
       final container = ProviderContainer.test(
         overrides: [
+          testMemberBrowsingOverride,
           postRepositoryProvider.overrideWithValue(fake),
           pdsMutationDelayProvider.overrideWithValue((_) async {}),
           pdsMutationJitterProvider.overrideWithValue((_) => 0),
@@ -408,6 +421,7 @@ void main() {
       );
       final container = ProviderContainer.test(
         overrides: [
+          testMemberBrowsingOverride,
           postRepositoryProvider.overrideWithValue(fake),
           pdsMutationDelayProvider.overrideWithValue((_) async {}),
           pdsMutationJitterProvider.overrideWithValue((_) => 0),
@@ -453,6 +467,7 @@ void main() {
       );
       final container = ProviderContainer.test(
         overrides: [
+          testMemberBrowsingOverride,
           activeLanguagePreferencesProvider.overrideWith(
             (ref) => const LanguagePreferences(
               primaryLanguage: 'en',
@@ -464,32 +479,57 @@ void main() {
         ],
       );
 
-      await container.read(userPostsProvider(_aliceDid).future);
+      await container.read(
+        userPostsProvider(
+          _aliceDid,
+          audience: testMemberBrowsingAudience,
+        ).future,
+      );
       await container
           .read(toggleLikePostProvider.notifier)
           .toggle(post: original);
       final staleRead = await container.read(
-        userPostsProvider(_aliceDid).future,
+        userPostsProvider(
+          _aliceDid,
+          audience: testMemberBrowsingAudience,
+        ).future,
       );
       expect(staleRead.items.single.viewerHasLiked, isTrue);
       expect(staleRead.items.single.likeCount, 3);
 
       authoritativeLiked = true;
-      container.invalidate(userPostsProvider(_aliceDid));
-      await container.read(userPostsProvider(_aliceDid).future);
+      container.invalidate(
+        userPostsProvider(_aliceDid, audience: testMemberBrowsingAudience),
+      );
+      await container.read(
+        userPostsProvider(
+          _aliceDid,
+          audience: testMemberBrowsingAudience,
+        ).future,
+      );
       authoritativeLiked = false;
-      container.invalidate(userPostsProvider(_aliceDid));
+      container.invalidate(
+        userPostsProvider(_aliceDid, audience: testMemberBrowsingAudience),
+      );
       final afterAgreement = await container.read(
-        userPostsProvider(_aliceDid).future,
+        userPostsProvider(
+          _aliceDid,
+          audience: testMemberBrowsingAudience,
+        ).future,
       );
       expect(afterAgreement.items.single.viewerHasLiked, isTrue);
       expect(afterAgreement.items.single.likeCount, 3);
 
       now = now.add(const Duration(seconds: 30));
       controller.advanceTime();
-      container.invalidate(userPostsProvider(_aliceDid));
+      container.invalidate(
+        userPostsProvider(_aliceDid, audience: testMemberBrowsingAudience),
+      );
       final afterExpiry = await container.read(
-        userPostsProvider(_aliceDid).future,
+        userPostsProvider(
+          _aliceDid,
+          audience: testMemberBrowsingAudience,
+        ).future,
       );
       expect(afterExpiry.items.single.viewerHasLiked, isFalse);
       expect(afterExpiry.items.single.likeCount, 2);
@@ -507,6 +547,7 @@ void main() {
       );
       final container = ProviderContainer.test(
         overrides: [
+          testMemberBrowsingOverride,
           activeLanguagePreferencesProvider.overrideWith(
             (ref) => const LanguagePreferences(
               primaryLanguage: 'en',
@@ -517,17 +558,31 @@ void main() {
         ],
       );
 
-      await container.read(userPostsProvider(_aliceDid).future);
+      await container.read(
+        userPostsProvider(
+          _aliceDid,
+          audience: testMemberBrowsingAudience,
+        ).future,
+      );
       await container.read(toggleLikePostProvider.notifier).toggle(post: post);
-      await container.read(userPostsProvider(_aliceDid).future);
+      await container.read(
+        userPostsProvider(
+          _aliceDid,
+          audience: testMemberBrowsingAudience,
+        ).future,
+      );
 
       final handleUpdated = container
-          .read(userPostsProvider(_aliceDid))
+          .read(
+            userPostsProvider(_aliceDid, audience: testMemberBrowsingAudience),
+          )
           .value!
           .items
           .single;
       final didUpdated = container
-          .read(userPostsProvider(_aliceDid))
+          .read(
+            userPostsProvider(_aliceDid, audience: testMemberBrowsingAudience),
+          )
           .value!
           .items
           .single;
@@ -547,6 +602,7 @@ void main() {
       );
       final container = ProviderContainer.test(
         overrides: [
+          testMemberBrowsingOverride,
           activeLanguagePreferencesProvider.overrideWith(
             (ref) => const LanguagePreferences(
               primaryLanguage: 'en',
@@ -557,12 +613,24 @@ void main() {
         ],
       );
 
-      await container.read(userPostsProvider(_aliceDid).future);
+      await container.read(
+        userPostsProvider(
+          _aliceDid,
+          audience: testMemberBrowsingAudience,
+        ).future,
+      );
       await container.read(toggleLikePostProvider.notifier).toggle(post: post);
-      await container.read(userPostsProvider(_aliceDid).future);
+      await container.read(
+        userPostsProvider(
+          _aliceDid,
+          audience: testMemberBrowsingAudience,
+        ).future,
+      );
 
       final updated = container
-          .read(userPostsProvider(_aliceDid))
+          .read(
+            userPostsProvider(_aliceDid, audience: testMemberBrowsingAudience),
+          )
           .value!
           .items
           .single;
@@ -579,6 +647,7 @@ void main() {
       );
       final container = ProviderContainer.test(
         overrides: [
+          testMemberBrowsingOverride,
           activeLanguagePreferencesProvider.overrideWith(
             (ref) => const LanguagePreferences(
               primaryLanguage: 'en',
@@ -589,11 +658,18 @@ void main() {
         ],
       );
 
-      await container.read(userPostsProvider(_aliceDid).future);
+      await container.read(
+        userPostsProvider(
+          _aliceDid,
+          audience: testMemberBrowsingAudience,
+        ).future,
+      );
       await container.read(toggleLikePostProvider.notifier).toggle(post: post);
 
       final current = container
-          .read(userPostsProvider(_aliceDid))
+          .read(
+            userPostsProvider(_aliceDid, audience: testMemberBrowsingAudience),
+          )
           .value!
           .items
           .single;
@@ -615,6 +691,7 @@ void main() {
       );
       final container = ProviderContainer.test(
         overrides: [
+          testMemberBrowsingOverride,
           activeLanguagePreferencesProvider.overrideWith(
             (ref) => const LanguagePreferences(
               primaryLanguage: 'en',
@@ -662,6 +739,7 @@ void main() {
         );
         final container = ProviderContainer.test(
           overrides: [
+            testMemberBrowsingOverride,
             activeLanguagePreferencesProvider.overrideWith(
               (ref) => const LanguagePreferences(
                 primaryLanguage: 'en',
@@ -671,32 +749,62 @@ void main() {
             postRepositoryProvider.overrideWithValue(fake),
           ],
         );
-        await container.read(userPostsProvider(_aliceDid).future);
-        await container.read(userProjectsProvider(_aliceDid).future);
+        await container.read(
+          userPostsProvider(
+            _aliceDid,
+            audience: testMemberBrowsingAudience,
+          ).future,
+        );
+        await container.read(
+          userProjectsProvider(
+            _aliceDid,
+            audience: testMemberBrowsingAudience,
+          ).future,
+        );
 
         await container
             .read(toggleLikePostProvider.notifier)
             .toggle(post: post);
-        await container.read(userProjectsProvider(_aliceDid).future);
+        await container.read(
+          userProjectsProvider(
+            _aliceDid,
+            audience: testMemberBrowsingAudience,
+          ).future,
+        );
 
         _expectProjectLikeCaches(container, liked: true, likeCount: 3);
         _expectProfilePostCachesUnchanged(container);
 
         final liked = container
-            .read(userProjectsProvider(_aliceDid))
+            .read(
+              userProjectsProvider(
+                _aliceDid,
+                audience: testMemberBrowsingAudience,
+              ),
+            )
             .value!
             .items
             .single;
         await container
             .read(toggleLikePostProvider.notifier)
             .toggle(post: liked);
-        await container.read(userProjectsProvider(_aliceDid).future);
+        await container.read(
+          userProjectsProvider(
+            _aliceDid,
+            audience: testMemberBrowsingAudience,
+          ).future,
+        );
 
         _expectProjectLikeCaches(container, liked: false, likeCount: 2);
         _expectProfilePostCachesUnchanged(container);
 
         final unliked = container
-            .read(userProjectsProvider(_aliceDid))
+            .read(
+              userProjectsProvider(
+                _aliceDid,
+                audience: testMemberBrowsingAudience,
+              ),
+            )
             .value!
             .items
             .single;
@@ -722,7 +830,10 @@ void main() {
           onRepost: (did, rkey) => response.future,
         );
         final container = ProviderContainer.test(
-          overrides: [postRepositoryProvider.overrideWithValue(fake)],
+          overrides: [
+            testMemberBrowsingOverride,
+            postRepositoryProvider.overrideWithValue(fake),
+          ],
         );
 
         final mutation = container
@@ -754,6 +865,7 @@ void main() {
       );
       final container = ProviderContainer.test(
         overrides: [
+          testMemberBrowsingOverride,
           postRepositoryProvider.overrideWithValue(fake),
           pdsMutationDelayProvider.overrideWithValue((_) async {}),
           pdsMutationJitterProvider.overrideWithValue((_) => 0),
@@ -799,6 +911,7 @@ void main() {
       );
       final container = ProviderContainer.test(
         overrides: [
+          testMemberBrowsingOverride,
           activeLanguagePreferencesProvider.overrideWith(
             (ref) => const LanguagePreferences(
               primaryLanguage: 'en',
@@ -810,32 +923,57 @@ void main() {
         ],
       );
 
-      await container.read(userPostsProvider(_aliceDid).future);
+      await container.read(
+        userPostsProvider(
+          _aliceDid,
+          audience: testMemberBrowsingAudience,
+        ).future,
+      );
       await container
           .read(toggleRepostPostProvider.notifier)
           .toggle(post: original);
       final staleRead = await container.read(
-        userPostsProvider(_aliceDid).future,
+        userPostsProvider(
+          _aliceDid,
+          audience: testMemberBrowsingAudience,
+        ).future,
       );
       expect(staleRead.items.single.viewerHasReposted, isTrue);
       expect(staleRead.items.single.repostCount, 3);
 
       authoritativeReposted = true;
-      container.invalidate(userPostsProvider(_aliceDid));
-      await container.read(userPostsProvider(_aliceDid).future);
+      container.invalidate(
+        userPostsProvider(_aliceDid, audience: testMemberBrowsingAudience),
+      );
+      await container.read(
+        userPostsProvider(
+          _aliceDid,
+          audience: testMemberBrowsingAudience,
+        ).future,
+      );
       authoritativeReposted = false;
-      container.invalidate(userPostsProvider(_aliceDid));
+      container.invalidate(
+        userPostsProvider(_aliceDid, audience: testMemberBrowsingAudience),
+      );
       final afterAgreement = await container.read(
-        userPostsProvider(_aliceDid).future,
+        userPostsProvider(
+          _aliceDid,
+          audience: testMemberBrowsingAudience,
+        ).future,
       );
       expect(afterAgreement.items.single.viewerHasReposted, isTrue);
       expect(afterAgreement.items.single.repostCount, 3);
 
       now = now.add(const Duration(seconds: 30));
       controller.advanceTime();
-      container.invalidate(userPostsProvider(_aliceDid));
+      container.invalidate(
+        userPostsProvider(_aliceDid, audience: testMemberBrowsingAudience),
+      );
       final afterExpiry = await container.read(
-        userPostsProvider(_aliceDid).future,
+        userPostsProvider(
+          _aliceDid,
+          audience: testMemberBrowsingAudience,
+        ).future,
       );
       expect(afterExpiry.items.single.viewerHasReposted, isFalse);
       expect(afterExpiry.items.single.repostCount, 2);
@@ -853,6 +991,7 @@ void main() {
       );
       final container = ProviderContainer.test(
         overrides: [
+          testMemberBrowsingOverride,
           activeLanguagePreferencesProvider.overrideWith(
             (ref) => const LanguagePreferences(
               primaryLanguage: 'en',
@@ -863,14 +1002,26 @@ void main() {
         ],
       );
 
-      await container.read(userPostsProvider(_aliceDid).future);
+      await container.read(
+        userPostsProvider(
+          _aliceDid,
+          audience: testMemberBrowsingAudience,
+        ).future,
+      );
       await container
           .read(toggleRepostPostProvider.notifier)
           .toggle(post: post);
-      await container.read(userPostsProvider(_aliceDid).future);
+      await container.read(
+        userPostsProvider(
+          _aliceDid,
+          audience: testMemberBrowsingAudience,
+        ).future,
+      );
 
       final updated = container
-          .read(userPostsProvider(_aliceDid))
+          .read(
+            userPostsProvider(_aliceDid, audience: testMemberBrowsingAudience),
+          )
           .value!
           .items
           .single;
@@ -888,6 +1039,7 @@ void main() {
       );
       final container = ProviderContainer.test(
         overrides: [
+          testMemberBrowsingOverride,
           activeLanguagePreferencesProvider.overrideWith(
             (ref) => const LanguagePreferences(
               primaryLanguage: 'en',
@@ -898,14 +1050,26 @@ void main() {
         ],
       );
 
-      await container.read(userPostsProvider(_aliceDid).future);
+      await container.read(
+        userPostsProvider(
+          _aliceDid,
+          audience: testMemberBrowsingAudience,
+        ).future,
+      );
       await container
           .read(toggleRepostPostProvider.notifier)
           .toggle(post: post);
-      await container.read(userPostsProvider(_aliceDid).future);
+      await container.read(
+        userPostsProvider(
+          _aliceDid,
+          audience: testMemberBrowsingAudience,
+        ).future,
+      );
 
       final updated = container
-          .read(userPostsProvider(_aliceDid))
+          .read(
+            userPostsProvider(_aliceDid, audience: testMemberBrowsingAudience),
+          )
           .value!
           .items
           .single;
@@ -922,6 +1086,7 @@ void main() {
       );
       final container = ProviderContainer.test(
         overrides: [
+          testMemberBrowsingOverride,
           activeLanguagePreferencesProvider.overrideWith(
             (ref) => const LanguagePreferences(
               primaryLanguage: 'en',
@@ -932,13 +1097,20 @@ void main() {
         ],
       );
 
-      await container.read(userPostsProvider(_aliceDid).future);
+      await container.read(
+        userPostsProvider(
+          _aliceDid,
+          audience: testMemberBrowsingAudience,
+        ).future,
+      );
       await container
           .read(toggleRepostPostProvider.notifier)
           .toggle(post: post);
 
       final current = container
-          .read(userPostsProvider(_aliceDid))
+          .read(
+            userPostsProvider(_aliceDid, audience: testMemberBrowsingAudience),
+          )
           .value!
           .items
           .single;
@@ -960,6 +1132,7 @@ void main() {
       );
       final container = ProviderContainer.test(
         overrides: [
+          testMemberBrowsingOverride,
           activeLanguagePreferencesProvider.overrideWith(
             (ref) => const LanguagePreferences(
               primaryLanguage: 'en',
@@ -1002,6 +1175,7 @@ void main() {
         );
         final container = ProviderContainer.test(
           overrides: [
+            testMemberBrowsingOverride,
             activeLanguagePreferencesProvider.overrideWith(
               (ref) => const LanguagePreferences(
                 primaryLanguage: 'en',
@@ -1041,6 +1215,7 @@ void main() {
         );
         final container = ProviderContainer.test(
           overrides: [
+            testMemberBrowsingOverride,
             activeLanguagePreferencesProvider.overrideWith(
               (ref) => const LanguagePreferences(
                 primaryLanguage: 'en',
@@ -1050,32 +1225,62 @@ void main() {
             postRepositoryProvider.overrideWithValue(fake),
           ],
         );
-        await container.read(userPostsProvider(_aliceDid).future);
-        await container.read(userProjectsProvider(_aliceDid).future);
+        await container.read(
+          userPostsProvider(
+            _aliceDid,
+            audience: testMemberBrowsingAudience,
+          ).future,
+        );
+        await container.read(
+          userProjectsProvider(
+            _aliceDid,
+            audience: testMemberBrowsingAudience,
+          ).future,
+        );
 
         await container
             .read(toggleRepostPostProvider.notifier)
             .toggle(post: post);
-        await container.read(userProjectsProvider(_aliceDid).future);
+        await container.read(
+          userProjectsProvider(
+            _aliceDid,
+            audience: testMemberBrowsingAudience,
+          ).future,
+        );
 
         _expectProjectRepostCaches(container, reposted: true, repostCount: 2);
         _expectProfilePostCachesUnchanged(container);
 
         final reposted = container
-            .read(userProjectsProvider(_aliceDid))
+            .read(
+              userProjectsProvider(
+                _aliceDid,
+                audience: testMemberBrowsingAudience,
+              ),
+            )
             .value!
             .items
             .single;
         await container
             .read(toggleRepostPostProvider.notifier)
             .toggle(post: reposted);
-        await container.read(userProjectsProvider(_aliceDid).future);
+        await container.read(
+          userProjectsProvider(
+            _aliceDid,
+            audience: testMemberBrowsingAudience,
+          ).future,
+        );
 
         _expectProjectRepostCaches(container, reposted: false, repostCount: 1);
         _expectProfilePostCachesUnchanged(container);
 
         final unreposted = container
-            .read(userProjectsProvider(_aliceDid))
+            .read(
+              userProjectsProvider(
+                _aliceDid,
+                audience: testMemberBrowsingAudience,
+              ),
+            )
             .value!
             .items
             .single;
@@ -1098,7 +1303,9 @@ void _expectProjectLikeCaches(
   required int likeCount,
 }) {
   final project = container
-      .read(userProjectsProvider(_aliceDid))
+      .read(
+        userProjectsProvider(_aliceDid, audience: testMemberBrowsingAudience),
+      )
       .value!
       .items
       .single;
@@ -1108,7 +1315,14 @@ void _expectProjectLikeCaches(
 
 void _expectProfilePostCachesUnchanged(ProviderContainer container) {
   expect(
-    container.read(userPostsProvider(_aliceDid)).value!.items.single.rkey,
+    container
+        .read(
+          userPostsProvider(_aliceDid, audience: testMemberBrowsingAudience),
+        )
+        .value!
+        .items
+        .single
+        .rkey,
     'general',
   );
 }
@@ -1119,7 +1333,9 @@ void _expectProjectRepostCaches(
   required int repostCount,
 }) {
   final project = container
-      .read(userProjectsProvider(_aliceDid))
+      .read(
+        userProjectsProvider(_aliceDid, audience: testMemberBrowsingAudience),
+      )
       .value!
       .items
       .single;

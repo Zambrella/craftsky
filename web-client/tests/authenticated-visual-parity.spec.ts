@@ -217,7 +217,7 @@ for (const [name, route] of screens) {
 test('native welcome hierarchy and usable hydrated controls', async ({
 	page
 }, testInfo) => {
-	await page.goto('/sign-in');
+	await page.goto('/sign-in?add=1');
 	await expect(
 		page.getByRole('heading', { name: 'Join CraftSky', exact: true })
 	).toBeVisible();

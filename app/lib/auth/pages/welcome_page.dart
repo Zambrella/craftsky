@@ -20,7 +20,15 @@ import 'package:material_ui/material_ui.dart';
 enum _WelcomeAction { signIn, register }
 
 class WelcomePage extends ConsumerStatefulWidget {
-  const new({this.linkLauncher = launchExternalLink, super.key});
+  const new({
+    this.linkLauncher = launchExternalLink,
+    this.onExplore,
+    this.onStartAuth,
+    super.key,
+  });
+
+  final VoidCallback? onExplore;
+  final VoidCallback? onStartAuth;
 
   final ExternalLinkLauncher linkLauncher;
 
@@ -146,6 +154,13 @@ class _WelcomePageState extends ConsumerState<WelcomePage> {
                               child: Text(l10n.welcomeSignInAction),
                             ),
                           ),
+                          if (widget.onExplore != null) ...[
+                            SizedBox(height: spacing.sp3),
+                            TextButton(
+                              onPressed: busy ? null : widget.onExplore,
+                              child: const Text('Explore CraftSky'),
+                            ),
+                          ],
                           SizedBox(height: spacing.sp5),
                           _AtmosphereExplainer(l10n: l10n),
                           SizedBox(height: spacing.sp5),
@@ -169,6 +184,7 @@ class _WelcomePageState extends ConsumerState<WelcomePage> {
 
   void _signIn() {
     if (ref.read(authControllerProvider).isLoading) return;
+    widget.onStartAuth?.call();
     setState(() => _pendingAction = _WelcomeAction.signIn);
     unawaited(
       ref
@@ -179,6 +195,7 @@ class _WelcomePageState extends ConsumerState<WelcomePage> {
 
   void _startRegistration() {
     if (ref.read(authControllerProvider).isLoading) return;
+    widget.onStartAuth?.call();
     setState(() => _pendingAction = _WelcomeAction.register);
     unawaited(ref.read(authControllerProvider.notifier).startRegistration());
   }

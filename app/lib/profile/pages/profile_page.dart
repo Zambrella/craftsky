@@ -45,6 +45,7 @@ import 'package:craftsky_app/projects/providers/user_projects_provider.dart';
 import 'package:craftsky_app/router/app_shell_drawer.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
+import 'package:craftsky_app/shared/browsing/browsing_provider.dart';
 import 'package:craftsky_app/shared/errors/notification_destination_error.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/shared/sharing/copy_link_menu_item.dart';
@@ -122,30 +123,37 @@ class _ProfileScaffold extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final profileAsync = ref.watch(userProfileProvider(did));
+    final profileAsync = ref.watch(
+      userProfileProvider(did, audience: ref.read(browsingContextProvider)),
+    );
     final l10n = AppLocalizations.of(context);
     final isCompact = FormFactor.fromWidth(
       MediaQuery.sizeOf(context).width,
     ).isSmall;
-    ref.listen(userProfileProvider(did), (previous, next) {
-      final profile = next.value;
-      final lease = ref
-          .read(sessionRegistryProvider)
-          .value
-          ?.activeLease
-          ?.session;
-      if (profile == null || profile.did != viewerDid || lease == null) return;
-      unawaited(
-        ref
-            .read(sessionRegistryProvider.notifier)
-            .updateCachedIdentity(
-              lease,
-              displayName: profile.displayName,
-              avatarUrl: profile.avatar,
-              customisation: profile.customisation,
-            ),
-      );
-    });
+    ref.listen(
+      userProfileProvider(did, audience: ref.read(browsingContextProvider)),
+      (previous, next) {
+        final profile = next.value;
+        final lease = ref
+            .read(sessionRegistryProvider)
+            .value
+            ?.activeLease
+            ?.session;
+        if (profile == null || profile.did != viewerDid || lease == null) {
+          return;
+        }
+        unawaited(
+          ref
+              .read(sessionRegistryProvider.notifier)
+              .updateCachedIdentity(
+                lease,
+                displayName: profile.displayName,
+                avatarUrl: profile.avatar,
+                customisation: profile.customisation,
+              ),
+        );
+      },
+    );
     final destinationError = profileAsync.error;
     if (destinationError != null &&
         classifyNotificationDestinationError(destinationError) ==
@@ -215,7 +223,9 @@ class _ProfileScaffold extends ConsumerWidget {
     Object error,
   ) => NotificationDestinationErrorState(
     error: error,
-    onRetry: () => ref.invalidate(userProfileProvider(did)),
+    onRetry: () => ref.invalidate(
+      userProfileProvider(did, audience: ref.read(browsingContextProvider)),
+    ),
     onBack: () {
       final navigator = Navigator.of(context);
       if (navigator.canPop()) {
@@ -344,12 +354,28 @@ class _ProfileBody extends ConsumerWidget {
   final AccountKey? viewerAccount;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) => FollowReactionScope(
-    identity: profile.did,
-    builder: (context) => Consumer(
-      builder: (context, ref, _) => _build(context, ref),
-    ),
-  );
+  Widget build(BuildContext context, WidgetRef ref) =>
+      ref.watch(isGuestBrowsingProvider)
+      ? ProfileEntrance(
+          key: ValueKey(profile.did),
+          child: _ProfileTabbedBody(
+            key: ValueKey(profile.did),
+            profile: profile,
+            actions: GuestProfileActionSet(
+              onCopyLink: () =>
+                  copyRecordLink(context, RecordLinks.profile(profile.did)),
+            ),
+            isOwnProfile: false,
+            relationship: const ProfileRelationship(initialized: true),
+            viewerAccount: null,
+          ),
+        )
+      : FollowReactionScope(
+          identity: profile.did,
+          builder: (context) => Consumer(
+            builder: (context, ref, _) => _build(context, ref),
+          ),
+        );
 
   Widget _build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
@@ -1016,26 +1042,43 @@ class _ProfileTabScrollView extends ConsumerWidget {
     final l10n = AppLocalizations.of(context);
     final onRefresh = switch (tab) {
       ProfileTab.posts => () async {
-        final _ = await ref.refresh(userPostsProvider(profile.did).future);
+        final _ = await ref.refresh(
+          userPostsProvider(
+            profile.did,
+            audience: ref.read(browsingContextProvider),
+          ).future,
+        );
       },
       ProfileTab.projects => () async {
         final _ = await ref.refresh(
-          userProjectsProvider(profile.did).future,
+          userProjectsProvider(
+            profile.did,
+            audience: ref.read(browsingContextProvider),
+          ).future,
         );
       },
       ProfileTab.comments => () async {
         final _ = await ref.refresh(
-          userCommentsProvider(profile.did).future,
+          userCommentsProvider(
+            profile.did,
+            audience: ref.read(browsingContextProvider),
+          ).future,
         );
       },
       ProfileTab.reposts => () async {
         final _ = await ref.refresh(
-          userRepostsProvider(profile.did).future,
+          userRepostsProvider(
+            profile.did,
+            audience: ref.read(browsingContextProvider),
+          ).future,
         );
       },
       ProfileTab.products => () async {
         final _ = await ref.refresh(
-          userProfileProvider(profile.did).future,
+          userProfileProvider(
+            profile.did,
+            audience: ref.read(browsingContextProvider),
+          ).future,
         );
       },
       ProfileTab.upcomingEvents when viewerAccount != null =>
@@ -1043,9 +1086,10 @@ class _ProfileTabScrollView extends ConsumerWidget {
             .read(
               profileBusinessEventsProvider(
                 ProfileBusinessEventsTarget(
-                  account: viewerAccount!,
+                  account: viewerAccount,
                   owner: AtIdentifier.parse(profile.did.toString()),
                 ),
+                audience: ref.read(browsingContextProvider),
               ).notifier,
             )
             .refresh(),
@@ -1100,29 +1144,20 @@ class _ProfileTabScrollView extends ConsumerWidget {
             ? () => const BusinessProductsRoute().go(context)
             : null,
       ),
-      ProfileTab.upcomingEvents => switch (viewerAccount) {
-        final account? => ProfileEventsTab(
-          target: ProfileBusinessEventsTarget(
-            account: account,
-            owner: AtIdentifier.parse(profile.did.toString()),
-          ),
-          isOwnProfile: isOwnProfile,
-          onOpen: (did, rkey) => BusinessEventRoute(
-            did: did.toString(),
-            rkey: rkey.toString(),
-          ).push<void>(context),
-          onManage: isOwnProfile
-              ? () => const BusinessEventsRoute().go(context)
-              : null,
+      ProfileTab.upcomingEvents => ProfileEventsTab(
+        target: ProfileBusinessEventsTarget(
+          account: viewerAccount,
+          owner: AtIdentifier.parse(profile.did.toString()),
         ),
-        null => CraftskySkeletonSliverList(
-          itemCount: 3,
-          itemBuilder: (context, index) => Padding(
-            padding: const EdgeInsets.all(12),
-            child: EventCardSkeleton(showMedia: index == 0),
-          ),
-        ),
-      },
+        isOwnProfile: isOwnProfile,
+        onOpen: (did, rkey) => BusinessEventRoute(
+          did: did.toString(),
+          rkey: rkey.toString(),
+        ).push<void>(context),
+        onManage: isOwnProfile
+            ? () => const BusinessEventsRoute().go(context)
+            : null,
+      ),
       ProfileTab.about => ProfileAboutTab(profile: profile),
     };
   }

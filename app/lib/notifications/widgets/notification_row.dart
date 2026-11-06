@@ -19,6 +19,7 @@ import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar_hero.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
+import 'package:craftsky_app/shared/browsing/browsing_provider.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/shared/time/relative_time_text.dart';
 import 'package:craftsky_app/shared/widgets/action_progress.dart';
@@ -542,7 +543,10 @@ class _NotificationFollowButtonState
     // snapshot is only a fallback while the profile is unavailable.
     final isFollowing =
         ref.watch(
-          userProfileProvider(widget.actor.did).select(
+          userProfileProvider(
+            widget.actor.did,
+            audience: ref.read(browsingContextProvider),
+          ).select(
             (profile) => profile.value?.viewerIsFollowing,
           ),
         ) ??
@@ -573,7 +577,10 @@ class _NotificationFollowButtonState
     setState(() => _isBusy = true);
     // Keep auto-disposed providers alive across the profile read and mutation.
     final profileSubscription = ref.listenManual(
-      userProfileProvider(widget.actor.did),
+      userProfileProvider(
+        widget.actor.did,
+        audience: ref.read(browsingContextProvider),
+      ),
       (_, _) {},
     );
     final followSubscription = ref.listenManual(
@@ -582,7 +589,10 @@ class _NotificationFollowButtonState
     );
     try {
       final profile = await ref.read(
-        userProfileProvider(widget.actor.did).future,
+        userProfileProvider(
+          widget.actor.did,
+          audience: ref.read(browsingContextProvider),
+        ).future,
       );
       if (!mounted || !_isOwnerCurrent()) return false;
       await ref

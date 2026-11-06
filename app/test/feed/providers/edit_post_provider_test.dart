@@ -38,6 +38,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../search/fakes/fake_search_repository.dart';
+import '../../test_support/member_browsing_context.dart';
 import '../../test_support/session_registry_storage.dart';
 import '../fakes/fake_post_repository.dart';
 
@@ -49,6 +50,7 @@ void main() {
       final pending = Completer<Post>();
       final container = ProviderContainer.test(
         overrides: [
+          testMemberBrowsingOverride,
           postRepositoryProvider.overrideWithValue(
             FakePostRepository(
               onFetch: (_, _) => pending.future,
@@ -100,6 +102,7 @@ void main() {
       var reads = 0;
       final container = ProviderContainer.test(
         overrides: [
+          testMemberBrowsingOverride,
           postRepositoryProvider.overrideWithValue(
             FakePostRepository(
               onListTimeline: ({cursor, limit}) async {
@@ -150,7 +153,11 @@ void main() {
       await Future<void>.delayed(Duration.zero);
       expect(
         (await container.read(
-          postProvider(seed.post.author.did, seed.post.rkey).future,
+          postProvider(
+            seed.post.author.did,
+            seed.post.rkey,
+            audience: container.read(browsingContextProvider),
+          ).future,
         )).text,
         'After',
       );
@@ -175,6 +182,7 @@ void main() {
       );
       final container = ProviderContainer.test(
         overrides: [
+          testMemberBrowsingOverride,
           activeLanguagePreferencesProvider.overrideWith(
             (ref) => const LanguagePreferences(
               primaryLanguage: 'en',
@@ -236,6 +244,7 @@ void main() {
       final next = Completer<TimelinePage>();
       final container = ProviderContainer.test(
         overrides: [
+          testMemberBrowsingOverride,
           activeLanguagePreferencesProvider.overrideWith(
             (ref) => const LanguagePreferences(
               primaryLanguage: 'en',
@@ -309,6 +318,7 @@ void main() {
         var writes = 0;
         final container = ProviderContainer.test(
           overrides: [
+            testMemberBrowsingOverride,
             activeLanguagePreferencesProvider.overrideWith(
               (ref) => const LanguagePreferences(
                 primaryLanguage: 'en',
@@ -410,6 +420,7 @@ void main() {
       final seed = _seed();
       final c = ProviderContainer.test(
         overrides: [
+          testMemberBrowsingOverride,
           postEditRefreshProvider.overrideWithValue((_, _) {}),
           postRepositoryProvider.overrideWithValue(
             FakePostRepository(
@@ -467,6 +478,7 @@ void main() {
     final stack = StackTrace.fromString('original missing video blob stack');
     final container = ProviderContainer.test(
       overrides: [
+        testMemberBrowsingOverride,
         postRepositoryProvider.overrideWithValue(
           FakePostRepository(
             onEdit: (
@@ -515,6 +527,7 @@ void main() {
       );
       final container = ProviderContainer.test(
         overrides: [
+          testMemberBrowsingOverride,
           pdsMutationDelayProvider.overrideWithValue((_) async {}),
           pdsMutationJitterProvider.overrideWithValue((_) => 0),
           postRepositoryProvider.overrideWithValue(
@@ -571,6 +584,7 @@ void main() {
       var calls = 0;
       final container = ProviderContainer.test(
         overrides: [
+          testMemberBrowsingOverride,
           postRepositoryProvider.overrideWithValue(
             FakePostRepository(
               onEdit:
@@ -672,6 +686,7 @@ void main() {
     );
     final container = ProviderContainer.test(
       overrides: [
+        testMemberBrowsingOverride,
         postRepositoryProvider.overrideWithValue(repository),
         accountSavedPostRepositoryProvider(savedKey.account)
             .overrideWith((ref) async => _SavedEditReadRepository(seed.post)),
@@ -699,6 +714,7 @@ void main() {
     await container.read(savedPostsProvider(savedKey).future);
     final searchProvider = postSearchProvider(
       const PostSearchQuery(q: 'shirt'),
+      audience: container.read(browsingContextProvider),
     );
     final searchSubscription = container.listen(searchProvider, (_, _) {});
     addTearDown(searchSubscription.close);
@@ -741,7 +757,11 @@ void main() {
       ], includes: (_) => true),
     );
     final detail = await container.read(
-      postProvider(seed.post.author.did, seed.post.rkey).future,
+      postProvider(
+        seed.post.author.did,
+        seed.post.rkey,
+        audience: container.read(browsingContextProvider),
+      ).future,
     );
     expect(detail.text, 'After');
     expect(detail.likeCount, 9);
@@ -749,6 +769,7 @@ void main() {
       postCommentSectionProvider(
         seed.post.author.did,
         RecordKey.parse('root'),
+        audience: container.read(browsingContextProvider),
       ).future,
     );
     expect(thread.comments.items.single.post.text, 'After');
@@ -780,6 +801,7 @@ void main() {
       final seed = _seed();
       final container = ProviderContainer.test(
         overrides: [
+          testMemberBrowsingOverride,
           postRepositoryProvider.overrideWithValue(
             FakePostRepository(
               onEdit:
@@ -871,6 +893,7 @@ void main() {
       final base = _seed().post;
       final c = ProviderContainer.test(
         overrides: [
+          testMemberBrowsingOverride,
           postEditRefreshProvider.overrideWithValue((_, _) {}),
           postRepositoryProvider.overrideWithValue(
             FakePostRepository(

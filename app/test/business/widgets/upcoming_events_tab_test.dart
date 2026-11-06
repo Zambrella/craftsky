@@ -22,6 +22,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../../test_support/member_browsing_context.dart';
+
 void main() {
   testWidgets('IT-013 event list renders an accepted local preview', (
     tester,
@@ -333,7 +335,10 @@ Future<void> _pump(
   required Widget child,
 }) => tester.pumpWidget(
   ProviderScope(
-    overrides: [businessRepositoryProvider.overrideWithValue(repository)],
+    overrides: [
+      memberBrowsingOverrideFor('did:plc:viewer'),
+      businessRepositoryProvider.overrideWithValue(repository),
+    ],
     child: MaterialApp(
       theme: AppTheme.lightThemeData,
       locale: const Locale('en'),

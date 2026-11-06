@@ -17,7 +17,7 @@ it('fetches only anonymous data without following redirects', async () => {
 	expect(options?.credentials).toBe('omit');
 	expect(options?.headers).toEqual({ accept: 'application/json' });
 });
-it.each([400, 404, 429, 500, 503])(
+it.each([400, 403, 404, 429, 500, 503])(
 	'maps upstream %s without reflecting error payloads',
 	async (status) => {
 		const fake = vi
@@ -58,4 +58,18 @@ it('rejects redirects without requesting the Location target', async () => {
 		status: 503
 	});
 	expect(fake).toHaveBeenCalledTimes(1);
+});
+
+// UT-008 / FR-011 / AC-011: opt-out is an authentication-required result,
+// not a transient upstream failure or a source of private metadata.
+it('maps a known opt-out to generic authentication-required text', async () => {
+	const fake = vi
+		.fn<typeof fetch>()
+		.mockResolvedValue(
+			new Response('PRIVATE_NAME PRIVATE_MEDIA', { status: 403 })
+		);
+	await expect(publicAPI(fake, 'posts/a/b')).rejects.toMatchObject({
+		status: 403,
+		body: { message: 'Sign in to view this content.' }
+	});
 });

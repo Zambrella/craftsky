@@ -7,6 +7,7 @@ import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/feed/providers/user_posts_provider.dart';
 import 'package:craftsky_app/projects/providers/user_projects_provider.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
+import 'package:craftsky_app/shared/browsing/browsing_provider.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'profile_pins_provider.g.dart';
@@ -146,10 +147,16 @@ class ProfilePins extends _$ProfilePins {
     for (final id in <Did>{did, ...authorCacheIds}) {
       switch (slot) {
         case ProfilePinSlot.standard:
-          final provider = userPostsProvider(id);
+          final provider = userPostsProvider(
+            id,
+            audience: ref.read(browsingContextProvider),
+          );
           if (ref.exists(provider)) ref.invalidate(provider);
         case ProfilePinSlot.project:
-          final provider = userProjectsProvider(id);
+          final provider = userProjectsProvider(
+            id,
+            audience: ref.read(browsingContextProvider),
+          );
           if (ref.exists(provider)) ref.invalidate(provider);
       }
     }

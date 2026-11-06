@@ -25,6 +25,7 @@ import 'package:craftsky_app/profile/providers/block_profile_overlay.dart';
 import 'package:craftsky_app/profile/providers/toggle_block_profile_provider.dart';
 import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
 import 'package:craftsky_app/router/router.dart';
+import 'package:craftsky_app/shared/browsing/browsing_provider.dart';
 import 'package:craftsky_app/shared/link/external_link.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/shared/messaging/message_action.dart';
@@ -444,7 +445,14 @@ class _ConversationViewState extends ConsumerState<_ConversationView>
     final peer = conversation?.peer;
     final profile = peer == null
         ? null
-        : ref.watch(userProfileProvider(peer.did)).value;
+        : ref
+              .watch(
+                userProfileProvider(
+                  peer.did,
+                  audience: ref.read(browsingContextProvider),
+                ),
+              )
+              .value;
     final blockOverlay = peer == null
         ? null
         : ref

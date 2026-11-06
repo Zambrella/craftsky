@@ -6,6 +6,7 @@ import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../../test_support/member_browsing_context.dart';
 import '../fakes/fake_post_repository.dart';
 
 void main() {
@@ -36,7 +37,10 @@ void main() {
       );
 
       final container = ProviderContainer.test(
-        overrides: [postRepositoryProvider.overrideWithValue(fake)],
+        overrides: [
+          browsingContextProvider.overrideWith(TestMemberBrowsingContext.new),
+          postRepositoryProvider.overrideWithValue(fake),
+        ],
       );
 
       final post = await container.read(
@@ -54,7 +58,10 @@ void main() {
       );
 
       final container = ProviderContainer.test(
-        overrides: [postRepositoryProvider.overrideWithValue(fake)],
+        overrides: [
+          browsingContextProvider.overrideWith(TestMemberBrowsingContext.new),
+          postRepositoryProvider.overrideWithValue(fake),
+        ],
       );
 
       // Listen to keep the provider alive while the future settles, then

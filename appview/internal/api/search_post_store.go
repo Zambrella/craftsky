@@ -133,7 +133,7 @@ func (s *SearchStore) searchPosts(ctx context.Context, req searchPostQuery) ([]S
 				))
 			  )
 			` + relationshipTopLevelPredicate("$8") + `
-			` + postVisibleModerationPredicate + `
+			` + postReadPredicate(ctx) + `
 			` + languageVisibilityPredicate("p", "$8", "$9") + `
 		)
 		SELECT ` + postSelectColumns + `, popularity_score
@@ -169,7 +169,7 @@ func (s *SearchStore) searchPosts(ctx context.Context, req searchPostQuery) ([]S
 		` + relationshipTopLevelPredicate("$6") + `
 		` + languageVisibilityPredicate("p", "$6", "$7") + `
 		  AND ($3::timestamptz IS NULL OR (LEAST(p.created_at, p.indexed_at, p.profile_sort_at), p.uri) < ($3::timestamptz, $4::text))
-		` + postVisibleModerationPredicate + `
+		` + postReadPredicate(ctx) + `
 		ORDER BY LEAST(p.created_at, p.indexed_at, p.profile_sort_at) DESC, p.uri DESC
 		LIMIT $2`
 		var queryErr error

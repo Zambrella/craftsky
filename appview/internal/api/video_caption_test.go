@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 
@@ -88,5 +89,43 @@ func TestVideoCaptionHandlerFailsClosedOnInvalidFetchedBody(t *testing.T) {
 		if recorder.Code != http.StatusBadGateway || recorder.Body.String() == "" {
 			t.Fatalf("response = %d %q", recorder.Code, recorder.Body.String())
 		}
+	}
+}
+
+// AT-005 / IT-011: caption blobs are readable only through an eligible post.
+func TestPublicVideoCaptionChecksGuestEligibility(t *testing.T) {
+	pool, _ := publicReadFixture(t)
+	ctx := context.Background()
+	const captionCID = "bafkreigxxxkul4e5rjz4fomqgn6ieeoxbcqeztmxjbrhnbpe7r44ya4ahe"
+	for _, owner := range []string{"public", "hidden", "unknown"} {
+		uri := seedSearchProject(t, pool, "did:plc:"+owner, "caption", "caption", "knitting", "video", time.Now().UTC())
+		embed := `{"$type":"app.bsky.embed.video","captions":[{"lang":"en","file":{"ref":{"$link":"` + captionCID + `"},"mimeType":"text/vtt","size":20}}]}`
+		if _, err := pool.Exec(ctx, `UPDATE craftsky_posts SET record=jsonb_set(record,'{embed}',$2::jsonb) WHERE uri=$1`, uri, embed); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := pool.Exec(ctx, `INSERT INTO image_subject_states(subject_uri,subject_kind,source_cid,visibility_state) SELECT uri,'post',cid,'clear' FROM craftsky_posts WHERE uri=$1`, uri); err != nil {
+			t.Fatal(err)
+		}
+	}
+	fetcher := &captionBlobFetcher{body: []byte("WEBVTT\n\n00:00.000 --> 00:01.000\nPublic caption\n")}
+	handler := api.PublicVideoCaptionHandler(api.NewPostStore(pool), fetcher, nil)
+	for _, owner := range []string{"public", "hidden", "unknown"} {
+		r := httptest.NewRequest("GET", "/v1/public/posts/did:plc:"+owner+"/caption/video-captions/"+captionCID, nil)
+		r.SetPathValue("did", "did:plc:"+owner)
+		r.SetPathValue("rkey", "caption")
+		r.SetPathValue("captionCid", captionCID)
+		r.Header.Set("Authorization", "Bearer spoof")
+		w := httptest.NewRecorder()
+		handler.ServeHTTP(w, r)
+		want := 404
+		if owner == "public" {
+			want = 200
+		}
+		if w.Code != want || w.Header().Get("Cache-Control") != "no-store" {
+			t.Fatalf("owner=%s status=%d body=%s cache=%s", owner, w.Code, w.Body, w.Header().Get("Cache-Control"))
+		}
+	}
+	if fetcher.calls != 1 {
+		t.Fatalf("fetched ineligible blob: %d", fetcher.calls)
 	}
 }

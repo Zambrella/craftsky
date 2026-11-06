@@ -26,7 +26,8 @@
 	import ChoiceMenu from './ChoiceMenu.svelte';
 	import EmptyState from './EmptyState.svelte';
 	import { craftFeeds, craftKey } from './craft-feeds';
-	let { api, did }: { api: CraftskyAPI; did: string } = $props();
+	let { api, did }: { api: CraftskyAPI; did?: string } = $props();
+	const guest = $derived(api.audience === 'guest');
 	type FeedItem = { key: string; post: PostPresentation; reason?: Author };
 	type FeedSnapshot = {
 		profile?: Profile;
@@ -82,9 +83,12 @@
 	async function load(more = false) {
 		await work.run(
 			async () => {
-				if (!profile) profile = await api.profiles.me();
-				const options = { limit: 30, cursor: more ? cursor : undefined };
-				if (!craft) {
+				if (!guest && !profile) profile = await api.profiles.me();
+				const options = {
+					limit: guest ? 20 : 30,
+					cursor: more ? cursor : undefined
+				};
+				if (!craft && !guest) {
 					const result = await api.posts.timeline(options);
 					return {
 						items: result.items.map((item) => ({
@@ -97,9 +101,13 @@
 				}
 				const result = await api.search.browseProjects({
 					...options,
-					craftType: [
-						craft.includes('#') ? craft : `social.craftsky.feed.defs#${craft}`
-					],
+					craftType: craft
+						? [
+								craft.includes('#')
+									? craft
+									: `social.craftsky.feed.defs#${craft}`
+							]
+						: undefined,
 					sort:
 						page.url.searchParams.get('sort') === 'popular'
 							? 'popular'
@@ -155,7 +163,7 @@
 <div class="feed-content" hidden={page.url.pathname.endsWith('/filters')}>
 	<div class="workspace-heading">
 		<h1>Home</h1>
-		{#if craft}<div class="heading-actions">
+		{#if craft || guest}<div class="heading-actions">
 				<ChoiceMenu
 					label="Sort projects"
 					appBar
@@ -180,7 +188,9 @@
 	</div>
 	<nav class="tabs" use:dragScroll aria-label="Home feeds">
 		<a href="/feed" aria-current={!craft ? 'page' : undefined}
-			><Icon name="users" size={18} />Following</a
+			><Icon name={guest ? 'home' : 'users'} size={18} />{guest
+				? 'All crafts'
+				: 'Following'}</a
 		>{#each craftFeeds(currentProfile?.()?.crafts ?? profile?.crafts) as item}{@const key =
 				craftKey(item.id)}<a
 				href={'/feed?craft=' + encodeURIComponent(item.id)}
@@ -210,7 +220,7 @@
 					: 'Your feed is quiet.'}
 				icon="home"
 			>
-				{#snippet actions()}{#if !craft}<a href="/settings/instagram"
+				{#snippet actions()}{#if !craft && !guest}<a href="/settings/instagram"
 							>Connect Instagram</a
 						><a href="/search">Search CraftSky</a><a
 							href={'/feed?craft=' +

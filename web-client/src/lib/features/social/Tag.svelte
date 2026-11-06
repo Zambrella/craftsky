@@ -6,7 +6,7 @@
 	import MemberPost from './MemberPost.svelte';
 	import Icon from '../shell/Icon.svelte';
 	import EmptyState from './EmptyState.svelte';
-	let { api, did, tag }: { api: CraftskyAPI; did: string; tag: string } =
+	let { api, did, tag }: { api: CraftskyAPI; did?: string; tag: string } =
 		$props();
 	const back = getContext<(event: MouseEvent) => void>('craftsky-back');
 	const work = new Work('social.Tag.action');
@@ -25,13 +25,14 @@
 	}
 	onMount(() => {
 		void load();
-		void api.search
-			.saveRecent({
-				type: 'hashtag',
-				displayLabel: '#' + tag,
-				payload: { tag }
-			})
-			.catch(() => {});
+		if (api.audience !== 'guest')
+			void api.search
+				.saveRecent({
+					type: 'hashtag',
+					displayLabel: '#' + tag,
+					payload: { tag }
+				})
+				.catch(() => {});
 	});
 	onDestroy(() => work.dispose());
 </script>

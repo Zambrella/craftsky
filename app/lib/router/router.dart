@@ -55,6 +55,9 @@ import 'package:craftsky_app/settings/pages/profile_customisation_page.dart';
 import 'package:craftsky_app/settings/pages/relationship_list_page.dart';
 import 'package:craftsky_app/settings/pages/settings_page.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
+import 'package:craftsky_app/shared/browsing/browsing_provider.dart';
+import 'package:craftsky_app/shared/browsing/guest_frame.dart';
+import 'package:craftsky_app/shared/browsing/guest_session.dart';
 import 'package:craftsky_app/shared/observability/sentry_error_reporter.dart';
 import 'package:craftsky_app/subscriptions/pages/subscription_page.dart';
 import 'package:craftsky_app/subscriptions/providers/subscription_access_provider.dart';
@@ -134,7 +137,7 @@ GoRouter goRouter(Ref ref) {
     ..listen(activeAccountInitializationProvider, refreshRouter);
 
   return GoRouter(
-    initialLocation: RouteLocations.welcome,
+    initialLocation: RouteLocations.feed,
     navigatorKey: _NavigatorKeys.rootNavigatorKey,
     observers: [diagnosticNavigationObserver()],
     refreshListenable: refresh,
@@ -151,9 +154,11 @@ GoRouter goRouter(Ref ref) {
       switch (auth) {
         case SignedOut():
           if (loc == RouteLocations.authComplete) return null;
-          return unauthenticatedRoutes.contains(loc)
-              ? null
-              : RouteLocations.welcome;
+          if (isPublicReadingLocation(loc)) return null;
+          if (unauthenticatedRoutes.contains(loc)) {
+            return '${RouteLocations.feed}?auth=1';
+          }
+          return RouteLocations.feed;
         case SignedIn():
           if (loc == RouteLocations.authComplete) return null;
           if (loc == RouteLocations.accountDeletionReauthComplete) {
@@ -181,7 +186,12 @@ GoRouter goRouter(Ref ref) {
           if (initialization.onboardingComplete &&
               (unauthenticatedRoutes.contains(loc) ||
                   loc == RouteLocations.onboarding)) {
-            return RouteLocations.home;
+            return ref.read(guestSessionProvider).consumeReturnTo();
+          }
+          final guestSession = ref.read(guestSessionProvider);
+          if (initialization.onboardingComplete &&
+              Uri.parse(guestSession.returnTo).path == loc) {
+            guestSession.consumeReturnTo();
           }
           if (!subscriptionsEnabled && loc == RouteLocations.subscriptions) {
             return RouteLocations.settings;
@@ -482,14 +492,44 @@ class AuthenticatedShellRoute extends ShellRouteData {
 
   @override
   Widget builder(BuildContext context, GoRouterState state, Widget navigator) {
-    return ChatSessionScope(
-      child: AuthenticatedShell(navigatorKey: $navigatorKey, child: navigator),
+    return Consumer(
+      builder: (context, ref, _) {
+        if (ref.watch(isGuestBrowsingProvider)) {
+          return GuestFrame(child: navigator);
+        }
+        return ChatSessionScope(
+          child: AuthenticatedShell(
+            navigatorKey: $navigatorKey,
+            child: navigator,
+          ),
+        );
+      },
     );
   }
 }
 
 class AppShellRoute extends StatefulShellRouteData {
   const new();
+
+  static Widget Function(BuildContext, StatefulNavigationShell, List<Widget>)
+  get $navigatorContainerBuilder =>
+      (context, shell, children) => Consumer(
+        builder: (context, ref, _) {
+          if (ref.watch(isGuestBrowsingProvider)) {
+            return children[shell.currentIndex];
+          }
+          return IndexedStack(
+            index: shell.currentIndex,
+            children: [
+              for (var i = 0; i < children.length; i++)
+                TickerMode(
+                  enabled: i == shell.currentIndex,
+                  child: children[i],
+                ),
+            ],
+          );
+        },
+      );
 
   @override
   Widget builder(
@@ -1048,11 +1088,8 @@ class BusinessEventRoute extends GoRouteData with $BusinessEventRoute {
     final auth = ProviderScope.containerOf(
       context,
     ).read(authSessionProvider).value;
-    if (auth is! SignedIn) {
-      return const Scaffold(body: SizedBox.shrink());
-    }
     return EventDetailPage(
-      account: AccountKey(auth.did.toString()),
+      account: auth is SignedIn ? AccountKey(auth.did.toString()) : null,
       owner: Did.parse(did),
       rkey: RecordKey.parse(rkey),
     );

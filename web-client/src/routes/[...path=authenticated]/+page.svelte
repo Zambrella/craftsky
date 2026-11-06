@@ -1,6 +1,10 @@
 <script lang="ts">
 	import AuthenticatedPage from '#lib/features/shell/AuthenticatedPage.svelte';
-	let { data } = $props();
+	import GuestPage from '#lib/features/browsing/GuestPage.svelte';
+	import type { PageData } from './$types';
+	let { data }: { data: PageData } = $props();
 </script>
 
-<AuthenticatedPage {data} />
+{#if data.guest}<GuestPage path={data.guest.path} />{:else}<AuthenticatedPage
+		{data}
+	/>{/if}

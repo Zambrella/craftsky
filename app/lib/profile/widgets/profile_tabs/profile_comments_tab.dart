@@ -14,6 +14,7 @@ import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/moderation/widgets/report_flow.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
+import 'package:craftsky_app/shared/browsing/browsing_provider.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
@@ -39,7 +40,9 @@ class ProfileCommentsTab extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
-    final commentsAsync = ref.watch(userCommentsProvider(did));
+    final commentsAsync = ref.watch(
+      userCommentsProvider(did, audience: ref.read(browsingContextProvider)),
+    );
 
     ref
       ..listen(deletePostProvider, (previous, next) {
@@ -83,7 +86,12 @@ class ProfileCommentsTab extends ConsumerWidget {
       ),
       AsyncError(:final error) => _ProfileCommentsErrorSliver(
         error: error,
-        onRetry: () => ref.invalidate(userCommentsProvider(did)),
+        onRetry: () => ref.invalidate(
+          userCommentsProvider(
+            did,
+            audience: ref.read(browsingContextProvider),
+          ),
+        ),
       ),
       _ => CraftskySkeletonSliverList(
         itemBuilder: (context, index) => CommentRowSkeleton(
@@ -142,7 +150,14 @@ class _ProfileCommentsLoadedSlivers extends ConsumerWidget {
                 WidgetsBinding.instance.addPostFrameCallback((_) {
                   if (context.mounted) {
                     unawaited(
-                      ref.read(userCommentsProvider(did).notifier).loadMore(),
+                      ref
+                          .read(
+                            userCommentsProvider(
+                              did,
+                              audience: ref.read(browsingContextProvider),
+                            ).notifier,
+                          )
+                          .loadMore(),
                     );
                   }
                 });
@@ -198,8 +213,14 @@ class _ProfileCommentsLoadedSlivers extends ConsumerWidget {
                 child: switch ((isLoadingMore, hasLoadMoreError)) {
                   (true, _) => const StitchProgressIndicator(),
                   (_, true) => TextButton.icon(
-                    onPressed: () =>
-                        ref.read(userCommentsProvider(did).notifier).loadMore(),
+                    onPressed: () => ref
+                        .read(
+                          userCommentsProvider(
+                            did,
+                            audience: ref.read(browsingContextProvider),
+                          ).notifier,
+                        )
+                        .loadMore(),
                     icon: const Icon(CraftskyIconsBold.refresh),
                     label: Text(l10n.retryButton),
                   ),
@@ -235,7 +256,9 @@ class _ProfileCommentsLoadedSlivers extends ConsumerWidget {
   ) async {
     final created = await showPostComposerSheet(context, replyTarget: post);
     if (created == null) return;
-    ref.invalidate(userCommentsProvider(did));
+    ref.invalidate(
+      userCommentsProvider(did, audience: ref.read(browsingContextProvider)),
+    );
   }
 }
 

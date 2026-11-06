@@ -5,6 +5,7 @@ import 'package:craftsky_app/auth/providers/account_operation_guard.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/providers/post_provider.dart';
 import 'package:craftsky_app/feed/providers/post_record_overlay.dart';
+import 'package:craftsky_app/shared/browsing/browsing_provider.dart';
 import 'package:craftsky_app/shared/mutations/pds_record_operation_controller.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -23,7 +24,11 @@ final postEditRefreshProvider = Provider<PostEditRefresh>((ref) {
     if (!operation.isCurrent) return;
     final scope = postRecordMutationScope(ref, post);
     if (!pending.add(scope)) return;
-    final provider = postProvider(post.author.did, post.rkey);
+    final provider = postProvider(
+      post.author.did,
+      post.rkey,
+      audience: ref.read(browsingContextProvider),
+    );
     ref.invalidate(provider);
     final subscription = ref.listen(provider, (_, _) {});
     unawaited(

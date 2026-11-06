@@ -1,4 +1,3 @@
-import 'package:craftsky_app/auth/providers/account_operation_guard.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/providers/like_post_overlay.dart';
 import 'package:craftsky_app/feed/providers/post_record_overlay.dart';
@@ -8,6 +7,9 @@ import 'package:craftsky_app/projects/models/user_projects_state.dart';
 import 'package:craftsky_app/projects/providers/project_repository_provider.dart';
 import 'package:craftsky_app/search/providers/search_pagination.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
+import 'package:craftsky_app/shared/browsing/browsing_context.dart';
+import 'package:craftsky_app/shared/browsing/browsing_provider.dart';
+import 'package:craftsky_app/shared/browsing/content_read_guard.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'project_feed_provider.g.dart';
@@ -19,7 +21,16 @@ class ProjectFeed extends _$ProjectFeed {
   static String formatLogValue(Object? value) => value.toString();
 
   @override
-  Future<UserProjectsState> build(ProjectBrowseQuery query) async {
+  Future<UserProjectsState> build(
+    ProjectBrowseQuery query, {
+    BrowsingContext? audience,
+  }) async {
+    final read = await ContentReadGuard.captureWhenReady(ref);
+    read.requireCurrent(discarded: const ApiCanceled());
+    if (audience != null && read.context != audience) {
+      throw const ContentReadDiscarded();
+    }
+
     final loadedCount = state.value?.items.length ?? 0;
     listenForPostEdits(ref, () {
       final current = state.value;
@@ -28,8 +39,10 @@ class ProjectFeed extends _$ProjectFeed {
         current.copyWith(items: applyLoadedPostEdits(ref, current.items)),
       );
     });
-    ref.watch(activeContentLanguagePolicyProvider);
-    final accountOperation = ActiveAccountOperation.capture(ref);
+    if (!ref.watch(isGuestBrowsingProvider)) {
+      ref.watch(activeContentLanguagePolicyProvider);
+    }
+    final accountOperation = ContentReadGuard.capture(ref);
     final repository = ref.watch(projectRepositoryProvider);
     var page = await repository.listProjects(
       query: query,
@@ -61,7 +74,7 @@ class ProjectFeed extends _$ProjectFeed {
     if (!state.hasValue || state.isLoading) return;
     final current = state.requireValue;
     if (!current.hasMore) return;
-    final accountOperation = ActiveAccountOperation.capture(ref);
+    final accountOperation = ContentReadGuard.capture(ref);
 
     state = const AsyncLoading<UserProjectsState>();
 

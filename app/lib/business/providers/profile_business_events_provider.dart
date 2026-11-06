@@ -1,10 +1,13 @@
 import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/auth/models/account_session_lease.dart';
-import 'package:craftsky_app/auth/providers/account_operation_guard.dart';
 import 'package:craftsky_app/business/models/business_event.dart';
 import 'package:craftsky_app/business/providers/business_record_overlay.dart';
 import 'package:craftsky_app/business/providers/business_repository_provider.dart';
+import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
+import 'package:craftsky_app/shared/browsing/browsing_context.dart';
+import 'package:craftsky_app/shared/browsing/browsing_provider.dart';
+import 'package:craftsky_app/shared/browsing/content_read_guard.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
 import 'package:flutter/foundation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -18,7 +21,7 @@ final class ProfileBusinessEventsTarget {
     required this.owner,
   });
 
-  final AccountKey account;
+  final AccountKey? account;
   final AtIdentifier owner;
 
   @override
@@ -87,10 +90,25 @@ class ProfileBusinessEvents extends _$ProfileBusinessEvents {
 
   @override
   Future<BusinessEventListState> build(
-    ProfileBusinessEventsTarget target,
-  ) async {
+    ProfileBusinessEventsTarget target, {
+    BrowsingContext? audience,
+  }) async {
+    final read = await ContentReadGuard.captureWhenReady(ref);
+    read.requireCurrent(discarded: const ApiCanceled());
+    if (audience != null && read.context != audience) {
+      throw const ContentReadDiscarded();
+    }
+
     _generation = 0;
-    final accountOperation = ActiveAccountOperation.capture(ref);
+    final accountOperation = ContentReadGuard.capture(ref);
+    if (ref.watch(isGuestBrowsingProvider)) {
+      final page = await accountOperation.step(
+        () => ref
+            .watch(businessRepositoryProvider)
+            .listProfileEvents(target.owner),
+      );
+      return BusinessEventListState(items: page.items, cursor: page.cursor);
+    }
     final ownership = accountOperation.ownership;
     if (ownership != null && ownership.session.account != target.account) {
       throw DiagnosticStateError('Active account changed');
@@ -135,12 +153,16 @@ class ProfileBusinessEvents extends _$ProfileBusinessEvents {
   }
 
   Future<void> loadMore() async {
+    if (ref.read(isGuestBrowsingProvider)) {
+      await _loadGuestMore();
+      return;
+    }
     final current = state.value;
     if (current == null || current.cursor == null || current.isLoadingMore) {
       return;
     }
     final generation = _generation;
-    final accountOperation = ActiveAccountOperation.capture(ref);
+    final accountOperation = ContentReadGuard.capture(ref);
     final ownership = accountOperation.ownership;
     final lease = _lease(ownership);
     final readFence = captureBusinessEventListRead(ref, lease);
@@ -192,10 +214,15 @@ class ProfileBusinessEvents extends _$ProfileBusinessEvents {
   }
 
   Future<void> refresh() async {
+    if (ref.read(isGuestBrowsingProvider)) {
+      ref.invalidateSelf();
+      await future;
+      return;
+    }
     final current = state.value;
     if (current == null || current.isRefreshing) return;
     final generation = ++_generation;
-    final accountOperation = ActiveAccountOperation.capture(ref);
+    final accountOperation = ContentReadGuard.capture(ref);
     final ownership = accountOperation.ownership;
     final lease = _lease(ownership);
     final readFence = captureBusinessEventListRead(ref, lease);
@@ -243,6 +270,38 @@ class ProfileBusinessEvents extends _$ProfileBusinessEvents {
     }
   }
 
+  Future<void> _loadGuestMore() async {
+    final current = state.value;
+    if (current == null || current.cursor == null || current.isLoadingMore) {
+      return;
+    }
+    final read = ContentReadGuard.capture(ref);
+    state = AsyncData(
+      current.copyWith(isLoadingMore: true, incrementalError: null),
+    );
+    try {
+      final page = await read.step(
+        () => ref
+            .read(businessRepositoryProvider)
+            .listProfileEvents(target.owner, cursor: current.cursor),
+      );
+      read.publish(
+        () => state = AsyncData(
+          current.copyWith(
+            items: _dedupe([...current.items, ...page.items]),
+            cursor: page.cursor,
+          ),
+        ),
+      );
+    } on Object catch (error) {
+      read.publish(
+        () => state = AsyncData(
+          current.copyWith(incrementalError: error, isLoadingMore: false),
+        ),
+      );
+    }
+  }
+
   BusinessEventListReconciliation _reconcile(
     Iterable<BusinessEvent> events,
     AccountSessionLease lease,
@@ -284,7 +343,7 @@ class ProfileBusinessEvents extends _$ProfileBusinessEvents {
 
   AccountSessionLease _lease(ActiveAccountLease? ownership) =>
       ownership?.session ??
-      AccountSessionLease(account: target.account, sessionGeneration: 0);
+      AccountSessionLease(account: target.account!, sessionGeneration: 0);
 
   Did? _ownerDid(Iterable<BusinessEvent> events) {
     final first = events.firstOrNull;

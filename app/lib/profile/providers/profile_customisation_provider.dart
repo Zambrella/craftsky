@@ -7,6 +7,7 @@ import 'package:craftsky_app/profile/providers/profile_identity_cache_invalidato
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
+import 'package:craftsky_app/shared/browsing/browsing_provider.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'profile_customisation_provider.g.dart';
@@ -94,7 +95,10 @@ class ProfileCustomisationEditor extends _$ProfileCustomisationEditor {
       state = AsyncData(current.copyWith(confirmed: saved, draft: saved));
       for (final id in <Did?>{_profileDid}) {
         if (id == null) continue;
-        final profileProvider = userProfileProvider(id);
+        final profileProvider = userProfileProvider(
+          id,
+          audience: ref.read(browsingContextProvider),
+        );
         if (ref.exists(profileProvider)) {
           final profile = ref.read(profileProvider).value;
           if (profile != null) {

@@ -16,7 +16,7 @@ final class UserProjectsProvider
     extends $AsyncNotifierProvider<UserProjects, UserProjectsState> {
   UserProjectsProvider._({
     required UserProjectsFamily super.from,
-    required Did super.argument,
+    required (Did, {BrowsingContext? audience}) super.argument,
   }) : super(
          retry: null,
          name: r'userProjectsProvider',
@@ -32,7 +32,7 @@ final class UserProjectsProvider
   String toString() {
     return r'userProjectsProvider'
         ''
-        '($argument)';
+        '$argument';
   }
 
   @$internal
@@ -50,7 +50,7 @@ final class UserProjectsProvider
   }
 }
 
-String _$userProjectsHash() => r'db2d78050224199c1836231e3ec4a524447d5702';
+String _$userProjectsHash() => r'768cf465110e20c175328daf17f0aafe03f7c115';
 
 final class UserProjectsFamily extends $Family
     with
@@ -59,7 +59,7 @@ final class UserProjectsFamily extends $Family
           AsyncValue<UserProjectsState>,
           UserProjectsState,
           FutureOr<UserProjectsState>,
-          Did
+          (Did, {BrowsingContext? audience})
         > {
   UserProjectsFamily._()
     : super(
@@ -70,18 +70,19 @@ final class UserProjectsFamily extends $Family
         isAutoDispose: true,
       );
 
-  UserProjectsProvider call(Did did) =>
-      UserProjectsProvider._(argument: did, from: this);
+  UserProjectsProvider call(Did did, {BrowsingContext? audience}) =>
+      UserProjectsProvider._(argument: (did, audience: audience), from: this);
 
   @override
   String toString() => r'userProjectsProvider';
 }
 
 abstract class _$UserProjects extends $AsyncNotifier<UserProjectsState> {
-  late final _$args = ref.$arg as Did;
-  Did get did => _$args;
+  late final _$args = ref.$arg as (Did, {BrowsingContext? audience});
+  Did get did => _$args.$1;
+  BrowsingContext? get audience => _$args.audience;
 
-  FutureOr<UserProjectsState> build(Did did);
+  FutureOr<UserProjectsState> build(Did did, {BrowsingContext? audience});
   @$mustCallSuper
   @override
   WhenComplete runBuild() {
@@ -95,6 +96,9 @@ abstract class _$UserProjects extends $AsyncNotifier<UserProjectsState> {
               Object?,
               Object?
             >;
-    return element.handleCreate(ref, () => build(_$args));
+    return element.handleCreate(
+      ref,
+      () => build(_$args.$1, audience: _$args.audience),
+    );
   }
 }

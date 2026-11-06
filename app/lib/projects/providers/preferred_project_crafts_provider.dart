@@ -4,6 +4,7 @@ import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
 import 'package:craftsky_app/projects/options/project_option.dart';
 import 'package:craftsky_app/projects/options/project_option_catalogs.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
+import 'package:craftsky_app/shared/browsing/browsing_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// Profile order is preference order; unknown crafts are skipped by consumers.
@@ -11,7 +12,15 @@ final _profileCraftsProvider = Provider<List<String>>((ref) {
   final auth = ref.watch(authSessionProvider).value;
   return switch (auth) {
     SignedIn(:final did) =>
-      ref.watch(userProfileProvider(Did.parse(did))).value?.crafts ??
+      ref
+              .watch(
+                userProfileProvider(
+                  Did.parse(did),
+                  audience: ref.read(browsingContextProvider),
+                ),
+              )
+              .value
+              ?.crafts ??
           const <String>[],
     _ => const <String>[],
   };

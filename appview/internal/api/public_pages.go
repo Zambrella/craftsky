@@ -2,31 +2,46 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
+	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"social.craftsky/appview/internal/api/envelope"
+	"social.craftsky/appview/internal/business"
 	"social.craftsky/appview/internal/middleware"
 	"social.craftsky/appview/internal/observability"
 )
 
+var ErrPublicAuthenticationRequired = errors.New("public content requires authentication")
+
 // These allowlists deliberately do not embed authenticated response types.
 // Adding a member-only field elsewhere cannot expand the anonymous surface.
 type PublicAuthor struct {
-	DID         syntax.DID    `json:"did"`
-	Handle      syntax.Handle `json:"handle"`
-	DisplayName *string       `json:"displayName,omitempty"`
-	Avatar      *string       `json:"avatar,omitempty"`
-	Business    bool          `json:"business"`
+	AccountType   business.AccountType  `json:"accountType"`
+	Customisation *ProfileCustomisation `json:"customisation,omitempty"`
+	DID           syntax.DID            `json:"did"`
+	Handle        syntax.Handle         `json:"handle"`
+	DisplayName   *string               `json:"displayName,omitempty"`
+	Avatar        *string               `json:"avatar,omitempty"`
+	Business      bool                  `json:"business"`
 }
 type PublicLink struct {
 	URL   string `json:"url"`
 	Title string `json:"title"`
 }
 type PublicProfile struct {
+	PostCount         int                      `json:"postCount"`
+	ProjectCount      int                      `json:"projectCount"`
+	FollowerCount     int                      `json:"followerCount"`
+	FollowingCount    int                      `json:"followingCount"`
+	BusinessProfile   *BusinessProfileResponse `json:"businessProfile,omitempty"`
+	HasUpcomingEvents bool                     `json:"hasUpcomingEvents"`
 	PublicAuthor
 	Description *string      `json:"description,omitempty"`
 	Pronouns    *string      `json:"pronouns,omitempty"`
@@ -35,16 +50,39 @@ type PublicProfile struct {
 	Links       []PublicLink `json:"links"`
 }
 type PublicPost struct {
-	Rkey      syntax.RecordKey `json:"rkey"`
-	Text      string           `json:"text"`
-	Author    PublicAuthor     `json:"author"`
-	CreatedAt time.Time        `json:"createdAt"`
-	EditedAt  *time.Time       `json:"editedAt,omitempty"`
-	Images    []PostImageView  `json:"images"`
-	Video     *PostVideoView   `json:"video,omitempty"`
-	Project   *Project         `json:"project,omitempty"`
-	Sponsored bool             `json:"sponsored"`
+	ExternalImport *ExternalImportResponse `json:"externalImport,omitempty"`
+	URI            syntax.ATURI            `json:"uri"`
+	CID            syntax.CID              `json:"cid"`
+	Facets         json.RawMessage         `json:"facets,omitempty"`
+	Tags           []string                `json:"tags"`
+	Langs          []string                `json:"langs"`
+	LikeCount      int                     `json:"likeCount"`
+	RepostCount    int                     `json:"repostCount"`
+	QuoteCount     int                     `json:"quoteCount"`
+	ReplyCount     int                     `json:"replyCount"`
+	External       *ExternalResponse       `json:"external,omitempty"`
+	QuoteView      *PublicEmbed            `json:"quoteView,omitempty"`
+	Rkey           syntax.RecordKey        `json:"rkey"`
+	Text           string                  `json:"text"`
+	Author         PublicAuthor            `json:"author"`
+	CreatedAt      time.Time               `json:"createdAt"`
+	EditedAt       *time.Time              `json:"editedAt,omitempty"`
+	Images         []PostImageView         `json:"images"`
+	Video          *PostVideoView          `json:"video,omitempty"`
+	Project        *Project                `json:"project,omitempty"`
+	Sponsored      bool                    `json:"sponsored"`
 }
+type PublicEmbed struct {
+	State string      `json:"state"`
+	Post  *PublicPost `json:"post,omitempty"`
+}
+
+type PublicThread struct {
+	Post      *PublicPost    `json:"post"`
+	Ancestors []PublicEmbed  `json:"ancestors"`
+	Replies   PublicPostPage `json:"replies"`
+}
+
 type PublicPostPage struct {
 	Items  []PublicPost `json:"items"`
 	Cursor string       `json:"cursor,omitempty"`
@@ -67,9 +105,22 @@ func PublicPagesHandler(store PublicPageReader, resolver HandleResolver, resourc
 		fail := func(status int, code, message string) {
 			envelope.WriteError(w, status, code, message, middleware.GetRunID(ctx), nil)
 		}
+		allowed := []string{}
+		if resource != "profile" && resource != "post" {
+			allowed = []string{"cursor", "limit"}
+		}
+		limit, validationErr := validatePublicQuery(r.URL.Query(), allowed...)
+		if validationErr != nil {
+			fail(400, "invalid_request", "invalid public request")
+			return
+		}
 		raw := strings.TrimPrefix(r.PathValue("handleOrDid"), "@")
 		if resource == "post" {
 			raw = r.PathValue("did")
+		}
+		if raw == "me" || raw == "recent" {
+			fail(404, "not_found", "page not found")
+			return
 		}
 		did, err := resolveToDID(ctx, raw, resolver)
 		if err != nil {
@@ -101,7 +152,11 @@ func PublicPagesHandler(store PublicPageReader, resolver HandleResolver, resourc
 				fail(400, "invalid_cursor", "invalid cursor")
 				return
 			}
-			result, err = store.PublicPosts(ctx, did, resource == "projects", 20, cursor)
+			result, err = store.PublicPosts(ctx, did, resource == "projects", limit, cursor)
+		}
+		if errors.Is(err, ErrPublicAuthenticationRequired) {
+			fail(403, "authentication_required", "Sign in to view this content.")
+			return
 		}
 		if errors.Is(err, ErrProfileNotFound) || errors.Is(err, ErrPostNotFound) {
 			fail(404, "not_found", "page not found")
@@ -114,4 +169,33 @@ func PublicPagesHandler(store PublicPageReader, resolver HandleResolver, resourc
 		}
 		writeJSON(w, 200, result)
 	})
+}
+
+// validatePublicQuery bounds work and rejects parameters outside the public
+// contract. A guest request cannot select a member viewer or advanced search.
+func validatePublicQuery(query url.Values, allowed ...string) (int, error) {
+	for key, values := range query {
+		valid := false
+		for _, candidate := range allowed {
+			if key == candidate {
+				valid = true
+				break
+			}
+		}
+		if !valid || len(values) != 1 {
+			return 0, fmt.Errorf("unsupported public parameter")
+		}
+	}
+	limit := 20
+	if raw, ok := query["limit"]; ok {
+		parsed, err := strconv.Atoi(raw[0])
+		if err != nil || parsed < 1 || parsed > 20 {
+			return 0, fmt.Errorf("invalid public limit")
+		}
+		limit = parsed
+	}
+	if len(query.Get("cursor")) > 2048 {
+		return 0, fmt.Errorf("invalid public cursor")
+	}
+	return limit, nil
 }

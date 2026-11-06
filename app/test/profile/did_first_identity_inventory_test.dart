@@ -23,7 +23,7 @@ void main() {
       source: 'lib/auth/providers/active_account_identity_provider.dart',
       behaviorTest:
           'test/auth/providers/active_account_identity_provider_test.dart',
-      didContracts: ['userProfileProvider(target.did).future'],
+      didContracts: ['userProfileProvider(', 'target.did'],
     ),
     'posts': (
       source: 'lib/feed/widgets/post_card.dart',
@@ -142,7 +142,10 @@ void main() {
       'lib/feed/providers/author_post_cache.dart',
     ).readAsStringSync();
 
-    expect(profileProvider, contains('Future<Profile> build(Did did)'));
+    expect(
+      profileProvider,
+      matches(RegExp(r'Future<Profile> build\(\s*Did did[,)]')),
+    );
     expect(profileProvider, isNot(contains('build(String handleOrDid)')));
     expect(postPublication, isNot(contains('post.author.handle')));
   });

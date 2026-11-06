@@ -29,6 +29,7 @@ import 'package:material_ui/material_ui.dart';
 import '../../fakes/auth_session_fakes.dart';
 import '../../fakes/recording_messenger.dart';
 import '../../feed/fakes/fake_post_repository.dart';
+import '../../test_support/member_browsing_context.dart';
 import 'profile_tab_test_harness.dart';
 
 final class _ProfilePinRegistryStorage implements SessionRegistryStorage {
@@ -80,6 +81,7 @@ Future<void> _pump(
   RecordingMessenger? messenger,
   List<dynamic> overrides = const [],
   SubscriptionTier tier = SubscriptionTier.plus,
+  bool memberFixture = true,
 }) {
   return pumpProfileTab(
     tester,
@@ -88,6 +90,7 @@ Future<void> _pump(
       isOwnProfile: isOwnProfile,
     ),
     repository: repo,
+    memberFixture: memberFixture,
     messenger: messenger,
     overrides: [
       subscriptionAccessProvider.overrideWith(
@@ -181,6 +184,7 @@ void main() {
         tester,
         repo: repo,
         isOwnProfile: true,
+        memberFixture: false,
         messenger: messenger,
         overrides: [
           authSessionProvider.overrideWith(
@@ -218,6 +222,7 @@ void main() {
           tester,
           repo: repo,
           isOwnProfile: true,
+          memberFixture: false,
           tier: SubscriptionTier.free,
           overrides: [
             authSessionProvider.overrideWith(
@@ -263,6 +268,7 @@ void main() {
         tester,
         repo: repo,
         isOwnProfile: true,
+        memberFixture: false,
         messenger: messenger,
         overrides: [
           authSessionProvider.overrideWith(
@@ -297,6 +303,7 @@ void main() {
         tester,
         repo: repo,
         isOwnProfile: true,
+        memberFixture: false,
         messenger: messenger,
         overrides: [
           authSessionProvider.overrideWith(
@@ -482,6 +489,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            testMemberBrowsingOverride,
             activeLanguagePreferencesProvider.overrideWith(
               (ref) => const LanguagePreferences(
                 primaryLanguage: 'en',

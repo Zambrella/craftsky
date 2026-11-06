@@ -9,6 +9,7 @@ import 'package:craftsky_app/search/providers/search_repository_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../../test_support/member_browsing_context.dart';
 import '../fakes/fake_search_repository.dart';
 
 void main() {
@@ -42,6 +43,7 @@ void main() {
       );
       final container = ProviderContainer.test(
         overrides: [
+          testMemberBrowsingOverride,
           activeLanguagePreferencesProvider.overrideWith(
             (ref) => const LanguagePreferences(
               primaryLanguage: 'en',
@@ -53,7 +55,10 @@ void main() {
       );
 
       await container.read(
-        hashtagSearchProvider(const HashtagSearchQuery(tag: 'SockKAL')).future,
+        hashtagSearchProvider(
+          const HashtagSearchQuery(tag: 'SockKAL'),
+          audience: testMemberBrowsingAudience,
+        ).future,
       );
       expect(saveCalls, 0);
 

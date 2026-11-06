@@ -1,5 +1,3 @@
-import 'package:craftsky_app/auth/providers/account_operation_guard.dart';
-import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/post_interaction_list_state.dart';
 import 'package:craftsky_app/feed/models/post_page.dart';
@@ -11,6 +9,9 @@ import 'package:craftsky_app/profile/models/profile_account_page.dart';
 import 'package:craftsky_app/profile/models/profile_account_summary.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
+import 'package:craftsky_app/shared/browsing/browsing_context.dart';
+import 'package:craftsky_app/shared/browsing/browsing_provider.dart';
+import 'package:craftsky_app/shared/browsing/content_read_guard.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -29,13 +30,15 @@ class PostInteractionAccounts extends _$PostInteractionAccounts {
   Future<PostInteractionAccountsState> build(
     Did did,
     RecordKey rkey,
-    PostInteractionAccountKind kind,
-  ) async {
+    PostInteractionAccountKind kind, {
+    BrowsingContext? audience,
+  }) async {
     final generation = ++_generation;
-    final ownership = ActiveAccountOperation.fromLease(
-      ref,
-      (await ref.watch(sessionRegistryProvider.future)).activeLease,
-    );
+    final ownership = await ContentReadGuard.captureWhenReady(ref);
+    ownership.requireCurrent(discarded: const ApiCanceled());
+    if (audience != null && ownership.context != audience) {
+      throw const ContentReadDiscarded();
+    }
     final page = await _list();
     if (generation != _generation || !ownership.isCurrent) {
       throw DiagnosticStateError('Active account changed');
@@ -49,7 +52,7 @@ class PostInteractionAccounts extends _$PostInteractionAccounts {
 
     _continuationInFlight = true;
     final generation = _generation;
-    final ownership = ActiveAccountOperation.capture(ref);
+    final ownership = ContentReadGuard.capture(ref);
     final cursor = current.cursor!;
     state = const AsyncLoading<PostInteractionAccountsState>();
     try {
@@ -90,7 +93,7 @@ class PostInteractionAccounts extends _$PostInteractionAccounts {
 
   Future<void> _restart(PostInteractionAccountsState current) async {
     final generation = ++_generation;
-    final ownership = ActiveAccountOperation.capture(ref);
+    final ownership = ContentReadGuard.capture(ref);
     state = const AsyncLoading<PostInteractionAccountsState>();
     try {
       final page = await _list();
@@ -123,7 +126,7 @@ class PostInteractionAccounts extends _$PostInteractionAccounts {
           ),
   };
 
-  bool _isCurrent(int generation, ActiveAccountOperation ownership) =>
+  bool _isCurrent(int generation, ContentReadGuard ownership) =>
       generation == _generation && ownership.isCurrent;
 }
 
@@ -133,7 +136,11 @@ class PostQuotes extends _$PostQuotes {
   var _continuationInFlight = false;
 
   @override
-  Future<PostQuotesState> build(Did did, RecordKey rkey) async {
+  Future<PostQuotesState> build(
+    Did did,
+    RecordKey rkey, {
+    BrowsingContext? audience,
+  }) async {
     listenForPostEdits(ref, () {
       final current = state.value;
       if (current == null) return;
@@ -144,12 +151,15 @@ class PostQuotes extends _$PostQuotes {
         ),
       );
     });
-    ref.watch(activeContentLanguagePolicyProvider);
+    if (!ref.watch(isGuestBrowsingProvider)) {
+      ref.watch(activeContentLanguagePolicyProvider);
+    }
     final generation = ++_generation;
-    final ownership = ActiveAccountOperation.fromLease(
-      ref,
-      (await ref.watch(sessionRegistryProvider.future)).activeLease,
-    );
+    final ownership = await ContentReadGuard.captureWhenReady(ref);
+    ownership.requireCurrent(discarded: const ApiCanceled());
+    if (audience != null && ownership.context != audience) {
+      throw const ContentReadDiscarded();
+    }
     final page = await _list();
     if (generation != _generation || !ownership.isCurrent) {
       throw DiagnosticStateError('Active account changed');
@@ -163,7 +173,7 @@ class PostQuotes extends _$PostQuotes {
 
     _continuationInFlight = true;
     final generation = _generation;
-    final ownership = ActiveAccountOperation.capture(ref);
+    final ownership = ContentReadGuard.capture(ref);
     final cursor = current.cursor!;
     state = const AsyncLoading<PostQuotesState>();
     try {
@@ -224,7 +234,7 @@ class PostQuotes extends _$PostQuotes {
 
   Future<void> _restart(PostQuotesState current) async {
     final generation = ++_generation;
-    final ownership = ActiveAccountOperation.capture(ref);
+    final ownership = ContentReadGuard.capture(ref);
     state = const AsyncLoading<PostQuotesState>();
     try {
       final page = await _list();
@@ -245,7 +255,7 @@ class PostQuotes extends _$PostQuotes {
         limit: postInteractionListPageLimit,
       );
 
-  bool _isCurrent(int generation, ActiveAccountOperation ownership) =>
+  bool _isCurrent(int generation, ContentReadGuard ownership) =>
       generation == _generation && ownership.isCurrent;
 }
 

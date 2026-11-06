@@ -10,7 +10,11 @@ import 'package:craftsky_app/profile/providers/block_profile_overlay.dart';
 import 'package:craftsky_app/profile/providers/follow_profile_overlay.dart';
 import 'package:craftsky_app/profile/providers/profile_record_overlay.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
+import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
+import 'package:craftsky_app/shared/browsing/browsing_context.dart';
+import 'package:craftsky_app/shared/browsing/browsing_provider.dart';
+import 'package:craftsky_app/shared/browsing/content_read_guard.dart';
 import 'package:craftsky_app/shared/mutations/pds_record_operation_controller.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -24,7 +28,21 @@ part 'user_profile_provider.g.dart';
 @riverpod
 class UserProfile extends _$UserProfile {
   @override
-  Future<Profile> build(Did did) async {
+  Future<Profile> build(Did did, {BrowsingContext? audience}) async {
+    final read = await ContentReadGuard.captureWhenReady(ref);
+    read.requireCurrent(discarded: const ApiCanceled());
+    if (audience != null && read.context != audience) {
+      throw const ContentReadDiscarded();
+    }
+
+    if (ref.watch(isGuestBrowsingProvider)) {
+      final read = ContentReadGuard.capture(ref);
+      final profile = await read.step(
+        () => ref.watch(profileRepositoryProvider).fetch(did),
+      );
+      read.requireCurrent();
+      return profile;
+    }
     final accountOperation = ActiveAccountOperation.capture(ref);
     final ownership = accountOperation.ownership;
     final lease = ownership?.session;

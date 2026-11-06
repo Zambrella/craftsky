@@ -65,7 +65,7 @@ func (s *PostStore) CountVisibleQuotes(ctx context.Context, postURIs []string) (
 		WHERE p.quote_uri = ANY($1::text[])
 		  AND p.reply_root_uri IS NULL
 		  AND p.reply_parent_uri IS NULL
-		` + postVisibleModerationPredicate + `
+		` + postReadPredicate(ctx) + `
 		GROUP BY p.quote_uri
 	`
 	rows, err := s.pool.Query(ctx, q, postURIs)
@@ -443,7 +443,7 @@ func (s *PostStore) QuoteViewRows(ctx context.Context, refs []ResponseStrongRef)
 		LEFT JOIN craftsky_project_posts pp ON pp.uri = p.uri
 		LEFT JOIN bluesky_profiles bp ON bp.did = p.did
 		WHERE p.uri = ANY($1::text[])
-		` + postVisibleModerationPredicate + `
+		` + postReadPredicate(ctx) + `
 	`
 	rows, err := s.pool.Query(ctx, q, uris)
 	if err != nil {

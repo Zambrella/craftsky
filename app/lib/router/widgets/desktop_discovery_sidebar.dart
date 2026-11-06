@@ -9,6 +9,7 @@ import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
 import 'package:craftsky_app/profile/widgets/profile_account_list_tile.dart';
 import 'package:craftsky_app/projects/providers/preferred_craft_links_provider.dart';
 import 'package:craftsky_app/router/router.dart';
+import 'package:craftsky_app/shared/browsing/browsing_provider.dart';
 import 'package:craftsky_app/shared/widgets/craft_icon.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
@@ -53,6 +54,7 @@ class DesktopDiscoverySidebar extends ConsumerWidget {
                       onRetry: () async {
                         final provider = userProfileProvider(
                           lease!.session.account.did,
+                          audience: ref.read(browsingContextProvider),
                         );
                         ref.invalidate(provider);
                         await ref.read(provider.future);

@@ -10,6 +10,9 @@ import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/api/providers/error_mapping_interceptor.dart';
 import 'package:craftsky_app/shared/api/providers/session_auth_interceptor.dart';
 import 'package:craftsky_app/shared/api/providers/sign_out_on_401_interceptor.dart';
+import 'package:craftsky_app/shared/browsing/browsing_context.dart';
+import 'package:craftsky_app/shared/browsing/browsing_provider.dart';
+import 'package:craftsky_app/shared/browsing/public_read_transport.dart';
 import 'package:craftsky_app/shared/device/device_id_provider.dart';
 import 'package:craftsky_app/shared/observability/diagnostic_failure.dart';
 import 'package:dio/dio.dart';
@@ -121,6 +124,16 @@ Future<Dio> accountDio(Ref ref, AccountKey account) async {
 
 @Riverpod(keepAlive: true)
 Dio dio(Ref ref) {
+  final browsing = ref.watch(browsingContextProvider);
+  if (browsing is GuestBrowsingContext) {
+    final publicClient = Dio(baseDioOptions());
+    publicClient.interceptors.addAll([
+      PublicReadInterceptor(),
+      const ErrorMappingInterceptor(),
+    ]);
+    ref.onDispose(() => publicClient.close(force: true));
+    return publicClient;
+  }
   final active = ref.watch(
     sessionRegistryProvider.select(_activeClientTarget),
   );

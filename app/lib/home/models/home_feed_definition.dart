@@ -5,6 +5,11 @@ enum HomeFeedSource { following, projects }
 /// Stable identity and capabilities, independent of tab order and presentation.
 /// Additional built-in sources and saved queries can join this catalog later.
 class HomeFeedDefinition {
+  const new allCrafts()
+    : id = 'projects:all',
+      source = HomeFeedSource.projects,
+      craftType = '',
+      label = 'All crafts';
   const new following()
     : id = 'following',
       source = HomeFeedSource.following,

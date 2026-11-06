@@ -21,6 +21,7 @@ import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
+import 'package:craftsky_app/shared/browsing/browsing_provider.dart';
 import 'package:craftsky_app/shared/image/basic_image_editor.dart';
 import 'package:craftsky_app/shared/link/external_link.dart';
 import 'package:craftsky_app/shared/media/blob_api_client.dart';
@@ -834,7 +835,10 @@ void main() {
           tester.element(find.byType(EditProfileDialog)),
         );
         final subscription = container.listen(
-          userProfileProvider(profile.did),
+          userProfileProvider(
+            profile.did,
+            audience: container.read(browsingContextProvider),
+          ),
           (_, _) {},
         );
         addTearDown(subscription.close);
@@ -940,7 +944,10 @@ void main() {
         tester.element(find.byType(EditProfileDialog)),
       );
       final sub = container.listen<AsyncValue<Profile>>(
-        userProfileProvider(Did.parse('did:plc:test')),
+        userProfileProvider(
+          Did.parse('did:plc:test'),
+          audience: container.read(browsingContextProvider),
+        ),
         (_, _) {},
       );
       addTearDown(sub.close);

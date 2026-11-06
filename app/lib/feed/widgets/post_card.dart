@@ -35,6 +35,7 @@ import 'package:craftsky_app/profile/widgets/profile_avatar_hero.dart';
 import 'package:craftsky_app/projects/widgets/project_card.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/saved_posts/widgets/saved_post_bookmark_button.dart';
+import 'package:craftsky_app/shared/browsing/browsing_provider.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/shared/mutations/pds_record_operation_controller.dart';
 import 'package:craftsky_app/shared/observability/error_reporter_provider.dart';
@@ -67,6 +68,7 @@ enum PostCardContentKind { post, comment, reply }
 enum PostCardImageInteractionMode { navigate, fullscreenGallery }
 
 Post _postWithInteractionState(WidgetRef ref, Post post) {
+  if (ref.watch(isGuestBrowsingProvider)) return post;
   // Mutation state notifies rows to rebuild; the value itself is per subject.
   ref
     ..watch(toggleLikePostProvider)
@@ -173,6 +175,14 @@ class PostCard extends ConsumerWidget {
         contentKind: contentKind,
       );
     }
+    if (ref.watch(isGuestBrowsingProvider)) {
+      return _PostCardImageSelection(
+        key: ValueKey(post.uri),
+        initialIndex: _initialImageIndex(post),
+        builder: (selection) =>
+            _buildContent(context, ref, post, null, selection),
+      );
+    }
     final activeLease = ref.watch(sessionRegistryProvider).value?.activeLease;
     final scope = likePostMutationScopeForLease(activeLease?.session, post);
     final failed =
@@ -204,6 +214,7 @@ class PostCard extends ConsumerWidget {
     VoidCallback? onLike,
     ValueNotifier<int> imageSelection,
   ) {
+    final guest = ref.watch(isGuestBrowsingProvider);
     final auth = ref.watch(authSessionProvider).value;
     final isViewerOwned = auth is SignedIn && auth.did == post.author.did;
     final account = auth is SignedIn ? AccountKey(auth.did.toString()) : null;
@@ -293,7 +304,7 @@ class PostCard extends ConsumerWidget {
       unavailableLabel: l10n.handleUnavailable,
     );
     final isFlat = style == PostCardStyle.flat;
-    final canShowShareAction = showRepostAction && post.reply == null;
+    final canShowShareAction = !guest && showRepostAction && post.reply == null;
     void likeOnDoubleTap() {
       if (!post.viewerHasLiked) onLike?.call();
     }
@@ -570,18 +581,27 @@ class PostCard extends ConsumerWidget {
                       children: [
                         Row(
                           children: [
-                            _PostCardAction(
-                              icon: post.viewerHasLiked
-                                  ? CraftskyIcons.liked
-                                  : CraftskyIconsBold.like,
-                              count: post.likeCount,
-                              isSelected: post.viewerHasLiked,
-                              selectedColor: semanticColors.error,
-                              tooltip: post.viewerHasLiked
-                                  ? l10n.postUnlikeAction
-                                  : l10n.postLikeAction,
-                              onPressed: onLike,
-                            ),
+                            if (guest)
+                              TextButton(
+                                onPressed: () => PostLikesRoute(
+                                  did: post.author.did.toString(),
+                                  rkey: post.rkey.toString(),
+                                ).push<void>(context),
+                                child: Text('${post.likeCount} likes'),
+                              )
+                            else
+                              _PostCardAction(
+                                icon: post.viewerHasLiked
+                                    ? CraftskyIcons.liked
+                                    : CraftskyIconsBold.like,
+                                count: post.likeCount,
+                                isSelected: post.viewerHasLiked,
+                                selectedColor: semanticColors.error,
+                                tooltip: post.viewerHasLiked
+                                    ? l10n.postUnlikeAction
+                                    : l10n.postLikeAction,
+                                onPressed: onLike,
+                              ),
                             _PostCardAction(
                               icon: CraftskyIconsBold.comment,
                               count: showReplyCount ? post.replyCount : 0,
@@ -589,7 +609,13 @@ class PostCard extends ConsumerWidget {
                               selectedColor: replyAccent,
                               tooltip: replyTooltip ?? responseAction,
                               label: showReplyLabel ? responseAction : null,
-                              onPressed: onReply,
+                              onPressed: guest
+                                  ? () => PostThreadRoute(
+                                      did: post.author.did,
+                                      rkey: post.rkey,
+                                      showComments: true,
+                                    ).push<void>(context)
+                                  : onReply,
                             ),
                             if (canShowShareAction)
                               _PostCardShareAction(
@@ -627,6 +653,7 @@ class PostCard extends ConsumerWidget {
                         if (account != null)
                           SavedPostBookmarkButton(account: account, post: post),
                         _PostCardMenu(
+                          canSendViaChat: !guest,
                           url: RecordLinks.post(post),
                           onViewLikes:
                               post.reply != null &&
@@ -685,8 +712,8 @@ class PostCard extends ConsumerWidget {
                                   ),
                                 )
                               : null,
-                          onDelete: onDelete,
-                          onReport: onReport,
+                          onDelete: guest ? null : onDelete,
+                          onReport: guest ? null : onReport,
                           tooltip: deleteTooltip,
                           label: deleteLabel,
                           reportLabel: effectiveReportLabel,
@@ -1060,6 +1087,7 @@ class _PostCardAuthorTapTarget extends StatelessWidget {
 
 class _PostCardMenu extends StatelessWidget {
   const new({
+    required this.canSendViaChat,
     required this.url,
     required this.onViewLikes,
     required this.pinLabel,
@@ -1080,6 +1108,7 @@ class _PostCardMenu extends StatelessWidget {
     this.reportLabel,
   });
 
+  final bool canSendViaChat;
   final String url;
   final VoidCallback? onViewLikes;
   final String? pinLabel;
@@ -1121,7 +1150,13 @@ class _PostCardMenu extends StatelessWidget {
               ],
             ),
           CraftskyContextMenuGroup(
-            items: [...linkSharingMenuItems(context, url)],
+            items: [
+              ...linkSharingMenuItems(
+                context,
+                url,
+                canSendViaChat: canSendViaChat,
+              ),
+            ],
           ),
           CraftskyContextMenuGroup(
             items: [

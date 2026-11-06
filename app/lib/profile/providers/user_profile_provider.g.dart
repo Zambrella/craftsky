@@ -28,7 +28,7 @@ final class UserProfileProvider
   /// AppView projection catches up; this provider remains read-only.
   UserProfileProvider._({
     required UserProfileFamily super.from,
-    required Did super.argument,
+    required (Did, {BrowsingContext? audience}) super.argument,
   }) : super(
          retry: null,
          name: r'userProfileProvider',
@@ -44,7 +44,7 @@ final class UserProfileProvider
   String toString() {
     return r'userProfileProvider'
         ''
-        '($argument)';
+        '$argument';
   }
 
   @$internal
@@ -62,7 +62,7 @@ final class UserProfileProvider
   }
 }
 
-String _$userProfileHash() => r'63c28a72f890f893cf2b32cedf6aeb3fa57e996c';
+String _$userProfileHash() => r'8ce438581f9ed410af32da6913120936b80acca5';
 
 /// Single source of truth for a user's profile, keyed by DID.
 ///
@@ -76,7 +76,7 @@ final class UserProfileFamily extends $Family
           AsyncValue<Profile>,
           Profile,
           FutureOr<Profile>,
-          Did
+          (Did, {BrowsingContext? audience})
         > {
   UserProfileFamily._()
     : super(
@@ -92,8 +92,8 @@ final class UserProfileFamily extends $Family
   /// Accepted writes are composed through the shared record overlay while the
   /// AppView projection catches up; this provider remains read-only.
 
-  UserProfileProvider call(Did did) =>
-      UserProfileProvider._(argument: did, from: this);
+  UserProfileProvider call(Did did, {BrowsingContext? audience}) =>
+      UserProfileProvider._(argument: (did, audience: audience), from: this);
 
   @override
   String toString() => r'userProfileProvider';
@@ -105,10 +105,11 @@ final class UserProfileFamily extends $Family
 /// AppView projection catches up; this provider remains read-only.
 
 abstract class _$UserProfile extends $AsyncNotifier<Profile> {
-  late final _$args = ref.$arg as Did;
-  Did get did => _$args;
+  late final _$args = ref.$arg as (Did, {BrowsingContext? audience});
+  Did get did => _$args.$1;
+  BrowsingContext? get audience => _$args.audience;
 
-  FutureOr<Profile> build(Did did);
+  FutureOr<Profile> build(Did did, {BrowsingContext? audience});
   @$mustCallSuper
   @override
   WhenComplete runBuild() {
@@ -121,6 +122,9 @@ abstract class _$UserProfile extends $AsyncNotifier<Profile> {
               Object?,
               Object?
             >;
-    return element.handleCreate(ref, () => build(_$args));
+    return element.handleCreate(
+      ref,
+      () => build(_$args.$1, audience: _$args.audience),
+    );
   }
 }

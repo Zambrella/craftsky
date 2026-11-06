@@ -8,7 +8,8 @@ import { env } from 'node:process';
 // bearer tokens and arbitrary query values are never forwarded upstream.
 export async function publicAPI<T>(
 	fetcher: typeof fetch,
-	path: string
+	path: string,
+	format: 'json' | 'caption' = 'json'
 ): Promise<T> {
 	let base: URL;
 	try {
@@ -39,7 +40,9 @@ export async function publicAPI<T>(
 	let response: Response;
 	try {
 		response = await fetcher(new URL(`/v1/public/${path}`, base), {
-			headers: { accept: 'application/json' },
+			headers: {
+				accept: format === 'caption' ? 'text/vtt' : 'application/json'
+			},
 			redirect: 'manual',
 			credentials: 'omit',
 			signal: AbortSignal.timeout(9000)
@@ -48,6 +51,7 @@ export async function publicAPI<T>(
 		logServerFailure(cause, 'public.read', 'fetch');
 		error(503, 'Page temporarily unavailable');
 	}
+	if (response.status === 403) error(403, 'Sign in to view this content.');
 	if (response.status === 404) error(404, 'Page not found');
 	if (response.status === 400) error(400, 'Invalid page request');
 	if (response.status === 429)
@@ -77,7 +81,7 @@ export async function publicAPI<T>(
 			const { value, done } = await reader.read();
 			if (done) break;
 			length += value.length;
-			if (length > 2 * 1024 * 1024) {
+			if (length > (format === 'caption' ? 20000 : 2 * 1024 * 1024)) {
 				await reader.cancel();
 				error(503, 'Page temporarily unavailable');
 			}
@@ -89,11 +93,18 @@ export async function publicAPI<T>(
 			body.set(chunk, offset);
 			offset += chunk.length;
 		}
-		return JSON.parse(new TextDecoder().decode(body)) as T;
+		const text = new TextDecoder().decode(body);
+		if (format === 'caption') {
+			if (!/^WEBVTT(?:[ \t\r\n]|$)/.test(text))
+				error(503, 'Page temporarily unavailable');
+			return text as T;
+		}
+		return JSON.parse(text) as T;
 	} catch (cause) {
 		logServerFailure(cause, 'public.read', 'decode', {
 			requestId: response.headers.get('X-Request-ID') || undefined
 		});
+
 		error(503, 'Page temporarily unavailable');
 	} finally {
 		reader.releaseLock();

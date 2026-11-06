@@ -32,6 +32,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import '../../projects/fakes/fake_project_repository.dart';
 import '../../search/fakes/fake_search_repository.dart';
+import '../../test_support/member_browsing_context.dart';
 import '../fakes/fake_post_repository.dart';
 
 void main() {
@@ -90,6 +91,7 @@ void main() {
         var writes = 0;
         final c = ProviderContainer.test(
           overrides: [
+            testMemberBrowsingOverride,
             activeLanguagePreferencesProvider.overrideWith(
               (ref) => const LanguagePreferences(
                 primaryLanguage: 'en',
@@ -209,7 +211,10 @@ class _Probe {
 
 _Probe _probe(ProviderContainer c, String surface, Post post) {
   if (surface == 'profile') {
-    final p = userPostsProvider(post.author.did);
+    final p = userPostsProvider(
+      post.author.did,
+      audience: testMemberBrowsingAudience,
+    );
     final sub = c.listen(p, (_, _) {});
     return _Probe(
       load: () async {
@@ -222,7 +227,10 @@ _Probe _probe(ProviderContainer c, String surface, Post post) {
     );
   }
   if (surface == 'comments') {
-    final p = userCommentsProvider(post.author.did);
+    final p = userCommentsProvider(
+      post.author.did,
+      audience: testMemberBrowsingAudience,
+    );
     final sub = c.listen(p, (_, _) {});
     return _Probe(
       load: () async {
@@ -235,7 +243,10 @@ _Probe _probe(ProviderContainer c, String surface, Post post) {
     );
   }
   if (surface == 'reposts') {
-    final p = userRepostsProvider(post.author.did);
+    final p = userRepostsProvider(
+      post.author.did,
+      audience: testMemberBrowsingAudience,
+    );
     final sub = c.listen(p, (_, _) {});
     return _Probe(
       load: () async {
@@ -248,7 +259,10 @@ _Probe _probe(ProviderContainer c, String surface, Post post) {
     );
   }
   if (surface == 'projects') {
-    final p = userProjectsProvider(post.author.did);
+    final p = userProjectsProvider(
+      post.author.did,
+      audience: testMemberBrowsingAudience,
+    );
     final sub = c.listen(p, (_, _) {});
     return _Probe(
       load: () async {
@@ -261,7 +275,10 @@ _Probe _probe(ProviderContainer c, String surface, Post post) {
     );
   }
   if (surface == 'browse') {
-    final p = projectFeedProvider(const ProjectBrowseQuery());
+    final p = projectFeedProvider(
+      const ProjectBrowseQuery(),
+      audience: testMemberBrowsingAudience,
+    );
     final sub = c.listen(p, (_, _) {});
     return _Probe(
       load: () async {
@@ -274,7 +291,10 @@ _Probe _probe(ProviderContainer c, String surface, Post post) {
     );
   }
   if (surface == 'search') {
-    final p = postSearchProvider(const PostSearchQuery(q: 'caption'));
+    final p = postSearchProvider(
+      const PostSearchQuery(q: 'caption'),
+      audience: testMemberBrowsingAudience,
+    );
     final sub = c.listen(p, (_, _) {});
     return _Probe(
       load: () async {
@@ -287,7 +307,10 @@ _Probe _probe(ProviderContainer c, String surface, Post post) {
     );
   }
   if (surface == 'projectSearch') {
-    final p = projectSearchProvider(const ProjectSearchQuery(q: 'caption'));
+    final p = projectSearchProvider(
+      const ProjectSearchQuery(q: 'caption'),
+      audience: testMemberBrowsingAudience,
+    );
     final sub = c.listen(p, (_, _) {});
     return _Probe(
       load: () async {
@@ -300,7 +323,10 @@ _Probe _probe(ProviderContainer c, String surface, Post post) {
     );
   }
   if (surface == 'hashtag') {
-    final p = hashtagSearchProvider(const HashtagSearchQuery(tag: 'craft'));
+    final p = hashtagSearchProvider(
+      const HashtagSearchQuery(tag: 'craft'),
+      audience: testMemberBrowsingAudience,
+    );
     final sub = c.listen(p, (_, _) {});
     return _Probe(
       load: () async {
@@ -333,7 +359,11 @@ _Probe _probe(ProviderContainer c, String surface, Post post) {
     );
   }
   if (surface == 'quotes') {
-    final p = postQuotesProvider(post.author.did, RecordKey.parse('target'));
+    final p = postQuotesProvider(
+      post.author.did,
+      RecordKey.parse('target'),
+      audience: testMemberBrowsingAudience,
+    );
     final sub = c.listen(p, (_, _) {});
     return _Probe(
       load: () async {

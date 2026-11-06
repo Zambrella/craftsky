@@ -24,6 +24,7 @@ import 'package:material_ui/material_ui.dart';
 
 import '../../fakes/auth_session_fakes.dart';
 import '../../feed/fakes/fake_post_repository.dart';
+import '../../test_support/member_browsing_context.dart';
 import '../fakes/fake_profile_repository.dart';
 
 const _cid = 'bafyreicdvexolyvp6j6yksqiib7hihwktt6ogalbvyzvtkj6ecrtqqw5fq';
@@ -60,6 +61,7 @@ void main() {
       );
       final container = ProviderContainer.test(
         overrides: [
+          testMemberBrowsingOverride,
           authSessionProvider.overrideWith(SignedInAuthSession.new),
           profileRepositoryProvider.overrideWithValue(
             FakeProfileRepository(onFetch: (_) async => profile),
@@ -107,7 +109,12 @@ void main() {
         ),
         hasUpcomingEvents: true,
       );
-      container.invalidate(userProfileProvider(Did.parse('did:plc:maker')));
+      container.invalidate(
+        userProfileProvider(
+          Did.parse('did:plc:maker'),
+          audience: container.read(browsingContextProvider),
+        ),
+      );
       await tester.pumpAndSettle();
 
       expect(tester.takeException(), isNull);
@@ -122,7 +129,12 @@ void main() {
         accountType: AccountType.regular,
         business: null,
       );
-      container.invalidate(userProfileProvider(Did.parse('did:plc:maker')));
+      container.invalidate(
+        userProfileProvider(
+          Did.parse('did:plc:maker'),
+          audience: container.read(browsingContextProvider),
+        ),
+      );
       await tester.pumpAndSettle();
 
       expect(tester.takeException(), isNull);
@@ -402,6 +414,7 @@ Future<void> _pumpProfile(
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
+        if (!isOwnProfile) testMemberBrowsingOverride,
         if (isOwnProfile) ...[
           secureSessionRegistryStorageProvider.overrideWithValue(
             _BusinessProfileRegistryStorage(

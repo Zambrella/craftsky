@@ -24,7 +24,12 @@ import '../fakes/fake_profile_repository.dart';
 
 class _Registry extends SessionRegistry {
   @override
-  Future<model.SessionRegistry> build() async => model.SessionRegistry.empty();
+  Future<model.SessionRegistry> build() async =>
+      model.SessionRegistry.empty().upsertAndActivate(
+        token: 'test-token',
+        did: 'did:plc:test',
+        handle: 'test.bsky.social',
+      );
 
   void switchAccount() {
     state = AsyncData(

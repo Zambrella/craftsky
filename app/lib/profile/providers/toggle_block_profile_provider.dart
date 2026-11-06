@@ -13,6 +13,7 @@ import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
 import 'package:craftsky_app/search/providers/blank_search_provider.dart';
 import 'package:craftsky_app/shared/api/pds_mutation_contract.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
+import 'package:craftsky_app/shared/browsing/browsing_provider.dart';
 import 'package:craftsky_app/shared/mutations/pds_record_operation_controller.dart';
 import 'package:craftsky_app/shared/mutations/pds_record_reconciliation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -99,7 +100,12 @@ class ToggleBlockProfile extends _$ToggleBlockProfile {
 void _invalidateBlockReads(Ref ref, Did targetDid, AccountKey? account) {
   if (!ref.mounted) return;
   ref
-    ..invalidate(userProfileProvider(targetDid))
+    ..invalidate(
+      userProfileProvider(
+        targetDid,
+        audience: ref.read(browsingContextProvider),
+      ),
+    )
     ..invalidate(timelineProvider)
     ..invalidate(blankSearchProvider)
     ..invalidate(notificationsProvider);

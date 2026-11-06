@@ -17,7 +17,8 @@ final class ProfileBusinessEventsProvider
         $AsyncNotifierProvider<ProfileBusinessEvents, BusinessEventListState> {
   ProfileBusinessEventsProvider._({
     required ProfileBusinessEventsFamily super.from,
-    required ProfileBusinessEventsTarget super.argument,
+    required (ProfileBusinessEventsTarget, {BrowsingContext? audience})
+    super.argument,
   }) : super(
          retry: null,
          name: r'profileBusinessEventsProvider',
@@ -33,7 +34,7 @@ final class ProfileBusinessEventsProvider
   String toString() {
     return r'profileBusinessEventsProvider'
         ''
-        '($argument)';
+        '$argument';
   }
 
   @$internal
@@ -52,7 +53,7 @@ final class ProfileBusinessEventsProvider
 }
 
 String _$profileBusinessEventsHash() =>
-    r'2c016d9eb353c9a6500762bf09132b33abed92f8';
+    r'a495e1dbf077107cb426d6a66212196fb6f4a26b';
 
 final class ProfileBusinessEventsFamily extends $Family
     with
@@ -61,7 +62,7 @@ final class ProfileBusinessEventsFamily extends $Family
           AsyncValue<BusinessEventListState>,
           BusinessEventListState,
           FutureOr<BusinessEventListState>,
-          ProfileBusinessEventsTarget
+          (ProfileBusinessEventsTarget, {BrowsingContext? audience})
         > {
   ProfileBusinessEventsFamily._()
     : super(
@@ -72,8 +73,13 @@ final class ProfileBusinessEventsFamily extends $Family
         isAutoDispose: true,
       );
 
-  ProfileBusinessEventsProvider call(ProfileBusinessEventsTarget target) =>
-      ProfileBusinessEventsProvider._(argument: target, from: this);
+  ProfileBusinessEventsProvider call(
+    ProfileBusinessEventsTarget target, {
+    BrowsingContext? audience,
+  }) => ProfileBusinessEventsProvider._(
+    argument: (target, audience: audience),
+    from: this,
+  );
 
   @override
   String toString() => r'profileBusinessEventsProvider';
@@ -81,10 +87,15 @@ final class ProfileBusinessEventsFamily extends $Family
 
 abstract class _$ProfileBusinessEvents
     extends $AsyncNotifier<BusinessEventListState> {
-  late final _$args = ref.$arg as ProfileBusinessEventsTarget;
-  ProfileBusinessEventsTarget get target => _$args;
+  late final _$args =
+      ref.$arg as (ProfileBusinessEventsTarget, {BrowsingContext? audience});
+  ProfileBusinessEventsTarget get target => _$args.$1;
+  BrowsingContext? get audience => _$args.audience;
 
-  FutureOr<BusinessEventListState> build(ProfileBusinessEventsTarget target);
+  FutureOr<BusinessEventListState> build(
+    ProfileBusinessEventsTarget target, {
+    BrowsingContext? audience,
+  });
   @$mustCallSuper
   @override
   WhenComplete runBuild() {
@@ -102,6 +113,9 @@ abstract class _$ProfileBusinessEvents
               Object?,
               Object?
             >;
-    return element.handleCreate(ref, () => build(_$args));
+    return element.handleCreate(
+      ref,
+      () => build(_$args.$1, audience: _$args.audience),
+    );
   }
 }

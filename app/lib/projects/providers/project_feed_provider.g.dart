@@ -16,7 +16,7 @@ final class ProjectFeedProvider
     extends $AsyncNotifierProvider<ProjectFeed, UserProjectsState> {
   ProjectFeedProvider._({
     required ProjectFeedFamily super.from,
-    required ProjectBrowseQuery super.argument,
+    required (ProjectBrowseQuery, {BrowsingContext? audience}) super.argument,
   }) : super(
          retry: null,
          name: r'projectFeedProvider',
@@ -32,7 +32,7 @@ final class ProjectFeedProvider
   String toString() {
     return r'projectFeedProvider'
         ''
-        '($argument)';
+        '$argument';
   }
 
   @$internal
@@ -50,7 +50,7 @@ final class ProjectFeedProvider
   }
 }
 
-String _$projectFeedHash() => r'853fc4da3d6f0a0dc080f068246c011f31da4959';
+String _$projectFeedHash() => r'ef89dbdaed60e477b3203cd63b3e054700e3edc7';
 
 final class ProjectFeedFamily extends $Family
     with
@@ -59,7 +59,7 @@ final class ProjectFeedFamily extends $Family
           AsyncValue<UserProjectsState>,
           UserProjectsState,
           FutureOr<UserProjectsState>,
-          ProjectBrowseQuery
+          (ProjectBrowseQuery, {BrowsingContext? audience})
         > {
   ProjectFeedFamily._()
     : super(
@@ -70,18 +70,26 @@ final class ProjectFeedFamily extends $Family
         isAutoDispose: true,
       );
 
-  ProjectFeedProvider call(ProjectBrowseQuery query) =>
-      ProjectFeedProvider._(argument: query, from: this);
+  ProjectFeedProvider call(
+    ProjectBrowseQuery query, {
+    BrowsingContext? audience,
+  }) =>
+      ProjectFeedProvider._(argument: (query, audience: audience), from: this);
 
   @override
   String toString() => r'projectFeedProvider';
 }
 
 abstract class _$ProjectFeed extends $AsyncNotifier<UserProjectsState> {
-  late final _$args = ref.$arg as ProjectBrowseQuery;
-  ProjectBrowseQuery get query => _$args;
+  late final _$args =
+      ref.$arg as (ProjectBrowseQuery, {BrowsingContext? audience});
+  ProjectBrowseQuery get query => _$args.$1;
+  BrowsingContext? get audience => _$args.audience;
 
-  FutureOr<UserProjectsState> build(ProjectBrowseQuery query);
+  FutureOr<UserProjectsState> build(
+    ProjectBrowseQuery query, {
+    BrowsingContext? audience,
+  });
   @$mustCallSuper
   @override
   WhenComplete runBuild() {
@@ -95,6 +103,9 @@ abstract class _$ProjectFeed extends $AsyncNotifier<UserProjectsState> {
               Object?,
               Object?
             >;
-    return element.handleCreate(ref, () => build(_$args));
+    return element.handleCreate(
+      ref,
+      () => build(_$args.$1, audience: _$args.audience),
+    );
   }
 }

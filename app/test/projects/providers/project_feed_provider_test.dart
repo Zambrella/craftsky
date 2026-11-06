@@ -13,6 +13,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../search/fakes/fake_search_repository.dart';
+import '../../test_support/member_browsing_context.dart';
 import '../../test_support/pagination_contract.dart';
 import '../fakes/fake_project_repository.dart';
 
@@ -56,6 +57,7 @@ PaginationContractSubject<Post> _paginationSubject(
   );
   final container = ProviderContainer.test(
     overrides: [
+      browsingContextProvider.overrideWith(TestMemberBrowsingContext.new),
       activeLanguagePreferencesProvider.overrideWith(
         (ref) => const LanguagePreferences(
           primaryLanguage: 'en',
@@ -96,6 +98,7 @@ void main() {
     final cursors = <String?>[];
     final container = ProviderContainer.test(
       overrides: [
+        browsingContextProvider.overrideWith(TestMemberBrowsingContext.new),
         activeLanguagePreferencesProvider.overrideWith(
           (ref) => const LanguagePreferences(
             primaryLanguage: 'en',
@@ -153,6 +156,7 @@ void main() {
       );
       final container = ProviderContainer.test(
         overrides: [
+          browsingContextProvider.overrideWith(TestMemberBrowsingContext.new),
           activeLanguagePreferencesProvider.overrideWith(
             (ref) => const LanguagePreferences(
               primaryLanguage: 'en',

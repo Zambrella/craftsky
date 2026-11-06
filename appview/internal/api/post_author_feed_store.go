@@ -42,7 +42,7 @@ func (s *PostStore) ListByAuthorWithLanguages(
 		  AND p.is_project = false
 		  AND p.reply_root_uri IS NULL
 		  AND p.reply_parent_uri IS NULL
-		` + postVisibleModerationPredicate + `
+		` + postReadPredicate(ctx) + `
 		` + languageVisibilityPredicate("p", "$5", "$6") + `
 		  AND ($2::timestamptz IS NULL
 		       OR (p.profile_sort_at, p.uri) < ($2::timestamptz, $3::text))
@@ -113,7 +113,7 @@ func (s *PostStore) ListProjectsByAuthorWithLanguages(
 		  AND p.reply_root_uri IS NULL
 		  AND p.reply_parent_uri IS NULL
 		  AND p.quote_uri IS NULL
-		` + postVisibleModerationPredicate + `
+		` + postReadPredicate(ctx) + `
 		` + languageVisibilityPredicate("p", "$5", "$6") + `
 		  AND ($2::timestamptz IS NULL
 		       OR (p.profile_sort_at, p.uri) < ($2::timestamptz, $3::text))
@@ -181,7 +181,7 @@ func (s *PostStore) ListCommentsByAuthorWithLanguages(
 		WHERE p.did = $1
 		  AND p.reply_root_uri IS NOT NULL
 		  AND p.reply_parent_uri IS NOT NULL
-		` + postVisibleModerationPredicate + `
+		` + postReadPredicate(ctx) + `
 		` + languageVisibilityPredicate("p", "$5", "$6") + `
 		  AND ($2::timestamptz IS NULL
 		       OR (p.profile_sort_at, p.uri) < ($2::timestamptz, $3::text))
@@ -250,7 +250,7 @@ func (s *PostStore) ListRepostsByAuthorWithLanguages(
 		LEFT JOIN bluesky_profiles bp ON bp.did = p.did
 		WHERE repost.kind = 'repost'
 		  AND repost.actor_did = $1
-		  ` + postVisibleModerationPredicate + `
+		  ` + postReadPredicate(ctx) + `
 		  ` + languageVisibilityPredicate("p", "$5", "$6") + `
 		  AND NOT ` + postAuthorBlockedPredicate("p", "$5") + `
 		  AND ($2::timestamptz IS NULL

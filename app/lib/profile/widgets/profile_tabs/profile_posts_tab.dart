@@ -2,6 +2,7 @@ import 'package:craftsky_app/feed/providers/user_posts_provider.dart';
 import 'package:craftsky_app/l10n/app_localizations.dart';
 import 'package:craftsky_app/profile/widgets/profile_tabs/profile_post_feed_slivers.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
+import 'package:craftsky_app/shared/browsing/browsing_provider.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -22,7 +23,9 @@ class ProfilePostsTab extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
-    final postsAsync = ref.watch(userPostsProvider(did));
+    final postsAsync = ref.watch(
+      userPostsProvider(did, audience: ref.read(browsingContextProvider)),
+    );
 
     listenToProfilePostActions(context, ref);
 
@@ -39,12 +42,21 @@ class ProfilePostsTab extends ConsumerWidget {
           title: l10n.profileTabPosts,
           subtitle: l10n.profilePostsEmpty,
         ),
-        onLoadMore: () => ref.read(userPostsProvider(did).notifier).loadMore(),
+        onLoadMore: () => ref
+            .read(
+              userPostsProvider(
+                did,
+                audience: ref.read(browsingContextProvider),
+              ).notifier,
+            )
+            .loadMore(),
       ),
       AsyncError() => ProfileTabErrorSliver(
         message: l10n.profilePostsLoadError,
         showErrorIcon: true,
-        onRetry: () => ref.invalidate(userPostsProvider(did)),
+        onRetry: () => ref.invalidate(
+          userPostsProvider(did, audience: ref.read(browsingContextProvider)),
+        ),
       ),
       _ => const ProfileTabLoadingSliver(),
     };

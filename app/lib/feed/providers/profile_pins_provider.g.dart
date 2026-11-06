@@ -50,7 +50,7 @@ final class ProfilePinsProvider
   }
 }
 
-String _$profilePinsHash() => r'19c597bf56ee47042dd720f48395188174a0d4ee';
+String _$profilePinsHash() => r'd056c7a3800eabcde4365c2b8bbde614e21ee41c';
 
 final class ProfilePinsFamily extends $Family
     with

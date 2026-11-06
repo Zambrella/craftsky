@@ -1,4 +1,3 @@
-import 'package:craftsky_app/auth/providers/account_operation_guard.dart';
 import 'package:craftsky_app/feed/models/user_posts_state.dart';
 import 'package:craftsky_app/feed/providers/like_post_overlay.dart';
 import 'package:craftsky_app/feed/providers/post_record_overlay.dart';
@@ -6,6 +5,9 @@ import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
+import 'package:craftsky_app/shared/browsing/browsing_context.dart';
+import 'package:craftsky_app/shared/browsing/browsing_provider.dart';
+import 'package:craftsky_app/shared/browsing/content_read_guard.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'user_comments_provider.g.dart';
@@ -18,7 +20,13 @@ class UserComments extends _$UserComments {
   static String formatLogValue(Object? value) => value.toString();
 
   @override
-  Future<UserPostsState> build(Did did) async {
+  Future<UserPostsState> build(Did did, {BrowsingContext? audience}) async {
+    final read = await ContentReadGuard.captureWhenReady(ref);
+    read.requireCurrent(discarded: const ApiCanceled());
+    if (audience != null && read.context != audience) {
+      throw const ContentReadDiscarded();
+    }
+
     listenForPostEdits(ref, () {
       final current = state.value;
       if (current == null) return;
@@ -26,8 +34,10 @@ class UserComments extends _$UserComments {
         current.copyWith(items: applyLoadedPostEdits(ref, current.items)),
       );
     });
-    ref.watch(activeContentLanguagePolicyProvider);
-    final accountOperation = ActiveAccountOperation.capture(ref);
+    if (!ref.watch(isGuestBrowsingProvider)) {
+      ref.watch(activeContentLanguagePolicyProvider);
+    }
+    final accountOperation = ContentReadGuard.capture(ref);
     final repo = ref.watch(postRepositoryProvider);
     final page = await repo.listCommentsByAuthor(
       did,
@@ -49,7 +59,7 @@ class UserComments extends _$UserComments {
     if (!state.hasValue || state.isLoading) return;
     final current = state.requireValue;
     if (!current.hasMore) return;
-    final accountOperation = ActiveAccountOperation.capture(ref);
+    final accountOperation = ContentReadGuard.capture(ref);
 
     state = const AsyncLoading<UserPostsState>();
 

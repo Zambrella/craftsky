@@ -1,6 +1,7 @@
 package routes
 
 import (
+	"context"
 	"golang.org/x/time/rate"
 	"net/http"
 	"net/http/httptest"
@@ -46,5 +47,75 @@ func TestPublicPageResponsesBypassMemberDecorators(t *testing.T) {
 	handler.ServeHTTP(response, httptest.NewRequest("GET", "/v1/public/profiles/did:plc:alice", nil))
 	if response.Code != 200 || response.Body.String() != payload {
 		t.Fatalf("public response expanded or required viewer: %d %s", response.Code, response.Body.String())
+	}
+}
+
+// IT-008 / RULE-001 / AC-006: real guest registrations are read-only and
+// validation precedes database work, even with spoofed credentials.
+func TestPublicBrowsingRouteAllowlist(t *testing.T) {
+	mux := http.NewServeMux()
+	AddRoutes(context.Background(), mux, testDeps())
+	for _, path := range []string{
+		"/v1/public/projects?limit=21",
+		"/v1/public/search/hashtags/needle/posts?limit=0",
+		"/v1/public/profiles/did:plc:alice/events?limit=0",
+		"/v1/public/events/did:plc:alice/event?limit=0",
+		"/v1/public/posts/did:plc:alice/root/likes?limit=0",
+		"/v1/public/posts/did:plc:alice/root/reposts?limit=0",
+		"/v1/public/posts/did:plc:alice/root/quotes?limit=0",
+		"/v1/public/search/profiles?q=knit&sort=popular",
+		"/v1/public/search/posts?q=knit&limit=21",
+		"/v1/public/search/projects?q=knit&craftType=knitting",
+		"/v1/public/search/hashtags?q=knit&viewerDid=did:plc:owner",
+		"/v1/public/profiles/did:plc:alice/comments?limit=0",
+		"/v1/public/profiles/did:plc:alice/reposts?limit=0",
+		"/v1/public/posts/did:plc:alice/root/thread?limit=0",
+	} {
+		request := httptest.NewRequest("GET", path, nil)
+		request.Header.Set("Authorization", "Bearer canary")
+		request.Header.Set("Cookie", "session=canary")
+		response := httptest.NewRecorder()
+		mux.ServeHTTP(response, request)
+		if response.Code != 400 || response.Header().Get("Cache-Control") != "no-store" {
+			t.Fatalf("%s: status=%d body=%s", path, response.Code, response.Body.String())
+		}
+	}
+	for _, path := range []string{"/v1/public/profiles/recent", "/v1/public/search/suggestions", "/v1/public/search/hashtags/top", "/v1/public/search/recent", "/v1/public/profiles/me"} {
+		response := httptest.NewRecorder()
+		mux.ServeHTTP(response, httptest.NewRequest("GET", path, nil))
+		if response.Code != 404 {
+			t.Fatalf("forbidden discovery/private path %s returned %d", path, response.Code)
+		}
+	}
+}
+
+// IT-009: cancellation never starts fresh anonymous dependency work and always
+// returns the admission slot to the shared pool.
+func TestPublicPageAdmissionCancellationReleasesCapacity(t *testing.T) {
+	slots := make(chan struct{}, 1)
+	canceled, cancel := context.WithCancel(context.Background())
+	cancel()
+	called := false
+	h := publicPageAdmission(rate.NewLimiter(rate.Inf, 1), slots, http.HandlerFunc(func(http.ResponseWriter, *http.Request) { called = true }))
+	response := httptest.NewRecorder()
+	h.ServeHTTP(response, httptest.NewRequest("GET", "/v1/public/projects", nil).WithContext(canceled))
+	if called || len(slots) != 0 {
+		t.Fatal("canceled request entered public dependency work")
+	}
+	ctx, stop := context.WithCancel(context.Background())
+	entered, done := make(chan struct{}), make(chan struct{})
+	h = publicPageAdmission(rate.NewLimiter(rate.Inf, 1), slots, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { close(entered); <-r.Context().Done() }))
+	go func() {
+		defer close(done)
+		h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest("GET", "/v1/public/projects", nil).WithContext(ctx))
+	}()
+	<-entered
+	if len(slots) != 1 {
+		t.Fatal("in-flight request did not own slot")
+	}
+	stop()
+	<-done
+	if len(slots) != 0 {
+		t.Fatal("canceled in-flight request retained admission slot")
 	}
 }

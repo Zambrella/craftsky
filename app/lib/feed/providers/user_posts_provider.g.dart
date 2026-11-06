@@ -19,7 +19,7 @@ final class UserPostsProvider
   /// Cursor-accumulating list-by-author provider, keyed by DID.
   UserPostsProvider._({
     required UserPostsFamily super.from,
-    required Did super.argument,
+    required (Did, {BrowsingContext? audience}) super.argument,
   }) : super(
          retry: null,
          name: r'userPostsProvider',
@@ -35,7 +35,7 @@ final class UserPostsProvider
   String toString() {
     return r'userPostsProvider'
         ''
-        '($argument)';
+        '$argument';
   }
 
   @$internal
@@ -53,7 +53,7 @@ final class UserPostsProvider
   }
 }
 
-String _$userPostsHash() => r'3dc2cf761b583b4548f576c5bf697c1e65f371d8';
+String _$userPostsHash() => r'c94c30ee3b80ac7be4cc9d4b212da8db178efac3';
 
 /// Cursor-accumulating list-by-author provider, keyed by DID.
 
@@ -64,7 +64,7 @@ final class UserPostsFamily extends $Family
           AsyncValue<UserPostsState>,
           UserPostsState,
           FutureOr<UserPostsState>,
-          Did
+          (Did, {BrowsingContext? audience})
         > {
   UserPostsFamily._()
     : super(
@@ -77,8 +77,8 @@ final class UserPostsFamily extends $Family
 
   /// Cursor-accumulating list-by-author provider, keyed by DID.
 
-  UserPostsProvider call(Did did) =>
-      UserPostsProvider._(argument: did, from: this);
+  UserPostsProvider call(Did did, {BrowsingContext? audience}) =>
+      UserPostsProvider._(argument: (did, audience: audience), from: this);
 
   @override
   String toString() => r'userPostsProvider';
@@ -87,10 +87,11 @@ final class UserPostsFamily extends $Family
 /// Cursor-accumulating list-by-author provider, keyed by DID.
 
 abstract class _$UserPosts extends $AsyncNotifier<UserPostsState> {
-  late final _$args = ref.$arg as Did;
-  Did get did => _$args;
+  late final _$args = ref.$arg as (Did, {BrowsingContext? audience});
+  Did get did => _$args.$1;
+  BrowsingContext? get audience => _$args.audience;
 
-  FutureOr<UserPostsState> build(Did did);
+  FutureOr<UserPostsState> build(Did did, {BrowsingContext? audience});
   @$mustCallSuper
   @override
   WhenComplete runBuild() {
@@ -103,6 +104,9 @@ abstract class _$UserPosts extends $AsyncNotifier<UserPostsState> {
               Object?,
               Object?
             >;
-    return element.handleCreate(ref, () => build(_$args));
+    return element.handleCreate(
+      ref,
+      () => build(_$args.$1, audience: _$args.audience),
+    );
   }
 }

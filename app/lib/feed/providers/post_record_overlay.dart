@@ -5,6 +5,7 @@ import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/auth/providers/account_operation_guard.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/feed/models/post.dart';
+import 'package:craftsky_app/shared/browsing/browsing_provider.dart';
 import 'package:craftsky_app/shared/mutations/pds_record_operation_controller.dart';
 import 'package:craftsky_app/shared/mutations/pds_record_reconciliation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -123,6 +124,7 @@ void notifyPostRecordOverlays(Ref ref) =>
     ref.read(_postRecordOverlayRevisionProvider.notifier).changed();
 
 void listenForPostEdits(Ref ref, void Function() update) {
+  if (ref.read(isGuestBrowsingProvider)) return;
   ref.listen(_postRecordOverlayRevisionProvider, (_, _) => update());
 }
 
@@ -178,6 +180,7 @@ PdsRecordProjection postRecordProjection(Post? post) => PdsRecordProjection(
 );
 
 Post? applyPostRecordOverlay(Ref ref, Post source, {bool reconcile = true}) {
+  if (ref.read(isGuestBrowsingProvider)) return source;
   final post = _applyQuotedPostEdit(ref, source, reconcile: reconcile);
   final controller = ref.read(pdsRecordOperationControllerProvider);
   final scope = postRecordMutationScope(ref, post);
@@ -293,6 +296,7 @@ Post _applyQuotedPostEdit(Ref ref, Post post, {required bool reconcile}) {
 }
 
 Iterable<Post> optimisticPostRecordOverlays(Ref ref, {Object? listKey}) sync* {
+  if (ref.read(isGuestBrowsingProvider)) return;
   final controller = ref.read(pdsRecordOperationControllerProvider);
   for (final overlay in controller.activeOverlays) {
     final optimistic = overlay.optimisticValue;
@@ -311,6 +315,7 @@ List<Post> applyPostRecordListOverlays(
   bool reconcile = true,
   Object? listKey,
 }) {
+  if (ref.read(isGuestBrowsingProvider)) return authoritative.toList();
   if (reconcile) observePostListMembership(ref, authoritative, listKey);
   final posts = <Post>[
     for (final post in authoritative)

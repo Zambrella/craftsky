@@ -8,14 +8,16 @@ import 'package:flutter/widgets.dart';
 
 List<CraftskyContextMenuItem> linkSharingMenuItems(
   BuildContext context,
-  String url,
-) => [
+  String url, {
+  bool canSendViaChat = true,
+}) => [
   copyLinkMenuItem(context, url),
-  CraftskyContextMenuItem(
-    text: AppLocalizations.of(context).chatSendViaChat,
-    icon: CraftskyIcons.send,
-    onPressed: () => showSendViaChat(context, url),
-  ),
+  if (canSendViaChat)
+    CraftskyContextMenuItem(
+      text: AppLocalizations.of(context).chatSendViaChat,
+      icon: CraftskyIcons.send,
+      onPressed: () => showSendViaChat(context, url),
+    ),
 ];
 
 CraftskyContextMenuItem copyLinkMenuItem(BuildContext context, String url) {

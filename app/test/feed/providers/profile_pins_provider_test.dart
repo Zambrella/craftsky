@@ -19,6 +19,7 @@ import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../../test_support/member_browsing_context.dart';
 import '../fakes/fake_post_repository.dart';
 
 final class _RegistryStorage implements SessionRegistryStorage {
@@ -69,7 +70,10 @@ void main() {
         activationGeneration: 1,
       );
       final container = ProviderContainer.test(
-        overrides: [postRepositoryProvider.overrideWithValue(repository)],
+        overrides: [
+          testMemberBrowsingOverride,
+          postRepositoryProvider.overrideWithValue(repository),
+        ],
       );
       final provider = profilePinsProvider(lease);
       final initial = await container.read(provider.future);
@@ -207,6 +211,7 @@ void main() {
       );
       final container = ProviderContainer.test(
         overrides: [
+          testMemberBrowsingOverride,
           postRepositoryProvider.overrideWithValue(repository),
           activeLanguagePreferencesProvider.overrideWith(
             (ref) => const LanguagePreferences(
@@ -217,9 +222,18 @@ void main() {
         ],
       );
       final authorDid = Did.parse(did);
-      final standardDid = userPostsProvider(authorDid);
-      final standardHandle = userPostsProvider(authorDid);
-      final projectsHandle = userProjectsProvider(authorDid);
+      final standardDid = userPostsProvider(
+        authorDid,
+        audience: container.read(browsingContextProvider),
+      );
+      final standardHandle = userPostsProvider(
+        authorDid,
+        audience: container.read(browsingContextProvider),
+      );
+      final projectsHandle = userProjectsProvider(
+        authorDid,
+        audience: container.read(browsingContextProvider),
+      );
       final subscriptions = [
         container.listen(standardDid, (_, _) {}),
         container.listen(standardHandle, (_, _) {}),

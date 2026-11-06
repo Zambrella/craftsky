@@ -16,7 +16,7 @@ final class ProjectSearchProvider
     extends $AsyncNotifierProvider<ProjectSearch, SearchPostResultsState> {
   ProjectSearchProvider._({
     required ProjectSearchFamily super.from,
-    required ProjectSearchQuery super.argument,
+    required (ProjectSearchQuery, {BrowsingContext? audience}) super.argument,
   }) : super(
          retry: null,
          name: r'projectSearchProvider',
@@ -32,7 +32,7 @@ final class ProjectSearchProvider
   String toString() {
     return r'projectSearchProvider'
         ''
-        '($argument)';
+        '$argument';
   }
 
   @$internal
@@ -50,7 +50,7 @@ final class ProjectSearchProvider
   }
 }
 
-String _$projectSearchHash() => r'0438edb977266dce3aec8d5e0da39a597408c1e8';
+String _$projectSearchHash() => r'80b95c4d9486f7806213a50e64ac1252bf039d64';
 
 final class ProjectSearchFamily extends $Family
     with
@@ -59,7 +59,7 @@ final class ProjectSearchFamily extends $Family
           AsyncValue<SearchPostResultsState>,
           SearchPostResultsState,
           FutureOr<SearchPostResultsState>,
-          ProjectSearchQuery
+          (ProjectSearchQuery, {BrowsingContext? audience})
         > {
   ProjectSearchFamily._()
     : super(
@@ -70,18 +70,28 @@ final class ProjectSearchFamily extends $Family
         isAutoDispose: true,
       );
 
-  ProjectSearchProvider call(ProjectSearchQuery query) =>
-      ProjectSearchProvider._(argument: query, from: this);
+  ProjectSearchProvider call(
+    ProjectSearchQuery query, {
+    BrowsingContext? audience,
+  }) => ProjectSearchProvider._(
+    argument: (query, audience: audience),
+    from: this,
+  );
 
   @override
   String toString() => r'projectSearchProvider';
 }
 
 abstract class _$ProjectSearch extends $AsyncNotifier<SearchPostResultsState> {
-  late final _$args = ref.$arg as ProjectSearchQuery;
-  ProjectSearchQuery get query => _$args;
+  late final _$args =
+      ref.$arg as (ProjectSearchQuery, {BrowsingContext? audience});
+  ProjectSearchQuery get query => _$args.$1;
+  BrowsingContext? get audience => _$args.audience;
 
-  FutureOr<SearchPostResultsState> build(ProjectSearchQuery query);
+  FutureOr<SearchPostResultsState> build(
+    ProjectSearchQuery query, {
+    BrowsingContext? audience,
+  });
   @$mustCallSuper
   @override
   WhenComplete runBuild() {
@@ -99,6 +109,9 @@ abstract class _$ProjectSearch extends $AsyncNotifier<SearchPostResultsState> {
               Object?,
               Object?
             >;
-    return element.handleCreate(ref, () => build(_$args));
+    return element.handleCreate(
+      ref,
+      () => build(_$args.$1, audience: _$args.audience),
+    );
   }
 }

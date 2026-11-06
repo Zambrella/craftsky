@@ -7,16 +7,18 @@ import 'package:craftsky_app/projects/options/project_option_catalogs.dart';
 import 'package:craftsky_app/projects/providers/preferred_craft_links_provider.dart';
 import 'package:craftsky_app/projects/providers/preferred_project_crafts_provider.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
+import 'package:craftsky_app/shared/browsing/browsing_context.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../fakes/auth_session_fakes.dart';
+import '../../test_support/member_browsing_context.dart';
 
 class _Profile extends UserProfile {
   new(this.crafts);
   final List<String> crafts;
   @override
-  Future<Profile> build(Did did) async =>
+  Future<Profile> build(Did did, {BrowsingContext? audience}) async =>
       Profile(did: did.value, handle: 'test.test', crafts: crafts);
 }
 
@@ -30,15 +32,21 @@ void main() {
     test('default is the first supported preference ${entry.key}', () async {
       final container = ProviderContainer.test(
         overrides: [
+          testMemberBrowsingOverride,
           authSessionProvider.overrideWith(SignedInAuthSession.new),
-          userProfileProvider(Did.parse('did:plc:test'))
-              .overrideWith(() => _Profile(entry.key)),
+          userProfileProvider(
+            Did.parse('did:plc:test'),
+            audience: testMemberBrowsingAudience,
+          ).overrideWith(() => _Profile(entry.key)),
         ],
       );
       await container.read(authSessionProvider.future);
       container.read(defaultProjectCraftProvider);
       await container.read(
-        userProfileProvider(Did.parse('did:plc:test')).future,
+        userProfileProvider(
+          Did.parse('did:plc:test'),
+          audience: testMemberBrowsingAudience,
+        ).future,
       );
       expect(container.read(defaultProjectCraftProvider), entry.value);
     });
@@ -66,8 +74,11 @@ void main() {
     test('UT-001 preferred-only profile order ${entry.key}', () async {
       final container = ProviderContainer.test(
         overrides: [
-          userProfileProvider(lease.session.account.did)
-              .overrideWith(() => _Profile(entry.key)),
+          testMemberBrowsingOverride,
+          userProfileProvider(
+            lease.session.account.did,
+            audience: testMemberBrowsingAudience,
+          ).overrideWith(() => _Profile(entry.key)),
         ],
       );
       final sub = container.listen(
@@ -76,7 +87,10 @@ void main() {
       );
       addTearDown(sub.close);
       await container.read(
-        userProfileProvider(lease.session.account.did).future,
+        userProfileProvider(
+          lease.session.account.did,
+          audience: testMemberBrowsingAudience,
+        ).future,
       );
       expect(
         container

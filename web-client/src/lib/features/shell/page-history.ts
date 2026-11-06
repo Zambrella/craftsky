@@ -102,7 +102,7 @@ export class PageHistory {
 				if (
 					owner.loading ||
 					document.querySelector(
-						'.app-main .social-loading, .app-main .skeleton'
+						'.app-main .social-loading, .app-main .skeleton, .browsing-main .social-loading, .browsing-main .skeleton'
 					)
 				)
 					return;
@@ -113,11 +113,14 @@ export class PageHistory {
 			});
 		};
 		const observer = new MutationObserver(attempt);
-		observer.observe(document.querySelector('.app-main') || document.body, {
-			childList: true,
-			subtree: true,
-			attributes: true
-		});
+		observer.observe(
+			document.querySelector('.app-main, .browsing-main') || document.body,
+			{
+				childList: true,
+				subtree: true,
+				attributes: true
+			}
+		);
 		const timeout = setTimeout(stop, 15000);
 		for (const name of ['wheel', 'touchstart', 'pointerdown', 'keydown'])
 			window.addEventListener(name, stop, { passive: true });

@@ -34,6 +34,7 @@ import {
 	type Pending
 } from './session';
 import { allowedRoute, safeProxyPath } from './routes';
+import { authenticatedPage } from './page';
 import { upstream, UpstreamError, safeFailure } from './upstream';
 
 const origin = 'https://app.craftsky.social';
@@ -861,4 +862,26 @@ it('rejects declared oversized JSON before fetching upstream', async () => {
 	);
 	expect(result.status).toBe(413);
 	expect(fetcher).not.toHaveBeenCalled();
+});
+it('UT-005 keeps the public reading destination after a member session expires', async () => {
+	const jar = new CookieJar().add(A).active(A.id);
+	vi.stubGlobal(
+		'fetch',
+		vi
+			.fn<typeof fetch>()
+			.mockResolvedValue(response({ error: 'unauthorized' }, 401))
+	);
+	const target = new URL(
+		await location(
+			authenticatedPage,
+			event(jar, '/profiles/alice.test?tab=comments')
+		),
+		origin
+	);
+	expect(target.pathname).toBe('/sign-in');
+	expect(target.searchParams.get('returnTo')).toBe(
+		'/profiles/alice.test?tab=comments'
+	);
+	expect(target.searchParams.get('error')).toBe('session_expired');
+	expect(jar.cookies.get('__Host-craftsky_account_' + A.id)).toBeUndefined();
 });

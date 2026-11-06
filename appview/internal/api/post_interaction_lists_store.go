@@ -154,6 +154,15 @@ type postInteractionAccountRow struct {
 }
 
 func PostInteractionAccountListQuery(kind PostInteractionKind) (string, error) {
+	return postInteractionAccountListQuery(kind, MemberAudience)
+}
+
+func postInteractionAccountListQuery(kind PostInteractionKind, audience ReadAudience) (string, error) {
+	guest := ""
+	if audience == GuestAudience {
+		guest = guestAccountPredicate("actor.did")
+	}
+
 	var setKind string
 	switch kind {
 	case PostInteractionLikes:
@@ -180,7 +189,7 @@ func PostInteractionAccountListQuery(kind PostInteractionKind) (string, error) {
 			LEFT JOIN bluesky_profiles bp ON bp.did = actor.did
 			LEFT JOIN atproto_identity_cache identity ON identity.did = actor.did
 			WHERE interaction.kind = '` + setKind + `' AND interaction.subject_uri = $1
-			  ` + eligibleAccountInteractionPredicate("actor", "$3", "$2") + `
+			  ` + eligibleAccountInteractionPredicate("actor", "$3", "$2") + guest + `
 		), totals AS (
 			SELECT count(*) AS total_count
 			FROM eligible
@@ -213,7 +222,7 @@ func (s *PostStore) listPostInteractionAccounts(ctx context.Context, viewer synt
 	if target == nil {
 		return ProfileAccountPage{}, fmt.Errorf("unsupported post interaction kind %q", kind)
 	}
-	query, err := PostInteractionAccountListQuery(kind)
+	query, err := postInteractionAccountListQuery(kind, readAudience(ctx))
 	if err != nil {
 		return ProfileAccountPage{}, err
 	}
@@ -300,7 +309,14 @@ func (s *PostStore) listPostInteractionAccounts(ctx context.Context, viewer synt
 	return page, nil
 }
 
-func PostQuoteListQuery() string {
+func PostQuoteListQuery() string { return postQuoteListQuery(MemberAudience) }
+
+func postQuoteListQuery(audience ReadAudience) string {
+	guest := ""
+	if audience == GuestAudience {
+		guest = publicPostPredicate
+	}
+
 	return `
 		SELECT ` + postSelectColumns + `
 		FROM craftsky_posts p
@@ -309,7 +325,7 @@ func PostQuoteListQuery() string {
 		WHERE p.quote_uri = $1
 		  AND p.reply_root_uri IS NULL
 		  AND p.reply_parent_uri IS NULL
-		` + eligibleQuotePredicate("p", "$2", "$3") + `
+		` + eligibleQuotePredicate("p", "$2", "$3") + guest + `
 		  AND ($4::timestamptz IS NULL OR (p.created_at, p.uri) < ($4, $5))
 		ORDER BY p.created_at DESC, p.uri DESC
 		LIMIT $6
@@ -347,7 +363,7 @@ func (s *PostStore) listQuotePosts(ctx context.Context, viewer syntax.DID, targe
 		contentLanguages = []string{}
 	}
 
-	rows, err := s.pool.Query(ctx, PostQuoteListQuery(), target.URI, viewer, contentLanguages, cursorTime, cursorURI, limit+1)
+	rows, err := s.pool.Query(ctx, postQuoteListQuery(readAudience(ctx)), target.URI, viewer, contentLanguages, cursorTime, cursorURI, limit+1)
 	if err != nil {
 		return nil, "", fmt.Errorf("quote posts query: %w", err)
 	}

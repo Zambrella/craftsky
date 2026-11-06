@@ -12,6 +12,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:material_ui/material_ui.dart';
 
+import '../test_support/member_browsing_context.dart';
 import 'fakes/fake_profile_repository.dart';
 
 void main() {
@@ -216,6 +217,7 @@ Future<void> _pump(
   return tester.pumpWidget(
     ProviderScope(
       overrides: [
+        testMemberBrowsingOverride,
         profileRepositoryProvider.overrideWithValue(repository),
       ],
       child: MaterialApp.router(
@@ -235,7 +237,9 @@ class _ProfileTarget extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return switch (ref.watch(userProfileProvider(did))) {
+    return switch (ref.watch(
+      userProfileProvider(did, audience: testMemberBrowsingAudience),
+    )) {
       AsyncValue(:final value?) => Text('${value.did} @${value.handle}'),
       AsyncError(:final error) => Text('error:$error'),
       _ => const CircularProgressIndicator(),

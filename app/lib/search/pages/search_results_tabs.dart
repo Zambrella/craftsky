@@ -157,16 +157,28 @@ class _SearchResultTabScrollView extends ConsumerWidget {
 
   Future<void> _refresh(WidgetRef ref) => switch (tab) {
     SearchResultsTab.posts => ref.refresh(
-      postSearchProvider(PostSearchQuery(q: query)).future,
+      postSearchProvider(
+        PostSearchQuery(q: query),
+        audience: ref.read(browsingContextProvider),
+      ).future,
     ),
     SearchResultsTab.projects => ref.refresh(
-      projectSearchProvider(ProjectSearchQuery(q: query)).future,
+      projectSearchProvider(
+        ProjectSearchQuery(q: query),
+        audience: ref.read(browsingContextProvider),
+      ).future,
     ),
     SearchResultsTab.profiles => ref.refresh(
-      profileSearchProvider(ProfileSearchQuery(q: query)).future,
+      profileSearchProvider(
+        ProfileSearchQuery(q: query),
+        audience: ref.read(browsingContextProvider),
+      ).future,
     ),
     SearchResultsTab.tags => ref.refresh(
-      hashtagResultSearchProvider(HashtagResultSearchQuery(q: query)).future,
+      hashtagResultSearchProvider(
+        HashtagResultSearchQuery(q: query),
+        audience: ref.read(browsingContextProvider),
+      ).future,
     ),
   };
 
@@ -191,7 +203,10 @@ class _SubmittedPostResults extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
-    final provider = postSearchProvider(PostSearchQuery(q: query));
+    final provider = postSearchProvider(
+      PostSearchQuery(q: query),
+      audience: ref.read(browsingContextProvider),
+    );
     final postResultsAsync = ref.watch(provider);
     return switch (postResultsAsync) {
       AsyncValue(:final value?) => _PostList(
@@ -227,7 +242,10 @@ class _SubmittedProjectResults extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
-    final provider = projectSearchProvider(ProjectSearchQuery(q: query));
+    final provider = projectSearchProvider(
+      ProjectSearchQuery(q: query),
+      audience: ref.read(browsingContextProvider),
+    );
     final projectResultsAsync = ref.watch(provider);
     return switch (projectResultsAsync) {
       AsyncValue(:final value?) => _PostList(
@@ -263,7 +281,10 @@ class _ProfileResultsSliver extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
-    final provider = profileSearchProvider(ProfileSearchQuery(q: query));
+    final provider = profileSearchProvider(
+      ProfileSearchQuery(q: query),
+      audience: ref.read(browsingContextProvider),
+    );
     final profileResultsAsync = ref.watch(provider);
     return switch (profileResultsAsync) {
       AsyncValue(:final value?) => AutoPaginatedSliverList(
@@ -306,6 +327,7 @@ class _HashtagResultsSliver extends ConsumerWidget {
     final l10n = AppLocalizations.of(context);
     final provider = hashtagResultSearchProvider(
       HashtagResultSearchQuery(q: query),
+      audience: ref.read(browsingContextProvider),
     );
     final hashtagResultsAsync = ref.watch(provider);
     return switch (hashtagResultsAsync) {

@@ -6,6 +6,7 @@ import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
 import 'package:craftsky_app/profile/widgets/compact_profile_identity.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar_hero.dart';
+import 'package:craftsky_app/shared/browsing/browsing_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -25,7 +26,14 @@ class ChatPeerProfile extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final profile = ref.watch(userProfileProvider(peer.did)).value;
+    final profile = ref
+        .watch(
+          userProfileProvider(
+            peer.did,
+            audience: ref.read(browsingContextProvider),
+          ),
+        )
+        .value;
     final handle = profile?.handle.value ?? peer.handle ?? '';
     final displayName = profile?.displayName ?? peer.displayName;
     final crafts = profile?.crafts ?? const <String>[];

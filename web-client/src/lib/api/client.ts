@@ -34,6 +34,28 @@ const acceptedEdit = (value: Record<string, unknown>) =>
 
 /** Feature-specific methods mirror the Flutter clients and AppView camelCase wire contracts. */
 export class CraftskyAPI {
+	readonly loggedOutVisibility = {
+		read: () =>
+			this.transport.get<import('./types').VisibilitySetting>(
+				'/v1/preferences/logged-out-visibility'
+			),
+		save: (
+			body: { hideFromLoggedOut: boolean; expectedCid: string },
+			operationKey: string
+		) =>
+			this.transport.request<import('./types').VisibilitySetting>(
+				'PUT',
+				'/v1/preferences/logged-out-visibility',
+				{
+					body,
+					operationKey,
+					validate: (value) =>
+						typeof value.hideFromLoggedOut === 'boolean' &&
+						typeof value.expectedCid === 'string'
+				}
+			)
+	};
+	readonly audience: 'member' | 'guest' = 'member';
 	readonly transport: APITransport;
 	constructor(
 		fetcher: Fetcher = fetch,

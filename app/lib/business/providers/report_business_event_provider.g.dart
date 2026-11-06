@@ -51,7 +51,7 @@ final class ReportBusinessEventProvider
 }
 
 String _$reportBusinessEventHash() =>
-    r'3a73248786f3942529c02b2d4f262517c4bc5ad7';
+    r'0a72234695c57cea68a749d943155f45e61a0cd5';
 
 final class ReportBusinessEventFamily extends $Family
     with

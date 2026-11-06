@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount, onDestroy, tick, getContext } from 'svelte';
+	import { untrack, onMount, onDestroy, tick, getContext } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import {
@@ -22,16 +22,20 @@
 	let {
 		api,
 		session,
+		initialPost,
 		did,
 		rkey,
 		section = ''
 	}: {
 		api: CraftskyAPI;
-		session: { id: string; did: string };
+		session?: { id: string; did: string };
+		initialPost?: PostPresentation;
 		did: string;
 		rkey: string;
 		section?: string;
 	} = $props();
+	const snapshot = untrack(() => initialPost);
+	const guest = $derived(api.audience === 'guest');
 	const publications = getContext<Publications | undefined>(
 		publicationsContext
 	);
@@ -43,7 +47,8 @@
 	}>('thread');
 	let loadedPages = $state(0);
 	const work = new Work('social.Thread.action');
-	let post = $state<PostPresentation>(),
+	if (snapshot) work.hasLoaded = true;
+	let post = $state<PostPresentation | undefined>(snapshot),
 		comments = $state<CommentItem[]>([]),
 		people = $state<Author[]>([]),
 		quotes = $state<PostPresentation[]>([]),
@@ -51,6 +56,7 @@
 	let sort = $state<'oldest' | 'newest' | 'follows'>(
 		historyView?.value?.sort || 'oldest'
 	);
+	let ancestors = $state<{ state: string; post?: PostPresentation }[]>([]);
 	let focusMessage = $state('');
 	let collapsed = $state<string[]>(historyView?.value?.collapsed || []);
 	$effect(() => {
@@ -94,8 +100,11 @@
 		const ordering = sort;
 		return work.run(
 			async () => {
-				const root = more ? post : await api.posts.get(did, rkey);
-				if (!section && root && visible(root) && root.reply) {
+				const root =
+					more || (!loadedPages && snapshot)
+						? post
+						: await api.posts.get(did, rkey);
+				if (!guest && !section && root && visible(root) && root.reply) {
 					const address = postAddress(root.reply.root.uri);
 					if (address)
 						return {
@@ -140,6 +149,7 @@
 					quotes = more ? [...quotes, ...result.page.items] : result.page.items;
 					cursor = result.page.cursor;
 				} else {
+					ancestors = result.page.ancestors || [];
 					const values = more
 						? [...comments, ...result.page.comments.items]
 						: result.page.comments.items;
@@ -220,10 +230,16 @@
 	skeleton={section === 'likes' || section === 'reposts' ? 'people' : 'posts'}
 	reload={() => load()}
 />{#if focusMessage}<p class="notice">{focusMessage}</p>{/if}
+{#if guest}{#each ancestors as ancestor}{#if ancestor.state === 'visible' && ancestor.post}<MemberPost
+				{api}
+				value={ancestor.post}
+			/>{:else}<p class="notice">
+				An earlier post is unavailable.
+			</p>{/if}{/each}{/if}
 {#if post && !section}<MemberPost
 		value={post}
 		{api}
-		did={session.did}
+		did={session?.did}
 		detail
 		initialImageCid={page.url.searchParams.get('imageCid') || undefined}
 		onRemove={() => {
@@ -267,7 +283,7 @@
 	</section>{:else if section === 'quotes'}{#each quotes as quote}<MemberPost
 			value={quote}
 			{api}
-			did={session.did}
+			did={session?.did}
 		/>{:else}{#if !work.busy}<p class="empty">
 				No quotes yet.
 			</p>{/if}{/each}{:else}
@@ -279,22 +295,23 @@
 	>
 		<div class="comments-heading">
 			<h2 class="visually-hidden">Comments</h2>
-			<ChoiceMenu
-				label="Comment order"
-				value={sort}
-				disabled={work.busy}
-				options={[
-					{ value: 'newest', label: 'Newest', icon: 'sort' },
-					{ value: 'oldest', label: 'Oldest', icon: 'filter' },
-					{ value: 'follows', label: 'Follows', icon: 'following' }
-				]}
-				onchange={(value) => {
-					sort = value as typeof sort;
-					load();
-				}}
-			/>
+			{#if !guest}
+				<ChoiceMenu
+					label="Comment order"
+					value={sort}
+					disabled={work.busy}
+					options={[
+						{ value: 'newest', label: 'Newest', icon: 'sort' },
+						{ value: 'oldest', label: 'Oldest', icon: 'filter' },
+						{ value: 'follows', label: 'Follows', icon: 'following' }
+					]}
+					onchange={(value) => {
+						sort = value as typeof sort;
+						load();
+					}}
+				/>{/if}
 		</div>
-		{#if post && visible(post)}<a
+		{#if !guest && post && visible(post)}<a
 				class="comment-compose"
 				href={'/compose/reply?did=' +
 					encodeURIComponent(did) +
@@ -310,7 +327,7 @@
 					value={comment.post}
 					detail
 					{api}
-					did={session.did}
+					did={session?.did}
 					onRemove={() =>
 						(comments = comments.filter((old) => old !== comment))}
 				/>
@@ -341,7 +358,7 @@
 								value={reply.post}
 								detail
 								{api}
-								did={session.did}
+								did={session?.did}
 								onRemove={() => {
 									comment.replies.items = comment.replies.items.filter(
 										(old) => old !== reply

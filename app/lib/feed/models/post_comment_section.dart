@@ -31,12 +31,14 @@ class PostCommentSection with PostCommentSectionMappable {
     required this.comments,
     required this.sort,
     this.focus,
+    this.ancestors = const [],
   });
 
   final Post post;
   final CommentPage comments;
   final CommentSort sort;
   final FocusContext? focus;
+  final List<PublicThreadAncestor> ancestors;
 
   @override
   String toString() {
@@ -519,4 +521,12 @@ List<CommentItem> flattenRepliesToCommentBranches({
         ),
       ),
   ];
+}
+
+/// Public thread context contains only individually eligible ancestors.
+@MappableClass(ignoreNull: true)
+class PublicThreadAncestor with PublicThreadAncestorMappable {
+  const new({required this.state, this.post});
+  final String state;
+  final Post? post;
 }

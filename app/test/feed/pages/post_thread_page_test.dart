@@ -36,6 +36,7 @@ import 'package:material_ui/material_ui.dart';
 
 import '../../fakes/auth_session_fakes.dart';
 import '../../fakes/recording_messenger.dart';
+import '../../test_support/member_browsing_context.dart';
 import '../fakes/fake_post_repository.dart';
 
 final class _ThreadPinRegistryStorage implements SessionRegistryStorage {
@@ -182,6 +183,7 @@ Future<GoRouter> _pumpThreadRoute(
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
+        testMemberBrowsingOverride,
         postRepositoryProvider.overrideWithValue(repository),
         authSessionProvider.overrideWith(
           () => SignedInAuthSession(did: 'did:plc:alice'),
@@ -397,7 +399,10 @@ void main() {
 
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [postRepositoryProvider.overrideWithValue(repository)],
+        overrides: [
+          testMemberBrowsingOverride,
+          postRepositoryProvider.overrideWithValue(repository),
+        ],
         child: MaterialApp(
           theme: AppTheme.lightThemeData,
           localizationsDelegates: appLocalizationsDelegates,
@@ -1346,7 +1351,10 @@ void main() {
 
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [postRepositoryProvider.overrideWithValue(repo)],
+        overrides: [
+          testMemberBrowsingOverride,
+          postRepositoryProvider.overrideWithValue(repo),
+        ],
         child: MaterialApp(
           theme: AppTheme.lightThemeData,
           localizationsDelegates: appLocalizationsDelegates,
@@ -1394,7 +1402,10 @@ void main() {
       },
     );
     final container = ProviderContainer(
-      overrides: [postRepositoryProvider.overrideWithValue(repo)],
+      overrides: [
+        testMemberBrowsingOverride,
+        postRepositoryProvider.overrideWithValue(repo),
+      ],
       retry: (_, _) => null,
     );
     addTearDown(container.dispose);
@@ -1415,12 +1426,22 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('previously loaded private content'), findsOneWidget);
 
-    container.invalidate(postCommentSectionProvider(did, rkey));
+    container.invalidate(
+      postCommentSectionProvider(
+        did,
+        rkey,
+        audience: container.read(browsingContextProvider),
+      ),
+    );
     await tester.pumpAndSettle();
 
     expect(calls, 2);
     final state = container.read(
-      postCommentSectionProvider(did, rkey),
+      postCommentSectionProvider(
+        did,
+        rkey,
+        audience: container.read(browsingContextProvider),
+      ),
     );
     expect(state.hasError, isTrue);
     expect(state.error, isA<ApiBadRequest>());
@@ -1441,7 +1462,10 @@ void main() {
       },
     );
     final container = ProviderContainer(
-      overrides: [postRepositoryProvider.overrideWithValue(repo)],
+      overrides: [
+        testMemberBrowsingOverride,
+        postRepositoryProvider.overrideWithValue(repo),
+      ],
       retry: (_, _) => null,
     );
     addTearDown(container.dispose);
@@ -1462,7 +1486,13 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('authenticated cached post'), findsOneWidget);
 
-    container.invalidate(postCommentSectionProvider(did, rkey));
+    container.invalidate(
+      postCommentSectionProvider(
+        did,
+        rkey,
+        audience: container.read(browsingContextProvider),
+      ),
+    );
     await tester.pumpAndSettle();
 
     expect(calls, 2);
@@ -1509,7 +1539,10 @@ void main() {
 
       await tester.pumpWidget(
         ProviderScope(
-          overrides: [postRepositoryProvider.overrideWithValue(repo)],
+          overrides: [
+            testMemberBrowsingOverride,
+            postRepositoryProvider.overrideWithValue(repo),
+          ],
           child: MaterialApp.router(
             theme: AppTheme.lightThemeData,
             localizationsDelegates: appLocalizationsDelegates,
@@ -1548,7 +1581,10 @@ void main() {
 
       await tester.pumpWidget(
         ProviderScope(
-          overrides: [postRepositoryProvider.overrideWithValue(repo)],
+          overrides: [
+            testMemberBrowsingOverride,
+            postRepositoryProvider.overrideWithValue(repo),
+          ],
           retry: (_, _) => null,
           child: MaterialApp(
             theme: AppTheme.lightThemeData,
@@ -1593,7 +1629,10 @@ void main() {
 
       await tester.pumpWidget(
         ProviderScope(
-          overrides: [postRepositoryProvider.overrideWithValue(repo)],
+          overrides: [
+            testMemberBrowsingOverride,
+            postRepositoryProvider.overrideWithValue(repo),
+          ],
           retry: (_, _) => null,
           child: MaterialApp(
             theme: AppTheme.lightThemeData,
@@ -1626,6 +1665,7 @@ Future<void> _pumpThread(
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
+        testMemberBrowsingOverride,
         activeLanguagePreferencesProvider.overrideWith(
           (ref) => const LanguagePreferences(
             primaryLanguage: 'en',
@@ -1658,7 +1698,10 @@ Future<void> _pumpThreadRouter(
 ) async {
   await tester.pumpWidget(
     ProviderScope(
-      overrides: [postRepositoryProvider.overrideWithValue(repository)],
+      overrides: [
+        testMemberBrowsingOverride,
+        postRepositoryProvider.overrideWithValue(repository),
+      ],
       child: MaterialApp.router(
         theme: AppTheme.lightThemeData,
         localizationsDelegates: appLocalizationsDelegates,

@@ -59,7 +59,7 @@
 		value: PostPresentation;
 		reason?: Author;
 		api: CraftskyAPI;
-		did: string;
+		did?: string;
 		detail?: boolean;
 		flat?: boolean;
 		initialImageCid?: string;
@@ -67,6 +67,7 @@
 		onRemove?: () => void;
 		onMoved?: () => void;
 	} = $props();
+	const guest = $derived(api.audience === 'guest');
 	const publications = getContext<Publications | undefined>(
 		publicationsContext
 	);
@@ -120,7 +121,7 @@
 		useCurrentImage = false;
 	});
 	$effect(() => {
-		if (plus && post?.author.did === did && pinSlot(post))
+		if (plus && post && post.author.did === did && pinSlot(post))
 			void pins.load().catch(() => {});
 	});
 	onDestroy(() => {
@@ -455,7 +456,7 @@
 		onclick={showGallery}
 		role="presentation"
 	>
-		<LikeReaction bind:this={heart} host={cardElement} />
+		{#if !guest}<LikeReaction bind:this={heart} host={cardElement} />{/if}
 		{#if reason && !savedAt}<a
 				class="repost-attribution"
 				href={'/profiles/' + encodeURIComponent(reason.did)}
@@ -527,7 +528,42 @@
 						</div>{/if}
 				</aside>{/if}
 			<nav class="post-actions" aria-label="Post actions">
-				{#if savedAt}<time class="saved-date" datetime={savedAt}
+				{#if guest}
+					<a
+						class="reaction"
+						aria-label="Likes"
+						href={postRoute(post) + '/likes'}
+						><Icon name="heart" size={22} /><span>{post.likeCount || ''}</span
+						></a
+					>
+					<a
+						class="reaction"
+						aria-label="Comments"
+						href={postRoute(post) + '?show-comments=true'}
+						><Icon name="comment" size={22} /><span
+							>{post.replyCount || ''}</span
+						></a
+					>
+					<a
+						class="reaction"
+						aria-label="Reposts"
+						href={postRoute(post) + '/reposts'}
+						><Icon name="repost" size={22} /><span
+							>{post.repostCount || ''}</span
+						></a
+					>
+					{#if post.quoteCount}<a
+							class="reaction"
+							aria-label="Quotes"
+							href={postRoute(post) + '/quotes'}
+							><Icon name="quote" size={22} /><span>{post.quoteCount}</span></a
+						>{/if}
+					<span class="action-spacer"></span><button
+						class="icon-button"
+						onclick={share}
+						aria-label="Copy link"><Icon name="link" size={22} /></button
+					>
+				{:else if savedAt}<time class="saved-date" datetime={savedAt}
 						>{compactDate(savedAt)}</time
 					><span class="action-spacer"></span>
 					<details class="post-overflow" use:contextMenu>

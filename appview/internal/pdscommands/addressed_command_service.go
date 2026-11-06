@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"social.craftsky/appview/internal/auth"
+	"social.craftsky/appview/internal/guestvisibility"
 	"social.craftsky/appview/internal/ownerlifecycle"
 )
 
@@ -60,7 +61,12 @@ type AddressedPutCommandRequest struct {
 	// StrictExpectedCID rejects a stale base even when current content happens
 	// to equal the desired content. Recovery still uses the stored dispatch.
 	StrictExpectedCID bool
-	BuildRecord       func(AuthoritativeRecord) (json.RawMessage, error)
+	// Only the shared-profile preference adapter may create a missing profile
+	// while requiring write receipts; existing strict edit semantics stay intact.
+	allowAbsentProfile bool
+	// Only visibility recovery may settle from a newer authoritative profile.
+	recoverGuestVisibility bool
+	BuildRecord            func(AuthoritativeRecord) (json.RawMessage, error)
 	// BuildPreparedRecord permits values such as edit time to use the durable
 	// command timestamp. When set it takes precedence over BuildRecord.
 	BuildPreparedRecord func(AuthoritativeRecord, PreparedCommand) (json.RawMessage, error)
@@ -68,7 +74,14 @@ type AddressedPutCommandRequest struct {
 	// FinalizeAccepted runs only for changed records, in the terminal command
 	// transaction. Failure must roll back all local acceptance state.
 	FinalizeAccepted func(context.Context, pgx.Tx, PreparedCommand, AuthoritativeRecord) error
-	Rejected         func(error) TerminalResult
+	// FinalizeObserved is opt-in for commands that must persist local evidence
+	// even when the desired record is already present. The observation is
+	// bracketed by a stable repository head; completion and this hook are atomic.
+	FinalizeObserved func(context.Context, pgx.Tx, PreparedCommand, AuthoritativeRecord) error
+	// PrepareLocal commits a feature-specific fail-closed hold before remote IO.
+	// It runs after owner/session fencing and must be idempotent for this command.
+	PrepareLocal func(context.Context, pgx.Tx, PreparedCommand) error
+	Rejected     func(error) TerminalResult
 }
 
 func NewAddressedCommandService(config AddressedCommandServiceConfig) (*AddressedCommandService, error) {
@@ -219,6 +232,11 @@ func (service *AddressedCommandService) Put(ctx context.Context, request Address
 		if err != nil {
 			return err
 		}
+		if request.PrepareLocal != nil {
+			if err := service.store.withTransaction(operationCtx, func(tx pgx.Tx) error { return request.PrepareLocal(operationCtx, tx, prepared) }); err != nil {
+				return err
+			}
+		}
 		result, err = service.putFenced(operationCtx, transport, prepared, fingerprint, request)
 		return err
 	})
@@ -241,6 +259,9 @@ func validateAddressedPutRequest(request AddressedPutCommandRequest) (syntax.Rec
 	}
 	parsed, err := syntax.ParseATURI(request.URI.String())
 	if err != nil || parsed.Authority().DID() != request.Owner || parsed.Collection() == "" || parsed.RecordKey() == "" {
+		return "", ErrMalformedCommand
+	}
+	if request.allowAbsentProfile && (parsed.Collection() != "app.bsky.actor.profile" || parsed.RecordKey() != "self" || request.ExpectedCID != "*") {
 		return "", ErrMalformedCommand
 	}
 	return parsed.RecordKey(), nil
@@ -370,7 +391,13 @@ func (service *AddressedCommandService) putFenced(
 		return service.rejectPut(ctx, command.ID, request, ErrRepositoryConflict)
 	}
 	if request.StrictExpectedCID && command.State != CommandPrepared {
-		record, observeErr := transport.observeRecord(ctx, request.Owner, request.URI)
+		var record AuthoritativeRecord
+		var observeErr error
+		if request.recoverGuestVisibility {
+			record, observeErr = observeGuestProfile(ctx, transport, request.Owner)
+		} else {
+			record, observeErr = transport.observeRecord(ctx, request.Owner, request.URI)
+		}
 		if observeErr != nil {
 			return service.store.UnresolvedResult(ctx, command)
 		}
@@ -382,12 +409,19 @@ func (service *AddressedCommandService) putFenced(
 		if err != nil {
 			return CommandResult{}, err
 		}
-		if matches {
+		recoverPreference := request.recoverGuestVisibility && guestProfilePreference(record.Record) != guestvisibility.Unknown && guestProfilePreference(dispatched) != guestvisibility.Unknown
+		if matches || recoverPreference {
 			terminal, err := request.Accepted(record)
+			if !matches && guestProfilePreference(record.Record) != guestProfilePreference(dispatched) {
+				terminal = request.Rejected(ErrRecordConflict)
+				if terminal.State == "" {
+					terminal.State = CommandRejected
+				}
+			}
 			if err != nil {
 				return CommandResult{}, err
 			}
-			if err := service.store.completeAddressedRecovery(ctx, command, record, terminal, func(tx pgx.Tx) error {
+			if err := service.store.completeAddressedRecovery(ctx, command, record, terminal, !matches, func(tx pgx.Tx) error {
 				if request.FinalizeAccepted != nil {
 					return request.FinalizeAccepted(ctx, tx, command, record)
 				}
@@ -418,7 +452,7 @@ func (service *AddressedCommandService) putFenced(
 			record = AuthoritativeRecord{URI: request.URI}
 		}
 
-		if request.StrictExpectedCID && command.State == CommandPrepared && (absent || record.CID != request.ExpectedCID) {
+		if request.StrictExpectedCID && command.State == CommandPrepared && ((absent && !request.allowAbsentProfile) || (!absent && record.CID != request.ExpectedCID)) {
 			return service.rejectPut(ctx, command.ID, request, ErrRecordConflict)
 		}
 		var desired json.RawMessage
@@ -440,7 +474,21 @@ func (service *AddressedCommandService) putFenced(
 				return CommandResult{}, compareErr
 			}
 			if matches {
-				return service.acceptRecord(ctx, command.ID, request, record)
+				if request.FinalizeObserved != nil {
+					observed, observeErr := transport.observeRecord(ctx, request.Owner, request.URI)
+					if observeErr != nil {
+						return CommandResult{}, errors.Join(ErrDispatchUnavailable, observeErr)
+					}
+					stillMatches, compareErr := equalCanonicalJSON(observed.Record, desired)
+					if compareErr != nil {
+						return CommandResult{}, compareErr
+					}
+					if !stillMatches || observed.CID != record.CID {
+						return CommandResult{}, ErrRepositoryConflict
+					}
+					record = observed
+				}
+				return service.acceptRecord(ctx, command, request, record)
 			}
 			if request.ExpectedCID == "*" || record.CID != request.ExpectedCID {
 				if command.State != CommandPrepared {
@@ -576,7 +624,7 @@ func (service *AddressedCommandService) putFenced(
 
 func (service *AddressedCommandService) acceptRecord(
 	ctx context.Context,
-	commandID uuid.UUID,
+	command PreparedCommand,
 	request AddressedPutCommandRequest,
 	record AuthoritativeRecord,
 ) (CommandResult, error) {
@@ -584,7 +632,19 @@ func (service *AddressedCommandService) acceptRecord(
 	if err != nil {
 		return CommandResult{}, err
 	}
-	return service.accept(ctx, commandID, terminal)
+	if request.FinalizeObserved == nil {
+		return service.accept(ctx, command.ID, terminal)
+	}
+	err = service.store.completeCommandWithHook(ctx, command.ID, terminal, func(tx pgx.Tx) error {
+		return request.FinalizeObserved(ctx, tx, command, record)
+	})
+	if errors.Is(err, ErrIllegalTransition) {
+		return service.store.Result(ctx, command.ID)
+	}
+	if err != nil {
+		return CommandResult{}, err
+	}
+	return service.store.Result(ctx, command.ID)
 }
 
 func (service *AddressedCommandService) accept(ctx context.Context, commandID uuid.UUID, terminal TerminalResult) (CommandResult, error) {
