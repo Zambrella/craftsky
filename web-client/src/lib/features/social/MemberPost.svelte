@@ -1,4 +1,7 @@
 <script lang="ts">
+	import { reportFailure } from '../diagnostics/client';
+	import type { DiagnosticOperation } from '../diagnostics/privacy';
+	import { userErrorMessage } from '#lib/user-facing-error.ts';
 	import SingleSelect from '#lib/SingleSelect.svelte';
 	import ImageGallery from './ImageGallery.svelte';
 	import Snackbar from './Snackbar.svelte';
@@ -124,6 +127,7 @@
 		dead = true;
 	});
 	async function action<T>(
+		operation: DiagnosticOperation,
 		run: () => Promise<T>,
 		commit: (result: T) => void,
 		continuing = false
@@ -142,15 +146,13 @@
 			if (dead || captured !== revision) return;
 			heart?.cancel();
 			messageError = true;
-			message =
-				error instanceof APIError
-					? error.message
-					: 'This action could not be completed.';
+			void reportFailure(error, operation);
+			message = userErrorMessage(error);
 			if (
 				error instanceof MutationOutcomeUnknownError ||
 				(error instanceof APIError && error.retryable)
 			)
-				retry = () => action(run, commit, true);
+				retry = () => action(operation, run, commit, true);
 		} finally {
 			if (!dead && captured === revision) busy = false;
 		}
@@ -172,26 +174,31 @@
 				: active
 					? () => api.posts.unrepost(p.author.did, p.rkey, key)
 					: () => api.posts.repost(p.author.did, p.rkey, key);
-		void action<unknown>(call, () => {
-			if (!post) return;
-			post = {
-				...post,
-				...(kind === 'like'
-					? {
-							viewerHasLiked: !active,
-							likeCount: Math.max(0, p.likeCount + (active ? -1 : 1))
-						}
-					: {
-							viewerHasReposted: !active,
-							repostCount: Math.max(0, p.repostCount + (active ? -1 : 1))
-						})
-			};
-		});
+		void action<unknown>(
+			kind === 'like' ? 'post.like' : 'post.repost',
+			call,
+			() => {
+				if (!post) return;
+				post = {
+					...post,
+					...(kind === 'like'
+						? {
+								viewerHasLiked: !active,
+								likeCount: Math.max(0, p.likeCount + (active ? -1 : 1))
+							}
+						: {
+								viewerHasReposted: !active,
+								repostCount: Math.max(0, p.repostCount + (active ? -1 : 1))
+							})
+				};
+			}
+		);
 	}
 	async function save(folderId?: string, move = false) {
 		if (!post) return;
 		const p = post;
 		await action<unknown>(
+			'post.save',
 			() =>
 				p.viewerHasSaved && !folderId && !move
 					? api.saved.unsave(p.author.did, p.rkey)
@@ -217,6 +224,7 @@
 		creatingFolder = false;
 		folderName = '';
 		await action(
+			'post.chooseFolder',
 			() => (plus ? allFolders(api) : Promise.resolve([])),
 			(result) => {
 				folders = result;
@@ -228,6 +236,7 @@
 		const name = folderName.trim();
 		if (!name || !plus) return;
 		void action(
+			'post.createFolder',
 			() => api.saved.createFolder(name),
 			(folder) => {
 				folders = [...folders, folder];
@@ -279,6 +288,7 @@
 		}
 		const key = newOperationKey();
 		void action(
+			'post.relationship',
 			async () => {
 				if (kind === 'mute')
 					return current.author.muted
@@ -311,6 +321,7 @@
 		const p = post,
 			key = newOperationKey();
 		void action(
+			'post.remove',
 			() => api.posts.delete(p.author.did, p.rkey, p.cid, key),
 			() => {
 				publications?.remove(p.uri);
@@ -361,6 +372,7 @@
 		if (!post) return;
 		const p = post;
 		await action(
+			'post.report',
 			() => api.posts.report(p.author.did, p.rkey, submission),
 			() => {
 				reportOpen = false;
@@ -373,6 +385,7 @@
 		const p = post,
 			was = pins.isPinned(p);
 		void action(
+			'post.togglePin',
 			() => pins.set(p, !was),
 			() => {
 				message = was ? 'Unpinned.' : 'Pinned to profile.';
@@ -383,6 +396,7 @@
 		const address = value.uri ? postAddress(value.uri) : undefined;
 		if (address)
 			void action(
+				'post.revealPost',
 				() => api.posts.get(address.did, address.rkey),
 				(result) => {
 					if (
@@ -403,6 +417,7 @@
 			address = postAddress(p.quote!.uri);
 		if (address)
 			void action(
+				'post.revealQuote',
 				() => api.posts.get(address.did, address.rkey),
 				(result) => {
 					if (
@@ -544,6 +559,7 @@
 								onclick={() => {
 									const current = post!;
 									void action(
+										'post.unsave',
 										() => api.saved.unsave(current.author.did, current.rkey),
 										onRemove
 									);

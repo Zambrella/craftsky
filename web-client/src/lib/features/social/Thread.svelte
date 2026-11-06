@@ -42,7 +42,7 @@
 		collapsed: string[];
 	}>('thread');
 	let loadedPages = $state(0);
-	const work = new Work();
+	const work = new Work('social.Thread.action');
 	let post = $state<PostPresentation>(),
 		comments = $state<CommentItem[]>([]),
 		people = $state<Author[]>([]),
@@ -162,7 +162,9 @@
 								});
 						});
 				}
-			}
+			},
+			undefined,
+			'social.Thread.load'
 		);
 	}
 	function replies(comment: CommentItem) {
@@ -187,7 +189,9 @@
 				comments =
 					publications?.comments(comments, post?.uri || '') || comments;
 				collapsed = collapsed.filter((uri) => uri !== address.uri);
-			}
+			},
+			undefined,
+			'social.Thread.replies'
 		);
 	}
 </script>

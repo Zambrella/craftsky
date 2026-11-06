@@ -20,7 +20,7 @@
 		status: OnboardingStatus;
 		onComplete: () => void;
 	} = $props();
-	const work = new Work();
+	const work = new Work('social.Onboarding.action');
 	let editorBusy = $state(false);
 	let age = $state(false),
 		diagnostics = $state(false),
@@ -44,7 +44,9 @@
 					if (diagnosticsConfigured()) setConsent(diagnostics);
 				} catch {}
 				onComplete();
-			}
+			},
+			undefined,
+			'social.Onboarding.finish'
 		);
 	}
 </script>

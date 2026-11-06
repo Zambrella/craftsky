@@ -1,4 +1,4 @@
-import { test, expect, type Locator } from '@playwright/test';
+import { test, expect } from '@playwright/test';
 import { resolve } from 'node:path';
 const fixture = 'http://127.0.0.1:19847';
 const account = {

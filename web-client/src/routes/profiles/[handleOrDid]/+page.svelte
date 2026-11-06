@@ -7,7 +7,6 @@
 	import {
 		authorName,
 		description,
-		label,
 		profilePath,
 		safeURL
 	} from '#lib/public.ts';

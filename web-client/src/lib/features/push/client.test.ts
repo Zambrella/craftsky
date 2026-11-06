@@ -99,3 +99,16 @@ describe('browser push lifecycle', () => {
 		expect(sdk.deleteToken).toHaveBeenCalledTimes(1);
 	});
 });
+
+it('treats denied notification permission as expected without starting registration', async () => {
+	const { registerPush } = await import('./client.ts');
+	const { expectedFailure } = await import('../diagnostics/privacy');
+	permission.mockResolvedValueOnce('denied');
+	const error = await registerPush(
+		{} as CraftskyAPI,
+		'private-account',
+		true
+	).catch((error) => error);
+	expect(expectedFailure(error)).toBe(true);
+	expect(error.message).toContain('Notifications are blocked');
+});

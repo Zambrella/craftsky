@@ -1,3 +1,4 @@
+import { InputError } from '#lib/user-facing-error.ts';
 import { graphemeCount } from '#lib/text.ts';
 import type { ChatMessage, ChatReceipt } from '#lib/api/client.ts';
 
@@ -42,6 +43,7 @@ export function validateText(text: string, report = false): string | undefined {
 
 /** Drafts are private browser data, partitioned by the exact account session. */
 export class MessageDraftStore {
+	private observed = new Map<string, string | null>();
 	constructor(
 		private readonly storage: StorageLike,
 		private readonly account: string
@@ -51,7 +53,10 @@ export class MessageDraftStore {
 	}
 	load(id: string): MessageDraft {
 		const raw = this.storage.getItem(this.key(id));
-		if (!raw) return { text: '' };
+		if (!raw) {
+			this.observed.set(this.key(id), null);
+			return { text: '' };
+		}
 		try {
 			if (raw.length > 50_000) throw new Error('Oversized draft');
 			const value = JSON.parse(raw) as MessageDraft;
@@ -69,6 +74,7 @@ export class MessageDraftStore {
 					!states.has(value.pending.state))
 			)
 				throw new Error('Invalid attempt');
+			this.observed.set(this.key(id), raw);
 			return {
 				text: value.text,
 				...(value.pending
@@ -83,16 +89,30 @@ export class MessageDraftStore {
 						}
 					: {})
 			};
-		} catch {
-			throw new Error('The saved message draft could not be read.');
+		} catch (cause) {
+			throw new Error('The saved message draft could not be read.', { cause });
 		}
 	}
-	save(id: string, draft: MessageDraft): void {
-		if (!draft.text && !draft.pending) this.storage.removeItem(this.key(id));
-		else this.storage.setItem(this.key(id), JSON.stringify(draft));
-	}
-	clear(id: string): void {
-		this.storage.removeItem(this.key(id));
+	async save(id: string, draft: MessageDraft): Promise<void> {
+		const key = this.key(id);
+		const value = draft.text || draft.pending ? JSON.stringify(draft) : null;
+		const write = () => {
+			if (this.storage.getItem(key) !== (this.observed.get(key) ?? null))
+				throw new InputError(
+					'This conversation has a saved draft or delivery in another tab. Your text is still here. Reopen the conversation before saving or sending.'
+				);
+			if (value === null) this.storage.removeItem(key);
+			else this.storage.setItem(key, value);
+			this.observed.set(key, value);
+		};
+		// Shared localStorage needs an origin-wide lock: a read/compare/write alone is not atomic.
+		if (typeof window === 'undefined')
+			write(); // non-browser unit fixtures
+		else if (navigator.locks) await navigator.locks.request(key, write);
+		else
+			throw new InputError(
+				'This browser cannot safely save messaging recovery. Use a browser with Web Locks support.'
+			);
 	}
 	loadReport(id: string, message?: string): FrozenReport | undefined {
 		const raw = this.storage.getItem(this.key(`report:${id}:${message || ''}`));
@@ -129,9 +149,10 @@ export function freezeSend(
 	draft: MessageDraft,
 	newID: () => string = () => crypto.randomUUID()
 ): MessageDraft {
-	if (draft.pending) throw new Error('Resolve the existing attempt first.');
+	if (draft.pending)
+		throw new InputError('Resolve the existing attempt first.');
 	const invalid = validateText(draft.text);
-	if (invalid) throw new Error(invalid);
+	if (invalid) throw new InputError(invalid);
 	const id = newID();
 	if (!operationID.test(id)) throw new Error('Invalid message operation.');
 	return {
@@ -311,7 +332,9 @@ export function prefillSharedLink(
 ): MessageDraft {
 	const safe = sharedCraftskyLink(link);
 	if (!safe)
-		throw new Error('Open the original CraftSky content to share this link.');
+		throw new InputError(
+			'Open the original CraftSky content to share this link.'
+		);
 	if (messageLinks(draft.text).some((part) => part.href === safe)) return draft;
 	// An existing delivery keeps its frozen text/ID; the shared link becomes a separate editable draft.
 	const text =

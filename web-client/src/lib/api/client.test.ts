@@ -413,7 +413,7 @@ describe('transport failure and mutation semantics', () => {
 		await expect(
 			api.posts.timeline({ signal: controller.signal })
 		).rejects.toMatchObject({ name: 'AbortError' });
-		expect(fetcher.mock.calls[0][1]?.signal).toBe(controller.signal);
+		expect(fetcher).not.toHaveBeenCalled();
 		await expect(
 			api.posts.like('did:plc:a', 'post', key)
 		).rejects.toBeInstanceOf(MutationOutcomeUnknownError);

@@ -1,8 +1,11 @@
+import type { DiagnosticOperation } from '../diagnostics/privacy';
+import { isCanceled } from '#lib/api/error-message.ts';
 import { presentFieldErrors } from '#lib/field-validation.ts';
 import { accountScope, message, pendingWrite } from './model.ts';
 import { reportFailure } from '../diagnostics/client.ts';
 
 export class Work {
+	constructor(private operationName: DiagnosticOperation = 'settings.save') {}
 	loading = $state(true);
 	busy = $state(false);
 	error = $state('');
@@ -14,7 +17,11 @@ export class Work {
 		this.active = false;
 		this.scope.invalidate();
 	}
-	async load<T>(request: () => Promise<T>, apply: (value: T) => void) {
+	async load<T>(
+		request: () => Promise<T>,
+		apply: (value: T) => void,
+		label: DiagnosticOperation = this.operationName
+	) {
 		if (!this.active || this.busy || this.retry) return;
 		this.scope.invalidate();
 		const token = this.scope.token();
@@ -24,8 +31,9 @@ export class Work {
 			const value = await request();
 			if (this.scope.current(token)) apply(value);
 		} catch (error) {
+			if (isCanceled(error)) return;
 			if (this.scope.current(token) && presentFieldErrors(error)) return;
-			void reportFailure(error, 'workspace');
+			void reportFailure(error, label);
 			if (this.scope.current(token)) this.error = message(error);
 		} finally {
 			if (this.scope.current(token)) this.loading = false;
@@ -34,7 +42,8 @@ export class Work {
 	async run<T>(
 		request: () => Promise<T>,
 		apply: (value: T) => void = () => {},
-		notice = 'Saved.'
+		notice = 'Saved.',
+		label: DiagnosticOperation = this.operationName
 	) {
 		if (!this.active || this.busy || this.retry) return;
 		const token = this.scope.token();
@@ -49,14 +58,15 @@ export class Work {
 				this.notice = notice;
 			}
 		} catch (error) {
+			if (isCanceled(error)) return;
 			if (this.scope.current(token) && presentFieldErrors(error)) return;
-			void reportFailure(error, 'workspace');
+			void reportFailure(error, label);
 			if (this.scope.current(token)) {
 				this.error = message(error);
 				if (pendingWrite(error))
 					this.retry = async () => {
 						this.retry = null;
-						await this.run(request, apply, notice);
+						await this.run(request, apply, notice, label);
 					};
 			}
 		} finally {

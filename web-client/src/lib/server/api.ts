@@ -1,3 +1,4 @@
+import { logServerFailure } from './diagnostics';
 import { error } from '@sveltejs/kit';
 import { env } from 'node:process';
 
@@ -12,7 +13,8 @@ export async function publicAPI<T>(
 	let base: URL;
 	try {
 		base = new URL(env.APPVIEW_ORIGIN || 'https://appview.craftsky.social');
-	} catch {
+	} catch (cause) {
+		logServerFailure(cause, 'public.read', 'configuration');
 		error(503, 'Page temporarily unavailable');
 	}
 	if (
@@ -26,8 +28,14 @@ export async function publicAPI<T>(
 				base.protocol === 'http:' &&
 				['localhost', '127.0.0.1'].includes(base.hostname)
 			))
-	)
+	) {
+		logServerFailure(
+			new Error('Invalid origin'),
+			'public.read',
+			'configuration'
+		);
 		error(503, 'Page temporarily unavailable');
+	}
 	let response: Response;
 	try {
 		response = await fetcher(new URL(`/v1/public/${path}`, base), {
@@ -36,17 +44,32 @@ export async function publicAPI<T>(
 			credentials: 'omit',
 			signal: AbortSignal.timeout(9000)
 		});
-	} catch {
+	} catch (cause) {
+		logServerFailure(cause, 'public.read', 'fetch');
 		error(503, 'Page temporarily unavailable');
 	}
 	if (response.status === 404) error(404, 'Page not found');
 	if (response.status === 400) error(400, 'Invalid page request');
 	if (response.status === 429)
 		error(429, 'Too many requests. Please try again shortly.');
-	if (!response.ok) error(503, 'Page temporarily unavailable');
+	if (!response.ok) {
+		logServerFailure(
+			new Error('Upstream response failed'),
+			'public.read',
+			'response',
+			{
+				status: response.status,
+				requestId: response.headers.get('X-Request-ID') || undefined
+			}
+		);
+		error(503, 'Page temporarily unavailable');
+	}
 	// Bound both declared and streamed bodies; no public JSON can exhaust Worker memory.
 	const reader = response.body?.getReader();
-	if (!reader) error(503, 'Page temporarily unavailable');
+	if (!reader) {
+		logServerFailure(new Error('Missing body'), 'public.read', 'response');
+		error(503, 'Page temporarily unavailable');
+	}
 	const chunks: Uint8Array[] = [];
 	let length = 0;
 	try {
@@ -67,7 +90,10 @@ export async function publicAPI<T>(
 			offset += chunk.length;
 		}
 		return JSON.parse(new TextDecoder().decode(body)) as T;
-	} catch {
+	} catch (cause) {
+		logServerFailure(cause, 'public.read', 'decode', {
+			requestId: response.headers.get('X-Request-ID') || undefined
+		});
 		error(503, 'Page temporarily unavailable');
 	} finally {
 		reader.releaseLock();

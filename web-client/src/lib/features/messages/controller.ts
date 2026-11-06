@@ -1,3 +1,8 @@
+import { stageSharedLink, takeSharedLink } from './share';
+import { reportFailure } from '../diagnostics/client';
+import type { DiagnosticOperation } from '../diagnostics/privacy';
+import { userErrorMessage } from '#lib/user-facing-error.ts';
+import { isCanceled } from '#lib/api/error-message.ts';
 import {
 	APIError,
 	type CraftskyAPI,
@@ -80,7 +85,7 @@ const accessDenied = (error: unknown): boolean =>
 const errorMessage = (error: unknown): string =>
 	error instanceof APIError && error.code === 'chat_relationship_unavailable'
 		? 'This person cannot receive a new message from you right now.'
-		: 'Messaging is temporarily unavailable. Try again.';
+		: userErrorMessage(error);
 
 /** One immutable account activation owns all async results, drafts and polling. */
 export class MessagesController {
@@ -90,6 +95,8 @@ export class MessagesController {
 	private store: MessageDraftStore;
 	private route = '';
 	private syncing = false;
+	private syncFailed = false;
+	private reportSaveFailed = false;
 	private syncRevision?: number;
 	private searchEpoch = 0;
 	private readID?: string;
@@ -113,7 +120,9 @@ export class MessagesController {
 			this.publish(this.state);
 		}
 	}
-	private failure(error: unknown): void {
+	private failure(error: unknown, operation: DiagnosticOperation): void {
+		if (isCanceled(error)) return;
+		void reportFailure(error, operation);
 		if (accessDenied(error))
 			this.update({
 				conversation: undefined,
@@ -186,7 +195,13 @@ export class MessagesController {
 					let draftSaved = true;
 					try {
 						draft = this.store.load(id);
-					} catch {
+						const link = takeSharedLink(this.account, id);
+						if (link) {
+							draft = prefillSharedLink(draft, link);
+							draftSaved = false;
+						}
+					} catch (error) {
+						void reportFailure(error, 'messages.draft.load');
 						draftSaved = false;
 					}
 					this.update({
@@ -219,7 +234,7 @@ export class MessagesController {
 				}
 			}
 		} catch (error) {
-			if (this.current(epoch)) this.failure(error);
+			if (this.current(epoch)) this.failure(error, 'messages.navigate');
 		} finally {
 			if (this.current(epoch)) this.update({ loading: false });
 		}
@@ -259,7 +274,7 @@ export class MessagesController {
 				}
 			}
 		} catch (error) {
-			if (this.current(epoch)) this.failure(error);
+			if (this.current(epoch)) this.failure(error, 'messages.more');
 		} finally {
 			if (this.current(epoch)) this.update({ loadingMore: false });
 		}
@@ -283,7 +298,7 @@ export class MessagesController {
 			});
 		} catch (error) {
 			if (this.current(epoch) && search === this.searchEpoch)
-				this.failure(error);
+				this.failure(error, 'messages.search');
 		}
 	}
 	async start(
@@ -314,45 +329,66 @@ export class MessagesController {
 				availability.conversationId ||
 				(await this.api.chat.start(recipient)).id;
 			if (!this.current(epoch)) return;
-			if (link) {
-				// Persistence must complete before the recipient page is opened. No send is started here.
-				try {
-					const draft = prefillSharedLink(this.store.load(id), link);
-					this.store.save(id, draft);
-				} catch {
-					this.update({
-						error:
-							'The shared link could not be saved on this device. Your existing draft has been kept. Try again after checking browser storage.'
-					});
-					return;
-				}
-			}
+			if (link) stageSharedLink(this.account, id, link);
 			return id;
 		} catch (error) {
-			if (this.current(epoch)) this.failure(error);
+			if (this.current(epoch)) this.failure(error, 'messages.start');
 		} finally {
 			if (this.current(epoch)) this.update({ busy: false });
 		}
 	}
 	edit(text: string): void {
 		if (!this.state.id) return;
-		this.update({ draft: { ...this.state.draft, text } });
-		this.saveDraft();
+		this.update({ draft: { ...this.state.draft, text }, draftSaved: false });
 	}
-	saveDraft(): boolean {
-		if (!this.state.id) return false;
+	async saveDraft(): Promise<boolean> {
+		const { id, draft } = this.state,
+			epoch = this.epoch;
+		if (!id || this.state.busy || draft.pending) return false;
+		this.update({ busy: true });
 		try {
-			this.store.save(this.state.id, this.state.draft);
-			this.update({ draftSaved: true });
+			await this.store.save(id, draft);
+			if (this.current(epoch))
+				this.update({
+					draftSaved: this.state.draft.text === draft.text,
+					notice: 'Draft saved on this device.'
+				});
 			return true;
-		} catch {
-			this.update({ draftSaved: false });
+		} catch (error) {
+			void reportFailure(error, 'messages.draft.save');
+			if (this.current(epoch))
+				this.update({ error: userErrorMessage(error), draftSaved: false });
 			return false;
+		} finally {
+			if (this.current(epoch)) this.update({ busy: false });
 		}
 	}
-	private setDraft(draft: MessageDraft): boolean {
-		this.update({ draft });
-		return this.saveDraft();
+	private async setDraft(draft: MessageDraft): Promise<boolean> {
+		const epoch = this.epoch,
+			id = this.state.id,
+			textBefore = this.state.draft.text;
+		if (!id) return false;
+		try {
+			// Recovery stores only the submitted text; subsequent typing remains unsaved.
+			await this.store.save(
+				id,
+				draft.pending
+					? { text: draft.pending.text, pending: draft.pending }
+					: { text: '' }
+			);
+			if (!this.current(epoch)) return false;
+			if (this.state.draft.text !== textBefore)
+				draft = { ...draft, text: this.state.draft.text };
+			this.update({
+				draft,
+				draftSaved:
+					!draft.text || (!!draft.pending && draft.text === draft.pending.text)
+			});
+			return true;
+		} catch (error) {
+			if (this.current(epoch)) this.failure(error, 'messages.draft.save');
+			return false;
+		}
 	}
 	async send(retry = false): Promise<void> {
 		const { id, conversation } = this.state;
@@ -369,21 +405,19 @@ export class MessagesController {
 			if (!retry) draft = freezeSend(draft);
 			else if (!draft.pending || draft.pending.state === 'failed') return;
 		} catch (error) {
+			void reportFailure(error, 'messages.send.prepare');
 			this.update({
-				error:
-					error instanceof Error
-						? error.message
-						: 'The message could not be sent.'
+				error: userErrorMessage(error)
 			});
 			return;
 		}
-		if (!this.setDraft(draft)) {
-			this.update({
-				error:
-					'Save this draft before sending so its delivery can be checked safely.'
-			});
+		this.update({ busy: true });
+		if (!(await this.setDraft(draft))) {
+			if (!this.current(epoch)) return;
+			this.update({ busy: false });
 			return;
 		}
+		if (!this.current(epoch)) return;
 		const attempt = draft.pending!;
 		this.update({ busy: true, error: '', notice: '' });
 		try {
@@ -393,7 +427,8 @@ export class MessagesController {
 				attempt.text
 			);
 			if (!this.current(epoch)) return;
-			this.setDraft(reconcileSend(this.state.draft, receipt));
+			await this.setDraft(reconcileSend(this.state.draft, receipt));
+			if (!this.current(epoch)) return;
 			if (receipt.message)
 				this.update({
 					messages: mergeMessages(this.state.messages, [receipt.message])
@@ -403,11 +438,11 @@ export class MessagesController {
 			if (!this.current(epoch)) return;
 			const pending = this.state.draft.pending;
 			if (pending?.operationId === attempt.operationId)
-				this.setDraft({
+				await this.setDraft({
 					...this.state.draft,
 					pending: { ...pending, state: 'uncertain' }
 				});
-			this.failure(error);
+			this.failure(error, 'messages.send');
 		} finally {
 			if (this.current(epoch)) this.update({ busy: false });
 		}
@@ -420,7 +455,8 @@ export class MessagesController {
 		try {
 			const receipt = await this.api.chat.receipt(pending.operationId);
 			if (!this.current(epoch)) return;
-			this.setDraft(reconcileSend(this.state.draft, receipt));
+			await this.setDraft(reconcileSend(this.state.draft, receipt));
+			if (!this.current(epoch)) return;
 			if (receipt.state === 'confirmed') await this.refreshContent(epoch);
 		} catch (error) {
 			if (this.current(epoch)) {
@@ -429,25 +465,25 @@ export class MessagesController {
 						notice:
 							'Delivery is not confirmed. Retry uses the same message attempt.'
 					});
-				else this.failure(error);
+				else this.failure(error, 'messages.checkSend');
 			}
 		} finally {
 			if (this.current(epoch)) this.update({ busy: false });
 		}
 	}
-	dismissFailed(): void {
+	async dismissFailed(): Promise<void> {
 		if (this.state.draft.pending?.state === 'failed')
-			this.setDraft({
+			await this.setDraft({
 				text: this.state.draft.text || this.state.draft.pending.text
 			});
 	}
-	discardDraft(): void {
+	async discardDraft(): Promise<void> {
 		if (
 			this.state.draft.pending?.state === 'uncertain' ||
 			this.state.draft.pending?.state === 'pending'
 		)
 			return;
-		this.setDraft({ text: '' });
+		await this.setDraft({ text: '' });
 	}
 	private async refreshContent(epoch: number): Promise<void> {
 		const { id } = this.state;
@@ -498,7 +534,7 @@ export class MessagesController {
 					});
 			}
 		} catch (error) {
-			if (this.current(epoch)) this.failure(error);
+			if (this.current(epoch)) this.failure(error, 'messages.presented');
 		} finally {
 			if (this.readingEpoch === epoch) this.readingEpoch = undefined;
 		}
@@ -617,7 +653,7 @@ export class MessagesController {
 			const result = await work();
 			if (this.current(epoch)) commit(result);
 		} catch (error) {
-			if (this.current(epoch)) this.failure(error);
+			if (this.current(epoch)) this.failure(error, 'messages.setPolicy');
 		} finally {
 			if (this.current(epoch)) this.update({ busy: false });
 		}
@@ -657,8 +693,12 @@ export class MessagesController {
 		this.update({ report });
 		try {
 			this.store.saveReport(this.state.id, this.state.reportMessage, report);
+			this.reportSaveFailed = false;
 			return true;
-		} catch {
+		} catch (error) {
+			if (!this.reportSaveFailed)
+				void reportFailure(error, 'messages.report.save');
+			this.reportSaveFailed = true;
 			this.update({
 				error:
 					'This report could not be saved safely on your device. Try again before sending.'
@@ -743,9 +783,15 @@ export class MessagesController {
 						});
 				}
 			}
-			if (this.current(epoch)) this.syncRevision = snapshot.revision;
+			if (this.current(epoch)) {
+				this.syncRevision = snapshot.revision;
+				this.syncFailed = false;
+			}
 		} catch (error) {
-			if (this.current(epoch)) this.failure(error);
+			if (this.current(epoch) && !this.syncFailed) {
+				this.syncFailed = true;
+				this.failure(error, 'messages.sync');
+			}
 		} finally {
 			this.syncing = false;
 		}

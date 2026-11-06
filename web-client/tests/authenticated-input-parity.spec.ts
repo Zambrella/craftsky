@@ -222,6 +222,42 @@ test('onboarding keeps one editor across steps, uses fixed actions and retains u
 	).toHaveValue('Alice Updated');
 });
 
+for (const viewport of [
+	{ width: 1280, height: 900 },
+	{ width: 402, height: 874 }
+]) {
+	test(`saved onboarding bio leaves the next action clickable at ${viewport.width}px`, async ({
+		page
+	}) => {
+		await fetch('http://127.0.0.1:19847/__test/control', {
+			method: 'POST',
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({ owners: { alice: { completed: false } } })
+		});
+		await page.setViewportSize(viewport);
+		await page.goto('/feed');
+		await page
+			.getByRole('textbox', { name: /^Bio/ })
+			.fill('Updated onboarding bio');
+		await page
+			.getByRole('button', { name: 'Save & next', exact: true })
+			.click();
+		await expect(page.getByRole('progressbar')).toHaveAttribute(
+			'aria-valuenow',
+			'2'
+		);
+		await page
+			.getByRole('button', { name: 'Next', exact: true })
+			.click({ timeout: 6000 });
+		await expect(
+			page.getByRole('heading', {
+				name: 'Our community guidelines',
+				exact: true
+			})
+		).toBeVisible();
+	});
+}
+
 test('draft deletion uses the shared branded confirmation in both themes', async ({
 	page
 }) => {

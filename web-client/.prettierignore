@@ -1,0 +1,9 @@
+node_modules/
+.svelte-kit/
+.sentry-artifacts/
+static/
+test-results*/
+playwright-report/
+package-lock.json
+.wrangler/
+.deployments/

@@ -9,7 +9,7 @@
 	let { api, did, tag }: { api: CraftskyAPI; did: string; tag: string } =
 		$props();
 	const back = getContext<(event: MouseEvent) => void>('craftsky-back');
-	const work = new Work();
+	const work = new Work('social.Tag.action');
 	let posts = $state<PostPresentation[]>([]),
 		cursor = $state<string | null>(null);
 	async function load(more = false) {
@@ -18,7 +18,9 @@
 			(value) => {
 				posts = more ? [...posts, ...value.items] : value.items;
 				cursor = value.cursor || null;
-			}
+			},
+			undefined,
+			'social.Tag.load'
 		);
 	}
 	onMount(() => {

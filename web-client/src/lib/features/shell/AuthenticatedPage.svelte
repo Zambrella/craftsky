@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { reportFailure } from '../diagnostics/client';
 	import { page } from '$app/state';
 	import { getContext } from 'svelte';
 	import type { CraftskyAPI } from '#lib/api/client.ts';
@@ -16,6 +17,14 @@
 	} = $props();
 	let path = $derived(data.path);
 	let section = $derived(path[0] || 'feed');
+	async function loadPage<T>(load: () => Promise<T>): Promise<T> {
+		try {
+			return await load();
+		} catch (error) {
+			void reportFailure(error, 'page.import');
+			throw error;
+		}
+	}
 </script>
 
 {#snippet loading()}<p class="empty" role="status">Loading…</p>{/snippet}
@@ -33,22 +42,22 @@
 			{api}
 			did={data.session.did}
 			tag={page.url.searchParams.get('tag') || ''}
-		/>{:else if section === 'search'}{#await import('#lib/features/social/Search.svelte')}{@render loading()}{:then Module}<Module.default
+		/>{:else if section === 'search'}{#await loadPage(() => import('#lib/features/social/Search.svelte'))}{@render loading()}{:then Module}<Module.default
 				{api}
 				did={data.session.did}
-			/>{:catch}{@render loadError()}{/await}{:else if section === 'profile' && path[1] === 'edit'}{#await import('#lib/features/social/ProfileEditor.svelte')}{@render loading()}{:then Module}<Module.default
+			/>{:catch}{@render loadError()}{/await}{:else if section === 'profile' && path[1] === 'edit'}{#await loadPage(() => import('#lib/features/social/ProfileEditor.svelte'))}{@render loading()}{:then Module}<Module.default
 				{api}
 				session={data.session}
-			/>{:catch}{@render loadError()}{/await}{:else if section === 'profiles' && path[2] === 'mutual-followers'}{#await import('#lib/features/social/MutualFollowers.svelte')}{@render loading()}{:then Module}<Module.default
+			/>{:catch}{@render loadError()}{/await}{:else if section === 'profiles' && path[2] === 'mutual-followers'}{#await loadPage(() => import('#lib/features/social/MutualFollowers.svelte'))}{@render loading()}{:then Module}<Module.default
 				{api}
 				id={path[1]?.replace(/^@/, '')}
-			/>{:catch}{@render loadError()}{/await}{:else if section === 'profile' || section === 'profiles'}{#await import('#lib/features/social/Profile.svelte')}{@render loading()}{:then Module}<Module.default
+			/>{:catch}{@render loadError()}{/await}{:else if section === 'profile' || section === 'profiles'}{#await loadPage(() => import('#lib/features/social/Profile.svelte'))}{@render loading()}{:then Module}<Module.default
 				{api}
 				session={data.session}
 				id={section === 'profile'
 					? data.session.did
 					: path[1]?.replace(/^@/, '')}
-			/>{:catch}{@render loadError()}{/await}{:else if section === 'posts' && path.length >= 3}{#await import('#lib/features/social/Thread.svelte')}{@render loading()}{:then Module}<Module.default
+			/>{:catch}{@render loadError()}{/await}{:else if section === 'posts' && path.length >= 3}{#await loadPage(() => import('#lib/features/social/Thread.svelte'))}{@render loading()}{:then Module}<Module.default
 				{api}
 				session={data.session}
 				did={path[1]}
@@ -60,25 +69,25 @@
 		/>{:else if section === 'notifications' && path[1] !== 'settings'}<Activity
 			{api}
 			did={data.session.did}
-		/>{:else if section === 'messages'}{#await import('#lib/features/messages/MessagesWorkspace.svelte')}{@render loading()}{:then Module}<Module.default
+		/>{:else if section === 'messages'}{#await loadPage(() => import('#lib/features/messages/MessagesWorkspace.svelte'))}{@render loading()}{:then Module}<Module.default
 				{api}
 				{path}
 				session={data.session}
-			/>{:catch}{@render loadError()}{/await}{:else if section === 'settings' || (section === 'notifications' && path[1] === 'settings')}{#await import('#lib/features/settings/SettingsWorkspace.svelte')}{@render loading()}{:then Module}<Module.default
+			/>{:catch}{@render loadError()}{/await}{:else if section === 'settings' || (section === 'notifications' && path[1] === 'settings')}{#await loadPage(() => import('#lib/features/settings/SettingsWorkspace.svelte'))}{@render loading()}{:then Module}<Module.default
 				{api}
 				path={section === 'notifications'
 					? ['settings', 'notifications']
 					: path}
 				session={data.session}
-			/>{:catch}{@render loadError()}{/await}{:else if section === 'compose'}{#await import('#lib/features/composer/ComposerWorkspace.svelte')}{@render loading()}{:then Module}<Module.default
+			/>{:catch}{@render loadError()}{/await}{:else if section === 'compose'}{#await loadPage(() => import('#lib/features/composer/ComposerWorkspace.svelte'))}{@render loading()}{:then Module}<Module.default
 				{api}
 				{path}
 				session={data.session}
-			/>{:catch}{@render loadError()}{/await}{:else if section === 'drafts' || section === 'scheduled'}{#await import('#lib/features/drafts/DraftsWorkspace.svelte')}{@render loading()}{:then Module}<Module.default
+			/>{:catch}{@render loadError()}{/await}{:else if section === 'drafts' || section === 'scheduled'}{#await loadPage(() => import('#lib/features/drafts/DraftsWorkspace.svelte'))}{@render loading()}{:then Module}<Module.default
 				{api}
 				{path}
 				session={data.session}
-			/>{:catch}{@render loadError()}{/await}{:else if section === 'events' && path.length >= 3}{#await import('#lib/features/social/Event.svelte')}{@render loading()}{:then Module}<Module.default
+			/>{:catch}{@render loadError()}{/await}{:else if section === 'events' && path.length >= 3}{#await loadPage(() => import('#lib/features/social/Event.svelte'))}{@render loading()}{:then Module}<Module.default
 				{api}
 				did={path[1]}
 				rkey={path[2]}

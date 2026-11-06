@@ -11,25 +11,35 @@
 		"test": "vitest run",
 		"test:e2e": "playwright test",
 		"test:e2e:app": "playwright test --config tests/playwright-authenticated.config.ts",
-		"test:e2e:live": "node scripts/live-smoke.mjs"
+		"test:e2e:live": "node scripts/live-smoke.mjs",
+		"lint": "svelte-kit sync && eslint . --max-warnings=0",
+		"format": "prettier --write .",
+		"format:check": "prettier --check .",
+		"test:release": "node scripts/check.mjs"
 	},
 	"engines": {
 		"node": ">=22.17"
 	},
 	"devDependencies": {
 		"@axe-core/playwright": "^4.14.0",
+		"@eslint/js": "10.0.1",
 		"@playwright/test": "^1.64.1",
-		"@sentry/vite-plugin": "11.10.0",
+		"@sentry/vite-plugin": "11.11.0",
 		"@sveltejs/adapter-cloudflare": "^8.0.2",
 		"@sveltejs/kit": "^3.1.1",
 		"@sveltejs/vite-plugin-svelte": "^7.3.1",
 		"@types/node": "^26.6.6",
+		"eslint": "10.14.0",
+		"eslint-config-prettier": "10.1.8",
+		"eslint-plugin-svelte": "3.24.0",
 		"fake-indexeddb": "^6.2.7",
+		"globals": "17.14.0",
 		"prettier": "^3.9.10",
 		"prettier-plugin-svelte": "^4.1.1",
 		"svelte": "^5.57.3",
 		"svelte-check": "^4.7.8",
 		"typescript": "^6.0.3",
+		"typescript-eslint": "8.72.1",
 		"vite": "^8.3.5",
 		"vitest": "^5.0.5",
 		"wrangler": "^4.156.1"
@@ -46,5 +56,8 @@
 		"buffer": "6.0.3",
 		"hls.js": "^1.7.4",
 		"seek-bzip": "2.0.0"
+	},
+	"overrides": {
+		"minimatch": "^11.0.5"
 	}
 }

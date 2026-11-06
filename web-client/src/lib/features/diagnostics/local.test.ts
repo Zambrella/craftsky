@@ -124,3 +124,20 @@ describe('protected local browser diagnostics without the SDK', () => {
 		expect(logger).toHaveBeenCalledOnce();
 	});
 });
+
+it('logs expected offline failures at warning level with safe correlation', async () => {
+	const { logFailure } = await import('./local');
+	const { APIError } = await import('#lib/api/transport.ts');
+	const warning = vi.spyOn(console, 'warn').mockImplementation(() => {});
+	const issue = vi.spyOn(console, 'error').mockImplementation(() => {});
+	logFailure(
+		new APIError(0, 'network_unavailable', 'PRIVATE_CANARY'),
+		'social.Profile.profiles.get'
+	);
+	expect(issue).not.toHaveBeenCalled();
+	expect(warning).toHaveBeenCalledOnce();
+	const value = String(warning.mock.calls[0][0]);
+	expect(value).toContain('Expected browser failure');
+	expect(value).toContain('network_unavailable');
+	expect(value).not.toContain('PRIVATE_CANARY');
+});

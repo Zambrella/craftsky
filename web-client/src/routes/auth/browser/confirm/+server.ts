@@ -1,3 +1,4 @@
+import { logServerFailure } from '#lib/server/diagnostics.ts';
 import { redirect, isRedirect } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import {
@@ -72,6 +73,14 @@ export const GET: RequestHandler = async ({ url, cookies, request }) => {
 		store(cookies, url, pending);
 	} catch (error) {
 		if (isRedirect(error)) throw error;
+		logServerFailure(
+			error,
+			'auth.callback',
+			'request',
+			error instanceof UpstreamError
+				? { status: error.status, code: error.code, requestId: error.requestId }
+				: {}
+		);
 		if (
 			error instanceof UpstreamError &&
 			[400, 401, 403, 410].includes(error.status)

@@ -1,5 +1,6 @@
 import {
 	safeEvent,
+	expectedFailure,
 	failureContext,
 	type DiagnosticOperation
 } from './privacy.ts';
@@ -45,7 +46,9 @@ function selected(
 		values[0].stacktrace.frames.push({ ...fallback, in_app: true });
 	const event = safeEvent({ exception: { values } });
 	return {
-		message: 'Unexpected browser error',
+		message: expectedFailure(error)
+			? 'Expected browser failure'
+			: 'Unexpected browser error',
 		exceptions:
 			event?.exception?.values?.map((value) => ({
 				kind: value.type,
@@ -60,7 +63,7 @@ function selected(
 /** Local protection is independent of optional SDK loading and consent. */
 export function logFailure(error: unknown, operation?: DiagnosticOperation) {
 	try {
-		console.error(
+		(expectedFailure(error) ? console.warn : console.error)(
 			JSON.stringify({
 				...selected(error),
 				...failureContext(error, operation)
@@ -77,7 +80,9 @@ export function installLocalDiagnostics(target: Window = window): () => void {
 		fallback?: { filename: string; lineno: number; colno: number }
 	) => {
 		try {
-			console.error(JSON.stringify(selected(error, fallback)));
+			(expectedFailure(error) ? console.warn : console.error)(
+				JSON.stringify(selected(error, fallback))
+			);
 		} catch {
 			// Selection, serialization and the console itself must not affect the app.
 		}

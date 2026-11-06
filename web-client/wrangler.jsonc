@@ -1,17 +1,17 @@
 {
-  "$schema": "./node_modules/wrangler/config-schema.json",
-  "name": "craftsky-public-app",
-  "account_id": "5019e87cb75545b8a7279c42dd92bd90",
-  "compatibility_date": "2026-11-02",
-  "compatibility_flags": ["nodejs_compat"],
-  "main": ".svelte-kit/cloudflare/_worker.js",
-  "assets": { "directory": ".svelte-kit/cloudflare", "binding": "ASSETS" },
-  "workers_dev": false,
-  "preview_urls": true,
-  "keep_vars": true,
-  "upload_source_maps": false,
-  "vars": {
-    "APPVIEW_ORIGIN": "https://appview.craftsky.social",
-    "SUBSCRIPTIONS_ENABLED": "false"
-  }
+	"$schema": "./node_modules/wrangler/config-schema.json",
+	"name": "craftsky-public-app",
+	"account_id": "5019e87cb75545b8a7279c42dd92bd90",
+	"compatibility_date": "2026-11-02",
+	"compatibility_flags": ["nodejs_compat"],
+	"main": ".svelte-kit/cloudflare/_worker.js",
+	"assets": { "directory": ".svelte-kit/cloudflare", "binding": "ASSETS" },
+	"workers_dev": false,
+	"preview_urls": true,
+	"keep_vars": true,
+	"upload_source_maps": false,
+	"vars": {
+		"APPVIEW_ORIGIN": "https://appview.craftsky.social",
+		"SUBSCRIPTIONS_ENABLED": "false"
+	}
 }
