@@ -417,9 +417,11 @@
 				window.dispatchEvent(
 					new CustomEvent('craftsky-profile-updated', { detail: owner })
 				);
-				notify('Profile saved.');
 				if (onSaved) onSaved();
-				else void goto('/profiles/' + encodeURIComponent(owner.did));
+				else {
+					notify('Profile saved.');
+					void goto('/profiles/' + encodeURIComponent(owner.did));
+				}
 			},
 			undefined,
 			'social.ProfileEditor.save'

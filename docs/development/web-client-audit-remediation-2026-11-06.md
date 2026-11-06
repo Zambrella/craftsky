@@ -63,7 +63,31 @@ uses a fresh local editor ID, separate from the server schedule's operation ID.
 - The dependency audit reports zero runtime vulnerabilities and four low
   development-tool entries; no moderate, high, or critical entries remain.
 
-All browser evidence uses Chromium and local synthetic AppView fixtures. Real
-OAuth/PDS interactions, hosted Cloudflare limits, physical-device behavior,
-WebKit/Firefox, screen-reader announcements, and hosted Sentry symbolication
-remain separate checks. The intentionally deferred audit findings remain deferred.
+The release-gate browser evidence above uses Chromium and local synthetic AppView
+fixtures. Hosted Cloudflare limits, physical-device behavior, WebKit/Firefox,
+screen-reader announcements, and hosted Sentry symbolication remain separate
+checks. The intentionally deferred audit findings remain deferred.
+
+## Live smoke follow-up
+
+`npm run test:e2e:live` subsequently passed using the supplied dedicated-account
+credentials, this worktree's Docker AppView, and real Bluesky OAuth/PDS services.
+It verified onboarding and the saved bio through fresh reads, two-image upload
+with first-image rotation and decoded-image checks, publication, like persistence,
+edited text and second-image removal while retaining the first image CID and like,
+then deletion of only this run's post through the UI followed by a fresh 404.
+
+The live run exposed a desktop onboarding defect: the “Profile saved” toast covered
+the next-step button, and pointer hover paused its dismissal. A synthetic fixture
+reproduced the failure. The shared profile editor now leaves confirmation to the
+onboarding step transition; ordinary profile saves retain their toast. Three
+onboarding cases pass on each of Node and Worker, covering desktop and compact
+layouts. Build, lint, type checks, and formatting also pass after the fix.
+
+An intermediate run timed out waiting for the fresh bio read. A subsequent public
+PDS/local-index comparison agreed, and the full rerun passed without increasing
+timeouts or weakening persistence assertions. Startup indexing lag is plausible,
+but the exact timing cause was not established. Live failures now report bounded
+control/status flags without profile text or account data. Private browser
+artifacts remain disabled. The temporary `.env.local` link was removed; the
+supplied `.env` was not changed. No deployment or source-map upload was performed.

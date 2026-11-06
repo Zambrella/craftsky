@@ -21,13 +21,28 @@ export class LiveAPI {
 		return { status, value };
 	}
 	async bio(bio: string) {
-		await expect
-			.poll(
-				async () =>
-					(await this.read<Profile>('/v1/profiles/me')).value?.description,
-				{ timeout: 60_000, intervals: [500, 1000] }
-			)
-			.toBe(bio);
+		let last: { status: number; value?: Profile } | undefined;
+		try {
+			await expect
+				.poll(
+					async () => {
+						last = await this.read<Profile>('/v1/profiles/me');
+						return last.value?.description === bio;
+					},
+					{ timeout: 60_000, intervals: [500, 1000] }
+				)
+				.toBe(true);
+		} catch (error) {
+			console.log(
+				'Live bio verification: ' +
+					JSON.stringify({
+						status: last?.status,
+						hasDescription: typeof last?.value?.description === 'string',
+						matches: last?.value?.description === bio
+					})
+			);
+			throw error;
+		}
 	}
 	async find(text: string): Promise<Post | undefined> {
 		const result = await this.read<{ items: Post[] }>(
